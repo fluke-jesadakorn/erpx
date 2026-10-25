@@ -18,5 +18,5 @@ export default async function PosPage({params,searchParams}:{params:Promise<{hol
   redirect(`${frontHref}?${query}`);
  }
  const movement=search.movement?await posMovementSaleForPresentation(actor, search.movement):null;
- const data=await posWorkspace(actor,(search.detailKind === "pos_sale" ? search.detailId : search.sale)??(movement?String(movement.sale_id):undefined),search.q??'',search.tab??'sale',search.cursor);return <PosConsole key={`${search.tab??'sale'}:${search.sale??''}`} initial={data} base={workspaceBase(publicScope(actor))} initialTab={search.tab} frontHref={frontHref??undefined}/>;
+ const data=await posWorkspace(actor,(search.detailKind === "pos_sale" ? search.detailId : search.sale)??(movement?String(movement.sale_id):undefined),search.q??'',search.tab??'sale',search.cursor);return <PosConsole key={`${actor.companyId}:${actor.branchId}:${actor.assignmentId}:${search.tab??'sale'}:${search.sale??''}`} initial={data} base={workspaceBase(publicScope(actor))} initialTab={search.tab} initialRead={{sale:(search.detailKind === "pos_sale" ? search.detailId : search.sale)??(movement?String(movement.sale_id):undefined),q:search.q,tab:search.tab,cursor:search.cursor}} frontHref={frontHref??undefined}/>;
 }

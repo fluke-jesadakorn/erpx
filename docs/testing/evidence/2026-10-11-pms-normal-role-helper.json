@@ -1,0 +1,43 @@
+{
+  "candidate": {
+    "runtime": "c6844f8813e154beb7361ecc227ddc5cf71fc13fa3f7f489db4bddb5e39f20c8",
+    "verification": "46c5058193fbf0725fec455c3767da4ab6be2906915484594f0de2e063555564",
+    "mainRuntime": "c6844f8813e154beb7361ecc227ddc5cf71fc13fa3f7f489db4bddb5e39f20c8",
+    "mainVerification": "46c5058193fbf0725fec455c3767da4ab6be2906915484594f0de2e063555564",
+    "releaseDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.runtime/releases/2026-10-11T07-59-44-571Z",
+    "releaseId": "2026-10-11T07-59-44-571Z"
+  },
+  "passed": true,
+  "actualCases": [
+    {
+      "project": "desktop",
+      "title": "signed-in as finance /holdings/[holdingSlug]/finance/hospitality-settings \u00b7 finance \u00b7 holding",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-11T08-06-38-433Z/2a2e8724ee5e/result.json",
+      "reportSHA256": "90027f2c35b782faae3e650cad0a2d813c626b5a4851f66685a8b0ae8e8ce5a4"
+    },
+    {
+      "project": "mobile",
+      "title": "signed-in as finance /holdings/[holdingSlug]/finance/hospitality-settings \u00b7 finance \u00b7 holding",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-11T08-06-38-433Z/90c7bc595b8a/result.json",
+      "reportSHA256": "90ad4e3ecf786a41f5377eef8dcd46d6e3817a3a9de58398a6706cc555363966"
+    }
+  ],
+  "receipt": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-11T08-06-38-433Z/receipt.json",
+  "receiptSHA256": "dd4ba89e237bf7fd28141d0154e15f7ed9f607ffa7319acdf17bdfdbf74cc85f",
+  "scope": "Two original normal Finance-role desktop/mobile UAT cases on fresh compiled release. No full178/134/40/capacity acceptance claim.",
+  "sourceChange": "scripts/local/prepare-uat-auth.ts only runtime delta since f13; normal unique role and scope matching, successful ordinary assignment POST and persisted role after reload; legacy auth retained.",
+  "sourceProof": {
+    "runtime": "c6844f8813e154beb7361ecc227ddc5cf71fc13fa3f7f489db4bddb5e39f20c8",
+    "verification": "46c5058193fbf0725fec455c3767da4ab6be2906915484594f0de2e063555564",
+    "priorRuntime": "f13ca97b1401ea244ae616242fcc873b16308d6dce04298c68dfa41918a484f7",
+    "canonicalAlgorithmVerified": true,
+    "onlyOneRuntimeInputChanged": true,
+    "file": "scripts/local/prepare-uat-auth.ts",
+    "beforeSHA256": "54a30ba44f01e7849571ae5487f2d2dd71fc2b7f1cae02197676dd161fc45208",
+    "currentSHA256": "a104aabc11fc0b9c94448ae08084192a1eeec399e99b0eeea9ad610e684b51c8",
+    "applicationUiDomainSqlConfigFixturesAndOtherHelpersByteUnchanged": true,
+    "scope": "Actual runtime hash changed because the owned UAT auth helper is runtime-fingerprinted. This proof does not relabel old f13 receipts as a fresh current-runtime execution. A fresh compiled release and current normal-role proof are still required.",
+    "wholePlanAccepted": false
+  },
+  "wholePlanAccepted": false
+}

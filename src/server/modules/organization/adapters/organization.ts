@@ -1,3 +1,4 @@
+import {policyRead} from "../../identity_access/public/iam-read-snapshot";
 import { platformOwnerProjectionSources as commercePlatformSources } from "../../commerce/public/platform-owner-projection-sources";
 import { platformOwnerProjectionSources as identity_accessPlatformSources } from "../../identity_access/public/platform-owner-projection-sources";
 import { platformOwnerProjectionSources as people_payrollPlatformSources } from "../../people_payroll/public/platform-owner-projection-sources";
@@ -40,11 +41,13 @@ export async function organizationGuard(db: SqlDatabase, companyId: string, key:
   return assertion(db,key,"organization-snapshot",`((${graphSql})::jsonb = ?::jsonb)`,[...args,row!.snapshot]);
 }
 export async function organizationRoster(db: SqlDatabase, companyId: string) {
+  return structuredClone(await policyRead(db,JSON.stringify(["organization-roster",companyId]),async () => {
   const [people, positions] = await Promise.all([
 organizationRosterPeople(db,companyId),
     db.prepare("SELECT p.*,l.level_number FROM organization_positions p JOIN staff_levels l ON l.id=p.level_id AND l.company_id=p.company_id WHERE p.company_id=? ORDER BY l.level_number,p.title,p.id").bind(companyId).all<OrganizationPosition>(),
   ]);
   return {people:people.results,positions:positions.results};
+  }));
 }
 const nodeImpactSql=`SELECT
  (SELECT count(*) FROM organization_nodes WHERE company_id=? AND parent_id=? AND status='active') child_nodes,

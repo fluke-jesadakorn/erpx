@@ -10,7 +10,69 @@
     "projectDefinitions": 492,
     "requiredDefinitions": 483,
     "originalProjectExclusions": 9,
-    "notes": "Explicit reviewed original identities. Runtime acceptance reads this register and never regenerates it from candidate discovery. Fourteen Engineering Business and Retail definitions required an unprepared simulation during definition-only collection; their exact identities already existed in the retained required register. No skip is accepted during actual execution."
+    "notes": "Explicit reviewed original identities. Runtime acceptance reads this register and never regenerates it from candidate discovery. Fourteen Engineering Business and Retail definitions required an unprepared simulation during definition-only collection; their exact identities already existed in the retained required register. No skip is accepted during actual execution.",
+    "extensions": [
+      {
+        "reviewedAt": "2026-10-10",
+        "reason": "Add required desktop/mobile identities for paid PMS worker recovery and the existing Finance sales workspace. Preserve every original required identity and exclusion; definition eligibility does not attest to execution.",
+        "cases": [
+          {
+            "runner": "playwright",
+            "file": "tests/e2e/pms-booking-payment-recovery.spec.ts",
+            "title": "paid guest booking recovers interrupted receipt and independently approved partial refund without duplicate money",
+            "project": "desktop"
+          },
+          {
+            "runner": "playwright",
+            "file": "tests/e2e/pms-booking-payment-recovery.spec.ts",
+            "title": "paid guest booking recovers interrupted receipt and independently approved partial refund without duplicate money",
+            "project": "mobile"
+          },
+          {
+            "runner": "playwright",
+            "file": "tests/e2e/finance-sales-workspace.spec.ts",
+            "title": "English sales workspace opens drawers, calculates invoices and keeps direct forms available",
+            "project": "desktop"
+          },
+          {
+            "runner": "playwright",
+            "file": "tests/e2e/finance-sales-workspace.spec.ts",
+            "title": "English sales workspace opens drawers, calculates invoices and keeps direct forms available",
+            "project": "mobile"
+          }
+        ]
+      },
+      {
+        "reviewedAt": "2026-10-10",
+        "reason": "Retain the explicitly registered gallery review/revocation and unpaid partial cancellation journeys; focused execution evidence is recorded separately.",
+        "cases": [
+          {
+            "runner": "playwright",
+            "file": "tests/e2e/pms-booking.spec.ts",
+            "title": "reviewed hotel and room galleries publish sanitized images and disappear after revocation",
+            "project": "desktop"
+          },
+          {
+            "runner": "playwright",
+            "file": "tests/e2e/pms-booking.spec.ts",
+            "title": "reviewed hotel and room galleries publish sanitized images and disappear after revocation",
+            "project": "mobile"
+          },
+          {
+            "runner": "playwright",
+            "file": "tests/e2e/pms-booking.spec.ts",
+            "title": "cancels one of two booked rooms and preserves the other room and accepted price",
+            "project": "desktop"
+          },
+          {
+            "runner": "playwright",
+            "file": "tests/e2e/pms-booking.spec.ts",
+            "title": "cancels one of two booked rooms and preserves the other room and accepted price",
+            "project": "mobile"
+          }
+        ]
+      }
+    ]
   },
   "cases": [
     {
@@ -796,13 +858,13 @@
     {
       "runner": "playwright",
       "file": "tests/e2e/demo-hospitality-setup.spec.ts",
-      "title": "cashier and kitchen complete a restaurant bill on the existing hotel folio",
+      "title": "cashier and kitchen complete a restaurant bill on the existing hotel guest account",
       "project": "desktop"
     },
     {
       "runner": "playwright",
       "file": "tests/e2e/demo-hospitality-setup.spec.ts",
-      "title": "cashier and kitchen complete a restaurant bill on the existing hotel folio",
+      "title": "cashier and kitchen complete a restaurant bill on the existing hotel guest account",
       "project": "mobile"
     },
     {
@@ -2272,13 +2334,13 @@
     {
       "runner": "playwright",
       "file": "tests/e2e/social-beta.spec.ts",
-      "title": "social post → manual task → evidence → independent acceptance, with AI fallback",
+      "title": "social post \u2192 manual task \u2192 evidence \u2192 independent acceptance, with AI fallback",
       "project": "desktop"
     },
     {
       "runner": "playwright",
       "file": "tests/e2e/social-beta.spec.ts",
-      "title": "social post → manual task → evidence → independent acceptance, with AI fallback",
+      "title": "social post \u2192 manual task \u2192 evidence \u2192 independent acceptance, with AI fallback",
       "project": "mobile"
     },
     {
@@ -2356,13 +2418,13 @@
     {
       "runner": "playwright",
       "file": "tests/e2e/thai-hotel-v1-hotel.spec.ts",
-      "title": "H002 guest journey includes independent folio correction, payment, checkout and Night Audit",
+      "title": "H002 guest journey includes independent guest account correction, payment, checkout and Night Audit",
       "project": "desktop"
     },
     {
       "runner": "playwright",
       "file": "tests/e2e/thai-hotel-v1-hotel.spec.ts",
-      "title": "H002 guest journey includes independent folio correction, payment, checkout and Night Audit",
+      "title": "H002 guest journey includes independent guest account correction, payment, checkout and Night Audit",
       "project": "mobile"
     },
     {
@@ -2909,6 +2971,54 @@
       "runner": "playwright",
       "file": "tests/e2e/workspace-switching.spec.ts",
       "title": "switches areas and preserves roles",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms-booking-payment-recovery.spec.ts",
+      "title": "paid guest booking recovers interrupted receipt and independently approved partial refund without duplicate money",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms-booking-payment-recovery.spec.ts",
+      "title": "paid guest booking recovers interrupted receipt and independently approved partial refund without duplicate money",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/finance-sales-workspace.spec.ts",
+      "title": "English sales workspace opens drawers, calculates invoices and keeps direct forms available",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/finance-sales-workspace.spec.ts",
+      "title": "English sales workspace opens drawers, calculates invoices and keeps direct forms available",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms-booking.spec.ts",
+      "title": "reviewed hotel and room galleries publish sanitized images and disappear after revocation",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms-booking.spec.ts",
+      "title": "reviewed hotel and room galleries publish sanitized images and disappear after revocation",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms-booking.spec.ts",
+      "title": "cancels one of two booked rooms and preserves the other room and accepted price",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms-booking.spec.ts",
+      "title": "cancels one of two booked rooms and preserves the other room and accepted price",
       "project": "mobile"
     }
   ],

@@ -1,0 +1,29 @@
+{
+  "scope": "Supplemental official compiled workflow only; not original 178-case acceptance",
+  "rawReceipt": ".scratch/dev/test-suites/browser/2026-10-11T19-11-05-561Z/receipt.json",
+  "rawReceiptSha256": "c8fc81dd6a1174a92234a73502508272939e7e8c8c4e8176987a7aab57bc5c6b",
+  "runtime": "dd24b6cedc106cc88cc22638527082c67f63c8aeaf49ac8ab8470454de9e04af",
+  "verification": "18f2654253e1db85c99fb794c399b7fda559a612634641bdf7fed558a98c4f6f",
+  "passed": true,
+  "cleanupFailures": [],
+  "cases": [
+    {
+      "project": "desktop",
+      "title": "keeps hotel drafts scoped while refresh fences stale cash and an inspected higher room type upgrades through the drawer",
+      "passed": true,
+      "report": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-11T19-11-05-561Z/0c9a56e1ef4c/result.json"
+    },
+    {
+      "project": "mobile",
+      "title": "keeps hotel drafts scoped while refresh fences stale cash and an inspected higher room type upgrades through the drawer",
+      "passed": true,
+      "report": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-11T19-11-05-561Z/f1a1cb5f3cbe/result.json"
+    }
+  ],
+  "firstFailureRetained": "2026-10-12-pms-permanent-ui-first-attempt.json",
+  "businessAssertionsPreserved": true,
+  "testBudgetSeconds": 90,
+  "fixtureHydrationReadinessAdded": true,
+  "originalNative1342AndBrowser178RemainRequired": true,
+  "finalAggregateAcceptancePending": true
+}

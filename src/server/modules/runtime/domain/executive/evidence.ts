@@ -20,9 +20,9 @@ export const hotelOccupancyFields = ["property.id", "property.name", "property.c
 export const hotelRoomRevenueMetrics = ["hotel-adr", "hotel-revpar"] as const;
 export type HotelRoomRevenueMetric = typeof hotelRoomRevenueMetrics[number];
 export const hotelRoomRevenueFields = [...hotelOccupancyFields, "night.roomRevenueMinor", "entry.kind", "entry.date", "entry.net", "entry.sourceKey", "entry.originalId"];
-export const hotelFolioBalanceMetric = "hotel-folio-balance" as const;
-export const hotelFolioBalanceProviderId = "pms-open-folios";
-export const hotelFolioBalanceFields = ["folio.id", "folio.state", "folio.version", "property.name", "property.currency", "posted_receivable_balance_minor"];
+export const hotelGuestAccountBalanceMetric = "hotel-guest-account-balance" as const;
+export const hotelGuestAccountBalanceProviderId = "pms-open-guestAccounts";
+export const hotelGuestAccountBalanceFields = ["guest_account.id", "guest_account.state", "guest_account.version", "property.name", "property.currency", "posted_receivable_balance_minor"];
 export const hotelNightAuditBlockersMetric = "hotel-night-audit-blockers" as const;
 export const hotelNightAuditBlockersProviderId = "pms-night-audit-blockers";
 export const hotelNightAuditBlockersFields = ["property.id", "property.name", "property.branch_id", "job.business_date", "job.state", "job.error_code", "night.version"];
@@ -119,7 +119,7 @@ export const overdueInvoicesQuerySchema = z.object({ metric: z.literal(overdueIn
 export const payrollSummaryQuerySchema = z.object({ metric: z.literal(payrollSummaryMetric), ...commonFilters }).strict();
 export const peopleLeaveOvertimeQuerySchema = z.object({ metric: z.enum([approvedLeaveMetric, authorizedOvertimeMetric]), ...commonFilters }).strict();
 export const hotelOccupancyQuerySchema = z.object({ metric: z.enum([hotelOccupancyMetric, ...hotelRoomRevenueMetrics]), ...commonFilters }).strict();
-export const hotelFolioBalanceQuerySchema = z.object({ metric: z.literal(hotelFolioBalanceMetric), ...commonFilters }).strict();
+export const hotelGuestAccountBalanceQuerySchema = z.object({ metric: z.literal(hotelGuestAccountBalanceMetric), ...commonFilters }).strict();
 export const hotelNightAuditBlockersQuerySchema = z.object({ metric: z.literal(hotelNightAuditBlockersMetric), ...commonFilters }).strict();
 export const availableStockMetric = "available-stock" as const;
 export const availableStockProviderId = "inventory-available-stock";
@@ -302,7 +302,7 @@ export function hotelOccupancyCursorValue(cursor?: string) {
 export function encodeHotelOccupancyCursor(row: Pick<HotelOccupancyEvidenceRow, "business_date" | "id">) {
     return Buffer.from(JSON.stringify({ businessDate: row.business_date, id: row.id })).toString("base64url");
 }
-export type HotelFolioBalanceEvidenceRow = {
+export type HotelGuestAccountBalanceEvidenceRow = {
     id: string;
     property_id: string;
     property_name: string;
@@ -311,7 +311,7 @@ export type HotelFolioBalanceEvidenceRow = {
     balance_minor: string;
     version: number;
 };
-export function hotelFolioBalanceCursorValue(cursor?: string) {
+export function hotelGuestAccountBalanceCursorValue(cursor?: string) {
     if (!cursor)
         return null;
     try {
@@ -325,7 +325,7 @@ export function hotelFolioBalanceCursorValue(cursor?: string) {
         throw new BusinessRuleError(422, "EVIDENCE_CURSOR_INVALID", "The source record cursor is invalid. Refresh the evidence list.");
     }
 }
-export function encodeHotelFolioBalanceCursor(row: Pick<HotelFolioBalanceEvidenceRow, "property_id" | "id">) {
+export function encodeHotelGuestAccountBalanceCursor(row: Pick<HotelGuestAccountBalanceEvidenceRow, "property_id" | "id">) {
     return Buffer.from(JSON.stringify({ propertyId: row.property_id, id: row.id })).toString("base64url");
 }
 export type HotelNightAuditBlockerEvidenceRow = {

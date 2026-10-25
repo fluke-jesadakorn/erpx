@@ -1,14 +1,14 @@
 import { recordCanonicalHref } from "@/lib/record-drawer";
 import { Table } from "@/components/ui/foundation";
 import { RecordLink as Link } from "@/components/records/record-link";
-import { WorkReturn } from "@/components/workplace/work-return";
+import { WorkReturn } from "@/components/records/loaders/workplace--work-return";
 import { TransitNextAction } from "@/components/workplace/transit-next-action";
 import { requireWorkContext, publicScope } from "@/server/modules/identity_access/public/authorization";
 import { workspaceBase } from "@/lib/workspace";
 import { transitDetail, transitWorkItem } from "@/server/modules/inventory/public/inventory-transit";
 import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { minorToDecimal } from "@/lib/finance-money";
-import { TransitConsole } from "@/components/modules/transit-console";
+import { TransitConsole } from "@/components/records/loaders/modules--transit-console";
 import { PageContent, Card, TableFrame } from "@/components/ui/foundation";
 export const dynamic = "force-dynamic";
 export default async function Page({

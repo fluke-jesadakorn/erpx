@@ -150,6 +150,49 @@ it('does not lose revisions under concurrent writers and invalidates on truncate
   const fence = (await workCacheFence(db))!; await db.pool.query('TRUNCATE flow_defaults');
   expect((await workCacheFence(db))!.revision).not.toBe(fence.revision);
 });
+it('fences warm reads after scoped commits, preserves global edits and rolls scoped revisions back', async () => {
+  await db.pool.query('CREATE TABLE cache_scoped(id text PRIMARY KEY)');
+  const client = await db.pool.connect();
+  const revision = async () => Number((await db.pool.query("SELECT revision FROM work_cache_revisions WHERE table_name='cache_scoped'")).rows[0].revision);
+  const baseline = async () => Number((await db.pool.query("SELECT revision FROM work_cache_revision_baselines WHERE table_name='cache_scoped'")).rows[0].revision);
+  try {
+    await db.pool.query('SELECT ensure_work_cache_coverage()');
+    const before = await revision(), originalBaseline = await baseline();
+    const load = vi.fn(async () => snapshot(String((await db.pool.query('SELECT count(*) n FROM cache_scoped')).rows[0].n)));
+    expect(await cachedWorkSnapshot(actor, db, load)).toEqual(snapshot('0'));
+    expect(await cachedWorkSnapshot(actor, db, load)).toEqual(snapshot('0')); expect(load).toHaveBeenCalledTimes(1);
+    await client.query('BEGIN');
+    await client.query("SELECT set_config('erpx.pms_write','on',true),set_config('erpx.pms_property','mock-cache-property',true)");
+    await client.query("INSERT INTO cache_scoped VALUES('committed')");
+    expect(await revision()).toBe(before); await client.query('COMMIT');
+    expect(await revision()).toBe(before + 1); expect(await baseline()).toBe(originalBaseline);
+    expect(await cachedWorkSnapshot(actor, db, load)).toEqual(snapshot('1')); expect(load).toHaveBeenCalledTimes(2);
+    await client.query('BEGIN');
+    await client.query("SELECT set_config('erpx.pms_write','on',true),set_config('erpx.pms_property','rollback-property',true)");
+    await client.query("INSERT INTO cache_scoped VALUES('rolled-back')"); await client.query('ROLLBACK');
+    expect(await revision()).toBe(before + 1);
+    expect((await db.pool.query("SELECT count(*) n FROM work_cache_revision_scopes WHERE table_name='cache_scoped' AND property_id='rollback-property'")).rows[0].n).toBe(0);
+    expect((await client.query("SELECT NULLIF(current_setting('erpx.pms_property',true),'') scope,NULLIF(current_setting('erpx.pms_write',true),'') write")).rows[0]).toEqual({scope:null,write:null});
+    await client.query("INSERT INTO cache_scoped VALUES('global')");
+    expect(await revision()).toBe(before + 2); expect(await baseline()).toBe(originalBaseline + 1);
+    await client.query('BEGIN');
+    await client.query("SELECT set_config('erpx.pms_write','on',true),set_config('erpx.pms_property','mock-cache-property',true)");
+    await client.query('TRUNCATE cache_scoped'); await client.query('COMMIT');
+    expect(await revision()).toBe(before + 3); expect(await baseline()).toBe(originalBaseline + 2);
+    expect(await cachedWorkSnapshot(actor, db, load)).toEqual(snapshot('0'));
+    await db.pool.query("UPDATE work_cache_revisions SET revision=revision+7 WHERE table_name='cache_scoped'");
+    expect(await revision()).toBe(before + 10);
+    expect((await db.pool.query("SELECT work_cache_tracks('work_cache_revision_baselines') base,work_cache_tracks('work_cache_revision_scopes') scopes")).rows[0]).toEqual({base:false,scopes:false});
+    await db.pool.query("DELETE FROM work_cache_revisions WHERE table_name='cache_scoped'");
+    expect((await db.pool.query("SELECT count(*) n FROM work_cache_revision_scopes WHERE table_name='cache_scoped'")).rows[0].n).toBe(0);
+    expect(await workCacheFence(db)).toBeNull();
+    await db.pool.query('SELECT ensure_work_cache_coverage()'); expect(await workCacheFence(db)).not.toBeNull();
+  } finally {
+    await client.query('ROLLBACK').catch(() => {}); client.release();
+    await db.pool.query('DROP TABLE cache_scoped');
+    await db.pool.query("DELETE FROM work_cache_revisions WHERE table_name='cache_scoped'");
+  }
+});
 it('does not join a pre-expiry fill after a time boundary without a commit', async () => {
   const deadline = Date.now() + 220;
   await db.prepare("INSERT INTO assignments(id,user_id,role,modules_json,company_id,valid_from,valid_until,scope_kind) VALUES('cache-expiring-fill','expiring-fill','employee','[]','cache-test',0,?,'holding')").bind(deadline).run();
@@ -271,6 +314,10 @@ it('expires local results at emergency authority deadlines without a database wr
 
 it('bounds local entries and retains the most recently read actor when evicting', async () => {
   redis.available = false;
+  // Keep the independent TTL/minute-boundary policy fixed while this test
+  // spends time inserting 128 entries through real PostgreSQL fences.
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-01-01T00:00:10.000Z'));
   const actors = Array.from({ length: 129 }, (_, i) => ({ ...actor, userId: `${actor.userId}-${i}` }));
   const load = vi.fn(async () => snapshot());
   for (const reader of actors.slice(0, 128)) await cachedWorkSnapshot(reader, db, load);
@@ -339,4 +386,26 @@ it('still fails closed if an excluded health table loses revision coverage', asy
   } finally {
     await db.pool.query('CREATE TRIGGER work_cache_change AFTER INSERT OR UPDATE OR DELETE ON legal_runtime_health FOR EACH ROW EXECUTE FUNCTION work_cache_changed()');
   }
+});
+
+it('Home cache uses the same transactional fence: rollback stays warm and commit invalidates every reader', async () => {
+  // This case checks transaction invalidation; freeze time away from the
+  // independent minute expiry covered by the authority deadline cases above.
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(Math.floor(Date.now() / 60_000) * 60_000 + 30_000);
+  const { cachedHomeRead } = await import('../src/server/modules/work_projection/public/home-cache');
+  redis.available = false;
+  const load = vi.fn(async () => ({ posts: [{ id: '2' }, { id: '1' }], count: 2 }));
+  const read = () => cachedHomeRead(actor, db, 'integration-feed', { limit: 8 }, load, { complete: () => true });
+  expect(await read()).toEqual({ posts: [{ id: '2' }, { id: '1' }], count: 2 });
+  const client = await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query("UPDATE flow_defaults SET primary_user_id='home-rollback' WHERE company_id='cache-test'");
+    await client.query('ROLLBACK');
+  } finally { client.release(); }
+  await read(); expect(load).toHaveBeenCalledTimes(1);
+  await insert();
+  await read(); expect(load).toHaveBeenCalledTimes(2);
+  await read(); expect(load).toHaveBeenCalledTimes(2);
 });

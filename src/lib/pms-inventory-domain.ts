@@ -1,4 +1,36 @@
-import { records, type Snapshot } from "./pms-model";
+import { records, type Snapshot, type Stay } from "./pms-model";
+/** Legacy stays have one room type for their entire stay. */
+export function stayTypeOnDate(stay: Stay, date: string) {
+  return stay.roomTypePeriods?.find(period => period.from <= date && period.to > date)?.typeId ?? stay.typeId;
+}
+export function groupPickupCount(s: Snapshot, blockId: string, date: string, excludeStay = "") {
+  const block = records(s, "block").find(row => row.id === blockId);
+  if (!block) return 0;
+  const picked = new Set(block.data.pickedStayIds);
+  const live = records(s, "stay").filter(row => row.id !== excludeStay && picked.has(row.id) &&
+    ["reserved", "in_house"].includes(row.data.state));
+  const used = new Set(live.filter(row => row.data.arrival <= date && row.data.departure > date &&
+    stayTypeOnDate(row.data, date) === block.data.typeId).map(row => row.id));
+  const liveIds = new Set(live.map(row => row.id));
+  for (const hold of records(s, "block")) {
+    if (hold.data.state !== "active" || !hold.data.bookingChangeId || hold.data.from > date || hold.data.to <= date ||
+        hold.data.expiresAt && hold.data.expiresAt <= (s.asOf ?? 0)) continue;
+    for (const claim of hold.data.groupPickupClaims ?? [])
+      if (claim.blockId === blockId && liveIds.has(claim.stayId)) used.add(claim.stayId);
+  }
+  return used.size;
+}
+/** Credit only this stay's unused allotment, on nights still held by its group. */
+export function stayGroupBlock(s: Snapshot, stayId: string, typeId: string, date: string) {
+  return records(s, "block").find(row => row.data.kind === "group" && row.data.state === "active" &&
+    row.data.pickedStayIds.includes(stayId) && row.data.typeId === typeId && row.data.from <= date &&
+    row.data.to > date && row.data.releaseDate > s.property.businessDate &&
+    (!row.data.expiresAt || row.data.expiresAt > (s.asOf ?? 0)));
+}
+export function stayGroupAllowance(s: Snapshot, stayId: string, typeId: string, date: string) {
+  const block = stayGroupBlock(s, stayId, typeId, date);
+  return block ? Math.max(0, block.data.quantity - groupPickupCount(s, block.id, date, stayId)) : null;
+}
 export function availability(
   s: Snapshot,
   typeId: string,
@@ -23,7 +55,7 @@ export function availability(
   const occupied = records(s, "stay").filter(
     (r) =>
       r.id !== excludeStay &&
-      r.data.typeId === typeId &&
+      stayTypeOnDate(r.data, date) === typeId &&
       ["reserved", "in_house"].includes(r.data.state) &&
       r.data.arrival <= date &&
       r.data.departure > date,
@@ -32,6 +64,7 @@ export function availability(
     .filter(
       (r) =>
         r.id !== excludeBlock &&
+        !r.data.quotaOnly &&
         r.data.kind === "group" &&
         r.data.state === "active" &&
         (!r.data.expiresAt || r.data.expiresAt > (s.asOf ?? 0)) &&
@@ -46,15 +79,7 @@ export function availability(
         Math.max(
           0,
           r.data.quantity -
-            r.data.pickedStayIds.filter((id) => {
-              const stay = records(s, "stay").find((x) => x.id === id);
-              return (
-                stay &&
-                ["reserved", "in_house"].includes(stay.data.state) &&
-                stay.data.arrival <= date &&
-                stay.data.departure > date
-              );
-            }).length,
+            groupPickupCount(s, r.id, date, excludeStay),
         ),
       0,
     );

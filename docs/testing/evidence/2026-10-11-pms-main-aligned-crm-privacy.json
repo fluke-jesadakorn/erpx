@@ -1,0 +1,90 @@
+{
+  "checkedAt": "2026-10-10T22:43:14.174Z",
+  "candidate": {
+    "runtime": "dae9ff8f263604e859a87b37c3a9b10a1a3ec35f25e7669ca81c53c5d34ae405",
+    "verification": "d338abbdd6e4fb68b035f2003c0337f66e54f7b3f2615dfa780eec899d15bd2e",
+    "mainRuntime": "dae9ff8f263604e859a87b37c3a9b10a1a3ec35f25e7669ca81c53c5d34ae405",
+    "mainVerification": "d338abbdd6e4fb68b035f2003c0337f66e54f7b3f2615dfa780eec899d15bd2e",
+    "releaseDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.runtime/releases/2026-10-10T21-33-53-720Z",
+    "releaseId": "2026-10-10T21-33-53-720Z"
+  },
+  "status": "passed",
+  "scope": "Supplemental9nativePostgreSQL CRM cases outside original1342PMS selection. Existing tests unchanged, same frozen runtime/verification; direct application service/nativeDB mockRuntime tests, not a browser or external guest consent signoff.",
+  "command": "bun scripts/local/test.ts integration tests/crm.test.ts tests/crm-marketing-analytics.test.ts",
+  "observedTestExitCode": 0,
+  "tests": 9,
+  "files": 2,
+  "sourceFiles": [
+    {
+      "file": "tests/crm.test.ts",
+      "sha256": "fa00c2668389aefaa9637b931cca6edac76150dda5182bc815277899c0ad2039",
+      "passed": 4,
+      "cases": [
+        {
+          "title": "qualifies once and requires approved quotation plus confirmed source sales order before winning",
+          "line": 15
+        },
+        {
+          "title": "serializes qualification and preserves immutable evidence through loss and reopening",
+          "line": 16
+        },
+        {
+          "title": "scopes prospects and blocks ineligible owners until manager reassignment",
+          "line": 17
+        },
+        {
+          "title": "delivers reassignment to the actual recipient through Work, Inbox and Calendar, and removes disqualified work",
+          "line": 18
+        }
+      ]
+    },
+    {
+      "file": "tests/crm-marketing-analytics.test.ts",
+      "sha256": "50bf3e0e5997c89937c83f64e73866fce17dd8e148f59956b04cf0d1e0b58267",
+      "passed": 5,
+      "cases": [
+        {
+          "title": "keeps a confirmed PMS win after cancellation and only counts posted journal revenue",
+          "line": 17
+        },
+        {
+          "title": "counts repeat hotel guests only after two linked stays have checked in",
+          "line": 47
+        },
+        {
+          "title": "reports first and last touch separately and leaves ROI empty without linked cost",
+          "line": 71
+        },
+        {
+          "title": "uses the Thai business day for time-stamped lead cohorts",
+          "line": 107
+        },
+        {
+          "title": "keeps hotel history private until authority is reviewed and hides it after withdrawal",
+          "line": 114
+        }
+      ]
+    }
+  ],
+  "logs": {
+    "file": ".scratch/dev/pms-main-aligned-candidate/crm-guest-privacy.log",
+    "sha256": "fbe480f0d6bf2bb5871deaccd0365a7a09ec1913b5041981aa6a5e3ffbaf1e94"
+  },
+  "sourceAfter": {
+    "runtime": "dae9ff8f263604e859a87b37c3a9b10a1a3ec35f25e7669ca81c53c5d34ae405",
+    "verification": "d338abbdd6e4fb68b035f2003c0337f66e54f7b3f2615dfa780eec899d15bd2e",
+    "mainRuntime": "dae9ff8f263604e859a87b37c3a9b10a1a3ec35f25e7669ca81c53c5d34ae405",
+    "mainVerification": "d338abbdd6e4fb68b035f2003c0337f66e54f7b3f2615dfa780eec899d15bd2e"
+  },
+  "requiredNativePmsCountUnchanged": 1342,
+  "importantAssertions": [
+    "Independent reviewed PMS/CRM identity links",
+    "No hotel stay history before explicit sharing grant",
+    "Replay sharing grant once",
+    "Foreign Branch cannot see link or revoke it",
+    "Revocation hides stay history immediately",
+    "Append-only grant/revocation sequence cannot be deleted",
+    "Confirmed PMS win/cancellation and posted Finance revenue remain separately attributed"
+  ],
+  "wholePlanAccepted": false
+}

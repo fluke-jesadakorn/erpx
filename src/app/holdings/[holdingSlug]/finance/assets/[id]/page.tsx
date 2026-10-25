@@ -1,7 +1,7 @@
-import { FinanceRecordWorkspace, FinanceLegacyHeading } from "@/components/finance/finance-record-workspace";
+import { FinanceRecordWorkspace, FinanceLegacyHeading } from "@/components/records/loaders/finance--finance-record-workspace";
 import { RecordLink as Link } from "@/components/records/record-link";
 import {FeaturePage} from "@/components/features/feature-page";
-import {FinanceAssetConsole} from "@/components/modules/finance-asset-console";
+import { FinanceAssetConsole } from "@/components/records/loaders/modules--finance-asset-console";
 import {workspaceBase} from "@/lib/workspace";
 import {hasPermission} from "@/lib/permissions";
 import {publicScope,requireWorkContext} from "@/server/modules/identity_access/public/authorization";

@@ -1,6 +1,13 @@
+import { delimiter } from "node:path";
+
 /** Pure units cannot inherit a database administrator or ambient PostgreSQL connection. */
 export function vitestChildEnvironment(environment: Record<string, string | undefined>, postgres: boolean): Record<string, string | undefined> {
   const selected = { ...environment };
+  const postgresTools = selected.ERPX_TEST_PG_BIN?.trim();
+  if (postgresTools) {
+    const existingPath = selected.PATH?.split(delimiter).filter(Boolean) ?? [];
+    selected.PATH = [postgresTools, ...existingPath.filter(entry => entry !== postgresTools)].join(delimiter);
+  }
   if (!postgres) for (const key of ["ERPX_TEST_ADMIN_URL", "PGHOST", "PGPORT", "PGDATABASE", "PGUSER", "PGPASSWORD", "PGSERVICE", "PGSERVICEFILE", "PGPASSFILE"]) delete selected[key];
   return selected;
 }
@@ -12,6 +19,7 @@ const ambientRuntimeNames = new Set([
   "ERPX_DATABASE_MANIFEST", "ERPX_MIGRATION_DATABASE_MANIFEST", "ERPX_DATA_DIR", "ERPX_PROCESS_ROLE", "ERPX_ENVIRONMENT",
   "ERPX_PUBLIC_ORIGIN", "ERPX_MARKETING_ORIGIN", "ERPX_FRONT_PMS_ORIGIN", "ERPX_FRONT_POS_ORIGIN", "ERPX_PUBLIC_BETA",
   "ERPX_EMAIL_ADAPTER", "ERPX_AI_ADAPTER", "ERPX_PAYROLL_ADAPTER", "ERPX_POS_ROOM_CHARGE_PILOT_ENABLED",
+  "ERPX_PMS_PROVIDER_FIXTURE", "PMS_STRIPE_BOOKING_ENABLED",
   "ERPX_ATTACHMENTS_V2", "ERPX_ATTACHMENT_UPLOAD_FREEZE", "BETTER_AUTH_URL", "BETTER_AUTH_SECRET", "NEXT_DEPLOYMENT_ID",
   "PORT", "HOSTNAME", "DATABASE_URL", "PGHOST", "PGPORT", "PGDATABASE", "PGUSER", "PGPASSWORD", "PGSERVICE", "PGSERVICEFILE", "PGPASSFILE",
   "GOOGLE_APPLICATION_CREDENTIALS",
@@ -43,6 +51,16 @@ export function browserChildEnvironment(ambient: Environment, overrides: Environ
   if (overrides.ERPX_EMAIL_ADAPTER === "sandbox" && overrides.ERPX_ENVIRONMENT === "local" && ["http://127.0.0.1:3102", "http://127.0.0.1:3104"].includes(overrides.ERPX_PUBLIC_ORIGIN ?? "") && /\/\.runtime\/browser\/[a-f0-9]{12}$/.test(overrides.ERPX_DATA_DIR ?? "") && overrides.RESEND_API_KEY === "deterministic-browser-booking") {
     selected.RESEND_API_KEY = overrides.RESEND_API_KEY;
     selected.RESEND_FROM = overrides.RESEND_FROM;
+  }
+  if (overrides.ERPX_PMS_PROVIDER_FIXTURE === '1') {
+    if (overrides.ERPX_ENVIRONMENT !== 'local' || overrides.ERPX_PUBLIC_ORIGIN !== 'http://127.0.0.1:3104' ||
+        !/\/\.runtime\/browser\/[a-f0-9]{12}$/.test(overrides.ERPX_DATA_DIR ?? '') ||
+        overrides.POS_STRIPE_TEST_SECRET_KEY !== 'sk_test_erpx_fictional_provider' ||
+        overrides.POS_STRIPE_TEST_WEBHOOK_SECRET !== 'whsec_erpx_fictional_provider' || overrides.POS_STRIPE_LIVE_SECRET_KEY)
+      throw new Error('EXACT_FICTIONAL_BROWSER_PROVIDER_REQUIRED');
+    selected.POS_STRIPE_TEST_SECRET_KEY = overrides.POS_STRIPE_TEST_SECRET_KEY;
+    selected.POS_STRIPE_TEST_WEBHOOK_SECRET = overrides.POS_STRIPE_TEST_WEBHOOK_SECRET;
+    selected.PMS_STRIPE_BOOKING_ENABLED = 'true';
   }
   const nodeEnvironment = overrides.NODE_ENV ?? ambient.NODE_ENV ?? "development";
   if (nodeEnvironment !== "development" && nodeEnvironment !== "production" && nodeEnvironment !== "test") throw new Error("INVALID_BROWSER_NODE_ENV");

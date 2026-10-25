@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { searchRoleOptions } from "../helpers/context-switching-browser";
+import { matchingRoleOptions } from "../helpers/context-switching-browser";
 
 test("health endpoint is available and not cached", async ({ request }) => {
   const response = await request.get("/api/health");
@@ -70,8 +70,8 @@ test("seeded employee signs in through the UI and keeps their session after relo
   await expect(page).toHaveURL(/\/(?:holdings\/[^/]+\/home|work-role\?.*)$/);
   if(page.url().includes('/work-role')){
     await expect(page.getByRole('heading',{name:'Choose your work role',exact:true})).toBeVisible();
-    const roles = await searchRoleOptions(page, 'people manager');
-    await roles.getByRole('option').click();
+    const roles = await matchingRoleOptions(page, 'people manager');
+    await roles.click();
   }
   await expect(page).toHaveURL(/\/holdings\/[^/]+\/home$/);
   await expect(page.getByRole("main")).toBeVisible();

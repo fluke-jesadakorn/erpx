@@ -1,13 +1,16 @@
+import { accountAuthoritySnapshot } from './account-authority-snapshot';
+import { memoizeInRequest } from "../../runtime/public/runtime/request-memo";
 import {identitySnapshotSources as organizationSnapshotSources} from '../../organization/public/identity-snapshot-sources';
 const organizationSources=organizationSnapshotSources();
 import { measureReadPhase } from "@/server/modules/runtime/public/runtime/read-metrics";
-import { refreshDirectoryMember } from "@/server/modules/identity_access/public/iam-directory-refresh";
+import { accountDirectoryGate } from "@/server/modules/identity_access/public/iam-directory-refresh";
 import type { PostgresDatabase } from "@/server/modules/runtime/public/runtime/postgres";
 import { loadIamAuthority, iamRoles } from "@/server/modules/identity_access/public/iam-store";
 import { readCompanyPreference, readWorkspacePreference } from "@/server/modules/work_projection/public/workspace-preferences";
 import { cache } from "react";
 import { ApiError } from "@/server/modules/runtime/public/http";
 import { initializeWorkSelection } from "@/server/modules/work_projection/public/work-role-store";
+import type { RoleRevision } from "@/lib/iam";
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
 import { betaAccess } from "@/server/modules/identity_access/public/beta-access";
 import { assertProductionFeatureRoute } from "@/server/modules/pms/public/hospitality-rollout";
@@ -19,10 +22,11 @@ import { createAuth } from "@/server/modules/identity_access/public/auth";
 import { runtimeEnv, holdingBindingBySlug, holdingResources, type HoldingId } from "@/server/modules/runtime/public/runtime";
 export type { AssignmentScopeKind, ResolvedWorkspaceScope, WorkContext, AuthorizedWorkspace, PlatformContext, WorkAssignment, WorkspaceCompany, WorkspaceResolutionOptions, AccountAccessContext } from "../domain/authorization";
 export { publicScope } from "../domain/authorization";
-import type { WorkContext, AuthorizedWorkspace, PlatformContext, WorkAssignment, OrganizationNode, WorkspaceCompany, WorkspaceResolutionOptions, AccountAccessContext } from "../domain/authorization";
+import type { WorkspaceGrantFact, WorkContext, AuthorizedWorkspace, PlatformContext, WorkAssignment, OrganizationNode, WorkspaceCompany, WorkspaceResolutionOptions, AccountAccessContext } from "../domain/authorization";
 import { createValidateNodeLineage, createResolveWorkspaceScope, createAssertFrontCompany, createWorkspaceCompanies, createRequestedHoldingScope, createAccountAccess, createWorkContext, createAuthorizedWorkspaces, createIdentitySession, createPlatformContext, createCanEnterManageErpx, createManageErpxContext, createFirstAuthorizedWorkspace } from "../application/authorization";
 const identityError = (status: number, code: string, message: string) => new ApiError(status, code, message);
-export const currentSession = cache(() => measureReadPhase('session', readCurrentSession));
+const sessionMemoKey = Symbol.for("erpx.identity.session");
+export const currentSession = cache(() => memoizeInRequest(sessionMemoKey, () => measureReadPhase('session', readCurrentSession)));
 async function readCurrentSession() { return createIdentitySession({ headers, authenticate: async (origin, requestHeaders) => (await createAuth(origin)).api.getSession({ headers: requestHeaders }) })(); }
 async function findNode(database: SqlDatabase, kind: OrganizationNode["kind"], slug: string, companyId?: string) {
     return database
@@ -98,26 +102,23 @@ async function listAuthorizedWorkspaces(database: SqlDatabase, holdingSlug: stri
             branch_slug: string | null;
         }>()).results })(holdingSlug, assignments);
 }
+/** Current grants and their published definitions share one invocation-local SQL snapshot. */
+export async function workspaceGrantsForAccount(write: SqlDatabase, companyId: string, userId: string, now = Date.now()): Promise<{ rows: WorkspaceGrantFact[]; roles: Map<string, RoleRevision> }> {
+    const {rows,roles}=await accountAuthoritySnapshot(write,companyId,userId,now);
+    return {rows,roles};
+}
+
 export async function requireAccountAccess(requested: HoldingWorkspaceScope | string, options: WorkspaceResolutionOptions = {}): Promise<AccountAccessContext> {
     let write: SqlDatabase;
-    return createAccountAccess({ session: currentSession, requested: requestedHoldingScope, scope: resolveWorkspaceScope, ready: async (scope) => { write = (await holdingResources(scope.holdingId)).write; }, now: Date.now, error: identityError, revoked: async (scope, sessionId, userId) => Boolean(await write.prepare('SELECT 1 FROM iam_revoked_sessions WHERE session_id=? AND company_id=? AND user_id=?').bind(sessionId, scope.companyId, userId).first()), refresh: async (scope, userId) => refreshDirectoryMember(write as PostgresDatabase, scope.companyId, userId), assignments: async (scope, userId, now) => (await write.prepare(`SELECT a.*,c.display_name company_name,n.display_name scope_name,b.display_name branch_name FROM assignments a
- ${organizationSources.authorization_organization_nodes_c_join} ON c.id=a.company_id AND c.kind='company' AND c.status='active'
- LEFT ${organizationSources.authorization_organization_nodes_n_join} ON n.id=a.scope_node_id LEFT ${organizationSources.authorization_organization_nodes_b_join} ON b.id=n.branch_id AND b.id!=n.id
- WHERE a.user_id=? AND a.company_id=? AND a.revoked_at IS NULL AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(a.user_id,a.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND a.valid_from<=? AND a.valid_until>?
- AND (a.scope_kind='holding' OR (n.company_id=a.company_id AND n.status='active' AND (n.branch_id IS NULL OR EXISTS(SELECT 1 ${organizationSources.authorization_organization_nodes_b_from} WHERE b.id=n.branch_id AND b.company_id=a.company_id AND b.status='active')))) ORDER BY a.role,a.id`).bind(userId, scope.companyId, now, now).all<{
-            id: string;
-            role: string;
-            company_id: string;
-            branch_id: string | null;
-            modules_json: string;
-            scope_kind: "holding" | "branch" | "department";
-            scope_node_id: string | null;
-            version: number;
-            valid_until: number;
-            company_name: string;
-            scope_name: string | null;
-            branch_name: string | null;
-        }>()).results, roles: async (scope, ids) => iamRoles(write, scope.companyId, ids) })(requested, options);
+    let definitions = new Map<string,RoleRevision>();
+    let readiness: Awaited<ReturnType<typeof accountDirectoryGate>>;
+    let observedNow=0;
+    return createAccountAccess({ session: currentSession, requested: requestedHoldingScope, scope: resolveWorkspaceScope, ready: async (scope) => { write = (await holdingResources(scope.holdingId)).write; }, now: () => (observedNow=Date.now()), error: identityError,
+        revoked: async (scope, sessionId, userId) => { readiness=await accountDirectoryGate(write as PostgresDatabase,scope.companyId,userId,sessionId,{includeAccountGrants:true,observedNow}); return readiness.revoked; },
+        refresh: async () => readiness.refresh(),
+        assignments: async () => { const facts=readiness.accountGrants; if(!facts)throw identityError(500,'ACCOUNT_ACCESS_UNAVAILABLE','Unable to read current account access.'); definitions=facts.roles; return facts.rows; },
+        roles: async (_scope,ids) => new Map(ids.flatMap(id => {const definition=definitions.get(id); return definition ? [[id,definition] as const] : [];})),
+    })(requested, options);
 }
 export async function requireWorkContext(requested: HoldingWorkspaceScope | string, options: WorkspaceResolutionOptions = {}): Promise<WorkContext> {
     try {

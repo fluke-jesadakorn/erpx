@@ -11,7 +11,7 @@ import { workFetch } from "@/lib/work-fetch";
 type Refund = {
   id: string;
   property_id: string;
-  folio_id: string;
+  guest_account_id: string;
   amount_minor: number;
   refund_amount_minor: number | null;
   refund_state: string;

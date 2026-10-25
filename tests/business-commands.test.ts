@@ -6,7 +6,8 @@ describe("Business command transactions",()=>{
   beforeAll(async()=>{await applyMigrations(env.H001_DB,env.STAFF_TEST_MIGRATIONS);await env.H001_DB.exec("CREATE TABLE business_fixture(id TEXT PRIMARY KEY,version BIGINT,amount BIGINT)");});
   beforeEach(async()=>{
     await env.H001_DB.exec(`
-      TRUNCATE command_receipts,command_assertions,assignments,audit_events,outbox_events,business_fixture CASCADE;
+      DELETE FROM command_assertions;
+      TRUNCATE command_receipts,assignments,audit_events,outbox_events,business_fixture CASCADE;
       INSERT INTO organization_nodes(id,kind,slug,display_name,company_id) VALUES('company','company','command-company','Command company','company') ON CONFLICT DO NOTHING;
       INSERT INTO organization_nodes(id,kind,slug,display_name,company_id,parent_id,branch_id) VALUES('unrelated-branch','branch','command-branch','Other branch','company','company','unrelated-branch') ON CONFLICT DO NOTHING;
       INSERT INTO assignments(id,user_id,role,revoked_at,valid_from,valid_until,company_id,scope_kind,scope_node_id,modules_json) VALUES('grant','operator','sales_operator',NULL,0,9999999999999,'company','holding',NULL,'[]');

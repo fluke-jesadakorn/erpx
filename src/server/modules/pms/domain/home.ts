@@ -53,7 +53,7 @@ export function taskView(row: TaskRow, actor: WorkContext): PmsHomeTask {
         query.delete("queue");
     if (row.kind === "stay")
         query.set("queue", row.label);
-    const href = `/pms/${link.section}?${query}`;
+    const href = row.kind === "transfer" ? `/finance/hotels?property=${row.property_id}&transfer=${row.id}` : `/pms/${link.section}?${query}`;
     const room = row.room_number ?? (row.kind === "room" ? row.data.number : undefined);
     const assigned = "assigneeId" in row.data && row.data.assigneeId === actor.userId;
     return { id: row.id, type: "pms", sourceKind: "pms_record", sourceVersion: Number(row.version), propertyId: row.property_id,

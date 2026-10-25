@@ -680,19 +680,19 @@ a.record:focus-visible {
   letter-spacing: 0;
 }
 
-.folioPicker {
+.guestAccountPicker {
   display: grid;
   gap: 8px;
   margin: 16px 0;
   color: var(--ui-muted);
   font-size: 12px;
 }
-.folioPicker select {
+.guestAccountPicker select {
   width: 100%;
   min-width: 0;
 }
 
-.folioEntries .amountContext {
+.guestAccountEntries .amountContext {
   display: block;
   margin-top: 4px;
   font-size: 10px;
@@ -700,26 +700,26 @@ a.record:focus-visible {
   color: var(--ui-muted);
 }
 @media (max-width: 620px) {
-  .folioEntries {
+  .guestAccountEntries {
     overflow: visible;
   }
-  .folioEntries table {
+  .guestAccountEntries table {
     width: 100%;
     min-width: 0;
   }
-  .folioEntries thead {
+  .guestAccountEntries thead {
     position: absolute;
     width: 1px;
     height: 1px;
     overflow: hidden;
     clip-path: inset(50%);
   }
-  .folioEntries tbody {
+  .guestAccountEntries tbody {
     display: grid;
     gap: 10px;
     margin: 14px 0;
   }
-  .folioEntries tbody tr {
+  .guestAccountEntries tbody tr {
     display: grid;
     gap: 10px;
     padding: 14px;
@@ -727,29 +727,29 @@ a.record:focus-visible {
     border-radius: 13px;
     background: var(--ui-card-2);
   }
-  .folioEntries td {
+  .guestAccountEntries td {
     display: block;
     min-width: 0;
     padding: 0;
     border: 0;
     overflow-wrap: anywhere;
   }
-  .folioEntries td:first-child {
+  .guestAccountEntries td:first-child {
     color: var(--ui-muted);
     font-size: 11px;
   }
-  .folioEntries td:nth-child(2) {
+  .guestAccountEntries td:nth-child(2) {
     font-weight: 600;
   }
-  .folioEntries td:nth-child(2) small {
+  .guestAccountEntries td:nth-child(2) small {
     margin-top: 5px;
     font-weight: 400;
   }
-  .folioEntries td:nth-child(3) {
+  .guestAccountEntries td:nth-child(3) {
     font-size: 18px;
     font-weight: 700;
   }
-  .folioEntries td:empty {
+  .guestAccountEntries td:empty {
     display: none;
   }
 }

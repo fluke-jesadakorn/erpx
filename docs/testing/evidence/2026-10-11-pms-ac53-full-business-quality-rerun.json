@@ -1,0 +1,45 @@
+{
+  "checkedAt": "2026-10-11T13:42:40.196114+00:00",
+  "scope": "One existing failed desktop case rerun; not original178 or whole-plan acceptance",
+  "runtimeFingerprint": "ac53b636bb8e08700a3bace57c442d1ab211fc299e8110c21de2ba9ba2afd48f",
+  "verificationFingerprint": "43f06a3ad90960fe29d45381921c7d31cd392ed919c01eec29260e52e1ebdaf9",
+  "passed": false,
+  "caseStats": {
+    "startTime": "2026-10-11T13:34:36.613Z",
+    "duration": 241800.138,
+    "expected": 0,
+    "skipped": 0,
+    "unexpected": 1,
+    "flaky": 0
+  },
+  "caseReceipt": {
+    "suite": "shared.business-journeys.demo-engineering-business.journeys",
+    "file": "demo-engineering-business.spec.ts",
+    "project": "desktop",
+    "title": "native business engineering workflows checks out immutable online prices delivers with scanned evidence and closes its native customer return Quality and original-value credit",
+    "run": "9acb6b7b2733",
+    "report": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-11T13-33-47-570Z/9acb6b7b2733/result.json",
+    "passed": false,
+    "cleanup": {
+      "completed": true,
+      "ownedDirectoryAbsent": true
+    }
+  },
+  "cleanupFailures": [],
+  "interrupted": null,
+  "server3665Gone": true,
+  "traceFacts": [
+    "Inspection selectOption pass action completed.",
+    "Actual quality.inspect POST resource payload result was fail, HTTP200.",
+    "Snapshot says latest independent inspection failed.",
+    "Last pending action fills Approve release reason at50367.277ms."
+  ],
+  "inference": "Distinguish test readiness/controlled value capture from app-state defect; no accepted root cause yet.",
+  "sourceOrBudgetChangedByRoot": false,
+  "pmsLaneReleased": false,
+  "evidenceSHA256": {
+    "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-11T13-33-47-570Z/receipt.json": "3dfa7c6668c3e7d828da4e671ebc493cbbbd20bd928808fd1c6b3d9a2a1ae2ad",
+    "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-11T13-33-47-570Z/9acb6b7b2733/result.json": "e239377fd9d384aab46bf86d946d61ded2f1c63d129df2185c35b203b6c5b2ab",
+    "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-11T13-33-47-570Z/9acb6b7b2733/artifacts/demo-engineering-business--62b7d-y-and-original-value-credit-desktop/trace.zip": "7d8e2f99ea7e0a692164d0507989cb3afe7108d08b65bd713a372742de2ecae9"
+  }
+}

@@ -1,0 +1,11 @@
+.summary > article {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.summary > article > strong {
+  overflow-wrap: anywhere;
+}

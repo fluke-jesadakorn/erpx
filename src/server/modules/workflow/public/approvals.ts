@@ -3,3 +3,4 @@ export { canOverrideStaffStep, staffOverrideGuards, currentApproval, taskRoute, 
 export type { ApprovalKind, ApprovalPhase, ApprovalInstance, ApprovalStep, ApprovalDecision, ApprovalView } from "../../../approvals";
 
 export {participantSql} from "../adapters/approval-participant-projection";
+export {expenseApprovalReadBatch} from "../adapters/approvals";

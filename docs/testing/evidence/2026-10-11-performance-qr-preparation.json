@@ -1,0 +1,42 @@
+{
+  "preparedAtUTC": "2026-10-11T04:07:14.862990+00:00",
+  "mainApplied": false,
+  "ownedFile": "src/components/pos/pos-console.tsx",
+  "preimageSha256": "14c03bd948b5b895827d31e7cf32d42e87e271a44aaebba4e0d61cf835c66ba0",
+  "candidateSha256": "be4248dcbdcb6661b26cff6214528ba4488b25855d0d1b418398d6acb2a7bbf6",
+  "patchSha256": "227523ce118cff818f4ca7c1bf536829df40d33f95bbaffd784d4edd18de8ebb",
+  "reason": "defer statically imported QR generator until its mounted payment canvas needs it",
+  "staleEffectFence": "cleanup disables late import callback and checks original canvas ref",
+  "unchanged": "QR markup, dimensions, labels, links, props, URL/API/commands and authority",
+  "pending": [
+    "source freeze release",
+    "typecheck and lint",
+    "release graph/browser QR generation and prop-switch/role-unmount acceptance"
+  ],
+  "goalComplete": false,
+  "runtimeChanged": false,
+  "installedGuide": "node_modules/next/dist/docs/01-app/02-guides/lazy-loading.md#loading-external-libraries",
+  "clientRequirement": "Canvas effects/browser APIs stay Client; defer the library, not the form state.",
+  "registeredPosQrChunk": {
+    "artifact": "2026-10-11T03-31-25-954Z",
+    "path": "/_next/static/chunks/42t5am4xfcidi.js",
+    "bytes": 23817,
+    "clientManifest": "src/components/pos/pos-console.tsx",
+    "registeredClientChunkCount": 18,
+    "limitation": "registered dependency closure proves inclusion; not an actual POS browser wire total"
+  },
+  "applyCheck": "git apply --check passes; no main mutation",
+  "validation": "not typechecked, built or browser-tested yet; no measured gain assigned",
+  "sourceFreeze": "live shared f13ca97b correctness/capacity lanes; release coordination requested",
+  "nativeBlocker": "Current Mac lock prevents native role-confirmation acceptance; user unlock requested.",
+  "historyProbe": {
+    "path": ".scratch/dev/optimization-pos-existing-history-probe.json",
+    "sha256": "8c7f2fde88de3d8767dcbbe11e7877bfcbe88b252788082838890ccad9987098",
+    "httpStatus": 200,
+    "ownerSelected": true,
+    "sales": 0,
+    "refunds": 0,
+    "payments": 0,
+    "note": "Both public Front history and normal Console Owner API have no existing receipt data."
+  }
+}

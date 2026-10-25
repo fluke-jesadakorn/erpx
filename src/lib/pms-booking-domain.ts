@@ -11,7 +11,7 @@ import {
   type Snapshot,
   type BookingPolicy,
 } from "./pms";
-import { availability } from "./pms-inventory-domain";
+import { availability, stayGroupAllowance } from "./pms-inventory-domain";
 import { PmsError } from "./pms-error";
 const need = (value: unknown, code: string, message: string) => {
   if (!value) throw new PmsError(code, message);
@@ -203,7 +203,7 @@ function roomPolicy(s:Snapshot,arrival:string,collection:import('./pms-model').C
  const days=collection?.cancellationDays??b.cancellationDays,time=collection?.cancellationTime??b.cancellationTime,deadlineTime=days===0&&time>c.checkIn?c.checkIn:time,date=plusDays(arrival,-days),fee=collection?.cancellationFeePercent??0;
  return {deadline:localDeadline(date,deadlineTime,c.timezone),timezone:c.timezone,payment:collection?.method&&collection.method!=='pay_at_hotel'?'online':'pay_at_hotel',collection,feeTaxBps:c.taxBps,text:`${collection?.cancellationsAllowed===false?'Contact the hotel for cancellation.':`${fee?`Cancellation fee ${fee}% of the accepted stay total`:'Free cancellation'} until ${date} ${deadlineTime} (${c.timezone}). After this deadline, contact the hotel.`} ${collection?.method&&collection.method!=='pay_at_hotel'?'Pay the amount due now online; the remaining balance is due at the hotel. Room advances are separate from damage deposits.':'Pay at the hotel.'}`};
 }
-export function bookingQuote(s: Snapshot, raw: unknown, blockId = "") {
+export function bookingQuote(s: Snapshot, raw: unknown, blockId = "", existingStayId = "") {
   const selections = z.array(roomSelectionSchema).min(1).max(50).parse(raw);
   need(
     s.property.state === "open",
@@ -221,8 +221,10 @@ export function bookingQuote(s: Snapshot, raw: unknown, blockId = "") {
     for (const night of nights) {
       const k = `${line.typeId}:${night.date}`,
         used = consumed.get(k) ?? 0;
+      const allowance = existingStayId ? stayGroupAllowance(s, existingStayId, line.typeId, night.date) : null;
+      need(allowance !== 0, "PMS_BLOCK_UNAVAILABLE", `Group quota is full on ${night.date}`);
       need(
-        availability(s, line.typeId, night.date, "", blockId).available >=
+        availability(s, line.typeId, night.date, existingStayId, blockId).available + (allowance ?? 0) >=
           used + line.quantity,
         "PMS_SOLD_OUT",
         `Not enough rooms on ${night.date}`,
@@ -325,14 +327,14 @@ export function cancellationEligibility(
       allowed: false,
       reason: "Contact the hotel to change this booking",
     };
-  const folios = new Set(
-    records(s, "folio")
+  const guestAccounts = new Set(
+    records(s, "guest_account")
       .filter((f) => f.data.reservationId === r.id)
       .map((f) => f.id),
   );
   if (
-    records(s, "entry").some((e) => folios.has(e.data.folioId) && !(e.data.kind==='payment'&&e.data.method==='stripe')) ||
-    records(s, "refund").some((e) => folios.has(e.data.folioId))
+    records(s, "entry").some((e) => guestAccounts.has(e.data.guestAccountId) && !(e.data.kind==='payment'&&e.data.method==='stripe')) ||
+    records(s, "refund").some((e) => guestAccounts.has(e.data.guestAccountId))
   )
     return {
       allowed: false,

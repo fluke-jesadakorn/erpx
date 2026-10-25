@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "./runtime-env";
 import type { WorkContext } from "../src/server/authorization";
-import { companyRates, configureCurrencyScale, confirmManualRate, quoteMoneyConversion, saveCurrencyPreference, snapshotMoney, snapshotMoneyCarry, snapshotMoneyReversal } from "../src/server/company-money";
+import { companyRates, configureCurrencyScale, confirmManualRate, quoteMoneyConversion, saveCurrencyPreference, snapshotMoney, snapshotMoneyBatch, snapshotMoneyCarry, snapshotMoneyReversal } from "../src/server/company-money";
 import { executeCommand } from "../src/server/commands";
 
 vi.mock("../src/server/runtime", async () => {
@@ -146,5 +146,37 @@ describe("company manual currency persistence", () => {
     expect(await run()).toEqual(committed);
     expect(await db.prepare("SELECT COUNT(*)::int n FROM money_transaction_snapshots WHERE source_id=?").bind(finalInput.sourceId).first()).toEqual({ n: 1 });
     expect(await db.prepare("SELECT SUM(amount_units)::text original_units,SUM(usd_units)::text usd_units FROM money_transaction_snapshots WHERE source_id=? OR original_source_id=?").bind(original.sourceId, original.sourceId).first()).toEqual({ original_units: "0", usd_units: "0" });
+  });
+});
+
+
+describe("explicit money snapshot batches", () => {
+  it("preserves individual date quotes, rounding and Company isolation with fresh facts on the next batch", async () => {
+    const a = await confirmManualRate(approver, { currency: 'THB', effectiveDate: '2026-11-01', currencyPerUsd: '36', note: 'Batch reviewed rate' }, 'money-batch-a');
+    const b = await confirmManualRate(approver, { currency: 'THB', effectiveDate: '2026-11-02', currencyPerUsd: '40', note: 'Batch next-day rate' }, 'money-batch-b');
+    const inputs = ['2026-11-01', '2026-11-02'].map((date, i) => ({ sourceType: 'test_batch', sourceId: 'batch-night-' + i, amountKind: 'total', currency: 'THB', currencyScale: 2, transactionDate: date, amountUnits: '10700' }));
+    const individual = await Promise.all(inputs.map(input => snapshotMoney(db, approver, input)));
+    const prepared = await snapshotMoneyBatch(db, approver, inputs);
+    expect(prepared.statements).toHaveLength(1);
+    expect(prepared.plans.map(p => [p.usdUnits, p.rateId, p.usedLatestFallback])).toEqual(individual.map(p => [p.usdUnits, p.rateId, p.usedLatestFallback]));
+    expect(prepared.plans.map(p => p.rateId)).toEqual([a.id, b.id]);
+    await db.batch(prepared.statements);
+    expect((await db.prepare("SELECT source_id,amount_units::text amount,usd_units::text usd,transaction_date::text date FROM money_transaction_snapshots WHERE company_id=? AND source_type='test_batch' ORDER BY source_id").bind(approver.companyId).all()).results).toEqual([{source_id:'batch-night-0',amount:'10700',usd:'297',date:'2026-11-01'},{source_id:'batch-night-1',amount:'10700',usd:'268',date:'2026-11-02'}]);
+    await expect(snapshotMoneyBatch(db, otherCompany, inputs)).rejects.toMatchObject({code:'MANUAL_RATE_REQUIRED'});
+    const c = await confirmManualRate(approver, {currency:'THB',effectiveDate:'2026-11-03',currencyPerUsd:'50',note:'Fresh next batch'}, 'money-batch-c');
+    const fresh = await snapshotMoneyBatch(db, approver, [{...inputs[0],sourceId:'fresh-night',transactionDate:'2026-11-03'}]);
+    expect(fresh.plans[0]).toMatchObject({rateId:c.id,usdUnits:'214'});
+  });
+  it("validates every member before persistence and rolls all quote rows back with their owner transaction", async () => {
+    const input = {sourceType:'test_batch_rollback',sourceId:'valid',amountKind:'total',transactionDate:'2026-11-01',currency:'USD',currencyScale:2,amountUnits:'100'};
+    await expect(snapshotMoneyBatch(db, approver, [input,{...input,sourceId:'invalid',amountUnits:'1.5'}])).rejects.toThrow();
+    await expect(db.transaction(async tx => {const batch=await snapshotMoneyBatch(tx, approver, [input,{...input,sourceId:'second'}]);await tx.batch(batch.statements);throw new Error('owner rollback');})).rejects.toThrow('owner rollback');
+    expect(await db.prepare("SELECT count(*)::int n FROM money_transaction_snapshots WHERE source_type='test_batch_rollback'").first()).toEqual({n:0});
+  });
+  it("chunks a large group quote below the parameter ceiling while retaining every independent row", async () => {
+    const inputs = Array.from({length:501},(_,i)=>({sourceType:'test_large_batch',sourceId:'row-'+i,amountKind:'total',transactionDate:'2026-11-01',currency:'USD',currencyScale:2,amountUnits:String(i+1)}));
+    const prepared=await snapshotMoneyBatch(db, approver, inputs);expect(prepared.statements).toHaveLength(2);expect(prepared.plans).toHaveLength(501);
+    await db.batch(prepared.statements);
+    expect(await db.prepare("SELECT count(*)::int n,sum(amount_units)::text amount,sum(usd_units)::text usd FROM money_transaction_snapshots WHERE company_id=? AND source_type='test_large_batch'").bind(approver.companyId).first()).toEqual({n:501,amount:'125751',usd:'125751'});
   });
 });

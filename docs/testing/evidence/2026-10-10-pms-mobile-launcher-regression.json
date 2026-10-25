@@ -1,0 +1,20 @@
+{
+  "complete": false,
+  "wholePlanAcceptance": false,
+  "runtimeFingerprint": "d192e45c236f933726ff122c5f8da978132cdde9e8fc9cab16f7a7a39b4b5135",
+  "verificationFingerprint": "c90be232e974a4134e6468131663e37afc87047b5a10e3d8b06c935db98ac202",
+  "scope": "focused mobile navigation regression only",
+  "passed": true,
+  "cases": 1,
+  "cleanupFailures": [],
+  "cause": "Mobile .launcher selector lost to desktop button.launcher specificity, placing AI launcher over App launcher. Matching button.launcher specificity restores mobile offset and accounts for safe-area inset.",
+  "receipt": ".scratch/dev/test-suites/browser/2026-10-10T14-25-07-544Z/receipt.json",
+  "receiptSha256": "f31f3947bdce188b1e2f3a6c53b51fe429c211b6384edfb7578444b6e9006596",
+  "assertionsWeakened": false,
+  "visualInspection": {
+    "path": ".scratch/dev/test-suites/browser/2026-10-10T14-27-12-402Z/13b5bc1ec89c/artifacts/home-visual-scenarios-Home-eab91-nd-multi-image-feed-content-desktop/empty-mobile-light.png",
+    "sha256": "123bf8dd732fb5a61bb6bdc6dcd1a06846c40fdc2bc6fc7a7d43d82c5a50895f",
+    "observed": "Assistant launcher sits above navigation; Apps destination is visible and not covered.",
+    "inspection": "actual emitted screenshot"
+  }
+}

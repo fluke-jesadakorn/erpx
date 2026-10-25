@@ -1,0 +1,47 @@
+{
+  "checkedAt": "2026-10-11T13:48:12.341290+00:00",
+  "scope": "Existing failed desktop business case diagnostic after owner test-only repair; no new unique required case, no full/PMS acceptance",
+  "runtimeFingerprint": "ac53b636bb8e08700a3bace57c442d1ab211fc299e8110c21de2ba9ba2afd48f",
+  "verificationFingerprint": "2b5548f6a40109638ade47957d999315dcfe0579627aa5879abc537632f257ce",
+  "passed": true,
+  "caseReceipt": {
+    "suite": "shared.business-journeys.demo-engineering-business.journeys",
+    "file": "demo-engineering-business.spec.ts",
+    "project": "desktop",
+    "title": "native business engineering workflows checks out immutable online prices delivers with scanned evidence and closes its native customer return Quality and original-value credit",
+    "run": "d749eb9c5df2",
+    "report": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-11T13-42-35-104Z/d749eb9c5df2/result.json",
+    "passed": true,
+    "cleanup": {
+      "completed": true,
+      "ownedDirectoryAbsent": true
+    }
+  },
+  "stats": {
+    "startTime": "2026-10-11T13:43:16.914Z",
+    "duration": 57645.121,
+    "expected": 1,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "sourcePreservation": {
+    "file": "tests/e2e/demo-engineering-business.spec.ts",
+    "originalSHA256": "2a2f317cace96065b807be01bc190a3cbb970a44b872ca1c41f5ab403fe47976",
+    "ownerCorrectedSHA256": "9445eba3c27a439e8160142981775cbc7fd8530f30cf843bd50da34c015f034d",
+    "reverseExactByteIdentity": true,
+    "changes": [
+      "Open existing invoice drawer and scope actual submit",
+      "Wait inspector and reviewer client readiness",
+      "Two Result value pass guards before submission"
+    ],
+    "originalBusinessAssertionsBudgetFixturePreserved": true
+  },
+  "receiptSHA256": "1dd2d6ebd73545bbcf64845d5cc3c848f9fcaa48379ea39f514ec366037aeab5",
+  "reportSHA256": "1843c93d519bba89f94bf915c452befbfd65bcc6268d40155face9e4294ece58",
+  "cleanupFailures": [],
+  "interrupted": null,
+  "historicalRedEvidenceRetained": true,
+  "rootDidNotEditAppTestsOrStartWorkload": true,
+  "wholePlanAccepted": false
+}

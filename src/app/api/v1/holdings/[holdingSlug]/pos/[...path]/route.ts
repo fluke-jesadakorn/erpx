@@ -1,3 +1,4 @@
+import { roomChargeReversalQueue } from "@/server/modules/pos/public/room-charge-reversal-queue";
 import { z } from 'zod';
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
@@ -24,6 +25,7 @@ export async function POST(request:Request,{params}:Context){
 export async function GET(request:Request,{params}:Context){
  try{
   const {holdingSlug,path}=await params;
+  if(path.join('/')==='room-charge-reversals') return Response.json({data:await roomChargeReversalQueue(await requireWorkContext(holdingSlug),new URL(request.url).searchParams.get('property')??undefined)},{headers:{'Cache-Control':'private, no-store'}});
   if(path[0]==='images'&&path.length===2)return posProductImage(await requireWorkContext(holdingSlug),path[1],new URL(request.url).searchParams.get('original')==='1');
   if(path.join('/')==='customers/search'||path.join('/')==='day/report'){
    const actor=await requireWorkContext(holdingSlug),db=(await holdingResources(actor.holdingId)).write,url=new URL(request.url);

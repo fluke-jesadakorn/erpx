@@ -1,0 +1,34 @@
+{
+  "checkedAt": "2026-10-11T20:48:37.616820+00:00",
+  "runtimeFingerprint": "51701d69c6d65dc1ee28480e7de4b404c89f3e32f8ab6c912c551568114b6bf6",
+  "verificationFingerprint": "299c85a71a3f9bd369189710e8dcf8db9da956177f559f49d4f857d6767dd362",
+  "scope": "Actual public dev PMS mock A desktop, normal sign-in and inspected pixels; no whole-plan or operational workflow claim",
+  "publicUrl": "https://console-dev-erpx.jesadakorn.com/holdings/acme/pms?variant=A&prototype=1&screen=dashboard",
+  "result": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-final299-public-check/attempt2/result.json",
+  "resultSHA256": "43249ecba9e5c3fd902092e16e8629b9fdc079df4b1b70ed9ad21a36335fbd64",
+  "screenshot": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-final299-public-check/attempt2/desktop.png",
+  "screenshotSHA256": "6742685cadc4bcf4cb381b6e5e1afe22153fa1ec8440fb9c6a63f5cea2deca42",
+  "observed": [
+    "Thai prototype in ERPX shell",
+    "sample-image/synthetic-data label",
+    "Company Today three fictional hotels",
+    "THB room metrics",
+    "room type/building/floor filters",
+    "calendar and default A comparisoncontrol"
+  ],
+  "normalSignIn": true,
+  "credentialCopied": false,
+  "capturedErrors": [
+    {
+      "kind": "console",
+      "message": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "kind": "console",
+      "message": "Failed to load resource: the server responded with a status of 401 ()"
+    }
+  ],
+  "retainedFirstAttempt": "Exact required-field label locator timed out before credential submission; first result retained under ignored scratch. Only QA locator changed.",
+  "hydrationLimit": "No hydration/pageerror captured in this narrow attempt; three prior dev hydration observations remain a separate unresolved diagnostic.",
+  "wholePlanAccepted": false
+}

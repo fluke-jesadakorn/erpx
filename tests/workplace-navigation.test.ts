@@ -85,10 +85,10 @@ describe("Side menu destination coverage", () => {
     expect(custom.apps.some(app => ["sales", "procurement"].includes(app.id))).toBe(false);
     expect(custom.search.some(item => item.id === "people-settings")).toBe(false);
     const branch = workplaceNavigation({ workspaceBase: `${base}/branches/main`, scopeKind: "branch", role: "holding_owner" });
-    expect(branch.search.some(item => item.id === "pos-settings")).toBe(false);
+    expect(branch.search.some(item => item.id === "pos-settings")).toBe(true);
     expect(branch.search.some(item => item.id === "technology-business-readiness")).toBe(false);
     const housekeeper = workplaceNavigation({ workspaceBase: base, role: "pms_housekeeping" });
-    expect(housekeeper.search.some(item => ["pms-folios", "pms-cashier", "pms-reports", "pms-night-audit"].includes(item.id))).toBe(false);
+    expect(housekeeper.search.some(item => ["pms-guest-accounts", "pms-cashier", "pms-reports", "pms-night-audit"].includes(item.id))).toBe(false);
     expect(housekeeper.search.some(item => item.id === "pms-front")).toBe(true);
   });
 
@@ -608,7 +608,7 @@ describe("Services grouped by purpose", () => {
 
   it("carries only the selected property between PMS sidebar pages", () => {
     const reports = owner.apps.find((app) => app.id === "pms")!.items.find((item) => item.id === "pms-reports")!;
-    expect(pmsSidebarHref(reports, `${base}/pms/folios`, new URLSearchParams("property=hotel-1&folio=folio-2"))).toBe(`${base}/pms/reports?property=hotel-1`);
+    expect(pmsSidebarHref(reports, `${base}/pms/guest-accounts`, new URLSearchParams("property=hotel-1&guestAccount=guestAccount-2"))).toBe(`${base}/pms/reports?property=hotel-1`);
     expect(pmsSidebarHref(reports, `${base}/pms`, new URLSearchParams("property=hotel-1"))).toBe(`${base}/pms/reports?property=hotel-1`);
     expect(pmsSidebarHref(reports, `${base}/finance`, new URLSearchParams("property=hotel-1"))).toBe(reports.href);
   });

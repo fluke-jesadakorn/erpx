@@ -1,0 +1,194 @@
+{
+  "schemaVersion": 1,
+  "checkedOn": "2026-10-10",
+  "complete": false,
+  "focusedPassed": true,
+  "scope": "Required desktop/mobile paid guest booking, signed callback and actual compiled worker recovery through a strictly fictional provider transport. No external checkout or real money; not whole-plan or current changing worktree acceptance.",
+  "candidate": {
+    "id": "2026-10-09T19-23-12-277Z",
+    "sourceFingerprint": "58c5e52e4aa569629698f911828b6a97271dffd60e79a04dfc1423806486e99e",
+    "fileManifestSha256": "00c34cf9c88b0db823407458f361fab329f9d5fe021b91cdb32698a02a650116"
+  },
+  "verificationFingerprint": "1a2d5e8bfa7f1134ab94b990f8e03bfcc8685b6fa401d53f45d1cfa754d6872f",
+  "frozenOwner": ".scratch/dev/pms-paid-frozen-2026-10-10",
+  "runner": {
+    "path": ".scratch/dev/pms-paid-frozen-2026-10-10/.scratch/dev/test-suites/browser/2026-10-09T19-31-13-169Z/receipt.json",
+    "sha256": "c677545b5361221c4301808287b7840f8c9d6797735c20109593012c66d30e81"
+  },
+  "browser": [
+    {
+      "project": "desktop",
+      "durationMs": 125734,
+      "proof": {
+        "run": "605c545f3546",
+        "sourceFingerprint": "58c5e52e4aa569629698f911828b6a97271dffd60e79a04dfc1423806486e99e",
+        "release": {
+          "id": "2026-10-09T19-23-12-277Z",
+          "fileManifestSha256": "00c34cf9c88b0db823407458f361fab329f9d5fe021b91cdb32698a02a650116"
+        },
+        "recoveries": [
+          {
+            "label": "payment receipt before local money",
+            "stoppedPid": 25797,
+            "restartedPid": 25908
+          },
+          {
+            "label": "refund accepted by provider before local settlement",
+            "stoppedPid": 25995,
+            "restartedPid": 26166
+          }
+        ],
+        "paymentBeforeInterruption": "payment_pending with zero local allocations/entries",
+        "refundBeforeInterruption": "provider accepted; approved locally without provider_id",
+        "allocations": {
+          "n": 2,
+          "amount": "1412400"
+        },
+        "refundMinor": 706200,
+        "providerRefundAttempts": 1,
+        "journals": {
+          "debit": "2963400",
+          "credit": "2963400"
+        },
+        "eventCompleted": true
+      },
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "report": {
+        "path": ".scratch/dev/pms-paid-frozen-2026-10-10/.scratch/dev/test-suites/browser/2026-10-09T19-31-13-169Z/605c545f3546/result.json",
+        "sha256": "9a2b048f56977432eea4255a3eea688dd757b30b3ba0153e1623cc1593be3dca"
+      },
+      "screenshot": {
+        "path": ".scratch/dev/pms-paid-frozen-2026-10-10/.scratch/dev/test-suites/browser/2026-10-09T19-31-13-169Z/605c545f3546/artifacts/pms-booking-payment-recove-0fc0b-und-without-duplicate-money-desktop/paid-partial-refund-completed.png",
+        "sha256": "cb571312cfb47ba98458fff37c763386ee10cceece3a9add6c68fece03036b43"
+      }
+    },
+    {
+      "project": "mobile",
+      "durationMs": 128302,
+      "proof": {
+        "run": "d258e340b804",
+        "sourceFingerprint": "58c5e52e4aa569629698f911828b6a97271dffd60e79a04dfc1423806486e99e",
+        "release": {
+          "id": "2026-10-09T19-23-12-277Z",
+          "fileManifestSha256": "00c34cf9c88b0db823407458f361fab329f9d5fe021b91cdb32698a02a650116"
+        },
+        "recoveries": [
+          {
+            "label": "payment receipt before local money",
+            "stoppedPid": 26987,
+            "restartedPid": 27098
+          },
+          {
+            "label": "refund accepted by provider before local settlement",
+            "stoppedPid": 27180,
+            "restartedPid": 27300
+          }
+        ],
+        "paymentBeforeInterruption": "payment_pending with zero local allocations/entries",
+        "refundBeforeInterruption": "provider accepted; approved locally without provider_id",
+        "allocations": {
+          "n": 2,
+          "amount": "1412400"
+        },
+        "refundMinor": 706200,
+        "providerRefundAttempts": 1,
+        "journals": {
+          "debit": "2963400",
+          "credit": "2963400"
+        },
+        "eventCompleted": true
+      },
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "report": {
+        "path": ".scratch/dev/pms-paid-frozen-2026-10-10/.scratch/dev/test-suites/browser/2026-10-09T19-31-13-169Z/d258e340b804/result.json",
+        "sha256": "17644f271c7a6c6aa17999b8d5e72ed4a2d4e7b62fab2d98e20952da9bce49b7"
+      },
+      "screenshot": {
+        "path": ".scratch/dev/pms-paid-frozen-2026-10-10/.scratch/dev/test-suites/browser/2026-10-09T19-31-13-169Z/d258e340b804/artifacts/pms-booking-payment-recove-0fc0b-und-without-duplicate-money-mobile/paid-partial-refund-completed.png",
+        "sha256": "61e7064d58c4ca2d99a56e2d316ebec3d03761e0fdee2522d45dd523bd49cea1"
+      }
+    }
+  ],
+  "native": {
+    "bookingCasesPassed": 37,
+    "unitCasesPassed": 108,
+    "unitFilesPassed": 5,
+    "checks": {
+      "isolatedBuild": true,
+      "typegen": true,
+      "typecheck": true,
+      "lint": {
+        "passed": true,
+        "warnings": 3
+      },
+      "documentation": true
+    }
+  },
+  "assertionSource": {
+    "path": "tests/e2e/pms-booking-payment-recovery.spec.ts",
+    "sha256": "01feefc007ccd9cc3f79977a96f6c10415655ceacbde810660c1c81edeff2aa4"
+  },
+  "logs": {
+    "paid-recovery-build-2.log": {
+      "path": ".scratch/dev/pms-full-guest-journey/paid-recovery-build-2.log",
+      "sha256": "920b059763ba6ad0f9ab9c597a0335958eca537b31ac789193a6159ab1a7853b"
+    },
+    "paid-recovery-native-frozen.log": {
+      "path": ".scratch/dev/pms-full-guest-journey/paid-recovery-native-frozen.log",
+      "sha256": "3b19b4f3ac6fdd43a9ec8919f3fa55f49023d0b7c62c0679a49bd9b1efb3e383"
+    },
+    "paid-recovery-unit-frozen-final.log": {
+      "path": ".scratch/dev/pms-full-guest-journey/paid-recovery-unit-frozen-final.log",
+      "sha256": "d411833bcbf585cdbd34572817ce7f8dd073042ba2d5f752e03b65c5a410bd6b"
+    },
+    "paid-recovery-typegen-frozen.log": {
+      "path": ".scratch/dev/pms-full-guest-journey/paid-recovery-typegen-frozen.log",
+      "sha256": "adba4af9194e10e47dda75ff0fd0f8c2b756474896d0eba5612799c527ff372a"
+    },
+    "paid-recovery-typecheck-frozen-final.log": {
+      "path": ".scratch/dev/pms-full-guest-journey/paid-recovery-typecheck-frozen-final.log",
+      "sha256": "ae3aa3d40f2b7fdeaf8ae4398c41416876c85fc2ccc6aa232e526fdb75f340ef"
+    },
+    "paid-recovery-lint-frozen.log": {
+      "path": ".scratch/dev/pms-full-guest-journey/paid-recovery-lint-frozen.log",
+      "sha256": "55017b01aab23f77e2ad573ba714966c3ac0aff21748f9038d22e146054a6a41"
+    },
+    "paid-recovery-official-owned.log": {
+      "path": ".scratch/dev/pms-full-guest-journey/paid-recovery-official-owned.log",
+      "sha256": "c2c2502cfaa387ba1969ef0df8e3bf8c47916c5274f33b2b05d3456007c9309b"
+    },
+    "paid-recovery-docs-final.log": {
+      "path": ".scratch/dev/pms-full-guest-journey/paid-recovery-docs-final.log",
+      "sha256": "a20951e41111a7fcdb87fb99603780a1b1ba2a479592fe9b951baf46a65c97d8"
+    }
+  },
+  "diagnostics": [
+    "Initial English label wait was aborted before booking; explicit guest language selection added.",
+    "Paid action uses Continue to secure payment. Its immediate redirect requires reading the real API response through route.fetch before fulfilling the response; provider navigation is intercepted locally.",
+    "A prepared cohort was rejected against an older source fingerprint. New compiled candidate was frozen; no receipt was restamped.",
+    "Frozen runner rejected a release outside its owned release directory; an identical checksum-bound release copy was placed in that owner before the successful run.",
+    "Retained browser baseline preserves its original identities and exclusions with explicit additions for the current PMS gallery/cancellation/payment journeys and existing Finance sales workspace."
+  ],
+  "environment": {
+    "localDevelopment": 200,
+    "publicDevelopment": 200,
+    "privateProductionHealthOnly": 200,
+    "postgresListener": 5432,
+    "publicGuestPage": "https://console-dev-erpx.jesadakorn.com/book/acme",
+    "publicGuestPageObserved": "Thai / Dark, unpublished hotels message, no login needed",
+    "stagingTouched": false,
+    "ownedDiagnosticAndRunnerCohortsRemoved": true
+  },
+  "remaining": [
+    "Release write SLO below 2s has not passed the last recorded rehearsal.",
+    "Complete native/integration/required browser regression on one final candidate.",
+    "Per-feature mock pilot acceptance and consolidated migration/opening balance/restore evidence.",
+    "Real provider certification, real hotel signoff, live money and production promotion remain separate approvals."
+  ]
+}

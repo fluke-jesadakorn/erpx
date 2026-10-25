@@ -1,0 +1,163 @@
+{
+  "schemaVersion": 1,
+  "checkedOn": "2026-10-10",
+  "complete": false,
+  "scope": "Focused compiled candidate: 50 native PMS cases, additive upgrade/encrypted restore and eight hotel/POS/Finance browser journeys on both desktop/mobile. Not whole-plan or live-hotel acceptance.",
+  "candidate": {
+    "id": "2026-10-09T17-38-18-796Z",
+    "sourceFingerprint": "085f513697d1108dd99329767081c3cad886bde53921f4b3fd20c655fc2d3929",
+    "fileManifestSha256": "4265e6d214c278e3d83138961272c9d5701ef21372864bdf974d7d8bb8a3baca",
+    "compiledFilesVerified": 16905
+  },
+  "verificationFingerprint": "1c1462657e8f457e6620bdddcf8139a94d947c9852e98044d1544ad20fe15279",
+  "sourceUnchanged": true,
+  "native": {
+    "passed": 52,
+    "failed": 0,
+    "skipped": 0,
+    "files": [
+      "tests/pms.test.ts",
+      "tests/engineering-migration-upgrade.test.ts",
+      "tests/engineering-recovery.test.ts"
+    ],
+    "artifact": {
+      "path": ".scratch/dev/pms-pilot-candidate-recovery/native-final.log",
+      "sha256": "aadb1bf4396ef45029069bd2c809a9e70ca649f71695c2b714dfd81495533e28"
+    }
+  },
+  "upgrade": {
+    "artifact": {
+      "path": ".scratch/dev/engineering-completion/runs/pms-pilot-2026-10-10-085f5136/migration-upgrade.json",
+      "sha256": "8add624478426f3029ab701752fbf70c25d81031d8e482e6ac09a0782ecfd1e9"
+    },
+    "tracks": 8,
+    "originalHistorySha256": "f77bedd0b7392e03ceba7b026b899c3e7bcd06527f21e993c3c28d9cf60b1bdf",
+    "preservedHistorySha256": "f77bedd0b7392e03ceba7b026b899c3e7bcd06527f21e993c3c28d9cf60b1bdf",
+    "priorReceiptsPreserved": true,
+    "pmsPriceBackfill": {
+      "count": 1,
+      "originalQuoteRetained": true,
+      "unquotedNotInvented": true,
+      "ownerHistoryRetained": true,
+      "replayCount": 0
+    },
+    "scanner": "declared clean interface fixture; scanner/browser evidence is separate"
+  },
+  "restore": {
+    "artifact": {
+      "path": ".scratch/dev/engineering-completion/runs/pms-pilot-2026-10-10-085f5136/encrypted-recovery.json",
+      "sha256": "d84d37e0410063a015b93301b61dfb13b1b691a4e589099a922ba87270a7dab8"
+    },
+    "databaseCount": 8,
+    "tableCount": 2375,
+    "restored": true,
+    "compatibleRollback": true,
+    "incompatibleRollbackRejected": true,
+    "ciphertextTamperingRejected": true
+  },
+  "browser": [
+    {
+      "project": "desktop",
+      "cohort": "ca152970409e",
+      "passed": 8,
+      "failed": 0,
+      "skipped": 0,
+      "report": {
+        "path": ".scratch/dev/pms-pilot-candidate-recovery/desktop-all.json",
+        "sha256": "6f00f86168c48a01165ff5e03aee0f1d2c3213c36964f0562d2d191a10522043"
+      },
+      "processRecovery": {
+        "sourceFingerprint": "085f513697d1108dd99329767081c3cad886bde53921f4b3fd20c655fc2d3929",
+        "softwareVersion": "release-085f513697d1108dd99329767081c3cad886bde53921f4b3fd20c655fc2d3929",
+        "fileManifestSha256": "4265e6d214c278e3d83138961272c9d5701ef21372864bdf974d7d8bb8a3baca",
+        "firstWorkerPid": 8588,
+        "restartedWorkerPid": 8893,
+        "blocked": {
+          "job": {
+            "state": "blocked",
+            "error_code": "CONFLICT"
+          },
+          "property": {
+            "state": "closing",
+            "business_date": "2026-10-10"
+          }
+        },
+        "completed": {
+          "job": {
+            "state": "completed",
+            "error_code": null
+          },
+          "property": {
+            "state": "open",
+            "business_date": "2026-10-11"
+          }
+        }
+      },
+      "journeys": [
+        "Riverside hotel and restaurant remain isolated and render for independent pilot roles",
+        "cashier and kitchen complete a restaurant bill on the existing hotel guest account",
+        "wrong-room, stale and revoked-cashier room charges leave the bill recoverable",
+        "hotel cashier records a transfer and independent Finance matches bank evidence",
+        "a typed transfer stays pending and the cashier can recover the bill",
+        "cashier records an external tax reference and independent Finance verifies it",
+        "Night Audit shows restaurant blockers and rejects an early close",
+        "front desk and cashier settle checkout and recover Night Audit"
+      ]
+    },
+    {
+      "project": "mobile",
+      "cohort": "37f3353a1553",
+      "passed": 8,
+      "failed": 0,
+      "skipped": 0,
+      "report": {
+        "path": ".scratch/dev/pms-pilot-candidate-recovery/mobile-all.json",
+        "sha256": "b4355381416f090d4c6d92c6c10288e4f8f8585f080db9182365a339726490b1"
+      },
+      "processRecovery": {
+        "sourceFingerprint": "085f513697d1108dd99329767081c3cad886bde53921f4b3fd20c655fc2d3929",
+        "softwareVersion": "release-085f513697d1108dd99329767081c3cad886bde53921f4b3fd20c655fc2d3929",
+        "fileManifestSha256": "4265e6d214c278e3d83138961272c9d5701ef21372864bdf974d7d8bb8a3baca",
+        "firstWorkerPid": 9128,
+        "restartedWorkerPid": 9401,
+        "blocked": {
+          "job": {
+            "state": "blocked",
+            "error_code": "CONFLICT"
+          },
+          "property": {
+            "state": "closing",
+            "business_date": "2026-10-10"
+          }
+        },
+        "completed": {
+          "job": {
+            "state": "completed",
+            "error_code": null
+          },
+          "property": {
+            "state": "open",
+            "business_date": "2026-10-11"
+          }
+        }
+      },
+      "journeys": [
+        "Riverside hotel and restaurant remain isolated and render for independent pilot roles",
+        "cashier and kitchen complete a restaurant bill on the existing hotel guest account",
+        "wrong-room, stale and revoked-cashier room charges leave the bill recoverable",
+        "hotel cashier records a transfer and independent Finance matches bank evidence",
+        "a typed transfer stays pending and the cashier can recover the bill",
+        "cashier records an external tax reference and independent Finance verifies it",
+        "Night Audit shows restaurant blockers and rejects an early close",
+        "front desk and cashier settle checkout and recover Night Audit"
+      ]
+    }
+  ],
+  "remaining": [
+    "Paid guest refund/webhook browser recovery and actual payment-job process interruption",
+    "Complete hotel booking/check-in/independent housekeeping browser journey",
+    "All final-candidate native/integration/required browser gates",
+    "Write p95 remains 2158ms in latest scoped scale cohort; target below 2000ms",
+    "Post-completion Night Audit visual reload; final screenshots retain the pending page while DB proves completion"
+  ]
+}

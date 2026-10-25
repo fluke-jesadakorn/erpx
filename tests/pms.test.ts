@@ -1,9 +1,10 @@
+import { PostgresDatabase } from '../src/server/runtime/postgres';
 import { prepareRoomCharge } from "../src/lib/pms-room-charge";
 import { frontOperationAllowed } from "../src/server/front-app";
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "./runtime-env";
 import { seedExpenseCompany } from "../fixtures/expenses/company";
-import { pmsCommand, loadPms, drainPms, pmsWorkspace, pmsWork } from "../src/server/pms";
+import { pmsCommand, loadPms, drainPms, pmsWorkspace, pmsWork, applyPosRoomCharge, reversePosRoomCharge, persistPmsRecords } from "../src/server/pms";
 import {
   records,
   record,
@@ -47,6 +48,7 @@ const db = env.H001_DB,
 let f: Awaited<ReturnType<typeof seedExpenseCompany>>,
   owner: WorkContext,
   reviewer: WorkContext,
+  operationalReviewer: WorkContext,
   propertyId: string,
   typeId: string,
   rateId: string,
@@ -63,6 +65,7 @@ async function snapshot() {
 }
 async function cmd(operation: string, input: unknown = {}, actor = owner) {
   const s = await snapshot();
+  if (actor === reviewer && ["refund.approve","refund.reject","credit.approve","charge.correction.review"].includes(operation)) actor = operationalReviewer;
   return pmsCommand(
     db,
     actor,
@@ -82,6 +85,7 @@ beforeEach(async context => {
   f = await seedExpenseCompany(db, env.H001_FILES, !context.task.name.startsWith("blocks a new booking"));
   owner = f.owner;
   reviewer = await f.member("hotel-reviewer", "finance_approver");
+  operationalReviewer = await f.member("hotel-manager", "pms_manager");
   propertyId = (
     await pmsCommand(
       db,
@@ -163,8 +167,128 @@ async function book(
   });
   const s = await snapshot();
   const stay = records(s, "stay").find((x) => x.data.reservationId === r.id)!;
-  return { reservationId: r.id, stayId: stay.id, folioId: stay.data.folioId };
+  return { reservationId: r.id, stayId: stay.id, guestAccountId: stay.data.guestAccountId };
 }
+it("batches changed PMS records in input order while retaining row counters, multiple flushes and rollback", async () => {
+  const booking = await book(), s = await snapshot();
+  const original = new Map(s.records.map(row => [row.id, JSON.stringify(row)]));
+  const stay = record(s, "stay", booking.stayId), reservation = record(s, "reservation", booking.reservationId);
+  const guest = structuredClone(record(s, "guest", guestId)); guest.id=key();guest.version=1;
+  stay.data.state="in_house";stay.version++;stay.updatedAt++;
+  reservation.data.source="batch-proof";reservation.version++;reservation.updatedAt++;
+  s.records=[stay,reservation,guest];
+  const revision = async () => Number(await db.prepare("SELECT revision FROM work_cache_revisions WHERE table_name='pms_records'").first("revision"));
+  const observations = async () => (await db.prepare("SELECT record_id FROM pms_booking_observations WHERE record_id IN (?,?) ORDER BY observation_id")
+    .bind(stay.id,reservation.id).all<{record_id:string}>()).results.map(row=>row.record_id);
+  const before=await revision(), observedBefore=(await observations()).length;
+  const {measureReads}=await import("../src/server/runtime/read-metrics");
+  await db.transaction(async tx => {
+    await tx.prepare("SELECT set_config('erpx.pms_write','on',true)").first();
+    await tx.prepare("SELECT id FROM pms_properties WHERE id=? FOR UPDATE").bind(propertyId).first();
+    const measured=await measureReads(()=>persistPmsRecords(tx,s,original));
+    expect(measured.metrics.queries).toBe(1);
+    for(const row of s.records)expect(original.get(row.id)).toBe(JSON.stringify(row));
+    guest.data.name="Second flush guest";guest.version++;guest.updatedAt++;
+    const second=await measureReads(()=>persistPmsRecords(tx,s,original));
+    expect(second.metrics.queries).toBe(1);
+    const replay=await measureReads(()=>persistPmsRecords(tx,s,original));
+    expect(replay.metrics.queries).toBe(0);
+  });
+  expect(await revision()).toBe(before+4);
+  expect((await observations()).slice(observedBefore)).toEqual([stay.id,reservation.id]);
+  const saved = async () => (await db.prepare("SELECT id,property_id,kind,data_json,version,updated_at FROM pms_records WHERE id IN (?,?,?) ORDER BY id")
+    .bind(stay.id,reservation.id,guest.id).all()).results;
+  const committed=await saved(), committedRevision=await revision(), committedObservations=await observations();
+  expect(committed).toEqual(expect.arrayContaining(s.records.map(row=>({id:row.id,property_id:propertyId,kind:row.kind,data_json:JSON.stringify(row.data),version:row.version,updated_at:row.updatedAt}))));
+  await expect(db.transaction(async tx=>{
+    await tx.prepare("SELECT set_config('erpx.pms_write','on',true)").first();
+    await tx.prepare("SELECT id FROM pms_properties WHERE id=? FOR UPDATE").bind(propertyId).first();
+    guest.data.name="Rolled back guest";guest.version++;
+    reservation.data.source="rolled-back-source";reservation.version++;
+    await persistPmsRecords(tx,s,original);
+    throw Error("SIMULATED_LATE_OWNER_FAILURE");
+  })).rejects.toThrow("SIMULATED_LATE_OWNER_FAILURE");
+  expect(await saved()).toEqual(committed);expect(await revision()).toBe(committedRevision);
+  expect(await observations()).toEqual(committedObservations);
+});
+it("keeps multi-chunk PMS writes atomic under a real later SQL failure and supports replay", async () => {
+  const s=await snapshot(), template=record(s,"guest",guestId);
+  const guests=Array.from({length:501},(_,index)=>({...structuredClone(template),id:key(),version:1,data:{...structuredClone(template.data),name:`Mock batch guest ${index}`}}));
+  s.records=guests;
+  const revision=async()=>Number(await db.prepare("SELECT revision FROM work_cache_revisions WHERE table_name='pms_records'").first("revision"));
+  const count=async()=>Number(await db.prepare("SELECT COUNT(*)::int n FROM pms_records WHERE id IN (SELECT jsonb_array_elements_text(?::jsonb))").bind(JSON.stringify(guests.map(row=>row.id))).first("n"));
+  const {measureReads}=await import("../src/server/runtime/read-metrics");
+  const before=await revision();
+  await expect(db.transaction(async tx=>{
+    await tx.prepare("SELECT set_config('erpx.pms_write','on',true)").first();
+    await tx.prepare("SELECT id FROM pms_properties WHERE id=? FOR UPDATE").bind(propertyId).first();
+    const measured=await measureReads(()=>persistPmsRecords(tx,s,new Map()));expect(measured.metrics.queries).toBe(2);
+    await tx.prepare("SELECT 1/0").first();
+  })).rejects.toMatchObject({code:"22012"});
+  expect(await count()).toBe(0);expect(await revision()).toBe(before);
+  await db.transaction(async tx=>{
+    await tx.prepare("SELECT set_config('erpx.pms_write','on',true)").first();
+    await tx.prepare("SELECT id FROM pms_properties WHERE id=? FOR UPDATE").bind(propertyId).first();
+    const original=new Map<string,string>();
+    const measured=await measureReads(()=>persistPmsRecords(tx,s,original));expect(measured.metrics.queries).toBe(2);
+    const replay=await measureReads(()=>persistPmsRecords(tx,s,original));expect(replay.metrics.queries).toBe(0);
+  });
+  expect(await count()).toBe(501);expect(await revision()).toBe(before+501);
+});
+it("orders PMS and booking-history cache locks across concurrent hotel writes", async () => {
+  const booking = await book();
+  const otherBranch = key();
+  await db.prepare("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id) VALUES(?,'branch',?,'Concurrent mock branch',?,?,?)")
+    .bind(otherBranch,otherBranch,f.company,f.company,otherBranch).run();
+  const otherProperty = (await pmsCommand(db, owner, { operation: "property.create", input: {
+    name: "Concurrent mock hotel", branchId: otherBranch, businessDate: "2026-09-01",
+  } }, key())).id;
+  const otherStay = key(), otherReservation = key();
+  // A second hotel's record is a disposable dependency fixture, not an opening
+  // balance or historical GL. Both writes exercise the real database triggers.
+  await db.prepare("INSERT INTO pms_records(id,property_id,kind,data_json,version,updated_at) SELECT ?,?,'reservation',data_json,version,updated_at FROM pms_records WHERE id=?")
+    .bind(otherReservation, otherProperty, booking.reservationId).run();
+  await db.prepare("INSERT INTO pms_records(id,property_id,kind,data_json,version,updated_at) SELECT ?,?,'stay',jsonb_set(data_json::jsonb,'{reservationId}',to_jsonb(?::text))::text,version,updated_at FROM pms_records WHERE id=?")
+    .bind(otherStay, otherProperty, otherReservation, booking.stayId).run();
+  const revisions = async () => (await db.prepare("SELECT table_name,revision FROM work_cache_revisions WHERE table_name IN ('pms_records','pms_booking_observations') ORDER BY table_name")
+    .all<{table_name:string;revision:number}>()).results;
+  const before = await revisions();
+  const observationCount = async () => Number(await db.prepare("SELECT COUNT(*)::int n FROM pms_booking_observations WHERE record_id IN (?,?)")
+    .bind(booking.stayId, otherStay).first("n"));
+  const beforeObservations = await observationCount();
+  const a = await db.pool.connect(), b = await db.pool.connect();
+  try {
+    // READ COMMITTED isolates lock ordering from the separately tested
+    // serializable snapshot retry policy. A real queued lock is the barrier.
+    await a.query("BEGIN"); await b.query("BEGIN");
+    await a.query("SET LOCAL lock_timeout='5s'"); await b.query("SET LOCAL lock_timeout='5s'");
+    const pid = Number((await b.query("SELECT pg_backend_pid() pid")).rows[0].pid);
+    await a.query("UPDATE pms_records SET data_json=jsonb_set(data_json::jsonb,'{history}','[]'::jsonb)::text,version=version+1 WHERE id=$1", [booking.reservationId]);
+    const queued = b.query("UPDATE pms_records SET data_json=jsonb_set(data_json::jsonb,'{state}','\"in_house\"'::jsonb)::text,version=version+1 WHERE id=$1", [otherStay])
+      .then(() => undefined, error => error as Error);
+    let waiting = false;
+    for (let i=0;i<100&&!waiting;i++) {
+      waiting = (await db.pool.query("SELECT cardinality(pg_blocking_pids($1))>0 waiting", [pid])).rows[0].waiting === true;
+      if (!waiting) await new Promise(resolve => setTimeout(resolve, 5));
+    }
+    expect(waiting).toBe(true);
+    let firstError: unknown;
+    try {
+      await a.query("UPDATE pms_records SET data_json=jsonb_set(data_json::jsonb,'{state}','\"in_house\"'::jsonb)::text,version=version+1 WHERE id=$1", [booking.stayId]);
+      await a.query("COMMIT");
+    } catch (error) { firstError=error; await a.query("ROLLBACK"); }
+    const secondError = await queued;
+    if (secondError) await b.query("ROLLBACK"); else await b.query("COMMIT");
+    expect(firstError).toBeUndefined(); expect(secondError).toBeUndefined();
+  } finally {
+    await a.query("ROLLBACK").catch(() => {}); await b.query("ROLLBACK").catch(() => {});
+    a.release(); b.release();
+  }
+  expect(await observationCount()).toBe(beforeObservations+2);
+  const after = await revisions();
+  expect(after.find(row => row.table_name==='pms_records')!.revision).toBe(before.find(row => row.table_name==='pms_records')!.revision+3);
+  expect(after.find(row => row.table_name==='pms_booking_observations')!.revision).toBe(before.find(row => row.table_name==='pms_booking_observations')!.revision+2);
+});
 it("blocks a new booking when the selected currency lacks the hotel's account setup or manual rate", async () => {
   await expect(cmd("rate.save", { name: "Unquoted price", typeId, from: "2026-09-01", to: "2026-12-31", price: 10000 })).rejects.toMatchObject({ code: "MANUAL_RATE_REQUIRED" });
   expect(await db.prepare("SELECT COUNT(*)::int n FROM pms_records WHERE property_id=? AND kind='rate'").bind(propertyId).first("n")).toBe(1);
@@ -181,12 +305,12 @@ it("preserves reviewed night prices and original deposit FX through concurrent p
   const booked = await book();
   await checkIn(booked.stayId);
   const shift = (await cmd("shift.open", { name: "Original-rate cash desk", opening: 0 })).id;
-  const receipt = await cmd("payment.deposit", { folioId: booked.folioId, amount: 32100, method: "cash", shiftId: shift });
+  const receipt = await cmd("payment.deposit", { guestAccountId: booked.guestAccountId, amount: 32100, method: "cash", shiftId: shift });
   const original = await db.prepare("SELECT amount_units::text,usd_units::text,fx_rate_id FROM money_transaction_snapshots WHERE company_id=? AND source_type='pms_entry' AND source_id=? AND amount_kind='total'").bind(f.company, receipt.id).first<{ amount_units:string;usd_units:string;fx_rate_id:string }>();
   expect(original).toMatchObject({ amount_units: "32100", usd_units: "892" });
   await confirmManualRate(reviewer, { currency: "THB", effectiveDate: "2026-09-01", currencyPerUsd: "40", note: "Later rate must not replace settled deposit or booked room evidence" }, key());
   for (let i = 0; i < 3; i++) {
-    const refund = await cmd("refund.request", { folioId: booked.folioId, pocket: "deposit", amount: 10700, reason: `Reviewed original payment return ${i + 1}` });
+    const refund = await cmd("refund.request", { guestAccountId: booked.guestAccountId, pocket: "deposit", amount: 10700, reason: `Reviewed original payment return ${i + 1}` });
     await expect(cmd("refund.approve", { id: refund.id })).rejects.toMatchObject({ code: "PMS_INDEPENDENT_APPROVER" });
     await cmd("refund.approve", { id: refund.id }, reviewer);
     const current = await snapshot(), input = { propertyId, expectedVersion: current.property.version, operation: "refund.pay", input: { id: refund.id, method: "cash", shiftId: shift } };
@@ -201,17 +325,17 @@ it("preserves reviewed night prices and original deposit FX through concurrent p
   expect(reversals.map(value => value.amount_units)).toEqual(["-10700", "-10700", "-10700"]);
   expect(reversals.map(value => value.usd_units)).toEqual(["-297", "-298", "-297"]);
   expect(reversals.every(value => value.fx_rate_id === original!.fx_rate_id)).toBe(true);
-  expect(record(await snapshot(), "folio", booked.folioId).data.deposit).toBe(0);
+  expect(record(await snapshot(), "guest_account", booked.guestAccountId).data.deposit).toBe(0);
   expect(record(await snapshot(), "shift", shift).data.cash).toBe(0);
   expect(await db.prepare("SELECT amount_units::text,usd_units::text,fx_rate_id FROM money_transaction_snapshots WHERE company_id=? AND source_type='pms_entry' AND source_id=? AND amount_kind='total'").bind(f.company, receipt.id).first()).toEqual(original);
-  const paid = await cmd("payment.receive", { folioId: booked.folioId, amount: 10700, method: "cash", shiftId: shift });
+  const paid = await cmd("payment.receive", { guestAccountId: booked.guestAccountId, amount: 10700, method: "cash", shiftId: shift });
   expect(await db.prepare("SELECT usd_units::text FROM money_transaction_snapshots WHERE company_id=? AND source_type='pms_entry' AND source_id=? AND amount_kind='total'").bind(f.company, paid.id).first("usd_units")).toBe("268");
   await cmd("stay.check_out", { id: booked.stayId });
   const charged = records(await snapshot(), "entry").find(row => row.data.sourceKey === `night:${booked.stayId}:2026-09-01`)!;
   expect(await db.prepare("SELECT amount_units::text,usd_units::text,fx_rate_id,carried_source_type FROM money_transaction_snapshots WHERE company_id=? AND source_type='pms_entry' AND source_id=? AND amount_kind='total'").bind(f.company, charged.id).first())
     .toEqual({amount_units:"10700",usd_units:"297",fx_rate_id:original!.fx_rate_id,carried_source_type:"pms_stay_price"});
   expect(record(await snapshot(), "stay", booked.stayId).data.state).toBe("checked_out");
-  expect(record(await snapshot(), "folio", booked.folioId).data).toMatchObject({due:0,advance:0,deposit:0});
+  expect(record(await snapshot(), "guest_account", booked.guestAccountId).data).toMatchObject({due:0,advance:0,deposit:0});
   expect(await db.prepare("SELECT COALESCE(SUM(l.debit_minor-l.credit_minor),0)::text difference FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id WHERE j.company_id=? AND j.status='posted'").bind(f.company).first("difference")).toBe("0");
 });
 async function clean() {
@@ -368,7 +492,7 @@ it("does not settle a production hotel transfer from a typed reference alone", a
   await changeCompanyFeatureRollout(owner, { moduleId: "pms", state: "pilot", expectedVersion: 0, reason: "Hotel pilot acceptance rehearsal" }, key());
   vi.stubEnv("NODE_ENV", "production");
   expect((await pmsWorkspace(owner, propertyId)).availablePaymentMethods).toEqual(["cash"]);
-  const request = { propertyId, expectedVersion: before.property.version, operation: "payment.receive", input: { folioId: booking.folioId, amount: 10700, method: "transfer", reference: "TYPED-ONLY", shiftId: shift } };
+  const request = { propertyId, expectedVersion: before.property.version, operation: "payment.receive", input: { guestAccountId: booking.guestAccountId, amount: 10700, method: "transfer", reference: "TYPED-ONLY", shiftId: shift } };
   await expect(pmsCommand(db, owner, request, key())).rejects.toMatchObject({ code: "PMS_BANK_VERIFICATION_REQUIRED" });
   await expect(pmsCommand(db, owner, { ...request, operation: "payment.deposit" }, key())).rejects.toMatchObject({ code: "PMS_BANK_VERIFICATION_REQUIRED" });
   await expect(pmsCommand(db, owner, { ...request, input: { ...request.input, method: "edc" } }, key())).rejects.toMatchObject({ code: "PMS_BANK_VERIFICATION_REQUIRED" });
@@ -377,7 +501,7 @@ it("does not settle a production hotel transfer from a typed reference alone", a
   expect(after.property.version).toBe(before.property.version);
   expect(records(after, "entry").length).toBe(records(before, "entry").length);
   expect(await balance(accounts.bank)).toBe(accountBalance);
-  await expect(pmsCommand(db, owner, { ...request, input: { folioId: booking.folioId, amount: 10700, method: "cash", shiftId: shift } }, key())).resolves.toMatchObject({ propertyId });
+  await expect(pmsCommand(db, owner, { ...request, input: { guestAccountId: booking.guestAccountId, amount: 10700, method: "cash", shiftId: shift } }, key())).resolves.toMatchObject({ propertyId });
 });
 
 it("settles a pending hotel transfer only after independent exact bank evidence", async () => {
@@ -388,7 +512,7 @@ it("settles a pending hotel transfer only after independent exact bank evidence"
   await changeCompanyFeatureRollout(owner,{moduleId:"pms",state:"pilot",expectedVersion:0,reason:"Hotel transfer pilot rehearsal"},key());
   vi.stubEnv("NODE_ENV","production");
   const initial=await snapshot();
-  const request={propertyId,expectedVersion:initial.property.version,operation:"payment.request_transfer",input:{folioId:booking.folioId,shiftId:shift,amount:10700,reference:"PMS-BANK-001"}};
+  const request={propertyId,expectedVersion:initial.property.version,operation:"payment.request_transfer",input:{guestAccountId:booking.guestAccountId,shiftId:shift,amount:10700,reference:"PMS-BANK-001"}};
   const requestKey=key();
   const pending=await pmsCommand(db,owner,request,requestKey);
   expect(pending).toMatchObject({state:"pending",transferVersion:1});
@@ -454,12 +578,12 @@ it("settles a pending hotel transfer only after independent exact bank evidence"
     .bind(f.company,owner.userId).first<number>("count")).toBe(1);
 });
 
-it("cancels an unverified hotel transfer without changing folio or ledger", async () => {
+it("cancels an unverified hotel transfer without changing guest account or ledger", async () => {
   const booking=await book();
   await checkIn(booking.stayId);
   const shift=(await cmd("shift.open",{name:"AM",opening:0})).id;
   const before=await snapshot();
-  const request={propertyId,expectedVersion:before.property.version,operation:"payment.request_transfer",input:{folioId:booking.folioId,shiftId:shift,amount:10700,reference:"PMS-CANCEL-001"}};
+  const request={propertyId,expectedVersion:before.property.version,operation:"payment.request_transfer",input:{guestAccountId:booking.guestAccountId,shiftId:shift,amount:10700,reference:"PMS-CANCEL-001"}};
   const pending=await pmsCommand(db,owner,request,key());
   const cancel={propertyId,expectedVersion:before.property.version,operation:"payment.cancel_transfer",input:{id:pending.id,expectedTransferVersion:1}};
   const cancelKey=key(),result=await pmsCommand(db,owner,cancel,cancelKey);
@@ -484,7 +608,7 @@ it("completes deposit, stay, durable night audit, checkout and invoice without d
       propertyId,
       expectedVersion: s.property.version,
       input: {
-        folioId: b.folioId,
+        guestAccountId: b.guestAccountId,
         amount: 10700,
         method: "cash",
         shiftId: shift,
@@ -509,7 +633,7 @@ it("completes deposit, stay, durable night audit, checkout and invoice without d
   expect(await balance(accounts.advance)).toBe(0);
   expect(await balance(accounts.receivable)).toBe(0);
   await cmd("stay.check_out", { id: b.stayId });
-  const doc = await cmd("folio.close", { id: b.folioId });
+  const doc = await cmd("guest_account.close", { id: b.guestAccountId });
   expect(await balance(accounts.revenue)).toBe(-10000);
   const invoice = await db
     .prepare(
@@ -547,6 +671,7 @@ it("holds Night Audit for restaurant cash, variance and unverified transfer cont
     .bind(warehouse,f.company,f.branch,`HOTEL-${warehouse.slice(0,6)}`,'Hotel restaurant').run();
   await db.prepare("INSERT INTO pos_registers(id,company_id,branch_id,warehouse_id,name,mode) VALUES(?,?,?,?,?,'restaurant')")
     .bind(register,f.company,f.branch,warehouse,'Night Audit restaurant').run();
+  await db.prepare("UPDATE pos_registers SET property_id=? WHERE id=?").bind(propertyId,register).run();
   await db.prepare("INSERT INTO pos_shifts(id,register_id,company_id,branch_id,opened_by,opened_at,opening_minor) VALUES(?,?,?,?,?,0,0)")
     .bind(shift,register,f.company,f.branch,owner.userId).run();
   await expect(cmd('night.start')).rejects.toMatchObject({code:'PMS_DAY_RECONCILIATION_BLOCKED'});
@@ -620,6 +745,19 @@ it("rejects double booking, duplicate OTA references and stale versions", async 
     ),
   ).rejects.toMatchObject({ code: "PMS_VERSION_CONFLICT" });
 });
+it("creates reservations without archived capacity while retaining cancelled channel references and original history", async () => {
+  const original=await book('2026-09-01','2026-09-02',{source:'Agoda',externalRef:'ARCHIVED-OTA-123'});
+  await cmd('reservation.cancel',{id:original.reservationId,reason:'Fictional guest cancelled before arrival'});
+  const cancelled=record(await snapshot(),'stay',original.stayId);
+  const historicalIds=Array.from({length:60},(_,n)=>`archived-stay-${propertyId}-${n}`);
+  await db.batch(historicalIds.map(id=>db.prepare("INSERT INTO pms_records(id,property_id,kind,data_json,version,updated_at) VALUES(?,?,'stay',?,1,1)")
+    .bind(id,propertyId,JSON.stringify({...cancelled.data,state:'checked_out',arrival:'2024-01-01',departure:'2024-01-02'}))));
+  await expect(book('2026-09-02','2026-09-03',{source:' Agoda ',externalRef:' ARCHIVED-OTA-123 '})).rejects.toMatchObject({code:'PMS_EXTERNAL_REF_EXISTS'});
+  const booked=await book('2026-09-02','2026-09-03',{source:'direct',externalRef:'NEW-123'});
+  expect(record(await snapshot(),'stay',booked.stayId).data.state).toBe('reserved');
+  expect(await db.prepare("SELECT count(*)::int n FROM pms_records WHERE property_id=? AND id LIKE 'archived-stay-%' AND version=1 AND updated_at=1").bind(propertyId).first('n')).toBe(60);
+  expect(record(await snapshot(),'reservation',original.reservationId).data.state).toBe('cancelled');
+});
 it("requires inspected rooms and independent inspection; maintenance cannot displace guests", async () => {
   const b = await book();
   await cmd("stay.assign", { id: b.stayId, roomId });
@@ -670,13 +808,13 @@ it("separates security deposits, enforces refund independence and reverses advan
   const b = await book(),
     sh = (await cmd("shift.open", { name: "Desk", opening: 0 })).id;
   await cmd("payment.receive", {
-    folioId: b.folioId,
+    guestAccountId: b.guestAccountId,
     amount: 10700,
     method: "cash",
     shiftId: sh,
   });
   await cmd("payment.deposit", {
-    folioId: b.folioId,
+    guestAccountId: b.guestAccountId,
     amount: 5000,
     method: "cash",
     shiftId: sh,
@@ -684,7 +822,7 @@ it("separates security deposits, enforces refund independence and reverses advan
   expect(await balance(accounts.tax)).toBe(-700);
   const refund = (
     await cmd("refund.request", {
-      folioId: b.folioId,
+      guestAccountId: b.guestAccountId,
       amount: 10700,
       pocket: "advance",
       reason: "Cancelled",
@@ -724,7 +862,7 @@ it("blocks unauthorized, cross-company and revoked actors without business write
   await expect(cmd("guest.save", { name: "No access" })).rejects.toBeTruthy();
   expect(records(await snapshot(), "guest")).toHaveLength(1);
 });
-it("blocks closed accounting periods and keeps the payment and folio atomic", async () => {
+it("blocks closed accounting periods and keeps the payment and guest account atomic", async () => {
   const b = await book(),
     sh = (await cmd("shift.open", { name: "Desk", opening: 0 })).id;
   await db
@@ -733,16 +871,16 @@ it("blocks closed accounting periods and keeps the payment and folio atomic", as
     .run();
   await expect(
     cmd("payment.receive", {
-      folioId: b.folioId,
+      guestAccountId: b.guestAccountId,
       amount: 10700,
       method: "cash",
       shiftId: sh,
     }),
   ).rejects.toMatchObject({ code: "PMS_PERIOD_CLOSED" });
-  expect(record(await snapshot(), "folio", b.folioId).data.advance).toBe(0);
+  expect(record(await snapshot(), "guest_account", b.guestAccountId).data.advance).toBe(0);
   expect(records(await snapshot(), "entry")).toHaveLength(0);
   await db.prepare("UPDATE finance_periods SET state='open' WHERE id=?").bind(f.period).run();
-  const initial=await snapshot(),commandId=key(),request={propertyId,expectedVersion:initial.property.version,operation:"payment.receive",input:{folioId:b.folioId,amount:10700,method:"cash",shiftId:sh}};
+  const initial=await snapshot(),commandId=key(),request={propertyId,expectedVersion:initial.property.version,operation:"payment.receive",input:{guestAccountId:b.guestAccountId,amount:10700,method:"cash",shiftId:sh}};
   const retained=async()=>({
     property:await db.prepare("SELECT version,config_json FROM pms_properties WHERE id=?").bind(propertyId).first(),
     records:(await db.prepare("SELECT id,kind,data_json,version FROM pms_records WHERE property_id=? ORDER BY id").bind(propertyId).all()).results,
@@ -791,7 +929,7 @@ it("protects PMS invoices and payments from generic finance mutations", async ()
   const b = await book(),
     sh = (await cmd("shift.open", { name: "Desk", opening: 0 })).id;
   await cmd("payment.receive", {
-    folioId: b.folioId,
+    guestAccountId: b.guestAccountId,
     amount: 10700,
     method: "cash",
     shiftId: sh,
@@ -822,7 +960,7 @@ it("protects PMS invoices and payments from generic finance mutations", async ()
 
 it("aggregates accessible hotels without choosing one and keeps guest amounts private from housekeeping",async()=>{
   const booking=await book();
-  await cmd("charge.add",{folioId:booking.folioId,description:"Private guest service",price:10000});
+  await cmd("charge.add",{guestAccountId:booking.guestAccountId,description:"Private guest service",price:10000});
   const home=await pmsHome(owner);
   expect(home.hotels.map(hotel=>hotel.id)).toContain(propertyId);
   expect(home.tasks.items.some(item=>item.id===booking.stayId)).toBe(true);
@@ -943,13 +1081,13 @@ it("traces imported advance and deposit to the approved opening journal and reco
   await applyPmsImport(db,owner,{id:preview.id,expectedVersion:2},key());
   const home=await pmsFinanceOverview(owner);
   expect(home.hotels[0].differences).toEqual({receivable:0,advance:0,deposit:0});expect(home.exceptions).toEqual([]);
-  const folio=records(await snapshot(),"folio")[0],shift=(await cmd("shift.open",{name:"New cashier",opening:10000})).id;
-  const refund=(await cmd("refund.request",{folioId:folio.id,pocket:"deposit",amount:2000,reason:"Partial cutover deposit return"})).id;
+  const guestAccount=records(await snapshot(),"guest_account")[0],shift=(await cmd("shift.open",{name:"New cashier",opening:10000})).id;
+  const refund=(await cmd("refund.request",{guestAccountId:guestAccount.id,pocket:"deposit",amount:2000,reason:"Partial cutover deposit return"})).id;
   await cmd("refund.approve",{id:refund},reviewer);await cmd("refund.pay",{id:refund,method:"cash",shiftId:shift});
   expect((await pmsFinanceOverview(owner)).hotels[0].differences).toEqual({receivable:0,advance:0,deposit:0});
   await cmd("shift.close",{id:shift,counted:8000,handover:"Deposit refund recorded"});
   await cmd("night.start");await drainPms(db);
-  expect(record(await snapshot(),"folio",folio.id).data.advance).toBe(9300);
+  expect(record(await snapshot(),"guest_account",guestAccount.id).data.advance).toBe(9300);
 });
 
 it("settles the original opening receivable and invoices only new hotel service across two business days",async()=>{
@@ -970,14 +1108,14 @@ it("settles the original opening receivable and invoices only new hotel service 
   const preview=await previewPmsImport(db,owner,importDefinition,key()) as {id:string};
   await approvePmsImport(db,reviewer,{id:preview.id,expectedVersion:1,openingJournalId:journal.id},key());
   await applyPmsImport(db,owner,{id:preview.id,expectedVersion:2},key());
-  const stay=records(await snapshot(),"stay")[0],folioId=stay.data.folioId,shift=(await cmd("shift.open",{name:"Cutover day",opening:0})).id;
-  await cmd("payment.receive",{folioId,amount:10000,method:"cash",shiftId:shift});
+  const stay=records(await snapshot(),"stay")[0],guestAccountId=stay.data.guestAccountId,shift=(await cmd("shift.open",{name:"Cutover day",opening:0})).id;
+  await cmd("payment.receive",{guestAccountId,amount:10000,method:"cash",shiftId:shift});
   expect(await db.prepare("SELECT outstanding_minor FROM finance_invoices WHERE id=?").bind(originalInvoice).first<number>("outstanding_minor")).toBe(10000);
   expect(await balance(accounts.revenue)).toBe(0);
   await cmd("shift.close",{id:shift,counted:10000,handover:"Partial opening collection"});await cmd("night.start");await drainPms(db);
   const second=(await cmd("shift.open",{name:"Second business day",opening:0})).id;
-  await cmd("payment.receive",{folioId,amount:20700,method:"cash",shiftId:second});await cmd("stay.check_out",{id:stay.id});
-  const invoice=await cmd("folio.close",{id:folioId});
+  await cmd("payment.receive",{guestAccountId,amount:20700,method:"cash",shiftId:second});await cmd("stay.check_out",{id:stay.id});
+  const invoice=await cmd("guest_account.close",{id:guestAccountId});
   expect(await db.prepare("SELECT total_minor FROM finance_invoices WHERE id=?").bind(invoice.id).first<number>("total_minor")).toBe(10700);
   expect(await db.prepare("SELECT outstanding_minor FROM finance_invoices WHERE id=?").bind(originalInvoice).first<number>("outstanding_minor")).toBe(0);
   expect(await db.prepare("SELECT sum(amount_minor) amount FROM finance_allocations WHERE company_id=?").bind(f.company).first<number>("amount")).toBe(30700);
@@ -1000,7 +1138,7 @@ it("allocates new receipts after an earlier deposit was refunded", async () => {
     sh = (await cmd("shift.open", { name: "Desk", opening: 0 })).id;
   const first = (
     await cmd("payment.receive", {
-      folioId: b.folioId,
+      guestAccountId: b.guestAccountId,
       amount: 10700,
       method: "cash",
       shiftId: sh,
@@ -1008,7 +1146,7 @@ it("allocates new receipts after an earlier deposit was refunded", async () => {
   ).id;
   const r = (
     await cmd("refund.request", {
-      folioId: b.folioId,
+      guestAccountId: b.guestAccountId,
       amount: 10700,
       pocket: "advance",
       reason: "Change payment",
@@ -1018,7 +1156,7 @@ it("allocates new receipts after an earlier deposit was refunded", async () => {
   await cmd("refund.pay", { id: r, method: "cash", shiftId: sh });
   const second = (
     await cmd("payment.receive", {
-      folioId: b.folioId,
+      guestAccountId: b.guestAccountId,
       amount: 10700,
       method: "cash",
       shiftId: sh,
@@ -1026,7 +1164,7 @@ it("allocates new receipts after an earlier deposit was refunded", async () => {
   ).id;
   await checkIn(b.stayId);
   await cmd("stay.check_out", { id: b.stayId });
-  const invoice = await cmd("folio.close", { id: b.folioId });
+  const invoice = await cmd("guest_account.close", { id: b.guestAccountId });
   const allocations = (
     await db
       .prepare(
@@ -1047,14 +1185,14 @@ it("traces a partially refunded damage deposit used to settle a room charge", as
     sh = (await cmd("shift.open", { name: "Desk", opening: 0 })).id;
   await checkIn(b.stayId);
   await cmd("payment.deposit", {
-    folioId: b.folioId,
+    guestAccountId: b.guestAccountId,
     amount: 12700,
     method: "cash",
     shiftId: sh,
   });
   const r = (
     await cmd("refund.request", {
-      folioId: b.folioId,
+      guestAccountId: b.guestAccountId,
       amount: 2000,
       pocket: "deposit",
       reason: "Return excess",
@@ -1064,12 +1202,12 @@ it("traces a partially refunded damage deposit used to settle a room charge", as
   await cmd("refund.pay", { id: r, method: "cash", shiftId: sh });
   await cmd("stay.preview_checkout", { id: b.stayId });
   await cmd("payment.apply_deposit", {
-    folioId: b.folioId,
+    guestAccountId: b.guestAccountId,
     amount: 10700,
     reason: "Guest approved",
   });
   await cmd("stay.check_out", { id: b.stayId });
-  const i = await cmd("folio.close", { id: b.folioId });
+  const i = await cmd("guest_account.close", { id: b.guestAccountId });
   expect(await balance(accounts.deposit)).toBe(0);
   expect(await balance(accounts.receivable)).toBe(0);
   expect(
@@ -1084,26 +1222,26 @@ it("traces a partially refunded damage deposit used to settle a room charge", as
 it("splits and merges charges without repeating revenue and reverses the recipient entry once", async () => {
   const b = await book(),
     other = (
-      await cmd("folio.create", {
+      await cmd("guest_account.create", {
         reservationId: b.reservationId,
         name: "Company services",
       })
     ).id;
   const e = (
     await cmd("charge.add", {
-      folioId: b.folioId,
+      guestAccountId: b.guestAccountId,
       price: 1000,
       description: "Breakfast",
     })
   ).id;
-  await cmd("folio.transfer", {
+  await cmd("guest_account.transfer", {
     entryId: e,
-    toFolioId: other,
+    toGuestAccountId: other,
     reason: "Company pays",
   });
   expect(await balance(accounts.revenue)).toBe(-1000);
   const transfer = records(await snapshot(), "entry").find(
-    (x) => x.data.folioId === other && x.data.kind === "transfer",
+    (x) => x.data.guestAccountId === other && x.data.kind === "transfer",
   )!;
   await expect(
     cmd("charge.correction.request", { id: e, reason: "Invalid origin" }),
@@ -1114,12 +1252,12 @@ it("splits and merges charges without repeating revenue and reverses the recipie
   await cmd("charge.correction.review",{id:correction.id,expectedVersion:1,action:"approve",reason:"Independent cancellation review"},reviewer);
   expect(await balance(accounts.revenue)).toBe(0);
   await cmd("charge.add", {
-    folioId: other,
+    guestAccountId: other,
     price: 2000,
     description: "Dinner",
   });
-  await cmd("folio.merge", { id: other, toFolioId: b.folioId });
-  expect(record(await snapshot(), "folio", b.folioId).data.due).toBe(2140);
+  await cmd("guest_account.merge", { id: other, toGuestAccountId: b.guestAccountId });
+  expect(record(await snapshot(), "guest_account", b.guestAccountId).data.due).toBe(2140);
   expect(await balance(accounts.receivable)).toBe(2140);
 });
 it("settles a manually entered OTA reservation against approved credit and net bank proceeds", async () => {
@@ -1140,9 +1278,9 @@ it("settles a manually entered OTA reservation against approved credit and net b
   });
   await checkIn(b.stayId);
   await cmd("stay.preview_checkout", { id: b.stayId });
-  await cmd("folio.credit", { id: b.folioId, creditId: credit });
+  await cmd("guest_account.credit", { id: b.guestAccountId, creditId: credit });
   await cmd("stay.check_out", { id: b.stayId });
-  const invoice = await cmd("folio.close", { id: b.folioId });
+  const invoice = await cmd("guest_account.close", { id: b.guestAccountId });
   const sh = (await cmd("shift.open", { name: "Reconciliation", opening: 0 }))
     .id;
   const beforeSettlement = await snapshot();
@@ -1162,7 +1300,7 @@ it("settles a manually entered OTA reservation against approved credit and net b
       expectedVersion: beforeSettlement.property.version,
       operation: "ota.settle",
       input: {
-        folioId: b.folioId,
+        guestAccountId: b.guestAccountId,
         gross: 10700,
         commission: 1200,
         fees: 100,
@@ -1306,14 +1444,14 @@ it("posts minibar and inventory cost together, rolling back insufficient stock",
   await cmd("minibar.charge", {
     itemId: item,
     quantity: 1,
-    folioId: b.folioId,
+    guestAccountId: b.guestAccountId,
     roomId,
   });
   expect(await balance(accounts.inventory)).toBe(-300);
   expect(await balance(accounts.consumption)).toBe(300);
   expect(await balance(accounts.revenue)).toBe(-1000);
   await expect(
-    cmd("minibar.charge", { itemId: item, quantity: 2, folioId: b.folioId }),
+    cmd("minibar.charge", { itemId: item, quantity: 2, guestAccountId: b.guestAccountId }),
   ).rejects.toMatchObject({ code: "PMS_STOCK_SHORT" });
   expect(await balance(accounts.revenue)).toBe(-1000);
   expect(
@@ -1366,7 +1504,7 @@ it("cancels an unarrived room in a partially checked-in group and ignores stale 
     ).id,
     sh = (await cmd("shift.open", { name: "Desk", opening: 0 })).id;
   await cmd("payment.receive", {
-    folioId: stays[0].data.folioId,
+    guestAccountId: stays[0].data.guestAccountId,
     amount: 10700,
     method: "cash",
     shiftId: sh,
@@ -1391,7 +1529,7 @@ it("loads real workspace selectors and redacts financial and guest data for hous
   const restricted = await pmsWorkspace(cleaner, propertyId);
   expect(
     restricted.snapshot!.records.some(
-      (r) => r.kind === "guest" || r.kind === "entry" || r.kind === "folio",
+      (r) => r.kind === "guest" || r.kind === "entry" || r.kind === "guest_account",
     ),
   ).toBe(false);
   expect(
@@ -1423,7 +1561,7 @@ it("defines a POS room-charge contract that rejects foreign scope and already re
     };
   expect(prepareRoomCharge(s, input)).toMatchObject({
     duplicate: false,
-    folioId: b.folioId,
+    guestAccountId: b.guestAccountId,
     sourceKey: "pos:sale:line",
   });
   expect(() =>
@@ -1442,7 +1580,7 @@ it("defines a POS room-charge contract that rejects foreign scope and already re
     version: 1,
     updatedAt: 1,
     data: {
-      folioId: b.folioId,
+      guestAccountId: b.guestAccountId,
       stayId: b.stayId,
       date: s.property.businessDate,
       kind: "charge",
@@ -1488,6 +1626,62 @@ it("retains historical occupancy capacity and posts corrections in the open busi
   s = await snapshot();
   expect(dailyRoomReport(s, "2026-09-01").roomRevenue).toBe(10000);
   expect(dailyRoomReport(s, "2026-09-02").roomRevenue).toBe(-10000);
+});
+it("keeps overdue arrivals outside the current UI window as Night Audit blockers", async () => {
+  const b=await book();
+  // Explicit legacy date metadata; no historical revenue or GL is fabricated.
+  await db.prepare("UPDATE pms_records SET data_json=jsonb_set(jsonb_set(data_json::jsonb,'{arrival}','\"2026-08-01\"'),'{departure}','\"2026-08-02\"')::text WHERE id=?")
+    .bind(b.stayId).run();
+  await expect(cmd('night.start')).rejects.toMatchObject({code:'PMS_NIGHT_BLOCKED'});
+  expect((await snapshot()).property.state).toBe('open');
+  expect(await db.prepare("SELECT COUNT(*)::int n FROM pms_jobs WHERE property_id=?").bind(propertyId).first('n')).toBe(0);
+});
+it("retains an older open shift behind reviewed history before closing a hotel day", async () => {
+  const shift=(await cmd('shift.open',{name:'Older shift',opening:0})).id;
+  await db.prepare("UPDATE pms_records SET data_json=jsonb_set(data_json::jsonb,'{date}','\"2026-08-01\"')::text WHERE id=?").bind(shift).run();
+  const template=record(await snapshot(),'shift',shift).data;
+  for(let i=0;i<61;i++) await db.prepare("INSERT INTO pms_records(id,property_id,kind,data_json,version,updated_at) VALUES(?,?,'shift',?,1,?)")
+    .bind(key(),propertyId,JSON.stringify({...template,name:`Reviewed mock ${i}`,state:'reviewed',reviewedBy:reviewer.userId}),Date.now()+i).run();
+  await expect(cmd('night.start')).rejects.toMatchObject({code:'PMS_NIGHT_BLOCKED'});
+  expect(record(await snapshot(),'shift',shift).data.state).toBe('open');
+});
+it("does not treat an older closed shift with unknown variance as reconciled", async () => {
+  const shift=(await cmd('shift.open',{name:'Legacy variance unknown',opening:0})).id;
+  // Legacy metadata cannot assert a reviewed zero balance when variance is absent.
+  await db.prepare("UPDATE pms_records SET data_json=(jsonb_set(jsonb_set(data_json::jsonb,'{state}','\"closed\"'),'{date}','\"2026-08-01\"')-'variance')::text WHERE id=?")
+    .bind(shift).run();
+  await expect(cmd('night.start')).rejects.toMatchObject({code:'PMS_NIGHT_BLOCKED'});
+  expect((await snapshot()).property.state).toBe('open');
+});
+it("reuses complete next-day stayover tasks and preserves unrelated closed account metadata", async () => {
+  const b=await book('2026-09-01','2026-09-03'); await checkIn(b.stayId);
+  const task=(await cmd('task.create',{roomId,type:'stayover',date:'2026-09-02'})).id;
+  await db.prepare("UPDATE pms_records SET data_json=jsonb_set(data_json::jsonb,'{stayId}',to_jsonb(?::text))::text WHERE id=?").bind(b.stayId,task).run();
+  const s=await snapshot(),template=record(s,'task',task).data,account=record(s,'guest_account',b.guestAccountId).data;
+  const historyIds:string[]=[];
+  for(let i=0;i<61;i++) {
+    await db.prepare("INSERT INTO pms_records(id,property_id,kind,data_json,version,updated_at) VALUES(?,?,'task',?,1,?)")
+      .bind(key(),propertyId,JSON.stringify({...template,stayId:`mock-other-${i}`}),Date.now()+i).run();
+    const id=key();historyIds.push(id);
+    await db.prepare("INSERT INTO pms_records(id,property_id,kind,data_json,version,updated_at) VALUES(?,?,'guest_account',?,1,1)")
+      .bind(id,propertyId,JSON.stringify({...account,state:'closed',reservationId:`mock-history-${i}`})).run();
+  }
+  const history=async()=> (await db.prepare("SELECT id,data_json,version,updated_at FROM pms_records WHERE id IN (SELECT jsonb_array_elements_text(?::jsonb)) ORDER BY id")
+    .bind(JSON.stringify(historyIds)).all()).results;
+  const before=await history(),taskVersion=record(await snapshot(),'task',task).version;
+  await cmd('night.start'); await drainPms(db);
+  const after=await snapshot();expect(after.property.businessDate).toBe('2026-09-02');
+  expect(records(after,'task').filter(r=>r.data.stayId===b.stayId&&r.data.date==='2026-09-02'&&r.data.type==='stayover')).toHaveLength(1);
+  expect(record(after,'task',task).version).toBe(taskVersion); expect(await history()).toEqual(before);
+  expect(record(after,'guest_account',b.guestAccountId).data.due).toBe(10700);
+  expect(await balance(accounts.receivable)).toBe(10700); expect(await balance(accounts.revenue)).toBe(-10000);
+});
+it("refuses account closing while a future active stay is behind terminal account history", async () => {
+  const b=await book('2026-10-01','2026-10-02'),stay=record(await snapshot(),'stay',b.stayId).data;
+  for(let i=0;i<61;i++) await db.prepare("INSERT INTO pms_records(id,property_id,kind,data_json,version,updated_at) VALUES(?,?,'stay',?,1,?)")
+    .bind(key(),propertyId,JSON.stringify({...stay,state:'cancelled'}),Date.now()+i).run();
+  await expect(cmd('guest_account.close',{id:b.guestAccountId})).rejects.toMatchObject({code:'PMS_STAY_OPEN'});
+  expect(record(await snapshot(),'guest_account',b.guestAccountId).data.invoiceId).toBeFalsy();
 });
 it("resumes a multi-chunk night from committed sources and serializes competing workers", async () => {
   for (let i = 1; i < 26; i++)
@@ -1546,13 +1740,13 @@ it("protects allocated receipt links and journal lines from deletion outside the
   await checkIn(b.stayId);
   const sh = (await cmd("shift.open", { name: "Desk", opening: 0 })).id;
   await cmd("payment.receive", {
-    folioId: b.folioId,
+    guestAccountId: b.guestAccountId,
     amount: 10700,
     method: "cash",
     shiftId: sh,
   });
   await cmd("stay.check_out", { id: b.stayId });
-  const invoice = await cmd("folio.close", { id: b.folioId });
+  const invoice = await cmd("guest_account.close", { id: b.guestAccountId });
   await expect(
     db
       .prepare("DELETE FROM finance_allocations WHERE invoice_id=?")
@@ -1584,7 +1778,7 @@ it('prepares reviewed PMS mappings once and retains independent approval and the
  await cmd('accounting.approve',{},reviewer);
  await cmd('property.enable');
  const reservation=await book();
- await cmd('charge.add',{folioId:reservation.folioId,price:1000,description:'Financial freeze example'});
+ await cmd('charge.add',{guestAccountId:reservation.guestAccountId,price:1000,description:'Financial freeze example'});
  await expect(cmd('accounting.bootstrap',input)).rejects.toMatchObject({code:'PMS_ACCOUNTING_IN_USE'});
 });
 
@@ -1619,22 +1813,22 @@ it('filters setup details and resumes from owner records without admitting other
 
 it('does not reuse an applied damage deposit as a later room-advance refund source',async()=>{
  const b=await book(),shift=(await cmd('shift.open',{name:'Desk',opening:0})).id;
- const deposit=(await cmd('payment.deposit',{folioId:b.folioId,amount:5000,method:'cash',shiftId:shift})).id;
- await cmd('charge.add',{folioId:b.folioId,price:3000,description:'Damage charge'});
- await cmd('payment.apply_deposit',{folioId:b.folioId,amount:3210,reason:'Apply damage deposit'});
- const receipt=(await cmd('payment.receive',{folioId:b.folioId,amount:5000,method:'cash',shiftId:shift})).id;
- const request=(await cmd('refund.request',{folioId:b.folioId,pocket:'advance',amount:5000,reason:'Return unused room advance'})).id;
+ const deposit=(await cmd('payment.deposit',{guestAccountId:b.guestAccountId,amount:5000,method:'cash',shiftId:shift})).id;
+ await cmd('charge.add',{guestAccountId:b.guestAccountId,price:3000,description:'Damage charge'});
+ await cmd('payment.apply_deposit',{guestAccountId:b.guestAccountId,amount:3210,reason:'Apply damage deposit'});
+ const receipt=(await cmd('payment.receive',{guestAccountId:b.guestAccountId,amount:5000,method:'cash',shiftId:shift})).id;
+ const request=(await cmd('refund.request',{guestAccountId:b.guestAccountId,pocket:'advance',amount:5000,reason:'Return unused room advance'})).id;
  await cmd('refund.approve',{id:request},reviewer);const paid=(await cmd('refund.pay',{id:request,method:'cash',shiftId:shift})).id;
  expect(record(await snapshot(),'entry',paid).data.funding).toEqual([{entryId:receipt,amount:5000}]);
  expect(record(await snapshot(),'entry',paid).data.funding?.some(p=>p.entryId===deposit)).toBe(false);
 });
 it('serializes a damage-deposit refund against applying the same deposit to a charge',async()=>{
  const b=await book(),shift=(await cmd('shift.open',{name:'Desk',opening:0})).id;
- await cmd('payment.deposit',{folioId:b.folioId,amount:5000,method:'cash',shiftId:shift});
- await cmd('charge.add',{folioId:b.folioId,price:3000,description:'Damage charge'});
- const result=await Promise.allSettled([cmd('refund.request',{folioId:b.folioId,pocket:'deposit',amount:4000,reason:'Return damage deposit'}),cmd('payment.apply_deposit',{folioId:b.folioId,amount:3210,reason:'Apply damage deposit'})]);
+ await cmd('payment.deposit',{guestAccountId:b.guestAccountId,amount:5000,method:'cash',shiftId:shift});
+ await cmd('charge.add',{guestAccountId:b.guestAccountId,price:3000,description:'Damage charge'});
+ const result=await Promise.allSettled([cmd('refund.request',{guestAccountId:b.guestAccountId,pocket:'deposit',amount:4000,reason:'Return damage deposit'}),cmd('payment.apply_deposit',{guestAccountId:b.guestAccountId,amount:3210,reason:'Apply damage deposit'})]);
  expect(result.filter(r=>r.status==='fulfilled')).toHaveLength(1);
- const f=record(await snapshot(),'folio',b.folioId);expect(f.data.deposit).toBeGreaterThanOrEqual(0);expect(f.data.due).toBeGreaterThanOrEqual(0);
+ const f=record(await snapshot(),'guest_account',b.guestAccountId);expect(f.data.deposit).toBeGreaterThanOrEqual(0);expect(f.data.due).toBeGreaterThanOrEqual(0);
 });
 
 it('pages booking queries while retaining related records and honoring guest search and hotel scope',async()=>{
@@ -1648,4 +1842,508 @@ it('pages booking queries while retaining related records and honoring guest sea
  const found=await pmsWorkspace(owner,propertyId,false,false,{view:'list',section:'reservations',page:0,q:number,status:''});expect(found.snapshot!.listMeta!.ids).toEqual([ids[54]]);expect(records(found.snapshot!,'guest')).toHaveLength(1);expect(records(found.snapshot!,'stay')).toHaveLength(1);
  const desk=await pmsWorkspace(owner,propertyId,false,true,{view:'list',section:'front-desk',page:0,q:'',status:'arrivals'});expect(desk.snapshot!.listMeta!.ids).toHaveLength(1);expect(records(desk.snapshot!,'stay')[0].data.arrival).toBe('2026-09-01');
  await expect(pmsWorkspace(owner,propertyId,false,false,{view:'list',section:'reservations',page:0,q:'',status:'',from:'2026-01-01',to:'2026-12-31'})).rejects.toThrow();
+});
+
+
+it("retains guest preferences and immutable service request history across legacy edits and retries",async()=>{
+ await cmd('guest.save',{id:guestId,name:'Test Guest',preferredLanguage:'th',roomPreference:'Quiet upper floor'});
+ const state=await snapshot();
+ const payload={operation:'guest.service_request',propertyId,expectedVersion:state.property.version,input:{guestId,text:'Extra towels'}};
+ const idem=key(); const created=await pmsCommand(db,owner,payload,idem);
+ expect(await pmsCommand(db,owner,payload,idem)).toEqual(created);
+ await cmd('guest.save',{id:guestId,name:'Renamed guest'});
+ let guest=record(await snapshot(),'guest',guestId);
+ expect(guest.data.preferredLanguage).toBe('th'); expect(guest.data.roomPreference).toBe('Quiet upper floor');
+ expect(guest.data.serviceRequests).toHaveLength(1);
+ const request=guest.data.serviceRequests![0]; expect(request.createdBy).toBe(owner.userId);
+ await cmd('guest.service_request',{guestId,requestId:request.id,text:'Extra towels delivered',state:'completed'});
+ guest=record(await snapshot(),'guest',guestId);
+ expect(guest.data.serviceRequests![0]).toMatchObject({createdAt:request.createdAt,createdBy:owner.userId,state:'completed'});
+ await expect(cmd('guest.service_request',{guestId,requestId:request.id,text:'Rewrite closed',state:'open'})).rejects.toMatchObject({code:'PMS_REQUEST_CLOSED'});
+ const cleaner=await f.member('guest-request-cleaner','pms_housekeeping');
+ await expect(cmd('guest.service_request',{guestId,text:'No access'},cleaner)).rejects.toMatchObject({status:403});
+ const other=(await cmd('guest.save',{name:'Other guest'})).id;
+ await expect(cmd('guest.service_request',{guestId:other,requestId:request.id,text:'Wrong guest'})).rejects.toMatchObject({code:'PMS_REQUEST_NOT_FOUND'});
+});
+
+
+it("uses complete original receipt funding beyond a UI page while preserving unrelated closed account history", async () => {
+  const booking = await book(), shiftId = (await cmd("shift.open",{name:"Receipt history cashier",opening:0})).id;
+  const receiptIds: string[] = [];
+  for (let i=0;i<60;i++) receiptIds.push((await cmd("payment.receive",{guestAccountId:booking.guestAccountId,amount:100,method:"cash",shiftId})).id);
+  const account = record(await snapshot(),"guest_account",booking.guestAccountId);
+  const unrelatedIds=Array.from({length:75},(_,i)=>`closed-history-${propertyId}-${i}`);
+  await db.batch(unrelatedIds.map(id=>db.prepare("INSERT INTO pms_records(id,property_id,kind,data_json,version,updated_at) VALUES(?,?,'guest_account',?,1,1)")
+    .bind(id,propertyId,JSON.stringify({...account.data,state:"closed",due:0,advance:0,advanceTax:0,deposit:0}))));
+  const history = async()=> (await db.prepare("SELECT id,data_json,version,updated_at FROM pms_records WHERE property_id=? AND kind='guest_account' AND id LIKE ? ORDER BY id").bind(propertyId,`closed-history-${propertyId}-%`).all()).results;
+  const originalHistory = await history();
+  const refundId=(await cmd("refund.request",{guestAccountId:booking.guestAccountId,amount:150,pocket:"advance",reason:"Original receipts beyond the first UI page"})).id;
+  await cmd("refund.approve",{id:refundId},reviewer);
+  await cmd("refund.pay",{id:refundId,method:"cash",shiftId});
+  const after=await snapshot(), payout=records(after,"entry").find(r=>r.data.originalId===refundId)!;
+  expect(payout.data.funding).toEqual([{entryId:receiptIds[0],amount:100},{entryId:receiptIds[1],amount:50}]);
+  expect(record(after,"guest_account",booking.guestAccountId).data.advance).toBe(5850);
+  expect(record(after,"shift",shiftId).data.cash).toBe(5850);
+  expect(await balance(accounts.cash)).toBe(5850);
+  expect(await balance(accounts.advance)).toBe(-5850);
+  expect(await history()).toEqual(originalHistory);
+});
+it("retains every pending refund beyond the first UI page when rejecting a new receipt", async () => {
+  const booking=await book(), shiftId=(await cmd("shift.open",{name:"Pending-history cashier",opening:0})).id;
+  await cmd("payment.receive",{guestAccountId:booking.guestAccountId,amount:1000,method:"cash",shiftId});
+  const pending=(await cmd("refund.request",{guestAccountId:booking.guestAccountId,amount:100,pocket:"advance",reason:"Old pending request"})).id;
+  await db.batch(Array.from({length:60},(_,i)=>db.prepare("INSERT INTO pms_records(id,property_id,kind,data_json,version,updated_at) VALUES(?,?,'refund',?,1,?)")
+    .bind(`rejected-history-${propertyId}-${i}`,propertyId,JSON.stringify({guestAccountId:booking.guestAccountId,amount:1,pocket:"advance",reason:"Rejected legacy request",state:"rejected",requestedBy:owner.userId,approvedBy:operationalReviewer.userId}),Date.now()+i)));
+  await expect(cmd("payment.receive",{guestAccountId:booking.guestAccountId,amount:100,method:"cash",shiftId})).rejects.toMatchObject({code:"PMS_REFUND_PENDING"});
+  expect(record(await snapshot(),"refund",pending).data.state).toBe("requested");
+  expect(await balance(accounts.cash)).toBe(1000);
+});
+
+
+it("room move supersedes every old-room task beyond a UI page without modifying unrelated closed-account history", async () => {
+  const b=await book('2026-09-01','2026-09-03');await checkIn(b.stayId);
+  const originalRoom=roomId;
+  const second=(await cmd('room.save',{number:'102',typeId,active:true})).id;
+  roomId=second;await clean();roomId=originalRoom;
+  const template=records(await snapshot(),'task').find(t=>t.data.roomId===originalRoom)!;
+  const tasks:string[]=[],history:string[]=[];
+  for(let n=0;n<61;n++){
+    const taskId=key();tasks.push(taskId);
+    await db.prepare("INSERT INTO pms_records(id,property_id,kind,data_json,version,updated_at) VALUES(?,?,'task',?,1,1)").bind(taskId,propertyId,JSON.stringify({...template.data,state:'pending',type:'arrival',stayId:`legacy-task-${n}`,completedBy:'',inspectedBy:''})).run();
+    const accountId=key();history.push(accountId);
+    await db.prepare("INSERT INTO pms_records(id,property_id,kind,data_json,version,updated_at) VALUES(?,?,'guest_account',?,1,1)").bind(accountId,propertyId,JSON.stringify({guestId,reservationId:`unrelated-legacy-${n}`,name:`Closed history ${n}`,partyId:'',state:'closed',due:0,advance:0,advanceTax:0,deposit:0})).run();
+  }
+  const before=(await db.prepare('SELECT id,data_json,version,updated_at FROM pms_records WHERE id IN (SELECT jsonb_array_elements_text(?::jsonb)) ORDER BY id').bind(JSON.stringify(history)).all()).results;
+  await cmd('stay.move',{id:b.stayId,roomId:second,reason:'Ready replacement room'});
+  const after=await snapshot();
+  expect(record(after,'stay',b.stayId).data.roomId).toBe(second);
+  expect(tasks.every(id=>record(after,'task',id).data.state==='superseded')).toBe(true);
+  expect(record(after,'room',originalRoom).data.cleanliness).toBe('dirty');
+  expect(records(after,'task').filter(t=>t.data.roomId===originalRoom&&t.data.stayId===b.stayId&&t.data.type==='departure')).toHaveLength(1);
+  expect((await db.prepare('SELECT id,data_json,version,updated_at FROM pms_records WHERE id IN (SELECT jsonb_array_elements_text(?::jsonb)) ORDER BY id').bind(JSON.stringify(history)).all()).results).toEqual(before);
+});
+
+it("reservation cancellation sees terminal booking siblings beyond a UI page and rolls back without changing the reserved room", async () => {
+  const b=await book(),s=await snapshot(),stay=record(s,'stay',b.stayId);
+  for(let n=0;n<61;n++)await db.prepare("INSERT INTO pms_records(id,property_id,kind,data_json,version,updated_at) VALUES(?,?,'stay',?,1,1)").bind(key(),propertyId,JSON.stringify({...stay.data,state:'checked_out'})).run();
+  await expect(cmd('reservation.cancel',{id:b.reservationId,reason:'Whole booking cancellation'})).rejects.toMatchObject({code:'PMS_ALREADY_CHECKED_IN'});
+  const after=await snapshot();
+  expect(record(after,'stay',b.stayId)).toEqual(stay);
+  expect(record(after,'reservation',b.reservationId).data.state).toBe('confirmed');
+  expect(after.property.version).toBe(s.property.version);
+});
+
+it("checkout includes all same-party credit exposure beyond a page and excludes unrelated parties without losing account funding", async () => {
+  const party=key(),otherParty=key();
+  for(const id of [party,otherParty])await db.prepare("INSERT INTO finance_parties(id,company_id,kind,code,name,currency,created_at,updated_at) VALUES(?,?,'customer',?,'Legacy credit payer','THB',1,1)").bind(id,f.company,id).run();
+  const credit=(await cmd('credit.request',{partyId:party,limit:20000,terms:30})).id;
+  await cmd('credit.approve',{id:credit},reviewer);
+  const b=await book();await checkIn(b.stayId);await cmd('stay.preview_checkout',{id:b.stayId});
+  await cmd('guest_account.credit',{id:b.guestAccountId,creditId:credit});
+  const account=record(await snapshot(),'guest_account',b.guestAccountId),legacy:string[]=[];
+  // Synthetic legacy credit metadata tests exposure, not fabricated historical GL.
+  for(let n=0;n<61;n++){
+    const id=key();legacy.push(id);
+    await db.prepare("INSERT INTO pms_records(id,property_id,kind,data_json,version,updated_at) VALUES(?,?,'guest_account',?,1,1)").bind(id,propertyId,JSON.stringify({...account.data,reservationId:`legacy-credit-${n}`,name:`Legacy exposure ${n}`,due:200})).run();
+  }
+  const entriesBefore=records(await snapshot(),'entry').filter(e=>e.data.guestAccountId===b.guestAccountId);
+  await expect(cmd('stay.check_out',{id:b.stayId})).rejects.toMatchObject({code:'PMS_CREDIT_LIMIT'});
+  expect(record(await snapshot(),'stay',b.stayId).data.state).toBe('in_house');
+  expect(records(await snapshot(),'entry').filter(e=>e.data.guestAccountId===b.guestAccountId)).toEqual(entriesBefore);
+  for(const id of legacy)await db.prepare("UPDATE pms_records SET data_json=jsonb_set(data_json::jsonb,'{partyId}',to_jsonb(?::text))::text WHERE id=?").bind(otherParty,id).run();
+  await cmd('stay.check_out',{id:b.stayId});
+  expect(record(await snapshot(),'stay',b.stayId).data.state).toBe('checked_out');
+  expect(record(await snapshot(),'guest_account',b.guestAccountId).data.due).toBe(10700);
+  expect(records(await snapshot(),'entry').filter(e=>e.data.guestAccountId===b.guestAccountId)).toEqual(entriesBefore);
+  expect(await balance(accounts.receivable)).toBe(10700);
+});
+
+
+it("checkout preserves original receipt allocations of another issued credit account for the same payer", async () => {
+  const party=key();
+  await db.prepare("INSERT INTO finance_parties(id,company_id,kind,code,name,currency,created_at,updated_at) VALUES(?,?,'customer',?,'Shared company payer','THB',1,1)").bind(party,f.company,party).run();
+  const credit=(await cmd('credit.request',{partyId:party,limit:100000,terms:30})).id;await cmd('credit.approve',{id:credit},reviewer);
+  const first=await book();await checkIn(first.stayId);await cmd('stay.preview_checkout',{id:first.stayId});await cmd('guest_account.credit',{id:first.guestAccountId,creditId:credit});await cmd('stay.check_out',{id:first.stayId});
+  const invoice=(await cmd('guest_account.close',{id:first.guestAccountId})).id;
+  const shift=(await cmd('shift.open',{name:'Issued credit settlement',opening:0})).id;
+  await cmd('payment.receive',{guestAccountId:first.guestAccountId,amount:1000,method:'cash',shiftId:shift});
+  const allocationsBefore=(await db.prepare('SELECT payment_id,invoice_id,amount_minor FROM finance_allocations WHERE invoice_id=? ORDER BY payment_id').bind(invoice).all()).results;
+  expect(allocationsBefore).toHaveLength(1);
+  const second=await book();await checkIn(second.stayId);await cmd('stay.preview_checkout',{id:second.stayId});await cmd('guest_account.credit',{id:second.guestAccountId,creditId:credit});await cmd('stay.check_out',{id:second.stayId});
+  expect((await db.prepare('SELECT payment_id,invoice_id,amount_minor FROM finance_allocations WHERE invoice_id=? ORDER BY payment_id').bind(invoice).all()).results).toEqual(allocationsBefore);
+  expect(record(await snapshot(),'guest_account',first.guestAccountId).data.due).toBe(9700);
+  expect(await db.prepare('SELECT outstanding_minor FROM finance_invoices WHERE id=?').bind(invoice).first('outstanding_minor')).toBe(9700);
+  expect(await balance(accounts.cash)).toBe(1000);
+});
+
+function posCharge(stayId:string){return {source:'pos' as const,sourceId:'scoped-pos-sale',sourceLineId:'line',companyId:f.company,branchId:f.branch,propertyId,stayId,currency:'THB',revenueOwner:'pms' as const,sourceJournalId:null,description:'Cafe',net:1000,service:0,tax:70,total:1070};}
+async function seedPosDependencies(rows:Array<{id:string;kind:string;data:object}>){
+ await db.transaction(async tx=>{await tx.prepare("SELECT set_config('erpx.pms_write','on',true)").first();
+  for(const row of rows)await tx.prepare('INSERT INTO pms_records(id,property_id,kind,data_json,version,updated_at) VALUES(?,?,?,?,1,1)').bind(row.id,propertyId,row.kind,JSON.stringify(row.data)).run();
+ });
+}
+it('POS duplicate identity remains hotel-wide after checkout and beyond a UI page',async()=>{
+ const b=await book();await checkIn(b.stayId);const charge=posCharge(b.stayId);let s=await snapshot();
+ const posted=await db.transaction(tx=>applyPosRoomCharge(tx,owner,charge,s.property.version));
+ await db.transaction(async tx=>{await tx.prepare("SELECT set_config('erpx.pms_write','on',true)").first();await tx.prepare("UPDATE pms_records SET data_json=jsonb_set(data_json::jsonb,'{state}','\"checked_out\"')::text WHERE id=?").bind(b.stayId).run();await tx.prepare("UPDATE pms_records SET data_json=jsonb_set(data_json::jsonb,'{state}','\"closed\"')::text WHERE id=?").bind(b.guestAccountId).run();});
+ await seedPosDependencies(Array.from({length:61},(_,n)=>({id:`pos-unrelated-${n}`,kind:'entry',data:{guestAccountId:'unrelated',sourceKey:`pos:unrelated:${n}`,total:1}})));
+ s=await snapshot();const before=JSON.stringify(s);
+ expect(await db.transaction(tx=>applyPosRoomCharge(tx,owner,charge,s.property.version))).toEqual(posted);
+ await expect(db.transaction(tx=>applyPosRoomCharge(tx,owner,{...charge,stayId:'another-stay'},s.property.version))).rejects.toMatchObject({code:'PMS_CHARGE_CONFLICT'});
+ await expect(db.transaction(tx=>applyPosRoomCharge(tx,owner,{...charge,description:'Changed cafe'},s.property.version))).rejects.toMatchObject({code:'PMS_CHARGE_CONFLICT'});
+ expect(JSON.stringify(await snapshot())).toBe(before);
+});
+it('POS charge reads every pending refund in the target account before allocating advance',async()=>{
+ const b=await book();await checkIn(b.stayId);
+ await seedPosDependencies([...Array.from({length:61},(_,n)=>({id:`pos-refund-history-${n}`,kind:'refund',data:{guestAccountId:b.guestAccountId,state:'rejected',amount:1}})),{id:'pos-hidden-pending-refund',kind:'refund',data:{guestAccountId:b.guestAccountId,state:'requested',amount:1}}]);
+ const s=await snapshot(),before=JSON.stringify(s);
+ await expect(db.transaction(tx=>applyPosRoomCharge(tx,owner,posCharge(b.stayId),s.property.version))).rejects.toMatchObject({code:'PMS_REFUND_PENDING'});
+ expect(JSON.stringify(await snapshot())).toBe(before);
+});
+it('POS reversal detects an original reversal outside the charged account',async()=>{
+ const b=await book();await checkIn(b.stayId);let s=await snapshot();
+ const posted=await db.transaction(tx=>applyPosRoomCharge(tx,owner,posCharge(b.stayId),s.property.version));
+ await seedPosDependencies([...Array.from({length:61},(_,n)=>({id:`pos-other-reversal-${n}`,kind:'entry',data:{guestAccountId:'other-account',originalId:`other-${n}`,total:-1}})),{id:'pos-hidden-original-reversal',kind:'entry',data:{guestAccountId:'other-account',originalId:posted.entryId,total:-1070}}]);
+ s=await snapshot();const before=JSON.stringify(s);
+ await expect(db.transaction(tx=>reversePosRoomCharge(tx,owner,{propertyId,sourceKey:'pos:scoped-pos-sale:line',expectedPropertyVersion:s.property.version,reason:'Wrong room',total:1070}))).rejects.toMatchObject({code:'PMS_ALREADY_REVERSED'});
+ expect(JSON.stringify(await snapshot())).toBe(before);
+});
+
+it('POS room charge allocates complete original advance sources beyond a UI page',async()=>{
+ const b=await book();await checkIn(b.stayId);const shift=(await cmd('shift.open',{name:'POS funding cash',opening:0})).id;
+ const first=await cmd('payment.receive',{guestAccountId:b.guestAccountId,amount:535,method:'cash',shiftId:shift});
+ const second=await cmd('payment.receive',{guestAccountId:b.guestAccountId,amount:535,method:'cash',shiftId:shift});
+ await seedPosDependencies(Array.from({length:61},(_,n)=>({id:`pos-funding-history-${n}`,kind:'entry',data:{guestAccountId:b.guestAccountId,kind:'charge',description:'Historical zero line',net:0,service:0,tax:0,total:0,at:n,sourceKey:''}})));
+ const before=await snapshot();expect(record(before,'guest_account',b.guestAccountId).data.advance).toBe(1070);
+ const posted=await db.transaction(tx=>applyPosRoomCharge(tx,owner,posCharge(b.stayId),before.property.version));
+ const after=await snapshot(),account=record(after,'guest_account',b.guestAccountId),allocation=records(after,'entry').find(e=>e.data.guestAccountId===b.guestAccountId&&e.data.kind==='allocation'&&e.data.description==='Allocate advance payment')!;
+ expect(account.data).toMatchObject({advance:0,advanceTax:0,due:0});
+ expect(allocation.data.funding).toEqual(expect.arrayContaining([{entryId:first.id,amount:535},{entryId:second.id,amount:535}]));expect(allocation.data.funding).toHaveLength(2);
+ expect(records(after,'entry').filter(e=>e.data.sourceKey==='pos:scoped-pos-sale:line').map(e=>e.id)).toEqual([posted.entryId]);
+ const money=await db.prepare("SELECT amount_units FROM money_transaction_snapshots WHERE source_type='pms_entry' AND source_id=? AND amount_kind LIKE 'funding:%' ORDER BY amount_kind").bind(allocation.id).all<{amount_units:number}>();
+ expect(money.results.map(m=>m.amount_units)).toEqual([535,535]);
+});
+
+it('proves cross-hotel serializable cache retries and pre-snapshot coordination without changing owner counters',async()=>{
+ const branch=key();await db.prepare("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id) VALUES(?,'branch',?,'Cache mock branch',?,?,?)").bind(branch,branch,f.company,f.company,branch).run();
+ const other=(await pmsCommand(db,owner,{operation:'property.create',input:{name:'Cache mock hotel',branchId:branch,businessDate:'2026-09-01'}},key())).id;
+ const left=key(),right=key();
+ await db.prepare("INSERT INTO pms_records(id,property_id,kind,data_json,version,updated_at) VALUES(?,?,'guest','{\"name\":\"Left mock\"}',1,1),(?,?,'guest','{\"name\":\"Right mock\"}',1,1)").bind(left,propertyId,right,other).run();
+ const revision=async()=>Number(await db.prepare("SELECT revision FROM work_cache_revisions WHERE table_name='pms_records'").first('revision'));
+ const before=await revision(),a=await db.pool.connect(),b=await db.pool.connect(),namespace='test:pms:cache',coord=key();
+ const waitForBlocked=async(pid:number)=>{const deadline=Date.now()+5000;while(Date.now()<deadline){if((await db.pool.query('SELECT cardinality(pg_blocking_pids($1))>0 waiting',[pid])).rows[0].waiting)return;await new Promise(r=>setTimeout(r,5));}throw Error('NATIVE_QUEUED_CACHE_LOCK_REQUIRED');};
+ const edit='UPDATE pms_records SET version=version+1 WHERE id=$1';
+ try{
+  await a.query('BEGIN ISOLATION LEVEL SERIALIZABLE');await b.query('BEGIN ISOLATION LEVEL SERIALIZABLE');
+  await a.query('SELECT version FROM pms_properties WHERE id=$1 FOR UPDATE',[propertyId]);await b.query('SELECT version FROM pms_properties WHERE id=$1 FOR UPDATE',[other]);
+  await a.query(edit,[left]);const pid=Number((await b.query('SELECT pg_backend_pid() pid')).rows[0].pid);
+  const blocked=b.query(edit,[right]).then(()=>null,error=>error as {code:string});await waitForBlocked(pid);await a.query('COMMIT');
+  expect(await blocked).toMatchObject({code:'40001'});await b.query('ROLLBACK');
+  expect(await revision()).toBe(before+1);expect(await db.prepare('SELECT version FROM pms_records WHERE id=?').bind(right).first('version')).toBe(1);
+  // The shared dependency lock precedes both SERIALIZABLE snapshots. Each owner
+  // still locks its own Property. No unrelated domain uses this coordinator.
+  await a.query('SELECT pg_advisory_lock(hashtext($1),hashtext($2))',[namespace,coord]);await a.query('BEGIN ISOLATION LEVEL SERIALIZABLE');
+  await a.query('SELECT version FROM pms_properties WHERE id=$1 FOR UPDATE',[propertyId]);await a.query(edit,[left]);
+  const coordinated=(async()=>{await b.query('SELECT pg_advisory_lock(hashtext($1),hashtext($2))',[namespace,coord]);await b.query('BEGIN ISOLATION LEVEL SERIALIZABLE');await b.query('SELECT version FROM pms_properties WHERE id=$1 FOR UPDATE',[other]);await b.query(edit,[right]);await b.query('COMMIT');})();
+  const joined=coordinated.then(()=>null,error=>error as {code:string});await waitForBlocked(pid);await a.query('COMMIT');await a.query('SELECT pg_advisory_unlock(hashtext($1),hashtext($2))',[namespace,coord]);expect(await joined).toBeNull();
+  expect(await revision()).toBe(before+3);expect(await db.prepare('SELECT version FROM pms_records WHERE id=?').bind(right).first('version')).toBe(2);
+ }finally{for(const client of [a,b]){await client.query('ROLLBACK').catch(()=>{});await client.query('SELECT pg_advisory_unlock_all()').catch(()=>{});client.release();}}
+});
+
+it('commits independent verified Property cache scopes under SERIALIZABLE without losing logical revision increments',async()=>{
+ const branch=key();await db.prepare("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id) VALUES(?,'branch',?,'Counter scope mock',?,?,?)").bind(branch,branch,f.company,f.company,branch).run();
+ const other=(await pmsCommand(db,owner,{operation:'property.create',input:{name:'Independent counter scope',branchId:branch,businessDate:'2026-09-01'}},key())).id;
+ const left=key(),right=key();await db.prepare("INSERT INTO pms_records(id,property_id,kind,data_json,version,updated_at) VALUES(?,?,'guest','{\"name\":\"Left mock\"}',1,1),(?,?,'guest','{\"name\":\"Right mock\"}',1,1)").bind(left,propertyId,right,other).run();
+ const revisions=async()=>Object.fromEntries((await db.prepare("SELECT table_name,revision FROM work_cache_revisions WHERE table_name IN ('pms_records','pms_properties') ORDER BY table_name").all<{table_name:string;revision:number|string}>()).results.map(r=>[r.table_name,Number(r.revision)]));
+ const before=await revisions(),a=await db.pool.connect(),b=await db.pool.connect();
+ try{
+  for(const [client,id] of [[a,propertyId],[b,other]] as const){
+   await client.query('BEGIN ISOLATION LEVEL SERIALIZABLE');
+   await client.query("SELECT set_config('erpx.pms_write','on',true),set_config('erpx.pms_property',$1,true)",[id]);
+   await client.query('SELECT version FROM pms_properties WHERE id=$1 FOR UPDATE',[id]);
+  }
+  await a.query('UPDATE pms_records SET version=version+1 WHERE id=$1',[left]);
+  await a.query('UPDATE pms_properties SET version=version+1 WHERE id=$1',[propertyId]);
+  const second=(async()=>{await b.query('UPDATE pms_records SET version=version+1 WHERE id=$1',[right]);await b.query('UPDATE pms_properties SET version=version+1 WHERE id=$1',[other]);await b.query('COMMIT');})().then(()=>null,error=>({code:(error as {code?:string}).code??'UNKNOWN'}));
+  await a.query('COMMIT');expect(await second).toBeNull();
+  expect(await revisions()).toEqual({pms_records:before.pms_records+2,pms_properties:before.pms_properties+2});
+  expect(Number(await db.prepare('SELECT version FROM pms_records WHERE id=?').bind(right).first('version'))).toBe(2);
+  await a.query('BEGIN ISOLATION LEVEL SERIALIZABLE');await a.query("SELECT set_config('erpx.pms_property',$1,true)",[propertyId]);await a.query('UPDATE pms_records SET version=version+1 WHERE id=$1',[left]);await a.query('ROLLBACK');
+  expect(await revisions()).toEqual({pms_records:before.pms_records+2,pms_properties:before.pms_properties+2});
+  expect((await a.query("SELECT NULLIF(current_setting('erpx.pms_property',true),'') scope")).rows[0].scope).toBeNull();
+ }finally{for(const client of [a,b]){await client.query('ROLLBACK').catch(()=>{});client.release();}}
+});
+
+async function settleBeforePropertyUnlock<T>(pending:Promise<T>):Promise<T|null>{
+ let timer:ReturnType<typeof setTimeout>|undefined;
+ try{return await Promise.race([pending,new Promise<null>(resolve=>{timer=setTimeout(()=>resolve(null),1500);})]);}
+ finally{if(timer!==undefined)clearTimeout(timer);}
+}
+it('does not consume the remaining pool connections with local waiters for one Property',async()=>{
+ const small=new PostgresDatabase({...db.pool.options,max:2}),lock={namespace:'test:pms:pool',key:key()};
+ let release!:()=>void,entered!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;}),started=new Promise<void>(resolve=>{entered=resolve;});
+ let first:Promise<unknown>|undefined,second:Promise<unknown>|undefined,other:Promise<unknown>|undefined;
+ try{
+  first=small.transaction(async tx=>{await tx.prepare('SELECT 1').first();entered();await gate;return 'first';},{sessionLock:lock});await started;
+  second=small.transaction(async tx=>{await tx.prepare('SELECT 1').first();return 'second';},{sessionLock:lock});
+  await new Promise(resolve=>setImmediate(resolve));
+  other=small.transaction(async tx=>{await tx.prepare('SELECT 1').first();return 'other Property';},{sessionLock:{...lock,key:key()}});
+  expect(await settleBeforePropertyUnlock(other)).toBe('other Property');
+  release();expect(await first).toBe('first');expect(await second).toBe('second');
+ }finally{release();await Promise.allSettled([first,second,other].filter((p):p is Promise<unknown>=>!!p));await small.close();}
+});
+it('retains the PostgreSQL Property lock across clients while local waiters leave capacity for other Properties',async()=>{
+ const small=new PostgresDatabase({...db.pool.options,max:2}),external=await db.pool.connect(),lock={namespace:'test:pms:external',key:key()};
+ let first:Promise<unknown>|undefined,second:Promise<unknown>|undefined,other:Promise<unknown>|undefined;
+ try{
+  await external.query('SELECT pg_advisory_lock(hashtext($1),hashtext($2))',[lock.namespace,lock.key]);const pid=Number((await external.query('SELECT pg_backend_pid() pid')).rows[0].pid);
+  first=small.transaction(async tx=>{await tx.prepare('SELECT 1').first();return 'first';},{sessionLock:lock});
+  const deadline=Date.now()+5000;let queued=false;
+  while(Date.now()<deadline){queued=Boolean((await external.query('SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND $1=ANY(pg_blocking_pids(pid))) queued',[pid])).rows[0].queued);if(queued)break;await new Promise(resolve=>setTimeout(resolve,5));}expect(queued).toBe(true);
+  second=small.transaction(async()=>{throw Error('Release this failed waiter');},{sessionLock:lock}).then(()=>null,error=>(error as Error).message);
+  await new Promise(resolve=>setImmediate(resolve));other=small.transaction(async tx=>{await tx.prepare('SELECT 1').first();return 'other Property';},{sessionLock:{...lock,key:key()}});
+  expect(await settleBeforePropertyUnlock(other)).toBe('other Property');
+  await external.query('SELECT pg_advisory_unlock(hashtext($1),hashtext($2))',[lock.namespace,lock.key]);expect(await first).toBe('first');expect(await second).toBe('Release this failed waiter');
+  expect(await small.transaction(async tx=>{await tx.prepare('SELECT 1').first();return 'after failure';},{sessionLock:lock})).toBe('after failure');
+ }finally{await external.query('SELECT pg_advisory_unlock_all()');external.release();await Promise.allSettled([first,second,other].filter((p):p is Promise<unknown>=>!!p));await small.close();}
+});
+
+it('expires a local lock waiter without letting the next command bypass the active owner',async()=>{
+ const small=new PostgresDatabase({...db.pool.options,max:2}),lock={namespace:'test:pms:expiry',key:key()};
+ let release!:()=>void,entered!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;}),started=new Promise<void>(resolve=>{entered=resolve;});
+ let first:Promise<unknown>|undefined,expired:Promise<unknown>|undefined,next:Promise<unknown>|undefined,timer:ReturnType<typeof setTimeout>|undefined;
+ try{
+  first=small.transaction(async tx=>{await tx.prepare('SELECT 1').first();entered();await gate;return 'first';},{sessionLock:lock});await started;
+  expired=small.transaction(async()=>{throw Error('Expired waiter must never execute');},{sessionLock:lock}).then(result=>({result}),error=>({error}));
+  const result=await Promise.race([expired,new Promise<null>(resolve=>{timer=setTimeout(()=>resolve(null),12_000);})]);if(timer!==undefined)clearTimeout(timer);
+  expect(result).toMatchObject({error:{code:'55P03'}});
+  next=small.transaction(async tx=>{await tx.prepare('SELECT 1').first();return 'next';},{sessionLock:lock});expect(await settleBeforePropertyUnlock(next)).toBeNull();
+  release();expect(await first).toBe('first');expect(await next).toBe('next');
+ }finally{if(timer!==undefined)clearTimeout(timer);release();await Promise.allSettled([first,expired,next].filter((p):p is Promise<unknown>=>!!p));await small.close();}
+});
+
+it('releases the local capacity turn between serialization retries so a queued Property command can progress',async()=>{
+ const small=new PostgresDatabase({...db.pool.options,max:2}),lock={namespace:'test:pms:retry',key:key()},order:string[]=[];
+ let release!:()=>void,entered!:()=>void,attempt=0;const gate=new Promise<void>(resolve=>{release=resolve;}),started=new Promise<void>(resolve=>{entered=resolve;});
+ let first:Promise<unknown>|undefined,second:Promise<unknown>|undefined;
+ try{
+  first=small.transaction(async tx=>{await tx.prepare('SELECT 1').first();if(attempt++===0){order.push('first');entered();await gate;throw Object.assign(Error('Retry fixture'),{code:'40001'});}order.push('retry');return 'retried';},{sessionLock:lock});await started;
+  second=small.transaction(async tx=>{await tx.prepare('SELECT 1').first();order.push('second');return 'queued';},{sessionLock:lock});release();
+  expect(await first).toBe('retried');expect(await second).toBe('queued');expect(order).toEqual(['first','second','retry']);
+ }finally{release();await Promise.allSettled([first,second].filter((p):p is Promise<unknown>=>!!p));await small.close();}
+});
+
+it('selects transaction-local indexed reads for actual PMS commands without changing their Property lock',async()=>{
+ const transaction=vi.spyOn(db,'transaction');
+ try{
+  await cmd('guest.save',{name:'Indexed mock guest'});
+  expect(transaction.mock.calls.some(([,options])=>options?.preferIndexedReads===true&&options.pipelineBatches===true&&options.sessionLock.namespace==='erpx:pms:property'&&options.sessionLock.key===propertyId)).toBe(true);
+ }finally{transaction.mockRestore();}
+});
+
+it('retains the original Property lock before rejecting a stale guest envelope',async()=>{
+ const stale=(await snapshot()).property.version;await cmd('guest.save',{name:'Advance mock hotel version'});
+ let release!:()=>void,entered!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;}),started=new Promise<void>(resolve=>{entered=resolve;});
+ const held=db.transaction(async()=>{entered();await gate;},{sessionLock:{namespace:'erpx:pms:property',key:propertyId}});
+ await started;const transaction=vi.spyOn(db,'transaction'),commandKey=key();
+ const rejected=pmsCommand(db,owner,{propertyId,expectedVersion:stale,operation:'guest.save',input:{name:'Stale mock guest'}},commandKey).then(value=>({value}),error=>({error}));
+ try{
+  expect(await settleBeforePropertyUnlock(rejected)).toBeNull();
+  expect(transaction.mock.calls.some(([,options])=>options?.sessionLock.key===propertyId)).toBe(true);
+  release();expect(await rejected).toMatchObject({error:{code:'PMS_VERSION_CONFLICT'}});
+  expect(await db.prepare('SELECT count(*)::integer n FROM command_receipts WHERE command_id=?').bind(commandKey).first('n')).toBe(0);
+ }finally{transaction.mockRestore();release();await Promise.allSettled([held,rejected]);}
+});
+
+it('preserves receipt replay and key-conflict precedence for a guest envelope after the Property version advances',async()=>{
+ const body={propertyId,expectedVersion:(await snapshot()).property.version,operation:'guest.save',input:{name:'Receipt guarded mock guest'}},commandKey=key();
+ const first=await pmsCommand(db,owner,body,commandKey);await cmd('guest.save',{name:'Later mock version'});
+ expect(await pmsCommand(db,owner,body,commandKey)).toEqual(first);
+ await expect(pmsCommand(db,owner,{...body,input:{name:'Changed mock guest'}},commandKey)).rejects.toMatchObject({code:'IDEMPOTENCY_CONFLICT'});
+});
+
+it('does not expose a stale guest Property version to another Branch',async()=>{
+ const stale=(await snapshot()).property.version;await cmd('guest.save',{name:'Scoped mock version'});
+ await expect(pmsCommand(db,{...owner,branchId:key()},{propertyId,expectedVersion:stale,operation:'guest.save',input:{name:'Wrong branch'}},key())).rejects.toMatchObject({code:'PMS_NOT_FOUND'});
+});
+
+it('waits for an in-flight identical guest command and replays its atomically committed receipt',async()=>{
+ const body={propertyId,expectedVersion:(await snapshot()).property.version,operation:'guest.save',input:{name:'Atomic mock guest receipt'}},commandKey=key();
+ let release!:()=>void,entered!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;}),prepared=new Promise<void>(resolve=>{entered=resolve;});
+ const original=db.transaction.bind(db);let held=false;
+ const transaction=vi.spyOn(db,'transaction').mockImplementation((work,options)=>original(async tx=>{
+  const result=await work(tx);
+  if(!held){held=true;entered();await gate;}
+  return result;
+ },options));
+ const first=pmsCommand(db,owner,body,commandKey);let second:typeof first|undefined;
+ try{
+  await prepared;second=pmsCommand(db,owner,body,commandKey);
+  expect(await settleBeforePropertyUnlock(second)).toBeNull();
+  release();expect(await second).toEqual(await first);
+  expect(await db.prepare('SELECT count(*)::integer n FROM command_receipts WHERE command_id=?').bind(commandKey).first('n')).toBe(1);
+ }finally{release();await Promise.allSettled([first,...second?[second]:[]]);transaction.mockRestore();}
+});
+
+it('rejects guest writes and committed receipt replay while the production module is disabled',async()=>{
+ const body={propertyId,expectedVersion:(await snapshot()).property.version,operation:'guest.save',input:{name:'Module guarded mock guest'}},commandKey=key();
+ await pmsCommand(db,owner,body,commandKey);const version=(await snapshot()).property.version;
+ vi.stubEnv('NODE_ENV','production');
+ await expect(pmsCommand(db,owner,body,commandKey)).rejects.toMatchObject({code:'FEATURE_COMING_SOON'});
+ const freshKey=key();await expect(pmsCommand(db,owner,{...body,expectedVersion:version},freshKey)).rejects.toMatchObject({code:'FEATURE_COMING_SOON'});
+ expect(await db.prepare('SELECT count(*)::integer n FROM command_receipts WHERE command_id=?').bind(freshKey).first('n')).toBe(0);
+ expect(await db.prepare('SELECT version FROM pms_properties WHERE id=?').bind(propertyId).first('version')).toBe(version);
+});
+
+it('uses the same production pilot availability predicate for a guest write and its replay',async()=>{
+ await db.prepare("INSERT INTO company_feature_rollouts(company_id,module_id,rollout_state,version,reason,changed_by,changed_at) VALUES(?,'pms','pilot',1,'Fictional native module acceptance',?,?)")
+  .bind(owner.companyId,owner.userId,Date.now()).run();
+ const body={propertyId,expectedVersion:(await snapshot()).property.version,operation:'guest.save',input:{name:'Activated mock guest'}},commandKey=key();
+ vi.stubEnv('NODE_ENV','production');
+ const first=await pmsCommand(db,owner,body,commandKey);
+ expect(await pmsCommand(db,owner,body,commandKey)).toEqual(first);
+ await db.prepare("UPDATE company_feature_rollouts SET rollout_state='off',version=version+1 WHERE company_id=? AND module_id='pms'").bind(owner.companyId).run();
+ await expect(pmsCommand(db,owner,body,commandKey)).rejects.toMatchObject({code:'FEATURE_COMING_SOON'});
+});
+
+// Additional acceptance proofs for linen custody, early departure and DND.
+it("preserves linen custody and original stock cost through replay, laundry and loss", async () => {
+  const warehouse = key(), product = key();
+  await db.prepare("INSERT INTO commerce_warehouses(id,company_id,branch_id,code,name) VALUES(?,?,?,?,?)")
+    .bind(warehouse, f.company, f.branch, warehouse, "Linen store").run();
+  await db.prepare("INSERT INTO commerce_products(id,company_id,sku,name,price_minor) VALUES(?,?,?,?,0)")
+    .bind(product, f.company, product, "Bath towel").run();
+  await db.prepare("INSERT INTO commerce_stock(warehouse_id,product_id,quantity_milli,value_minor) VALUES(?,?,6000,1200)")
+    .bind(warehouse, product).run();
+  const item = (await cmd("item.save", {name:"Bath towel", kind:"linen", productId:product, warehouseId:warehouse, price:0})).id;
+  const cleaner = await f.member("linen-custodian", "pms_housekeeping");
+  const before = await snapshot();
+  const body = {propertyId, expectedVersion:before.property.version, operation:"linen.receive", input:{itemId:item, quantity:4}};
+  const receiveKey = key();
+  const received = await pmsCommand(db, cleaner, body, receiveKey);
+  const receivedSnapshot = await snapshot();
+  expect(await pmsCommand(db, cleaner, body, receiveKey)).toEqual(received);
+  expect((await snapshot()).property.version).toBe(receivedSnapshot.property.version);
+  expect(await db.prepare("SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?")
+    .bind(warehouse,product).first()).toMatchObject({quantity_milli:2000,value_minor:400});
+  expect(await db.prepare("SELECT count(*)::int n FROM inventory_ledger WHERE source_type='pms' AND product_id=?")
+    .bind(product).first("n")).toBe(1);
+  expect(await balance(accounts.inventory)).toBe(-800);
+  expect(await balance(accounts.consumption)).toBe(800);
+  expect(await balance(accounts.revenue)).toBe(0);
+  await expect(cmd("linen.receive", {itemId:item,quantity:3},cleaner)).rejects.toMatchObject({code:"PMS_STOCK_SHORT"});
+  expect(record(await snapshot(),"item",item)).toEqual(record(receivedSnapshot,"item",item));
+  expect(records(await snapshot(),"movement")).toHaveLength(1);
+  await cmd("linen.issue", {itemId:item,quantity:3,roomId},cleaner);
+  await cmd("linen.return", {itemId:item,quantity:1,roomId},cleaner);
+  await cmd("linen.wash", {itemId:item,quantity:1,roomId},cleaner);
+  await cmd("linen.clean", {itemId:item,quantity:2,roomId},cleaner);
+  await expect(cmd("linen.loss", {itemId:item,quantity:1,roomId},cleaner)).rejects.toMatchObject({code:"PMS_LINEN_SHORT"});
+  await cmd("linen.loss", {itemId:item,quantity:1,roomId,reason:"Torn towel"},cleaner);
+  const completed = await snapshot();
+  expect(record(completed,"item",item).data).toMatchObject({clean:3,issued:0,laundry:0,lost:1});
+  await expect(cmd("linen.issue", {itemId:item,quantity:4,roomId},cleaner)).rejects.toMatchObject({code:"PMS_LINEN_SHORT"});
+  await expect(cmd("linen.return", {itemId:item,quantity:1,roomId},cleaner)).rejects.toMatchObject({code:"PMS_LINEN_SHORT"});
+  expect(record(await snapshot(),"item",item)).toEqual(record(completed,"item",item));
+  expect(records(await snapshot(),"movement")).toHaveLength(6);
+  expect(await balance(accounts.inventory)).toBe(-800);
+  expect(await balance(accounts.consumption)).toBe(800);
+  expect(await db.prepare("SELECT count(*)::int n FROM inventory_ledger WHERE source_type='pms' AND product_id=?")
+    .bind(product).first("n")).toBe(1);
+});
+
+it("releases unused future room nights on early departure without duplicate revenue or checkout", async () => {
+  const booked = await book("2026-09-01","2026-09-05");
+  await checkIn(booked.stayId);
+  await cmd("stay.preview_checkout", {id:booked.stayId});
+  const prepared = await snapshot();
+  expect(record(prepared,"guest_account",booked.guestAccountId).data.due).toBe(10700);
+  await expect(cmd("stay.check_out", {id:booked.stayId})).rejects.toMatchObject({code:"PMS_BALANCE_DUE"});
+  expect((await snapshot()).property.version).toBe(prepared.property.version);
+  const shift = (await cmd("shift.open", {name:"Early departure desk",opening:0})).id;
+  await cmd("payment.receive", {guestAccountId:booked.guestAccountId,amount:10700,method:"cash",shiftId:shift});
+  const ready = await snapshot();
+  const body = {propertyId,expectedVersion:ready.property.version,operation:"stay.check_out",input:{id:booked.stayId,reason:"Guest leaves early"}};
+  const checkoutKey = key(), completed = await pmsCommand(db,owner,body,checkoutKey);
+  const departed = await snapshot();
+  expect(await pmsCommand(db,owner,body,checkoutKey)).toEqual(completed);
+  expect((await snapshot()).property.version).toBe(departed.property.version);
+  const stay = record(departed,"stay",booked.stayId);
+  expect(stay.data).toMatchObject({state:"checked_out",departure:"2026-09-02"});
+  expect(stay.data.segments.every(segment => segment.to <= "2026-09-02")).toBe(true);
+  expect(record(departed,"room",roomId).data.cleanliness).toBe("dirty");
+  expect(record(departed,"guest_account",booked.guestAccountId).data).toMatchObject({due:0,advance:0,deposit:0});
+  expect(records(departed,"entry").filter(entry => entry.data.sourceKey === `night:${booked.stayId}:2026-09-01`)).toHaveLength(1);
+  expect(await balance(accounts.revenue)).toBe(-10000);
+  expect(await balance(accounts.tax)).toBe(-700);
+  expect(availability(departed,typeId,"2026-09-03").available).toBe(1);
+  await book("2026-09-03","2026-09-04");
+  expect(await balance(accounts.revenue)).toBe(-10000);
+});
+
+it("honors DND for room work and resumes the same cycle only after its release", async () => {
+  const cleaner = await f.member("dnd-cleaner", "pms_housekeeping");
+  const task = (await cmd("task.create", {roomId,type:"arrival",date:"2026-09-01"})).id;
+  await cmd("room.dnd", {id:roomId,dnd:true},cleaner);
+  const protectedSnapshot = await snapshot();
+  const checked = record(protectedSnapshot,"task",task).data.checklist;
+  await expect(cmd("task.start", {id:task},cleaner)).rejects.toMatchObject({code:"PMS_DND"});
+  await expect(cmd("task.complete", {id:task,checked},cleaner)).rejects.toMatchObject({code:"PMS_DND"});
+  const refused = await snapshot();
+  expect(refused.property.version).toBe(protectedSnapshot.property.version);
+  expect(record(refused,"task",task)).toEqual(record(protectedSnapshot,"task",task));
+  expect(record(refused,"room",roomId)).toEqual(record(protectedSnapshot,"room",roomId));
+  await cmd("room.dnd", {id:roomId,dnd:false},cleaner);
+  await cmd("task.start", {id:task},cleaner);
+  await cmd("task.complete", {id:task,checked},cleaner);
+  expect(record(await snapshot(),"task",task).data.state).toBe("clean");
+  expect(record(await snapshot(),"room",roomId).data.cleanliness).toBe("clean");
+  await cmd("task.inspect", {id:task});
+  expect(record(await snapshot(),"task",task).data.state).toBe("done");
+  expect(record(await snapshot(),"room",roomId).data.cleanliness).toBe("inspected");
+});
+
+
+it("commits an in-house room upgrade once with version fencing and immutable original receipt evidence", async () => {
+  const booking = await book('2026-09-01', '2026-09-04');
+  await checkIn(booking.stayId);
+  const suiteType = (await cmd('room_type.save', { name: 'Suite', capacity: 4, amenities: 'Living room' })).id;
+  const suiteRoom = (await cmd('room.save', { number: '201', typeId: suiteType, active: true })).id;
+  const suiteRate = (await cmd('rate.save', { name: 'Suite Flexible', typeId: suiteType, from: '2026-09-01', to: '2026-12-31', price: 20000 })).id;
+  const taskId = (await cmd('task.create', { roomId: suiteRoom, type: 'arrival', date: '2026-09-01' })).id;
+  await cmd('task.complete', { id: taskId, checked: record(await snapshot(), 'task', taskId).data.checklist });
+  await cmd('task.inspect', { id: taskId }, await f.member('upgrade-inspector', 'pms_supervisor'));
+  const shiftId = (await cmd('shift.open', { name: 'Upgrade desk', opening: 0 })).id;
+  await cmd('payment.receive', { guestAccountId: booking.guestAccountId, shiftId, amount: 1000, method: 'cash', reference: 'Original advance' });
+  const before = await snapshot();
+  const originalEntries = records(before, 'entry');
+  const originalDocuments = (await db.prepare('SELECT id,snapshot_json FROM pms_documents WHERE property_id=? ORDER BY id').bind(propertyId).all()).results;
+  const input = { operation: 'stay.upgrade', propertyId, expectedVersion: before.property.version, input: { id: booking.stayId, roomId: suiteRoom, rateId: suiteRate, reason: 'Guest accepted suite price' } };
+  const replayKey = key();
+  const result = await pmsCommand(db, owner, input, replayKey);
+  expect(await pmsCommand(db, owner, input, replayKey)).toEqual(result);
+  const after = await snapshot(), stay = record(after, 'stay', booking.stayId);
+  expect(stay.data).toMatchObject({ typeId: suiteType, roomId: suiteRoom, rateId: suiteRate });
+  expect(stay.data.upgrades).toHaveLength(1);
+  expect(records(after, 'entry')).toEqual(originalEntries);
+  expect((await db.prepare('SELECT id,snapshot_json FROM pms_documents WHERE property_id=? ORDER BY id').bind(propertyId).all()).results).toEqual(originalDocuments);
+  await expect(pmsCommand(db, owner, input, key())).rejects.toMatchObject({ code: 'PMS_VERSION_CONFLICT' });
+  const cleaner = await f.member('upgrade-cleaner', 'pms_housekeeping');
+  await expect(cmd('stay.upgrade', input.input, cleaner)).rejects.toMatchObject({ code: 'PERMISSION_REQUIRED' });
+  expect(record(await snapshot(), 'stay', booking.stayId).data.upgrades).toHaveLength(1);
+});
+
+it("serializes concurrent last group pickups and returns quota after cancellation without erasing pickup history", async () => {
+  const blockId = (await cmd('block.create', { name: 'One-room group', typeId, from: '2026-09-03', to: '2026-09-05', releaseDate: '2026-09-02', quantity: 1 })).id;
+  const s = await snapshot();
+  const command = { operation: 'reservation.create', propertyId, expectedVersion: s.property.version, input: { guestId, source: 'phone', blockId, rooms: [{ typeId, rateId, arrival: '2026-09-03', departure: '2026-09-05', adults: 2, quantity: 1 }] } };
+  const results = await Promise.allSettled([pmsCommand(db, owner, command, key()), pmsCommand(db, owner, command, key())]);
+  expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+  expect(results.filter(result => result.status === 'rejected')).toHaveLength(1);
+  const first = record(await snapshot(), 'block', blockId).data.pickedStayIds[0];
+  await cmd('stay.cancel', { id: first, reason: 'Cancelled pickup' });
+  const replacement = await book('2026-09-03', '2026-09-05', { blockId });
+  const final = await snapshot();
+  expect(record(final, 'block', blockId).data.pickedStayIds).toEqual([first, replacement.stayId]);
+  expect(availability(final, typeId, '2026-09-03')).toMatchObject({ occupied: 1, held: 0, available: 0 });
 });

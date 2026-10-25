@@ -1,0 +1,497 @@
+{
+  "checkedAt": "2026-10-12T08:29:16.426607+00:00",
+  "scope": "Final19 approved-plan requirements reviewed within user-authorized fictional mock-pilot scope; final availability/source closing receipt supplements environment item",
+  "candidate": {
+    "runtime": "4e2b60dc9e36878d4b6353a1a08470ccde2c960eb272fb954875c282b91ee909",
+    "verification": "baf2b73727a5106b9153f71c54c336dfc399f763c83607aa41290d0c7943cfbb",
+    "mainRuntime": "4e2b60dc9e36878d4b6353a1a08470ccde2c960eb272fb954875c282b91ee909",
+    "mainVerification": "baf2b73727a5106b9153f71c54c336dfc399f763c83607aa41290d0c7943cfbb",
+    "releaseDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.runtime/releases/2026-10-12T03-06-23-612Z",
+    "releaseId": "2026-10-12T03-06-23-612Z",
+    "fileManifestSha256": "9bd3aa57f8e6d8e4b2b89ce95f83b8779b83319b6d749207d052cec130ac09d4",
+    "releaseReusedForIdenticalRuntime": true,
+    "verificationAmendment": "Only three generated route-inventory metadata fields;227 entries, runtime, assertions and required identities unchanged; prior actual native/browser receipts retained at50bc with exact official inverse lineage"
+  },
+  "requirements": [
+    {
+      "id": "vendor-research",
+      "requirement": "Six official vendor comparisons, language facts distinguished from fit assessments, and three-year TCO for 30/100/200 rooms at one/three hotels.",
+      "decision": "accepted-within-approved-mock-scope",
+      "evidence": [
+        {
+          "file": "docs/testing/pms-market-research-2026-10-09.md",
+          "sha256": "86686613d7f4100e3d135f36d7f885882de7e1eb50f04d5f95e40a28d3fd3799"
+        }
+      ],
+      "proofAndLimits": "Six official vendors and six TCO scenarios remain documented. Unknown commercial amounts require quotations; language evidence and suitability assessments stay distinct.",
+      "wholeRequirementAcceptanceWithinMockScope": true,
+      "liveActivationAccepted": false
+    },
+    {
+      "id": "feature-register",
+      "requirement": "Every feature carries its status, owner, phase and evidence. Existing code or mock screens do not imply acceptance.",
+      "decision": "accepted-within-approved-mock-scope",
+      "evidence": [
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-current67-native-inventory.json",
+          "sha256": "82a964f522bd077814e8e91ca29da94f7a54293c238ff4de76817f50e50631b6"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-final67-mock-acceptance.json",
+          "sha256": "b46ed3eb9148e6486ebd51dd5310fd50447b67127d1f03779cc642aa37ecd219"
+        }
+      ],
+      "proofAndLimits": "62 scope-specific mock engineering passes,5 after-pilot additions,160 current native bindings plus applicable compiled/HTTP/public/provider proof; no real-hotel or production acceptance.",
+      "wholeRequirementAcceptanceWithinMockScope": true,
+      "liveActivationAccepted": false
+    },
+    {
+      "id": "prototype-variants",
+      "requirement": "A/B/C in the current ERPX shell, A as default, and a development-only comparison control.",
+      "decision": "accepted-within-approved-mock-scope",
+      "evidence": [
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-final299-public-prototype.json",
+          "sha256": "d0a6f9e6e721837a24e6b7430e451da5bb44533613b7b2491b9fcd04ccd3e4c6"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-11-pms-public-prototype-review.json",
+          "sha256": "6c5f9375710c18c936506ed190d4c9bea15906f14f21ba8a904cb8ded34ce3d8"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-4e2b-baf2-public-ui.json",
+          "sha256": "69caef1e5cd8c60ae90197e89a75949f459c86f83ef743a6c23d28465c77149f"
+        }
+      ],
+      "proofAndLimits": "Current normal public development A/B/C and defaultA render, language interaction and responsive drawers pass. Development-only/in-memory prototype remains separate from actual operations.",
+      "wholeRequirementAcceptanceWithinMockScope": true,
+      "liveActivationAccepted": false
+    },
+    {
+      "id": "prototype-screens",
+      "requirement": "All requested staff and guest prototype screens, including Company Today, reservations/groups, room detail, housekeeping, Guest Accounts, cashier, Night Audit, configuration, reporting and guest self-service.",
+      "decision": "accepted-within-approved-mock-scope",
+      "evidence": [
+        {
+          "file": "docs/testing/evidence/2026-10-11-pms-public-prototype-review.json",
+          "sha256": "6c5f9375710c18c936506ed190d4c9bea15906f14f21ba8a904cb8ded34ce3d8"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-4e2b-baf2-public-ui.json",
+          "sha256": "69caef1e5cd8c60ae90197e89a75949f459c86f83ef743a6c23d28465c77149f"
+        }
+      ],
+      "proofAndLimits": "Prior15-view review retained with its dated scope; current A/B/C/dashboard/drawers render checked. Operating paths use actual compiled browser180 and supplements. No claim that every dated screenshot was retaken.",
+      "wholeRequirementAcceptanceWithinMockScope": true,
+      "liveActivationAccepted": false
+    },
+    {
+      "id": "images",
+      "requirement": "Twelve imagegen sample images: three views each of Standard, Deluxe and Suite, plus lobby, pool and breakfast; consistent amenities, sample labels and replacement before live sale.",
+      "decision": "accepted-within-approved-mock-scope",
+      "evidence": [
+        {
+          "file": "docs/testing/evidence/2026-10-11-pms-image-deliverables.json",
+          "sha256": "ae5077099123b8800e20c579440e4f7369091a761e828f8f56e885247ce629a7"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-joint-compiled-images.json",
+          "sha256": "e18f28286389cbb822cc052880886f4db565288b60e8050a991dc793105f5009"
+        }
+      ],
+      "proofAndLimits": "12 reviewed imagegen images and compiled byte agreement remain separate from hotel-specific publication approval. Sample labels and replacement before live sale remain required.",
+      "wholeRequirementAcceptanceWithinMockScope": true,
+      "liveActivationAccepted": false
+    },
+    {
+      "id": "ui-matrix",
+      "requirement": "Desktop/tablet/mobile, Thai/English, Light/Dark, keyboard behavior and right drawers with a fixed header and scrollable body.",
+      "decision": "accepted-within-approved-mock-scope",
+      "evidence": [
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-6bec-browser180-composite.json",
+          "sha256": "5635ce8aa737e35db0679030d5f376c46b916c02afac3c1677ca21c7f83defeb"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-postrestart-public-drawers.json",
+          "sha256": "aa6ef9d5474544300fe3662bac8dc995de9f8f42541181b146d3e823ed44941c"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-11-pms-public-prototype-review.json",
+          "sha256": "6c5f9375710c18c936506ed190d4c9bea15906f14f21ba8a904cb8ded34ce3d8"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-4e2b-browser180.json",
+          "sha256": "22f2e1d022fabadf837e51f9b580adffcb944255dcd5e725e3bfd6e8ad9ad1e5"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-4e2b-baf2-routes134.json",
+          "sha256": "e2b745db0e627520cc250a8dc7eea52b350af1afb998f081cf2b3df8c0f9e208"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-group-rooming-and-choice-ui.json",
+          "sha256": "60db6fe646370f8934388c3dee17a8823386b4edd6c760a71d79839c99706fae"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-4e2b-baf2-public-ui.json",
+          "sha256": "69caef1e5cd8c60ae90197e89a75949f459c86f83ef743a6c23d28465c77149f"
+        }
+      ],
+      "proofAndLimits": "Actual desktop/mobile, keyboard, responsive390/768/1440 and Light/Dark/System foundation/workspace checks pass; prior tablet/prototype screen/language review retained. Public Thai/English and actual Console group drawer pass. Earlier initial click/hydration observations remain dated, not erased.",
+      "wholeRequirementAcceptanceWithinMockScope": true,
+      "liveActivationAccepted": false
+    },
+    {
+      "id": "operational-rules",
+      "requirement": "Booking, group pickup, check-in/moves/no-show, split payer, POS room charge, refund, checkout, Night Audit and financial/authority refusal cases.",
+      "decision": "accepted-within-approved-mock-scope",
+      "evidence": [
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-final299-native.json",
+          "sha256": "15d338a5ef29871c98cee6cb8fbf51cfd4a20b82cdf7bf3fa0e1e48d6cf9f297"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-final299-compiled-business36.json",
+          "sha256": "4aeb55bd47cb83207421ea7f9eaa23a398fbda3186ce6e580a912ae67d699609"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-group-ui-supplement-prepared.json",
+          "sha256": "94223a69d53eda8f4a220efdf350fba5eaccb67ae1777eda9b13f6ef2a5867b7"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-4e2b-native1365.json",
+          "sha256": "8cfe68e53f24024dfa6499bcfcde0cb719343f12d9232675ecddeb2d62a4809d"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-4e2b-browser180.json",
+          "sha256": "22f2e1d022fabadf837e51f9b580adffcb944255dcd5e725e3bfd6e8ad9ad1e5"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-group-rooming-and-choice-ui.json",
+          "sha256": "60db6fe646370f8934388c3dee17a8823386b4edd6c760a71d79839c99706fae"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-4e2b-baf2-metadata8-http40.json",
+          "sha256": "2d37ffdd5c075ef16677eb2392ca94effbb361b68dbb6aafbccb57eba303b5ca"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-4e2b-baf2-capacity.json",
+          "sha256": "26c39a5c767728774ac7579a935e725d5183f17263fc3377f6c80fbf312cc5a2"
+        }
+      ],
+      "proofAndLimits": "Actual1447 native passes include retained1342+23 required identities; compiled36 business cases, supplemental group/roomingUI6+life3, HTTP40 and strict operational/financial/closing phases pass. These scope-specific assertions close mock acceptance, not real staff signoff.",
+      "wholeRequirementAcceptanceWithinMockScope": true,
+      "liveActivationAccepted": false
+    },
+    {
+      "id": "direct-recovery",
+      "requirement": "Multiple rooms/rates, child pricing, payment/deposit, confirmation email, booking changes, partial cancellation/refund, duplicates, delays, lost response and worker restart.",
+      "decision": "accepted-within-approved-mock-scope",
+      "evidence": [
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-final299-compiled-business36.json",
+          "sha256": "4aeb55bd47cb83207421ea7f9eaa23a398fbda3186ce6e580a912ae67d699609"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-6bec-browser180-composite.json",
+          "sha256": "5635ce8aa737e35db0679030d5f376c46b916c02afac3c1677ca21c7f83defeb"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-4e2b-native1365.json",
+          "sha256": "8cfe68e53f24024dfa6499bcfcde0cb719343f12d9232675ecddeb2d62a4809d"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-4e2b-browser180.json",
+          "sha256": "22f2e1d022fabadf837e51f9b580adffcb944255dcd5e725e3bfd6e8ad9ad1e5"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-4e2b-baf2-provider7.json",
+          "sha256": "dfeb6c1a61c9f2a52a405851f541a7dd4cd3a14370f02d055d3b6186eca0c4cf"
+        }
+      ],
+      "proofAndLimits": "Compiled payment/refund worker interruption/duplicate response/webhook signature/recovery journeys pass with independent approval; actual hosted testmode7 separately passes. Real guest-return/webhook activation or mail delivery is not inferred from provider polling.",
+      "wholeRequirementAcceptanceWithinMockScope": true,
+      "liveActivationAccepted": false
+    },
+    {
+      "id": "mock-pilot",
+      "requirement": "User-authorized fictional hotels, staff and opening balances; separate reviewer roles, consecutive daily closes and Finance agreement.",
+      "decision": "accepted-within-approved-mock-scope",
+      "evidence": [
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-final299-native.json",
+          "sha256": "15d338a5ef29871c98cee6cb8fbf51cfd4a20b82cdf7bf3fa0e1e48d6cf9f297"
+        },
+        {
+          "file": "docs/testing/pms-mock-pilot-2026-10-09.md",
+          "sha256": "d5bfedbfb21aa5288ad78f4e5c067cf9c86ea39a1842e52a34aed36da7d57655"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-final67-mock-acceptance.json",
+          "sha256": "b46ed3eb9148e6486ebd51dd5310fd50447b67127d1f03779cc642aa37ecd219"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-4e2b-native1365.json",
+          "sha256": "8cfe68e53f24024dfa6499bcfcde0cb719343f12d9232675ecddeb2d62a4809d"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-4e2b-browser180.json",
+          "sha256": "22f2e1d022fabadf837e51f9b580adffcb944255dcd5e725e3bfd6e8ad9ad1e5"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-4e2b-baf2-metadata8-http40.json",
+          "sha256": "2d37ffdd5c075ef16677eb2392ca94effbb361b68dbb6aafbccb57eba303b5ca"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-4e2b-baf2-capacity.json",
+          "sha256": "26c39a5c767728774ac7579a935e725d5183f17263fc3377f6c80fbf312cc5a2"
+        }
+      ],
+      "proofAndLimits": "Fictional hotels/staff/opening balances authorized by mock \u0e44\u0e1b\u0e40\u0e25\u0e22. Native two-business-date/import/funding/reviewer rehearsal, operational browser and strict3x200/20client phases pass. Real hotel/staff/opening signoff remains a future live gate.",
+      "wholeRequirementAcceptanceWithinMockScope": true,
+      "liveActivationAccepted": false
+    },
+    {
+      "id": "migration-restore",
+      "requirement": "Additive migration preserving IDs, balances, documents and evidence; populated upgrade, encrypted restore and compatible rollback.",
+      "decision": "accepted-within-approved-mock-scope",
+      "evidence": [
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-final299-native.json",
+          "sha256": "15d338a5ef29871c98cee6cb8fbf51cfd4a20b82cdf7bf3fa0e1e48d6cf9f297"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-dev1041-migration.json",
+          "sha256": "4df6481360c54712ecf4559c5589bda863f9139ee00d658fe0a64e8aeaea8cc9"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-4e2b-native1365.json",
+          "sha256": "8cfe68e53f24024dfa6499bcfcde0cb719343f12d9232675ecddeb2d62a4809d"
+        }
+      ],
+      "proofAndLimits": "Current4e2b compiled populated upgrade/encrypted restore8 DB/3 file stores/2486 table digests preserve original IDs/money/files and compatible rollback/tamper fences. Installed development1041 backup/digest checkpoint retained; installed backup not restored in place.",
+      "wholeRequirementAcceptanceWithinMockScope": true,
+      "liveActivationAccepted": false
+    },
+    {
+      "id": "capacity",
+      "requirement": "Release build with three hotels of 200 rooms, 730 days of history and 20 concurrent users; read p95 under one second and general write p95 under two seconds.",
+      "decision": "accepted-within-approved-mock-scope",
+      "evidence": [
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-final299-native.json",
+          "sha256": "15d338a5ef29871c98cee6cb8fbf51cfd4a20b82cdf7bf3fa0e1e48d6cf9f297"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-4e2b-baf2-capacity.json",
+          "sha256": "26c39a5c767728774ac7579a935e725d5183f17263fc3377f6c80fbf312cc5a2"
+        }
+      ],
+      "proofAndLimits": "Original840 reads/843writes all29 per-operation p95 targets pass under fresh quiet acknowledgements,20 distinct users/3x200rooms/730day PMS history, full financial/operational/closing reconciliation and archive657000 preservation. Worst read-operation p95306.98ms/write1655.21ms. Separate choice180 passes on actual8/8/7 guests and0 groups; no large-profile/group-volume or2-year Finance GL claim.",
+      "wholeRequirementAcceptanceWithinMockScope": true,
+      "liveActivationAccepted": false
+    },
+    {
+      "id": "same-candidate-gates",
+      "requirement": "Native, static, integration, required browser journeys and route checks on the final delivery candidate.",
+      "decision": "accepted-within-approved-mock-scope",
+      "evidence": [
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-final299-native.json",
+          "sha256": "15d338a5ef29871c98cee6cb8fbf51cfd4a20b82cdf7bf3fa0e1e48d6cf9f297"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-6bec-browser180-composite.json",
+          "sha256": "5635ce8aa737e35db0679030d5f376c46b916c02afac3c1677ca21c7f83defeb"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-shared-keyboard-readiness-repair.json",
+          "sha256": "fd669af6aa8136a8fc30292accd1af748fc9cf142e5116c47ce29b7d7ed52906"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-4e2b-native1365.json",
+          "sha256": "8cfe68e53f24024dfa6499bcfcde0cb719343f12d9232675ecddeb2d62a4809d"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-4e2b-browser180.json",
+          "sha256": "22f2e1d022fabadf837e51f9b580adffcb944255dcd5e725e3bfd6e8ad9ad1e5"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-4e2b-baf2-routes134.json",
+          "sha256": "e2b745db0e627520cc250a8dc7eea52b350af1afb998f081cf2b3df8c0f9e208"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-route-inventory-metadata-amendment.json",
+          "sha256": "1f19f0cc3ca54cc618c5b5e93e156dc99fd7fc6a64a34690f723472049e6349c"
+        }
+      ],
+      "proofAndLimits": "Actual fresh1447 native/required1365 and full180 browser at4e2b/50bc; same runtime artifact03-06-23 reused after exact generated3-field route metadata amendment to4e2b/baf2. All227 policies, source/assertions/budgets/case identities unchanged with official inverse proof. Fresh134routes/metadata/HTTP/capacity/provider atbaf2 pass; old receipts are not relabelled as new invocations.",
+      "wholeRequirementAcceptanceWithinMockScope": true,
+      "liveActivationAccepted": false
+    },
+    {
+      "id": "integration-phasing",
+      "requirement": "After-pilot SiteMinder SOAP/REST adapter with durable retry, deduplication, mapping, reconciliation and certification; government and specialist providers remain phased.",
+      "decision": "accepted-within-approved-mock-scope",
+      "evidence": [
+        {
+          "file": "docs/production-plan.md",
+          "sha256": "81ba473537139966c549a3ff8b8e3085475f1bb847813c7cd7eb9f46fc088128"
+        },
+        {
+          "file": "docs/testing/pms-market-research-2026-10-09.md",
+          "sha256": "86686613d7f4100e3d135f36d7f885882de7e1eb50f04d5f95e40a28d3fd3799"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-final67-mock-acceptance.json",
+          "sha256": "b46ed3eb9148e6486ebd51dd5310fd50447b67127d1f03779cc642aa37ecd219"
+        }
+      ],
+      "proofAndLimits": "Five partner families explicitly after pilot. SiteMinder SOAP1.1/selected REST adapter, durable retry/dedup/mapping/reconciliation/certification requirements documented. Partner integrations/certification are not implemented or activated by this mock acceptance.",
+      "wholeRequirementAcceptanceWithinMockScope": true,
+      "liveActivationAccepted": false
+    },
+    {
+      "id": "environment-and-live-boundary",
+      "requirement": "Development on 3100/public console remains available, private production on 3101 and PostgreSQL on 5432 are preserved, staging is excluded, and live money/publication require separate approval.",
+      "decision": "accepted-within-approved-mock-scope",
+      "evidence": [
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-postrestart-public-drawers.json",
+          "sha256": "aa6ef9d5474544300fe3662bac8dc995de9f8f42541181b146d3e823ed44941c"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-4e2b-baf2-public-ui.json",
+          "sha256": "69caef1e5cd8c60ae90197e89a75949f459c86f83ef743a6c23d28465c77149f"
+        }
+      ],
+      "proofAndLimits": "Final08:31UTC check: localdev/publicdev/privateproduction200, PostgreSQL5432ready, main-cwd listener89299/detachedlauncher81038 retained. Actual authenticated public UI passed without business writes. Staging untouched, privateproduction unchanged; source4e2b/baf2 same in both roots. No uptime or production readiness guarantee.",
+      "wholeRequirementAcceptanceWithinMockScope": true,
+      "liveActivationAccepted": false
+    },
+    {
+      "id": "command-envelope",
+      "requirement": "Preserve operation, propertyId, expectedVersion, input and the Idempotency-Key header.",
+      "decision": "accepted-within-approved-mock-scope",
+      "evidence": [
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-final299-native.json",
+          "sha256": "15d338a5ef29871c98cee6cb8fbf51cfd4a20b82cdf7bf3fa0e1e48d6cf9f297"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-4e2b-native1365.json",
+          "sha256": "8cfe68e53f24024dfa6499bcfcde0cb719343f12d9232675ecddeb2d62a4809d"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-group-rooming-and-choice-ui.json",
+          "sha256": "60db6fe646370f8934388c3dee17a8823386b4edd6c760a71d79839c99706fae"
+        }
+      ],
+      "proofAndLimits": "Current Idempotency-Key plus operation/propertyId/expectedVersion/input envelope and transactional Property version/scope/lock remain. Actual concurrent/stale/replay/privacy assertions pass; selectors are read-only dependencies.",
+      "wholeRequirementAcceptanceWithinMockScope": true,
+      "liveActivationAccepted": false
+    },
+    {
+      "id": "authoritative-write-reads",
+      "requirement": "Keep bounded room-board reads separate from invariant-specific authoritative write readers under the Property lock and transaction.",
+      "decision": "accepted-within-approved-mock-scope",
+      "evidence": [
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-final299-native.json",
+          "sha256": "15d338a5ef29871c98cee6cb8fbf51cfd4a20b82cdf7bf3fa0e1e48d6cf9f297"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-4e2b-native1365.json",
+          "sha256": "8cfe68e53f24024dfa6499bcfcde0cb719343f12d9232675ecddeb2d62a4809d"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-4e2b-baf2-capacity.json",
+          "sha256": "26c39a5c767728774ac7579a935e725d5183f17263fc3377f6c80fbf312cc5a2"
+        }
+      ],
+      "proofAndLimits": "Actual lock+selection refusal and complete invariant loaders remain; strict concurrent money/operations/closing phases and history integrity pass. Bounded UI snapshots do not become authoritative command state.",
+      "wholeRequirementAcceptanceWithinMockScope": true,
+      "liveActivationAccepted": false
+    },
+    {
+      "id": "module-ownership",
+      "requirement": "Use Guest Account terminology and preserve ADR-040 ownership and historical evidence.",
+      "decision": "accepted-within-approved-mock-scope",
+      "evidence": [
+        {
+          "file": "docs/adr/ADR-040-hospitality-module-ownership-and-guest-accounts.md",
+          "sha256": "7faaf127844a08ffbba4a10e3b1e2bf76aae97d0d43bb9257768ae66e0d2da5d"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-final299-native.json",
+          "sha256": "15d338a5ef29871c98cee6cb8fbf51cfd4a20b82cdf7bf3fa0e1e48d6cf9f297"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-4e2b-native1365.json",
+          "sha256": "8cfe68e53f24024dfa6499bcfcde0cb719343f12d9232675ecddeb2d62a4809d"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-4e2b-browser180.json",
+          "sha256": "22f2e1d022fabadf837e51f9b580adffcb944255dcd5e725e3bfd6e8ad9ad1e5"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-final67-mock-acceptance.json",
+          "sha256": "b46ed3eb9148e6486ebd51dd5310fd50447b67127d1f03779cc642aa37ecd219"
+        }
+      ],
+      "proofAndLimits": "Guest Account terminology, POS full-bill charge/reversal and Finance ownership remain ADR040. Native and actual compiled POS/guest-account/correction/bank/closing assertions pass within mock scope; no duplicate shadow ownership.",
+      "wholeRequirementAcceptanceWithinMockScope": true,
+      "liveActivationAccepted": false
+    },
+    {
+      "id": "real-provider-sandbox",
+      "requirement": "Distinct realStripe test-mode hostedCheckout/nativeledger evidence; releaseHTTP/mockprovider scope separate.",
+      "decision": "accepted-within-approved-mock-scope",
+      "evidence": [
+        {
+          "file": "docs/testing/evidence/2026-10-11-pms-main-aligned-provider-sandbox.json",
+          "sha256": "3942b723b1e9fba61e80d183f93575e2392b3eefd7d094d2cb60f4721fe73e16"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-4e2b-baf2-provider7.json",
+          "sha256": "dfeb6c1a61c9f2a52a405851f541a7dd4cd3a14370f02d055d3b6186eca0c4cf"
+        }
+      ],
+      "proofAndLimits": "Supervised current testmode7 terminal exit0:5confirmed/declined/expired,3 independently approved card refunds succeeded, provider reconciliation no duplicate allocation and balanced journal assertion. Actual hosted3DS/PromptPay test UI captured; no real money/email, PromptPay refund, guest-return/signed-webhook E2E or fabricated named namespace proof. Standalone native-harness callback404 is explicitly retained; compiled fixture guest-return tests are separate.",
+      "wholeRequirementAcceptanceWithinMockScope": true,
+      "liveActivationAccepted": false
+    },
+    {
+      "id": "guest-crm-privacy",
+      "requirement": "Reviewed PMS/CRM identity links and scoped guest hotel-service history sharing with revocation and immutable evidence.",
+      "decision": "accepted-within-approved-mock-scope",
+      "evidence": [
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-final299-native.json",
+          "sha256": "15d338a5ef29871c98cee6cb8fbf51cfd4a20b82cdf7bf3fa0e1e48d6cf9f297"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-4e2b-native1365.json",
+          "sha256": "8cfe68e53f24024dfa6499bcfcde0cb719343f12d9232675ecddeb2d62a4809d"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-final67-mock-acceptance.json",
+          "sha256": "b46ed3eb9148e6486ebd51dd5310fd50447b67127d1f03779cc642aa37ecd219"
+        }
+      ],
+      "proofAndLimits": "Actual separately countedCRM9 plus IAM47/typed403 and bounded choice safe projections/sameCompany foreignProperty guards pass. Consent review/withdrawal behavior is fixture evidence, not real guest consent or CRM rollout.",
+      "wholeRequirementAcceptanceWithinMockScope": true,
+      "liveActivationAccepted": false
+    }
+  ],
+  "counts": {
+    "mockRequirementsAccepted": 19,
+    "realHotelOrProductionAccepted": 0
+  },
+  "authority": "Direct human mock \u0e44\u0e1b\u0e40\u0e25\u0e22; independent test personas and engineering acceptance, no real-person signatures",
+  "approvedMockScopeAccepted": true,
+  "liveActivationApprovalSeparate": true,
+  "postPilotDeferredByApprovedPlan": true,
+  "wholePlanAcceptedWithinApprovedMockScope": true,
+  "finalAvailabilityReceipt": "docs/testing/evidence/2026-10-12-pms-final-closing.json"
+}

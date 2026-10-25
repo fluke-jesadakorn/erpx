@@ -1,3 +1,4 @@
+import {measureReads} from "../src/server/runtime/read-metrics";
 import { env } from "./runtime-env";
 import { applyMigrations, type TestMigration } from "./runtime-env";
 import { beforeAll, it, expect, vi } from "vitest";
@@ -6,8 +7,7 @@ import {
   verifyStripeSignature,
   stripeWebhook,
 } from "../src/server/beta-billing";
-vi.mock("../src/server/runtime", () => ({
-  runtimeEnv: async () => ({
+const authRuntime = {
     ...env,
     ERPX_PUBLIC_BETA: "true",
     ERPX_ENVIRONMENT: "local",
@@ -15,8 +15,8 @@ vi.mock("../src/server/runtime", () => ({
     BETTER_AUTH_SECRET: "test-secret-at-least-thirty-two-characters",
     RESEND_API_KEY: "mock-key",
     RESEND_FROM: "ERPX <test@example.test>",
-  }),
-}));
+};
+vi.mock("../src/server/runtime", () => ({ runtimeEnv: async () => authRuntime }));
 import { createAuth } from "../src/server/auth";
 import { deliverAccountRecovery } from "../src/server/account-recovery";
 beforeAll(async () => {
@@ -73,11 +73,41 @@ it("registers, verifies email and recovers a password through actual Better Auth
     const pmsCookie = pmsSignIn.headers.get("set-cookie") ?? "";
     expect(pmsCookie).toContain("erpx-pms.session_token");
     expect(pmsCookie).not.toContain("Domain=");
+    const sessionHeaders=new Headers({Cookie:pmsCookie.split(';')[0]});
+    const firstSession=await measureReads(()=>pmsAuth.api.getSession({headers:sessionHeaders}));
+    expect(firstSession.metrics.queries).toBe(1);
+    expect(firstSession.result?.user).toMatchObject({email,emailVerified:true,name:'Beta owner'});
+    expect(firstSession.result?.user.createdAt).toBeInstanceOf(Date);
+    expect(firstSession.result?.session.expiresAt).toBeInstanceOf(Date);
+    const factories = await Promise.all(Array.from({length:8}, () => createAuth("http://pms.localhost:3100")));
+    const concurrentSessions = await Promise.all(factories.map(factory => measureReads(() => factory.api.getSession({headers:sessionHeaders}))));
+    expect(concurrentSessions.map(read => read.metrics.queries)).toEqual(Array(8).fill(1));
+    expect(concurrentSessions.map(read => read.result?.user.id)).toEqual(Array(8).fill(firstSession.result!.user.id));
+    // Reuse initialization resources while the actual session reads remain fresh.
+    // Compare a count, never serialize an auth factory containing private config.
+    expect(new Set(factories).size).toBe(1);
+    await env.CONTROL_DB.prepare('UPDATE "user" SET name=?,"emailVerified"=0 WHERE id=?').bind('Fresh mock profile',firstSession.result!.user.id).run();
+    const updatedSession=await measureReads(async()=>(await createAuth("http://pms.localhost:3100")).api.getSession({headers:sessionHeaders}));
+    expect(updatedSession.metrics.queries).toBe(1);expect(updatedSession.result?.user.name).toBe('Fresh mock profile');
+    expect(updatedSession.result?.user.emailVerified).toBe(false);
+    await env.CONTROL_DB.prepare('UPDATE "user" SET "emailVerified"=1 WHERE id=?').bind(firstSession.result!.user.id).run();
     const posAuth = await createAuth("http://pos.localhost:3100");
     const posSession = await posAuth.handler(new Request("http://pos.localhost:3100/api/auth/get-session", {
       headers: { Cookie: pmsCookie.split(";")[0] },
     }));
     expect(await posSession.json()).toBeNull();
+    expect((await pmsAuth.api.getSession({headers:sessionHeaders}))?.session.id).toBe(firstSession.result!.session.id);
+    await env.CONTROL_DB.prepare('DELETE FROM session WHERE id=?').bind(firstSession.result!.session.id).run();
+    expect(await pmsAuth.api.getSession({headers:sessionHeaders})).toBeNull();
+    const expiringSignIn=await pmsAuth.handler(new Request('http://pms.localhost:3100/api/auth/sign-in/email',{
+      method:'POST',headers:{'Content-Type':'application/json',Origin:'http://pms.localhost:3100'},body:JSON.stringify({email,password})
+    }));
+    expect(expiringSignIn.status).toBe(200);
+    const expiringHeaders=new Headers({Cookie:(expiringSignIn.headers.get('set-cookie')??'').split(';')[0]});
+    const expiringSession=await pmsAuth.api.getSession({headers:expiringHeaders});expect(expiringSession).not.toBeNull();
+    await env.CONTROL_DB.prepare('UPDATE session SET "expiresAt"=? WHERE id=?').bind(new Date(Date.now()-1000).toISOString(),expiringSession!.session.id).run();
+    expect(await pmsAuth.api.getSession({headers:expiringHeaders})).toBeNull();
+
     vi.unstubAllEnvs();
     expect(
       (
@@ -138,9 +168,95 @@ it("registers, verifies email and recovers a password through actual Better Auth
       ).status,
     ).toBe(200);
   } finally {
+    vi.unstubAllEnvs();
     globalThis.fetch = original;
   }
 });
+it("shares initialization while concurrent accounts, secret rotation and a different Control database retain fresh session boundaries", async () => {
+  const originalDatabase=authRuntime.CONTROL_DB, originalSecret=authRuntime.BETTER_AUTH_SECRET;
+  vi.stubEnv('ERPX_FRONT_PMS_ORIGIN','http://pms.localhost:3100');
+  vi.stubEnv('ERPX_FRONT_POS_ORIGIN','http://pos.localhost:3100');
+  try {
+    const {hashPassword}=await import('better-auth/crypto');
+    const password='Fictional-factory-password-2026!', hash=await hashPassword(password), clock=Date.now();
+    const users=Array.from({length:2},(_,i)=>({id:crypto.randomUUID(),email:`${crypto.randomUUID()}@example.test`,name:`Fictional factory staff ${i}`}));
+    for(const user of users)await env.CONTROL_DB.batch([
+      env.CONTROL_DB.prepare('INSERT INTO "user"(id,name,email,"emailVerified","createdAt","updatedAt") VALUES(?,?,?,1,?,?)').bind(user.id,user.name,user.email,clock,clock),
+      env.CONTROL_DB.prepare('INSERT INTO account(id,"accountId","providerId",issuer,"userId",password,"createdAt","updatedAt") VALUES(?,?,\'credential\',\'local:credential\',?,?,?,?)').bind(crypto.randomUUID(),user.id,user.id,hash,clock,clock),
+    ]);
+    const factory=await createAuth('http://pms.localhost:3100'), cookies:Headers[]=[];
+    for(const user of users){
+      const response=await factory.handler(new Request('http://pms.localhost:3100/api/auth/sign-in/email',{method:'POST',headers:{'Content-Type':'application/json',Origin:'http://pms.localhost:3100'},body:JSON.stringify({email:user.email,password})}));
+      expect(response.status).toBe(200);
+      cookies.push(new Headers({Cookie:(response.headers.get('set-cookie')??'').split(';')[0]}));
+    }
+    const factories=await Promise.all(Array.from({length:12},()=>createAuth('http://pms.localhost:3100')));
+    const sessions=await Promise.all(factories.map((auth,i)=>measureReads(()=>auth.api.getSession({headers:cookies[i%2]}))));
+    expect(new Set(factories).size).toBe(1);
+    expect(sessions.map(read=>read.metrics.queries)).toEqual(Array(12).fill(1));
+    expect(sessions.map(read=>read.result?.user.id)).toEqual(Array.from({length:12},(_,i)=>users[i%2].id));
+    const fresh=async(index:number)=>measureReads(async()=>(await createAuth('http://pms.localhost:3100')).api.getSession({headers:cookies[index]}));
+    await env.CONTROL_DB.prepare('UPDATE "user" SET name=? WHERE id=?').bind('Updated fictional factory profile',users[1].id).run();
+    expect((await fresh(1)).result?.user.name).toBe('Updated fictional factory profile');
+    const pos=await createAuth('http://pos.localhost:3100');
+    expect((await pos.api.getSession({headers:cookies[0]}))?.user.id??null).toBeNull();
+    authRuntime.BETTER_AUTH_SECRET='different-private-fixture-secret-with-thirty-two-characters';
+    expect((await fresh(0)).result?.user.id??null).toBeNull();
+    authRuntime.BETTER_AUTH_SECRET=originalSecret;
+    expect((await fresh(0)).result?.user.id).toBe(users[0].id);
+    // Same origin/secret, genuinely different isolated database: no old session.
+    await applyMigrations(env.CONTROL_READ_DB,env.CONTROL_TEST_MIGRATIONS);
+    authRuntime.CONTROL_DB=env.CONTROL_READ_DB;
+    const foreign=await fresh(0);expect(foreign.metrics.queries).toBe(1);expect(foreign.result?.user.id??null).toBeNull();
+    authRuntime.CONTROL_DB=originalDatabase;
+    expect((await fresh(0)).result?.user.id).toBe(users[0].id);
+    await env.CONTROL_DB.prepare('UPDATE session SET "expiresAt"=? WHERE "userId"=?').bind(new Date(Date.now()-1000).toISOString(),users[0].id).run();
+    expect((await fresh(0)).result?.user.id??null).toBeNull();
+    expect((await fresh(1)).result?.user.id).toBe(users[1].id);
+    await env.CONTROL_DB.prepare('DELETE FROM session WHERE "userId"=?').bind(users[1].id).run();
+    expect((await fresh(1)).result?.user.id??null).toBeNull();
+  }finally{authRuntime.CONTROL_DB=originalDatabase;authRuntime.BETTER_AUTH_SECRET=originalSecret;vi.unstubAllEnvs();}
+});
+
+it("observes changed signup policy and keeps legal invitation allowlists independent from ordinary auth initialization", async()=>{
+  const originalFetch=globalThis.fetch,originalBeta=authRuntime.ERPX_PUBLIC_BETA;
+  const deliveries:string[]=[];
+  vi.stubGlobal('fetch',vi.fn(async(_url:string|URL|Request,options?:RequestInit)=>{deliveries.push(JSON.parse(String(options?.body)).to);return Response.json({id:'fictional-invitation-mail'});}));
+  try {
+    const emailA=`${crypto.randomUUID()}@example.test`,emailB=`${crypto.randomUUID()}@example.test`;
+    const signup=(auth:Awaited<ReturnType<typeof createAuth>>,email:string)=>auth.handler(new Request('http://localhost:3100/api/auth/sign-up/email',{method:'POST',headers:{'Content-Type':'application/json',Origin:'http://localhost:3100'},body:JSON.stringify({email,name:'Fictional invited staff',password:'Fictional-invite-password-2026!'})}));
+    authRuntime.ERPX_PUBLIC_BETA='false';
+    expect((await signup(await createAuth(),emailA)).status).not.toBe(200);
+    const inviteA=await createAuth(undefined,undefined,emailA),inviteB=await createAuth(undefined,undefined,emailB);
+    expect((await signup(inviteA,emailB)).status).not.toBe(200);
+    expect(await env.CONTROL_DB.prepare('SELECT id FROM "user" WHERE email=?').bind(emailB).first()).toBeNull();
+    expect((await signup(inviteA,emailA)).status).toBe(200);
+    expect((await signup(inviteB,emailB)).status).toBe(200);
+    expect(deliveries).toHaveLength(2);
+    expect((await signup(await createAuth(),`${crypto.randomUUID()}@example.test`)).status).not.toBe(200);
+    authRuntime.ERPX_PUBLIC_BETA='true';
+    expect((await createAuth()).options.emailAndPassword?.disableSignUp).toBe(false);
+  }finally{authRuntime.ERPX_PUBLIC_BETA=originalBeta;vi.stubGlobal('fetch',originalFetch);}
+});
+
+it('reevaluates explicitly selected OIDC configuration after the ordinary factory is warm',async()=>{
+  const providers=await import('../src/server/modules/identity_access/public/iam-auth');
+  const config=vi.spyOn(providers,'directoryOidcConfig'),originalFetch=globalThis.fetch,id=crypto.randomUUID();
+  const network=vi.fn(async()=>{throw new Error('UNEXPECTED_FICTIONAL_OIDC_NETWORK_REQUEST');});
+  vi.stubGlobal('fetch',network);
+  try {
+    await createAuth();
+    config.mockResolvedValue({providerId:`directory-${id}`,clientId:'fictional-client',clientSecret:'fictional-provider-secret',authorizationUrl:'https://issuer.example.test/authorize',tokenUrl:'https://issuer.example.test/token'});
+    const first=await createAuth(undefined,id);await first.$context;
+    config.mockRejectedValue(new Error('FICTIONAL_OIDC_WITHDRAWN'));
+    let withdrawn=false;
+    try{await createAuth(undefined,id);}catch(error){withdrawn=error instanceof Error&&error.message==='FICTIONAL_OIDC_WITHDRAWN';}
+    expect(withdrawn).toBe(true);
+    expect(config.mock.calls.map(args=>args[0])).toEqual([id,id]);
+    expect(network).not.toHaveBeenCalled();
+  }finally{config.mockRestore();vi.stubGlobal('fetch',originalFetch);}
+});
+
 it("disables legacy checkout and returns portal customers to Usage & billing", async () => {
   const holding = `bill-return-${crypto.randomUUID()}`;
   await env.CONTROL_DB.prepare(

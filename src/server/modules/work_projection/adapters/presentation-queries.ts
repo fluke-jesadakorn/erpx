@@ -2,7 +2,7 @@ import "server-only";
 import { holdingResources } from "@/server/modules/runtime/public/runtime";
 import { calendarData } from "@/server/modules/work_projection/public/calendar/index";
 import { calendarHierarchy } from "@/server/modules/work_projection/public/calendar/index";
-import { activeCompanySlug } from "@/server/modules/organization/public/people-app-entrypoint-facts";
+import { activeCompanyIdentity, activeCompanySlug } from "@/server/modules/organization/public/people-app-entrypoint-facts";
 import { resolveWorkspaceBrand } from "@/server/modules/brand/public/branding";
 import { getWorkCapabilities } from "@/server/modules/work_projection/public/work-capabilities";
 import { executiveVisible } from "@/server/modules/runtime/public/executive/access";
@@ -19,6 +19,7 @@ export async function workProjectionPresentationQueries(holdingId: string) {
     calendarData: (...args: ReadArguments<typeof calendarData>) => calendarData(write, ...args),
     calendarHierarchy: (...args: ReadArguments<typeof calendarHierarchy>) => calendarHierarchy(write, ...args),
     activeCompanySlug: (...args: ReadArguments<typeof activeCompanySlug>) => activeCompanySlug(write, ...args),
+    activeCompanyIdentity: (...args: ReadArguments<typeof activeCompanyIdentity>) => activeCompanyIdentity(write, ...args),
     resolveWorkspaceBrand: (...args: ReadArguments<typeof resolveWorkspaceBrand>) => resolveWorkspaceBrand(write, ...args),
     getWorkCapabilities: (...args: ReadArguments<typeof getWorkCapabilities>) => getWorkCapabilities(write, ...args),
     executiveVisible: (...args: ReadArguments<typeof executiveVisible>) => executiveVisible(write, ...args),

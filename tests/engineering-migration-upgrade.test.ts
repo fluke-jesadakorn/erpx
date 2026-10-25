@@ -1,3 +1,4 @@
+import { canonicalGuestAccount, legacyGuestAccount, parseGuestAccountJson } from "../src/lib/guest-account-compat";
 import { expect, it, vi } from "vitest";
 import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
@@ -15,6 +16,7 @@ vi.mock("../src/server/modules/files/public/attachments/scanner", () => ({
   attachmentScannerReadiness: async () => ({ enabled: true, ready: true, engine: "Upgrade interface fixture", definitionUpdatedAt: Date.now(), error: null }),
   scanAttachmentBytes: async () => ({ clean: true, signature: null, engine: "Upgrade interface fixture", definitionUpdatedAt: Date.now() }),
 }));
+const stableHistory = (value: unknown): unknown => Array.isArray(value) ? value.map(stableHistory) : value && typeof value === "object" ? Object.fromEntries(Object.entries(value).sort(([a],[b])=>a.localeCompare(b)).map(([key,item])=>[key,stableHistory(item)])) : value;
 const hash = (value: string|Buffer) => createHash("sha256").update(value).digest("hex");
 it("upgrades populated pre-completion databases without changing posted money or files and replays canonical backfill once", async () => {
   const supplied = process.env.ERPX_ENGINEERING_RELEASE_DIR;
@@ -40,13 +42,24 @@ it("upgrades populated pre-completion databases without changing posted money or
       db.prepare("INSERT INTO finance_journal_lines(id,journal_id,account_id,debit_minor,credit_minor,base_debit_minor,base_credit_minor,ordinal) VALUES(?,?,?,0,360000,0,360000,1)").bind(`${journalId}-credit`,journalId,f.accounts.revenue),
     ]);
     const propertyId=`upgrade-hotel-${crypto.randomUUID()}`,reservationId=`upgrade-reservation-${crypto.randomUUID()}`,stayId=`upgrade-stay-${crypto.randomUUID()}`,unquotedStayId=`upgrade-unquoted-stay-${crypto.randomUUID()}`;
-    const historicStay={reservationId,guestId:"historical-guest",typeId:"historical-type",rateId:"historical-rate",roomId:"",arrival:"2026-09-30",departure:"2026-10-01",adults:1,state:"reserved",folioId:"historical-folio",prices:[{date:"2026-09-30",net:10000,service:0,tax:700,total:10700}],segments:[]};
+    const historicalAccountId=`upgrade-account-${crypto.randomUUID()}`,documentId=`upgrade-document-${crypto.randomUUID()}`,receiptId=`upgrade-receipt-${crypto.randomUUID()}`;
+    const historicStay={reservationId,guestId:"historical-guest",typeId:"historical-type",rateId:"historical-rate",roomId:"",arrival:"2026-09-30",departure:"2026-10-01",adults:1,state:"reserved",guestAccountId:historicalAccountId,prices:[{date:"2026-09-30",net:10000,service:0,tax:700,total:10700}],segments:[]};
     await db.batch([
       db.prepare("INSERT INTO pms_properties(id,company_id,branch_id,name,business_date,config_json,created_by,updated_at) VALUES(?,?,?,'Historical hotel','2026-09-30',?,?,1000)").bind(propertyId,f.company,f.branch,JSON.stringify(defaultConfig),f.owner.userId),
-      db.prepare("INSERT INTO pms_records(id,property_id,kind,data_json,version,updated_at) VALUES(?,?,'stay',?,3,1000)").bind(stayId,propertyId,JSON.stringify(historicStay)),
-      db.prepare("INSERT INTO pms_records(id,property_id,kind,data_json,version,updated_at) VALUES(?,?,'stay',?,1,1000)").bind(unquotedStayId,propertyId,JSON.stringify({...historicStay,reservationId:"no-historical-quote"})),
+      db.prepare("INSERT INTO pms_records(id,property_id,kind,data_json,version,updated_at) VALUES(?,?,'stay',?,3,1000)").bind(stayId,propertyId,JSON.stringify(legacyGuestAccount(historicStay))),
+      db.prepare("INSERT INTO pms_records(id,property_id,kind,data_json,version,updated_at) VALUES(?,?,'stay',?,1,1000)").bind(unquotedStayId,propertyId,JSON.stringify(legacyGuestAccount({...historicStay,reservationId:"no-historical-quote"}))),
       db.prepare(`INSERT INTO money_transaction_snapshots(company_id,source_type,source_id,amount_kind,transaction_date,currency,currency_scale,amount_units,usd_units,fx_rate_id,used_latest_fallback,captured_at)
         VALUES(?,'pms_reservation',?,'room_total','2026-09-30','THB',2,10700,297,?,false,1000)`).bind(f.company,reservationId,`${f.company}-thb-rate`),
+    ]);
+    const historicalKind=legacyGuestAccount({kind:"guest_account"}).kind;
+    const historicalColumn=Object.keys(legacyGuestAccount({guest_account_id:historicalAccountId}))[0];
+    const frozen=JSON.stringify(legacyGuestAccount({guestAccount:{id:historicalAccountId,due:10700,deposit:3000},entries:[{guestAccountId:historicalAccountId,total:10700}]}));
+    await db.batch([
+      db.prepare("INSERT INTO pms_records(id,property_id,kind,data_json,version,updated_at) VALUES(?,?,?,?,4,1000)").bind(historicalAccountId,propertyId,historicalKind,JSON.stringify({name:"Historical payer",due:10700,advance:5000,deposit:3000,state:"open"})),
+      db.prepare(`INSERT INTO pms_documents(id,property_id,${historicalColumn},kind,snapshot_json,created_at) VALUES(?,?,?,'invoice',?,1000)`).bind(documentId,propertyId,historicalAccountId,frozen),
+      db.prepare("INSERT INTO command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,created_at) VALUES(?,?,?,?,?,?,1000)").bind(receiptId,legacyGuestAccount({operation:"pms.guest_account.close"}).operation,f.owner.userId,"historical-command-hash",historicalAccountId,frozen),
+      db.prepare("INSERT INTO iam_roles(company_id,id,name,published_revision,built_in) VALUES(?,'hospitality-custom','Reviewed mixed role',1,false)").bind(f.company),
+      db.prepare("INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) VALUES(?,'hospitality-custom',1,'[\"pos.configure\",\"pms.cashier\"]','[]','[\"holding\",\"branch\"]',?,1000)").bind(f.company,f.owner.userId),
     ]);
     const productId = `upgrade-product-${crypto.randomUUID()}`, imageId = `upgrade-image-${crypto.randomUUID()}`;
     const bytes = await sharp({ create: { width: 24, height: 12, channels: 4, background: "#006c70" } }).png().toBuffer();
@@ -64,13 +77,18 @@ it("upgrades populated pre-completion databases without changing posted money or
       journal: await db.prepare("SELECT * FROM finance_journals WHERE id=?").bind(journalId).first(),
       lines: (await db.prepare("SELECT * FROM finance_journal_lines WHERE journal_id=? ORDER BY ordinal").bind(journalId).all()).results,
       postedEvidence: await db.prepare("SELECT * FROM finance_financial_events WHERE journal_id=?").bind(journalId).first(),
+      immutableDocument:await db.prepare("SELECT snapshot_json FROM pms_documents WHERE id=?").bind(documentId).first(),
+      immutableReceipt:await db.prepare("SELECT * FROM command_receipts WHERE command_id=?").bind(receiptId).first(),
       historicBooking:await db.prepare("SELECT company_id,source_type,source_id,amount_kind,transaction_date::text,currency,currency_scale,amount_units::text,usd_units::text,fx_rate_id,used_latest_fallback,captured_at FROM money_transaction_snapshots WHERE source_type='pms_reservation' AND source_id=?").bind(reservationId).first(),
-      historicStays:(await db.prepare("SELECT * FROM pms_records WHERE property_id=? ORDER BY id").bind(propertyId).all()).results,
+      historicStays:(await db.prepare("SELECT * FROM pms_records WHERE property_id=? ORDER BY id").bind(propertyId).all<{kind:string;data_json:string}>()).results.map(row=>canonicalGuestAccount({...row,data_json:parseGuestAccountJson(row.data_json)})),
     });
-    const before = await history(), beforeSha256 = hash(JSON.stringify(before));
+    const before = await history(), beforeSha256 = hash(JSON.stringify(stableHistory(before)));
     const receipts = (await db.prepare("SELECT name,checksum FROM erpx_migrations ORDER BY name").all()).results;
     for (const [binding, track] of Object.entries(tracks)) await migrateDatabase(env[binding as keyof typeof tracks], track, current);
     expect(await history()).toEqual(before);
+    expect(await db.prepare("SELECT guest_account_id FROM pms_documents WHERE id=?").bind(documentId).first()).toEqual({guest_account_id:historicalAccountId});
+    const custom=await db.prepare("SELECT after_permissions FROM hospitality_permission_changes WHERE company_id=? AND role_id='hospitality-custom'").bind(f.company).first<{after_permissions:string[]}>();
+    expect(typeof custom?.after_permissions === "string" ? JSON.parse(custom.after_permissions) : custom?.after_permissions).toEqual(expect.arrayContaining(["pos.configure","pms.cashier","pos.accounting.prepare","pos.accounting.approve"]));
     expect((await db.prepare("SELECT name,checksum FROM erpx_migrations WHERE name<= '0920zz' ORDER BY name").all()).results).toEqual(receipts);
     expect(await db.prepare("SELECT original_source_id FROM money_transaction_snapshots WHERE source_id=?").bind(moneyId).first()).toEqual({ original_source_id: null });
     const preservedPrice=await db.prepare("SELECT amount_units::text,usd_units::text,fx_rate_id,transaction_date::text,carried_source_id FROM money_transaction_snapshots WHERE company_id=? AND source_type='pms_stay_price' AND source_id=?").bind(f.company,`${stayId}:3`).first();
@@ -95,7 +113,7 @@ it("upgrades populated pre-completion databases without changing posted money or
     expect(await db.prepare("SELECT COUNT(*)::int count FROM erpx_migrations").first("count")).toBe(appliedCount);
     expect(await db.prepare("SELECT COUNT(*)::int n FROM money_transaction_snapshots WHERE source_type='pms_stay_price' AND source_id=?").bind(`${stayId}:3`).first("n")).toBe(1);
     expect(await backfillSpecializedAttachments(db,{apply:true,files})).toMatchObject({ready:0,backfilled:0,unknown:[]});
-    const afterSha256 = hash(JSON.stringify(await history()));
+    const afterSha256 = hash(JSON.stringify(stableHistory(await history())));
     expect(afterSha256).toBe(beforeSha256);
     if (process.env.ERPX_ENGINEERING_EVIDENCE_DIR) {
       const output = resolve(process.env.ERPX_ENGINEERING_EVIDENCE_DIR);

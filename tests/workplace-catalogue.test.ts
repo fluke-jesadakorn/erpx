@@ -16,7 +16,7 @@ it("gives every catalogue module an objective and discovery home without opening
 });
 
 it("retains same-holding Front location and source queries while rejecting foreign return targets",()=>{
-  const target="/front/acme/company/pms/property?record=reservation&folio=folio&queue=arrivals#work";
+  const target="/front/acme/company/pms/property?record=reservation&guestAccount=guestAccount&queue=arrivals#work";
   expect(frontWorkReturn(target,"acme")).toBe(target);
   expect(frontWorkReturn(target,"acme","company")).toBe(target);
   expect(frontWorkReturn(target,"acme","other-company")).toBeNull();

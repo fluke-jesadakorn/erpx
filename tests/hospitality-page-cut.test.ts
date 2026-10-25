@@ -42,7 +42,7 @@ it('shows the effective production state on disabled module entry points',()=>{
 it('leaves authorized historical details and unrelated pilot screens readable',()=>{
   expect(cut('crm/lead-123')).toBeNull();
   expect(cut('pms/documents/invoice-123')).toBeNull();
-  expect(cut('pms/folios','folio=folio-123')).toBeNull();
+  expect(cut('pms/guest-accounts','guestAccount=guestAccount-123')).toBeNull();
   expect(productionPageCut(`${base}/pos`,base,new URLSearchParams('sale=sale-123'),[{id:'pos',name:'Restaurant point of sale',state:'Coming Soon'}])).toBeNull();
   expect(cut('support/incidents/incident-123')).toBeNull();
   expect(cut('commerce','view=purchase')).toBeNull();

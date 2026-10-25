@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 
-export type ReadMetrics = { queries: number; queryMs: number; poolWaitMs: number; queryErrors: number; poolErrors: number };
+export type ReadMetrics = { queries: number; queryMs: number; poolWaitMs: number; queryErrors: number; poolErrors: number; lockQueries?:number; lockQueryMs?:number; lockQueryErrors?:number; serializationFailures?:number; deadlockFailures?:number; transactionRetries?:number };
 export type ReadMeasurement = ReadMetrics & { durationMs: number; failed: boolean };
 const parentScope = Symbol.for("erpx.readMetrics.parent");
 type ReadScope = ReadMetrics & { [parentScope]?: ReadScope };
@@ -23,6 +23,23 @@ export function recordReadPoolWait(scope: ReadScope, durationMs: number, failed:
   for (let target: ReadScope | undefined = scope; target; target = target[parentScope]) {
     target.poolWaitMs += durationMs;
     target.poolErrors = (target.poolErrors ?? 0) + Number(failed);
+  }
+}
+/** Statement duration includes execution as well as any lock wait, never pure lock-wait time. */
+export function recordReadLockQuery(scope:ReadScope,durationMs:number,failed:boolean) {
+  for(let target:ReadScope|undefined=scope;target;target=target[parentScope]) {
+    target.lockQueries=(target.lockQueries??0)+1;
+    target.lockQueryMs=(target.lockQueryMs??0)+durationMs;
+    target.lockQueryErrors=(target.lockQueryErrors??0)+Number(failed);
+  }
+}
+export function recordReadTransactionRetry(error:unknown,retrying:boolean) {
+  const code=(error as {code?:string}|null)?.code;
+  if(code!=="40001"&&code!=="40P01")return;
+  for(let target=currentReadMetrics();target;target=target[parentScope]) {
+    const field=code==="40001"?"serializationFailures":"deadlockFailures";
+    target[field]=(target[field]??0)+1;
+    target.transactionRetries=(target.transactionRetries??0)+Number(retrying);
   }
 }
 

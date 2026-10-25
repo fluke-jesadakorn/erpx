@@ -1,0 +1,76 @@
+{
+  "checkedAt": "2026-10-11T20:07:50.731322+00:00",
+  "candidate": {
+    "runtime": "51701d69c6d65dc1ee28480e7de4b404c89f3e32f8ab6c912c551568114b6bf6",
+    "verification": "520b658394141d43a5a5fa2b34ad6d8f1f6b17e79e96f6f218f460924eb406d3",
+    "mainRuntime": "51701d69c6d65dc1ee28480e7de4b404c89f3e32f8ab6c912c551568114b6bf6",
+    "mainVerification": "520b658394141d43a5a5fa2b34ad6d8f1f6b17e79e96f6f218f460924eb406d3",
+    "releaseDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.runtime/releases/2026-10-11T19-44-51-044Z",
+    "releaseId": "2026-10-11T19-44-51-044Z"
+  },
+  "originalImageReview": "docs/testing/evidence/2026-10-11-pms-image-deliverables.json",
+  "images": [
+    {
+      "file": "public/pms-demo/rooms/breakfast.webp",
+      "SHA256": "1eee4a5044a5131db639fb3439f370909707d184e016dc1931e2e038f8f08a23",
+      "mainCandidateReleaseMatch": true
+    },
+    {
+      "file": "public/pms-demo/rooms/deluxe-bathroom.webp",
+      "SHA256": "cae4c562be8259b599eb2fcc56ec73a3a98943e4b7bcfa00d4407b664011cbec",
+      "mainCandidateReleaseMatch": true
+    },
+    {
+      "file": "public/pms-demo/rooms/deluxe-main.webp",
+      "SHA256": "a3d934458d1d0ca0208956cb76164b552610d95670f274ba97981b07975d5009",
+      "mainCandidateReleaseMatch": true
+    },
+    {
+      "file": "public/pms-demo/rooms/deluxe-window.webp",
+      "SHA256": "1090d96db3fc8c88bd50f00e19b659bf0f217840bea3ee86d96ea2ba726d5c18",
+      "mainCandidateReleaseMatch": true
+    },
+    {
+      "file": "public/pms-demo/rooms/lobby.webp",
+      "SHA256": "716c085c04815da7fd1f7852016fe868dc41401b56dec2b94a18c67c8b5fd3e9",
+      "mainCandidateReleaseMatch": true
+    },
+    {
+      "file": "public/pms-demo/rooms/pool.webp",
+      "SHA256": "1a3caf8484e335f4a5c5c0d79daf2a408cc53ab845c1b20394bd91f4630f89a3",
+      "mainCandidateReleaseMatch": true
+    },
+    {
+      "file": "public/pms-demo/rooms/standard-bathroom.webp",
+      "SHA256": "d7b1e715b3cd67c65b0fa000756f777478c51b926b74d56c438731b7ec0cc743",
+      "mainCandidateReleaseMatch": true
+    },
+    {
+      "file": "public/pms-demo/rooms/standard-main.webp",
+      "SHA256": "dfbe0f900f0e87fa2d6d593096853fcad400021849b4f24097d071e12cbb0f87",
+      "mainCandidateReleaseMatch": true
+    },
+    {
+      "file": "public/pms-demo/rooms/standard-window.webp",
+      "SHA256": "739fb195d38b034ce01eb5b0488b091e942d26c4073c4c43272a1aa3a77aad95",
+      "mainCandidateReleaseMatch": true
+    },
+    {
+      "file": "public/pms-demo/rooms/suite-bathroom.webp",
+      "SHA256": "bba910be439893ef81af94668657b8047eb9d1bb6b9ecee8aa9c59507fecf9ad",
+      "mainCandidateReleaseMatch": true
+    },
+    {
+      "file": "public/pms-demo/rooms/suite-living.webp",
+      "SHA256": "1245c4af7f29a54efaf0a2dce8e40ea883d0babec3fa4ed7a69409ceb2b29a33",
+      "mainCandidateReleaseMatch": true
+    },
+    {
+      "file": "public/pms-demo/rooms/suite-main.webp",
+      "SHA256": "f1923cbbe7a89cf08a8298dca72c9e5fb5633e5d45ac3f6c174b6b5768fb7706",
+      "mainCandidateReleaseMatch": true
+    }
+  ],
+  "scope": "Fresh final compiled image integrity for12 already reviewed fictional sample images. No new generation or production media publication; hotel-specific real photo approval remains separate.",
+  "wholePlanAccepted": false
+}

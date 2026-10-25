@@ -379,7 +379,7 @@ export function createFlowRoutingApplication<Effect>(ports: FlowRoutingPorts<Eff
             const purchase = row.kind === "purchase";
             add("draft", "Prepare and submit order", purchase ? "purchasing_operator" : "sales_operator", [owner], owner);
             add("submitted", "Approve order", purchase ? "purchasing_manager" : "sales_manager", await roles(purchase ? ["purchasing_manager", "holding_owner"] : ["sales_manager", "holding_owner"], true));
-            add("confirmed", row.kind === "quote" ? "Convert quotation to sales order" : purchase ? "Receive goods" : "Fulfil sales order", row.kind === "quote" ? "sales_operator" : "warehouse_manager", await roles(row.kind === "quote" ? ["sales_operator", "sales_manager", "holding_owner"] : ["warehouse_manager", "operations_manager", "holding_owner"]));
+            add("confirmed", row.kind === "quote" ? "Convert quotation to sales order" : purchase ? "Receive goods" : "Deliver goods / confirm completed services", row.kind === "quote" ? "sales_operator" : "warehouse_manager", await roles(row.kind === "quote" ? ["sales_operator", "sales_manager", "holding_owner"] : purchase || !row.has_service_lines ? ["warehouse_manager", "operations_manager", "holding_owner"] : ["sales_operator", "sales_manager", "warehouse_manager", "operations_manager", "holding_owner"]));
             add("stock_gl", "Review and post goods movement GL", "finance_approver", await roles(["finance_approver", "holding_owner"], true));
             add("invoicing", "Prepare invoice for independent GL review", "finance_preparer", await roles(["finance_preparer", "finance_approver", "holding_owner"]));
             const sharedFulfillments = ports.hasPolicyReadSnapshot() ? await workFulfillments(scope.company_id) : null;

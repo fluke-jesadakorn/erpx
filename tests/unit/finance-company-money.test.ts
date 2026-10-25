@@ -17,4 +17,29 @@ describe('Company money semantic service', () => {
     it('keeps company authority and positive manual rate checks ahead of native commit', async () => { const c = service(); await expect(c.run.confirmManualRate({ ...actor, branchId: 'branch' }, { currency: 'THB', effectiveDate: '2026-07-01', currencyPerUsd: '36', note: '' }, 'key')).rejects.toMatchObject({ code: 'COMPANY_FINANCE_REQUIRED' }); await expect(c.run.confirmManualRate(actor, { currency: 'THB', effectiveDate: '2026-07-01', currencyPerUsd: '0', note: '' }, 'key')).rejects.toMatchObject({ code: 'INVALID_FX_RATE' }); expect(c.ports.commitRate).not.toHaveBeenCalled(); });
     it('locks configured variable precision and rejects fixed ISO precision changes', async () => { const c = service({ scale: async () => ({ scale: 3 }) }); await expect(c.run.configureCurrencyScale(actor, { currency: 'XAU', scale: 2 }, 'key')).rejects.toMatchObject({ code: 'CURRENCY_SCALE_LOCKED' }); await expect(c.run.configureCurrencyScale(actor, { currency: 'THB', scale: 3 }, 'key')).rejects.toMatchObject({ code: 'FIXED_CURRENCY_SCALE' }); expect(c.ports.commitScale).not.toHaveBeenCalled(); });
     it('uses company/default preferences and injected permission facts', async () => { const c = service({ settings: async () => ({ default_currency: 'THB' }), preference: async () => ({ display_currency: 'USD' }), authorize: () => { throw new Error('denied'); } }); expect(await c.run.moneyContext(actor)).toMatchObject({ companyId: 'company', defaultCurrency: 'THB', displayCurrency: 'USD', canConfirmRate: false }); });
+    it('shares fresh Company facts only inside each explicit batch and preserves per-date quotes', async () => {
+        let denominator = '36';
+        const rates = vi.fn(async (companyId: string) => [{ id: companyId + ':' + denominator, currency: 'THB', effectiveDate: '2026-07-01', currencyPerUsd: denominator, confirmedAt: 1 }]);
+        const scales = vi.fn(async () => []);
+        const c = service({ rates, scales });
+        const inputs = [1, 2].map(n => ({ ...input, sourceId: 'night:' + n, currency: 'THB', amountUnits: '10700' }));
+        const first = await c.run.snapshotMoneyBatch(actor, inputs);
+        expect(first.map(p => p.usdUnits)).toEqual(['297', '297']);
+        expect(rates).toHaveBeenCalledTimes(1); expect(scales).toHaveBeenCalledWith('company', ['THB']);
+        denominator = '40';
+        const next = await c.run.snapshotMoneyBatch({ companyId: 'other' }, inputs);
+        expect(next.map(p => p.usdUnits)).toEqual(['268', '268']);
+        expect(next.every(p => p.rateId === 'other:40')).toBe(true);
+        expect(rates).toHaveBeenCalledTimes(2);
+    });
+    it('rejects invalid members before returning any batch plans and leaves an empty batch read-free', async () => {
+        const scales = vi.fn(async () => [{ currency: 'XAU', scale: 3 }]);
+        const rates = vi.fn(async () => []);
+        const c = service({ scales, rates });
+        expect(await c.run.snapshotMoneyBatch(actor, [])).toEqual([]); expect(scales).not.toHaveBeenCalled();
+        await expect(c.run.snapshotMoneyBatch(actor, [{ ...input, currency: 'USD', amountUnits: '100' }, { ...input, currency: 'XAU', currencyScale: 2 }])).rejects.toMatchObject({ code: 'CURRENCY_SCALE_MISMATCH' });
+        await expect(c.run.snapshotMoneyBatch(actor, [{ ...input, currency: 'THB', amountUnits: '1.5' }])).rejects.toThrow();
+        expect(scales).toHaveBeenCalledTimes(1);
+    });
+
 });

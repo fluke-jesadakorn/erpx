@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-10-06T12:50:18.891Z",
-  "generatedDate": "2026-10-06",
-  "sourceFingerprint": "83dd04d7369000c1c15cb2c850e4d92a9fa60446c5491ae80553da596c55ffac",
-  "pageRouteCount": 218,
+  "generatedAt": "2026-10-12T05:33:19.760Z",
+  "generatedDate": "2026-10-12",
+  "sourceFingerprint": "feda76768c8daf52940a88d4b7f6bc507a15ffcfde8b3a3fbfd9c273416aa0ee",
+  "pageRouteCount": 227,
   "workspaceScopePatterns": [
     "holding",
     "branch",
@@ -244,7 +244,8 @@
       "detailRoute": false,
       "sourceSignals": [
         "loading",
-        "error"
+        "error",
+        "permission"
       ]
     },
     {
@@ -1219,6 +1220,90 @@
       ]
     },
     {
+      "source": "src/app/holdings/[holdingSlug]/finance/hospitality-settings/page.tsx",
+      "template": "/holdings/[holdingSlug]/finance/hospitality-settings",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "finance_approver",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug"
+      ],
+      "detailRoute": false,
+      "sourceSignals": [
+        "error",
+        "permission"
+      ]
+    },
+    {
+      "source": "src/app/holdings/[holdingSlug]/finance/hotel-accounts/[id]/page.tsx",
+      "template": "/holdings/[holdingSlug]/finance/hotel-accounts/[id]",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "finance_approver",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug",
+        "id"
+      ],
+      "detailRoute": true,
+      "sourceSignals": [
+        "error",
+        "long/Thai"
+      ]
+    },
+    {
+      "source": "src/app/holdings/[holdingSlug]/finance/hotel-documents/[id]/page.tsx",
+      "template": "/holdings/[holdingSlug]/finance/hotel-documents/[id]",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "finance_approver",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug",
+        "id"
+      ],
+      "detailRoute": true,
+      "sourceSignals": []
+    },
+    {
+      "source": "src/app/holdings/[holdingSlug]/finance/hotel-import/page.tsx",
+      "template": "/holdings/[holdingSlug]/finance/hotel-import",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "finance_approver",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug"
+      ],
+      "detailRoute": false,
+      "sourceSignals": [
+        "error",
+        "permission",
+        "long/Thai"
+      ]
+    },
+    {
       "source": "src/app/holdings/[holdingSlug]/finance/hotels/page.tsx",
       "template": "/holdings/[holdingSlug]/finance/hotels",
       "area": "Holding workspace",
@@ -1278,7 +1363,8 @@
       "detailRoute": true,
       "sourceSignals": [
         "error",
-        "permission"
+        "permission",
+        "destructive"
       ]
     },
     {
@@ -1467,6 +1553,114 @@
       ],
       "detailRoute": false,
       "sourceSignals": [
+        "permission"
+      ]
+    },
+    {
+      "source": "src/app/holdings/[holdingSlug]/finance/restaurants/page.tsx",
+      "template": "/holdings/[holdingSlug]/finance/restaurants",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "finance_approver",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug"
+      ],
+      "detailRoute": false,
+      "sourceSignals": [
+        "error"
+      ]
+    },
+    {
+      "source": "src/app/holdings/[holdingSlug]/finance/sales/new/page.tsx",
+      "template": "/holdings/[holdingSlug]/finance/sales/new",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "finance_approver",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug"
+      ],
+      "detailRoute": false,
+      "sourceSignals": [
+        "error",
+        "permission",
+        "success"
+      ]
+    },
+    {
+      "source": "src/app/holdings/[holdingSlug]/finance/sales/page.tsx",
+      "template": "/holdings/[holdingSlug]/finance/sales",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "finance_approver",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug"
+      ],
+      "detailRoute": false,
+      "sourceSignals": [
+        "error",
+        "permission",
+        "destructive",
+        "success"
+      ]
+    },
+    {
+      "source": "src/app/holdings/[holdingSlug]/finance/sales/receipts/[id]/page.tsx",
+      "template": "/holdings/[holdingSlug]/finance/sales/receipts/[id]",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "finance_approver",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug",
+        "id"
+      ],
+      "detailRoute": true,
+      "sourceSignals": [
+        "error",
+        "destructive"
+      ]
+    },
+    {
+      "source": "src/app/holdings/[holdingSlug]/finance/sales/settings/page.tsx",
+      "template": "/holdings/[holdingSlug]/finance/sales/settings",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "finance_approver",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug"
+      ],
+      "detailRoute": false,
+      "sourceSignals": [
+        "error",
         "permission"
       ]
     },
@@ -2948,7 +3142,8 @@
       ],
       "detailRoute": false,
       "sourceSignals": [
-        "error"
+        "error",
+        "permission"
       ]
     },
     {

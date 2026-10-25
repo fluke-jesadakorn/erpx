@@ -1,0 +1,144 @@
+{
+  "date": "2026-10-11",
+  "environment": "development",
+  "developmentDatabasesOnly": true,
+  "productionChanged": false,
+  "stagingAccessed": false,
+  "backup": {
+    "environment": "development",
+    "reports": [
+      {
+        "binding": "H001_DB",
+        "database": "erpx_dev_h001_write",
+        "bytes": 7608585,
+        "sha256": "16181edce6d35bc3f8b7c9bed46ca08aa40db59101620997097e7e5151514b07",
+        "archiveListValid": true
+      },
+      {
+        "binding": "H002_DB",
+        "database": "erpx_dev_h002_write",
+        "bytes": 4151423,
+        "sha256": "f4e59711b6a9e259f192f2778e9cbb0a4617c87e234debec6da5a98aba195f01",
+        "archiveListValid": true
+      },
+      {
+        "binding": "H003_DB",
+        "database": "erpx_dev_h003_write",
+        "bytes": 3842333,
+        "sha256": "e2601c226cbf1f49c6d3383a80ccb98ee84ada2b806e0717b654e72f3be20653",
+        "archiveListValid": true
+      }
+    ]
+  },
+  "before": {
+    "environment": "development",
+    "reports": [
+      {
+        "binding": "H001_DB",
+        "database": "erpx_dev_h001_write",
+        "receipt": {
+          "count": 3852,
+          "digest": "22899cb281e3fc3d7bb90678fc747ac6"
+        },
+        "migration": [],
+        "partitions": 0
+      },
+      {
+        "binding": "H002_DB",
+        "database": "erpx_dev_h002_write",
+        "receipt": {
+          "count": 294,
+          "digest": "c716b56acbe1e38246760e5bc55bf9f5"
+        },
+        "migration": [],
+        "partitions": 0
+      },
+      {
+        "binding": "H003_DB",
+        "database": "erpx_dev_h003_write",
+        "receipt": {
+          "count": 0,
+          "digest": "d41d8cd98f00b204e9800998ecf8427e"
+        },
+        "migration": [],
+        "partitions": 0
+      }
+    ]
+  },
+  "after": {
+    "environment": "development",
+    "reports": [
+      {
+        "binding": "H001_DB",
+        "database": "erpx_dev_h001_write",
+        "receipt": {
+          "count": 3852,
+          "digest": "22899cb281e3fc3d7bb90678fc747ac6"
+        },
+        "migration": [
+          {
+            "name": "1039_transaction_local_command_assertions.sql"
+          },
+          {
+            "name": "1040_command_receipt_hash_partitions.sql"
+          }
+        ],
+        "partitions": 32
+      },
+      {
+        "binding": "H002_DB",
+        "database": "erpx_dev_h002_write",
+        "receipt": {
+          "count": 294,
+          "digest": "c716b56acbe1e38246760e5bc55bf9f5"
+        },
+        "migration": [
+          {
+            "name": "1039_transaction_local_command_assertions.sql"
+          },
+          {
+            "name": "1040_command_receipt_hash_partitions.sql"
+          }
+        ],
+        "partitions": 32
+      },
+      {
+        "binding": "H003_DB",
+        "database": "erpx_dev_h003_write",
+        "receipt": {
+          "count": 0,
+          "digest": "d41d8cd98f00b204e9800998ecf8427e"
+        },
+        "migration": [
+          {
+            "name": "1039_transaction_local_command_assertions.sql"
+          },
+          {
+            "name": "1040_command_receipt_hash_partitions.sql"
+          }
+        ],
+        "partitions": 32
+      }
+    ]
+  },
+  "receiptCountsAndDigestsPreserved": true,
+  "remainingMigrations": [],
+  "health": [
+    {
+      "url": "http://127.0.0.1:3100/api/health",
+      "status": 200,
+      "client": "curl"
+    },
+    {
+      "url": "https://console-dev-erpx.jesadakorn.com/api/health",
+      "status": 200,
+      "client": "curl"
+    },
+    {
+      "url": "http://127.0.0.1:3101/api/health",
+      "status": 200,
+      "client": "curl"
+    }
+  ],
+  "wholePlanComplete": false
+}

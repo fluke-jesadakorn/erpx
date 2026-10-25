@@ -3,8 +3,8 @@ import { requireWorkContext, publicScope } from "@/server/modules/identity_acces
 import { workspaceBase } from "@/lib/workspace";
 import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { fieldServiceDetail } from "@/server/modules/field_service/public/field-service";
-import { FieldServiceConsole } from "@/components/modules/field-service-console";
-import { RecordDocumentPanel } from "@/components/attachments/record-document-panel";
+import { FieldServiceConsole } from "@/components/records/loaders/modules--field-service-console";
+import { RecordDocumentPanel } from "@/components/records/loaders/attachments--record-document-panel";
 import { minorToDecimal } from "@/lib/finance-money";
 import { hasPermission } from "@/lib/permissions";
 import { PageContent, Card } from "@/components/ui/foundation";

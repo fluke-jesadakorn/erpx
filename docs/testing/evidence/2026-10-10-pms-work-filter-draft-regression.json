@@ -1,0 +1,53 @@
+{
+  "complete": false,
+  "wholePlanAcceptance": false,
+  "status": "All 12 Work journeys identities passed across staged diagnostics; aggregate same-candidate acceptance pending",
+  "redReceipt": ".scratch/dev/test-suites/browser/2026-10-10T16-44-32-611Z/receipt.json",
+  "redReceiptSha256": "8ab5a0da78141a4d1620e72558c460d22e695484d4656b3183a48660ec17c018",
+  "cleanupFailures": [],
+  "runtimeChange": "Clear filters retains the current Tracking subset while removing query/type/responsibility. No change to source membership or permissions.",
+  "testChanges": "Start from supported service_request deep link for a roster without that available type; retain selector changes all\u2192service_request. Navigate Tracking then Waiting per committed navigation. Use existing E2E focus event after hydration to refresh through the actual handler; scope Retry to main dashboard. After reload reopen the current-page service drawer before checking local draft recovery; preserve failed save, same idempotency key, persisted single record, Back/filter and cancellation assertions.",
+  "desktopPassed": [
+    {
+      "project": "desktop",
+      "title": "WORK-001 filters survive queue changes and reload, then clear",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-10T16-44-32-611Z/95d3ee89c525/result.json"
+    },
+    {
+      "project": "desktop",
+      "title": "WORK-002 legacy /requests opens the corresponding Work list",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-10T16-44-32-611Z/510da1ca4013/result.json"
+    },
+    {
+      "project": "desktop",
+      "title": "WORK-003 legacy /staff-tasks?queue=completed&q=acceptance opens the corresponding Work list",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-10T16-44-32-611Z/87c5f89d6a8e/result.json"
+    },
+    {
+      "project": "desktop",
+      "title": "WORK-004 New work closes with Escape and restores keyboard focus",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-10T16-44-32-611Z/2ba878e0456d/result.json"
+    },
+    {
+      "project": "desktop",
+      "title": "WORK-005 failed summary refresh keeps filters and recovers through Retry work",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-10T16-44-32-611Z/894fbfe34607/result.json"
+    }
+  ],
+  "mobilePassedCases": 6,
+  "releaseDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.runtime/releases/2026-10-10T16-56-50-662Z",
+  "candidate": {
+    "runtime": "4aa7e4dafe8810d312d85fa4381b963bc4d0c87a4a452575ca80e5e22bfbf9ba",
+    "verification": "a8f548053652955df81078e876c630efda0d44dbcc4845069c6c3b413272dd30"
+  },
+  "draftArtifacts": [
+    {
+      "path": ".scratch/dev/test-suites/browser/2026-10-10T16-51-49-485Z/eaee0dffbcc5/result.json",
+      "sha256": "475b6aaae3e5e20045e747ab384b93a0076831db9fa40574841faba4a9659e6b"
+    },
+    {
+      "path": ".scratch/dev/test-suites/browser/2026-10-10T16-51-49-485Z/519ca09bc058/result.json",
+      "sha256": "4d52f24771c1030332e9240253e72f90086a5d109a9c920e74956534d9f3efd2"
+    }
+  ]
+}

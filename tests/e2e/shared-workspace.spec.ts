@@ -3,6 +3,7 @@ import {
   test,
   expect as baseExpect,
   type BrowserContext,
+  type Locator,
   type Page,
 } from "@playwright/test";
 import { readFileSync, existsSync } from "node:fs";
@@ -32,12 +33,53 @@ test.use({ actionTimeout: 20000 });
 const expect = baseExpect.configure({ timeout: 20000 }),
   base = "/holdings/acme",
   api = `/api/v1${base}`;
+const commandPages = new WeakMap<BrowserContext, Page>();
+const commandActors = new WeakMap<BrowserContext, Fixture["actors"][string]>();
 async function login(context: BrowserContext, who: string) {
   const response = await context.request.post("/api/auth/sign-in/email", {
     data: { email: fixture.actors[who].email, password: fixture.password },
   });
   expect(response.ok(), await response.text()).toBeTruthy();
   await selectFixtureAssignment(context, fixture.company, fixture.actors[who].assignmentId);
+  commandActors.set(context, fixture.actors[who]);
+}
+async function selectWorkRole(context: BrowserContext, who: string, role: string) {
+  const response = await context.request.get(`${api}/assignments/active`);
+  expect(response.ok(), await response.text()).toBeTruthy();
+  const options = (await response.json()).data.options.filter((option: { role: string }) => option.role === role);
+  expect(options).toHaveLength(1);
+  await selectFixtureAssignment(context, fixture.company, options[0].id);
+  const oldPage = commandPages.get(context);
+  if (oldPage) await oldPage.close();
+  commandPages.delete(context);
+  commandActors.set(context, { ...fixture.actors[who], assignmentId: options[0].id });
+}
+async function commandHeaders(context: BrowserContext) {
+  const actor = commandActors.get(context);
+  expect(actor, "An existing fixture actor must be selected before a command.").toBeTruthy();
+  let page = commandPages.get(context);
+  if (!page) {
+    page = await context.newPage();
+    await page.goto(`${base}/home`);
+    commandPages.set(context, page);
+  }
+  const work = page.locator("[data-work-assignment]");
+  await expect(work).toHaveCount(1);
+  await expect(work).toHaveAttribute("data-work-stale", "false");
+  await expect(work).toHaveAttribute("data-work-company", fixture.company);
+  await expect(work).toHaveAttribute("data-work-user", actor!.userId);
+  await expect(work).toHaveAttribute("data-work-assignment", actor!.assignmentId);
+  const stamp = await work.evaluate((element) => {
+    const node = element as HTMLElement;
+    return { revision: node.dataset.workRevision!, company: node.dataset.workCompany!, assignment: node.dataset.workAssignment! };
+  });
+  expect(stamp.revision).toMatch(/^\d+$/);
+  return {
+    Origin: new URL(page.url()).origin,
+    "x-erpx-context-revision": stamp.revision,
+    "x-erpx-context-company": stamp.company,
+    "x-erpx-context-assignment": stamp.assignment,
+  };
 }
 async function post(
   context: BrowserContext,
@@ -48,7 +90,7 @@ async function post(
   const response = await context.request.post(`${api}/${route}`, {
     headers: {
       "Idempotency-Key": key,
-      Origin: process.env.ERPX_E2E_BASE_URL ?? "http://127.0.0.1:3100",
+      ...await commandHeaders(context),
     },
     data,
   });
@@ -86,28 +128,53 @@ async function clickAction(
 ) {
   const evidence = page.getByLabel("Message or decision evidence");
   await expect(evidence).toBeVisible();
-  await evidence.fill(note);
-  await expect(evidence).toHaveValue(note);
+  await expect(evidence).toBeEnabled();
+  let action: Locator;
+  if (label === "Approve" || label === "Return for correction") {
+    const decision = page.getByRole("region", { name: "Your decision", exact: true });
+    await expect(decision).toHaveCount(1);
+    await decision.getByRole("button", { name: label, exact: true }).click();
+    const confirmation = decision.locator("form");
+    await expect(confirmation).toHaveCount(1);
+    action = confirmation.getByRole("button", { name: `Confirm ${label}`, exact: true });
+    await expect(action).toHaveAttribute("data-client-managed-ready", "true");
+    const reason = confirmation.getByRole("textbox", { name: "Reason", exact: true });
+    await reason.fill(note);
+    await expect(reason).toHaveValue(note);
+  } else {
+    await evidence.fill(note);
+    await expect(evidence).toHaveValue(note);
+    action = page.getByRole("tabpanel", { name: "Overview", exact: true }).getByRole("button", { name: label, exact: true });
+  }
+  await expect(action).toHaveCount(1);
+  await expect(action).toBeVisible();
   const response = page.waitForResponse(
     (r) =>
       r.url().includes("/requests/") &&
       r.url().endsWith("/actions") &&
       r.request().method() === "POST",
   );
-  await page.getByRole("button", { name: label, exact: true }).click();
+  await action.click();
   const r = await response;
   expect(r.ok(), await r.text()).toBeTruthy();
   await page.reload();
 }
 async function saveUi(page: Page) {
+  const currentPath = new URL(page.url()).pathname;
+  const existingId = currentPath.startsWith(`${base}/requests/`) && !currentPath.endsWith("/new")
+    ? currentPath.slice(`${base}/requests/`.length) : null;
+  const savePath = `${api}/requests${existingId ? `/${existingId}` : ""}`;
   const pending = page.waitForResponse(
-    (r) => r.url().includes("/requests") && r.request().method() === "POST",
+    (r) => new URL(r.url()).pathname === savePath && r.request().method() === "POST",
   );
   await page.getByRole("button", { name: "Save draft", exact: true }).click();
   const r = await pending;
   expect(r.ok(), await r.text()).toBeTruthy();
   const id = (await r.json()).data.id;
-  await expect(page).toHaveURL(new RegExp(`/requests/${id}`));
+  expect(typeof id).toBe("string");
+  expect(id).not.toBe("");
+  if (existingId) expect(id).toBe(existingId);
+  await expect(page).toHaveURL(url => url.pathname === `${base}/requests/${id}`);
   await page.reload();
   return String(id);
 }
@@ -270,6 +337,8 @@ test("service request moves through a shared team, questions, evidence, reopenin
     page.getByText(/unavailable|not configured|set up|configure/i).first(),
   ).toBeVisible();
   await submitUi(page);
+  await expect(page.getByRole("tab", { name: "Overview", exact: true })).toHaveAttribute("aria-selected", "true");
+  await expect(page).toHaveURL(url => url.searchParams.get("section") === "overview");
   expect((await read(context, id)).request.state).toBe("queued");
   const handler = await browser.newContext(),
     hp = await handler.newPage();
@@ -349,7 +418,7 @@ test("equipment requires independent approval then records a handover without a 
     .poll(async () => (await read(context, id)).request.state)
     .toBe("awaiting_approval");
   await headPage.reload();
-  await clickAction(headPage, "Approve request");
+  await clickAction(headPage, "Approve");
   const handler = await browser.newContext(),
     hp = await handler.newPage();
   await login(handler, "it");
@@ -381,10 +450,14 @@ test("purchase requests hand off once to the existing approved and received orde
   await login(context, "claimant");
   const owner = await browser.newContext(),
     handler = await browser.newContext(),
-    head = await browser.newContext();
+    head = await browser.newContext(),
+    accountsPreparer = await browser.newContext(),
+    accountsApprover = await browser.newContext();
   await login(owner, "owner");
   await login(handler, "it");
   await login(head, "head");
+  await login(accountsPreparer, "reviewer");
+  await login(accountsApprover, "manager");
   await teams(owner);
   const r = await post(context, "requests", {
     kind: "purchase",
@@ -407,6 +480,23 @@ test("purchase requests hand off once to the existing approved and received orde
   }
   await action(context, "submit");
   await action(head, "approve");
+  const earlyHandler = await handler.request.get(`${api}/requests/${r.id}`);
+  expect(earlyHandler.status()).toBe(404);
+  expect((await earlyHandler.json()).error.code).toBe("REQUEST_NOT_FOUND");
+  for (const [reviewer, role] of [[accountsPreparer, "finance_preparer"], [accountsApprover, "finance_approver"]] as const) {
+    const pending = (await read(context, r.id)).request;
+    expect(pending.state).toBe("awaiting_approval");
+    const approval = JSON.parse(pending.approval_json);
+    expect(approval.route.steps[approval.currentStep].requiredRole).toBe(role);
+    await action(reviewer, "approve");
+  }
+  const approved = (await read(context, r.id)).request;
+  expect(approved.state).toBe("queued");
+  const decisions = JSON.parse(approved.approval_json).decisions;
+  expect(decisions.map((decision: { userId: string }) => decision.userId)).toEqual([
+    fixture.actors.head.userId, fixture.actors.reviewer.userId, fixture.actors.manager.userId,
+  ]);
+  expect(new Set(decisions.map((decision: { userId: string }) => decision.userId)).size).toBe(3);
   await action(handler, "assign", { assigneeUserId: fixture.actors.it.userId });
   await action(handler, "start");
   const hp = await handler.newPage();
@@ -415,16 +505,22 @@ test("purchase requests hand off once to the existing approved and received orde
     await expect(hp.getByText("Purchasing execution is unavailable in this beta workspace. Your approved request remains saved.")).toBeVisible();
     await expect(hp.getByRole("link", { name: "Prepare purchase order in Purchasing" })).toHaveCount(0);
     const denied = await handler.request.post(`${api}/commerce/orders`, {
-      headers: { "Idempotency-Key": randomUUID() },
+      headers: { ...await commandHeaders(handler), "Idempotency-Key": randomUUID() },
       data: { kind: "purchase", requestId: r.id },
     });
     expect(denied.status()).toBe(403);
+    expect((await denied.json()).error.code).toBe("BETA_CAPABILITY_UNAVAILABLE");
     expect((await read(context, r.id)).request.state).toBe("in_progress");
     await owner.close();
     await handler.close();
     await head.close();
+    await accountsPreparer.close();
+    await accountsApprover.close();
     return;
   }
+  await expect(hp.getByRole("link", { name: "Prepare purchase order in Purchasing" })).toHaveCount(0);
+  await selectWorkRole(handler, "it", "purchasing_operator");
+  await hp.reload();
   await hp
     .getByRole("link", { name: "Prepare purchase order in Purchasing" })
     .click();
@@ -468,15 +564,36 @@ test("purchase requests hand off once to the existing approved and received orde
     action: "approve",
     expectedVersion: data.order.version,
   });
+  const receivingFlowResponse = await owner.request.get(`${api}/flows/order/${order.id}`);
+  expect(receivingFlowResponse.ok(), await receivingFlowResponse.text()).toBeTruthy();
+  const receivingFlow = (await receivingFlowResponse.json()).data;
+  expect(receivingFlow.current.key).toBe("confirmed");
+  expect(receivingFlow.current.role).toBe("warehouse_manager");
+  expect(receivingFlow.current.candidates.some((candidate: { userId: string }) => candidate.userId === fixture.actors.it.userId)).toBe(true);
+  const assignedReceiving = await post(owner, `flows/order/${order.id}`, {
+    stepKey: receivingFlow.current.key,
+    userId: fixture.actors.it.userId,
+    expectedVersion: receivingFlow.version,
+    recordVersion: receivingFlow.recordVersion,
+    reason: "Fictional owner assigns the eligible warehouse receiver for this approved purchase.",
+    saveDefault: false,
+  });
+  expect(assignedReceiving.current.primary.userId).toBe(fixture.actors.it.userId);
+  await selectWorkRole(handler, "it", "warehouse_manager");
   data = await orderData();
   await post(handler, `commerce/orders/${order.id}/fulfill`, {
     expectedVersion: data.order.version,
     date: "2026-09-08",
     lines: [{ lineId: data.lines[0].id, quantity: "1" }],
   });
+  await selectFixtureAssignment(handler, fixture.company, fixture.actors.it.assignmentId);
+  const warehousePage = commandPages.get(handler);
+  if (warehousePage) await warehousePage.close();
+  commandPages.delete(handler);
+  commandActors.set(handler, fixture.actors.it);
   const partial = await read(handler, r.id),
     denied = await handler.request.post(`${api}/requests/${r.id}/actions`, {
-      headers: { "Idempotency-Key": randomUUID() },
+      headers: { ...await commandHeaders(handler), "Idempotency-Key": randomUUID() },
       data: {
         action: "resolve",
         expectedVersion: partial.request.version,
@@ -484,12 +601,19 @@ test("purchase requests hand off once to the existing approved and received orde
       },
     });
   expect(denied.status()).toBe(409);
+  expect((await denied.json()).error.code).toBe("PURCHASE_NOT_RECEIVED");
+  await selectWorkRole(handler, "it", "warehouse_manager");
   data = await orderData();
   await post(handler, `commerce/orders/${order.id}/fulfill`, {
     expectedVersion: data.order.version,
     date: "2026-09-08",
     lines: [{ lineId: data.lines[0].id, quantity: "1" }],
   });
+  await selectFixtureAssignment(handler, fixture.company, fixture.actors.it.assignmentId);
+  const receiptPage = commandPages.get(handler);
+  if (receiptPage) await receiptPage.close();
+  commandPages.delete(handler);
+  commandActors.set(handler, fixture.actors.it);
   await action(handler, "resolve");
   await page.goto(`${base}/requests/${r.id}`);
   await clickAction(page, "Confirm completion");
@@ -497,6 +621,8 @@ test("purchase requests hand off once to the existing approved and received orde
   await owner.close();
   await handler.close();
   await head.close();
+  await accountsPreparer.close();
+  await accountsApprover.close();
 });
 test("handbook editors publish a revision while employees cannot read or search the next draft", async ({
   page,
@@ -563,7 +689,8 @@ test("shared workspace supports keyboard access and 390, 768 and 1440px light an
       await page.setViewportSize({ width, height: 900 });
       await page.addInitScript((theme) => {
         localStorage.setItem("erpx-theme", theme);
-        document.documentElement.dataset.theme = theme;
+        // Init scripts can run before the HTML root is available.
+        if (document.documentElement) document.documentElement.dataset.theme = theme;
       }, theme);
       for (const [label, route] of [
         ["work", `${base}/work?queue=all`],
@@ -611,6 +738,7 @@ test("shared workspace supports keyboard access and 390, 768 and 1440px light an
     }
   await page.goto(`${base}/work`);
   const button = page.getByRole("button", { name: "New", exact: true });
+  await expect(button).toBeEnabled();
   await button.focus();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("dialog")).toBeVisible();

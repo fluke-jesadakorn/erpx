@@ -60,8 +60,8 @@ async revenue(f){const write=await database(),companyId=a.companyId;
     WHERE l.company_id=? AND j.entry_date BETWEEN ? AND ?
    UNION
    SELECT v.lead_id,j.id FROM crm_opportunities v JOIN crm_leads l ON l.id=v.lead_id
-    JOIN (${pmsProjectionSources.pms_records}) folio ON folio.kind='folio' AND folio.data_json::jsonb->>'reservationId'=v.reservation_id
-    JOIN (${pmsProjectionSources.pms_records}) entry ON entry.kind='entry' AND entry.property_id=folio.property_id AND entry.data_json::jsonb->>'folioId'=folio.id
+    JOIN (${pmsProjectionSources.pms_records}) guestAccount ON guestAccount.kind='guest_account' AND guestAccount.data_json::jsonb->>'reservationId'=v.reservation_id
+    JOIN (${pmsProjectionSources.pms_records}) entry ON entry.kind='entry' AND entry.property_id=guestAccount.property_id AND entry.data_json::jsonb->>'guestAccountId'=guestAccount.id
     JOIN (${pmsProjectionSources.pms_postings}) pp ON pp.record_id=entry.id AND pp.property_id=entry.property_id
     JOIN (${financeProjectionSources.finance_journals}) j ON j.id=pp.journal_id AND j.company_id=l.company_id AND j.status='posted'
     WHERE l.company_id=? AND j.entry_date BETWEEN ? AND ?

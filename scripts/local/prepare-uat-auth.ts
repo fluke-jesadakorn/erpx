@@ -70,6 +70,43 @@ async function ensureWorkspacePath(page: Page, homePath: string) {
 
 async function selectRole(page: Page, profile: Profile, homePath: string) {
   const desired = normalizedRole(profile.role);
+  const switcher = page.getByRole("button", { name: /^Switch role:/ });
+  await switcher.or(page.getByRole("button", { name: /^Role for actions & approvals/ }))
+    .or(page.getByRole("combobox", { name: /^(?:Search roles|Role for actions & approvals)$/ }))
+    .first().waitFor({ state: "visible", timeout: 15_000 });
+  if (await switcher.isVisible()) {
+    const current = (await switcher.getAttribute("aria-label") ?? "").toLowerCase();
+    if (current.includes(desired) && (!profile.scope || current.includes(profile.scope))) {
+      await ensureWorkspacePath(page, homePath);
+      return;
+    }
+    await switcher.click();
+    const roles = page.getByRole("group", { name: "Available roles", exact: true });
+    await roles.waitFor({ state: "visible", timeout: 15_000 });
+    let roleOption = roles.getByRole("button").filter({ hasText: new RegExp(desired, "i") });
+    if (profile.scope) roleOption = roleOption.filter({ hasText: new RegExp(profile.scope, "i") });
+    if (await roleOption.count() !== 1) throw new Error(`UAT_ROLE_OPTION_NOT_UNIQUE:${profile.id}`);
+    await roleOption.waitFor({ state: "visible", timeout: 10_000 });
+    const selection = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return response.request().method() === "POST" && url.pathname.endsWith("/assignments/active");
+    }, { timeout: 15_000 });
+    await roleOption.click();
+    const response = await selection;
+    if (!response.ok()) throw new Error(`work role selection failed with HTTP ${response.status()}`);
+    await ensureWorkspacePath(page, homePath);
+    await page.reload({ waitUntil: "domcontentloaded" });
+    const accountMenu = page.getByRole("button", { name: /Account menu for/ });
+    await accountMenu.waitFor({ state: "visible", timeout: 15_000 });
+    await accountMenu.click();
+    const persistedSwitcher = page.getByRole("button", { name: /^Switch role:/ });
+    await persistedSwitcher.waitFor({ state: "visible", timeout: 15_000 });
+    const persisted = (await persistedSwitcher.getAttribute("aria-label") ?? "").toLowerCase();
+    if (!persisted.includes(desired) || (profile.scope && !persisted.includes(profile.scope)))
+      throw new Error(`UAT_PERSISTED_ROLE_MISMATCH:${profile.id}`);
+    await accountMenu.click();
+    return;
+  }
   const trigger = page.getByRole("button", { name: /^Role for actions & approvals/ });
   if (await trigger.isVisible()) {
     const current = (await trigger.innerText()).toLowerCase();
@@ -116,7 +153,7 @@ async function configureProfile(page: Page, profile: Profile, homePath: string) 
 
 async function waitForSignedInLanding(page: Page) {
   await page.waitForFunction(() => {
-    if (location.pathname === "/work-role") return Boolean(document.querySelector('input[role="combobox"], button.work-role-trigger'));
+    if (location.pathname === "/work-role") return Boolean(document.querySelector('input[role="combobox"], button.work-role-trigger, button[aria-label^="Switch role:"]:not([disabled])'));
     return location.pathname.startsWith("/holdings/") && Boolean(document.querySelector('button[aria-label^="Account menu for"]'));
   }, null, { timeout: 30_000 });
 }

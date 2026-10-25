@@ -1,0 +1,25 @@
+{
+  "recordedAt": "2026-10-11T16:21:00.837139+00:00",
+  "scope": "Performance source transition observation, not accepted performance or final PMS candidate",
+  "before": {
+    "runtime": "ac53b636bb8e08700a3bace57c442d1ab211fc299e8110c21de2ba9ba2afd48f",
+    "verification": "2b5548f6a40109638ade47957d999315dcfe0579627aa5879abc537632f257ce"
+  },
+  "mainAfter": {
+    "runtime": "c553ba5f185547ce70750adad13cb7b865d1132625c5b6f557b3231780d89a84",
+    "verification": "c68d995055a083a7988b48ebcab7b79fe892e81b7d57f0bb2d1a8793ea1fefb3"
+  },
+  "candidateBaselinePreserved": {
+    "runtime": "ac53b636bb8e08700a3bace57c442d1ab211fc299e8110c21de2ba9ba2afd48f",
+    "verification": "2b5548f6a40109638ade47957d999315dcfe0579627aa5879abc537632f257ce"
+  },
+  "applicationFiles": 41,
+  "newExpenseNativeCases": 2,
+  "originalExpenseCasesPreserved": true,
+  "draftSupplementAppliedAtThisObservation": false,
+  "propertySupplementAppliedAtThisObservation": false,
+  "privateAppliedEvidenceSHA256": "9b4ed9198046c72088df89a91bb32d906d69c9ffd94d13d39d005448bae25d57",
+  "performanceValidation": "In progress with authorized peer; root business lane remains held",
+  "wholePlanAccepted": false,
+  "featureStatusesPromoted": false
+}

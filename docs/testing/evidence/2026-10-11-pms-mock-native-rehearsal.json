@@ -1,0 +1,94 @@
+{
+  "date": "2026-10-11",
+  "scope": "Native mock opening/migration/restore acceptance; final browser review still pending",
+  "runtimeFingerprint": "61d02a05665bdec4bc25a5b25cb9af9b40140960da76ed51b0228f9a37652581",
+  "release": "2026-10-10T18-04-29-147Z",
+  "mockOnly": true,
+  "realStaffApproval": false,
+  "complete": false,
+  "wholePlanAccepted": false,
+  "nativeLogSha256": "34b487c8fe995e2aab62212cc12fd162ec32cf965ebc07b3754973ef3cec2ff8",
+  "passedFiles": [
+    {
+      "file": "tests/pms.test.ts",
+      "cases": 81
+    },
+    {
+      "file": "tests/engineering-migration-upgrade.test.ts",
+      "cases": 1
+    },
+    {
+      "file": "tests/engineering-recovery.test.ts",
+      "cases": 1
+    }
+  ],
+  "openingReceivable": {
+    "title": "settles the original opening receivable and invoices only new hotel service across two business days",
+    "openingTHB": "200.00",
+    "day1CollectedTHB": "100.00",
+    "day2CollectedTHB": "207.00",
+    "originalOpeningInvoiceOutstandingFinal": 0,
+    "newServiceInvoiceTHB": "107.00",
+    "newRevenueTHB": "100.00",
+    "totalAllocationsTHB": "307.00",
+    "finalBusinessDate": "2026-09-03",
+    "financeDifferences": {
+      "receivable": 0,
+      "advance": 0,
+      "deposit": 0
+    },
+    "independentOpeningJournalAndImportReview": true
+  },
+  "advanceAndDeposit": {
+    "title": "traces imported advance and deposit to the approved opening journal and reconciles partial refunds",
+    "advanceTHB": "200.00",
+    "depositTHB": "50.00",
+    "partialDepositRefundTHB": "20.00",
+    "independentRefundReviewer": true,
+    "financeDifferences": {
+      "receivable": 0,
+      "advance": 0,
+      "deposit": 0
+    }
+  },
+  "recovery": {
+    "title": "encrypts a complete isolated snapshot, restores immutable money and files, and rolls back only compatible releases",
+    "threeHoldingsAndAllEightDatabaseTracks": true,
+    "originalFileAndTableDigestsCompared": true,
+    "compiledReleaseUsed": true
+  },
+  "sourceDigests": {
+    "tests/pms.test.ts": "7add8b86b9ac7abf9838a6b554373f41c02a6de681834b021271bc1a77c7efee",
+    "tests/engineering-migration-upgrade.test.ts": "c9993f5b4616c2e905b9b24f204384b9bc51264afa04fa78b71402cb5c3bc3d7",
+    "tests/engineering-recovery.test.ts": "8214881129023aa06e055ba3433cc0b48dfd95ea62dfc9bc94cfd7d798864ec8"
+  },
+  "limits": "Native required-case/file pass and inspected assertions; no per-case JSON receipt was requested. This is not final combined browser/mock-pilot signoff or real-hotel rollout.",
+  "compiledCandidateBindingAudit": {
+    "checkedAt": "2026-10-10T20:16:55.468916+00:00",
+    "driver": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-final-proxy-candidate/acceptance-final.sh",
+    "driverSHA256": "763ba95eb2d1bdbdffb16bd139717c10f841ec55de51d2e124f777bee6955e4c",
+    "nativeLogSHA256": "34b487c8fe995e2aab62212cc12fd162ec32cf965ebc07b3754973ef3cec2ff8",
+    "releaseEnvironmentExplicitlySupplied": true,
+    "sourceEnvironmentExplicitlySupplied": true,
+    "environmentPropagation": [
+      "scripts/local/test.ts spreads process.env into child env",
+      "scripts/testing/runner-environment.ts copies environment and removes only ambient PG credentials for pure units"
+    ],
+    "recoveryVerification": [
+      "Supplied release must be inside local .runtime/releases",
+      "release.sourceFingerprint must match supplied fingerprint and Node24.20.0",
+      "release-files manifest hash and every compiled file checksum verified before backup",
+      "8database table digests and3Holding files compared after restore",
+      "compatible rollback keeps immutable table digests; incompatible schema and ciphertext tampering rejected"
+    ],
+    "migrationVerification": [
+      "migrations read from supplied compiled release directory",
+      "8tracks upgraded from populated0920baseline",
+      "original ordered history SHA preserved",
+      "posted journal/money evidence immutable",
+      "original price quote/FX preserved and unquoted history not invented",
+      "backfill replay exactly once"
+    ],
+    "structuredRawRehearsalExport": "Not requested in this full native command: ERPX_ENGINEERING_EVIDENCE_DIR absent. Passing assertion/file log is retained; no raw JSON rehearsal receipt is invented. Earlier dated rehearsal artifacts belong to earlier fingerprints."
+  }
+}

@@ -1,5 +1,6 @@
+import { captureInvestorCheckpoint } from "../helpers/investor-capture";
 import {createEngineeringBrowserContext} from './helpers/engineering-browser-evidence';
-import { expect, test, type BrowserContext, type Page } from "@playwright/test";
+import { expect, test, type BrowserContext, type Locator, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
@@ -27,8 +28,22 @@ async function signInRole(context: BrowserContext, page: Page, credentials: Cred
 }
 
 async function requestCommand(page: Page, requestId: string, button: string, note: string) {
-  await page.locator("#workspace-content:visible").getByLabel("Message or decision evidence", { exact: true }).fill(note);
-  const action = page.locator("#workspace-content:visible").getByRole("button", { name: button, exact: true });
+  const workspace = page.locator("#workspace-content:visible");
+  let action: Locator;
+  if (button === "Approve") {
+    await expect(workspace.getByLabel("Message or decision evidence", { exact: true })).toBeEnabled();
+    const decision = workspace.getByRole("region", { name: "Your decision", exact: true });
+    await expect(decision).toHaveCount(1);
+    await decision.getByRole("button", { name: "Approve", exact: true }).click();
+    const confirmation = decision.locator("form");
+    await expect(confirmation).toHaveCount(1);
+    action = confirmation.getByRole("button", { name: "Confirm Approve", exact: true });
+    await expect(action).toHaveAttribute("data-client-managed-ready", "true");
+    await confirmation.getByLabel("Reason", { exact: true }).fill(note);
+  } else {
+    await workspace.getByLabel("Message or decision evidence", { exact: true }).fill(note);
+    action = workspace.getByRole("button", { name: button, exact: true });
+  }
   await expect(action).toHaveCount(1);
   await expect(action).toBeVisible();
   const response = page.waitForResponse((item) => item.request().method() === "POST" && item.url().includes(`/api/v1/holdings/simulation/requests/${requestId}/actions`));
@@ -84,15 +99,15 @@ test("isolated demo carries an approved purchase request through split RFQs, rec
 
     const managerPage = await managerContext.newPage();
     await signInRole(managerContext, managerPage, credentials, "people_manager", manager!, path);
-    await requestCommand(managerPage, requestId, "Approve request", "Line manager reviewed the business need and approved the request.");
+    await requestCommand(managerPage, requestId, "Approve", "Line manager reviewed the business need and approved the request.");
 
     const preparerPage = await preparerContext.newPage();
     await signInRole(preparerContext, preparerPage, credentials, "finance_preparer", preparer!, path);
-    await requestCommand(preparerPage, requestId, "Approve request", "Finance preparer reviewed the planned spending and source evidence.");
+    await requestCommand(preparerPage, requestId, "Approve", "Finance preparer reviewed the planned spending and source evidence.");
 
     const approverPage = await approverContext.newPage();
     await signInRole(approverContext, approverPage, credentials, "finance_approver", approver!, path);
-    await requestCommand(approverPage, requestId, "Approve request", "Finance approver independently approved the planned spending.");
+    await requestCommand(approverPage, requestId, "Approve", "Finance approver independently approved the planned spending.");
 
     const buyerPage = await buyerContext.newPage();
     await signInRole(buyerContext, buyerPage, credentials, "purchasing_operator", buyer!, path);
@@ -101,6 +116,7 @@ test("isolated demo carries an approved purchase request through split RFQs, rec
     await requestCommand(buyerPage, requestId, "Start work", "Purchasing started sourcing against the approved request.");
     await buyerPage.goto(`/holdings/simulation/procurement-rfqs?request=${requestId}`, { waitUntil: "domcontentloaded" });
     await expect(buyerPage.getByRole("link", { name: /Approved requisition:/ }).first()).toBeVisible();
+    await captureInvestorCheckpoint(buyerPage, "purchase-approved", buyerPage.getByRole("link", { name: /Approved requisition:/ }).first());
     await buyerPage.locator("#workspace-content:visible label").filter({ hasText: "Receiving warehouse" }).locator("select").selectOption({ index: 2 });
     const productSelect = buyerPage.locator("#workspace-content:visible label").filter({ hasText: "Demand product 1" }).locator("select");
     const productValue = await productSelect.locator("option").filter({ hasText: "SIM-LAP-EACH" }).getAttribute("value");
@@ -232,18 +248,26 @@ test("isolated demo carries an approved purchase request through split RFQs, rec
     const createAndPostBill = async () => {
       await preparerPage.goto(`/holdings/simulation/supplier-bills?refresh=${Date.now()}`, { waitUntil: "domcontentloaded" });
       await preparerPage.locator("#workspace-content:visible").getByText(/Match one supplier invoice to/, { exact: false }).first().click();
-      await preparerPage.locator("#workspace-content:visible").getByLabel("Supplier invoice reference", { exact: true }).fill("DEMO-REQUEST-INVOICE-CONSOLIDATED");
-      await preparerPage.locator("#workspace-content:visible").getByLabel("Invoice date", { exact: true }).fill("2026-09-22");
-      await preparerPage.locator("#workspace-content:visible").getByLabel("Payment due date", { exact: true }).fill("2026-10-22");
-      const billQuantities = preparerPage.locator('#workspace-content:visible input[name^="quantity-"]');
+      const billDrawer = preparerPage.getByRole("dialog", { name: "Match one supplier invoice to one or more receipts", exact: true });
+      await expect(billDrawer).toHaveCount(1);
+      await expect(billDrawer).toBeVisible();
+      const billForm = billDrawer.locator("form");
+      await expect(billForm).toHaveCount(1);
+      const sendInvoice = billForm.getByRole("button", { name: "Send invoice for independent matching review", exact: true });
+      await expect(sendInvoice).toHaveAttribute("data-client-managed-ready", "true");
+      await billForm.getByLabel("Supplier invoice reference", { exact: true }).fill("DEMO-REQUEST-INVOICE-CONSOLIDATED");
+      await billForm.getByLabel("Invoice date", { exact: true }).fill("2026-09-22");
+      await billForm.getByLabel("Payment due date", { exact: true }).fill("2026-10-22");
+      const billQuantities = billForm.locator('input[name^="quantity-"]');
       await expect(billQuantities).toHaveCount(2);
       // The capture form is keyed by receipt-line id and may order lines by
       // database id. Its defaults are the exact posted receipt quantities and
       // unit prices, so keep those values instead of assuming PO order.
       expect((await billQuantities.evaluateAll((inputs) => inputs.map((input) => (input as HTMLInputElement).value).sort()))).toEqual(["4", "6"]);
-      await preparerPage.locator("#workspace-content:visible").getByLabel("Supplier invoice evidence", { exact: true }).fill("One supplier invoice covers the six-unit and four-unit receipts from the approved request.");
+      await captureInvestorCheckpoint(preparerPage, "purchase-receipts", billDrawer);
+      await billForm.getByLabel("Supplier invoice evidence", { exact: true }).fill("One supplier invoice covers the six-unit and four-unit receipts from the approved request.");
       const billResponse = preparerPage.waitForResponse((item) => item.request().method() === "POST" && item.url().endsWith("/api/v1/holdings/simulation/supplier-bills"));
-      await preparerPage.getByRole("button", { name: "Send invoice for independent matching review", exact: true }).click();
+      await sendInvoice.click();
       const billResult = await billResponse;
       expect(billResult.ok(), await billResult.text()).toBe(true);
       const billId = String((await billResult.json()).data.id);
@@ -350,6 +374,7 @@ test("isolated demo carries an approved purchase request through split RFQs, rec
     const settledInvoice = await treasuryContext.request.get(`/api/v1/holdings/simulation/finance/invoices/${invoiceId}`);
     expect(settledInvoice.ok()).toBe(true);
     expect((await settledInvoice.json()).data.invoice).toMatchObject({ status: "paid", outstanding_minor: 0 });
+    await captureInvestorCheckpoint(treasuryPage, "purchase-paid", treasuryPage.locator("#workspace-content:visible h1").first());
 
     const detail = await buyerContext.request.get(`/api/v1/holdings/simulation/procurement-rfqs/${rfqId}`);
     expect(detail.ok()).toBe(true);

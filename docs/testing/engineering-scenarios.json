@@ -2164,8 +2164,8 @@
         {
           "runner": "vitest",
           "file": "tests/pos.test.ts",
-          "title": "POS committed business flows charges one restaurant bill to an in-house folio atomically, without POS revenue or payment",
-          "proof": "expect((await posWorkspace(actor,sale,'','sale')).roomChargeStays).toMatchObject([{stay_id:'stay',room_number:'101',guest_name:'Example Guest'}]);\nexpect(charged).toMatchObject({id:sale,state:'completed',tender:'room_charge',propertyId:'hotel'});\nexpect(await command('sale.charge_to_room',input,actor,'room-charge-replay')).toEqual(charged);\nexpect((await one(db,\"SELECT data_json::jsonb->>'due' due FROM pms_records WHERE id='folio'\"))?.due).toBe('10700');\nexpect(await one(db,'SELECT count(*) n FROM pms_sources')).toEqual({n:1});\nexpect((await posWorkspace(actor,sale,'','sale')).roomCharge?.folio_entry_id).toBe(charged.folioEntryId);\nexpect(await one(db,'SELECT count(*) n FROM pms_postings')).toEqual({n:1});\nexpect(await one(db,'SELECT count(*) n FROM pos_payments')).toEqual({n:0});\nexpect(await one(db,\"SELECT count(*) n FROM pos_postings WHERE source_key LIKE 'sale:%' OR source_key LIKE 'receipt:%'\")).toEqual({n:0});\nexpect((await posWorkspace(actor,undefined,'','reports')).reports).toEqual([]);\nexpect((await posDayReport(db,actor,'pos-branch',String(saleRow!.business_date))).totals).toMatchObject({roomChargeMinor:10700,grossMinor:0,taxMinor:0,received:{}});\nexpect(await one(db,\"SELECT quantity_milli FROM commerce_stock WHERE warehouse_id='warehouse' AND product_id='tea'\")).toEqual({quantity_milli:9000});\nawait expect(command('sale.charge_to_room',{id:other,expectedVersion:changed!.version,propertyId:'hotel',stayId:'stay',expectedPropertyVersion:1})).rejects.toMatchObject({code:'PMS_VERSION_CONFLICT'});\nexpect((await one(db,'SELECT state FROM pos_sales WHERE id=?',other))?.state).toBe('open');\nawait expect(command('sale.charge_to_room',{id:other,expectedVersion:changed!.version,propertyId:'hotel',stayId:'stay',expectedPropertyVersion:2})).rejects.toMatchObject({code:'PMS_CHARGE_FOLIO'});\nawait expect(command('sale.charge_to_room',{id:other,expectedVersion:changed!.version,propertyId:'hotel',stayId:'stay',expectedPropertyVersion:2})).rejects.toMatchObject({code:'POS_ACCESS_CHANGED'});\nawait expect(pmsCommand(db,manager,{operation:'charge.reverse',propertyId:'hotel',expectedVersion:2,input:{id:charged.folioEntryId,reason:'Wrong room'}},'direct-pos-charge-reversal')).rejects.toMatchObject({code:'PMS_POS_REVERSAL_REQUIRED'});\nexpect(reversed).toMatchObject({id:sale,state:'room_charge_reversed',restoredCostMinor:3000});\nexpect(await command('sale.reverse_room_charge',reversalInput,manager,'room-charge-reversal-replay')).toEqual(reversed);\nexpect((await one(db,\"SELECT data_json::jsonb->>'due' due FROM pms_records WHERE id='folio'\"))?.due).toBe('0');\nexpect(await one(db,'SELECT count(*) n FROM pms_postings')).toEqual({n:2});\nexpect(await one(db,'SELECT count(*) n FROM pos_room_charge_reversals')).toEqual({n:1});\nexpect(await one(db,\"SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id='warehouse' AND product_id='tea'\")).toEqual({quantity_milli:10000,value_minor:30000});\nexpect((await posWorkspace(manager,sale,'','sale')).roomCharge?.reversal_entry_id).toBe(reversed.reversalEntryId);\nawait expect(change('sale.reverse_room_charge',sale,{propertyId:'hotel',expectedPropertyVersion:3,reason:'Again',restockLineIds:[]},manager)).rejects.toMatchObject({code:'POS_ROOM_CHARGE_REVERSED'});\nexpect(second.state).toBe('completed');\nawait expect(change('sale.reverse_room_charge',other,correction,manager)).rejects.toMatchObject({code:'POS_DAY_REVIEW_PENDING'});\nawait expect(change('sale.reverse_room_charge',other,correction,manager)).rejects.toMatchObject({code:'POS_DAY_CLOSED'});\nexpect(await one(db,'SELECT version FROM pms_properties WHERE id=?','hotel')).toEqual({version:4});\nexpect(wasted).toMatchObject({restoredCostMinor:0,wastedCostMinor:3000});\nexpect(await one(db,\"SELECT count(*) n FROM pos_postings WHERE source_key LIKE 'room-reversal:%'\")).toEqual({n:2});"
+          "title": "POS committed business flows charges one restaurant bill to an in-house guest account atomically, without POS revenue or payment",
+          "proof": "expect((await posWorkspace(actor,sale,'','sale')).roomChargeStays).toMatchObject([{stay_id:'stay',room_number:'101',guest_name:'Example Guest'}]);\nexpect(charged).toMatchObject({id:sale,state:'completed',tender:'room_charge',propertyId:'hotel'});\nexpect(await command('sale.charge_to_room',input,actor,'room-charge-replay')).toEqual(charged);\nexpect((await one(db,\"SELECT data_json::jsonb->>'due' due FROM pms_records WHERE id='guest_account'\"))?.due).toBe('10700');\nexpect(await one(db,'SELECT count(*) n FROM pms_sources')).toEqual({n:1});\nexpect((await posWorkspace(actor,sale,'','sale')).roomCharge?.guest_account_entry_id).toBe(charged.guestAccountEntryId);\nexpect(await one(db,'SELECT count(*) n FROM pms_postings')).toEqual({n:1});\nexpect(await one(db,'SELECT count(*) n FROM pos_payments')).toEqual({n:0});\nexpect(await one(db,\"SELECT count(*) n FROM pos_postings WHERE source_key LIKE 'sale:%' OR source_key LIKE 'receipt:%'\")).toEqual({n:0});\nexpect((await posWorkspace(actor,undefined,'','reports')).reports).toEqual([]);\nexpect((await posDayReport(db,actor,'pos-branch',String(saleRow!.business_date))).totals).toMatchObject({roomChargeMinor:10700,grossMinor:0,taxMinor:0,received:{}});\nexpect(await one(db,\"SELECT quantity_milli FROM commerce_stock WHERE warehouse_id='warehouse' AND product_id='tea'\")).toEqual({quantity_milli:9000});\nawait expect(command('sale.charge_to_room',{id:other,expectedVersion:changed!.version,propertyId:'hotel',stayId:'stay',expectedPropertyVersion:1})).rejects.toMatchObject({code:'PMS_VERSION_CONFLICT'});\nexpect((await one(db,'SELECT state FROM pos_sales WHERE id=?',other))?.state).toBe('open');\nawait expect(command('sale.charge_to_room',{id:other,expectedVersion:changed!.version,propertyId:'hotel',stayId:'stay',expectedPropertyVersion:2})).rejects.toMatchObject({code:'PMS_CHARGE_GUEST_ACCOUNT'});\nawait expect(command('sale.charge_to_room',{id:other,expectedVersion:changed!.version,propertyId:'hotel',stayId:'stay',expectedPropertyVersion:2})).rejects.toMatchObject({code:'POS_ACCESS_CHANGED'});\nawait expect(pmsCommand(db,manager,{operation:'charge.reverse',propertyId:'hotel',expectedVersion:2,input:{id:charged.guestAccountEntryId,reason:'Wrong room'}},'direct-pos-charge-reversal')).rejects.toMatchObject({code:'PMS_POS_REVERSAL_REQUIRED'});\nexpect(reversed).toMatchObject({id:sale,state:'room_charge_reversed',restoredCostMinor:3000});\nexpect(await command('sale.reverse_room_charge',reversalInput,manager,'room-charge-reversal-replay')).toEqual(reversed);\nexpect((await one(db,\"SELECT data_json::jsonb->>'due' due FROM pms_records WHERE id='guest_account'\"))?.due).toBe('0');\nexpect(await one(db,'SELECT count(*) n FROM pms_postings')).toEqual({n:2});\nexpect(await one(db,'SELECT count(*) n FROM pos_room_charge_reversals')).toEqual({n:1});\nexpect(await one(db,\"SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id='warehouse' AND product_id='tea'\")).toEqual({quantity_milli:10000,value_minor:30000});\nexpect((await posWorkspace(manager,sale,'','sale')).roomCharge?.reversal_entry_id).toBe(reversed.reversalEntryId);\nawait expect(change('sale.reverse_room_charge',sale,{propertyId:'hotel',expectedPropertyVersion:3,reason:'Again',restockLineIds:[]},manager)).rejects.toMatchObject({code:'POS_ROOM_CHARGE_REVERSED'});\nexpect(second.state).toBe('completed');\nawait expect(change('sale.reverse_room_charge',other,correction,manager)).rejects.toMatchObject({code:'POS_DAY_REVIEW_PENDING'});\nawait expect(change('sale.reverse_room_charge',other,correction,manager)).rejects.toMatchObject({code:'POS_DAY_CLOSED'});\nexpect(await one(db,'SELECT version FROM pms_properties WHERE id=?','hotel')).toEqual({version:4});\nexpect(wasted).toMatchObject({restoredCostMinor:0,wastedCostMinor:3000});\nexpect(await one(db,\"SELECT count(*) n FROM pos_postings WHERE source_key LIKE 'room-reversal:%'\")).toEqual({n:2});"
         },
         {
           "runner": "playwright",
@@ -6566,7 +6566,7 @@
           "runner": "vitest",
           "file": "tests/pms-read-model.test.ts",
           "title": "keeps dashboard totals, readiness, guest labels and the complete legacy read while excluding history",
-          "proof": "expect(small.readiness).toEqual(full.readiness);\nexpect(small.snapshot!.property).toEqual(full.snapshot!.property);\nexpect(records(small.snapshot!, \"room\")).toEqual(records(full.snapshot!, \"room\"));\nexpect(records(small.snapshot!, \"guest\")).toEqual(records(full.snapshot!, \"guest\"));\nexpect(records(small.snapshot!, \"stay\")).toHaveLength(1);\nexpect(records(small.snapshot!, \"task\")).toHaveLength(1);\nexpect(records(small.snapshot!, \"folio\")).toHaveLength(1);\nexpect(records(small.snapshot!, \"entry\")).toHaveLength(0);\nexpect(small.snapshot!.dashboardHasStays).toBe(true);\nexpect(full.snapshot!.dashboardHasStays).toBeUndefined();\nexpect((await loadPms(db, fixture.owner, propertyId)).records).toHaveLength(10);\nawait expect(loadPms(db, fixture.owner, propertyId, true, { view: \"dashboard\" })).rejects.toThrow(\"PMS_COMMAND_REQUIRES_COMPLETE_STATE\");"
+          "proof": "expect(small.readiness).toEqual(full.readiness);\nexpect(small.snapshot!.property).toEqual(full.snapshot!.property);\nexpect(records(small.snapshot!, \"room\")).toEqual(records(full.snapshot!, \"room\"));\nexpect(records(small.snapshot!, \"guest\")).toEqual(records(full.snapshot!, \"guest\"));\nexpect(records(small.snapshot!, \"stay\")).toHaveLength(1);\nexpect(records(small.snapshot!, \"task\")).toHaveLength(1);\nexpect(records(small.snapshot!, \"guestAccount\")).toHaveLength(1);\nexpect(records(small.snapshot!, \"entry\")).toHaveLength(0);\nexpect(small.snapshot!.dashboardHasStays).toBe(true);\nexpect(full.snapshot!.dashboardHasStays).toBeUndefined();\nexpect((await loadPms(db, fixture.owner, propertyId)).records).toHaveLength(10);\nawait expect(loadPms(db, fixture.owner, propertyId, true, { view: \"dashboard\" })).rejects.toThrow(\"PMS_COMMAND_REQUIRES_COMPLETE_STATE\");"
         }
       ],
       "moduleId": "pms",
@@ -6589,7 +6589,7 @@
           "runner": "vitest",
           "file": "tests/pms-booking.test.ts",
           "title": "atomically confirms and queues email without creating money entries",
-          "proof": "expect(records(s, \"stay\")).toHaveLength(1);\nexpect(records(s, \"folio\")).toHaveLength(1);\nexpect(records(s, \"entry\")).toHaveLength(0);\nexpect(b.number).toMatch(/^PMS-/);\nexpect(availability(s, typeId, \"2026-09-05\").available).toBe(0);\nexpect(\n    await db\n      .prepare(\n        \"SELECT count(*) n FROM pms_booking_emails WHERE reservation_id=?\",\n      )\n      .bind(b.id)\n      .first(\"n\"),\n  ).toBe(1);"
+          "proof": "expect(records(s, \"stay\")).toHaveLength(1);\nexpect(records(s, \"guestAccount\")).toHaveLength(1);\nexpect(records(s, \"entry\")).toHaveLength(0);\nexpect(b.number).toMatch(/^PMS-/);\nexpect(availability(s, typeId, \"2026-09-05\").available).toBe(0);\nexpect(\n    await db\n      .prepare(\n        \"SELECT count(*) n FROM pms_booking_emails WHERE reservation_id=?\",\n      )\n      .bind(b.id)\n      .first(\"n\"),\n  ).toBe(1);"
         },
         {
           "runner": "vitest",
@@ -6677,9 +6677,9 @@
       "capabilityId": "housekeeping"
     },
     {
-      "id": "pms/folios",
+      "id": "pms/guest-accounts",
       "workflow": [
-        "Post hotel service to a guest folio",
+        "Post hotel service to a guest account",
         "Split and merge charge ownership",
         "Reverse the recipient charge with expected version"
       ],
@@ -6693,25 +6693,25 @@
           "runner": "vitest",
           "file": "tests/pms.test.ts",
           "title": "splits and merges charges without repeating revenue and reverses the recipient entry once",
-          "proof": "expect(await balance(accounts.revenue)).toBe(-1000);\nawait expect(\n    cmd(\"charge.correction.request\", { id: e, reason: \"Invalid origin\" }),\n  ).rejects.toMatchObject({ code: \"PMS_ALREADY_REVERSED\" });\nawait expect(cmd(\"charge.correction.review\",{id:correction.id,expectedVersion:1,action:\"approve\",reason:\"Independent cancellation review\"},owner))\n    .rejects.toMatchObject({code:\"PMS_INDEPENDENT_REVIEW_REQUIRED\"});\nexpect(await balance(accounts.revenue)).toBe(0);\nexpect(record(await snapshot(), \"folio\", b.folioId).data.due).toBe(2140);\nexpect(await balance(accounts.receivable)).toBe(2140);"
+          "proof": "expect(await balance(accounts.revenue)).toBe(-1000);\nawait expect(\n    cmd(\"charge.correction.request\", { id: e, reason: \"Invalid origin\" }),\n  ).rejects.toMatchObject({ code: \"PMS_ALREADY_REVERSED\" });\nawait expect(cmd(\"charge.correction.review\",{id:correction.id,expectedVersion:1,action:\"approve\",reason:\"Independent cancellation review\"},owner))\n    .rejects.toMatchObject({code:\"PMS_INDEPENDENT_REVIEW_REQUIRED\"});\nexpect(await balance(accounts.revenue)).toBe(0);\nexpect(record(await snapshot(), \"guestAccount\", b.guestAccountId).data.due).toBe(2140);\nexpect(await balance(accounts.receivable)).toBe(2140);"
         },
         {
           "runner": "playwright",
           "file": "tests/e2e/demo-hospitality-setup.spec.ts",
           "title": "front desk and cashier settle checkout and recover Night Audit",
           "project": "desktop",
-          "proof": "Normal separate front desk, hotel cashier, restaurant cashier, auditor and administrator accounts post original room charges, settle the exact folio due, complete checkout and retain a paid PMS invoice with outstanding0 and balanced GL. Revoking the Night Audit actor blocks its job; a native administrator recovery advances the business day and retained restaurant cash shifts have zero variance."
+          "proof": "Normal separate front desk, hotel cashier, restaurant cashier, auditor and administrator accounts post original room charges, settle the exact guestAccount due, complete checkout and retain a paid PMS invoice with outstanding0 and balanced GL. Revoking the Night Audit actor blocks its job; a native administrator recovery advances the business day and retained restaurant cash shifts have zero variance."
         },
         {
           "runner": "playwright",
           "file": "tests/e2e/demo-hospitality-setup.spec.ts",
           "title": "front desk and cashier settle checkout and recover Night Audit",
           "project": "mobile",
-          "proof": "Normal separate front desk, hotel cashier, restaurant cashier, auditor and administrator accounts post original room charges, settle the exact folio due, complete checkout and retain a paid PMS invoice with outstanding0 and balanced GL. Revoking the Night Audit actor blocks its job; a native administrator recovery advances the business day and retained restaurant cash shifts have zero variance."
+          "proof": "Normal separate front desk, hotel cashier, restaurant cashier, auditor and administrator accounts post original room charges, settle the exact guestAccount due, complete checkout and retain a paid PMS invoice with outstanding0 and balanced GL. Revoking the Night Audit actor blocks its job; a native administrator recovery advances the business day and retained restaurant cash shifts have zero variance."
         }
       ],
       "moduleId": "pms",
-      "capabilityId": "folios"
+      "capabilityId": "guest-accounts"
     },
     {
       "id": "pms/cashier",
@@ -6721,7 +6721,7 @@
         "Reload payment allocation and posted journal"
       ],
       "expectedResults": [
-        "Guest folio settles only after verified bank evidence",
+        "Guest guestAccount settles only after verified bank evidence",
         "Repeated match cannot duplicate payment/GL"
       ],
       "review": "reviewed",
@@ -6743,14 +6743,14 @@
           "file": "tests/e2e/demo-hospitality-setup.spec.ts",
           "title": "front desk and cashier settle checkout and recover Night Audit",
           "project": "desktop",
-          "proof": "Normal separate front desk, hotel cashier, restaurant cashier, auditor and administrator accounts post original room charges, settle the exact folio due, complete checkout and retain a paid PMS invoice with outstanding0 and balanced GL. Revoking the Night Audit actor blocks its job; a native administrator recovery advances the business day and retained restaurant cash shifts have zero variance."
+          "proof": "Normal separate front desk, hotel cashier, restaurant cashier, auditor and administrator accounts post original room charges, settle the exact guestAccount due, complete checkout and retain a paid PMS invoice with outstanding0 and balanced GL. Revoking the Night Audit actor blocks its job; a native administrator recovery advances the business day and retained restaurant cash shifts have zero variance."
         },
         {
           "runner": "playwright",
           "file": "tests/e2e/demo-hospitality-setup.spec.ts",
           "title": "front desk and cashier settle checkout and recover Night Audit",
           "project": "mobile",
-          "proof": "Normal separate front desk, hotel cashier, restaurant cashier, auditor and administrator accounts post original room charges, settle the exact folio due, complete checkout and retain a paid PMS invoice with outstanding0 and balanced GL. Revoking the Night Audit actor blocks its job; a native administrator recovery advances the business day and retained restaurant cash shifts have zero variance."
+          "proof": "Normal separate front desk, hotel cashier, restaurant cashier, auditor and administrator accounts post original room charges, settle the exact guestAccount due, complete checkout and retain a paid PMS invoice with outstanding0 and balanced GL. Revoking the Night Audit actor blocks its job; a native administrator recovery advances the business day and retained restaurant cash shifts have zero variance."
         }
       ],
       "moduleId": "pms",
@@ -6761,11 +6761,11 @@
       "workflow": [
         "Charge actual stocked minibar items",
         "Consume source warehouse quantity and cost atomically",
-        "Attempt insufficient stock and reload folio/inventory"
+        "Attempt insufficient stock and reload guestAccount/inventory"
       ],
       "expectedResults": [
         "Successful minibar charge and COGS reconcile",
-        "Failed charge leaves no folio or stock mutation"
+        "Failed charge leaves no guest account or stock mutation"
       ],
       "review": "reviewed",
       "cases": [
@@ -6773,7 +6773,7 @@
           "runner": "vitest",
           "file": "tests/pms.test.ts",
           "title": "posts minibar and inventory cost together, rolling back insufficient stock",
-          "proof": "expect(await balance(accounts.inventory)).toBe(-300);\nexpect(await balance(accounts.consumption)).toBe(300);\nexpect(await balance(accounts.revenue)).toBe(-1000);\nawait expect(\n    cmd(\"minibar.charge\", { itemId: item, quantity: 2, folioId: b.folioId }),\n  ).rejects.toMatchObject({ code: \"PMS_STOCK_SHORT\" });\nexpect(\n    await db\n      .prepare(\n        \"SELECT quantity_milli,value_minor FROM inventory_ledger WHERE source_type='pms' AND product_id=?\",\n      )\n      .bind(product)\n      .first(),\n  ).toMatchObject({ quantity_milli: -1000, value_minor: -300 });"
+          "proof": "expect(await balance(accounts.inventory)).toBe(-300);\nexpect(await balance(accounts.consumption)).toBe(300);\nexpect(await balance(accounts.revenue)).toBe(-1000);\nawait expect(\n    cmd(\"minibar.charge\", { itemId: item, quantity: 2, guestAccountId: b.guestAccountId }),\n  ).rejects.toMatchObject({ code: \"PMS_STOCK_SHORT\" });\nexpect(\n    await db\n      .prepare(\n        \"SELECT quantity_milli,value_minor FROM inventory_ledger WHERE source_type='pms' AND product_id=?\",\n      )\n      .bind(product)\n      .first(),\n  ).toMatchObject({ quantity_milli: -1000, value_minor: -300 });"
         }
       ],
       "moduleId": "pms",
@@ -6787,7 +6787,7 @@
         "Reload every bounded query model"
       ],
       "expectedResults": [
-        "Guest identity and folio data remain hidden outside scope",
+        "Guest identity and guestAccount data remain hidden outside scope",
         "Changed permission applies to fresh reads"
       ],
       "review": "reviewed",
@@ -6818,7 +6818,7 @@
           "runner": "vitest",
           "file": "tests/pms-read-model.test.ts",
           "title": "keeps dashboard totals, readiness, guest labels and the complete legacy read while excluding history",
-          "proof": "expect(small.readiness).toEqual(full.readiness);\nexpect(small.snapshot!.property).toEqual(full.snapshot!.property);\nexpect(records(small.snapshot!, \"room\")).toEqual(records(full.snapshot!, \"room\"));\nexpect(records(small.snapshot!, \"guest\")).toEqual(records(full.snapshot!, \"guest\"));\nexpect(records(small.snapshot!, \"stay\")).toHaveLength(1);\nexpect(records(small.snapshot!, \"task\")).toHaveLength(1);\nexpect(records(small.snapshot!, \"folio\")).toHaveLength(1);\nexpect(records(small.snapshot!, \"entry\")).toHaveLength(0);\nexpect(small.snapshot!.dashboardHasStays).toBe(true);\nexpect(full.snapshot!.dashboardHasStays).toBeUndefined();\nexpect((await loadPms(db, fixture.owner, propertyId)).records).toHaveLength(10);\nawait expect(loadPms(db, fixture.owner, propertyId, true, { view: \"dashboard\" })).rejects.toThrow(\"PMS_COMMAND_REQUIRES_COMPLETE_STATE\");"
+          "proof": "expect(small.readiness).toEqual(full.readiness);\nexpect(small.snapshot!.property).toEqual(full.snapshot!.property);\nexpect(records(small.snapshot!, \"room\")).toEqual(records(full.snapshot!, \"room\"));\nexpect(records(small.snapshot!, \"guest\")).toEqual(records(full.snapshot!, \"guest\"));\nexpect(records(small.snapshot!, \"stay\")).toHaveLength(1);\nexpect(records(small.snapshot!, \"task\")).toHaveLength(1);\nexpect(records(small.snapshot!, \"guestAccount\")).toHaveLength(1);\nexpect(records(small.snapshot!, \"entry\")).toHaveLength(0);\nexpect(small.snapshot!.dashboardHasStays).toBe(true);\nexpect(full.snapshot!.dashboardHasStays).toBeUndefined();\nexpect((await loadPms(db, fixture.owner, propertyId)).records).toHaveLength(10);\nawait expect(loadPms(db, fixture.owner, propertyId, true, { view: \"dashboard\" })).rejects.toThrow(\"PMS_COMMAND_REQUIRES_COMPLETE_STATE\");"
         },
         {
           "runner": "vitest",
@@ -6861,14 +6861,14 @@
           "file": "tests/e2e/demo-hospitality-setup.spec.ts",
           "title": "front desk and cashier settle checkout and recover Night Audit",
           "project": "desktop",
-          "proof": "Normal separate front desk, hotel cashier, restaurant cashier, auditor and administrator accounts post original room charges, settle the exact folio due, complete checkout and retain a paid PMS invoice with outstanding0 and balanced GL. Revoking the Night Audit actor blocks its job; a native administrator recovery advances the business day and retained restaurant cash shifts have zero variance."
+          "proof": "Normal separate front desk, hotel cashier, restaurant cashier, auditor and administrator accounts post original room charges, settle the exact guestAccount due, complete checkout and retain a paid PMS invoice with outstanding0 and balanced GL. Revoking the Night Audit actor blocks its job; a native administrator recovery advances the business day and retained restaurant cash shifts have zero variance."
         },
         {
           "runner": "playwright",
           "file": "tests/e2e/demo-hospitality-setup.spec.ts",
           "title": "front desk and cashier settle checkout and recover Night Audit",
           "project": "mobile",
-          "proof": "Normal separate front desk, hotel cashier, restaurant cashier, auditor and administrator accounts post original room charges, settle the exact folio due, complete checkout and retain a paid PMS invoice with outstanding0 and balanced GL. Revoking the Night Audit actor blocks its job; a native administrator recovery advances the business day and retained restaurant cash shifts have zero variance."
+          "proof": "Normal separate front desk, hotel cashier, restaurant cashier, auditor and administrator accounts post original room charges, settle the exact guestAccount due, complete checkout and retain a paid PMS invoice with outstanding0 and balanced GL. Revoking the Night Audit actor blocks its job; a native administrator recovery advances the business day and retained restaurant cash shifts have zero variance."
         }
       ],
       "moduleId": "pms",

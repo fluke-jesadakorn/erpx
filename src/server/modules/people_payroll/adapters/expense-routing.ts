@@ -39,10 +39,10 @@ export async function expenseAuthoritySnapshot(
   companyId: string,
 ) {
   const args = Array(7).fill(companyId) as string[];
-  const row = await db
+  const row = await policyRead(db, JSON.stringify(["expense-authority-snapshot",companyId]), () => db
     .prepare(authoritySnapshotSql)
     .bind(...args)
-    .first<{ snapshot: string }>();
+    .first<{ snapshot: string }>());
   const check = {
     query: `(${authoritySnapshotSql})=?`,
     args: [...args, row!.snapshot],

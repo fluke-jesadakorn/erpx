@@ -1,0 +1,876 @@
+{
+  "recordedAtUTC": "2026-10-11T03:45:21.862052+00:00",
+  "goalComplete": false,
+  "scope": "coordinated final-source compiled release comparison on development origins and development databases",
+  "sources": {
+    "before": "eaefd90e9b889e28c662d0d05be7b68eaca23869cc431af711c5e8d514e0d419",
+    "after": "f13ca97b1401ea244ae616242fcc873b16308d6dce04298c68dfa41918a484f7"
+  },
+  "releases": {
+    "before": "2026-10-10T04-12-38-376Z",
+    "after": "2026-10-11T03-31-25-954Z"
+  },
+  "browserReceipt": {
+    "path": ".scratch/dev/optimization-final-navigation.json",
+    "sha256": "58222eb811c0e82897699cf0954c8577fc04d360c8882bb00deb57154d125a3a"
+  },
+  "browser": {
+    "before": {
+      "completeCapturedRounds": 20,
+      "controlsUpperBoundMs": {
+        "median": 1273.0999999642372,
+        "p95": 1877.3999999761581,
+        "n": 20
+      },
+      "searchConfirmedUpperBoundMs": {
+        "median": 1666.25,
+        "p95": 2235.399999976158,
+        "n": 20
+      },
+      "decodedJavaScriptBytesThroughSearch": {
+        "median": 3181659.0,
+        "p95": 3181659,
+        "n": 20
+      },
+      "requestEvents": {
+        "median": 110.0,
+        "p95": 123,
+        "n": 20
+      },
+      "scriptCountThroughSearch": {
+        "median": 41.0,
+        "p95": 41,
+        "n": 20
+      },
+      "documentAndScriptNon200": 0,
+      "wholeNavigationErrorFree": 0,
+      "non200CountsByTypeAndStatus": {
+        "Image:503": 56,
+        "Image:423": 55
+      },
+      "failedRequestEvents": 121,
+      "observedScriptsBelongToArtifact": true,
+      "initialJavaScriptCheck": {
+        "label": "before",
+        "source": "eaefd90e9b889e28c662d0d05be7b68eaca23869cc431af711c5e8d514e0d419",
+        "controlsMs": 2797.5,
+        "decodedBytes": 3174656,
+        "encodedBytes": 814273,
+        "scriptCount": 40,
+        "networkTruncated": false,
+        "document200": true,
+        "resources": [
+          {
+            "path": "/_next/static/chunks/2m5a65cn7-g0k.js",
+            "decodedBytes": 7676,
+            "encodedBytes": 2035
+          },
+          {
+            "path": "/_next/static/chunks/23couv201w69z.js",
+            "decodedBytes": 234302,
+            "encodedBytes": 73358
+          },
+          {
+            "path": "/_next/static/chunks/2z2yg5v28uu9q.js",
+            "decodedBytes": 31953,
+            "encodedBytes": 8488
+          },
+          {
+            "path": "/_next/static/chunks/2zx3q7e7c69qs.js",
+            "decodedBytes": 155744,
+            "encodedBytes": 42856
+          },
+          {
+            "path": "/_next/static/chunks/turbopack-2j5gr1cu9rtns.js",
+            "decodedBytes": 10947,
+            "encodedBytes": 4306
+          },
+          {
+            "path": "/_next/static/chunks/3z7xh-204qm1i.js",
+            "decodedBytes": 30832,
+            "encodedBytes": 10805
+          },
+          {
+            "path": "/_next/static/chunks/0q_nj-sstjf4l.js",
+            "decodedBytes": 629,
+            "encodedBytes": 296
+          },
+          {
+            "path": "/_next/static/chunks/0243snbs-32vn.js",
+            "decodedBytes": 43058,
+            "encodedBytes": 11423
+          },
+          {
+            "path": "/_next/static/chunks/2s_8uku7s_iny.js",
+            "decodedBytes": 32409,
+            "encodedBytes": 9913
+          },
+          {
+            "path": "/_next/static/chunks/1fypo7dvzhm0v.js",
+            "decodedBytes": 40256,
+            "encodedBytes": 10880
+          },
+          {
+            "path": "/_next/static/chunks/323qgmb_6i7vy.js",
+            "decodedBytes": 17049,
+            "encodedBytes": 5518
+          },
+          {
+            "path": "/_next/static/chunks/121t8kgolg4x1.js",
+            "decodedBytes": 138477,
+            "encodedBytes": 44614
+          },
+          {
+            "path": "/_next/static/chunks/2z8b990k4a6_y.js",
+            "decodedBytes": 82451,
+            "encodedBytes": 16191
+          },
+          {
+            "path": "/_next/static/chunks/19qwb3lni3wuk.js",
+            "decodedBytes": 39069,
+            "encodedBytes": 12273
+          },
+          {
+            "path": "/_next/static/chunks/1v76ctgugd_uy.js",
+            "decodedBytes": 85060,
+            "encodedBytes": 26943
+          },
+          {
+            "path": "/_next/static/chunks/0a-0mua5svlij.js",
+            "decodedBytes": 654,
+            "encodedBytes": 446
+          },
+          {
+            "path": "/_next/static/chunks/05aclc_3x-1q_.js",
+            "decodedBytes": 374823,
+            "encodedBytes": 85535
+          },
+          {
+            "path": "/_next/static/chunks/2gzw66vg57uee.js",
+            "decodedBytes": 190983,
+            "encodedBytes": 59601
+          },
+          {
+            "path": "/_next/static/chunks/38vtzcz7xf0bp.js",
+            "decodedBytes": 29761,
+            "encodedBytes": 7620
+          },
+          {
+            "path": "/_next/static/chunks/21vn6zddcw0j9.js",
+            "decodedBytes": 36278,
+            "encodedBytes": 7296
+          },
+          {
+            "path": "/_next/static/chunks/3kmsoymckyvwq.js",
+            "decodedBytes": 33864,
+            "encodedBytes": 9588
+          },
+          {
+            "path": "/_next/static/chunks/2bixygeb1ghj_.js",
+            "decodedBytes": 72234,
+            "encodedBytes": 17327
+          },
+          {
+            "path": "/_next/static/chunks/1ht_qfmut3oqv.js",
+            "decodedBytes": 48457,
+            "encodedBytes": 10900
+          },
+          {
+            "path": "/_next/static/chunks/3ii7_lt8ft6m3.js",
+            "decodedBytes": 40561,
+            "encodedBytes": 11934
+          },
+          {
+            "path": "/_next/static/chunks/2daqhrwsgh-78.js",
+            "decodedBytes": 46979,
+            "encodedBytes": 11576
+          },
+          {
+            "path": "/_next/static/chunks/3732q6n50mxs5.js",
+            "decodedBytes": 38005,
+            "encodedBytes": 10968
+          },
+          {
+            "path": "/_next/static/chunks/0_ce_ccc6xg-r.js",
+            "decodedBytes": 46718,
+            "encodedBytes": 14295
+          },
+          {
+            "path": "/_next/static/chunks/0j7dqy611h42g.js",
+            "decodedBytes": 150961,
+            "encodedBytes": 37250
+          },
+          {
+            "path": "/_next/static/chunks/1vpspahc1tazf.js",
+            "decodedBytes": 40000,
+            "encodedBytes": 8890
+          },
+          {
+            "path": "/_next/static/chunks/3qeap42zy9tmv.js",
+            "decodedBytes": 36298,
+            "encodedBytes": 13665
+          },
+          {
+            "path": "/_next/static/chunks/1uv-vimef0zal.js",
+            "decodedBytes": 275008,
+            "encodedBytes": 53529
+          },
+          {
+            "path": "/_next/static/chunks/17ty5yx07ura9.js",
+            "decodedBytes": 146127,
+            "encodedBytes": 34312
+          },
+          {
+            "path": "/_next/static/chunks/003hl7oxrq2ae.js",
+            "decodedBytes": 16059,
+            "encodedBytes": 5188
+          },
+          {
+            "path": "/_next/static/chunks/14wczrzxbuzv5.js",
+            "decodedBytes": 37943,
+            "encodedBytes": 12342
+          },
+          {
+            "path": "/_next/static/chunks/0wxnol7hfamjc.js",
+            "decodedBytes": 481868,
+            "encodedBytes": 96960
+          },
+          {
+            "path": "/_next/static/chunks/10ve5h39jls3k.js",
+            "decodedBytes": 16862,
+            "encodedBytes": 5438
+          },
+          {
+            "path": "/_next/static/chunks/3jf035gd5ql4f.js",
+            "decodedBytes": 1106,
+            "encodedBytes": 424
+          },
+          {
+            "path": "/_next/static/chunks/0u47p_rk39aq-.js",
+            "decodedBytes": 45568,
+            "encodedBytes": 13254
+          },
+          {
+            "path": "/_next/static/chunks/076xjsi35j3oe.js",
+            "decodedBytes": 1369,
+            "encodedBytes": 794
+          },
+          {
+            "path": "/_next/static/chunks/17ri15xju_bq6.js",
+            "decodedBytes": 16258,
+            "encodedBytes": 5242
+          }
+        ]
+      }
+    },
+    "after": {
+      "completeCapturedRounds": 20,
+      "controlsUpperBoundMs": {
+        "median": 1706.3500000238419,
+        "p95": 2710.7999999523163,
+        "n": 20
+      },
+      "searchConfirmedUpperBoundMs": {
+        "median": 2057.150000035763,
+        "p95": 3046.899999976158,
+        "n": 20
+      },
+      "decodedJavaScriptBytesThroughSearch": {
+        "median": 2028323.0,
+        "p95": 2028323,
+        "n": 20
+      },
+      "requestEvents": {
+        "median": 105.5,
+        "p95": 111,
+        "n": 20
+      },
+      "scriptCountThroughSearch": {
+        "median": 36.0,
+        "p95": 36,
+        "n": 20
+      },
+      "documentAndScriptNon200": 0,
+      "wholeNavigationErrorFree": 0,
+      "non200CountsByTypeAndStatus": {
+        "Image:423": 58,
+        "Image:503": 55
+      },
+      "failedRequestEvents": 136,
+      "observedScriptsBelongToArtifact": true,
+      "initialJavaScriptCheck": {
+        "label": "after",
+        "source": "f13ca97b1401ea244ae616242fcc873b16308d6dce04298c68dfa41918a484f7",
+        "controlsMs": 1880.0999999046326,
+        "decodedBytes": 1994299,
+        "encodedBytes": 564728,
+        "scriptCount": 34,
+        "networkTruncated": false,
+        "document200": true,
+        "resources": [
+          {
+            "path": "/_next/static/chunks/2m5a65cn7-g0k.js",
+            "decodedBytes": 7676,
+            "encodedBytes": 2035
+          },
+          {
+            "path": "/_next/static/chunks/2z2yg5v28uu9q.js",
+            "decodedBytes": 31953,
+            "encodedBytes": 8488
+          },
+          {
+            "path": "/_next/static/chunks/23couv201w69z.js",
+            "decodedBytes": 234302,
+            "encodedBytes": 73358
+          },
+          {
+            "path": "/_next/static/chunks/2zx3q7e7c69qs.js",
+            "decodedBytes": 155744,
+            "encodedBytes": 42856
+          },
+          {
+            "path": "/_next/static/chunks/turbopack-2j5gr1cu9rtns.js",
+            "decodedBytes": 10947,
+            "encodedBytes": 4306
+          },
+          {
+            "path": "/_next/static/chunks/0wwafp3d_28v8.js",
+            "decodedBytes": 25284,
+            "encodedBytes": 9838
+          },
+          {
+            "path": "/_next/static/chunks/066r53z-u9n3f.js",
+            "decodedBytes": 41002,
+            "encodedBytes": 12223
+          },
+          {
+            "path": "/_next/static/chunks/1_5g_b0f1lq3r.js",
+            "decodedBytes": 33013,
+            "encodedBytes": 8853
+          },
+          {
+            "path": "/_next/static/chunks/3av0m8j2ny8nx.js",
+            "decodedBytes": 27807,
+            "encodedBytes": 8691
+          },
+          {
+            "path": "/_next/static/chunks/2mz6dm5k0ovp_.js",
+            "decodedBytes": 83085,
+            "encodedBytes": 27317
+          },
+          {
+            "path": "/_next/static/chunks/2gzw66vg57uee.js",
+            "decodedBytes": 190983,
+            "encodedBytes": 59601
+          },
+          {
+            "path": "/_next/static/chunks/3kx5j_ah9os4c.js",
+            "decodedBytes": 17047,
+            "encodedBytes": 5521
+          },
+          {
+            "path": "/_next/static/chunks/1rimx-nbl6c6e.js",
+            "decodedBytes": 765,
+            "encodedBytes": 336
+          },
+          {
+            "path": "/_next/static/chunks/2s_8uku7s_iny.js",
+            "decodedBytes": 32409,
+            "encodedBytes": 9913
+          },
+          {
+            "path": "/_next/static/chunks/3ey8fiyyg-50u.js",
+            "decodedBytes": 37788,
+            "encodedBytes": 13034
+          },
+          {
+            "path": "/_next/static/chunks/0243snbs-32vn.js",
+            "decodedBytes": 43058,
+            "encodedBytes": 11423
+          },
+          {
+            "path": "/_next/static/chunks/2z8b990k4a6_y.js",
+            "decodedBytes": 82451,
+            "encodedBytes": 16191
+          },
+          {
+            "path": "/_next/static/chunks/05aclc_3x-1q_.js",
+            "decodedBytes": 374823,
+            "encodedBytes": 85535
+          },
+          {
+            "path": "/_next/static/chunks/2gm2o6qh8m-ro.js",
+            "decodedBytes": 48322,
+            "encodedBytes": 15372
+          },
+          {
+            "path": "/_next/static/chunks/2ykx5t79kl58y.js",
+            "decodedBytes": 39520,
+            "encodedBytes": 8625
+          },
+          {
+            "path": "/_next/static/chunks/2z1-z82hvw4ol.js",
+            "decodedBytes": 39410,
+            "encodedBytes": 12403
+          },
+          {
+            "path": "/_next/static/chunks/0a-0mua5svlij.js",
+            "decodedBytes": 654,
+            "encodedBytes": 446
+          },
+          {
+            "path": "/_next/static/chunks/25enoinl4dopa.js",
+            "decodedBytes": 47167,
+            "encodedBytes": 14157
+          },
+          {
+            "path": "/_next/static/chunks/0mpklrk0uzcol.js",
+            "decodedBytes": 51136,
+            "encodedBytes": 15737
+          },
+          {
+            "path": "/_next/static/chunks/1_df_23jwp59d.js",
+            "decodedBytes": 1106,
+            "encodedBytes": 424
+          },
+          {
+            "path": "/_next/static/chunks/2_czoyivj5m65.js",
+            "decodedBytes": 38829,
+            "encodedBytes": 12591
+          },
+          {
+            "path": "/_next/static/chunks/2ecnk5-kxwre-.js",
+            "decodedBytes": 105173,
+            "encodedBytes": 24820
+          },
+          {
+            "path": "/_next/static/chunks/2nt0fcczf026w.js",
+            "decodedBytes": 16057,
+            "encodedBytes": 5190
+          },
+          {
+            "path": "/_next/static/chunks/0qfoqo76907gx.js",
+            "decodedBytes": 46734,
+            "encodedBytes": 14307
+          },
+          {
+            "path": "/_next/static/chunks/3j6u1ze2w3hvd.js",
+            "decodedBytes": 45611,
+            "encodedBytes": 13270
+          },
+          {
+            "path": "/_next/static/chunks/17-mym-plppje.js",
+            "decodedBytes": 16860,
+            "encodedBytes": 5440
+          },
+          {
+            "path": "/_next/static/chunks/1yezbmuksuewc.js",
+            "decodedBytes": 940,
+            "encodedBytes": 448
+          },
+          {
+            "path": "/_next/static/chunks/2w27emwuuxl75.js",
+            "decodedBytes": 50387,
+            "encodedBytes": 16735
+          },
+          {
+            "path": "/_next/static/chunks/05cfcqjxktyng.js",
+            "decodedBytes": 16256,
+            "encodedBytes": 5244
+          }
+        ]
+      }
+    }
+  },
+  "api": {
+    "before": {
+      "receipt": {
+        "path": ".scratch/dev/http-benchmark-2026-10-11T03-38-39-899Z/evidence.json",
+        "sha256": "2233370fb8339afa31ab253250aec5692bd855deaf289f5a88cc8c3160ac532e"
+      },
+      "sourceStillMatches": true,
+      "servingSourceFingerprint": "eaefd90e9b889e28c662d0d05be7b68eaca23869cc431af711c5e8d514e0d419",
+      "servingRelease": "2026-10-10T04-12-38-376Z",
+      "measuredCount": 400,
+      "warmupCount": 16,
+      "valid200Count": 399,
+      "groups": [
+        {
+          "name": "work-summary-api",
+          "origin": "http://127.0.0.1:3100",
+          "elapsedMs": {
+            "median": 62.59210450000046,
+            "p95": 103.24087499999587,
+            "n": 50
+          },
+          "failed": 0
+        },
+        {
+          "name": "work-summary-api",
+          "origin": "https://console-dev-erpx.jesadakorn.com",
+          "elapsedMs": {
+            "median": 206.38345800000025,
+            "p95": 513.1467080000002,
+            "n": 50
+          },
+          "failed": 0
+        },
+        {
+          "name": "pos-history-api",
+          "origin": "http://127.0.0.1:3100",
+          "elapsedMs": {
+            "median": 31.478562500002226,
+            "p95": 47.217499999998836,
+            "n": 50
+          },
+          "failed": 0
+        },
+        {
+          "name": "pos-history-api",
+          "origin": "https://console-dev-erpx.jesadakorn.com",
+          "elapsedMs": {
+            "median": 227.40962500000023,
+            "p95": 1397.9703750000044,
+            "n": 50
+          },
+          "failed": 0
+        },
+        {
+          "name": "pms-dashboard-api",
+          "origin": "http://127.0.0.1:3100",
+          "elapsedMs": {
+            "median": 28.92712499999834,
+            "p95": 46.621083,
+            "n": 50
+          },
+          "failed": 0
+        },
+        {
+          "name": "pms-dashboard-api",
+          "origin": "https://console-dev-erpx.jesadakorn.com",
+          "elapsedMs": {
+            "median": 171.91185450000057,
+            "p95": 374.58008300000074,
+            "n": 50
+          },
+          "failed": 1
+        },
+        {
+          "name": "pms-housekeeping-api",
+          "origin": "http://127.0.0.1:3100",
+          "elapsedMs": {
+            "median": 33.94208300000173,
+            "p95": 47.31629099999918,
+            "n": 50
+          },
+          "failed": 0
+        },
+        {
+          "name": "pms-housekeeping-api",
+          "origin": "https://console-dev-erpx.jesadakorn.com",
+          "elapsedMs": {
+            "median": 186.03720850000082,
+            "p95": 364.59812500000044,
+            "n": 50
+          },
+          "failed": 0
+        }
+      ],
+      "failures": [
+        {
+          "name": "pms-dashboard-api",
+          "origin": "https://console-dev-erpx.jesadakorn.com",
+          "round": 43,
+          "status": 502,
+          "error": null
+        }
+      ]
+    },
+    "after": {
+      "receipt": {
+        "path": ".scratch/dev/http-benchmark-2026-10-11T03-42-19-645Z/evidence.json",
+        "sha256": "e29eb8e6c1225a1fcd4e3e90e22ff761afb35303cebc05d3f545d88414e4e881"
+      },
+      "sourceStillMatches": true,
+      "servingSourceFingerprint": "f13ca97b1401ea244ae616242fcc873b16308d6dce04298c68dfa41918a484f7",
+      "servingRelease": "2026-10-11T03-31-25-954Z",
+      "measuredCount": 400,
+      "warmupCount": 16,
+      "valid200Count": 400,
+      "groups": [
+        {
+          "name": "work-summary-api",
+          "origin": "http://127.0.0.1:3100",
+          "elapsedMs": {
+            "median": 65.85947899999883,
+            "p95": 127.4499590000014,
+            "n": 50
+          },
+          "failed": 0
+        },
+        {
+          "name": "work-summary-api",
+          "origin": "https://console-dev-erpx.jesadakorn.com",
+          "elapsedMs": {
+            "median": 131.66764599999988,
+            "p95": 253.2654169999987,
+            "n": 50
+          },
+          "failed": 0
+        },
+        {
+          "name": "pos-history-api",
+          "origin": "http://127.0.0.1:3100",
+          "elapsedMs": {
+            "median": 34.12793750000037,
+            "p95": 62.60425000000032,
+            "n": 50
+          },
+          "failed": 0
+        },
+        {
+          "name": "pos-history-api",
+          "origin": "https://console-dev-erpx.jesadakorn.com",
+          "elapsedMs": {
+            "median": 105.57260450000058,
+            "p95": 154.72595799999908,
+            "n": 50
+          },
+          "failed": 0
+        },
+        {
+          "name": "pms-dashboard-api",
+          "origin": "http://127.0.0.1:3100",
+          "elapsedMs": {
+            "median": 34.740750000000844,
+            "p95": 60.664208000000144,
+            "n": 50
+          },
+          "failed": 0
+        },
+        {
+          "name": "pms-dashboard-api",
+          "origin": "https://console-dev-erpx.jesadakorn.com",
+          "elapsedMs": {
+            "median": 101.65897899999982,
+            "p95": 189.58995900000082,
+            "n": 50
+          },
+          "failed": 0
+        },
+        {
+          "name": "pms-housekeeping-api",
+          "origin": "http://127.0.0.1:3100",
+          "elapsedMs": {
+            "median": 38.817166500000894,
+            "p95": 77.01849999999831,
+            "n": 50
+          },
+          "failed": 0
+        },
+        {
+          "name": "pms-housekeeping-api",
+          "origin": "https://console-dev-erpx.jesadakorn.com",
+          "elapsedMs": {
+            "median": 107.61218749999989,
+            "p95": 191.4808750000002,
+            "n": 50
+          },
+          "failed": 0
+        }
+      ],
+      "failures": []
+    }
+  },
+  "identity": {
+    "before": {
+      "receipt": {
+        "path": ".scratch/dev/http-benchmark-2026-10-11T03-44-03-357Z/evidence.json",
+        "sha256": "f49d4a4c76e2b8aff965c3da820b12f99d5a18f02bea0205cef43a2e0e047b33"
+      },
+      "sourceStillMatches": true,
+      "count": 16,
+      "failed": 0,
+      "hashesByName": {
+        "work-summary-api": [
+          "bb85426c0485a4487ed93ca75d75b90b4ab32e773ad0a54af3f24c233c757664"
+        ],
+        "pos-history-api": [
+          "3d09a4ef7ac1c7bcca97d6d7ea8150812b1dfc89941d6032bc5ac09b46e78f18"
+        ],
+        "pms-dashboard-api": [
+          "94685eaff469651c521bdefb48d91726f5767cbdaee413de4aeaef1a0543c3b2"
+        ],
+        "pms-housekeeping-api": [
+          "9d8c378f8943945c5c66fdd04aadeff6fe1ed591640b5f868ddebe60a54d35e0"
+        ]
+      },
+      "excludedVolatileField": "only Work data.generatedAt"
+    },
+    "after": {
+      "receipt": {
+        "path": ".scratch/dev/http-benchmark-2026-10-11T03-43-27-502Z/evidence.json",
+        "sha256": "1a1263c9cff77113d81ef5c850504d739b792309342fa06f5e459708ed28b58e"
+      },
+      "sourceStillMatches": true,
+      "count": 16,
+      "failed": 0,
+      "hashesByName": {
+        "work-summary-api": [
+          "bb85426c0485a4487ed93ca75d75b90b4ab32e773ad0a54af3f24c233c757664"
+        ],
+        "pos-history-api": [
+          "3d09a4ef7ac1c7bcca97d6d7ea8150812b1dfc89941d6032bc5ac09b46e78f18"
+        ],
+        "pms-dashboard-api": [
+          "94685eaff469651c521bdefb48d91726f5767cbdaee413de4aeaef1a0543c3b2"
+        ],
+        "pms-housekeeping-api": [
+          "9d8c378f8943945c5c66fdd04aadeff6fe1ed591640b5f868ddebe60a54d35e0"
+        ]
+      },
+      "excludedVolatileField": "only Work data.generatedAt"
+    }
+  },
+  "checks": {
+    "finalTypecheck": "pass",
+    "isolatedReleaseBuild": "pass",
+    "docsCheck": "pass",
+    "ownedPatchLintAndRelevantRegression": "pass on preceding owned patch; final PMS owned checks separately recorded"
+  },
+  "limitations": [
+    "Browser controls/readiness observations include automation latency. This is sequential, shared-machine measurement, not an isolated causal estimate.",
+    "All20 complete navigation measurements per phase retain their attachment503/423 responses and canceled prefetch reads; none is wholly error-free.",
+    "Four preceding collector/input attempts are retained and excluded from the complete-capture cohort, not replaced application failures. Chrome saved-password notice blocked initial inputs.",
+    "Initial-JavaScript check is one untruncated observation per phase before Search;20-round totals include Search imports.",
+    "Release API elapsed includes canonical hashing in the same client for both phases. One public baseline PMS502 remains in all50-sample duration statistics.",
+    "Old dae9 dev/API cohorts are not assigned to final f13ca97b; current-dev calibrated20/50 measurements and broader Front role/receipt acceptance remain open."
+  ],
+  "stagingTouched": false,
+  "productionChanged": false,
+  "businessCommandsSaved": false,
+  "cacheOverrideRestored": true,
+  "dataIdentityMatches": true,
+  "gateObservations": {
+    "initialDecodedJavaScriptReductionPercent": 37.18062681436981,
+    "decodedJavaScriptThroughSearchReductionPercent": 36.24951636866176,
+    "controlsMedianChangePercent": 34.03110518197903,
+    "controlsP95ChangePercent": 44.39117928980194,
+    "initialJavaScript25Percent": "supported by bounded initial observation",
+    "controls30Percent": "failed in measured cohort",
+    "nonRegressingP95": "failed; browser and all four local API p95 values regress",
+    "developmentStability": "open"
+  },
+  "restoredDevelopment": {
+    "healthReceipt": {
+      "path": ".scratch/dev/optimization-final-health.json",
+      "sha256": "28a5f8ef017fe05d907f34b5834200b49d2112a322a3fafbc32d1eba48401945"
+    },
+    "health": {
+      "checkedAtUTC": "2026-10-11T03:46:20.298427+00:00",
+      "http": [
+        {
+          "url": "http://127.0.0.1:3100/api/health",
+          "exitCode": 0,
+          "response": "200 0.029782"
+        },
+        {
+          "url": "https://console-dev-erpx.jesadakorn.com/api/health",
+          "exitCode": 0,
+          "response": "200 0.142696"
+        },
+        {
+          "url": "http://127.0.0.1:3101/api/health",
+          "exitCode": 0,
+          "response": "200 0.038129"
+        }
+      ],
+      "postgresAcceptingConnections": true,
+      "processes": [
+        {
+          "process": "8368     1 /Users/fluke/Desktop/Work/erpx/.runtime/bun-1.2.17/bun-darwin-aarch64/bun",
+          "cwd": [
+            "/Users/fluke/Desktop/Work/erpx"
+          ]
+        },
+        {
+          "process": "8388  8374 /Users/fluke/Desktop/Work/erpx/.runtime/node/node-v24.20.0-darwin-arm64/bin/node",
+          "cwd": [
+            "/Users/fluke/Desktop/Work/erpx"
+          ]
+        },
+        {
+          "process": "8390  8388 next-server (v16.3.4)",
+          "cwd": [
+            "/Users/fluke/Desktop/Work/erpx"
+          ]
+        },
+        {
+          "process": "89972     1 /opt/homebrew/opt/clamav/sbin/clamd",
+          "cwd": [
+            "/Users/fluke/Desktop/Work/erpx"
+          ]
+        }
+      ],
+      "stagingTouched": false,
+      "productionChanged": false
+    },
+    "normalConsoleSignInRestored": true,
+    "publicHomeSearchOpenedWithNativeInput": true,
+    "consoleOwnerAnd12Tasks": true,
+    "devReadinessObservationUpperBoundMs": 32034.2,
+    "chromeSavedPasswordAdviceClosedWithoutChangingSecuritySettings": true,
+    "screenshots": [
+      {
+        "path": ".scratch/dev/optimization-final-home.png",
+        "sha256": "ae95a4a06f1092c52315f58ed7486b12829cc65519dd017cda441585e7d4a193"
+      },
+      {
+        "path": ".scratch/dev/optimization-final-home-search.png",
+        "sha256": "c2fbaee19fa2b43828c4da2049798c1f0e7ff8675d4c6aed79e4141ae0d9d981"
+      }
+    ],
+    "posOwnerAndOpeningZeroPersistAfterReload": true,
+    "posRoleScopeReceipt": {
+      "path": ".scratch/dev/optimization-final-pos-role-scope.json",
+      "sha256": "85b2356e58b2510595a9df5907dc61b87dc59a96288619d2c58c764143d62f68"
+    },
+    "noBusinessCommandSaved": true,
+    "heavyWindowReleased": true
+  },
+  "finalAvailability": {
+    "receipt": {
+      "path": ".scratch/dev/optimization-final-health-last.json",
+      "sha256": "4435dee3c881552265b3495561f2448be2d00914810650bcb43f285dcc9eeca1"
+    },
+    "results": {
+      "checkedAtUTC": "2026-10-11T03:55:39.160772+00:00",
+      "http": [
+        {
+          "url": "http://127.0.0.1:3100/api/health",
+          "exitCode": 0,
+          "response": "200 0.029184"
+        },
+        {
+          "url": "https://console-dev-erpx.jesadakorn.com/api/health",
+          "exitCode": 0,
+          "response": "200 0.139857"
+        },
+        {
+          "url": "http://127.0.0.1:3101/api/health",
+          "exitCode": 0,
+          "response": "200 0.034695"
+        }
+      ],
+      "postgresAcceptingConnections": true,
+      "devListener": "8390",
+      "detachedLauncher": "8368     1 /Users/fluke/Desktop/Work/erpx/.runtime/bun-1.2.17/bun-darwin-aarch64/bun",
+      "ownedPrivate3102Empty": true,
+      "publicHomeNativeSearchVerified": true,
+      "posOriginalOwnerAndOpeningZeroVerifiedAfterReload": true,
+      "sourceFingerprint": "f13ca97b1401ea244ae616242fcc873b16308d6dce04298c68dfa41918a484f7",
+      "stagingTouched": false,
+      "productionChanged": false
+    }
+  }
+}

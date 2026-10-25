@@ -940,19 +940,7 @@
     margin-right: auto;
   }
 }
-@media (max-width: 650px) {
-  .toolbar {
-    gap: 8px;
-    padding-bottom: 12px;
-  }
-  .search {
-    max-width: none;
-    flex-basis: 100%;
-  }
-  .topActions {
-    margin-left: 0;
-    width: 100%;
-  }
+@media (max-width: 1024px) {
   .layout,
   .layout[data-detail-open] {
     display: flex;
@@ -981,6 +969,20 @@
   }
   .rail[data-mobile-open] {
     display: block;
+  }
+}
+@media (max-width: 650px) {
+  .toolbar {
+    gap: 8px;
+    padding-bottom: 12px;
+  }
+  .search {
+    max-width: none;
+    flex-basis: 100%;
+  }
+  .topActions {
+    margin-left: 0;
+    width: 100%;
   }
   .main {
     --people-main-padding: 10px;

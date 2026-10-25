@@ -1,0 +1,33 @@
+{
+  "complete": false,
+  "wholePlanAcceptance": false,
+  "status": "Complete purchase journey passed on desktop and mobile; aggregate same-candidate acceptance pending",
+  "redReceipt": ".scratch/dev/test-suites/browser/2026-10-10T15-05-31-577Z/receipt.json",
+  "redReceiptSha256": "0f966e04c8a6096c1e87cb9ca625d0ee2d9c5f5a40495a6e775ddeef12209cae",
+  "cleanupFailures": [],
+  "cause": "Test handed purchase request to handler after department approval alone; retained spending route also requires Finance preparer and Finance approver before queued team work.",
+  "testChange": "Normal existing head, reviewer and manager fixture assignments approve saved stages independently. Assert handler 404 REQUEST_NOT_FOUND before Finance decisions, each current required role, queued state and exact three distinct decision actors. Retain once-only order handoff, replay, receiving and all original workflow assertions. No privilege grants or policy bypass.",
+  "sources": [
+    "src/server/modules/records/application/employee-requests.ts:474",
+    "src/server/modules/people_payroll/application/expense-routing.ts:93",
+    "fixtures/expenses/company.ts:191"
+  ],
+  "workRoleCorrection": "Existing Employee selection does not expose purchase preparation. Switch normally to existing purchasing_operator for order creation, warehouse_manager for receiving, and original Employee assignment for partial-receipt denial and service resolution. Rebuild command headers from normally loaded current work context after every role selection; grant no additional permissions. Assert Employee handoff link absent before switch.",
+  "receivingAssignmentCorrection": "After order approval, owner reads current confirmed/warehouse_manager flow, asserts intended receiver is an eligible candidate, assigns this record primary through flows/order with both current flow and record versions plus a reason and saveDefault=false. Retain partial receiving, premature resolution denial and final receiving/confirmation.",
+  "desktopPassedCases": 1,
+  "artifacts": [
+    {
+      "log": ".scratch/dev/test-suites/browser/2026-10-10T15-20-23-961Z/b51e3e76c4f6/playwright.log",
+      "logSha256": "2f212c29b80654f084c6778e4d891c2dfd30074f068df6204f92c414e597bfdf",
+      "report": ".scratch/dev/test-suites/browser/2026-10-10T15-20-23-961Z/b51e3e76c4f6/result.json",
+      "reportSha256": "bf3534625f339833b6ba8dbd04b3da5db26550f99bfceffc9773f3243e60efa2"
+    },
+    {
+      "log": ".scratch/dev/test-suites/browser/2026-10-10T15-30-23-301Z/c477299c0070/playwright.log",
+      "logSha256": "0476c7364ef9fc2731ad6f81d76b590500af9ed4aac9ee203c56c1c93473e86f",
+      "report": ".scratch/dev/test-suites/browser/2026-10-10T15-30-23-301Z/c477299c0070/result.json",
+      "reportSha256": "5a97b867be668ce2cf10d622434d45c5023d1a9d28b16e5a46c01bac8dde3fc1"
+    }
+  ],
+  "mobilePassedCases": 1
+}

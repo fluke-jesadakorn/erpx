@@ -23,7 +23,7 @@ export const recordRoutes = {
   collection_case:{label:'collection case',route:'record-details/collection_case/:id'},
   cash_forecast_sources:{label:'cash forecast sources',route:'record-details/cash_forecast_sources/:id'},
 
-  pms_snapshot_entry:{label:'Document folio entry',route:'record-details/pms_snapshot_entry/:id'},
+  pms_snapshot_entry:{label:'Document guest account entry',route:'record-details/pms_snapshot_entry/:id'},
   pms_booking_refund:{label:'Online booking refund',route:'record-details/pms_booking_refund/:id'},
   pms_counter_refund:{label:'Counter payment refund',route:'record-details/pms_counter_refund/:id'},
   pms_control_sources:{label:'PMS control account sources',route:'record-details/pms_control_sources/:id'},

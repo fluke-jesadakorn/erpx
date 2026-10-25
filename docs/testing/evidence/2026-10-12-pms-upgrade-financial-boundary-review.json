@@ -1,0 +1,46 @@
+{
+  "checkedAt": "2026-10-11T21:26:54.292336+00:00",
+  "candidate": {
+    "runtime": "51701d69c6d65dc1ee28480e7de4b404c89f3e32f8ab6c912c551568114b6bf6",
+    "verification": "299c85a71a3f9bd369189710e8dcf8db9da956177f559f49d4f857d6767dd362",
+    "mainRuntime": "51701d69c6d65dc1ee28480e7de4b404c89f3e32f8ab6c912c551568114b6bf6",
+    "mainVerification": "299c85a71a3f9bd369189710e8dcf8db9da956177f559f49d4f857d6767dd362",
+    "releaseDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.runtime/releases/2026-10-11T19-44-51-044Z",
+    "releaseId": "2026-10-11T19-44-51-044Z",
+    "releaseReusedForIdenticalRuntime": true,
+    "verificationAmendment": "Only stronger isolatedRSC witness in existingE2E; allotherNative/testcode unchanged; fresh fullNative and180 willrun at299"
+  },
+  "scope": "Current-source semantic inspection plus exact passing native case; no new fixture or claim that every paid-provider upgrade variant was individually executed",
+  "feature": "front-desk-03",
+  "inspectedSource": [
+    {
+      "file": "src/lib/pms-engine.ts",
+      "SHA256": "f0aea9402e5d10512c82808ef90b4c350416ee02504b7069e2a81e737ee1ae3b"
+    },
+    {
+      "file": "src/server/modules/pms/application/pms.ts",
+      "SHA256": "6f77601cbfa1a4e79e811372a6d7a3bb0834944704fcaa6758ae2e62f51e8dfe"
+    },
+    {
+      "file": "tests/pms.test.ts",
+      "SHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968"
+    }
+  ],
+  "guards": [
+    "In-house stay and future departure required",
+    "Destination room inspected/compatible and remaining capacity authoritative",
+    "Destination Guest Account must remain unissued/open",
+    "Posted current/future room-night entries must be reviewed before repricing",
+    "Any pending online payment blocks stay/reservation/account mutation",
+    "Paid-booking signed-revision guard names change_dates/cancel operations, not a blanket paid-upgrade refusal"
+  ],
+  "actualPassingCase": {
+    "file": "tests/pms.test.ts",
+    "title": "commits an in-house room upgrade once with version fencing and immutable original receipt evidence",
+    "status": "passed",
+    "kind": "integration"
+  },
+  "actualCaseSourceBehavior": "Case receives a cash advance before upgrade and asserts original money entries and issued document snapshots unchanged, same idempotency replay, stale-version rejection and housekeeping permission refusal.",
+  "limits": "This does not independently prove direct-provider-funded upgrade end-to-end, an after-invoice correction workflow or unrestricted repricing of posted nights. Combined feature acceptance remains pending.",
+  "wholePlanAccepted": false
+}

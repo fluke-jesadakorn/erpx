@@ -11,7 +11,7 @@ export function sourceRecordLabel(kind: string) {
     staff_task: "Task", staff_project: "Project", purchase_request: "Purchase request",
     service_request: "Service request", equipment_request: "Equipment request", expense: "Expense",
     leave: "Leave", quality_hold: "Quality hold", quality_alert: "Quality follow-up",
-    reservation: "Reservation", stay: "Stay", folio: "Folio", refund: "Refund", correction: "Correction",
+    reservation: "Reservation", stay: "Stay", guest_account: "Guest Account", refund: "Refund", correction: "Correction",
     shift: "Shift", night: "Night audit", room: "Room", task: "Housekeeping task", block: "Room block",
     transfer: "Transfer", pms_record: "Hotel work", order: "Order", invoice: "Invoice", journal: "Journal",
     calendar_appointment: "Appointment",

@@ -1,0 +1,211 @@
+{
+  "complete": false,
+  "wholePlanAcceptance": false,
+  "focusedPassed": true,
+  "sourceFingerprint": "fa4ec6ebb2814d3a04c1edf7681948971837b366ab464692c8cfd737b0243708",
+  "verificationFingerprint": "12b378792ad2af2985bf7d23812f2a714cd4e0793a0949124659136b690245ec",
+  "release": {
+    "id": "2026-10-09T23-35-35-106Z",
+    "fileManifestSha256": "ece28addec2188a632f4265d8a2da3f8ab646380863030a2536fec463dc43a5c"
+  },
+  "change": "Authoritative POS room-charge/reversal reader after the same Company/Branch scoped Property row lock and expectedVersion. Hotel-wide source-key duplicates and original reversals, full target account entries/refunds/receipt funding and document guest facts. Existing owner transaction, POS/PMS independent reviews, snapshot carries and Finance checks retained.",
+  "migration": "1037_pms_pos_source_dependencies.sql; nonunique hotel/source and hotel/original expression indexes; no data or IDs rewritten.",
+  "focusedTests": {
+    "pmsNativeCases": 66,
+    "posNativeCases": 81,
+    "unitCases": 58,
+    "totalUniqueCases": 205,
+    "existingNativeCasesOverlapInFundingRerun": true,
+    "initialFundingAssertionFailure": "The actual safe integer PostgreSQL decoder returns amount_units as numbers; expected strings in the new fixture were corrected. Both funding rows are 535 and their original receipt identities are preserved.",
+    "newNativeCases": [
+      "Hotel-wide POS duplicate identity after checkout beyond sixty unrelated entries; changed stay/description fail without mutation.",
+      "Pending target refund after sixty-one rejected refunds blocks posting without mutation.",
+      "Original reversal in a different account after sixty-one unrelated reversals blocks without mutation.",
+      "Two original cash advances allocate completely after sixty-one target entries; original money carries remain 535 each."
+    ],
+    "newUnitCases": [
+      "Stale POS charge rejects before dependency reads.",
+      "Stale POS reversal rejects before dependency reads."
+    ]
+  },
+  "checks": {
+    "typecheck": true,
+    "lint": true,
+    "lintExistingWarnings": 3,
+    "architecture": true,
+    "isolatedReleaseBuild": true,
+    "wholeDirtyTreeDiffCheck": true,
+    "finalTypecheck": true
+  },
+  "developmentMigration": {
+    "environment": "development",
+    "reports": [
+      {
+        "binding": "H001_DB",
+        "applied": [
+          "1037_pms_pos_source_dependencies.sql"
+        ],
+        "remaining": []
+      },
+      {
+        "binding": "H002_DB",
+        "applied": [
+          "1037_pms_pos_source_dependencies.sql"
+        ],
+        "remaining": []
+      },
+      {
+        "binding": "H003_DB",
+        "applied": [
+          "1037_pms_pos_source_dependencies.sql"
+        ],
+        "remaining": []
+      }
+    ]
+  },
+  "publicBrowser": {
+    "entry": "https://console-dev-erpx.jesadakorn.com/front/acme/acme-co/pms/holding",
+    "observedFinalUrl": "https://dev-pms.jesadakorn.com/acme/acme-co/holding/guest-accounts",
+    "existingAuthenticatedSession": true,
+    "companyTodayOnline": true,
+    "guestAccountPageVisible": true,
+    "guestAccountBalancesAndEntriesVisible": true,
+    "transactionsSubmitted": false,
+    "compiledCandidateBrowserAcceptance": false
+  },
+  "fullPmsNativeSelection": {
+    "command": "bun run test --module=pms",
+    "passed": true,
+    "unitFiles": 77,
+    "unitCases": 776,
+    "integrationFiles": 49,
+    "integrationCases": 517,
+    "totalFiles": 126,
+    "totalCases": 1293,
+    "failedCases": 0,
+    "focusedCasesOverlapAndAreNotAddedToTotal": true
+  },
+  "limitations": [
+    "No release load on this candidate yet; no new latency acceptance claimed.",
+    "Prior core SLO remains failed on separately retained candidates.",
+    "Final entire-plan native/browser/per-feature/mock-pilot consolidation remains required."
+  ],
+  "logs": {
+    "architecture.log": {
+      "path": ".scratch/dev/pms-pos-reader/architecture.log",
+      "sha256": "61f27aa5d383438fa7955c201143725c76302dadbcb2c312efa2d398a9d6f86b"
+    },
+    "build.log": {
+      "path": ".scratch/dev/pms-pos-reader/build.log",
+      "sha256": "326ad4cec2e3374223be23733303c66221fbad571c7d2650a967ef4bb4d2032f"
+    },
+    "lint.log": {
+      "path": ".scratch/dev/pms-pos-reader/lint.log",
+      "sha256": "827c4aba480463caff85470227105c05ff46cd40693fc7c1b1f9f25d59f13231"
+    },
+    "migrate-development.log": {
+      "path": ".scratch/dev/pms-pos-reader/migrate-development.log",
+      "sha256": "ab43d55295d40e7b41c96d692bd469ff370d8febb6094da7868f11b004553fd4"
+    },
+    "migrate-development.ts": {
+      "path": ".scratch/dev/pms-pos-reader/migrate-development.ts",
+      "sha256": "4b8e130d8cd10d5790631e31e91e0a5f6975fec441753924677d388aee0314e0"
+    },
+    "module-native.log": {
+      "path": ".scratch/dev/pms-pos-reader/module-native.log",
+      "sha256": "3202acd264d5434bd2f337b891a9d28e5a446e35c2937eb15a406ce5b55d11d1"
+    },
+    "native-funding-corrected.log": {
+      "path": ".scratch/dev/pms-pos-reader/native-funding-corrected.log",
+      "sha256": "15a426a9a4a32d8270c0a5104617e5a6ee94876ddf659351d9cd991245ab1be9"
+    },
+    "native-funding.log": {
+      "path": ".scratch/dev/pms-pos-reader/native-funding.log",
+      "sha256": "cf9d7ad3fbe283ac083c07c71566f00505e86d8f0e207e25ec7cd96facb32013"
+    },
+    "native.log": {
+      "path": ".scratch/dev/pms-pos-reader/native.log",
+      "sha256": "df5c1f2af942d8f1bb195d8cd6ebcc52c6ef9225ebcc9f2f584968ea1241bfe2"
+    },
+    "source-final.json": {
+      "path": ".scratch/dev/pms-pos-reader/source-final.json",
+      "sha256": "cdffe5652af8fdeb2feb6ee24dfdc57015610b670e6ece2a4be72135e70b0c66"
+    },
+    "suite-before.json": {
+      "path": ".scratch/dev/pms-pos-reader/suite-before.json",
+      "sha256": "cdffe5652af8fdeb2feb6ee24dfdc57015610b670e6ece2a4be72135e70b0c66"
+    },
+    "typecheck.log": {
+      "path": ".scratch/dev/pms-pos-reader/typecheck.log",
+      "sha256": "ae3aa3d40f2b7fdeaf8ae4398c41416876c85fc2ccc6aa232e526fdb75f340ef"
+    },
+    "unit.log": {
+      "path": ".scratch/dev/pms-pos-reader/unit.log",
+      "sha256": "70d2a877d0be34623cc561337b932fa676ad37538d4434984919e1f6f738d80f"
+    },
+    "final-health.json": {
+      "path": ".scratch/dev/pms-pos-reader/final-health.json",
+      "sha256": "74e97dc24118a20ffc642cbf46a02652497b4180a9c94ffc22e6b952ec474a63"
+    },
+    "typecheck-final.log": {
+      "path": ".scratch/dev/pms-pos-reader/typecheck-final.log",
+      "sha256": "ae3aa3d40f2b7fdeaf8ae4398c41416876c85fc2ccc6aa232e526fdb75f340ef"
+    },
+    "health.json": {
+      "path": ".scratch/dev/pms-pos-reader/health.json",
+      "sha256": "defa728b6812a595f7c2dd3ea854dd3bb415fb93f3fd3463fcc2515760600b4f"
+    },
+    "docs.log": {
+      "path": ".scratch/dev/pms-pos-reader/docs.log",
+      "sha256": "b4c78ff5c3c6850d0d5df11426d0e3e83cc259148c7200514c7ccfe192b87f1f"
+    },
+    "next-contention-investigation.json": {
+      "path": ".scratch/dev/pms-pos-reader/next-contention-investigation.json",
+      "sha256": "f62bfd9fb76246e2f330299998bf15ce1ef4d166b99d27b3c528fa2c6887f4f1"
+    },
+    "suite-after.json": {
+      "path": ".scratch/dev/pms-pos-reader/suite-after.json",
+      "sha256": "cdffe5652af8fdeb2feb6ee24dfdc57015610b670e6ece2a4be72135e70b0c66"
+    }
+  },
+  "pmsNativeSelectionPassed": true,
+  "unchanged": {
+    "runtime": true,
+    "verification": true,
+    "matchesIsolatedRelease": true
+  },
+  "environment": {
+    "checkedAt": "2026-10-09T23:44:43.858842+00:00",
+    "checks": [
+      {
+        "url": "http://127.0.0.1:3100/api/health",
+        "status": 200,
+        "exitCode": 0
+      },
+      {
+        "url": "https://console-dev-erpx.jesadakorn.com/api/health",
+        "status": 200,
+        "exitCode": 0
+      },
+      {
+        "url": "http://127.0.0.1:3101/api/health",
+        "status": 200,
+        "exitCode": 0
+      }
+    ],
+    "listeners": {
+      "3100": "COMMAND   PID  USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME\nnode    58873 fluke   13u  IPv6 0xc4d6f8978281bcb4      0t0  TCP *:3100 (LISTEN)",
+      "3104": "",
+      "5432": "COMMAND  PID  USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME\npostgres 909 fluke    5u  IPv4 0xab194641205d693c      0t0  TCP 127.0.0.1:5432 (LISTEN)"
+    },
+    "developmentCwd": "COMMAND   PID  USER   FD   TYPE DEVICE SIZE/OFF      NODE NAME\nnode    58873 fluke  cwd    DIR   1,17     1888 403628787 /Users/fluke/Desktop/Work/erpx",
+    "stagingAccessed": false,
+    "installedProductionHealthOnly": true
+  },
+  "documentation": {
+    "markdownFiles": 248,
+    "localLinks": 1300,
+    "ledgerFiles": 213,
+    "passed": true
+  }
+}

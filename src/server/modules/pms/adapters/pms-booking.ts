@@ -195,11 +195,11 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase): PmsBookingUnit
             fact0: `${string}-${string}-${string}-${string}-${string}`;
             id: string;
             stayId: string;
-            folioId: string;
+            guestAccountId: string;
             id2: string;
             amount: number;
             now: number;
-        }) => db.prepare('INSERT INTO pms_booking_allocations(id,payment_id,stay_id,folio_id,entry_id,amount_minor,created_at) VALUES(?,?,?,?,?,?,?)').bind(facts.fact0, facts.id, facts.stayId, facts.folioId, facts.id2, facts.amount, facts.now).run(),
+        }) => db.prepare('INSERT INTO pms_booking_allocations(id,payment_id,stay_id,guest_account_id,entry_id,amount_minor,created_at) VALUES(?,?,?,?,?,?,?)').bind(facts.fact0, facts.id, facts.stayId, facts.guestAccountId, facts.id2, facts.amount, facts.now).run(),
         writePmsBookingPayments6: (facts: {
             now: number;
             id: string;
@@ -265,7 +265,7 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase): PmsBookingUnit
             id: string;
             id2: string;
             id3: string;
-        }) => db.prepare("SELECT id,kind,created_at FROM pms_documents WHERE property_id=? AND folio_id IN (SELECT id FROM pms_records WHERE property_id=? AND kind='folio' AND data_json::jsonb->>'reservationId'=?) ORDER BY created_at DESC LIMIT 100").bind(facts.id, facts.id2, facts.id3).all<{
+        }) => db.prepare("SELECT id,kind,created_at FROM pms_documents WHERE property_id=? AND guest_account_id IN (SELECT id FROM pms_records WHERE property_id=? AND kind='guest_account' AND data_json::jsonb->>'reservationId'=?) ORDER BY created_at DESC LIMIT 100").bind(facts.id, facts.id2, facts.id3).all<{
             id: string;
             kind: string;
             created_at: number;

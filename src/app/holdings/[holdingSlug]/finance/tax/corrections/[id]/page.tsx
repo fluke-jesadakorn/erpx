@@ -8,7 +8,7 @@ import { vatReviewLabels, vatTreatmentLabels } from "@/lib/finance-vat-labels";
 import { vatCorrectionDetail } from "@/server/modules/finance/public/finance-tax-register";
 import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { FinanceWorkspace } from "@/components/finance/finance-workspace";
-import { VatCorrectionReview } from "@/components/finance/vat-register-controls";
+import { VatCorrectionReview } from "@/components/records/loaders/finance--vat-register-controls";
 import { Card } from "@/components/ui/foundation";
 
 export const dynamic = "force-dynamic";

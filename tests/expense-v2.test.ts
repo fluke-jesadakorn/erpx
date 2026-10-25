@@ -8,6 +8,9 @@ import {
 } from "./helpers/expense-fixture";
 import {
   saveExpense,
+  canEditExpense,
+  canReviewExpense,
+  canPostExpenses,
   getExpense,
   transitionExpense,
   postExpense,
@@ -32,6 +35,10 @@ import {
 } from "../src/server/expense-payments";
 import { settleInvoice } from "../src/server/commerce";
 import { bindRecordAttachmentSet } from "../src/server/attachments/service";
+import {nativeExpenseReads} from "../src/server/modules/people_payroll/adapters/expenses";
+import {createDomainWork} from "../src/server/modules/work_projection/application/domain-work";
+import {measureReads} from "../src/server/runtime/read-metrics";
+import {withPolicyReadSnapshot} from "../src/server/iam-read-snapshot";
 import { seedAttachmentSet } from "./helpers/attachment-v2";
 vi.mock("../src/server/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
@@ -43,6 +50,57 @@ beforeAll(async () => {
 });
 beforeEach(async () => {
   f = await expenseFixture();
+});
+it("matches the original Expense list across roles, draft requirements and revoked assignments with fewer workflow queries",async()=>{
+  const submitted=await f.claim();await f.attach(submitted);await f.action(f.claimant,submitted,"submit");
+  await f.claim();await f.claim();
+  for(const actor of [f.claimant,f.head,f.reviewer,f.payer,f.owner,f.it]){
+    const original=await measureReads(()=>nativeExpenseReads(db,actor,{batch:false}).list());
+    const batch=await measureReads(()=>nativeExpenseReads(db,actor).list());
+    expect(batch.result).toEqual(original.result);
+    if(actor.userId===f.claimant.userId)expect(batch.metrics.queries).toBeLessThan(original.metrics.queries);
+  }
+  await db.prepare("UPDATE assignments SET revoked_at=? WHERE id=?").bind(Date.now(),f.head.assignmentId).run();
+  expect(await nativeExpenseReads(db,f.head).list()).toEqual(await nativeExpenseReads(db,f.head,{batch:false}).list());
+});
+it("keeps draft employment reads bounded per claimant and rechecks employment on the next list", async () => {
+  const first = await f.claim();
+  const read = () => measureReads(() => withPolicyReadSnapshot(() => nativeExpenseReads(db, f.claimant).list()));
+  const single = await read();
+  for (let index = 0; index < 11; index++) await f.claim();
+  await db.prepare("UPDATE finance_expenses SET expense_date='1900-01-01' WHERE id=?").bind(first).run();
+  const many = await read();
+  expect(many.result).toHaveLength(12);
+  expect(many.result).toEqual(await nativeExpenseReads(db, f.claimant, {batch:false}).list());
+  expect(many.result.find(row => row.id === first)?.setup_requirements_json).toContain("engagement dates");
+  expect(many.metrics.queries).toBe(single.metrics.queries);
+
+  const otherClaim = await f.claim(f.head);
+  const unavailableClaimant = await f.member("batch-missing-staff", "employee", 1, f.department, false);
+  const unavailableClaim = await f.claim(unavailableClaimant);
+  // Model owner-prepared drafts so the owner may read them after claimant revocation.
+  await db.prepare("UPDATE finance_expenses SET created_by=?,prepared_by=? WHERE company_id=?")
+    .bind(f.owner.userId, f.owner.userId, f.company).run();
+  const mixed = await withPolicyReadSnapshot(() => nativeExpenseReads(db, f.owner).list());
+  expect(mixed).toHaveLength(14);
+  expect(mixed).toEqual(await nativeExpenseReads(db, f.owner, {batch:false}).list());
+  expect(mixed.find(row => row.id === unavailableClaim)?.setup_requirements_json).toContain("active employee");
+  expect(mixed.find(row => row.id === otherClaim)?.setup_requirements_json).not.toContain("active employee");
+
+  await db.prepare("UPDATE hr_engagements SET level_id=NULL WHERE company_id=? AND person_id=?")
+    .bind(f.company, `person-${f.claimant.userId}`).run();
+  const noLevel = await read();
+  expect(noLevel.result).toEqual(await nativeExpenseReads(db, f.claimant, {batch:false}).list());
+  expect(noLevel.result.every(row => String(row.setup_requirements_json).includes("active staff level"))).toBe(true);
+  expect((await getExpense(f.claimant, first)).setup_requirements_json).toContain("active staff level");
+
+  await db.prepare("UPDATE assignments SET revoked_at=? WHERE id=?").bind(Date.now(), f.claimant.assignmentId).run();
+  const revoked = await withPolicyReadSnapshot(() => nativeExpenseReads(db, f.owner).list());
+  expect(revoked).toEqual(await nativeExpenseReads(db, f.owner, {batch:false}).list());
+  expect(revoked.filter(row => row.claimant_user_id === f.claimant.userId)).toHaveLength(12);
+  expect(revoked.filter(row => row.claimant_user_id === f.claimant.userId)
+    .every(row => String(row.setup_requirements_json).includes("active employee"))).toBe(true);
+  expect(revoked.find(row => row.id === otherClaim)?.setup_requirements_json).not.toContain("active employee");
 });
 it("keeps rollback reads and receipt guards on clean bound links only",async()=>{
   const previousGate=process.env.ERPX_ATTACHMENTS_V2,previousReadOnly=process.env.ERPX_ATTACHMENTS_READ_ONLY;
@@ -523,4 +581,74 @@ it("rolls back the provided Finance reversal and Expense command on a final outb
   expect(await db.prepare("SELECT status,outstanding_minor FROM finance_invoices WHERE id=?").bind(posted.invoice_id).first()).toMatchObject({ status: "voided", outstanding_minor: 0 });
   expect(await db.prepare("SELECT status FROM finance_journals WHERE id=?").bind(posted.journal_id).first()).toMatchObject({ status: "reversed" });
   expect(await db.prepare("SELECT count(*) n FROM command_receipts WHERE command_id=?").bind(command).first<number>("n")).toBe(1);
+});
+
+it.each(["batch-first", "original-first"] as const)("preserves mixed legacy/current Expense rows and lazy legacy initialization (%s)", async order => {
+  // Workflow v1 resolves the legacy named-head table; v2 uses authority seats.
+  await db.prepare("INSERT INTO department_heads(department_id,company_id,person_id,updated_by,updated_at) VALUES(?,?,?,?,?)")
+    .bind(f.department, f.company, `person-${f.head.userId}`, f.owner.userId, Date.now()).run();
+  const legacyDraft = await f.claim();
+  const legacyPending = await f.claim();
+  const legacyBlocked = await f.claim();
+  const legacyApproved = await f.claim();
+  const currentDraft = await f.claim();
+  const currentReview = await f.claim();
+  await f.attach(currentReview);
+  await f.action(f.claimant, currentReview, "submit");
+  for (const [id, status] of [[legacyDraft, "draft"], [legacyPending, "in_review"], [legacyBlocked, "in_review"], [legacyApproved, "approved"]]) {
+    await db.prepare("UPDATE finance_expenses SET workflow_version=1,workflow_stage='draft',status=? WHERE company_id=? AND id=?")
+      .bind(status, f.company, id).run();
+  }
+  await db.prepare("UPDATE finance_expenses SET approved_by=? WHERE id=? AND company_id=?")
+    .bind(f.head.userId, legacyApproved, f.company).run();
+  const now = Date.now();
+  const pendingInstance = `approval-${key()}`, blockedInstance = `approval-${key()}`;
+  for (const [instanceId, recordId, state] of [[pendingInstance, legacyPending, "pending"], [blockedInstance, legacyBlocked, "blocked"]]) {
+    await db.prepare("INSERT INTO approval_instances(id,company_id,branch_id,department_id,record_type,record_id,phase,cycle,requester_user_id,state,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)")
+      .bind(instanceId, f.company, f.branch, f.department, "expense", recordId, "request", 1, f.claimant.userId, state, now, now).run();
+  }
+  await db.prepare("INSERT INTO approval_steps(id,instance_id,ordinal,approver_user_id,authority) VALUES(?,?,?,?,?)")
+    .bind(`${pendingInstance}-0`, pendingInstance, 0, f.head.userId, "department").run();
+  const selectedIds = [legacyDraft, legacyPending, legacyBlocked, legacyApproved, currentDraft, currentReview];
+  for (const actor of [f.claimant, f.head, f.reviewer, f.payer, f.owner, f.it]) {
+    const originalRead = () => nativeExpenseReads(db, actor, {batch:false}).list();
+    const batchRead = () => nativeExpenseReads(db, actor).list();
+    const first = await (order === "batch-first" ? batchRead() : originalRead());
+    const second = await (order === "batch-first" ? originalRead() : batchRead());
+    expect(first).toEqual(second);
+    expect(first.map(row => row.id)).toEqual(second.map(row => row.id));
+    expect(first).toHaveLength(second.length);
+    const unused = async () => { throw new Error("UNEXPECTED_OTHER_DOMAIN_READ"); };
+    const expenseWork = (batch: boolean) => createDomainWork({
+      listExpenses: context => nativeExpenseReads(db, context, {batch}).list(),
+      canEditExpense, canReviewExpense, canPostExpenses,
+      listTasks: unused, taskWorkState: unused,
+      listCounts: unused, listTransfers: unused,
+      canReadCounts: () => false, canEditCount: () => false, canReviewCount: () => false,
+      canEditTransfer: () => false, canReviewTransfer: () => false,
+    }).getDomainWork(actor, "expense");
+    const originalWork = await expenseWork(false), batchWork = await expenseWork(true);
+    expect(batchWork).toEqual(originalWork);
+    const countWork = (rows: typeof originalWork) => ({
+      total: rows.length,
+      todo: rows.filter(row => row.queue === "todo").length,
+      waiting: rows.filter(row => row.queue === "waiting").length,
+      completed: rows.filter(row => row.queue === "completed").length,
+    });
+    expect(countWork(batchWork)).toEqual(countWork(originalWork));
+    if (actor.userId === f.claimant.userId) {
+      expect(batchWork).toHaveLength(selectedIds.length);
+      expect(first).toHaveLength(selectedIds.length);
+      expect(new Set(first.map(row => String(row.id)))).toEqual(new Set(selectedIds));
+      expect(first.find(row => row.id === legacyDraft)?.workflow_version).toBe(1);
+      expect(first.find(row => row.id === currentDraft)?.workflow_version).toBe(2);
+    }
+  }
+  const initialized = await db.prepare("SELECT state,version FROM approval_instances WHERE id=? AND company_id=?")
+    .bind(blockedInstance, f.company).first<{state:string;version:number}>();
+  expect(initialized?.state).toBe("pending");
+  expect(Number(initialized?.version)).toBeGreaterThan(1);
+  expect((await db.prepare("SELECT id FROM approval_steps WHERE instance_id=?").bind(blockedInstance).all()).results.length).toBeGreaterThan(0);
+  await db.prepare("UPDATE assignments SET revoked_at=? WHERE id=?").bind(Date.now(), f.head.assignmentId).run();
+  expect(await nativeExpenseReads(db, f.head).list()).toEqual(await nativeExpenseReads(db, f.head, {batch:false}).list());
 });

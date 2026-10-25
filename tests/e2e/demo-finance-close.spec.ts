@@ -27,6 +27,15 @@ async function signInAs(context:BrowserContext,page:Page,credentials:Engineering
 
 function period(page:Page,name:string){return page.locator("#workspace-content").getByRole("heading",{name,exact:true}).locator("xpath=ancestor::article[1]");}
 
+async function openPeriodWorkspace(page:Page,name:string,periodId:string){
+  await page.locator('#workspace-content').getByRole('link',{name,exact:true}).click();
+  await expect(page).toHaveURL(url=>url.searchParams.get('detailKind')==='finance_period'&&url.searchParams.get('detailId')===periodId);
+  const drawer=page.getByTestId('record-detail-drawer');await expect(drawer).toHaveCount(1);await expect(drawer).toBeVisible();
+  const fullPage=drawer.getByRole('link',{name:'Open full page ↗',exact:true});await expect(fullPage).toHaveAttribute('href',`/holdings/simulation/finance/close?periodId=${encodeURIComponent(periodId)}`);await fullPage.click();
+  await expect(page).toHaveURL(url=>url.pathname==='/holdings/simulation/finance/close'&&url.searchParams.get('periodId')===periodId&&!url.searchParams.has('detailKind'));
+  await expect(drawer).toBeHidden();await expect(period(page,name)).toBeVisible();
+}
+
 async function expectOpeningReconciled(card:ReturnType<typeof period>){
   for(const [kind,amount] of [["bank","1000.00"],["receivable","300.00"],["payable","200.00"]] as const){
     const row=card.getByRole("cell",{name:kind,exact:true}).locator("xpath=ancestor::tr[1]");
@@ -78,8 +87,7 @@ test("isolated demo closes two reconciled periods with independent users",async(
     await januaryApproval.getByRole("button",{name:"Approve period close"}).click();
     await expect(januaryApproval).toContainText("closed");
 
-    await preparePage.locator('#workspace-content').getByRole('link',{name:'February 2027',exact:true}).click();
-    await expect(preparePage).toHaveURL(new RegExp(`periodId=${periodIds[1]}`));
+    await openPeriodWorkspace(preparePage,'February 2027',periodIds[1]);
     const february=period(preparePage,"February 2027");
     await expect(february).toContainText("Statement DEMO-FEB-2027 at period end");
     await expectOpeningReconciled(february);
@@ -93,7 +101,7 @@ test("isolated demo closes two reconciled periods with independent users",async(
     await februaryApproval.getByRole("button",{name:"Approve period close"}).click();
     await expect(februaryApproval).toContainText("closed");
     await waitForPeriodState(approver,periodIds[1],"closed");
-    await approvePage.locator('#workspace-content').getByRole('link',{name:'January 2027',exact:true}).click();
+    await openPeriodWorkspace(approvePage,'January 2027',periodIds[0]);
     await expect(period(approvePage,"January 2027")).toContainText("closed");
     await expectOpeningReconciled(period(approvePage,"January 2027"));
     await waitForPeriodState(approver,periodIds[0],"closed");

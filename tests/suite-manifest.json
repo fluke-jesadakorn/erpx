@@ -37,6 +37,93 @@
   ],
   "suites": [
     {
+      "id": "pms.booking-payment-recovery.e2e",
+      "lane": "e2e",
+      "owner": "pms",
+      "modules": [
+        "pms",
+        "finance",
+        "pos"
+      ],
+      "files": [
+        "tests/e2e/pms-booking-payment-recovery.spec.ts"
+      ],
+      "fixture": "booking",
+      "fictionalProvider": "pms-stripe",
+      "requires": {
+        "jobs": true,
+        "scanner": true
+      }
+    },
+    {
+      "id": "pms.provider-fixture.unit",
+      "lane": "unit",
+      "owner": "pms",
+      "modules": [
+        "pms"
+      ],
+      "files": [
+        "tests/unit/pms-provider-fixture.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
+      "id": "shared.runtime.request-memo.unit",
+      "lane": "unit",
+      "owner": "shared.runtime",
+      "modules": [
+        "pms",
+        "identity_access"
+      ],
+      "files": [
+        "tests/unit/request-memo.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
+      "id": "shared.runtime.database-pool-policy.unit",
+      "lane": "unit",
+      "owner": "shared.runtime",
+      "modules": [
+        "pms"
+      ],
+      "files": [
+        "tests/unit/database-pool-policy.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
+      "id": "shared.evidence.investor-report.unit",
+      "lane": "unit",
+      "owner": "shared.evidence",
+      "modules": [
+        "collaboration",
+        "finance",
+        "pms",
+        "pos"
+      ],
+      "files": [
+        "tests/unit/investor-report.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
       "id": "shared.evidence.acceptance-evidence.unit",
       "lane": "unit",
       "owner": "shared.evidence",
@@ -3259,7 +3346,7 @@
       ],
       "fixture": "local-seed",
       "requires": {
-        "jobs": false,
+        "jobs": true,
         "scanner": false
       }
     },
@@ -3374,8 +3461,8 @@
       ],
       "fixture": "booking",
       "requires": {
-        "jobs": false,
-        "scanner": false
+        "jobs": true,
+        "scanner": true
       }
     },
     {
@@ -9409,7 +9496,11 @@
         "talent"
       ],
       "files": [
-        "tests/work-attention.test.ts"
+        "tests/work-attention.test.ts",
+        "tests/unit/navigation-streaming.test.ts",
+        "tests/unit/navigation-snapshot.test.ts",
+        "tests/unit/home-cache.test.ts",
+        "tests/unit/home-lazy-loading.test.ts"
       ],
       "fixture": "none",
       "requires": {
@@ -10603,7 +10694,9 @@
         "talent"
       ],
       "files": [
-        "tests/unit/browser-prerequisites.test.ts"
+        "tests/unit/browser-prerequisites.test.ts",
+        "tests/unit/browser-readiness.test.ts",
+        "tests/unit/next-development-debug.test.ts"
       ],
       "fixture": "none",
       "requires": {
@@ -11241,7 +11334,8 @@
         "pos"
       ],
       "files": [
-        "tests/unit/pos-application.test.ts"
+        "tests/unit/pos-application.test.ts",
+        "tests/unit/latest-read.test.ts"
       ],
       "fixture": "none",
       "requires": {
@@ -12301,6 +12395,367 @@
         "tests/unit/browser-isolation-receipts.test.ts"
       ],
       "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
+      "id": "hospitality.boundaries.unit",
+      "lane": "unit",
+      "owner": "pms",
+      "modules": [
+        "pms",
+        "pos",
+        "finance",
+        "identity_access"
+      ],
+      "files": [
+        "tests/unit/guest-account-compat.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
+      "id": "finance.sales-workspace.integration",
+      "lane": "integration",
+      "owner": "finance",
+      "modules": [
+        "finance",
+        "sales",
+        "inventory"
+      ],
+      "files": [
+        "tests/finance-sales-workspace.test.ts"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
+      "id": "finance.sales-workspace.e2e",
+      "lane": "e2e",
+      "owner": "finance",
+      "modules": [
+        "finance",
+        "sales",
+        "inventory"
+      ],
+      "files": [
+        "tests/e2e/finance-sales-workspace.spec.ts"
+      ],
+      "fixture": "general-company",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
+      "id": "pms.cache-upgrade.integration",
+      "lane": "integration",
+      "owner": "pms",
+      "modules": [
+        "pms",
+        "finance",
+        "pos"
+      ],
+      "files": [
+        "tests/pms-cache-upgrade.test.ts"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
+      "id": "shared.commands.transaction-local-assertions.integration",
+      "lane": "integration",
+      "owner": "shared.commands",
+      "modules": [
+        "agent",
+        "assets",
+        "benefits",
+        "brand",
+        "collaboration",
+        "commercial",
+        "crm",
+        "customer_360",
+        "customer_authority",
+        "ecommerce",
+        "field_service",
+        "finance",
+        "identity_access",
+        "inventory",
+        "learning",
+        "legal",
+        "maintenance",
+        "manage_erpx",
+        "manufacturing",
+        "marketing",
+        "operations",
+        "organization",
+        "people_payroll",
+        "planning",
+        "platform_administration",
+        "pms",
+        "pos",
+        "procurement",
+        "projects",
+        "quality",
+        "sales",
+        "support",
+        "talent"
+      ],
+      "files": [
+        "tests/command-assertions.test.ts"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
+      "id": "shared.commands.transaction-local-assertions-upgrade.integration",
+      "lane": "integration",
+      "owner": "shared.commands",
+      "modules": [
+        "agent",
+        "assets",
+        "benefits",
+        "brand",
+        "collaboration",
+        "commercial",
+        "crm",
+        "customer_360",
+        "customer_authority",
+        "ecommerce",
+        "field_service",
+        "finance",
+        "identity_access",
+        "inventory",
+        "learning",
+        "legal",
+        "maintenance",
+        "manage_erpx",
+        "manufacturing",
+        "marketing",
+        "operations",
+        "organization",
+        "people_payroll",
+        "planning",
+        "platform_administration",
+        "pms",
+        "pos",
+        "procurement",
+        "projects",
+        "quality",
+        "sales",
+        "support",
+        "talent"
+      ],
+      "files": [
+        "tests/command-assertions-upgrade.test.ts"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
+      "id": "shared.commands.receipt-hash-partitions.integration",
+      "lane": "integration",
+      "owner": "shared.commands",
+      "modules": [
+        "agent",
+        "assets",
+        "benefits",
+        "brand",
+        "collaboration",
+        "commercial",
+        "crm",
+        "customer_360",
+        "customer_authority",
+        "ecommerce",
+        "field_service",
+        "finance",
+        "identity_access",
+        "inventory",
+        "learning",
+        "legal",
+        "maintenance",
+        "manage_erpx",
+        "manufacturing",
+        "marketing",
+        "operations",
+        "organization",
+        "people_payroll",
+        "planning",
+        "platform_administration",
+        "pms",
+        "pos",
+        "procurement",
+        "projects",
+        "quality",
+        "sales",
+        "support",
+        "talent"
+      ],
+      "files": [
+        "tests/command-receipts-partitions.test.ts"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
+      "id": "shared.commands.receipt-hash-partitions-upgrade.integration",
+      "lane": "integration",
+      "owner": "shared.commands",
+      "modules": [
+        "agent",
+        "assets",
+        "benefits",
+        "brand",
+        "collaboration",
+        "commercial",
+        "crm",
+        "customer_360",
+        "customer_authority",
+        "ecommerce",
+        "field_service",
+        "finance",
+        "identity_access",
+        "inventory",
+        "learning",
+        "legal",
+        "maintenance",
+        "manage_erpx",
+        "manufacturing",
+        "marketing",
+        "operations",
+        "organization",
+        "people_payroll",
+        "planning",
+        "platform_administration",
+        "pms",
+        "pos",
+        "procurement",
+        "projects",
+        "quality",
+        "sales",
+        "support",
+        "talent"
+      ],
+      "files": [
+        "tests/command-receipts-upgrade.test.ts"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
+      "id": "shared.runtime.indexed-property-transactions.integration",
+      "lane": "integration",
+      "owner": "shared.runtime",
+      "modules": [
+        "agent",
+        "assets",
+        "benefits",
+        "brand",
+        "collaboration",
+        "commercial",
+        "crm",
+        "customer_360",
+        "customer_authority",
+        "ecommerce",
+        "field_service",
+        "finance",
+        "identity_access",
+        "inventory",
+        "learning",
+        "legal",
+        "maintenance",
+        "manage_erpx",
+        "manufacturing",
+        "marketing",
+        "operations",
+        "organization",
+        "people_payroll",
+        "planning",
+        "platform_administration",
+        "pms",
+        "pos",
+        "procurement",
+        "projects",
+        "quality",
+        "sales",
+        "support",
+        "talent"
+      ],
+      "files": [
+        "tests/indexed-property-transactions.test.ts"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
+      "id": "shared.runtime.pipelined-transactions.integration",
+      "lane": "integration",
+      "owner": "shared.runtime",
+      "modules": [
+        "agent",
+        "assets",
+        "benefits",
+        "brand",
+        "collaboration",
+        "commercial",
+        "crm",
+        "customer_360",
+        "customer_authority",
+        "ecommerce",
+        "field_service",
+        "finance",
+        "identity_access",
+        "inventory",
+        "learning",
+        "legal",
+        "maintenance",
+        "manage_erpx",
+        "manufacturing",
+        "marketing",
+        "operations",
+        "organization",
+        "people_payroll",
+        "planning",
+        "platform_administration",
+        "pms",
+        "pos",
+        "procurement",
+        "projects",
+        "quality",
+        "sales",
+        "support",
+        "talent"
+      ],
+      "files": [
+        "tests/pipelined-transactions.test.ts"
+      ],
+      "fixture": "postgres",
       "requires": {
         "jobs": false,
         "scanner": false

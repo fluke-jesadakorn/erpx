@@ -668,7 +668,7 @@ export function SocialPostContentEditor({
   const chooseSuggestion = useCallback(
     (item: Suggestion) => {
       const active = tokenRef.current;
-      if (!editor || !active) return;
+      if (disabled || !editor || !active) return;
       editor
         .chain()
         .focus()
@@ -689,7 +689,7 @@ export function SocialPostContentEditor({
         .run();
       dismissSuggestions();
     },
-    [editor, dismissSuggestions],
+    [disabled, editor, dismissSuggestions],
   );
   const moveSelection = useCallback((delta: number) => {
     if (!suggestionsRef.current.length) return;
@@ -961,7 +961,7 @@ export function SocialPostContentEditor({
             </Field>
           </div>
           <SocialSuggestionMenu
-            open={!!token && !composing}
+            open={!disabled && !!token && !composing}
             listId={listId}
             trigger="@"
             results={suggestions}

@@ -1,0 +1,47 @@
+{
+  "observedAt": "2026-10-11T17:50:52.204600+00:00",
+  "scope": "Staff review native iteration on main source; not compiled-release acceptance",
+  "receipts": [
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-business-upgrade-group/staff-review-before.json",
+      "sha256": "bc79b0c5857530838ba14371b041bd1d82b732172c879dfdcbc318d4e484ce20",
+      "passed": 0,
+      "failed": 2,
+      "outsideSelectedPattern": 37,
+      "terminalExit": 1
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-business-upgrade-group/staff-review-after.json",
+      "sha256": "ad2f3075178a6cc8694147db1c5782e66b883042e9ddc274aee75daf463aa88c",
+      "passed": 3,
+      "failed": 0,
+      "outsideSelectedPattern": 36,
+      "terminalExit": 0
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-business-upgrade-group/booking-regression.json",
+      "sha256": "de706d2b71eb7ca212abcd6235f483e12ab83d776eee655c912b6c79d6afa968",
+      "passed": 39,
+      "failed": 0,
+      "outsideSelectedPattern": 0,
+      "terminalExit": 0
+    }
+  ],
+  "sourceAfterTests": {
+    "runtime": "80373f59fb5ca26ad7553f5bb6a48b726d7b2b062706523e2b4b325244fcab8d",
+    "verification": "9b5f0284d0e6b22a7d7fbe37ff7d19f688fc2adade407533300e108fcbd0899d"
+  },
+  "typecheckMainAndEngineering": true,
+  "repair": [
+    "Review and apply no-additional-payment group date changes using their own allotment",
+    "Allow authorized staff to select active private rates; public guest rates remain restricted",
+    "Front review rate options no longer depend on configuration omitted from Front projection"
+  ],
+  "paidGroupAdditionalQuotaHoldVerified": false,
+  "remaining": [
+    "durable quota protection while additional group payment is pending",
+    "two-property dirty reset",
+    "actual UI and fresh entire final candidate gates"
+  ],
+  "wholePlanComplete": false
+}

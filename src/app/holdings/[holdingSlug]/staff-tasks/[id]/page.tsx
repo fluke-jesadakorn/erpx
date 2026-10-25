@@ -5,15 +5,11 @@ import betaStyles from "@/components/beta/beta.module.css";
 import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
 import { ApprovalAdminLink } from "@/components/modules/approval-admin-link";
 import { ApprovalHistory } from "@/components/modules/approval-history";
-import {
-TaskActions,
-TaskEditor,
-TaskDelegationControls,
-} from "@/components/modules/staff-work-controls";
+import { TaskActions, TaskEditor, TaskDelegationControls } from "@/components/records/loaders/modules--staff-work-controls";
 import { StatusBadge } from "@/components/ui/primitives";
 import { FlowPanel,documentFlow } from "@/components/workplace/flow-panel";
 import { RecordNextAction } from "@/components/workplace/record-next-action";
-import { WorkReturn } from "@/components/workplace/work-return";
+import { WorkReturn } from "@/components/records/loaders/workplace--work-return";
 import { ApiError } from "@/server/modules/runtime/public/http";
 import { pageError } from "@/server/modules/work_projection/public/page-error";
 

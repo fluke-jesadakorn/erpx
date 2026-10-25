@@ -1,4 +1,5 @@
 "use client";
+import { Dialog } from "@/components/ui/dialog";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
@@ -27,6 +28,7 @@ export function CRMIdentityConsole({
   const router = useRouter(),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
+    [history,setHistory]=useState<Array<Record<string,unknown>>|null>(null),
     last = useRef<{ body: string; key: string } | null>(null);
   async function send(body: Record<string, unknown>) {
     if (busy) return;
@@ -46,6 +48,7 @@ export function CRMIdentityConsole({
         throw new Error(j.error?.message ?? "Unable to save CRM identity.");
       }
       last.current = null;
+      setHistory(null);
       window.dispatchEvent(new Event("erpx:hub-saved"));
       router.refresh();
     } catch (e) {
@@ -177,6 +180,26 @@ export function CRMIdentityConsole({
         </FormLayout></HubForm>
       )}
       </div>
+      {data.canGuestReview&&<div className={styles.actions}>
+        <HubForm title="Review hotel guest link" label="Link hotel guest" primary={false}><FormLayout onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);void send({action:'link-guest',contactId:f.get('contactId'),guestId:f.get('guestId'),propertyId:f.get('propertyId'),evidence:f.get('evidence'),sharingEvidence:f.get('sharingEvidence')||undefined});}}>
+          <p>A different reviewer confirms the contact identity. Sharing hotel service history requires separate guest authorization evidence.</p>
+          <Field>Contact<Select name="contactId" required><option value="">Choose contact</option>{data.contacts.map(c=><option key={String(c.id)} value={String(c.id)}>{String(c.name)}</option>)}</Select></Field>
+          <Field>Hotel property ID<TextInput name="propertyId" required/></Field><Field>Hotel guest ID<TextInput name="guestId" required/></Field>
+          <Field>Identity review evidence<TextArea name="evidence" required minLength={3}/></Field><Field>Guest authorization evidence (optional)<TextArea name="sharingEvidence" minLength={3}/></Field>
+          <Button type="submit" clientManaged disabled={busy}>Confirm guest link</Button>
+        </FormLayout></HubForm>
+        <HubForm title="Review guest history sharing" label="Guest sharing authority" primary={false}><FormLayout onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget),link=data.guestLinks?.find(l=>l.id===f.get('linkId'));if(link)void send({action:'guest-sharing',linkId:link.id,expectedVersion:Number(link.version),state:f.get('state'),evidence:f.get('evidence')});}}>
+          <Field>Guest link<Select name="linkId" required><option value="">Choose link</option>{data.guestLinks?.map(l=><option key={String(l.id)} value={String(l.id)}>{String(data.contacts.find(c=>c.id===l.contact_id)?.name??'Contact')} · {String(l.property_name)} · {String(l.sharing_state)}</option>)}</Select></Field>
+          <Field>Decision<Select name="state"><option value="granted">Authorize service history sharing</option><option value="revoked">Revoke sharing</option></Select></Field>
+          <Field>Authority or withdrawal evidence<TextArea name="evidence" required minLength={3}/></Field><Button type="submit" clientManaged disabled={busy}>Save sharing decision</Button>
+        </FormLayout></HubForm>
+      </div>}
+      {!!data.guestLinks?.length&&<HubTable label="Hotel guest sharing" columns={['Contact','Hotel','Authority','History']}>
+        {data.guestLinks.map(link=><tr key={String(link.id)}><td>{String(data.contacts.find(c=>c.id===link.contact_id)?.name??'Contact')}</td><td>{String(link.property_name)}</td><td>{String(link.sharing_state)}</td><td><Button disabled={busy||link.sharing_state!=='granted'} variant="plain" onClick={async()=>{setBusy(true);setError('');try{const r=await workFetch(`/api/v1${base}/crm?${new URLSearchParams({view:'guest-history',id:String(link.contact_id)})}`),j=await r.json();if(!r.ok)throw new Error(j.error?.message??'History unavailable');setHistory(j.data.stays);}catch(e){setError(e instanceof Error?e.message:'History unavailable');}finally{setBusy(false);}}}>Hotel service history</Button></td></tr>)}
+      </HubTable>}
+      {history&&<Dialog open onClose={()=>setHistory(null)} title="Authorized hotel service history" presentation="form-drawer"><p>Latest 200 stays in the authorized Company/Branch scope. Revocation is applied on every history request.</p><HubTable label="Guest stays" columns={['Hotel','Arrival','Departure','State']}>
+        {history.map(row=><tr key={`${row.property_id}-${row.stay_id??row.reservation_id}`}><td>{String(row.property_id)}</td><td>{String(row.arrival??'—')}</td><td>{String(row.departure??'—')}</td><td>{String(row.stay_state??row.reservation_state)}</td></tr>)}
+      </HubTable>{!history.length&&<p>No authorized stays in this scope.</p>}</Dialog>}
       <div className={styles.section}>
         <HubSegments base={base} hub="customers" query={{ ...query, view: "contacts" }} name="list" selected={queryValue(query, "list", "accounts")} label="Prospect record type" values={[["accounts", "Prospects"], ["contacts", "Contacts"]]} />
         <HubFilters query={{ ...query, view: "contacts" }} placeholder="Search prospects and contacts" />

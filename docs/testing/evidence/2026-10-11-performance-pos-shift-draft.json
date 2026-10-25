@@ -1,0 +1,220 @@
+{
+  "recordedAtUTC": "2026-10-11T03:13:41.724747+00:00",
+  "goalComplete": false,
+  "ownedRuntimeFiles": [
+    "src/components/pos/pos-console.tsx"
+  ],
+  "ownedSourceFingerprintAfterPatchBeforeJointLocalization": "af7d84fce961f0b19b0700ef797423fb11467853a97b7db17b8fef7370168218",
+  "jointCandidateFingerprint": "0e0509994001fced4cd438e2a72999c740f60113fd5838c6b3ee54ca0c620a3b",
+  "runtimeFileSha256": "14c03bd948b5b895827d31e7cf32d42e87e271a44aaebba4e0d61cf835c66ba0",
+  "problem": "Native existing Front Shifts opening float1 disappears to0 after History and returning to Shifts; no shift saved. Uncontrolled opening input unmounts during tab/read loading.",
+  "change": [
+    "Own register/opening draft in retained FrontPosDaily parent; controlled fields survive tab/read remounts.",
+    "Reset opening when form register changes or source active register changes. Retain the prior form register choice in the same source scope.",
+    "Key FrontPosDaily by base, command scope and user; existing Server PosConsole actor Company/Branch/assignment key additionally separates authority.",
+    "Clear submitted opening draft only after a successful command result and only if the draft object has not changed while awaiting it. No command envelope/API changes."
+  ],
+  "nativeAcceptance": {
+    "redOpeningAfterTabRoundtrip": "0 (started1)",
+    "greenOpeningAfterTabRoundtrip": "1",
+    "greenRegisterChangeResetsOpening": "0",
+    "originalAcmeRegisterRestored": true,
+    "noShiftOpened": true,
+    "noBusinessCommandSaved": true,
+    "screenshot": {
+      "path": ".scratch/dev/optimization-resumed-pos-draft.png",
+      "sha256": "29bcf03980fa2cdcaeedeb907550479c26f7c9ca65cd87b087ddadb9673bfef6"
+    },
+    "frontRoleChange": "Repeated dirty-form role confirmation attempts hit computer-use timeouts. Native Raise/Cancel closed the last dialog; normal DOM confirms Holding Owner and opening0. No role commit/reset acceptance claimed.",
+    "finalScopeCheck": {
+      "startedAtUTC": "2026-10-11T03:51:18.009Z",
+      "from": "POS manager",
+      "to": "Holding Owner",
+      "draftBefore": "1",
+      "confirmed": false,
+      "selectTimedOut": true,
+      "dirtyConfirmationCommitAccepted": false,
+      "cancellationKeepsManagerDraft": "1",
+      "retainedManagerDraftBeforeRoleSwitch": "1",
+      "switchFromHistorySucceeded": true,
+      "holdingOwnerDraftAfterRoleSwitch": "0",
+      "normalReloadPersistedOwner": true,
+      "normalReloadOpeningFloat": "0",
+      "englishRestored": true,
+      "noBusinessCommandSaved": true,
+      "recordedAtUTC": "2026-10-11T03:53:41.424Z"
+    },
+    "finalRoleReceipt": {
+      "path": ".scratch/dev/optimization-final-pos-role-scope.json",
+      "sha256": "85b2356e58b2510595a9df5907dc61b87dc59a96288619d2c58c764143d62f68"
+    },
+    "finalScreenshot": {
+      "path": ".scratch/dev/optimization-final-pos-owner-zero.png",
+      "sha256": "06f4ea3d6a9ccec31a18425851e998d31de388470b30e4c62f0181be17068609"
+    }
+  },
+  "checks": {
+    "typecheckOnOwnedPatch": "pass",
+    "ownedLint": "pass;0warnings",
+    "repositoryLint": "pass;0errors/3existingwarnings",
+    "architecture": "pass",
+    "latestReadUnits": "7pass/1file",
+    "jointTypecheck": "pass on final f13ca97b",
+    "isolatedJointBuild": "pass on final f13ca97b after PMS leaf localization alignment"
+  },
+  "checkReceipts": [
+    {
+      "path": ".scratch/dev/optimization-shift-draft-typecheck.log",
+      "sha256": "ae3aa3d40f2b7fdeaf8ae4398c41416876c85fc2ccc6aa232e526fdb75f340ef"
+    },
+    {
+      "path": ".scratch/dev/optimization-shift-draft-lint.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/dev/optimization-shift-draft-lint-full.log",
+      "sha256": "827c4aba480463caff85470227105c05ff46cd40693fc7c1b1f9f25d59f13231"
+    },
+    {
+      "path": ".scratch/dev/optimization-shift-draft-architecture.log",
+      "sha256": "61f27aa5d383438fa7955c201143725c76302dadbcb2c312efa2d398a9d6f86b"
+    },
+    {
+      "path": ".scratch/dev/optimization-shift-draft-reads.log",
+      "sha256": "d0b1216fe252b7a54404c88ecbef7b64a90fdda46e6c06cddc58b66211923eaa"
+    },
+    {
+      "path": ".scratch/dev/optimization-shift-draft-joint-typecheck.log",
+      "sha256": "ae3aa3d40f2b7fdeaf8ae4398c41416876c85fc2ccc6aa232e526fdb75f340ef"
+    },
+    {
+      "path": ".scratch/dev/optimization-shift-draft-build.log",
+      "sha256": "6c79947a560dee693b745fe29ed8ddafa4dd2c60a60433c643b09649cc578bee"
+    }
+  ],
+  "delayedManualRead": {
+    "startedAtUTC": "2026-10-11T03:00:37.700Z",
+    "holdMs": 8000,
+    "mode": "manual-refresh-sale-to-history",
+    "errors": [],
+    "interceptionCleared": true,
+    "heldStatus": 200,
+    "oldNetworkId": "95626.287",
+    "oldResponseRelease": "already terminal",
+    "historyReady": true,
+    "networkTruncated": false,
+    "network": [
+      {
+        "event": "request",
+        "id": "95626.287",
+        "tab": "sale",
+        "time": 779986.229764
+      },
+      {
+        "event": "request",
+        "id": "95626.289",
+        "tab": "history",
+        "time": 779994.676239
+      },
+      {
+        "event": "failed",
+        "id": "95626.287",
+        "cancelled": true,
+        "time": 779994.681416
+      },
+      {
+        "event": "response",
+        "id": "95626.289",
+        "status": 200,
+        "time": 779994.892879
+      },
+      {
+        "event": "finished",
+        "id": "95626.289",
+        "cancelled": false,
+        "time": 779994.892289
+      }
+    ],
+    "finalUrl": "https://dev-pos.jesadakorn.com/acme/acme-co/holding?tab=history",
+    "completedAtUTC": "2026-10-11T03:00:49.667Z"
+  },
+  "historyInitialRead": {
+    "startedAtUTC": "2026-10-11T03:02:21.560Z",
+    "sourceFingerprint": "af7d84fce961f0b19b0700ef797423fb11467853a97b7db17b8fef7370168218",
+    "tab": "history",
+    "events": [],
+    "networkTruncated": false,
+    "readiness": {
+      "ready": "complete",
+      "languageReady": true,
+      "history": true
+    },
+    "hydratedHistoryReady": true,
+    "workspaceRequestsBeforeInput": 0,
+    "completedAtUTC": "2026-10-11T03:02:24.088Z"
+  },
+  "historyInitialReadRejectedCollection": {
+    "startedAtUTC": "2026-10-11T03:01:40.403Z",
+    "sourceFingerprint": "af7d84fce961f0b19b0700ef797423fb11467853a97b7db17b8fef7370168218",
+    "tab": "history",
+    "errors": [],
+    "readiness": {
+      "ready": "complete",
+      "languageReady": true,
+      "history": true
+    },
+    "hydratedHistoryReady": true,
+    "networkTruncated": true,
+    "workspaceRequestsBeforeInput": 0,
+    "events": [],
+    "completedAtUTC": "2026-10-11T03:01:47.689Z"
+  },
+  "historySearch": {
+    "startedAtUTC": "2026-10-11T03:02:38.295Z",
+    "events": [
+      {
+        "event": "Network.requestWillBeSent",
+        "id": "95626.526",
+        "tab": "history",
+        "status": null,
+        "time": 780106.135558
+      },
+      {
+        "event": "Network.responseReceived",
+        "id": "95626.526",
+        "tab": "history",
+        "status": 200,
+        "time": 780106.373626
+      }
+    ],
+    "truncated": false
+  },
+  "limitations": [
+    "Manual held response/cancellation is a correctness check; real visibility cadence remains bound to the earlier native visibility cohort.",
+    "First History reload network buffer truncated; subsequent continuous capture is not truncated and observes0 mount GET, followed by one successful Search GET.",
+    "Front has zero existing receipt rows under this saved account; receipt/editor matrix remains open.",
+    "Earlier1200 API timing samples are frozen to dae9ff8f; they do not measure this patch or joint localization.",
+    "Current-source20-navigation browser timings, p95/30% readiness and long-session dev stability remain open.",
+    "Source changed once after coordinated release of the window, interrupting the other task\u2019s full-suite source guard. Its partial checks are not adopted for this candidate."
+  ],
+  "jointCheckpointRelease": {
+    "id": "2026-10-11T03-11-15-106Z",
+    "sourceFingerprint": "0e0509994001fced4cd438e2a72999c740f60113fd5838c6b3ee54ca0c620a3b",
+    "node": "24.20.0"
+  },
+  "jointLocaleBoundaryCheckpoint": {
+    "release": "2026-10-11T03-17-09-990Z",
+    "sourceFingerprint": "131cb8707672e8b5ea8e0acc4aea1cc2ab26085ad3642f6ee62d2e3603daf448",
+    "typecheck": "pass",
+    "isolatedBuild": "pass",
+    "finalCandidate": false
+  },
+  "finalJointRelease": {
+    "release": "2026-10-11T03-31-25-954Z",
+    "sourceFingerprint": "f13ca97b1401ea244ae616242fcc873b16308d6dce04298c68dfa41918a484f7",
+    "typecheck": "pass",
+    "isolatedBuild": "pass",
+    "docsCheck": "pass",
+    "timedCohort": "in progress; preceding API evidence not reassigned"
+  }
+}

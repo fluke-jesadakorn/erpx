@@ -1,0 +1,327 @@
+{
+  "checkedAt": "2026-10-12T00:10:44.197118+00:00",
+  "scope": "Current19-requirement checkpoint with actual evidence and explicit remaining scope; not final acceptance",
+  "runtime": "51701d69c6d65dc1ee28480e7de4b404c89f3e32f8ab6c912c551568114b6bf6",
+  "verification": "6bec217508702c495235e2a3740598d3132176d24be4d6af9cb1845bfe5c95c9",
+  "currentSourceInspected": [
+    {
+      "file": "src/app/api/v1/holdings/[holdingSlug]/pms/route.ts",
+      "SHA256": "9c6fde6e4332376f81e6c75af4ecca04735424667a4ca863e5c96a5a45776523"
+    },
+    {
+      "file": "src/server/modules/pms/application/pms.ts",
+      "SHA256": "6f77601cbfa1a4e79e811372a6d7a3bb0834944704fcaa6758ae2e62f51e8dfe"
+    },
+    {
+      "file": "src/server/modules/pms/adapters/pms.ts",
+      "SHA256": "d719e20e8d803dd40885f2cabb833f1a53273dddc3117aa650a0930230611aeb"
+    },
+    {
+      "file": "src/lib/pms-read-selection.ts",
+      "SHA256": "f49956dee6b711acdd463c15f0fdd3e5d13296eefc4a9575ff4c05e5f5e15a6c"
+    }
+  ],
+  "requirements": [
+    {
+      "id": "vendor-research",
+      "requirement": "Six official vendor comparisons, language facts distinguished from fit assessments, and three-year TCO for 30/100/200 rooms at one/three hotels.",
+      "currentAuditStatus": "artifact-reviewed",
+      "evidence": [
+        {
+          "file": "docs/testing/pms-market-research-2026-10-09.md",
+          "SHA256": "86686613d7f4100e3d135f36d7f885882de7e1eb50f04d5f95e40a28d3fd3799"
+        }
+      ],
+      "proofAndLimits": "Six official vendors and six TCO scenarios remain documented. Unknown commercial amounts require quotations; language evidence and suitability assessments stay distinct.",
+      "wholeRequirementAcceptance": false
+    },
+    {
+      "id": "feature-register",
+      "requirement": "Every feature carries its status, owner, phase and evidence. Existing code or mock screens do not imply acceptance.",
+      "currentAuditStatus": "current-native-inventory; semantic-acceptance-pending",
+      "evidence": [
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-current67-native-inventory.json",
+          "SHA256": "82a964f522bd077814e8e91ca29da94f7a54293c238ff4de76817f50e50631b6"
+        }
+      ],
+      "proofAndLimits": "67 definitions retain owner/phase/status.137 original bindings and22 added cases are source/identity revalidated;61 pilot rows have native bindings. Rooming-list HTTP/UI proof and whole-feature semantic closure remain pending. No status promoted.",
+      "wholeRequirementAcceptance": false
+    },
+    {
+      "id": "prototype-variants",
+      "requirement": "A/B/C in the current ERPX shell, A as default, and a development-only comparison control.",
+      "currentAuditStatus": "source-and-render-evidence",
+      "evidence": [
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-final299-public-prototype.json",
+          "SHA256": "d0a6f9e6e721837a24e6b7430e451da5bb44533613b7b2491b9fcd04ccd3e4c6"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-11-pms-public-prototype-review.json",
+          "SHA256": "6c5f9375710c18c936506ed190d4c9bea15906f14f21ba8a904cb8ded34ce3d8"
+        }
+      ],
+      "proofAndLimits": "DefaultA and development-only A/B/C remain supported by prior source/render review; normal authenticated current public mockA renders. This is prototype appearance evidence.",
+      "wholeRequirementAcceptance": false
+    },
+    {
+      "id": "prototype-screens",
+      "requirement": "All requested staff and guest prototype screens, including Company Today, reservations/groups, room detail, housekeeping, Guest Accounts, cashier, Night Audit, configuration, reporting and guest self-service.",
+      "currentAuditStatus": "prior-render-evidence",
+      "evidence": [
+        {
+          "file": "docs/testing/evidence/2026-10-11-pms-public-prototype-review.json",
+          "SHA256": "6c5f9375710c18c936506ed190d4c9bea15906f14f21ba8a904cb8ded34ce3d8"
+        }
+      ],
+      "proofAndLimits": "The saved15-view review remains dated evidence for fictional screens and in-memory actions. Operational acceptance uses separate authenticated journeys.",
+      "wholeRequirementAcceptance": false
+    },
+    {
+      "id": "images",
+      "requirement": "Twelve imagegen sample images: three views each of Standard, Deluxe and Suite, plus lobby, pool and breakfast; consistent amenities, sample labels and replacement before live sale.",
+      "currentAuditStatus": "artifact-and-pixel-review-evidence",
+      "evidence": [
+        {
+          "file": "docs/testing/evidence/2026-10-11-pms-image-deliverables.json",
+          "SHA256": "ae5077099123b8800e20c579440e4f7369091a761e828f8f56e885247ce629a7"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-joint-compiled-images.json",
+          "SHA256": "e18f28286389cbb822cc052880886f4db565288b60e8050a991dc793105f5009"
+        }
+      ],
+      "proofAndLimits": "12 reviewed imagegen images and compiled byte agreement remain separate from hotel-specific publication approval. Sample labels and replacement before live sale remain required.",
+      "wholeRequirementAcceptance": false
+    },
+    {
+      "id": "ui-matrix",
+      "requirement": "Desktop/tablet/mobile, Thai/English, Light/Dark, keyboard behavior and right drawers with a fixed header and scrollable body.",
+      "currentAuditStatus": "partial-current-browser-and-prior-render-evidence",
+      "evidence": [
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-6bec-browser180-composite.json",
+          "SHA256": "5635ce8aa737e35db0679030d5f376c46b916c02afac3c1677ca21c7f83defeb"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-postrestart-public-drawers.json",
+          "SHA256": "aa6ef9d5474544300fe3662bac8dc995de9f8f42541181b146d3e823ed44941c"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-11-pms-public-prototype-review.json",
+          "SHA256": "6c5f9375710c18c936506ed190d4c9bea15906f14f21ba8a904cb8ded34ce3d8"
+        }
+      ],
+      "proofAndLimits": "Actual desktop/mobile keyboard and right drawer evidence plus dated tablet/language/theme prototype review exist. Original134 route gate remains running. Earlier hydration/resource observations are not erased by narrow passes.",
+      "wholeRequirementAcceptance": false
+    },
+    {
+      "id": "operational-rules",
+      "requirement": "Booking, group pickup, check-in/moves/no-show, split payer, POS room charge, refund, checkout, Night Audit and financial/authority refusal cases.",
+      "currentAuditStatus": "native-and-compiled-proofs; supplements-pending",
+      "evidence": [
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-final299-native.json",
+          "SHA256": "15d338a5ef29871c98cee6cb8fbf51cfd4a20b82cdf7bf3fa0e1e48d6cf9f297"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-final299-compiled-business36.json",
+          "SHA256": "4aeb55bd47cb83207421ea7f9eaa23a398fbda3186ce6e580a912ae67d699609"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-group-ui-supplement-prepared.json",
+          "SHA256": "94223a69d53eda8f4a220efdf350fba5eaccb67ae1777eda9b13f6ef2a5867b7"
+        }
+      ],
+      "proofAndLimits": "Actual native1446 and compiled36 retain their precise scopes. OriginalHTTP40 and additionalgroupUI6 are prepared/unexecuted; no complete operational acceptance yet.",
+      "wholeRequirementAcceptance": false
+    },
+    {
+      "id": "direct-recovery",
+      "requirement": "Multiple rooms/rates, child pricing, payment/deposit, confirmation email, booking changes, partial cancellation/refund, duplicates, delays, lost response and worker restart.",
+      "currentAuditStatus": "compiled-mock-recovery-passed; aggregate-pending",
+      "evidence": [
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-final299-compiled-business36.json",
+          "SHA256": "4aeb55bd47cb83207421ea7f9eaa23a398fbda3186ce6e580a912ae67d699609"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-6bec-browser180-composite.json",
+          "SHA256": "5635ce8aa737e35db0679030d5f376c46b916c02afac3c1677ca21c7f83defeb"
+        }
+      ],
+      "proofAndLimits": "Compiled original payment/refund recovery journeys pass with independent approvals, interruption and duplicate-money assertions. Mockprovider/outbox evidence is distinct from hosted provider test-mode and real delivery.",
+      "wholeRequirementAcceptance": false
+    },
+    {
+      "id": "mock-pilot",
+      "requirement": "User-authorized fictional hotels, staff and opening balances; separate reviewer roles, consecutive daily closes and Finance agreement.",
+      "currentAuditStatus": "actual-native-rehearsal; final-acceptance-pending",
+      "evidence": [
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-final299-native.json",
+          "SHA256": "15d338a5ef29871c98cee6cb8fbf51cfd4a20b82cdf7bf3fa0e1e48d6cf9f297"
+        },
+        {
+          "file": "docs/testing/pms-mock-pilot-2026-10-09.md",
+          "SHA256": "d5bfedbfb21aa5288ad78f4e5c067cf9c86ea39a1842e52a34aed36da7d57655"
+        }
+      ],
+      "proofAndLimits": "Fictional hotels/staff/opening balances are authorized. Native rehearsal retains independent reviewers, original funding and two Business Dates. Final operational/Finance feature reconciliation remains required; no real hotel input blocks mock engineering.",
+      "wholeRequirementAcceptance": false
+    },
+    {
+      "id": "migration-restore",
+      "requirement": "Additive migration preserving IDs, balances, documents and evidence; populated upgrade, encrypted restore and compatible rollback.",
+      "currentAuditStatus": "actual-compiled-rehearsal",
+      "evidence": [
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-final299-native.json",
+          "SHA256": "15d338a5ef29871c98cee6cb8fbf51cfd4a20b82cdf7bf3fa0e1e48d6cf9f297"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-dev1041-migration.json",
+          "SHA256": "4df6481360c54712ecf4559c5589bda863f9139ee00d658fe0a64e8aeaea8cc9"
+        }
+      ],
+      "proofAndLimits": "Populated compiled upgrade/encrypted restore retain8 databases,3 file stores,2486 table digests and originalIDs/money/documents. Installed dev1041 separately retains backups and21 unchanged digests. Scanner fixture and actual scanner evidence remain distinct; installed backup was not restored in place.",
+      "wholeRequirementAcceptance": false
+    },
+    {
+      "id": "capacity",
+      "requirement": "Release build with three hotels of 200 rooms, 730 days of history and 20 concurrent users; read p95 under one second and general write p95 under two seconds.",
+      "currentAuditStatus": "pending-current-strict-run",
+      "evidence": [
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-final299-native.json",
+          "SHA256": "15d338a5ef29871c98cee6cb8fbf51cfd4a20b82cdf7bf3fa0e1e48d6cf9f297"
+        }
+      ],
+      "proofAndLimits": "Current original840reads843writes has not run. Require3x200rooms/730day PMS history/20users, exact rawcounts, per-operation p95 thresholds, money/history/closing validations and cleanup. Prior capacity is historical; PMS history is not two-year Finance GL.",
+      "wholeRequirementAcceptance": false
+    },
+    {
+      "id": "same-candidate-gates",
+      "requirement": "Native, static, integration, required browser journeys and route checks on the final delivery candidate.",
+      "currentAuditStatus": "partial-current-gates; final-acceptance-pending",
+      "evidence": [
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-final299-native.json",
+          "SHA256": "15d338a5ef29871c98cee6cb8fbf51cfd4a20b82cdf7bf3fa0e1e48d6cf9f297"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-6bec-browser180-composite.json",
+          "SHA256": "5635ce8aa737e35db0679030d5f376c46b916c02afac3c1677ca21c7f83defeb"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-shared-keyboard-readiness-repair.json",
+          "SHA256": "fd669af6aa8136a8fc30292accd1af748fc9cf142e5116c47ce29b7d7ed52906"
+        }
+      ],
+      "proofAndLimits": "Runtime517 is unchanged. Native1446 is an actual299 invocation whose inputs are proven unchanged. Browser180 is exact95+2+10+2+71 composite, not a fresh full180 invocation. Routes134/supplements/capacity remain open.",
+      "wholeRequirementAcceptance": false
+    },
+    {
+      "id": "integration-phasing",
+      "requirement": "After-pilot SiteMinder SOAP/REST adapter with durable retry, deduplication, mapping, reconciliation and certification; government and specialist providers remain phased.",
+      "currentAuditStatus": "explicitly-after-pilot",
+      "evidence": [
+        {
+          "file": "docs/production-plan.md",
+          "SHA256": "a5c54fddc45daccc5bfab8ece1619c083747a400332c88f12fc9673ca2484a5c"
+        },
+        {
+          "file": "docs/testing/pms-market-research-2026-10-09.md",
+          "SHA256": "86686613d7f4100e3d135f36d7f885882de7e1eb50f04d5f95e40a28d3fd3799"
+        }
+      ],
+      "proofAndLimits": "Five partner families remain after-pilot. SiteMinder SOAP1.1 and selected REST adapter requirements are documented; partner contracts/certification/activation are not claimed implemented.",
+      "wholeRequirementAcceptance": false
+    },
+    {
+      "id": "environment-and-live-boundary",
+      "requirement": "Development on 3100/public console remains available, private production on 3101 and PostgreSQL on 5432 are preserved, staging is excluded, and live money/publication require separate approval.",
+      "currentAuditStatus": "current-checkpoint; final-recheck-required",
+      "evidence": [
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-postrestart-public-drawers.json",
+          "SHA256": "aa6ef9d5474544300fe3662bac8dc995de9f8f42541181b146d3e823ed44941c"
+        }
+      ],
+      "proofAndLimits": "Current guarded availability reports devlocal/public/privateproduction200 and PostgreSQL5432 ready. Dev is detached and pinned; staging is excluded. Final environment/UI check remains required. No real money or production publication.",
+      "wholeRequirementAcceptance": false
+    },
+    {
+      "id": "command-envelope",
+      "requirement": "Preserve operation, propertyId, expectedVersion, input and the Idempotency-Key header.",
+      "currentAuditStatus": "current-source-inspected; native-proof-available",
+      "evidence": [
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-final299-native.json",
+          "SHA256": "15d338a5ef29871c98cee6cb8fbf51cfd4a20b82cdf7bf3fa0e1e48d6cf9f297"
+        }
+      ],
+      "proofAndLimits": "Current API requires Idempotency-Key and delegates the original body to transactionalPMS. operation/propertyId/expectedVersion/input are preserved. Loaders inspect scoped lockedProperty before version-dependent mutation. Complete acceptance still needs remaining gates.",
+      "wholeRequirementAcceptance": false
+    },
+    {
+      "id": "authoritative-write-reads",
+      "requirement": "Keep bounded room-board reads separate from invariant-specific authoritative write readers under the Property lock and transaction.",
+      "currentAuditStatus": "current-source-inspected; concurrent-gates-pending",
+      "evidence": [
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-final299-native.json",
+          "SHA256": "15d338a5ef29871c98cee6cb8fbf51cfd4a20b82cdf7bf3fa0e1e48d6cf9f297"
+        }
+      ],
+      "proofAndLimits": "Current loadPms throws PMS_COMMAND_REQUIRES_COMPLETE_STATE for lock+selection. Invariant loaders use lock:true, scope/version and dedicated complete dependencies; adapterSQL uses FOR UPDATE OF p. Bounded snapshots remain UI-only; source inspection does not replace strict load proof.",
+      "wholeRequirementAcceptance": false
+    },
+    {
+      "id": "module-ownership",
+      "requirement": "Use Guest Account terminology and preserve ADR-040 ownership and historical evidence.",
+      "currentAuditStatus": "contract-and-native-evidence; final-semantic-pending",
+      "evidence": [
+        {
+          "file": "docs/adr/ADR-040-hospitality-module-ownership-and-guest-accounts.md",
+          "SHA256": "7faaf127844a08ffbba4a10e3b1e2bf76aae97d0d43bb9257768ae66e0d2da5d"
+        },
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-final299-native.json",
+          "SHA256": "15d338a5ef29871c98cee6cb8fbf51cfd4a20b82cdf7bf3fa0e1e48d6cf9f297"
+        }
+      ],
+      "proofAndLimits": "GuestAccount terminology and PMS/POS/Finance ownership retain ADR040. Native original allocation/reversal/cutover proofs remain actual. Final feature-specific operational evidence reconciliation is pending.",
+      "wholeRequirementAcceptance": false
+    },
+    {
+      "id": "real-provider-sandbox",
+      "requirement": "Distinct realStripe test-mode hostedCheckout/nativeledger evidence; releaseHTTP/mockprovider scope separate.",
+      "currentAuditStatus": "pending-current-supervised-hosted-run",
+      "evidence": [
+        {
+          "file": "docs/testing/evidence/2026-10-11-pms-main-aligned-provider-sandbox.json",
+          "SHA256": "3942b723b1e9fba61e80d183f93575e2392b3eefd7d094d2cb60f4721fe73e16"
+        }
+      ],
+      "proofAndLimits": "Historical seven hosted Stripe test-mode scenarios retain their original candidate and native cleanup scope. Current supervised7 still remains required. No real email, PromptPay refund, real guest return or signedwebhookE2E is inferred from that historical receipt.",
+      "wholeRequirementAcceptance": false
+    },
+    {
+      "id": "guest-crm-privacy",
+      "requirement": "Reviewed PMS/CRM identity links and scoped guest hotel-service history sharing with revocation and immutable evidence.",
+      "currentAuditStatus": "actual-separate-native9; semantic-acceptance-pending",
+      "evidence": [
+        {
+          "file": "docs/testing/evidence/2026-10-12-pms-final299-native.json",
+          "SHA256": "15d338a5ef29871c98cee6cb8fbf51cfd4a20b82cdf7bf3fa0e1e48d6cf9f297"
+        }
+      ],
+      "proofAndLimits": "Actual nineCRM cases are separately counted from requiredPMS native selection and revalidated by current native bindings. They prove application/PG review/withdrawal boundaries; no real guest consent or browser proof is inferred.",
+      "wholeRequirementAcceptance": false
+    }
+  ],
+  "wholePlanAccepted": false,
+  "authority": "docs/production-plan.md in main workspace; this evidence is a checkpoint, not a second delivery plan"
+}

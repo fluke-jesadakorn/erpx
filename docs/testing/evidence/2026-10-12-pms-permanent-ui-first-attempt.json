@@ -1,0 +1,10 @@
+{
+  "rawReceipt": ".scratch/dev/test-suites/browser/2026-10-11T19-05-25-153Z/receipt.json",
+  "rawReceiptSha256": "025c91768f5beb90ab8c93653db51c35e2e696ef554d0e7602afd1fedd0dc070",
+  "passed": false,
+  "cleanupFailures": [],
+  "desktopCasePassed": true,
+  "mobileCase": "timed out waiting for actual Refresh RSC response; no final acceptance",
+  "traceFinding": "Refresh click completed but no matching RSC response was recorded. Add the existing form managed-ready witness before editing, and a bounded response wait; retain all business assertions and 90-second budget.",
+  "applicationBugInferred": false
+}

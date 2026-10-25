@@ -1,4 +1,5 @@
 "use client";
+import { TimeText } from "@/components/time/time-preference-context";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { FormDisclosure } from "@/components/ui/form-disclosure";
@@ -20,7 +21,8 @@ export function CollaborationWorkConsole({
   const router = useRouter(),
     last = useRef<{ key: string; body: string } | null>(null),
     [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    [cardActions, setCardActions] = useState<Record<string, string>>({});
   async function send(input: unknown) {
     const body = JSON.stringify(input);
     if (last.current?.body !== body) last.current = { key: crypto.randomUUID(), body };
@@ -205,20 +207,28 @@ export function CollaborationWorkConsole({
           }}
         >
           <h2>{String(x.title)}</h2>
-          <p>
-            {String(x.source_type)} {String(x.source_id)} · {String(x.status)} ·{" "}
-            {String(x.owner_name ?? x.owner_id)}
-          </p>
+          <div style={{ gridColumn: "1 / -1" }}>
+            <p>Source: <a href={`${base}${String(x.source_href)}`}>{String(x.source_title)}</a></p>
+            <p>Status: {String(x.status)} · Owner: {String(x.owner_name ?? x.owner_id)}</p>
+            <p>Due: <TimeText value={Number(x.due_at)} appearance="standard" /></p>
+          </div>
+          {x.status === "completed" && x.completion_evidence && (
+            <section aria-label="Completion evidence" style={{ gridColumn: "1 / -1" }}>
+              <h3>Completion evidence</h3>
+              <p style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{String(x.completion_evidence)}</p>
+            </section>
+          )}
           {x.status === "open" && (
             <>
               <Field appearance="standard">
                 Action
-                <Select appearance="standard" name="action">
+                <Select appearance="standard" name="action" value={cardActions[String(x.id)] ?? "complete"} onChange={event => setCardActions(current => ({ ...current, [String(x.id)]: event.target.value }))}>
                   <option value="complete">Complete</option>
                   {data.canReview && <option value="reassign">Reassign</option>}
                   {data.canReview && <option value="cancel">Cancel</option>}
                 </Select>
               </Field>
+              {(cardActions[String(x.id)] ?? "complete") === "reassign" && <>
               <Field appearance="standard">
                 New owner
                 <Select appearance="standard" name="ownerId">
@@ -230,11 +240,12 @@ export function CollaborationWorkConsole({
                   ))}
                 </Select>
               </Field>
-              <PreferredDateTimeField appearance="standard" name="dueAt" label="New due" />
-              <Field appearance="standard">
+              <PreferredDateTimeField appearance="standard" name="dueAt" label="New due" required />
+              </>}
+              {(cardActions[String(x.id)] ?? "complete") === "complete" && <Field appearance="standard">
                 Completion evidence
-                <TextArea appearance="standard" name="evidence" />
-              </Field>
+                <TextArea appearance="standard" name="evidence" required minLength={3} />
+              </Field>}
               <Field appearance="standard">
                 Reason
                 <TextArea appearance="standard" name="reason" required minLength={3} />

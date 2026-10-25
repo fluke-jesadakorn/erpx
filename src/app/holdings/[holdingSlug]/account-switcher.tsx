@@ -305,7 +305,7 @@ export function AccountSwitcher({
                   <RoleSelect appearance={appearance}
                     assignments={assignments}
                     value={preferredAssignmentId ?? ""}
-                    disabled={Boolean(pending)}
+                    disabled={Boolean(pending) || busy}
                     onChange={(value) => void chooseRole(value)}
                   />
                   <p className="role-hint">

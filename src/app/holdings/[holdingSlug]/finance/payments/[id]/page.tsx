@@ -1,11 +1,11 @@
-import { FinanceRecordWorkspace, FinanceLegacyHeading } from "@/components/finance/finance-record-workspace";
+import { FinanceRecordWorkspace, FinanceLegacyHeading } from "@/components/records/loaders/finance--finance-record-workspace";
 import { TimeText } from "@/components/time/time-preference-context";
 import { BusinessDocumentBranding } from "@/components/brand/business-document";
 import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
 import { StatusBadge } from "@/components/ui/primitives";
-import { PaymentCorrection } from "@/components/modules/payment-correction";
-import { PaymentLifecycle } from "@/components/modules/payment-lifecycle";
-import {PaymentWithholdingPanel} from "@/components/finance/finance-thai-tax-console";
+import { PaymentCorrection } from "@/components/records/loaders/modules--payment-correction";
+import { PaymentLifecycle } from "@/components/records/loaders/modules--payment-lifecycle";
+import { PaymentWithholdingPanel } from "@/components/records/loaders/finance--finance-thai-tax-console";
 import {withholdingWorkspace} from "@/server/modules/finance/public/finance-withholding";
 import { minorToDecimal } from "@/lib/finance-money";
 import { hasPermission } from "@/lib/permissions";

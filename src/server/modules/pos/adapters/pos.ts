@@ -1,3 +1,5 @@
+import { roomChargeReversalWork } from "./room-charge-reversal-queue";
+import { posGuestAccountInterface } from "../../pms/public/pos-guest-account-interface";
 import { hospitalityOwnerProjectionSources as commerceProjectionSources } from "../../commerce/public/hospitality-owner-projection-sources";
 import { hospitalityOwnerProjectionSources as pmsProjectionSources } from "../../pms/public/hospitality-owner-projection-sources";
 import { readListPage } from "@/server/modules/work_projection/public/list-page";
@@ -18,6 +20,7 @@ import { PosReadFinanceFacts } from "../../finance/public/pos-facts";
 import { PosReadOrganizationFacts } from "../../organization/public/pos-facts";
 function unit(db: SqlDatabase): PosReadUnit<SqlStatement> {
     return {
+        hotelLinks: (company,branch) => posGuestAccountInterface(db).hotels(company,branch),
         readPosRegisters1: (facts: {
             company: string;
             branch: string | null;
@@ -36,7 +39,7 @@ function unit(db: SqlDatabase): PosReadUnit<SqlStatement> {
             branch2: string | null;
         }) => all(db, `SELECT r.id register_id,p.name hotel_name,p.state hotel_state,p.business_date,
    (p.config_json::jsonb->>'approvedBy' IS NOT NULL) finance_approved
-   FROM pos_registers r LEFT JOIN (${pmsProjectionSources.pms_properties}) p ON p.company_id=r.company_id AND p.branch_id=r.branch_id
+   FROM pos_registers r LEFT JOIN (${pmsProjectionSources.pms_properties}) p ON p.id=r.property_id AND p.company_id=r.company_id AND p.branch_id=r.branch_id
    WHERE r.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND r.active=true`, facts.company, facts.branch, facts.branch2),
         readCommerceSettings1: facts => PosReadCommerceFacts(db).readCommerceSettings1(facts),
         readCommerceSettings2: facts => PosReadCommerceFacts(db).readCommerceSettings2(facts),
@@ -105,24 +108,11 @@ function unit(db: SqlDatabase): PosReadUnit<SqlStatement> {
             fact1: string;
             company: string;
             branch_id: string | number | boolean | null;
-        }) => one(db, `SELECT ps.property_id,ps.record_id folio_entry_id,p.version property_version,r.reversal_entry_id,r.reason reversal_reason,r.reversed_at FROM (${pmsProjectionSources.pms_sources}) ps JOIN (${pmsProjectionSources.pms_properties}) p ON p.id=ps.property_id LEFT JOIN pos_room_charge_reversals r ON r.sale_id=? WHERE ps.source_key=? AND p.company_id=? AND p.branch_id=?`, facts.id, facts.fact1, facts.company, facts.branch_id),
+        }) => one(db, `SELECT ps.property_id,ps.record_id guest_account_entry_id,p.version property_version,r.reversal_entry_id,r.reason reversal_reason,r.reversed_at FROM (${pmsProjectionSources.pms_sources}) ps JOIN (${pmsProjectionSources.pms_properties}) p ON p.id=ps.property_id LEFT JOIN pos_room_charge_reversals r ON r.sale_id=? WHERE ps.source_key=? AND p.company_id=? AND p.branch_id=?`, facts.id, facts.fact1, facts.company, facts.branch_id),
         readPosConnections1: (facts: {
             company: string;
         }) => one(db, "SELECT * FROM pos_connections WHERE company_id=? AND state='ready'", facts.company),
-        readPmsProperties1: (facts: {
-            company: string;
-            branch_id: string | number | boolean | null;
-            currency: string | number | boolean | null;
-        }) => all(db, `SELECT p.id property_id,p.version property_version,s.id stay_id,
-    r.data_json::jsonb->>'number' room_number,g.data_json::jsonb->>'name' guest_name
-    FROM (${pmsProjectionSources.pms_properties}) p JOIN (${pmsProjectionSources.pms_records}) s ON s.property_id=p.id AND s.kind='stay'
-    JOIN (${pmsProjectionSources.pms_records}) f ON f.id=s.data_json::jsonb->>'folioId' AND f.property_id=p.id AND f.kind='folio'
-    JOIN (${pmsProjectionSources.pms_records}) r ON r.id=s.data_json::jsonb->>'roomId' AND r.property_id=p.id AND r.kind='room'
-    JOIN (${pmsProjectionSources.pms_records}) g ON g.id=s.data_json::jsonb->>'guestId' AND g.property_id=p.id AND g.kind='guest'
-    WHERE p.company_id=? AND p.branch_id=? AND p.state='open'
-    AND p.config_json::jsonb->>'currency'=? AND s.data_json::jsonb->>'state'='in_house'
-    AND f.data_json::jsonb->>'state'='open' AND COALESCE(f.data_json::jsonb->>'invoiceId','')=''
-    ORDER BY r.data_json::jsonb->>'number',g.data_json::jsonb->>'name' LIMIT 100`, facts.company, facts.branch_id, facts.currency),
+        readPmsProperties1: facts => posGuestAccountInterface(db).choices(facts.company,facts.branch_id,facts.currency,facts.propertyId),
         readPosRefundPayments1: (facts: {
             company: string;
         }) => all(db, "SELECT id,kind,record_id,state,last_error,payload_json,created_at,(SELECT r.version FROM pos_refund_payments rp JOIN pos_refunds r ON r.id=rp.refund_id WHERE rp.id=pos_jobs.record_id AND r.company_id=pos_jobs.company_id AND pos_jobs.kind='refund') refund_version FROM pos_jobs WHERE company_id=? AND (state='exception' OR kind IN ('connect','connect_refresh')) ORDER BY created_at DESC LIMIT 50", facts.company),
@@ -291,13 +281,13 @@ function unit(db: SqlDatabase): PosReadUnit<SqlStatement> {
     };
 }
 const application = createPosRead<SqlStatement>({ clock: { now: () => Date.now() }, uuid: randomUUID, hash: value => createHash("sha256").update(value).digest("hex"), environment: key => process.env[key], require: requirePermission, error: (status, code, message) => new ApiError(status, code, message), forActor: async (actor) => unit((await holdingResources(actor.holdingId)).write) });
-export function posWorkspace(actor: WorkContext, saleId?: string, historyQuery = '', section?: string, cursor?: string, frontMode = false) { return application.posWorkspace(actor, saleId, historyQuery, section, cursor, frontMode); }
+export function posWorkspace(actor: WorkContext, saleId?: string, historyQuery = '', section?: string, cursor?: string, frontMode = false, financeMode = false) { return application.posWorkspace(actor, saleId, historyQuery, section, cursor, frontMode, financeMode); }
 export function posExecutiveEvidenceRow(db: SqlDatabase, actor: WorkContext, metric: PosExecutiveEvidenceMetric, recordId: string, filters: {
     from: string;
     to: string;
     currency: string;
 }) { return application.posExecutiveEvidenceRow(unit(db), actor, metric, recordId, filters); }
-export function posWork(actor: WorkContext) { return application.posWork(actor); }
+export async function posWork(actor: WorkContext) { return [...await application.posWork(actor),...await roomChargeReversalWork(actor,"pos")]; }
 export function posReportReceipts(actor: WorkContext, group: {
     businessDate: string;
     registerId: string;

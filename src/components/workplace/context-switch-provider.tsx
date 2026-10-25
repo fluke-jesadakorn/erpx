@@ -2,8 +2,6 @@
 import { Button } from "@/components/ui/foundation";
 
 import {
-  createContext,
-  useContext,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -11,6 +9,8 @@ import {
   useTransition,
 } from "react";
 import { useRouter } from "next/navigation";
+import { ContextSwitchContext as Context, type SwitchRequest } from "./context-switch-context";
+export { useContextSwitch } from "./context-switch-context";
 import { WorkspaceMenu } from "./workspace-menu";
 import {
   confirmContextSwitch,
@@ -20,18 +20,6 @@ import {
 import { waitForWorkspaceMemory } from "@/lib/workspace-memory-client";
 import type { AccountWorkContext } from "@/lib/account-work-context";
 import { type UiAppearance } from "@/components/ui/foundation";
-
-type SwitchRequest = {
-  action: () => Promise<void>;
-  companyId?: string;
-  from?: string;
-  returnTo?: string;
-  onCommitted?: () => void;
-  scroll?: { x: number; y: number };
-  inspect?: boolean;
-};
-type SwitchContext = { busy: boolean; switchContext: (request: SwitchRequest) => Promise<boolean> };
-const Context = createContext<SwitchContext | null>(null);
 
 export function ContextSwitchProvider({ appearance = "legacy", children }: ({ children: React.ReactNode }) & { appearance?: UiAppearance }) {
   const router = useRouter();
@@ -222,10 +210,4 @@ export function ContextSwitchProvider({ appearance = "legacy", children }: ({ ch
       )}
     </Context.Provider>
   );
-}
-
-export function useContextSwitch() {
-  const value = useContext(Context);
-  if (!value) throw new Error("ContextSwitchProvider is required.");
-  return value;
 }

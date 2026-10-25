@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { expect, test, type Route } from "@playwright/test";
-import { openAccountMenu, searchRoleOptions } from "../helpers/context-switching-browser";
+import { openAccountMenu, matchingRoleOptions } from "../helpers/context-switching-browser";
 const base = "/holdings/acme/iam";
 test("user management previews, persistence, drag alternatives and responsive layouts", async ({
   page,
@@ -228,7 +228,9 @@ test("People inline ERPX grant submits revision, scope and idempotency to review
   await page.goto("/holdings/acme/people/access");
   await page.getByRole("navigation", { name: "Resource sections", exact: true })
     .getByRole("link", { name: "Accounts", exact: true }).click();
-  await page.locator("summary").filter({ hasText: /^Directory explorer$/ }).click();
+  const directoryExplorer=page.locator("summary").filter({hasText:/^\s*Directory explorer\s*$/});
+  await expect(directoryExplorer).toHaveCount(1);
+  await directoryExplorer.click();
   await page
     .getByRole("button", {
       name: "Accounts & connected directories",
@@ -291,7 +293,9 @@ test("People explorer search, pagination, one-context comparison, responsive pan
   await page.goto("/holdings/acme/people/access");
   await page.getByRole("navigation", { name: "Resource sections", exact: true })
     .getByRole("link", { name: "Accounts", exact: true }).click();
-  await page.locator("summary").filter({ hasText: /^Directory explorer$/ }).click();
+  const directoryExplorer=page.locator("summary").filter({hasText:/^\s*Directory explorer\s*$/});
+  await expect(directoryExplorer).toHaveCount(1);
+  await directoryExplorer.click();
   await page
     .getByRole("button", {
       name: "Accounts & connected directories",
@@ -399,7 +403,7 @@ test.beforeEach(async ({ page, baseURL }) => {
   // Holding preference. Select its existing role through the recovery menu.
   await page.goto("/holdings/acme/branches/bangkok/home");
   await openAccountMenu(page);
-  const roles = await searchRoleOptions(page, "holding owner");
+  const roles = await matchingRoleOptions(page, "holding owner");
   const [selected] = await Promise.all([
     page.waitForResponse(
       (response) =>
@@ -407,7 +411,6 @@ test.beforeEach(async ({ page, baseURL }) => {
         response.request().method() === "POST",
     ).then(async response => ({ ok: response.ok(), status: response.status(), body: await response.text() })),
     roles
-      .getByRole("option")
       .filter({ hasText: "Acme Corporation" })
       .click(),
   ]);
@@ -449,6 +452,7 @@ test.beforeEach(async ({ page, baseURL }) => {
   await page.route(companyUrl, retainCompanyResponse, { times: 1 });
   const [company] = await Promise.all([
     companyResponse,
+    page.waitForURL("**/holdings/acme/home",{waitUntil:"domcontentloaded"}),
     workspaces.getByRole("button", { name: "Acme Corporation", exact: true }).click(),
   ]);
   expect(company.ok, company.body).toBe(true);
@@ -483,42 +487,48 @@ test("IAM pages, provider selection, matrix explanation and keyboard navigation"
   ).toBeVisible();
   await page.getByRole("navigation", { name: "Resource sections", exact: true })
     .getByRole("link", { name: "Accounts", exact: true }).click();
-  await page.locator("summary").filter({ hasText: /^Directory explorer$/ }).click();
+  const directoryExplorer=page.locator("summary").filter({hasText:/^\s*Directory explorer\s*$/});
+  await expect(directoryExplorer).toHaveCount(1);
+  await directoryExplorer.click();
   await page.getByRole("button", { name: "Accounts & connected directories", exact: true }).click();
-  await page.getByRole("link", { name: "Advanced IAM console ↗", exact: true }).click();
-  await expect(page).toHaveURL("/holdings/acme/iam/matrix");
-  for (const [section, heading] of [
-    ["users", "Users"],
-    ["roles", "Roles & permissions"],
-    ["groups", "Groups & mappings"],
-    ["connections", "Directory connections"],
-    ["reviews", "Reviews & audit"],
-    ["my-access", "My access"],
+  const advancedIam = page.getByRole("link", { name: "Advanced IAM console ↗", exact: true });
+  await expect(advancedIam).toHaveAttribute("href", `${base}/matrix`);
+  await advancedIam.click();
+  await expect(page).toHaveURL("/holdings/acme/people/settings?section=matrix");
+  for (const [section, destination, heading] of [
+    ["users", "/holdings/acme/people", "People"],
+    ["roles", "/holdings/acme/people/settings?section=roles", "Roles & permissions"],
+    ["groups", "/holdings/acme/technology?view=organization", "Organization & Access"],
+    ["connections", "/holdings/acme/people/settings?section=connections", "Directory connections"],
+    ["reviews", "/holdings/acme/work?type=people_lifecycle", "My work"],
+    ["my-access", "/holdings/acme/people/settings?section=my-access", "People settings"],
   ]) {
     await page.goto(`${base}/${section}`);
+    await expect(page).toHaveURL(destination);
     await expect(
-      page.getByRole("heading", { name: heading, exact: true }),
+      page.getByRole("heading", { name: heading, exact: true, level: 1 }),
     ).toBeVisible();
+    if (section === "my-access") {
+      const myAccess = page.locator("#iam-my-access");
+      await expect(myAccess).toHaveCount(1);
+      const myAccessHeading = myAccess.getByRole("heading", { name: "My access", exact: true, level: 2 });
+      await expect(myAccessHeading).toHaveCount(1);
+      await expect(myAccessHeading).toBeVisible();
+    }
     await expect(
       page.getByText("Something went wrong", { exact: true }),
     ).toHaveCount(0);
-    if (section === "reviews") {
-      await page
-        .getByLabel("Search audit")
-        .fill("no-such-audit-browser-acceptance");
-      const response = page.waitForResponse(
-        (r) =>
-          r.url().includes("/iam/audit?") && r.request().method() === "GET",
-      );
-      await page
-        .getByRole("button", { name: "Search history", exact: true })
-        .click();
-      expect((await response).status()).toBe(200);
-      await expect(
-        page.getByText("No matching IAM events.", { exact: true }),
-      ).toBeVisible();
-    }
   }
+  // Lifecycle work and IAM audit history now have separate canonical pages.
+  await page.goto("/holdings/acme/people/settings?section=reviews");
+  await expect(page.getByRole("heading", { name: "Reviews & audit", exact: true, level: 1 })).toBeVisible();
+  await page.getByLabel("Search audit").fill("no-such-audit-browser-acceptance");
+  const auditResponse = page.waitForResponse(
+    (r) => r.url().includes("/iam/audit?") && r.request().method() === "GET",
+  );
+  await page.getByRole("button", { name: "Search history", exact: true }).click();
+  expect((await auditResponse).status()).toBe(200);
+  await expect(page.getByText("No matching IAM events.", { exact: true })).toBeVisible();
   await page.goto(`${base}/connections`);
   const provider = page.getByRole("combobox", {
     name: "Provider",
@@ -565,8 +575,9 @@ test("IAM pages, provider selection, matrix explanation and keyboard navigation"
     '"Permission","Decision"',
   );
   await page.goto("/my-access");
+  await expect(page).toHaveURL("/my-access");
   await expect(
-    page.getByRole("heading", { name: "My access", exact: true }),
+    page.getByRole("heading", { name: "My access", exact: true, level: 1 }),
   ).toBeVisible();
   expect(errors).toEqual([]);
   expect(

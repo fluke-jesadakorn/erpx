@@ -1,0 +1,195 @@
+{
+  "checkedAt": "2026-10-12T03:11:48.331960+00:00",
+  "scope": "Owned compiled mock hotel supplemental GUI6 and choice lifecycle3; not whole-pilot acceptance",
+  "candidate": {
+    "runtime": "4e2b60dc9e36878d4b6353a1a08470ccde2c960eb272fb954875c282b91ee909",
+    "verification": "50bce33b697dd5343dd05fc591c756a31133479048c287a2345a0dea218da7db",
+    "mainRuntime": "4e2b60dc9e36878d4b6353a1a08470ccde2c960eb272fb954875c282b91ee909",
+    "mainVerification": "50bce33b697dd5343dd05fc591c756a31133479048c287a2345a0dea218da7db",
+    "releaseDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.runtime/releases/2026-10-12T03-06-23-612Z",
+    "releaseId": "2026-10-12T03-06-23-612Z",
+    "fileManifestSha256": "9bd3aa57f8e6d8e4b2b89ce95f83b8779b83319b6d749207d052cec130ac09d4",
+    "releaseReusedForIdenticalRuntime": false
+  },
+  "passed": true,
+  "groupRoomingChecks": [
+    {
+      "name": "desktop: actual group-block drawer submits and persists two-room allocation without funding writes",
+      "passed": true,
+      "details": {
+        "blockId": "142b0675-ce25-4c7d-903d-af7d3ca97677",
+        "drawer": {
+          "x": 640,
+          "y": 0,
+          "width": 800,
+          "height": 900
+        }
+      }
+    },
+    {
+      "name": "desktop: staff booking UI searches its allocation, reviews signed price and confirms both persistent pickups",
+      "passed": true,
+      "details": {
+        "reservationId": "ee0881cb-53c7-4129-8b57-af1d7ca7198e",
+        "stayIds": [
+          "3772f821-d617-47d0-b59c-326d39ba3a7d",
+          "eefef41c-c057-48a4-a829-e5f3438d7115"
+        ],
+        "blockId": "142b0675-ce25-4c7d-903d-af7d3ca97677"
+      }
+    },
+    {
+      "name": "desktop: actual rooming editor changes one guest and reloads while original payer, accounts, second stay and frozen prices persist",
+      "passed": true,
+      "details": {
+        "stayId": "3772f821-d617-47d0-b59c-326d39ba3a7d",
+        "originalPayerId": "02b90dcd-9c69-4cf5-b76b-645e3f88013a",
+        "roomGuestId": "540be0a9-70c6-4589-bda7-000a87d56dd0"
+      }
+    },
+    {
+      "name": "mobile: actual group-block drawer submits and persists two-room allocation without funding writes",
+      "passed": true,
+      "details": {
+        "blockId": "c222adeb-1928-4d39-9b34-c779e26430e4",
+        "drawer": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 900
+        }
+      }
+    },
+    {
+      "name": "mobile: staff booking UI searches its allocation, reviews signed price and confirms both persistent pickups",
+      "passed": true,
+      "details": {
+        "reservationId": "57d2978e-dff8-4137-af0e-83d6e7f18c57",
+        "stayIds": [
+          "d7683b1c-cbec-4715-b51b-b339e877f6e5",
+          "f719b58e-0b20-4f0e-8014-6bf8de0cd580"
+        ],
+        "blockId": "c222adeb-1928-4d39-9b34-c779e26430e4"
+      }
+    },
+    {
+      "name": "mobile: actual rooming editor changes one guest and reloads while original payer, accounts, second stay and frozen prices persist",
+      "passed": true,
+      "details": {
+        "stayId": "d7683b1c-cbec-4715-b51b-b339e877f6e5",
+        "originalPayerId": "14728bd4-b866-4776-a082-822da961f296",
+        "roomGuestId": "749dda6c-fb6c-410e-b15c-dd4d4a7123a6"
+      }
+    }
+  ],
+  "choiceLifecycleChecks": [
+    {
+      "name": "Delayed initial choice read survives duplicate empty Enter with one request",
+      "passed": true,
+      "details": {
+        "initialRequests": 1
+      }
+    },
+    {
+      "name": "Off-page guest search deduplicates Enter and controlled selection survives a different query",
+      "passed": true,
+      "details": {
+        "targetId": "bd718eb1-7e77-4549-a316-7bd257f2e378",
+        "matchingRequests": 1,
+        "seededGuests": 65
+      }
+    },
+    {
+      "name": "Closing guest step aborts pending search and reopening retains valid selected guest",
+      "passed": true,
+      "details": {
+        "targetId": "bd718eb1-7e77-4549-a316-7bd257f2e378",
+        "requestAborted": true
+      }
+    }
+  ],
+  "normalAuthentication": true,
+  "normalFixtureCurrencySetup": {
+    "currency": "THB",
+    "fictionalManualUsdRate": "36",
+    "rateApiStatus": 201,
+    "preferenceApiStatus": 200,
+    "marketRateClaim": false
+  },
+  "payerDisplay": {
+    "desktop": "Fictional UI desktop payer",
+    "mobile": "Fictional UI mobile payer",
+    "assertedActualReviewText": true
+  },
+  "unchanged": {
+    "authoritativeGuestIdCommands": true,
+    "propertyLock": true,
+    "currencySetupRefusal": true,
+    "originalNativeRequired": 1342,
+    "priorAddedNative": 22,
+    "newChoiceNative": 1,
+    "requiredBrowser": 180,
+    "routeChecks": 134,
+    "httpSupplement": 40
+  },
+  "rawEvidence": [
+    {
+      "path": ".scratch/dev/pms-choice-review-candidate-2026-10-12/static-release-terminal.json",
+      "sha256": "c95b87b62159eae2a04e7bb7958507e8e2aa454a44b3c1472a7b48dad4285e24"
+    },
+    {
+      "path": ".scratch/dev/pms-choice-review-candidate-2026-10-12/candidate.json",
+      "sha256": "9877a599ca812e9b42e6f41277b39b9ebe21b161e51d3da193911752936eeb7b"
+    },
+    {
+      "path": ".scratch/dev/pms-choice-review-candidate-2026-10-12/rooming-proof/terminal.json",
+      "sha256": "8275d588d023a80d18c5d356b786975b59b04d4de53ea37631cbab8557f80634"
+    },
+    {
+      "path": ".scratch/dev/pms-choice-review-candidate-2026-10-12/rooming-proof/cleanup.json",
+      "sha256": "be805c57492e7fedba094ee35ee89f993acff18e308745f417044145a442ebb1"
+    },
+    {
+      "path": ".scratch/dev/pms-choice-review-candidate-2026-10-12/rooming-proof/cfd36fc50cbb/group-ui-result/result.json",
+      "sha256": "fd6cb8833796cfe3846e0ebf39a816da0139fabd9e7aac245642b65ff6e92168"
+    },
+    {
+      "path": ".scratch/dev/pms-choice-review-candidate-2026-10-12/rooming-proof/cfd36fc50cbb/group-ui-result/desktop-review-identity.json",
+      "sha256": "76370cba1bd35dde702222c6ac47402b268134860a06bb03785edfb978846294"
+    },
+    {
+      "path": ".scratch/dev/pms-choice-review-candidate-2026-10-12/rooming-proof/cfd36fc50cbb/group-ui-result/mobile-review-identity.json",
+      "sha256": "54b374cc539570f243c68b2307067eb778293d7c2d588983f7a057fbb2beb897"
+    },
+    {
+      "path": ".scratch/dev/pms-choice-review-candidate-2026-10-12/rooming-proof/group-ui-workload.ts",
+      "sha256": "2056bcdc8cf3582e25fb64d1693ad973361cd2405ffbc7641d25c676dec175ca"
+    }
+  ],
+  "historicalFailuresPreserved": [
+    {
+      "base": "pms-choice-dedup-candidate-2026-10-12",
+      "runs": [
+        "8b756caffadc",
+        "0ecd542e91c6",
+        "ffd4321aad75",
+        "e8988cf9b2ea"
+      ],
+      "scope": "Locator ambiguity, required checkbox omission, actual USD refusal and blank review identity; retained with cleanup"
+    },
+    {
+      "base": "pms-choice-review-candidate-2026-10-12/group-ui-attempt-01",
+      "run": "16c138782a54",
+      "scope": "One lifecycle check passed; off-page fixture target incorrectly selected guest00; actual name/id ordering used for next guest64 witness"
+    }
+  ],
+  "requiredGates": {
+    "state": "running",
+    "driver": ".scratch/dev/pms-choice-review-candidate-2026-10-12/required-gates-driver.ts",
+    "session": 46400
+  },
+  "wholePlanAccepted": false,
+  "productionPublished": false,
+  "realMoney": false,
+  "stagingAccessed": false
+}

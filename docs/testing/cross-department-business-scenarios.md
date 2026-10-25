@@ -150,16 +150,16 @@ Raw integration logs อยู่ ignored `.scratch/cross-department-audit/integ
 ### S07 — โรงแรมครบการเข้าพัก · ได้บางส่วน · E06
 
 - **เริ่ม/ข้อมูล:** C001 จอง 2 คืน ราคา 2,000/คืน มัดจำ 1,000 และ security deposit แยก; มีห้องหนึ่งห้อง housekeeping inspector และ night auditor คนละหน้าที่
-- **ส่งต่อ:** Reservation ยืนยันราคา/policy → Front Office รับ arrival → Housekeeping clean → Supervisor inspect → Front Office check-in → Cashier folio/refund → Night Audit → Finance; maintenance block ต้อง inspected release ก่อนขาย หัวหน้า Front Office รับ escalation ห้องไม่พร้อมก่อนเวลา check-in ที่โรงแรมกำหนด
+- **ส่งต่อ:** Reservation ยืนยันราคา/policy → Front Office รับ arrival → Housekeeping clean → Supervisor inspect → Front Office check-in → Cashier guest account/refund → Night Audit → Finance; maintenance block ต้อง inspected release ก่อนขาย หัวหน้า Front Office รับ escalation ห้องไม่พร้อมก่อนเวลา check-in ที่โรงแรมกำหนด
 - **Cases:** A deposit/stay/night audit/checkout ไม่มี revenue ซ้ำ; B room move/extend/partial group cancel/no-show ตาม policy; C last-room race, room maintenance, audit หยุดกลางงาน, refund/revoked staff ต้อง recover โดยคงยอด
 - **ผลลูกค้า:** จองแล้วมีห้องพร้อม บิลตรงนโยบาย ได้รับ confirmation และเงินค้ำคืนถูก
 - **ตรวจพบ:** domain tests ครอบคลุมหลายเคส; ไม่มี hotel config ใน Acme, email จริง/online payment/OTA adapter ยังไม่ยืนยันหรือ deferred; no-show policy ต้อง UAT เพิ่ม ไม่อนุมานจาก cancellation test → G07
 
 ### S08 — ร้านอาหารลงบิลเข้าห้อง · ยังไม่มี flow เชื่อมจริง · E07
 
-- **เริ่ม/ข้อมูล:** ผู้พัก in_house ห้อง 101, folio เปิด, POS บิล 535 บริษัท/สาขา/สกุลเงินเดียวกัน
-- **ส่งต่อ:** Cashier ส่ง guest/stay+bill lines → Front Office ยืนยันสิทธิ์ลงห้อง → PMS รับ folio entry → Finance รับ revenue จาก owner เดียว; ถ้ารับไม่สำเร็จ cashier ต้องเห็น pending/failed ก่อนปิดบิล หัวหน้าแคชเชียร์ตามทันที
-- **Cases:** A ลงห้องแล้ว checkout จ่ายรวมครั้งเดียว; B retry/timeout/checkout แข่งกับ charge ต้องไม่ซ้ำ; C void/refund แก้ทั้ง POS/PMS โดยไม่เปิด folio ปิดแล้วเอง
+- **เริ่ม/ข้อมูล:** ผู้พัก in_house ห้อง 101, guest account เปิด, POS บิล 535 บริษัท/สาขา/สกุลเงินเดียวกัน
+- **ส่งต่อ:** Cashier ส่ง guest/stay+bill lines → Front Office ยืนยันสิทธิ์ลงห้อง → PMS รับ guest account entry → Finance รับ revenue จาก owner เดียว; ถ้ารับไม่สำเร็จ cashier ต้องเห็น pending/failed ก่อนปิดบิล หัวหน้าแคชเชียร์ตามทันที
+- **Cases:** A ลงห้องแล้ว checkout จ่ายรวมครั้งเดียว; B retry/timeout/checkout แข่งกับ charge ต้องไม่ซ้ำ; C void/refund แก้ทั้ง POS/PMS โดยไม่เปิด guest account ปิดแล้วเอง
 - **ผลลูกค้า:** ค่าอาหารอยู่ในบิลห้องที่ถูกต้อง ไม่ต้องจ่ายสองครั้ง
 - **ตรวจพบ:** มี schema/prepareRoomCharge และ contract test เท่านั้น ไม่มี production caller และไม่มี room-charge tender ใน PaymentMethod → G08 ห้ามถือ minibar ของ PMS เป็น POS integration
 
@@ -243,7 +243,7 @@ P0 = ขวางบริการหลักของ scenario หรือ�
 | G05 P1 | Contract/milestone/change → delivery acceptance → invoice ไม่ผูกเป็น flow เดียว | PMO + Legal + Sales + Finance | milestone register อ้าง immutable contract/version และใบรับงานก่อนวางบิล | scope revision ทำให้ผู้เกี่ยวข้องรับรองใหม่; reject/rework ไม่วางบิลอัตโนมัติ; customer acceptance มีสิทธิ์และหลักฐาน |
 | G06 P0 ก่อนเปิด POS pilot | ยังไม่ตั้งบัญชี/เปิดขาย/กะ และไม่ยืนยัน provider+อุปกรณ์ | Store manager + Finance + IT | ใช้ระบบหน้าร้านเดิมระหว่าง acceptance | cash/split/คืนเงิน/ปิดกะครบผ่านเครื่องจริง; provider failure/retry/payout กระทบยอดได้; cashier ไม่ต้องมีสิทธิ์ manual GL |
 | G07 P0 ก่อนเปิดจองโรงแรม | Acme ไม่มี property/rooms/rates/publication; OTA/online payment deferred | Hotel manager + Reservations + Finance | รับจองด้วยระบบโรงแรมที่ใช้อยู่ พร้อมเจ้าของ inventory เดียว | 2 บทบาทจองห้องสุดท้ายไม่ซ้ำ; ส่ง email จริง; housekeeping/inspection/checkout/refund/audit ผ่าน; adapter OTA แยก gate |
-| G08 P0 สำหรับโรงแรมที่ต้องรวมค่าอาหาร | POS → PMS มีแค่ contract ไม่มี atomic tender | F&B + Front Office + Finance | เก็บค่าอาหารแยกพร้อม receipt ระหว่างยังไม่รองรับ room charge | bill/folio/payment/revenue source เชื่อมหนึ่งครั้ง; retry/void/refund/checkout race รวมยอดถูกและไม่รับรู้รายได้สองระบบ |
+| G08 P0 สำหรับโรงแรมที่ต้องรวมค่าอาหาร | POS → PMS มีแค่ contract ไม่มี atomic tender | F&B + Front Office + Finance | เก็บค่าอาหารแยกพร้อม receipt ระหว่างยังไม่รองรับ room charge | bill/guest account/payment/revenue source เชื่อมหนึ่งครั้ง; retry/void/refund/checkout race รวมยอดถูกและไม่รับรู้รายได้สองระบบ |
 | G09 P0 สำหรับธุรกิจซ่อม/บริการภาคสนาม | ticket → warranty → dispatch → parts → customer signoff ไม่มี | Service manager + Operations | ใช้ระบบ ticket/dispatch ภายนอกที่มีเจ้าของและเชื่อม invoice | SLA pause/reopen/parts reservation/visit/no-show/ลูกค้าไม่ยอมรับ/chargeable invoice มี flow ครบ |
 | G10 P0 สำหรับโรงงาน | ไม่มี production planning/BOM/work order/QC/WIP genealogy | Production + Planning + Cost accounting | ไม่ใช้ ERPX เป็นระบบควบคุมการผลิตหลัก | order → material/capacity → produce/scrap/rework → QC → ship ครบและต้นทุนกระทบ GL ได้ |
 | G11 P0 สำหรับจ่ายเงินเดือน; P1 สำหรับส่งงาน | Payroll preview ไม่ใช่ statutory/final pay; asset custody และงานค้างทุก domain ไม่ครบ | HR + Payroll + IT + หัวหน้าแผนก | Payroll ภายนอก; checklist ส่งต่องาน/ทรัพย์สินตาม source โดยผู้รับยืนยัน | validated adapter/approved liabilities/payment+correction; cutoff ไม่รอ clearance; ทุก open customer work มีผู้รับใหม่และห้าม grant กลับเอง |
@@ -468,7 +468,7 @@ P0 = ขวางบริการหลักของ scenario หรือ�
 | `pms/front-desk` | Front Office | flow_accepted | S07/S08 | E06/E07 | G07/G08 |
 | `pms/rooms` | Rooms | flow_accepted | S07/S08 | E06/E07 | G07/G08 |
 | `pms/housekeeping` | Housekeeping | flow_accepted | S07/S08 | E06/E07 | G07/G08 |
-| `pms/folios` | Folios & payments | flow_accepted | S07/S08 | E06/E07 | G07/G08 |
+| `pms/guest-accounts` | Guest Accounts & payments | flow_accepted | S07/S08 | E06/E07 | G07/G08 |
 | `pms/cashier` | Cashier shifts | flow_accepted | S07/S08 | E06/E07 | G07/G08 |
 | `pms/inventory` | Minibar & linen | flow_accepted | S07/S08 | E06/E07 | G07/G08 |
 | `pms/guests` | Guests | flow_accepted | S07/S08 | E06/E07 | G07/G08 |

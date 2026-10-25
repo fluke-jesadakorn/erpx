@@ -2,6 +2,7 @@ import { captureCaseScreenshot } from "../helpers/case-screenshot";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import {
   activeRoles,
+  addAccountFromMenu,
   chooseRole,
   expectWorkAssignment,
   expectPreservedScroll,
@@ -117,7 +118,7 @@ test("selecting the active role or account makes no switch request", async ({ pa
     if (request.method() === "POST" && /\/(assignments\/active|multi-session\/set-active)$/.test(new URL(request.url()).pathname)) switches.push(request.url());
   });
   await chooseRole(page, "holding_owner");
-  await expect(page.getByRole("combobox", { name: "Search roles", exact: true })).not.toBeVisible();
+  await expect(page.getByRole("group", { name: "Available roles", exact: true })).not.toBeVisible();
   await selectAccount(page, ownerEmail);
   await page.keyboard.press("Escape");
   expect(switches).toEqual([]);
@@ -173,10 +174,17 @@ test("a pending or failed switch hides old data, blocks interaction and preserve
 });
 
 test("a failed account switch keeps the current account and page usable", async ({ page, context }) => {
-  await signIn(context, peopleEmail, peoplePassword);
+  // The owner is the account under test here; the second persona is the one the
+  // switch attempts to activate, which must fail without replacing anything.
   const { user, assignment } = await ownerSession(context);
   await page.goto("/holdings/acme/finance?contextSwitch=account-failure#flow-title");
   await expectWorkAssignment(page, assignment.id);
+  await addAccountFromMenu(page, peopleEmail, peoplePassword);
+  // Registering the second persona activates it, so return to the owner
+  // through the real switcher before injecting the failure. The attempt below
+  // must then fail without replacing the owner's account or page.
+  await selectAccount(page, ownerEmail);
+  await expect(page.locator("[data-work-user]")).toHaveAttribute("data-work-user", user.id);
   const url = page.url(), unchangedDocument = await observeDocument(page);
   await page.route("**/multi-session/set-active", route => route.fulfill({
     status: 503, contentType: "application/json", body: JSON.stringify({ code: "SESSION_SWITCH_UNAVAILABLE", message: "Account could not be selected." }),
@@ -263,7 +271,7 @@ test("an account that keeps the workspace refreshes People in place and invalida
   await expect(page.locator("[data-work-user]")).toHaveAttribute("data-work-user", people.id);
   await expect(page.getByRole("button", { name: new RegExp(`Account menu for .*${peopleEmail.replaceAll(".", "\\.")}`) })).toBeVisible();
   await expect(page.locator(".active-work-role")).toContainText("people manager");
-  await expect(page.getByRole("region", { name: "Source panel row 1", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Positions and people", exact: true })).toBeVisible();
   await expect(page.getByRole("dialog", { name: "Account switcher", exact: true })).not.toBeVisible();
   await expect(page.getByRole("dialog", { name: "Switch workspace", exact: true })).not.toBeVisible();
   await expect(page).toHaveURL(url);

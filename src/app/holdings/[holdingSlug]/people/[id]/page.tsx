@@ -2,16 +2,13 @@ import { peoplePayrollPresentationQueries } from "@/server/modules/people_payrol
 
 import { TimeText } from "@/components/time/time-preference-context";
 import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
-import { AccessEditor } from "@/components/modules/access-editor";
-import { LevelAssignmentEditor } from "@/components/modules/level-assignment-editor";
-import { RecordDocumentPanel } from "@/components/attachments/record-document-panel";
-import {
-CompensationEditor,
-TimeEntryEditor,
-} from "@/components/modules/payroll-controls";
-import { PayrollCostAssignmentReview } from "@/components/modules/payroll-cost-assignments";
-import { PeopleEditor } from "@/components/modules/people-editor";
-import { LifecyclePanel } from "@/components/people/lifecycle-workspace";
+import { AccessEditor } from "@/components/records/loaders/modules--access-editor";
+import { LevelAssignmentEditor } from "@/components/records/loaders/modules--level-assignment-editor";
+import { RecordDocumentPanel } from "@/components/records/loaders/attachments--record-document-panel";
+import { CompensationEditor, TimeEntryEditor } from "@/components/records/loaders/modules--payroll-controls";
+import { PayrollCostAssignmentReview } from "@/components/records/loaders/modules--payroll-cost-assignments";
+import { PeopleEditor } from "@/components/records/loaders/modules--people-editor";
+import { LifecyclePanel } from "@/components/records/loaders/people--lifecycle-workspace";
 import { StatusBadge } from "@/components/ui/primitives";
 import { minorToDecimal } from "@/lib/finance-money";
 import { samePerson } from "@/lib/iam";

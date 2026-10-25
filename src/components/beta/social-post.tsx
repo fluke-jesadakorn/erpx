@@ -605,12 +605,20 @@ export function SocialPost({
         post.linkedSources.length > 0 && (
           <HandoverAcknowledgement appearance="standard" api={api} postId={post.id} version={post.version} />
         )}
+      {(post.appreciationCount > 0 || post.commentCount > 0) && (
+        <div className="beta-post-counts">
+          {post.appreciationCount > 0 && <span>{post.appreciationCount} Thanks</span>}
+          {post.commentCount > 0 && <span>{post.commentCount} comments</span>}
+        </div>
+      )}
       <div className="beta-post-actions">
         <Button appearance="standard"
-          type="submit"
+          type="button"
           variant="ghost"
           disabled={busy}
           aria-pressed={!!post.appreciated}
+          aria-label="Thanks"
+          title="Thanks"
           onClick={() =>
             action(post, {
               action: "appreciate",
@@ -618,30 +626,36 @@ export function SocialPost({
             })
           }
         >
-          <Heart size={16} /> Thanks {post.appreciationCount || ""}
+          <Heart size={16} aria-hidden="true" />
         </Button>
         <Button appearance="standard"
-          type="submit"
+          type="button"
           variant="ghost"
           aria-expanded={commentsOpen}
+          aria-label="Comment"
+          title="Comment"
           onClick={() => setCommentsOpen((value) => !value)}
         >
-          <MessageCircle size={16} /> Comment {post.commentCount || ""}
+          <MessageCircle size={16} aria-hidden="true" />
         </Button>
 
         {!post.hasTask && !post.linkedSources.length && (
           <Button appearance="standard"
-            type="submit"
+            type="button"
             variant="ghost"
             disabled={busy}
             onClick={() => prepare(post, "task", false)}
+            aria-label="Create task"
+            title="Create task"
           >
-            <Plus size={16} /> Create task
+            <Plus size={16} aria-hidden="true" />
           </Button>
         )}
       </div>
-      <div hidden={!commentsOpen}>
+      <div>
         <SocialComments
+          expanded={commentsOpen}
+          onExpand={() => setCommentsOpen(true)}
           api={api}
           post={post}
           userId={userId}

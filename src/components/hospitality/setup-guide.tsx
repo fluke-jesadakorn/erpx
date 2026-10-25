@@ -1113,7 +1113,7 @@ export function HospitalitySetupGuide({
                 ["Open restaurant cash session with counted float", "/pos?tab=shifts"],
                 ["Prepare and deliver a restaurant order", "/pos?tab=kitchen"],
                 ["Charge the unpaid bill to the checked-in room", "/pos"],
-                ["Settle the folio and check out", "/pms/folios"],
+                ["Settle the guest account and check out", "/pms/guest-accounts"],
                 ["Close cash sessions and review Night Audit", "/pms/night-audit"],
               ].map(([name, href]) => (
                 <li key={href}>

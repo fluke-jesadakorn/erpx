@@ -81,7 +81,7 @@ const icons = {
   "front-desk": Store,
   rooms: BedDouble,
   housekeeping: House,
-  folios: Receipt,
+  guestAccounts: Receipt,
   cashier: CreditCard,
   "night-audit": Moon,
   company: Building2,

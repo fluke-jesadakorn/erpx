@@ -595,6 +595,9 @@
   }
 }
 @media (max-width: 650px) {
+  .shell {
+    padding-bottom: calc(108px + env(safe-area-inset-bottom));
+  }
   .modern {
     gap: 1.25rem;
   }

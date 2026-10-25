@@ -1,3 +1,5 @@
+import { roomChargeReversalQueue } from "@/server/modules/pos/public/room-charge-reversal-queue";
+import { canonicalGuestAccount, guestAccountOperation } from "@/lib/guest-account-compat";
 import { z } from "zod";
 import { ensureFrontRole, frontCompanyBrand, frontLocationScope, frontOperationAllowed, frontRoleState, type FrontAppKind } from "@/server/modules/work_projection/public/front-app";
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
@@ -21,6 +23,7 @@ import { posProductImage } from "@/server/modules/pos/public/pos-images";
 import {frontTaxDocumentCommand,frontTaxDocumentView} from "@/server/modules/finance/public/hospitality-tax-documents";
 import {taxDocumentRequest} from "@/server/modules/finance/public/hospitality-tax-document-request";
 import {frontPmsAttachmentPaths,frontPmsAttachmentRequest} from "@/server/modules/pms/public/pms/front-attachments";
+import { moneyContext, preferenceSchema, saveCurrencyPreference } from "@/server/modules/finance/public/company-money";
 
 export const dynamic = "force-dynamic";
 
@@ -86,6 +89,15 @@ export async function GET(request: Request, { params }: Context) {
     if (rawApp !== "pos" && rawApp !== "pms")
       throw new ApiError(404, "NOT_FOUND", "Not found.");
     const app = rawApp as FrontAppKind;
+    if (path.join("/") === "room-charge-reversals") {
+      const actor=await frontActor(request,holdingSlug,companySlug,app);
+      const data=await roomChargeReversalQueue(actor,new URL(request.url).searchParams.get("property")??undefined);
+      return Response.json({data:data.filter(row=>row.stage===app)},{headers:{"Cache-Control":"private, no-store"}});
+    }
+    if (path.length === 1 && path[0] === "money") {
+      const actor = await frontActor(request, holdingSlug, companySlug, app);
+      return Response.json({ data: { ...await moneyContext(actor), canConfirmRate: false } }, { headers: { "Cache-Control": "private, no-store" } });
+    }
     if(app==='pms'&&frontPmsAttachmentPaths.has(path[0]))return await frontPmsAttachmentRequest(request,await frontActor(request,holdingSlug,companySlug,app),path);
     if(path.length===1&&path[0]==='tax-documents'){
       const actor=await frontActor(request,holdingSlug,companySlug,app);
@@ -168,6 +180,15 @@ export async function POST(request: Request, { params }: Context) {
     }
     const actor = await frontActor(request, holdingSlug, companySlug, app);
 
+    if (path[0] === "money") {
+      if (path.length !== 2 || path[1] !== "preference")
+        throw new ApiError(403, "FRONT_COMMAND_FORBIDDEN", "Currency administration is handled in ERPX.");
+      const input = await request.json().catch(() => { throw new ApiError(422, "INVALID_JSON", "Use a JSON body."); });
+      const parsed = preferenceSchema.safeParse(input);
+      if (!parsed.success) throw new ApiError(422, "INVALID_CURRENCY", parsed.error.issues[0]?.message ?? "Invalid currency.");
+      return Response.json({ data: await saveCurrencyPreference(actor, parsed.data, commandKey(request)) }, { headers: { "Cache-Control": "private, no-store" } });
+    }
+
     if(path.length===1&&path[0]==='tax-documents'){
       const {command,key}=await taxDocumentRequest(request);
       return Response.json({data:await frontTaxDocumentCommand(actor,command,key,app)},{headers:{'Cache-Control':'private, no-store'}});
@@ -190,6 +211,11 @@ export async function POST(request: Request, { params }: Context) {
       }) }, { headers: { "Cache-Control": "private, no-store" } });
     }
 
+    if (app === "pms" && path.length===2 && path[0]==="room_charge_reversal" && ["approve_pms","reject_pms"].includes(path[1])) {
+      const db=(await holdingResources(actor.holdingId)).write;
+      if(!isTransactionalSqlDatabase(db))throw new Error("POSTGRES_REQUIRED");
+      return Response.json({data:await posCommand(db as PostgresDatabase,actor,path.join("."),await request.json(),commandKey(request))},{headers:{"Cache-Control":"private, no-store"}});
+    }
     if (app === "pos") {
       if (path.length !== 2)
         throw new ApiError(403, "FRONT_COMMAND_FORBIDDEN", "Configuration and approvals are handled in ERPX.");
@@ -221,8 +247,8 @@ export async function POST(request: Request, { params }: Context) {
     if (path.length)
       throw new ApiError(403, "FRONT_COMMAND_FORBIDDEN", "Configuration and approvals are handled in ERPX.");
     const key = commandKey(request);
-    const body = await request.json();
-    const operation = typeof body?.operation === "string" ? body.operation : "";
+    const body = canonicalGuestAccount(await request.json());
+    const operation = typeof body?.operation === "string" ? guestAccountOperation(body.operation) : "";
     if (!frontOperationAllowed(app, operation))
       throw new ApiError(403, "FRONT_COMMAND_FORBIDDEN", "Configuration and approvals are handled in ERPX.");
     const db = (await holdingResources(actor.holdingId)).write;

@@ -1,8 +1,10 @@
 "use client";
-import { Button, TextInput, Combobox, type UiAppearance } from "@/components/ui/foundation";
 
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
+import { ArrowLeftRight, Check, ChevronUp } from "lucide-react";
+import { Button, type UiAppearance } from "@/components/ui/foundation";
 import type { WorkAssignment } from "@/server/modules/identity_access/public/authorization";
+import styles from "./role-select.module.css";
 
 export function RoleSelect({
   assignments,
@@ -18,131 +20,84 @@ export function RoleSelect({
   onChange: (value: string) => void;
 }) {
   const id = useId();
+  const trigger = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const [index, setIndex] = useState(0);
-  const options = assignments.map((a) => ({
-    value: a.id,
-    label: a.label ?? `${a.role.replaceAll("_", " ")} · ${a.scopeKind}`,
-  }));
-  const selected = options.find((o) => o.value === value)?.label;
-  const filtered = options.filter((o) =>
-    o.label.toLowerCase().includes(query.toLowerCase().trim()),
-  );
-  const active = Math.min(index, Math.max(0, filtered.length - 1));
-  function choose(next: string) {
+  const options = assignments.map((assignment) => {
+    const [name, ...scope] = (assignment.label ?? "").split(" · ");
+    return {
+      value: assignment.id,
+      name: name || assignment.role.replaceAll("_", " "),
+      scope: scope.join(" · ") || assignment.scopeKind.replaceAll("_", " "),
+    };
+  });
+  const selected = options.find((option) => option.value === value);
+
+  function close() {
     setOpen(false);
-    setQuery("");
-    onChange(next);
+    trigger.current?.focus({ preventScroll: true });
   }
-  if (appearance === "standard") return <div className="ui-stack" style={{gap:8}}><span className="menu-label">Role for actions & approvals</span><Combobox options={options} value={value} disabled={disabled} onValueChange={onChange} label="Role for actions & approvals" placeholder="Search roles…" /></div>;
+
   return (
     <div
-      className="role-combobox"
-      onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget)) {
-          setOpen(false);
-          setQuery("");
+      className={styles.switcher}
+      onKeyDown={(event) => {
+        if (open && event.key === "Escape") {
+          event.preventDefault();
+          event.stopPropagation();
+          close();
         }
       }}
     >
-      <span className="menu-label" id={`${id}-label`}>
-        Role for actions & approvals
-      </span>
-      {!open && (
-        <Button
-          variant="plain"
-          type="button"
-          className="work-role-trigger"
-          aria-labelledby={`${id}-label ${id}-value`}
-          aria-expanded={false}
-          aria-controls={`${id}-list`}
-          disabled={disabled}
-          onClick={() => {
-            setOpen(true);
-            setQuery("");
-            setIndex(0);
-          }}
-        >
-          <span id={`${id}-value`}>{selected ?? "Select a role"}</span>
-          <span className="work-role-chevron" aria-hidden="true">
-            ⌄
-          </span>
-        </Button>
-      )}
+      <div className={styles.heading}>
+        <span>Active role</span>
+        <span className={styles.count}>{options.length} {options.length === 1 ? "role" : "roles"}</span>
+      </div>
+      <Button
+        ref={trigger}
+        appearance={appearance}
+        variant="plain"
+        size="layout"
+        className={styles.trigger}
+        aria-label={`Switch role: ${selected ? `${selected.name} · ${selected.scope}` : "Choose a role"}`}
+        aria-expanded={open}
+        aria-controls={`${id}-roles`}
+        disabled={disabled || !options.length}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <span className={styles.copy}>
+          <strong>{selected?.name ?? "Choose a role"}</strong>
+          {selected && <small>{selected.scope}</small>}
+        </span>
+        <span className={styles.action}>
+          {open ? "Close" : "Switch role"}
+          {open ? <ChevronUp size={15} aria-hidden="true" /> : <ArrowLeftRight size={15} aria-hidden="true" />}
+        </span>
+      </Button>
       {open && (
-        <TextInput
-          id={id}
-          className="work-role-select"
-          role="combobox"
-          aria-label="Search roles"
-          aria-autocomplete="list"
-          aria-expanded={true}
-          aria-controls={`${id}-list`}
-          aria-activedescendant={filtered.length ? `${id}-option-${active}` : undefined}
-          autoFocus
-          autoComplete="off"
-          disabled={disabled}
-          value={query}
-          placeholder="Search roles…"
-          onChange={(event) => {
-            setQuery(event.target.value);
-            setIndex(0);
-            setOpen(true);
-          }}
-          onKeyDown={(event) => {
-            if (event.key === "Escape" && open) {
-              event.preventDefault();
-              event.stopPropagation();
-              setOpen(false);
-              setQuery("");
-            }
-            if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-              event.preventDefault();
-              setOpen(true);
-              setIndex((i) =>
-                Math.max(
-                  0,
-                  Math.min(filtered.length - 1, i + (event.key === "ArrowDown" ? 1 : -1)),
-                ),
-              );
-            }
-            if (event.key === "Enter" && open) {
-              event.preventDefault();
-              if (filtered[active]) choose(filtered[active].value);
-            }
-          }}
-        />
-      )}
-      {open && (
-        <>
-          <div
-            id={`${id}-list`}
-            className="role-results"
-            role="listbox"
-            aria-label="Available roles"
-          >
-            {filtered.map((option, i) => (
-              <div
-                key={option.value}
-                id={`${id}-option-${i}`}
-                role="option"
-                aria-selected={option.value === value}
-                className={i === active ? "role-result highlighted" : "role-result"}
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => choose(option.value)}
-              >
-                {option.label}
-                {option.value === value && <span aria-hidden="true"> ✓</span>}
-              </div>
-            ))}
-          </div>
-          {!filtered.length && (
-            <p className="role-hint" role="status">
-              No matching roles. Try another name.
-            </p>
-          )}
-        </>
+        <div id={`${id}-roles`} className={styles.roles} role="group" aria-label="Available roles">
+          {options.map((option) => (
+            <Button
+              appearance={appearance}
+              variant="plain"
+              size="layout"
+              key={option.value}
+              className={styles.option}
+              aria-label={`${option.name} · ${option.scope}`}
+              aria-pressed={option.value === value}
+              disabled={disabled}
+              onClick={() => {
+                close();
+                if (option.value !== value) onChange(option.value);
+              }}
+            >
+              <span className={styles.copy}>
+                <strong>{option.name}</strong>
+                <small>{option.scope}</small>
+              </span>
+              {option.value === value && <span className={styles.current}><Check size={14} aria-hidden="true" />Current</span>}
+            </Button>
+          ))}
+        </div>
       )}
     </div>
   );

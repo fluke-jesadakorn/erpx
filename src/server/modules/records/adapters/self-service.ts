@@ -1,3 +1,4 @@
+import { cachedHomeRead } from "../../work_projection/public/home-cache";
 import type {SqlStatement} from '../../runtime/public/runtime/types';
 import { SelfServicePeoplePayrollOwnedFacts } from '../../people_payroll/public/records-self-service-owned-facts';
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
@@ -41,10 +42,21 @@ async function invoke<Result>(run: () => Promise<Result>) {
         throw error;
     }
 }
-export async function selfServiceSummary(actor: WorkContext, onWorkCount?: (count: number | null) => void) { return invoke(() => application().selfServiceSummary(actor, onWorkCount)); }
+export async function selfServiceSummary(actor: WorkContext, onWorkCount?: (count: number | null) => void) {
+  const seed = await selfServiceSeed(actor);
+  onWorkCount?.(seed.workCount);
+  return seed.data;
+}
 export async function selfServiceSeed(actor: WorkContext): Promise<{
-    data: SelfServiceSummary;
+    data: Awaited<ReturnType<ReturnType<typeof application>["selfServiceSummary"]>>;
     workCount: number | null;
-}> { return invoke(() => application().selfServiceSeed(actor)); }
+}> {
+  const { write } = await nativeHoldingResources(actor.holdingId);
+  return cachedHomeRead(actor, write, "my-day", null,
+    () => invoke(() => application(write).selfServiceSeed(actor)), {
+      complete: value => value.workCount !== null && value.data.unavailableSources.length === 0,
+      deadline: value => value.data.nextShift?.ends_at ?? Infinity,
+    });
+}
 export type SelfServiceSummary = Awaited<ReturnType<typeof selfServiceSummary>>;
 export type SelfServiceSeed = Awaited<ReturnType<typeof selfServiceSeed>>;

@@ -1,0 +1,47 @@
+{
+  "run": "e7a8fc9c49cf",
+  "sourceFingerprint": "6717401bd85353bfb606fc6a9f0baed884169e9d3bc6451504a200b8344f8777",
+  "verificationFingerprint": "670dd317f6ac4e12eb40aaa864aa563d0a6f71d267c22132177811331b4e3615",
+  "release": {
+    "id": "2026-10-09T17-04-40-540Z",
+    "fileManifestSha256": "ebfb0d1443d3c164fb7ec976cc4157bb8d7c738cef05af966e6d74a020b3f3fd"
+  },
+  "scope": "Release HTTP: 3 \u00d7 200 rooms, 730-day synthetic closed stay/reservation/account metadata; 20 distinct normal staff accounts. Historic revenue is not invented.",
+  "applicationPoolMax": 8,
+  "controlPoolMax": 5,
+  "jobsHoldingPoolMax": 1,
+  "counts": [
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    },
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    },
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    }
+  ],
+  "accounts": 20,
+  "rounds": 10,
+  "durationMs": 54960,
+  "readCount": 840,
+  "writeCount": 400,
+  "readP95Ms": 303.74554199999693,
+  "writeP95Ms": 2238.3184589999946,
+  "failedSamples": 0,
+  "sameProcesses": true,
+  "unchanged": true,
+  "samplesSha256": "340364b140c2fe3553ebdca8a78caa596a2f83d33a955c897ee2c96fe556549e",
+  "passed": false,
+  "acceptance": false,
+  "interpretation": "Pool 8 completed all 840 reads and 400 writes with exact reservation/money reconciliation and unchanged candidate/processes. Read p95 304 ms, logical write p95 2,238 ms. Increased connection capacity alone did not meet the 2-second write target."
+}

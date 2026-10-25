@@ -1,3 +1,5 @@
+import { guestAccountUrl } from "./lib/guest-account-compat";
+import { runWithRequestMemo } from "./server/modules/runtime/public/runtime/request-memo";
 import { NextResponse, type NextRequest } from "next/server";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
@@ -51,7 +53,13 @@ function requestedPagePath(request: NextRequest) {
   return request.nextUrl.pathname + (search.size ? `?${search}` : "");
 }
 
+// Proxy owns a separate invocation; nothing is shared with the route handler.
+// Origin/artifact guards remain fresh; byte-identical digest work is local.
 export function proxy(request: NextRequest) {
+  return runWithRequestMemo(() => routeRequest(request));
+}
+
+function routeRequest(request: NextRequest) {
   const production = process.env.NODE_ENV === "production";
   const path = request.nextUrl.pathname;
   const host = request.headers.get("host") ?? new URL(request.url).host;
@@ -62,6 +70,11 @@ export function proxy(request: NextRequest) {
   const localHost = /^(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/.test(host ?? "");
   const loopbackHealth = localHost && (path === "/api/health" || path === "/api/ready");
   if (!frontApp && !marketing && host !== erpOrigin?.host && !(localHost && (!production || loopbackHealth))) return new NextResponse("Invalid host", { status: 421 });
+  if (request.method === "GET" && !request.nextUrl.pathname.startsWith("/api/")) {
+    const canonical = guestAccountUrl(request.nextUrl.pathname + request.nextUrl.search, frontApp === "pms");
+    if (canonical !== request.nextUrl.pathname + request.nextUrl.search)
+      return NextResponse.redirect(new URL(canonical, request.url), 308);
+  }
   if (production) {
     const origin = frontApp ? frontOrigin(frontApp)! : marketing ? marketingOrigin()! : erpOrigin!;
     if (!loopbackHealth && origin.protocol === "https:" && request.headers.get("x-forwarded-proto") === "http") {

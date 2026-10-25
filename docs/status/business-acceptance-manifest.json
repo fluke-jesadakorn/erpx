@@ -9694,8 +9694,8 @@
       ]
     },
     {
-      "id": "pms/folios",
-      "label": "Folios & payments",
+      "id": "pms/guest-accounts",
+      "label": "Guest Accounts & payments",
       "phase": 5,
       "owner": "Hotel manager / Finance",
       "scenarios": [
@@ -9714,7 +9714,7 @@
         "service": "src/server/pms.ts",
         "schema": "migrations/postgres/holding-write/0031_pms.sql",
         "test": "tests/pms.test.ts; tests/e2e/demo-hospitality-setup.spec.ts",
-        "gap": "Recorded 2026-10-03 engineering acceptance covers: Post hotel service to a guest folio; Split and merge charge ownership; Reverse the recipient charge with expected version. SiteMinder/OTA remains outside this delivery; real source-data cutover, payment providers and hotel acceptance remain separate. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Post hotel service to a guest account; Split and merge charge ownership; Reverse the recipient charge with expected version. SiteMinder/OTA remains outside this delivery; real source-data cutover, payment providers and hotel acceptance remain separate. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "gates": {
         "automated": {
@@ -9820,7 +9820,7 @@
         "service": "src/server/pms.ts",
         "schema": "migrations/postgres/holding-write/0031_pms.sql",
         "test": "tests/pms.test.ts",
-        "gap": "Recorded 2026-10-03 engineering acceptance covers: Charge actual stocked minibar items; Consume source warehouse quantity and cost atomically; Attempt insufficient stock and reload folio/inventory. SiteMinder/OTA remains outside this delivery; real source-data cutover, payment providers and hotel acceptance remain separate. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Charge actual stocked minibar items; Consume source warehouse quantity and cost atomically; Attempt insufficient stock and reload guest account/inventory. SiteMinder/OTA remains outside this delivery; real source-data cutover, payment providers and hotel acceptance remain separate. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "gates": {
         "automated": {

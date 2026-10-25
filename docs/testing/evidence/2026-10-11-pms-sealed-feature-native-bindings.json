@@ -1,0 +1,2471 @@
+{
+  "checkedAt": "2026-10-11T08:27:40.725812+00:00",
+  "candidate": {
+    "runtime": "c6844f8813e154beb7361ecc227ddc5cf71fc13fa3f7f489db4bddb5e39f20c8",
+    "verification": "46c5058193fbf0725fec455c3767da4ab6be2906915484594f0de2e063555564",
+    "mainRuntime": "c6844f8813e154beb7361ecc227ddc5cf71fc13fa3f7f489db4bddb5e39f20c8",
+    "mainVerification": "46c5058193fbf0725fec455c3767da4ab6be2906915484594f0de2e063555564",
+    "releaseDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.runtime/releases/2026-10-11T07-59-44-571Z",
+    "releaseId": "2026-10-11T07-59-44-571Z"
+  },
+  "features": 67,
+  "nativeAssertionReferences": 137,
+  "uniqueReferencedNativeCases": 98,
+  "sourceAudit": [
+    {
+      "file": "tests/unit/test-selection.test.ts",
+      "currentSHA256": "a70a7b62703261ca12641dbc2f97b855ba7c5bf4671bd75779f39e0a482e2648",
+      "originalLeafSHA256": "a70a7b62703261ca12641dbc2f97b855ba7c5bf4671bd75779f39e0a482e2648",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/unit/browser-readiness.test.ts",
+      "currentSHA256": "97719cefadf569804241dba00854a797247172c5e896c4d3cd1fca1a59825f41",
+      "originalLeafSHA256": "97719cefadf569804241dba00854a797247172c5e896c4d3cd1fca1a59825f41",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/unit/architecture-relocation.test.ts",
+      "currentSHA256": "e4d1e5d49521d71e5c73068ca13deeab0644f6295f0f4b4711c12a6921f4119a",
+      "originalLeafSHA256": "e4d1e5d49521d71e5c73068ca13deeab0644f6295f0f4b4711c12a6921f4119a",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/unit/architecture-boundaries.test.ts",
+      "currentSHA256": "3148c1d3e26a118666603a1599729c6efaa218214c557b020e338748ea1e2cdc",
+      "originalLeafSHA256": "3148c1d3e26a118666603a1599729c6efaa218214c557b020e338748ea1e2cdc",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/inbox-source-coverage.test.ts",
+      "currentSHA256": "f8ed60fa8206e63335a25a25e548c52b543aea0c4fe99d2da516501eae868cfe",
+      "originalLeafSHA256": "f8ed60fa8206e63335a25a25e548c52b543aea0c4fe99d2da516501eae868cfe",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/feature-widget-registry.test.ts",
+      "currentSHA256": "383def8cf7ead524fe6a4abfb8ae893a86fbd92193bda6da0742694e586dae04",
+      "originalLeafSHA256": "383def8cf7ead524fe6a4abfb8ae893a86fbd92193bda6da0742694e586dae04",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/unit/pms-provider-fixture.test.ts",
+      "currentSHA256": "b632167d1138e8bcd1c4f99be170bf3ec1625f5233e71f266b0f2d36210582ce",
+      "originalLeafSHA256": "b632167d1138e8bcd1c4f99be170bf3ec1625f5233e71f266b0f2d36210582ce",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/local-file-streams.test.ts",
+      "currentSHA256": "fd47447a3e87873f7ccedbaea7e0a33609e4a70b744acafefbfa38b9f7c963bb",
+      "originalLeafSHA256": "fd47447a3e87873f7ccedbaea7e0a33609e4a70b744acafefbfa38b9f7c963bb",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/unit/ci-regression.test.ts",
+      "currentSHA256": "3a62860e8d4b60d3a4df1e8cd6bb6d8cf718f637072438a18b4bd595b4cc2dcf",
+      "originalLeafSHA256": "3a62860e8d4b60d3a4df1e8cd6bb6d8cf718f637072438a18b4bd595b4cc2dcf",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/unit/browser-execution-plan.test.ts",
+      "currentSHA256": "5feefb55962787f854bf0628ddd126a621a4dcea14be28d76c3454a3b0f05d15",
+      "originalLeafSHA256": "5feefb55962787f854bf0628ddd126a621a4dcea14be28d76c3454a3b0f05d15",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/business-time.test.ts",
+      "currentSHA256": "50a778bf800bfa4b22e242102b7c000abd73beeea26959a2afe96c3ba069963c",
+      "originalLeafSHA256": "50a778bf800bfa4b22e242102b7c000abd73beeea26959a2afe96c3ba069963c",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/workplace-navigation.test.ts",
+      "currentSHA256": "935f3f37f53c78ad18af8beedfc0327e511b4fcbd3ea5ad07adc5e2ebe166827",
+      "originalLeafSHA256": "935f3f37f53c78ad18af8beedfc0327e511b4fcbd3ea5ad07adc5e2ebe166827",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/engineering-gate-evidence.test.ts",
+      "currentSHA256": "e7b5bf753c4329a7058e4c9534c27d558430eee01b494215ac855b5b21b6648d",
+      "originalLeafSHA256": "e7b5bf753c4329a7058e4c9534c27d558430eee01b494215ac855b5b21b6648d",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/native-proxy.test.ts",
+      "currentSHA256": "d04a26f6044782337ee4b7921668e369de174e7cab7c10032b054fdc8985a24a",
+      "originalLeafSHA256": "d04a26f6044782337ee4b7921668e369de174e7cab7c10032b054fdc8985a24a",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/unit/investor-report.test.ts",
+      "currentSHA256": "9e1f1ca50240b095a0a0be4c5328af5d273a97288359db09719bcae73322f040",
+      "originalLeafSHA256": "9e1f1ca50240b095a0a0be4c5328af5d273a97288359db09719bcae73322f040",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/unit/pms-application.test.ts",
+      "currentSHA256": "3594661ac9c39b6edac062f747f3489974f232f1c8b1cb906b218610de2d1269",
+      "originalLeafSHA256": "3594661ac9c39b6edac062f747f3489974f232f1c8b1cb906b218610de2d1269",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/unit/guest-account-compat.test.ts",
+      "currentSHA256": "1432bc09fdd09c0a9a3d40ef22b8943ff9a8591f0e578dc9151a52dc9b5d9497",
+      "originalLeafSHA256": "1432bc09fdd09c0a9a3d40ef22b8943ff9a8591f0e578dc9151a52dc9b5d9497",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/unit/runtime-connection-services.test.ts",
+      "currentSHA256": "47c5b0981374ffa6f5ea3926408771361e4654d479a4b23428742ab028545f36",
+      "originalLeafSHA256": "47c5b0981374ffa6f5ea3926408771361e4654d479a4b23428742ab028545f36",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/unit/home-cache.test.ts",
+      "currentSHA256": "0ae3b987dbe2ce220096bbf6ace45f940ab7e1ea19798c3cb738c1bfa005370f",
+      "originalLeafSHA256": "0ae3b987dbe2ce220096bbf6ace45f940ab7e1ea19798c3cb738c1bfa005370f",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/capability-delivery.test.ts",
+      "currentSHA256": "f9d8246e1c5ce8acb50640a399f556ef0dac34bc4b31cd0448c25fb958a23183",
+      "originalLeafSHA256": "f9d8246e1c5ce8acb50640a399f556ef0dac34bc4b31cd0448c25fb958a23183",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/unit/navigation-streaming.test.ts",
+      "currentSHA256": "fb545f360bbd41f8597caf095cdad72a68c1e0e04e7e90afd107b95ca12e4c7c",
+      "originalLeafSHA256": "fb545f360bbd41f8597caf095cdad72a68c1e0e04e7e90afd107b95ca12e4c7c",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/unit/browser-prerequisites.test.ts",
+      "currentSHA256": "abe17c546864672e29c462c79c11d61f27d8963619aaf1886df4694c0b9d2ed9",
+      "originalLeafSHA256": "abe17c546864672e29c462c79c11d61f27d8963619aaf1886df4694c0b9d2ed9",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/calendar-timeline.test.ts",
+      "currentSHA256": "e01315597cd13b528c07f74f518c1d1d6ba522178eca359e6a2e6e05ce85b083",
+      "originalLeafSHA256": "e01315597cd13b528c07f74f518c1d1d6ba522178eca359e6a2e6e05ce85b083",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/engineering-inventory-report.test.ts",
+      "currentSHA256": "f12ad0c607906e549dda2a54700e9fa53cff99a4b1a905d57dba12174f39ca58",
+      "originalLeafSHA256": "f12ad0c607906e549dda2a54700e9fa53cff99a4b1a905d57dba12174f39ca58",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/unit/files-application.test.ts",
+      "currentSHA256": "c7b2c96b88173515cf7f0fb0442c7a9befdc7ca08f4ccd3607a99c24162ae451",
+      "originalLeafSHA256": "c7b2c96b88173515cf7f0fb0442c7a9befdc7ca08f4ccd3607a99c24162ae451",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/work-fetch.test.ts",
+      "currentSHA256": "ae94e2e203b5a536ce1aacd6435cd78a8739279b3ba82dbb604fb09fec8ca35d",
+      "originalLeafSHA256": "ae94e2e203b5a536ce1aacd6435cd78a8739279b3ba82dbb604fb09fec8ca35d",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/unit/work-services.test.ts",
+      "currentSHA256": "ef4ab8b6685fdf1aa1ce2ff9dc8969021422fb8a6774e3aa338dffd96f18ff6c",
+      "originalLeafSHA256": "ef4ab8b6685fdf1aa1ce2ff9dc8969021422fb8a6774e3aa338dffd96f18ff6c",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/unit/work-calendar-services.test.ts",
+      "currentSHA256": "38b293d5f84a8bd95f5f8acd9ee91ae4ab386d1f6032328eef9e8fdef62cda5a",
+      "originalLeafSHA256": "38b293d5f84a8bd95f5f8acd9ee91ae4ab386d1f6032328eef9e8fdef62cda5a",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/attachment-ops-health.test.ts",
+      "currentSHA256": "13a64510b43c823dd5c762b4afcadd7dec9b4365e7eefd13e74be63258be4d03",
+      "originalLeafSHA256": "13a64510b43c823dd5c762b4afcadd7dec9b4365e7eefd13e74be63258be4d03",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/work-refresh.test.ts",
+      "currentSHA256": "6637111a036621a0eedcfb85f4b8ab0ff70532aa508a5e59aa8309e733916705",
+      "originalLeafSHA256": "6637111a036621a0eedcfb85f4b8ab0ff70532aa508a5e59aa8309e733916705",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/calendar-recurrence.test.ts",
+      "currentSHA256": "8a492f0e7913a23de11e444cf6d775fa5c9d5e8b74a2bcdfdcf7a9c3d79f50d3",
+      "originalLeafSHA256": "8a492f0e7913a23de11e444cf6d775fa5c9d5e8b74a2bcdfdcf7a9c3d79f50d3",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/unit/work-shortcut-readiness.test.ts",
+      "currentSHA256": "b659a5caa915e5fcd061ab72c40a12adbcbea3264c2aeddd62245be084a2fec2",
+      "originalLeafSHA256": "b659a5caa915e5fcd061ab72c40a12adbcbea3264c2aeddd62245be084a2fec2",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/ui-format.test.ts",
+      "currentSHA256": "6ae0d70f99bd113d382d30a2301adc70eed4394f7d9519b6be171fec976f734a",
+      "originalLeafSHA256": "6ae0d70f99bd113d382d30a2301adc70eed4394f7d9519b6be171fec976f734a",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/attachment-withdraw-route.test.ts",
+      "currentSHA256": "45a85b190368877a4a42764847e2cb10f789794e311e144530078ee934ea3e26",
+      "originalLeafSHA256": "45a85b190368877a4a42764847e2cb10f789794e311e144530078ee934ea3e26",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/unit/work-shortcut-focus.test.ts",
+      "currentSHA256": "18742dd6022eceb572ec6824c79667f2461f2266d33a602486297ac998128fd5",
+      "originalLeafSHA256": "18742dd6022eceb572ec6824c79667f2461f2266d33a602486297ac998128fd5",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/attachment-client.test.ts",
+      "currentSHA256": "bfaaf9012f3408fab514307af46e9fbf3371894b8116a498b15a8c7c18becd8d",
+      "originalLeafSHA256": "bfaaf9012f3408fab514307af46e9fbf3371894b8116a498b15a8c7c18becd8d",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/routine-calendar.test.ts",
+      "currentSHA256": "cab63cbf0ac0fdca0ea48bf91b2a51a83627213d129e23a6ce3c5aa04ee37282",
+      "originalLeafSHA256": "cab63cbf0ac0fdca0ea48bf91b2a51a83627213d129e23a6ce3c5aa04ee37282",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/request-draft-create.test.ts",
+      "currentSHA256": "9b4a9daeb6669f80b050f42e06a1a8d1bffb4b293c79db0f2627eec3802bad99",
+      "originalLeafSHA256": "9b4a9daeb6669f80b050f42e06a1a8d1bffb4b293c79db0f2627eec3802bad99",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/unit/work-ui-services.test.ts",
+      "currentSHA256": "2ee09d29fda6edf53f88a548a99b63414255fcafce770ac8875d883335c683fb",
+      "originalLeafSHA256": "2ee09d29fda6edf53f88a548a99b63414255fcafce770ac8875d883335c683fb",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/unit/simulation-email.test.ts",
+      "currentSHA256": "d88aa6a4bdde16018c314b370709849caccec39fdad3b2ea6f6cddff31d8975e",
+      "originalLeafSHA256": "d88aa6a4bdde16018c314b370709849caccec39fdad3b2ea6f6cddff31d8975e",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/work-cards.test.ts",
+      "currentSHA256": "f6a750478b32cfe0034d1ddfde0f0495c869230fa487d1c6d49c85c519459e02",
+      "originalLeafSHA256": "f6a750478b32cfe0034d1ddfde0f0495c869230fa487d1c6d49c85c519459e02",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/unit/next-development-debug.test.ts",
+      "currentSHA256": "4d540896005aff9c69754410f7c86e9e70192ed6eae58bd1c5a17582f300b40a",
+      "originalLeafSHA256": "4d540896005aff9c69754410f7c86e9e70192ed6eae58bd1c5a17582f300b40a",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/unit/home-lazy-loading.test.ts",
+      "currentSHA256": "c0d32b11a2a0f69ad4e30defaad97be4bc46ae0b997374f26955b050df6a92ae",
+      "originalLeafSHA256": "c0d32b11a2a0f69ad4e30defaad97be4bc46ae0b997374f26955b050df6a92ae",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/unit/record-services.test.ts",
+      "currentSHA256": "43f9d4f88a1a16deee1c7960ea5f23aca5dd71fda1c88125e641f157020c9a27",
+      "originalLeafSHA256": "43f9d4f88a1a16deee1c7960ea5f23aca5dd71fda1c88125e641f157020c9a27",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/unit/workflow-services.test.ts",
+      "currentSHA256": "1c9878a79244c3e211e2f4feaf4d17732f81c5a4dc6d163d1b4bbd553c431d58",
+      "originalLeafSHA256": "1c9878a79244c3e211e2f4feaf4d17732f81c5a4dc6d163d1b4bbd553c431d58",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/engineering-performance.test.ts",
+      "currentSHA256": "2701a11f3ae472f55eb86c70c281f0b3950a3ca2bb8c8f6365af1ad8ddb63ad3",
+      "originalLeafSHA256": "2701a11f3ae472f55eb86c70c281f0b3950a3ca2bb8c8f6365af1ad8ddb63ad3",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/attachment-reconciliation-adjudication.test.ts",
+      "currentSHA256": "044865a7f4dcbe460ad50171c952b342b1936256b63bb37889827b4991f5d12d",
+      "originalLeafSHA256": "044865a7f4dcbe460ad50171c952b342b1936256b63bb37889827b4991f5d12d",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/unit/operations-services.test.ts",
+      "currentSHA256": "9ef56efe14db0999126a6e213f3cbfb6489888010850cf9eba80cf325d79bc1d",
+      "originalLeafSHA256": "9ef56efe14db0999126a6e213f3cbfb6489888010850cf9eba80cf325d79bc1d",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/acceptance-evidence.test.ts",
+      "currentSHA256": "5c75eda8424bc070e0a96534c5fc8bfa4cecaad3e5e1514a457c726c95ce4ab7",
+      "originalLeafSHA256": "5c75eda8424bc070e0a96534c5fc8bfa4cecaad3e5e1514a457c726c95ce4ab7",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/work-sources.test.ts",
+      "currentSHA256": "1be33c59a45083f1e3f909b9ac8e3737bed40b05c6c1585beee88620dc9926df",
+      "originalLeafSHA256": "1be33c59a45083f1e3f909b9ac8e3737bed40b05c6c1585beee88620dc9926df",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/unit/navigation-snapshot.test.ts",
+      "currentSHA256": "8e0139e0a97dfc5e7efe2868e25055e0b03265b7370795e64eef8ce6b4df859a",
+      "originalLeafSHA256": "8e0139e0a97dfc5e7efe2868e25055e0b03265b7370795e64eef8ce6b4df859a",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/capability-gate-reviews.test.ts",
+      "currentSHA256": "290a5d37623c722fda5e7df6294f424dbb0927cca442c9b126e0d99461531914",
+      "originalLeafSHA256": "290a5d37623c722fda5e7df6294f424dbb0927cca442c9b126e0d99461531914",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/attachment-feature-context.test.tsx",
+      "currentSHA256": "56a573a9148d35e706619dce79ee3e10fa18e7dfa8da0c617830a2d4f5261005",
+      "originalLeafSHA256": "56a573a9148d35e706619dce79ee3e10fa18e7dfa8da0c617830a2d4f5261005",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/work-page.test.ts",
+      "currentSHA256": "53b275aaf369c1572e5b3913bdffd8092cd6cd1a81c0071eedde6414a536be20",
+      "originalLeafSHA256": "53b275aaf369c1572e5b3913bdffd8092cd6cd1a81c0071eedde6414a536be20",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/hospitality-grid.test.ts",
+      "currentSHA256": "81b758baf7aae31010b21351ebe1d5d2918a3cc952d3278b7eb35e0081378f74",
+      "originalLeafSHA256": "81b758baf7aae31010b21351ebe1d5d2918a3cc952d3278b7eb35e0081378f74",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/page-error.test.ts",
+      "currentSHA256": "58e52ea3c650935884ec116182f9d07f29e9fe15809823f09139d2e86ee4bdb5",
+      "originalLeafSHA256": "58e52ea3c650935884ec116182f9d07f29e9fe15809823f09139d2e86ee4bdb5",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/ui-registry.test.ts",
+      "currentSHA256": "c053623f27b74c8bdd07b0668b11d96c15f05a2a2149b701ddf9a747cc9f2f54",
+      "originalLeafSHA256": "c053623f27b74c8bdd07b0668b11d96c15f05a2a2149b701ddf9a747cc9f2f54",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/work-views.test.ts",
+      "currentSHA256": "6799a4c015476e5855b2fb8c84634cff4ea0349ec4258e8c8f8eff584852cde9",
+      "originalLeafSHA256": "6799a4c015476e5855b2fb8c84634cff4ea0349ec4258e8c8f8eff584852cde9",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/engineering-completion.test.ts",
+      "currentSHA256": "7d0f1e55bff31be2391862c138e12129e130f61ada15e81c2fee8f098156eb10",
+      "originalLeafSHA256": "7d0f1e55bff31be2391862c138e12129e130f61ada15e81c2fee8f098156eb10",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/unit/presentation-owner-queries.test.ts",
+      "currentSHA256": "53c69d0456dcb5e90ca3debcbf276eb503048c828ad2b80ff78e84cfb18065a0",
+      "originalLeafSHA256": "53c69d0456dcb5e90ca3debcbf276eb503048c828ad2b80ff78e84cfb18065a0",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/attachment-gate-contract.test.ts",
+      "currentSHA256": "70aeb49d76746353ff9babbae32732c211a474b39076eed24fb97fa622c0ef85",
+      "originalLeafSHA256": "70aeb49d76746353ff9babbae32732c211a474b39076eed24fb97fa622c0ef85",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/unit/case-screenshot.test.ts",
+      "currentSHA256": "90a34418c1a4e76410c8556d687e566d92afcac26ddf0f7497f1b1a4d6b5c118",
+      "originalLeafSHA256": "90a34418c1a4e76410c8556d687e566d92afcac26ddf0f7497f1b1a4d6b5c118",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/workplace-catalogue.test.ts",
+      "currentSHA256": "01e0479711c46672edecb2c35395ff78432290bb064675d21a00204b99c782c8",
+      "originalLeafSHA256": "01e0479711c46672edecb2c35395ff78432290bb064675d21a00204b99c782c8",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/unit/browser-results.test.ts",
+      "currentSHA256": "d46a1b7da999832bc0d4c9776578c3f2cc2f0f273b6f1dfa9619efaefd4429a4",
+      "originalLeafSHA256": "d46a1b7da999832bc0d4c9776578c3f2cc2f0f273b6f1dfa9619efaefd4429a4",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/unit/browser-isolation-receipts.test.ts",
+      "currentSHA256": "30fa805e6107dfe0e5af451c890e3eb98aeb4806a5d3ace468289d7176bd8e4c",
+      "originalLeafSHA256": "30fa805e6107dfe0e5af451c890e3eb98aeb4806a5d3ace468289d7176bd8e4c",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/simulation-only-adapters.test.ts",
+      "currentSHA256": "ccf8df3a1de0029870045a99ec14ff39541a313047eef499d9f949eb567eae8b",
+      "originalLeafSHA256": "ccf8df3a1de0029870045a99ec14ff39541a313047eef499d9f949eb567eae8b",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/work-attention.test.ts",
+      "currentSHA256": "4b8e80bb7b4c31e0ae338c169bcc81bb00ebf15e0012771603a253021202609a",
+      "originalLeafSHA256": "4b8e80bb7b4c31e0ae338c169bcc81bb00ebf15e0012771603a253021202609a",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/unit/database-pool-policy.test.ts",
+      "currentSHA256": "72635dafdff90ea61595b5c1a2aa7bffea2e01fd9292793e6f3b06ec57e9800b",
+      "originalLeafSHA256": "72635dafdff90ea61595b5c1a2aa7bffea2e01fd9292793e6f3b06ec57e9800b",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/general-company-demo.test.ts",
+      "currentSHA256": "5fe01976c839a880e4918f51ed5ee12224bcaddd06b76ffa2878470a2ab858ca",
+      "originalLeafSHA256": "5fe01976c839a880e4918f51ed5ee12224bcaddd06b76ffa2878470a2ab858ca",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/unit/request-memo.test.ts",
+      "currentSHA256": "927bfbb233b9fed063c61d83be350b75b838f99d7ebf564c18f0bb305c5eb00e",
+      "originalLeafSHA256": "927bfbb233b9fed063c61d83be350b75b838f99d7ebf564c18f0bb305c5eb00e",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/record-drawer-routing.test.ts",
+      "currentSHA256": "62d99e3eff8cd40ab441c25de0a2ab3f58318a614cf9bfeffa31fd019efaf9d3",
+      "originalLeafSHA256": "62d99e3eff8cd40ab441c25de0a2ab3f58318a614cf9bfeffa31fd019efaf9d3",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/unit/architecture-transaction.test.ts",
+      "currentSHA256": "cc96402ecb09d85d7ccb2d10df49478a397eb8faba3b2769b2fc8954d902ad37",
+      "originalLeafSHA256": "cc96402ecb09d85d7ccb2d10df49478a397eb8faba3b2769b2fc8954d902ad37",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/workspace.test.ts",
+      "currentSHA256": "ee30f09b1143489c852fe4c123b1575c17d048024ec367c485e6de087742190b",
+      "originalLeafSHA256": "ee30f09b1143489c852fe4c123b1575c17d048024ec367c485e6de087742190b",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/hospitality-page-cut.test.ts",
+      "currentSHA256": "a79cc5f5b7cf40f1b94c77d8396e1b20f8944b701cc7a9927ceb5752f27d41e5",
+      "originalLeafSHA256": "a79cc5f5b7cf40f1b94c77d8396e1b20f8944b701cc7a9927ceb5752f27d41e5",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/local-shortcuts.test.ts",
+      "currentSHA256": "3863e8686afc1598449320b1a7fadd4a8a0f8c801233873fd4beea7b4ddf9d35",
+      "originalLeafSHA256": "3863e8686afc1598449320b1a7fadd4a8a0f8c801233873fd4beea7b4ddf9d35",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/attachment-state.test.ts",
+      "currentSHA256": "3e3d196ee4ea70af303e969bf2806f38499a8be3c55140e5391e5d52c9c86e4b",
+      "originalLeafSHA256": "3e3d196ee4ea70af303e969bf2806f38499a8be3c55140e5391e5d52c9c86e4b",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/work-decision-kind.test.ts",
+      "currentSHA256": "d1d352a0424d2efa1ccffdf026937d735023d2e44ee37348669e7d10196baf38",
+      "originalLeafSHA256": "d1d352a0424d2efa1ccffdf026937d735023d2e44ee37348669e7d10196baf38",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/pms-read-model.test.ts",
+      "currentSHA256": "2b8fb57799f7e19d94a96d325ed8ea218b05dc059b7480b5f8aafdc07431bdf7",
+      "originalLeafSHA256": "2b8fb57799f7e19d94a96d325ed8ea218b05dc059b7480b5f8aafdc07431bdf7",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/engineering-recovery.test.ts",
+      "currentSHA256": "eba0733f74e1a8569f7862361cc0905a45ec10366dcf5137622610d812b6fc8e",
+      "originalLeafSHA256": "8214881129023aa06e055ba3433cc0b48dfd95ea62dfc9bc94cfd7d798864ec8",
+      "strengthenedExistingRecoveryOnly": true
+    },
+    {
+      "file": "tests/pms.test.ts",
+      "currentSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "originalLeafSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/engineering-service-hospitality-attachments.test.ts",
+      "currentSHA256": "6dd59157e13eff6dd21eea4e1c5a249b58986e841fae71b22989817e19060392",
+      "originalLeafSHA256": "6dd59157e13eff6dd21eea4e1c5a249b58986e841fae71b22989817e19060392",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/work-cache.test.ts",
+      "currentSHA256": "5dad0bbfeeba71031179a499c7a78d8eaf58dbee4acce48ed1bdc5555d5d7ae3",
+      "originalLeafSHA256": "5dad0bbfeeba71031179a499c7a78d8eaf58dbee4acce48ed1bdc5555d5d7ae3",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/file-orphan-preservation.test.ts",
+      "currentSHA256": "16f2f06f66ad2204dfd8db8b6a23a70c7274e4bc87c56cbf341cd28ea8685a0c",
+      "originalLeafSHA256": "16f2f06f66ad2204dfd8db8b6a23a70c7274e4bc87c56cbf341cd28ea8685a0c",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/executive-canvas.test.ts",
+      "currentSHA256": "1c76c50caba3c51c1b45843b5d3d23a1d8cd1b4470047193c204664c0df3c77d",
+      "originalLeafSHA256": "1c76c50caba3c51c1b45843b5d3d23a1d8cd1b4470047193c204664c0df3c77d",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/flow-routing.test.ts",
+      "currentSHA256": "e9c4befcf7173ca84bedaa278e980579c163ec4ad6773fe6168828ad4b96a121",
+      "originalLeafSHA256": "e9c4befcf7173ca84bedaa278e980579c163ec4ad6773fe6168828ad4b96a121",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/pms-booking.test.ts",
+      "currentSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "originalLeafSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/engineering-migration-upgrade.test.ts",
+      "currentSHA256": "c9993f5b4616c2e905b9b24f204384b9bc51264afa04fa78b71402cb5c3bc3d7",
+      "originalLeafSHA256": "c9993f5b4616c2e905b9b24f204384b9bc51264afa04fa78b71402cb5c3bc3d7",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/attachments-v2.test.ts",
+      "currentSHA256": "2e89374177d0f93018b67bc0e4fd45ca76346824b28a778325aa0848795b5e48",
+      "originalLeafSHA256": "2e89374177d0f93018b67bc0e4fd45ca76346824b28a778325aa0848795b5e48",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/routing-attention.test.ts",
+      "currentSHA256": "f8bfb4c7cff84d8c34ff5d046e044e44e2d6a7415664f94ed3372ae1450c3353",
+      "originalLeafSHA256": "f8bfb4c7cff84d8c34ff5d046e044e44e2d6a7415664f94ed3372ae1450c3353",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/command-receipts-partitions.test.ts",
+      "currentSHA256": "33f409b2caaac782366b7f7e6ed4a84579179f032e186af64525cf7526318d01",
+      "originalLeafSHA256": "33f409b2caaac782366b7f7e6ed4a84579179f032e186af64525cf7526318d01",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/command-receipts-upgrade.test.ts",
+      "currentSHA256": "e472f6a561f4d0a4d7e284706638b5010ddb5301d7b4f085f6048436eac6609c",
+      "originalLeafSHA256": "e472f6a561f4d0a4d7e284706638b5010ddb5301d7b4f085f6048436eac6609c",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/spending-approvals.test.ts",
+      "currentSHA256": "146c9111c4a1fa867f61082f4bbe4c69673b9624c8f01505aeafd020560a365c",
+      "originalLeafSHA256": "146c9111c4a1fa867f61082f4bbe4c69673b9624c8f01505aeafd020560a365c",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/engineering-verification.test.ts",
+      "currentSHA256": "687de55974b0f45780d2cafa071dead2e3580d406b39ca9dcae74554b084c3d5",
+      "originalLeafSHA256": "687de55974b0f45780d2cafa071dead2e3580d406b39ca9dcae74554b084c3d5",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/release-acceptance.test.ts",
+      "currentSHA256": "0bf442bf632c58066bf051aedecde9adb17922fd280bc5846e84f84cded55704",
+      "originalLeafSHA256": "0bf442bf632c58066bf051aedecde9adb17922fd280bc5846e84f84cded55704",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/navigation-counts.test.ts",
+      "currentSHA256": "25ed6cd1dfbe9c80104613c8cc8b2d8ec9c030af629144834cfac37d4f240341",
+      "originalLeafSHA256": "25ed6cd1dfbe9c80104613c8cc8b2d8ec9c030af629144834cfac37d4f240341",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/work-review.test.ts",
+      "currentSHA256": "75a698c88f0e80c486e89a72cf8098075590495a6a6aef493f39e039ad260590",
+      "originalLeafSHA256": "75a698c88f0e80c486e89a72cf8098075590495a6a6aef493f39e039ad260590",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/request-experience.test.ts",
+      "currentSHA256": "edc5ba04790e45ea9a2b41782794ad417ff301cc8699318bf2bc405ea1f95d4c",
+      "originalLeafSHA256": "edc5ba04790e45ea9a2b41782794ad417ff301cc8699318bf2bc405ea1f95d4c",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/executive-mcp.test.ts",
+      "currentSHA256": "9d13387c982b530e83e8e603e40a179f174538def265db377b091413e819d1ae",
+      "originalLeafSHA256": "9d13387c982b530e83e8e603e40a179f174538def265db377b091413e819d1ae",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/request-ai.test.ts",
+      "currentSHA256": "53be77d421d732cfc368ce88ed62f946de3c1f7f6d8401d49e11dbf1badf4b6d",
+      "originalLeafSHA256": "53be77d421d732cfc368ce88ed62f946de3c1f7f6d8401d49e11dbf1badf4b6d",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/native-runtime.test.ts",
+      "currentSHA256": "081b7ae6a1792767b5fe180b9e667c900e4dff3416dd317f649168ff28989642",
+      "originalLeafSHA256": "081b7ae6a1792767b5fe180b9e667c900e4dff3416dd317f649168ff28989642",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/work-card-preferences.test.ts",
+      "currentSHA256": "03499374ccc74d6e06758aa31ed7aca83d795e65bd94142a08bd2853f55b00aa",
+      "originalLeafSHA256": "03499374ccc74d6e06758aa31ed7aca83d795e65bd94142a08bd2853f55b00aa",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/guided-intake.test.ts",
+      "currentSHA256": "67e25234a82b4e5a4a5c378493153649cddce5a1491a8c334b29a65cf17d01d1",
+      "originalLeafSHA256": "67e25234a82b4e5a4a5c378493153649cddce5a1491a8c334b29a65cf17d01d1",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/record-details.test.ts",
+      "currentSHA256": "c6ac5976881ae9bec5427336badb5cd73ee2ada6e080ab11b08dd16a7e658ce7",
+      "originalLeafSHA256": "c6ac5976881ae9bec5427336badb5cd73ee2ada6e080ab11b08dd16a7e658ce7",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/page-layouts.test.ts",
+      "currentSHA256": "6cd4d3ad69d87abdd0653a7d24f58b8ae4a4876c01440b6929c7d3891f03003d",
+      "originalLeafSHA256": "6cd4d3ad69d87abdd0653a7d24f58b8ae4a4876c01440b6929c7d3891f03003d",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/command-assertions-upgrade.test.ts",
+      "currentSHA256": "e163ef49487e41ccd5f2c0f7b6bdebc7d04ada653aab9e0db41f6ec67f9b00ab",
+      "originalLeafSHA256": "e163ef49487e41ccd5f2c0f7b6bdebc7d04ada653aab9e0db41f6ec67f9b00ab",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/inbox.test.ts",
+      "currentSHA256": "133d1eb6f7a55a59f85aae66df026c50a9cf894adf592af475924115ea5b2209",
+      "originalLeafSHA256": "133d1eb6f7a55a59f85aae66df026c50a9cf894adf592af475924115ea5b2209",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/calendar.test.ts",
+      "currentSHA256": "24b9b7ea49bb1c04331383a87db3c94fadc9405b9d2397d1818a038a9d1323e5",
+      "originalLeafSHA256": "24b9b7ea49bb1c04331383a87db3c94fadc9405b9d2397d1818a038a9d1323e5",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/business-readiness.test.ts",
+      "currentSHA256": "cf9ad412cceb8733dc7c70872d72943a1e67130a8ae41b421e1c125a879d9cd9",
+      "originalLeafSHA256": "cf9ad412cceb8733dc7c70872d72943a1e67130a8ae41b421e1c125a879d9cd9",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/business-commands.test.ts",
+      "currentSHA256": "351148781fbc247fcd72717ac8c9d79b77a07e147065d6c2566429bffad88465",
+      "originalLeafSHA256": "351148781fbc247fcd72717ac8c9d79b77a07e147065d6c2566429bffad88465",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/work-read-model.test.ts",
+      "currentSHA256": "0c47fe4448318e4bb4a92aa22573bc4ebac83089df05ae4870305d3f741722f3",
+      "originalLeafSHA256": "0c47fe4448318e4bb4a92aa22573bc4ebac83089df05ae4870305d3f741722f3",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/pms-reports.test.ts",
+      "currentSHA256": "038679c10c1e8e20a29e0dc73147e921f3b60570ecb34069c2cd9ef2a9309ce7",
+      "originalLeafSHA256": "038679c10c1e8e20a29e0dc73147e921f3b60570ecb34069c2cd9ef2a9309ce7",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/daily-plan.test.ts",
+      "currentSHA256": "8ef29f025c266f2f59a2121b86c7eb153dc2cc1e143cd8cd48432457d427b105",
+      "originalLeafSHA256": "8ef29f025c266f2f59a2121b86c7eb153dc2cc1e143cd8cd48432457d427b105",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/engineering-platform-access.test.ts",
+      "currentSHA256": "5a1c4473b8e291a2aa4acb71a5a693993761cbc6108b5392ebfde07cb49397f5",
+      "originalLeafSHA256": "5a1c4473b8e291a2aa4acb71a5a693993761cbc6108b5392ebfde07cb49397f5",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/attachment-crm-atomic-guard.test.ts",
+      "currentSHA256": "0c674cdf1a0a1cb7a0437de2e0e1c6f977886e362e3b68d6783579a24268e9f9",
+      "originalLeafSHA256": "0c674cdf1a0a1cb7a0437de2e0e1c6f977886e362e3b68d6783579a24268e9f9",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/calendar-api.test.ts",
+      "currentSHA256": "7abc18d1661c89f0929d2fababdbb5bf950e917901e709d192cdad95fc415357",
+      "originalLeafSHA256": "7abc18d1661c89f0929d2fababdbb5bf950e917901e709d192cdad95fc415357",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/web-push.test.ts",
+      "currentSHA256": "1a02b540312f9de5da584e4c6170e6edbf8ac1cb9bf880d59e8412f4dbf364f4",
+      "originalLeafSHA256": "1a02b540312f9de5da584e4c6170e6edbf8ac1cb9bf880d59e8412f4dbf364f4",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/command-assertions.test.ts",
+      "currentSHA256": "a4072a0d77633efada2262d151f797df933aef0181e16f29cdc741d6e2aa67b2",
+      "originalLeafSHA256": "a4072a0d77633efada2262d151f797df933aef0181e16f29cdc741d6e2aa67b2",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/specialized-attachment-adapters.test.ts",
+      "currentSHA256": "a94ed4c571f8e5c9ac0547478f08efae7c565d0221570a96cbba1bbf63ee93a1",
+      "originalLeafSHA256": "a94ed4c571f8e5c9ac0547478f08efae7c565d0221570a96cbba1bbf63ee93a1",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/indexed-property-transactions.test.ts",
+      "currentSHA256": "913756edfb141e349fc822780db37f02dda0e122decdc3e944ef28440dc91dc2",
+      "originalLeafSHA256": "913756edfb141e349fc822780db37f02dda0e122decdc3e944ef28440dc91dc2",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/sensitive-attachment-access.test.ts",
+      "currentSHA256": "0897f5bf8c89edf66994e08b2492fcb871e3af8a5852a3a32a6fc02046102b43",
+      "originalLeafSHA256": "0897f5bf8c89edf66994e08b2492fcb871e3af8a5852a3a32a6fc02046102b43",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/scoped-browser-staff.test.ts",
+      "currentSHA256": "5612446a6b49281360b184e1774d1eff010b85c7184f382744b1c3f841024f36",
+      "originalLeafSHA256": "5612446a6b49281360b184e1774d1eff010b85c7184f382744b1c3f841024f36",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/engineering-stock-continuity.test.ts",
+      "currentSHA256": "299a0aeb759a5b9d6cba1c406e152950bb1287fe2d88980d9b47c4d63eba2e3a",
+      "originalLeafSHA256": "299a0aeb759a5b9d6cba1c406e152950bb1287fe2d88980d9b47c4d63eba2e3a",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/pms-cache-upgrade.test.ts",
+      "currentSHA256": "e6061ccbdacabef4ec6dffc5e2ac555736d098dfe06340602d1eebe4c66d927b",
+      "originalLeafSHA256": "e6061ccbdacabef4ec6dffc5e2ac555736d098dfe06340602d1eebe4c66d927b",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/pms-front-attachments.test.ts",
+      "currentSHA256": "5df55aed2215b7297f69b1ae883e4ef23a3da1f422584e86037071f38c5f8302",
+      "originalLeafSHA256": "5df55aed2215b7297f69b1ae883e4ef23a3da1f422584e86037071f38c5f8302",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/command-composition.test.ts",
+      "currentSHA256": "32a676446248792c063775ec7ab51a0c5f3cea8196591eb9499a5447b83270dd",
+      "originalLeafSHA256": "32a676446248792c063775ec7ab51a0c5f3cea8196591eb9499a5447b83270dd",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/attachment-formats.test.ts",
+      "currentSHA256": "3b5bfa3ed21547b4f980fbf994b289e3726af926018d379e6a9135dfcfa489e8",
+      "originalLeafSHA256": "3b5bfa3ed21547b4f980fbf994b289e3726af926018d379e6a9135dfcfa489e8",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/read-metrics.test.ts",
+      "currentSHA256": "2828145e8b76080378cae41cdd59b5f49a3f4df87f6cfac1f8aeccb26b12a12c",
+      "originalLeafSHA256": "2828145e8b76080378cae41cdd59b5f49a3f4df87f6cfac1f8aeccb26b12a12c",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/workflow-projection.test.ts",
+      "currentSHA256": "34bfcb8ff11e0a7c99b61831e81b3fc2b9c1e5b08f0d19ef5666c08538e4854f",
+      "originalLeafSHA256": "34bfcb8ff11e0a7c99b61831e81b3fc2b9c1e5b08f0d19ef5666c08538e4854f",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/cloudflare-bindings.test.ts",
+      "currentSHA256": "25d7ba914ba9ae3847dc1d17a048ece17b9355879833471f2f409dddb6cf33db",
+      "originalLeafSHA256": "25d7ba914ba9ae3847dc1d17a048ece17b9355879833471f2f409dddb6cf33db",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/workspace-preferences.test.ts",
+      "currentSHA256": "23c61d82b73effde7940d41febd6c1163b9850f0f4ca8fb0a6866a7f65706923",
+      "originalLeafSHA256": "23c61d82b73effde7940d41febd6c1163b9850f0f4ca8fb0a6866a7f65706923",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/pipelined-transactions.test.ts",
+      "currentSHA256": "038f523b529f332f468327a8d32d96c035ec786fa46323b4bd73a34e9536ba6a",
+      "originalLeafSHA256": "038f523b529f332f468327a8d32d96c035ec786fa46323b4bd73a34e9536ba6a",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/list-page.test.ts",
+      "currentSHA256": "fef511f8691757c1079b19bd788731bfabdd1bcdaf4af678afbb977fe6a0bd73",
+      "originalLeafSHA256": "fef511f8691757c1079b19bd788731bfabdd1bcdaf4af678afbb977fe6a0bd73",
+      "strengthenedExistingRecoveryOnly": false
+    },
+    {
+      "file": "tests/read-request.test.ts",
+      "currentSHA256": "b8e3d971d3c0ae14265fd68ca81c61d9df92787fd58ddf12fe34a1e98e6a564d",
+      "originalLeafSHA256": "b8e3d971d3c0ae14265fd68ca81c61d9df92787fd58ddf12fe34a1e98e6a564d",
+      "strengthenedExistingRecoveryOnly": false
+    }
+  ],
+  "references": [
+    {
+      "feature": "property-01",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "blocks unauthorized, cross-company and revoked actors without business writes",
+      "fullOriginalCaseTitle": "blocks unauthorized, cross-company and revoked actors without business writes",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "property-01",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "filters setup details and resumes from owner records without admitting other branches",
+      "fullOriginalCaseTitle": "filters setup details and resumes from owner records without admitting other branches",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "property-01",
+      "file": "tests/pms-read-model.test.ts",
+      "assertionTitle": "retains fresh permission, company and branch privacy for every query model",
+      "fullOriginalCaseTitle": "retains fresh permission, company and branch privacy for every query model",
+      "currentSourceSHA256": "2b8fb57799f7e19d94a96d325ed8ea218b05dc059b7480b5f8aafdc07431bdf7",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "property-02",
+      "file": "tests/pms-read-model.test.ts",
+      "assertionTitle": "filters room type, building and floor before pagination without losing a selected detail",
+      "fullOriginalCaseTitle": "filters room type, building and floor before pagination without losing a selected detail",
+      "currentSourceSHA256": "2b8fb57799f7e19d94a96d325ed8ea218b05dc059b7480b5f8aafdc07431bdf7",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "property-02",
+      "file": "tests/pms-read-model.test.ts",
+      "assertionTitle": "protects off-page room assignments, duplicate numbers and maintenance capacity under inventory command locks",
+      "fullOriginalCaseTitle": "protects off-page room assignments, duplicate numbers and maintenance capacity under inventory command locks",
+      "currentSourceSHA256": "2b8fb57799f7e19d94a96d325ed8ea218b05dc059b7480b5f8aafdc07431bdf7",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "property-03",
+      "file": "tests/pms-booking.test.ts",
+      "assertionTitle": "shares exact nightly prices, child occupancy and policy snapshots",
+      "fullOriginalCaseTitle": "shares exact nightly prices, child occupancy and policy snapshots",
+      "currentSourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "property-03",
+      "file": "tests/pms-booking.test.ts",
+      "assertionTitle": "handles timezone cutoffs and rejects missing child pricing",
+      "fullOriginalCaseTitle": "handles timezone cutoffs and rejects missing child pricing",
+      "currentSourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "property-04",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "binds room-task photos in the PMS action transaction and leaves stale evidence draft",
+      "fullOriginalCaseTitle": "binds room-task photos in the PMS action transaction and leaves stale evidence draft",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "property-04",
+      "file": "tests/pms-booking.test.ts",
+      "assertionTitle": "requires explicit publication and prevents selling private rates",
+      "fullOriginalCaseTitle": "requires explicit publication and prevents selling private rates",
+      "currentSourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "rates-01",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "uses daily prices and stop-sell without repricing an existing reservation",
+      "fullOriginalCaseTitle": "uses daily prices and stop-sell without repricing an existing reservation",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "rates-03",
+      "file": "tests/pms-booking.test.ts",
+      "assertionTitle": "shares exact nightly prices, child occupancy and policy snapshots",
+      "fullOriginalCaseTitle": "shares exact nightly prices, child occupancy and policy snapshots",
+      "currentSourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "rates-03",
+      "file": "tests/pms-booking.test.ts",
+      "assertionTitle": "handles timezone cutoffs and rejects missing child pricing",
+      "fullOriginalCaseTitle": "handles timezone cutoffs and rejects missing child pricing",
+      "currentSourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "rates-04",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "uses daily prices and stop-sell without repricing an existing reservation",
+      "fullOriginalCaseTitle": "uses daily prices and stop-sell without repricing an existing reservation",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "rates-04",
+      "file": "tests/pms-booking.test.ts",
+      "assertionTitle": "withdraws inventory after maintenance and rejects a previously available quote",
+      "fullOriginalCaseTitle": "withdraws inventory after maintenance and rejects a previously available quote",
+      "currentSourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "rates-05",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "preserves reviewed night prices and original deposit FX through concurrent partial refunds and reload",
+      "fullOriginalCaseTitle": "preserves reviewed night prices and original deposit FX through concurrent partial refunds and reload",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "rates-05",
+      "file": "tests/pms-booking.test.ts",
+      "assertionTitle": "rejects stale price, stale policy, forged and expired quotes",
+      "fullOriginalCaseTitle": "rejects stale price, stale policy, forged and expired quotes",
+      "currentSourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "rates-05",
+      "file": "tests/pms-booking.test.ts",
+      "assertionTitle": "applies a paid change with accepted prices even when a rate is edited during Checkout",
+      "fullOriginalCaseTitle": "applies a paid change with accepted prices even when a rate is edited during Checkout",
+      "currentSourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "reservations-01",
+      "file": "tests/pms-booking.test.ts",
+      "assertionTitle": "holds two rooms, then confirms and allocates each guest account only after Stripe verifies the direct charge",
+      "fullOriginalCaseTitle": "holds two rooms, then confirms and allocates each guest account only after Stripe verifies the direct charge",
+      "currentSourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "reservations-01",
+      "file": "tests/pms-booking.test.ts",
+      "assertionTitle": "collects a 30% room advance and combines pay-at-hotel rooms without inventing income",
+      "fullOriginalCaseTitle": "collects a 30% room advance and combines pay-at-hotel rooms without inventing income",
+      "currentSourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "reservations-02",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "rejects double booking, duplicate OTA references and stale versions",
+      "fullOriginalCaseTitle": "rejects double booking, duplicate OTA references and stale versions",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "reservations-02",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "settles a manually entered OTA reservation against approved credit and net bank proceeds",
+      "fullOriginalCaseTitle": "settles a manually entered OTA reservation against approved credit and net bank proceeds",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "reservations-03",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "keeps group pickup from consuming inventory twice and allows back-to-back stays",
+      "fullOriginalCaseTitle": "keeps group pickup from consuming inventory twice and allows back-to-back stays",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "reservations-05",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "cancels an unarrived room in a partially checked-in group and ignores stale housekeeping cycles",
+      "fullOriginalCaseTitle": "cancels an unarrived room in a partially checked-in group and ignores stale housekeeping cycles",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "reservations-05",
+      "file": "tests/pms-booking.test.ts",
+      "assertionTitle": "cancels all rooms once and restores inventory without fees",
+      "fullOriginalCaseTitle": "cancels all rooms once and restores inventory without fees",
+      "currentSourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "reservations-05",
+      "file": "tests/pms-booking.test.ts",
+      "assertionTitle": "rejects cancellation at the exact cutoff and after partial arrival or financial activity",
+      "fullOriginalCaseTitle": "rejects cancellation at the exact cutoff and after partial arrival or financial activity",
+      "currentSourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "front-desk-01",
+      "file": "tests/pms-read-model.test.ts",
+      "assertionTitle": "does not hide overdue stays or unreviewed cash shifts when paging day-close history",
+      "fullOriginalCaseTitle": "does not hide overdue stays or unreviewed cash shifts when paging day-close history",
+      "currentSourceSHA256": "2b8fb57799f7e19d94a96d325ed8ea218b05dc059b7480b5f8aafdc07431bdf7",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "front-desk-01",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "keeps overdue arrivals outside the current UI window as Night Audit blockers",
+      "fullOriginalCaseTitle": "keeps overdue arrivals outside the current UI window as Night Audit blockers",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "front-desk-02",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "completes deposit, stay, durable night audit, checkout and invoice without duplicate revenue",
+      "fullOriginalCaseTitle": "completes deposit, stay, durable night audit, checkout and invoice without duplicate revenue",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "front-desk-02",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "requires inspected rooms and independent inspection; maintenance cannot displace guests",
+      "fullOriginalCaseTitle": "requires inspected rooms and independent inspection; maintenance cannot displace guests",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "front-desk-03",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "moves an in-house guest, extends safely and preserves room history",
+      "fullOriginalCaseTitle": "moves an in-house guest, extends safely and preserves room history",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "front-desk-03",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "room move supersedes every old-room task beyond a UI page without modifying unrelated closed-account history",
+      "fullOriginalCaseTitle": "room move supersedes every old-room task beyond a UI page without modifying unrelated closed-account history",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "front-desk-04",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "releases unused future room nights on early departure without duplicate revenue or checkout",
+      "fullOriginalCaseTitle": "releases unused future room nights on early departure without duplicate revenue or checkout",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "housekeeping-01",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "requires inspected rooms and independent inspection; maintenance cannot displace guests",
+      "fullOriginalCaseTitle": "requires inspected rooms and independent inspection; maintenance cannot displace guests",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "housekeeping-02",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "honors DND for room work and resumes the same cycle only after its release",
+      "fullOriginalCaseTitle": "honors DND for room work and resumes the same cycle only after its release",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "housekeeping-02",
+      "file": "tests/pms-read-model.test.ts",
+      "assertionTitle": "uses authoritative room occupancy and all room tasks for housekeeping commands beyond a UI page",
+      "fullOriginalCaseTitle": "uses authoritative room occupancy and all room tasks for housekeeping commands beyond a UI page",
+      "currentSourceSHA256": "2b8fb57799f7e19d94a96d325ed8ea218b05dc059b7480b5f8aafdc07431bdf7",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "housekeeping-03",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "binds room-task photos in the PMS action transaction and leaves stale evidence draft",
+      "fullOriginalCaseTitle": "binds room-task photos in the PMS action transaction and leaves stale evidence draft",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "housekeeping-03",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "requires inspected rooms and independent inspection; maintenance cannot displace guests",
+      "fullOriginalCaseTitle": "requires inspected rooms and independent inspection; maintenance cannot displace guests",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "housekeeping-03",
+      "file": "tests/pms-read-model.test.ts",
+      "assertionTitle": "uses authoritative room occupancy and all room tasks for housekeeping commands beyond a UI page",
+      "fullOriginalCaseTitle": "uses authoritative room occupancy and all room tasks for housekeeping commands beyond a UI page",
+      "currentSourceSHA256": "2b8fb57799f7e19d94a96d325ed8ea218b05dc059b7480b5f8aafdc07431bdf7",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "housekeeping-04",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "requires inspected rooms and independent inspection; maintenance cannot displace guests",
+      "fullOriginalCaseTitle": "requires inspected rooms and independent inspection; maintenance cannot displace guests",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "housekeeping-04",
+      "file": "tests/pms-booking.test.ts",
+      "assertionTitle": "withdraws inventory after maintenance and rejects a previously available quote",
+      "fullOriginalCaseTitle": "withdraws inventory after maintenance and rejects a previously available quote",
+      "currentSourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "housekeeping-04",
+      "file": "tests/pms-read-model.test.ts",
+      "assertionTitle": "protects off-page room assignments, duplicate numbers and maintenance capacity under inventory command locks",
+      "fullOriginalCaseTitle": "protects off-page room assignments, duplicate numbers and maintenance capacity under inventory command locks",
+      "currentSourceSHA256": "2b8fb57799f7e19d94a96d325ed8ea218b05dc059b7480b5f8aafdc07431bdf7",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "housekeeping-05",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "binds lost-property handover evidence in the release transaction",
+      "fullOriginalCaseTitle": "binds lost-property handover evidence in the release transaction",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "accounts-01",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "settles a manually entered OTA reservation against approved credit and net bank proceeds",
+      "fullOriginalCaseTitle": "settles a manually entered OTA reservation against approved credit and net bank proceeds",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "accounts-01",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "checkout includes all same-party credit exposure beyond a page and excludes unrelated parties without losing account funding",
+      "fullOriginalCaseTitle": "checkout includes all same-party credit exposure beyond a page and excludes unrelated parties without losing account funding",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "accounts-02",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "splits and merges charges without repeating revenue and reverses the recipient entry once",
+      "fullOriginalCaseTitle": "splits and merges charges without repeating revenue and reverses the recipient entry once",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "accounts-03",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "retains historical occupancy capacity and posts corrections in the open business date",
+      "fullOriginalCaseTitle": "retains historical occupancy capacity and posts corrections in the open business date",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "accounts-03",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "blocks closed accounting periods and keeps the payment and guest account atomic",
+      "fullOriginalCaseTitle": "blocks closed accounting periods and keeps the payment and guest account atomic",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "accounts-04",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "protects allocated receipt links and journal lines from deletion outside the subledger",
+      "fullOriginalCaseTitle": "protects allocated receipt links and journal lines from deletion outside the subledger",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "accounts-04",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "uses complete original receipt funding beyond a UI page while preserving unrelated closed account history",
+      "fullOriginalCaseTitle": "uses complete original receipt funding beyond a UI page while preserving unrelated closed account history",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "accounts-04",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "checkout preserves original receipt allocations of another issued credit account for the same payer",
+      "fullOriginalCaseTitle": "checkout preserves original receipt allocations of another issued credit account for the same payer",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "cashier-01",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "settles a pending hotel transfer only after independent exact bank evidence",
+      "fullOriginalCaseTitle": "settles a pending hotel transfer only after independent exact bank evidence",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "cashier-01",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "cancels an unverified hotel transfer without changing guest account or ledger",
+      "fullOriginalCaseTitle": "cancels an unverified hotel transfer without changing guest account or ledger",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "cashier-01",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "completes deposit, stay, durable night audit, checkout and invoice without duplicate revenue",
+      "fullOriginalCaseTitle": "completes deposit, stay, durable night audit, checkout and invoice without duplicate revenue",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "cashier-02",
+      "file": "tests/pms-booking.test.ts",
+      "assertionTitle": "posts a counter PromptPay room payment and deposit only after Stripe confirms each intent",
+      "fullOriginalCaseTitle": "posts a counter PromptPay room payment and deposit only after Stripe confirms each intent",
+      "currentSourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "cashier-02",
+      "file": "tests/pms-booking.test.ts",
+      "assertionTitle": "requires an independent Finance approval and Stripe confirmation for a counter refund",
+      "fullOriginalCaseTitle": "requires an independent Finance approval and Stripe confirmation for a counter refund",
+      "currentSourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "cashier-03",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "separates security deposits, enforces refund independence and reverses advance VAT once",
+      "fullOriginalCaseTitle": "separates security deposits, enforces refund independence and reverses advance VAT once",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "cashier-03",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "allocates new receipts after an earlier deposit was refunded",
+      "fullOriginalCaseTitle": "allocates new receipts after an earlier deposit was refunded",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "cashier-03",
+      "file": "tests/pms-booking.test.ts",
+      "assertionTitle": "collects a 30% room advance and combines pay-at-hotel rooms without inventing income",
+      "fullOriginalCaseTitle": "collects a 30% room advance and combines pay-at-hotel rooms without inventing income",
+      "currentSourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "cashier-04",
+      "file": "tests/pms-booking.test.ts",
+      "assertionTitle": "reserves partial refunds cumulatively and rejects an approval by the requester",
+      "fullOriginalCaseTitle": "reserves partial refunds cumulatively and rejects an approval by the requester",
+      "currentSourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "cashier-04",
+      "file": "tests/pms-booking.test.ts",
+      "assertionTitle": "retains counter partial refund generations and recovers a failed provider attempt without posting debt twice",
+      "fullOriginalCaseTitle": "retains counter partial refund generations and recovers a failed provider attempt without posting debt twice",
+      "currentSourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "cashier-04",
+      "file": "tests/pms-booking.test.ts",
+      "assertionTitle": "recovers a partial booking refund after the provider accepts it but its response is lost",
+      "fullOriginalCaseTitle": "recovers a partial booking refund after the provider accepts it but its response is lost",
+      "currentSourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "cashier-04",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "serializes a damage-deposit refund against applying the same deposit to a charge",
+      "fullOriginalCaseTitle": "serializes a damage-deposit refund against applying the same deposit to a charge",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "cashier-05",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "holds Night Audit for restaurant cash, variance and unverified transfer controls",
+      "fullOriginalCaseTitle": "holds Night Audit for restaurant cash, variance and unverified transfer controls",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "cashier-05",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "settles the original opening receivable and invoices only new hotel service across two business days",
+      "fullOriginalCaseTitle": "settles the original opening receivable and invoices only new hotel service across two business days",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "direct-01",
+      "file": "tests/pms-booking.test.ts",
+      "assertionTitle": "requires explicit publication and prevents selling private rates",
+      "fullOriginalCaseTitle": "requires explicit publication and prevents selling private rates",
+      "currentSourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "direct-01",
+      "file": "tests/pms-booking.test.ts",
+      "assertionTitle": "filters inventory reads and public responses away from guest and financial history",
+      "fullOriginalCaseTitle": "filters inventory reads and public responses away from guest and financial history",
+      "currentSourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "direct-02",
+      "file": "tests/pms-booking.test.ts",
+      "assertionTitle": "holds two rooms, then confirms and allocates each guest account only after Stripe verifies the direct charge",
+      "fullOriginalCaseTitle": "holds two rooms, then confirms and allocates each guest account only after Stripe verifies the direct charge",
+      "currentSourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "direct-02",
+      "file": "tests/pms-booking.test.ts",
+      "assertionTitle": "collects a 30% room advance and combines pay-at-hotel rooms without inventing income",
+      "fullOriginalCaseTitle": "collects a 30% room advance and combines pay-at-hotel rooms without inventing income",
+      "currentSourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "direct-03",
+      "file": "tests/pms-booking.test.ts",
+      "assertionTitle": "holds two rooms, then confirms and allocates each guest account only after Stripe verifies the direct charge",
+      "fullOriginalCaseTitle": "holds two rooms, then confirms and allocates each guest account only after Stripe verifies the direct charge",
+      "currentSourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "direct-03",
+      "file": "tests/pms-booking.test.ts",
+      "assertionTitle": "collects a 30% room advance and combines pay-at-hotel rooms without inventing income",
+      "fullOriginalCaseTitle": "collects a 30% room advance and combines pay-at-hotel rooms without inventing income",
+      "currentSourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "direct-04",
+      "file": "tests/pms-booking.test.ts",
+      "assertionTitle": "changes an unpaid future stay at equal price and releases only selected cancelled rooms",
+      "fullOriginalCaseTitle": "changes an unpaid future stay at equal price and releases only selected cancelled rooms",
+      "currentSourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "direct-04",
+      "file": "tests/pms-booking.test.ts",
+      "assertionTitle": "keeps the original stay while a more expensive change expires and holds only added capacity",
+      "fullOriginalCaseTitle": "keeps the original stay while a more expensive change expires and holds only added capacity",
+      "currentSourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "direct-04",
+      "file": "tests/pms-booking.test.ts",
+      "assertionTitle": "applies a paid change with accepted prices even when a rate is edited during Checkout",
+      "fullOriginalCaseTitle": "applies a paid change with accepted prices even when a rate is edited during Checkout",
+      "currentSourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "direct-04",
+      "file": "tests/pms-booking.test.ts",
+      "assertionTitle": "confirms a timely provider payment after local hold expiry only when capacity is still available",
+      "fullOriginalCaseTitle": "confirms a timely provider payment after local hold expiry only when capacity is still available",
+      "currentSourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "direct-04",
+      "file": "tests/pms-booking.test.ts",
+      "assertionTitle": "records unallocated money once when a timely late webhook loses the last room",
+      "fullOriginalCaseTitle": "records unallocated money once when a timely late webhook loses the last room",
+      "currentSourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "direct-04",
+      "file": "tests/pms-booking.test.ts",
+      "assertionTitle": "recovers a provider success after the local accounting transaction fails without taking another payment",
+      "fullOriginalCaseTitle": "recovers a provider success after the local accounting transaction fails without taking another payment",
+      "currentSourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "direct-04",
+      "file": "tests/pms-booking.test.ts",
+      "assertionTitle": "deduplicates signed booking payment callbacks through durable jobs and rejects tampered payloads",
+      "fullOriginalCaseTitle": "deduplicates signed booking payment callbacks through durable jobs and rejects tampered payloads",
+      "currentSourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "direct-05",
+      "file": "tests/pms-booking.test.ts",
+      "assertionTitle": "retries email failures while keeping the booking confirmed",
+      "fullOriginalCaseTitle": "retries email failures while keeping the booking confirmed",
+      "currentSourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "direct-05",
+      "file": "tests/pms-booking.test.ts",
+      "assertionTitle": "delivers a queued confirmation in a release process without enabling live payments",
+      "fullOriginalCaseTitle": "delivers a queued confirmation in a release process without enabling live payments",
+      "currentSourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "direct-05",
+      "file": "tests/pms-booking.test.ts",
+      "assertionTitle": "expires access links and provides non-enumerating email recovery",
+      "fullOriginalCaseTitle": "expires access links and provides non-enumerating email recovery",
+      "currentSourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "direct-05",
+      "file": "tests/pms-booking.test.ts",
+      "assertionTitle": "serves only guest documents belonging to the management token and excludes private accounting fields",
+      "fullOriginalCaseTitle": "serves only guest documents belonging to the management token and excludes private accounting fields",
+      "currentSourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "direct-05",
+      "file": "tests/unit/pms-application.test.ts",
+      "assertionTitle": "guest document lookup is bound to the authorized hotel and booking",
+      "fullOriginalCaseTitle": "guest document lookup is bound to the authorized hotel and booking",
+      "currentSourceSHA256": "3594661ac9c39b6edac062f747f3489974f232f1c8b1cb906b218610de2d1269",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": true,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "direct-05",
+      "file": "tests/unit/pms-application.test.ts",
+      "assertionTitle": "guest document preserves its issued amounts and excludes Finance and personal identifiers",
+      "fullOriginalCaseTitle": "guest document preserves its issued amounts and excludes Finance and personal identifiers",
+      "currentSourceSHA256": "3594661ac9c39b6edac062f747f3489974f232f1c8b1cb906b218610de2d1269",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": true,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "guests-01",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "loads real workspace selectors and redacts financial and guest data for housekeeping",
+      "fullOriginalCaseTitle": "loads real workspace selectors and redacts financial and guest data for housekeeping",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "guests-01",
+      "file": "tests/pms-front-attachments.test.ts",
+      "assertionTitle": "keeps private room evidence on Front through intake, scan and the hotel action binding",
+      "fullOriginalCaseTitle": "keeps private room evidence on Front through intake, scan and the hotel action binding",
+      "currentSourceSHA256": "5df55aed2215b7297f69b1ae883e4ef23a3da1f422584e86037071f38c5f8302",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "guests-02",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "retains guest preferences and immutable service request history across legacy edits and retries",
+      "fullOriginalCaseTitle": "retains guest preferences and immutable service request history across legacy edits and retries",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "guests-03",
+      "file": "tests/crm-marketing-analytics.test.ts",
+      "assertionTitle": "keeps a confirmed PMS win after cancellation and only counts posted journal revenue",
+      "fullOriginalCaseTitle": "keeps a confirmed PMS win after cancellation and only counts posted journal revenue",
+      "currentSourceSHA256": "50bf3e0e5997c89937c83f64e73866fce17dd8e148f59956b04cf0d1e0b58267",
+      "belongsToOriginal1342": false,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "guests-03",
+      "file": "tests/crm-marketing-analytics.test.ts",
+      "assertionTitle": "keeps hotel history private until authority is reviewed and hides it after withdrawal",
+      "fullOriginalCaseTitle": "keeps hotel history private until authority is reviewed and hides it after withdrawal",
+      "currentSourceSHA256": "50bf3e0e5997c89937c83f64e73866fce17dd8e148f59956b04cf0d1e0b58267",
+      "belongsToOriginal1342": false,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "guests-04",
+      "file": "tests/crm-marketing-analytics.test.ts",
+      "assertionTitle": "keeps hotel history private until authority is reviewed and hides it after withdrawal",
+      "fullOriginalCaseTitle": "keeps hotel history private until authority is reviewed and hides it after withdrawal",
+      "currentSourceSHA256": "50bf3e0e5997c89937c83f64e73866fce17dd8e148f59956b04cf0d1e0b58267",
+      "belongsToOriginal1342": false,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "guests-04",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "blocks unauthorized, cross-company and revoked actors without business writes",
+      "fullOriginalCaseTitle": "blocks unauthorized, cross-company and revoked actors without business writes",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "guests-04",
+      "file": "tests/unit/pms-application.test.ts",
+      "assertionTitle": "PMS source rules keep housekeeping away from guest account and refund money",
+      "fullOriginalCaseTitle": "PMS source rules keep housekeeping away from guest account and refund money",
+      "currentSourceSHA256": "3594661ac9c39b6edac062f747f3489974f232f1c8b1cb906b218610de2d1269",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": true,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "pos-stock-01",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "defines a POS room-charge contract that rejects foreign scope and already recognized revenue",
+      "fullOriginalCaseTitle": "defines a POS room-charge contract that rejects foreign scope and already recognized revenue",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "pos-stock-01",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "POS room charge allocates complete original advance sources beyond a UI page",
+      "fullOriginalCaseTitle": "POS room charge allocates complete original advance sources beyond a UI page",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "pos-stock-02",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "POS reversal detects an original reversal outside the charged account",
+      "fullOriginalCaseTitle": "POS reversal detects an original reversal outside the charged account",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "pos-stock-02",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "splits and merges charges without repeating revenue and reverses the recipient entry once",
+      "fullOriginalCaseTitle": "splits and merges charges without repeating revenue and reverses the recipient entry once",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "pos-stock-03",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "posts minibar and inventory cost together, rolling back insufficient stock",
+      "fullOriginalCaseTitle": "posts minibar and inventory cost together, rolling back insufficient stock",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "pos-stock-04",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "preserves linen custody and original stock cost through replay, laundry and loss",
+      "fullOriginalCaseTitle": "preserves linen custody and original stock cost through replay, laundry and loss",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "night-01",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "completes deposit, stay, durable night audit, checkout and invoice without duplicate revenue",
+      "fullOriginalCaseTitle": "completes deposit, stay, durable night audit, checkout and invoice without duplicate revenue",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "night-01",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "settles the original opening receivable and invoices only new hotel service across two business days",
+      "fullOriginalCaseTitle": "settles the original opening receivable and invoices only new hotel service across two business days",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "night-02",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "holds Night Audit for restaurant cash, variance and unverified transfer controls",
+      "fullOriginalCaseTitle": "holds Night Audit for restaurant cash, variance and unverified transfer controls",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "night-02",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "keeps overdue arrivals outside the current UI window as Night Audit blockers",
+      "fullOriginalCaseTitle": "keeps overdue arrivals outside the current UI window as Night Audit blockers",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "night-02",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "retains an older open shift behind reviewed history before closing a hotel day",
+      "fullOriginalCaseTitle": "retains an older open shift behind reviewed history before closing a hotel day",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "night-02",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "does not treat an older closed shift with unknown variance as reconciled",
+      "fullOriginalCaseTitle": "does not treat an older closed shift with unknown variance as reconciled",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "night-03",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "durably blocks failed night audit and resumes under a valid auditor",
+      "fullOriginalCaseTitle": "durably blocks failed night audit and resumes under a valid auditor",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "night-03",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "resumes a multi-chunk night from committed sources and serializes competing workers",
+      "fullOriginalCaseTitle": "resumes a multi-chunk night from committed sources and serializes competing workers",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "night-04",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "durably blocks failed night audit and resumes under a valid auditor",
+      "fullOriginalCaseTitle": "durably blocks failed night audit and resumes under a valid auditor",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "night-04",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "resumes a multi-chunk night from committed sources and serializes competing workers",
+      "fullOriginalCaseTitle": "resumes a multi-chunk night from committed sources and serializes competing workers",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "night-04",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "locks closing-day commands and blocks workers whose originating authority was revoked",
+      "fullOriginalCaseTitle": "locks closing-day commands and blocks workers whose originating authority was revoked",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "reports-01",
+      "file": "tests/pms-reports.test.ts",
+      "assertionTitle": "uses corrected room-night revenue for ADR and includes other services only in net revenue",
+      "fullOriginalCaseTitle": "uses corrected room-night revenue for ADR and includes other services only in net revenue",
+      "currentSourceSHA256": "038679c10c1e8e20a29e0dc73147e921f3b60570ecb34069c2cd9ef2a9309ce7",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "reports-01",
+      "file": "tests/unit/pms-application.test.ts",
+      "assertionTitle": "PMS report aggregates integer revenue, occupancy and liability signs from provided facts",
+      "fullOriginalCaseTitle": "PMS report aggregates integer revenue, occupancy and liability signs from provided facts",
+      "currentSourceSHA256": "3594661ac9c39b6edac062f747f3489974f232f1c8b1cb906b218610de2d1269",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": true,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "reports-02",
+      "file": "tests/pms-reports.test.ts",
+      "assertionTitle": "uses corrected room-night revenue for ADR and includes other services only in net revenue",
+      "fullOriginalCaseTitle": "uses corrected room-night revenue for ADR and includes other services only in net revenue",
+      "currentSourceSHA256": "038679c10c1e8e20a29e0dc73147e921f3b60570ecb34069c2cd9ef2a9309ce7",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "reports-02",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "settles the original opening receivable and invoices only new hotel service across two business days",
+      "fullOriginalCaseTitle": "settles the original opening receivable and invoices only new hotel service across two business days",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "reports-03",
+      "file": "tests/pms-reports.test.ts",
+      "assertionTitle": "attributes current room nights by channel using original creation evidence rather than edit time",
+      "fullOriginalCaseTitle": "attributes current room nights by channel using original creation evidence rather than edit time",
+      "currentSourceSHA256": "038679c10c1e8e20a29e0dc73147e921f3b60570ecb34069c2cd9ef2a9309ce7",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "reports-04",
+      "file": "tests/pms-reports.test.ts",
+      "assertionTitle": "retains historical prices and room nights after date changes and partial cancellation",
+      "fullOriginalCaseTitle": "retains historical prices and room nights after date changes and partial cancellation",
+      "currentSourceSHA256": "038679c10c1e8e20a29e0dc73147e921f3b60570ecb34069c2cd9ef2a9309ce7",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "reports-04",
+      "file": "tests/pms-reports.test.ts",
+      "assertionTitle": "reports unknown pace before coverage instead of inventing legacy observations",
+      "fullOriginalCaseTitle": "reports unknown pace before coverage instead of inventing legacy observations",
+      "currentSourceSHA256": "038679c10c1e8e20a29e0dc73147e921f3b60570ecb34069c2cd9ef2a9309ce7",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "reports-04",
+      "file": "tests/pms-reports.test.ts",
+      "assertionTitle": "retains completed reservation room nights in the historical booked stay period",
+      "fullOriginalCaseTitle": "retains completed reservation room nights in the historical booked stay period",
+      "currentSourceSHA256": "038679c10c1e8e20a29e0dc73147e921f3b60570ecb34069c2cd9ef2a9309ce7",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "reports-05",
+      "file": "tests/pms-reports.test.ts",
+      "assertionTitle": "bounds ranges, drill-down pages and scope",
+      "fullOriginalCaseTitle": "bounds ranges, drill-down pages and scope",
+      "currentSourceSHA256": "038679c10c1e8e20a29e0dc73147e921f3b60570ecb34069c2cd9ef2a9309ce7",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "reports-05",
+      "file": "tests/unit/pms-application.test.ts",
+      "assertionTitle": "PMS report pagination keeps exactly fifty rows and signals the next page",
+      "fullOriginalCaseTitle": "PMS report pagination keeps exactly fifty rows and signals the next page",
+      "currentSourceSHA256": "3594661ac9c39b6edac062f747f3489974f232f1c8b1cb906b218610de2d1269",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": true,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "group-01",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "aggregates accessible hotels without choosing one and keeps guest amounts private from housekeeping",
+      "fullOriginalCaseTitle": "aggregates accessible hotels without choosing one and keeps guest amounts private from housekeeping",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "group-02",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "blocks unauthorized, cross-company and revoked actors without business writes",
+      "fullOriginalCaseTitle": "blocks unauthorized, cross-company and revoked actors without business writes",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "group-02",
+      "file": "tests/pms-read-model.test.ts",
+      "assertionTitle": "retains fresh permission, company and branch privacy for every query model",
+      "fullOriginalCaseTitle": "retains fresh permission, company and branch privacy for every query model",
+      "currentSourceSHA256": "2b8fb57799f7e19d94a96d325ed8ea218b05dc059b7480b5f8aafdc07431bdf7",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "group-03",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "blocks unauthorized, cross-company and revoked actors without business writes",
+      "fullOriginalCaseTitle": "blocks unauthorized, cross-company and revoked actors without business writes",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "group-03",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "locks closing-day commands and blocks workers whose originating authority was revoked",
+      "fullOriginalCaseTitle": "locks closing-day commands and blocks workers whose originating authority was revoked",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "group-03",
+      "file": "tests/unit/pms-application.test.ts",
+      "assertionTitle": "PMS report permission withdrawal prevents all repository reads",
+      "fullOriginalCaseTitle": "PMS report permission withdrawal prevents all repository reads",
+      "currentSourceSHA256": "3594661ac9c39b6edac062f747f3489974f232f1c8b1cb906b218610de2d1269",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": true,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "group-04",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "aggregates accessible hotels without choosing one and keeps guest amounts private from housekeeping",
+      "fullOriginalCaseTitle": "aggregates accessible hotels without choosing one and keeps guest amounts private from housekeeping",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "group-04",
+      "file": "tests/pms-read-model.test.ts",
+      "assertionTitle": "measures scoped room reads and guest writes with three 200-room properties and two-year synthetic history",
+      "fullOriginalCaseTitle": "measures scoped room reads and guest writes with three 200-room properties and two-year synthetic history",
+      "currentSourceSHA256": "2b8fb57799f7e19d94a96d325ed8ea218b05dc059b7480b5f8aafdc07431bdf7",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "cutover-01",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "completes deposit, stay, durable night audit, checkout and invoice without duplicate revenue",
+      "fullOriginalCaseTitle": "completes deposit, stay, durable night audit, checkout and invoice without duplicate revenue",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "cutover-01",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "protects PMS invoices and payments from generic finance mutations",
+      "fullOriginalCaseTitle": "protects PMS invoices and payments from generic finance mutations",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "cutover-01",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "settles the original opening receivable and invoices only new hotel service across two business days",
+      "fullOriginalCaseTitle": "settles the original opening receivable and invoices only new hotel service across two business days",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "cutover-02",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "previews import errors without writing hotel records and requires independent unchanged approval",
+      "fullOriginalCaseTitle": "previews import errors without writing hotel records and requires independent unchanged approval",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "cutover-02",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "traces imported advance and deposit to the approved opening journal and reconciles partial refunds",
+      "fullOriginalCaseTitle": "traces imported advance and deposit to the approved opening journal and reconciles partial refunds",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "cutover-02",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "settles the original opening receivable and invoices only new hotel service across two business days",
+      "fullOriginalCaseTitle": "settles the original opening receivable and invoices only new hotel service across two business days",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "cutover-03",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "previews import errors without writing hotel records and requires independent unchanged approval",
+      "fullOriginalCaseTitle": "previews import errors without writing hotel records and requires independent unchanged approval",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "cutover-03",
+      "file": "tests/pms.test.ts",
+      "assertionTitle": "applies approved imported in-house stays atomically and resumes a repeated apply without past room revenue",
+      "fullOriginalCaseTitle": "applies approved imported in-house stays atomically and resumes a repeated apply without past room revenue",
+      "currentSourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "cutover-04",
+      "file": "tests/engineering-recovery.test.ts",
+      "assertionTitle": "encrypts a complete isolated snapshot, restores immutable money and files, and rolls back only compatible releases",
+      "fullOriginalCaseTitle": "encrypts a complete isolated snapshot, restores immutable money and files, and rolls back only compatible releases",
+      "currentSourceSHA256": "eba0733f74e1a8569f7862361cc0905a45ec10366dcf5137622610d812b6fc8e",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json",
+      "explicitCurrentCompiledRecoveryPassed": true
+    },
+    {
+      "feature": "cutover-04",
+      "file": "tests/engineering-migration-upgrade.test.ts",
+      "assertionTitle": "upgrades populated pre-completion databases without changing posted money or files and replays canonical backfill once",
+      "fullOriginalCaseTitle": "upgrades populated pre-completion databases without changing posted money or files and replays canonical backfill once",
+      "currentSourceSHA256": "c9993f5b4616c2e905b9b24f204384b9bc51264afa04fa78b71402cb5c3bc3d7",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    },
+    {
+      "feature": "cutover-04",
+      "file": "tests/pms-cache-upgrade.test.ts",
+      "assertionTitle": "preserves every original cache revision on the populated 1037 upgrade and replays 1038 once",
+      "fullOriginalCaseTitle": "preserves every original cache revision on the populated 1037 upgrade and replays 1038 once",
+      "currentSourceSHA256": "e6061ccbdacabef4ec6dffc5e2ac555736d098dfe06340602d1eebe4c66d927b",
+      "belongsToOriginal1342": true,
+      "freshUnitPassed": false,
+      "freshIntegrationStillAwaitingTerminal": false,
+      "freshNativeCasePassed": true,
+      "executionEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json"
+    }
+  ],
+  "currentNativePassingEvidence": "docs/testing/evidence/2026-10-11-pms-sealed-native-recovery.json",
+  "pendingGates": [
+    "original178 browser terminal/strict audit",
+    "134 route identities terminal/strict audit",
+    "persisted HTTP40",
+    "strict capacity and ownedcleanup",
+    "final67feature/19requirement reconciliation"
+  ],
+  "scope": "All137 registered source assertion references uniquely bound to actual current passing native case titles, all133 original native sources byte verified (132 unchanged plus1 strengthened existing recovery). Native evidence only; no per-feature or whole-plan promotion. Separate CRM source scope preserved.",
+  "wholePlanAccepted": false
+}

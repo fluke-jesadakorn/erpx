@@ -57,7 +57,7 @@ export function productionPageCut(pathname:string,workspaceBase:string,search:Pi
   const entry=catalogue.find(item=>item.id===moduleId);
   if(!entry||!['Coming Soon','Prototype'].includes(entry.state))return null;
   if(root==='pms') {
-    if((section==='documents'&&segments.length>2)||search.get('folio'))return null;
+    if((section==='documents'&&segments.length>2)||search.get('guestAccount'))return null;
   } else if(root==='pos') {
     if(segments.length>1||search.get('sale')||search.get('movement'))return null;
   } else if(segments.length>1) {

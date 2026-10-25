@@ -84,6 +84,11 @@ export async function seedEngineeringBusinessBrowser({run,db,f}:Input){
    ?await posCommand(db,source,'settings.bootstrap',{mode:'retail',warehouseId:String(warehouse.id),registerName:`${label} retail register`},key())
    :await posCommand(db,source,'register.save',{mode:'retail',warehouseId:String(warehouse.id),name:`${label} retail register`,expectedVersion:0},key());
   const retailRegisterId=String(retailRegister.registerId??retailRegister.id);
+  if(viewport==='desktop') {
+   const mapping=await db.prepare('SELECT version FROM pos_settings WHERE company_id=?').bind(f.company).first<{version:number}>();
+   if(!mapping)throw new Error('RETAIL_ACCOUNTING_MAPPING_REQUIRED');
+   await posCommand(db,{...f.manager,holdingSlug:'simulation'},'accounting.approve',{expectedVersion:Number(mapping.version)},key());
+  }
   await posCommand(db,source,'catalog.save',{productId:String(retailProduct.id),barcode:`RETAIL-${viewport}-${run}`,category:'Fictional retail',kind:'stock',station:'Retail counter',recipe:[],modifiers:[],taxInclusive:false,expectedVersion:0,registerIds:[retailRegisterId]},key());
   const resource=await saveProductionResource(reviewer,null,{branchId:f.branch,code:`BROWSER-${viewport}-${run}`,name:`${label} assembly cell`,dailyMinutes:20,workWeekdays:[0,1,2,3,4,5,6]},key());
   await saveProductionResourceCalendar(reviewer,String(resource.id),{expectedVersion:0,resourceVersion:1,workDate:today,availableMinutes:0,reason:'Fictional scheduled equipment shutdown on the initial planning day.'},key());

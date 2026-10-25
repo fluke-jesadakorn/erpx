@@ -342,7 +342,7 @@ export type CommerceUnit<Effect> = {
     }): Effect;
     prepareCommerceReturns4(facts: {
         userId: string;
-        stockJournal: string;
+        stockJournal: string | null;
         creditJournal: string;
         baseCreditMinor: number;
         fact4: string | null;
@@ -431,7 +431,7 @@ export type CommerceUnit<Effect> = {
     }): Promise<Row | null>;
     prepareCommerceOrders2(facts: {
         partyId: string;
-        warehouseId: string;
+        warehouseId: string | null;
         branch_id: string | number | null;
         orderDate: string;
         dueDate: string;
@@ -456,7 +456,7 @@ export type CommerceUnit<Effect> = {
         kind: "sales" | "purchase" | "quote";
         fact5: string;
         partyId: string;
-        warehouseId: string;
+        warehouseId: string | null;
         currency: string | number | null;
         orderDate: string;
         dueDate: string;
@@ -484,6 +484,7 @@ export type CommerceUnit<Effect> = {
         index: number;
         listPrice: number;
         discountBps: number;
+        itemType: "stock" | "service";
     }): Effect;
     readCommerceFulfillments4(facts: {
         id: string;
@@ -560,6 +561,7 @@ export type CommerceUnit<Effect> = {
         userId: string;
         fact5: number;
         fact6: string | null;
+        completionMode: "goods" | "service" | "mixed";
     }): Effect;
     readCommerceOrderLines2(facts: {
         lineId: string;
@@ -831,6 +833,7 @@ export type CommerceUnit<Effect> = {
         name: string;
         unit: string;
         trackingMode: "none" | "serial" | "lot";
+        itemType: "stock" | "service";
         fact4: number;
         taxBps: number;
         status: "active" | "archived";
@@ -843,6 +846,7 @@ export type CommerceUnit<Effect> = {
         name: string;
         unit: string;
         trackingMode: "none" | "serial" | "lot";
+        itemType: "stock" | "service";
         fact6: number;
         taxBps: number;
         status: "active" | "archived";
@@ -1438,6 +1442,8 @@ export type CommerceUnit<Effect> = {
         edit?: string;
         request?: string;
         status?: string;
+        startDate?: string;
+        endDate?: string;
     }): Promise<{
         page: ListPage<Row & {
             id: string;
@@ -1608,6 +1614,7 @@ export function createCommerceApplication<Effect, Context = unknown>(ports: {
         if (order.kind !== 'sales')
             throw ports.error(422, 'SALES_ORDER_REQUIRED', 'Reserve stock against an approved sales order.');
         const line = await write.readCommerceOrderLines1({ lineId: input.lineId, id: id });
+        if (line?.item_type === "service") throw ports.error(422, "SERVICE_RESERVATION_FORBIDDEN", "Services do not reserve inventory.");
         if (!line)
             throw ports.error(404, 'LINE_NOT_FOUND', 'Order line not found.');
         const qty = quantityMilli(input.quantity), now = ports.clock.now();
@@ -1671,7 +1678,7 @@ export function createCommerceApplication<Effect, Context = unknown>(ports: {
             const line = await write.readCommerceFulfillmentLines1({ lineId: entry.lineId, fulfillmentId: fulfillmentId });
             if (!line)
                 throw ports.error(422, "RETURN_LINE_INVALID", "Fulfillment line not found.");
-            if (fulfillment.kind === 'sales') {
+            if (fulfillment.kind === 'sales' && line.item_type !== 'service') {
                 if (!entry.qualityDueDate || entry.qualityDueDate < input.date)
                     throw ports.error(422, 'RETURN_QUALITY_DUE_DATE_REQUIRED', 'Choose a Quality review date on or after the customer return date.');
                 if (entry.conditionNote.length < 3)
@@ -1768,13 +1775,16 @@ export function createCommerceApplication<Effect, Context = unknown>(ports: {
                 write.guardRule6({ key: key, guardId: "return", values: [returnId, actor.companyId, input.expectedVersion] }),
                 write.prepareCommerceReturns2({ userId: actor.userId, reason: input.reason, fact2: ports.clock.now(), returnId: returnId }),
             ]);
-        const original = await write.readCommerceFulfillments3({ fulfillment_id: row.fulfillment_id, companyId: actor.companyId });
+        const lines = (await write.readCommerceReturnLines3({ returnId })).results;
+        const hasStock = lines.some(line => line.item_type !== "service");
+        const original = hasStock ? await write.readCommerceFulfillments3({ fulfillment_id: row.fulfillment_id, companyId: actor.companyId }) : null;
         const originalLines = original ? (await write.readFinanceJournalLines1({ id: original.id })).results : [];
         const debitAccount = originalLines.find(line => Number(line.debit_minor) > 0)?.account_id, creditAccount = originalLines.find(line => Number(line.credit_minor) > 0)?.account_id;
-        if (!original || original.status !== "posted" || originalLines.length !== 2 || !debitAccount || !creditAccount)
+        if (hasStock && (!original || original.status !== "posted" || originalLines.length !== 2 || !debitAccount || !creditAccount))
             throw ports.error(409, "ORIGINAL_POSTING_REVIEW_REQUIRED", "Review the original posted goods journal before reversing its stock value.");
-        const config: Row = { chart_id: original.chart_id, currency: original.base_currency, inventory_account_id: row.kind === "customer_return" ? creditAccount : debitAccount, cogs_account_id: debitAccount, clearing_account_id: creditAccount };
-        const periodId = await period(write, actor, String(row.return_date)), lines = (await write.readCommerceReturnLines3({ returnId: returnId })).results, incoming = row.kind === "customer_return", stockJournal = `return-${key}-stock`, now = ports.clock.now(), value = lines.reduce((sum, line) => sum + Number(line.value_minor), 0);
+        const chart = await write.readFinanceCharts1({ chart_id: row.chart_id, companyId: actor.companyId });
+        const config: Row = { chart_id: original?.chart_id ?? row.chart_id, currency: original?.base_currency ?? chart?.base_currency ?? row.currency, inventory_account_id: row.kind === "customer_return" ? creditAccount ?? null : debitAccount ?? null, cogs_account_id: debitAccount ?? null, clearing_account_id: creditAccount ?? null };
+        const periodId = await period(write, actor, String(row.return_date)), incoming = row.kind === "customer_return", stockJournal = hasStock ? `return-${key}-stock` : null, now = ports.clock.now(), value = lines.reduce((sum, line) => sum + Number(line.value_minor), 0);
         const stockPostings: Posting[] = incoming ? [{ account: String(config.inventory_account_id), debit: value, credit: 0 }, { account: String(config.cogs_account_id), debit: 0, credit: value }] : [{ account: String(config.clearing_account_id), debit: value, credit: 0 }, { account: String(config.inventory_account_id), debit: 0, credit: value }];
         let creditPostings: Posting[] = incoming ? [{ account: String(row.credit_account_id), debit: Number(row.subtotal_minor), credit: 0 }, ...(Number(row.tax_minor) ? [{ account: String(row.tax_account_id), debit: Number(row.tax_minor), credit: 0 }] : []), { account: String(row.debit_account_id), debit: 0, credit: Number(row.total_minor) }] : [{ account: String(row.credit_account_id), debit: Number(row.total_minor), credit: 0 }, { account: String(row.debit_account_id), debit: 0, credit: Number(row.subtotal_minor) }, ...(Number(row.tax_minor) ? [{ account: String(row.tax_account_id), debit: 0, credit: Number(row.tax_minor) }] : [])];
         if (!incoming) {
@@ -1791,8 +1801,9 @@ export function createCommerceApplication<Effect, Context = unknown>(ports: {
         const credit = await write.prepareReturnCredit(actor, { key, invoiceId: String(row.invoice_id), returnId, periodId, entryDate: String(row.return_date), postings: creditPostings }), creditJournal = credit.journalId;
         const goodsFx = incoming ? null : await write.prepareReturnGoodsFx(actor, { invoiceId: String(row.invoice_id), returnId, key, periodId, entryDate: String(row.return_date), stockBase: value, clearingAccountId: String(config.clearing_account_id), creditPostings: credit.basePostings });
         const creditMoney = await write.snapshotMoneyReversal(actor, { sourceType: 'commerce_return', sourceId: returnId, amountKind: 'credit_total', transactionDate: String(row.return_date), amountUnits: String(row.total_minor), original: { sourceType: 'finance_invoice', sourceId: String(row.invoice_id), amountKind: 'total' } });
-        const steps: Effect[] = [...(reviewEvidence?.guards ?? []), ...(reviewEvidence?.steps ?? []), write.prepareCommerceReturns3({ returnId: returnId }), write.prepareFinanceInvoices1({ invoice_id: row.invoice_id }), creditMoney.statement, write.guardRule7({ key: key, guardId: "supplier-reservation", values: [row.invoice_id] }), write.guardRule6({ key: key, guardId: "return", values: [returnId, actor.companyId, input.expectedVersion] }), ...journalSteps(write, actor, key, stockJournal, config, periodId, String(row.return_date), String(row.kind) + "_stock", returnId, stockPostings, "draft"), ...credit.steps];
+        const steps: Effect[] = [...(reviewEvidence?.guards ?? []), ...(reviewEvidence?.steps ?? []), write.prepareCommerceReturns3({ returnId: returnId }), write.prepareFinanceInvoices1({ invoice_id: row.invoice_id }), creditMoney.statement, write.guardRule7({ key: key, guardId: "supplier-reservation", values: [row.invoice_id] }), write.guardRule6({ key: key, guardId: "return", values: [returnId, actor.companyId, input.expectedVersion] }), ...(stockJournal ? journalSteps(write, actor, key, stockJournal, config, periodId, String(row.return_date), String(row.kind) + "_stock", returnId, stockPostings, "draft") : []), ...credit.steps];
         for (const [index, line] of lines.entries()) {
+            if (line.item_type === "service") continue;
             if (Number(line.value_minor) > 0)
                 steps.push((await write.snapshotMoneyReversal(actor, { sourceType: 'commerce_return_line', sourceId: String(line.id), amountKind: 'stock_value', transactionDate: String(row.return_date), amountUnits: String(line.value_minor), original: { sourceType: 'commerce_fulfillment_line', sourceId: String(line.fulfillment_line_id), amountKind: 'stock_value' } })).statement);
             const stock = await write.readCommerceStock1({ warehouse_id: row.warehouse_id, product_id: line.product_id });
@@ -1823,7 +1834,7 @@ export function createCommerceApplication<Effect, Context = unknown>(ports: {
         if (goodsFx)
             steps.push(...goodsFx.steps);
         steps.push(write.prepareCommerceReturns4({ userId: actor.userId, stockJournal: stockJournal, creditJournal: creditJournal, baseCreditMinor: credit.baseCreditMinor, fact4: goodsFx?.result.id ?? null, now: now, returnId: returnId }));
-        return write.executeCommand(actor, key, "commerce.return.approve", input, returnId, input.expectedVersion + 1, { id: returnId, orderId: String(row.order_id), status: "approved", version: input.expectedVersion + 1, stockJournalId: stockJournal, creditJournalId: creditJournal, ...(goodsFx ? { goodsFxJournalId: goodsFx.result.id } : {}) }, steps);
+        return write.executeCommand(actor, key, "commerce.return.approve", input, returnId, input.expectedVersion + 1, { id: returnId, orderId: String(row.order_id), status: "approved", version: input.expectedVersion + 1, ...(stockJournal ? { stockJournalId: stockJournal } : {}), creditJournalId: creditJournal, ...(goodsFx ? { goodsFxJournalId: goodsFx.result.id } : {}) }, steps);
     }
     async function completeCommerceReturn(actor: WorkContext, returnId: string, input: z.infer<typeof returnCompleteSchema>, key: string): Promise<CommerceReturnCompletion> {
         actor = allowed(actor, "finance");
@@ -1893,8 +1904,8 @@ export function createCommerceApplication<Effect, Context = unknown>(ports: {
             throw ports.error(422, "INVALID_DATES", "Due date must be on or after order date.");
         if (new Set(input.lines.map((l) => l.productId)).size !== input.lines.length)
             throw ports.error(422, "DUPLICATE_PRODUCT", "Use one line per product.");
-        const warehouse = await write.readCommerceWarehouses2({ warehouseId: input.warehouseId, companyId: actor.companyId, branchId: actor.branchId, branchId2: actor.branchId });
-        if (!warehouse)
+        const warehouse = input.warehouseId ? await write.readCommerceWarehouses2({ warehouseId: input.warehouseId, companyId: actor.companyId, branchId: actor.branchId, branchId2: actor.branchId }) : null;
+        if (input.warehouseId && !warehouse)
             throw ports.error(422, "WAREHOUSE_INVALID", "Choose an active warehouse in this workspace.");
         const record = id ?? `order-${key}`;
         const version = existing ? (input.expectedVersion ?? 0) + 1 : 1;
@@ -1906,6 +1917,10 @@ export function createCommerceApplication<Effect, Context = unknown>(ports: {
             const product = await write.readCommerceProducts2({ productId: line.productId, companyId: actor.companyId });
             if (!product)
                 throw ports.error(422, "PRODUCT_INVALID", "Choose an active product.");
+            if (product.item_type !== "service" && !warehouse)
+                throw ports.error(422, "WAREHOUSE_REQUIRED", "Choose a warehouse for stock items.");
+            if (product.item_type === "service" && input.kind === "purchase")
+                throw ports.error(422, "SERVICE_SUPPLIER_BILL_REQUIRED", "Record purchased services through supplier bills.");
             const qty = quantityMilli(line.quantity);
             const price = decimalToMinor(line.price);
             const priceItem = pricing.items.get(line.productId), listPrice = Number(priceItem?.price_minor ?? price), discountBps = listPrice > 0 && price < listPrice ? Math.floor((listPrice - price) * 10000 / listPrice) : 0;
@@ -1943,14 +1958,14 @@ export function createCommerceApplication<Effect, Context = unknown>(ports: {
             steps.push(write.guardRule18({ key: key, guardId: 'price-list', values: [pricing.list.id, actor.companyId, pricing.list.version, input.orderDate, input.orderDate] }));
         if (existing) {
             steps.push(versionGuard(write, key, "commerce_orders", record, input.expectedVersion ?? 0, ["draft"]));
-            steps.push(write.prepareCommerceOrders2({ partyId: input.partyId, warehouseId: input.warehouseId, branch_id: warehouse.branch_id, orderDate: input.orderDate, dueDate: input.dueDate, note: input.note, subtotal: subtotal, tax: tax, fact8: pricing.list?.id ?? null, fact9: pricing.list?.version ?? null, fact10: input.discountReason?.trim() || null, fact11: pricing.requiresApproval ? 1 : 0, now: now, record: record }));
+            steps.push(write.prepareCommerceOrders2({ partyId: input.partyId, warehouseId: input.warehouseId || null, branch_id: warehouse?.branch_id ?? actor.branchId, orderDate: input.orderDate, dueDate: input.dueDate, note: input.note, subtotal: subtotal, tax: tax, fact8: pricing.list?.id ?? null, fact9: pricing.list?.version ?? null, fact10: input.discountReason?.trim() || null, fact11: pricing.requiresApproval ? 1 : 0, now: now, record: record }));
             steps.push(write.prepareCommerceOrderLines1({ record: record }));
         }
         else
-            steps.push(write.prepareCommerceOrders3({ record: record, companyId: actor.companyId, branch_id: warehouse.branch_id, departmentId: actor.departmentId, kind: input.kind, fact5: `${input.kind === "quote" ? "QT" : input.kind === "sales" ? "SO" : "PO"}-${(await ports.hash(key)).slice(0, 24).toUpperCase()}`, partyId: input.partyId, warehouseId: input.warehouseId, currency: config.currency, orderDate: input.orderDate, dueDate: input.dueDate, note: input.note, subtotal: subtotal, tax: tax, fact14: pricing.list?.id ?? null, fact15: pricing.list?.version ?? null, fact16: input.discountReason?.trim() || null, fact17: pricing.requiresApproval ? 1 : 0, userId: actor.userId, now: now, now2: now }));
+            steps.push(write.prepareCommerceOrders3({ record: record, companyId: actor.companyId, branch_id: warehouse?.branch_id ?? actor.branchId, departmentId: actor.departmentId, kind: input.kind, fact5: `${input.kind === "quote" ? "QT" : input.kind === "sales" ? "SO" : "PO"}-${(await ports.hash(key)).slice(0, 24).toUpperCase()}`, partyId: input.partyId, warehouseId: input.warehouseId || null, currency: config.currency, orderDate: input.orderDate, dueDate: input.dueDate, note: input.note, subtotal: subtotal, tax: tax, fact14: pricing.list?.id ?? null, fact15: pricing.list?.version ?? null, fact16: input.discountReason?.trim() || null, fact17: pricing.requiresApproval ? 1 : 0, userId: actor.userId, now: now, now2: now }));
         for (const l of lineRows) {
             steps.push(write.guardRule19({ key: key, guardId: `product-${l.index}`, values: [l.product.id, l.product.version] }));
-            steps.push(write.prepareCommerceOrderLines2({ id: l.id, record: record, productId: l.line.productId, name: l.product.name, qty: l.qty, price: l.price, taxBps: l.line.taxBps, subtotal: l.subtotal, tax: l.tax, index: l.index, listPrice: l.listPrice, discountBps: l.discountBps }));
+            steps.push(write.prepareCommerceOrderLines2({ id: l.id, record: record, productId: l.line.productId, name: l.product.name, qty: l.qty, price: l.price, taxBps: l.line.taxBps, subtotal: l.subtotal, tax: l.tax, index: l.index, listPrice: l.listPrice, discountBps: l.discountBps, itemType: l.product.item_type === "service" ? "service" : "stock" }));
         }
         if (handoff)
             steps.push(...handoff.steps);
@@ -2034,7 +2049,8 @@ export function createCommerceApplication<Effect, Context = unknown>(ports: {
     }
     async function fulfillOrder(actor: WorkContext, id: string, raw: z.input<typeof fulfillmentSchema>, key: string) {
         const input = fulfillmentSchema.parse(raw);
-        actor = allowed(actor, "stock");
+        actor = allowed(actor, input.completionMode === "service" ? "sales" : "stock");
+        if (input.completionMode === "mixed") actor = allowed(actor, "sales");
         const write = await ports.forActor(actor);
         const previous = await write.replayCommand<{ id:string; version:number; fulfillmentId:string }>(actor, key, "commerce.order.fulfill", id, input);
         if (previous)
@@ -2044,9 +2060,15 @@ export function createCommerceApplication<Effect, Context = unknown>(ports: {
             throw ports.error(422, "ORDER_REQUIRED", "Convert the quotation to a sales order first.");
         const config = await settings(write, actor);
         const periodId = await period(write, actor, input.date);
+        if (input.completionMode !== "service" && (!config.inventory_account_id || !config.cogs_account_id || !config.clearing_account_id))
+            throw ports.error(409, "INVENTORY_POSTING_SETUP_REQUIRED", "Ask Finance to configure inventory, cost of sales and clearing accounts before delivering goods.");
         const fulfillment = `delivery-${key}`;
         const journal = `journal-${key}`;
         const incoming = order.kind === "purchase";
+        if (incoming && input.completionMode !== "goods")
+            throw ports.error(422, "SERVICE_SUPPLIER_BILL_REQUIRED", "Purchased services use supplier bills.");
+        if (input.date < String(order.order_date))
+            throw ports.error(422, "INVALID_COMPLETION_DATE", "Completion cannot precede the order date.");
         const stockCurrency = String(config.base_currency), valuationFx = await write.confirmedFunctionalFx(actor, incoming ? String(order.currency) : stockCurrency, stockCurrency, input.date);
         const convertedStock = (units: number) => {
             const value = convertUnits(String(units), 2, 2, '1', minorToDecimal(valuationFx.micros, 6));
@@ -2054,7 +2076,9 @@ export function createCommerceApplication<Effect, Context = unknown>(ports: {
                 throw ports.error(422, 'MONEY_OVERFLOW', 'The functional inventory amount exceeds supported ledger precision.');
             return Number(value);
         };
-        if (!incoming && ((!input.evidenceIds.length && !input.attachmentSetIds.length) || input.evidenceNote.length < 3))
+        if (!incoming && input.completionMode === "service" && input.evidenceNote.length < 3)
+            throw ports.error(422, "SERVICE_COMPLETION_NOTE_REQUIRED", "Describe the service completed and who confirmed it.");
+        if (!incoming && input.completionMode !== "service" && ((!input.evidenceIds.length && !input.attachmentSetIds.length) || input.evidenceNote.length < 3))
             throw ports.error(422, 'DELIVERY_EVIDENCE_REQUIRED', 'Attach proof of delivery and record who or what confirmed receipt.');
         if (new Set(input.evidenceIds).size !== input.evidenceIds.length)
             throw ports.error(422, 'DELIVERY_EVIDENCE_DUPLICATE', 'Use each delivery evidence file once.');
@@ -2073,12 +2097,12 @@ export function createCommerceApplication<Effect, Context = unknown>(ports: {
                 "confirmed",
                 "partially_fulfilled",
             ]),
-            write.prepareCommerceFulfillments2({ fulfillment: fulfillment, id: id, fact2: `${incoming ? "GR" : "DN"}-${(await ports.hash(key)).slice(0, 24).toUpperCase()}`, date: input.date, userId: actor.userId, fact5: ports.clock.now(), fact6: incoming ? null : input.evidenceNote }),
+            write.prepareCommerceFulfillments2({ fulfillment: fulfillment, id: id, fact2: `${incoming ? "GR" : "DN"}-${(await ports.hash(key)).slice(0, 24).toUpperCase()}`, date: input.date, userId: actor.userId, fact5: ports.clock.now(), fact6: incoming ? null : input.evidenceNote, completionMode: input.completionMode }),
         ];
         if (!incoming)
             for (const [index, attachmentId] of input.evidenceIds.entries())
                 steps.push(write.guardRule23({ key: key, guardId: `delivery-evidence-${index}`, values: [attachmentId, id] }));
-        let value = 0, documentSubtotal = 0;
+        let value = 0, documentSubtotal = 0, goodsCount = 0;
         for (const [i, entry] of input.lines.entries()) {
             const line = await write.readCommerceOrderLines2({ lineId: entry.lineId, id: id });
             if (!line)
@@ -2087,6 +2111,23 @@ export function createCommerceApplication<Effect, Context = unknown>(ports: {
             const remaining = Number(line.quantity_milli) - Number(line.fulfilled_milli);
             if (qty > remaining)
                 throw ports.error(422, "OVER_FULFILLMENT", "Quantity exceeds the remaining order quantity.");
+            if (line.item_type === "service") {
+                if (incoming || input.completionMode === "goods")
+                    throw ports.error(422, "SERVICE_COMPLETION_REQUIRED", "Complete service lines through the service action.");
+                if (entry.allocations?.length)
+                    throw ports.error(422, "SERVICE_STOCK_ALLOCATION_FORBIDDEN", "Services have no lot or serial allocations.");
+                const prior = await write.readCommerceFulfillmentLines2({ id: line.id });
+                const amounts = qty === remaining ? { subtotal: Number(line.subtotal_minor) - Number(prior?.subtotal ?? 0), tax: Number(line.tax_minor) - Number(prior?.tax ?? 0) } : lineAmounts(qty, Number(line.price_minor), Number(line.tax_bps));
+                steps.push(write.guardRule25({ key, guardId: `service-line-${i}`, values: [line.id, line.fulfilled_milli, qty] }));
+                for (const [amountKind, amountUnits] of [["subtotal", amounts.subtotal], ["tax", amounts.tax], ["total", amounts.subtotal + amounts.tax]] as const)
+                    steps.push(await commerceMoney(write, actor, { sourceType: "commerce_fulfillment_line", sourceId: `${fulfillment}-${i}`, amountKind, transactionDate: input.date, currency: String(order.currency), amountUnits }));
+                steps.push(write.prepareCommerceFulfillmentLines1({ fact0: `${fulfillment}-${i}`, fulfillment, id: line.id, qty, cost: 0, subtotal: amounts.subtotal, tax: amounts.tax, stockCurrency }));
+                steps.push(write.prepareCommerceOrderLines4({ qty, id: line.id }));
+                continue;
+            }
+            if (input.completionMode === "service" || !order.warehouse_id)
+                throw ports.error(422, "STOCK_DELIVERY_REQUIRED", "Stock items require warehouse delivery authority.");
+            goodsCount += 1;
             const stock = await write.readInventoryActiveReservations3({ warehouse_id: order.warehouse_id, product_id: line.product_id });
             const ownReservations = incoming ? [] : (await write.readInventoryOrderReservations3({ id: line.id })).results;
             const ownHeld = ownReservations.reduce((sum, r) => sum + Number(r.quantity_milli) - Number(r.consumed_milli) - Number(r.released_milli), 0);
@@ -2190,6 +2231,7 @@ export function createCommerceApplication<Effect, Context = unknown>(ports: {
             steps.push(write.prepareCommerceOrderLines4({ qty: qty, id: line.id }));
             steps.push(write.prepareCommerceStockMoves1({ fact0: `${fulfillment}-${i}`, warehouse_id: order.warehouse_id, product_id: line.product_id, fulfillment: fulfillment, fact4: incoming ? qty : -qty, fact5: incoming ? cost : -cost, fact6: ports.clock.now() }));
         }
+        if (goodsCount) {
         const goods = await write.prepareJournal(actor, { chartId: String(config.chart_id), periodId, entryDate: input.date,
             currency: incoming ? String(order.currency) : stockCurrency, fxRate: minorToDecimal(valuationFx.micros, 6),
             sourceType: incoming ? 'goods_receipt' : 'delivery', sourceId: fulfillment, memo: `${incoming ? 'Goods receipt' : 'Delivery'} ${fulfillment}`, isOpening: false,
@@ -2198,12 +2240,13 @@ export function createCommerceApplication<Effect, Context = unknown>(ports: {
         if (goods.preparedLines.reduce((sum, line) => sum + line.baseDebit, 0) !== value)
             throw ports.error(409, 'GOODS_VALUATION_RECONCILIATION_REQUIRED', 'The frozen functional stock value must match the exact goods journal.');
         steps.push(...goods.steps, write.prepareCommerceGoodsValuations1({ fulfillment: fulfillment, companyId: actor.companyId, chart_id: config.chart_id, journal: journal, fact4: String(order.currency), fact5: incoming ? String(order.currency) : stockCurrency, stockCurrency: stockCurrency, date: input.date, micros: valuationFx.micros, sourceRateId: valuationFx.sourceRateId, targetRateId: valuationFx.targetRateId, usedLatestFallback: valuationFx.usedLatestFallback, documentSubtotal: documentSubtotal, value: value, userId: actor.userId, fact15: ports.clock.now() }));
+        steps.push(write.prepareCommerceFulfillments3({ journal: journal, fulfillment: fulfillment }));
+        }
         if (!incoming)
             for (const attachmentId of input.evidenceIds)
                 steps.push(write.prepareCommerceFulfillmentEvidence1({ fulfillment: fulfillment, attachmentId: attachmentId, userId: actor.userId, fact3: ports.clock.now() }));
         if (attachmentBinding)
             steps.push(...attachmentBinding.steps);
-        steps.push(write.prepareCommerceFulfillments3({ journal: journal, fulfillment: fulfillment }));
         steps.push(write.prepareCommerceOrders6({ id: id, fact1: ports.clock.now(), id2: id }));
         return write.executeCommand(actor, key, "commerce.order.fulfill", input, id, input.expectedVersion + 1, { id, fulfillmentId: fulfillment, version: input.expectedVersion + 1 }, steps);
     }
@@ -2211,34 +2254,43 @@ export function createCommerceApplication<Effect, Context = unknown>(ports: {
         actor = allowed(actor, "finance");
         const write = await ports.forActor(actor);
         const previous = await write.replayCommand<{ id:string; invoiceId:string }>(actor, key, "commerce.invoice.create", fulfillmentId, input);
-        if (previous)
-            return previous;
-        const f = await write.readCommerceFulfillments5({ fulfillmentId: fulfillmentId });
-        if (!f)
-            throw ports.error(404, "DELIVERY_NOT_FOUND", "Receipt or delivery not found.");
+        if (previous) return previous;
+        const f = await write.readCommerceFulfillments5({ fulfillmentId });
+        if (!f) throw ports.error(404, "DELIVERY_NOT_FOUND", "Delivery or service completion not found.");
         const order = await orderRow(write, actor, String(f.order_id));
-        if (!await write.readFinanceJournals1({ journal_id: f.journal_id, companyId: actor.companyId }))
-            throw ports.error(409, "STOCK_GL_REQUIRED", "An accountant must review and post the goods movement GL before invoicing.");
-        if (input.dueDate < input.date || input.date < String(f.fulfillment_date))
-            throw ports.error(422, "INVALID_DATES", "Invoice and due dates must follow the delivery date.");
-        let totals = await write.readCommerceFulfillmentLines3({ fulfillmentId: fulfillmentId });
-        if (!totals || !totals.subtotal)
-            throw ports.error(422, "EMPTY_DELIVERY", "There are no billable lines.");
-        const config = await settings(write, actor);
-        const invoice = `invoice-${key}`;
         const payable = order.kind === "purchase";
+        const sources = [{ row: f, version: input.expectedVersion }];
+        const ids = new Set([fulfillmentId]);
+        for (const additional of input.additionalFulfillments ?? []) {
+            if (payable || ids.has(additional.id)) throw ports.error(422, "INVOICE_SOURCES_INVALID", "Combine distinct sales completions from one order.");
+            ids.add(additional.id);
+            const row = await write.readCommerceFulfillments5({ fulfillmentId: additional.id });
+            if (!row || row.order_id !== order.id) throw ports.error(422, "INVOICE_SOURCES_INVALID", "All completions must belong to this sales order.");
+            sources.push({ row, version: additional.expectedVersion });
+        }
+        let totals = { subtotal: 0, tax: 0 };
+        for (const source of sources) {
+            if (Number(source.row.version) !== source.version || source.row.invoice_id)
+                throw ports.error(409, "VERSION_CONFLICT", "A completion changed or is already invoiced. Refresh the order.");
+            if (source.row.completion_kind !== "service" && !await write.readFinanceJournals1({ journal_id: source.row.journal_id, companyId: actor.companyId }))
+                throw ports.error(409, "STOCK_GL_REQUIRED", "An accountant must review and post the goods movement GL before invoicing.");
+            if (input.dueDate < input.date || input.date < String(source.row.fulfillment_date))
+                throw ports.error(422, "INVALID_DATES", "Invoice and due dates must follow every completion date.");
+            const amounts = await write.readCommerceFulfillmentLines3({ fulfillmentId: String(source.row.id) });
+            if (!amounts || !amounts.subtotal) throw ports.error(422, "EMPTY_DELIVERY", "There are no billable lines.");
+            totals.subtotal += Number(amounts.subtotal); totals.tax += Number(amounts.tax);
+        }
+        const config = await settings(write, actor), invoice = `invoice-${key}`;
+        if (input.useSalesDefaults && !config.approved_sales_defaults_id) throw ports.error(409, "SALES_DEFAULTS_REQUIRED", "Approve valid Company sales defaults before preparing this invoice.");
         const matching = payable ? await write.supplierBillInvoiceHandoff(actor, f, input, invoice, key) : null;
-        if (matching)
-            totals = { subtotal: Number(matching.bill.subtotal_minor), tax: Number(matching.bill.tax_minor) };
-        const total = totals.subtotal + totals.tax;
-        const invoiceCurrency = String(matching?.bill.currency ?? order.currency);
+        if (matching) totals = { subtotal: Number(matching.bill.subtotal_minor), tax: Number(matching.bill.tax_minor) };
+        const total = totals.subtotal + totals.tax, invoiceCurrency = String(matching?.bill.currency ?? order.currency);
+        if (!Number.isSafeInteger(total)) throw ports.error(422, "MONEY_OVERFLOW", "Invoice exceeds supported precision.");
         const steps = [
-            await commerceMoney(write, actor, { sourceType: 'commerce_invoice_source', sourceId: invoice, amountKind: 'total', transactionDate: input.date, currency: invoiceCurrency, amountUnits: total }),
-            write.guardRule30({ key: key, guardId: "delivery", values: [fulfillmentId, input.expectedVersion] }),
-            write.prepareFinanceInvoices4({ invoice: invoice, companyId: actor.companyId, party_id: order.party_id, fact3: payable ? "payable" : "receivable", fact4: `${payable ? "BILL" : "INV"}-${(await ports.hash(key)).slice(0, 24).toUpperCase()}`, date: input.date, dueDate: input.dueDate, invoiceCurrency: invoiceCurrency, subtotal: totals.subtotal, tax: totals.tax, total: total, total2: total, fact12: payable ? matching?.bill.clearing_account_id ?? config.clearing_account_id : config.receivable_account_id, fact13: payable ? matching?.bill.payable_account_id ?? config.payable_account_id : config.revenue_account_id, fact14: payable ? matching?.bill.tax_account_id ?? config.input_tax_account_id : config.output_tax_account_id, fulfillmentId: fulfillmentId, userId: actor.userId, fact17: ports.clock.now(), fact18: ports.clock.now() }),
-            ...(matching?.steps ?? [
-                write.prepareCommerceFulfillments4({ invoice: invoice, fulfillmentId: fulfillmentId }),
-            ]),
+            await commerceMoney(write, actor, { sourceType: "commerce_invoice_source", sourceId: invoice, amountKind: "total", transactionDate: input.date, currency: invoiceCurrency, amountUnits: total }),
+            ...sources.map(source => write.guardRule30({ key, guardId: `completion-${source.row.id}`, values: [String(source.row.id), source.version] })),
+            write.prepareFinanceInvoices4({ invoice, companyId: actor.companyId, party_id: order.party_id, fact3: payable ? "payable" : "receivable", fact4: `${payable ? "BILL" : "INV"}-${(await ports.hash(key)).slice(0, 24).toUpperCase()}`, date: input.date, dueDate: input.dueDate, invoiceCurrency, subtotal: totals.subtotal, tax: totals.tax, total, total2: total, fact12: payable ? matching?.bill.clearing_account_id ?? config.clearing_account_id : config.receivable_account_id, fact13: payable ? matching?.bill.payable_account_id ?? config.payable_account_id : config.revenue_account_id, fact14: payable ? matching?.bill.tax_account_id ?? config.input_tax_account_id : config.output_tax_account_id, fulfillmentId, userId: actor.userId, fact17: ports.clock.now(), fact18: ports.clock.now() }),
+            ...(matching?.steps ?? sources.map(source => write.prepareCommerceFulfillments4({ invoice, fulfillmentId: String(source.row.id) }))),
         ];
         return write.executeCommand(actor, key, "commerce.invoice.create", input, fulfillmentId, input.expectedVersion + 1, { id: String(order.id), invoiceId: invoice }, steps);
     }
@@ -2380,8 +2432,8 @@ export function createCommerceApplication<Effect, Context = unknown>(ports: {
             if (id)
                 steps.push(write.guardRule40({ key: key, guardId: "master", values: [id, actor.companyId, v.expectedVersion ?? 0] }));
             steps.push(id
-                ? write.prepareCommerceProducts1({ sku: v.sku, name: v.name, unit: v.unit, trackingMode: v.trackingMode, fact4: decimalToMinor(v.price), taxBps: v.taxBps, status: v.status, id: id })
-                : write.prepareCommerceProducts2({ record: record, companyId: actor.companyId, sku: v.sku, name: v.name, unit: v.unit, trackingMode: v.trackingMode, fact6: decimalToMinor(v.price), taxBps: v.taxBps, status: v.status }));
+                ? write.prepareCommerceProducts1({ sku: v.sku, name: v.name, unit: v.unit, trackingMode: v.trackingMode, itemType: v.itemType, fact4: decimalToMinor(v.price), taxBps: v.taxBps, status: v.status, id: id })
+                : write.prepareCommerceProducts2({ record: record, companyId: actor.companyId, sku: v.sku, name: v.name, unit: v.unit, trackingMode: v.trackingMode, itemType: v.itemType, fact6: decimalToMinor(v.price), taxBps: v.taxBps, status: v.status }));
         }
         else if (kind === "parties") {
             const v = partyMasterSchema.parse(input);
@@ -2422,6 +2474,8 @@ export function createCommerceApplication<Effect, Context = unknown>(ports: {
         edit?: string;
         request?: string;
         status?: string;
+        startDate?: string;
+        endDate?: string;
     }) {
         actor = allowed(actor, 'read');
         const write = await ports.forActor(actor);

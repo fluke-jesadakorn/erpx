@@ -2,6 +2,7 @@ import { captureCaseScreenshot } from "../helpers/case-screenshot";
 import { expect, test, type Page } from "@playwright/test";
 import type { WorkSummary } from "../../src/server/modules/work_projection/public/work-summary";
 import { projectWorkPage } from "../../src/lib/work-page";
+import { workAttention } from "../../src/lib/work-attention";
 import { selectFixtureAssignment } from "./helpers/select-fixture-assignment";
 import type { WorkItem } from "../../src/lib/work-item";
 
@@ -27,16 +28,23 @@ test.beforeEach(async ({ context, baseURL }) => {
   await selectFixtureAssignment(context, "acme-co", "seed_usr_mali");
 });
 
-async function refreshAfterTabReturn(page: Page) {
-  const response = page.waitForResponse(r => new URL(r.url()).pathname === api && r.request().method() === "GET");
-  const other = await page.context().newPage();
-  try { await other.goto("about:blank"); await page.bringToFront(); return await response; }
-  finally { await other.close(); }
+async function refreshAfterTabReturn(page: Page, endpoint = api) {
+  await expect(page.getByRole("button", { name: "Search workspace", exact: true })).toBeEnabled();
+  if (new URL(page.url()).pathname === `${base}/work`) await expect(page.getByRole("button", { name: "New", exact: true })).toBeEnabled();
+  const response = page.waitForResponse(r => new URL(r.url()).pathname === endpoint && r.request().method() === "GET");
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  return await response;
 }
 async function openTodayTools(page: Page) {
   const toggle = page.locator("#today-tools-toggle");
   const compact = await toggle.evaluate(el => getComputedStyle(el.parentElement!).display !== "none");
-  if (compact) { await expect(toggle).toBeVisible(); await toggle.click(); }
+  if (compact) {
+    await expect(toggle).toBeVisible(); await toggle.click();
+    const plan = page.getByRole("dialog", { name: "Plan my day", exact: true });
+    await expect(plan).toBeVisible();
+    await plan.getByRole("button", { name: "Close dialog", exact: true }).click();
+    await expect(plan).toBeHidden();
+  }
   else await expect(toggle).toBeHidden();
   await expect(page.getByRole("complementary", { name: "Today tools", exact: true })).toBeVisible();
 }
@@ -131,18 +139,32 @@ test("shared attention shows full totals, survives filters, recovers from failur
       json: mode === "ok" ? { data: query.get("paged") === "1" ? projectWorkPage(snapshot, { view: query.get("view") ?? "all", queue: query.get("queue") ?? "all", type: query.get("type") ?? "all", q: query.get("q") ?? "", responsibility: query.get("responsibility") ?? "all" }) : snapshot } : { error: { message: "Design verification unavailable" } },
     });
   });
-  await page.goto(`${base}/home`); await openTodayTools(page);
+  const navigationApi = `/api/v1${base}/navigation`;
+  const navigation = await context.request.get(`${navigationApi}?include=attention`);
+  expect(navigation.ok()).toBe(true);
+  const navigationSnapshot = (await navigation.json()).data;
+  await page.route(`**${navigationApi}**`, route => {
+    if (route.request().method() !== "GET") return route.continue();
+    return route.fulfill({ status: mode === "ok" ? 200 : mode === "failure" ? 503 : 403,
+      json: mode === "ok" ? { data: { ...navigationSnapshot, work: rows.length,
+        attention: workAttention(rows), snapshotAt: Date.now() } } : { error: { message: "Design verification unavailable" } } });
+  });
+  const readHome = page.waitForResponse(r => new URL(r.url()).pathname === navigationApi && r.request().method() === "POST");
+  await page.goto(`${base}/home`);
+  expect((await readHome).ok()).toBe(true);
+  expect((await refreshAfterTabReturn(page, navigationApi)).ok()).toBe(true);
+  await openTodayTools(page);
   const attention = page.getByRole("region", { name: "Needs you", exact: true });
   await expect(attention.getByRole("heading")).toHaveText("Needs you 5");
   await expect(attention.locator("li")).toHaveCount(2);
   await expect(attention.locator("li").first()).toContainText("Assign a responsible teammate");
-  mode = "failure"; expect((await refreshAfterTabReturn(page)).status()).toBe(503);
+  mode = "failure"; expect((await refreshAfterTabReturn(page, navigationApi)).status()).toBe(503);
   await expect(attention.getByRole("status")).toBeVisible(); await expect(attention.locator("li")).toHaveCount(2);
   mode = "ok";
-  const recovered = page.waitForResponse(r => new URL(r.url()).pathname === api && r.status() === 200);
+  const recovered = page.waitForResponse(r => new URL(r.url()).pathname === navigationApi && r.status() === 200);
   await attention.getByRole("button", { name: "Retry work", exact: true }).click(); await recovered;
   await expect(attention.getByRole("status")).toHaveCount(0);
-  mode = "revoked"; expect((await refreshAfterTabReturn(page)).status()).toBe(403);
+  mode = "revoked"; expect((await refreshAfterTabReturn(page, navigationApi)).status()).toBe(403);
   await expect(attention.locator("li")).toHaveCount(0); await expect(attention).not.toContainText("You’re all caught up");
 
   mode = "ok"; await page.goto(`${base}/work?view=all`);

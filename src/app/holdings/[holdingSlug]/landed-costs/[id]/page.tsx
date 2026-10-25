@@ -4,7 +4,7 @@ import { Table, TableFrame } from "@/components/ui/foundation";
 import { TimeText } from "@/components/time/time-preference-context";
 import { RecordLink as Link } from "@/components/records/record-link";
 import { StatusBadge } from "@/components/ui/primitives";
-import { LandedCostActions } from "@/components/modules/landed-cost-controls";
+import { LandedCostActions } from "@/components/records/loaders/modules--landed-cost-controls";
 import { minorToDecimal } from "@/lib/finance-money";
 import { hasPermission } from "@/lib/permissions";
 import { samePerson } from "@/lib/iam";

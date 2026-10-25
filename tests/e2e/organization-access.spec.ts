@@ -143,19 +143,20 @@ test("IT assigns a library GPO by keyboard from the responsive drawer and confir
   const connection = directory.connections.find(connection => connection.inventory?.objects.some(object => object.kind === "gpo") && connection.inventory.objects.some(object => object.kind === "group") && connection.inventory.objects.some(object => object.kind === "ou"));
   expect(connection, "Directory fixture must include policy, group and OU inventory").toBeTruthy();
   const gpo = connection!.inventory!.objects.find(object => object.kind === "gpo")!, group = connection!.inventory!.objects.find(object => object.kind === "group")!, ou = connection!.inventory!.objects.find(object => object.kind === "ou")!;
-  const level = organization.levels.find(level => level.level_number === 6)!;
+  const position = organization.positions.find(position => position.active && !position.is_ceo)!;
+  expect(position, "An existing active Position supplies the policy target").toBeTruthy();
   // Provider readiness is covered by the live preview test; this response isolates the review UI from external Directory state.
   let captured: Record<string, unknown> | undefined;
   await page.route("**/technology/gpo-rules/preview", async route => {
     captured = route.request().postDataJSON() as Record<string, unknown>;
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: {
-      token: "browser-preview-token", expiresAt: Date.now() + 60_000, target: { kind: "level", id: level.id }, targetName: `Level 6 · ${level.name}`,
-      positions: organization.positions.filter(position => position.level_id === level.id).map(position => ({ id: position.id, title: position.title })), holders: [], changes: { add: ["preview-membership"], remove: [], retained: ["other-source"] }, inheritedByFuturePositions: true, endpointStatus: "unconfirmed",
+      token: "browser-preview-token", expiresAt: Date.now() + 60_000, target: { kind: "position", id: position.id }, targetName: position.title,
+      positions: [{ id: position.id, title: position.title }], holders: [], changes: { add: ["preview-membership"], remove: [], retained: ["other-source"] }, inheritedByFuturePositions: false, endpointStatus: "unconfirmed",
     } }) });
   });
   if (test.info().project.name === "desktop") await page.setViewportSize({ width: 1600, height: 1000 });
-  await page.goto(`${base}/technology?view=organization&level=${encodeURIComponent(level.id)}`);
-  await expect(page.getByTestId(`org-level-${level.id}`)).toHaveAttribute("data-selected", "true");
+  await page.goto(`${base}/technology?view=organization&position=${encodeURIComponent(position.id)}`);
+  await expect(page.getByTestId(`org-position-${position.id}`)).toHaveAttribute("data-selected", "true");
   await page.getByRole("button", { name: "Open GPO library", exact: true }).click();
   const drawer = page.getByRole("dialog", { name: "GPO library", exact: true });
   const library = drawer.getByRole("complementary", { name: "GPO library", exact: true });
@@ -165,20 +166,30 @@ test("IT assigns a library GPO by keyboard from the responsive drawer and confir
   await expect(card).toBeVisible();
   await card.getByRole("button", { name: /Assign policy/ }).focus(); await page.keyboard.press("Enter");
   const dialog = page.getByRole("dialog", { name: "Assign GPO policy", exact: true });
-  await expect(dialog.getByRole("combobox", { name: "Apply to", exact: true })).toHaveValue("level");
-  await expect(dialog.getByRole("combobox", { name: "Target level", exact: true })).toHaveValue(level.id);
+  await expect(dialog.getByText("Choose a Position and Directory targets. Multiple GPOs may be mapped to one Position.", { exact: true })).toBeVisible();
+  await expect(dialog.getByRole("combobox", { name: "Apply to", exact: true })).toHaveValue("position");
+  await expect(dialog.getByRole("combobox", { name: "Target position", exact: true })).toHaveValue(position.id);
   await expect(dialog.getByRole("combobox", { name: "Group Policy Object", exact: true })).toHaveValue(gpo.id);
   await dialog.getByRole("combobox", { name: "User security filter group", exact: true }).selectOption(group.id);
   await dialog.getByRole("combobox", { name: "Computer target OU", exact: true }).selectOption(ou.id);
   await dialog.getByRole("textbox", { name: "Reason", exact: true }).fill("Browser simulated policy confirmation");
   await previewRequest(page, dialog, "/technology/gpo-rules/preview");
-  expect(captured).toMatchObject({ target: { kind: "level", id: level.id }, gpoId: gpo.id, connectionId: connection!.id });
-  await expect(dialog.getByText("New positions matching this level will inherit the rule.")).toBeVisible();
+  expect(captured).toMatchObject({ target: { kind: "position", id: position.id }, gpoId: gpo.id, connectionId: connection!.id });
+  await expect(dialog.getByRole("heading", { name: "Review policy assignment", exact: true })).toBeVisible();
+  const previewTarget = dialog.locator("strong").filter({ hasText: position.title });
+  await expect(previewTarget).toHaveCount(1);
+  await expect(previewTarget).toHaveText(position.title);
+  await expect(previewTarget).toBeVisible();
+  await expect(dialog.getByText("New positions matching this level will inherit the rule.", { exact: true })).toHaveCount(0);
   expect(writes).toHaveLength(0);
   await dialog.getByRole("button", { name: "Publish GPO rule", exact: true }).click();
   expect(writes).toHaveLength(1);
   expect(writes[0].body.previewToken).toBe("browser-preview-token");
   await drawer.getByRole("button", { name: "Close dialog", exact: true }).click();
-  await expect(page.getByRole("status").filter({ hasText: "GPO rule published" })).toBeVisible();
+  const publishedMessage = "GPO mapping published. Directory configuration and employee delivery are tracked separately.";
+  const publishedStatus = page.getByTestId("organization-access-workspace").getByRole("status").filter({ hasText: publishedMessage });
+  await expect(publishedStatus).toHaveCount(1);
+  await expect(publishedStatus).toBeVisible();
+  await expect(publishedStatus).toHaveText(publishedMessage);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
 });

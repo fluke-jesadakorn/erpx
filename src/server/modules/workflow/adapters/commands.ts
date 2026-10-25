@@ -11,7 +11,7 @@ export function workContextGuards(db:SqlDatabase,actor:CommandActor,id:string):S
 export function financialConstraintError(error:unknown){const failure=domainFinancialConstraintError(error);return failure?new ApiError(failure.status,failure.code,failure.message):null;}
 function application(db:SqlDatabase){
  const repository:CommandRepository<SqlStatement>={
-  receipt:id=>db.prepare('SELECT request_hash,result_json FROM command_receipts WHERE command_id=?').bind(id).first<{request_hash:string;result_json:string}>(),
+  receipt:id=>db.prepare('SELECT request_hash,result_json,operation,actor_id,record_id,authority_json FROM command_receipts WHERE command_id=?').bind(id).first<{request_hash:string;result_json:string;operation:string;actor_id:string;record_id:string;authority_json:string|null}>(),
   clearAssertions:id=>db.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(id),
   insertReceipt:(actor,id,operation,digest,recordId,result,now)=>db.prepare('INSERT INTO command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,created_at,authority_json) VALUES(?,?,?,?,?,?,?,?)').bind(id,operation,actor.userId,digest,recordId,JSON.stringify(result),now,JSON.stringify({role:actor.role,assignmentId:actor.assignmentId,iam:actor.iam,...actor.authority,companyId:actor.companyId,branchId:actor.branchId,departmentId:actor.departmentId})),
   captureAssignmentAuthority:(actor,id)=>db.prepare(`UPDATE command_receipts SET authority_json=(authority_json::jsonb || ${workflowAssignmentAuthorityProjection()})::text WHERE command_id=?`).bind(actor.assignmentId,id),

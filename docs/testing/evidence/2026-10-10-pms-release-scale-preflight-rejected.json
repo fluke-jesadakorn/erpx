@@ -1,0 +1,128 @@
+{
+  "run": "331481f7fe31",
+  "sourceFingerprint": "eb81526ce36637428524fa8bddbd11edf29ca6c7e204f5906e067ce07a809d7d",
+  "verificationFingerprint": "0e8832c894e839613253a8f72a3a34f52598ece080e739c0a25fd5568c5d786d",
+  "release": {
+    "id": "2026-10-09T20-14-37-845Z",
+    "fileManifestSha256": "5c3bf37901b7d1c7692fd3b2018e76b7b2a0f79143877ba36ebb38e95b4fc679"
+  },
+  "scope": "Release HTTP: 3 × 200 rooms, 730-day synthetic closed stay/reservation/account metadata; 20 distinct normal staff accounts. Historic revenue is not invented.",
+  "applicationPoolMax": 8,
+  "controlPoolMax": 5,
+  "jobsHoldingPoolMax": 1,
+  "counts": [
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    },
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    },
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    }
+  ],
+  "accounts": 20,
+  "rounds": 10,
+  "durationMs": 55277,
+  "readCount": 840,
+  "writeCount": 400,
+  "readP95Ms": 301.30162500000006,
+  "writeP95Ms": 2508.1368330000005,
+  "failedSamples": 0,
+  "sameProcesses": true,
+  "unchanged": true,
+  "samplesSha256": "14c74905d14e3b01dd50836783faace3228ec02da478c93f9928242c77aede54",
+  "passed": false,
+  "acceptance": false,
+  "disposition": "Rejected experiment: read-only stale-envelope preflight adds authoritative queries without reducing logical write p95 (2508 ms versus prior 2133 ms). Remove the preflight from the worktree; preserve the original transactional version/replay path.",
+  "verification": {
+    "pmsApplicationUnitCases": 51,
+    "pmsIntegrationCases": 52,
+    "iamIntegrationCases": 27,
+    "typecheck": true,
+    "lint": {
+      "passed": true,
+      "warnings": 3
+    },
+    "architecture": true,
+    "isolatedReleaseBuild": true
+  },
+  "timingSamplesSha256": "742a2a4d51b5d84184f313002b75578085f469755ec0675dd4544d77882cf0e5",
+  "logs": {
+    "final-tests": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-preflight-final-tests.log",
+      "sha256": "5a2530534eb7e5767de428ca71986b424a06de519f7e825838ffdde898ccdc61"
+    },
+    "typecheck": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-preflight-typecheck.log",
+      "sha256": "ae3aa3d40f2b7fdeaf8ae4398c41416876c85fc2ccc6aa232e526fdb75f340ef"
+    },
+    "lint": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-preflight-lint.log",
+      "sha256": "827c4aba480463caff85470227105c05ff46cd40693fc7c1b1f9f25d59f13231"
+    },
+    "architecture": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-preflight-architecture.log",
+      "sha256": "61f27aa5d383438fa7955c201143725c76302dadbcb2c312efa2d398a9d6f86b"
+    },
+    "build": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-preflight-build.log",
+      "sha256": "3afc6dee79b150492882d62390293f7122aba15edca9e44e736e138761fc68cb"
+    },
+    "prepare": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-preflight-prepare.log",
+      "sha256": "2ddfc144a1ec648cf3322709b6ae0e783b7d45d5ea716f53fc5f2a889485ef7b"
+    },
+    "start": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-preflight-start.log",
+      "sha256": "e57c2050cd68a5c49510380a6372c4ac68dbcba8cdbdb6a3437634fd9f6fd5df"
+    },
+    "performance": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-preflight-performance.log",
+      "sha256": "401891f753a9be53407aabe70c00d8c9cc9c5f7ba5833c581e782546d38b18cf"
+    },
+    "rollback": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-preflight-rollback-tests.log",
+      "sha256": "4a616719fdca8222f295d9c08de79a72c25c1b2cc31afca97e06500dff608ba3"
+    },
+    "cleanup": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-preflight-destroy.log",
+      "sha256": "53a73eb4b39b1e053d7702235ffae9cee9794c90c37819e2b11e21b757ca52e4"
+    },
+    "rollbackTypecheck": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-preflight-rollback-typecheck.log",
+      "sha256": "ae3aa3d40f2b7fdeaf8ae4398c41416876c85fc2ccc6aa232e526fdb75f340ef"
+    },
+    "documentation": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-preflight-docs.log",
+      "sha256": "5544a6681e32988025636f62317642e488f761257b6217cd16c131bd321539c1"
+    }
+  },
+  "environment": {
+    "ownedCohortRemoved": true,
+    "productionOrStagingChanged": false,
+    "localDevelopmentHealth": 200,
+    "publicDevelopmentHealth": 200,
+    "privateProductionHealthOnly": 200,
+    "postgresListener": 5432,
+    "publicStaffPage": "https://console-dev-erpx.jesadakorn.com/holdings/acme/pms",
+    "publicStaffPageObservation": "Accessibility inspection confirms normal expired-session login; public staff appearance remains unverified."
+  },
+  "rollbackVerification": {
+    "pmsApplicationUnitCases": 46,
+    "pmsIntegrationCases": 50,
+    "passed": true,
+    "runtimeSourceFingerprint": "d78524a42e7551686d8972004964b26f689e8024c0b43347810e380143daff71",
+    "typecheck": true,
+    "documentation": true
+  }
+}

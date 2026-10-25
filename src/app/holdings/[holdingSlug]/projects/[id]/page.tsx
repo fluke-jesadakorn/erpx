@@ -3,10 +3,10 @@ import { staffPresentationQueries } from "@/server/modules/work_projection/publi
 
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
-import { ProjectEditor } from "@/components/modules/staff-work-controls";
-import { ProjectMilestoneConsole } from "@/components/modules/project-milestones";
-import { ProjectActualsConsole } from "@/components/modules/project-actuals";
-import { ProjectStructureConsole } from "@/components/modules/project-structure-console";
+import { ProjectEditor } from "@/components/records/loaders/modules--staff-work-controls";
+import { ProjectMilestoneConsole } from "@/components/records/loaders/modules--project-milestones";
+import { ProjectActualsConsole } from "@/components/records/loaders/modules--project-actuals";
+import { ProjectStructureConsole } from "@/components/records/loaders/modules--project-structure-console";
 import {projectGraph,projectHandoffs} from "@/server/modules/projects/public/project-structure";
 import { pageError } from "@/server/modules/work_projection/public/page-error";
 
@@ -15,7 +15,7 @@ import { samePerson } from "@/lib/iam";
 
 import { listProjectCostAllocations, listProjectCostSources } from "@/server/modules/projects/public/project-actuals";
 import { hasPermission } from "@/lib/permissions";
-import { RecordDocumentPanel } from "@/components/attachments/record-document-panel";
+import { RecordDocumentPanel } from "@/components/records/loaders/attachments--record-document-panel";
 import { RecordLink as Link } from "@/components/records/record-link";
 import { Card } from "@/components/ui/foundation";
 export default async function Project({

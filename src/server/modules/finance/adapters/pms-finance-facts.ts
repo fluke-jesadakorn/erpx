@@ -38,7 +38,7 @@ export function pmsFinancialOverviewFacts(db: SqlDatabase) {
             branchId2: string | null;
             propertyId: string | null;
             propertyId2: string | null;
-        }) => db.prepare(`SELECT r.id,r.property_id,r.data_json::jsonb->>'folioId' folio_id,
+        }) => db.prepare(`SELECT r.id,r.property_id,r.data_json::jsonb->>'guestAccountId' guest_account_id,
       r.data_json::jsonb->>'description' description,r.data_json::jsonb->>'kind' kind,
       (r.data_json::jsonb->>'total')::bigint total
     ${pmsSnapshotSources().pms_finance_facts_pms_records_r_from} ${pmsSnapshotSources().pms_finance_facts_pms_properties_p_join} ON p.id=r.property_id WHERE p.company_id=?
@@ -52,7 +52,7 @@ export function pmsFinancialOverviewFacts(db: SqlDatabase) {
     ORDER BY r.updated_at DESC,r.id LIMIT 100`).bind(facts.companyId, facts.branchId, facts.branchId2, facts.propertyId, facts.propertyId2).all<{
             id: string;
             property_id: string;
-            folio_id: string;
+            guest_account_id: string;
             description: string;
             kind: string;
             total: number;
@@ -63,7 +63,7 @@ export function pmsFinancialOverviewFacts(db: SqlDatabase) {
             branchId2: string | null;
             propertyId: string | null;
             propertyId2: string | null;
-        }) => db.prepare(`SELECT d.id,d.property_id,d.folio_id,d.kind,d.finance_id,d.created_at,
+        }) => db.prepare(`SELECT d.id,d.property_id,d.guest_account_id,d.kind,d.finance_id,d.created_at,
       COALESCE(i.journal_id,pay.journal_id,d.snapshot_json::jsonb->>'openingJournalId') journal_id,
       CASE WHEN pay.id IS NOT NULL THEN 'payments' ELSE 'invoices' END finance_kind
     ${pmsSnapshotSources().pms_finance_facts_pms_documents_d_from} ${pmsSnapshotSources().pms_finance_facts_pms_properties_p_join} ON p.id=d.property_id
@@ -73,7 +73,7 @@ export function pmsFinancialOverviewFacts(db: SqlDatabase) {
     ORDER BY d.created_at DESC,d.id LIMIT 100`).bind(facts.companyId, facts.branchId, facts.branchId2, facts.propertyId, facts.propertyId2).all<{
             id: string;
             property_id: string;
-            folio_id: string;
+            guest_account_id: string;
             kind: string;
             finance_id: string | null;
             journal_id: string | null;

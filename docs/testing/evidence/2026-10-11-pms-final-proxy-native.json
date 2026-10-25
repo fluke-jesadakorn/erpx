@@ -1,0 +1,56 @@
+{
+  "date": "2026-10-11",
+  "scope": "Current final-candidate native/static/security passed; browser/route acceptance running",
+  "complete": false,
+  "wholePlanAccepted": false,
+  "runtimeFingerprint": "61d02a05665bdec4bc25a5b25cb9af9b40140960da76ed51b0228f9a37652581",
+  "verificationFingerprint": "d7bc97cd9fa75e7f86fa2240b05b376a9fcd1aeccc95af8116befa59b2d48ded",
+  "release": "2026-10-10T18-04-29-147Z",
+  "unit": 781,
+  "postgres": 558,
+  "nativeTotal": 1339,
+  "securitySeparately": 47,
+  "typecheck": true,
+  "lintErrors": 0,
+  "existingLintWarnings": 3,
+  "architecture": true,
+  "documentation": true,
+  "sourceBeforeAfterMatched": true,
+  "logs": {
+    "native-full": {
+      "path": ".scratch/dev/pms-final-proxy-candidate/native-full.log",
+      "sha256": "34b487c8fe995e2aab62212cc12fd162ec32cf965ebc07b3754973ef3cec2ff8"
+    },
+    "security": {
+      "path": ".scratch/dev/pms-final-proxy-candidate/security.log",
+      "sha256": "145467e57abdf3679707381b819b9cc5aaedf2dcc1375d9798d9e8b5c8dc635f"
+    },
+    "typecheck": {
+      "path": ".scratch/dev/pms-final-proxy-candidate/typecheck.log",
+      "sha256": "ae3aa3d40f2b7fdeaf8ae4398c41416876c85fc2ccc6aa232e526fdb75f340ef"
+    },
+    "lint": {
+      "path": ".scratch/dev/pms-final-proxy-candidate/lint.log",
+      "sha256": "0211741eacc108089202fadacf856c584e3bfc48d4ce33a4fa7a8b4d08de2a88"
+    },
+    "architecture": {
+      "path": ".scratch/dev/pms-final-proxy-candidate/architecture.log",
+      "sha256": "61f27aa5d383438fa7955c201143725c76302dadbcb2c312efa2d398a9d6f86b"
+    },
+    "docs": {
+      "path": ".scratch/dev/pms-final-proxy-candidate/docs.log",
+      "sha256": "c754b61db8b442cf11633aa4577b9f758c449bef5fe7f6a6c62183949c65320f"
+    },
+    "source-after-native": {
+      "path": ".scratch/dev/pms-final-proxy-candidate/source-after-native.log",
+      "sha256": "bc186e82dc6e4e226c50f606850b8c84b63735401b831dbaee104cd4139f60ac"
+    }
+  },
+  "strictCapacityEvidence": "docs/testing/evidence/2026-10-11-pms-proxy-manifest-capacity.json",
+  "remaining": [
+    "Fresh 178 browser identities",
+    "Fresh 38 route identities",
+    "Final mock per-feature and migration/restore acceptance receipt",
+    "Development 1039/1040 readiness and normal-session public staff verification"
+  ]
+}

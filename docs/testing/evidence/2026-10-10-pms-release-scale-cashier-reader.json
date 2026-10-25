@@ -1,0 +1,207 @@
+{
+  "run": "d5ff526c7919",
+  "sourceFingerprint": "345a9f2c0c0504b402edbdc8c41f83aaaddb1fdfba6196fae77774c6f2c5aa53",
+  "verificationFingerprint": "ad5f62d82e0d5005d98393de049fafa361989128ea4a8a44f2935aa8175da3c2",
+  "release": {
+    "id": "2026-10-09T20-32-02-348Z",
+    "fileManifestSha256": "080fd4741f912136026437fc5cf5060f6639401ad0564a7180e30821bf394fba"
+  },
+  "scope": "Release HTTP: 3 × 200 rooms, 730-day synthetic closed stay/reservation/account metadata; 20 distinct normal staff accounts. Historic revenue is not invented.",
+  "applicationPoolMax": 8,
+  "controlPoolMax": 5,
+  "jobsHoldingPoolMax": 1,
+  "counts": [
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    },
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    },
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    }
+  ],
+  "accounts": 20,
+  "rounds": 10,
+  "durationMs": 69759,
+  "readCount": 840,
+  "writeCount": 600,
+  "readP95Ms": 315.39241700000275,
+  "writeP95Ms": 2280.4962909999995,
+  "coreReadCount": 840,
+  "coreWriteCount": 400,
+  "financialEnabled": true,
+  "financialWriteCount": 200,
+  "financialWriteP95Ms": 1708.4421669999938,
+  "financialOperations": [
+    {
+      "operation": "shift.open",
+      "count": 20,
+      "p95Ms": 1463.2718749999985
+    },
+    {
+      "operation": "charge.add",
+      "count": 20,
+      "p95Ms": 1752.8670829999974
+    },
+    {
+      "operation": "payment.receive",
+      "count": 40,
+      "p95Ms": 1752.5558749999982
+    },
+    {
+      "operation": "payment.deposit",
+      "count": 20,
+      "p95Ms": 1673.0482919999995
+    },
+    {
+      "operation": "refund.request",
+      "count": 20,
+      "p95Ms": 1412.2489999999962
+    },
+    {
+      "operation": "refund.approve",
+      "count": 20,
+      "p95Ms": 229.9108750000014
+    },
+    {
+      "operation": "refund.pay",
+      "count": 20,
+      "p95Ms": 1711.9869999999937
+    },
+    {
+      "operation": "shift.close",
+      "count": 20,
+      "p95Ms": 1411.4586249999993
+    },
+    {
+      "operation": "shift.review",
+      "count": 20,
+      "p95Ms": 229.74308299999393
+    }
+  ],
+  "financialReconciliation": {
+    "history": {
+      "records": 657000,
+      "versions": "657000"
+    },
+    "balances": {
+      "accounts": 20,
+      "due": "0",
+      "advance": "200000",
+      "deposit": "40000"
+    },
+    "cash": {
+      "shifts": 20,
+      "cash": "475400",
+      "reviewed": true
+    },
+    "receipts": {
+      "receipts": 60,
+      "refunds": 20,
+      "received": "495400",
+      "refunded": "20000",
+      "settled": true
+    },
+    "journals": {
+      "debit": "999280",
+      "credit": "999280"
+    }
+  },
+  "failedSamples": 0,
+  "sameProcesses": true,
+  "unchanged": true,
+  "samplesSha256": "716f8110f5cc6e9d21babc54572e7011a92364cdd3d87b46cd6ae2ea23284725",
+  "passed": false,
+  "acceptance": false,
+  "financialFocusedPassed": true,
+  "timingSamplesSha256": "820eda3fb6d40a16728ee0c49dc97ca82e89a998f7d4d33285d643025dc99101",
+  "interpretation": "Invariant-specific money command readers retain the locked Property, complete account entries/refunds/configuration/guest/shift dependencies, fresh transactional IAM and original-envelope replay. All 840 reads and 600 logical writes succeed without changing source/assertions/processes. The 200 cashier writes and every measured financial operation pass the unchanged two-second target with exact PMS/Finance reconciliation and 657000 historical record versions unchanged. Core guest/reservation writes remain 2280 ms p95, so overall release scale and whole-plan acceptance remain open. Historic metadata does not invent historic revenue.",
+  "verification": {
+    "pmsApplicationUnitCases": 49,
+    "pmsIntegrationCases": 52,
+    "bookingIntegrationCases": 37,
+    "totalCases": 138,
+    "typecheck": true,
+    "lint": {
+      "passed": true,
+      "warnings": 3
+    },
+    "architecture": true,
+    "isolatedReleaseBuild": true,
+    "documentation": true
+  },
+  "regressions": [
+    "Sixty account receipt entries are all retained for refund FIFO funding beyond a UI page; unrelated historical accounts remain byte-identical.",
+    "An older pending refund remains authoritative behind sixty newer rejected refund records and prevents a new payment.",
+    "Stale payment, refund and shift-open envelopes reject after Property locking/version validation before loading their dependencies.",
+    "The expanded release harness uses 20 distinct normal staff identities and four separate normal managers for independent approval/review; no authority bypass, altered threshold or weakened retry/replay measurement."
+  ],
+  "logs": {
+    "initial-tests": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-cashier-reader-initial-tests.log",
+      "sha256": "562fb327481c26a8b79cf26b03e087ee713bad93178237cc33da105b68211e23"
+    },
+    "final-tests": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-cashier-reader-final-tests.log",
+      "sha256": "842d23f918dec470e37de0035b6b2cd357937593617105ace6d559f66a38e5b7"
+    },
+    "final-typecheck": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-cashier-reader-final-typecheck.log",
+      "sha256": "ae3aa3d40f2b7fdeaf8ae4398c41416876c85fc2ccc6aa232e526fdb75f340ef"
+    },
+    "lint": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-cashier-reader-lint.log",
+      "sha256": "827c4aba480463caff85470227105c05ff46cd40693fc7c1b1f9f25d59f13231"
+    },
+    "architecture": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-cashier-reader-architecture.log",
+      "sha256": "61f27aa5d383438fa7955c201143725c76302dadbcb2c312efa2d398a9d6f86b"
+    },
+    "build": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-cashier-reader-build.log",
+      "sha256": "1206ab7824b2d2bebfba90e86242d1a4b83024ccb63b62fb0de1ddfacd13c864"
+    },
+    "prepare": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-cashier-reader-prepare.log",
+      "sha256": "9a5b522a19256a4afd1d91df837d2ad1bc511ce99ee1b64889ddbc96d4c7d459"
+    },
+    "start": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-cashier-reader-start.log",
+      "sha256": "ad3c30a0b2a9f1f123672a531fda95863d3c8940dce40d13e2b7a6cc8629cc96"
+    },
+    "harness-build": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-cashier-reader-harness-build.log",
+      "sha256": "e0e289e2286ada42d6e1662e2125a94442bd034f96b619fa4745ca3df5ce1883"
+    },
+    "performance": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-cashier-reader-performance.log",
+      "sha256": "66fcab86a88fb5ea4bc2ebdda8b0df6c2a6597beb282e82c0e42f28455fa7a89"
+    },
+    "documentation": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-cashier-reader-docs.log",
+      "sha256": "9f586fee622b8b3e8a16860010cbaaadc290b9eb52bc47872a93126bdc28714e"
+    }
+  },
+  "environment": {
+    "ownedCohortRemoved": true,
+    "productionOrStagingChanged": false,
+    "localDevelopmentHealth": 200,
+    "publicDevelopmentHealth": 200,
+    "privateProductionHealthOnly": 200,
+    "developmentListenerPid": 23072,
+    "postgresListenerPid": 909,
+    "compiledSimulationPortReleased": 3104,
+    "publicStaffPage": "https://console-dev-erpx.jesadakorn.com/holdings/acme/pms",
+    "publicStaffPageObservation": "Actual browser reaches normal expired-session login; authenticated public staff appearance remains unverified. Compiled cohort users authenticate normally."
+  }
+}

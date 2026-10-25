@@ -318,16 +318,22 @@ test("focus refresh updates preferences and incomplete summaries keep other work
   await expect(
     shortcutShelf(page).getByRole("article", { name: "Expense claims", exact: true }),
   ).toHaveCount(0);
-  await page.route("**/navigation", async (route) => {
-    const response = await route.fetch(),
-      body = (await response.json()) as { data: { quickAccess: Pick<WorkSummary, "cards" | "preferences" | "preferencesUnavailable"> } };
-    body.data.quickAccess.preferencesUnavailable = true;
-    body.data.quickAccess.preferences = { pinnedIds: null, version: body.data.quickAccess.preferences.version + 1 };
-    body.data.quickAccess.cards = body.data.quickAccess.cards.map((c) =>
-      c.id === "expenses"
-        ? { ...c, incomplete: true, toDo: null, waiting: null }
-        : c,
-    );
+  // Read the real summary before intercepting. Closing the drawer cancels its
+  // request, so the interceptor must not wait on another network request before
+  // fulfilling a route that may already have been cancelled.
+  const response = await context.request.get(`${api}/work/summary`, {
+    headers: await contextHeaders(context),
+  });
+  expect(response.ok(), await response.text()).toBeTruthy();
+  const body = (await response.json()) as { data: WorkSummary };
+  body.data.preferencesUnavailable = true;
+  body.data.preferences = { pinnedIds: null, version: body.data.preferences.version + 1 };
+  body.data.cards = body.data.cards.map((c) =>
+    c.id === "expenses"
+      ? { ...c, incomplete: true, toDo: null, waiting: null }
+      : c,
+  );
+  await page.route("**/work/summary", async (route) => {
     await route.fulfill({ response, json: body });
   });
   await expect
@@ -532,9 +538,7 @@ test("cards fit 390, 768 and 1440px in both themes and retain keyboard focus", b
       await expect(dialog).toBeVisible();
       for (let i = 0; i < 20; i++) {
         await page.keyboard.press("Tab");
-        expect(
-          await dialog.evaluate((el) => el.contains(document.activeElement)),
-        ).toBe(true);
+        await expect.poll(() => dialog.evaluate((el) => el.contains(document.activeElement)), { timeout: 1000 }).toBe(true);
       }
       await captureCaseScreenshot(page, `customize-${width}-${theme}.png`, { fullPage: true });
       await page.keyboard.press("Escape");

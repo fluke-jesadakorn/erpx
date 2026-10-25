@@ -1054,9 +1054,9 @@ const delivery: Record<string, ModuleDelivery> = {
         "test": "tests/pms.test.ts",
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Create a multi-room booking and check in one room; Cancel only an unarrived room; Attempt stale housekeeping actions against an old occupancy cycle. SiteMinder/OTA remains outside this delivery; real source-data cutover, payment providers and hotel acceptance remain separate. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
-      "folios": {
+      "guest-accounts": {
         "test": "tests/pms.test.ts; tests/e2e/demo-hospitality-setup.spec.ts",
-        "gap": "Recorded 2026-10-03 engineering acceptance covers: Post hotel service to a guest folio; Split and merge charge ownership; Reverse the recipient charge with expected version. SiteMinder/OTA remains outside this delivery; real source-data cutover, payment providers and hotel acceptance remain separate. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Post hotel service to a guest account; Split and merge charge ownership; Reverse the recipient charge with expected version. SiteMinder/OTA remains outside this delivery; real source-data cutover, payment providers and hotel acceptance remain separate. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "cashier": {
         "test": "tests/pms.test.ts; tests/e2e/demo-hospitality-setup.spec.ts",
@@ -1064,7 +1064,7 @@ const delivery: Record<string, ModuleDelivery> = {
       },
       "inventory": {
         "test": "tests/pms.test.ts",
-        "gap": "Recorded 2026-10-03 engineering acceptance covers: Charge actual stocked minibar items; Consume source warehouse quantity and cost atomically; Attempt insufficient stock and reload folio/inventory. SiteMinder/OTA remains outside this delivery; real source-data cutover, payment providers and hotel acceptance remain separate. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Charge actual stocked minibar items; Consume source warehouse quantity and cost atomically; Attempt insufficient stock and reload guest account/inventory. SiteMinder/OTA remains outside this delivery; real source-data cutover, payment providers and hotel acceptance remain separate. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "guests": {
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Read property guest sources under current scope; Change company/branch/permission context; Reload every bounded query model. SiteMinder/OTA remains outside this delivery; real source-data cutover, payment providers and hotel acceptance remain separate. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."

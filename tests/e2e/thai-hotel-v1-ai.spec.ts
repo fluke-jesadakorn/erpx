@@ -1,12 +1,20 @@
+import { captureInvestorCheckpoint } from "../helpers/investor-capture";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { pinnedBunBinary } from "../../scripts/testing/runtime-tooling";
 import { frontWorkspacePath, signInFrontRole, type SimulatedFrontCredentials } from "../helpers/front-simulation-session";
 
 type DemoUser = { email: string; role: string; userId: string };
 type Credentials = { password: string; users: DemoUser[] };
 type DemoState = { fixture: { hospitality: { companyId: string; propertyId: string; purchaseRequestId: string } } };
+
+async function openRequestAi(page: Page) {
+  const disclosure = page.locator("#workspace-content details").filter({ has: page.locator("summary").getByText("Ask AI about this request", { exact: true }) });
+  await disclosure.locator(":scope > summary").click();
+  await disclosure.locator("summary").getByText("AI preparation", { exact: true }).click();
+}
 
 async function signIn(context: BrowserContext, page: Page, credentials: Credentials, role: string) {
   const user = credentials.users.find((item) => item.role === role && item.email.endsWith("@riverside-lantern.example"));
@@ -45,23 +53,26 @@ test("H002 AI drafts from authorized versions, cites hotel evidence, then falls 
     await signIn(employee, employeePage, credentials, "employee");
     const requestPath = `/holdings/riverside-lantern/requests/${purchaseRequestId}`;
     await employeePage.goto(requestPath, { waitUntil: "domcontentloaded" });
-    await employeePage.locator("#workspace-content").getByText("AI preparation", { exact: true }).click();
+    await openRequestAi(employeePage);
+    await expect(employeePage.getByRole("button", { name: "Save draft", exact: true })).toBeEnabled();
     await expect(employeePage.getByRole("button", { name: "Prepare with AI", exact: true })).toBeEnabled();
     const prepareResponse = employeePage.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith(`/requests/${purchaseRequestId}/ai`));
     await employeePage.getByRole("button", { name: "Prepare with AI", exact: true }).click();
     expect((await prepareResponse).ok()).toBe(true);
     await expect(employeePage.getByText("Source: this saved request, version 1.", { exact: true })).toBeVisible();
     await expect(employeePage.getByText("Review draft: Riverside kitchen rice restock", { exact: true })).toBeVisible();
-    const title = employeePage.getByLabel("What do you need?", { exact: true });
+    await employeePage.locator("summary").getByText("Customize request title (optional)", { exact: true }).click();
+    const title = employeePage.getByLabel("Request title", { exact: true });
     await expect(title).toHaveValue("Riverside kitchen rice restock");
     await employeePage.getByRole("button", { name: "Use suggested title", exact: true }).click();
     await expect(title).toHaveValue("Review draft: Riverside kitchen rice restock");
+    await captureInvestorCheckpoint(employeePage, "ai-draft", employeePage.getByText("Source: this saved request, version 1.", { exact: true }));
     const saveRequest = employeePage.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith(`/requests/${purchaseRequestId}`));
     await employeePage.getByRole("button", { name: "Save draft", exact: true }).click();
     expect((await saveRequest).ok()).toBe(true);
     await employeePage.reload({ waitUntil: "domcontentloaded" });
     await expect(employeePage.getByRole("heading", { name: "Review draft: Riverside kitchen rice restock", exact: true })).toBeVisible();
-    await employeePage.locator("#workspace-content").getByText("AI preparation", { exact: true }).click();
+    await openRequestAi(employeePage);
     await expect(employeePage.getByRole("button", { name: "Prepare with AI", exact: true })).toBeVisible();
     await expect(employeePage.getByRole("button", { name: "Use suggested title", exact: true })).toHaveCount(0);
     const request = (await (await employee.request.get(`/api/v1/holdings/riverside-lantern/requests/${purchaseRequestId}`)).json()).data.request;
@@ -72,14 +83,16 @@ test("H002 AI drafts from authorized versions, cites hotel evidence, then falls 
     const assistantPage = await assistant.newPage();
     const auditPath = frontWorkspacePath(companyId, `night-audit?property=${propertyId}`);
     await signIn(assistant, assistantPage, credentials, "pms_night_auditor");
+    await expect(assistantPage.getByRole("heading", { name: "Today", level: 1, exact: true })).toBeVisible();
     await assistantPage.getByRole("button", { name: "Open work assistant" }).click();
     const panel = assistantPage.getByRole("complementary", { name: "ERPX work assistant" });
-    await expect(panel.getByText("This page · Home", { exact: true })).toBeVisible();
+    await expect(panel.getByText("This page · Today", { exact: true })).toBeVisible();
     await panel.getByLabel("Message to work assistant").fill("Summarize this workspace and suggest one safe next step.");
     const panelResponse = assistantPage.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/api/v1/holdings/riverside-lantern/assistant"));
     await panel.getByRole("button", { name: "Send to assistant" }).click();
     expect((await panelResponse).ok()).toBe(true);
     await expect(panel.getByText(/Simulation-only summary/)).toBeVisible();
+    await captureInvestorCheckpoint(assistantPage, "ai-assistant", panel);
 
     const pmsPage = await pmsAuditor.newPage();
     await signInFrontRole(pmsAuditor, pmsPage, credentials as SimulatedFrontCredentials, "holding_owner", "pms", companyId, auditPath);
@@ -130,8 +143,12 @@ test("H002 AI drafts from authorized versions, cites hotel evidence, then falls 
     const inspectorPage = await inspector.newPage();
     const roomsPath = frontWorkspacePath(companyId, `housekeeping?property=${propertyId}`);
     await signInFrontRole(inspector, inspectorPage, credentials as SimulatedFrontCredentials, "pms_supervisor", "pms", companyId, roomsPath);
-    const taskDetails = inspectorPage.locator("details").filter({ hasText: /Create housekeeping task.*204/ }).first();
-    await taskDetails.locator("summary").click();
+    await inspectorPage.locator("summary").filter({ hasText: /^Create housekeeping task$/ }).click();
+    const taskSummary = inspectorPage.locator("summary").filter({ hasText: /^Create housekeeping task · Room 204$/ });
+    await expect(taskSummary).toHaveCount(1);
+    await taskSummary.click();
+    const taskDetails = taskSummary.locator("..");
+    await expect(taskDetails.getByRole("button", { name: "Create housekeeping task · Room 204", exact: true })).toHaveAttribute("data-client-managed-ready", "true");
     await taskDetails.locator('select[name="type"]').selectOption("stayover");
     const businessDate = (await (await inspector.request.get(`/api/v1/holdings/riverside-lantern/pms?property=${propertyId}`)).json()).data.snapshot.property.businessDate;
     await taskDetails.locator('input[name="date"]').fill(businessDate);
@@ -147,6 +164,7 @@ test("H002 AI drafts from authorized versions, cites hotel evidence, then falls 
     await adminPage.goto("/holdings/riverside-lantern/settings?section=ai", { waitUntil: "domcontentloaded" });
     await expect(adminPage.getByRole("heading", { name: "Company defaults", exact: true })).toBeVisible();
     const aiDefaults = adminPage.locator("form").filter({ has: adminPage.locator('select[name="mode"]') });
+    await expect(aiDefaults.getByRole("button", { name: "Save defaults", exact: true })).toHaveAttribute("data-client-managed-ready", "true");
     await aiDefaults.locator('select[name="mode"]').selectOption("disabled");
     await aiDefaults.getByRole("button", { name: "Save defaults", exact: true }).click();
     await expect(adminPage.getByText("Settings saved.", { exact: true })).toBeVisible();
@@ -169,6 +187,7 @@ test("H002 AI drafts from authorized versions, cites hotel evidence, then falls 
     await pmsPage.reload({ waitUntil: "domcontentloaded" });
     const manualFallbackClose = pmsPage.locator("details").filter({ hasText: "Start day close" }).first();
     await manualFallbackClose.locator("summary").click();
+    await expect(manualFallbackClose.getByRole("button", { name: "Start day close", exact: true })).toHaveAttribute("data-client-managed-ready", "true");
     const pmsCommand = `/api/v1/front/riverside-lantern/${companyId}/pms`;
     const startClose = pmsPage.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith(pmsCommand));
     await manualFallbackClose.getByRole("button", { name: "Start day close", exact: true }).click();
@@ -177,21 +196,23 @@ test("H002 AI drafts from authorized versions, cites hotel evidence, then falls 
     const beforeDrain = (await (await pmsAuditor.request.get(`/api/v1/holdings/riverside-lantern/pms?property=${propertyId}`)).json()).data;
     expect(beforeDrain.snapshot.property.state).toBe("closing");
     const completedNightsBefore = beforeDrain.snapshot.records.filter((record: { kind: string; data: { state?: string } }) => record.kind === "night" && record.data.state === "completed").length;
-    const completed = JSON.parse(execFileSync("bun", ["--conditions=react-server", resolve("scripts/fixtures/hospitality-drain-demo-job.ts"), run], { cwd: resolve("."), timeout: 30_000 }).toString()) as { job: { state: string; error_code: string | null }; property: { state: string; business_date: string } };
+    const completed = JSON.parse(execFileSync(pinnedBunBinary(resolve(".")), ["--env-file=/dev/null", "scripts/local/run-server-script.ts", "scripts/fixtures/hospitality-drain-demo-job.ts", run], { cwd: resolve("."), timeout: 30_000 }).toString()) as { job: { state: string; error_code: string | null }; property: { state: string; business_date: string } };
     expect(completed).toMatchObject({ job: { state: "completed", error_code: null }, property: { state: "open" } });
     expect(completed.property.business_date).not.toBe(beforeDrain.snapshot.property.businessDate);
     const completedAudit = (await (await pmsAuditor.request.get(`/api/v1/holdings/riverside-lantern/pms?property=${propertyId}`)).json()).data;
     const completedNightsAfter = completedAudit.snapshot.records.filter((record: { kind: string; data: { state?: string } }) => record.kind === "night" && record.data.state === "completed").length;
     expect(completedNightsAfter).toBe(completedNightsBefore + 1);
-    const replayedDrain = JSON.parse(execFileSync("bun", ["--conditions=react-server", resolve("scripts/fixtures/hospitality-drain-demo-job.ts"), run], { cwd: resolve("."), timeout: 30_000 }).toString()) as typeof completed;
+    const replayedDrain = JSON.parse(execFileSync(pinnedBunBinary(resolve(".")), ["--env-file=/dev/null", "scripts/local/run-server-script.ts", "scripts/fixtures/hospitality-drain-demo-job.ts", run], { cwd: resolve("."), timeout: 30_000 }).toString()) as typeof completed;
     expect(replayedDrain).toEqual(completed);
     const replayedAudit = (await (await pmsAuditor.request.get(`/api/v1/holdings/riverside-lantern/pms?property=${propertyId}`)).json()).data;
     expect(replayedAudit.snapshot.records.filter((record: { kind: string; data: { state?: string } }) => record.kind === "night" && record.data.state === "completed")).toHaveLength(completedNightsAfter);
 
     await employeePage.reload({ waitUntil: "domcontentloaded" });
-    await employeePage.locator("#workspace-content").getByText("AI preparation", { exact: true }).click();
+    await openRequestAi(employeePage);
     await expect(employeePage.getByText("AI is disabled for this capability. Continue manually.", { exact: true })).toBeVisible();
     const description = employeePage.locator("#workspace-content textarea").first();
+    await expect(employeePage.getByRole("button", { name: "Save draft", exact: true })).toBeEnabled();
+    await captureInvestorCheckpoint(employeePage, "ai-manual", employeePage.getByText("AI is disabled for this capability. Continue manually.", { exact: true }));
     await description.fill("Manual synthetic fallback: the kitchen team can continue from the saved rice requirement while AI is unavailable.");
     const manualSave = employeePage.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith(`/requests/${purchaseRequestId}`));
     await employeePage.getByRole("button", { name: "Save draft", exact: true }).click();

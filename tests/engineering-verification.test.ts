@@ -5,6 +5,7 @@ import {join,resolve} from 'node:path';
 import {Pool} from 'pg';
 import {PostgresDatabase} from '../src/server/runtime/postgres';
 import {applyMigrations,env} from './runtime-env';
+import {runWithRequestMemo} from '../src/server/modules/runtime/public/runtime/request-memo';
 import {engineeringVerificationContext,enrollEngineeringVerification,isolatedEngineeringVerification} from '../src/server/engineering-verification';
 import {assertProductionModuleEnabled,assertProductionFeatureRoute,productionFeatureGuard,scheduledFeaturePredicate} from '../src/server/hospitality-rollout';
 import {legalCompanyCapabilityReady} from '../src/server/legal/runtime-gate';
@@ -105,4 +106,30 @@ it('preserves ordinary compiled production and staging HTTPS requirements when e
  await bootstrap();vi.stubEnv('ERPX_ENGINEERING_VERIFICATION_RUN','');expect(()=>getRuntime()).toThrow('INVALID_PUBLIC_ORIGIN');
  vi.stubEnv('ERPX_PUBLIC_ORIGIN','https://production.invalid');vi.stubEnv('ERPX_MARKETING_ORIGIN','');vi.stubEnv('ERPX_FRONT_PMS_ORIGIN','');vi.stubEnv('ERPX_FRONT_POS_ORIGIN','');expect(getRuntime().ERPX_ENVIRONMENT).toBe('production');await closeRuntime();
  vi.stubEnv('ERPX_ENVIRONMENT','staging');vi.stubEnv('ERPX_PUBLIC_ORIGIN','http://127.0.0.1:3104');expect(()=>getRuntime()).toThrow('INVALID_PUBLIC_ORIGIN');vi.stubEnv('ERPX_PUBLIC_ORIGIN','https://staging.invalid');expect(getRuntime().ERPX_ENVIRONMENT).toBe('staging');
+});
+
+it('reads changed manifest bytes and attestation fields afresh even within one HTTP invocation',async()=>{
+ const manifestPath=join(directory,'release/release-files.json'),attestationPath=join(directory,'engineering-attestation.json');
+ const manifest=await readFile(manifestPath),attestation=await readFile(attestationPath);
+ try{await runWithRequestMemo(async()=>{
+  expect(engineeringVerificationContext()).not.toBeNull();
+  const changed=Buffer.from(manifest); changed[changed.indexOf('b'.repeat(64))]='c'.charCodeAt(0);
+  expect(changed.length).toBe(manifest.length); await writeFile(manifestPath,changed);
+  expect(engineeringVerificationContext()).toBeNull();
+  await writeFile(manifestPath,manifest); expect(engineeringVerificationContext()).not.toBeNull();
+  await writeFile(attestationPath,JSON.stringify({...JSON.parse(attestation.toString()),softwareVersion:'unbuilt'}));
+  expect(engineeringVerificationContext()).toBeNull();
+  await writeFile(attestationPath,attestation); expect(engineeringVerificationContext()).not.toBeNull();
+ });}finally{await writeFile(manifestPath,manifest);await writeFile(attestationPath,attestation);}
+});
+it('does not memoize Company enablement or expiry inside a request that reused the artifact digest',async()=>{
+ await enrollEngineeringVerification(db,enrollment());
+ try{await runWithRequestMemo(async()=>{
+  expect(await isolatedEngineeringVerification(db,'enabled')).toBe(true);
+  await db.prepare('UPDATE engineering_verification_contexts SET enabled=false WHERE company_id=? AND run_id=?').bind('enabled',run).run();
+  expect(await isolatedEngineeringVerification(db,'enabled')).toBe(false);
+  await enrollEngineeringVerification(db,enrollment()); expect(await isolatedEngineeringVerification(db,'enabled')).toBe(true);
+  await db.prepare('UPDATE engineering_verification_contexts SET expires_at=? WHERE company_id=? AND run_id=?').bind(Date.now()-1,'enabled',run).run();
+  expect(await isolatedEngineeringVerification(db,'enabled')).toBe(false);
+ });}finally{await enrollEngineeringVerification(db,enrollment());}
 });

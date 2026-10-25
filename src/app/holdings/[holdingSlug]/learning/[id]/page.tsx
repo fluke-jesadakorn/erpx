@@ -3,8 +3,8 @@ import { requireWorkContext, publicScope } from "@/server/modules/identity_acces
 import { workspaceBase } from "@/lib/workspace";
 import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { learningAssignmentDetail } from "@/server/modules/learning/public/learning";
-import { LearningConsole } from "@/components/modules/learning-console";
-import { RecordDocumentPanel } from "@/components/attachments/record-document-panel";
+import { LearningConsole } from "@/components/records/loaders/modules--learning-console";
+import { RecordDocumentPanel } from "@/components/records/loaders/attachments--record-document-panel";
 import { samePerson } from "@/lib/iam";
 import { hasPermission } from "@/lib/permissions";
 import { PageContent, Card } from "@/components/ui/foundation";

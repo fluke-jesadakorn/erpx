@@ -23,6 +23,7 @@ import styles from "./finance-workspace.module.css";
 
 const legacyIds = [
   "finance-overview",
+  "finance-sales",
   "finance-receivables",
   "finance-payables",
   "finance-bank",

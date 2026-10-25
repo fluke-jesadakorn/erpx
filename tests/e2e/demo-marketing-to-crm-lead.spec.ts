@@ -135,6 +135,8 @@ test("consented Marketing candidate hands its brief and attribution to an eligib
     const campaignRow = marketingPage.locator("#workspace-content:visible")
       .locator("table.business-table tbody tr")
       .filter({ hasText: "Bangkok furniture launch" });
+    await expect(campaignRow).toHaveCount(1);
+    await expect(campaignRow.locator('xpath=ancestor::table[1]').getByRole('columnheader')).toHaveText(['Campaign','Source','Captured','Pending','CRM handoffs','Rejected','Details']);
     await expect(campaignRow.locator("td")).toHaveText([
       "Bangkok furniture launch",
       "Demo website inquiry",
@@ -142,7 +144,16 @@ test("consented Marketing candidate hands its brief and attribution to an eligib
       "0",
       "1",
       "0",
+      "View details",
     ]);
+    const campaignLink=campaignRow.getByRole('cell').nth(0).getByRole('link',{name:'Bangkok furniture launch',exact:true});
+    await expect(campaignLink).toHaveCount(1);
+    const campaignHref=new URL((await campaignLink.getAttribute('href'))!,marketingPage.url());
+    expect(campaignHref.pathname).toBe('/holdings/simulation/record-details/marketing_campaign_sources/Bangkok%20furniture%20launch');
+    expect(campaignHref.searchParams.get('source')).toBe('Demo website inquiry');
+    const detailsLink=campaignRow.getByRole('cell').nth(6).getByRole('link',{name:'View details',exact:true});
+    await expect(detailsLink).toHaveCount(1);
+    await expect(detailsLink).toHaveAttribute('href',(await campaignLink.getAttribute('href'))!);
   } finally {
     await marketingContext.close(); await reviewerContext.close(); await salesContext.close();
   }

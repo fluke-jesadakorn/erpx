@@ -1,0 +1,507 @@
+{
+  "recordedAtUTC": "2026-10-11T04:00:34.568558+00:00",
+  "goalComplete": false,
+  "runtimeChanged": false,
+  "analysis": "offline reanalysis of existing source-bound20/20 captured navigation rounds",
+  "inputReceipt": {
+    "path": ".scratch/dev/optimization-final-navigation.json",
+    "sha256": "58222eb811c0e82897699cf0954c8577fc04d360c8882bb00deb57154d125a3a"
+  },
+  "phases": {
+    "before": {
+      "release": "2026-10-10T04-12-38-376Z",
+      "rows": [
+        {
+          "round": 5,
+          "firstInitialScriptRequestMs": 242.14099999517202,
+          "lastInitialScriptEstimatedFinishMs": 582.9950000373647,
+          "criticalScriptPath": "/_next/static/chunks/17ri15xju_bq6.js",
+          "afterFinishToControlsObservedMs": 119.70500001031905,
+          "controlsUpperBoundMs": 702.7000000476837
+        },
+        {
+          "round": 6,
+          "firstInitialScriptRequestMs": 244.70799998380244,
+          "lastInitialScriptEstimatedFinishMs": 608.3070001667365,
+          "criticalScriptPath": "/_next/static/chunks/17ri15xju_bq6.js",
+          "afterFinishToControlsObservedMs": 283.19299983326346,
+          "controlsUpperBoundMs": 891.5
+        },
+        {
+          "round": 7,
+          "firstInitialScriptRequestMs": 429.0119999786839,
+          "lastInitialScriptEstimatedFinishMs": 953.5280001470819,
+          "criticalScriptPath": "/_next/static/chunks/0wxnol7hfamjc.js",
+          "afterFinishToControlsObservedMs": 156.87199994828552,
+          "controlsUpperBoundMs": 1110.4000000953674
+        },
+        {
+          "round": 8,
+          "firstInitialScriptRequestMs": 257.08100001793355,
+          "lastInitialScriptEstimatedFinishMs": 1218.8080001240596,
+          "criticalScriptPath": "/_next/static/chunks/0wxnol7hfamjc.js",
+          "afterFinishToControlsObservedMs": 133.09199985209852,
+          "controlsUpperBoundMs": 1351.8999999761581
+        },
+        {
+          "round": 9,
+          "firstInitialScriptRequestMs": 185.33200002275407,
+          "lastInitialScriptEstimatedFinishMs": 1083.2910000253469,
+          "criticalScriptPath": "/_next/static/chunks/0wxnol7hfamjc.js",
+          "afterFinishToControlsObservedMs": 115.20899997465312,
+          "controlsUpperBoundMs": 1198.5
+        },
+        {
+          "round": 10,
+          "firstInitialScriptRequestMs": 221.90999996382743,
+          "lastInitialScriptEstimatedFinishMs": 874.4169999444857,
+          "criticalScriptPath": "/_next/static/chunks/0wxnol7hfamjc.js",
+          "afterFinishToControlsObservedMs": 119.18299996014684,
+          "controlsUpperBoundMs": 993.5999999046326
+        },
+        {
+          "round": 11,
+          "firstInitialScriptRequestMs": 243.3240000391379,
+          "lastInitialScriptEstimatedFinishMs": 1062.213000094518,
+          "criticalScriptPath": "/_next/static/chunks/0wxnol7hfamjc.js",
+          "afterFinishToControlsObservedMs": 105.98699983395636,
+          "controlsUpperBoundMs": 1168.1999999284744
+        },
+        {
+          "round": 12,
+          "firstInitialScriptRequestMs": 234.72499998752028,
+          "lastInitialScriptEstimatedFinishMs": 980.0909999422729,
+          "criticalScriptPath": "/_next/static/chunks/0wxnol7hfamjc.js",
+          "afterFinishToControlsObservedMs": 167.30900003388524,
+          "controlsUpperBoundMs": 1147.3999999761581
+        },
+        {
+          "round": 13,
+          "firstInitialScriptRequestMs": 215.2390000410378,
+          "lastInitialScriptEstimatedFinishMs": 1054.3889998551458,
+          "criticalScriptPath": "/_next/static/chunks/17ri15xju_bq6.js",
+          "afterFinishToControlsObservedMs": 150.41100009717047,
+          "controlsUpperBoundMs": 1204.7999999523163
+        },
+        {
+          "round": 14,
+          "firstInitialScriptRequestMs": 204.52099991962314,
+          "lastInitialScriptEstimatedFinishMs": 2151.7619998818263,
+          "criticalScriptPath": "/_next/static/chunks/17ri15xju_bq6.js",
+          "afterFinishToControlsObservedMs": 117.93800004664809,
+          "controlsUpperBoundMs": 2269.6999999284744
+        },
+        {
+          "round": 15,
+          "firstInitialScriptRequestMs": 338.78500002902,
+          "lastInitialScriptEstimatedFinishMs": 1595.3270000852644,
+          "criticalScriptPath": "/_next/static/chunks/0wxnol7hfamjc.js",
+          "afterFinishToControlsObservedMs": 135.0729998908937,
+          "controlsUpperBoundMs": 1730.3999999761581
+        },
+        {
+          "round": 16,
+          "firstInitialScriptRequestMs": 267.6859999774024,
+          "lastInitialScriptEstimatedFinishMs": 1779.2869999594986,
+          "criticalScriptPath": "/_next/static/chunks/076xjsi35j3oe.js",
+          "afterFinishToControlsObservedMs": 98.1130000166595,
+          "controlsUpperBoundMs": 1877.3999999761581
+        },
+        {
+          "round": 17,
+          "firstInitialScriptRequestMs": 228.58799993991852,
+          "lastInitialScriptEstimatedFinishMs": 1466.2180000031367,
+          "criticalScriptPath": "/_next/static/chunks/0wxnol7hfamjc.js",
+          "afterFinishToControlsObservedMs": 126.7819999968633,
+          "controlsUpperBoundMs": 1593
+        },
+        {
+          "round": 18,
+          "firstInitialScriptRequestMs": 351.4560000039637,
+          "lastInitialScriptEstimatedFinishMs": 1721.757000011392,
+          "criticalScriptPath": "/_next/static/chunks/076xjsi35j3oe.js",
+          "afterFinishToControlsObservedMs": 117.24299998860806,
+          "controlsUpperBoundMs": 1839
+        },
+        {
+          "round": 19,
+          "firstInitialScriptRequestMs": 290.85200000554323,
+          "lastInitialScriptEstimatedFinishMs": 1445.2740000206977,
+          "criticalScriptPath": "/_next/static/chunks/17ri15xju_bq6.js",
+          "afterFinishToControlsObservedMs": 94.32600000314415,
+          "controlsUpperBoundMs": 1539.6000000238419
+        },
+        {
+          "round": 20,
+          "firstInitialScriptRequestMs": 224.4449999416247,
+          "lastInitialScriptEstimatedFinishMs": 901.5439998880029,
+          "criticalScriptPath": "/_next/static/chunks/17ri15xju_bq6.js",
+          "afterFinishToControlsObservedMs": 103.2560001835227,
+          "controlsUpperBoundMs": 1004.8000000715256
+        },
+        {
+          "round": 21,
+          "firstInitialScriptRequestMs": 225.37999995984137,
+          "lastInitialScriptEstimatedFinishMs": 1410.0679999953136,
+          "criticalScriptPath": "/_next/static/chunks/0wxnol7hfamjc.js",
+          "afterFinishToControlsObservedMs": 106.93200000468642,
+          "controlsUpperBoundMs": 1517
+        },
+        {
+          "round": 22,
+          "firstInitialScriptRequestMs": 229.29199994541705,
+          "lastInitialScriptEstimatedFinishMs": 1235.3619999401271,
+          "criticalScriptPath": "/_next/static/chunks/17ri15xju_bq6.js",
+          "afterFinishToControlsObservedMs": 106.03800003603101,
+          "controlsUpperBoundMs": 1341.3999999761581
+        },
+        {
+          "round": 23,
+          "firstInitialScriptRequestMs": 195.6570000620559,
+          "lastInitialScriptEstimatedFinishMs": 796.866999996826,
+          "criticalScriptPath": "/_next/static/chunks/0wxnol7hfamjc.js",
+          "afterFinishToControlsObservedMs": 131.93299995549023,
+          "controlsUpperBoundMs": 928.7999999523163
+        },
+        {
+          "round": 24,
+          "firstInitialScriptRequestMs": 257.20400002319366,
+          "lastInitialScriptEstimatedFinishMs": 1293.9249999606982,
+          "criticalScriptPath": "/_next/static/chunks/0wxnol7hfamjc.js",
+          "afterFinishToControlsObservedMs": 512.3749999916181,
+          "controlsUpperBoundMs": 1806.2999999523163
+        }
+      ],
+      "firstInitialScriptRequestMs": {
+        "median": 238.43299999134615,
+        "p95": 351.4560000039637,
+        "n": 20
+      },
+      "lastInitialScriptEstimatedFinishMs": {
+        "median": 1151.0495000747032,
+        "p95": 1779.2869999594986,
+        "n": 20
+      },
+      "afterFinishToControlsObservedMs": {
+        "median": 119.44399998523295,
+        "p95": 283.19299983326346,
+        "n": 20
+      },
+      "manifestOwners": {
+        "/_next/static/chunks/0wxnol7hfamjc.js": [
+          "[project]/src/components/time/time-preference-context.tsx",
+          "[project]/src/components/records/record-link.tsx",
+          "[project]/node_modules/lucide-react/dist/esm/Icon.mjs",
+          "[project]/src/components/ui/button.tsx",
+          "[project]/src/components/ui/popups.tsx",
+          "[project]/src/components/ui/table.tsx",
+          "[project]/src/components/features/feature-page.tsx",
+          "[project]/src/components/money/currency-provider.tsx",
+          "[project]/node_modules/next/dist/client/app-dir/link.js",
+          "[project]/src/components/attachments/record-document-panel.tsx",
+          "[project]/src/components/finance/finance-chrome.tsx",
+          "[project]/src/components/finance/fx-revaluation-controls.tsx",
+          "[project]/src/components/modules/ledger-controls.tsx",
+          "[project]/src/components/brand/print-controls.tsx",
+          "[project]/src/components/modules/commerce-controls.tsx",
+          "[project]/src/components/workplace/flow-timeline.tsx",
+          "[project]/src/components/workplace/work-return.tsx",
+          "[project]/src/components/modules/supplier-bill-console.tsx",
+          "[project]/src/components/modules/supplier-promise-console.tsx",
+          "[project]/src/components/modules/landed-cost-controls.tsx",
+          "[project]/src/components/finance/finance-record-workspace.tsx",
+          "[project]/src/components/hospitality/tax-document-reference.tsx",
+          "[project]/src/components/modules/payment-lifecycle.tsx",
+          "[project]/src/components/finance/finance-thai-tax-console.tsx",
+          "[project]/src/components/modules/invoice-controls.tsx",
+          "[project]/src/components/modules/payment-correction.tsx",
+          "[project]/src/components/modules/refund-console.tsx",
+          "[project]/src/components/modules/supplier-batch-console.tsx",
+          "[project]/src/components/modules/finance-asset-console.tsx",
+          "[project]/src/components/finance/vat-register-controls.tsx",
+          "[project]/src/components/workplace/record-sections.tsx",
+          "[project]/src/components/workplace/request-ai.tsx",
+          "[project]/src/components/workplace/request-controls.tsx",
+          "[project]/src/components/modules/expense-controls.tsx",
+          "[project]/src/components/modules/expense-posting.tsx",
+          "[project]/src/components/modules/expense-workflow-controls.tsx",
+          "[project]/src/components/modules/expense-ai-panel.tsx",
+          "[project]/src/components/self-service/leave-editor.tsx",
+          "[project]/src/components/self-service/leave-evidence-panel.tsx",
+          "[project]/src/components/modules/staff-work-controls.tsx",
+          "[project]/src/components/modules/stock-count-controls.tsx",
+          "[project]/src/components/modules/stock-transfer-controls.tsx",
+          "[project]/src/components/modules/transit-console.tsx",
+          "[project]/src/components/modules/procurement-rfq-console.tsx",
+          "[project]/src/components/modules/customer-notes.tsx",
+          "[project]/src/components/sales-customers/hub-form.tsx",
+          "[project]/src/components/modules/customer-identity-console.tsx",
+          "[project]/src/components/modules/customer-duplicate-console.tsx",
+          "[project]/src/components/modules/customer-access-console.tsx",
+          "[project]/src/components/modules/customer-followups.tsx",
+          "[project]/src/components/modules/crm-console.tsx",
+          "[project]/src/components/modules/crm-activity-console.tsx",
+          "[project]/src/components/modules/marketing-console.tsx",
+          "[project]/src/components/modules/support-evidence-console.tsx",
+          "[project]/src/components/modules/support-sla-console.tsx",
+          "[project]/src/components/modules/support-console.tsx",
+          "[project]/src/components/modules/support-incident-console.tsx",
+          "[project]/src/components/modules/support-session-console.tsx",
+          "[project]/src/components/modules/field-service-console.tsx",
+          "[project]/src/components/modules/asset-maintenance-console.tsx",
+          "[project]/src/components/modules/maintenance-preventive-console.tsx",
+          "[project]/src/components/modules/quality-console.tsx",
+          "[project]/src/components/modules/production-console.tsx",
+          "[project]/src/components/modules/ecommerce-checkout-controls.tsx",
+          "[project]/src/components/modules/access-editor.tsx",
+          "[project]/src/components/modules/level-assignment-editor.tsx",
+          "[project]/src/components/modules/payroll-controls.tsx",
+          "[project]/src/components/modules/payroll-cost-assignments.tsx",
+          "[project]/src/components/modules/people-editor.tsx",
+          "[project]/src/components/people/lifecycle-workspace.tsx",
+          "[project]/src/components/modules/payroll-cancellation-controls.tsx",
+          "[project]/src/components/modules/payroll-adjustment-controls.tsx",
+          "[project]/src/components/modules/payroll-accounting-panel.tsx",
+          "[project]/src/components/modules/payroll-payment-panel.tsx",
+          "[project]/src/components/modules/payroll-liabilities-panel.tsx",
+          "[project]/src/components/modules/payroll-workspace.tsx",
+          "[project]/src/components/self-service/overtime.tsx",
+          "[project]/src/components/people/clearance-workspace.tsx",
+          "[project]/src/components/modules/learning-console.tsx",
+          "[project]/src/components/modules/benefits-console.tsx",
+          "[project]/src/components/modules/talent-console.tsx",
+          "[project]/src/components/modules/project-milestones.tsx",
+          "[project]/src/components/modules/project-actuals.tsx",
+          "[project]/src/components/modules/project-structure-console.tsx",
+          "[project]/src/components/workplace/handbook-controls.tsx",
+          "[project]/src/components/legal/legal-workspace.tsx",
+          "[project]/src/components/modules/operations-console.tsx",
+          "[project]/src/components/records/record-drawer.tsx",
+          "[project]/src/components/modules/agent-governance-console.tsx",
+          "[project]/src/components/finance/finance-group-edition-controls.tsx",
+          "[project]/src/components/finance/finance-instrument-controls.tsx",
+          "[project]/src/components/finance/finance-asset-policy-controls.tsx",
+          "[project]/src/components/finance/finance-business-contract-controls.tsx",
+          "[project]/src/components/finance/finance-bank-automation-controls.tsx",
+          "[project]/src/components/finance/finance-collection-controls.tsx",
+          "[project]/src/components/pms/booking-refunds.tsx",
+          "[project]/src/components/pms/counter-refunds.tsx",
+          "[project]/src/components/finance/finance-book-controls.tsx",
+          "[project]/src/components/finance/finance-planning-controls.tsx",
+          "[project]/src/components/modules/bank-controls.tsx",
+          "[project]/src/components/modules/inventory-reorder-console.tsx",
+          "[project]/src/components/modules/brand-identity-console.tsx",
+          "[project]/src/components/modules/ecommerce-console.tsx",
+          "[project]/src/components/finance/finance-engine-controls.tsx",
+          "[project]/src/components/finance/finance-accrual-controls.tsx",
+          "[project]/src/components/finance/intercompany-console.tsx",
+          "[project]/src/components/finance/consolidation-run-console.tsx",
+          "[project]/src/components/modules/sales-pricing-console.tsx",
+          "[project]/src/components/pos/pos-console.tsx",
+          "[project]/src/components/modules/department-override-decision.tsx"
+        ],
+        "/_next/static/chunks/17ri15xju_bq6.js": [
+          "[project]/src/app/holdings/[holdingSlug]/error.tsx"
+        ],
+        "/_next/static/chunks/076xjsi35j3oe.js": [
+          "[project]/src/app/holdings/[holdingSlug]/account-switcher.tsx",
+          "[project]/src/components/workplace/platform-role-switcher.tsx",
+          "[project]/src/components/workplace/workspace-menu.tsx"
+        ]
+      }
+    },
+    "after": {
+      "release": "2026-10-11T03-31-25-954Z",
+      "rows": [
+        {
+          "round": 1,
+          "firstInitialScriptRequestMs": 284.71899998839945,
+          "lastInitialScriptEstimatedFinishMs": 1588.7849999526516,
+          "criticalScriptPath": "/_next/static/chunks/05cfcqjxktyng.js",
+          "afterFinishToControlsObservedMs": 117.3150000711903,
+          "controlsUpperBoundMs": 1706.1000000238419
+        },
+        {
+          "round": 2,
+          "firstInitialScriptRequestMs": 594.3940000142902,
+          "lastInitialScriptEstimatedFinishMs": 2051.188000028953,
+          "criticalScriptPath": "/_next/static/chunks/05cfcqjxktyng.js",
+          "afterFinishToControlsObservedMs": 147.7119999472052,
+          "controlsUpperBoundMs": 2198.899999976158
+        },
+        {
+          "round": 3,
+          "firstInitialScriptRequestMs": 322.54600001033396,
+          "lastInitialScriptEstimatedFinishMs": 1439.1130000157282,
+          "criticalScriptPath": "/_next/static/chunks/05cfcqjxktyng.js",
+          "afterFinishToControlsObservedMs": 117.58700003195554,
+          "controlsUpperBoundMs": 1556.7000000476837
+        },
+        {
+          "round": 4,
+          "firstInitialScriptRequestMs": 264.06800001859665,
+          "lastInitialScriptEstimatedFinishMs": 3218.97800000757,
+          "criticalScriptPath": "/_next/static/chunks/05cfcqjxktyng.js",
+          "afterFinishToControlsObservedMs": 160.32200006395578,
+          "controlsUpperBoundMs": 3379.3000000715256
+        },
+        {
+          "round": 5,
+          "firstInitialScriptRequestMs": 316.74100004602224,
+          "lastInitialScriptEstimatedFinishMs": 1740.5139999892563,
+          "criticalScriptPath": "/_next/static/chunks/05cfcqjxktyng.js",
+          "afterFinishToControlsObservedMs": 151.48600001074374,
+          "controlsUpperBoundMs": 1892
+        },
+        {
+          "round": 6,
+          "firstInitialScriptRequestMs": 326.33099996019155,
+          "lastInitialScriptEstimatedFinishMs": 1611.230999942869,
+          "criticalScriptPath": "/_next/static/chunks/05cfcqjxktyng.js",
+          "afterFinishToControlsObservedMs": 95.36900008097291,
+          "controlsUpperBoundMs": 1706.6000000238419
+        },
+        {
+          "round": 7,
+          "firstInitialScriptRequestMs": 479.08199997618794,
+          "lastInitialScriptEstimatedFinishMs": 1714.9520000200719,
+          "criticalScriptPath": "/_next/static/chunks/05cfcqjxktyng.js",
+          "afterFinishToControlsObservedMs": 124.84799993224442,
+          "controlsUpperBoundMs": 1839.7999999523163
+        },
+        {
+          "round": 8,
+          "firstInitialScriptRequestMs": 412.95399994123727,
+          "lastInitialScriptEstimatedFinishMs": 2591.4090000037104,
+          "criticalScriptPath": "/_next/static/chunks/05cfcqjxktyng.js",
+          "afterFinishToControlsObservedMs": 97.99099997244775,
+          "controlsUpperBoundMs": 2689.399999976158
+        },
+        {
+          "round": 9,
+          "firstInitialScriptRequestMs": 463.9190000016242,
+          "lastInitialScriptEstimatedFinishMs": 1421.371999906376,
+          "criticalScriptPath": "/_next/static/chunks/05cfcqjxktyng.js",
+          "afterFinishToControlsObservedMs": 125.72800011746585,
+          "controlsUpperBoundMs": 1547.1000000238419
+        },
+        {
+          "round": 10,
+          "firstInitialScriptRequestMs": 336.1309999600053,
+          "lastInitialScriptEstimatedFinishMs": 1700.6429999340326,
+          "criticalScriptPath": "/_next/static/chunks/05cfcqjxktyng.js",
+          "afterFinishToControlsObservedMs": 123.25700004212558,
+          "controlsUpperBoundMs": 1823.8999999761581
+        },
+        {
+          "round": 11,
+          "firstInitialScriptRequestMs": 330.4449999704957,
+          "lastInitialScriptEstimatedFinishMs": 1260.8540000356734,
+          "criticalScriptPath": "/_next/static/chunks/05cfcqjxktyng.js",
+          "afterFinishToControlsObservedMs": 125.9460000358522,
+          "controlsUpperBoundMs": 1386.8000000715256
+        },
+        {
+          "round": 12,
+          "firstInitialScriptRequestMs": 349.77399988565594,
+          "lastInitialScriptEstimatedFinishMs": 1560.6759998733178,
+          "criticalScriptPath": "/_next/static/chunks/05cfcqjxktyng.js",
+          "afterFinishToControlsObservedMs": 127.72400022204965,
+          "controlsUpperBoundMs": 1688.4000000953674
+        },
+        {
+          "round": 13,
+          "firstInitialScriptRequestMs": 288.95199997350574,
+          "lastInitialScriptEstimatedFinishMs": 1340.161999957636,
+          "criticalScriptPath": "/_next/static/chunks/05cfcqjxktyng.js",
+          "afterFinishToControlsObservedMs": 126.53800009004772,
+          "controlsUpperBoundMs": 1466.7000000476837
+        },
+        {
+          "round": 14,
+          "firstInitialScriptRequestMs": 313.8760000001639,
+          "lastInitialScriptEstimatedFinishMs": 1242.3379999995232,
+          "criticalScriptPath": "/_next/static/chunks/05cfcqjxktyng.js",
+          "afterFinishToControlsObservedMs": 114.16200000047684,
+          "controlsUpperBoundMs": 1356.5
+        },
+        {
+          "round": 15,
+          "firstInitialScriptRequestMs": 312.47200001962483,
+          "lastInitialScriptEstimatedFinishMs": 1256.330000021495,
+          "criticalScriptPath": "/_next/static/chunks/05cfcqjxktyng.js",
+          "afterFinishToControlsObservedMs": 202.06999995466322,
+          "controlsUpperBoundMs": 1458.3999999761581
+        },
+        {
+          "round": 16,
+          "firstInitialScriptRequestMs": 306.7530000116676,
+          "lastInitialScriptEstimatedFinishMs": 1815.8899999903515,
+          "criticalScriptPath": "/_next/static/chunks/05cfcqjxktyng.js",
+          "afterFinishToControlsObservedMs": 112.81000005733222,
+          "controlsUpperBoundMs": 1928.7000000476837
+        },
+        {
+          "round": 17,
+          "firstInitialScriptRequestMs": 431.99499999172986,
+          "lastInitialScriptEstimatedFinishMs": 1484.9620001297444,
+          "criticalScriptPath": "/_next/static/chunks/05cfcqjxktyng.js",
+          "afterFinishToControlsObservedMs": 121.93799984641373,
+          "controlsUpperBoundMs": 1606.8999999761581
+        },
+        {
+          "round": 18,
+          "firstInitialScriptRequestMs": 292.29999997187406,
+          "lastInitialScriptEstimatedFinishMs": 1048.299999943003,
+          "criticalScriptPath": "/_next/static/chunks/05cfcqjxktyng.js",
+          "afterFinishToControlsObservedMs": 138.10000003315508,
+          "controlsUpperBoundMs": 1186.3999999761581
+        },
+        {
+          "round": 19,
+          "firstInitialScriptRequestMs": 357.01100004371256,
+          "lastInitialScriptEstimatedFinishMs": 2604.2099999813363,
+          "criticalScriptPath": "/_next/static/chunks/05cfcqjxktyng.js",
+          "afterFinishToControlsObservedMs": 106.58999997097999,
+          "controlsUpperBoundMs": 2710.7999999523163
+        },
+        {
+          "round": 20,
+          "firstInitialScriptRequestMs": 326.81499992031604,
+          "lastInitialScriptEstimatedFinishMs": 1699.4519999762997,
+          "criticalScriptPath": "/_next/static/chunks/05cfcqjxktyng.js",
+          "afterFinishToControlsObservedMs": 137.24799995217472,
+          "controlsUpperBoundMs": 1836.6999999284744
+        }
+      ],
+      "firstInitialScriptRequestMs": {
+        "median": 326.5729999402538,
+        "p95": 479.08199997618794,
+        "n": 20
+      },
+      "lastInitialScriptEstimatedFinishMs": {
+        "median": 1600.0079999477603,
+        "p95": 2604.2099999813363,
+        "n": 20
+      },
+      "afterFinishToControlsObservedMs": {
+        "median": 125.28800002485514,
+        "p95": 160.32200006395578,
+        "n": 20
+      },
+      "manifestOwners": {
+        "/_next/static/chunks/05cfcqjxktyng.js": [
+          "[project]/src/app/holdings/[holdingSlug]/error.tsx"
+        ]
+      }
+    }
+  },
+  "formula": "estimated script finish = 1000*(CDP Script request timestamp - CDP Document request timestamp) + Resource Timing script durationMs",
+  "limitations": [
+    "CDP request and Resource Timing start clocks are close but not guaranteed identical; this is an estimate, not a captured load/execute endpoint.",
+    "After-finish residual includes polling/RPC latency and is not isolated React CPU time.",
+    "Initial script set comes from the independent before-Search check; dynamic or omitted dependencies may differ in a navigation.",
+    "Previous collector required both hydrated Search and document.complete, which can overestimate usable-controls time by including unrelated resources. Existing failed latency gates are retained."
+  ],
+  "nextAction": "In a coordinated quiet window collect ready-only versus document.complete times, actual response/load timestamps and fresh error events before selecting a runtime fix."
+}

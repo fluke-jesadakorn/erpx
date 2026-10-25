@@ -82,17 +82,17 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
       GROUP BY 1 ORDER BY 1`;
         values = [a.companyId, a.branchId, a.branchId, f.currency, f.from, f.to, f.from, f.to];
     }
-    if (id === "hotel-folio-balance") {
+    if (id === "hotel-guest-account-balance") {
         const label = breakdown === "branch"
             ? `COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=p.branch_id AND n.company_id=p.company_id),'Unassigned branch')`
-            : breakdown === "property" ? "p.name" : "'Open folio balances'";
+            : breakdown === "property" ? "p.name" : "'Open guest account balances'";
         sql = `SELECT ${label} label,
         COALESCE(sum(l.debit_minor::numeric-l.credit_minor::numeric),0)::text value
       FROM pms_properties p
-      JOIN pms_records f ON f.property_id=p.id AND f.kind='folio'
+      JOIN pms_records f ON f.property_id=p.id AND f.kind='guest_account'
         AND f.data_json::jsonb->>'state' IN ('open','credit')
       JOIN pms_records e ON e.property_id=p.id AND e.kind='entry'
-        AND e.data_json::jsonb->>'folioId'=f.id
+        AND e.data_json::jsonb->>'guestAccountId'=f.id
       JOIN pms_postings pp ON pp.property_id=p.id AND pp.record_id=e.id
       JOIN (${financeProjectionSources.finance_journals}) j ON j.id=pp.journal_id AND j.status='posted'
       JOIN (${financeProjectionSources.finance_journal_lines}) l ON l.journal_id=j.id

@@ -9,7 +9,7 @@ export function PmsEntryDetail({base,propertyId,renderAction}:{base:string;prope
  const formatMoney=useMoneyFormatter();
  const query=useSearchParams(),id=query.get('detailKind')==='pms_entry'?query.get('detailId'):null;
  const params=new URLSearchParams({view:'detail',id:id??'',...(propertyId?{property:propertyId}:{})});
- return <RecordCollectionDrawer<PmsWorkspace> kind="pms_entry" title="Folio entry" endpoint={`/api/v1${base}/pms?${params}`} select={(snapshot,entryId)=>{
+ return <RecordCollectionDrawer<PmsWorkspace> kind="pms_entry" title="Guest Account entry" endpoint={`/api/v1${base}/pms?${params}`} select={(snapshot,entryId)=>{
   const row=snapshot.snapshot?.records.find(record=>record.id===entryId&&record.kind==='entry');
   return row?{id:row.id,version:row.version,...row.data}:null;
  }} render={(record,snapshot)=><><RecordFacts record={record} fields={['id','version','date','kind','description','reference','method','state','originalId']}/><dl className="ui-form-grid">{['net','service','tax','total'].filter(field=>record[field]!==undefined).map(field=><div key={field}><dt>{field}</dt><dd>{formatMoney(Number(record[field]),snapshot.snapshot?.property.config.currency??'THB',String(record.date),2)}</dd></div>)}</dl>{renderAction?.(String(record.id),snapshot)}</>}/>;

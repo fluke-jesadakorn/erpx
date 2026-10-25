@@ -1,0 +1,133 @@
+{
+  "complete": false,
+  "wholePlanAcceptance": false,
+  "status": "Analyzed-header index preference reduces serialization conflicts, but guest/reservation strict p95 still fail; same-candidate owned pool sixteen trial pending",
+  "semantics": {
+    "transactionLocalOnly": true,
+    "ownerOptIn": true,
+    "pmsPropertyLockRetained": true,
+    "serializableRetained": true,
+    "unchangedCurrentAuthorityAndReplay": true,
+    "unchangedExpectedVersions": true,
+    "unchangedRetryLimits": true,
+    "noGlobalServerConfigurationChange": true,
+    "setting": "SET LOCAL enable_seqscan=off",
+    "noAuthoritativeDataCache": true
+  },
+  "diagnostic": {
+    "run": "bc8ef5ea0f1f",
+    "default": "Seq Scan / relation SIReadLock / 40001",
+    "preferred": "Bitmap index / tuple and page SIReadLock / both committed",
+    "countsAsAcceptance": false,
+    "ownedDatabasesDestroyed": 8
+  },
+  "red": {
+    "failedCases": 2,
+    "reason": [
+      "preference absent",
+      "one cross-Property transaction retried"
+    ],
+    "artifact": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-property-index-plans/red-corrected-fixture.log"
+  },
+  "fixtureConstructionFailure": {
+    "artifact": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-property-index-plans/red.log",
+    "countsAsRed": false,
+    "corrected": "defaultConfig is the existing config object, not a function"
+  },
+  "pending": [
+    "Focused and whole native regression",
+    "Strict unchanged compiled capacity",
+    "Same-candidate required browsers",
+    "Final mock feature and environment acceptance"
+  ],
+  "green": {
+    "passed": true,
+    "cases": 202,
+    "pms": 75,
+    "directBooking": 37,
+    "pos": 81,
+    "runtime": 7,
+    "indexedTransactions": 2,
+    "artifact": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-property-index-plans/green-focused.log"
+  },
+  "source": {
+    "runtime": "af30fde194c712084e6d3abba50d293615e40c0b50362a9481570171c51349af",
+    "verification": "c4ec958db15429f895694e483fd658c03897ee9acc98800189d1334b967a86c8"
+  },
+  "release": {
+    "id": "2026-10-10T09-01-40-722Z",
+    "built": true
+  },
+  "static": {
+    "typecheck": true,
+    "lintErrors": 0,
+    "preexistingWarnings": 3,
+    "architecture": true,
+    "documentation": true
+  },
+  "recovery": {
+    "passed": true,
+    "cases": 2,
+    "compiledRelease": "2026-10-10T09-01-40-722Z",
+    "artifact": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-property-index-plans/recovery-release.log"
+  },
+  "load": {
+    "passed": false,
+    "run": "581a8fe75dd0",
+    "holdingPool": 8,
+    "controlPool": 8,
+    "checks": {
+      "sourceMatchesFrozenCandidate": true,
+      "sourceUnchanged": true,
+      "sameProcesses": true,
+      "samplesDigestMatches": true,
+      "exactReadCount": true,
+      "exactWriteCount": true,
+      "allSamplesValid": true,
+      "completeFinancialOperationalClosing": true,
+      "originalHarnessPassed": false,
+      "everyOperationWithinStrictTarget": false
+    },
+    "failedOperations": [
+      {
+        "stage": "core",
+        "kind": "write",
+        "operation": "guest.save",
+        "count": 200,
+        "p95Ms": 2234.8182500000003,
+        "limitMs": 2000,
+        "passed": false
+      },
+      {
+        "stage": "core",
+        "kind": "write",
+        "operation": "reservation.create",
+        "count": 200,
+        "p95Ms": 2182.917416000004,
+        "limitMs": 2000,
+        "passed": false
+      }
+    ],
+    "readP95Ms": 312.781084000002,
+    "samplesSha256": "6d858d3a27b77b883700f123a30ee71bd042d262d096ba679ac2c8f9e4598673",
+    "allMoneyHistoryClosingReconciled": true,
+    "invalidSamples": 0,
+    "artifact": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-property-index-plans/scale-confirmation/strict-acceptance.json",
+    "ownedDatabasesDestroyed": 8
+  },
+  "rawServerEvidence": {
+    "bytes": 6059305,
+    "sha256": "eee92df55038112e32cab5b4d6684f24ab81404abd3e0dcf1de2a49d0ad333bf",
+    "private": true
+  },
+  "sameCandidateNextTrial": {
+    "applicationPoolMax": 16,
+    "controlPoolMax": 8,
+    "release": "2026-10-10T09-01-40-722Z",
+    "runtime": "af30fde194c712084e6d3abba50d293615e40c0b50362a9481570171c51349af",
+    "verification": "c4ec958db15429f895694e483fd658c03897ee9acc98800189d1334b967a86c8",
+    "scope": "owned mock cohort only",
+    "workloadThresholdsAndAssertionsUnchanged": true,
+    "installedSettingsChanged": false
+  }
+}

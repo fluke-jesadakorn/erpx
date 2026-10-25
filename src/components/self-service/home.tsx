@@ -3,7 +3,7 @@ import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button } from "@/components/ui/foundation";
 
-import { useNavigationCounts } from "@/components/workplace/navigation-counts";
+import { useNavigationState } from "@/components/workplace/navigation-counts";
 import { workFetch } from "@/lib/work-fetch";
 import { lastWorkChange, scheduleWorkRefresh } from "@/lib/work-refresh";
 import type { SelfServiceSeed, SelfServiceSummary } from "@/server/modules/records/public/self-service";
@@ -58,7 +58,7 @@ function SelfServiceDay({
   base: string;
   initial?: Promise<SelfServiceSeed | null>;
 }) {
-  const { publishWork } = useNavigationCounts();
+  const { publishWork } = useNavigationState();
   const seed = initial ? use(initial) : null;
   const [data, setData] = useState<SelfServiceSummary | null>(seed?.data ?? null),
     [error, setError] = useState("");

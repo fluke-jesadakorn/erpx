@@ -1,0 +1,110 @@
+{
+  "checkedAt": "2026-10-12T02:16:35.809550+00:00",
+  "scope": "Necessary3-file group administration UI repair and actual bounded-list dependency gap; not whole-feature acceptance",
+  "candidate": {
+    "runtime": "4eb10630a79c2623cad1590fac89f4c79a4e8762eea59b06111618484b024b1c",
+    "verification": "8badc945b3a951d4c4e0ac8bb71a46e270a99cea40cf9e5768192658bb949d7c",
+    "mainRuntime": "4eb10630a79c2623cad1590fac89f4c79a4e8762eea59b06111618484b024b1c",
+    "mainVerification": "8badc945b3a951d4c4e0ac8bb71a46e270a99cea40cf9e5768192658bb949d7c",
+    "releaseDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.runtime/releases/2026-10-12T01-41-49-548Z",
+    "releaseId": "2026-10-12T01-41-49-548Z",
+    "fileManifestSha256": "6baf2a3887c3dc676f5adc2159f2785d522c5da342ec1e48db92356e8d753dc4",
+    "releaseReusedForIdenticalRuntime": false
+  },
+  "runtimeChanges": {
+    "preparedAt": "2026-10-12T01:24:49.436808+00:00",
+    "scope": "Actual authenticated group creator reachability repair; existing Console group form and operation permissions retained",
+    "baselineRuntime": "51701d69c6d65dc1ee28480e7de4b404c89f3e32f8ab6c912c551568114b6bf6",
+    "baselineVerification": "6bec217508702c495235e2a3740598d3132176d24be4d6af9cb1845bfe5c95c9",
+    "changedFiles": {
+      "src/app/holdings/[holdingSlug]/pms/[[...section]]/page.tsx": {
+        "beforeSHA256": "daf2db7837e48f59c1109534f88064abee1b2b936efe44f5dca01f6a34beeb55",
+        "afterSHA256": "aec5364db58dc64e545462e1adfa11fbf9f75bf0056cd420c193ef6d178350e9"
+      },
+      "src/components/pms/pms-front-reservations-screen.tsx": {
+        "beforeSHA256": "15d70a83bcfdbbce24c9791f74ed0d26938f92373a1341985f942a9b1b5f22c7",
+        "afterSHA256": "d3cbe3d679a4ef05bfd2f9befe151d531169f13c62fbbe00a42ec383f344f3be"
+      },
+      "src/lib/front-language.ts": {
+        "beforeSHA256": "330aaecc8303417c825f88ffc9cc9f61b457aa75ed343853e116ab4f0ed604a5",
+        "afterSHA256": "80423254dc725f67e8a6826701277be5ecd0a5f9956f3fde15a97bd183dc9d68"
+      }
+    },
+    "actualDiagnosticRun": "e81659b3e5ed",
+    "nextGuideRead": [
+      "node_modules/next/dist/docs/01-app/03-api-reference/04-functions/redirect.md",
+      "node_modules/next/dist/docs/01-app/03-api-reference/02-components/link.md"
+    ],
+    "behavior": "Reservations queue=groups stays in Console under the same authenticated WorkContext/PMS reader and permissions. Front users with reservation permission get an explicit property/scoped Console link. Front command allowlist stays unchanged; normal Front sign-in still required for pickup/rooming. Thai label included.",
+    "applied": true,
+    "validated": false,
+    "nativeCommandOrDatabaseSchemaChanged": false,
+    "pending": [
+      "Wait for explicitly leased POS read-only diagnostic lane return",
+      "Review/apply justified runtime changes together before next seal",
+      "Static/native/compiled GUI6 and required affected/full gates with preserved original scope",
+      "No automatic promotion of prior517/6bec receipts to changed runtime"
+    ],
+    "appliedAt": "2026-10-12T01:35:54.218778+00:00",
+    "posCandidatesIncluded": false,
+    "oldActualReceiptsRetainDatedScope": true
+  },
+  "staticChecks": {
+    "typecheck": 0,
+    "lint": 0,
+    "release": 0,
+    "terminal": {
+      "file": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-group-admin-candidate-2026-10-12/static-release-terminal.json",
+      "SHA256": "7aaebe87fc1f8e7e37f24d78b10e33a83d8ca54fafb3c2170650b8aca19fa9eb"
+    }
+  },
+  "actualGui": {
+    "passedChecks": 1,
+    "scope": "Normal Front manage link enters same-property Console administration; drawer geometry and actual block.create/persisted quota/no-money assertions pass. Pickup/rooming/mobile remain pending.",
+    "rawResult": {
+      "file": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-group-admin-candidate-2026-10-12/rooming-proof/bc62d5a08646/group-ui-result/result.json",
+      "SHA256": "ba8db2a6a1056401165040012dbca84716500057689c1a6f672adf8e0f115ca2"
+    }
+  },
+  "actualReadBoundary": {
+    "file": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-group-admin-candidate-2026-10-12/rooming-proof/bc62d5a08646/group-ui-result/desktop-front-selector-boundary.json",
+    "SHA256": "ca75737a550f294cf93e7cba475e17abe5ff9bd62af5f45a0a22c3e3e6e91280",
+    "observation": {
+      "scope": "Diagnostic only, same normal Front session; no accepted UI assertion skipped",
+      "property": "property-864e06d6a5022830eb74eb87796e4adb",
+      "expectedBlockId": "50028a80-389f-4e05-89ba-c6abe7e90ddc",
+      "persistedBlockIds": [
+        "50028a80-389f-4e05-89ba-c6abe7e90ddc"
+      ],
+      "frontBlockIds": [],
+      "persistedGuestIds": [
+        "1dc222a7-a83a-4215-8147-6d5714280ea7",
+        "e439d206-1645-446a-b2f3-df9e2556d3c5"
+      ],
+      "frontGuestIds": [],
+      "labelText": [
+        "Group allocationNone",
+        "Check-in",
+        "Check-out",
+        "Adults per room",
+        "Child ages per room",
+        "Rooms per selection"
+      ]
+    }
+  },
+  "ownedCleanup": {
+    "run": "bc62d5a08646",
+    "destroyed": true,
+    "processesExited": true,
+    "checkedAt": "2026-10-12T02:10:15.918Z"
+  },
+  "sourceCause": "operationRelatedRecords supports room_type/room/rate and chosen reservation/stay/account/linked guest/entry dependencies; it does not return active group blocks or unlinked guest choices. Front BookingFlow depends on rows(block)/rows(guest).",
+  "next": "Add meaningful actual-PG regression, supply bounded property-scoped group and guest choices/search, preserve redaction and authoritative locked command readers, then verify allGUI6 and candidate gates. Do not load the entire hotel history.",
+  "old517EvidenceRetainedDated": [
+    "native1446",
+    "browser180 composite",
+    "routes134",
+    "HTTP40"
+  ],
+  "wholePlanAccepted": false
+}

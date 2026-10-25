@@ -338,20 +338,24 @@ test.describe("asset register form layout", uatAuthProfiles("owner"), () => {
     await capture(page, info, route, "signed-in:owner:layout", buildPath(route), "layout-regression");
     await page.locator("#workspace-content:visible").getByText("Register asset", { exact: true }).click();
     const drawer = page.getByRole("dialog", { name: "Register asset", exact: true });
+    const body = drawer.locator('[data-slot="dialog-body"]');
     const form = drawer.locator("form.ui-form-grid");
     const heading = form.getByRole("heading", { name: "Register asset", exact: true });
-    const firstLabel = form.locator("label").filter({ has: form.locator('select[name="branchId"]') });
+    const firstLabel = form.locator("label").filter({ has: page.locator('select[name="branchId"]') });
     await expect(form).toHaveCount(1);
+    await expect(drawer).toHaveAttribute("data-presentation", "form-drawer");
+    await expect(body).toHaveCount(1);
+    await expect(body).toBeVisible();
     await expect(firstLabel).toHaveCount(1);
     await expect(heading).toBeVisible();
     await expect(firstLabel).toBeVisible();
     const headingBox = await heading.boundingBox();
-    const formBox = await form.boundingBox();
+    const bodyBox = await body.boundingBox();
     const labelBox = await firstLabel.boundingBox();
     expect(headingBox && labelBox && headingBox.y + headingBox.height <= labelBox.y + 2,
       "Register asset title must be above the Branch field").toBe(true);
-    expect(headingBox && formBox && headingBox.x - formBox.x >= 16,
-      "Register asset title must respect the card's horizontal inset").toBe(true);
+    expect(headingBox && bodyBox && headingBox.x - bodyBox.x >= 16,
+      "Register asset title must respect the drawer body's horizontal inset").toBe(true);
     await info.attach("register-asset-drawer-layout", { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
     await drawer.getByRole("button", { name: "Close dialog", exact: true }).click();
     await expect(drawer).not.toBeVisible();

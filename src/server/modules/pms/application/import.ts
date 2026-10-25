@@ -154,7 +154,7 @@ export function createPmsImport<Effect>(ports: {
         const maps = new Map<string, Map<string, string>>();
         const links: {
             sourceKey: string;
-            folioId: string;
+            guestAccountId: string;
             reservationId: string;
             openingInvoiceId?: string;
         }[] = [];
@@ -224,20 +224,20 @@ export function createPmsImport<Effect>(ports: {
                 }
                 const reservation = record(snapshot, "reservation", reservationId);
                 reservation.data.history = [{ at: now, actor: userId, action: `Imported at cutover ${definition.cutoverDate}; historical charges remain in opening journal` }];
-                const folio = record(snapshot, "folio", stay.data.folioId);
+                const guestAccount = record(snapshot, "guest_account", stay.data.guestAccountId);
                 const importedGuest = definition.guests.find(guest => guest.key === value.guestKey)!;
                 if (importedGuest.partyId)
-                    folio.data.partyId = importedGuest.partyId;
-                Object.assign(folio.data, value.opening);
+                    guestAccount.data.partyId = importedGuest.partyId;
+                Object.assign(guestAccount.data, value.opening);
                 for (const pocket of ["due", "advance", "deposit"] as const) {
                     const total = value.opening[pocket];
                     if (!total)
                         continue;
-                    snapshot.records.push({ id: id(batchId, value.key, pocket), kind: "entry", version: 1, updatedAt: now, data: { folioId: folio.id, stayId: stay.id, date: definition.cutoverDate,
+                    snapshot.records.push({ id: id(batchId, value.key, pocket), kind: "entry", version: 1, updatedAt: now, data: { guestAccountId: guestAccount.id, stayId: stay.id, date: definition.cutoverDate,
                             kind: pocket === "due" ? "charge" : pocket === "deposit" ? "deposit" : "payment", description: `Opening ${pocket} · ${definition.source} ${value.key}`,
                             total, net: 0, service: 0, tax: 0, method: "opening", reference: batchId, sourceKey: `opening:${batchId}:${value.key}:${pocket}`, originalId: "", shiftId: "", actorId: userId, at: now } });
                 }
-                links.push({ sourceKey: value.key, folioId: folio.id, reservationId, openingInvoiceId: value.openingInvoiceId });
+                links.push({ sourceKey: value.key, guestAccountId: guestAccount.id, reservationId, openingInvoiceId: value.openingInvoiceId });
                 return reservationId;
             });
         }
@@ -302,8 +302,8 @@ export function createPmsImport<Effect>(ports: {
             if (!row.openingInvoiceId || invoiceIds.has(row.openingInvoiceId))
                 throw failed("PMS_IMPORT_RECEIVABLE", "Each opening receivable must have a separate original Finance invoice.");
             invoiceIds.add(row.openingInvoiceId);
-            const entry = batchReferences.find(entry => entry.id === id(batchId, row.key, "due"))!, folio = record(snapshot, "folio", entry.data.folioId);
-            const invoice = await db.openingInvoice({ openingInvoiceId: row.openingInvoiceId, companyId: actor.companyId, journalId: journalId, due: row.opening.due, due2: row.opening.due, receivable: snapshot.property.config.accounts.receivable, partyId: folio.data.partyId });
+            const entry = batchReferences.find(entry => entry.id === id(batchId, row.key, "due"))!, guestAccount = record(snapshot, "guest_account", entry.data.guestAccountId);
+            const invoice = await db.openingInvoice({ openingInvoiceId: row.openingInvoiceId, companyId: actor.companyId, journalId: journalId, due: row.opening.due, due2: row.opening.due, receivable: snapshot.property.config.accounts.receivable, partyId: guestAccount.data.partyId });
             if (!invoice)
                 throw failed("PMS_IMPORT_RECEIVABLE", "The opening invoice must match the Finance journal, customer, account and guest balance exactly.");
         }
@@ -362,14 +362,14 @@ export function createPmsImport<Effect>(ports: {
                 entry.data.originalId = batch.opening_journal_id ?? "";
             await tx.persist(snapshot, new Map(initial.records.map(item => [item.id, JSON.stringify(item)])));
             for (const link of links) {
-                const folio = record(snapshot, "folio", link.folioId), guest = record(snapshot, "guest", folio.data.guestId), partyId = folio.data.partyId || `pms-guest-${guest.id}`;
+                const guestAccount = record(snapshot, "guest_account", link.guestAccountId), guest = record(snapshot, "guest", guestAccount.data.guestId), partyId = guestAccount.data.partyId || `pms-guest-${guest.id}`;
                 await tx.party({ partyId: partyId, companyId: actor.companyId, fact2: `PMS-${guest.id}`, name: guest.data.name, now: now, now2: now });
-                for (const entry of records(snapshot, "entry").filter(entry => entry.data.folioId === folio.id && entry.data.reference === batch.id)) {
+                for (const entry of records(snapshot, "entry").filter(entry => entry.data.guestAccountId === guestAccount.id && entry.data.reference === batch.id)) {
                     const pocket = entry.data.kind === "charge" ? "due" : entry.data.kind === "deposit" ? "deposit" : "advance", paymentId = pocket === "due" ? null : id(batch.id, link.sourceKey, pocket, "credit");
                     if (paymentId)
                         await tx.payment({ paymentId: paymentId, companyId: actor.companyId, partyId: partyId, fact3: `OPENING-${entry.id}`, cutoverDate: definition.cutoverDate, total: entry.data.total, opening_journal_id: batch.opening_journal_id, created_by: batch.created_by, approved_by: batch.approved_by, now: now, now2: now });
-                    await tx.balance({ id: batch.id, sourceKey: link.sourceKey, property_id: batch.property_id, id2: folio.id, id3: entry.id, pocket: pocket, total: entry.data.total, paymentId: paymentId, fact8: pocket === "due" ? link.openingInvoiceId ?? null : null });
-                    await tx.document({ fact0: id(entry.id, "document"), property_id: batch.property_id, id: folio.id, fact3: paymentId ?? link.openingInvoiceId ?? null, fact4: JSON.stringify({ property: { name: snapshot.property.name, country: "TH", currency: "THB", branchId: snapshot.property.branchId }, guest: guest.data, folio: folio.data, entries: [entry], amount: entry.data.total, businessDate: definition.cutoverDate, issuedBy: batch.created_by, accountingRevision: snapshot.property.config.revision, openingJournalId: batch.opening_journal_id }), now: now });
+                    await tx.balance({ id: batch.id, sourceKey: link.sourceKey, property_id: batch.property_id, id2: guestAccount.id, id3: entry.id, pocket: pocket, total: entry.data.total, paymentId: paymentId, fact8: pocket === "due" ? link.openingInvoiceId ?? null : null });
+                    await tx.document({ fact0: id(entry.id, "document"), property_id: batch.property_id, id: guestAccount.id, fact3: paymentId ?? link.openingInvoiceId ?? null, fact4: JSON.stringify({ property: { name: snapshot.property.name, country: "TH", currency: "THB", branchId: snapshot.property.branchId }, guest: guest.data, guestAccount: guestAccount.data, entries: [entry], amount: entry.data.total, businessDate: definition.cutoverDate, issuedBy: batch.created_by, accountingRevision: snapshot.property.config.revision, openingJournalId: batch.opening_journal_id }), now: now });
                 }
             }
             const result = { id: batch.id, state: "applied", version: batch.version + 1, propertyId: batch.property_id, propertyVersion: initial.property.version + 1 };

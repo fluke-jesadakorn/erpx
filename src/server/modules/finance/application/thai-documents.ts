@@ -131,16 +131,17 @@ export function createThaiDocuments(ports: ThaiDocumentPorts) {
             throw ports.error(404, "TAX_INVOICE_SOURCE_NOT_FOUND", "A posted Company invoice is required.");
         if (!["posted", "partially_paid", "paid"].includes(String(invoice.status)) || invoice.journal_status !== "posted" || Number(invoice.version) !== input.expectedVersion)
             throw ports.error(409, "TAX_INVOICE_SOURCE_CHANGED", "Refresh the recognized invoice before issuing a VAT invoice.");
-        if (invoice.kind !== "receivable" || invoice.currency !== "THB" || invoice.source_type !== "standalone" || invoice.line_mode !== "native_lines")
-            throw ports.error(422, "TAX_INVOICE_ADAPTER_UNSUPPORTED", "The native ordinary VAT adapter requires an itemized standalone THB customer invoice; other source modules retain their owner-issued documents.");
+        if (invoice.kind !== "receivable" || invoice.currency !== "THB" || !(invoice.source_type === "commerce_fulfillment" || (invoice.source_type === "standalone" && invoice.line_mode === "native_lines")))
+            throw ports.error(422, "TAX_INVOICE_ADAPTER_UNSUPPORTED", "The native ordinary VAT adapter requires an itemized standalone or delivered Commerce THB customer invoice; other source modules retain their owner-issued documents.");
         if (samePerson(actor, invoice.created_by))
             throw ports.error(403, "INDEPENDENT_TAX_REVIEW_REQUIRED", "A different Finance approver must issue the VAT invoice.");
         const date = String(invoice.invoice_date), payer = await ports.reviewedIdentity(actor, input.payerIdentityId, null, date), payee = await ports.reviewedIdentity(actor, input.payeeIdentityId, String(invoice.party_id), date);
         if (!payer.vat_registered)
             throw ports.error(422, "VAT_REGISTRATION_REQUIRED", "The issuer must have independently reviewed VAT registration evidence.");
         const rule = thaiFinanceTaxPack.ordinaryVat, lines = await ports.invoiceLines(actor.companyId, invoiceId, Number(invoice.line_revision));
-        if (date < rule.effectiveFrom || date > rule.effectiveTo || !lines.length || lines.some(line => line.origin_kind !== "native_line" || Number(line.tax_bps) !== rule.rateBps))
+        if (date < rule.effectiveFrom || date > rule.effectiveTo || !lines.length || lines.some(line => !["native_line", "commerce_line"].includes(line.origin_kind) || Number(line.tax_bps) !== rule.rateBps))
             throw ports.error(422, "VAT_RULES_NOT_READY", "This ordinary VAT adapter supports the source-dated 7% rate and explicit quantities; exemptions and special VAT regimes need their owner adapter.");
+        if (lines.reduce((sum,line) => sum + Number(line.subtotal_minor),0) !== Number(invoice.subtotal_minor) || lines.reduce((sum,line) => sum + Number(line.tax_minor),0) !== Number(invoice.tax_minor)) throw ports.error(409,"TAX_INVOICE_SOURCE_CHANGED","Itemized source amounts no longer match the recognized invoice.");
         if (await ports.alreadyIssued({ invoiceId, actor }))
             throw ports.error(409, "TAX_INVOICE_ALREADY_ISSUED", "Review a linked document amendment instead of issuing the same source again.");
         const issue = await ports.prepareIssue(actor, { payer, payee, invoiceId, commandId, snapshot: { schema: "finance.thai.document.v1", kind: "tax_invoice", issueDate: date, payer, payee, incomeMinor: Number(invoice.subtotal_minor), taxMinor: Number(invoice.tax_minor), grossMinor: Number(invoice.total_minor), items: lines.map(line => ({ description: line.description, quantity: String(Number(line.quantity_millis) / 1000), unitPriceMinor: Number(line.unit_price_minor), incomeMinor: Number(line.subtotal_minor), taxMinor: Number(line.tax_minor) })), source: { invoiceId, invoiceVersion: invoice.version, lineRevision: invoice.line_revision, journalId: invoice.journal_id, lineSources: lines.map(line => ({ id: line.id, snapshot: JSON.parse(line.source_snapshot_json) })), rulePackVersion: thaiFinanceTaxPack.version, rulePackDigest: ports.digest(thaiFinanceTaxPack) }, edition: 1, reason: input.reason } });

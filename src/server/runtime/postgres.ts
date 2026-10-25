@@ -1,7 +1,7 @@
 import { Pool, types, type PoolClient, type PoolConfig, type QueryResult } from 'pg';
 import { errorMonitor, type EventEmitter } from 'node:events';
 import type { SqlDatabase, SqlResult, SqlStatement } from './types';
-import { currentReadMetrics, recordReadPoolWait, recordReadQuery, runWithReadMetrics } from './read-metrics';
+import { currentReadMetrics, recordReadPoolWait, recordReadQuery, recordReadLockQuery, recordReadTransactionRetry, runWithReadMetrics } from './read-metrics';
 
 const instrumented = Symbol.for('erpx.postgres.readMetrics');
 const transactionOwnership = Symbol.for('erpx.postgres.transactionOwnership');
@@ -10,6 +10,31 @@ const runtimeGlobal = globalThis as typeof globalThis & { [transactionOwnership]
 // A retained pool and an active callback keep their identity across dev reloads.
 // Raw client adapters and pinned sessions never receive this capability.
 const transactionOwners = runtimeGlobal[transactionOwnership] ??= new WeakMap<SqlDatabase, TransactionOwnership>();
+// Waiting for a local aggregate must not occupy every pool connection.
+// These empty promises schedule capacity only: the PostgreSQL session lock,
+// scoped owner row lock and SERIALIZABLE snapshot still authorize each write.
+const poolLockWaiters = new WeakMap<Pool, Map<string, Promise<void>>>();
+async function acquirePoolLockTurn(pool: Pool, lock: {namespace:string;key:string}): Promise<() => void> {
+  let waiters=poolLockWaiters.get(pool);
+  if(!waiters){waiters=new Map();poolLockWaiters.set(pool,waiters);}
+  const key=JSON.stringify([lock.namespace,lock.key]),previous=waiters.get(key);
+  let resolve!:()=>void;
+  const current=new Promise<void>(done=>{resolve=done;});
+  waiters.set(key,current);
+  const leave=()=>{if(waiters.get(key)===current)waiters.delete(key);resolve();};
+  let timer:ReturnType<typeof setTimeout>|undefined;
+  try {
+    if(previous)await Promise.race([previous,new Promise<never>((_,reject)=>{
+      // Bound local capacity waiting like the standard runtime's 10s lock wait.
+      timer=setTimeout(()=>reject(Object.assign(new Error('Local transaction lock wait timed out'),{code:'55P03'})),10_000);
+    })]);
+    return leave;
+  } catch(error) {
+    // An expired middle waiter must neither bypass nor retain its predecessor.
+    void previous!.then(leave);
+    throw error;
+  } finally {if(timer!==undefined)clearTimeout(timer);}
+}
 type Marked = { [instrumented]?: boolean };
 type Callback = (this: unknown, ...args: unknown[]) => unknown;
 
@@ -25,13 +50,17 @@ function instrumentClient(client: PoolClient) {
     const scope = currentReadMetrics();
     if (!scope) return Reflect.apply(original, this, input);
     const started = performance.now();
+    const sqlText=typeof input[0]==='string'?input[0]:input[0]&&typeof input[0]==='object'&&'text' in input[0]?String(input[0].text):'';
+    const locking=/\bFOR\s+(?:(?:NO\s+KEY|KEY)\s+)?(?:UPDATE|SHARE)\b|\bpg_(?:try_)?advisory_(?:xact_)?lock\s*\(/i.test(sqlText);
     let settled = false;
     let cleanup = () => {};
     const finish = (failed: boolean) => {
       if (settled) return;
       settled = true;
       cleanup();
-      recordReadQuery(scope, performance.now() - started, failed);
+      const duration=performance.now()-started;
+      recordReadQuery(scope, duration, failed);
+      if(locking)recordReadLockQuery(scope,duration,failed);
     };
     const callback = (source: Callback): Callback => function(this: unknown, ...args: unknown[]) {
       finish(!!args[0]);
@@ -156,8 +185,9 @@ function result<T>(query: QueryResult, start: number): SqlResult<T> {
 class Statement implements SqlStatement {
   constructor(readonly database: { pool: Pool | PoolClient }, readonly sql: string, readonly args: unknown[] = []) {}
   bind(...args: unknown[]) { return new Statement(this.database, this.sql, args); }
+  compiled() { return { sql: parameters(this.sql, this.args.length), args: values(this.args) }; }
   async execute(client: Pool | PoolClient): Promise<QueryResult> {
-    const sql = parameters(this.sql, this.args.length), args = values(this.args);
+    const { sql, args } = this.compiled();
     return client.query(sql, args);
   }
   async all<T = Record<string, unknown>>() { const start = performance.now(); return result<T>(await this.execute(this.database.pool), start); }
@@ -176,7 +206,7 @@ class Statement implements SqlStatement {
 export class PostgresDatabase implements SqlDatabase {
   readonly pool: Pool;
   constructor(config: PoolConfig) {
-    this.pool = new Pool({ max: 1, idleTimeoutMillis: 30_000, connectionTimeoutMillis: 5_000,
+    this.pool = new Pool({ pipeline: true, max: 1, idleTimeoutMillis: 30_000, connectionTimeoutMillis: 5_000,
       options: '-c timezone=UTC -c statement_timeout=30000 -c lock_timeout=10000', ...config });
     instrumentPool(this.pool);
     this.pool.on('error', () => console.error(JSON.stringify({ event: 'database_connection_error' })));
@@ -194,23 +224,45 @@ export class PostgresDatabase implements SqlDatabase {
     finally { client.release(); }
   }
   /** Reads and derived writes share the same snapshot; retry the entire calculation. */
-  async transaction<T>(action: (tx: SqlDatabase) => Promise<T>): Promise<T> {
+  async transaction<T>(action: (tx: SqlDatabase) => Promise<T>,options?:{sessionLock:{namespace:string;key:string};preferIndexedReads?:boolean;pipelineBatches?:boolean}): Promise<T> {
+    const lock=options?.sessionLock;
+    if(lock&&(!lock.namespace||lock.namespace.length>100||!lock.key||lock.key.length>200))throw new Error('INVALID_TRANSACTION_SESSION_LOCK');
     for (let attempt = 0; ; attempt++) {
-      const client = await this.pool.connect();
+      const leave=lock?await acquirePoolLockTurn(this.pool,lock):undefined;
       try {
-        await client.query('BEGIN ISOLATION LEVEL SERIALIZABLE');
-        const tx = new TransactionDatabase(client);
-        const ownership = { pool: this.pool, active: true };
-        transactionOwners.set(tx, ownership);
-        let value: T;
-        try { value = await action(tx); }
-        finally { ownership.active = false; }
-        await client.query('COMMIT');
-        return value;
-      } catch (error) {
-        await client.query('ROLLBACK').catch(() => {});
-        if (attempt >= 3 || !['40001', '40P01'].includes((error as { code?: string }).code ?? '')) throw error;
-      } finally { client.release(); }
+        const client = await this.pool.connect();
+        let locked=false,discard=false;
+        try {
+          // Coordinate a busy aggregate before establishing the serializable
+          // snapshot. Its owner still takes the authoritative row lock inside.
+          if(lock){await client.query('SELECT pg_advisory_lock(hashtext($1),hashtext($2))',[lock.namespace,lock.key]);locked=true;}
+          // Prefer fine-grained indexed predicate locks for an owner's selected
+          // transaction. PostgreSQL can still scan when no indexed path exists;
+          // SET LOCAL cannot leak this preference through the pooled connection.
+          await client.query(options?.preferIndexedReads
+            ? 'BEGIN ISOLATION LEVEL SERIALIZABLE; SET LOCAL enable_seqscan=off'
+            : 'BEGIN ISOLATION LEVEL SERIALIZABLE');
+          const tx = new TransactionDatabase(client, options?.pipelineBatches);
+          const ownership = { pool: this.pool, active: true };
+          transactionOwners.set(tx, ownership);
+          let value: T;
+          try { value = await action(tx); }
+          finally { ownership.active = false; }
+          await client.query('COMMIT');
+          return value;
+        } catch (error) {
+          await client.query('ROLLBACK').catch(() => {});
+          recordReadTransactionRetry(error,attempt < 3);
+          if (attempt >= 3 || !['40001', '40P01'].includes((error as { code?: string }).code ?? '')) throw error;
+        } finally {
+          if(locked)try{
+            const released=await client.query('SELECT pg_advisory_unlock(hashtext($1),hashtext($2)) released',[lock!.namespace,lock!.key]);
+            discard=released.rows[0]?.released!==true;
+          }catch{discard=true;}
+          // Never return a connection whose session lock could remain held.
+          client.release(discard);
+        }
+      } finally {leave?.();}
     }
   }
   async batch<T = Record<string, unknown>>(statements: SqlStatement[]): Promise<SqlResult<T>[]> {
@@ -227,6 +279,7 @@ export class PostgresDatabase implements SqlDatabase {
         await client.query('COMMIT'); return results;
       } catch (error) {
         await client.query('ROLLBACK').catch(() => {});
+        recordReadTransactionRetry(error,attempt < 3);
         if (attempt >= 3 || !['40001', '40P01'].includes((error as { code?: string }).code ?? '')) throw error;
       } finally { client.release(); }
       await new Promise(resolve => setTimeout(resolve, 10 * 2 ** attempt));
@@ -246,14 +299,30 @@ export function transactionDatabase(client: PoolClient): SqlDatabase {
 }
 
 class TransactionDatabase implements SqlDatabase {
-  constructor(readonly pool: PoolClient) {}
+  constructor(readonly pool: PoolClient, readonly pipelineBatches = false) {}
   prepare(sql: string) { return new Statement(this, sql); }
   async batch<T = Record<string, unknown>>(statements: SqlStatement[]): Promise<SqlResult<T>[]> {
+    // Validate every statement before dispatch. A caller may catch an input
+    // error inside its owner transaction; that must not commit a partial batch.
+    if (statements.some(statement => !(statement instanceof Statement) || statement.database !== this))
+      throw new Error('CROSS_DATABASE_TRANSACTION');
+    const prepared = (statements as Statement[]).map(statement => statement.compiled());
+    if (this.pipelineBatches && this.pool.pipeline) {
+      // pg processes this checked-out client's queries in submission order.
+      // Settle all responses before returning an error, rollback or release;
+      // preserve the first SQL error rather than a later aborted-tx error.
+      const settled = await Promise.allSettled(prepared.map(async ({sql,args}) => {
+        const start = performance.now();
+        return result<T>(await this.pool.query(sql,args),start);
+      }));
+      const failure = settled.find(value => value.status === 'rejected');
+      if (failure?.status === 'rejected') throw failure.reason;
+      return settled.map(value => (value as PromiseFulfilledResult<SqlResult<T>>).value);
+    }
     const results: SqlResult<T>[] = [];
-    for (const statement of statements) {
-      if (!(statement instanceof Statement) || statement.database !== this) throw new Error('CROSS_DATABASE_TRANSACTION');
+    for (const {sql,args} of prepared) {
       const start = performance.now();
-      results.push(result<T>(await statement.execute(this.pool), start));
+      results.push(result<T>(await this.pool.query(sql,args),start));
     }
     return results;
   }
@@ -274,6 +343,7 @@ class SessionDatabase extends TransactionDatabase {
         return results;
       } catch (error) {
         await this.pool.query('ROLLBACK').catch(() => {});
+        recordReadTransactionRetry(error,attempt < 3);
         if (attempt >= 3 || !['40001', '40P01'].includes((error as { code?: string }).code ?? '')) throw error;
       }
     }

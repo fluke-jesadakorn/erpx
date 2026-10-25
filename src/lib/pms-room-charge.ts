@@ -2,7 +2,7 @@ import { z } from "zod";
 import { idField, moneyField, records, type Snapshot } from "./pms";
 import { need } from "./pms-engine";
 
-/** Validates the POS-owned source before PMS posts the folio charge in the same transaction. */
+/** Validates the POS-owned source before PMS posts the guest account charge in the same transaction. */
 export const roomChargeSchema = z.strictObject({
   source: z.literal("pos"),
   sourceId: idField,
@@ -63,13 +63,13 @@ export function prepareRoomCharge(snapshot: Snapshot, input: unknown) {
     "PMS_CHARGE_STAY",
       "Services are available only for checked-in guests on an open business day.",
   );
-  const folio = records(snapshot, "folio").find(
-    (f) => f.id === stay.data.folioId,
+  const guestAccount = records(snapshot, "guest_account").find(
+    (f) => f.id === stay.data.guestAccountId,
   );
   need(
-    folio && folio.data.state !== "closed" && !folio.data.invoiceId,
-    "PMS_CHARGE_FOLIO",
-      "The folio must be open and not yet invoiced.",
+    guestAccount && guestAccount.data.state !== "closed" && !guestAccount.data.invoiceId,
+    "PMS_CHARGE_GUEST_ACCOUNT",
+      "The guest account must be open and not yet invoiced.",
   );
-  return { duplicate: false as const, folioId: folio.id, sourceKey, charge };
+  return { duplicate: false as const, guestAccountId: guestAccount.id, sourceKey, charge };
 }

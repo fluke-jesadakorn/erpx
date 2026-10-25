@@ -23,6 +23,22 @@ export async function signIn(context: BrowserContext, email: string, password: s
   return (await response.json()).user as { id: string; name: string; email: string };
 }
 
+/**
+ * Prepare the owner scope without disturbing the page's signed-in account.
+ * `context.request` shares cookies with the page, so signing in as the owner
+ * on the same context would replace the persona these cases are asserting on.
+ */
+export async function ownerScope(context: BrowserContext, ownerEmail: string, ownerPassword: string) {
+  const setup = await context.browser()!.newContext();
+  try {
+    const user = await signIn(setup, ownerEmail, ownerPassword);
+    expect((await setup.request.post("/api/v1/holdings/acme/companies/active", { data: { companyId: "acme-co" } })).ok()).toBe(true);
+    return { user, assignment: await selectRoleForSetup(setup, "holding_owner") };
+  } finally {
+    await setup.close();
+  }
+}
+
 export async function selectRoleForSetup(context: BrowserContext, role: string) {
   const state = await activeRoles(context);
   const assignment = state.options.find(option => option.role === role && !option.href.includes("/branches/"));
@@ -35,6 +51,26 @@ export async function selectRoleForSetup(context: BrowserContext, role: string) 
     expect(response.ok(), `Select ${role} for test setup`).toBe(true);
   }
   return assignment!;
+}
+
+/**
+ * Register a second persona through the real account menu. Signing the second
+ * account in via API would make it the active session, so the menu flow keeps
+ * the test in control of which account is current for each step.
+ */
+export async function addAccountFromMenu(page: Page, email: string, password: string) {
+  const menu = await openAccountMenu(page);
+  const trigger = menu.getByRole("button", { name: "Add another account", exact: true });
+  await trigger.click();
+  const form = menu.locator("form.add-account-form");
+  await expect(form).toBeVisible();
+  await form.locator('input[name="email"]').fill(email);
+  await form.locator('input[name="password"]').fill(password);
+  await form.getByRole("button", { name: "Add account", exact: true }).click();
+  // Adding an account completes a context switch, which closes the menu. Reopen
+  // it so the caller observes the same menu state a person would see.
+  await expect(page.getByRole("dialog", { name: "Account switcher", exact: true })).toBeHidden();
+  return openAccountMenu(page);
 }
 
 export async function openAccountMenu(page: Page) {
@@ -54,45 +90,23 @@ export async function openAccountMenu(page: Page) {
   return menu;
 }
 
-export async function roleSearchInput(page: Page) {
-  const standard = page.getByRole("combobox", { name: "Role for actions & approvals", exact: true });
-  const legacy = page.locator(".role-combobox");
-  await expect(standard.or(legacy), "Exactly one rendered role selector is required").toHaveCount(1);
-  if (await legacy.count() === 1) {
-    await expect(legacy).toBeVisible();
-    const search = legacy.getByRole("combobox", { name: "Search roles", exact: true });
-    if (await search.count() === 0) {
-      const trigger = legacy.getByRole("button", { name: /Role for actions & approvals/ });
-      await expect(trigger).toHaveCount(1);
-      await expect(trigger).toBeEnabled();
-      await trigger.click();
-    }
-    await expect(search).toHaveCount(1);
-    await expect(search).toBeVisible();
-    await expect(search).toBeEnabled();
-    return search;
-  }
-  await expect(standard).toBeVisible();
-  await expect(standard).toBeEnabled();
-  return standard;
-}
-
-export async function searchRoleOptions(page: Page, query: string) {
-  const search = await roleSearchInput(page);
-  await search.fill(query);
-  await search.press("ArrowDown");
-  await expect(search).toHaveAttribute("aria-expanded", "true");
-  const roles = await page.locator(".role-combobox").count() === 1
-    ? page.locator(".role-combobox").getByRole("listbox", { name: "Available roles", exact: true })
-    : page.locator('[data-slot="combobox-popup"]').getByRole("listbox");
-  await expect(roles).toHaveCount(1);
-  return roles;
+/** Open the role disclosure and match its role buttons without a search field. */
+export async function matchingRoleOptions(page: Page, query: string) {
+  const trigger = page.getByRole("button", { name: /^Switch role:/ });
+  await expect(trigger).toBeEnabled();
+  if (await trigger.getAttribute("aria-expanded") !== "true") await trigger.click();
+  const roles = page.getByRole("group", { name: "Available roles", exact: true });
+  await expect(roles).toBeVisible();
+  const buttons = roles.getByRole("button");
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return query ? buttons.filter({ hasText: new RegExp(escaped, "i") }) : buttons;
 }
 
 export async function chooseRole(page: Page, role: string) {
   await openAccountMenu(page);
-  const roles = await searchRoleOptions(page, role.replaceAll("_", " "));
-  await roles.getByRole("option").first().click();
+  const wanted = await matchingRoleOptions(page, role.replaceAll("_", " "));
+  await expect(wanted.first()).toBeVisible();
+  await wanted.first().click();
 }
 
 export async function expectWorkAssignment(page: Page, assignmentId: string) {

@@ -1,0 +1,522 @@
+{
+  "checkedAt": "2026-10-12T06:54:37.412332+00:00",
+  "scope": "Actual quiet-host release-build original840reads843writes plus separate180 choice reads, 3x200rooms/730days/20 distinct users; normal owned cleanup; not full production acceptance",
+  "candidate": {
+    "runtime": "4e2b60dc9e36878d4b6353a1a08470ccde2c960eb272fb954875c282b91ee909",
+    "verification": "baf2b73727a5106b9153f71c54c336dfc399f763c83607aa41290d0c7943cfbb",
+    "mainRuntime": "4e2b60dc9e36878d4b6353a1a08470ccde2c960eb272fb954875c282b91ee909",
+    "mainVerification": "baf2b73727a5106b9153f71c54c336dfc399f763c83607aa41290d0c7943cfbb",
+    "releaseDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.runtime/releases/2026-10-12T03-06-23-612Z",
+    "releaseId": "2026-10-12T03-06-23-612Z",
+    "fileManifestSha256": "9bd3aa57f8e6d8e4b2b89ce95f83b8779b83319b6d749207d052cec130ac09d4",
+    "releaseReusedForIdenticalRuntime": true,
+    "verificationAmendment": "Only three generated route-inventory metadata fields;227 entries, runtime, assertions and required identities unchanged; prior actual native/browser receipts retained at50bc with exact official inverse lineage"
+  },
+  "run": "7d98075ff806",
+  "passed": true,
+  "strict": {
+    "run": "7d98075ff806",
+    "sourceFingerprint": "4e2b60dc9e36878d4b6353a1a08470ccde2c960eb272fb954875c282b91ee909",
+    "verificationFingerprint": "baf2b73727a5106b9153f71c54c336dfc399f763c83607aa41290d0c7943cfbb",
+    "samplesSha256": "82f500897978f05f0a6fef98ea8f234be1d893a35359a2b68475252dd151f8f9",
+    "checks": {
+      "sourceMatchesFrozenCandidate": true,
+      "sourceUnchanged": true,
+      "sameProcesses": true,
+      "samplesDigestMatches": true,
+      "exactReadCount": true,
+      "exactWriteCount": true,
+      "allSamplesValid": true,
+      "completeFinancialOperationalClosing": true,
+      "originalHarnessPassed": true,
+      "everyOperationWithinStrictTarget": true
+    },
+    "operations": [
+      {
+        "stage": "cashier",
+        "kind": "write",
+        "operation": "charge.add",
+        "count": 20,
+        "p95Ms": 1107.7001670000027,
+        "limitMs": 2000,
+        "passed": true
+      },
+      {
+        "stage": "cashier",
+        "kind": "write",
+        "operation": "payment.deposit",
+        "count": 20,
+        "p95Ms": 1174.244249999996,
+        "limitMs": 2000,
+        "passed": true
+      },
+      {
+        "stage": "cashier",
+        "kind": "write",
+        "operation": "payment.receive",
+        "count": 40,
+        "p95Ms": 1210.1670410000006,
+        "limitMs": 2000,
+        "passed": true
+      },
+      {
+        "stage": "cashier",
+        "kind": "write",
+        "operation": "refund.approve",
+        "count": 20,
+        "p95Ms": 139.46004200000607,
+        "limitMs": 2000,
+        "passed": true
+      },
+      {
+        "stage": "cashier",
+        "kind": "write",
+        "operation": "refund.pay",
+        "count": 20,
+        "p95Ms": 1118.233791999999,
+        "limitMs": 2000,
+        "passed": true
+      },
+      {
+        "stage": "cashier",
+        "kind": "write",
+        "operation": "refund.request",
+        "count": 20,
+        "p95Ms": 923.6733329999988,
+        "limitMs": 2000,
+        "passed": true
+      },
+      {
+        "stage": "cashier",
+        "kind": "write",
+        "operation": "shift.close",
+        "count": 20,
+        "p95Ms": 975.1440410000068,
+        "limitMs": 2000,
+        "passed": true
+      },
+      {
+        "stage": "cashier",
+        "kind": "write",
+        "operation": "shift.open",
+        "count": 20,
+        "p95Ms": 920.684291000005,
+        "limitMs": 2000,
+        "passed": true
+      },
+      {
+        "stage": "cashier",
+        "kind": "write",
+        "operation": "shift.review",
+        "count": 20,
+        "p95Ms": 155.4912500000064,
+        "limitMs": 2000,
+        "passed": true
+      },
+      {
+        "stage": "closing",
+        "kind": "write",
+        "operation": "guest_account.close",
+        "count": 20,
+        "p95Ms": 972.6558749999967,
+        "limitMs": 2000,
+        "passed": true
+      },
+      {
+        "stage": "closing",
+        "kind": "write",
+        "operation": "night.start",
+        "count": 3,
+        "p95Ms": 149.5330829999948,
+        "limitMs": 2000,
+        "passed": true
+      },
+      {
+        "stage": "core",
+        "kind": "read",
+        "operation": "calendar",
+        "count": 200,
+        "p95Ms": 145.10987500000192,
+        "limitMs": 1000,
+        "passed": true
+      },
+      {
+        "stage": "core",
+        "kind": "read",
+        "operation": "dashboard",
+        "count": 200,
+        "p95Ms": 202.21800000000076,
+        "limitMs": 1000,
+        "passed": true
+      },
+      {
+        "stage": "core",
+        "kind": "read",
+        "operation": "guest-accounts",
+        "count": 200,
+        "p95Ms": 204.7945409999993,
+        "limitMs": 1000,
+        "passed": true
+      },
+      {
+        "stage": "core",
+        "kind": "read",
+        "operation": "rooms",
+        "count": 200,
+        "p95Ms": 179.74337500000547,
+        "limitMs": 1000,
+        "passed": true
+      },
+      {
+        "stage": "core",
+        "kind": "read",
+        "operation": "seven-day-report",
+        "count": 40,
+        "p95Ms": 306.9835410000014,
+        "limitMs": 1000,
+        "passed": true
+      },
+      {
+        "stage": "core",
+        "kind": "write",
+        "operation": "guest.save",
+        "count": 200,
+        "p95Ms": 1655.2118750000009,
+        "limitMs": 2000,
+        "passed": true
+      },
+      {
+        "stage": "core",
+        "kind": "write",
+        "operation": "reservation.create",
+        "count": 200,
+        "p95Ms": 1359.3776670000007,
+        "limitMs": 2000,
+        "passed": true
+      },
+      {
+        "stage": "operational",
+        "kind": "write",
+        "operation": "payment.receive",
+        "count": 20,
+        "p95Ms": 1205.5586249999978,
+        "limitMs": 2000,
+        "passed": true
+      },
+      {
+        "stage": "operational",
+        "kind": "write",
+        "operation": "reservation.create",
+        "count": 20,
+        "p95Ms": 933.5927500000034,
+        "limitMs": 2000,
+        "passed": true
+      },
+      {
+        "stage": "operational",
+        "kind": "write",
+        "operation": "shift.close",
+        "count": 20,
+        "p95Ms": 966.0699170000007,
+        "limitMs": 2000,
+        "passed": true
+      },
+      {
+        "stage": "operational",
+        "kind": "write",
+        "operation": "shift.open",
+        "count": 20,
+        "p95Ms": 924.742333000002,
+        "limitMs": 2000,
+        "passed": true
+      },
+      {
+        "stage": "operational",
+        "kind": "write",
+        "operation": "shift.review",
+        "count": 20,
+        "p95Ms": 143.82166699999652,
+        "limitMs": 2000,
+        "passed": true
+      },
+      {
+        "stage": "operational",
+        "kind": "write",
+        "operation": "stay.assign",
+        "count": 20,
+        "p95Ms": 939.3748750000013,
+        "limitMs": 2000,
+        "passed": true
+      },
+      {
+        "stage": "operational",
+        "kind": "write",
+        "operation": "stay.change_dates",
+        "count": 20,
+        "p95Ms": 953.5728329999984,
+        "limitMs": 2000,
+        "passed": true
+      },
+      {
+        "stage": "operational",
+        "kind": "write",
+        "operation": "stay.check_in",
+        "count": 20,
+        "p95Ms": 929.9485829999976,
+        "limitMs": 2000,
+        "passed": true
+      },
+      {
+        "stage": "operational",
+        "kind": "write",
+        "operation": "stay.check_out",
+        "count": 20,
+        "p95Ms": 1007.6165419999961,
+        "limitMs": 2000,
+        "passed": true
+      },
+      {
+        "stage": "operational",
+        "kind": "write",
+        "operation": "stay.move",
+        "count": 20,
+        "p95Ms": 985.4937090000021,
+        "limitMs": 2000,
+        "passed": true
+      },
+      {
+        "stage": "operational",
+        "kind": "write",
+        "operation": "stay.preview_checkout",
+        "count": 20,
+        "p95Ms": 1190.4207499999975,
+        "limitMs": 2000,
+        "passed": true
+      }
+    ],
+    "passed": true,
+    "policy": "Unchanged workload, all samples retained; p95 nearest rank, strict read <1000ms and every write operation <2000ms. Aggregate harness success alone is insufficient."
+  },
+  "reconciliation": {
+    "financialReconciliation": {
+      "history": {
+        "records": 657000,
+        "versions": "657000"
+      },
+      "balances": {
+        "accounts": 20,
+        "due": "0",
+        "advance": "200000",
+        "deposit": "40000"
+      },
+      "cash": {
+        "shifts": 20,
+        "cash": "475400",
+        "reviewed": true
+      },
+      "receipts": {
+        "receipts": 60,
+        "refunds": 20,
+        "received": "495400",
+        "refunded": "20000",
+        "settled": true
+      },
+      "journals": {
+        "debit": "999280",
+        "credit": "999280"
+      }
+    },
+    "operationalReconciliation": {
+      "occupancy": {
+        "stays": 20,
+        "completed": true
+      },
+      "balances": {
+        "accounts": 20,
+        "due": "0",
+        "advance": "0",
+        "deposit": "0"
+      },
+      "cash": {
+        "shifts": 20,
+        "cash": "7062000",
+        "reviewed": true
+      },
+      "rooms": {
+        "rooms": 40,
+        "dirty": true
+      },
+      "charges": {
+        "charges": 20,
+        "total": "7062000"
+      },
+      "receipts": {
+        "receipts": 20,
+        "received": "7062000",
+        "settled": true
+      },
+      "journals": {
+        "debit": "22185280",
+        "credit": "22185280"
+      },
+      "history": {
+        "records": 657000,
+        "versions": "657000"
+      }
+    },
+    "closingReconciliation": {
+      "invoices": {
+        "invoices": 20,
+        "total": "7062000",
+        "outstanding": "0",
+        "paid": true
+      },
+      "days": {
+        "hotels": 3,
+        "advanced": true
+      },
+      "nights": {
+        "nights": 3,
+        "capacity": 600,
+        "sold": 20,
+        "completed": true
+      },
+      "journals": {
+        "debit": "22185280",
+        "credit": "22185280"
+      },
+      "history": {
+        "records": 657000,
+        "versions": "657000"
+      }
+    },
+    "sameProcesses": true,
+    "unchanged": true
+  },
+  "choiceReadResult": {
+    "run": "7d98075ff806",
+    "candidate": {
+      "runtime": "4e2b60dc9e36878d4b6353a1a08470ccde2c960eb272fb954875c282b91ee909",
+      "verification": "baf2b73727a5106b9153f71c54c336dfc399f763c83607aa41290d0c7943cfbb",
+      "mainRuntime": "4e2b60dc9e36878d4b6353a1a08470ccde2c960eb272fb954875c282b91ee909",
+      "mainVerification": "baf2b73727a5106b9153f71c54c336dfc399f763c83607aa41290d0c7943cfbb",
+      "releaseDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.runtime/releases/2026-10-12T03-06-23-612Z",
+      "releaseId": "2026-10-12T03-06-23-612Z",
+      "fileManifestSha256": "9bd3aa57f8e6d8e4b2b89ce95f83b8779b83319b6d749207d052cec130ac09d4",
+      "releaseReusedForIdenticalRuntime": true,
+      "verificationAmendment": "Only three generated route-inventory metadata fields;227 entries, runtime, assertions and required identities unchanged; prior actual native/browser receipts retained at50bc with exact official inverse lineage"
+    },
+    "checkedAt": "2026-10-12T06:50:30.506Z",
+    "accounts": 20,
+    "properties": 3,
+    "roomsPerProperty": 200,
+    "historyDays": 730,
+    "datasetCounts": [
+      {
+        "rooms": 200,
+        "guests": 8,
+        "blocks": 0,
+        "stays": 73077
+      },
+      {
+        "rooms": 200,
+        "guests": 8,
+        "blocks": 0,
+        "stays": 73077
+      },
+      {
+        "rooms": 200,
+        "guests": 7,
+        "blocks": 0,
+        "stays": 73066
+      }
+    ],
+    "samplesSha256": "af2b417796cb2bbf0025c67747ed2c929b1e74b730dfb98b50614905ec72530c",
+    "samples": 180,
+    "operations": [
+      {
+        "operation": "guest-empty",
+        "count": 60,
+        "p95Ms": 180.45691699999998,
+        "limitMs": 1000,
+        "passed": true
+      },
+      {
+        "operation": "guest-search-retained",
+        "count": 60,
+        "p95Ms": 154.80641699999978,
+        "limitMs": 1000,
+        "passed": true
+      },
+      {
+        "operation": "block-empty",
+        "count": 60,
+        "p95Ms": 126.43195799999967,
+        "limitMs": 1000,
+        "passed": true
+      }
+    ],
+    "passed": true,
+    "scope": "Supplemental new choice endpoint180 reads on the original scale cohort after original strict840/843 passes; actual guest/block counts stated, no additional guest profiles seeded, no PMS writes; not added to original denominators"
+  },
+  "quietRelease": {
+    "checkedAt": "2026-10-12T06:45:15.165665+00:00",
+    "runtime": "4e2b60dc9e36878d4b6353a1a08470ccde2c960eb272fb954875c282b91ee909",
+    "verification": "baf2b73727a5106b9153f71c54c336dfc399f763c83607aa41290d0c7943cfbb",
+    "quietAcknowledged": true,
+    "peer": "01a12408-1eff-7940-a873-5993463a181c",
+    "broaderOwner": "01a12429-d649-7d82-ab67-ab50bae219a5",
+    "broaderFreshAcknowledgementTurn": "01a12ed9-3c3f-7921-ba57-76fced18558b",
+    "peerAcknowledgement": "No root-owned tab/job/API/benchmark/compiler/native/fixture/source action; all synchronous commands terminal; no action until matching cleanup and quiet-end notice",
+    "broaderAcknowledgement": "Full runner5827 terminal; owned3102 fixture20910/20914 stopped; ownedChrome1050192531 absent; no new health/API/browser/compiler/native/fixture/benchmark/source actions until cleanup notice",
+    "rootPublicBrowserClosed": true,
+    "functionalFixturesCleaned": true,
+    "port3104Free": true,
+    "requiredServicesPreserved": true,
+    "baselineDevJobsPid": 65939,
+    "baselineDevJobsEntryRecognized": "jobs.mjs",
+    "scope": "One exact-owned capacity cohort; original strict840/843 then supplemental180 choice reads; no competing intentional workload or health traffic; installed services remain running"
+  },
+  "cleanup": {
+    "run": "7d98075ff806",
+    "destroyed": true,
+    "processesExited": true,
+    "checkedAt": "2026-10-12T06:50:40.546Z"
+  },
+  "rawEvidence": [
+    {
+      "path": ".scratch/dev/pms-route-metadata-candidate-2026-10-12/capacity/7d98075ff806/result/result.json",
+      "sha256": "b1d98106ff8d70f6d192930ffc6833385a9e5e939afacbe2c2f9bfe81970e876"
+    },
+    {
+      "path": ".scratch/dev/pms-route-metadata-candidate-2026-10-12/capacity/7d98075ff806/result/samples.jsonl",
+      "sha256": "82f500897978f05f0a6fef98ea8f234be1d893a35359a2b68475252dd151f8f9"
+    },
+    {
+      "path": ".scratch/dev/pms-route-metadata-candidate-2026-10-12/capacity/7d98075ff806/result/strict-acceptance.json",
+      "sha256": "db32faac222a6adb38386d0255ae2fa8b5f8f35f94e894a1de00e4fcd9aa1153"
+    },
+    {
+      "path": ".scratch/dev/pms-route-metadata-candidate-2026-10-12/capacity/7d98075ff806/choices-result/result.json",
+      "sha256": "f4f801a983316a007639d16d08c79d86776f6b6cf1d66e68cf89cec460d6c010"
+    },
+    {
+      "path": ".scratch/dev/pms-route-metadata-candidate-2026-10-12/capacity/7d98075ff806/choices-result/samples.jsonl",
+      "sha256": "af2b417796cb2bbf0025c67747ed2c929b1e74b730dfb98b50614905ec72530c"
+    },
+    {
+      "path": ".scratch/dev/pms-route-metadata-candidate-2026-10-12/capacity/terminal.json",
+      "sha256": "176e4114783bc5abb4b005c10fa350755b18bf0db41ba96e0b23397637058932"
+    },
+    {
+      "path": ".scratch/dev/pms-route-metadata-candidate-2026-10-12/capacity-cleanup.json",
+      "sha256": "b486c379fff50c142f56156ebf34694600fefcaff27d778d0f2f75f1f0bbf305"
+    }
+  ],
+  "limits": [
+    "2-year history is PMS metadata, not2-year Finance GL",
+    "Choice cohort actual7-8 guest profiles/property and0 active groups; no large distinct guest/group-volume performance claim",
+    "Instrumentation and pool settings recorded by original workload; not an uninstrumented production measurement"
+  ],
+  "wholePlanAccepted": false
+}

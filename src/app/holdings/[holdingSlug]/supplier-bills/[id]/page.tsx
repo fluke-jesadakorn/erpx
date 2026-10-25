@@ -3,8 +3,8 @@ import {requireWorkContext,publicScope} from "@/server/modules/identity_access/p
 import {workspaceBase} from '@/lib/workspace';
 import {pageError} from "@/server/modules/work_projection/public/page-error";
 import {supplierBillDetail} from "@/server/modules/procurement/public/supplier-bill-matching";
-import {SupplierBillConsole} from '@/components/modules/supplier-bill-console';
-import {RecordDocumentPanel} from '@/components/attachments/record-document-panel';
+import { SupplierBillConsole } from "@/components/records/loaders/modules--supplier-bill-console";
+import { RecordDocumentPanel } from "@/components/records/loaders/attachments--record-document-panel";
 import {hasPermission} from '@/lib/permissions';
 import { PageContent } from "@/components/ui/foundation";
 export const dynamic='force-dynamic';

@@ -1,4 +1,5 @@
 "use client";
+import { HubForm } from "@/components/sales-customers/hub-form";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
@@ -394,7 +395,7 @@ export function CRMConsole({
           </Card>
         )}
       {r && detail?.canManage && r.contact_id && detail.guestCandidates.length > 0 && (
-        <FormLayout
+        <HubForm title="Review PMS guest link" label="Review PMS guest link" primary={false}><FormLayout
           className="ui-panel ui-form-grid"
           onSubmit={(e) => {
             e.preventDefault();
@@ -408,6 +409,7 @@ export function CRMConsole({
                 guestId: guest.id,
                 propertyId: guest.property_id,
                 evidence: f.get("evidence"),
+                sharingEvidence:f.get("sharingEvidence")||undefined,
               });
           }}
         >
@@ -427,8 +429,9 @@ export function CRMConsole({
             Identity review evidence
             <TextArea appearance="standard" name="evidence" required minLength={3} />
           </Field>
+          <Field appearance="standard">Guest service-history authorization evidence (optional)<TextArea appearance="standard" name="sharingEvidence" minLength={3}/></Field><p>Without authority evidence, the identity link is retained but hotel history stays private.</p>
           {button("Confirm guest link")}
-        </FormLayout>
+        </FormLayout></HubForm>
       )}
       {r &&
         detail?.canAct &&

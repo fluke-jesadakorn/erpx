@@ -1,0 +1,182 @@
+{
+  "run": "2807a6df0b07",
+  "sourceFingerprint": "c8a790b98f6b09c5c1cfae3488fcb69d4c40338aa0c16f1e8359b4d6e136bd67",
+  "verificationFingerprint": "8b7583e28e765785a6a7547b51c19b693dcd05220089c380b5d1e4d00a063fae",
+  "release": {
+    "id": "2026-10-09T17-14-11-316Z",
+    "fileManifestSha256": "48befc76112650c88c2709236f54579333cb13bac07586381d7f4540803e9ad7"
+  },
+  "scope": "Release HTTP: 3 \u00d7 200 rooms, 730-day synthetic closed stay/reservation/account metadata; 20 distinct normal staff accounts. Historic revenue is not invented.",
+  "applicationPoolMax": 8,
+  "controlPoolMax": 5,
+  "jobsHoldingPoolMax": 1,
+  "counts": [
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    },
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    },
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    }
+  ],
+  "accounts": 20,
+  "rounds": 10,
+  "durationMs": 56117,
+  "readCount": 840,
+  "writeCount": 400,
+  "readP95Ms": 310.0204999999987,
+  "writeP95Ms": 2341.32675,
+  "failedSamples": 0,
+  "sameProcesses": true,
+  "unchanged": true,
+  "samplesSha256": "bf3ec3c2d2e762de5181087c3e18d37e63921a5f4cef5e1a8a640b3c1734d065",
+  "passed": false,
+  "acceptance": false,
+  "timingSamplesSha256": "494da3ac83dc503d09e276defd475c3c25bf90eabd22ba398044f1edf3b1fb22",
+  "timingSummary": [
+    {
+      "event": "page_read",
+      "label": "account_access",
+      "status": null,
+      "count": 3537,
+      "meanMs": 69.92125345349167,
+      "p95Ms": 121.5557919999992,
+      "meanQueryMs": 28.671665419564327,
+      "meanPoolWaitMs": 30.737132361606044,
+      "meanQueries": 10.980774667797569
+    },
+    {
+      "event": "page_read",
+      "label": "home_feed",
+      "status": null,
+      "count": 20,
+      "meanMs": 34.91652079999999,
+      "p95Ms": 39.14350000000013,
+      "meanQueryMs": 70.87811455000015,
+      "meanPoolWaitMs": 7.846260050000592,
+      "meanQueries": 9
+    },
+    {
+      "event": "page_read",
+      "label": "home_revision",
+      "status": null,
+      "count": 88,
+      "meanMs": 11.785988659090828,
+      "p95Ms": 19.214500000000044,
+      "meanQueryMs": 10.701399147727132,
+      "meanPoolWaitMs": 1.0196997613637884,
+      "meanQueries": 1
+    },
+    {
+      "event": "page_read",
+      "label": "layout",
+      "status": null,
+      "count": 20,
+      "meanMs": 7.735979150000003,
+      "p95Ms": 10.999958000000333,
+      "meanQueryMs": 8.371837400000413,
+      "meanPoolWaitMs": 18.41603939999977,
+      "meanQueries": 4
+    },
+    {
+      "event": "page_read",
+      "label": "navigation",
+      "status": null,
+      "count": 20,
+      "meanMs": 254.57006664999986,
+      "p95Ms": 1111.8514169999999,
+      "meanQueryMs": 299.7829814499993,
+      "meanPoolWaitMs": 23.84190579999886,
+      "meanQueries": 17.2
+    },
+    {
+      "event": "page_read",
+      "label": "pms_command",
+      "status": null,
+      "count": 2197,
+      "meanMs": 72.55994079198899,
+      "p95Ms": 137.3195840000044,
+      "meanQueryMs": 63.66093796859355,
+      "meanPoolWaitMs": 6.855055542102968,
+      "meanQueries": 13.975421028675466
+    },
+    {
+      "event": "page_read",
+      "label": "session",
+      "status": null,
+      "count": 7214,
+      "meanMs": 12.063039652481265,
+      "p95Ms": 47.449916000001394,
+      "meanQueryMs": 5.250701445799788,
+      "meanPoolWaitMs": 1.7498172251178863,
+      "meanQueries": 2
+    },
+    {
+      "event": "page_read",
+      "label": "work_context",
+      "status": null,
+      "count": 20,
+      "meanMs": 23.004252150000138,
+      "p95Ms": 22.429250000001048,
+      "meanQueryMs": 11.805364349998944,
+      "meanPoolWaitMs": 1.0114498500005085,
+      "meanQueries": 15.6
+    },
+    {
+      "event": "page_read",
+      "label": "workspace_choices",
+      "status": null,
+      "count": 20,
+      "meanMs": 7.054229249999935,
+      "p95Ms": 9.229499999999462,
+      "meanQueryMs": 7.007470850000118,
+      "meanPoolWaitMs": 1.3313833500004875,
+      "meanQueries": 6
+    },
+    {
+      "event": "read_request",
+      "label": "pms",
+      "status": 200,
+      "count": 1225,
+      "meanMs": 180.85815562530613,
+      "p95Ms": 227.8389160000006,
+      "meanQueryMs": 86.63983138938751,
+      "meanPoolWaitMs": 77.24190017959216,
+      "meanQueries": 28.089795918367347
+    },
+    {
+      "event": "read_request",
+      "label": "pms-command",
+      "status": 200,
+      "count": 600,
+      "meanMs": 166.4311100750001,
+      "p95Ms": 268.9588749999966,
+      "meanQueryMs": 93.99966062666664,
+      "meanPoolWaitMs": 71.1754672483329,
+      "meanQueries": 45.12833333333333
+    },
+    {
+      "event": "read_request",
+      "label": "pms-command",
+      "status": 409,
+      "count": 1597,
+      "meanMs": 221.23435645648084,
+      "p95Ms": 289.0554999999986,
+      "meanQueryMs": 115.45813614088878,
+      "meanPoolWaitMs": 106.68223409580516,
+      "meanQueries": 29.78522229179712
+    }
+  ],
+  "interpretation": "All 840 reads and 400 writes were valid with exact replay reconciliation. Diagnostic release: read p95 310 ms; logical write p95 2,341 ms failed. Fixed-label aggregate timing contains no SQL text, parameters or guest data. Request session duplication is the next investigated cost; this receipt does not verify a future request-memo change."
+}

@@ -71,7 +71,7 @@ test("isolated organization setup supports reviewed correction, safe suspension 
   const main=(page:Page)=>page.locator("#workspace-content:visible");
   const queue=(page:Page)=>main(page).getByRole("region",{name:"Organization change requests",exact:true});
   const card=(page:Page,label:string)=>queue(page).getByRole("article",{name:label,exact:true});
-  const unit=(page:Page,name:string)=>main(page).locator("section.ui-panel:visible").filter({has:page.getByRole("heading",{name,exact:true})});
+  const unit=(page:Page,name:string)=>main(page).getByRole("heading",{name,level:3,exact:true}).locator("xpath=ancestor::section[1]");
   const recordIds:string[]=[];
   async function openUnitSettings(page:Page){
     const summary=main(page).locator("summary").filter({hasText:/^Branches, departments, and official documents$/});
@@ -81,6 +81,8 @@ test("isolated organization setup supports reviewed correction, safe suspension 
   }
   async function reloadUnits(page:Page){
     if(new URL(page.url()).searchParams.get("view")!=="legacy")await page.goto(unitsPath);
+    await expect(page.locator('[data-work-stale]')).toHaveAttribute('data-work-stale','false');
+    await openUnitSettings(page);
     await page.reload({waitUntil:"domcontentloaded"});
     await openUnitSettings(page);
   }

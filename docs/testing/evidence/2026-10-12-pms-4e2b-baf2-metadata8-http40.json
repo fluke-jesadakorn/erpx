@@ -1,0 +1,343 @@
+{
+  "checkedAt": "2026-10-12T06:29:41.120383+00:00",
+  "scope": "Actual current4e2b/baf2 compiled metadata8 and original HTTP40 supplemental checks with normal auth/owned cleanup; not whole-plan acceptance",
+  "passed": true,
+  "proofs": [
+    {
+      "lane": "room-metadata-proof",
+      "run": "5588ff0cd81c",
+      "terminal": {
+        "run": "5588ff0cd81c",
+        "candidate": {
+          "runtime": "4e2b60dc9e36878d4b6353a1a08470ccde2c960eb272fb954875c282b91ee909",
+          "verification": "baf2b73727a5106b9153f71c54c336dfc399f763c83607aa41290d0c7943cfbb",
+          "mainRuntime": "4e2b60dc9e36878d4b6353a1a08470ccde2c960eb272fb954875c282b91ee909",
+          "mainVerification": "baf2b73727a5106b9153f71c54c336dfc399f763c83607aa41290d0c7943cfbb",
+          "releaseDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.runtime/releases/2026-10-12T03-06-23-612Z",
+          "releaseId": "2026-10-12T03-06-23-612Z",
+          "fileManifestSha256": "9bd3aa57f8e6d8e4b2b89ce95f83b8779b83319b6d749207d052cec130ac09d4",
+          "releaseReusedForIdenticalRuntime": true,
+          "verificationAmendment": "Only three generated route-inventory metadata fields;227 entries, runtime, assertions and required identities unchanged; prior actual native/browser receipts retained at50bc with exact official inverse lineage"
+        },
+        "passed": true,
+        "finishedAt": "2026-10-12T06:26:29.994Z",
+        "scope": "Separate supplemental8 metadata checks, no addition to original gate counts or automatic acceptance"
+      },
+      "cleanup": {
+        "run": "5588ff0cd81c",
+        "destroyed": true,
+        "processesExited": true,
+        "checkedAt": "2026-10-12T06:26:29.994Z"
+      },
+      "results": [
+        {
+          "path": ".scratch/dev/pms-route-metadata-candidate-2026-10-12/room-metadata-proof/5588ff0cd81c/result/result.json",
+          "sha256": "395f122162a35ded70a66f4481bc0c03ca44525564130f932bce08c0e857d868",
+          "result": {
+            "checkedAt": "2026-10-12T06:26:19.157Z",
+            "run": "5588ff0cd81c",
+            "candidate": {
+              "runtime": "4e2b60dc9e36878d4b6353a1a08470ccde2c960eb272fb954875c282b91ee909",
+              "verification": "baf2b73727a5106b9153f71c54c336dfc399f763c83607aa41290d0c7943cfbb",
+              "mainRuntime": "4e2b60dc9e36878d4b6353a1a08470ccde2c960eb272fb954875c282b91ee909",
+              "mainVerification": "baf2b73727a5106b9153f71c54c336dfc399f763c83607aa41290d0c7943cfbb",
+              "releaseDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.runtime/releases/2026-10-12T03-06-23-612Z",
+              "releaseId": "2026-10-12T03-06-23-612Z",
+              "fileManifestSha256": "9bd3aa57f8e6d8e4b2b89ce95f83b8779b83319b6d749207d052cec130ac09d4",
+              "releaseReusedForIdenticalRuntime": true,
+              "verificationAmendment": "Only three generated route-inventory metadata fields;227 entries, runtime, assertions and required identities unchanged; prior actual native/browser receipts retained at50bc with exact official inverse lineage"
+            },
+            "release": {
+              "id": "2026-10-12T03-06-23-612Z",
+              "fileManifestSha256": "9bd3aa57f8e6d8e4b2b89ce95f83b8779b83319b6d749207d052cec130ac09d4"
+            },
+            "scope": "Supplemental normal-account compiled room metadata persistence, replay, invalid-input and anonymous desktop/mobile render proof. Not added to original native/browser required counts; not live hotel acceptance.",
+            "checks": [
+              {
+                "name": "Normal password sign-in and current Company/assignment context; no test-token authentication",
+                "passed": true
+              },
+              {
+                "name": "Normal authenticated booking.save persists beds, area and amenities without changing financial records",
+                "passed": true
+              },
+              {
+                "name": "Identical metadata command replay preserves version and saved result",
+                "passed": true
+              },
+              {
+                "name": "Invalid room area rejected without mutation",
+                "passed": true
+              },
+              {
+                "name": "Anonymous public catalog returns the same persisted room metadata",
+                "passed": true
+              },
+              {
+                "name": "Anonymous desktop availability renders exactly the persisted beds, area and amenities",
+                "passed": true
+              },
+              {
+                "name": "Anonymous mobile availability retains the same visible room metadata",
+                "passed": true
+              },
+              {
+                "name": "Financial records and candidate fingerprints unchanged",
+                "passed": true
+              }
+            ],
+            "passed": true,
+            "scriptSHA256": "47a8314865f6313f2b2ddfd22614a344b319357d0044b1496cadeec499c7caac"
+          }
+        }
+      ]
+    },
+    {
+      "lane": "http40-proof",
+      "run": "177150f9514e",
+      "terminal": {
+        "run": "177150f9514e",
+        "candidate": {
+          "runtime": "4e2b60dc9e36878d4b6353a1a08470ccde2c960eb272fb954875c282b91ee909",
+          "verification": "baf2b73727a5106b9153f71c54c336dfc399f763c83607aa41290d0c7943cfbb",
+          "mainRuntime": "4e2b60dc9e36878d4b6353a1a08470ccde2c960eb272fb954875c282b91ee909",
+          "mainVerification": "baf2b73727a5106b9153f71c54c336dfc399f763c83607aa41290d0c7943cfbb",
+          "releaseDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.runtime/releases/2026-10-12T03-06-23-612Z",
+          "releaseId": "2026-10-12T03-06-23-612Z",
+          "fileManifestSha256": "9bd3aa57f8e6d8e4b2b89ce95f83b8779b83319b6d749207d052cec130ac09d4",
+          "releaseReusedForIdenticalRuntime": true,
+          "verificationAmendment": "Only three generated route-inventory metadata fields;227 entries, runtime, assertions and required identities unchanged; prior actual native/browser receipts retained at50bc with exact official inverse lineage"
+        },
+        "passed": true,
+        "finishedAt": "2026-10-12T06:27:36.077Z",
+        "scope": "Fresh unchanged10 rooming plus30 rate/report/maintenance HTTP checks, no addition to original gate counts or automatic acceptance"
+      },
+      "cleanup": {
+        "run": "177150f9514e",
+        "destroyed": true,
+        "processesExited": true,
+        "checkedAt": "2026-10-12T06:27:36.077Z"
+      },
+      "results": [
+        {
+          "path": ".scratch/dev/pms-route-metadata-candidate-2026-10-12/http40-proof/177150f9514e/result/result.json",
+          "sha256": "03a529b819a707aa8693f00ea7758c8d898b636b83e252adaa3dc7b223af9779",
+          "result": {
+            "checkedAt": "2026-10-12T06:27:19.055Z",
+            "run": "177150f9514e",
+            "candidate": {
+              "runtime": "4e2b60dc9e36878d4b6353a1a08470ccde2c960eb272fb954875c282b91ee909",
+              "verification": "baf2b73727a5106b9153f71c54c336dfc399f763c83607aa41290d0c7943cfbb",
+              "mainRuntime": "4e2b60dc9e36878d4b6353a1a08470ccde2c960eb272fb954875c282b91ee909",
+              "mainVerification": "baf2b73727a5106b9153f71c54c336dfc399f763c83607aa41290d0c7943cfbb",
+              "releaseDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.runtime/releases/2026-10-12T03-06-23-612Z",
+              "releaseId": "2026-10-12T03-06-23-612Z",
+              "fileManifestSha256": "9bd3aa57f8e6d8e4b2b89ce95f83b8779b83319b6d749207d052cec130ac09d4",
+              "releaseReusedForIdenticalRuntime": true,
+              "verificationAmendment": "Only three generated route-inventory metadata fields;227 entries, runtime, assertions and required identities unchanged; prior actual native/browser receipts retained at50bc with exact official inverse lineage"
+            },
+            "release": {
+              "id": "2026-10-12T03-06-23-612Z",
+              "fileManifestSha256": "9bd3aa57f8e6d8e4b2b89ce95f83b8779b83319b6d749207d052cec130ac09d4"
+            },
+            "scope": "Supplemental normal-account compiled HTTP rooming-list command boundary, persistence and replay proof. Not added to original native/browser required counts; not live hotel acceptance.",
+            "checks": [
+              {
+                "name": "Normal password sign-in and current Company/assignment context; no test-token authentication",
+                "passed": true
+              },
+              {
+                "name": "Persisted two-room reservation begins with the original payer",
+                "passed": true
+              },
+              {
+                "name": "Authenticated stay.guest persists only selected guest; other stay, payer, frozen pricing and money unchanged",
+                "passed": true
+              },
+              {
+                "name": "Exact command replay preserves persisted state and original response",
+                "passed": true
+              },
+              {
+                "name": "Stale expectedVersion refuses without changing selected or unrelated records",
+                "passed": true
+              },
+              {
+                "name": "Missing guest refuses without altering the original rooming list",
+                "passed": true
+              },
+              {
+                "name": "Real guest of a different Property refuses without cross-hotel mutation",
+                "passed": true
+              },
+              {
+                "name": "Second room receives its own guest while retaining independent first guest and original payer/money",
+                "passed": true
+              },
+              {
+                "name": "Fresh authenticated HTTP read returns both persisted guest assignments",
+                "passed": true
+              },
+              {
+                "name": "Source and verification fingerprints unchanged",
+                "passed": true
+              }
+            ],
+            "passed": true,
+            "scriptSHA256": "e4a4c253d4699db7f3bd9dddc259dd5898f5e45c442d5fec5bbf05c36e6c901c"
+          }
+        },
+        {
+          "path": ".scratch/dev/pms-route-metadata-candidate-2026-10-12/http40-proof/177150f9514e/rates-result/result.json",
+          "sha256": "a7096703904824ebd5a215e3f0cd76d03cc158b8b3d41dd83bdc601a4021a5b0",
+          "result": {
+            "checkedAt": "2026-10-12T06:27:25.432Z",
+            "run": "177150f9514e",
+            "candidate": {
+              "runtime": "4e2b60dc9e36878d4b6353a1a08470ccde2c960eb272fb954875c282b91ee909",
+              "verification": "baf2b73727a5106b9153f71c54c336dfc399f763c83607aa41290d0c7943cfbb",
+              "mainRuntime": "4e2b60dc9e36878d4b6353a1a08470ccde2c960eb272fb954875c282b91ee909",
+              "mainVerification": "baf2b73727a5106b9153f71c54c336dfc399f763c83607aa41290d0c7943cfbb",
+              "releaseDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.runtime/releases/2026-10-12T03-06-23-612Z",
+              "releaseId": "2026-10-12T03-06-23-612Z",
+              "fileManifestSha256": "9bd3aa57f8e6d8e4b2b89ce95f83b8779b83319b6d749207d052cec130ac09d4",
+              "releaseReusedForIdenticalRuntime": true,
+              "verificationAmendment": "Only three generated route-inventory metadata fields;227 entries, runtime, assertions and required identities unchanged; prior actual native/browser receipts retained at50bc with exact official inverse lineage"
+            },
+            "release": {
+              "id": "2026-10-12T03-06-23-612Z",
+              "fileManifestSha256": "9bd3aa57f8e6d8e4b2b89ce95f83b8779b83319b6d749207d052cec130ac09d4"
+            },
+            "scope": "Supplemental authenticated compiled HTTP rate persistence, family arithmetic, immutable booking terms, staff-only company/agent offers and restrictions. Anonymous public reads use a separate cookie-free context; all writes normal command envelope; native/browser required counts unchanged. Includes5actual report UI/download/drill/auth checks and3maintenance close/independent normal reviewer/dirty-room replay checks.",
+            "checks": [
+              {
+                "name": "Normal password sign-in and current Company/assignment context; no test-token authentication",
+                "passed": true
+              },
+              {
+                "name": "Authenticated rate save persists seasonal dates, extra adult, child band, package and collection policy",
+                "passed": true
+              },
+              {
+                "name": "Daily calendar override persists through the command envelope",
+                "passed": true
+              },
+              {
+                "name": "Authenticated family quote combines extra adult, child, daily rate, service and VAT with exact minor-unit totals and package inclusion",
+                "passed": true
+              },
+              {
+                "name": "Later rate/package edits preserve persisted booking prices and original payer/guest-account/Finance data",
+                "passed": true
+              },
+              {
+                "name": "Persisted company contract rate retains its party reference and exact authenticated staff quote",
+                "passed": true
+              },
+              {
+                "name": "Persisted agent contract rate retains its party reference and exact authenticated staff quote",
+                "passed": true
+              },
+              {
+                "name": "Anonymous public offers include the published public package and exclude company/agent rates; direct private-rate quote refuses",
+                "passed": true
+              },
+              {
+                "name": "Inactive persisted restriction refuses quote without records, version or financial changes",
+                "passed": true
+              },
+              {
+                "name": "Base stop-sell persisted restriction refuses quote without records, version or financial changes",
+                "passed": true
+              },
+              {
+                "name": "Base closed arrival persisted restriction refuses quote without records, version or financial changes",
+                "passed": true
+              },
+              {
+                "name": "Base closed departure persisted restriction refuses quote without records, version or financial changes",
+                "passed": true
+              },
+              {
+                "name": "Before season persisted restriction refuses quote without records, version or financial changes",
+                "passed": true
+              },
+              {
+                "name": "After season persisted restriction refuses quote without records, version or financial changes",
+                "passed": true
+              },
+              {
+                "name": "Minimum stay persisted restriction refuses quote without records, version or financial changes",
+                "passed": true
+              },
+              {
+                "name": "Maximum stay persisted restriction refuses quote without records, version or financial changes",
+                "passed": true
+              },
+              {
+                "name": "Calendar closed arrival persisted override refuses quote atomically",
+                "passed": true
+              },
+              {
+                "name": "Calendar closed departure persisted override refuses quote atomically",
+                "passed": true
+              },
+              {
+                "name": "Calendar stop-sell persisted override refuses quote atomically",
+                "passed": true
+              },
+              {
+                "name": "Unpriced child age refuses rather than inventing a price",
+                "passed": true
+              },
+              {
+                "name": "Combined adults and children above persisted room capacity refuse",
+                "passed": true
+              },
+              {
+                "name": "Real report UI uses the current authenticated Property and preserves original phone booking room nights and quoted amount",
+                "passed": true
+              },
+              {
+                "name": "Actual daily CSV download matches report rows, minor-unit header, UTF8 BOM, CRLF and filename",
+                "passed": true
+              },
+              {
+                "name": "Actual pace CSV download retains observed values and leaves unknown history blank",
+                "passed": true
+              },
+              {
+                "name": "Actual report drill-down requests authorized entries and shows the right drawer without inventing postings",
+                "passed": true
+              },
+              {
+                "name": "Anonymous report request refuses before returning hotel finance",
+                "passed": true
+              },
+              {
+                "name": "Maintenance removes remaining saleable family capacity; early release refuses atomically before independent inspection",
+                "passed": true
+              },
+              {
+                "name": "Repair completer cannot self-inspect; a separate normal-password reviewer independently completes inspection",
+                "passed": true
+              },
+              {
+                "name": "Inspected repair release restores saleable capacity, returns dirty room to its new arrival cycle, preserves money and replays once",
+                "passed": true
+              },
+              {
+                "name": "Runtime and verification source fingerprints unchanged",
+                "passed": true
+              }
+            ],
+            "passed": true,
+            "scriptSHA256": "82790ec61640ce57b93f3821b58304898d754b09d5edf964e71b6d417d6c859b"
+          }
+        }
+      ]
+    }
+  ],
+  "originalBrowserAndRouteDenominatorsUnchanged": true,
+  "wholePlanAccepted": false
+}

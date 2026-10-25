@@ -5,7 +5,7 @@ import { requireWorkContext, publicScope } from "@/server/modules/identity_acces
 
 import { workspaceBase } from "@/lib/workspace";
 
-import { LegalWorkspace } from "@/components/legal/legal-workspace";
+import { LegalWorkspace } from "@/components/records/loaders/legal--legal-workspace";
 import { kinds, type LegalKind } from "@/server/modules/legal/public/rules/model";
 export const dynamic = "force-dynamic";
 export default async function LegalPage({

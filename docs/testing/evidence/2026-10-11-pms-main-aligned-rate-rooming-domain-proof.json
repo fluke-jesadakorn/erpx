@@ -1,0 +1,101 @@
+{
+  "checkedAt": "2026-10-10T21:32:04.258Z",
+  "scope": "Executed pure domain scenarios against frozen runtime source. No database, authentication, command-envelope, persistence or browser acceptance claimed; supplements native and browser evidence only.",
+  "runtimeFingerprint": "dae9ff8f263604e859a87b37c3a9b10a1a3ec35f25e7669ca81c53c5d34ae405",
+  "assertions": [
+    {
+      "name": "Daily override plus extra adult and child have exact THB totals",
+      "passed": true
+    },
+    {
+      "name": "Package inclusion appears in the room quote",
+      "passed": true
+    },
+    {
+      "name": "Inactive rate",
+      "passed": true
+    },
+    {
+      "name": "Base stop sell",
+      "passed": true
+    },
+    {
+      "name": "Base closed arrival",
+      "passed": true
+    },
+    {
+      "name": "Base closed departure",
+      "passed": true
+    },
+    {
+      "name": "Before season",
+      "passed": true
+    },
+    {
+      "name": "After season",
+      "passed": true
+    },
+    {
+      "name": "Minimum stay",
+      "passed": true
+    },
+    {
+      "name": "Maximum stay",
+      "passed": true
+    },
+    {
+      "name": "Calendar closed arrival",
+      "passed": true
+    },
+    {
+      "name": "Calendar closed departure",
+      "passed": true
+    },
+    {
+      "name": "Calendar stop sell",
+      "passed": true
+    },
+    {
+      "name": "Missing child band refuses an invented child price",
+      "passed": true
+    },
+    {
+      "name": "Total occupants above capacity refuse the quote",
+      "passed": true
+    },
+    {
+      "name": "company rates available to staff, excluded from public offers",
+      "passed": true
+    },
+    {
+      "name": "agent rates available to staff, excluded from public offers",
+      "passed": true
+    },
+    {
+      "name": "Group rooming assignment changes only its selected stay, preserving payer and frozen prices",
+      "passed": true
+    }
+  ],
+  "passed": 18,
+  "failed": 0,
+  "sourceChecksums": [
+    {
+      "file": "src/lib/pms-booking-domain.ts",
+      "sha256": "98fad947785f9e135da0963070b353562548a1778a70a6b56bf3c3a1f1b14e1f"
+    },
+    {
+      "file": "src/lib/pms-engine.ts",
+      "sha256": "b613d5a2ce8f44b8ec766db57475c7845a5834bd8fa36b507487215ca7ef725b"
+    },
+    {
+      "file": "src/server/modules/pms/domain/pms-model.ts",
+      "sha256": "7f5f034c73ea09fa8665b7617f97b3443384e92450126d5c5d6d8fd8b8987bbd"
+    }
+  ],
+  "scriptSha256": "539ed5b049e54cd11a6c355111544ad1909d8beb91868526f3e832493e3a2e28",
+  "wholePlanAccepted": false,
+  "terminalExitCode": 0,
+  "script": "docs/testing/evidence/2026-10-11-pms-main-aligned-rate-rooming-domain-proof.ts",
+  "command": "Pinned Bun 1.2.17: bun docs/testing/evidence/2026-10-11-pms-main-aligned-rate-rooming-domain-proof.ts (cwd: main-aligned candidate)",
+  "nativeCountsUnchanged": true
+}

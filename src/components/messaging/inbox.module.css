@@ -626,11 +626,11 @@
 .dialog footer > button:not(.primary) {
   color: var(--ui-ink);
 }
-.mobileStart {
+.emptyList button.mobileStart {
   display: none;
 }
 @media (max-width: 760px) {
-  .mobileStart {
+  .emptyList button.mobileStart {
     display: inline-flex;
     align-items: center;
     min-height: 44px;

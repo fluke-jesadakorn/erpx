@@ -3,7 +3,7 @@ const organizationFinalSources=organizationFinalOwnerProjections();
 import {assertion} from "../../workflow/public/commands";
 import {identitySnapshotSources as peoplepayrollSnapshotSources} from '../../people_payroll/public/identity-snapshot-sources';
 const peoplepayrollSources=peoplepayrollSnapshotSources();
-import { createIamAuthority } from "../application/authority";
+import { createIamAuthority, type IamAuthorityMember } from "../application/authority";
 import { iamDb } from "@/server/modules/identity_access/public/iam-db";
 import "server-only";
 import type { PermissionActor, RoleRevision } from "@/lib/iam";
@@ -70,40 +70,77 @@ export async function iamRoles(db: SqlDatabase, companyId: string, ids: readonly
 }
 export async function loadIamAuthority(db: SqlDatabase, companyId: string, userId: string, roleId: string, sessionId?: string): Promise<NonNullable<PermissionActor['iam']>> {
     db = iamDb(db);
-    return createIamAuthority({ role: (companyId, id) => iamRole(db, companyId, id), member: async (companyId, userId) => db
-            .prepare(`SELECT m.*,i.enabled,i.observed_at,c.status connection_status FROM iam_members m LEFT JOIN iam_identities i ON i.id=m.identity_id AND i.company_id=m.company_id LEFT JOIN iam_connections c ON c.id=m.connection_id AND c.company_id=m.company_id WHERE m.company_id=? AND m.user_id=?`)
-            .bind(companyId, userId)
-            .first<{
-            status: string;
-            login_policy: string;
-            version: number;
+    // One authoritative snapshot per invocation, never reused across requests or transactions.
+    // Keep policy decisions in the application service and mutation guards in the write transaction.
+    // PostgreSQL resolves every referenced relation before evaluating CASE.
+    // Control has no Holding HR projections; omit those relations for Platform.
+    const personFallback = companyId === 'platform' ? 'NULL::text' : `CASE WHEN q.company_id <> 'platform' THEN
+            (SELECT id ${peoplepayrollSources.iam_store_hr_people_from}
+             WHERE company_id=q.company_id AND user_id=q.user_id AND merged_into_id IS NULL LIMIT 1)
+        END`;
+    const hrAppointment = companyId === 'platform' ? 'NULL::jsonb' : `(SELECT jsonb_build_object('version',s.version)
+            ${organizationFinalSources.iam_store_authority_seats_s_from}
+            ${peoplepayrollSources.iam_store_hr_people_p_join}
+                ON p.id=s.person_id AND p.company_id=s.company_id AND p.status='active' AND p.merged_into_id IS NULL
+            ${peoplepayrollSources.iam_store_hr_engagements_e_join}
+                ON e.person_id=p.id AND e.company_id=p.company_id AND e.status='active'
+            WHERE q.company_id <> 'platform' AND s.company_id=q.company_id AND s.kind='hr'
+                AND s.scope_id=q.company_id AND s.effective_at<=q.observed_now
+                AND iam_same_person(p.user_id,q.user_id,s.company_id) LIMIT 1)`;
+    const row = await db.prepare(`WITH requested AS (
+        SELECT ?::text company_id, ?::text user_id, ?::text role_id, ?::text session_id, ?::bigint observed_now
+    ), member AS (
+        SELECT m.*,i.enabled,i.observed_at,c.status connection_status FROM requested q
+        JOIN iam_members m ON m.company_id=q.company_id AND m.user_id=q.user_id
+        LEFT JOIN iam_identities i ON i.id=m.identity_id AND i.company_id=m.company_id
+        LEFT JOIN iam_connections c ON c.id=m.connection_id AND c.company_id=m.company_id
+    ), person AS (
+        SELECT COALESCE((SELECT person_id FROM member), ${personFallback}) id FROM requested q
+    ) SELECT
+        (SELECT jsonb_build_object('id',r.id,'name',r.name,'companyId',r.company_id,
+            'revision',r.published_revision,'builtIn',r.built_in,'permissions',v.permissions_json::jsonb,
+            'grantablePermissions',v.grantable_json::jsonb,'scopes',v.scopes_json::jsonb,'status',r.status)
+         FROM iam_roles r JOIN iam_role_revisions v ON v.company_id=r.company_id
+            AND v.role_id=r.id AND v.revision=r.published_revision
+         WHERE r.company_id IN ('*',q.company_id) AND r.id=q.role_id AND r.status='active' LIMIT 1) role,
+        (SELECT to_jsonb(m) FROM member m) member,
+        (SELECT id FROM person) person_id,
+        COALESCE((SELECT jsonb_agg(m.user_id) FROM iam_members m
+            WHERE m.company_id=q.company_id AND m.person_id=(SELECT id FROM person)), '[]'::jsonb) aliases,
+        (SELECT jsonb_build_object('expires_at',expires_at) FROM iam_emergency_sessions
+            WHERE session_id=q.session_id AND user_id=q.user_id AND company_id=q.company_id) emergency,
+        ${hrAppointment} hr_appointment
+        FROM requested q`).bind(companyId, userId, roleId, sessionId ?? '', Date.now()).first<{
+            role: RoleRevision | string | null;
+            member: IamAuthorityMember | string | null;
             person_id: string | null;
-            principal_id: string;
-            enabled: boolean;
-            observed_at: number;
-            connection_status: string;
-        }>(), person: async (companyId, userId) => (await db
-            .prepare(`SELECT id ${peoplepayrollSources.iam_store_hr_people_from} WHERE company_id=? AND user_id=? AND merged_into_id IS NULL`)
-            .bind(companyId, userId)
-            .first<{
-            id: string;
-        }>())?.id ?? null, aliases: async (companyId, personId) => (await db
-            .prepare("SELECT user_id FROM iam_members WHERE company_id=? AND person_id=?")
-            .bind(companyId, personId)
-            .all<{
-            user_id: string;
-        }>()).results.map(row => row.user_id), emergency: async (companyId, userId, sessionId, now) => await db
-            .prepare("SELECT expires_at FROM iam_emergency_sessions WHERE session_id=? AND user_id=? AND company_id=? AND expires_at>?")
-            .bind(sessionId, userId, companyId, now)
-            .first<{
-            expires_at: number;
-        }>(), hrAppointment: async (companyId, userId, now) => await db.prepare(`SELECT s.version ${organizationFinalSources.iam_store_authority_seats_s_from}
-    ${peoplepayrollSources.iam_store_hr_people_p_join} ON p.id=s.person_id AND p.company_id=s.company_id AND p.status='active' AND p.merged_into_id IS NULL
-    ${peoplepayrollSources.iam_store_hr_engagements_e_join} ON e.person_id=p.id AND e.company_id=p.company_id AND e.status='active'
-    WHERE s.company_id=? AND s.kind='hr' AND s.scope_id=? AND s.effective_at<=? AND iam_same_person(p.user_id,?,s.company_id)
-    LIMIT 1`).bind(companyId, companyId, now, userId).first<{
-            version: number;
-        }>(), now: Date.now, error: (status, code, message) => new ApiError(status, code, message) })(companyId, userId, roleId, sessionId);
+            aliases: string[] | string;
+            emergency: { expires_at: number } | string | null;
+            hr_appointment: { version: number } | string | null;
+        }>();
+    if (!row)
+        throw new ApiError(500, 'IAM_AUTHORITY_UNAVAILABLE', 'Unable to read current authority.');
+    // The legacy SQL driver serializes JSON columns; decode only these declared facts.
+    const decode = <T>(value: T | string): T => typeof value === 'string' ? JSON.parse(value) as T : value;
+    const facts = {
+        role: decode<RoleRevision | null>(row.role),
+        member: decode<IamAuthorityMember | null>(row.member),
+        person_id: row.person_id,
+        aliases: decode<string[]>(row.aliases),
+        emergency: decode<{ expires_at: number } | null>(row.emergency),
+        hr_appointment: decode<{ version: number } | null>(row.hr_appointment),
+    };
+    return createIamAuthority({
+        role: async () => facts.role,
+        member: async () => facts.member,
+        person: async () => facts.person_id,
+        aliases: async () => facts.aliases,
+        emergency: async (_companyId, _userId, _sessionId, now) =>
+            facts.emergency && Number(facts.emergency.expires_at) > now ? facts.emergency : null,
+        hrAppointment: async () => facts.hr_appointment,
+        now: Date.now,
+        error: (status, code, message) => new ApiError(status, code, message),
+    })(companyId, userId, roleId, sessionId);
 }
 /** Rechecked in the same transaction as the business mutation. */
 export function iamMutationGuards(db: SqlDatabase, actor: PermissionActor & {

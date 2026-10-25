@@ -5,7 +5,7 @@ export const pmsSections = [
     ["front-desk", "Front Office"],
     ["rooms", "Rooms"],
     ["housekeeping", "Housekeeping"],
-    ["folios", "Folios & payments"],
+    ["guest-accounts", "Guest Accounts & payments"],
     ["cashier", "Cashier shifts"],
     ["inventory", "Minibar & linen"],
     ["guests", "Guests"],
@@ -16,7 +16,7 @@ export const pmsSections = [
 /** Keep the workspace tabs and the side menu on the same readable sections. */
 export function visiblePmsSections(can: (permission: string) => boolean) {
     return pmsSections.filter(([key]) => {
-        if (key === "folios" || key === "cashier")
+        if (key === "guest-accounts" || key === "cashier")
             return can("pms.cashier") || can("pms.reports");
         if (key === "reports")
             return can("pms.reports");
@@ -138,7 +138,7 @@ export type Property = {
     version: number;
     config: Config;
 };
-export type Kind = "room_type" | "room" | "rate" | "guest" | "reservation" | "stay" | "folio" | "entry" | "task" | "block" | "shift" | "refund" | "item" | "movement" | "lost" | "credit" | "night";
+export type Kind = "room_type" | "room" | "rate" | "guest" | "reservation" | "stay" | "guest_account" | "entry" | "task" | "block" | "shift" | "refund" | "item" | "movement" | "lost" | "credit" | "night";
 export type RoomType = {
     name: string;
     capacity: number;
@@ -186,7 +186,11 @@ export type Rate = {
     }>;
     collection?: CollectionPolicy;
 };
+export type GuestServiceRequest = { id: string; text: string; state: "open" | "completed" | "cancelled"; createdAt: number; createdBy: string; updatedAt: number; updatedBy: string };
 export type Guest = {
+    preferredLanguage?: string;
+    roomPreference?: string;
+    serviceRequests?: GuestServiceRequest[];
     name: string;
     email: string;
     phone: string;
@@ -229,18 +233,25 @@ export type Stay = {
     adults: number;
     childAges?: number[];
     state: "reserved" | "in_house" | "checked_out" | "cancelled" | "no_show";
-    folioId: string;
+    guestAccountId: string;
     prices: NightPrice[];
     segments: Array<{
         roomId: string;
         from: string;
         to: string;
     }>;
+    roomTypePeriods?: Array<{ typeId: string; from: string; to: string }>;
+    upgrades?: Array<{
+        effectiveDate: string; at: number; actorId: string; reason: string;
+        fromRoomId: string; toRoomId: string;
+        fromTypeId: string; toTypeId: string;
+        fromRateId: string; toRateId: string;
+    }>;
     checkedInAt?: number;
     checkedOutAt?: number;
     bookingPolicy?: BookingPolicy;
 };
-export type Folio = {
+export type GuestAccount = {
     name: string;
     guestId: string;
     reservationId: string;
@@ -262,7 +273,7 @@ export type Folio = {
 };
 export type Entry = {
     cancellationFee?: boolean;
-    folioId: string;
+    guestAccountId: string;
     stayId: string;
     date: string;
     kind: "charge" | "payment" | "allocation" | "refund" | "adjustment" | "transfer" | "deposit";
@@ -302,6 +313,9 @@ export type Task = {
     roomCycle?: number;
 };
 export type Block = {
+    /** Durable per-night quota claims for a pending signed booking revision. */
+    groupPickupClaims?: Array<{ blockId: string; stayId: string }>;
+    quotaOnly?: boolean;
     expiresAt?: number;
     bookingChangeId?: string;
     name: string;
@@ -333,7 +347,7 @@ export type Shift = {
     }>;
 };
 export type Refund = {
-    folioId: string;
+    guestAccountId: string;
     amount: number;
     pocket: "advance" | "deposit";
     reason: string;
@@ -397,7 +411,7 @@ export type DataMap = {
     guest: Guest;
     reservation: Reservation;
     stay: Stay;
-    folio: Folio;
+    guest_account: GuestAccount;
     entry: Entry;
     task: Task;
     block: Block;
@@ -480,7 +494,7 @@ export const defaultConfig: Config = {
     approvedBy: null,
     revision: 1,
 };
-export const operationPermission = (op: string) => op === "booking_fees.prepare" ? "pms.accounting.prepare" :
+export const operationPermission = (op: string) => op === "guest.service_request" ? "pms.frontdesk" : op === "booking_fees.prepare" ? "pms.accounting.prepare" :
     op === "booking_fees.approve" ? "pms.accounting.approve" :
         op === "online_accounting.prepare" ? "pms.accounting.prepare" :
             op === "online_accounting.approve" ? "pms.accounting.approve" :
@@ -524,7 +538,7 @@ export const operationPermission = (op: string) => op === "booking_fees.prepare"
                                                                 op.startsWith("refund.") ||
                                                                 op.startsWith("shift.") ||
                                                                 op.startsWith("cash.") ||
-                                                                op.startsWith("folio.") ||
+                                                                op.startsWith("guest_account.") ||
                                                                 op === "charge.add" ||
                                                                 op === "charge.reverse" ||
                                                                 op === "minibar.charge" ||

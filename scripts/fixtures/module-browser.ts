@@ -39,7 +39,9 @@ export async function prepareModuleBrowser(profile: string, env: RuntimeEnv, dir
     ]);
     return { profile, holdingSlug: "acme", nativeSeed: true, noRole, actors };
   }
-  if (profile === "booking") return (await import("./booking-browser")).seedBookingBrowser(env);
+  if (profile === "booking") return process.env.ERPX_BROWSER_SIMULATION_PMS_SCALE === "1"
+    ? (await import("./pms-scale-browser")).seedPmsScaleBrowser(env,directory)
+    : (await import("./booking-browser")).seedBookingBrowser(env,directory);
   const password = `Module-${randomBytes(20).toString("hex")}`, hash = await hashPassword(password), now = Date.now();
   async function company() {
     const f = await seedExpenseCompany(env.H001_DB, env.H001_FILES);

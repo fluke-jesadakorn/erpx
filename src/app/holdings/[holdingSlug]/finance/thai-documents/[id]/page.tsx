@@ -1,7 +1,7 @@
 import { Table as StandardTable, TableFrame } from "@/components/ui/foundation";
 import { RecordLink as Link } from "@/components/records/record-link";
 import {FinanceWorkspace} from "@/components/finance/finance-workspace";
-import {ThaiDocumentControls} from "@/components/finance/finance-thai-tax-console";
+import { ThaiDocumentControls } from "@/components/records/loaders/finance--finance-thai-tax-console";
 import {minorToDecimal} from "@/lib/finance-money";
 import {hasPermission} from "@/lib/permissions";
 import {workspaceBase} from "@/lib/workspace";

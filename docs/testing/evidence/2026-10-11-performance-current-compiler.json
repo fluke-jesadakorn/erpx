@@ -1,0 +1,474 @@
+{
+  "scope": "Current-split source Webpack versus Turbopack diagnostic; owned private3102, shared public dev kept running",
+  "sourceFingerprint": "bd2e18e5b2d5844f0a6d8a39de250771d47dc6ef2d97d53ae1e185136ce1d0ac",
+  "method": {
+    "sameContainedSource": true,
+    "heapMiB": 8192,
+    "coldRoundsPerCompiler": 2,
+    "warmHttpDocumentsPerRoutePerCompiler": 20,
+    "warmRestartsPerCompiler": 2,
+    "postRestartWarmDocumentsPerRoutePerCompiler": 6,
+    "fixedRouteOrder": [
+      "Home",
+      "Work",
+      "Quality record"
+    ],
+    "normalConsoleAuthentication": true,
+    "verifiedDevelopmentDatabasesOnly": true,
+    "noJobs": true,
+    "browserHydrationMeasured": false,
+    "controlsReadinessMeasured": false,
+    "onlyDirectModernScriptTagsFetched": true,
+    "samplePeriodMs": 500,
+    "p95Method": "nearest rank; n2 and n6 values are descriptive maxima and not acceptance p95"
+  },
+  "summary": {
+    "source": "bd2e18e5b2d5844f0a6d8a39de250771d47dc6ef2d97d53ae1e185136ce1d0ac",
+    "completedAt": "2026-10-10T19:52:15.098Z",
+    "privatePortClean": true,
+    "snapshotMatches": true,
+    "failures": [],
+    "requestCount": 274,
+    "badResponses": [],
+    "variants": {
+      "webpack": {
+        "cold-document": {
+          "/holdings/acme/home": {
+            "n": 2,
+            "medianMs": 22163.1,
+            "p95Ms": 23951.8,
+            "minMs": 20374.4,
+            "maxMs": 23951.8
+          },
+          "/holdings/acme/work": {
+            "n": 2,
+            "medianMs": 8444.9,
+            "p95Ms": 9091.8,
+            "minMs": 7798.0,
+            "maxMs": 9091.8
+          },
+          "/holdings/acme/quality/quality-demo-failed-scrap": {
+            "n": 2,
+            "medianMs": 4720.9,
+            "p95Ms": 4990.2,
+            "minMs": 4451.5,
+            "maxMs": 4990.2
+          }
+        },
+        "warm-cache-restart": {
+          "/holdings/acme/home": {
+            "n": 2,
+            "medianMs": 23421.3,
+            "p95Ms": 26671.7,
+            "minMs": 20171.0,
+            "maxMs": 26671.7
+          },
+          "/holdings/acme/work": {
+            "n": 2,
+            "medianMs": 7536.8,
+            "p95Ms": 8169.0,
+            "minMs": 6904.7,
+            "maxMs": 8169.0
+          },
+          "/holdings/acme/quality/quality-demo-failed-scrap": {
+            "n": 2,
+            "medianMs": 3734.0,
+            "p95Ms": 3796.2,
+            "minMs": 3671.8,
+            "maxMs": 3796.2
+          }
+        },
+        "warm-document": {
+          "/holdings/acme/home": {
+            "n": 20,
+            "medianMs": 218.0,
+            "p95Ms": 426.4,
+            "minMs": 160.6,
+            "maxMs": 431.0
+          },
+          "/holdings/acme/work": {
+            "n": 20,
+            "medianMs": 186.0,
+            "p95Ms": 370.1,
+            "minMs": 133.8,
+            "maxMs": 4186.8
+          },
+          "/holdings/acme/quality/quality-demo-failed-scrap": {
+            "n": 20,
+            "medianMs": 185.7,
+            "p95Ms": 240.8,
+            "minMs": 137.0,
+            "maxMs": 407.6
+          }
+        },
+        "restart-warm": {
+          "/holdings/acme/home": {
+            "n": 6,
+            "medianMs": 211.2,
+            "p95Ms": 481.3,
+            "minMs": 162.7,
+            "maxMs": 481.3
+          },
+          "/holdings/acme/work": {
+            "n": 6,
+            "medianMs": 178.5,
+            "p95Ms": 285.5,
+            "minMs": 141.2,
+            "maxMs": 285.5
+          },
+          "/holdings/acme/quality/quality-demo-failed-scrap": {
+            "n": 6,
+            "medianMs": 175.4,
+            "p95Ms": 216.0,
+            "minMs": 142.7,
+            "maxMs": 216.0
+          }
+        },
+        "scripts": [
+          {
+            "bundler": "webpack",
+            "cold": 1,
+            "phase": "initial-script-summary",
+            "count": 7,
+            "decodedBytes": 18092505
+          },
+          {
+            "bundler": "webpack",
+            "cold": 2,
+            "phase": "initial-script-summary",
+            "count": 7,
+            "decodedBytes": 18092513
+          }
+        ],
+        "resources": [
+          {
+            "bundler": "webpack",
+            "cold": 1,
+            "restart": false,
+            "peakRssKiB": 3540528,
+            "peakCpu": 400.70000000000005,
+            "samples": 139,
+            "memoryThresholdRestarts": 0,
+            "log": ".scratch/dev/compiler-current-2026-10-10T19-46-37-717Z/webpack-1.log"
+          },
+          {
+            "bundler": "webpack",
+            "cold": 1,
+            "restart": true,
+            "peakRssKiB": 5220352,
+            "peakCpu": 483.4,
+            "samples": 83,
+            "memoryThresholdRestarts": 0,
+            "log": ".scratch/dev/compiler-current-2026-10-10T19-46-37-717Z/webpack-1-restart.log"
+          },
+          {
+            "bundler": "webpack",
+            "cold": 2,
+            "restart": false,
+            "peakRssKiB": 5211328,
+            "peakCpu": 408.3,
+            "samples": 103,
+            "memoryThresholdRestarts": 0,
+            "log": ".scratch/dev/compiler-current-2026-10-10T19-46-37-717Z/webpack-2.log"
+          },
+          {
+            "bundler": "webpack",
+            "cold": 2,
+            "restart": true,
+            "peakRssKiB": 6039792,
+            "peakCpu": 473.2,
+            "samples": 98,
+            "memoryThresholdRestarts": 0,
+            "log": ".scratch/dev/compiler-current-2026-10-10T19-46-37-717Z/webpack-2-restart.log"
+          }
+        ]
+      },
+      "turbopack": {
+        "cold-document": {
+          "/holdings/acme/home": {
+            "n": 2,
+            "medianMs": 12407.5,
+            "p95Ms": 13652.8,
+            "minMs": 11162.2,
+            "maxMs": 13652.8
+          },
+          "/holdings/acme/work": {
+            "n": 2,
+            "medianMs": 3379.5,
+            "p95Ms": 3554.8,
+            "minMs": 3204.2,
+            "maxMs": 3554.8
+          },
+          "/holdings/acme/quality/quality-demo-failed-scrap": {
+            "n": 2,
+            "medianMs": 2726.1,
+            "p95Ms": 2931.6,
+            "minMs": 2520.7,
+            "maxMs": 2931.6
+          }
+        },
+        "warm-cache-restart": {
+          "/holdings/acme/home": {
+            "n": 2,
+            "medianMs": 5618.6,
+            "p95Ms": 6466.2,
+            "minMs": 4770.9,
+            "maxMs": 6466.2
+          },
+          "/holdings/acme/work": {
+            "n": 2,
+            "medianMs": 3790.8,
+            "p95Ms": 4078.7,
+            "minMs": 3502.9,
+            "maxMs": 4078.7
+          },
+          "/holdings/acme/quality/quality-demo-failed-scrap": {
+            "n": 2,
+            "medianMs": 2333.3,
+            "p95Ms": 2483.2,
+            "minMs": 2183.3,
+            "maxMs": 2483.2
+          }
+        },
+        "warm-document": {
+          "/holdings/acme/home": {
+            "n": 20,
+            "medianMs": 223.5,
+            "p95Ms": 259.4,
+            "minMs": 165.6,
+            "maxMs": 260.0
+          },
+          "/holdings/acme/work": {
+            "n": 20,
+            "medianMs": 207.4,
+            "p95Ms": 246.5,
+            "minMs": 158.0,
+            "maxMs": 286.1
+          },
+          "/holdings/acme/quality/quality-demo-failed-scrap": {
+            "n": 20,
+            "medianMs": 199.8,
+            "p95Ms": 256.6,
+            "minMs": 157.4,
+            "maxMs": 323.5
+          }
+        },
+        "restart-warm": {
+          "/holdings/acme/home": {
+            "n": 6,
+            "medianMs": 235.0,
+            "p95Ms": 305.5,
+            "minMs": 196.4,
+            "maxMs": 305.5
+          },
+          "/holdings/acme/work": {
+            "n": 6,
+            "medianMs": 203.5,
+            "p95Ms": 285.3,
+            "minMs": 165.0,
+            "maxMs": 285.3
+          },
+          "/holdings/acme/quality/quality-demo-failed-scrap": {
+            "n": 6,
+            "medianMs": 199.4,
+            "p95Ms": 291.0,
+            "minMs": 167.8,
+            "maxMs": 291.0
+          }
+        },
+        "scripts": [
+          {
+            "bundler": "turbopack",
+            "cold": 1,
+            "phase": "initial-script-summary",
+            "count": 36,
+            "decodedBytes": 10581829
+          },
+          {
+            "bundler": "turbopack",
+            "cold": 2,
+            "phase": "initial-script-summary",
+            "count": 36,
+            "decodedBytes": 10581829
+          }
+        ],
+        "resources": [
+          {
+            "bundler": "turbopack",
+            "cold": 1,
+            "restart": false,
+            "peakRssKiB": 4602448,
+            "peakCpu": 1179.3999999999999,
+            "samples": 60,
+            "memoryThresholdRestarts": 0,
+            "log": ".scratch/dev/compiler-current-2026-10-10T19-46-37-717Z/turbopack-1.log"
+          },
+          {
+            "bundler": "turbopack",
+            "cold": 1,
+            "restart": true,
+            "peakRssKiB": 3059072,
+            "peakCpu": 502.8,
+            "samples": 43,
+            "memoryThresholdRestarts": 0,
+            "log": ".scratch/dev/compiler-current-2026-10-10T19-46-37-717Z/turbopack-1-restart.log"
+          },
+          {
+            "bundler": "turbopack",
+            "cold": 2,
+            "restart": false,
+            "peakRssKiB": 4805184,
+            "peakCpu": 760.8,
+            "samples": 68,
+            "memoryThresholdRestarts": 0,
+            "log": ".scratch/dev/compiler-current-2026-10-10T19-46-37-717Z/turbopack-2.log"
+          },
+          {
+            "bundler": "turbopack",
+            "cold": 2,
+            "restart": true,
+            "peakRssKiB": 3181088,
+            "peakCpu": 637.4,
+            "samples": 48,
+            "memoryThresholdRestarts": 0,
+            "log": ".scratch/dev/compiler-current-2026-10-10T19-46-37-717Z/turbopack-2-restart.log"
+          }
+        ]
+      }
+    }
+  },
+  "memoryTrace": [
+    {
+      "output": "webpack-1-output",
+      "traceBytes": 1059298,
+      "memorySamples": 14,
+      "numericMaxima": {
+        "memory.rss": 3933143040.0,
+        "memory.heapUsed": 2532445600.0,
+        "memory.heapTotal": 2653044736.0
+      },
+      "traceSha256": "38a761d794d0d6c69256ea93f396a75271c5c8b99c583af1b350316dbabd6a9a"
+    },
+    {
+      "output": "webpack-2-output",
+      "traceBytes": 1060228,
+      "memorySamples": 14,
+      "numericMaxima": {
+        "memory.rss": 4562370560.0,
+        "memory.heapUsed": 2694911344.0,
+        "memory.heapTotal": 2836676608.0
+      },
+      "traceSha256": "b43f2e4dc6627a151364dd07bd17a4016aa1892a77b16ae0cd3ec8bd63bf6dc4"
+    },
+    {
+      "output": "turbopack-1-output",
+      "traceBytes": 116181,
+      "memorySamples": 50,
+      "numericMaxima": {
+        "memory.rss": 4009541632.0,
+        "memory.heapUsed": 879965192.0,
+        "memory.heapTotal": 991461376.0
+      },
+      "traceSha256": "dacdc6f1e62ae85128c396703284a17f706fce4e24cb9ae661b772e8749b10c8"
+    },
+    {
+      "output": "turbopack-2-output",
+      "traceBytes": 116196,
+      "memorySamples": 50,
+      "numericMaxima": {
+        "memory.rss": 4385816576.0,
+        "memory.heapUsed": 989555184.0,
+        "memory.heapTotal": 1094057984.0
+      },
+      "traceSha256": "c677e74296ec4bc614d004491ae511bd4e4bc9e38bd57b38c866b0c18b14e1b6"
+    }
+  ],
+  "rawReceipt": {
+    "path": ".scratch/dev/compiler-current-2026-10-10T19-46-37-717Z/evidence.json",
+    "bytes": 101175,
+    "sha256": "253c3c3869e7211e9fd27537ba698c0a7c35dcd93a33f08c006d635adb86b3da"
+  },
+  "runnerReceipt": {
+    "path": ".scratch/dev/optimization-current-compiler.ts",
+    "bytes": 10746,
+    "sha256": "e0522d53ca80bc6ca3096b64bbc94db9fbee23399ac058195da98f5f447fd061"
+  },
+  "runLogReceipt": {
+    "path": ".scratch/dev/optimization-current-compiler-run.log",
+    "bytes": 45448,
+    "sha256": "d86e32648f4eb6f27dc45688130b729f4f7a774da74dcda79b3d79528f37a1b7"
+  },
+  "decision": {
+    "changeDefaultCompiler": false,
+    "reason": "Turbopack improves cold/restart HTTP medians and direct-script bytes but increases request count and CPU; warmed Quality p95 and all three warmed medians regress in this small diagnostic. No public/browser-readiness or long-session stability claim is justified.",
+    "coldHomeMedianReductionPercent": 44.017308048061864,
+    "restartHomeMedianReductionPercent": 76.01072527998018,
+    "directScriptBytesReductionPercent": 41.512637415327504
+  },
+  "limitations": [
+    "HTTP and script responses do not measure browser hydration or controls readiness.",
+    "Shared development database and other machine workloads may change during measurement.",
+    "Two compiler rounds are diagnostic, not a statistical p95 acceptance cohort.",
+    "Cold means empty canonical .next output; operating-system caches may be warm.",
+    "The direct-script-tag probe excludes Flight-driven and post-hydration dynamic requests.",
+    "Node trace heap excludes Turbopack native allocations; aggregate sampled RSS is separately retained.",
+    "Requests are sequential and compiler order is Webpack first; shared machine activity is uncontrolled.",
+    "This bounded workload does not prove stability across all ERPX routes."
+  ],
+  "remaining": [
+    "Controlled public release browser controls comparison and p95 acceptance.",
+    "PMS/POS Front operational polling, stale-response and receipt/editor browser acceptance pending destination sign-in authorization.",
+    "Shared public measurement-window coordination pending messaging authorization."
+  ],
+  "availability": {
+    "checkedAtUTC": "2026-10-10T20:24:57Z",
+    "http": [
+      {
+        "url": "http://127.0.0.1:3100/api/health",
+        "exitCode": 0,
+        "response": "200 0.009868"
+      },
+      {
+        "url": "https://console-dev-erpx.jesadakorn.com/api/health",
+        "exitCode": 0,
+        "response": "200 0.185370"
+      },
+      {
+        "url": "http://127.0.0.1:3101/api/health",
+        "exitCode": 0,
+        "response": "200 0.007694"
+      }
+    ],
+    "listeners": {
+      "3100": [
+        79875
+      ],
+      "3102": []
+    },
+    "processes": [
+      {
+        "process": "40637     1 /Users/fluke/Desktop/Work/erpx/.runtime/bun-1.2.17/bun-darwin-aarch64/bun",
+        "cwd": "/Users/fluke/Desktop/Work/erpx"
+      },
+      {
+        "process": "40657 40640 /Users/fluke/Desktop/Work/erpx/.runtime/node/node-v24.20.0-darwin-arm64/bin/node",
+        "cwd": "/Users/fluke/Desktop/Work/erpx"
+      },
+      {
+        "process": "79875 40657 next-server (v16.3.4)",
+        "cwd": "/Users/fluke/Desktop/Work/erpx"
+      }
+    ],
+    "postgresAcceptingConnections": true,
+    "stagingTouched": false,
+    "publicBrowser": {
+      "url": "https://console-dev-erpx.jesadakorn.com/holdings/acme/work",
+      "role": "holding owner",
+      "workCount": 12,
+      "drawerClosed": true,
+      "searchEnabled": true
+    }
+  },
+  "stagingTouched": false,
+  "documentationCheck": "pass compiler report and plan"
+}

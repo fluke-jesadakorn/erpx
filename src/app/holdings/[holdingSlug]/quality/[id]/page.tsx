@@ -1,7 +1,7 @@
 import { TimeText } from "@/components/time/time-preference-context";
 import { RecordLink as Link } from "@/components/records/record-link";
 import { notFound } from "next/navigation";
-import { QualityConsole } from "@/components/modules/quality-console";
+import { QualityConsole } from "@/components/records/loaders/modules--quality-console";
 import { StatusBadge } from "@/components/ui/primitives";
 import { OperationSummary } from "@/components/workplace/operation-summary";
 import { workspaceBase } from "@/lib/workspace";

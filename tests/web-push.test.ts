@@ -20,9 +20,10 @@ const subscription={endpoint:"https://fcm.googleapis.com/fcm/send/test-token",ke
   p256dh:Buffer.alloc(65,1).toString("base64url"),auth:Buffer.alloc(16,2).toString("base64url")}};
 let actor:WorkContext,session:string,fixture:Awaited<ReturnType<typeof seedExpenseCompany>>;
 beforeAll(async()=>{
-  const vapid=createECDH("prime256v1");vapid.generateKeys();
+  const vapid=createECDH("prime256v1"),fixtureScalar=Buffer.alloc(32);fixtureScalar[31]=1;vapid.setPrivateKey(fixtureScalar);
   process.env.ERPX_PUSH_VAPID_PUBLIC_KEY=vapid.getPublicKey(undefined,"uncompressed").toString("base64url");
-  process.env.ERPX_PUSH_VAPID_PRIVATE_KEY=vapid.getPrivateKey().toString("base64url");
+  // OpenSSL may omit leading zero bytes; the VAPID configuration requires a 32-byte scalar.
+  process.env.ERPX_PUSH_VAPID_PRIVATE_KEY=Buffer.from(vapid.getPrivateKey().toString("hex").padStart(64,"0"),"hex").toString("base64url");
   process.env.ERPX_PUSH_VAPID_SUBJECT="mailto:push@example.test";
   process.env.ERPX_PUSH_DATA_KEY=Buffer.alloc(32,5).toString("base64url");
   await Promise.all([applyMigrations(db,env.STAFF_TEST_MIGRATIONS),applyMigrations(control,env.CONTROL_TEST_MIGRATIONS)]);

@@ -7,11 +7,11 @@ import {
   WidgetGrid,
 } from "@/components/features/feature-page";
 import { DocumentPostingPreview } from "@/components/modules/document-posting-preview";
-import { CountActions, CountEditor } from "@/components/modules/stock-count-controls";
+import { CountActions, CountEditor } from "@/components/records/loaders/modules--stock-count-controls";
 import { StatusBadge } from "@/components/ui/primitives";
 import { FlowPanel, documentFlow } from "@/components/workplace/flow-panel";
 import { RecordNextAction } from "@/components/workplace/record-next-action";
-import { WorkReturn } from "@/components/workplace/work-return";
+import { WorkReturn } from "@/components/records/loaders/workplace--work-return";
 import { minorToDecimal } from "@/lib/finance-money";
 import { workspaceBase } from "@/lib/workspace";
 import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";

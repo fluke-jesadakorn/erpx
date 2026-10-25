@@ -40,12 +40,13 @@ export default async function RefundsPage({
             <BookingRefunds
               base={base}
               rows={bookingRefunds}
-              canApprove={hasPermission(actor, "finance.approve")}
+              canRecoverReceipt={hasPermission(actor,"finance.approve")}
+              canApprove={hasPermission(actor, "pms.approve")}
             />
             <CounterRefunds
               base={base}
               rows={counterRefunds}
-              canApprove={hasPermission(actor, "finance.approve")}
+              canApprove={hasPermission(actor, "pms.approve")}
             />
           </div>
         </details>

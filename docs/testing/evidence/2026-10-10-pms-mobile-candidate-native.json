@@ -1,0 +1,52 @@
+{
+  "runtime": "60f5fc06f54692d11e6c7d1b9fbe7588ff6a4eae2065a17ed1b9161aecdfc434",
+  "verification": "cefaeba591a273b9a41ee931a482538dee12486f8d7f00c3705213d643d23dd6",
+  "verifiedAt": "2026-10-10T15:50:54.464Z",
+  "complete": false,
+  "wholePlanAcceptance": false,
+  "native": {
+    "unit": 779,
+    "postgres": 556,
+    "total": 1335,
+    "passed": true
+  },
+  "security": {
+    "cases": 47,
+    "files": 4,
+    "passed": true
+  },
+  "static": {
+    "typecheck": true,
+    "lintErrors": 0,
+    "lintWarnings": 3,
+    "architecture": true,
+    "documentation": true
+  },
+  "remaining": "Browser diagnostic failed Today preview cardinality; strict release capacity and final combined acceptance remain open.",
+  "artifacts": [
+    {
+      "path": ".scratch/dev/pms-final-mobile-regression/typecheck.log",
+      "sha256": "ae3aa3d40f2b7fdeaf8ae4398c41416876c85fc2ccc6aa232e526fdb75f340ef"
+    },
+    {
+      "path": ".scratch/dev/pms-final-mobile-regression/lint.log",
+      "sha256": "0211741eacc108089202fadacf856c584e3bfc48d4ce33a4fa7a8b4d08de2a88"
+    },
+    {
+      "path": ".scratch/dev/pms-final-mobile-regression/architecture.log",
+      "sha256": "61f27aa5d383438fa7955c201143725c76302dadbcb2c312efa2d398a9d6f86b"
+    },
+    {
+      "path": ".scratch/dev/pms-final-mobile-regression/docs.log",
+      "sha256": "98e0332b40b11eb4b9c3f8ebb800ac7f742d328d4e6fe6522e82ca399fb26b30"
+    },
+    {
+      "path": ".scratch/dev/pms-final-mobile-regression/native-full.log",
+      "sha256": "73972cb79ff89ab900d15891889de5108d79f3b4cb9edc3b15a06343e8cf07ca"
+    },
+    {
+      "path": ".scratch/dev/pms-final-mobile-regression/security.log",
+      "sha256": "bf822ab590bc2b5f78a608f663ff4e2021b4cf86a5b26b1ca97404f0852f2d15"
+    }
+  ]
+}

@@ -185,6 +185,10 @@ it("routes action cards to the current owner and requires completion evidence", 
   expect(
     (await collaborationActionWork(f.claimant)).find((x) => x.id === id)?.queue,
   ).toBe("completed");
+  const retained = (await collaborationWorkspace(f.claimant)).cards.find(card => card.id === id)!;
+  expect(retained.source_title).toContain("Cross-record customer issue");
+  expect(retained.source_href).toBe(`/support/${ticket}`);
+  expect(retained.completion_evidence).toBe("Customer confirmed Tuesday at 10:00 by recorded phone contact.");
 });
 it("surfaces an ineligible assignee and permits reviewed reassignment without changing the source", async () => {
   const created = await createActionCard(

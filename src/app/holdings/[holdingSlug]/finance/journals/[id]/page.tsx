@@ -1,22 +1,19 @@
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { Table, TableFrame } from "@/components/ui/foundation";
-import {
-  FinanceRecordWorkspace,
-  FinanceLegacyHeading,
-} from "@/components/finance/finance-record-workspace";
+import { FinanceRecordWorkspace, FinanceLegacyHeading } from "@/components/records/loaders/finance--finance-record-workspace";
 import { BusinessDocumentBranding } from "@/components/brand/business-document";
-import { RecordDocumentPanel } from "@/components/attachments/record-document-panel";
+import { RecordDocumentPanel } from "@/components/records/loaders/attachments--record-document-panel";
 import {
   FeaturePage,
   FeatureTabs,
   FeatureWidget,
   WidgetGrid,
 } from "@/components/features/feature-page";
-import { JournalAction,JournalEditor } from "@/components/modules/ledger-controls";
+import { JournalAction, JournalEditor } from "@/components/records/loaders/modules--ledger-controls";
 import { StatusBadge } from "@/components/ui/primitives";
 import { FlowPanel, documentFlow } from "@/components/workplace/flow-panel";
 import { RecordNextAction } from "@/components/workplace/record-next-action";
-import { WorkReturn } from "@/components/workplace/work-return";
+import { WorkReturn } from "@/components/records/loaders/workplace--work-return";
 import { minorToDecimal } from "@/lib/finance-money";
 import { hasPermission } from "@/lib/permissions";
 import { workspaceBase } from "@/lib/workspace";

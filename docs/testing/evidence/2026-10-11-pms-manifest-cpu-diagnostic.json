@@ -1,0 +1,44 @@
+{
+  "date": "2026-10-11",
+  "scope": "Owned compiled CPU diagnostic and request-local manifest digest correction; not final acceptance",
+  "complete": false,
+  "wholePlanAccepted": false,
+  "run": "bf8054f37cb7",
+  "runtimeFingerprint": "ee632e029357d89d8bebe967c07871a5ba522a31b8d0975001bdb838f7603086",
+  "release": "2026-10-10T17-26-28-484Z",
+  "instrumented": true,
+  "cpuAttribution": {
+    "sampledMs": 84839.75,
+    "engineeringContextSampleMs": 44819.51,
+    "engineeringContextSamplePercent": 52.83
+  },
+  "load": {
+    "readCount": 840,
+    "writeCount": 843,
+    "failedSamples": 0,
+    "readP95Ms": 524.8961249999993,
+    "coreWriteP95Ms": 3014.422709000006,
+    "sameProcesses": true,
+    "unchanged": true,
+    "moneyHistoryAuditsReconciled": true
+  },
+  "inspectorClosed": true,
+  "ownedCohortDestroyed": true,
+  "correction": "Reuse SHA256 only for byte-identical freshly read manifests within one HTTP invocation. Fresh files, artifact checks, Company/expiry/transaction checks remain authoritative; no cross-request cache.",
+  "verification": {
+    "native": 92,
+    "unit": 5,
+    "typecheck": true,
+    "architecture": true,
+    "redFailure": "memoizeSyncInRequest missing",
+    "sameRequestTamperedManifestDenied": true,
+    "sameRequestChangedAttestationDenied": true,
+    "sameRequestCompanyWithdrawalAndExpiryDenied": true
+  },
+  "remaining": [
+    "Fresh corrected release",
+    "Uninstrumented strict capacity",
+    "Final same-candidate native/security/browser/route checks",
+    "Mock pilot final reconciliation"
+  ]
+}

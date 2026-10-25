@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import type { WorkSummary } from "../../src/server/modules/work_projection/public/work-summary";
 import { projectWorkPage } from "../../src/lib/work-page";
+import { workAttention } from "../../src/lib/work-attention";
 import { selectFixtureAssignment } from "./helpers/select-fixture-assignment";
 import type { WorkItem } from "../../src/lib/work-item";
 
@@ -16,15 +17,21 @@ test.beforeEach(async ({ context, baseURL }) => {
 async function openTodayTools(page: Page) {
   const toggle = page.locator("#today-tools-toggle");
   const compact = await toggle.evaluate(el => getComputedStyle(el.parentElement!).display !== "none");
-  if (compact) { await expect(toggle).toBeVisible(); await toggle.click(); }
+  if (compact) {
+    await expect(toggle).toBeVisible(); await toggle.click();
+    const plan = page.getByRole("dialog", { name: "Plan my day", exact: true });
+    await expect(plan).toBeVisible();
+    await plan.getByRole("button", { name: "Close dialog", exact: true }).click();
+    await expect(plan).toBeHidden();
+  }
   else await expect(toggle).toBeHidden();
   await expect(page.getByRole("complementary", { name: "Today tools", exact: true })).toBeVisible();
 }
 async function refreshWork(page: Page) {
+  await expect(page.getByRole("button", { name: "New", exact: true })).toBeEnabled();
   const response = page.waitForResponse(r => new URL(r.url()).pathname === "/api/v1/holdings/acme/work/summary" && r.request().method() === "GET");
-  const other = await page.context().newPage();
-  try { await other.goto("about:blank"); await page.bringToFront(); expect((await response).ok()).toBe(true); }
-  finally { await other.close(); }
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  expect((await response).ok()).toBe(true);
 }
 
 for (const theme of ["light", "dark"] as const) {
@@ -69,7 +76,21 @@ test("priority cards distinguish blockers, overdue work and undated work", async
     const paged = new URL(route.request().url()).searchParams.get("paged") === "1";
     return route.fulfill({ json: { data: paged ? projectWorkPage(snapshot, { view: "actions", queue: "todo", type: "all", q: "", responsibility: "all" }) : snapshot } });
   });
+  const navigation = await context.request.get("/api/v1/holdings/acme/navigation?include=attention");
+  expect(navigation.ok()).toBe(true);
+  const navigationSnapshot = (await navigation.json()).data;
+  await page.route("**/api/v1/holdings/acme/navigation**", route => {
+    if (route.request().method() !== "GET") return route.continue();
+    return route.fulfill({ json: { data: { ...navigationSnapshot, work: items.length,
+      attention: workAttention(items), snapshotAt: Date.now() } } });
+  });
+  const readHome = page.waitForResponse(r => new URL(r.url()).pathname === "/api/v1/holdings/acme/navigation" && r.request().method() === "POST");
   await page.goto("/holdings/acme/home");
+  expect((await readHome).ok()).toBe(true);
+  const attentionRefresh = page.waitForResponse(r => new URL(r.url()).pathname === "/api/v1/holdings/acme/navigation" && r.request().method() === "GET");
+  const other = await context.newPage();
+  try { await other.goto("about:blank"); await page.bringToFront(); expect((await attentionRefresh).ok()).toBe(true); }
+  finally { await other.close(); }
   await openTodayTools(page);
   const priority = page.getByRole("region", { name: "Needs you", exact: true });
   await expect(priority.getByRole("heading")).toHaveText("Needs you 3");

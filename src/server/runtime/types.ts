@@ -18,7 +18,7 @@ export interface SqlDatabase {
   exec(sql: string): Promise<{ count: number; duration: number }>;
 }
 export interface TransactionalSqlDatabase extends SqlDatabase {
-  transaction<T>(action: (tx: SqlDatabase) => Promise<T>): Promise<T>;
+  transaction<T>(action: (tx: SqlDatabase) => Promise<T>,options?:{sessionLock:{namespace:string;key:string};preferIndexedReads?:boolean;pipelineBatches?:boolean}): Promise<T>;
 }
 /** Use capabilities across Next dev reloads, which can replace class identities. */
 export function isTransactionalSqlDatabase(

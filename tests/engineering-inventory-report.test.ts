@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import registry from "../src/data/module-registry.json";
+import registry from "../docs/archive/2026-10-03-engineering-inputs/module-registry.json";
 import receipt from "../docs/testing/evidence/2026-10-03-engineering-completion.json";
 import reviews from "../docs/status/capability-gate-reviews.json";
 import { validateEngineeringInventory, inventoryVerification } from "../src/lib/engineering-inventory-report";
@@ -9,7 +9,7 @@ import { reviewedCapabilityManifest } from "../src/data/capability-gate-reviews"
 
 const hash = (path: string) => createHash("sha256").update(readFileSync(path)).digest("hex");
 const validate = (value: unknown) => validateEngineeringInventory(value, registry,
-  hash("src/data/module-registry.json"), hash("docs/testing/engineering-scenarios.json"));
+  hash("docs/archive/2026-10-03-engineering-inputs/module-registry.json"), hash("docs/archive/2026-10-03-engineering-inputs/engineering-scenarios.json"));
 
 describe("dated engineering inventory", () => {
   it("requires exact capability coverage and does not accept aggregate counts alone", () => {

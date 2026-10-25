@@ -17,6 +17,8 @@ import { PDFDocument, StandardFonts } from "pdf-lib";
 import {seedFinanceExpansionRehearsal} from "../fixtures/finance/expansion";
 import {exportFinancialReport} from "../src/server/finance-planning";
 import {groupReportEditionExport} from "../src/server/finance-group-editions";
+import {pmsCommand,loadPms} from '../src/server/pms';
+import {pmsAccountKeys,records,record,type Config} from '../src/lib/pms';
 vi.mock("../src/server/runtime", () => ({runtimeEnv:async()=>env,holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES})}));
 // Immutable Legal recovery uses a declared scanner fixture. Compiled browser UAT
 // exercises the actual scanner/OCR binaries before production acceptance.
@@ -87,6 +89,66 @@ it("encrypts a complete isolated snapshot, restores immutable money and files, a
   const immutableCommandCounts=await env.H001_DB.prepare("SELECT (SELECT count(*) FROM legal_events WHERE item_id=?) history,(SELECT count(*) FROM command_receipts WHERE record_id=?) receipts,(SELECT count(*) FROM audit_events WHERE record_id=?) audit,(SELECT count(*) FROM outbox_events WHERE aggregate_id=?) outbox").bind(legal.id,legal.id,legal.id,legal.id).first();
   const financeRehearsal=await seedFinanceExpansionRehearsal(env.H001_DB,env.H001_FILES);
   expect(financeRehearsal.yearProfit).toBe(-112300);expect(financeRehearsal.reconciliation.ready).toBe(true);
+  // A real PMS command-owned fixture makes populated hotel recovery explicit.
+  const hotel = await seedExpenseCompany(env.H001_DB, env.H001_FILES);
+  const hotelOwner = hotel.owner;
+  const hotelFinanceReviewer = await hotel.member('recovery-hotel-finance', 'finance_approver');
+  const hotelInspector = await hotel.member('recovery-hotel-inspector', 'pms_supervisor');
+  const hotelPropertyId = (await pmsCommand(env.H001_DB, hotelOwner, {
+    operation: 'property.create', input: { name: 'Fictional recovery hotel', branchId: hotel.branch, businessDate: '2026-09-01' },
+  }, crypto.randomUUID())).id;
+  const hotelSnapshot = () => loadPms(env.H001_DB, hotelOwner, hotelPropertyId);
+  const hotelCommand = async (operation: string, input: unknown = {}, actor = hotelOwner) => {
+    const current = await hotelSnapshot();
+    return pmsCommand(env.H001_DB, actor, { operation, propertyId: hotelPropertyId, expectedVersion: current.property.version, input }, crypto.randomUUID());
+  };
+  const hotelAccounts = {} as Config['accounts'];
+  for (const [ordinal, account] of pmsAccountKeys.entries()) {
+    const id = crypto.randomUUID();
+    hotelAccounts[account] = id;
+    const category = ['revenue', 'service'].includes(account) ? 'revenue'
+      : ['advance', 'deposit', 'tax'].includes(account) ? 'liability'
+        : ['consumption', 'commission', 'cashDifference'].includes(account) ? 'expense' : 'asset';
+    await env.H001_DB.prepare("INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,created_at,updated_at) VALUES(?,?,?,?,?,?,'THB',1,1)")
+      .bind(id, hotel.chart, hotel.company, `RECOVERY-PMS-${ordinal}`, account, category).run();
+  }
+  await hotelCommand('accounting.save', { chartId: hotel.chart, accounts: hotelAccounts, taxBps: 700, serviceBps: 0, taxInclusive: false, advanceTax: true });
+  await hotelCommand('accounting.approve', {}, hotelFinanceReviewer);
+  const hotelTypeId = (await hotelCommand('room_type.save', { name: 'Recovery Standard', capacity: 2, amenities: 'Queen bed and shower' })).id;
+  const hotelRoomId = (await hotelCommand('room.save', { number: 'R-101', typeId: hotelTypeId, active: true })).id;
+  const hotelRateId = (await hotelCommand('rate.save', { name: 'Recovery Flexible', typeId: hotelTypeId, from: '2026-09-01', to: '2026-12-31', price: 10000 })).id;
+  await hotelCommand('property.enable');
+  const hotelGuestId = (await hotelCommand('guest.save', { name: 'Fictional recovery guest' })).id;
+  const hotelReservationId = (await hotelCommand('reservation.create', {
+    guestId: hotelGuestId, source: 'direct', rooms: [{ typeId: hotelTypeId, rateId: hotelRateId, arrival: '2026-09-01', departure: '2026-09-02', adults: 2, quantity: 1 }],
+  })).id;
+  const hotelStay = records(await hotelSnapshot(), 'stay').find(stay => stay.data.reservationId === hotelReservationId)!;
+  expect(hotelStay).toBeTruthy();
+  const hotelTaskId = (await hotelCommand('task.create', { roomId: hotelRoomId, type: 'arrival', date: '2026-09-01' })).id;
+  await hotelCommand('task.complete', { id: hotelTaskId, checked: record(await hotelSnapshot(), 'task', hotelTaskId).data.checklist });
+  await hotelCommand('task.inspect', { id: hotelTaskId }, hotelInspector);
+  await hotelCommand('stay.assign', { id: hotelStay.id, roomId: hotelRoomId });
+  await hotelCommand('stay.check_in', { id: hotelStay.id });
+  const hotelShiftId = (await hotelCommand('shift.open', { name: 'Recovery desk', opening: 0 })).id;
+  const hotelPaymentKey = crypto.randomUUID();
+  const hotelPaymentBody = { operation: 'payment.receive', propertyId: hotelPropertyId, expectedVersion: (await hotelSnapshot()).property.version,
+    input: { guestAccountId: hotelStay.data.guestAccountId, amount: 10700, method: 'cash', shiftId: hotelShiftId } };
+  const hotelPaymentResult = await pmsCommand(env.H001_DB, hotelOwner, hotelPaymentBody, hotelPaymentKey);
+  await hotelCommand('payment.deposit', { guestAccountId: hotelStay.data.guestAccountId, amount: 5000, method: 'cash', shiftId: hotelShiftId });
+  const hotelOriginal = await hotelSnapshot();
+  expect(record(hotelOriginal, 'stay', hotelStay.id).data.state).toBe('in_house');
+  expect(record(hotelOriginal, 'task', hotelTaskId).data.state).toBe('done');
+  expect(record(hotelOriginal, 'room', hotelRoomId).data.cleanliness).toBe('inspected');
+  const hotelDocuments = () => env.H001_DB.prepare('SELECT id,property_id,guest_account_id,kind,snapshot_json,created_at FROM pms_documents WHERE property_id=? ORDER BY id').bind(hotelPropertyId).all();
+  const hotelDocumentsBefore = (await hotelDocuments()).results;
+  expect(hotelDocumentsBefore.length).toBeGreaterThanOrEqual(2);
+  const hotelLedger = () => env.H001_DB.prepare('SELECT count(DISTINCT j.id)::int journals,COALESCE(SUM(l.debit_minor),0)::text debit,COALESCE(SUM(l.credit_minor),0)::text credit FROM finance_journals j JOIN finance_journal_lines l ON l.journal_id=j.id WHERE j.company_id=?').bind(hotel.company).first<{journals:number;debit:string;credit:string}>();
+  const hotelLedgerBefore = (await hotelLedger())!;
+  expect(hotelLedgerBefore.journals).toBeGreaterThan(0);
+  expect(hotelLedgerBefore.debit).toBe(hotelLedgerBefore.credit);
+  const hotelObjectKey = `recovery/${hotel.company}/${hotelReservationId}/confirmation.txt`;
+  const hotelFileBytes = `Fictional PMS recovery original: ${hotelReservationId}`;
+  await env.H001_FILES.put(hotelObjectKey, hotelFileBytes, { onlyIf: { etagDoesNotMatch: '*' } });
   const before = await tableDigests(), home = await mkdtemp(resolve(".runtime/tests/encrypted-recovery-"));
   try {
     for (const name of ["config","data/config","runtime","releases","offsite"])
@@ -151,9 +213,21 @@ it("encrypts a complete isolated snapshot, restores immutable money and files, a
     for(const holding of ["H002","H003"] as const)await env[`${holding}_DB`].prepare("UPDATE organization_nodes SET display_name='Changed after backup' WHERE id=?").bind(secondary[holding].companyId).run();
     for(const holding of ["h001","h002","h003"])await writeFile(join(home,"data/files",holding,"mutated-after-backup"),"Revision two");
     await writeFile(join(home,"data/files/mutated-after-backup"),"Revision two");
+    await env.H001_DB.prepare("UPDATE pms_properties SET name='Changed after backup',version=version+1 WHERE id=?").bind(hotelPropertyId).run();
+    await env.H001_DB.prepare("UPDATE pms_records SET data_json=jsonb_set(data_json::jsonb,'{name}','\"Changed after backup\"'::jsonb)::text,version=version+1 WHERE id=? AND kind='guest'").bind(hotelGuestId).run();
     await execute("python3",[...args,"restore",snapshot],{timeout:120_000});
     expect(await tableDigests()).toEqual(before);
     expect(await fileDigests(join(home,"data/files"))).toEqual(beforeFiles);
+    expect(await hotelSnapshot()).toEqual(hotelOriginal);
+    expect((await hotelDocuments()).results).toEqual(hotelDocumentsBefore);
+    expect(await hotelLedger()).toEqual(hotelLedgerBefore);
+    const restoredHotelFiles = new LocalFileStore(join(home,'data/files/h001'),env.H001_DB);
+    expect(await (await restoredHotelFiles.get(hotelObjectKey))!.text()).toBe(hotelFileBytes);
+    expect(await pmsCommand(env.H001_DB,hotelOwner,hotelPaymentBody,hotelPaymentKey)).toEqual(hotelPaymentResult);
+    expect(await hotelSnapshot()).toEqual(hotelOriginal);
+    expect((await hotelDocuments()).results).toEqual(hotelDocumentsBefore);
+    expect(await hotelLedger()).toEqual(hotelLedgerBefore);
+
     expect(await exportFinancialReport(financeRehearsal.preparer,financeRehearsal.snapshotId)).toEqual(financeRehearsal.reportExport);
     expect(await groupReportEditionExport(financeRehearsal.f.owner,financeRehearsal.groupId)).toEqual(financeRehearsal.groupExport);
     expect(await env.H001_DB.prepare("SELECT status FROM finance_billing_corrections WHERE id=?").bind(financeRehearsal.correctionId).first("status")).toBe("posted");
@@ -190,6 +264,7 @@ it("encrypts a complete isolated snapshot, restores immutable money and files, a
       softwareVersion:build.softwareVersion,compiledCandidate:Boolean(supplied),fileManifestSha256:build.fileManifestSha256??null,
       databaseCount:Object.keys(databases).length,tracks:Object.keys(tracks),holdingFileStores:3,allHoldingFilesSha256:hash(JSON.stringify(beforeFiles)),tableCount:Object.keys(before).length,tableDigestSha256:hash(JSON.stringify(before)),
       ciphertextSha256:hash(ciphertext),sourceBytesSha256:stored.etag,restored:true,compatibleRollback:true,incompatibleRollbackRejected:true,
+      pms:{propertyId:hotelPropertyId,reservationId:hotelReservationId,stayId:hotelStay.id,guestAccountId:hotelStay.data.guestAccountId,roomId:hotelRoomId,taskId:hotelTaskId,issuedDocuments:hotelDocumentsBefore.length,documentsSHA256:hash(JSON.stringify(hotelDocumentsBefore)),ledger:hotelLedgerBefore,privateFileSHA256:hash(hotelFileBytes),mutatedGuestAndHotelRestored:true,identicalPaymentReplay:true,originalPmsSnapshotRetained:true},
       ciphertextTamperingRejected:true,legal:legalRecovery,scope:"Isolated PostgreSQL18.6 and local FileStore; age encryption; no installed environment or external device"},null,2)+"\n",{mode:0o600});
   } finally { await rm(home,{recursive:true,force:true}); }
 },180_000);

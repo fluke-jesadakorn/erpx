@@ -49,7 +49,7 @@ test('My work views remain reachable through sidebar or mobile submenu', async (
   await expect(page.getByText('More views', { exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Search workspace', exact: true })).toBeEnabled();
   const mobile = testInfo.project.name === 'mobile';
-  for (const [view, label] of [['actions', 'My actions'], ['approvals', 'Approvals'], ['tracking', 'Tracking'], ['for-me', 'For me'], ['completed', 'Completed'], ['waiting', 'Waiting'], ['requests', 'My requests'], ['all', 'All work']]) {
+  for (const [view, label] of [['actions', 'My actions'], ['approvals', 'Approvals'], ['tracking', 'Tracking'], ['team', 'Team']]) {
     if (mobile) await page.getByRole('navigation', { name: 'Mobile navigation', exact: true }).getByRole('link', { name: /My work/ }).click();
     const submenu = mobile ? page.getByRole('dialog', { name: 'My work views', exact: true }) : page.locator('[aria-label="My work views"]');
     await submenu.getByRole('link', { name: label, exact: true }).click();
@@ -57,4 +57,24 @@ test('My work views remain reachable through sidebar or mobile submenu', async (
     await expect(page.locator('main h1')).toHaveText('My work');
     if (!mobile) await expect(submenu.getByRole('link', { name: label, exact: true })).toHaveAttribute('aria-current', 'page');
   }
+  // Concise navigation is the retained native contract; older views remain deep links.
+  if (mobile) await page.getByRole('navigation', { name: 'Mobile navigation', exact: true }).getByRole('link', { name: /My work/ }).click();
+  const submenu = mobile ? page.getByRole('dialog', { name: 'My work views', exact: true }) : page.locator('[aria-label="My work views"]');
+  await submenu.getByRole('link', { name: 'Tracking', exact: true }).click();
+  const filters = page.getByRole('navigation', { name: 'Tracking filters', exact: true });
+  for (const [tracking, label] of [['requests', 'My requests'], ['waiting', 'Waiting'], ['completed', 'Completed'], ['all', 'All tracking']]) {
+    await filters.getByRole('link', { name: label, exact: true }).click();
+    await expect(page).toHaveURL(url => url.searchParams.get('view') === 'tracking' && (url.searchParams.get('tracking') ?? 'all') === tracking);
+    await expect(filters.getByRole('link', { name: label, exact: true })).toHaveAttribute('aria-current', 'page');
+    await expect(page.locator('main h1')).toHaveText('My work');
+  }
+  for (const view of ['for-me', 'completed', 'waiting', 'requests', 'all']) {
+    await page.goto(`${base}/work?view=${view}`);
+    await expect(page).toHaveURL(url => url.searchParams.get('view') === view);
+    await expect(page.locator('main h1')).toHaveText('My work');
+  }
+  if (mobile) await page.getByRole('navigation', { name: 'Mobile navigation', exact: true }).getByRole('link', { name: /My work/ }).click();
+  await submenu.getByRole('link', { name: 'Work reports', exact: true }).click();
+  await expect(page).toHaveURL(`${base}/work/reports`);
+  await expect(page.locator('main h1')).toHaveText('Work reports');
 });

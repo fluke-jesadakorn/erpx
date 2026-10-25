@@ -14,7 +14,7 @@ export const orderSchema = z.object({
     rfqId: z.string().min(1).max(180).optional(),
     rfqVersion: z.number().int().positive().optional(),
     partyId: z.string().min(1),
-    warehouseId: z.string().min(1),
+    warehouseId: z.string().default(""),
     orderDate: z.iso.date(),
     dueDate: z.iso.date(),
     note: z.string().max(2000).default(""),
@@ -37,6 +37,7 @@ export const transitionSchema = z.object({
     reason: z.string().trim().max(1000).optional(),
 });
 export const fulfillmentSchema = z.object({
+    completionMode: z.enum(["goods", "service", "mixed"]).default("goods"),
     expectedVersion: z.number().int().positive(),
     attachmentSetIds: z.array(z.string().min(1)).max(10).default([]),
     date: z.iso.date(),
@@ -62,6 +63,8 @@ export const fulfillmentSchema = z.object({
         .max(20),
 });
 export const invoiceFromDeliverySchema = z.object({
+    useSalesDefaults: z.boolean().optional(),
+    additionalFulfillments: z.array(z.object({ id: z.string().min(1), expectedVersion: z.number().int().positive() })).max(20).optional(),
     matchId: z.string().min(1).optional(),
     matchVersion: z.number().int().positive().optional(),
     expectedVersion: z.number().int().positive(),
@@ -88,6 +91,7 @@ export const returnRequestSchema = z.object({
 export const returnDecisionSchema = z.object({ expectedVersion: z.number().int().positive(), reason: z.string().trim().min(3).max(500), attachmentSetIds: z.array(z.string().min(1)).max(10).optional() });
 export const returnCompleteSchema = z.object({ expectedVersion: z.number().int().positive(), fxGainAccountId: z.string().min(1).optional(), fxLossAccountId: z.string().min(1).optional() });
 export const productSchema = z.object({
+    itemType: z.enum(["stock", "service"]).default("stock"),
     sku: z.string().trim().min(2).max(40),
     name: z.string().trim().min(2).max(160),
     unit: z.string().trim().min(1).max(30).default("each"),
@@ -96,7 +100,7 @@ export const productSchema = z.object({
     taxBps: z.number().int().min(0).max(10000).default(0),
     status: z.enum(["active", "archived"]).default("active"),
     expectedVersion: z.number().int().positive().optional(),
-});
+}).refine(value => value.itemType !== "service" || value.trackingMode === "none", { message: "Services cannot use lot or serial tracking.", path: ["trackingMode"] });
 export const partyMasterSchema = z.object({
     kind: z.enum(["customer", "supplier"]),
     code: z.string().trim().min(2).max(40),

@@ -1,0 +1,67 @@
+{
+  "checkedAt": "2026-10-11T15:07:44.923253+00:00",
+  "candidate": {
+    "runtime": "ac53b636bb8e08700a3bace57c442d1ab211fc299e8110c21de2ba9ba2afd48f",
+    "verification": "2b5548f6a40109638ade47957d999315dcfe0579627aa5879abc537632f257ce",
+    "mainRuntime": "ac53b636bb8e08700a3bace57c442d1ab211fc299e8110c21de2ba9ba2afd48f",
+    "mainVerification": "2b5548f6a40109638ade47957d999315dcfe0579627aa5879abc537632f257ce",
+    "releaseDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.runtime/releases/2026-10-11T10-52-06-388Z",
+    "releaseId": "2026-10-11T10-52-06-388Z",
+    "sourceRecapturedAt": "2026-10-11T14:53:56.935Z"
+  },
+  "passed": true,
+  "originalUniqueCaseCountUnchanged": true,
+  "requiredCaseIdentity": {
+    "runner": "vitest",
+    "file": "tests/engineering-recovery.test.ts",
+    "title": "encrypts a complete isolated snapshot, restores immutable money and files, and rolls back only compatible releases",
+    "status": "passed"
+  },
+  "databaseCount": 8,
+  "fileStores": 3,
+  "tableCount": 2486,
+  "compiledCandidate": true,
+  "restored": true,
+  "compatibleRollback": true,
+  "incompatibleRollbackRejected": true,
+  "ciphertextTamperingRejected": true,
+  "pms": {
+    "propertyId": "property-4cb9fe42beb6d0512498b805e55e14f1",
+    "reservationId": "70c48ca0-f256-4d6a-bccb-ac968f3ca605",
+    "stayId": "0591ef7b-772b-4021-a8f7-fec6e2bc3161",
+    "guestAccountId": "f7fa1cea-a00f-4df0-aed2-6178b3b31d65",
+    "roomId": "3d79b36d-308c-4b65-9674-d550ff4801c0",
+    "taskId": "34e8aa57-3826-4693-b858-eb4ba98d9411",
+    "issuedDocuments": 2,
+    "documentsSHA256": "c64dba0a01b23069ebe927c1f4b0ac152fe524332d9c596c6d1846c9e68fe729",
+    "ledger": {
+      "journals": 3,
+      "debit": "16400",
+      "credit": "16400"
+    },
+    "privateFileSHA256": "2a684dce9dc0fb10cbee258100b079dc48f32c7ea04596aec3a9eaa414fc53d9",
+    "mutatedGuestAndHotelRestored": true,
+    "identicalPaymentReplay": true,
+    "originalPmsSnapshotRetained": true
+  },
+  "sourceFingerprintBeforeAfterIdentical": true,
+  "rawEvidence": ".scratch/dev/pms-sealed-ac53-gates-2026-10-11/compiled-recovery-2-raw/encrypted-recovery.json",
+  "rawSHA256": "e2e87c0682b7823d4db7b7b3c629c737c56bf6fcb6351ae80719f469b1cb3d2b",
+  "nativeCaseReceiptSHA256": "82736a83c9b72804409bb42718ef635a33f94f965b903ed1c9e03a7a2b47ab7f",
+  "scope": "Existing required recovery1 explicitly rerun on attested compiled ac53/2b candidate, not additional1343rd unique native case. No full browser/capacity/whole-plan acceptance inferred.",
+  "wholePlanAccepted": false,
+  "publishedAt": "2026-10-11T15:10:21.516067+00:00",
+  "currentAlignedCandidateAfterOwnerRepairSync": {
+    "runtime": "ac53b636bb8e08700a3bace57c442d1ab211fc299e8110c21de2ba9ba2afd48f",
+    "verification": "2b5548f6a40109638ade47957d999315dcfe0579627aa5879abc537632f257ce",
+    "mainRuntime": "ac53b636bb8e08700a3bace57c442d1ab211fc299e8110c21de2ba9ba2afd48f",
+    "mainVerification": "2b5548f6a40109638ade47957d999315dcfe0579627aa5879abc537632f257ce",
+    "releaseDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.runtime/releases/2026-10-11T10-52-06-388Z",
+    "releaseId": "2026-10-11T10-52-06-388Z",
+    "sourceRecapturedAt": "2026-10-11T14:53:56.935Z"
+  },
+  "privateSourceEvidence": {
+    "path": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/compiled-recovery-2-assertion-audit.json",
+    "SHA256": "4f822f687756c63b2334423fb0562e078ab0c2bd01e14588389625724a2f324a"
+  }
+}

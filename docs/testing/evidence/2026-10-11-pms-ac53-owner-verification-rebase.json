@@ -1,0 +1,27 @@
+{
+  "checkedAt": "2026-10-11T14:53:55.702930+00:00",
+  "file": "tests/e2e/demo-engineering-business.spec.ts",
+  "originalSHA256": "2a2f317cace96065b807be01bc190a3cbb970a44b872ca1c41f5ab403fe47976",
+  "copiedSHA256": "9445eba3c27a439e8160142981775cbc7fd8530f30cf843bd50da34c015f034d",
+  "acceptedOwnerRepairEvidence": "docs/testing/evidence/2026-10-11-pms-ac53-full-business-diagnostic-repair.json",
+  "originalBusinessAssertionsBudgetFixturePreservedByOwnerReverseProof": true,
+  "mainFileUntouched": true,
+  "candidateOnlySynchronization": true,
+  "applicationSourceChanged": false,
+  "scope": "Synchronize existing accepted drawer/readiness/value-guard correction after actual full interruption/owned cleanup and explicit owner/peer existing-PMS handoff. No new required case or product behavior change.",
+  "publishedAt": "2026-10-11T15:10:21.515720+00:00",
+  "currentAlignedCandidateAfterOwnerRepairSync": {
+    "runtime": "ac53b636bb8e08700a3bace57c442d1ab211fc299e8110c21de2ba9ba2afd48f",
+    "verification": "2b5548f6a40109638ade47957d999315dcfe0579627aa5879abc537632f257ce",
+    "mainRuntime": "ac53b636bb8e08700a3bace57c442d1ab211fc299e8110c21de2ba9ba2afd48f",
+    "mainVerification": "2b5548f6a40109638ade47957d999315dcfe0579627aa5879abc537632f257ce",
+    "releaseDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.runtime/releases/2026-10-11T10-52-06-388Z",
+    "releaseId": "2026-10-11T10-52-06-388Z",
+    "sourceRecapturedAt": "2026-10-11T14:53:56.935Z"
+  },
+  "privateSourceEvidence": {
+    "path": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/candidate-owner-e2e-repair-synchronization.json",
+    "SHA256": "59294167583917713cf57b5933031ab631378606bd2e67954ce82fdd5cbe02da"
+  },
+  "wholePlanAccepted": false
+}

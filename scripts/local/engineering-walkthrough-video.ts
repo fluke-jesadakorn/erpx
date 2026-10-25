@@ -21,7 +21,7 @@ const groups:Array<{label:string;pattern:RegExp}>=[
  {label:'Field Service · customer confirmation and collection',pattern:/customer visit captures confirmation/},
  {label:'E-commerce and Quality · fulfillment and return',pattern:/checks out immutable online prices/},
  {label:'Retail POS · controlled refund and cash session',pattern:/counted retail stock collects cash/},
- {label:'Restaurant and Hotel · room charge',pattern:/room charge.*(?:posted|folio|Finance)|(?:posts|routes).*room charge/i},
+ {label:'Restaurant and Hotel · room charge',pattern:/room charge.*(?:posted|guestAccount|Finance)|(?:posts|routes).*room charge/i},
  {label:'Operations · independently published exception policy',pattern:/Workplace queue uses independently/},
  {label:'Agents · approved policy and human review',pattern:/reviewed field proposal needs human/},
  {label:'Brand · publication and retained identity',pattern:/Brand publishes independently/},

@@ -15,7 +15,7 @@ import { workResponsibilities, workTypes, workViews } from "@/lib/work-item";
 import type { WorkPageSummary } from "@/server/modules/work_projection/public/work-summary";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigationCounts } from "./navigation-counts";
+import { useNavigationState } from "./navigation-counts";
 import { NewWork } from "./new-work";
 import { WorkList } from "./work-list";
 import { ForMe } from "./for-me";
@@ -43,7 +43,7 @@ export function WorkDashboard({
   responsibility: string;
   current: string;
 }) {
-  const { publishWork, shortcutStorageKey } = useNavigationCounts();
+  const { publishWork, shortcutStorageKey } = useNavigationState();
   useEffect(() => {
     if (!shortcutStorageKey) return;
     const key = `erpx:work-position:${shortcutStorageKey}:${base}:${current}`;
@@ -274,7 +274,7 @@ export function WorkDashboard({
                 {(q || type !== "all" || responsibility !== "all") && (
                   <UiActionLink appearance="standard"
                     variant="ghost"
-                    href={`?${view === "legacy" ? "queue=" + queue : "view=" + view}`}
+                    href={`?${view === "legacy" ? "queue=" + queue : "view=" + view}${view === "tracking" && tracking !== "all" ? "&tracking=" + tracking : ""}`}
                   >
                     Clear filters
                   </UiActionLink>

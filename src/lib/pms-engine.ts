@@ -3,7 +3,7 @@ import { dailyRoomReport, readiness, nightBlockers } from "./pms-read";
 export { dailyRoomReport, readiness, nightBlockers } from "./pms-read";
 import { PmsError } from "./pms-error";
 export { PmsError } from "./pms-error";
-import { availability } from "./pms-inventory-domain";
+import { availability, groupPickupCount, stayGroupAllowance } from "./pms-inventory-domain";
 export { availability } from "./pms-inventory-domain";
 import {
   nightlyPrices,
@@ -68,7 +68,7 @@ export type Effects = {
   documents: Array<{
     id: string;
     kind: "invoice" | "receipt" | "refund" | "credit_note";
-    folioId: string;
+    guestAccountId: string;
     entryId?: string;
     amount: number;
   }>;
@@ -160,9 +160,9 @@ export function executePms(
     { account: debit, debit: n, credit: 0 },
     { account: credit, debit: 0, credit: n },
   ];
-  function entry(folioId: string, values: Partial<Entry>) {
+  function entry(guestAccountId: string, values: Partial<Entry>) {
     return add("entry", {
-      folioId,
+      guestAccountId,
       stayId: "",
       date: p.businessDate,
       kind: "charge",
@@ -181,30 +181,30 @@ export function executePms(
       ...values,
     });
   }
-  function openFolio(id: string) {
-    const f = get("folio", id);
+  function openGuestAccount(id: string) {
+    const f = get("guest_account", id);
     need(
       f.data.state === "open" || f.data.state === "credit",
-      "PMS_FOLIO_CLOSED",
+      "PMS_GUEST_ACCOUNT_CLOSED",
       "The bill is closed",
     );
     return f;
   }
-  function noRefund(folioId: string) {
+  function noRefund(guestAccountId: string) {
     need(
-      !(get("folio", folioId).data.refundReserved ?? 0) && !(get("folio", folioId).data.depositRefundReserved ?? 0) &&
+      !(get("guest_account", guestAccountId).data.refundReserved ?? 0) && !(get("guest_account", guestAccountId).data.depositRefundReserved ?? 0) &&
       !records(s, "refund").some(
         (r) =>
-          r.data.folioId === folioId &&
+          r.data.guestAccountId === guestAccountId &&
           ["requested", "approved"].includes(r.data.state),
       ),
       "PMS_REFUND_PENDING",
       "Complete pending refunds first",
     );
   }
-  function funding(folioId: string, pocket: "advance" | "deposit", n: number) {
+  function funding(guestAccountId: string, pocket: "advance" | "deposit", n: number) {
     const result: Array<{ entryId: string; amount: number }> = [];
-    for(const source of availableReceiptSources(s,folioId,pocket)){
+    for(const source of availableReceiptSources(s,guestAccountId,pocket)){
       const take=Math.min(n,source.amount);if(take>0){result.push({entryId:source.entryId,amount:take});n-=take;}if(!n)break;
     }
     need(
@@ -225,7 +225,7 @@ export function executePms(
     );
     return r;
   }
-  function allocate(f: PmsRecord<"folio">) {
+  function allocate(f: PmsRecord<"guest_account">) {
     const a = Math.min(f.data.due, Math.max(0, f.data.advance - (f.data.refundReserved ?? 0)));
     if (!a) return;
     const tax =
@@ -249,7 +249,7 @@ export function executePms(
     touch(f);
   }
   function charge(
-    folioId: string,
+    guestAccountId: string,
     values: {
       description: string;
       net: number;
@@ -261,8 +261,8 @@ export function executePms(
       cancellationFee?:boolean;
     },
   ) {
-    const f = openFolio(folioId);
-    noRefund(folioId);
+    const f = openGuestAccount(guestAccountId);
+    noRefund(guestAccountId);
     const prior = values.sourceKey
       ? records(s, "entry").find((r) => r.data.sourceKey === values.sourceKey)
       : null;
@@ -277,7 +277,7 @@ export function executePms(
       "PMS_ZERO_CHARGE",
       "The charge must be greater than zero",
     );
-    const e = entry(folioId, { ...values, date: p.businessDate });
+    const e = entry(guestAccountId, { ...values, date: p.businessDate });
     post(e.id, "charge", [
       { account: "receivable", debit: values.total, credit: 0 },
       { account: values.cancellationFee?"cancellationFee":"revenue", debit: 0, credit: values.net },
@@ -291,8 +291,8 @@ export function executePms(
       effects.sources.push({ key: values.sourceKey, id: e.id });
     return e;
   }
-  function folio(guestId: string, reservationId: string, name: string) {
-    return add("folio", {
+  function guestAccount(guestId: string, reservationId: string, name: string) {
+    return add("guest_account", {
       guestId,
       reservationId,
       name,
@@ -385,12 +385,15 @@ export function executePms(
     excludeStay = "",
     groupId = "",
   ) {
-    for (const date of dates(from, to))
+    for (const date of dates(from, to)) {
+      const allowance = excludeStay && !groupId ? stayGroupAllowance(s, excludeStay, typeId, date) : null;
+      need(allowance !== 0, "PMS_BLOCK_UNAVAILABLE", `Group quota is full on ${date}`);
       need(
-        availability(s, typeId, date, excludeStay, groupId).available > 0,
+        availability(s, typeId, date, excludeStay, groupId).available + (allowance ?? 0) > 0,
         "PMS_SOLD_OUT",
         `Not enough rooms on ${date}`,
       );
+    }
   }
   function checkRoom(
     id: string,
@@ -445,7 +448,7 @@ export function executePms(
   }
   function postNights(stay: PmsRecord<"stay">, before: string) {
     for (const price of stay.data.prices.filter((n) => n.date < before)) {
-      charge(stay.data.folioId, {
+      charge(stay.data.guestAccountId, {
         ...price,
         description: `Room charge ${price.date}`,
         stayId: stay.id,
@@ -457,7 +460,6 @@ export function executePms(
     for (const type of records(s, "room_type")) {
       const stays = records(s, "stay").filter(
         (r) =>
-          r.data.typeId === type.id &&
           ["reserved", "in_house"].includes(r.data.state),
       );
       const blocks = records(s, "block").filter(
@@ -773,14 +775,35 @@ export function executePms(
           nationality: textField.default(""),
           documentRef: textField.default(""),
           notes: textField.default(""),
+          preferredLanguage: z.string().trim().max(40).optional(),
+          roomPreference: z.string().trim().max(200).optional(),
         })
         .parse(input);
       if (v.id) {
         const r = get("guest", v.id);
-        r.data = v;
+        r.data = {...r.data,...v};
         touch(r);
         resultId = r.id;
       } else resultId = add("guest", v).id;
+      break;
+    }
+    case "guest.service_request": {
+      const v = z.object({ guestId: idField, requestId: idField.optional(), text: z.string().trim().min(1).max(500), state: z.enum(["open", "completed", "cancelled"]).default("open") }).parse(input);
+      const guest = get("guest", v.guestId);
+      const requests = guest.data.serviceRequests ?? [];
+      if (v.requestId) {
+        const request = requests.find(row => row.id === v.requestId);
+        need(request, "PMS_REQUEST_NOT_FOUND", "Service request not found for this guest");
+        need(request.state === "open", "PMS_REQUEST_CLOSED", "Closed requests cannot be rewritten");
+        Object.assign(request, { text: v.text, state: v.state, updatedAt: now, updatedBy: user });
+        resultId = request.id;
+      } else {
+        need(v.state === "open", "PMS_REQUEST_INVALID_STATE", "New service requests start open");
+        need(requests.length < 100, "PMS_REQUEST_LIMIT", "Export and review this guest's requests before adding more");
+        const request = { id: uuid(), text: v.text, state: v.state, createdAt: now, createdBy: user, updatedAt: now, updatedBy: user };
+        requests.push(request); resultId = request.id;
+      }
+      guest.data.serviceRequests = requests; touch(guest);
       break;
     }
     case "reservation.create": {
@@ -859,12 +882,14 @@ export function executePms(
           if (block)
             need(
               block.data.kind === "group" &&
+                !block.data.bookingChangeId &&
                 block.data.state === "active" &&
                 block.data.releaseDate > p.businessDate &&
                 block.data.typeId === line.typeId &&
                 line.arrival >= block.data.from &&
                 line.departure <= block.data.to &&
-                block.data.pickedStayIds.length < block.data.quantity,
+                dates(line.arrival, line.departure).every(date =>
+                  groupPickupCount(s, block.id, date) < block.data.quantity),
               "PMS_BLOCK_UNAVAILABLE",
               "Group quota is unavailable or full",
             );
@@ -875,7 +900,7 @@ export function executePms(
             "",
             v.blockId,
           );
-          const f = folio(v.guestId, res.id, `${res.data.number} · ${i + 1}`);
+          const f = guestAccount(v.guestId, res.id, `${res.data.number} · ${i + 1}`);
           const stay = add("stay", {
             reservationId: res.id,
             guestId: v.guestId,
@@ -887,7 +912,7 @@ export function executePms(
             adults: line.adults,
             childAges: line.childAges,
             state: "reserved",
-            folioId: f.id,
+            guestAccountId: f.id,
             prices: nightly,
             segments: [],
             bookingPolicy: quoted.lines.find(x => x.rateId === line.rateId&&x.arrival===line.arrival&&x.departure===line.departure)!.policy,
@@ -939,9 +964,9 @@ export function executePms(
     case "block.release": {
       const r = get("block", ref.parse(input).id);
       need(
-        r.data.kind === "group",
+        r.data.kind === "group" && !r.data.bookingChangeId,
         "PMS_BLOCK_TYPE",
-        "Use the inspection workflow for a maintenance room",
+        "Only ordinary group allotments can be released here",
       );
       r.data.state = "released";
       touch(r);
@@ -975,7 +1000,7 @@ export function executePms(
         );
       if (v.fee) {
         need(c.bookingFees?.approvedBy,"PMS_FEE_ACCOUNT_REQUIRED","Finance must approve separate cancellation and no-show fee accounting");
-        charge(stays[0].data.folioId, {
+        charge(stays[0].data.guestAccountId, {
           cancellationFee:true,
           ...amounts(v.fee, c),
           description: `Fee ${v.reason}`,
@@ -1010,7 +1035,7 @@ export function executePms(
         );
       if (v.fee) {
         need(c.bookingFees?.approvedBy,"PMS_FEE_ACCOUNT_REQUIRED","Finance must approve separate cancellation and no-show fee accounting");
-        charge(r.data.folioId, { ...amounts(v.fee, c), cancellationFee:true, description: v.reason });
+        charge(r.data.guestAccountId, { ...amounts(v.fee, c), cancellationFee:true, description: v.reason });
       }
       r.data.state = op === "stay.no_show" ? "no_show" : "cancelled";
       touch(r);
@@ -1078,6 +1103,39 @@ export function executePms(
       resultId = r.id;
       break;
     }
+    case "stay.upgrade": {
+      const v = z.object({ id: idField, roomId: idField, rateId: idField, reason }).parse(input);
+      const r = get("stay", v.id), from = p.businessDate;
+      need(r.data.state === "in_house", "PMS_ALREADY_CHECKED_IN", "Upgrade an in-house stay");
+      need(r.data.departure > from, "PMS_DEPARTURE_DUE", "Use checkout for a departure today");
+      const account = openGuestAccount(r.data.guestAccountId);
+      need(!account.data.invoiceId, "PMS_GUEST_ACCOUNT_CLOSED", "Route future charges to an unissued bill before upgrading");
+      need(!records(s, "entry").some(entry => entry.data.stayId === r.id &&
+        entry.data.sourceKey.startsWith(`night:${r.id}:`) &&
+        entry.data.sourceKey.slice(`night:${r.id}:`.length) >= from),
+        "PMS_ROOM_CHARGE_POSTED", "Review posted room charges before repricing these nights");
+      const target = get("room", v.roomId);
+      need(target.data.typeId !== r.data.typeId, "PMS_ROOM_TYPE", "Use Move room within the same room type");
+      checkRoom(target.id, r.id, target.data.typeId, from, r.data.departure, true);
+      checkCapacity(target.data.typeId, from, r.data.departure, r.id);
+      const replacement = prices(v.rateId, target.data.typeId, from, r.data.departure, r.data.adults, r.data.childAges);
+      const previous = { typeId: r.data.typeId, rateId: r.data.rateId, roomId: r.data.roomId };
+      const periods = r.data.roomTypePeriods ?? [{ typeId: previous.typeId, from: r.data.arrival, to: r.data.departure }];
+      r.data.roomTypePeriods = periods.filter(period => period.from < from)
+        .map(period => ({ ...period, to: period.to > from ? from : period.to }));
+      r.data.roomTypePeriods.push({ typeId: target.data.typeId, from, to: r.data.departure });
+      r.data.prices = [...r.data.prices.filter(night => night.date < from), ...replacement];
+      r.data.segments = r.data.segments.filter(segment => segment.from < from)
+        .map(segment => ({ ...segment, to: segment.to > from ? from : segment.to }));
+      r.data.segments.push({ roomId: target.id, from, to: r.data.departure });
+      (r.data.upgrades ??= []).push({ effectiveDate: from, at: now, actorId: user, reason: v.reason,
+        fromRoomId: previous.roomId, toRoomId: target.id, fromTypeId: previous.typeId,
+        toTypeId: target.data.typeId, fromRateId: previous.rateId, toRateId: v.rateId });
+      r.data.typeId = target.data.typeId; r.data.rateId = v.rateId; r.data.roomId = target.id;
+      if (previous.roomId) { dirty(get("room", previous.roomId)); task(previous.roomId, "departure", r.id); }
+      touch(r); reconcileCapacity(); resultId = r.id;
+      break;
+    }
     case "stay.guest": {
       const v = z.object({ id: idField, guestId: idField }).parse(input),
         r = get("stay", v.id);
@@ -1092,10 +1150,10 @@ export function executePms(
       resultId = r.id;
       break;
     }
-    case "stay.route_folio": {
-      const v = z.object({ id: idField, folioId: idField }).parse(input),
+    case "stay.route_guest_account": {
+      const v = z.object({ id: idField, guestAccountId: idField }).parse(input),
         r = get("stay", v.id),
-        f = openFolio(v.folioId);
+        f = openGuestAccount(v.guestAccountId);
       need(
         ["reserved", "in_house"].includes(r.data.state) &&
           r.data.reservationId === f.data.reservationId &&
@@ -1103,7 +1161,7 @@ export function executePms(
         "PMS_ROUTING_INVALID",
         "Select an open bill in the same booking",
       );
-      r.data.folioId = f.id;
+      r.data.guestAccountId = f.id;
       touch(r);
       resultId = r.id;
       break;
@@ -1177,6 +1235,12 @@ export function executePms(
           : []),
         ...replacement,
       ];
+      if (r.data.roomTypePeriods) {
+        r.data.roomTypePeriods = r.data.state === "in_house"
+          ? r.data.roomTypePeriods.filter(period => period.from < from)
+            .map(period => ({ ...period, to: period.to > from ? from : period.to })) : [];
+        r.data.roomTypePeriods.push({ typeId: r.data.typeId, from, to: v.departure });
+      }
       r.data.arrival = v.arrival;
       r.data.departure = v.departure;
       r.data.rateId = v.rateId;
@@ -1198,7 +1262,7 @@ export function executePms(
       const replacement = v.nightPrices;
       need(JSON.stringify(replacement.map(n=>n.date)) === JSON.stringify(dates(v.room.arrival,v.room.departure)) && replacement.every(n=>n.net+n.service+n.tax===n.total), "PMS_PRICE_SNAPSHOT_REQUIRED", "Retain the accepted nightly quote");
       checkCapacity(v.room.typeId, v.room.arrival, v.room.departure, r.id);
-      Object.assign(r.data, { ...v.room, prices: replacement, roomId: "", segments: [], bookingPolicy: v.policy });
+      Object.assign(r.data, { ...v.room, prices: replacement, roomId: "", segments: [], roomTypePeriods: undefined, bookingPolicy: v.policy });
       touch(r); reconcileCapacity(); resultId = r.id;
       break;
     }
@@ -1206,11 +1270,11 @@ export function executePms(
       need(user==="guest:self-service"||user==="system:stripe","PMS_PROVIDER_AUTHORITY","Booking revision service required");
       const v=z.object({stayId:idField,amount,reference:textField}).parse(input),st=get("stay",v.stayId),policy=st.data.bookingPolicy??get("reservation",st.data.reservationId).data.bookingPolicy;
       need(c.bookingFees?.approvedBy&&st.data.state==="reserved","PMS_FEE_ACCOUNT_REQUIRED","Finance must approve separate cancellation fee accounting");
-      const e=charge(st.data.folioId,{...amounts(v.amount,{taxInclusive:true,serviceBps:0,taxBps:policy?.feeTaxBps??c.taxBps}),description:"Cancellation fee",cancellationFee:true,sourceKey:`cancellation-fee:${st.id}:${v.reference}`});resultId=e.id;break;
+      const e=charge(st.data.guestAccountId,{...amounts(v.amount,{taxInclusive:true,serviceBps:0,taxBps:policy?.feeTaxBps??c.taxBps}),description:"Cancellation fee",cancellationFee:true,sourceKey:`cancellation-fee:${st.id}:${v.reference}`});resultId=e.id;break;
     }
     case "payment.refund_reserve": {
       need(user === "system:stripe", "PMS_PROVIDER_AUTHORITY", "Provider refund service required");
-      const v = z.object({ folioId: idField, amount, pocket:z.enum(["advance","deposit"]).default("advance"), sourceEntryId:textField.default(""), release: z.boolean().default(false) }).parse(input), f = openFolio(v.folioId);
+      const v = z.object({ guestAccountId: idField, amount, pocket:z.enum(["advance","deposit"]).default("advance"), sourceEntryId:textField.default(""), release: z.boolean().default(false) }).parse(input), f = openGuestAccount(v.guestAccountId);
       const key=v.pocket==="advance"?"refundReserved":"depositRefundReserved",reserved = f.data[key] ?? 0;
       need(v.release ? reserved >= v.amount : f.data[v.pocket] - reserved >= v.amount, "PMS_REFUND_EXCEEDS_BALANCE", "Refund exceeds available room advance");
       if(v.sourceEntryId){
@@ -1224,7 +1288,7 @@ export function executePms(
     case "payment.refund_settle":
     case "payment.unallocated": {
       need(user === "system:stripe" && c.onlineAccounting?.approvedBy, "PMS_ONLINE_ACCOUNTING_REQUIRED", "Finance must approve online liability mappings");
-      const v = z.object({ folioId: idField, amount, reference: textField, sourceEntryId: textField.default(""), pocket:z.enum(["advance","deposit"]).default("advance") }).parse(input), f = op === "payment.refund_liability" ? openFolio(v.folioId) : get("folio",v.folioId);
+      const v = z.object({ guestAccountId: idField, amount, reference: textField, sourceEntryId: textField.default(""), pocket:z.enum(["advance","deposit"]).default("advance") }).parse(input), f = op === "payment.refund_liability" ? openGuestAccount(v.guestAccountId) : get("guest_account",v.guestAccountId);
       const e = entry(f.id, { kind: op === "payment.refund_settle" ? "refund" : "allocation", description: op, total: op === "payment.refund_settle" ? -v.amount : v.amount, method: "stripe", reference: v.reference, originalId: op === "payment.refund_settle" ? v.sourceEntryId : "", refundPocket: v.pocket, funding: v.sourceEntryId ? [{ entryId: v.sourceEntryId, amount: v.amount }] : [] });
       if (op === "payment.refund_liability") {
         const key=v.pocket==="advance"?"refundReserved":"depositRefundReserved";
@@ -1238,7 +1302,7 @@ export function executePms(
         post(e.id, "unallocated", [{ account: "edc", debit: v.amount, credit: 0 }, { account: "unallocated", debit: 0, credit: v.amount }]);
       } else {
         post(e.id, "refund", [{ account: v.sourceEntryId && get("entry",v.sourceEntryId).data.description !== "payment.unallocated" ? "refundPayable" : "unallocated", debit: v.amount, credit: 0 }, { account: "edc", debit: 0, credit: v.amount }]);
-        effects.documents.push({ id: uuid(), kind: "refund", folioId: f.id, entryId: e.id, amount: v.amount });
+        effects.documents.push({ id: uuid(), kind: "refund", guestAccountId: f.id, entryId: e.id, amount: v.amount });
       }
       touch(f); resultId = e.id; break;
     }
@@ -1258,11 +1322,11 @@ export function executePms(
           : p.businessDate;
       postNights(r, until);
       if (v.lateFee)
-        charge(r.data.folioId, {
+        charge(r.data.guestAccountId, {
           ...amounts(v.lateFee, c),
           description: `Late checkout ${v.reason}`,
         });
-      const f = openFolio(r.data.folioId);
+      const f = openGuestAccount(r.data.guestAccountId);
       need(
         f.data.due === 0 || f.data.state === "credit",
         "PMS_BALANCE_DUE",
@@ -1270,7 +1334,7 @@ export function executePms(
       );
       if (f.data.state === "credit") {
         const credit = get("credit", f.data.creditId!);
-        const exposure = records(s, "folio")
+        const exposure = records(s, "guest_account")
           .filter(
             (x) =>
               x.data.partyId === f.data.partyId && x.data.state === "credit",
@@ -1322,19 +1386,19 @@ export function executePms(
       resultId = r.id;
       break;
     }
-    case "folio.create": {
+    case "guest_account.create": {
       const v = z
         .object({ reservationId: idField, name: textField.min(1) })
         .parse(input);
       const r = get("reservation", v.reservationId);
-      resultId = folio(r.data.guestId, r.id, v.name).id;
+      resultId = guestAccount(r.data.guestId, r.id, v.name).id;
       break;
     }
     case "charge.add": {
       const v = z
-        .object({ folioId: idField, price: amount, description: reason })
+        .object({ guestAccountId: idField, price: amount, description: reason })
         .parse(input);
-      resultId = charge(v.folioId, {
+      resultId = charge(v.guestAccountId, {
         ...amounts(v.price, c),
         description: v.description,
       }).id;
@@ -1342,7 +1406,7 @@ export function executePms(
     }
     case "charge.import_pos": {
       const v = z.object({
-        folioId: idField,
+        guestAccountId: idField,
         stayId: idField,
         sourceKey: textField.min(1),
         description: reason,
@@ -1353,7 +1417,7 @@ export function executePms(
       }).parse(input);
       need(v.net + v.service + v.tax === v.total,
         "PMS_CHARGE_TOTAL", "The service total does not match its components.");
-      resultId = charge(v.folioId, v).id;
+      resultId = charge(v.guestAccountId, v).id;
       break;
     }
     case "charge.reverse": {
@@ -1366,7 +1430,7 @@ export function executePms(
         "PMS_ALREADY_REVERSED",
         "This record cannot be reversed or has already been reversed",
       );
-      const f = get("folio", original.data.folioId);
+      const f = get("guest_account", original.data.guestAccountId);
       if (f.data.state === "closed") f.data.state = "open";
       noRefund(f.id);
       const e = entry(f.id, {
@@ -1398,20 +1462,20 @@ export function executePms(
       effects.documents.push({
         id: uuid(),
         kind: "credit_note",
-        folioId: f.id,
+        guestAccountId: f.id,
         entryId: e.id,
         amount: original.data.total,
       });
       resultId = e.id;
       break;
     }
-    case "folio.transfer": {
+    case "guest_account.transfer": {
       const v = z
-          .object({ entryId: idField, toFolioId: idField, reason })
+          .object({ entryId: idField, toGuestAccountId: idField, reason })
           .parse(input),
         e = get("entry", v.entryId),
-        from = openFolio(e.data.folioId),
-        to = openFolio(v.toFolioId);
+        from = openGuestAccount(e.data.guestAccountId),
+        to = openGuestAccount(v.toGuestAccountId);
       need(
         e.data.method!=="opening" && ["charge", "transfer"].includes(e.data.kind) &&
           e.data.total > 0 &&
@@ -1459,10 +1523,10 @@ export function executePms(
       resultId = a.id;
       break;
     }
-    case "folio.merge": {
-      const v = z.object({ id: idField, toFolioId: idField }).parse(input),
-        from = openFolio(v.id),
-        to = openFolio(v.toFolioId);
+    case "guest_account.merge": {
+      const v = z.object({ id: idField, toGuestAccountId: idField }).parse(input),
+        from = openGuestAccount(v.id),
+        to = openGuestAccount(v.toGuestAccountId);
       need(
         from.id !== to.id &&
           from.data.reservationId === to.data.reservationId &&
@@ -1474,15 +1538,15 @@ export function executePms(
       noRefund(from.id);
       noRefund(to.id);
       for (const e of records(s, "entry").filter(
-        (x) => x.data.folioId === from.id,
+        (x) => x.data.guestAccountId === from.id,
       )) {
-        e.data.folioId = to.id;
+        e.data.guestAccountId = to.id;
         touch(e);
       }
       for (const stay of records(s, "stay").filter(
-        (x) => x.data.folioId === from.id,
+        (x) => x.data.guestAccountId === from.id,
       )) {
-        stay.data.folioId = to.id;
+        stay.data.guestAccountId = to.id;
         touch(stay);
       }
       to.data.due += from.data.due;
@@ -1505,8 +1569,8 @@ export function executePms(
     case "payment.stripe":
     case "payment.stripe_deposit": {
       need(actor.userId === "system:stripe", "PMS_PROVIDER_AUTHORITY", "Only verified provider payments can use this operation");
-      const v = z.object({folioId:idField,amount,reference:textField.min(1)}).parse(input);
-      const f=openFolio(v.folioId);
+      const v = z.object({guestAccountId:idField,amount,reference:textField.min(1)}).parse(input);
+      const f=openGuestAccount(v.guestAccountId);
       noRefund(f.id);
       const security=op==='payment.stripe_deposit';
       const e=entry(f.id,{kind:security?"deposit":"payment",description:security?"PromptPay damage deposit":"PromptPay room payment",total:v.amount,method:"stripe",reference:v.reference});
@@ -1521,15 +1585,15 @@ export function executePms(
        allocate(f);
       }
       touch(f);
-      effects.documents.push({id:uuid(),kind:"receipt",folioId:f.id,entryId:e.id,amount:v.amount});
+      effects.documents.push({id:uuid(),kind:"receipt",guestAccountId:f.id,entryId:e.id,amount:v.amount});
       resultId=e.id;
       break;
     }
     case "payment.stripe_refund":
     case "payment.stripe_deposit_refund": {
       need(actor.userId === "system:stripe", "PMS_PROVIDER_AUTHORITY", "Only verified provider refunds can use this operation");
-      const v=z.object({folioId:idField,amount,reference:textField.min(1),reason}).parse(input);
-      const f=openFolio(v.folioId);
+      const v=z.object({guestAccountId:idField,amount,reference:textField.min(1),reason}).parse(input);
+      const f=openGuestAccount(v.guestAccountId);
       const pocket=op==='payment.stripe_deposit_refund'?'deposit':'advance';
       need(v.amount<=f.data[pocket],"PMS_REFUND_EXCEEDS_BALANCE","Refund exceeds the remaining balance");
       const sources=funding(f.id,pocket,v.amount);
@@ -1541,7 +1605,7 @@ export function executePms(
        f.data.advanceTax-=tax;
       }
       f.data[pocket]-=v.amount;touch(f);
-      effects.documents.push({id:uuid(),kind:"refund",folioId:f.id,entryId:e.id,amount:v.amount});
+      effects.documents.push({id:uuid(),kind:"refund",guestAccountId:f.id,entryId:e.id,amount:v.amount});
       resultId=e.id;
       break;
     }
@@ -1549,7 +1613,7 @@ export function executePms(
     case "payment.deposit": {
       const v = z
         .object({
-          folioId: idField,
+          guestAccountId: idField,
           amount,
           method,
           reference: textField.default(""),
@@ -1561,7 +1625,7 @@ export function executePms(
         "PMS_REFERENCE_REQUIRED",
         "Enter the transfer or EDC reference",
       );
-      const f = openFolio(v.folioId),
+      const f = openGuestAccount(v.guestAccountId),
         sh = v.method === "transfer" && actor.verifiedBank ? get("shift", v.shiftId) : shift(v.shiftId);
       noRefund(f.id);
       const security = op === "payment.deposit";
@@ -1599,7 +1663,7 @@ export function executePms(
       effects.documents.push({
         id: uuid(),
         kind: "receipt",
-        folioId: f.id,
+        guestAccountId: f.id,
         entryId: e.id,
         amount: v.amount,
       });
@@ -1607,8 +1671,8 @@ export function executePms(
       break;
     }
     case "payment.apply_deposit": {
-      const v = z.object({ folioId: idField, amount, reason }).parse(input),
-        f = openFolio(v.folioId);
+      const v = z.object({ guestAccountId: idField, amount, reason }).parse(input),
+        f = openGuestAccount(v.guestAccountId);
       noRefund(f.id);
       need(
         v.amount <= f.data.deposit - (f.data.depositRefundReserved ?? 0) && v.amount <= f.data.due,
@@ -1633,13 +1697,13 @@ export function executePms(
     case "refund.request": {
       const v = z
           .object({
-            folioId: idField,
+            guestAccountId: idField,
             amount,
             pocket: z.enum(["advance", "deposit"]),
             reason,
           })
           .parse(input),
-        f = openFolio(v.folioId);
+        f = openGuestAccount(v.guestAccountId);
       noRefund(f.id);
       need(
         v.amount <= f.data[v.pocket],
@@ -1688,7 +1752,7 @@ export function executePms(
         "PMS_REFERENCE_REQUIRED",
         "Enter the refund reference",
       );
-      const f = openFolio(r.data.folioId),
+      const f = openGuestAccount(r.data.guestAccountId),
         sh = shift(v.shiftId),
         n = r.data.amount;
       need(
@@ -1744,7 +1808,7 @@ export function executePms(
       effects.documents.push({
         id: uuid(),
         kind: "refund",
-        folioId: f.id,
+        guestAccountId: f.id,
         entryId: e.id,
         amount: n,
       });
@@ -1781,16 +1845,16 @@ export function executePms(
       resultId = r.id;
       break;
     }
-    case "folio.credit": {
+    case "guest_account.credit": {
       const v = z.object({ id: idField, creditId: idField }).parse(input),
-        f = openFolio(v.id),
+        f = openGuestAccount(v.id),
         credit = get("credit", v.creditId);
       need(
         credit.data.state === "approved",
         "PMS_CREDIT_NOT_APPROVED",
         "Credit has not been approved",
       );
-      const used = records(s, "folio")
+      const used = records(s, "guest_account")
         .filter(
           (x) =>
             x.id !== f.id &&
@@ -1813,7 +1877,7 @@ export function executePms(
     case "ota.settle": {
       const v = z
           .object({
-            folioId: idField,
+            guestAccountId: idField,
             gross: amount,
             commission: moneyField,
             fees: moneyField,
@@ -1821,7 +1885,7 @@ export function executePms(
             shiftId: idField,
           })
           .parse(input),
-        f = openFolio(v.folioId);
+        f = openGuestAccount(v.guestAccountId);
       shift(v.shiftId);
       need(
         f.data.state === "credit" &&
@@ -1850,15 +1914,15 @@ export function executePms(
       effects.documents.push({
         id: uuid(),
         kind: "receipt",
-        folioId: f.id,
+        guestAccountId: f.id,
         entryId: e.id,
         amount: v.gross,
       });
       resultId = e.id;
       break;
     }
-    case "folio.close": {
-      const f = openFolio(ref.parse(input).id);
+    case "guest_account.close": {
+      const f = openGuestAccount(ref.parse(input).id);
       noRefund(f.id);
       need(
         (f.data.due === 0 || f.data.state === "credit") &&
@@ -1870,7 +1934,7 @@ export function executePms(
       need(
         !records(s, "stay").some(
           (r) =>
-            r.data.folioId === f.id &&
+            r.data.guestAccountId === f.id &&
             ["reserved", "in_house"].includes(r.data.state),
         ),
         "PMS_STAY_OPEN",
@@ -1894,11 +1958,11 @@ export function executePms(
       effects.documents.push({
         id: doc,
         kind: "invoice",
-        folioId: f.id,
+        guestAccountId: f.id,
         amount: records(s, "entry")
           .filter(
             (e) =>
-              e.data.folioId === f.id &&
+              e.data.guestAccountId === f.id &&
               ["charge", "adjustment", "transfer"].includes(e.data.kind),
           )
           .reduce((n, e) => n + e.data.total, 0),
@@ -2237,7 +2301,7 @@ export function executePms(
             itemId: idField,
             quantity: z.number().int().min(1).max(100000),
             roomId: textField.default(""),
-            folioId: textField.default(""),
+            guestAccountId: textField.default(""),
             reason: textField.default(""),
           })
           .parse(input),
@@ -2264,7 +2328,7 @@ export function executePms(
       });
       resultId = move.id;
       if (op === "minibar.charge") {
-        charge(v.folioId, {
+        charge(v.guestAccountId, {
           ...amounts(r.data.price * v.quantity, c),
           description: `${r.data.name} × ${v.quantity}`,
           sourceKey: `minibar:${move.id}`,
@@ -2472,7 +2536,7 @@ export function executePms(
       touch(target);
     }
   }
-  for (const f of records(s, "folio"))
+  for (const f of records(s, "guest_account"))
     need(
       [f.data.due, f.data.advance, f.data.advanceTax, f.data.deposit].every(
         (n) => Number.isSafeInteger(n) && n >= 0,

@@ -45,7 +45,7 @@ import { executeCommand } from "../src/server/commands";
 import { selectWorkRole } from "../src/server/work-role-store";
 import type { IamActor } from "../src/server/iam-context";
 import type { WorkContext } from "../src/server/authorization";
-import {workspaceCompaniesForAccount} from "../src/server/authorization";
+import {workspaceGrantsForAccount,workspaceCompaniesForAccount} from "../src/server/authorization";
 import { escalateAccessReviews } from "../src/server/iam-access-review-alerts";
 import { listStaffNotifications } from "../src/server/staff-notifications";
 import {
@@ -1308,4 +1308,165 @@ it("batch role definitions match individual reads and observe publication or sus
   await db.prepare("UPDATE iam_roles SET status='archived' WHERE id=? AND company_id=?").bind(custom.id,f.companyId).run();
   expect((await iamRoles(db,f.companyId,[custom.id])).has(custom.id)).toBe(false);
   expect(await iamRole(db,f.companyId,custom.id)).toBeNull();
+});
+
+it("reads fallback person aliases within one company and observes member suspension on the next authority read", async () => {
+  const f = await fixture(), alias = await f.user("employee"), otherCompany = key(), personId = key();
+  await db.prepare("INSERT INTO hr_people(id,company_id,legal_name,country_code,status,user_id,created_by,created_at,updated_at) VALUES(?,?,?,'TH','active',?,?,?,?)")
+    .bind(personId,f.companyId,"Authority snapshot person",f.employee.userId,f.owner.userId,now(),now()).run();
+  await db.prepare("INSERT INTO iam_members(company_id,user_id,principal_id,person_id,login_policy) VALUES(?,?,?,?,'local')")
+    .bind(f.companyId,alias.userId,`local:${alias.userId}`,personId).run();
+  // An identically referenced person in another company must not enlarge this authority.
+  await db.prepare("INSERT INTO iam_members(company_id,user_id,principal_id,person_id,login_policy) VALUES(?,?,?,?,'local')")
+    .bind(otherCompany,"foreign-principal","local:foreign-principal",personId).run();
+  const first = await loadIamAuthority(db,f.companyId,f.employee.userId,"employee");
+  expect(first.personId).toBe(personId);
+  expect(new Set(first.personUserIds)).toEqual(new Set([f.employee.userId,alias.userId]));
+  await db.prepare("INSERT INTO iam_members(company_id,user_id,principal_id,login_policy,status) VALUES(?,?,?,'local','suspended')")
+    .bind(f.companyId,f.employee.userId,`local:${f.employee.userId}`).run();
+  await expect(loadIamAuthority(db,f.companyId,f.employee.userId,"employee")).rejects.toMatchObject({code:"IDENTITY_SUSPENDED"});
+});
+
+
+it("reads current workspace grants with their published roles and observes revoke, node withdrawal and Company isolation afresh", async () => {
+  const f=await fixture(),other=await fixture(),branch=key(),grant=key(),clock=now();
+  await db.prepare("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id) VALUES(?,'branch',?,'Snapshot branch',?,?)").bind(branch,branch,f.companyId,f.companyId).run();
+  await db.prepare("INSERT INTO assignments(id,user_id,role,company_id,branch_id,scope_kind,scope_node_id,modules_json,valid_from,valid_until) VALUES(?,?,'employee',?,?,'branch',?,'[\"pms\"]',0,?)").bind(grant,f.employee.userId,f.companyId,branch,branch,clock+86400000).run();
+  const first=await workspaceGrantsForAccount(db,f.companyId,f.employee.userId,clock);
+  expect(first.rows.map(r=>r.id).sort()).toEqual([f.employee.assignmentId,grant].sort());
+  expect(first.rows.find(r=>r.id===grant)).toMatchObject({branch_id:branch,scope_kind:'branch',modules_json:'["pms"]',scope_name:'Snapshot branch'});
+  expect(first.roles).toEqual(await iamRoles(db,f.companyId,first.rows.map(r=>r.role)));
+  expect((await workspaceGrantsForAccount(db,other.companyId,f.employee.userId)).rows).toEqual([]);
+  await db.prepare("UPDATE organization_nodes SET status='archived' WHERE id=?").bind(branch).run();
+  expect((await workspaceGrantsForAccount(db,f.companyId,f.employee.userId)).rows.map(r=>r.id)).toEqual([f.employee.assignmentId]);
+  await db.prepare("UPDATE assignments SET revoked_at=? WHERE id=?").bind(now(),f.employee.assignmentId).run();
+  const revoked=await workspaceGrantsForAccount(db,f.companyId,f.employee.userId);
+  expect(revoked.rows).toEqual([]);expect(revoked.roles.size).toBe(0);
+});
+
+it("workspace grant definitions observe published role retirement without keeping prior authority", async () => {
+  const f=await fixture();
+  const proposal=await saveIamRole(db,f.owner,roleInput.parse({name:'Workspace snapshot role',expectedVersion:0,permissions:['finance.read','iam.self'],scopes:['holding'],reason:'Current published definitions'}),key());
+  await decideIamReview(db,f.reviewer,proposal.id,{expectedVersion:1,decision:'approve',reason:'Independent published role'},key());
+  const user=await f.user(proposal.roleId);
+  expect((await workspaceGrantsForAccount(db,f.companyId,user.userId)).roles.get(proposal.roleId)?.permissions).toContain('finance.read');
+  await db.prepare("UPDATE iam_roles SET status='archived' WHERE id=? AND company_id=?").bind(proposal.roleId,f.companyId).run();
+  const next=await workspaceGrantsForAccount(db,f.companyId,user.userId);
+  expect(next.rows).toHaveLength(1);expect(next.roles.has(proposal.roleId)).toBe(false);
+});
+
+
+it('reads Company-scoped session revocation afresh before any directory refresh',async()=>{
+ const {accountDirectoryGate}=await import('../src/server/iam-directory-refresh');
+ const f=await fixture(),other=await fixture(),session=key();
+ const initial=await accountDirectoryGate(db,f.companyId,f.employee.userId,session);
+ expect(initial.revoked).toBe(false);await initial.refresh();
+ await db.prepare('INSERT INTO iam_revoked_sessions(session_id,company_id,user_id,revoked_at) VALUES(?,?,?,?)').bind(session,other.companyId,f.employee.userId,now()).run();
+ expect((await accountDirectoryGate(db,f.companyId,f.employee.userId,session)).revoked).toBe(false);
+ await db.prepare('INSERT INTO iam_revoked_sessions(session_id,company_id,user_id,revoked_at) VALUES(?,?,?,?)').bind(session,f.companyId,f.employee.userId,now()).run();
+ const revoked=await accountDirectoryGate(db,f.companyId,f.employee.userId,session);
+ expect(revoked.revoked).toBe(true);await expect(revoked.refresh()).rejects.toMatchObject({code:'SESSION_REVOKED'});
+ expect((await accountDirectoryGate(db,f.companyId,f.employee.userId,key())).revoked).toBe(false);
+});
+
+it('refreshes only stale active directory evidence and never contacts it after session revocation',async()=>{
+ const {accountDirectoryGate}=await import('../src/server/iam-directory-refresh');
+ const directories=await import('../src/server/modules/identity_access/public/iam-directories');
+ const synchronize=vi.spyOn(directories,'synchronizeConnection').mockRejectedValue(new Error('mock directory outage'));
+ try {
+ const f=await fixture(),other=await fixture(),session=key();
+ const saved=await saveConnection(db,f.owner,connectionInput.parse({expectedVersion:0,name:'Readiness evidence',provider:'univention',config:{mode:'ldaps',secretProfile:'ucs',authority:'ucs.corp',ldapUrl:'ldaps://ucs.corp',baseDn:'dc=corp'}}),key());
+ await db.prepare("UPDATE iam_connections SET status='active' WHERE id=?").bind(saved.id).run();
+ const connection=await connectionById(db,f.companyId,saved.id);
+ await applyDirectorySnapshot(db,connection,{complete:true,groups:[],users:[{externalId:key(),username:'readiness',name:'Mock staff',email:null,enabled:true,groupIds:[]}]});
+ const identity=await db.prepare('SELECT id FROM iam_identities WHERE connection_id=?').bind(saved.id).first<{id:string}>();
+ await db.prepare('UPDATE iam_identities SET user_id=?,observed_at=? WHERE id=?').bind(f.employee.userId,now(),identity!.id).run();
+ await db.prepare("INSERT INTO iam_members(company_id,user_id,principal_id,login_policy,connection_id,identity_id) VALUES(?,?,?,'directory',?,?)").bind(f.companyId,f.employee.userId,key(),saved.id,identity!.id).run();
+ await (await accountDirectoryGate(db,f.companyId,f.employee.userId,session)).refresh();expect(synchronize).not.toHaveBeenCalled();
+ await db.prepare('UPDATE iam_identities SET observed_at=? WHERE id=?').bind(now()-300001,identity!.id).run();
+ await (await accountDirectoryGate(db,other.companyId,f.employee.userId,session)).refresh();expect(synchronize).not.toHaveBeenCalled();
+ const stale=await accountDirectoryGate(db,f.companyId,f.employee.userId,session);
+ await expect(stale.refresh()).rejects.toMatchObject({code:'DIRECTORY_ACCESS_UNAVAILABLE'});expect(synchronize).toHaveBeenCalledTimes(1);
+ expect(synchronize.mock.calls[0][1]).toMatchObject({id:saved.id,company_id:f.companyId,status:'active'});
+ await db.prepare('INSERT INTO iam_revoked_sessions(session_id,company_id,user_id,revoked_at) VALUES(?,?,?,?)').bind(session,f.companyId,f.employee.userId,now()).run();
+ const revoked=await accountDirectoryGate(db,f.companyId,f.employee.userId,session);
+ expect(revoked.revoked).toBe(true);await expect(revoked.refresh()).rejects.toMatchObject({code:'SESSION_REVOKED'});expect(synchronize).toHaveBeenCalledTimes(1);
+ } finally {synchronize.mockRestore();}
+});
+
+it('combines fresh session readiness with current published account grants in one PostgreSQL snapshot',async()=>{
+ const {accountDirectoryGate}=await import('../src/server/iam-directory-refresh');
+ const {measureReads}=await import('../src/server/runtime/read-metrics');
+ const f=await fixture(),other=await fixture(),session=key(),clock=now();
+ // Reflect lets the RED run exercise the original four-argument adapter before
+ // the optional internal projection exists; no fake database or authority.
+ const read=()=>measureReads(async()=>{
+  const gate=await Reflect.apply(accountDirectoryGate,undefined,[db,f.companyId,f.employee.userId,session,{includeAccountGrants:true,observedNow:clock}]);
+  await gate.refresh();return gate;
+ });
+ const first=await read();expect(first.metrics.queries).toBe(1);expect(first.result.revoked).toBe(false);
+ expect(first.result.accountGrants?.rows.map((r:{id:string})=>r.id)).toEqual([f.employee.assignmentId]);
+ expect(first.result.accountGrants!.roles).toEqual(await iamRoles(db,f.companyId,['employee']));
+ await db.prepare('INSERT INTO iam_revoked_sessions(session_id,company_id,user_id,revoked_at) VALUES(?,?,?,?)').bind(session,other.companyId,f.employee.userId,now()).run();
+ expect((await read()).result.accountGrants!.rows.map((r:{id:string})=>r.id)).toEqual([f.employee.assignmentId]);
+ await db.prepare('UPDATE assignments SET revoked_at=? WHERE id=?').bind(now(),f.employee.assignmentId).run();
+ const withdrawn=await read();expect(withdrawn.metrics.queries).toBe(1);expect(withdrawn.result.accountGrants!.rows).toEqual([]);expect(withdrawn.result.accountGrants!.roles.size).toBe(0);
+ await db.prepare('INSERT INTO iam_revoked_sessions(session_id,company_id,user_id,revoked_at) VALUES(?,?,?,?)').bind(session,f.companyId,f.employee.userId,now()).run();
+ const revoked=await Reflect.apply(accountDirectoryGate,undefined,[db,f.companyId,f.employee.userId,session,{includeAccountGrants:true,observedNow:clock}]);
+ expect(revoked.revoked).toBe(true);expect(revoked.accountGrants!.rows).toEqual([]);await expect(revoked.refresh()).rejects.toMatchObject({code:'SESSION_REVOKED'});
+});
+
+it('combined account authority observes node withdrawal, published role changes and suspended members without retaining prior grants',async()=>{
+ const {accountDirectoryGate}=await import('../src/server/iam-directory-refresh');
+ const f=await fixture(),other=await fixture(),session=key(),branch=key(),branchGrant=key();
+ const read=()=>accountDirectoryGate(db,f.companyId,f.employee.userId,session,{includeAccountGrants:true});
+ await db.prepare("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id) VALUES(?,'branch',?,'Current branch',?,?)").bind(branch,branch,f.companyId,f.companyId).run();
+ await db.prepare("INSERT INTO assignments(id,user_id,role,company_id,branch_id,scope_kind,scope_node_id,modules_json,valid_from,valid_until) VALUES(?,?,'employee',?,?,'branch',?,'[\"pms\"]',0,?)").bind(branchGrant,f.employee.userId,f.companyId,branch,branch,now()+86400000).run();
+ expect((await read()).accountGrants!.rows.map(r=>r.id).sort()).toEqual([f.employee.assignmentId,branchGrant].sort());
+ expect((await accountDirectoryGate(db,other.companyId,f.employee.userId,session,{includeAccountGrants:true})).accountGrants!.rows).toEqual([]);
+ await db.prepare("UPDATE organization_nodes SET status='archived' WHERE id=?").bind(branch).run();
+ expect((await read()).accountGrants!.rows.map(r=>r.id)).toEqual([f.employee.assignmentId]);
+ const reason='Independently reviewed current account snapshot role';
+ const first=await saveIamRole(db,f.owner,roleInput.parse({name:'Combined snapshot role',expectedVersion:0,permissions:['finance.read','iam.self'],scopes:['holding'],reason}),key());
+ await decideIamReview(db,f.reviewer,first.id,{expectedVersion:1,decision:'approve',reason},key());
+ const user=await f.user(first.roleId),customRead=()=>accountDirectoryGate(db,f.companyId,user.userId,session,{includeAccountGrants:true});
+ expect((await customRead()).accountGrants!.roles.get(first.roleId)?.permissions).toContain('finance.read');
+ const changed=await saveIamRole(db,f.owner,roleInput.parse({id:first.roleId,name:'Combined snapshot role',expectedVersion:1,permissions:['records.read','iam.self'],scopes:['holding'],reason}),key());
+ await decideIamReview(db,f.reviewer,changed.id,{expectedVersion:1,decision:'approve',reason},key());
+ const fresh=(await customRead()).accountGrants!;expect(fresh.roles.get(first.roleId)?.revision).toBe(2);expect(fresh.roles.get(first.roleId)?.permissions).not.toContain('finance.read');expect(fresh.roles.get(first.roleId)?.permissions).toContain('records.read');
+ await db.prepare("INSERT INTO iam_members(company_id,user_id,principal_id,login_policy,status) VALUES(?,?,?,'local','suspended')").bind(f.companyId,user.userId,`local:${user.userId}`).run();
+ expect((await customRead()).accountGrants!.rows).toEqual([]);
+ await expect(loadIamAuthority(db,f.companyId,user.userId,first.roleId,session)).rejects.toMatchObject({code:'IDENTITY_SUSPENDED'});
+});
+
+it('discards stale account grants and rereads after directory refresh while failing closed on outage, unchanged evidence and refresh-time revocation',async()=>{
+ const {accountDirectoryGate}=await import('../src/server/iam-directory-refresh');
+ const {measureReads}=await import('../src/server/runtime/read-metrics');
+ const directories=await import('../src/server/modules/identity_access/public/iam-directories');
+ const f=await fixture(),session=key();
+ const saved=await saveConnection(db,f.owner,connectionInput.parse({expectedVersion:0,name:'Combined refresh evidence',provider:'univention',config:{mode:'ldaps',secretProfile:'ucs',authority:'ucs.corp',ldapUrl:'ldaps://ucs.corp',baseDn:'dc=corp'}}),key());
+ await db.prepare("UPDATE iam_connections SET status='active' WHERE id=?").bind(saved.id).run();
+ const connection=await connectionById(db,f.companyId,saved.id);
+ await applyDirectorySnapshot(db,connection,{complete:true,groups:[],users:[{externalId:key(),username:'snapshot-refresh',name:'Mock staff',email:null,enabled:true,groupIds:[]}]});
+ const identity=(await db.prepare('SELECT id FROM iam_identities WHERE connection_id=?').bind(saved.id).first<{id:string}>())!;
+ const age=()=>db.prepare('UPDATE iam_identities SET user_id=?,observed_at=? WHERE id=?').bind(f.employee.userId,now()-300001,identity.id).run();await age();
+ await db.prepare("INSERT INTO iam_members(company_id,user_id,principal_id,login_policy,connection_id,identity_id) VALUES(?,?,?,'directory',?,?)").bind(f.companyId,f.employee.userId,key(),saved.id,identity.id).run();
+ let outcome:'updated'|'outage'|'unchanged'|'revoked'='updated';
+ const synchronize=vi.spyOn(directories,'synchronizeConnection').mockImplementation(async()=>{
+  if(outcome==='outage')throw new Error('mock directory outage');
+  if(outcome==='unchanged')return;
+  await db.prepare('UPDATE iam_identities SET observed_at=? WHERE id=?').bind(now(),identity.id).run();
+  if(outcome==='revoked')await db.prepare('INSERT INTO iam_revoked_sessions(session_id,company_id,user_id,revoked_at) VALUES(?,?,?,?)').bind(session,f.companyId,f.employee.userId,now()).run();
+  else await db.prepare("UPDATE assignments SET modules_json='[\"pms\",\"pos\"]' WHERE id=?").bind(f.employee.assignmentId).run();
+ });
+ const read=()=>accountDirectoryGate(db,f.companyId,f.employee.userId,session,{includeAccountGrants:true});
+ try{
+  const initial=await measureReads(read);expect(initial.metrics.queries).toBe(1);expect(initial.result.accountGrants!.rows).toEqual([]);expect(initial.result.accountGrants!.roles.size).toBe(0);
+  const refreshed=await measureReads(()=>initial.result.refresh());expect(refreshed.metrics.queries).toBe(3);
+  expect(initial.result.accountGrants!.rows.map(r=>r.id)).toEqual([f.employee.assignmentId]);expect(initial.result.accountGrants!.rows[0].modules_json).toBe('["pms","pos"]');
+  await age();outcome='outage';const failed=await read();await expect(failed.refresh()).rejects.toMatchObject({code:'DIRECTORY_ACCESS_UNAVAILABLE'});expect(failed.accountGrants!.rows).toEqual([]);
+  outcome='unchanged';const unchanged=await read();await expect(unchanged.refresh()).rejects.toMatchObject({code:'DIRECTORY_ACCESS_UNAVAILABLE'});expect(unchanged.accountGrants!.rows).toEqual([]);
+  outcome='revoked';const revokedDuring=await read();await expect(revokedDuring.refresh()).rejects.toMatchObject({code:'SESSION_REVOKED'});expect(revokedDuring.accountGrants!.rows).toEqual([]);
+  const alreadyRevoked=await read();expect(alreadyRevoked.revoked).toBe(true);await expect(alreadyRevoked.refresh()).rejects.toMatchObject({code:'SESSION_REVOKED'});expect(synchronize).toHaveBeenCalledTimes(4);
+ }finally{synchronize.mockRestore();}
 });

@@ -1,0 +1,44 @@
+{
+  "complete": false,
+  "wholePlanAcceptance": false,
+  "status": "All visual-hierarchy identities passed across staged diagnostics; fresh aggregate same-candidate acceptance remains pending",
+  "redReceipt": ".scratch/dev/test-suites/browser/2026-10-10T15-30-23-301Z/receipt.json",
+  "redReceiptSha256": "18d716f30efbaa715d7b4a2935f6eee60cabedc87e4a941321ea35b60830b2b9",
+  "cleanupFailures": [],
+  "diagnosis": "Extracted HomePriorities stopped applying the compact two-item preview retained in HEAD social-home.tsx. Domain workAttention still correctly returns up to three items and total count.",
+  "runtimeChange": "Restore items.slice(0,2) in HomePriorities only; preserve total, incomplete/error/loading state, sorting, authorization and full My work records.",
+  "testPolicy": "Original 2-item cardinality, 6 themes/width combinations, blocker/overdue/undated drill-through assertions unchanged.",
+  "releaseDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.runtime/releases/2026-10-10T15-51-20-202Z",
+  "runtime": "f7256784e3b4f93f08617ab04cbe4454a17fc8d5d33df83324c73d22d6e52bef",
+  "desktopLayoutPassedCases": 6,
+  "desktopPriorityDrillThroughPassedCases": 1,
+  "fixtureCorrection": "Mock both work summary and current navigation attention from the same three synthetic records. Await hydrated New control and dispatch the existing repo E2E focus event through the real refresh handler; headless bringToFront alone did not emit it. Close the normally opened Plan my day drawer before observing the Today rail. Preserve original preview, total, blocked, dated/undated and full drill-through assertions.",
+  "artifacts": [
+    {
+      "path": ".scratch/dev/test-suites/browser/2026-10-10T15-51-13-065Z/receipt.json",
+      "sha256": "2f75befbbe25f229315aff6708837a5d1789096a0d6958746a874b7646d5ec9e"
+    },
+    {
+      "path": ".scratch/dev/test-suites/browser/2026-10-10T16-07-56-164Z/b2b90af7beb4/result.json",
+      "sha256": "d44cc524c35b61b42776319991786ce7361a2877ff7250e2f621ba67f10d02c6"
+    },
+    {
+      "path": ".scratch/dev/test-suites/browser/2026-10-10T16-07-56-164Z/1b342ae5a4d3/result.json",
+      "sha256": "70c92cc6f06d9902de102afbbf417ed3f033517a284df51d907f9294d5cf4c4e"
+    },
+    {
+      "path": ".scratch/dev/test-suites/browser/2026-10-10T16-07-56-164Z/bff92bed0a0a/result.json",
+      "sha256": "57c7a3233dd887c7658999cbc5f7127d7107305771e3f249304e9f298c242159"
+    },
+    {
+      "path": ".scratch/dev/test-suites/browser/2026-10-10T16-07-56-164Z/00845ae7e884/result.json",
+      "sha256": "173b4c4ba3504913f0affea14db7740bc207a8732d62ad3825c14ce40fdae43b"
+    }
+  ],
+  "mobileLayoutPassedCases": 6,
+  "mobilePriorityDrillThroughPassedCases": 1,
+  "keyboardPassedProjects": [
+    "desktop",
+    "mobile"
+  ]
+}

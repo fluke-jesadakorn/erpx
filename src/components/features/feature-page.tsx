@@ -2,55 +2,22 @@
 import type { UiAppearance } from "@/components/ui/appearance";
 import { Button } from "@/components/ui/foundation";
 import {
-  createContext,
-  lazy,
-  Suspense,
   useContext,
   useState,
   type HTMLAttributes,
-  type ReactNode,
 } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Settings2 } from "lucide-react";
-import type { NavigationContext } from "@/lib/workplace-navigation";
 import { featureLocation, legacyWidgetTarget, isConfigurablePage } from "@/lib/page-layouts";
-import { productionPageCut, type PageCutEntry } from "@/lib/hospitality-page-cut";
-import { ComingSoonPage } from "@/components/workplace/coming-soon-page";
 import { GridLocation, PageDrawer } from "./widget-context";
+import { LayoutGrid } from "./layout-editor";
 export { FeatureWidget } from "./feature-widget";
 import styles from "./features.module.css";
 
-const LayoutGrid = lazy(() =>
-  import("./layout-editor").then((module) => ({ default: module.LayoutGrid })),
-);
-const Environment = createContext<NavigationContext>({
-  workspaceBase: "/account",
-  scopeKind: "platform",
-});
-export function useFeatureNavigation() {
-  return useContext(Environment);
-}
-export function FeatureEnvironment({
-  navigation,
-  children,
-  productionCatalogue,
-}: {
-  navigation: NavigationContext;
-  children: ReactNode;
-  productionCatalogue?: readonly PageCutEntry[];
-}) {
-  const pathname = usePathname(),
-    search = useSearchParams();
-  const cut =
-    productionCatalogue &&
-    productionPageCut(pathname, navigation.workspaceBase, search, productionCatalogue);
-  return (
-    <Environment value={navigation}>
-      {cut ? <ComingSoonPage entry={cut} base={navigation.workspaceBase} /> : children}
-    </Environment>
-  );
-}
+export { FeatureEnvironment, useFeatureNavigation } from "./feature-environment";
+import { FeatureNavigationContext as Environment } from "./feature-environment";
+
 export function FeatureTabs({ appearance = "legacy" }: { appearance?: UiAppearance } = {}) {
   const navigation = useContext(Environment),
     drawer = useContext(PageDrawer),
@@ -130,19 +97,17 @@ export function WidgetGrid({
   return (
     <GridLocation value={{ target }}>
       {isConfigurablePage(pageKey) ? (
-        <Suspense fallback={fixed}>
-          <LayoutGrid
-            key={`${navigation.workspaceBase}:${pageKey}`}
-            {...props}
-            className={className}
-            pageKey={pageKey}
-            navigation={navigation}
-            feature={feature}
-            target={target}
-          >
-            {children}
-          </LayoutGrid>
-        </Suspense>
+        <LayoutGrid
+          key={`${navigation.workspaceBase}:${pageKey}`}
+          {...props}
+          className={className}
+          pageKey={pageKey}
+          navigation={navigation}
+          feature={feature}
+          target={target}
+        >
+          {children}
+        </LayoutGrid>
       ) : fixed}
     </GridLocation>
   );

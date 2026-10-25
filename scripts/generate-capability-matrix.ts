@@ -1,4 +1,5 @@
 import registry from "../src/data/module-registry.json";
+import { guestAccountCapabilityId } from "../src/lib/guest-account-compat";
 import { validateEngineeringInventory, inventoryVerification } from "../src/lib/engineering-inventory-report";
 import { engineeringManifestSchema } from "../src/lib/engineering-completion";
 import { reviewedCapabilityManifest } from "../src/data/capability-gate-reviews";
@@ -27,9 +28,13 @@ const registerPath = "docs/testing/engineering-scenarios.json";
 const register = engineeringManifestSchema.parse(JSON.parse(readFileSync(registerPath, "utf8")));
 const engineering = validateEngineeringInventory(
   JSON.parse(readFileSync("docs/testing/evidence/2026-10-03-engineering-completion.json", "utf8")),
-  registry, sha256("src/data/module-registry.json"), sha256(registerPath),
+  JSON.parse(readFileSync("docs/archive/2026-10-03-engineering-inputs/module-registry.json", "utf8")),
+  sha256("docs/archive/2026-10-03-engineering-inputs/module-registry.json"), sha256("docs/archive/2026-10-03-engineering-inputs/engineering-scenarios.json"),
 );
-const results = new Map(engineering.capabilities.map(row => [row.id, row]));
+const currentIds = new Set(registry.flatMap(module => module.sections.filter(section => section.capability).map(section => `${module.id}/${section.id}`)));
+const recordedIds = engineering.capabilities.map(row => guestAccountCapabilityId(row.id));
+if(recordedIds.length !== currentIds.size || new Set(recordedIds).size !== currentIds.size || recordedIds.some(id => !currentIds.has(id))) throw new Error("Recorded engineering scope differs from current catalogue.");
+const results = new Map(engineering.capabilities.map(row => [guestAccountCapabilityId(row.id), row]));
 const scenarios = new Map(register.capabilities.map(row => [row.id, row]));
 
 const checkOnly=process.argv.includes('--check');

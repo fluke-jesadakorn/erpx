@@ -4,7 +4,7 @@ import {requireWorkContext,publicScope} from "@/server/modules/identity_access/p
 import {workspaceBase} from "@/lib/workspace";
 import {pageError} from "@/server/modules/work_projection/public/page-error";
 import {operationsExceptionDetail} from "@/server/modules/operations/public/operations-exceptions";
-import {OperationsConsole} from "@/components/modules/operations-console";
+import { OperationsConsole } from "@/components/records/loaders/modules--operations-console";
 import { PageContent, Card } from "@/components/ui/foundation";
 export const dynamic="force-dynamic";
 export default async function Page({params}:{params:Promise<{holdingSlug:string;id:string}>}){

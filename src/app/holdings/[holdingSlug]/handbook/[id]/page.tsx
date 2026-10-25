@@ -4,7 +4,7 @@ import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { TimeText } from "@/components/time/time-preference-context";
 import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
 import { PageHeader } from "@/components/ui/primitives";
-import { HandbookEditor } from "@/components/workplace/handbook-controls";
+import { HandbookEditor } from "@/components/records/loaders/workplace--handbook-controls";
 import styles from "@/components/workplace/services.module.css";
 import { workspaceBase } from "@/lib/workspace";
 import { publicScope,requireWorkContext } from "@/server/modules/identity_access/public/authorization";

@@ -70,7 +70,7 @@ export const workplaceModuleDestinations: Record<string, WorkplaceModuleDestinat
   field_service: { categoryId: "services", objective: "Dispatch technicians, verify service evidence and release billing.", path: "field-service", aiSupport: "guide" },
   agent: { categoryId: "administration", objective: "Review AI providers, approved agents and invocation evidence.", path: "agents", aiSupport: "guide" },
   collaboration: { categoryId: "daily", objective: "Share updates, discuss blockers and hand over linked work.", path: "home", aiSupport: "read" },
-  pms: { categoryId: "pms", objective: "Coordinate reservations, room readiness, stays, folios and the daily close.", path: "pms/dashboard", aiSupport: "guide" },
+  pms: { categoryId: "pms", objective: "Coordinate reservations, room readiness, stays, guest accounts and the daily close.", path: "pms/dashboard", aiSupport: "guide" },
   manage_erpx: { categoryId: "erpx-management", objective: "Manage ERPX customers, billing, provisioning and platform authority.", path: "manage-erpx", aiSupport: "guide" },
 };
 

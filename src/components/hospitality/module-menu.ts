@@ -10,7 +10,7 @@ export function pmsMenu(language: "th" | "en"): ModuleTile[] {
     { id:"front-desk", label:frontText("Front desk",language), description:tr("Welcome & farewell","ต้อนรับและส่งผู้เข้าพัก"), icon:Users, tone:"blue" },
     { id:"rooms", label:frontText("Rooms",language), description:tr("Every room, in view","สถานะห้องที่ดูได้ทันที"), icon:BedDouble, tone:"teal" },
     { id:"housekeeping", label:frontText("Housekeeping",language), description:tr("Make every stay shine","ดูแลห้องให้พร้อมเข้าพัก"), icon:Sparkles, tone:"teal" },
-    { id:"folios", label:frontText("Payments",language), description:tr("Bills & guest balances","ค่าใช้จ่ายและยอดผู้เข้าพัก"), icon:ReceiptText, tone:"violet" },
+    { id:"guest-accounts", label:frontText("Guest Account",language), description:tr("Bills & guest balances","ค่าใช้จ่ายและยอดผู้เข้าพัก"), icon:ReceiptText, tone:"violet" },
     { id:"cashier", label:frontText("Cashier",language), description:tr("Cash, counted together","รับเงินและตรวจนับกะ"), icon:Wallet, tone:"amber" },
     { id:"night-audit", label:frontText("Night audit",language), description:tr("End the day with clarity","ปิดวันอย่างมั่นใจ"), icon:MoonStar, tone:"blue" },
     { id:"inventory", label:tr("Minibar & linen","มินิบาร์และผ้า"), description:tr("Supplies for every stay","ของใช้สำหรับทุกการเข้าพัก"), icon:Package, tone:"teal" },

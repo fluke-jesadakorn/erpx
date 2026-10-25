@@ -1,0 +1,87 @@
+{
+  "recordedAt": "2026-10-11T18:34:00.795773+00:00",
+  "scope": "Supplemental native proof only; not same-candidate full acceptance",
+  "cases": [
+    {
+      "evidence": ".scratch/dev/pms-business-upgrade-group/provider-hold-boundary-before.json",
+      "sha256": "75072768c005a9ca77a36b4684c21124cd3a651fb082eb56e04542343654f8ff",
+      "passed": 0,
+      "failed": 2,
+      "notSelectedOrNotExecuted": 43,
+      "suiteMessage": [
+        ""
+      ],
+      "classification": "actual native test result"
+    },
+    {
+      "evidence": ".scratch/dev/pms-business-upgrade-group/provider-hold-boundary-after.json",
+      "sha256": "96e7323b635be711507b5a6898b4b3a79b5bedec396abb2d7461a7d0d75ef953",
+      "passed": 0,
+      "failed": 0,
+      "notSelectedOrNotExecuted": 45,
+      "suiteMessage": [
+        "SASL: SCRAM-SERVER-FIRST-MESSAGE: client password must be a string"
+      ],
+      "classification": "configuration failure before case execution"
+    },
+    {
+      "evidence": ".scratch/dev/pms-business-upgrade-group/provider-hold-boundary-after-configured.json",
+      "sha256": "c474c0c1d0ef62d6e40f9737d777da71baf2c7b258f586883761254078f601c2",
+      "passed": 2,
+      "failed": 0,
+      "notSelectedOrNotExecuted": 43,
+      "suiteMessage": [
+        ""
+      ],
+      "classification": "actual native test result"
+    }
+  ],
+  "runtimeAcceptanceComplete": false,
+  "fix": [
+    "Authoritative reservation.create rejects internal bookingChangeId holds",
+    "Ordinary block.release rejects internal provider holds",
+    "Front and backoffice group selectors exclude internal provider holds"
+  ],
+  "remaining": [
+    "Compiled desktop/mobile UI witness",
+    "Original native and browser scope on final candidate",
+    "Strict capacity and recovery checks",
+    "Final environment verification"
+  ],
+  "regression": {
+    "evidence": ".scratch/dev/pms-business-upgrade-group/pms-hold-boundary-regression.json",
+    "sha256": "60369c7e4e0bceecfcb5bc89f3b21929a857c546371d05cb7d915d8417422c06",
+    "passed": 151,
+    "failed": 0,
+    "notExecuted": 0,
+    "success": true
+  },
+  "sharedProviderRegression": {
+    "provider-context-regression": {
+      "evidence": ".scratch/dev/pms-business-upgrade-group/provider-context-regression.json",
+      "sha256": "fa76ae99bd944f48938ea27de671665ca6cfdf025aeb0aab0e2b04f96b6c594e",
+      "passed": 13,
+      "failed": 0,
+      "notExecuted": 0
+    },
+    "provider-page-cut": {
+      "evidence": ".scratch/dev/pms-business-upgrade-group/provider-page-cut.json",
+      "sha256": "e64b7cec27825f83d478b70d240d7e507362733f5eb0a23ce026718a5e11ff06",
+      "passed": 2,
+      "failed": 0,
+      "notExecuted": 0
+    }
+  },
+  "staticChecks": {
+    "mainTypecheck": 0,
+    "engineeringTypecheck": 0,
+    "ownedEslint": 0
+  },
+  "diagnosticCompiledRelease": {
+    "id": "2026-10-11T18-36-55-007Z",
+    "sourceFingerprint": "3a37b659e33ade4e14864e102fb595748fd89715b67e1c82cb18cf09e8e41fb8",
+    "schemaSha256": "f697496ffcbab8a7fafa6fba1c259a7f8154ba85c449085bbe76bfa0223910b5",
+    "fileManifestSha256": "39ba9d706b5bbfcd08f5cff3b8b84eda98e5036414713bdcb199cef54eb62b7b",
+    "acceptanceComplete": false
+  }
+}

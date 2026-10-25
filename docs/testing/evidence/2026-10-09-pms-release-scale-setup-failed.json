@@ -1,0 +1,44 @@
+{
+  "run": "e6b97abe17a2",
+  "sourceFingerprint": "8ade53c7b5838ebe46d795056bbd369d829305e9f368c3388654b1bf14f96ef8",
+  "verificationFingerprint": "c6ae1647b95809ff383a4d276f9b5b59b9a388bfa69c7496402b77d784c79b4c",
+  "release": {
+    "id": "2026-10-09T15-54-25-100Z",
+    "fileManifestSha256": "48119786c2e1230e4d0c0f2bad6d5d942563bb581e5583f70682e046d26c1355"
+  },
+  "scope": "Release HTTP: 3 \u00d7 200 rooms, 730-day synthetic closed stay/reservation/account metadata; 20 distinct normal staff accounts. Historic revenue is not invented.",
+  "counts": [
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    },
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    },
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    }
+  ],
+  "accounts": 20,
+  "rounds": 10,
+  "durationMs": 44229,
+  "readCount": 0,
+  "writeCount": 0,
+  "readP95Ms": null,
+  "writeP95Ms": null,
+  "failedSamples": 0,
+  "sameProcesses": true,
+  "unchanged": true,
+  "samplesSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "passed": false,
+  "acceptance": false,
+  "interpretation": "Normal staff Home setup failed before any load samples. Hotel operations source hit statement timeout and blocked the single Holding pool connection. No HTTP SLO measurements exist for this attempt."
+}

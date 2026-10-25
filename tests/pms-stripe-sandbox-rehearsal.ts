@@ -31,7 +31,7 @@ await setupDatabases();
 const db=env.H001_DB;
 try{
  await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);
- const f=await seedExpenseCompany(db,env.H001_FILES),owner=f.owner,reviewer=await f.member('sandbox-reviewer','finance_approver');
+ const f=await seedExpenseCompany(db,env.H001_FILES),owner=f.owner,reviewer=await f.member('sandbox-reviewer','finance_approver'),operationalReviewer=await f.member('sandbox-pms-reviewer','pms_manager');
  const date=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok'}).format(Date.now());
  const propertyId=(await pmsCommand(db,owner,{operation:'property.create',input:{name:'PMS isolated Stripe sandbox',branchId:f.branch,businessDate:date}},randomUUID())).id;
  const cmd=async(operation:string,input:unknown={},who=owner)=>{const s=await loadPms(db,owner,propertyId);return pmsCommand(db,who,{propertyId,expectedVersion:s.property.version,operation,input},randomUUID());};
@@ -68,14 +68,14 @@ try{
    if(response.state!=='confirmed')continue;
    const state=await bookingSnapshot(db,propertyId);const st=records(state,'stay').find(st=>st.data.reservationId===item.reservationId)!;
    const payment=await db.prepare('SELECT id,amount_minor,provider_succeeded_at FROM pms_booking_payments WHERE reservation_id=?').bind(item.reservationId).first<{id:string;amount_minor:number;provider_succeeded_at:number}>();
-   if(!payment?.provider_succeeded_at||record(state,'folio',st.data.folioId).data.advance!==Number(payment.amount_minor))throw new Error('PMS_PROVIDER_RECEIPT_MISMATCH');
+   if(!payment?.provider_succeeded_at||record(state,'guest_account',st.data.guestAccountId).data.advance!==Number(payment.amount_minor))throw new Error('PMS_PROVIDER_RECEIPT_MISMATCH');
    await bookingPaymentStatus(db,item.attemptToken,delivery);
    const count=await db.prepare('SELECT count(*) n FROM pms_booking_allocations WHERE payment_id=?').bind(payment.id).first<{n:number}>();if(Number(count?.n)!==1)throw new Error('DUPLICATE_PROVIDER_RECEIPT');
    item.state='confirmed';proof.assertions.push(`${item.name}: real Checkout payment, verified provider timestamp, receipt and immutable allocation; repeat reconciliation no duplicate`);
    // PromptPay refunds require an explicitly supplied controlled email. No instructions are sent to a guessed recipient.
    if(item.name.startsWith('card-')||process.env.ERPX_PMS_SANDBOX_EMAIL){
     let refundId='';await db.transaction(async tx=>{const current=await bookingSnapshot(tx,propertyId,undefined,true);const request=await requestBookingRefund(tx,current,payment.id,[{stayId:st.id,amount:Math.floor(Number(payment.amount_minor)/2)}],'Real sandbox partial refund',owner.userId);refundId=request.id;});
-    await approveBookingRefund(db,reviewer,refundId);await processBookingRefund(db,refundId);await processBookingRefund(db,refundId);
+    await approveBookingRefund(db,operationalReviewer,refundId);await processBookingRefund(db,refundId);await processBookingRefund(db,refundId);
     const refund=await db.prepare('SELECT state,provider_id FROM pms_booking_refund_requests WHERE id=?').bind(refundId).first<{state:string;provider_id:string}>();item.refund=refund?.state;proof.assertions.push(`${item.name}: independently approved 50% refund ${refund?.state}; provider id ${refund?.provider_id}`);
    }
    console.log(item.name+': '+item.state+(item.refund?' / refund '+item.refund:''));await save();

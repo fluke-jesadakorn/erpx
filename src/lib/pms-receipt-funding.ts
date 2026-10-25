@@ -2,10 +2,10 @@ import {records,type Snapshot} from './pms-model';
 export type ReceiptPart={entryId:string;amount:number};
 /** Original receipt budgets, including legacy FIFO allocations without source traces.
  * Holds and settled liabilities consume the same original receipt, independently
- * of current room prices and of other receipts sharing the Folio.
+ * of current room prices and of other receipts sharing the GuestAccount.
  */
-export function availableReceiptSources(s:Snapshot,folioId:string,pocket:'advance'|'deposit',excludeHolds=true):ReceiptPart[]{
- const entries=records(s,'entry').filter(e=>e.data.folioId===folioId).sort((a,b)=>a.data.at-b.data.at||a.id.localeCompare(b.id));
+export function availableReceiptSources(s:Snapshot,guestAccountId:string,pocket:'advance'|'deposit',excludeHolds=true):ReceiptPart[]{
+ const entries=records(s,'entry').filter(e=>e.data.guestAccountId===guestAccountId).sort((a,b)=>a.data.at-b.data.at||a.id.localeCompare(b.id));
  const advance=new Map(entries.filter(e=>e.data.kind==='payment'&&e.data.reference!=='deposit-application').map(e=>[e.id,e.data.total])),deposit=new Map(entries.filter(e=>e.data.kind==='deposit').map(e=>[e.id,e.data.total]));
  const subtract=(map:Map<string,number>,parts:ReceiptPart[])=>{for(const part of parts)map.set(part.entryId,(map.get(part.entryId)??0)-part.amount);};
  for(const e of entries){
@@ -23,6 +23,6 @@ export function availableReceiptSources(s:Snapshot,folioId:string,pocket:'advanc
   }
  }
  const budget=pocket==='advance'?advance:deposit;
- if(excludeHolds){const folio=records(s,'folio').find(f=>f.id===folioId);for(const part of folio?.data.refundHolds??[])if(part.pocket===pocket)budget.set(part.entryId,(budget.get(part.entryId)??0)-part.amount);}
+ if(excludeHolds){const guestAccount=records(s,'guest_account').find(f=>f.id===guestAccountId);for(const part of guestAccount?.data.refundHolds??[])if(part.pocket===pocket)budget.set(part.entryId,(budget.get(part.entryId)??0)-part.amount);}
  return [...budget].filter(([,amount])=>amount>0).map(([entryId,amount])=>({entryId,amount}));
 }

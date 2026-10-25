@@ -1,3 +1,4 @@
+import {saveMaster,saveOrder,orderSchema,transitionOrder,fulfillOrder,fulfillmentSchema,getOrder,invoiceFulfillment} from "../src/server/commerce";
 import type { FinanceRow } from "../src/server/modules/finance/public/finance";
 import {beforeAll,beforeEach,afterAll,describe,expect,it,vi} from "vitest";
 import {createHash} from "node:crypto";
@@ -237,4 +238,19 @@ describe("monthly ordinary Thai withholding remittance and recovery",()=>{
   expect(await db.prepare("SELECT COUNT(*) n FROM finance_journals WHERE company_id=? AND (source_type='withholding_remittance' OR source_type='payment' AND source_id=?)").bind(f.company,other.paymentId).first("n")).toBe(1);expect(await db.prepare("SELECT COUNT(*) n FROM finance_withholding_remittances WHERE company_id=?").bind(f.company).first("n")).toBe(movement?.matched_type==="withholding_remittance"?1:0);expect(await db.prepare("SELECT status,journal_id FROM finance_payments WHERE id=?").bind(other.paymentId).first()).toMatchObject({status:movement?.matched_type==="payment"?"settled":"released"});expect(await db.prepare("SELECT status FROM finance_withholding_packages WHERE id=?").bind(pack.id).first("status")).toBe(movement?.matched_type==="withholding_remittance"?"settled":"approved");
  });
 
+});
+
+
+it("issues retained ordinary VAT invoices from completed Commerce services without depending on customer payment",async()=>{
+ const manager={...f.head,role:"sales_manager",branchId:null,departmentId:null,assignmentId:await f.grant(f.head,"sales_manager")};
+ const customer=await saveMaster(f.owner,"parties",null,{kind:"customer",code:key(),name:"Fictional VAT service customer"},key()),service=await saveMaster(f.owner,"products",null,{sku:key(),name:"Installation",itemType:"service",price:"100"},key());
+ const sale=await saveOrder(f.owner,null,orderSchema.parse({kind:"sales",partyId:customer.id,orderDate:"2026-09-02",dueDate:"2026-09-10",lines:[{productId:service.id,quantity:"1",price:"100",taxBps:700}]}),key()),orderId=String(sale.id);
+ await transitionOrder(f.owner,orderId,{expectedVersion:1,action:"submit"},key());await transitionOrder(manager,orderId,{expectedVersion:2,action:"approve"},key());
+ const assignOrder=async(stepKey:string)=>{const flow=await resolveFlow(db,f.owner,"order",orderId);await assignFlowPrimary(db,f.owner,"order",orderId,{stepKey,userId:f.owner.userId,reason:"Assign fictional completed service responsibility",saveDefault:false,expectedVersion:flow.version,recordVersion:flow.recordVersion},key());};
+ await assignOrder("confirmed");const line=(await getOrder(f.owner,orderId)).lines[0];
+ const completion=await fulfillOrder(f.owner,orderId,fulfillmentSchema.parse({expectedVersion:3,completionMode:"service",date:"2026-09-03",evidenceNote:"Customer accepted completed installation",lines:[{lineId:String(line.id),quantity:"1"}]}),key());
+ await assignOrder("invoicing");const prepared=await invoiceFulfillment(f.owner,String(completion.fulfillmentId),{expectedVersion:1,date:"2026-09-03",dueDate:"2026-09-10"},key()),invoiceId=String(prepared.invoiceId);
+ const invoiceFlow=await resolveFlow(db,f.owner,"invoice",invoiceId);await assignFlowPrimary(db,f.owner,"invoice",invoiceId,{stepKey:"draft",userId:f.manager.userId,reason,saveDefault:false,expectedVersion:invoiceFlow.version,recordVersion:invoiceFlow.recordVersion},key());await postInvoice(f.manager,invoiceId,{expectedVersion:1,periodId:f.period,entryDate:"2026-09-03"},key());
+ const identities=await reviewedIdentities(String(customer.id)),issued=await issueThaiTaxInvoice(f.manager,invoiceId,{expectedVersion:2,payerIdentityId:identities.payerId,payeeIdentityId:identities.payeeId,reason},key());
+ const copy=await thaiDocumentExport(f.reviewer,String(issued.id));expect(copy.content).toContain("Installation");expect(copy.content).toContain("107.00");expect((await getInvoice(f.reviewer,invoiceId)).invoice.outstanding_minor).toBe(10700);
 });

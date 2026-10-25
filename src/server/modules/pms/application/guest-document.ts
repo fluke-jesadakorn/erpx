@@ -1,6 +1,7 @@
+import { parseGuestAccountJson } from "@/lib/guest-account-compat";
 import { z } from "zod";
 import type { Clock } from "../../shared/application/ports";
-import type { Entry, Folio, Guest, Snapshot } from "../domain/pms-model";
+import type { Entry, GuestAccount, Guest, Snapshot } from "../domain/pms-model";
 export type GuestDocumentUnit = {
     authorized(token: string, now: number): Promise<{
         s: Snapshot;
@@ -25,20 +26,20 @@ export function createGuestBookingDocument(ports: {
             const { s, id } = await unit.authorized(token, now), row = await unit.document(documentId, s.property.id, id);
             if (!row)
                 throw ports.error(404, "PMS_DOCUMENT_NOT_FOUND", "Document not found for this booking");
-            const snapshot = JSON.parse(row.snapshot_json) as {
+            const snapshot = parseGuestAccountJson(row.snapshot_json) as {
                 property: {
                     name: string;
                     currency: string;
                 };
                 guest: Guest;
-                folio: Folio;
+                guestAccount: GuestAccount;
                 entries: Array<{
                     data: Entry;
                 }>;
                 amount: number;
                 businessDate: string;
             };
-            return { number: `PMS-${documentId.slice(-12)}`, kind: row.kind, issuedAt: Number(row.created_at), date: snapshot.businessDate, hotel: snapshot.property.name, currency: snapshot.property.currency, guest: snapshot.guest.name, folio: snapshot.folio.name, amount: snapshot.amount, dueAtIssue: snapshot.folio.due, entries: snapshot.entries.map(({ data: e }) => ({ date: e.date, description: e.description, net: e.net, service: e.service, tax: e.tax, total: e.total })) };
+            return { number: `PMS-${documentId.slice(-12)}`, kind: row.kind, issuedAt: Number(row.created_at), date: snapshot.businessDate, hotel: snapshot.property.name, currency: snapshot.property.currency, guest: snapshot.guest.name, guestAccount: snapshot.guestAccount.name, amount: snapshot.amount, dueAtIssue: snapshot.guestAccount.due, entries: snapshot.entries.map(({ data: e }) => ({ date: e.date, description: e.description, net: e.net, service: e.service, tax: e.tax, total: e.total })) };
         });
     };
 }

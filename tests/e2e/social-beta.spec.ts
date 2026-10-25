@@ -458,7 +458,7 @@ test("social post → manual task → evidence → independent acceptance, with 
     );
     await article.getByRole("button", { name: /Comment/ }).click();
     await article
-      .getByLabel("Write a comment", { exact: true })
+      .getByRole("combobox", { name: "Write a comment", exact: true })
       .fill("Please inspect the power switch.");
     await article.getByRole("button", { name: "Reply", exact: true }).click();
     await expect(

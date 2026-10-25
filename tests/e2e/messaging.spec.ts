@@ -1,5 +1,5 @@
 import { captureCaseScreenshot } from "../helpers/case-screenshot";
-import { test, expect, type BrowserContext } from "@playwright/test";
+import { test, expect, type BrowserContext, type Page } from "@playwright/test";
 import { readFileSync, existsSync } from "node:fs";
 import { selectFixtureAssignment } from "./helpers/select-fixture-assignment";
 const fixturePath = process.env.ERPX_E2E_FIXTURE ?? ".scratch/messaging/fixture.json";
@@ -27,12 +27,24 @@ async function login(ctx: BrowserContext, who: string) {
   expect(response.headers()["content-type"]).toContain("application/json");
   await selectFixtureAssignment(ctx, f!.company, f!.actors[who].assignmentId);
 }
-async function post(ctx: BrowserContext, path: string, data: unknown) {
-  const response = await ctx.request.post(`${root}/${path}`, {
+async function post(page: Page, path: string, data: unknown) {
+  const rendered = page.locator("[data-work-revision]");
+  await expect(rendered).toHaveCount(1);
+  await expect(rendered).toHaveAttribute("data-work-stale", "false");
+  const company = await rendered.getAttribute("data-work-company");
+  const assignment = await rendered.getAttribute("data-work-assignment");
+  const revision = await rendered.getAttribute("data-work-revision");
+  expect(company).toBe(f!.company);
+  expect(assignment).toBe(f!.actors.alice.assignmentId);
+  expect(revision).toMatch(/^\d+$/);
+  const response = await page.request.post(`${root}/${path}`, {
     data,
     headers: {
       "Idempotency-Key": crypto.randomUUID(),
-      Origin: process.env.ERPX_E2E_BASE_URL!,
+      Origin: new URL(page.url()).origin,
+      "x-erpx-context-company": company!,
+      "x-erpx-context-assignment": assignment!,
+      "x-erpx-context-revision": revision!,
     },
   });
   expect(response.ok(), await response.text()).toBeTruthy();
@@ -53,10 +65,10 @@ test("real accounts chat, reconnect, attach files, use teams and enforce private
     const b = await bob.newPage();
     await page.goto("/holdings/acme/inbox");
     await page.getByRole("button", { name: "New chat", exact: true }).click();
-    await page.getByLabel("Messaging Bob", { exact: false }).check();
+    await page.getByLabel("Messaging bob", { exact: false }).check();
     await page.getByRole("button", { name: "Start chat", exact: true }).click();
     await expect(
-      page.getByRole("heading", { name: "Messaging Bob", exact: true }),
+      page.getByRole("heading", { name: "Messaging bob", exact: true }),
     ).toBeVisible();
     const greeting = `Hello from Alice ${crypto.randomUUID()}`;
     await page.getByLabel("Message", { exact: true }).fill(greeting);
@@ -65,7 +77,7 @@ test("real accounts chat, reconnect, attach files, use teams and enforce private
       page.getByRole("log").getByText(greeting, { exact: true }),
     ).toBeVisible();
     await b.goto("/holdings/acme/inbox");
-    await b.getByRole("button", { name: /Messaging Alice/ }).click();
+    await b.getByRole("button", { name: /Messaging alice/ }).click();
     await expect(
       b.getByRole("log").getByText(greeting, { exact: true }),
     ).toBeVisible();
@@ -108,7 +120,7 @@ test("real accounts chat, reconnect, attach files, use teams and enforce private
       .getAttribute("href");
     expect((await bob.request.get(attachment!)).ok()).toBeTruthy();
     await page.reload();
-    await page.getByRole("button", { name: /Messaging Bob/ }).click();
+    await page.getByRole("button", { name: /Messaging bob/ }).click();
     await expect(
       page.getByRole("log").getByText(greeting, { exact: true }),
     ).toBeVisible();
@@ -117,8 +129,8 @@ test("real accounts chat, reconnect, attach files, use teams and enforce private
     await page.getByRole("button", { name: "New team", exact: true }).click();
     const teamName = `Acceptance ${testInfo.project.name} ${Date.now()}`;
     await page.getByLabel("Name", { exact: true }).fill(teamName);
-    await page.getByLabel("Messaging Bob", { exact: false }).check();
-    await page.getByLabel("Messaging Carol", { exact: false }).check();
+    await page.getByLabel("Messaging bob", { exact: false }).check();
+    await page.getByLabel("Messaging carol", { exact: false }).check();
     await page.getByRole("button", { name: "Create", exact: true }).click();
     await expect(
       page.getByRole("heading", { name: "General", exact: true }),
@@ -133,7 +145,7 @@ test("real accounts chat, reconnect, attach files, use teams and enforce private
     await page
       .getByRole("combobox", { name: "Access", exact: true })
       .selectOption("private");
-    await page.getByLabel("Messaging Bob", { exact: false }).check();
+    await page.getByLabel("Messaging bob", { exact: false }).check();
     await page.getByRole("button", { name: "Create", exact: true }).click();
     await expect(
       page.getByRole("heading", { name: "Private planning", exact: true }),
@@ -172,7 +184,7 @@ test("real accounts chat, reconnect, attach files, use teams and enforce private
       (await bob.request.get(`${root}/rooms/${channel.id}/messages`)).ok(),
     ).toBeTruthy();
     await captureCaseScreenshot(page, `${testInfo.project.name}-channel.png`, { fullPage: true });
-    await post(context, `teams/${team.id}`, {
+    await post(page, `teams/${team.id}`, {
       name: teamName,
       members: [f!.actors.carol.userId],
       expectedVersion: 1,

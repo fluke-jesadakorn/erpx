@@ -1,0 +1,111 @@
+{
+  "checkedAt": "2026-10-11T22:12:49.752064+00:00",
+  "scope": "Actual final299 browser terminal and two-hunk test repair; not aggregate acceptance",
+  "runtime": "51701d69c6d65dc1ee28480e7de4b404c89f3e32f8ab6c912c551568114b6bf6",
+  "failedVerification": "299c85a71a3f9bd369189710e8dcf8db9da956177f559f49d4f857d6767dd362",
+  "repairVerification": "6bec217508702c495235e2a3740598d3132176d24be4d6af9cb1845bfe5c95c9",
+  "actualPassed": 100,
+  "actualFailed": 1,
+  "remainingRequiredCasesNotExecuted": 79,
+  "failure": {
+    "suite": "shared.ui.shared-workspace.e2e",
+    "project": "desktop",
+    "title": "shared workspace supports keyboard access and 390, 768 and 1440px light and dark layouts",
+    "run": "8bd5f52b7004",
+    "assertion": "Dialog visible after button.focus()+keyboard Enter; 20s expect timeout",
+    "traceGotoSnapshotNewDisabled": true,
+    "themeInitNullRootErrors": 111,
+    "separateLazyChunk404": [
+      "http://127.0.0.1:3104/_next/static/chunks/8bd5f52b7004_app_src_components_workplace_request-controls-content_tsx_1zl9wwh._.js?dpl=browser-simulation-8bd5f52b7004"
+    ],
+    "limits": "Later enabled state does not establish state at focus. Lazy chunk404 remains separate diagnostic; this readiness fix does not claim to repair it."
+  },
+  "testRepair": {
+    "file": "tests/e2e/shared-workspace.spec.ts",
+    "sha256": "2ac5a207eae2bbb7a2f896ca0989bfbab61a329b526463609fd487f69a096917",
+    "changes": [
+      "Guard document.documentElement in existing theme init script",
+      "Assert New is enabled before original focus/Enter"
+    ],
+    "preserved": [
+      "Original titles and required case identities",
+      "Original 390/768/1440 Light/Dark layout assertions",
+      "Original Enter/Tab/dialog/Escape/restored-focus assertions",
+      "Original timeouts and budgets"
+    ],
+    "runtimeChanged": false
+  },
+  "cleanup": {
+    "all101ActualCaseReceiptsCompleted": true,
+    "cleanupFailures": []
+  },
+  "driverTerminal": {
+    "finishedAt": "2026-10-11T22:04:22.596Z",
+    "passed": false,
+    "failure": "browser180_EXIT_1"
+  },
+  "metadataSupervisorCorrectlyRefusedAfterFailedDriver": {
+    "passed": false,
+    "finishedAt": "2026-10-11T22:04:26.728Z",
+    "failure": "AssertionError [ERR_ASSERTION]: Driver did not pass; metadata must not execute\n\nfalse !== true\n",
+    "wholePlanAccepted": false
+  },
+  "rawEvidence": [
+    {
+      "path": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-11T20-43-38-532Z/receipt.json",
+      "sha256": "658577966ce314cdc7e1646687d30972146a62ab284f9cb316de60091cb205e0"
+    },
+    {
+      "path": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-11T20-43-38-532Z/8bd5f52b7004/result.json",
+      "sha256": "91c069d278bd7adc3b3ee22d2429fb977f95ee8836a97932789db932e54ffa96"
+    },
+    {
+      "path": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-11T20-43-38-532Z/8bd5f52b7004/artifacts/shared-workspace-shared-wo-59918-40px-light-and-dark-layouts-desktop/trace.zip",
+      "sha256": "c2b4d5cd3fad540090f73938010a34cf96a8f2be5a7cf8202a2f580e132adee8"
+    }
+  ],
+  "repairRun": {
+    "pid": 22868,
+    "scope": "Original exact desktop and mobile case, isolated development lane",
+    "terminalObserved": true,
+    "passed": true,
+    "cases": 2,
+    "evidenceDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-11T22-06-58-624Z",
+    "receiptSHA256": "3725cadce40484815f63f3f9a547bc3184b843a6dec044f44bb52866ff9a5594",
+    "cleanupPassed": true,
+    "successfulTracesNotRetained": true,
+    "resourceErrorsAbsenceNotClaimed": true,
+    "screenshotReview": "Desktop and mobile 390px New-work layout screenshots fit viewport but show Loading details; they do not establish settled editor content or clear the lazy chunk404 diagnostic. Original keyboard/dialog/Escape/focus assertions actually pass."
+  },
+  "wholePlanAccepted": false,
+  "sourceAmendmentProvenance": {
+    "evidence": {
+      "checkedAt": "2026-10-11T22:15:00.393Z",
+      "scope": "Official fingerprint of current verification inputs with only the exact two test repair hunks reversed equals original299. This is source provenance, not a fresh native/browser invocation.",
+      "runtime": "51701d69c6d65dc1ee28480e7de4b404c89f3e32f8ab6c912c551568114b6bf6",
+      "currentVerification": "6bec217508702c495235e2a3740598d3132176d24be4d6af9cb1845bfe5c95c9",
+      "reconstructedOriginalVerification": "299c85a71a3f9bd369189710e8dcf8db9da956177f559f49d4f857d6767dd362",
+      "onlyTwoRepairHunksDiffer": true,
+      "nativeAndUntouchedTestInputsUnchanged": true,
+      "rawHistoricalReceiptsNotRelabelled": true,
+      "passed": true
+    },
+    "rawPath": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-joint-keyboard-repair-2026-10-12/two-hunk-provenance.json",
+    "rawSHA256": "c141f0874d6da032f5c16e0d011d403a0ac092f7ade20147a7dd517bc9ef12af",
+    "nativeReceiptScope": "Actual2991446 native passes retained with unchanged runtime and native verification inputs; not a fresh6bec invocation",
+    "browserRetentionScope": "Only95 actual passing cases in untouched test files retained. Entire changed shared-workspace file rerun through repair2 and remaining10."
+  },
+  "changedFileAll12CurrentCases": {
+    "actualPassed": 12,
+    "rawAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-joint-keyboard-repair-2026-10-12/changed-file12-audit.json",
+    "sha256": "cb08eb7b0107e1fb667d8e038d2b87ccc16219ead1d7d5b52762351fc4d07e12",
+    "allOriginalTitlesAndProjectsMatched": true,
+    "ownedDirectoriesRemoved": true,
+    "successfulTraceAbsenceNotResourceErrorClearance": true
+  },
+  "changedFileLint": {
+    "command": "Pinned Node24.20.0 eslint tests/e2e/shared-workspace.spec.ts",
+    "exitCode": 0,
+    "output": "No output or warnings"
+  }
+}

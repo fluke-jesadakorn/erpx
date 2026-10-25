@@ -1,13 +1,14 @@
 "use client";
-import { InlineNotice } from "@/components/ui/foundation";
+import { InlineNotice } from "@/components/ui/patterns";
 
-import { Field, Select } from "@/components/ui/foundation";
+import { Field } from "@/components/ui/field";
+import { Select } from "@/components/ui/input";
 
 import { workFetch } from "@/lib/work-fetch";
 
 import { useState } from "react";
 import type { WorkAssignment } from "@/server/modules/identity_access/public/authorization";
-import { useContextSwitch } from "./context-switch-provider";
+import { useContextSwitch } from "./context-switch-context";
 
 export function PlatformRoleSwitcher({
   activeAssignmentId,

@@ -1,0 +1,108 @@
+{
+  "checkedAt": "2026-10-10T20:58:34.066197+00:00",
+  "scope": "Three additional mock operational acceptance assertions; entire PMS native file repeated. Browser aggregate not accepted.",
+  "runtimeFingerprint": "61d02a05665bdec4bc25a5b25cb9af9b40140960da76ed51b0228f9a37652581",
+  "verificationFingerprint": "defbef213677bd2398835dad4cc02660fd7c6d896f924da62a286f73547286e5",
+  "source": {
+    "file": "tests/pms.test.ts",
+    "sha256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+    "newUnconditionalTestTitles": [
+      "preserves linen custody and original stock cost through replay, laundry and loss",
+      "honors DND for room work and resumes the same cycle only after its release",
+      "releases unused future room nights on early departure without duplicate revenue or checkout"
+    ]
+  },
+  "native": {
+    "terminalExitCode": 0,
+    "passed": 84,
+    "failed": 0,
+    "fileCount": 1,
+    "log": {
+      "path": ".scratch/dev/pms-final-visible-candidate/native-acceptance-extension-final.log",
+      "sha256": "a916fc8f47116696b140dda88aac939da2f6f661b990153b37df2abc2a6d1078"
+    },
+    "perCaseJSONRequested": false,
+    "proof": "All84 tests in this selected file passed; three new unconditional test registrations inspected. No individual JSON receipt invented."
+  },
+  "assertions": {
+    "linen": [
+      "Normal housekeeping role receives4 towels from6000milli/1200value stock;2000/400 remains",
+      "Single original inventory movement and800consumption/800inventory GL;no revenue",
+      "Same-key receive replay has no extra version/movement",
+      "Receive/issue/return/wash/clean/loss totals clean3,issued0,laundry0,lost1",
+      "Stock shortage, custody underflow and missinglossreason refuse without state leakage"
+    ],
+    "dnd": [
+      "DND rejects both start and complete; propertyversion/task/room stay unchanged",
+      "Release permits same-cycle cleaning; clean state awaits independent owner inspection",
+      "Independent inspection gives done task and inspected room"
+    ],
+    "earlyDeparture": [
+      "Four-night booking charges exactly one night10700 on earlydeparture",
+      "Due blocks checkout without committing version; payment settles original guest account",
+      "Checkout original-key replay does not create extra revenue/versions",
+      "Actual departure09-02 truncatessegments, dirtyroom, exactrevenue10000/tax700",
+      "09-03 inventory released and can be booked again without new realizedincome"
+    ]
+  },
+  "initialRed": {
+    "log": ".scratch/dev/pms-final-visible-candidate/native-acceptance-extension.log",
+    "sha256": "f48623cb5396fa5238381f1ddeae5517f2c335ba9c1458437f95110fd43cae47",
+    "passed": 83,
+    "failed": 1,
+    "reason": "New draft expected done before independent inspection; documented clean/done separation corrected and stronger pre/post inspection assertions added. Runtime did not change."
+  },
+  "typecheck": {
+    "terminalExitCode": 0,
+    "log": ".scratch/dev/pms-final-visible-candidate/typecheck-after-extension.log",
+    "sha256": "ae3aa3d40f2b7fdeaf8ae4398c41416876c85fc2ccc6aa232e526fdb75f340ef"
+  },
+  "priorFullNative": {
+    "passed": 1339,
+    "refreshedPmsFile": 84,
+    "currentCoveredCaseCount": 1342,
+    "fullFresh1342Run": false,
+    "interpretation": "Original full selection passed1339. PMSfile alone repeated84 with3added assertions; other runtime/native files unchanged. This does not claim one fresh1342command."
+  },
+  "browserFailure": {
+    "run": "2026-10-10T18-57-41-546Z",
+    "passed": 105,
+    "failed": "OriginaldesktopAIcase initialGET500",
+    "cleanupFailures": [],
+    "notAccepted": true
+  },
+  "focusedDiagnostic": {
+    "run": "2026-10-10T20-49-46-313Z",
+    "passed": 1,
+    "cleanupFailures": [],
+    "temporaryRouteRestoredExactly": true,
+    "causeUnresolved": true,
+    "notAggregateAcceptance": true
+  },
+  "wholePlanAccepted": false,
+  "lint": {
+    "terminalExitCode": 0,
+    "errors": 0,
+    "existingWarnings": 3,
+    "log": {
+      "path": ".scratch/dev/pms-final-visible-candidate/lint-after-extension-confirmed.log",
+      "sha256": "0211741eacc108089202fadacf856c584e3bfc48d4ce33a4fa7a8b4d08de2a88"
+    }
+  },
+  "additionalAiDiagnostic": {
+    "receipt": ".scratch/dev/test-suites/browser/2026-10-10T21-03-43-422Z/receipt.json",
+    "receiptSha256": "3d4f0e14924d0ae7729830cb1ec6acd3ce200c983caca6d933d0c5d1e55d687a",
+    "terminalExitCode": 0,
+    "passed": 2,
+    "projects": [
+      "desktop",
+      "mobile"
+    ],
+    "originalAssertionsUnchanged": true,
+    "cleanupFailures": [],
+    "temporaryGetLoggingRestoredExactly": true,
+    "diagnosticRuntimeFingerprint": "76d8f27e8683b1dd607a6c4958c8430397ce5da520588fd58018d39db9d5b48e",
+    "acceptanceRuntimeUnchanged": "61d02a05665bdec4bc25a5b25cb9af9b40140960da76ed51b0228f9a37652581",
+    "rootCause": "Not reproduced in focused original desktop/mobile cases. Initial GET500 from failed full run remains unexplained; no runtime fix or aggregate acceptance claimed."
+  }
+}

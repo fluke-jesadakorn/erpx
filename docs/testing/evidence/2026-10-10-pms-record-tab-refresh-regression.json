@@ -1,0 +1,53 @@
+{
+  "complete": false,
+  "wholePlanAcceptance": false,
+  "status": "complete service journey and tab persistence regression passed on desktop and mobile in focused diagnostics; whole acceptance pending",
+  "redReceipt": ".scratch/dev/test-suites/browser/2026-10-10T14-54-38-375Z/receipt.json",
+  "redReceiptSha256": "ceebfd967cf4db0763a5bbabab55d50c1ffda7eefa4f0e12ae99ace49538c4fc",
+  "cleanupFailures": [],
+  "trace": ".scratch/dev/test-suites/browser/2026-10-10T14-54-38-375Z/9d61215ba018/artifacts/shared-workspace-service-r-9c5f5--and-requester-confirmation-desktop/trace.zip",
+  "traceSha256": "186058d02388947c8e2ff6c4bfe610609bd1ebd783f41960092034b2662d788f",
+  "observed": "Explicit tab selection changes section=evidence to section=overview; command refresh followed by reload restores section=evidence, hiding latest question. No attachment hash is present.",
+  "cause": "Passing Next internal window.history.state to replaceState bypasses Next external history synchronization (__NA/_N guard), leaving router canonical URL stale.",
+  "fix": "Use replaceState(null, empty title, URL) per installed Next Native History API guide. Preserve all tab/URL behavior and add explicit Overview selected + query assertions after submit/reload.",
+  "helperFix": "Wait for exact draft-save endpoint rather than unrelated POST requests/preview; assert returned nonempty ID and existing ID preservation.",
+  "localGuide": "node_modules/next/dist/docs/01-app/01-getting-started/04-linking-and-navigating.md",
+  "runtimeImplementation": "node_modules/next/dist/client/components/app-router.js:268",
+  "runtimeFingerprint": "14b231f60ff018742d0a0be24229ab633e290b79204ea7956b0f58e09dd0b38d",
+  "verificationFingerprint": "060bb335a644f492ac34936b36003cad2d100f6a2f46ed7f6aea7e8e78a4c465",
+  "release": "2026-10-10T15-00-11-884Z",
+  "typecheck": "passed",
+  "desktopGreen": {
+    "log": ".scratch/dev/test-suites/browser/2026-10-10T15-00-00-896Z/ccb0c26eb3b2/playwright.log",
+    "logSha256": "9b7e19ecd51f093857193c5e855a61f37fc6df9d6e058a36809d7e3dce73e9a4",
+    "report": ".scratch/dev/test-suites/browser/2026-10-10T15-00-00-896Z/ccb0c26eb3b2/result.json",
+    "reportSha256": "6ad7157069bdc06133ca662cab186cf54b7c7625d62668d92677b086ecadfdef"
+  },
+  "subsequentTestSelectorCorrection": "Use textbox role with exact accessible name Reason; the wrapped-label text matcher ceased matching after a controlled textarea value update. Keep exact value and confirmation assertions.",
+  "reasonSelectorGreen": {
+    "passedCases": 1,
+    "viewport": "desktop",
+    "preservedAssertions": [
+      "independent return/approval",
+      "exact reason value",
+      "confirmation action",
+      "handover",
+      "no financial posting"
+    ],
+    "artifacts": [
+      {
+        "log": ".scratch/dev/test-suites/browser/2026-10-10T15-05-31-577Z/c0be99f4cbad/playwright.log",
+        "logSha256": "0e8b7e89f3d809ea0ba6e09195c1c12673ac9cc3ded5e5cb8822f50095b1092a",
+        "report": ".scratch/dev/test-suites/browser/2026-10-10T15-05-31-577Z/c0be99f4cbad/result.json",
+        "reportSha256": "3f6e2f2fd9d52aaadd01a8ab6e1355d5879af3ce75cc7d05a2e8abd8514329af"
+      }
+    ]
+  },
+  "mobileGreen": {
+    "log": ".scratch/dev/test-suites/browser/2026-10-10T15-30-23-301Z/a7fed06570c6/playwright.log",
+    "logSha256": "babc98cbdbc1cca77504f96120cfedd469cb6fd5dbadeb71964812af92141180",
+    "report": ".scratch/dev/test-suites/browser/2026-10-10T15-30-23-301Z/a7fed06570c6/result.json",
+    "reportSha256": "8cebf42e02e2a041ddc730b9de7f558ac4f8c44e172ad518e8936961dcf394af"
+  },
+  "mobileActionSelector": "Scope service action buttons to the Overview tabpanel to distinguish mobile navigation Start work. Keep exact name and singular visible-button assertions."
+}

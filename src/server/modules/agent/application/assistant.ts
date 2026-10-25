@@ -111,21 +111,21 @@ async function assistantSources(actor:WorkContext,path:string):Promise<Assistant
     const d=await ports.sources.handbookArticle(actor,id);
     data={id:d.article.id,version:d.revision.revision,title:d.revision.title,body:d.revision.body};
   } else if(root==="pms") {
-    const propertyId=p.query.get("property")??undefined,recordId=p.query.get("folio")??p.query.get("record");
+    const propertyId=p.query.get("property")??undefined,recordId=p.query.get("guest_account")??p.query.get("record");
     const view=await ports.sources.pmsWorkspace(actor,propertyId),snapshot=view.snapshot;
     if(snapshot) {
       const visible=snapshot.records;
       const selected=recordId?visible.find(r=>r.id===recordId):undefined;
       if(recordId&&!selected)throw new BusinessRuleError(404,"AI_CONTEXT_NOT_FOUND","This hotel record is unavailable in your current scope.");
       const counts=Object.fromEntries([...new Set(visible.map(r=>r.kind))].sort().map(kind=>[kind,visible.filter(r=>r.kind===kind).length]));
-      data={title:`${snapshot.property.name} · hotel evidence`,propertyId:snapshot.property.id,propertyVersion:snapshot.property.version,businessDate:snapshot.property.businessDate,propertyState:snapshot.property.state,readiness:view.readiness,visibleRecordCounts:counts,...(selected?{record:{id:selected.id,kind:selected.kind,version:selected.version,updatedAt:selected.updatedAt,fields:pick(selected.data as Record<string,unknown>,["state","status","arrival","departure","arrivalDate","departureDate","roomId","stayId","folioId","businessDate","due","deposit","total","amount","sourceType","sourceId"])}}:{})};
+      data={title:`${snapshot.property.name} · hotel evidence`,propertyId:snapshot.property.id,propertyVersion:snapshot.property.version,businessDate:snapshot.property.businessDate,propertyState:snapshot.property.state,readiness:view.readiness,visibleRecordCounts:counts,...(selected?{record:{id:selected.id,kind:selected.kind,version:selected.version,updatedAt:selected.updatedAt,fields:pick(selected.data as Record<string,unknown>,["state","status","arrival","departure","arrivalDate","departureDate","roomId","stayId","guestAccountId","businessDate","due","deposit","total","amount","sourceType","sourceId"])}}:{})};
     }
   } else if(root==="pos") {
     const saleId=p.query.get("sale")??undefined;
     const view=await ports.sources.posWorkspace(actor,saleId,"",saleId?"sale":p.query.get("tab")??"sale");
     const sale=view.sale;
     data={title:sale?`POS sale ${String(sale.number)}`:"Restaurant point of sale",currency:view.currency,registerCount:view.registers.length,openSales:view.sales.filter(s=>["open","held","payment_pending"].includes(String(s.state))).length,
-      ...(sale?{sale:pick(sale,["id","number","version","state","business_date","currency","subtotal_minor","tax_minor","discount_minor","total_minor"]),lines:view.lines.map(line=>pick(line,["id","name","quantity_milli","total_minor","fulfillment_state"])),payments:view.payments.map(payment=>pick(payment,["id","method","state","amount_minor","version"])),roomCharge:view.roomCharge?pick(view.roomCharge,["folio_entry_id","reversal_entry_id","property_version"]):null}:{})};
+      ...(sale?{sale:pick(sale,["id","number","version","state","business_date","currency","subtotal_minor","tax_minor","discount_minor","total_minor"]),lines:view.lines.map(line=>pick(line,["id","name","quantity_milli","total_minor","fulfillment_state"])),payments:view.payments.map(payment=>pick(payment,["id","method","state","amount_minor","version"])),roomCharge:view.roomCharge?pick(view.roomCharge,["guest_account_entry_id","reversal_entry_id","property_version"]):null}:{})};
   } else if(root==="commerce"&&commerceView==="stock") {
     const view=await ports.sources.commercePage(actor,{view:"stock"});
     data={title:"Inventory position · first page",currency:view.currency,branchId:actor.branchId,firstPageOnly:true,moreStockRows:view.page.hasMore,

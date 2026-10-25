@@ -1,6 +1,11 @@
+import { execFileSync } from "node:child_process";
+import { resolve } from "node:path";
+import { pinnedBunBinary } from "../../scripts/testing/runtime-tooling";
+import { browserChildEnvironment } from "../../scripts/testing/runner-environment";
 import { captureCaseScreenshot } from "../helpers/case-screenshot";
 import { browserProjects } from "../../scripts/testing/browser-results";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
+import type { OrganizationAccessData } from "../../src/lib/organization-access";
 import type { HoldingPeopleDirectory } from "../../src/server/holding-people-directory";
 import { organizationSession, readOrganization } from "../helpers/organization-access-browser";
 import { mockPeopleDraft } from "../helpers/people-draft-browser";
@@ -9,6 +14,126 @@ async function readPeopleDirectory(context: BrowserContext, base: string) {
   const response = await context.request.get(`/api/v1${base}/people-public-directory`);
   expect(response.ok()).toBe(true);
   return (await response.json()).data as HoldingPeopleDirectory;
+}
+// These shapes belong to the individual browser case, not the shared demo seed.
+async function chartPrerequisites(page: Page, context: BrowserContext, base: string, organization: OrganizationAccessData, shape: "vacant" | "holders" | "duplicate-holders" | "unassigned") {
+  await page.goto(`${base}/home`);
+  const stamp = page.locator("[data-work-assignment]");
+  await expect(stamp).toHaveCount(1);
+  await expect(stamp).toHaveAttribute("data-work-stale", "false");
+  await expect(stamp).toHaveAttribute("data-work-user", organization.actorId);
+  const template = organization.positions.find(position => position.active === 1 && !position.is_ceo && position.branch_id && organization.people.some(person => person.position_id === position.id && person.status === "active" && person.person_status === "active" && person.manager_person_id))!;
+  expect(template).toBeTruthy();
+  await expect(stamp).toHaveAttribute("data-work-company", template.company_id);
+  const session = await context.request.get(`/api/v1${base}/assignments/active`);
+  expect(session.ok()).toBe(true);
+  const assignment = (await session.json()).data;
+  expect(assignment).toMatchObject({ valid: true, companyId: template.company_id, userId: organization.actorId });
+  await expect(stamp).toHaveAttribute("data-work-assignment", assignment.assignmentId);
+  async function command(path: string, data: Record<string, unknown>, preview = false) {
+    const captured = await stamp.evaluate(element => {
+      const node = element as HTMLElement;
+      return { revision: node.dataset.workRevision!, company: node.dataset.workCompany!, assignment: node.dataset.workAssignment! };
+    });
+    expect(captured.revision).toMatch(/^\d+$/);
+    const response = await context.request.post(`/api/v1${base}/people/${path}`, { headers: {
+      Origin: new URL(page.url()).origin, "Idempotency-Key": crypto.randomUUID(),
+      "x-erpx-context-revision": captured.revision, "x-erpx-context-company": captured.company, "x-erpx-context-assignment": captured.assignment,
+    }, data });
+    const body = await response.json();
+    expect(response.ok(), `${path}: ${response.status()} ${body.error?.code ?? ""}`).toBe(true);
+    if (!preview) expect(body.data.id).toBeTruthy();
+    return body.data as { id: string; version: number; status?: string; token?: string };
+  }
+  if (shape === "vacant" || shape === "duplicate-holders") {
+    const position = await command("organization/positions", {
+      title: shape === "vacant" ? `Chart vacancy ${crypto.randomUUID().slice(0, 8)}` : template.title,
+      branchId: template.branch_id, departmentId: template.department_id, levelId: template.level_id,
+      reportsToPositionId: template.reports_to_position_id, isCeo: false, active: true, expectedVersion: 0,
+      reason: "Case-owned organization chart vacancy",
+    });
+    const persisted = await readOrganization(context, base);
+    expect(persisted.positions.find(candidate => candidate.id === position.id)).toMatchObject({ active: 1, company_id: template.company_id });
+    expect(persisted.people.some(person => person.position_id === position.id)).toBe(false);
+  }
+  if (shape !== "vacant") {
+    const holder = organization.people.find(person => person.position_id === template.id && person.status === "active" && person.person_status === "active" && person.manager_person_id)!;
+    const suffix = crypto.randomUUID();
+    const profile = {
+      legalName: `Chart holder ${suffix.slice(0, 8)}`, email: `chart-${suffix}@example.test`, countryCode: "US",
+      branchId: template.branch_id, departmentId: template.department_id, jobTitle: template.title,
+      workerType: "employee", employmentType: "salaried", startDate: "2026-01-01", currency: "USD",
+      managerPersonId: holder.manager_person_id, levelId: template.level_id, positionId: template.id,
+      reason: "Case-owned organization chart additional holder",
+    };
+    const created = await command("directory", profile);
+    expect(created.version).toBe(1);
+    const activated = await command(`directory/${created.id}/status`, { status: "active", expectedVersion: created.version });
+    expect(activated).toMatchObject({ id: created.id, status: "active", version: 2 });
+    let persisted = await readOrganization(context, base);
+    expect(persisted.people.find(person => person.person_id === created.id)).toMatchObject({ status: "active", person_status: "active", position_id: template.id });
+    if (shape === "unassigned") {
+      const engagement = persisted.people.find(person => person.person_id === created.id)!;
+      const suspension = {
+        expectedVersion: 0, kind: "suspend", personId: created.id, engagementId: engagement.engagement_id,
+        positionId: template.id, managerPersonId: holder.manager_person_id,
+        effectiveAt: Date.now(), timezone: "UTC", reason: "Case-owned suspended staff without a current position",
+      };
+      const run = process.env.ERPX_BROWSER_SIMULATION_RUN;
+      const origin = new URL(page.url());
+      expect(run, "Only this disposable browser case may prepare lifecycle work").toMatch(/^[a-f0-9]{12}$/);
+      expect(["127.0.0.1", "localhost"]).toContain(origin.hostname);
+      expect(["3102", "3104"]).toContain(origin.port);
+      expect(base).toBe("/holdings/acme");
+      expect(template.company_id).toBe("acme-co");
+      function workerControl(action: "pause-jobs" | "resume-jobs") {
+        const result = JSON.parse(execFileSync(pinnedBunBinary(resolve(".")), ["--env-file=/dev/null", "scripts/local/run-server-script.ts", "scripts/local/browser-simulation.ts", action, run!], {
+          cwd: resolve("."), timeout: 30_000,
+          env: browserChildEnvironment(process.env, { ERPX_BROWSER_SIMULATION_PORT: origin.port, ERPX_BROWSER_SIMULATION_ATTACHMENTS: "local", ERPX_BROWSER_SIMULATION_JOBS: "1" }),
+        }).toString()) as { run: string; jobsPaused: boolean; jobsPid?: number };
+        expect(result.run).toBe(run);
+        expect(result.jobsPaused).toBe(action === "pause-jobs");
+        if (action === "resume-jobs") expect(result.jobsPid).toBeGreaterThan(0);
+      }
+      // Restart only the cohort's normal worker so its first scheduled tick
+      // prepares this case without depending on the two-minute timer phase.
+      workerControl("pause-jobs");
+      let scheduled: { id: string; version: number; status?: string };
+      try {
+        const preview = await command("lifecycle/cases/preview", suspension, true);
+        expect(preview.token).toMatch(/^[a-f0-9]{64}$/);
+        scheduled = await command("lifecycle/cases/submit", { ...suspension, previewToken: preview.token });
+        expect(scheduled.status).toBe("scheduled");
+      } finally {
+        workerControl("resume-jobs");
+      }
+      await expect.poll(async () => {
+        const response = await context.request.get(`/api/v1${base}/people/lifecycle`);
+        expect(response.ok()).toBe(true);
+        const lifecycle = (await response.json()).data as { cases: { id: string; person_id: string; engagement_id: string; status: string }[] };
+        const ownCase = lifecycle.cases.find(candidate => candidate.id === scheduled.id);
+        expect(ownCase).toMatchObject({ person_id: created.id, engagement_id: engagement.engagement_id });
+        return ownCase!.status;
+      }).toBe("completed");
+      persisted = await readOrganization(context, base);
+      const suspended = persisted.people.find(person => person.person_id === created.id)!;
+      expect(suspended).toMatchObject({ status: "suspended", person_status: "active", position_id: template.id });
+      const updated = await command(`directory/${created.id}`, {
+        ...profile, positionId: null, expectedVersion: suspended.person_version,
+        engagementId: suspended.engagement_id, expectedEngagementVersion: suspended.engagement_version,
+        reason: "Case-owned suspended staff placement cleared through HR owner command",
+      });
+      expect(updated.version).toBe(suspended.person_version + 1);
+      persisted = await readOrganization(context, base);
+      expect(persisted.people.find(person => person.person_id === created.id)).toMatchObject({ status: "suspended", person_status: "active", position_id: null });
+      const directory = await readPeopleDirectory(context, base);
+      expect(directory.people.find(person => person.engagementId === suspended.engagement_id)).toMatchObject({ companyId: template.company_id, positionId: null, legalName: profile.legalName });
+    } else {
+      const directory = await readPeopleDirectory(context, base);
+      expect(directory.people.filter(person => person.positionId === template.id).length).toBeGreaterThan(1);
+    }
+  }
+  return readOrganization(context, base);
 }
 const positionRows = (page: Page) => page.locator('[data-testid^="people-position-"]:not([data-testid="people-position-group"])');
 const occupancyFilters = (page: Page) => page.getByRole("group", { name: "Position occupancy", exact: true });
@@ -21,7 +146,8 @@ async function openPeopleWorkspace(page: Page, url: string) {
 
 test("occupancy filters preserve selection, search, refresh and browser Back", async ({ page, context }) => {
   test.setTimeout(120_000);
-  const base = await organizationSession(context, "hr_admin"), organization = await readOrganization(context, base);
+  const base = await organizationSession(context, "hr_admin");
+  const organization = await chartPrerequisites(page, context, base, await readOrganization(context, base), "vacant");
   const drafts = await mockPeopleDraft(page, organization), directory = await readPeopleDirectory(context, base);
   const companyId = organization.positions[0].company_id, positions = directory.positions.filter(position => position.companyId === companyId);
   const people = directory.people.filter(person => person.companyId === companyId);
@@ -71,7 +197,8 @@ test("occupancy filters preserve selection, search, refresh and browser Back", a
 
 test("Without position and Archived exclude vacancy filters and empty position rows", async ({ page, context }, info) => {
   test.setTimeout(120_000);
-  const base = await organizationSession(context, "hr_admin"), organization = await readOrganization(context, base);
+  const base = await organizationSession(context, "hr_admin");
+  const organization = await chartPrerequisites(page, context, base, await readOrganization(context, base), "unassigned");
   const drafts = await mockPeopleDraft(page, organization), directory = await readPeopleDirectory(context, base);
   const companyId = organization.positions[0].company_id, unassigned = directory.people.filter(person => person.companyId === companyId && !person.positionId);
   expect(unassigned.length).toBeGreaterThan(0);
@@ -105,7 +232,8 @@ test("Without position and Archived exclude vacancy filters and empty position r
 
 test("compact groups retain multiple holders, duplicate titles and keyboard action menus", async ({ page, context }, info) => {
   test.setTimeout(120_000);
-  const base = await organizationSession(context, "hr_admin"), organization = await readOrganization(context, base);
+  const base = await organizationSession(context, "hr_admin");
+  const organization = await chartPrerequisites(page, context, base, await readOrganization(context, base), "duplicate-holders");
   const drafts = await mockPeopleDraft(page, organization), directory = await readPeopleDirectory(context, base);
   const companyId = organization.positions[0].company_id, positions = directory.positions.filter(position => position.companyId === companyId);
   const multiple = positions.find(position => directory.people.filter(person => person.positionId === position.id).length > 1)!;
@@ -204,7 +332,8 @@ test("mocked draft moves update occupancy, group counts and Undo immediately", a
 
 test("compact rows and details fit light and dark layouts from 320px to a large desktop", browserProjects(["desktop"], "This case explicitly sweeps eight widths from 320px to 2560px in both themes once; mobile occupancy and detail cases remain required."), async ({ page, context }) => {
   test.setTimeout(180_000);
-  const base = await organizationSession(context, "hr_admin"), organization = await readOrganization(context, base);
+  const base = await organizationSession(context, "hr_admin");
+  const organization = await chartPrerequisites(page, context, base, await readOrganization(context, base), "holders");
   const drafts = await mockPeopleDraft(page, organization);
   const position = organization.positions.find(position => position.active && organization.people.filter(person => person.status === "active" && person.position_id === position.id).length > 1)!;
   const person = organization.people.find(person => person.status === "active" && person.position_id === position.id)!;

@@ -2,7 +2,7 @@ import { captureCaseScreenshot } from "../helpers/case-screenshot";
 import { browserProjects } from "../../scripts/testing/browser-results";
 import { test, expect, type Locator, type Page } from "@playwright/test";
 import { frontOrigin } from "../helpers/front-simulation-session";
-import { openAccountMenu, searchRoleOptions } from "../helpers/context-switching-browser";
+import { openAccountMenu, matchingRoleOptions } from "../helpers/context-switching-browser";
 import { selectAcmeHoldingOwner } from "./helpers/select-acme-holding-owner";
 test.use({ actionTimeout: 15000 });
 function workspace(page: Page) {
@@ -43,8 +43,8 @@ test("canonical workspace routes and legacy aliases retain their scope", async (
   const erpxRoleState = (await erpxRoleResponse.json()).data as { revision: number; options: { id: string; role: string }[] };
   const erpxOwners = erpxRoleState.options.filter(role => role.role === "holding_owner");
   expect(erpxOwners).toHaveLength(1);
-  const erpxOptions = await searchRoleOptions(page, "holding owner");
-  const erpxOwner = erpxOptions.getByRole("option").filter({ hasText: "ERPX browser realm" });
+  const erpxOptions = await matchingRoleOptions(page, "holding owner");
+  const erpxOwner = erpxOptions.filter({ hasText: "ERPX browser realm" });
   await expect(erpxOwner).toHaveCount(1);
   const erpxSelected = page.waitForResponse(response => response.request().method() === "POST" && response.url().endsWith("/holdings/erpx/assignments/active"));
   await erpxOwner.click();
@@ -459,8 +459,8 @@ test("restricted staff sees only authorized live destinations", async ({
   const previous = (await previousResponse.json()).data as { revision: number; companyId: string; userId: string };
   expect(previous).toMatchObject({ companyId: "acme-co", userId: "usr_jesadakorn" });
   await openAccountMenu(page);
-  const roles = await searchRoleOptions(page, "operations manager");
-  const operations = roles.getByRole("option").filter({ hasText: "Acme Corporation" }).filter({ hasText: /operations manager/i });
+  const roles = await matchingRoleOptions(page, "operations manager");
+  const operations = roles.filter({ hasText: "Acme Corporation" }).filter({ hasText: /operations manager/i });
   await expect(operations).toHaveCount(1);
   const selectedRole = page.waitForResponse(response => response.request().method() === "POST" && response.url().endsWith("/assignments/active"));
   await operations.click();
@@ -519,7 +519,8 @@ test("post drafts survive failures and collapsed UI; dialogs retain keyboard foc
 }) => {
   await login(page);
   await page.goto("/holdings/acme/feed");
-  const openComposer = workspace(page).locator("details.beta-composer > summary");
+  // The lazy launcher becomes the persistent disclosure trigger after first open.
+  const openComposer = workspace(page).locator("button.beta-composer, details.beta-composer > summary");
   await openComposer.click();
   const composer = page.getByRole("dialog", { name: "Share an update", exact: true });
   await expect(composer).toBeVisible();

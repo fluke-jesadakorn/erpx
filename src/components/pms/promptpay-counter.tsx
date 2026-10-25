@@ -31,14 +31,14 @@ type History = {
 export function PmsPromptPay({
   base,
   propertyId,
-  folioId,
+  guestAccountId,
   initialId,
   dueMinor,
   history,
 }: {
   base: string;
   propertyId: string;
-  folioId: string;
+  guestAccountId: string;
   initialId?: string;
   dueMinor: number;
   history: History[];
@@ -94,7 +94,7 @@ export function PmsPromptPay({
         headers: { "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID() },
         body: JSON.stringify({
           propertyId,
-          folioId,
+          guestAccountId,
           kind: String(data.get("kind")),
           amountMinor: Math.round(Number(data.get("amount")) * 100),
           payerEmail: String(data.get("email") ?? ""),
@@ -128,7 +128,7 @@ export function PmsPromptPay({
             </p>
           </>
         ) : payment?.state === "succeeded" ? (
-          <p>Payment confirmed and posted to the folio.</p>
+          <p>Payment confirmed and posted to the guest account.</p>
         ) : payment?.state === "refund_review" ? (
           <p>Payment arrived after the QR expired. Finance must review and return the money.</p>
         ) : (

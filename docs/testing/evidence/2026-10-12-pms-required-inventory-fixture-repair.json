@@ -1,0 +1,42 @@
+{
+  "checkedAt": "2026-10-11T19:45:27.398957+00:00",
+  "scope": "Verification-only repair of synthetic required-case unit fixture; no application behavior or historical baseline deletion; not full PMS acceptance",
+  "runtimeFingerprint": "51701d69c6d65dc1ee28480e7de4b404c89f3e32f8ab6c912c551568114b6bf6",
+  "verificationFingerprint": "520b658394141d43a5a5fa2b34ad6d8f1f6b17e79e96f6f218f460924eb406d3",
+  "priorVerificationFingerprint": "f58aa169e975e0cf967e12662cc088aa8b401941944fa19a31c20f5c27ed61b0",
+  "source": {
+    "file": "tests/unit/test-selection.test.ts",
+    "SHA256": "f762daec66f23f59d2518a02e6961115ac0ccf7e7525b9407f182b7279144bfb"
+  },
+  "before": {
+    "receipt": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-joint-final-2026-10-12/prepare-terminal.json",
+    "exitCode": 1,
+    "log": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-joint-final-2026-10-12/unit83.log",
+    "passed": 82,
+    "failed": 1,
+    "failure": "REGISTERED_REQUIRED_CASE_MISSING for newly registered PMS desktop synthetic observation"
+  },
+  "after": {
+    "receipt": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-joint-final-2026-10-12/unit83-after.json",
+    "SHA256": "1c15e50711ea8d0f972a92bdd965f512821351bd58149e7a6d674c47e737498b",
+    "passed": 83,
+    "failed": 0,
+    "pending": 0,
+    "engineeringTypecheckExitCode": 0,
+    "ownedEslintExitCode": 0,
+    "staticReceipt": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-joint-final-2026-10-12/repair-static-terminal.json"
+  },
+  "invocationErrorRetained": {
+    "log": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-joint-final-2026-10-12/engineering-typecheck-after.log",
+    "code": "TS5058",
+    "reason": "Wrong ignored driver config path tsconfig.engineering.json; corrected to existing tsconfig.engineering-tests.json; no source errors asserted"
+  },
+  "requirements": {
+    "historicalRequiredCasesRetained": 491,
+    "historicalExclusionsRetained": 9,
+    "explicitNewReviewedBrowserCases": 2,
+    "missingAndReclassificationChecks": 493,
+    "registryCasesDeleted": 0
+  },
+  "fullPmsAcceptancePending": true
+}

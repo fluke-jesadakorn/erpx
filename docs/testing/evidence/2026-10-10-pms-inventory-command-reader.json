@@ -1,0 +1,1014 @@
+{
+  "complete": false,
+  "wholePlanAcceptance": false,
+  "status": "Frozen candidate passes native1301 and compiled34 business cases; full unchanged load reconciles zero failures/deadlocks but strict core p95 fails; further performance and required browser inventory remain open",
+  "source": {
+    "runtime": "40915d0225c70e5eabba70ffd2e269610142943ca683a9a4195650f74e81e7df",
+    "verification": "45883aae5bcfa16750ef26362930ba49d79319e300124c866d5f95b3cae6f3d0"
+  },
+  "operations": [
+    "room_type.save",
+    "room.save",
+    "rate.save",
+    "rate.calendar",
+    "block.create",
+    "block.release"
+  ],
+  "dependencies": [
+    "All room types/rooms/rates/blocks/items/credit records including inactive/released target records",
+    "Every reserved/in-house stay with original full segments/occupancy regardless of dates",
+    "Original Property configuration and Finance/stock/party reference validation"
+  ],
+  "excluded": "Unrelated guests, reservations, closed stay/accounts and money history cannot affect these six inventory/configuration invariants; original records remain intact. No UI page or date-limited snapshot is used.",
+  "preserved": [
+    "Command envelope/HTTP interfaces",
+    "Scoped authoritative Property lock then expectedVersion before dependency read",
+    "Owner transaction/rollback and original mutation/reference/money behavior",
+    "Whole-property duplicate number checks",
+    "Overdue assignment/maintenance and complete capacity facts",
+    "Idempotent replay before stale expectedVersion evaluation"
+  ],
+  "focusedProof": {
+    "nativeRed": {
+      "exitCode": 1,
+      "failure": "Prior all-record reader includes 63 historical rows; expected zero historical rows in authoritative configuration facts"
+    },
+    "nativeGreen": {
+      "exitCode": 0,
+      "passed": 2,
+      "notRun": 16,
+      "scope": "One real SQL query, all56 rooms/overdue/future/full blocks/reference facts; unrelated historical and other-Property rows excluded; command capacity/duplicate/assignment/maintenance/stale/missing-target rejection rolls back all records and Property version; exact capacity create/release succeeds"
+    },
+    "replayAugmentation": "Original creation envelope/key after release must return original result/version without extra mutation; running in full focused regression"
+  },
+  "liveHandles": {},
+  "scopeLimitations": [
+    "Synthetic already-open operational fixture does not establish Finance setup approval; full PMS tests retain that responsibility",
+    "Two focused proofs are not full regression/strict release performance/browser/mock-pilot acceptance",
+    "Previous partial/failed setup experiments retained; no weakened assertions or production guards"
+  ],
+  "artifacts": {
+    "native-first-shape-failure.log": {
+      "path": ".scratch/dev/pms-inventory-reader/native-first-shape-failure.log",
+      "sha256": "671deb9f5440152c309b291aeac6a7d6ca0f85b3c8c4bd934b8aa204203e4b30"
+    },
+    "native-branch-setup-failure.log": {
+      "path": ".scratch/dev/pms-inventory-reader/native-branch-setup-failure.log",
+      "sha256": "1e1f5930f6136b24aa3a0b889c979e4674bf4d9276c4d3413cf9db982c988d61"
+    },
+    "native-red.log": {
+      "path": ".scratch/dev/pms-inventory-reader/native-red.log",
+      "sha256": "c783309fa73ab0cc804793f7fa124438cfa2b4f2b13a9c5e6b73e17b1a5ce5fd"
+    },
+    "native-green.log": {
+      "path": ".scratch/dev/pms-inventory-reader/native-green.log",
+      "sha256": "1c12c052b73d05b09dc1edca1cf6dd597e590e079dabadd592c5752691970f5b"
+    },
+    "native-open-fixture-setup-failure.log": {
+      "path": ".scratch/dev/pms-inventory-reader/native-open-fixture-setup-failure.log",
+      "sha256": "b6ead68679236eb42f56b37b6cf2482a3e37b2833ba19bc8a1036500f0ddbe7f"
+    },
+    "native-invalid-maintenance-span-failure.log": {
+      "path": ".scratch/dev/pms-inventory-reader/native-invalid-maintenance-span-failure.log",
+      "sha256": "c775fe815595eaae3f152c96e266761c4eefcb9b8563752d8ab8e21479f71c24"
+    },
+    "native-focused.log": {
+      "path": ".scratch/dev/pms-inventory-reader/native-focused.log",
+      "sha256": "efe8fab36ffcad3dbc898449fdf39056ce98ccec6f7adf21eef2a271bb29503b"
+    },
+    "source-before.json": {
+      "path": ".scratch/dev/pms-inventory-reader/source-before.json",
+      "sha256": "079416e0cb81439c86ef0eed834ef7eb0512f3d6d9b704e1674346068b45a47e"
+    },
+    "native-regression.log": {
+      "path": ".scratch/dev/pms-inventory-reader/native-regression.log",
+      "sha256": "5650803974007f210fe534014499a3961b03278aba50dce276527144b6ba77ca"
+    },
+    "typecheck.log": {
+      "path": ".scratch/dev/pms-inventory-reader/typecheck.log",
+      "sha256": "758a7e7962451bfd63b42c279d1cb2307a3763e2af71e8048d5c700d05dbb5dc"
+    },
+    "typecheck-final.log": {
+      "path": ".scratch/dev/pms-inventory-reader/typecheck-final.log",
+      "sha256": "ae3aa3d40f2b7fdeaf8ae4398c41416876c85fc2ccc6aa232e526fdb75f340ef"
+    },
+    "lint.log": {
+      "path": ".scratch/dev/pms-inventory-reader/lint.log",
+      "sha256": "827c4aba480463caff85470227105c05ff46cd40693fc7c1b1f9f25d59f13231"
+    },
+    "architecture.log": {
+      "path": ".scratch/dev/pms-inventory-reader/architecture.log",
+      "sha256": "61f27aa5d383438fa7955c201143725c76302dadbcb2c312efa2d398a9d6f86b"
+    },
+    "type-annotation-fidelity.json": {
+      "path": ".scratch/dev/pms-inventory-reader/type-annotation-fidelity.json",
+      "sha256": "3a973225f31e8a4960fe3c5a1d19807a2ff983a8b79312b400baaf618ce4477d"
+    },
+    "source-before-build.json": {
+      "path": ".scratch/dev/pms-inventory-reader/source-before-build.json",
+      "sha256": "346981fff0f7a03aa0b18d232e193ecb841dd37680ee538d684e0d5c4633a6d9"
+    },
+    "build.log": {
+      "path": ".scratch/dev/pms-inventory-reader/build.log",
+      "sha256": "14de13bd41465281d0baa1953adf79b2d418414984a800d43fb994362871b0c5"
+    },
+    "public-room-type-detail.jpg": {
+      "path": ".scratch/dev/pms-inventory-reader/public-room-type-detail.jpg",
+      "sha256": "e0f03f705b5b7933fdea282fcc077f5f46ef986e1749a50cd7ef36040b8dd239"
+    },
+    "public-settings.jpg": {
+      "path": ".scratch/dev/pms-inventory-reader/public-settings.jpg",
+      "sha256": "2e6063e6157731638d4136b26ec8d4342280a3d5ba297daa7adef217287a262b"
+    },
+    "native-full.log": {
+      "path": ".scratch/dev/pms-inventory-reader/native-full.log",
+      "sha256": "20475cea54b353adcb7e4822d938b4e72414b17c7bc81d8d32b7bb6a4dfdf5f8"
+    },
+    "source-after-native.json": {
+      "path": ".scratch/dev/pms-inventory-reader/source-after-native.json",
+      "sha256": "346981fff0f7a03aa0b18d232e193ecb841dd37680ee538d684e0d5c4633a6d9"
+    },
+    "fixture-maintenance.json": {
+      "path": ".scratch/dev/pms-inventory-reader/fixture-maintenance.json",
+      "sha256": "d1b9bc2e0b10f13fbac5cb808472a2881b57a7156b09ec709bb0e04892098566"
+    },
+    "statistics-before-maintenance.json": {
+      "path": ".scratch/dev/pms-inventory-reader/statistics-before-maintenance.json",
+      "sha256": "ae258d827bafba661c90e12852813c02c9a3bd550054744ccce24abf9f21ef56"
+    },
+    "db-before.json": {
+      "path": ".scratch/dev/pms-inventory-reader/db-before.json",
+      "sha256": "2e5c03c6676b370718a067a5b38c168072b46c39717d6c773fe4fa4fb0219067"
+    },
+    "budget-before.json": {
+      "path": ".scratch/dev/pms-inventory-reader/budget-before.json",
+      "sha256": "226d8d98ffa413a6dc88a2d28a5162dc57fd8682c51efd1e088a1e76684a4292"
+    },
+    "performance.log": {
+      "path": ".scratch/dev/pms-inventory-reader/performance.log",
+      "sha256": "b92d715cd212e5be62727245c5d0c48acade2932d3cfdaa5a0a3f5b9ff7c2148"
+    },
+    "scale-result/result.json": {
+      "path": ".scratch/dev/pms-inventory-reader/scale-result/result.json",
+      "sha256": "373a4c99931fe4f57b54e352491f6278c0ef35bb8b360e5ccbb423765372588d"
+    },
+    "scale-result/analysis.json": {
+      "path": ".scratch/dev/pms-inventory-reader/scale-result/analysis.json",
+      "sha256": "0b06812cc0cc89ad1f0b9d2b30c6064f4ae1be42d31ee5e2f0f6de223f7ff2ae"
+    },
+    "db-after.json": {
+      "path": ".scratch/dev/pms-inventory-reader/db-after.json",
+      "sha256": "2e5c03c6676b370718a067a5b38c168072b46c39717d6c773fe4fa4fb0219067"
+    },
+    "budget-after.json": {
+      "path": ".scratch/dev/pms-inventory-reader/budget-after.json",
+      "sha256": "21f7e8cca964960b6ccf4ef117a40a51d61acec6398d92b69b82b8e362f5e5a3"
+    },
+    "destroy-stop.log": {
+      "path": ".scratch/dev/pms-inventory-reader/destroy-stop.log",
+      "sha256": "0ac0d4e681b1931fc17833ad36caaac6046f36d141476280335efc19187b4d53"
+    },
+    "destroy-databases.log": {
+      "path": ".scratch/dev/pms-inventory-reader/destroy-databases.log",
+      "sha256": "d78d50f8038c7b4b28e896aae0ec33133fefc5c42238d5c0facd1426eb704f4a"
+    },
+    "public-prototype-deluxe.jpg": {
+      "path": ".scratch/dev/pms-inventory-reader/public-prototype-deluxe.jpg",
+      "sha256": "b0c1933ee1c72c62d81eb562d11a979f601b66186fdb41791ceaa245faff8fc2"
+    },
+    "public-prototype-B.jpg": {
+      "path": ".scratch/dev/pms-inventory-reader/public-prototype-B.jpg",
+      "sha256": "b8f7427994d52b5007c5fabf178cfca65b1704f419de13c591bf16c53a4e601c"
+    },
+    "public-prototype-C.jpg": {
+      "path": ".scratch/dev/pms-inventory-reader/public-prototype-C.jpg",
+      "sha256": "7ebe2d3143f505206896c63c1de469cc5ab21a6adb32c3c487890560e8484375"
+    },
+    "public-prototype-mobile-drawer.jpg": {
+      "path": ".scratch/dev/pms-inventory-reader/public-prototype-mobile-drawer.jpg",
+      "sha256": "36e7adf168ee6e3fbc24dbe4c8c07ced0ac6d15466a776222091d57ed3912c3a"
+    },
+    "public-prototype-mobile-checkin.jpg": {
+      "path": ".scratch/dev/pms-inventory-reader/public-prototype-mobile-checkin.jpg",
+      "sha256": "66ccc1e0efc3563d6d593015ebc8aef1bd463bc4ba1bf78f04cef87f514af908"
+    },
+    "compiled-browser-first.ts": {
+      "path": ".scratch/dev/pms-inventory-reader/compiled-browser-first.ts",
+      "sha256": "e7389906192996bcf75db26e6c287c5d2b2d308cdecc6e8feb2412a34a337bba"
+    },
+    "compiled-browser-mapping.json": {
+      "path": ".scratch/dev/pms-inventory-reader/compiled-browser-mapping.json",
+      "sha256": "95d5b3be7ef96e0acfe224f196a89df0a784631c8f6605100c341f80bd9a8d7d"
+    },
+    "compiled-browser-remainder-mapping.json": {
+      "path": ".scratch/dev/pms-inventory-reader/compiled-browser-remainder-mapping.json",
+      "sha256": "9499b71c79ff17c3635bf3c0f58578b536915d21b95a2a74940ab7170be3e045"
+    },
+    "compiled-browser.log": {
+      "path": ".scratch/dev/pms-inventory-reader/compiled-browser.log",
+      "sha256": "d05a5a26f78dc0f6ad13676dfa8c1bea0f1d8c2f868de7b2feae49715873a535"
+    },
+    ".scratch/dev/pms-inventory-reader/compiled-browser-remainder.log": {
+      "path": ".scratch/dev/pms-inventory-reader/compiled-browser-remainder.log",
+      "sha256": "ac972724b6f5d5ba38e72dd53fd6986d8371de2ee5becfc236d94c93b1406de7"
+    },
+    ".scratch/dev/pms-inventory-reader/source-after-browser.json": {
+      "path": ".scratch/dev/pms-inventory-reader/source-after-browser.json",
+      "sha256": "346981fff0f7a03aa0b18d232e193ecb841dd37680ee538d684e0d5c4633a6d9"
+    },
+    ".scratch/dev/test-suites/browser/2026-10-10T02-56-58-125Z/receipt.json": {
+      "path": ".scratch/dev/test-suites/browser/2026-10-10T02-56-58-125Z/receipt.json",
+      "sha256": "1f65cb453df7437a7fb9818e5c4abcc8f2e7b08b137e629248664a769340329c"
+    },
+    ".scratch/dev/test-suites/browser/2026-10-10T03-18-22-570Z/receipt.json": {
+      "path": ".scratch/dev/test-suites/browser/2026-10-10T03-18-22-570Z/receipt.json",
+      "sha256": "fcae25bb648f592bed472c099cb13b12f163b34bdbcd602a7ab4ff9dc8bbe6e5"
+    }
+  },
+  "nativeRegression": {
+    "exitCode": 0,
+    "files": 5,
+    "passed": 218,
+    "failed": 0,
+    "durationSeconds": 167.76,
+    "pms": 69,
+    "readModel": 18,
+    "booking": 37,
+    "pos": 81,
+    "push": 13,
+    "originalEnvelopeReplayAfterBlockReleasePassed": true
+  },
+  "typecheck": true,
+  "lint": {
+    "errors": 0,
+    "preExistingWarnings": 3
+  },
+  "architecture": true,
+  "typeAnnotationFidelity": {
+    "compiledTestJavaScriptUnchanged": true,
+    "assertionsAndInputsUnchanged": true
+  },
+  "sourceBeforeBuild": {
+    "runtime": "40915d0225c70e5eabba70ffd2e269610142943ca683a9a4195650f74e81e7df",
+    "verification": "45883aae5bcfa16750ef26362930ba49d79319e300124c866d5f95b3cae6f3d0"
+  },
+  "runtimeUnchangedSinceNative": true,
+  "remaining": [
+    "Measured authentication factory lifetime investigation and strict unchanged compiled-release SLO",
+    "All required browser inventory beyond the 34 compiled business cases, on the final accepted candidate",
+    "Consolidated mock pilot/feature acceptance audit; live money and production publication remain separate"
+  ],
+  "build": {
+    "releaseId": "2026-10-10T02-40-28-782Z",
+    "logHasCompletedRelease": true,
+    "sourceAfterBuild": {
+      "runtime": "40915d0225c70e5eabba70ffd2e269610142943ca683a9a4195650f74e81e7df",
+      "verification": "45883aae5bcfa16750ef26362930ba49d79319e300124c866d5f95b3cae6f3d0"
+    },
+    "fileManifestSha256": "fe4d8dbc3682c96f2a506b436df82d66dfe8cacac19f71966fddcfc62461b2e8"
+  },
+  "mockPilotInputs": "User explicitly authorized fictional hotels, staff and opening balances; real-hotel inputs are not an engineering acceptance blocker.",
+  "publicBrowser": {
+    "url": "https://console-dev-erpx.jesadakorn.com/holdings/acme/pms/settings",
+    "existingAuthenticatedSession": true,
+    "settingsRendered": true,
+    "roomTypeDetailRightDrawerOpenedAndClosed": true,
+    "dialogGeometry": {
+      "x": 913,
+      "y": 0,
+      "width": 800,
+      "height": 996,
+      "viewportWidth": 1728,
+      "viewportHeight": 996
+    },
+    "transactionsWritten": false
+  },
+  "docsCheck": {
+    "passed": true,
+    "markdownFiles": 248,
+    "links": 1318,
+    "ledgers": 213
+  },
+  "diffCheck": true,
+  "freshScaleRun": "9b41a67c02de",
+  "scaleConfiguration": {
+    "properties": 3,
+    "roomsPerProperty": 200,
+    "historyDays": 730,
+    "normalConcurrentUsers": 20,
+    "holdingPool": 8,
+    "controlPool": 8
+  },
+  "fixtureMaintenancePlanned": {
+    "scope": "Exact owned fresh cohort only",
+    "actions": [
+      "VACUUM (ANALYZE) work_cache_revisions in H001_DB",
+      "ANALYZE in H001_DB and CONTROL_DB"
+    ],
+    "workloadAndThresholdsUnchanged": true,
+    "rationale": "Synthetic history creates cache tuple revisions and stale planner statistics; capture observations and preserve revision facts. No proven performance root cause."
+  },
+  "fullNative": {
+    "exitCode": 0,
+    "files": 126,
+    "passed": 1301,
+    "unit": 779,
+    "postgres": 522,
+    "postgresSeconds": 373.09,
+    "sourceAfter": {
+      "runtime": "40915d0225c70e5eabba70ffd2e269610142943ca683a9a4195650f74e81e7df",
+      "verification": "45883aae5bcfa16750ef26362930ba49d79319e300124c866d5f95b3cae6f3d0"
+    }
+  },
+  "freshScalePrepared": true,
+  "fixtureMaintenanceCompleted": true,
+  "ownedProcesses": {},
+  "performance": {
+    "passed": false,
+    "readCount": 840,
+    "writeCount": 843,
+    "readP95Ms": 317.5642919999991,
+    "writeP95Ms": 2178.6073339999984,
+    "financialWriteP95Ms": 1651.273709000001,
+    "operationalWriteP95Ms": 1568.8194999999978,
+    "closingWriteP95Ms": 1462.072834000006,
+    "failedSamples": 0,
+    "sameProcesses": true,
+    "unchanged": true,
+    "financialReconciliation": {
+      "history": {
+        "records": 657000,
+        "versions": "657000"
+      },
+      "balances": {
+        "accounts": 20,
+        "due": "0",
+        "advance": "200000",
+        "deposit": "40000"
+      },
+      "cash": {
+        "shifts": 20,
+        "cash": "475400",
+        "reviewed": true
+      },
+      "receipts": {
+        "receipts": 60,
+        "refunds": 20,
+        "received": "495400",
+        "refunded": "20000",
+        "settled": true
+      },
+      "journals": {
+        "debit": "999280",
+        "credit": "999280"
+      }
+    },
+    "operationalReconciliation": {
+      "occupancy": {
+        "stays": 20,
+        "completed": true
+      },
+      "balances": {
+        "accounts": 20,
+        "due": "0",
+        "advance": "0",
+        "deposit": "0"
+      },
+      "cash": {
+        "shifts": 20,
+        "cash": "7062000",
+        "reviewed": true
+      },
+      "rooms": {
+        "rooms": 40,
+        "dirty": true
+      },
+      "charges": {
+        "charges": 20,
+        "total": "7062000"
+      },
+      "receipts": {
+        "receipts": 20,
+        "received": "7062000",
+        "settled": true
+      },
+      "journals": {
+        "debit": "22185280",
+        "credit": "22185280"
+      },
+      "history": {
+        "records": 657000,
+        "versions": "657000"
+      }
+    },
+    "closingReconciliation": {
+      "invoices": {
+        "invoices": 20,
+        "total": "7062000",
+        "outstanding": "0",
+        "paid": true
+      },
+      "days": {
+        "hotels": 3,
+        "advanced": true
+      },
+      "nights": {
+        "nights": 3,
+        "capacity": 600,
+        "sold": 20,
+        "completed": true
+      },
+      "journals": {
+        "debit": "22185280",
+        "credit": "22185280"
+      },
+      "history": {
+        "records": 657000,
+        "versions": "657000"
+      }
+    },
+    "operationGates": {
+      "financial": {
+        "operations": 9,
+        "allOperationP95Below2000": true,
+        "maxOperationP95": 1737.2222919999986
+      },
+      "operational": {
+        "operations": 11,
+        "allOperationP95Below2000": true,
+        "maxOperationP95": 1776.7762079999957
+      },
+      "closing": {
+        "operations": 2,
+        "allOperationP95Below2000": true,
+        "maxOperationP95": 1462.072834000006
+      }
+    },
+    "historicalRecordsUnchanged": 657000,
+    "databaseDeadlocks": 0,
+    "guestSaveP95Ms": 1762.861459,
+    "reservationCreateP95Ms": 2350.791292,
+    "budgetPointObservations": {
+      "globalBefore": 42,
+      "globalDuring": 55,
+      "globalAfter": 50,
+      "serverMax": 180,
+      "reserved": 3,
+      "notPeakMeasurements": true
+    }
+  },
+  "performanceExitCode": 1,
+  "fixtureMaintenanceConclusion": "No strict SLO improvement demonstrated; autovacuum had already removed most cache dead tuples before explicit maintenance. This is not a proven root cause or accepted fix.",
+  "scaleCleanup": {
+    "stoppedOnlyOwnedProcesses": true,
+    "eightDatabasesRemoved": true,
+    "destroyStopExitCode": 0,
+    "destroyDatabasesExitCode": 0
+  },
+  "compiledBrowserExecution": {
+    "wrapper": ".scratch/dev/pms-inventory-reader/compiled-browser.ts",
+    "originalSuiteIdsRetained": true,
+    "originalCaseIdentitiesAndAssertionsRetained": true,
+    "executionLaneOverride": "uat/self-authenticated to explicitly select existing compiled-release launcher",
+    "claim": "Compiled engineering workflow verification; this execution mapping does not create human operational approval",
+    "devices": [
+      "desktop",
+      "mobile"
+    ],
+    "retries": 0
+  },
+  "compiledBrowserProgress": {
+    "passed": 34,
+    "failedAssertions": 0,
+    "completeSelectedBusinessSubset": true,
+    "wholeRequiredBrowserInventoryComplete": false,
+    "cases": [
+      {
+        "suite": "pms.booking-payment-recovery.e2e",
+        "file": "pms-booking-payment-recovery.spec.ts",
+        "project": "desktop",
+        "title": "paid guest booking recovers interrupted receipt and independently approved partial refund without duplicate money",
+        "run": "d8ab1735318c",
+        "report": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-10T02-56-58-125Z/d8ab1735318c/result.json",
+        "passed": true,
+        "cleanup": {
+          "completed": true,
+          "ownedDirectoryAbsent": true
+        }
+      },
+      {
+        "suite": "pms.booking-payment-recovery.e2e",
+        "file": "pms-booking-payment-recovery.spec.ts",
+        "project": "mobile",
+        "title": "paid guest booking recovers interrupted receipt and independently approved partial refund without duplicate money",
+        "run": "7c6277cc8169",
+        "report": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-10T02-56-58-125Z/7c6277cc8169/result.json",
+        "passed": true,
+        "cleanup": {
+          "completed": true,
+          "ownedDirectoryAbsent": true
+        }
+      },
+      {
+        "suite": "pms.demo-hospitality-setup.e2e",
+        "file": "demo-hospitality-setup.spec.ts",
+        "project": "desktop",
+        "title": "Riverside hotel and restaurant remain isolated and render for independent pilot roles",
+        "run": "00ca4319ab9e",
+        "report": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-10T02-56-58-125Z/00ca4319ab9e/result.json",
+        "passed": true,
+        "cleanup": {
+          "completed": true,
+          "ownedDirectoryAbsent": true
+        }
+      },
+      {
+        "suite": "pms.demo-hospitality-setup.e2e",
+        "file": "demo-hospitality-setup.spec.ts",
+        "project": "desktop",
+        "title": "cashier and kitchen complete a restaurant bill on the existing hotel guest account",
+        "run": "d1ff8db0fced",
+        "report": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-10T02-56-58-125Z/d1ff8db0fced/result.json",
+        "passed": true,
+        "cleanup": {
+          "completed": true,
+          "ownedDirectoryAbsent": true
+        }
+      },
+      {
+        "suite": "pms.demo-hospitality-setup.e2e",
+        "file": "demo-hospitality-setup.spec.ts",
+        "project": "desktop",
+        "title": "wrong-room, stale and revoked-cashier room charges leave the bill recoverable",
+        "run": "023ed92c6689",
+        "report": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-10T02-56-58-125Z/023ed92c6689/result.json",
+        "passed": true,
+        "cleanup": {
+          "completed": true,
+          "ownedDirectoryAbsent": true
+        }
+      },
+      {
+        "suite": "pms.demo-hospitality-setup.e2e",
+        "file": "demo-hospitality-setup.spec.ts",
+        "project": "desktop",
+        "title": "hotel cashier records a transfer and independent Finance matches bank evidence",
+        "run": "b34c0a0551bb",
+        "report": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-10T02-56-58-125Z/b34c0a0551bb/result.json",
+        "passed": true,
+        "cleanup": {
+          "completed": true,
+          "ownedDirectoryAbsent": true
+        }
+      },
+      {
+        "suite": "pms.demo-hospitality-setup.e2e",
+        "file": "demo-hospitality-setup.spec.ts",
+        "project": "desktop",
+        "title": "a typed transfer stays pending and the cashier can recover the bill",
+        "run": "0bfe7df938c7",
+        "report": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-10T02-56-58-125Z/0bfe7df938c7/result.json",
+        "passed": true,
+        "cleanup": {
+          "completed": true,
+          "ownedDirectoryAbsent": true
+        }
+      },
+      {
+        "suite": "pms.demo-hospitality-setup.e2e",
+        "file": "demo-hospitality-setup.spec.ts",
+        "project": "desktop",
+        "title": "cashier records an external tax reference and independent Finance verifies it",
+        "run": "9bd4ed603733",
+        "report": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-10T02-56-58-125Z/9bd4ed603733/result.json",
+        "passed": true,
+        "cleanup": {
+          "completed": true,
+          "ownedDirectoryAbsent": true
+        }
+      },
+      {
+        "suite": "pms.demo-hospitality-setup.e2e",
+        "file": "demo-hospitality-setup.spec.ts",
+        "project": "desktop",
+        "title": "Night Audit shows restaurant blockers and rejects an early close",
+        "run": "630a4f8a5459",
+        "report": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-10T02-56-58-125Z/630a4f8a5459/result.json",
+        "passed": true,
+        "cleanup": {
+          "completed": true,
+          "ownedDirectoryAbsent": true
+        }
+      },
+      {
+        "suite": "pms.demo-hospitality-setup.e2e",
+        "file": "demo-hospitality-setup.spec.ts",
+        "project": "desktop",
+        "title": "front desk and cashier settle checkout and recover Night Audit",
+        "run": "ff42b604b57a",
+        "report": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-10T02-56-58-125Z/ff42b604b57a/result.json",
+        "passed": true,
+        "cleanup": {
+          "completed": true,
+          "ownedDirectoryAbsent": true
+        }
+      },
+      {
+        "suite": "pms.demo-hospitality-setup.e2e",
+        "file": "demo-hospitality-setup.spec.ts",
+        "project": "mobile",
+        "title": "Riverside hotel and restaurant remain isolated and render for independent pilot roles",
+        "run": "7721e0a6296c",
+        "report": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-10T02-56-58-125Z/7721e0a6296c/result.json",
+        "passed": true,
+        "cleanup": {
+          "completed": true,
+          "ownedDirectoryAbsent": true
+        }
+      },
+      {
+        "suite": "pms.demo-hospitality-setup.e2e",
+        "file": "demo-hospitality-setup.spec.ts",
+        "project": "mobile",
+        "title": "cashier and kitchen complete a restaurant bill on the existing hotel guest account",
+        "run": "6c384e825179",
+        "report": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-10T02-56-58-125Z/6c384e825179/result.json",
+        "passed": true,
+        "cleanup": {
+          "completed": true,
+          "ownedDirectoryAbsent": true
+        }
+      },
+      {
+        "suite": "pms.demo-hospitality-setup.e2e",
+        "file": "demo-hospitality-setup.spec.ts",
+        "project": "mobile",
+        "title": "wrong-room, stale and revoked-cashier room charges leave the bill recoverable",
+        "run": "6fb59ad5fdc0",
+        "report": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-10T02-56-58-125Z/6fb59ad5fdc0/result.json",
+        "passed": true,
+        "cleanup": {
+          "completed": true,
+          "ownedDirectoryAbsent": true
+        }
+      },
+      {
+        "suite": "pms.demo-hospitality-setup.e2e",
+        "file": "demo-hospitality-setup.spec.ts",
+        "project": "mobile",
+        "title": "hotel cashier records a transfer and independent Finance matches bank evidence",
+        "run": "d2a35e9748a6",
+        "report": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-10T02-56-58-125Z/d2a35e9748a6/result.json",
+        "passed": true,
+        "cleanup": {
+          "completed": true,
+          "ownedDirectoryAbsent": true
+        }
+      },
+      {
+        "suite": "pms.demo-hospitality-setup.e2e",
+        "file": "demo-hospitality-setup.spec.ts",
+        "project": "mobile",
+        "title": "a typed transfer stays pending and the cashier can recover the bill",
+        "run": "133df2aef09a",
+        "report": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-10T02-56-58-125Z/133df2aef09a/result.json",
+        "passed": true,
+        "cleanup": {
+          "completed": true,
+          "ownedDirectoryAbsent": true
+        }
+      },
+      {
+        "suite": "pms.demo-hospitality-setup.e2e",
+        "file": "demo-hospitality-setup.spec.ts",
+        "project": "mobile",
+        "title": "cashier records an external tax reference and independent Finance verifies it",
+        "run": "a530cbc059a0",
+        "report": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-10T02-56-58-125Z/a530cbc059a0/result.json",
+        "passed": true,
+        "cleanup": {
+          "completed": true,
+          "ownedDirectoryAbsent": true
+        }
+      },
+      {
+        "suite": "pms.demo-hospitality-setup.e2e",
+        "file": "demo-hospitality-setup.spec.ts",
+        "project": "mobile",
+        "title": "Night Audit shows restaurant blockers and rejects an early close",
+        "run": "2af8462343e9",
+        "report": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-10T02-56-58-125Z/2af8462343e9/result.json",
+        "passed": true,
+        "cleanup": {
+          "completed": true,
+          "ownedDirectoryAbsent": true
+        }
+      },
+      {
+        "suite": "pms.demo-hospitality-setup.e2e",
+        "file": "demo-hospitality-setup.spec.ts",
+        "project": "mobile",
+        "title": "front desk and cashier settle checkout and recover Night Audit",
+        "run": "bcef7c110592",
+        "report": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-10T02-56-58-125Z/bcef7c110592/result.json",
+        "passed": true,
+        "cleanup": {
+          "completed": true,
+          "ownedDirectoryAbsent": true
+        }
+      },
+      {
+        "suite": "pms.booking.e2e",
+        "file": "pms-booking.spec.ts",
+        "project": "desktop",
+        "title": "guest portal is public without exposing internal PMS records",
+        "run": "ebfb15ad85a9",
+        "report": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-10T02-56-58-125Z/ebfb15ad85a9/result.json",
+        "passed": true,
+        "cleanup": {
+          "completed": true,
+          "ownedDirectoryAbsent": true
+        }
+      },
+      {
+        "suite": "pms.booking.e2e",
+        "file": "pms-booking.spec.ts",
+        "project": "desktop",
+        "title": "searches, quotes and confirms a family stay in an isolated hotel",
+        "run": "52ff62a50c35",
+        "report": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-10T02-56-58-125Z/52ff62a50c35/result.json",
+        "passed": true,
+        "cleanup": {
+          "completed": true,
+          "ownedDirectoryAbsent": true
+        }
+      },
+      {
+        "suite": "pms.booking.e2e",
+        "file": "pms-booking.spec.ts",
+        "project": "desktop",
+        "title": "reviewed hotel and room galleries publish sanitized images and disappear after revocation",
+        "run": "00e4b0ffa3f5",
+        "report": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-10T02-56-58-125Z/00e4b0ffa3f5/result.json",
+        "passed": true,
+        "cleanup": {
+          "completed": true,
+          "ownedDirectoryAbsent": true
+        }
+      },
+      {
+        "suite": "pms.booking.e2e",
+        "file": "pms-booking.spec.ts",
+        "project": "desktop",
+        "title": "cancels one of two booked rooms and preserves the other room and accepted price",
+        "run": "f162ac97e79c",
+        "report": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-10T02-56-58-125Z/f162ac97e79c/result.json",
+        "passed": true,
+        "cleanup": {
+          "completed": true,
+          "ownedDirectoryAbsent": true
+        }
+      },
+      {
+        "suite": "pms.booking.e2e",
+        "file": "pms-booking.spec.ts",
+        "project": "mobile",
+        "title": "guest portal is public without exposing internal PMS records",
+        "run": "9c092210ad3e",
+        "report": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-10T02-56-58-125Z/9c092210ad3e/result.json",
+        "passed": true,
+        "cleanup": {
+          "completed": true,
+          "ownedDirectoryAbsent": true
+        }
+      },
+      {
+        "suite": "pms.booking.e2e",
+        "file": "pms-booking.spec.ts",
+        "project": "mobile",
+        "title": "searches, quotes and confirms a family stay in an isolated hotel",
+        "run": "de8de9ca65e0",
+        "report": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-10T02-56-58-125Z/de8de9ca65e0/result.json",
+        "passed": true,
+        "cleanup": {
+          "completed": true,
+          "ownedDirectoryAbsent": true
+        }
+      },
+      {
+        "suite": "pms.booking.e2e",
+        "file": "pms-booking.spec.ts",
+        "project": "mobile",
+        "title": "reviewed hotel and room galleries publish sanitized images and disappear after revocation",
+        "run": "488b9109ba39",
+        "report": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-10T02-56-58-125Z/488b9109ba39/result.json",
+        "passed": true,
+        "cleanup": {
+          "completed": true,
+          "ownedDirectoryAbsent": true
+        }
+      },
+      {
+        "suite": "pms.booking.e2e",
+        "file": "pms-booking.spec.ts",
+        "project": "mobile",
+        "title": "cancels one of two booked rooms and preserves the other room and accepted price",
+        "run": "b4fec2acf3bc",
+        "report": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-10T02-56-58-125Z/b4fec2acf3bc/result.json",
+        "passed": true,
+        "cleanup": {
+          "completed": true,
+          "ownedDirectoryAbsent": true
+        }
+      },
+      {
+        "suite": "pms.pms.e2e",
+        "file": "pms.spec.ts",
+        "project": "desktop",
+        "title": "PMS protects /holdings/acme/pms before exposing guest or room data",
+        "run": "80a316a3e756",
+        "report": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-10T03-18-22-570Z/80a316a3e756/result.json",
+        "passed": true,
+        "cleanup": {
+          "completed": true,
+          "ownedDirectoryAbsent": true
+        }
+      },
+      {
+        "suite": "pms.pms.e2e",
+        "file": "pms.spec.ts",
+        "project": "desktop",
+        "title": "PMS protects /holdings/acme/pms/housekeeping before exposing guest or room data",
+        "run": "840c8def4429",
+        "report": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-10T03-18-22-570Z/840c8def4429/result.json",
+        "passed": true,
+        "cleanup": {
+          "completed": true,
+          "ownedDirectoryAbsent": true
+        }
+      },
+      {
+        "suite": "pms.pms.e2e",
+        "file": "pms.spec.ts",
+        "project": "desktop",
+        "title": "PMS commands require an authenticated work context",
+        "run": "ea434d514ad2",
+        "report": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-10T03-18-22-570Z/ea434d514ad2/result.json",
+        "passed": true,
+        "cleanup": {
+          "completed": true,
+          "ownedDirectoryAbsent": true
+        }
+      },
+      {
+        "suite": "pms.pms.e2e",
+        "file": "pms.spec.ts",
+        "project": "mobile",
+        "title": "PMS protects /holdings/acme/pms before exposing guest or room data",
+        "run": "aab1a2bb7e85",
+        "report": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-10T03-18-22-570Z/aab1a2bb7e85/result.json",
+        "passed": true,
+        "cleanup": {
+          "completed": true,
+          "ownedDirectoryAbsent": true
+        }
+      },
+      {
+        "suite": "pms.pms.e2e",
+        "file": "pms.spec.ts",
+        "project": "mobile",
+        "title": "PMS protects /holdings/acme/pms/housekeeping before exposing guest or room data",
+        "run": "08fa56e90b78",
+        "report": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-10T03-18-22-570Z/08fa56e90b78/result.json",
+        "passed": true,
+        "cleanup": {
+          "completed": true,
+          "ownedDirectoryAbsent": true
+        }
+      },
+      {
+        "suite": "pms.pms.e2e",
+        "file": "pms.spec.ts",
+        "project": "mobile",
+        "title": "PMS commands require an authenticated work context",
+        "run": "cfffe9338080",
+        "report": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-10T03-18-22-570Z/cfffe9338080/result.json",
+        "passed": true,
+        "cleanup": {
+          "completed": true,
+          "ownedDirectoryAbsent": true
+        }
+      },
+      {
+        "suite": "pms.thai-hotel-v1-hotel.journeys",
+        "file": "thai-hotel-v1-hotel.spec.ts",
+        "project": "desktop",
+        "title": "H002 guest journey includes independent guest account correction, payment, checkout and Night Audit",
+        "run": "089fc2ad2496",
+        "report": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-10T03-18-22-570Z/089fc2ad2496/result.json",
+        "passed": true,
+        "cleanup": {
+          "completed": true,
+          "ownedDirectoryAbsent": true
+        }
+      },
+      {
+        "suite": "pms.thai-hotel-v1-hotel.journeys",
+        "file": "thai-hotel-v1-hotel.spec.ts",
+        "project": "mobile",
+        "title": "H002 guest journey includes independent guest account correction, payment, checkout and Night Audit",
+        "run": "a3fbbb824ef6",
+        "report": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-10T03-18-22-570Z/a3fbbb824ef6/result.json",
+        "passed": true,
+        "cleanup": {
+          "completed": true,
+          "ownedDirectoryAbsent": true
+        }
+      }
+    ]
+  },
+  "publicPrototype": {
+    "url": "https://console-dev-erpx.jesadakorn.com/holdings/acme/pms?variant=A",
+    "variants": {
+      "A": "Calendar with Deluxe room right drawer",
+      "B": "Room board with sample room photos and status",
+      "C": "Arrival/departure/housekeeping/balance queues"
+    },
+    "thaiAndEnglishHeadingsVerified": true,
+    "desktopDialog": {
+      "x": 913,
+      "width": 800,
+      "height": 996,
+      "viewportWidth": 1728
+    },
+    "responsiveDialog": {
+      "x": 0,
+      "width": 375,
+      "height": 844,
+      "viewportWidth": 390,
+      "headerY": 1,
+      "headerHeight": 77,
+      "bodyOverflow": "auto"
+    },
+    "prototypeCheckIn": {
+      "room": "105",
+      "before": "Reserved",
+      "after": "In house",
+      "storage": "component memory only"
+    },
+    "responsiveMeasurementNote": "Chrome desktop responsive viewport retained a 15px layout gutter. Actual recorded geometry is retained; this observation alone does not prove true device viewport width behavior. Compiled mobile workflows are separately tested.",
+    "restored": {
+      "variant": "A",
+      "language": "Thai",
+      "viewport": [
+        1728,
+        996
+      ],
+      "openDialogs": 0
+    },
+    "databaseTransactionsWritten": false
+  },
+  "compiledBrowserFirst": {
+    "exitCode": 1,
+    "passed": false,
+    "passedCases": 26,
+    "failure": "pms.pms.e2e local-seed lacks complete normal-account cohort; compiled launcher rejects before the first anonymous assertion",
+    "authenticationGuardsUnchanged": true,
+    "cleanupFailures": [],
+    "receipt": ".scratch/dev/test-suites/browser/2026-10-10T02-56-58-125Z/receipt.json"
+  },
+  "compiledBrowserRemainder": {
+    "wrapper": ".scratch/dev/pms-inventory-reader/compiled-browser.ts",
+    "suites": [
+      "pms.pms.e2e",
+      "pms.thai-hotel-v1-hotel.journeys"
+    ],
+    "fixtureOverride": {
+      "suite": "pms.pms.e2e",
+      "original": "local-seed",
+      "execution": "general-company",
+      "rationale": "The original scenarios intentionally remain anonymous and assert protected routes/API rejection; the complete fictional normal-account cohort satisfies the unchanged compiled launcher guard. Test files/titles/request bodies/assertions are unchanged."
+    },
+    "mapping": ".scratch/dev/pms-inventory-reader/compiled-browser-remainder-mapping.json",
+    "complete": true,
+    "exitCode": 0,
+    "passedCases": 8,
+    "receipt": ".scratch/dev/test-suites/browser/2026-10-10T03-18-22-570Z/receipt.json",
+    "cleanupFailures": []
+  },
+  "sourceAfterBrowser": {
+    "runtime": "40915d0225c70e5eabba70ffd2e269610142943ca683a9a4195650f74e81e7df",
+    "verification": "45883aae5bcfa16750ef26362930ba49d79319e300124c866d5f95b3cae6f3d0"
+  },
+  "endAvailability": {
+    "localDevHealth": 200,
+    "publicDevHealth": 200,
+    "privateProductionHealth": 200,
+    "devPid": 89739,
+    "devCwd": "/Users/fluke/Desktop/Work/erpx",
+    "postgresPid": 909,
+    "port3104Free": true,
+    "publicAffectedPage": "https://console-dev-erpx.jesadakorn.com/holdings/acme/pms?variant=A",
+    "manualPageAndRoomDrawerAndVariantsVerified": true
+  }
+}

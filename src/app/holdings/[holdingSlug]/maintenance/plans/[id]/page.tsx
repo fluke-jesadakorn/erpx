@@ -3,7 +3,7 @@ import {requireWorkContext,publicScope} from "@/server/modules/identity_access/p
 import {workspaceBase} from '@/lib/workspace';
 import {pageError} from "@/server/modules/work_projection/public/page-error";
 import {preventivePlanDetail} from "@/server/modules/maintenance/public/maintenance-preventive";
-import {MaintenancePreventiveConsole} from '@/components/modules/maintenance-preventive-console';
+import { MaintenancePreventiveConsole } from "@/components/records/loaders/modules--maintenance-preventive-console";
 import {TimeText} from '@/components/time/time-preference-context';
 import { PageContent, Card } from "@/components/ui/foundation";
 export const dynamic='force-dynamic';

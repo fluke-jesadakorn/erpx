@@ -118,8 +118,21 @@
   width: 100%;
 }
 .rail .ask button {
-  border: 1px solid var(--ui-brand);
-  background: var(--ui-brand-soft);
+  border: 1px solid #3458db;
+  background: #3458db;
+  color: #fff;
+}
+.rail .ask button:hover {
+  background: #2947b8;
+}
+.rail {
+  border-color: color-mix(in srgb, var(--ui-brand) 25%, var(--ui-line));
+  background: color-mix(in srgb, var(--ui-brand-soft) 70%, var(--ui-card));
+}
+.rail .ask {
+  background: var(--ui-card);
+}
+.rail .actions a svg {
   color: var(--ui-brand-strong);
 }
 .rail .actions {

@@ -83,6 +83,7 @@ async function posOwner(f:Fixture,tuple:AttachmentOwnerTuple):Promise<Attachment
  await db.prepare("INSERT INTO pos_shifts(id,register_id,company_id,branch_id,opened_by,opened_at,opening_minor) VALUES(?,?,?,?,?,1,10000)").bind(shift,register,f.company,f.branch,cashier.userId).run();
  const cmd=(actor:WorkContext,op:string,input:unknown,command=key())=>posCommand(db,actor,op,input,command);
  await cmd(f.owner,"settings.save",{enabled:true,currency:"THB",timezone:"Asia/Bangkok",cashierDiscountBps:0,accounts,expectedVersion:0});
+ await cmd(f.manager,"accounting.approve",{expectedVersion:1});
  await cmd(f.owner,"catalog.save",{productId:product,barcode:key(),category:"Retail",kind:"stock",station:"Shop",recipe:[],modifiers:[],taxInclusive:false,registerIds:[register],expectedVersion:0});
  if(tuple.targetType==="pos_shift"){
   await cmd(cashier,"shift.close",{id:shift,expectedVersion:1,countedMinor:10025});
@@ -126,15 +127,18 @@ async function pmsOwner(f:Fixture,tuple:AttachmentOwnerTuple):Promise<Attachment
  let creditId:string|undefined;
  if(tuple.targetType==="pms_property"){
   const party=await createParty(f.owner,partySchema.parse({kind:"customer",code:key(),name:"Declared manual settlement agent",currency:"THB"}),key());
-  creditId=(await cmd("credit.request",{partyId:party.id,limit:100000,terms:30})).id;await cmd("credit.approve",{id:creditId},f.manager);
+  creditId=(await cmd("credit.request",{partyId:party.id,limit:100000,terms:30})).id;
+  const creditReviewer=await f.member('synthetic-credit-reviewer','pms_manager');creditReviewer.modules=['pms'];
+  await db.prepare('UPDATE assignments SET modules_json=? WHERE id=?').bind(JSON.stringify(creditReviewer.modules),creditReviewer.assignmentId).run();
+  await cmd("credit.approve",{id:creditId},creditReviewer);
  }
  const booking=await cmd("reservation.create",{guestId:guest.id,source:creditId?"Declared manual provider fixture":"direct",externalRef:creditId?"SYNTHETIC-MANUAL-001":"",rooms:[{typeId:type.id,rateId:rate.id,arrival:"2026-09-01",departure:"2026-09-02",adults:2,quantity:1}]}),state=await snap(),stay=records(state,"stay").find(row=>row.data.reservationId===booking.id)!;
  if(tuple.targetType==="pms_reservation")return base(booking.id,record(state,"reservation",booking.id).version);
  if(tuple.targetType==="pms_stay")return base(stay.id,stay.version);
  const task=await cmd("task.create",{roomId:room.id,type:"arrival",date:"2026-09-01"}),taskRow=record(await snap(),"task",task.id);await cmd("task.complete",{id:task.id,checked:taskRow.data.checklist});
  const inspector=await f.member(`synthetic-inspector-${key()}`,"pms_supervisor");await cmd("task.inspect",{id:task.id},inspector);
- await cmd("stay.assign",{id:stay.id,roomId:room.id});await cmd("stay.check_in",{id:stay.id});await cmd("stay.preview_checkout",{id:stay.id});await cmd("folio.credit",{id:stay.data.folioId,creditId});await cmd("stay.check_out",{id:stay.id});await cmd("folio.close",{id:stay.data.folioId});const shift=await cmd("shift.open",{name:"Synthetic reconciliation",opening:0}),current=await snap();
- return {...base(propertyId,current.property.version),table:"pms_properties",componentRef:"ota.settle",bindingType:"pms_ota_settlement",bindAction:await nativeBind("ota.settle",{folioId:stay.data.folioId,gross:10700,commission:1200,fees:100,reference:"SYNTHETIC-STATEMENT-001",shiftId:shift.id})};
+ await cmd("stay.assign",{id:stay.id,roomId:room.id});await cmd("stay.check_in",{id:stay.id});await cmd("stay.preview_checkout",{id:stay.id});await cmd("guest_account.credit",{id:stay.data.guestAccountId,creditId});await cmd("stay.check_out",{id:stay.id});await cmd("guest_account.close",{id:stay.data.guestAccountId});const shift=await cmd("shift.open",{name:"Synthetic reconciliation",opening:0}),current=await snap();
+ return {...base(propertyId,current.property.version),table:"pms_properties",componentRef:"ota.settle",bindingType:"pms_ota_settlement",bindAction:await nativeBind("ota.settle",{guestAccountId:stay.data.guestAccountId,gross:10700,commission:1200,fees:100,reference:"SYNTHETIC-STATEMENT-001",shiftId:shift.id})};
 }
 
 async function nativeReceipt(f:Fixture,expense:string){

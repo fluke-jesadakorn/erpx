@@ -203,6 +203,7 @@ export function FrontAppShell({
     getServerConnectivitySnapshot,
   );
   const [language, setLanguage] = useState(initialLanguage);
+  const languageReady = useHydrated();
   const theme = useSyncExternalStore(
     subscribeAppearance,
     getAppearanceSnapshot,
@@ -290,6 +291,8 @@ export function FrontAppShell({
               variant="plain"
               type="button"
               className={styles.language}
+              disabled={!languageReady}
+              data-client-managed-ready={String(languageReady)}
               onClick={() => changeLanguage(language === "th" ? "en" : "th")}
             >
               {language === "th" ? "EN" : "ไทย"}
@@ -500,7 +503,6 @@ export function FrontPmsNavigation({
   permissions?: string[];
   propertyId?: string;
 }) {
-  const router = useRouter();
   const language = useFrontLanguage();
   const can = (permission: string) => (permissions ? permissions.includes(permission) : true);
   const items = [
@@ -513,7 +515,7 @@ export function FrontPmsNavigation({
       frontText("Housekeeping", language),
       can("pms.housekeeping") || can("pms.inspect"),
     ],
-    ["folios", frontText("Payments", language), can("pms.cashier")],
+    ["guest-accounts", frontText("Payments", language), can("pms.cashier")],
     ["cashier", frontText("Cashier", language), can("pms.cashier")],
     ["night-audit", frontText("Night audit", language), can("pms.audit")],
   ].filter((item) => item[2]) as Array<[string, string, boolean]>;
@@ -522,15 +524,15 @@ export function FrontPmsNavigation({
     <ModuleTiles
       label={language === "th" ? "งานโรงแรม" : "Hotel tasks"}
       current={section}
-      items={pmsMenu(language).filter((item) => visible.has(item.id))}
-      onSelect={(id) =>
-        router.push(
-          href +
-            (id === "dashboard"
-              ? ""
-              : id + (propertyId ? "?property=" + encodeURIComponent(propertyId) : "")),
-        )
-      }
+      items={pmsMenu(language)
+        .filter((item) => visible.has(item.id))
+        .map((item) => ({
+          ...item,
+          href:
+            href +
+            (item.id === "dashboard" ? "" : item.id) +
+            (propertyId ? "?property=" + encodeURIComponent(propertyId) : ""),
+        }))}
     />
   );
 }

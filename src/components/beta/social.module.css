@@ -203,6 +203,22 @@
     padding: 10px 0;
     margin-top: 18px;
   }
+  :global(.beta-post-counts) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 14px;
+    font-size: 12px;
+    color: var(--ui-muted);
+  }
+  :global(.beta-post-counts) + :global(.beta-post-actions) {
+    margin-top: 8px;
+  }
+  :global(.beta-post-actions) button {
+    min-width: 44px;
+    min-height: 44px;
+    justify-content: center;
+  }
   :global(.beta-post-actions) button,
   :global(.beta-post-actions) > span {
     display: flex;
@@ -1379,7 +1395,7 @@
   gap: 16px;
   min-width: 0;
 }
-.closeTools {
+.todayRail .closeTools {
   display: none;
 }
 .railStart {
@@ -1426,11 +1442,12 @@
 @container (max-width:1019px) {
   .homeLayout {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: "controls" "rail" "stream";
+    grid-template-areas: "summary" "controls" "rail" "stream";
     grid-template-rows: none;
     column-gap: 0;
   }
   .mobileSummary {
+    grid-area: summary;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -1483,7 +1500,7 @@
     margin: 8px 0 16px;
     scroll-margin-top: 84px;
   }
-  .closeTools {
+  .todayRail .closeTools {
     display: block;
     justify-self: end;
     min-height: 44px;
@@ -1577,4 +1594,27 @@
   .home :global(.beta-composer-actions[data-drawer-form]) {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+/* The deferred composer uses the same row layout as the disclosure summary. */
+.home :global(button.beta-composer-launcher) {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  min-width: 0;
+  min-height: 76px;
+  gap: 12px;
+  text-align: left;
+  white-space: normal;
+  font: inherit;
+  color: var(--ui-ink);
+  cursor: pointer;
+}
+.home :global(button.beta-composer-launcher) > :not(.beta-composer-prompt) {
+  flex-shrink: 0;
+}
+.home :global(button.beta-composer-launcher):focus-visible {
+  outline: 2px solid var(--ui-brand);
+  outline-offset: 2px;
 }

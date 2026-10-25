@@ -27,6 +27,7 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase): PmsBookingChan
         readPmsBookingRefundRequests: (facts: {
             id: string;
         }) => db.prepare('SELECT a.*,COALESCE((SELECT SUM((part->>\'amount\')::bigint) FROM pms_booking_refund_requests r CROSS JOIN LATERAL jsonb_array_elements(r.allocations_json::jsonb) part WHERE r.payment_id=a.payment_id AND part->>\'entryId\'=a.entry_id),0) refunded FROM pms_booking_allocations a WHERE a.stay_id=?').bind(facts.id).all<{
+            entry_id: string;
             amount_minor: number;
             refunded: number;
         }>(),
@@ -101,11 +102,11 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase): PmsBookingChan
             fact0: `${string}-${string}-${string}-${string}-${string}`;
             id: string;
             stayId: string;
-            folioId: string;
+            guestAccountId: string;
             id2: string;
             amount: number;
             now: number;
-        }) => db.prepare('INSERT INTO pms_booking_allocations(id,payment_id,stay_id,folio_id,entry_id,amount_minor,created_at) VALUES(?,?,?,?,?,?,?)').bind(facts.fact0, facts.id, facts.stayId, facts.folioId, facts.id2, facts.amount, facts.now).run(),
+        }) => db.prepare('INSERT INTO pms_booking_allocations(id,payment_id,stay_id,guest_account_id,entry_id,amount_minor,created_at) VALUES(?,?,?,?,?,?,?)').bind(facts.fact0, facts.id, facts.stayId, facts.guestAccountId, facts.id2, facts.amount, facts.now).run(),
         insertPmsBookingRefundRequests: (facts: {
             fact0: `${string}-${string}-${string}-${string}-${string}`;
             id: string;

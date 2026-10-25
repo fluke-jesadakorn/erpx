@@ -19,6 +19,20 @@ function singleConnection(timeout = 5_000) {
 }
 
 describe('request read metrics at the PostgreSQL driver boundary', () => {
+  it('separates locking statements and serialization retries without changing transaction recovery',async()=>{
+    const database=singleConnection();let attempts=0;
+    const measured=await measureReads(()=>database.transaction(async tx=>{
+      await tx.exec("CREATE TEMP TABLE metrics_lock_fixture(id integer) ON COMMIT DROP; INSERT INTO metrics_lock_fixture VALUES(1)");
+      await tx.prepare("SELECT * FROM metrics_lock_fixture FOR UPDATE").all();
+      if(attempts++===0)throw Object.assign(new Error("fixture serialization failure"),{code:"40001"});
+      return "committed";
+    },{sessionLock:{namespace:"read-metrics-test",key:"private-lock-key"}}));
+    expect(measured.result).toBe("committed");expect(attempts).toBe(2);
+    expect(measured.metrics.serializationFailures).toBe(1);expect(measured.metrics.transactionRetries).toBe(1);
+    expect(measured.metrics.lockQueries).toBe(4);expect(measured.metrics.lockQueryMs).toBeGreaterThan(0);
+    expect(JSON.stringify(measured.metrics)).not.toContain("private-lock-key");
+    expect(database.pool.idleCount).toBe(database.pool.totalCount);
+  });
   it('counts raw pool/Drizzle and Statement queries once, preserving configured rows and parameters', async () => {
     const database = singleConnection();
     const measured = await measureReads(async () => {

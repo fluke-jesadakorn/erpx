@@ -1,3 +1,5 @@
+import { stayGroupBlock } from "@/lib/pms-inventory-domain";
+import { parseGuestAccountJson } from "@/lib/guest-account-compat";
 import { z } from 'zod';
 import { record, records, dates, plusDays, type Snapshot } from "../domain/pms";
 import { bookingQuote, roomSelectionSchema, type RoomSelection, type BookingQuote } from '@/lib/pms-booking-domain';
@@ -24,6 +26,7 @@ export type PmsBookingChangeUnit = {
     readPmsBookingRefundRequests(facts: {
         id: string;
     }): Promise<PmsProviderRows<{
+        entry_id: string;
         amount_minor: number;
         refunded: number;
     }>>;
@@ -109,7 +112,7 @@ export type PmsBookingChangeUnit = {
         fact0: `${string}-${string}-${string}-${string}-${string}`;
         id: string;
         stayId: string;
-        folioId: string;
+        guestAccountId: string;
         id2: string;
         amount: number;
         now: number;
@@ -209,13 +212,13 @@ export type PmsBookingChangeUnit = {
         }[];
         total: number;
         advance: number;
-        folioDue: number;
+        guestAccountDue: number;
         policy: BookingPolicy | undefined;
         rooms: {
             id: string;
             typeId: string;
             rateId: string;
-            folioId: string;
+            guestAccountId: string;
             policy: BookingPolicy | undefined;
             roomName: string;
             arrival: string;
@@ -258,13 +261,13 @@ export type PmsBookingChangeUnit = {
         }[];
         total: number;
         advance: number;
-        folioDue: number;
+        guestAccountDue: number;
         policy: BookingPolicy | undefined;
         rooms: {
             id: string;
             typeId: string;
             rateId: string;
-            folioId: string;
+            guestAccountId: string;
             policy: BookingPolicy | undefined;
             roomName: string;
             arrival: string;
@@ -320,6 +323,8 @@ export type Proposal = {
         refund: number;
         fee: number;
         dueAtHotel: number;
+        manualFunding?: Array<{ entryId: string; amount: number }>;
+        manualRefund?: number;
     }>;
     expiresAt: number;
     dueNow: number;
@@ -335,7 +340,7 @@ export function createPmsBookingChange(ports: PmsBookingChangePorts) {
             throw ports.error(409, 'PMS_CONTACT_HOTEL', 'The free-cancellation deadline has passed. Contact the hotel');
         if (s.property.state !== 'open' || stay.data.state !== 'reserved' || reservation.data.state !== 'confirmed' || !policy || !override && (now >= policy.deadline || change && policy.collection?.changesAllowed === false || !change && policy.collection?.cancellationsAllowed === false))
             throw ports.error(409, 'PMS_CONTACT_HOTEL', 'This room can no longer be changed online. Contact the hotel');
-        if (records(s, 'entry').some(e => e.data.folioId === stay.data.folioId && (['charge', 'adjustment'].includes(e.data.kind) || e.data.kind === 'allocation' && e.data.description !== 'payment.refund_liability')))
+        if (records(s, 'entry').some(e => e.data.guestAccountId === stay.data.guestAccountId && (['charge', 'adjustment'].includes(e.data.kind) || e.data.kind === 'allocation' && e.data.description !== 'payment.refund_liability')))
             throw ports.error(409, 'PMS_CONTACT_HOTEL', 'This room has financial activity. Contact the hotel');
         return stay;
     }
@@ -355,6 +360,17 @@ export function createPmsBookingChange(ports: PmsBookingChangePorts) {
             throw ports.error(404, 'PMS_BOOKING_NOT_FOUND', 'Booking not found in this workspace');
         await tx.assertProductionModuleEnabled(staff.actor.companyId, 'pms');
         return { s, id: staff.reservationId };
+    }
+    async function currentManualFunding(tx: PmsBookingChangeUnit, s: Snapshot, stayId: string) {
+        const stay = record(s, 'stay', stayId);
+        const onlineIds = new Set((await tx.readPmsBookingRefundRequests2({ stayId })).results.map(row => row.entry_id));
+        return availableReceiptSources(s, stay.data.guestAccountId, 'advance').filter(source => !onlineIds.has(source.entryId));
+    }
+    async function assertManualFunding(tx: PmsBookingChangeUnit, s: Snapshot, proposal: Proposal) {
+        for (const item of proposal.items) {
+            if (item.manualFunding !== undefined && JSON.stringify(await currentManualFunding(tx, s, item.stayId)) !== JSON.stringify(item.manualFunding))
+                throw ports.error(409, 'PMS_REFUND_FUNDING_CHANGED', 'Room advance changed. Review the payment difference again');
+        }
     }
     async function publicChangeQuote(db: PmsBookingChangeRepository, token: string, kind: 'change' | 'cancel', raw: unknown, env: BookingEnv, now = ports.clock.now(), staff?: StaffAuthority) {
         const input = z.object({ items: z.array(z.object({ stayId: z.string().min(1), room: roomSelectionSchema.optional() })).min(1).max(20) }).parse(raw);
@@ -377,18 +393,32 @@ export function createPmsBookingChange(ports: PmsBookingChangePorts) {
                 const retained = sourceRows.reduce((n, p) => n + Number(p.amount_minor) - Number(p.refunded), 0);
                 let quote: BookingQuote | undefined;
                 if (kind === 'change') {
-                    if (!item.room || item.room.quantity !== 1 || item.room.arrival < new Intl.DateTimeFormat('en-CA', { timeZone: s.property.config.timezone }).format(now) || !s.property.config.booking?.rateIds.includes(item.room.rateId))
-                        throw ports.error(422, 'PMS_CHANGE_INPUT', 'Choose one available public room with current dates');
-                    quote = bookingQuote(trial, [item.room]);
+                    const earliest = staff ? s.property.businessDate : new Intl.DateTimeFormat('en-CA', { timeZone: s.property.config.timezone }).format(now);
+                    if (!item.room || item.room.quantity !== 1 || item.room.arrival < earliest ||
+                        !staff && (!s.property.config.booking?.rateIds.includes(item.room.rateId) || record(s, 'rate', item.room.rateId).data.market !== 'public'))
+                        throw ports.error(422, 'PMS_CHANGE_INPUT', 'Choose one available room with current dates and authorized rates');
+                    quote = bookingQuote(trial, [item.room], '', st.id);
                     // Add each proposed room to the trial so multi-room proposals cannot oversell.
-                    Object.assign(record(trial, 'stay', st.id).data, { ...item.room, state: 'reserved', prices: quote.lines[0].nights });
+                    Object.assign(record(trial, 'stay', st.id).data, { ...item.room, state: 'reserved', roomTypePeriods: undefined, prices: quote.lines[0].nights });
                 }
                 const accepted = st.data.bookingPolicy ?? record(s, 'reservation', id).data.bookingPolicy;
                 const fee = kind === 'cancel' ? Number((BigInt(oldTotal) * BigInt(accepted?.collection?.cancellationFeePercent ?? 0) + BigInt(99)) / BigInt(100)) : 0;
                 if (fee && !s.property.config.bookingFees?.approvedBy)
                     throw ports.error(409, 'PMS_FEE_ACCOUNT_REQUIRED', 'Contact the hotel to complete cancellation accounting setup');
                 const target = quote?.dueNow ?? fee, newTotal = quote?.total ?? fee;
-                items.push({ stayId: st.id, room: kind === 'change' ? item.room : undefined, quote, oldTotal, newTotal, fee, dueAtHotel: kind === 'cancel' ? Math.max(0, fee - retained) : quote!.dueAtHotel, dueNow: kind === 'cancel' ? 0 : Math.max(0, target - retained), refund: Math.max(0, retained - target) });
+                const onlineIds = new Set(sourceRows.map(source => source.entry_id));
+                const manualFunding = staff ? availableReceiptSources(s, st.data.guestAccountId, 'advance').filter(source => !onlineIds.has(source.entryId)) : undefined;
+                const manual = manualFunding?.reduce((sum, source) => sum + source.amount, 0) ?? 0;
+                if (manual && records(s, 'stay').filter(row => row.data.guestAccountId === st.data.guestAccountId && ['reserved', 'in_house'].includes(row.data.state)).length > 1)
+                    throw ports.error(409, 'PMS_GUEST_ACCOUNT_ROUTING_REQUIRED', 'Review the manual advance on the shared Guest Account before changing this room');
+                const manualRefund = Math.max(0, manual - newTotal), onlineTarget = Math.max(0, target - Math.min(manual, newTotal));
+                if (manualRefund && retained)
+                    throw ports.error(409, 'PMS_REFUND_FUNDING_CHANGED', 'Review mixed manual and online refund sources in the Guest Account first');
+                items.push({ stayId: st.id, room: kind === 'change' ? item.room : undefined, quote, oldTotal, newTotal, fee,
+                    dueAtHotel: kind === 'cancel' ? Math.max(0, fee - retained - manual) : Math.max(0, newTotal - Math.min(manual, newTotal) - onlineTarget),
+                    dueNow: kind === 'cancel' ? 0 : Math.max(0, onlineTarget - retained), refund: Math.max(0, retained - onlineTarget) + manualRefund,
+                    ...(staff ? { manualFunding, manualRefund } : {}),
+                });
             }
             const proposal: Proposal = { ...(staff ? { staff: { userId: staff.actor.userId, reason: staff.reason.trim(), override: staff.override } } : {}), reservationId: id, version: record(s, 'reservation', id).version, kind, items, expiresAt: now + 15 * 60 * 1000, dueNow: items.reduce((n, p) => n + p.dueNow, 0), refund: items.reduce((n, p) => n + p.refund, 0), fee: items.reduce((n, p) => n + p.fee, 0) };
             return { proposal, token: ports.signed(proposal, env) };
@@ -402,6 +432,7 @@ export function createPmsBookingChange(ports: PmsBookingChangePorts) {
     async function apply(tx: PmsBookingChangeUnit, s: Snapshot, proposal: Proposal, slug: string, env: BookingEnv, now: number, acceptedAt = now, original = new Map(s.records.map(r => [r.id, JSON.stringify(r)]))) {
         for (const item of proposal.items)
             eligible(s, item.stayId, acceptedAt, proposal.kind === 'change', proposal.staff?.override);
+        await assertManualFunding(tx, s, proposal);
         // Free every selected original before applying swaps, then persist only the final state.
         if (proposal.kind === 'change')
             for (const item of proposal.items)
@@ -420,11 +451,11 @@ export function createPmsBookingChange(ports: PmsBookingChangePorts) {
                 executePms(s, 'stay.replace', { id: item.stayId, room: item.room, policy: item.quote!.lines[0].policy, nightPrices: item.quote!.lines[0].nights, reason: proposal.staff?.reason ?? 'Guest changed booking online' }, actor(now));
         }
         for (const item of proposal.items) {
-            let refund = item.refund;
+            let refund = item.refund - (item.manualRefund ?? 0);
             if (refund) {
                 const sources = (await tx.readPmsBookingRefundRequests2({ stayId: item.stayId })).results;
                 for (const source of sources) {
-                    const n = Math.min(refund, Number(source.amount_minor) - Number(source.refunded), availableReceiptSources(s, record(s, 'stay', item.stayId).data.folioId, 'advance').find(p => p.entryId === source.entry_id)?.amount ?? 0);
+                    const n = Math.min(refund, Number(source.amount_minor) - Number(source.refunded), availableReceiptSources(s, record(s, 'stay', item.stayId).data.guestAccountId, 'advance').find(p => p.entryId === source.entry_id)?.amount ?? 0);
                     if (n > 0) {
                         await tx.requestBookingRefund(s, source.payment_id, [{ stayId: item.stayId, amount: n }], proposal.staff?.reason ?? 'Guest booking revision', proposal.staff?.userId ?? 'guest:self-service', now);
                         refund -= n;
@@ -432,6 +463,13 @@ export function createPmsBookingChange(ports: PmsBookingChangePorts) {
                 }
                 if (refund)
                     throw ports.error(409, 'PMS_REFUND_FUNDING_CHANGED', 'Original refund sources changed');
+            }
+        }
+        for (const item of proposal.items) {
+            if (item.manualRefund) {
+                executePms(s, 'refund.request', { guestAccountId: record(s, 'stay', item.stayId).data.guestAccountId,
+                    amount: item.manualRefund, pocket: 'advance', reason: proposal.staff!.reason },
+                    { ...actor(now), userId: proposal.staff!.userId });
             }
         }
         const reservation = record(s, 'reservation', proposal.reservationId);
@@ -467,16 +505,17 @@ export function createPmsBookingChange(ports: PmsBookingChangePorts) {
             await tx.updatePmsBookingChanges({ id: id, now: now });
             for (const item of proposal.items)
                 eligible(s, item.stayId, now, proposal.kind === 'change', proposal.staff?.override);
+            await assertManualFunding(tx, s, proposal);
             // Revalidate availability and price under the same Property lock as staff bookings.
             const trial = structuredClone(s);
             for (const item of proposal.items)
                 record(trial, 'stay', item.stayId).data.state = 'cancelled';
             for (const item of proposal.items)
                 if (item.room && proposal.kind === 'change') {
-                    const q = bookingQuote(trial, [item.room]);
+                    const q = bookingQuote(trial, [item.room], '', item.stayId);
                     if (JSON.stringify(q) !== JSON.stringify(item.quote))
                         throw ports.error(409, 'PMS_QUOTE_CHANGED', 'Price or terms changed. Review again');
-                    Object.assign(record(trial, 'stay', item.stayId).data, { ...item.room, state: 'reserved', prices: q.lines[0].nights });
+                    Object.assign(record(trial, 'stay', item.stayId).data, { ...item.room, state: 'reserved', roomTypePeriods: undefined, prices: q.lines[0].nights });
                 }
             const before = new Map(s.records.map(r => [r.id, JSON.stringify(r)]));
             const expiresAt = now + 30 * 60 * 1000;
@@ -502,17 +541,35 @@ export function createPmsBookingChange(ports: PmsBookingChangePorts) {
                         delta.set(k, (delta.get(k) ?? 0) + 1);
                     }
             }
-            for (const [k, n] of delta)
-                if (n > 0) {
-                    const [typeId, date] = k.split('|');
-                    if (availability(s, typeId, date).available < n)
-                        throw ports.error(409, 'PMS_SOLD_OUT', 'The additional room capacity is unavailable');
-                    s.records.push({ id: ports.uuid(), kind: 'block', version: 1, updatedAt: now, data: { name: 'Pending guest change', typeId, roomId: '', from: date, to: plusDays(date, 1), quantity: n, releaseDate: plusDays(s.property.businessDate, 366), kind: 'group', state: 'active', pickedStayIds: [], bookingChangeId: key, expiresAt } });
+            const claimsByNight = new Map<string, Array<{ blockId: string; stayId: string }>>();
+            for (const item of proposal.items) {
+                if (!item.room) continue;
+                for (const date of dates(item.room.arrival, item.room.departure)) {
+                    const block = stayGroupBlock(s, item.stayId, item.room.typeId, date);
+                    if (!block) continue;
+                    const key = `${item.room.typeId}|${date}`, claims = claimsByNight.get(key) ?? [];
+                    claims.push({ blockId: block.id, stayId: item.stayId }); claimsByNight.set(key, claims);
                 }
-            const attemptId = ports.uuid(), allocations = proposal.items.filter(i => i.dueNow > 0).map(i => ({ stayId: i.stayId, folioId: record(s, 'stay', i.stayId).data.folioId, amount: i.dueNow }));
+            }
+            // Keep the original booking occupied until payment succeeds. A durable quota
+            // claim moves its own held capacity into the pending revision, without holding twice.
+            for (const k of new Set([...delta.keys(), ...claimsByNight.keys()])) {
+                const quantity = Math.max(0, delta.get(k) ?? 0), claims = claimsByNight.get(k) ?? [];
+                if (!quantity && !claims.length) continue;
+                const [typeId, date] = k.split('|');
+                s.records.push({ id: ports.uuid(), kind: 'block', version: 1, updatedAt: now, data: {
+                    name: 'Pending guest change', typeId, roomId: '', from: date, to: plusDays(date, 1),
+                    quantity: quantity || 1, quotaOnly: !quantity, groupPickupClaims: claims,
+                    releaseDate: plusDays(s.property.businessDate, 366), kind: 'group', state: 'active',
+                    pickedStayIds: [], bookingChangeId: key, expiresAt,
+                } });
+                if (availability(s, typeId, date).available < 0)
+                    throw ports.error(409, 'PMS_SOLD_OUT', 'The additional room capacity is unavailable');
+            }
+            const attemptId = ports.uuid(), allocations = proposal.items.filter(i => i.dueNow > 0).map(i => ({ stayId: i.stayId, guestAccountId: record(s, 'stay', i.stayId).data.guestAccountId, amount: i.dueNow }));
             const settings = await tx.readPosSettings({ companyId: s.property.companyId });
             await tx.persist(s, before);
-            await tx.insertPmsBookingPayments({ attemptId: attemptId, id: s.property.id, id2: id, companyId: s.property.companyId, slug: slug, account_id: connection.account_id, livemode: connection.livemode, dueNow: proposal.dueNow, expiresAt: expiresAt, now: now, now2: now, fact11: JSON.stringify(allocations), fact12: JSON.stringify([...(connection.card_enabled ? ['card'] : []), ...(connection.promptpay_enabled ? ['promptpay'] : [])]), fact13: settings ? (JSON.parse(settings.accounts_json).stripe || s.property.config.accounts.edc) : s.property.config.accounts.edc, key: key });
+            await tx.insertPmsBookingPayments({ attemptId: attemptId, id: s.property.id, id2: id, companyId: s.property.companyId, slug: slug, account_id: connection.account_id, livemode: connection.livemode, dueNow: proposal.dueNow, expiresAt: expiresAt, now: now, now2: now, fact11: JSON.stringify(allocations), fact12: JSON.stringify([...(connection.card_enabled ? ['card'] : []), ...(connection.promptpay_enabled ? ['promptpay'] : [])]), fact13: settings ? (parseGuestAccountJson(settings.accounts_json).stripe || s.property.config.accounts.edc) : s.property.config.accounts.edc, key: key });
             await (await tx.snapshotMoney({ companyId: s.property.companyId }, { sourceType: 'pms_booking_payment', sourceId: attemptId, amountKind: 'requested', transactionDate: s.property.businessDate, currency: 'THB', amountUnits: String(proposal.dueNow) })).statement.run();
             return { summary: ports.bookingSummary(s, id, now), attemptId };
         });
@@ -531,13 +588,14 @@ export function createPmsBookingChange(ports: PmsBookingChangePorts) {
             throw ports.error(409, 'PMS_CHANGE_MISSING', 'Change proposal is missing');
         const before = new Map(s.records.map(r => [r.id, JSON.stringify(r)]));
         releaseHolds(s, change.id, now);
-        const proposal = JSON.parse(change.proposal_json) as Proposal;
+        const proposal = parseGuestAccountJson(change.proposal_json) as Proposal;
         let valid = paid && (providerSucceededAt ?? now) < Number(payment.expires_at) && record(s, 'reservation', payment.reservation_id).version === Number(change.reservation_version);
         if (valid) {
             const trial = structuredClone(s);
             for (const item of proposal.items)
                 record(trial, 'stay', item.stayId).data.state = 'cancelled';
             try {
+                await assertManualFunding(tx, s, proposal);
                 for (const item of proposal.items) {
                     eligible(s, item.stayId, providerSucceededAt ?? now, true, proposal.staff?.override);
                     Object.assign(record(trial, 'stay', item.stayId).data, { ...item.room, state: 'reserved', prices: item.quote!.lines[0].nights });
@@ -552,24 +610,24 @@ export function createPmsBookingChange(ports: PmsBookingChangePorts) {
         s.property.config.accounts.edc = payment.clearing_account;
         if (valid) {
             let offset = 0;
-            for (const part of JSON.parse(payment.allocation_json) as Array<{
+            for (const part of parseGuestAccountJson(payment.allocation_json) as Array<{
                 stayId: string;
-                folioId: string;
+                guestAccountId: string;
                 amount: number;
             }>) {
-                const outcome = executePms(s, 'payment.stripe', { folioId: part.folioId, amount: part.amount, reference: payment.payment_intent_id ?? payment.checkout_id }, providerActor(now));
+                const outcome = executePms(s, 'payment.stripe', { guestAccountId: part.guestAccountId, amount: part.amount, reference: payment.payment_intent_id ?? payment.checkout_id }, providerActor(now));
                 record(s, 'entry', outcome.id).data.sourceKey = `online-payment:${payment.id}`;
                 record(s, 'entry', outcome.id).data.providerPaymentOffset = offset;
                 offset += part.amount;
                 await tx.persistPmsRecords(s, before);
                 await tx.effects({ companyId: payment.company_id, userId: 'system:stripe' } as WorkContext, s, outcome.effects);
-                await tx.insertPmsBookingAllocations({ fact0: ports.uuid(), id: payment.id, stayId: part.stayId, folioId: part.folioId, id2: outcome.id, amount: part.amount, now: now });
+                await tx.insertPmsBookingAllocations({ fact0: ports.uuid(), id: payment.id, stayId: part.stayId, guestAccountId: part.guestAccountId, id2: outcome.id, amount: part.amount, now: now });
             }
             await apply(tx, s, proposal, payment.holding_slug, env, now, providerSucceededAt ?? now, before);
         }
         else if (paid) {
             const st = record(s, 'stay', proposal.items[0].stayId);
-            const outcome = executePms(s, 'payment.unallocated', { folioId: st.data.folioId, amount: Number(payment.amount_minor), reference: payment.checkout_id }, providerActor(now));
+            const outcome = executePms(s, 'payment.unallocated', { guestAccountId: st.data.guestAccountId, amount: Number(payment.amount_minor), reference: payment.checkout_id }, providerActor(now));
             record(s, 'entry', outcome.id).data.sourceKey = `online-payment:${payment.id}`;
             await tx.persistPmsRecords(s, before);
             await tx.effects({ companyId: payment.company_id, userId: 'system:stripe' } as WorkContext, s, outcome.effects);

@@ -71,8 +71,10 @@ export function useStaffCommand(base: string) {
       if (!response.ok)
         throw new Error(data.error?.message ?? "Unable to save. Your details are still here.");
       attempt.current = null;
-      if (destination) router.push(`${base}/${destination}/${data.data.id}`);
-      startRefresh(() => router.refresh());
+      startRefresh(() => {
+        if (destination) router.push(`${base}/${destination}/${data.data.id}`);
+        else router.refresh();
+      });
       return data.data;
     } catch (e) {
       setError(

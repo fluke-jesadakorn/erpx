@@ -4,7 +4,7 @@ import { requireWorkContext, publicScope } from "@/server/modules/identity_acces
 import { workspaceBase } from "@/lib/workspace";
 import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { customerDuplicateDetail } from "@/server/modules/customer_authority/public/customer-duplicates";
-import { CustomerDuplicateConsole } from "@/components/modules/customer-duplicate-console";
+import { CustomerDuplicateConsole } from "@/components/records/loaders/modules--customer-duplicate-console";
 import { PageContent, Card, TableFrame } from "@/components/ui/foundation";
 export const dynamic = "force-dynamic";
 export default async function Page({

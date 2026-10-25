@@ -3,7 +3,7 @@ import { hospitalityOwnerProjectionSources as filesProjectionSources } from "../
 import { hospitalityOwnerProjectionSources as financeProjectionSources } from "../../finance/public/hospitality-owner-projection-sources";
 import { hospitalityOwnerProjectionSources as identity_accessProjectionSources } from "../../identity_access/public/hospitality-owner-projection-sources";
 import { hospitalityOwnerProjectionSources as operationsProjectionSources } from "../../operations/public/hospitality-owner-projection-sources";
-import { createExpenseRequirements } from "../application/expense-evidence";
+import { createExpenseRequirements, type ExpenseRequirementsPorts } from "../application/expense-evidence";
 import { createSaveExpenseDraft } from "../application/expense-commands";
 import { expenseCommandPort, expenseMutation } from "./expense-command-port";
 /** Native Expense adapter; preserves legacy persistence and command semantics. */
@@ -42,19 +42,24 @@ export const expenseUpdateSchema = expenseDraftSchema.extend({
   expectedVersion: z.number().int().positive(),
 });
 
-export function nativeExpenseRequirements(db: SqlDatabase) {
+export function nativeExpenseEmployment(db: SqlDatabase): ExpenseRequirementsPorts["employment"] {
+  return async row => {
+    try {
+      const staff = await activeStaff(db, String(row.company_id), String(row.claimant_user_id));
+      const level = staff.level_id && await db.prepare(`SELECT 1 FROM (${operationsProjectionSources.staff_levels}) staff_levels WHERE id=? AND company_id=? AND active=1`).bind(staff.level_id, row.company_id).first();
+      return { startDate: staff.start_date, endDate: staff.end_date, activeLevel: Boolean(level) };
+    } catch (error) {
+      if (!(error instanceof ApiError)) throw error;
+      return { unavailable: error.message };
+    }
+  };
+}
+
+export function nativeExpenseRequirements(db: SqlDatabase, readReceipt?: (row:ExpenseRow)=>Promise<boolean>, readEmployment: ExpenseRequirementsPorts["employment"] = nativeExpenseEmployment(db)) {
   return createExpenseRequirements({
-    async employment(row) {
-      try {
-        const staff = await activeStaff(db, String(row.company_id), String(row.claimant_user_id));
-        const level = staff.level_id && await db.prepare(`SELECT 1 FROM (${operationsProjectionSources.staff_levels}) staff_levels WHERE id=? AND company_id=? AND active=1`).bind(staff.level_id, row.company_id).first();
-        return { startDate: staff.start_date, endDate: staff.end_date, activeLevel: Boolean(level) };
-      } catch (error) {
-        if (!(error instanceof ApiError)) throw error;
-        return { unavailable: error.message };
-      }
-    },
+    employment: readEmployment,
     async hasReceipt(row) {
+      if (readReceipt) return readReceipt(row);
       return Boolean(await db.prepare(attachmentsV2Readable()
         ? `SELECT 1 FROM (${filesProjectionSources.attachments}) a JOIN (${filesProjectionSources.attachment_links}) l ON l.attachment_id=a.id
              JOIN (${filesProjectionSources.attachment_sets}) s ON s.id=l.set_id

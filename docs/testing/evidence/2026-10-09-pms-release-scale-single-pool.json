@@ -1,0 +1,45 @@
+{
+  "run": "56a37febe28f",
+  "sourceFingerprint": "ee6064ea384e66197e2ff0a9bfd27a29210762bcf74b2c9121f3edf71e971255",
+  "verificationFingerprint": "4769e45724fa3a07771bb82a48f5a09942891fe57ce8cdd85bc67c5e90b7b540",
+  "release": {
+    "id": "2026-10-09T16-14-00-741Z",
+    "fileManifestSha256": "d20eb08a820ec507b1e1f5b22d2870b89f82e3016bba9096aa1ea93fd568b01f"
+  },
+  "scope": "Release HTTP: 3 \u00d7 200 rooms, 730-day synthetic closed stay/reservation/account metadata; 20 distinct normal staff accounts. Historic revenue is not invented.",
+  "counts": [
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    },
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    },
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    }
+  ],
+  "accounts": 20,
+  "rounds": 10,
+  "durationMs": 89213,
+  "readCount": 840,
+  "writeCount": 400,
+  "readP95Ms": 607.1545420000039,
+  "writeP95Ms": 5573.303333,
+  "failedSamples": 0,
+  "sameProcesses": true,
+  "unchanged": true,
+  "samplesSha256": "1e29ab0194144c36711e5cfbef860c605dbf1bf925e5ccca9e2763c04d07504a",
+  "passed": false,
+  "acceptance": false,
+  "applicationPoolMax": 1,
+  "interpretation": "All 840 reads and 400 writes succeeded, exact reservation/money replay reconciliation passed, and read p95 met its target. Logical write p95 remained 5,573 ms with 6.25 mean guest attempts. The compiled Holding pool was still one connection; no thresholds or timeouts were relaxed. A measured bounded pool configuration requires a fresh release run."
+}

@@ -3,7 +3,7 @@ import {applyMigrations,env} from './runtime-env';
 import {expenseDb as db,expenseFixture,key} from './helpers/expense-fixture';
 import {saveMaster} from '../src/server/commerce';
 import {createCRMLead,changeCRMLead,changeCRMOpportunity,getCRMLead} from '../src/server/crm';
-import {changeCRMIdentity} from '../src/server/crm-identities';
+import {changeCRMIdentity,crmContactHistory,crmIdentities} from '../src/server/crm-identities';
 import {changeMarketingCampaign,marketingCostSources} from '../src/server/marketing-campaigns';
 import {createMarketingAsset,createMarketingCandidate,changeMarketing} from '../src/server/marketing';
 import {crmAnalytics,marketingAnalytics} from '../src/server/crm-marketing-report';
@@ -20,11 +20,11 @@ it('keeps a confirmed PMS win after cancellation and only counts posted journal 
  const leadId=String((await createCRMLead(f.owner,{branchId:f.branch,title:'Hotel inquiry',contactName:'Test guest',contactDetail:'Staff-recorded phone number',source:'Direct inquiry',brief:'Guest needs a room.',dueDate:date,campaignId:campaign.id},key())).id),lead=await getCRMLead(f.owner,leadId);
  await changeCRMIdentity(f.tie,{action:'link-finance',accountId:lead.account_id,customerId:customer,expectedVersion:1,evidence:'Independent customer record review'},key());
  await changeCRMLead(f.owner,leadId,{action:'qualify',expectedVersion:1,customerId:customer,expectedValue:'50',closeDate:date,reason:'Room requirement confirmed'},key());
- const property=key(),guest=key(),reservation=key(),stay=key(),folio=key(),entry=key(),now=Date.now();
+ const property=key(),guest=key(),reservation=key(),stay=key(),guestAccount=key(),entry=key(),now=Date.now();
  await db.prepare("INSERT INTO pms_properties(id,company_id,branch_id,name,business_date,state,config_json,created_by,updated_at) VALUES(?,?,?,?,?,'open','{}',?,?)").bind(property,f.company,f.branch,'Hotel',date,f.owner.userId,now).run();
- for(const [id,kind,data] of [[guest,'guest',{name:'Test guest'}],[reservation,'reservation',{number:'PMS-TEST',guestId:guest,state:'confirmed',campaignCode:''}],[stay,'stay',{reservationId:reservation,guestId:guest,prices:[{net:5000}]}],[folio,'folio',{reservationId:reservation,guestId:guest}],[entry,'entry',{folioId:folio,kind:'charge'}]] as const)
+ for(const [id,kind,data] of [[guest,'guest',{name:'Test guest'}],[reservation,'reservation',{number:'PMS-TEST',guestId:guest,state:'confirmed',campaignCode:''}],[stay,'stay',{reservationId:reservation,guestId:guest,prices:[{net:5000}]}],[guestAccount,'guest_account',{reservationId:reservation,guestId:guest}],[entry,'entry',{guestAccountId:guestAccount,kind:'charge'}]] as const)
   await db.prepare('INSERT INTO pms_records(id,property_id,kind,data_json,updated_at) VALUES(?,?,?,?,?)').bind(id,property,kind,JSON.stringify(data),now).run();
- await changeCRMIdentity(f.tie,{action:'link-guest',contactId:lead.contact_id,guestId:guest,propertyId:property,evidence:'Reviewed the guest booking identity'},key());
+ await changeCRMIdentity(f.tie,{action:'link-guest',sharingEvidence:'Mock guest authorized hotel service history sharing',contactId:lead.contact_id,guestId:guest,propertyId:property,evidence:'Reviewed the guest booking identity'},key());
  await changeCRMOpportunity(f.owner,leadId,{action:'win-pms',expectedVersion:1,leadVersion:2,reservationId:reservation,propertyId:property,reason:'Confirmed hotel reservation'},key());
  expect(await getCRMLead(f.owner,leadId)).toMatchObject({stage:'won',win_source:'pms',expected_minor:5000});
  const before=await crmAnalytics(f.owner,range);expect(before.metrics.find(m=>m.id==='recognized')?.value).toBe(0);
@@ -53,7 +53,7 @@ it('counts repeat hotel guests only after two linked stays have checked in',asyn
  const stays:string[]=[];
  for(let i=0;i<2;i++){
   const leadId=String((await createCRMLead(f.owner,{branchId:f.branch,title:`Stay inquiry ${i}`,contactName:'Returning guest',contactDetail:'Staff-recorded phone number',source:'Direct',brief:'Guest needs a room.',dueDate:date,...(accountId?{accountId,contactId}:{})},key())).id),lead=await getCRMLead(f.owner,leadId);
-  if(!accountId){accountId=String(lead.account_id);contactId=String(lead.contact_id);await changeCRMIdentity(f.tie,{action:'link-finance',accountId,customerId:customer,expectedVersion:1,evidence:'Independent customer review'},key());await changeCRMIdentity(f.tie,{action:'link-guest',contactId,guestId:guest,propertyId:property,evidence:'Reviewed PMS guest identity'},key());}
+  if(!accountId){accountId=String(lead.account_id);contactId=String(lead.contact_id);await changeCRMIdentity(f.tie,{action:'link-finance',accountId,customerId:customer,expectedVersion:1,evidence:'Independent customer review'},key());await changeCRMIdentity(f.tie,{action:'link-guest',sharingEvidence:'Mock guest authorized hotel service history sharing',contactId,guestId:guest,propertyId:property,evidence:'Reviewed PMS guest identity'},key());}
   await changeCRMLead(f.owner,leadId,{action:'qualify',expectedVersion:1,customerId:customer,expectedValue:'50',closeDate:date,reason:'Room requirement confirmed'},key());
   const reservation=key(),stay=key();stays.push(stay);
   for(const [id,kind,data] of [[reservation,'reservation',{guestId:guest,state:'confirmed'}],[stay,'stay',{reservationId:reservation,guestId:guest,state:'reserved',prices:[{net:5000}]}]] as const)
@@ -109,4 +109,26 @@ it('uses the Thai business day for time-stamped lead cohorts',async()=>{
  await db.prepare('UPDATE crm_leads SET created_at=? WHERE id=?').bind(Date.parse('2026-09-24T18:00:00Z'),leadId).run();
  expect((await crmAnalytics(f.owner,{from:date,to:date})).metrics.find(m=>m.id==='received')?.value).toBe(1);
  expect((await crmAnalytics(f.owner,{from:'2026-09-24',to:'2026-09-24'})).metrics.find(m=>m.id==='received')?.value).toBe(0);
+});
+
+it('keeps hotel history private until authority is reviewed and hides it after withdrawal',async()=>{
+ const leadId=String((await createCRMLead(f.owner,{branchId:f.branch,title:'Guest service inquiry',contactName:'Mock guest',contactDetail:'mock@example.test',source:'Hotel',brief:'Service history requested',dueDate:date},key())).id),lead=await getCRMLead(f.owner,leadId);
+ const property=key(),guest=key(),reservation=key(),stay=key(),now=Date.now();
+ await db.prepare("INSERT INTO pms_properties(id,company_id,branch_id,name,business_date,state,config_json,created_by,updated_at) VALUES(?,?,?,?,?,'open','{}',?,?)").bind(property,f.company,f.branch,'Mock service hotel',date,f.owner.userId,now).run();
+ for(const [id,kind,data] of [[guest,'guest',{name:'Mock guest'}],[reservation,'reservation',{guestId:guest,state:'confirmed'}],[stay,'stay',{reservationId:reservation,state:'checked_out',arrival:'2026-09-01',departure:'2026-09-03'}]] as const)await db.prepare('INSERT INTO pms_records(id,property_id,kind,data_json,updated_at) VALUES(?,?,?,?,?)').bind(id,property,kind,JSON.stringify(data),now).run();
+ const command={action:'link-guest',contactId:lead.contact_id,guestId:guest,propertyId:property,evidence:'Independent identity check'};
+ await expect(changeCRMIdentity(f.owner,command,key())).rejects.toThrow();
+ const linkKey=key();await changeCRMIdentity(f.tie,command,linkKey);const linkId=`guest-link-${linkKey}`;
+ expect((await crmContactHistory(f.owner,String(lead.contact_id))).stays).toHaveLength(0);
+ const grantKey=key(),grant={action:'guest-sharing',linkId,expectedVersion:1,state:'granted',evidence:'Mock guest agreed to hotel service history sharing'};
+ await changeCRMIdentity(f.tie,grant,grantKey);await changeCRMIdentity(f.tie,grant,grantKey);
+ expect((await crmContactHistory(f.owner,String(lead.contact_id))).stays).toHaveLength(1);
+ const otherBranch={...f.owner,branchId:'not-the-hotel-branch'};expect((await crmIdentities(otherBranch)).guestLinks).toHaveLength(0);
+ await expect(changeCRMIdentity(otherBranch,{...grant,expectedVersion:2,state:'revoked'},key())).rejects.toThrow();
+ await changeCRMIdentity(f.owner,{action:'guest-sharing',linkId,expectedVersion:2,state:'revoked',evidence:'Mock guest withdrew service history authority'},key());
+ expect((await crmContactHistory(f.owner,String(lead.contact_id))).stays).toHaveLength(0);
+ const events=(await db.prepare('SELECT state,version FROM crm_guest_sharing_events WHERE link_id=? ORDER BY version').bind(linkId).all<{state:string;version:number}>()).results;
+ expect(events).toEqual([{state:'granted',version:2},{state:'revoked',version:3}]);
+ await expect(db.prepare('DELETE FROM crm_guest_sharing_events WHERE link_id=?').bind(linkId).run()).rejects.toThrow('CRM_GUEST_SHARING_EVIDENCE_IMMUTABLE');
+ expect((await db.prepare('SELECT evidence FROM crm_guest_links WHERE id=?').bind(linkId).first<{evidence:string}>())!.evidence).toBe('Independent identity check');
 });

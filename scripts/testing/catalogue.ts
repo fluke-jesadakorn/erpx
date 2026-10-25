@@ -18,6 +18,7 @@ export type Suite = {
   files: string[];
   fixture: FixtureProfile;
   requires: { jobs: boolean; scanner: boolean };
+  fictionalProvider?: "pms-stripe";
   provider?: { environment: Record<string, string>; required: string[] };
   uatAuth?: { mode: "case-annotations" | "self-authenticated" };
 };
@@ -167,6 +168,7 @@ export function validateCatalogue(catalogue: Catalogue, root = repositoryRoot): 
     ids.add(suite.id);
     if (!testLanes.includes(suite.lane) || !suite.owner || !Array.isArray(suite.modules) || !suite.modules.length || !Array.isArray(suite.files) || !suite.files.length || !fixtureProfiles.has(suite.fixture) || typeof suite.requires?.jobs !== "boolean" || typeof suite.requires?.scanner !== "boolean") throw new Error(`INVALID_TEST_SUITE:${suite.id}`);
     if (!suite.modules.every(module => catalogue.modules.includes(module))) throw new Error(`UNKNOWN_SUITE_MODULE:${suite.id}`);
+    if (suite.fictionalProvider !== undefined && (suite.fictionalProvider !== 'pms-stripe' || suite.fixture !== 'booking' || suite.lane !== 'e2e' || !suite.requires.jobs || !suite.requires.scanner)) throw new Error(`INVALID_FICTIONAL_PROVIDER_SUITE:${suite.id}`);
     for (const file of suite.files) {
       if (isAbsolute(file) || file.split("/").includes("..") || files.has(file) || !existsSync(resolve(root, file))) throw new Error(`INVALID_OR_DUPLICATE_TEST_FILE:${file}`);
       files.add(file);

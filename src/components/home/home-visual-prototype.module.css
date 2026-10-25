@@ -1,4 +1,12 @@
 .workspace {
+  --ui-brand: light-dark(#3458db, #9ebcff);
+  --ui-brand-strong: light-dark(#2947b8, #bdd0ff);
+  --ui-brand-soft: light-dark(#edf2ff, #263b60);
+  --ui-brand-glow: #3458db26;
+  --ui-ink: light-dark(#34435b, #d5dee9);
+  --ui-ink-strong: light-dark(#18243a, #f5f8fc);
+  --ui-muted: light-dark(#526078, #bac5d2);
+  --ui-paper: light-dark(#f3f5fa, #151a21);
   --home-accent: var(--ui-brand);
   --home-accent-strong: var(--ui-brand-strong);
   --home-surface: var(--ui-card);
@@ -651,7 +659,7 @@
   background: color-mix(in srgb, var(--ui-card) 62%, var(--ui-paper));
 }
 .workspace :global(.content .beta-filters button) {
-  min-height: 42px;
+  min-height: var(--ui-control-height);
   padding: 8px 15px;
   color: var(--ui-muted);
   font-weight: 560;
@@ -796,32 +804,31 @@
   }
 }
 
-/* Today gives the work itself the visual emphasis. */
+/* A compact blue landmark anchors Today without crowding the work. */
 .workspace[data-compact-hero="true"] :global(.content .beta-heading) {
-  border: 1px solid var(--ui-line);
-  border-left: 4px solid var(--ui-brand);
+  border: 1px solid #3458db;
   border-radius: var(--ui-radius-lg);
-  background: var(--ui-card);
-  box-shadow: none;
+  background: linear-gradient(115deg, #142544 0%, #243e8e 55%, #3458db 100%);
+  box-shadow: 0 6px 18px -12px #14254480;
 }
 .workspace[data-compact-hero="true"] :global(.content .beta-heading)::before {
   display: none;
 }
 .workspace[data-compact-hero="true"] :global(.beta-hero-kicker) {
-  color: var(--ui-muted);
+  color: #dce6ff;
   letter-spacing: 0.08em;
 }
 .workspace[data-compact-hero="true"] :global(.beta-hero-kicker)::before {
-  background: var(--ui-brand);
+  background: #a9c6ff;
   box-shadow: none;
 }
 .workspace[data-compact-hero="true"] :global(.content .beta-heading h1) {
-  color: var(--ui-ink-strong);
+  color: #fff;
   text-shadow: none;
   font-size: var(--ui-type-page);
 }
 .workspace[data-compact-hero="true"] :global(.content .beta-heading p) {
-  color: var(--ui-muted);
+  color: #dce6ff;
   font-size: var(--ui-type-meta);
 }
 .workspace :global(.content .beta-composer),
@@ -831,7 +838,7 @@
   box-shadow: none;
 }
 .workspace :global(.content .beta-composer) {
-  border-color: var(--ui-line);
+  border-color: color-mix(in srgb, var(--ui-brand) 38%, var(--ui-line));
 }
 .workspace :global(.content .beta-composer)::before,
 .workspace :global(.content .beta-post)::before {
@@ -839,7 +846,8 @@
 }
 .workspace :global(.content .beta-compose-icon) {
   border-radius: var(--ui-radius-md);
-  background: var(--ui-brand);
+  color: #fff;
+  background: #3458db;
   box-shadow: none;
 }
 .workspace :global(.content .beta-filters) {
@@ -860,7 +868,8 @@
   line-height: 1.6;
 }
 .workspace :global(.content .beta-empty) {
-  background: var(--ui-card);
+  border-style: dashed;
+  background: color-mix(in srgb, var(--ui-card) 65%, var(--ui-paper));
   box-shadow: none;
 }
 .workspace :global(.content .beta-empty-icon) {

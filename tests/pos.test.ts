@@ -1,5 +1,6 @@
+import { canonicalGuestAccount, legacyGuestAccount } from "../src/lib/guest-account-compat";
 import { beforeAll,beforeEach,afterEach,describe,it,expect,vi } from 'vitest';
-import { createHmac } from 'node:crypto';
+import { createHash, createHmac } from 'node:crypto';
 import { importBankStatement } from '../src/server/finance';
 import { setFinanceCompanyTool } from '../src/server/finance-company-tools';
 import { bankAutomationWorkspace,proposeBankMatchGroup,decideBankMatchGroup } from '../src/server/finance-bank-automation';
@@ -18,6 +19,7 @@ const db=env.H001_DB;
 afterEach(()=>{vi.useRealTimers();vi.unstubAllGlobals();vi.unstubAllEnvs();});
 const actor={userId:'cashier',assignmentId:'pos-cashier',role:'holding_owner',companyId:'pos-company',branchId:null,departmentId:null,holdingId:'h001',holdingSlug:'pos-test',name:'Cashier',email:'cashier@example.test',assignmentScope:'holding',scope:{kind:'holding',holdingId:'h001',holdingSlug:'pos-test',holdingName:'POS',companyId:'pos-company'},modules:['pos'],assignments:[],workspaces:[],inherited:false,holdingName:'POS'} as WorkContext;
 const manager={...actor,userId:'manager',assignmentId:'pos-manager'};
+const hotelManager={...actor,userId:'hotel-manager',assignmentId:'hotel-manager'};
 let serial=0;
 const command=(op:string,input:unknown,who=actor,key=`pos-test-command-${++serial}`)=>posCommand(db,who,op,input,key);
 async function change(op:string,saleId:string,extra:Record<string,unknown>={},who=actor){const row=await one(db,'SELECT * FROM pos_sales WHERE id=?',saleId);return command(op,{id:saleId,expectedVersion:row!.version,...extra},who);}
@@ -28,7 +30,7 @@ async function add(sale:string,product='tea',qty=1000){await change('sale.add',s
 async function pay(sale:string,amount=10700){await change('payment.create',sale,{method:'cash',amountMinor:amount,tenderedMinor:amount,reference:''});}
 async function kitchen(sale:string,action:string){const f=(await one(db,'SELECT f.* FROM pos_fulfillments f JOIN pos_lines l ON l.fulfillment_id=f.id WHERE l.sale_id=?',sale))!;return command(`kitchen.${action}`,{id:f.id,expectedVersion:f.version,reason:'customer changed order'},action==='cancel'?manager:actor);}
 async function expectLatePosAuditRollback(operation:string,request:unknown,who:WorkContext,key:string){
- const tables=['pos_sales','pos_lines','pos_reservations','pos_stock_moves','pos_fulfillments','pos_payments','pos_postings','pos_receipts','pos_audit','pos_jobs','pms_properties','pms_records','pms_sources','pms_postings','finance_journals','finance_journal_lines','finance_invoices','finance_payments','finance_allocations','money_transaction_snapshots','commerce_stock','attachment_sets','attachment_links','attachment_events','command_assertions'];
+ const tables=['pos_room_charge_reversal_requests','pos_sales','pos_lines','pos_reservations','pos_stock_moves','pos_fulfillments','pos_payments','pos_postings','pos_receipts','pos_audit','pos_jobs','pms_properties','pms_records','pms_sources','pms_postings','finance_journals','finance_journal_lines','finance_invoices','finance_payments','finance_allocations','money_transaction_snapshots','commerce_stock','attachment_sets','attachment_links','attachment_events','command_assertions'];
  const snapshot=async()=>Promise.all(tables.map(table=>all(db,`SELECT row_to_json(t)::text row FROM ${table} t ORDER BY row_to_json(t)::text`)));
  const before=await snapshot();
  await db.exec("CREATE FUNCTION pos_final_audit_fault() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.operation=TG_ARGV[0] THEN RAISE EXCEPTION 'forced late POS audit failure' USING ERRCODE='23514'; END IF; RETURN NEW; END $$");
@@ -39,10 +41,11 @@ async function expectLatePosAuditRollback(operation:string,request:unknown,who:W
 async function clearPosSetup(){await run(db,'DELETE FROM pos_shifts');await run(db,'DELETE FROM pos_tables');await run(db,'DELETE FROM pos_registers');await run(db,'DELETE FROM pos_settings');}
 beforeAll(async()=>{await Promise.all([applyMigrations(db,env.STAFF_TEST_MIGRATIONS),applyMigrations(env.CONTROL_DB,env.CONTROL_TEST_MIGRATIONS)]);enableAttachmentV2ForTest();},120000);
 beforeEach(async context=>{
- await db.exec(`TRUNCATE money_transaction_snapshots,company_fx_rates,pos_day_closes,pos_sale_documents,pos_product_images,pos_register_catalog,hospitality_tax_documents,company_feature_rollouts,pms_sources,pms_postings,pms_records,pms_properties,pos_receipts,pos_audit,pos_jobs,pos_stripe_events,pos_settlements,pos_oauth_states,pos_connections,pos_connection_history,pos_cash_movements,pos_refund_payments,pos_refunds,pos_payments,pos_lines,pos_reservations,pos_stock_moves,pos_fulfillments,pos_sales,pos_tables,pos_shifts,pos_registers,pos_catalog,pos_settings,pos_postings,finance_bank_transactions,finance_bank_statements,finance_allocations,finance_invoices,finance_payments,finance_journal_lines,finance_journals,finance_parties,commerce_stock,commerce_products,commerce_warehouses,commerce_settings,finance_accounts,finance_periods,finance_charts,assignments,command_assertions CASCADE;
+ await db.exec(`DELETE FROM command_assertions;
+ TRUNCATE money_transaction_snapshots,company_fx_rates,pos_day_closes,pos_sale_documents,pos_product_images,pos_register_catalog,hospitality_tax_documents,company_feature_rollouts,pms_sources,pms_postings,pms_records,pms_properties,pos_receipts,pos_audit,pos_jobs,pos_stripe_events,pos_settlements,pos_oauth_states,pos_connections,pos_connection_history,pos_cash_movements,pos_refund_payments,pos_refunds,pos_payments,pos_lines,pos_reservations,pos_stock_moves,pos_fulfillments,pos_sales,pos_tables,pos_shifts,pos_registers,pos_catalog,pos_settings,pos_postings,finance_bank_transactions,finance_bank_statements,finance_allocations,finance_invoices,finance_payments,finance_journal_lines,finance_journals,finance_parties,commerce_stock,commerce_products,commerce_warehouses,commerce_settings,finance_accounts,finance_periods,finance_charts,assignments CASCADE;
  INSERT INTO organization_nodes(id,kind,slug,display_name,company_id) VALUES('pos-company','company','pos-company','POS test','pos-company') ON CONFLICT DO NOTHING;
  INSERT INTO organization_nodes(id,kind,slug,display_name,company_id,parent_id,branch_id) VALUES('pos-branch','branch','pos-branch','Branch','pos-company','pos-company','pos-branch') ON CONFLICT DO NOTHING;
- INSERT INTO assignments(id,user_id,role,modules_json,company_id,scope_kind,valid_from,valid_until) VALUES('pos-cashier','cashier','holding_owner','["pos"]','pos-company','holding',0,9999999999999),('pos-manager','manager','holding_owner','["pos"]','pos-company','holding',0,9999999999999);
+ INSERT INTO assignments(id,user_id,role,modules_json,company_id,scope_kind,valid_from,valid_until) VALUES('pos-cashier','cashier','holding_owner','["pos"]','pos-company','holding',0,9999999999999),('pos-manager','manager','holding_owner','["pos"]','pos-company','holding',0,9999999999999),('hotel-manager','hotel-manager','holding_owner','["pos","pms"]','pos-company','holding',0,9999999999999);
  INSERT INTO finance_charts(id,company_id,name,base_currency,created_by,created_at,updated_at) VALUES('chart','pos-company','POS test','THB','system',0,0);
  INSERT INTO finance_periods(id,company_id,name,start_date,end_date,created_at) VALUES('period','pos-company','Open','2020-01-01','2099-12-31',0);
  INSERT INTO commerce_warehouses(id,company_id,branch_id,code,name) VALUES('warehouse','pos-company','pos-branch','POS','POS warehouse');
@@ -54,6 +57,7 @@ beforeEach(async context=>{
  for(const [i,k] of accountKeys.entries())await run(db,'INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,created_at,updated_at) VALUES(?,?,?,?,?,?,0,0)',k,'chart','pos-company',String(1000+i),k,k==='revenue'?'revenue':['advance','refund','outputTax'].includes(k)?'liability':['cogs','fees','waste','cashDifference'].includes(k)?'expense':'asset');
  await run(db,'INSERT INTO commerce_settings VALUES(?,?,?,?,?,?,?,?,?,?,?,?)','pos-company','chart','THB','receivable','refund','revenue','inventory','advance','cogs','outputTax','outputTax','cash');
  await command('settings.save',{enabled:true,currency:'THB',timezone:'Asia/Bangkok',cashierDiscountBps:0,accounts:{chartId:'chart',...Object.fromEntries(accountKeys.map(k=>[k,k]))},expectedVersion:0});
+ await command('accounting.approve',{expectedVersion:1},manager);
  await command('catalog.save',{productId:'latte',barcode:'8850001',category:'Coffee',kind:'recipe',station:'Bar',recipe:[{productId:'milk',quantityMilli:200}],modifiers:[],taxInclusive:false,expectedVersion:0});
  await command('catalog.save',{productId:'tea',barcode:'8850002',category:'Retail',kind:'stock',station:'Shop',recipe:[],modifiers:[],taxInclusive:false,registerIds:['retail','restaurant'],expectedVersion:0});
  await run(db,"DELETE FROM company_fx_rates WHERE company_id='pos-company'");
@@ -204,6 +208,7 @@ describe('POS committed business flows',()=>{
  it('supports a cash sale after bootstrap without opening a session automatically',async()=>{
   await clearPosSetup();
   const setup=await command('settings.bootstrap',{},actor,'pos-bootstrap-cash-sale');
+  await command('accounting.approve',{expectedVersion:1},manager);
   await command('catalog.save',{productId:'tea',barcode:'8850002',category:'Retail',kind:'stock',station:'Shop',recipe:[],modifiers:[],taxInclusive:false,registerIds:[setup.registerId],expectedVersion:1});
   expect(await one(db,'SELECT count(*) n FROM pos_shifts')).toEqual({n:0});
   const shift=await command('shift.open',{registerId:setup.registerId,openingMinor:25000},actor,'pos-bootstrap-open-cash');
@@ -218,6 +223,7 @@ describe('POS committed business flows',()=>{
  it('matches a transfer sale to imported bank evidence using the bootstrapped bank account',async()=>{
   await clearPosSetup();
   const setup=await command('settings.bootstrap',{},actor,'pos-bootstrap-transfer-sale');
+  await command('accounting.approve',{expectedVersion:1},manager);
   await command('catalog.save',{productId:'tea',barcode:'8850002',category:'Retail',kind:'stock',station:'Shop',recipe:[],modifiers:[],taxInclusive:false,registerIds:[setup.registerId],expectedVersion:1});
   const shift=await command('shift.open',{registerId:setup.registerId,openingMinor:0},actor,'pos-bootstrap-open-transfer');
   const sale=String((await command('sale.create',{shiftId:shift.id,serviceMode:'retail'},actor,'pos-bootstrap-transfer-create')).id);
@@ -235,13 +241,14 @@ describe('POS committed business flows',()=>{
  });
 
  it('cannot open a restaurant session while the hotel closes or has a different business date',async()=>{
-  await run(db,"UPDATE pos_shifts SET state='closed',counted_minor=10000,expected_minor=10000,variance_minor=0,closed_at=1 WHERE id='shift-retail'");
+  await run(db,"UPDATE pos_shifts SET state='closed',counted_minor=10000,expected_minor=10000,variance_minor=0,closed_at=1 WHERE id='shift-kitchen'");
   await run(db,"INSERT INTO pms_properties(id,company_id,branch_id,name,business_date,state,config_json,created_by,updated_at) VALUES('hotel','pos-company','pos-branch','Hotel',?,'closing',?,'system',0)",businessDate(),JSON.stringify(defaultConfig));
-  await expect(command('shift.open',{registerId:'retail',openingMinor:0})).rejects.toMatchObject({code:'POS_HOTEL_DAY_CLOSED'});
+  await run(db,"UPDATE pos_registers SET property_id='hotel' WHERE id='restaurant'");
+  await expect(command('shift.open',{registerId:'restaurant',openingMinor:0})).rejects.toMatchObject({code:'POS_HOTEL_DAY_CLOSED'});
   await run(db,"UPDATE pms_properties SET state='open',business_date='2000-01-01' WHERE id='hotel'");
-  await expect(command('shift.open',{registerId:'retail',openingMinor:0})).rejects.toMatchObject({code:'POS_HOTEL_DAY_CLOSED'});
+  await expect(command('shift.open',{registerId:'restaurant',openingMinor:0})).rejects.toMatchObject({code:'POS_HOTEL_DAY_CLOSED'});
   await run(db,"UPDATE pms_properties SET business_date=? WHERE id='hotel'",businessDate());
-  await expect(command('shift.open',{registerId:'retail',openingMinor:0})).resolves.toHaveProperty('id');
+  await expect(command('shift.open',{registerId:'restaurant',openingMinor:0})).resolves.toHaveProperty('id');
  });
  it('links an external tax reference to one posted sale with independent Finance review and correction history',async()=>{
   const {taxDocumentCommand,taxDocumentView,frontTaxDocumentCommand,frontTaxDocumentView}=await import('../src/server/hospitality-tax-documents');
@@ -365,7 +372,7 @@ describe('POS committed business flows',()=>{
   await change('sale.complete',sale);
   expect((await one(db,'SELECT state FROM pos_sales WHERE id=?',sale))?.state).toBe('completed');
  });
- it('charges one restaurant bill to an in-house folio atomically, without POS revenue or payment',async()=>{
+ it('charges one restaurant bill to an in-house guest account atomically, without POS revenue or payment',async()=>{
   const sale=await createSale('dine_in');await add(sale);
   const saleRow=await one(db,'SELECT * FROM pos_sales WHERE id=?',sale);
   const accounts={...defaultConfig.accounts};
@@ -381,10 +388,11 @@ describe('POS committed business flows',()=>{
    for(const [id,kind,data] of [
     ['guest','guest',{name:'Example Guest'}],
     ['room','room',{number:'101'}],
-    ['folio','folio',{name:'Guest folio',guestId:'guest',reservationId:'reservation',partyId:'',state:'open',due:0,advance:0,advanceTax:0,deposit:0}],
-    ['stay','stay',{guestId:'guest',reservationId:'reservation',roomId:'room',folioId:'folio',state:'in_house'}],
+    ['guest_account','guest_account',{name:'Guest Account',guestId:'guest',reservationId:'reservation',partyId:'',state:'open',due:0,advance:0,advanceTax:0,deposit:0}],
+    ['stay','stay',{guestId:'guest',reservationId:'reservation',roomId:'room',guestAccountId:'guest_account',state:'in_house'}],
    ] as const)await run(tx,'INSERT INTO pms_records(id,property_id,kind,data_json,version,updated_at) VALUES(?,?,?,?,1,0)',id,'hotel',kind,JSON.stringify(data));
   });
+  await run(db,"UPDATE pos_registers SET property_id='hotel' WHERE id='restaurant'");
   const input={id:sale,expectedVersion:saleRow!.version,propertyId:'hotel',stayId:'stay',expectedPropertyVersion:1};
   const {posWorkspace}=await import('../src/server/pos');
   expect((await posWorkspace(actor,sale,'','sale')).roomChargeStays).toMatchObject([{stay_id:'stay',room_number:'101',guest_name:'Example Guest'}]);
@@ -392,9 +400,9 @@ describe('POS committed business flows',()=>{
   const charged=await command('sale.charge_to_room',input,actor,'room-charge-replay');
   expect(charged).toMatchObject({id:sale,state:'completed',tender:'room_charge',propertyId:'hotel'});
   expect(await command('sale.charge_to_room',input,actor,'room-charge-replay')).toEqual(charged);
-  expect((await one(db,"SELECT data_json::jsonb->>'due' due FROM pms_records WHERE id='folio'"))?.due).toBe('10700');
+  expect((await one(db,"SELECT data_json::jsonb->>'due' due FROM pms_records WHERE id='guest_account'"))?.due).toBe('10700');
   expect(await one(db,'SELECT count(*) n FROM pms_sources')).toEqual({n:1});
-  expect((await posWorkspace(actor,sale,'','sale')).roomCharge?.folio_entry_id).toBe(charged.folioEntryId);
+  expect((await posWorkspace(actor,sale,'','sale')).roomCharge?.guest_account_entry_id).toBe(charged.guestAccountEntryId);
   expect(await one(db,'SELECT count(*) n FROM pms_postings')).toEqual({n:1});
   expect(await one(db,'SELECT count(*) n FROM pos_payments')).toEqual({n:0});
   expect(await one(db,"SELECT count(*) n FROM pos_postings WHERE source_key LIKE 'sale:%' OR source_key LIKE 'receipt:%'")).toEqual({n:0});
@@ -407,41 +415,62 @@ describe('POS committed business flows',()=>{
   expect((await one(db,'SELECT state FROM pos_sales WHERE id=?',other))?.state).toBe('open');
   await db.transaction(async tx=>{
    await tx.prepare("SELECT set_config('erpx.pms_write','on',true)").first();
-   await run(tx,"UPDATE pms_records SET data_json=jsonb_set(data_json::jsonb,'{state}','\"closed\"')::text WHERE id='folio'");
+   await run(tx,"UPDATE pms_records SET data_json=jsonb_set(data_json::jsonb,'{state}','\"closed\"')::text WHERE id='guest_account'");
   });
-  await expect(command('sale.charge_to_room',{id:other,expectedVersion:changed!.version,propertyId:'hotel',stayId:'stay',expectedPropertyVersion:2})).rejects.toMatchObject({code:'PMS_CHARGE_FOLIO'});
+  await expect(command('sale.charge_to_room',{id:other,expectedVersion:changed!.version,propertyId:'hotel',stayId:'stay',expectedPropertyVersion:2})).rejects.toMatchObject({code:'PMS_CHARGE_GUEST_ACCOUNT'});
   expect(await one(db,'SELECT count(*) n FROM pms_sources')).toEqual({n:1});
   expect((await one(db,'SELECT state FROM pos_sales WHERE id=?',other))?.state).toBe('open');
   await run(db,'UPDATE assignments SET revoked_at=? WHERE id=?',Date.now(),'pos-cashier');
   await expect(command('sale.charge_to_room',{id:other,expectedVersion:changed!.version,propertyId:'hotel',stayId:'stay',expectedPropertyVersion:2})).rejects.toMatchObject({code:'POS_ACCESS_CHANGED'});
   const {pmsCommand}=await import('../src/server/pms');
-  await expect(pmsCommand(db,manager,{operation:'charge.reverse',propertyId:'hotel',expectedVersion:2,input:{id:charged.folioEntryId,reason:'Wrong room'}},'direct-pos-charge-reversal')).rejects.toMatchObject({code:'PMS_POS_REVERSAL_REQUIRED'});
+  await expect(pmsCommand(db,manager,{operation:'charge.reverse',propertyId:'hotel',expectedVersion:2,input:{id:charged.guestAccountEntryId,reason:'Wrong room'}},'direct-pos-charge-reversal')).rejects.toMatchObject({code:'PMS_POS_REVERSAL_REQUIRED'});
   const current=(await one(db,'SELECT version FROM pos_sales WHERE id=?',sale))!;
   const line=(await one(db,'SELECT id FROM pos_lines WHERE sale_id=?',sale))!;
   const reversalInput={id:sale,expectedVersion:current.version,propertyId:'hotel',expectedPropertyVersion:2,reason:'Guest bill corrected',restockLineIds:[line.id]};
-  const reversed=await command('sale.reverse_room_charge',reversalInput,manager,'room-charge-reversal-replay');
-  expect(reversed).toMatchObject({id:sale,state:'room_charge_reversed',restoredCostMinor:3000});
-  expect(await command('sale.reverse_room_charge',reversalInput,manager,'room-charge-reversal-replay')).toEqual(reversed);
-  expect((await one(db,"SELECT data_json::jsonb->>'due' due FROM pms_records WHERE id='folio'"))?.due).toBe('0');
+  await expect(command('sale.reverse_room_charge',reversalInput,manager,'old-immediate-reversal')).rejects.toMatchObject({code:'POS_REVERSAL_WORKFLOW_REQUIRED'});
+  const requested=await command('room_charge_reversal.request',reversalInput,manager,'room-charge-reversal-request');
+  expect(await one(db,'SELECT count(*) n FROM pos_room_charge_reversals')).toEqual({n:0});
+  await expect(command('room_charge_reversal.approve_pms',{id:requested.id,expectedVersion:1,reason:'Hotel review'},hotelManager)).rejects.toMatchObject({code:'POS_REVERSAL_STAGE'});
+  await expect(command('room_charge_reversal.approve_pos',{id:requested.id,expectedVersion:1,reason:'Own request'},manager)).rejects.toMatchObject({code:'POS_INDEPENDENT_REVIEW'});
+  await run(db,"INSERT INTO assignments(id,user_id,role,modules_json,company_id,scope_kind,valid_from,valid_until) VALUES('restaurant-reviewer','restaurant-reviewer','holding_owner','[\"pos\"]','pos-company','holding',0,9999999999999)");
+  const restaurantReviewer={...manager,userId:'restaurant-reviewer',assignmentId:'restaurant-reviewer'};
+  await command('room_charge_reversal.approve_pos',{id:requested.id,expectedVersion:1,reason:'Independent restaurant review'},restaurantReviewer);
+  await expect(command('room_charge_reversal.approve_pms',{id:requested.id,expectedVersion:2,reason:'Same reviewer'},restaurantReviewer)).rejects.toMatchObject({code:'POS_INDEPENDENT_REVIEW'});
+  const decision={id:requested.id,expectedVersion:2,reason:'Independent hotel review'};
+  await expectLatePosAuditRollback('room_charge_reversal.approve_pms',decision,hotelManager,'room-charge-reversal-replay');
+  const reversed=await command('room_charge_reversal.approve_pms',decision,hotelManager,'room-charge-reversal-replay');
+  expect(reversed).toMatchObject({id:requested.id,saleId:sale,state:'room_charge_reversed',restoredCostMinor:3000});
+  expect(await command('room_charge_reversal.approve_pms',decision,hotelManager,'room-charge-reversal-replay')).toEqual(reversed);
+  expect((await one(db,"SELECT data_json::jsonb->>'due' due FROM pms_records WHERE id='guest_account'"))?.due).toBe('0');
   expect(await one(db,'SELECT count(*) n FROM pms_postings')).toEqual({n:2});
   expect(await one(db,'SELECT count(*) n FROM pos_room_charge_reversals')).toEqual({n:1});
   expect(await one(db,"SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id='warehouse' AND product_id='tea'")).toEqual({quantity_milli:10000,value_minor:30000});
   expect((await posWorkspace(manager,sale,'','sale')).roomCharge?.reversal_entry_id).toBe(reversed.reversalEntryId);
-  await expect(change('sale.reverse_room_charge',sale,{propertyId:'hotel',expectedPropertyVersion:3,reason:'Again',restockLineIds:[]},manager)).rejects.toMatchObject({code:'POS_ROOM_CHARGE_REVERSED'});
+  await expect(change('sale.reverse_room_charge',sale,{propertyId:'hotel',expectedPropertyVersion:3,reason:'Again',restockLineIds:[]},manager)).rejects.toMatchObject({code:'POS_REVERSAL_WORKFLOW_REQUIRED'});
   await run(db,'UPDATE assignments SET revoked_at=NULL WHERE id=?','pos-cashier');
   const second=await command('sale.charge_to_room',{id:other,expectedVersion:changed!.version,propertyId:'hotel',stayId:'stay',expectedPropertyVersion:3},actor);
   expect(second.state).toBe('completed');
+  const staleRequest=await change('room_charge_reversal.request',other,{propertyId:'hotel',expectedPropertyVersion:4,reason:'Frozen correction review',restockLineIds:[]},manager);
+  await expect(change('room_charge_reversal.request',other,{propertyId:'hotel',expectedPropertyVersion:4,reason:'Duplicate pending correction',restockLineIds:[]},manager)).rejects.toMatchObject({code:'POS_REVERSAL_PENDING'});
+  await expect(run(db,'UPDATE pos_room_charge_reversal_requests SET reason=? WHERE id=?','Changed frozen reason',staleRequest.id)).rejects.toMatchObject({code:'23514'});
+  await run(db,'UPDATE pos_sales SET version=version+1 WHERE id=?',other);
+  await expect(command('room_charge_reversal.approve_pos',{id:staleRequest.id,expectedVersion:1,reason:'Changed source review'},restaurantReviewer)).rejects.toMatchObject({code:'POS_REVERSAL_STALE'});
+  await command('room_charge_reversal.reject_pos',{id:staleRequest.id,expectedVersion:1,reason:'Source changed; request again'},restaurantReviewer);
+  expect(await one(db,'SELECT count(*) n FROM pos_room_charge_reversals')).toEqual({n:1});
   await reviewShifts();
   const prepared=await command('day.prepare',{branchId:'pos-branch',businessDate:String(saleRow!.business_date)},manager);
   vi.useFakeTimers({toFake:['Date']});vi.setSystemTime(new Date(new Date(`${saleRow!.business_date}T12:00:00+07:00`).getTime()+86400000));
   const correction={propertyId:'hotel',expectedPropertyVersion:4,reason:'Prepared item discarded',restockLineIds:[]};
-  await expect(change('sale.reverse_room_charge',other,correction,manager)).rejects.toMatchObject({code:'POS_DAY_REVIEW_PENDING'});
+  const correctionRequest=await change('room_charge_reversal.request',other,correction,manager);
+  await command('room_charge_reversal.approve_pos',{id:correctionRequest.id,expectedVersion:1,reason:'Restaurant correction review'},restaurantReviewer);
+  const hotelDecision={id:correctionRequest.id,expectedVersion:2,reason:'Hotel correction review'};
+  await expect(command('room_charge_reversal.approve_pms',hotelDecision,hotelManager)).rejects.toMatchObject({code:'POS_DAY_REVIEW_PENDING'});
   await command('day.confirm',{id:prepared.id,expectedVersion:1});
-  await expect(change('sale.reverse_room_charge',other,correction,manager)).rejects.toMatchObject({code:'POS_DAY_CLOSED'});
+  await expect(command('room_charge_reversal.approve_pms',hotelDecision,hotelManager)).rejects.toMatchObject({code:'POS_HOTEL_DAY_CLOSED'});
   expect(await one(db,'SELECT count(*) n FROM pos_room_charge_reversals')).toEqual({n:1});
   expect(await one(db,'SELECT version FROM pms_properties WHERE id=?','hotel')).toEqual({version:4});
   await run(db,'UPDATE pms_properties SET business_date=? WHERE id=?',businessDate(),'hotel');
-  const wasted=await change('sale.reverse_room_charge',other,{propertyId:'hotel',expectedPropertyVersion:4,reason:'Prepared item discarded',restockLineIds:[]},manager);
+  const wasted=await command('room_charge_reversal.approve_pms',hotelDecision,hotelManager);
   expect(wasted).toMatchObject({restoredCostMinor:0,wastedCostMinor:3000});
   expect(await one(db,"SELECT quantity_milli FROM commerce_stock WHERE warehouse_id='warehouse' AND product_id='tea'")).toEqual({quantity_milli:9000});
   expect(await one(db,"SELECT count(*) n FROM pos_postings WHERE source_key LIKE 'room-reversal:%'")).toEqual({n:2});
@@ -449,6 +478,7 @@ describe('POS committed business flows',()=>{
  it('reports hotel blockers and actual product availability on every daily tab',async()=>{
   const {posWorkspace}=await import('../src/server/pos');
   await run(db,"INSERT INTO pms_properties(id,company_id,branch_id,name,business_date,state,config_json,created_by,updated_at) VALUES('hotel','pos-company','pos-branch','Hotel',?,'setup',?,'system',0)",businessDate(),JSON.stringify(defaultConfig));
+  await run(db,"UPDATE pos_registers SET mode='restaurant',property_id='hotel'");
   for(const tab of ['sale','kitchen','shifts','history']) {
    const data=await posWorkspace(actor,undefined,'',tab,undefined,true);
    expect(data.frontReady).toBe(false);
@@ -581,6 +611,16 @@ describe('POS committed business flows',()=>{
   expect(results.filter(r=>r.status==='fulfilled')).toHaveLength(1);
   expect(await one(db,"SELECT SUM(quantity_milli) n FROM inventory_active_reservations WHERE product_id='tea'")).toEqual({n:1000});
   expect(await one(db,"SELECT quantity_milli,value_minor FROM commerce_stock WHERE product_id='tea'")).toEqual({quantity_milli:1000,value_minor:3000});
+ });
+ it('shares the scoped kitchen queue with cashier and kitchen while retaining distinct command permissions',async()=>{
+  const sale=await createSale('restaurant');await add(sale,'latte');
+  const cashier=await posWorkspace({...actor,role:'pos_cashier'},undefined,'','kitchen',undefined,true);
+  const cook=await posWorkspace({...actor,role:'pos_kitchen'},undefined,'','kitchen',undefined,true);
+  expect(cashier.kitchen).toHaveLength(1);expect(cook.kitchen).toHaveLength(1);
+  expect(cashier.permissions['pos.sell']).toBe(true);expect(cashier.permissions['pos.kitchen']).toBe(false);
+  expect(cook.permissions['pos.kitchen']).toBe(true);expect(cook.permissions['pos.sell']).toBe(false);
+  expect((await posWorkspace({...actor,role:'pos_cashier',companyId:'another-company'},undefined,'','kitchen',undefined,true)).kitchen).toEqual([]);
+  expect((await posWorkspace({...actor,role:'pos_cashier',branchId:'another-branch'},undefined,'','kitchen',undefined,true)).kitchen).toEqual([]);
  });
  it('reserves recipes on send, consumes on start, moves WIP to COGS on delivery',async()=>{
   const sale=await createSale('restaurant');await add(sale,'latte');await kitchen(sale,'send');expect(await one(db,"SELECT quantity_milli FROM commerce_stock WHERE product_id='milk'")).toEqual({quantity_milli:10000});
@@ -1199,4 +1239,45 @@ describe('POS presentation movement query',()=>{
   expect(await findPosMovementSale(db,'missing-movement',actor.companyId,null)).toBeNull();
   expect(await all(db,'SELECT row_to_json(s)::text row FROM pos_sales s ORDER BY id')).toEqual(before);
  });
+});
+
+it('keeps POS setup independent from Finance, and applies only the selected assignment grants',async()=>{
+ await run(db,"INSERT INTO assignments(id,user_id,role,modules_json,company_id,scope_kind,valid_from,valid_until) VALUES('operations-only','operations-only','pos_manager','[\"pos\"]','pos-company','holding',0,9999999999999),('finance-only','finance-only','finance_approver','[\"finance\"]','pos-company','holding',0,9999999999999)");
+ const operations={...actor,userId:'operations-only',assignmentId:'operations-only',role:'pos_manager',modules:['pos']};
+ const finance={...actor,userId:'finance-only',assignmentId:'finance-only',role:'finance_approver',modules:['finance']};
+ await expect(command('register.save',{warehouseId:'warehouse',name:'Operations-only register',mode:'retail'},operations)).resolves.toHaveProperty('id');
+ await expect(command('accounting.prepare',{},operations)).rejects.toMatchObject({code:'PERMISSION_REQUIRED'});
+ await expect(command('room_charge_reversal.approve_pos',{id:'unreadable',expectedVersion:1,reason:'Finance role'},finance)).rejects.toMatchObject({code:'PERMISSION_REQUIRED'});
+ await expect(command('room_charge_reversal.approve_pms',{id:'unreadable',expectedVersion:1,reason:'Finance role'},finance)).rejects.toMatchObject({code:'PERMISSION_REQUIRED'});
+ await expect(posWorkspace(finance,undefined,'','settings')).rejects.toMatchObject({code:'PERMISSION_REQUIRED'});
+ const financial=await posWorkspace(finance,undefined,'','settings',undefined,false,true);
+ expect(financial.permissions['pos.configure']).toBe(false);expect(financial.permissions['pos.accounting.approve']).toBe(true);
+ expect(financial.products).toEqual([]);expect(financial.kitchen).toEqual([]);
+ await expect(command('settings.operations',{expectedVersion:2,enabled:true,cashierDiscountBps:100},finance)).rejects.toMatchObject({code:'PERMISSION_REQUIRED'});
+ await expect(command('settings.operations',{expectedVersion:2,enabled:true,cashierDiscountBps:100},operations)).resolves.toHaveProperty('id');
+ const otherBranch={...operations,branchId:'different-branch',assignmentScope:'branch',scope:{...operations.scope,kind:'branch'}} as WorkContext;
+ await expect(command('register.save',{id:'retail',warehouseId:'warehouse',name:'Scope bypass',mode:'retail',expectedVersion:1},otherBranch)).rejects.toMatchObject({status:404});
+ await run(db,"UPDATE assignments SET revoked_at=? WHERE id='operations-only'",Date.now());
+ await expect(command('settings.operations',{expectedVersion:3,enabled:false,cashierDiscountBps:0},operations)).rejects.toMatchObject({code:'POS_ACCESS_CHANGED'});
+});
+it('allows independent shops to sell while a hotel closes and locks only its linked restaurant',async()=>{
+ await run(db,"INSERT INTO pms_properties(id,company_id,branch_id,name,business_date,state,config_json,created_by,updated_at) VALUES('closing-hotel','pos-company','pos-branch','Closing hotel',?,'closing',?,'system',0)",businessDate(),JSON.stringify(defaultConfig));
+ await run(db,"UPDATE pos_registers SET property_id='closing-hotel' WHERE id='restaurant'");
+ await expect(createSale('retail')).resolves.toEqual(expect.any(String));
+ await expect(createSale('dine_in')).rejects.toMatchObject({code:'POS_HOTEL_DAY_CLOSED'});
+ const {hospitalityDayControls}=await import('../src/server/hospitality-day-controls');
+ const controls=await hospitalityDayControls(db,'pos-company','pos-branch','closing-hotel',businessDate());
+ expect(controls.openShifts).toBe(1);expect(controls.openBills).toBe(0);
+});
+
+it('replays a committed immediate reversal receipt without entering the new workflow or reposting stock',async()=>{
+ const input={id:'historical-sale',expectedVersion:4,propertyId:'historical-property',expectedPropertyVersion:8,reason:'Historical correction',restockLineIds:[]};
+ const result={id:'historical-sale',state:'room_charge_reversed',guestAccountEntryId:'original-entry',reversalEntryId:'original-reversal',restoredCostMinor:3000};
+ const digest=createHash('sha256').update(JSON.stringify({user:manager.userId,assignment:manager.assignmentId,company:manager.companyId,branch:manager.branchId,operation:'sale.reverse_room_charge',input:legacyGuestAccount(input)})).digest('hex');
+ await run(db,'INSERT INTO pos_receipts(id,company_id,request_hash,result_json,created_at) VALUES(?,?,?,?,1)','historical-reversal-receipt',actor.companyId,digest,JSON.stringify(legacyGuestAccount(result)));
+ const before=await one(db,'SELECT count(*) n FROM finance_journals');
+ expect(await command('sale.reverse_room_charge',input,manager,'historical-reversal-receipt')).toEqual(canonicalGuestAccount(result));
+ expect(await one(db,'SELECT count(*) n FROM finance_journals')).toEqual(before);
+ expect(await one(db,'SELECT count(*) n FROM pos_room_charge_reversal_requests')).toEqual({n:0});
+ await expect(command('sale.reverse_room_charge',{...input,reason:'Different input'},manager,'historical-reversal-receipt')).rejects.toMatchObject({code:'IDEMPOTENCY_CONFLICT'});
 });

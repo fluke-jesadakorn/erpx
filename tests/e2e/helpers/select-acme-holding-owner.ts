@@ -1,5 +1,5 @@
 import { expect, type Page } from "@playwright/test";
-import { openAccountMenu, searchRoleOptions } from "../../helpers/context-switching-browser";
+import { openAccountMenu, matchingRoleOptions } from "../../helpers/context-switching-browser";
 
 /** Select the signed-in fixture owner's existing role and Company through the normal UI. */
 export async function selectAcmeHoldingOwner(page: Page): Promise<void> {
@@ -14,8 +14,8 @@ export async function selectAcmeHoldingOwner(page: Page): Promise<void> {
   expect(roleState).toMatchObject({ companyId: "acme-co", userId: "usr_jesadakorn" });
   expect(roleState.options.some(option => option.id === assignmentId)).toBe(true);
   await openAccountMenu(page);
-  const roles = await searchRoleOptions(page, "holding owner");
-  const owner = roles.getByRole("option").filter({ hasText: "Acme Corporation" });
+  const roles = await matchingRoleOptions(page, "holding owner");
+  const owner = roles.filter({ hasText: "Acme Corporation" });
   await expect(owner).toHaveCount(1);
   const roleResponse = page.waitForResponse(response => response.request().method() === "POST" && response.url().endsWith("/assignments/active"));
   await owner.click();

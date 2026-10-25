@@ -16,7 +16,8 @@ import { InvoiceSlipUpload, type InvoiceSlipSelection } from "./invoice-slip-upl
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Row } from "@/server/modules/commerce/public/commerce";
-import { minorToDecimal } from "@/lib/finance-money";
+import { quantityMilli, lineAmounts } from "@/lib/commerce-math";
+import { decimalToMinor, minorToDecimal } from "@/lib/finance-money";
 import { businessDate } from "@/server/modules/pos/public/rules/pos";
 import {
   AttachmentPanel,
@@ -89,10 +90,12 @@ export function OrderEditor({
   sourceRequest,
   initialPartyId,
   initialOpen = false,
+  drawer = false,
 }: {
   base: string;
   options: Options;
   kind: string;
+  drawer?: boolean;
   initialPartyId?: string;
   initialOpen?: boolean;
   order?: Row;
@@ -150,6 +153,9 @@ export function OrderEditor({
       ]);
     }
   };
+  const hasStock = items.some(line => options.products.find(product => product.id === line.productId)?.item_type !== "service");
+  const amounts = items.map(line => { try { const value = lineAmounts(quantityMilli(line.quantity), decimalToMinor(line.price), line.taxBps); return { net: value.subtotal, tax: value.tax }; } catch { return { net: 0, tax: 0 }; } });
+  const subtotal = amounts.reduce((sum, row) => sum + row.net, 0), tax = amounts.reduce((sum, row) => sum + row.tax, 0);
   return (
     <Card as="section" appearance="standard" className="ui-panel">
       {!initialOpen && <div className="ui-section-header">
@@ -170,14 +176,14 @@ export function OrderEditor({
         </InlineNotice>
       )}
       {open && (
-        <FormDrawer appearance="standard" inline={!order || initialOpen} open={open} onClose={() => setOpen(false)} title="Order details" dismissDisabled={pending}><Stack as="div" className="ui-stack">{error && <InlineNotice tone="danger" role="alert" className="error">{error}</InlineNotice>}<form
+        <FormDrawer appearance="standard" inline={!drawer && (!order || initialOpen)} open={open} onClose={() => setOpen(false)} title="Order details" dismissDisabled={pending}><Stack as="div" className="ui-stack">{error && <InlineNotice tone="danger" role="alert" className="error">{error}</InlineNotice>}<form
           onSubmit={(e) => {
             e.preventDefault();
             const f = new FormData(e.currentTarget);
             void send(`orders${order ? `/${order.id}` : ""}`, {
               kind,
               partyId: f.get("partyId"),
-              warehouseId: f.get("warehouseId"),
+              warehouseId: f.get("warehouseId") ?? "",
               orderDate: f.get("orderDate"),
               dueDate: f.get("dueDate"),
               note: f.get("note"),
@@ -250,7 +256,7 @@ export function OrderEditor({
                 </Field>
               </>
             )}
-            <Field appearance="standard">
+            {hasStock && <Field appearance="standard">
               Warehouse
               <Select appearance="standard" name="warehouseId" required defaultValue={String(order?.warehouse_id ?? "")}>
                 <option value="">Select warehouse</option>
@@ -262,7 +268,7 @@ export function OrderEditor({
                     </option>
                   ))}
               </Select>
-            </Field>
+            </Field>}
             <Field appearance="standard">
               Order date
               <TextInput appearance="standard"
@@ -321,7 +327,7 @@ export function OrderEditor({
                     .filter((p) => p.status === "active")
                     .map((p) => (
                       <option key={String(p.id)} value={String(p.id)}>
-                        {String(p.sku)} · {String(p.name)}
+                        {String(p.sku)} · {String(p.name)}{p.item_type === "service" ? " · Service" : ""}
                       </option>
                     ))}
                 </Select>
@@ -385,9 +391,10 @@ export function OrderEditor({
               </Button>
             </FormGrid>
           ))}
+          <p aria-live="polite">Subtotal {options.currency} {minorToDecimal(subtotal)} · VAT {minorToDecimal(tax)} · <strong>Total {minorToDecimal(subtotal + tax)}</strong></p>
           <div className="ui-form-actions">
             <Button appearance="standard" variant="secondary" type="button" onClick={add} disabled={items.length >= 20}>
-              Add product
+              Add item
             </Button>
             <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={pending || !items.length}>
               {pending ? "Saving…" : "Save draft"}
@@ -589,7 +596,7 @@ export function FulfillmentForm({
   const { send, pending, error } = useCommand(base),
     incoming = order.kind === "purchase";
   const openLines = lines.filter(
-    (line) => Number(line.fulfilled_milli) < Number(line.quantity_milli),
+    (line) => line.item_type !== "service" && Number(line.fulfilled_milli) < Number(line.quantity_milli),
   );
   const [quantities, setQuantities] = useState<Record<string, string>>(() =>
     Object.fromEntries(
@@ -1017,10 +1024,10 @@ export function FulfillmentForm({
     </Card>
   );
 }
-export function InvoiceDeliveryForm({ base, fulfillment }: { base: string; fulfillment: Row }) {
+export function InvoiceDeliveryForm({ base, fulfillment, completions = [], useSalesDefaults = false }: { base: string; fulfillment: Row; completions?: Row[]; useSalesDefaults?: boolean }) {
   const { send, pending, error } = useCommand(base);
   return (
-    <form
+    <FormDisclosure appearance="standard" drawerTitle="Prepare sales invoice" error={error} dismissDisabled={pending}><summary>Prepare invoice for GL review</summary><form
       onSubmit={(e) => {
         e.preventDefault();
         const f = new FormData(e.currentTarget);
@@ -1028,6 +1035,8 @@ export function InvoiceDeliveryForm({ base, fulfillment }: { base: string; fulfi
           expectedVersion: fulfillment.version,
           date: f.get("date"),
           dueDate: f.get("dueDate"),
+          useSalesDefaults,
+          additionalFulfillments: completions.filter(row => f.getAll("completion").includes(String(row.id))).map(row => ({ id: String(row.id), expectedVersion: Number(row.version) })),
         });
       }}
     >
@@ -1036,6 +1045,7 @@ export function InvoiceDeliveryForm({ base, fulfillment }: { base: string; fulfi
           {error}
         </InlineNotice>
       )}
+      {!!completions.length && <fieldset><legend>Include other completed work from this order</legend>{completions.map(row => <label key={String(row.id)} style={{display:"block"}}><input type="checkbox" name="completion" value={String(row.id)} /> {String(row.number)} · {String(row.completion_kind)} · {String(row.fulfillment_date)}</label>)}</fieldset>}
       <FormGrid as="div" className="ui-form-grid">
         <Field appearance="standard">
           Invoice date
@@ -1049,7 +1059,7 @@ export function InvoiceDeliveryForm({ base, fulfillment }: { base: string; fulfi
           Prepare invoice for GL review
         </Button>
       </FormGrid>
-    </form>
+    </form></FormDisclosure>
   );
 }
 export function ReturnRequestForm({
@@ -1139,7 +1149,7 @@ export function ReturnRequestForm({
               defaultValue={defaultReturnDate}
             />
           </Field>
-          {customerReturn && (
+          {customerReturn && available.some(line => line.item_type !== "service") && (
             <p className="muted">
               Returned customer stock is quarantined immediately. Quality must inspect it before it
               becomes available or Finance posts controlled scrap.
@@ -1185,7 +1195,7 @@ export function ReturnRequestForm({
                     />
                   </Field>
                 )}
-                {customerReturn && (
+                {customerReturn && line.item_type !== "service" && (
                   <>
                     <Field appearance="standard">
                       Observed condition
@@ -1434,6 +1444,7 @@ export function MasterEditor({
 }) {
   const { send, pending, error } = useCommand(base);
   const [open, setOpen] = useState(initialOpen);
+  const [itemType, setItemType] = useState(String(row?.item_type ?? "stock"));
   const embedded = useEmbeddedRecord();
   return (
     <div>
@@ -1452,7 +1463,7 @@ export function MasterEditor({
             const value = Object.fromEntries(f);
             const input =
               kind === "products"
-                ? { ...value, taxBps: Math.round(Number(f.get("tax")) * 100) }
+                ? { ...value, itemType, ...(itemType === "service" ? { trackingMode: "none" } : {}), taxBps: Math.round(Number(f.get("tax")) * 100) }
                 : kind === "parties"
                   ? { ...value, paymentTermsDays: Number(f.get("paymentTermsDays")) }
                   : value;
@@ -1492,13 +1503,14 @@ export function MasterEditor({
             </Field>
             {kind === "products" && (
               <>
+                <Field appearance="standard">Item type<Select appearance="standard" value={itemType} onChange={event => setItemType(event.target.value)}><option value="stock">Stock item</option><option value="service">Service</option></Select><span className="muted">Type can change only before the item is used.</span></Field>
                 <Field appearance="standard">
                   Unit
                   <TextInput appearance="standard" name="unit" required defaultValue={String(row?.unit ?? "each")} />
                 </Field>
                 <Field appearance="standard">
                   Traceability
-                  <Select appearance="standard" name="trackingMode" defaultValue={String(row?.tracking_mode ?? "none")}>
+                  <Select appearance="standard" name="trackingMode" disabled={itemType === "service"} defaultValue={String(row?.tracking_mode ?? "none")}>
                     <option value="none">No lot or serial tracking</option>
                     <option value="lot">Lot tracked</option>
                     <option value="serial">Serial tracked</option>
@@ -1866,4 +1878,16 @@ export function CustomerDeliveryNotification({
       )}
     </Card>
   );
+}
+
+export function ServiceCompletionForm({ base, order, lines }: { base: string; order: Row; lines: Row[] }) {
+  const { send, pending, error } = useCommand(base);
+  const remaining = lines.filter(line => line.item_type === "service" && Number(line.fulfilled_milli) < Number(line.quantity_milli));
+  if (!remaining.length) return null;
+  return <Card as="section" appearance="standard" className="ui-panel"><h2>Complete services</h2><p>Confirm only the work already completed and accepted.</p><FormDisclosure appearance="standard" drawerTitle="Confirm service completion" error={error} dismissDisabled={pending}><summary>Confirm completed services</summary><form className="ui-stack" onSubmit={event => { event.preventDefault(); const values = new FormData(event.currentTarget); void send(`orders/${order.id}/fulfill`, { expectedVersion: Number(order.version), completionMode: "service", date: values.get("date"), evidenceNote: values.get("evidenceNote"), lines: remaining.map(line => ({ lineId: String(line.id), quantity: String(values.get(`quantity-${line.id}`)) })).filter(line => Number(line.quantity) > 0) }); }}>
+    <Field appearance="standard">Completion date<TextInput appearance="standard" name="date" type="date" required defaultValue={businessDate()} /></Field>
+    {remaining.map(line => <Field appearance="standard" key={String(line.id)}>{String(line.description)} · Remaining {(Number(line.quantity_milli) - Number(line.fulfilled_milli)) / 1000}<TextInput appearance="standard" name={`quantity-${line.id}`} type="number" step="0.001" min="0" max={(Number(line.quantity_milli) - Number(line.fulfilled_milli)) / 1000} defaultValue={(Number(line.quantity_milli) - Number(line.fulfilled_milli)) / 1000} required /></Field>)}
+    <Field appearance="standard">Completion evidence<TextInput appearance="standard" name="evidenceNote" required minLength={3} maxLength={2000} placeholder="Work completed and customer acceptance" /></Field>
+    <Button appearance="standard" clientManaged type="submit" disabled={pending}>{pending ? "Recording…" : "Confirm completed services"}</Button>
+  </form></FormDisclosure></Card>;
 }

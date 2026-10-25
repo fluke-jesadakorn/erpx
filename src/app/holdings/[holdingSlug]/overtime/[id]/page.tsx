@@ -1,7 +1,7 @@
 import { peoplePayrollPresentationQueries } from "@/server/modules/people_payroll/public/presentation-queries";
 
 import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
-import { OvertimeForm } from "@/components/self-service/overtime";
+import { OvertimeForm } from "@/components/records/loaders/self-service--overtime";
 import styles from "@/components/self-service/self-service.module.css";
 import { workspaceBase } from "@/lib/workspace";
 import { publicScope,requireWorkContext } from "@/server/modules/identity_access/public/authorization";

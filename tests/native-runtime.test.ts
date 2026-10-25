@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { env,applyMigrations } from './runtime-env';
 import { claimJob,runOne } from '../src/server/runtime/jobs';
 import { project } from '../src/server/job-projector';
+import { PostgresDatabase } from '../src/server/runtime/postgres';
 
 describe('Native PostgreSQL and private file runtime',()=>{
  beforeAll(async()=>{
@@ -13,6 +14,36 @@ describe('Native PostgreSQL and private file runtime',()=>{
   expect(await env.H001_DB.prepare('SELECT ?::bigint amount').bind(Number.MAX_SAFE_INTEGER).first('amount')).toBe(Number.MAX_SAFE_INTEGER);
   await expect(env.H001_DB.prepare("SELECT '9007199254740992'::bigint amount").first()).rejects.toThrow();
   await expect(env.H001_DB.prepare('SELECT ?::bigint amount').bind(Number.MAX_SAFE_INTEGER+1).first()).rejects.toThrow();
+ });
+ it('coordinates an aggregate before its serializable snapshot and releases the session lock after rollback',async()=>{
+  const db=env.H001_DB,namespace='test:pms:queue',key=randomUUID(),order:string[]=[];
+  let unblock!:()=>void,ready!:()=>void;
+  const barrier=new Promise<void>(resolve=>{unblock=resolve;}),entered=new Promise<void>(resolve=>{ready=resolve;});
+  const options={sessionLock:{namespace,key}};
+  const first=db.transaction(async tx=>{
+   expect(await tx.prepare("SELECT current_setting('transaction_isolation') isolation").first('isolation')).toBe('serializable');
+   order.push('first');ready();await barrier;throw new Error('rollback fixture');
+  },options).catch(error=>error);
+  await entered;
+  // An independent pool proves the database still coordinates other processes.
+  const remote=new PostgresDatabase({...db.pool.options,max:2});
+  const second=remote.transaction(async tx=>{
+   expect(await tx.prepare("SELECT current_setting('transaction_isolation') isolation").first('isolation')).toBe('serializable');
+   order.push('second');
+  },options);
+  const locks=(waiting:boolean)=>db.prepare(`SELECT count(*)::integer n FROM pg_locks
+   WHERE locktype='advisory' AND database=(SELECT oid FROM pg_database WHERE datname=current_database())
+   AND classid=(hashtext(?)::bigint & 4294967295)::oid AND objid=(hashtext(?)::bigint & 4294967295)::oid
+   AND (?=false OR granted=false)`).bind(namespace,key,waiting).first<number>('n');
+  try{
+   const deadline=Date.now()+5000;
+   while(await locks(true)!==1&&Date.now()<deadline)await new Promise(resolve=>setTimeout(resolve,10));
+   expect(await locks(true)).toBe(1);expect(order).toEqual(['first']);
+   await db.transaction(async()=>{order.push('other');},{sessionLock:{namespace,key:randomUUID()}});
+   expect(order).toEqual(['first','other']);
+  }finally{unblock();await Promise.allSettled([first,second]);await remote.pool.end();}
+  expect(await first).toMatchObject({message:'rollback fixture'});
+  expect(order).toEqual(['first','other','second']);expect(await locks(false)).toBe(0);
  });
  it('publishes exactly one immutable revision under concurrent upload and serves ranges',async()=>{
   const key='revisions/'+randomUUID();

@@ -59,8 +59,8 @@ try {
     const missing = expected.filter(id => !present.has(id!));
     const reservationIds = new Set(plan.map((_, i) => state.steps[`reservation:${i}`]?.result?.id).filter(Boolean));
     const stays = records(snapshot, "stay").filter(row => reservationIds.has(row.data.reservationId));
-    const folios = new Set(stays.map(row => row.data.folioId));
-    const entries = records(snapshot, "entry").filter(row => folios.has(row.data.folioId));
+    const guestAccounts = new Set(stays.map(row => row.data.guestAccountId));
+    const entries = records(snapshot, "entry").filter(row => guestAccounts.has(row.data.guestAccountId));
     const proof = { company: "acme-co", propertyId: guide.propertyId, propertyVersion: snapshot.property.version, completedSteps: expected.length, reservations: reservationIds.size, stays: stays.length, assignedStays: stays.filter(row => row.data.roomId).length, entries: entries.length, missing };
     console.log(JSON.stringify(proof, null, 2));
     if (expected.length !== 14 || missing.length || reservationIds.size !== 4 || stays.length !== 4) throw new Error("ACME_UI_SEED_INCOMPLETE");

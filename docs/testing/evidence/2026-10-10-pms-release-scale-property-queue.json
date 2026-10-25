@@ -1,0 +1,47 @@
+{
+  "run": "708d1c660b14",
+  "sourceFingerprint": "528f3dd87e1704dc56a1165410d6cd17af4f9f68309d228ea0f39d61a8b2ef3c",
+  "verificationFingerprint": "e2cea18fe2527452243bd1a5d6cea2d7c97980c5a479197977124d22873301c0",
+  "release": {
+    "id": "2026-10-09T16-56-00-780Z",
+    "fileManifestSha256": "430348acd13e4c9bd8830ddb4e31d2ae882aa1a1cf5f8a2a7849a4374f222cf6"
+  },
+  "scope": "Release HTTP: 3 \u00d7 200 rooms, 730-day synthetic closed stay/reservation/account metadata; 20 distinct normal staff accounts. Historic revenue is not invented.",
+  "applicationPoolMax": 4,
+  "controlPoolMax": 5,
+  "jobsHoldingPoolMax": 1,
+  "counts": [
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    },
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    },
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    }
+  ],
+  "accounts": 20,
+  "rounds": 10,
+  "durationMs": 59349,
+  "readCount": 840,
+  "writeCount": 400,
+  "readP95Ms": 323.1643330000006,
+  "writeP95Ms": 2304.5370420000017,
+  "failedSamples": 0,
+  "sameProcesses": true,
+  "unchanged": true,
+  "samplesSha256": "8209f4e2ea925584a465ec5399ab4c343ab486f17e87d434bed8b43676449e47",
+  "passed": false,
+  "acceptance": false,
+  "interpretation": "All 840 reads and 400 writes were valid, with exact reservation and money reconciliation. Pre-snapshot coordination retained correctness and reduced write p95 to 2,305 ms, still above 2 seconds. Recorded application pool was 4; this is not acceptance."
+}

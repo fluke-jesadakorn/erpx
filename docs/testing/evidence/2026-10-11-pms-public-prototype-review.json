@@ -1,0 +1,359 @@
+{
+  "checkedAt": "2026-10-10T19:24:26.345171+00:00",
+  "environment": "https://console-dev-erpx.jesadakorn.com",
+  "session": "Existing normally authenticated Chrome session; navigation restored stale login display. No authentication or grants modified.",
+  "scope": "Current-source development prototype; not final frozen candidate browser receipt or real hotel staff signoff.",
+  "variants": {
+    "A": "Calendar first, room drawer and Company Today",
+    "B": "Room first with thumbnail and status cards",
+    "C": "Task first arrivals, departures, housekeeping and balances"
+  },
+  "fictionalHotels": [
+    {
+      "name": "Aster House",
+      "rooms": 40
+    },
+    {
+      "name": "Aster Coast",
+      "rooms": 100
+    },
+    {
+      "name": "Aster Retreat",
+      "rooms": 200
+    }
+  ],
+  "mobileDrawer": {
+    "emulation": "Chrome CDP mobile:true,390x844",
+    "dialogWidth": 390,
+    "x": 0,
+    "viewport": 390,
+    "rootWidth": 390,
+    "headerTop": 1,
+    "desktopNarrowGutter": 15,
+    "bodyScrollVerified": true,
+    "keyboardFocusVerified": true,
+    "submitted": false,
+    "temporaryOverridesReset": true
+  },
+  "screenshots": [
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-public-development-2026-10-11/A-desktop.jpg",
+      "sha256": "ebc205f9933f52b9de063ddd1e6e5ac7437319ad4dbb8f46ca679ad5a2fec459",
+      "bytes": 109478
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-public-development-2026-10-11/B-desktop.jpg",
+      "sha256": "e77c82db7cba7249b847cab4299845fa5a7a95593ebb5151ae6b682355ff9169",
+      "bytes": 166511
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-public-development-2026-10-11/C-desktop-English.jpg",
+      "sha256": "c6ba5f340853f6fce6f255cdab7991eb59d3283333f8bbd80b31405f42798e90",
+      "bytes": 114727
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-public-development-2026-10-11/C-desktop.jpg",
+      "sha256": "954318ca986e073bf69f8b071e87e68747d1ca339fcf3b8172201622b8b2a7cf",
+      "bytes": 107968
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-public-development-2026-10-11/booking-public-Light-child.jpg",
+      "sha256": "ec4534866c76609ed8042b5a63b1b451f3ba418240e2c4398892a7b1d78ab165",
+      "bytes": 115315
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-public-development-2026-10-11/booking-public-Light-managed-cancel.jpg",
+      "sha256": "eebd8981a4f5e5a12d6aad31362d8ba50a28a4610ece2e80fb35ee25d8f31ade",
+      "bytes": 155356
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-public-development-2026-10-11/booking-public-Light-review.jpg",
+      "sha256": "7f1a0883dc7d90d5a66ab46a1fb162d4de4602302a2f08105fe4d62370257b5a",
+      "bytes": 91014
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-public-development-2026-10-11/housekeeping-tablet-Light.jpg",
+      "sha256": "b7a46f0bc4b7db3240f5ae6ea77496068c29e73d5cdd5ceadafe734d776f58a1",
+      "bytes": 60998
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-public-development-2026-10-11/reservation-drawer-mobile-emulation.jpg",
+      "sha256": "01752a7e6211c6606700625717498a5cc7df8da30d5e6c2eb746985c76946b50",
+      "bytes": 27850
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-public-development-2026-10-11/reservation-drawer-mobile-keyboard.jpg",
+      "sha256": "58362d485e098d9366abac9fc9205177eadef581c2256cc0a77a3e1d35de2c45",
+      "bytes": 28424
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-public-development-2026-10-11/reservation-drawer-mobile.jpg",
+      "sha256": "b207899286bd90e435c165d9a8356bf67357e21ada9cc50a95083195033f8b73",
+      "bytes": 28907
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-public-development-2026-10-11/room-drawer-desktop.jpg",
+      "sha256": "cf40dcfcc69d7335a45231803f9532ed0eef8f710d558899482099d3434f88aa",
+      "bytes": 120330
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-public-development-2026-10-11/screen-\u0e01\u0e32\u0e23\u0e08\u0e2d\u0e07.jpg",
+      "sha256": "23ac695998212a4115313f4962b3befaa1d85086be4a0b1b51db721d3fa2ba51",
+      "bytes": 139254
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-public-development-2026-10-11/screen-\u0e15\u0e31\u0e49\u0e07\u0e04\u0e48\u0e32.jpg",
+      "sha256": "6534ad78089352353018c7d0b8747e292e006eaea28a162d74ec8f45f4f9b065",
+      "bytes": 130744
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-public-development-2026-10-11/screen-\u0e15\u0e49\u0e2d\u0e19\u0e23\u0e31\u0e1a.jpg",
+      "sha256": "696177367b036c4255509325667a73dd8d683bbb3d7dc7a409c3a4fa1fbe3ad3",
+      "bytes": 271668
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-public-development-2026-10-11/screen-\u0e1a\u0e31\u0e0d\u0e0a\u0e35\u0e1c\u0e39\u0e49\u0e40\u0e02\u0e49\u0e32\u0e1e\u0e31\u0e01.jpg",
+      "sha256": "41d9dbbc561c3dc1dab52bd865dc723b75a60fc173e360a42ec9704fac49ccb8",
+      "bytes": 96898
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-public-development-2026-10-11/screen-\u0e1b\u0e34\u0e14\u0e27\u0e31\u0e19.jpg",
+      "sha256": "2a61a77f03099995d101f29fa56791058e1962c3fc1c2ad92f9663ed0a99dd8f",
+      "bytes": 123286
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-public-development-2026-10-11/screen-\u0e1c\u0e39\u0e49\u0e40\u0e02\u0e49\u0e32\u0e1e\u0e31\u0e01.jpg",
+      "sha256": "3ec5211647278acd6f14a5d786e5d6be12bf2b4d032ea133b76a663b2173f25c",
+      "bytes": 95337
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-public-development-2026-10-11/screen-\u0e1f\u0e35\u0e40\u0e08\u0e2d\u0e23\u0e4c\u0e41\u0e25\u0e30\u0e04\u0e39\u0e48\u0e40\u0e17\u0e35\u0e22\u0e1a.jpg",
+      "sha256": "7c75f7f2edd421eeb77410d2de34d4223cbb3c6652d44d410e4bb12cd74ba89a",
+      "bytes": 115890
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-public-development-2026-10-11/screen-\u0e21\u0e34\u0e19\u0e34\u0e1a\u0e32\u0e23\u0e4c\u0e41\u0e25\u0e30\u0e1c\u0e49\u0e32.jpg",
+      "sha256": "9cec3c47bed1d326da40afffc6b5272c75855fbbc5e80bec5acb2c8b0e67a172",
+      "bytes": 108669
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-public-development-2026-10-11/screen-\u0e23\u0e32\u0e04\u0e32.jpg",
+      "sha256": "31077b25ef0c987b1e7835ff784dec325853d68e58dbe91e0b938e057359350b",
+      "bytes": 115554
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-public-development-2026-10-11/screen-\u0e23\u0e32\u0e22\u0e07\u0e32\u0e19.jpg",
+      "sha256": "c66118d0421c3d2b89b896091be3b65d80821a542e9d12200b1566fbd106486c",
+      "bytes": 123213
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-public-development-2026-10-11/screen-\u0e2b\u0e19\u0e49\u0e32\u0e08\u0e2d\u0e07.jpg",
+      "sha256": "e75ed49ed2ff4a8d22ac84b3699f824f28076a2e9b3e117dee4ceafb38e469f1",
+      "bytes": 154773
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-public-development-2026-10-11/screen-\u0e2b\u0e49\u0e2d\u0e07\u0e1e\u0e31\u0e01.jpg",
+      "sha256": "7f2edf976219da590af4d87e60f8a8eda94ae5cdd23e62ed37f684c749095053",
+      "bytes": 102879
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-public-development-2026-10-11/screen-\u0e41\u0e04\u0e0a\u0e40\u0e0a\u0e35\u0e22\u0e23\u0e4c.jpg",
+      "sha256": "d7775debbfd29db8405af8585ec02ed5cdf61a9d812e35fcdd8bf328052a1c18",
+      "bytes": 128057
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-public-development-2026-10-11/screen-\u0e41\u0e21\u0e48\u0e1a\u0e49\u0e32\u0e19.jpg",
+      "sha256": "7613fb8ffccf9e8ac0d8a7855db78633e0ef761654c5a80a022a52245073be2d",
+      "bytes": 97459
+    }
+  ],
+  "wholePlanAccepted": false,
+  "languages": {
+    "Thai": "Inspected A/B/C and mobile drawers",
+    "English": "Inspected Company Today and C queues; returned to Thai"
+  },
+  "guestPrototype": {
+    "url": "https://console-dev-erpx.jesadakorn.com/book/acme?prototype=1",
+    "initialStale502": "Old loaded Cloudflare502,dated2026-10-10T19:03:18Z; reload returned actual prototype; local/public health200",
+    "themes": "Light inspected and restored original Dark",
+    "capacity": "Two adults+child disables Standard/Deluxe capacity2; Suite selectable",
+    "gallery": "Suite photo2 selected",
+    "amountsTHB": {
+      "suite2NightsFamily": 12800,
+      "advance30Percent": 3840,
+      "atHotel": 8960
+    },
+    "confirmedThenManagedAndCancelled": "DEMO-ASTER-1001,memory-only; page explicitly no room hold,email or real money",
+    "realTransactions": false
+  },
+  "screensReview": [
+    {
+      "key": "reservations",
+      "screen": "\u0e01\u0e32\u0e23\u0e08\u0e2d\u0e07",
+      "url": "https://console-dev-erpx.jesadakorn.com/holdings/acme/pms?variant=C&prototype=1&screen=reservations",
+      "headings": [
+        "    - heading \"\u0e01\u0e32\u0e23\u0e08\u0e2d\u0e07\" [level=1]",
+        "    - heading \"\u0e01\u0e32\u0e23\u0e08\u0e2d\u0e07\" [level=2]"
+      ]
+    },
+    {
+      "key": "front-desk",
+      "screen": "\u0e15\u0e49\u0e2d\u0e19\u0e23\u0e31\u0e1a",
+      "url": "https://console-dev-erpx.jesadakorn.com/holdings/acme/pms?variant=C&prototype=1&screen=front-desk",
+      "headings": [
+        "    - heading \"\u0e15\u0e49\u0e2d\u0e19\u0e23\u0e31\u0e1a\" [level=1]",
+        "    - heading \"\u0e15\u0e49\u0e2d\u0e19\u0e23\u0e31\u0e1a\" [level=2]"
+      ]
+    },
+    {
+      "key": "cashier",
+      "screen": "\u0e41\u0e04\u0e0a\u0e40\u0e0a\u0e35\u0e22\u0e23\u0e4c",
+      "url": "https://console-dev-erpx.jesadakorn.com/holdings/acme/pms?variant=C&prototype=1&screen=cashier",
+      "headings": [
+        "    - heading \"\u0e41\u0e04\u0e0a\u0e40\u0e0a\u0e35\u0e22\u0e23\u0e4c\" [level=1]",
+        "    - heading \"\u0e01\u0e30\u0e41\u0e04\u0e0a\u0e40\u0e0a\u0e35\u0e22\u0e23\u0e4c\" [level=2]",
+        "    - heading \"\u0e04\u0e34\u0e27\u0e23\u0e31\u0e1a\u0e40\u0e07\u0e34\u0e19\u0e1c\u0e39\u0e49\u0e40\u0e02\u0e49\u0e32\u0e1e\u0e31\u0e01 8\" [level=2]:"
+      ]
+    },
+    {
+      "key": "night-audit",
+      "screen": "\u0e1b\u0e34\u0e14\u0e27\u0e31\u0e19",
+      "url": "https://console-dev-erpx.jesadakorn.com/holdings/acme/pms?variant=C&prototype=1&screen=night-audit",
+      "headings": [
+        "    - heading \"\u0e1b\u0e34\u0e14\u0e27\u0e31\u0e19\" [level=1]",
+        "    - heading \"\u0e1b\u0e34\u0e14\u0e27\u0e31\u0e19\u0e40\u0e21\u0e37\u0e48\u0e2d\u0e17\u0e38\u0e01\u0e2d\u0e22\u0e48\u0e32\u0e07\u0e1e\u0e23\u0e49\u0e2d\u0e21\" [level=2]:"
+      ]
+    },
+    {
+      "key": "inventory",
+      "screen": "\u0e21\u0e34\u0e19\u0e34\u0e1a\u0e32\u0e23\u0e4c\u0e41\u0e25\u0e30\u0e1c\u0e49\u0e32",
+      "url": "https://console-dev-erpx.jesadakorn.com/holdings/acme/pms?variant=C&prototype=1&screen=inventory",
+      "headings": [
+        "    - heading \"\u0e21\u0e34\u0e19\u0e34\u0e1a\u0e32\u0e23\u0e4c\u0e41\u0e25\u0e30\u0e1c\u0e49\u0e32\" [level=1]",
+        "    - heading \"\u0e21\u0e34\u0e19\u0e34\u0e1a\u0e32\u0e23\u0e4c\u0e41\u0e25\u0e30\u0e1c\u0e49\u0e32\" [level=2]"
+      ]
+    },
+    {
+      "key": "rates",
+      "screen": "\u0e23\u0e32\u0e04\u0e32",
+      "url": "https://console-dev-erpx.jesadakorn.com/holdings/acme/pms?variant=C&prototype=1&screen=rates",
+      "headings": [
+        "    - heading \"\u0e23\u0e32\u0e04\u0e32\" [level=1]",
+        "    - heading \"\u0e23\u0e32\u0e04\u0e32\u0e41\u0e25\u0e30\u0e40\u0e07\u0e37\u0e48\u0e2d\u0e19\u0e44\u0e02\u0e17\u0e35\u0e48\u0e15\u0e01\u0e25\u0e07\" [level=2]",
+        "      - heading \"Standard Queen\" [level=3]",
+        "      - heading \"Deluxe Twin\" [level=3]",
+        "      - heading \"One-bedroom Suite\" [level=3]"
+      ]
+    },
+    {
+      "key": "reports",
+      "screen": "\u0e23\u0e32\u0e22\u0e07\u0e32\u0e19",
+      "url": "https://console-dev-erpx.jesadakorn.com/holdings/acme/pms?variant=C&prototype=1&screen=reports",
+      "headings": [
+        "    - heading \"\u0e23\u0e32\u0e22\u0e07\u0e32\u0e19\" [level=1]",
+        "    - heading \"\u0e1c\u0e25\u0e01\u0e32\u0e23\u0e14\u0e33\u0e40\u0e19\u0e34\u0e19\u0e07\u0e32\u0e19\u0e42\u0e23\u0e07\u0e41\u0e23\u0e21\" [level=2]"
+      ]
+    },
+    {
+      "key": "settings",
+      "screen": "\u0e15\u0e31\u0e49\u0e07\u0e04\u0e48\u0e32",
+      "url": "https://console-dev-erpx.jesadakorn.com/holdings/acme/pms?variant=C&prototype=1&screen=settings",
+      "headings": [
+        "    - heading \"\u0e15\u0e31\u0e49\u0e07\u0e04\u0e48\u0e32\" [level=1]",
+        "    - heading \"\u0e15\u0e31\u0e49\u0e07\u0e04\u0e48\u0e32\u0e42\u0e23\u0e07\u0e41\u0e23\u0e21\u0e43\u0e2b\u0e49\u0e1e\u0e23\u0e49\u0e2d\u0e21\" [level=2]"
+      ]
+    },
+    {
+      "key": "guest-accounts",
+      "screen": "\u0e1a\u0e31\u0e0d\u0e0a\u0e35\u0e1c\u0e39\u0e49\u0e40\u0e02\u0e49\u0e32\u0e1e\u0e31\u0e01",
+      "url": "https://console-dev-erpx.jesadakorn.com/holdings/acme/pms?variant=C&prototype=1&screen=guest-accounts",
+      "headings": [
+        "    - heading \"\u0e1a\u0e31\u0e0d\u0e0a\u0e35\u0e1c\u0e39\u0e49\u0e40\u0e02\u0e49\u0e32\u0e1e\u0e31\u0e01\" [level=1]",
+        "    - heading \"\u0e1a\u0e31\u0e0d\u0e0a\u0e35\u0e1c\u0e39\u0e49\u0e40\u0e02\u0e49\u0e32\u0e1e\u0e31\u0e01\" [level=2]"
+      ],
+      "tableRows": 31
+    },
+    {
+      "key": "guests",
+      "screen": "\u0e1c\u0e39\u0e49\u0e40\u0e02\u0e49\u0e32\u0e1e\u0e31\u0e01",
+      "url": "https://console-dev-erpx.jesadakorn.com/holdings/acme/pms?variant=C&prototype=1&screen=guests",
+      "headings": [
+        "    - heading \"\u0e1c\u0e39\u0e49\u0e40\u0e02\u0e49\u0e32\u0e1e\u0e31\u0e01\" [level=1]",
+        "    - heading \"\u0e1c\u0e39\u0e49\u0e40\u0e02\u0e49\u0e32\u0e1e\u0e31\u0e01\" [level=2]"
+      ],
+      "tableRows": 31
+    },
+    {
+      "key": "housekeeping",
+      "screen": "\u0e41\u0e21\u0e48\u0e1a\u0e49\u0e32\u0e19",
+      "url": "https://console-dev-erpx.jesadakorn.com/holdings/acme/pms?variant=C&prototype=1&screen=housekeeping",
+      "headings": [
+        "    - heading \"\u0e41\u0e21\u0e48\u0e1a\u0e49\u0e32\u0e19\" [level=1]",
+        "    - heading \"\u0e41\u0e21\u0e48\u0e1a\u0e49\u0e32\u0e19\" [level=2]"
+      ],
+      "tableRows": 12
+    },
+    {
+      "key": "rooms",
+      "screen": "\u0e2b\u0e49\u0e2d\u0e07\u0e1e\u0e31\u0e01",
+      "url": "https://console-dev-erpx.jesadakorn.com/holdings/acme/pms?variant=C&prototype=1&screen=rooms",
+      "headings": [
+        "    - heading \"\u0e2b\u0e49\u0e2d\u0e07\u0e1e\u0e31\u0e01\" [level=1]",
+        "    - heading \"\u0e40\u0e02\u0e49\u0e32\u0e1e\u0e31\u0e01\u0e27\u0e31\u0e19\u0e19\u0e35\u0e49 8\" [level=2]:",
+        "    - heading \"\u0e2d\u0e2d\u0e01\u0e27\u0e31\u0e19\u0e19\u0e35\u0e49 0\" [level=2]:",
+        "    - heading \"\u0e07\u0e32\u0e19\u0e41\u0e21\u0e48\u0e1a\u0e49\u0e32\u0e19 11\" [level=2]:",
+        "    - heading \"\u0e22\u0e2d\u0e14\u0e23\u0e2d\u0e0a\u0e33\u0e23\u0e30 8\" [level=2]:"
+      ],
+      "tableRows": 0
+    },
+    {
+      "key": "readiness",
+      "screen": "\u0e1f\u0e35\u0e40\u0e08\u0e2d\u0e23\u0e4c\u0e41\u0e25\u0e30\u0e04\u0e39\u0e48\u0e40\u0e17\u0e35\u0e22\u0e1a",
+      "url": "https://console-dev-erpx.jesadakorn.com/holdings/acme/pms?variant=C&prototype=1&screen=readiness",
+      "headings": [
+        "    - heading \"\u0e1f\u0e35\u0e40\u0e08\u0e2d\u0e23\u0e4c\u0e41\u0e25\u0e30\u0e04\u0e39\u0e48\u0e40\u0e17\u0e35\u0e22\u0e1a\" [level=1]",
+        "    - heading \"\u0e23\u0e32\u0e22\u0e01\u0e32\u0e23\u0e2a\u0e48\u0e07\u0e21\u0e2d\u0e1a\u0e1f\u0e35\u0e40\u0e08\u0e2d\u0e23\u0e4c\" [level=2]",
+        "    - heading \"\u0e1c\u0e25\u0e34\u0e15\u0e20\u0e31\u0e13\u0e11\u0e4c\u0e04\u0e39\u0e48\u0e40\u0e17\u0e35\u0e22\u0e1a\" [level=3]"
+      ],
+      "tableRows": 68
+    },
+    {
+      "key": "portal",
+      "screen": "\u0e2b\u0e19\u0e49\u0e32\u0e08\u0e2d\u0e07",
+      "url": "https://console-dev-erpx.jesadakorn.com/holdings/acme/pms?variant=C&prototype=1&screen=portal",
+      "headings": [
+        "    - heading \"\u0e2b\u0e19\u0e49\u0e32\u0e08\u0e2d\u0e07\" [level=1]",
+        "    - heading \"\u0e1e\u0e31\u0e01\u0e43\u0e2b\u0e49\u0e2a\u0e1a\u0e32\u0e22 \u0e43\u0e19\u0e08\u0e31\u0e07\u0e2b\u0e27\u0e30\u0e02\u0e2d\u0e07\u0e04\u0e38\u0e13\" [level=1]",
+        "      - heading \"Standard Queen\" [level=2]",
+        "      - heading \"Deluxe Twin\" [level=2]",
+        "      - heading \"One-bedroom Suite\" [level=2]"
+      ],
+      "tableRows": 0
+    },
+    {
+      "key": "dashboard",
+      "screen": "\u0e27\u0e31\u0e19\u0e19\u0e35\u0e49",
+      "url": "https://console-dev-erpx.jesadakorn.com/holdings/acme/pms?variant=C&prototype=1&screen=dashboard",
+      "headings": [
+        "    - heading \"\u0e40\u0e2b\u0e47\u0e19\u0e17\u0e38\u0e01\u0e07\u0e32\u0e19\u0e02\u0e2d\u0e07\u0e27\u0e31\u0e19\u0e19\u0e35\u0e49\" [level=1]",
+        "      - heading \"\u0e20\u0e32\u0e1e\u0e23\u0e27\u0e21\u0e40\u0e04\u0e23\u0e37\u0e2d\u0e27\u0e31\u0e19\u0e19\u0e35\u0e49\" [level=2]",
+        "    - heading \"\u0e40\u0e02\u0e49\u0e32\u0e1e\u0e31\u0e01\u0e27\u0e31\u0e19\u0e19\u0e35\u0e49 8\" [level=2]:",
+        "    - heading \"\u0e2d\u0e2d\u0e01\u0e27\u0e31\u0e19\u0e19\u0e35\u0e49 0\" [level=2]:",
+        "    - heading \"\u0e07\u0e32\u0e19\u0e41\u0e21\u0e48\u0e1a\u0e49\u0e32\u0e19 11\" [level=2]:",
+        "    - heading \"\u0e22\u0e2d\u0e14\u0e23\u0e2d\u0e0a\u0e33\u0e23\u0e30 8\" [level=2]:"
+      ]
+    }
+  ],
+  "screensReviewScope": "All15menu screens navigated through actual controls, waited exactURL/heading, inspected pixels. Owner account; no housekeeper-role authority claim. CUA initial immediate snapshots were stale and not accepted; corrected captures replaced them.",
+  "tabletHousekeeping": {
+    "emulation": "CDP,mobile:true,768x1024",
+    "viewport": 768,
+    "rootClient": 768,
+    "rootScroll": 768,
+    "bodyScroll": 768,
+    "pageOverflow": false,
+    "temporaryOverridesReset": true
+  },
+  "photoCapture": "Images load asynchronously; final rate-card and guest-portal captures were taken with complete:true and naturalWidth630. Early blank image captures were replaced, not accepted.",
+  "updatedAt": "2026-10-10T19:49:20.873999+00:00"
+}

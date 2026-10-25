@@ -59,7 +59,9 @@ export function SocialComposer({
   setMeta,
   loadMeta,
   onPublished,
+  initialOpen = false,
 }: {
+  initialOpen?: boolean;
   api: string;
   name: string;
   branchId: string | null;
@@ -85,7 +87,8 @@ export function SocialComposer({
   const [draft, setDraft] = useState<Draft | null>(null);
   const [guided, setGuided] = useState<Record<string, string> | null>(null);
   const composer = useRef<HTMLDetailsElement>(null);
-  const [editorLoaded, setEditorLoaded] = useState(false);
+  const [composerRevision, setComposerRevision] = useState(0);
+  const [editorLoaded, setEditorLoaded] = useState(initialOpen);
   const [editorResetKey, setEditorResetKey] = useState(0);
   const [focusSignal, setFocusSignal] = useState(0);
   const handoff = meta.handoffContext;
@@ -100,14 +103,18 @@ export function SocialComposer({
       if (link && new URL(link.href).pathname === window.location.pathname && composer.current)
         composer.current.open = true;
     };
+    const fromEvent = () => { if (composer.current) composer.current.open = true; };
+    window.addEventListener("erpx:open-compose", fromEvent);
+    if (initialOpen) fromEvent();
     openTarget();
     window.addEventListener("hashchange", openTarget);
     document.addEventListener("click", openFromLink);
     return () => {
+      window.removeEventListener("erpx:open-compose", fromEvent);
       window.removeEventListener("hashchange", openTarget);
       document.removeEventListener("click", openFromLink);
     };
-  }, []);
+  }, [initialOpen]);
   useEffect(() => {
     if (!handoff) return;
     const restore = () => {
@@ -296,9 +303,12 @@ export function SocialComposer({
         setAudience("");
         setParticipants([]);
         setSources([]);
+        setSourceChoice("");
         setPurpose("update");
         setMessage(`Shared with ${choice?.label ?? "your selected audience"}.`);
         await onPublished();
+        // A published draft is committed; reopen with fresh drawer dirty state.
+        setComposerRevision((value) => value + 1);
       } else setMessage("Draft saved. Only you can see it.");
     });
   }
@@ -317,7 +327,7 @@ export function SocialComposer({
   ];
   return (
     <>
-      <FormDisclosure appearance="standard" drawerTitle="Share an update" contentClassName={socialStyles.home} dismissDisabled={busy}
+      <FormDisclosure finalFocus={() => composer.current?.querySelector<HTMLElement>("summary") ?? null} key={composerRevision} appearance="standard" drawerTitle="Share an update" contentClassName={socialStyles.home} dismissDisabled={busy}
         ref={composer}
         className="ui-panel beta-composer"
         onToggle={(event) => {
@@ -337,6 +347,7 @@ export function SocialComposer({
           <PenLine className="beta-compose-icon" size={18} aria-hidden="true" />
           <ChevronDown className="beta-compose-chevron" size={16} aria-hidden="true" />
         </summary>
+        <fieldset disabled={busy} style={{ display: "contents" }}>
         {guided && (
           <InlineNotice tone="info" className="notice" role="status">
             <p>
@@ -528,6 +539,7 @@ export function SocialComposer({
           </details>
         )}
       <InlineNotice tone="info" className="beta-status" role="status">{busy ? "Saving…" : message}</InlineNotice>
+        </fieldset>
       </FormDisclosure>
     </>
   );

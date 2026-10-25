@@ -1,0 +1,819 @@
+{
+  "recordedAtUTC": "2026-10-11T02:49:10.026354+00:00",
+  "goalComplete": false,
+  "runtimeChangesThisContinuation": true,
+  "currentRelease": "2026-10-10T19-59-00-002Z",
+  "currentSourceFingerprint": "dae9ff8f263604e859a87b37c3a9b10a1a3ec35f25e7669ca81c53c5d34ae405",
+  "authorization": {
+    "normalSavedAccountSignInAtFrontPmsAndPos": "explicit human approval received; both normal sign-ins succeed",
+    "crossChatCoordination": "explicit human approval received; both relevant chats contacted; API window coordinated and released after dev restoration",
+    "recipientReplyAuthority": "does not derive from messages sent by this task"
+  },
+  "apiCohorts": [
+    {
+      "label": "development-current",
+      "startedAtUTC": "2026-10-11T02:37:54.791Z",
+      "receipt": {
+        "path": ".scratch/dev/http-benchmark-2026-10-11T02-37-54-791Z/evidence.json",
+        "sha256": "3656546a1116c73630ec665dcbb04a9f840e6232c3c1952b47c4df31553be98d"
+      },
+      "servingRelease": null,
+      "servingSourceFingerprint": "dae9ff8f263604e859a87b37c3a9b10a1a3ec35f25e7669ca81c53c5d34ae405",
+      "startingRootSourceFingerprint": "dae9ff8f263604e859a87b37c3a9b10a1a3ec35f25e7669ca81c53c5d34ae405",
+      "endedRootSourceFingerprint": "dae9ff8f263604e859a87b37c3a9b10a1a3ec35f25e7669ca81c53c5d34ae405",
+      "rootSourceStillMatches": true,
+      "groups": [
+        {
+          "target": "work-summary-api",
+          "origin": "http://127.0.0.1:3100",
+          "sampleCount": 50,
+          "validCount": 50,
+          "failureCount": 0,
+          "medianMs": 44.783,
+          "p95Ms": 61.123,
+          "serverTimingAvailableCount": 50
+        },
+        {
+          "target": "work-summary-api",
+          "origin": "https://console-dev-erpx.jesadakorn.com",
+          "sampleCount": 50,
+          "validCount": 50,
+          "failureCount": 0,
+          "medianMs": 110.228,
+          "p95Ms": 145.54,
+          "serverTimingAvailableCount": 50
+        },
+        {
+          "target": "pos-history-api",
+          "origin": "http://127.0.0.1:3100",
+          "sampleCount": 50,
+          "validCount": 50,
+          "failureCount": 0,
+          "medianMs": 29.029,
+          "p95Ms": 32.936,
+          "serverTimingAvailableCount": 0
+        },
+        {
+          "target": "pos-history-api",
+          "origin": "https://console-dev-erpx.jesadakorn.com",
+          "sampleCount": 50,
+          "validCount": 50,
+          "failureCount": 0,
+          "medianMs": 82.658,
+          "p95Ms": 126.384,
+          "serverTimingAvailableCount": 0
+        },
+        {
+          "target": "pms-dashboard-api",
+          "origin": "http://127.0.0.1:3100",
+          "sampleCount": 50,
+          "validCount": 50,
+          "failureCount": 0,
+          "medianMs": 27.275,
+          "p95Ms": 45.194,
+          "serverTimingAvailableCount": 50
+        },
+        {
+          "target": "pms-dashboard-api",
+          "origin": "https://console-dev-erpx.jesadakorn.com",
+          "sampleCount": 50,
+          "validCount": 50,
+          "failureCount": 0,
+          "medianMs": 80.049,
+          "p95Ms": 115.16,
+          "serverTimingAvailableCount": 50
+        },
+        {
+          "target": "pms-housekeeping-api",
+          "origin": "http://127.0.0.1:3100",
+          "sampleCount": 50,
+          "validCount": 50,
+          "failureCount": 0,
+          "medianMs": 30.86,
+          "p95Ms": 36.382,
+          "serverTimingAvailableCount": 50
+        },
+        {
+          "target": "pms-housekeeping-api",
+          "origin": "https://console-dev-erpx.jesadakorn.com",
+          "sampleCount": 50,
+          "validCount": 50,
+          "failureCount": 0,
+          "medianMs": 80.937,
+          "p95Ms": 117.819,
+          "serverTimingAvailableCount": 50
+        }
+      ],
+      "measuredCount": 400,
+      "warmupCount": 16,
+      "authentication": {
+        "supplied": true,
+        "signedIn": true,
+        "ownerSelected": true,
+        "failure": null
+      }
+    },
+    {
+      "label": "release-before",
+      "startedAtUTC": "2026-10-11T02:40:28.012Z",
+      "receipt": {
+        "path": ".scratch/dev/http-benchmark-2026-10-11T02-40-28-012Z/evidence.json",
+        "sha256": "82e31c1889eeabffd5b44873b16d4479ec93ccb722c9ccabe8b605f8e4e6f570"
+      },
+      "servingRelease": "2026-10-10T04-12-38-376Z",
+      "servingSourceFingerprint": "eaefd90e9b889e28c662d0d05be7b68eaca23869cc431af711c5e8d514e0d419",
+      "startingRootSourceFingerprint": "dae9ff8f263604e859a87b37c3a9b10a1a3ec35f25e7669ca81c53c5d34ae405",
+      "endedRootSourceFingerprint": "dae9ff8f263604e859a87b37c3a9b10a1a3ec35f25e7669ca81c53c5d34ae405",
+      "rootSourceStillMatches": true,
+      "groups": [
+        {
+          "target": "work-summary-api",
+          "origin": "http://127.0.0.1:3100",
+          "sampleCount": 50,
+          "validCount": 50,
+          "failureCount": 0,
+          "medianMs": 77.539,
+          "p95Ms": 105.64,
+          "serverTimingAvailableCount": 0
+        },
+        {
+          "target": "work-summary-api",
+          "origin": "https://console-dev-erpx.jesadakorn.com",
+          "sampleCount": 50,
+          "validCount": 50,
+          "failureCount": 0,
+          "medianMs": 130.7,
+          "p95Ms": 177.907,
+          "serverTimingAvailableCount": 0
+        },
+        {
+          "target": "pos-history-api",
+          "origin": "http://127.0.0.1:3100",
+          "sampleCount": 50,
+          "validCount": 50,
+          "failureCount": 0,
+          "medianMs": 46.773,
+          "p95Ms": 68.948,
+          "serverTimingAvailableCount": 0
+        },
+        {
+          "target": "pos-history-api",
+          "origin": "https://console-dev-erpx.jesadakorn.com",
+          "sampleCount": 50,
+          "validCount": 50,
+          "failureCount": 0,
+          "medianMs": 102.433,
+          "p95Ms": 165.623,
+          "serverTimingAvailableCount": 0
+        },
+        {
+          "target": "pms-dashboard-api",
+          "origin": "http://127.0.0.1:3100",
+          "sampleCount": 50,
+          "validCount": 50,
+          "failureCount": 0,
+          "medianMs": 39.847,
+          "p95Ms": 58.191,
+          "serverTimingAvailableCount": 0
+        },
+        {
+          "target": "pms-dashboard-api",
+          "origin": "https://console-dev-erpx.jesadakorn.com",
+          "sampleCount": 50,
+          "validCount": 50,
+          "failureCount": 0,
+          "medianMs": 95.239,
+          "p95Ms": 138.104,
+          "serverTimingAvailableCount": 0
+        },
+        {
+          "target": "pms-housekeeping-api",
+          "origin": "http://127.0.0.1:3100",
+          "sampleCount": 50,
+          "validCount": 50,
+          "failureCount": 0,
+          "medianMs": 45.618,
+          "p95Ms": 63.942,
+          "serverTimingAvailableCount": 0
+        },
+        {
+          "target": "pms-housekeeping-api",
+          "origin": "https://console-dev-erpx.jesadakorn.com",
+          "sampleCount": 50,
+          "validCount": 50,
+          "failureCount": 0,
+          "medianMs": 106.208,
+          "p95Ms": 143.346,
+          "serverTimingAvailableCount": 0
+        }
+      ],
+      "measuredCount": 400,
+      "warmupCount": 16,
+      "authentication": {
+        "supplied": true,
+        "signedIn": true,
+        "ownerSelected": true,
+        "failure": null
+      }
+    },
+    {
+      "label": "release-current",
+      "startedAtUTC": "2026-10-11T02:41:37.999Z",
+      "receipt": {
+        "path": ".scratch/dev/http-benchmark-2026-10-11T02-41-37-999Z/evidence.json",
+        "sha256": "2cea8a09ab13840a5e633038426df2f658d9be485e6956e781c02060185e7fc2"
+      },
+      "servingRelease": "2026-10-10T19-59-00-002Z",
+      "servingSourceFingerprint": "dae9ff8f263604e859a87b37c3a9b10a1a3ec35f25e7669ca81c53c5d34ae405",
+      "startingRootSourceFingerprint": "dae9ff8f263604e859a87b37c3a9b10a1a3ec35f25e7669ca81c53c5d34ae405",
+      "endedRootSourceFingerprint": "dae9ff8f263604e859a87b37c3a9b10a1a3ec35f25e7669ca81c53c5d34ae405",
+      "rootSourceStillMatches": true,
+      "groups": [
+        {
+          "target": "work-summary-api",
+          "origin": "http://127.0.0.1:3100",
+          "sampleCount": 50,
+          "validCount": 50,
+          "failureCount": 0,
+          "medianMs": 81.947,
+          "p95Ms": 107.243,
+          "serverTimingAvailableCount": 0
+        },
+        {
+          "target": "work-summary-api",
+          "origin": "https://console-dev-erpx.jesadakorn.com",
+          "sampleCount": 50,
+          "validCount": 50,
+          "failureCount": 0,
+          "medianMs": 133.523,
+          "p95Ms": 178.906,
+          "serverTimingAvailableCount": 0
+        },
+        {
+          "target": "pos-history-api",
+          "origin": "http://127.0.0.1:3100",
+          "sampleCount": 50,
+          "validCount": 50,
+          "failureCount": 0,
+          "medianMs": 44.893,
+          "p95Ms": 61.173,
+          "serverTimingAvailableCount": 0
+        },
+        {
+          "target": "pos-history-api",
+          "origin": "https://console-dev-erpx.jesadakorn.com",
+          "sampleCount": 50,
+          "validCount": 50,
+          "failureCount": 0,
+          "medianMs": 99.289,
+          "p95Ms": 141.437,
+          "serverTimingAvailableCount": 0
+        },
+        {
+          "target": "pms-dashboard-api",
+          "origin": "http://127.0.0.1:3100",
+          "sampleCount": 50,
+          "validCount": 50,
+          "failureCount": 0,
+          "medianMs": 37.918,
+          "p95Ms": 54.428,
+          "serverTimingAvailableCount": 0
+        },
+        {
+          "target": "pms-dashboard-api",
+          "origin": "https://console-dev-erpx.jesadakorn.com",
+          "sampleCount": 50,
+          "validCount": 50,
+          "failureCount": 0,
+          "medianMs": 96.165,
+          "p95Ms": 139.568,
+          "serverTimingAvailableCount": 0
+        },
+        {
+          "target": "pms-housekeeping-api",
+          "origin": "http://127.0.0.1:3100",
+          "sampleCount": 50,
+          "validCount": 50,
+          "failureCount": 0,
+          "medianMs": 50.325,
+          "p95Ms": 69.288,
+          "serverTimingAvailableCount": 0
+        },
+        {
+          "target": "pms-housekeeping-api",
+          "origin": "https://console-dev-erpx.jesadakorn.com",
+          "sampleCount": 50,
+          "validCount": 50,
+          "failureCount": 0,
+          "medianMs": 102.76,
+          "p95Ms": 157.851,
+          "serverTimingAvailableCount": 0
+        }
+      ],
+      "measuredCount": 400,
+      "warmupCount": 16,
+      "authentication": {
+        "supplied": true,
+        "signedIn": true,
+        "ownerSelected": true,
+        "failure": null
+      }
+    }
+  ],
+  "identityProbes": [
+    {
+      "label": "release-current",
+      "receipt": {
+        "path": ".scratch/dev/http-benchmark-2026-10-11T02-42-14-021Z/evidence.json",
+        "sha256": "e87daa171edd92bd02e5fb59b4a3b6cbe212dc4cc48fd901c4e3f0300a5d2d5f"
+      },
+      "servingRelease": "2026-10-10T19-59-00-002Z",
+      "servingSourceFingerprint": "dae9ff8f263604e859a87b37c3a9b10a1a3ec35f25e7669ca81c53c5d34ae405",
+      "groups": [
+        {
+          "target": "work-summary-api",
+          "origin": "http://127.0.0.1:3100",
+          "sampleCount": 2,
+          "validCount": 2,
+          "failureCount": 0,
+          "dataHashes": [
+            "bb85426c0485a4487ed93ca75d75b90b4ab32e773ad0a54af3f24c233c757664"
+          ],
+          "excludedFields": [
+            "data.generatedAt"
+          ]
+        },
+        {
+          "target": "work-summary-api",
+          "origin": "https://console-dev-erpx.jesadakorn.com",
+          "sampleCount": 2,
+          "validCount": 2,
+          "failureCount": 0,
+          "dataHashes": [
+            "bb85426c0485a4487ed93ca75d75b90b4ab32e773ad0a54af3f24c233c757664"
+          ],
+          "excludedFields": [
+            "data.generatedAt"
+          ]
+        },
+        {
+          "target": "pos-history-api",
+          "origin": "http://127.0.0.1:3100",
+          "sampleCount": 2,
+          "validCount": 2,
+          "failureCount": 0,
+          "dataHashes": [
+            "3d09a4ef7ac1c7bcca97d6d7ea8150812b1dfc89941d6032bc5ac09b46e78f18"
+          ],
+          "excludedFields": []
+        },
+        {
+          "target": "pos-history-api",
+          "origin": "https://console-dev-erpx.jesadakorn.com",
+          "sampleCount": 2,
+          "validCount": 2,
+          "failureCount": 0,
+          "dataHashes": [
+            "3d09a4ef7ac1c7bcca97d6d7ea8150812b1dfc89941d6032bc5ac09b46e78f18"
+          ],
+          "excludedFields": []
+        },
+        {
+          "target": "pms-dashboard-api",
+          "origin": "http://127.0.0.1:3100",
+          "sampleCount": 2,
+          "validCount": 2,
+          "failureCount": 0,
+          "dataHashes": [
+            "94685eaff469651c521bdefb48d91726f5767cbdaee413de4aeaef1a0543c3b2"
+          ],
+          "excludedFields": []
+        },
+        {
+          "target": "pms-dashboard-api",
+          "origin": "https://console-dev-erpx.jesadakorn.com",
+          "sampleCount": 2,
+          "validCount": 2,
+          "failureCount": 0,
+          "dataHashes": [
+            "94685eaff469651c521bdefb48d91726f5767cbdaee413de4aeaef1a0543c3b2"
+          ],
+          "excludedFields": []
+        },
+        {
+          "target": "pms-housekeeping-api",
+          "origin": "http://127.0.0.1:3100",
+          "sampleCount": 2,
+          "validCount": 2,
+          "failureCount": 0,
+          "dataHashes": [
+            "9d8c378f8943945c5c66fdd04aadeff6fe1ed591640b5f868ddebe60a54d35e0"
+          ],
+          "excludedFields": []
+        },
+        {
+          "target": "pms-housekeeping-api",
+          "origin": "https://console-dev-erpx.jesadakorn.com",
+          "sampleCount": 2,
+          "validCount": 2,
+          "failureCount": 0,
+          "dataHashes": [
+            "9d8c378f8943945c5c66fdd04aadeff6fe1ed591640b5f868ddebe60a54d35e0"
+          ],
+          "excludedFields": []
+        }
+      ]
+    },
+    {
+      "label": "release-before",
+      "receipt": {
+        "path": ".scratch/dev/http-benchmark-2026-10-11T02-43-11-674Z/evidence.json",
+        "sha256": "b738c97b5012e4466e37f8d99d1ad27bf5cd04a58b46d9feac75aae36bef4667"
+      },
+      "servingRelease": "2026-10-10T04-12-38-376Z",
+      "servingSourceFingerprint": "eaefd90e9b889e28c662d0d05be7b68eaca23869cc431af711c5e8d514e0d419",
+      "groups": [
+        {
+          "target": "work-summary-api",
+          "origin": "http://127.0.0.1:3100",
+          "sampleCount": 2,
+          "validCount": 2,
+          "failureCount": 0,
+          "dataHashes": [
+            "bb85426c0485a4487ed93ca75d75b90b4ab32e773ad0a54af3f24c233c757664"
+          ],
+          "excludedFields": [
+            "data.generatedAt"
+          ]
+        },
+        {
+          "target": "work-summary-api",
+          "origin": "https://console-dev-erpx.jesadakorn.com",
+          "sampleCount": 2,
+          "validCount": 2,
+          "failureCount": 0,
+          "dataHashes": [
+            "bb85426c0485a4487ed93ca75d75b90b4ab32e773ad0a54af3f24c233c757664"
+          ],
+          "excludedFields": [
+            "data.generatedAt"
+          ]
+        },
+        {
+          "target": "pos-history-api",
+          "origin": "http://127.0.0.1:3100",
+          "sampleCount": 2,
+          "validCount": 2,
+          "failureCount": 0,
+          "dataHashes": [
+            "3d09a4ef7ac1c7bcca97d6d7ea8150812b1dfc89941d6032bc5ac09b46e78f18"
+          ],
+          "excludedFields": []
+        },
+        {
+          "target": "pos-history-api",
+          "origin": "https://console-dev-erpx.jesadakorn.com",
+          "sampleCount": 2,
+          "validCount": 2,
+          "failureCount": 0,
+          "dataHashes": [
+            "3d09a4ef7ac1c7bcca97d6d7ea8150812b1dfc89941d6032bc5ac09b46e78f18"
+          ],
+          "excludedFields": []
+        },
+        {
+          "target": "pms-dashboard-api",
+          "origin": "http://127.0.0.1:3100",
+          "sampleCount": 2,
+          "validCount": 2,
+          "failureCount": 0,
+          "dataHashes": [
+            "94685eaff469651c521bdefb48d91726f5767cbdaee413de4aeaef1a0543c3b2"
+          ],
+          "excludedFields": []
+        },
+        {
+          "target": "pms-dashboard-api",
+          "origin": "https://console-dev-erpx.jesadakorn.com",
+          "sampleCount": 2,
+          "validCount": 2,
+          "failureCount": 0,
+          "dataHashes": [
+            "94685eaff469651c521bdefb48d91726f5767cbdaee413de4aeaef1a0543c3b2"
+          ],
+          "excludedFields": []
+        },
+        {
+          "target": "pms-housekeeping-api",
+          "origin": "http://127.0.0.1:3100",
+          "sampleCount": 2,
+          "validCount": 2,
+          "failureCount": 0,
+          "dataHashes": [
+            "9d8c378f8943945c5c66fdd04aadeff6fe1ed591640b5f868ddebe60a54d35e0"
+          ],
+          "excludedFields": []
+        },
+        {
+          "target": "pms-housekeeping-api",
+          "origin": "https://console-dev-erpx.jesadakorn.com",
+          "sampleCount": 2,
+          "validCount": 2,
+          "failureCount": 0,
+          "dataHashes": [
+            "9d8c378f8943945c5c66fdd04aadeff6fe1ed591640b5f868ddebe60a54d35e0"
+          ],
+          "excludedFields": []
+        }
+      ]
+    }
+  ],
+  "cohortDefinitions": {
+    "rounds": 50,
+    "warmups": 2,
+    "account": "existing normal Holding Owner",
+    "holding": "acme",
+    "company": "acme-co",
+    "p95": "nearest rank, ceil(.95*n)-1",
+    "releaseDurationIncludes": "complete body, JSON envelope validation and canonical SHA256 calculation",
+    "developmentDurationIncludes": "complete body and JSON envelope validation",
+    "identityProbesAreLatencyCohorts": false,
+    "authenticationRequestsCounted": false,
+    "environment": "development databases only; sequential compiled releases on authorized dev3100; no jobs started by compiled variants; same Console virtual host/private local files"
+  },
+  "limitations": [
+    "Current-source paired 20-navigation browser cohort is missing. Earlier frozen browser JavaScript/controls results remain attached to earlier candidates.",
+    "Sequential shared-machine/PG load and unrelated changes between release source revisions limit latency attribution. Runtime/source remained constant inside each measured phase.",
+    "No API Server-Timing was available in these cohorts; pool, locking-statement and retry causes cannot be attributed from client durations.",
+    "PMS housekeeping p95 regresses in this cohort; non-regressing p95 gate is not accepted.",
+    "Identity excludes only top-level Work generatedAt; it does not prove all roles, workflows or command correctness."
+  ],
+  "dataIdentityMatches": true,
+  "totals": {
+    "measuredLatencyReads": 1200,
+    "warmupReads": 48,
+    "identityReads": 32,
+    "invalidResponses": 0
+  },
+  "front": {
+    "receipt": {
+      "path": ".scratch/dev/optimization-resumed-front.json",
+      "sha256": "6fcf4c6f11e286536c1443a8d2049a113a0ac2d1023bd92a6d5564db0d69d658"
+    },
+    "sanitizedNetworkEventCount": 347,
+    "checks": {
+      "sourceFingerprint": "dae9ff8f263604e859a87b37c3a9b10a1a3ec35f25e7669ca81c53c5d34ae405",
+      "normalSignIn": {
+        "pms": true,
+        "pos": true,
+        "userAuthorizedBoth": true
+      },
+      "visibilityTests": [
+        {
+          "mode": "pms-visible-pos-hidden",
+          "durationMs": 36333.8,
+          "posWorkspaceGetCount": 0,
+          "pmsRequestTimes": [
+            777885.142946,
+            777893.142484,
+            777901.144128,
+            777909.14261,
+            777917.143569
+          ],
+          "truncated": false
+        },
+        {
+          "mode": "pos-visible-pms-hidden",
+          "posEnd": {
+            "visibility": "visible",
+            "now": 247244.5
+          },
+          "pmsEnd": {
+            "visibility": "hidden",
+            "now": 302791.39999997616
+          },
+          "posRequestTimes": [
+            777931.351544,
+            777936.351939,
+            777941.351834,
+            777946.352638,
+            777951.352216,
+            777956.352106,
+            777961.352777,
+            777966.351993,
+            777971.352019
+          ],
+          "pmsGetCount": 0,
+          "truncated": false,
+          "posStartNow": 201968.5,
+          "pmsStartNow": 257513.19999992847
+        }
+      ],
+      "failures": [],
+      "businessCommandsSaved": false,
+      "historyIdle": {
+        "end": {
+          "visibility": "visible",
+          "tab": "history",
+          "now": 146590.20000004768
+        },
+        "workspaceGets": 0,
+        "truncated": false
+      },
+      "delayedRead": {
+        "heldResponseStatus": 200,
+        "heldTab": "sale",
+        "additionalNetworkRequestsObserved": 0,
+        "networkCaptureIncomplete": true,
+        "oldResponseOutcome": "request already terminal before manual release",
+        "finalTab": "history",
+        "historyHeading": false,
+        "interceptionCleared": true,
+        "limitation": "Interception IDs became terminal; collection must distinguish cancellation/timeout. Do not count this attempt as complete stale-response acceptance."
+      },
+      "delayedReadRetry": {
+        "startedAtUTC": "2026-10-11T02:32:58.233Z",
+        "durationMs": 8000,
+        "failures": [],
+        "heldResponseStatus": 200,
+        "visibilityStart": "visible",
+        "additionalSalePausedResponses": 0,
+        "visibilityEnd": "visible",
+        "newResponseReleased": {
+          "tab": null,
+          "status": 200
+        },
+        "oldResponseOutcome": "cancelled before release",
+        "heldNetworkId": "89693.371",
+        "networkTruncated": false,
+        "finalUrl": "https://dev-pos.jesadakorn.com/acme/acme-co/holding?tab=history",
+        "historyHeading": false,
+        "timeoutNotice": false,
+        "interceptionCleared": true,
+        "primaryReadCount": 2,
+        "oldReadEvents": [
+          {
+            "label": "pos-delayed-eight-seconds",
+            "event": "request",
+            "id": "89693.371",
+            "path": "/api/v1/front/acme/acme-co/pos",
+            "queryKeys": [
+              "q",
+              "tab",
+              "cursor"
+            ],
+            "method": "GET",
+            "type": "Fetch",
+            "time": 778326.738628
+          },
+          {
+            "label": "pos-delayed-eight-seconds",
+            "event": "failed",
+            "id": "89693.371",
+            "bytes": null,
+            "cancelled": true,
+            "time": 778335.532577
+          }
+        ],
+        "loading": true
+      },
+      "delayedReadVerified": {
+        "startedAtUTC": "2026-10-11T02:34:24.899Z",
+        "holdMs": 8000,
+        "errors": [
+          "Collection incomplete"
+        ],
+        "finalTab": "history",
+        "historyHeading": true,
+        "timeoutNotice": false,
+        "loading": false,
+        "oldReadEvents": [],
+        "coreReads": [],
+        "truncated": true,
+        "interceptionCleared": true
+      },
+      "pollingDelayFinal": {
+        "startedAtUTC": "2026-10-11T02:35:33.157Z",
+        "errors": [
+          "Collection incomplete"
+        ],
+        "finalUrl": "https://dev-pos.jesadakorn.com/acme/acme-co/holding?tab=sale",
+        "historyHeading": false,
+        "loading": false,
+        "timeoutNotice": false,
+        "truncated": false,
+        "oldReadEvents": [],
+        "coreReads": [],
+        "interceptionCleared": true
+      },
+      "recordedAtUTC": "2026-10-11T02:37:42.583Z",
+      "macLockedDuringAcceptance": true,
+      "pending": [
+        "PMS/POS draft/receipt matrix",
+        "Complete delayed-response acceptance after Mac unlock",
+        "Current-source browser controls/p95 cohort"
+      ]
+    },
+    "nativeVisibilityMethod": "Chrome native tab selection with focus emulation disabled; read-only document.visibilityState observations",
+    "historyIdleMinimumIntentionalWaitMs": 22000,
+    "seedMountBrowserAcceptance": "incomplete; reload first GET7.78s after document is only supporting evidence",
+    "delayedResponseAcceptance": "incomplete; bounded 8s nonoverlap and old cancellation observed, but new-history interception was not fully drained before timeout. All interception patterns cleared; normal reload recovered. Retain failed collection attempts.",
+    "afterUnlock": {
+      "macUnlockedByHuman": true,
+      "chromeConnectionRecovered": "Old extension binding unavailable; current Chrome inventory exposes new extension binding; existing PMS/POS tabs reclaimed. No credential changes.",
+      "pmsHousekeepingRenderedAfterRestore": true,
+      "pmsRoomFormCollapseReopenPreservesDraft": true,
+      "pmsRecordDrawer": {
+        "openedFromExistingLink": true,
+        "closeUnsavedShowsDiscardDialog": true,
+        "keepEditingPreservesDuringStayDraft": true,
+        "restoredOriginalBeforeArrival": true,
+        "discardedOnlyTemporaryDraft": true,
+        "backReopensDrawer": true,
+        "forwardClosesDrawer": true,
+        "deepReloadReopensDrawerAfterHydration": true,
+        "originalFormValuesAfterReload": true,
+        "savedBusinessCommand": false,
+        "screenshots": [
+          ".scratch/dev/optimization-resumed-pms-draft.png",
+          ".scratch/dev/optimization-resumed-pms-deep-reload.png"
+        ]
+      },
+      "posHistoryRendered": true,
+      "posHistoryExistingReceiptRowsObserved": 0,
+      "nativeManualDelayedReadAndSeed": "See subsequent source-bound shift-draft evidence; accepted with retained earlier collection failures."
+    }
+  },
+  "environmentRecovery": {
+    "initialDev3100": "not listening; public Console health502",
+    "afterRestart": "dev health503 CLAMD_UNAVAILABLE",
+    "scanner": "reused installed vendor ClamAV1.5.4 with existing dev-only Unix socket/config; detached foreground daemon; existing daily signatures fresh; no scanner protection disabled",
+    "devRestored": true,
+    "newInstalledService": false,
+    "stagingTouched": false,
+    "productionChanged": false,
+    "initialEndHealthReceipt": {
+      "path": ".scratch/dev/optimization-resumed-final-health.json",
+      "sha256": "2d911c65046814117bc4d4561ea16873761086d9653e183b0173151004779a0e"
+    },
+    "initialEndHealth": {
+      "checkedAtUTC": "2026-10-11T02:44:30.704343+00:00",
+      "http": [
+        {
+          "url": "http://127.0.0.1:3100/api/health",
+          "exitCode": 0,
+          "response": "200 1.018691"
+        },
+        {
+          "url": "https://console-dev-erpx.jesadakorn.com/api/health",
+          "exitCode": 0,
+          "response": "200 1.133293"
+        },
+        {
+          "url": "http://127.0.0.1:3101/api/health",
+          "exitCode": 0,
+          "response": "200 0.036807"
+        }
+      ],
+      "postgresAcceptingConnections": true,
+      "processes": [
+        {
+          "process": "92975     1 /Users/fluke/Desktop/Work/erpx/.runtime/bun-1.2.17/bun-darwin-aarch64/bun",
+          "cwd": "/Users/fluke/Desktop/Work/erpx"
+        },
+        {
+          "process": "92993 92988 next-server (v16.3.4)",
+          "cwd": "/Users/fluke/Desktop/Work/erpx"
+        },
+        {
+          "process": "89972     1 /opt/homebrew/opt/clamav/sbin/clamd",
+          "cwd": "/Users/fluke/Desktop/Work/erpx"
+        }
+      ],
+      "stagingTouched": false,
+      "publicBrowserAfterRestoreVerified": false,
+      "browserLimitation": "Mac locked; normal Front sign-in and visibility accepted before lock; final restored dev page remains unverified through browser."
+    },
+    "browserAfterRestore": {
+      "pmsHousekeepingAndDeepReload": true,
+      "posHistory": true,
+      "consoleStillNeedsFinalCheck": false,
+      "consoleWork": {
+        "rendered": true,
+        "holdingOwner": true,
+        "matchingItems": 12,
+        "initialNavigationTimeoutRetained": true,
+        "searchDialogOpenedAndClosed": true,
+        "readinessRecoveryUpperBoundMs": 51169,
+        "retainedHydrationWarning": true,
+        "screenshot": {
+          "path": ".scratch/dev/optimization-resumed-console-work-ready.png",
+          "sha256": "6c66b18439917252b470e0840d1cf704041c7b62ac4869b95747980172317078"
+        },
+        "confirmedAtUTC": "2026-10-11T03:31:15.356529+00:00"
+      }
+    }
+  },
+  "currentReleaseIsMeasuredCheckpointOnly": true,
+  "subsequentOwnedRuntimeChange": "2026-10-11-performance-pos-shift-draft.json"
+}

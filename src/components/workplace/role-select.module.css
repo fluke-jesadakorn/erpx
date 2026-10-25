@@ -1,0 +1,98 @@
+.switcher {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  color: var(--ui-muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.count {
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.switcher .trigger,
+.switcher .option {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  min-height: 52px;
+  height: auto;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 8px;
+  text-align: left;
+  white-space: normal;
+  color: var(--ui-ink);
+  background: transparent;
+  box-shadow: none;
+}
+
+.switcher .trigger {
+  background: var(--ui-card-2);
+}
+
+.switcher .trigger:hover,
+.switcher .option:hover {
+  background: color-mix(in srgb, var(--ui-brand) 8%, var(--ui-card));
+}
+
+.copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+  overflow-wrap: anywhere;
+}
+
+.copy strong {
+  font-size: 13px;
+  font-weight: 650;
+  text-transform: capitalize;
+}
+
+.copy small {
+  color: var(--ui-muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.action,
+.current {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  color: var(--ui-brand);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.roles {
+  display: grid;
+  gap: 3px;
+  max-height: min(280px, 40dvh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 3px;
+  border-block: 1px solid var(--ui-line);
+  scrollbar-width: thin;
+}
+
+.switcher .option[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--ui-brand) 8%, var(--ui-card));
+}
+
+.switcher button:focus-visible {
+  outline: 2px solid var(--ui-brand);
+  outline-offset: -2px;
+}

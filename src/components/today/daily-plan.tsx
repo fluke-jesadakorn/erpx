@@ -59,8 +59,8 @@ async function parseResponse<T>(response: Response): Promise<T> {
   return body.data;
 }
 
-export function DailyPlan({ base, initialDate }: { base: string; initialDate?: string }) {
-  const [expanded, setExpanded] = useState(false);
+export function DailyPlan({ base, initialDate, initialOpen = false }: { base: string; initialDate?: string; initialOpen?: boolean }) {
+  const [expanded, setExpanded] = useState(initialOpen);
   const [date, setDate] = useState(() =>
     initialDate && /^\d{4}-\d{2}-\d{2}$/.test(initialDate) ? initialDate : todayInBangkok(),
   );
@@ -305,7 +305,7 @@ export function DailyPlan({ base, initialDate }: { base: string; initialDate?: s
         </div>
 
       </div>
-      <Dialog appearance="standard" open={expanded} onClose={() => setExpanded(false)} title="Plan my day" presentation="form-drawer" dismissDisabled={saving}>{expanded && (
+      <Dialog appearance="standard" open={expanded} onClose={() => setExpanded(false)} title="Plan my day" finalFocus={() => document.querySelector<HTMLButtonElement>("#plan button")} presentation="form-drawer" dismissDisabled={saving}>{expanded && (
           <div className={styles.dateControls}>
             <Button appearance="standard"
               variant="ghost"

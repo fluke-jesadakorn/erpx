@@ -1,7 +1,8 @@
 import { announceWorkChange } from "./work-refresh";
 import { contextGeneration, contextIsSwitching } from "./context-switch";
+export type WorkCommandCompletion = { form: HTMLFormElement; formEditVersion: string | null };
 /** Sends the context rendered with this page, never a freshly fetched role. */
-export function workFetch(input:RequestInfo|URL,init?:RequestInit):Promise<Response>{
+export function workFetch(input:RequestInfo|URL,init?:RequestInit,completion?:WorkCommandCompletion):Promise<Response>{
  const url=new URL(input instanceof Request?input.url:String(input),typeof window==='undefined'?'https://erpx.invalid':window.location.origin);
  if(typeof document==='undefined'||url.origin!==window.location.origin||(!url.pathname.startsWith('/api/v1/holdings/')&&!url.pathname.startsWith('/api/v1/platform/')&&!url.pathname.startsWith('/api/v1/front/')))return fetch(input,init);
  if(url.pathname.startsWith('/api/v1/holdings/')&&(url.pathname.endsWith('/assignments/active')||url.pathname.endsWith('/companies/active')))return fetch(input,init);
@@ -13,8 +14,8 @@ export function workFetch(input:RequestInfo|URL,init?:RequestInit):Promise<Respo
  const platformNode=document.querySelector<HTMLElement>('[data-platform-assignment]');
  if(url.pathname.startsWith('/api/v1/platform/')&&platformNode)headers.set('x-erpx-platform-assignment',platformNode.dataset.platformAssignment!);
  const method=(init?.method??(input instanceof Request?input.method:'GET')).toUpperCase();
- const recordForm=document.activeElement?.closest?.('form')??null;
- const formEditVersion=recordForm?.getAttribute?.('data-erpx-edit-version')??null;
+ const recordForm=completion ? completion.form : document.activeElement?.closest?.('form')??null;
+ const formEditVersion=completion ? completion.formEditVersion : recordForm?.getAttribute?.('data-erpx-edit-version')??null;
  const cleanup=method==='DELETE' && (url.pathname.endsWith('/push')||url.pathname.endsWith('/push/session'));
  const selecting=url.pathname==='/api/v1/platform/assignments/active';
  if(contextIsSwitching()&&!['GET','HEAD','OPTIONS'].includes(method)&&!cleanup&&!selecting)return Promise.resolve(Response.json({error:{code:'WORK_CONTEXT_CHANGED',message:'Account and permissions are updating. Wait before submitting.'}},{status:409}));

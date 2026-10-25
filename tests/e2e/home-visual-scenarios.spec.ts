@@ -1,6 +1,7 @@
 import { captureCaseScreenshot } from "../helpers/case-screenshot";
 import { expect, test } from "@playwright/test";
-import { openAccountMenu, selectRoleForSetup } from "../helpers/context-switching-browser";
+import { openAccountMenu } from "../helpers/context-switching-browser";
+import { selectAcmeHoldingOwner } from "./helpers/select-acme-holding-owner";
 
 const picture = '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="420"><rect width="640" height="420" fill="#b7c7db"/><circle cx="320" cy="210" r="92" fill="#6e91bf"/></svg>';
 
@@ -13,7 +14,7 @@ test("Home layout with empty, long and multi-image feed content", async ({ page,
   await page.getByLabel(/^Password(?:\s*\*)?$/).fill(password!);
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/holdings\/acme(?:\/branches\/[^/]+)?\/(?:home|work-role)(?:\?.*)?$/);
-  await selectRoleForSetup(context, "holding_owner");
+  await selectAcmeHoldingOwner(page);
   await page.goto("/holdings/acme/home");
   await expect(page.getByRole("heading", { name: "Today", exact: true })).toBeVisible();
 
@@ -42,8 +43,8 @@ test("Home layout with empty, long and multi-image feed content", async ({ page,
   await page.setViewportSize({ width: 390, height: 844 });
   await page.evaluate(() => window.scrollTo(0, 0));
   await captureCaseScreenshot(page, "home-top-mobile-light.png");
+  await page.getByRole("button", { name: /^Share an update/ }).click();
   const composer = page.locator("details.beta-composer");
-  await composer.locator("summary").first().click();
   await expect(composer).toHaveAttribute("open", "");
   const editor = page.getByRole("dialog", { name: "Share an update", exact: true });
   await expect(editor).toBeVisible();

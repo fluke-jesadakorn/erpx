@@ -84,9 +84,10 @@ export function createCollaborationWorkApplication<Effect>(ports: CollaborationW
             }
         }
         const visibleCards: Card[] = [];
-        for (const card of cards)
-            if (await visibleSource(a, sourceType.parse(card.source_type), String(card.source_id)))
-                visibleCards.push(card);
+        for (const card of cards) {
+            const record = await visibleSource(a, sourceType.parse(card.source_type), String(card.source_id));
+            if (record) visibleCards.push({ ...card, source_title: record.title, source_href: record.href });
+        }
         return {
             relations: visible,
             cards: visibleCards,

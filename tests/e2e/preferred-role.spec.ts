@@ -1,20 +1,20 @@
 import {test,expect} from '@playwright/test';
-import {activeRoles,openAccountMenu,searchRoleOptions,selectRoleForSetup} from '../helpers/context-switching-browser';
+import {activeRoles,openAccountMenu,matchingRoleOptions,selectRoleForSetup} from '../helpers/context-switching-browser';
 const endpoint='/api/v1/holdings/acme/assignments/active';
 test.setTimeout(180_000);
 test.use({actionTimeout:30_000,navigationTimeout:60_000});
-test('searchable selector has no Automatic option and appearance stays compact',async({page,context})=>{
+test('role switcher has no input or Automatic option and appearance stays compact',async({page,context})=>{
  expect((await context.request.post('/api/auth/sign-in/email',{data:{email:'mali@erpx.dev',password:'Mali-ERPX-2026!'}})).ok()).toBe(true);
  await selectRoleForSetup(context,'people_manager');
  await page.goto('/holdings/acme/home');
  await expect(page.locator('[data-work-revision]')).toBeVisible();
  await openAccountMenu(page);
- await expect(page.getByRole('combobox',{name:'Role for actions & approvals',exact:true})).toBeVisible();
- const absent=await searchRoleOptions(page,'automatic');
- await expect(absent.getByRole('option')).toHaveCount(0);
- await expect(page.getByText('No matching options',{exact:true})).toBeVisible();
- const options=await searchRoleOptions(page,'people');
- await expect(options.getByRole('option').first()).toContainText(/people/i);
+ await expect(page.getByRole('button',{name:/^Switch role:/})).toBeVisible();
+ await expect(page.getByRole('combobox',{name:/roles/i})).toHaveCount(0);
+ const absent=await matchingRoleOptions(page,'automatic');
+ await expect(absent).toHaveCount(0);
+ const options=await matchingRoleOptions(page,'people');
+ await expect(options.first()).toContainText(/people/i);
  const appearance=page.getByRole('group',{name:'Appearance'});expect((await appearance.boundingBox())!.width).toBeLessThanOrEqual(140);
 });
 test('17-role account selects Employee, cannot use finance or HR APIs, and invalidates another tab',async({page,context,baseURL,browser})=>{
@@ -32,7 +32,7 @@ test('17-role account selects Employee, cannot use finance or HR APIs, and inval
  expect(data.options.length).toBeGreaterThanOrEqual(17);
  const employee=data.options.find((a:{role:string})=>a.role==='employee'),finance=data.options.find((a:{role:string})=>a.role==='finance_approver');
  expect(employee).toBeTruthy();expect(finance).toBeTruthy();
- const employeeOptions=await searchRoleOptions(page,'employee');await employeeOptions.getByRole('option').click();
+ const employeeOptions=await matchingRoleOptions(page,'employee');await employeeOptions.click();
  await expect(page.locator('[data-work-assignment]')).toHaveAttribute('data-work-assignment',employee!.id);
  await expect(page).toHaveURL(/\/holdings\/acme\/home$/);
  await expect(page.locator('.active-work-role')).toContainText(/employee/i);
@@ -44,8 +44,8 @@ test('17-role account selects Employee, cannot use finance or HR APIs, and inval
  expect((await context.request.get('/api/v1/holdings/acme/people/organization')).status()).toBe(403);
  const other=await context.newPage();await other.goto('/holdings/acme/work');await expect(other.getByRole('button',{name:/Account menu for/})).toBeEnabled();
  await openAccountMenu(page);
- const financeOptions=await searchRoleOptions(page,'finance approver');
- await financeOptions.getByRole('option').click();
+ const financeOptions=await matchingRoleOptions(page,'finance approver');
+ await financeOptions.click();
  await expect(page.locator('.active-work-role')).toContainText(/finance approver/i);
  await expect(page.locator('[data-work-assignment]')).toHaveAttribute('data-work-assignment',finance!.id);
  await expect(other.locator('[data-work-stale]')).toHaveAttribute('data-work-stale','true');

@@ -16,6 +16,7 @@ export function WorkAttention({
   rail = false,
   prominent = false,
   loading = false,
+  updating = false,
   deferred = false,
   retry,
   returnTo,
@@ -27,6 +28,7 @@ export function WorkAttention({
   rail?: boolean;
   prominent?: boolean;
   loading?: boolean;
+  updating?: boolean;
   deferred?: boolean;
   retry?: () => void;
   returnTo?: string;
@@ -36,6 +38,11 @@ export function WorkAttention({
     <section
       className={`${styles.attention} ${compact ? styles.compact : ""} ${rail ? styles.rail : ""} ${prominent ? styles.prominent : ""}`}
       aria-label="Needs you"
+      data-attention-state={
+        loading || deferred || attention.incomplete
+          ? "unknown"
+          : attention.total > 0 ? "pending" : "caught-up"
+      }
     >
       <header className={styles.header}>
         <div>
@@ -55,6 +62,7 @@ export function WorkAttention({
           <ArrowUpRight size={18} aria-hidden />
         </Link>
       </header>
+      {updating && <p className={styles.loading} role="status">Updating current work…</p>}
       {loading && (
         <InlineNotice tone="info" className={styles.loading} role="status">
           Loading current work…

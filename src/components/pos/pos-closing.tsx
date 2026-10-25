@@ -1,10 +1,11 @@
 "use client";
 import { Button, Field, Select, Table, TableFrame, TextInput } from "@/components/ui/foundation";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { businessDate, formatPosMoney } from "@/server/modules/pos/public/rules/pos";
 import { workFetch } from "@/lib/work-fetch";
+import { createLatestRead } from "@/lib/latest-read";
 import { useFrontLanguage } from "@/components/front/front-language";
 import type { PosWorkspace } from "@/server/modules/pos/public/pos";
 import type { posDayReport } from "@/server/modules/pos/public/pos-daily";
@@ -119,24 +120,25 @@ export function PosDayClosePanel({
     (row) => row.branch_id === branch && row.business_date === date,
   );
   const snapshot = close ? (JSON.parse(String(close.snapshot_json)) as Report) : report;
+  const reads = useRef(createLatestRead<Report>());
   useEffect(() => {
     let live = true;
     if (!branch) return;
-    void workFetch(`${api}/day/report?${new URLSearchParams({ branch, date })}`)
-      .then(async (r) => {
-        const body = await r.json();
-        if (live)
-          setRead(
-            !r.ok
-              ? { branch, date, error: body.error?.message ?? "Report unavailable" }
-              : { branch, date, report: body.data },
-          );
-      })
-      .catch((e) => {
-        if (live) setRead({ branch, date, error: e.message });
-      });
+    const reader = reads.current;
+    // Deferring the start also avoids Strict Mode's discarded mount request.
+    const timer = setTimeout(() => {
+      void reader.read(JSON.stringify([api, branch, date]), async signal => {
+        const response = await workFetch(`${api}/day/report?${new URLSearchParams({ branch, date })}`, {signal});
+        const body = await response.json();
+        if (!response.ok) throw new Error(body.error?.message ?? "Report unavailable");
+        return body.data as Report;
+      }, report => { if (live) setRead({branch, date, report}); })
+        .catch(error => { if (live) setRead({branch, date, error: error instanceof Error ? error.message : "Report unavailable"}); });
+    }, 0);
     return () => {
       live = false;
+      clearTimeout(timer);
+      reader.cancel();
     };
   }, [api, branch, date, data.dayCloses]);
   const money = (value: number) => formatPosMoney(value, snapshot?.currency ?? data.currency);

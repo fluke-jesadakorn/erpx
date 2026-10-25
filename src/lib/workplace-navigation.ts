@@ -3,7 +3,7 @@ import { adminSections, type AdminSection } from "./administration";
 import { iamSections } from "./iam";
 import { hasPermission } from "./permissions";
 import { salesCustomerAccess, salesCustomerLegacyDestination } from "@/server/modules/sales/public/rules/navigation";
-import { peopleIamDestination } from "./people-lifecycle";
+import { peopleIamDestination } from "./people-iam-navigation";
 import { financeDestinationForRoute, financeNavigation, financeRootItems, financeSidebarId } from "./finance-navigation";
 import { workplaceCategories, workplaceModuleDestinations, workplaceStartActions, type WorkplaceCategoryId, type AiSupport } from "./workplace-catalogue";
 
@@ -512,7 +512,7 @@ export function workplaceNavigation(
   if (!beta && scopeKind !== "department" && hasPermission(actor,"pms.read")) {
     group("pms", "Hotel PMS", "pms", "business", [
       item("pms-front", "Open PMS Front", context.frontPmsHref ?? `${base}/pms/dashboard`, "Hotel PMS", "pms", ["hotel", "reservation", "housekeeping", "rooms", "book room"], true),
-      ...(hasPermission(actor, "pms.approve") || hasPermission(actor, "finance.approve") ? [item("pms-approvals", "PMS approvals", "pms/folios?queue=approval", "Hotel PMS", "admin-approvals")] : []),
+      ...(hasPermission(actor, "pms.approve") ? [item("pms-approvals", "PMS approvals", "pms/guest-accounts?queue=approval", "Hotel PMS", "admin-approvals")] : []),
       ...(hasPermission(actor, "pms.reports") ? [item("pms-reports", "PMS reports", "pms/reports", "Hotel PMS", "ledger")] : []),
       ...(hasPermission(actor, "pms.configure") || hasPermission(actor, "pms.accounting.prepare") || hasPermission(actor, "pms.accounting.approve") ? [item("pms-settings", "PMS settings", "pms/settings", "Hotel PMS", "settings")] : []),
     ], context.frontPmsHref ?? `${base}/pms/dashboard`, ["hotel", "reservation", "housekeeping", "rooms", "book room"]);
@@ -520,6 +520,7 @@ export function workplaceNavigation(
   if (!beta) {
     const financeItems = hasPermission(actor, "finance.read") ? [
         item("finance-overview", "Finance work", "finance", "Finance", "home", ["finance work", "accounting"]),
+        item("finance-sales", "Sales & collections", "finance/sales", "Finance", "invoice", ["quotations", "sales orders", "invoices", "receipts"]),
         item("finance-receivables", "Receivables", "finance/invoices?kind=receivable&queue=open", "Finance", "invoice", ["accounts receivable", "collections"]),
         item("finance-payables", "Payables", "finance/invoices?kind=payable&queue=open", "Finance", "invoice", ["accounts payable", "supplier invoices"]),
         item("finance-bank", "Cash & banking", "finance/bank", "Finance", "bank", ["bank statements", "cash", "reconciliation", "bank reconciliation"]),
@@ -988,7 +989,7 @@ export function resolveNavigation(
   if (route === "pms") {
     if (second === "reports") return { activeId: "pms-reports", groupId: "pms" };
     if (second === "settings") return { activeId: "pms-settings", groupId: "pms" };
-    if (second === "folios" && queryValue(searchParams, "queue") === "approval")
+    if (second === "guest-accounts" && queryValue(searchParams, "queue") === "approval")
       return { activeId: "pms-approvals", groupId: "pms" };
     return { activeId: "pms-front", groupId: "pms" };
   }
@@ -1009,6 +1010,7 @@ export function resolveNavigation(
       ledger: "finance-ledger",
       accounting: "finance-ledger",
       journals: "finance-ledger",
+      sales: "finance-sales",
       invoices: queryValue(searchParams, "kind") === "payable" ? "finance-payables" : "finance-receivables",
       payments: "finance-payables",
       bank: "finance-bank",

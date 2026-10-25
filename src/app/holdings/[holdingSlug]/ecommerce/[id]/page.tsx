@@ -5,7 +5,7 @@ import { requireWorkContext, publicScope } from "@/server/modules/identity_acces
 import { workspaceBase } from "@/lib/workspace";
 import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { ecommerceDetail } from "@/server/modules/ecommerce/public/ecommerce";
-import { EcommerceCheckoutControls } from "@/components/modules/ecommerce-checkout-controls";
+import { EcommerceCheckoutControls } from "@/components/records/loaders/modules--ecommerce-checkout-controls";
 import { PageContent, Card } from "@/components/ui/foundation";
 export const dynamic = "force-dynamic";
 export default async function Page({

@@ -1,0 +1,513 @@
+{
+  "complete": false,
+  "wholePlanAcceptance": false,
+  "status": "Native batch and workflow checks pass, but release load aborts after one original-success/replay-invalid logical operation; diagnostic and whole acceptance remain open",
+  "source": {
+    "runtime": "e7a3311f0fb810c6ee12f52b8c169584f1388f9c3f7feaf0588306ec6adea590",
+    "verification": "79703288bd71de36f5fbb88192cd4f1d1c4aa8907b8ce07fc39190be20342620"
+  },
+  "implementation": "Changed PMS record upserts use ordered JSON input in chunks of 500 within the existing owner transaction. Preserve record identities/Property/kind and conflict-update fields, per-row cache revisions and booking observations, original money capture order and invocation-local map advancement. No version/lock/replay/auth/workload/threshold change.",
+  "nativeProof": {
+    "originalWriterQueries": 3,
+    "batchQueries": 1,
+    "recordsCompared": 3,
+    "observationOrderPreserved": true,
+    "rowCacheCountersPreserved": true,
+    "secondFlushOnlyChangedRecord": true,
+    "unchangedReplayQueries": 0,
+    "multiChunkRows": 501,
+    "multiChunkQueries": 2,
+    "laterActualSqlFailure": "22012",
+    "wholeTransactionRollback": true,
+    "committedRowsAndCounter": 501,
+    "cases": 2,
+    "passed": true,
+    "filteredSkippedCases": 67,
+    "filteredProofIsNotWholeNativeAcceptance": true
+  },
+  "liveHandles": {},
+  "performance": {
+    "durationMs": 33106,
+    "readCount": 420,
+    "writeCount": 200,
+    "readP95Ms": 303.17770799999926,
+    "writeP95Ms": 2136.875167000002,
+    "coreReadCount": 420,
+    "coreWriteCount": 200,
+    "financialWriteCount": 0,
+    "operationalWriteCount": 0,
+    "closingWriteCount": 0,
+    "failedSamples": 1,
+    "passed": false,
+    "completedWorkload": false,
+    "runnerExitCode": 1,
+    "partialResultMustNotReplaceOriginalWorkload": true,
+    "failure": "reservation.create had HTTP 200 before logical validation failed; original-response shape vs replay-response stage/status/code was not retained",
+    "requiredReadCount": 840,
+    "requiredWriteCount": 843,
+    "financialAndOperationalAndClosingPhasesReached": false
+  },
+  "remaining": [
+    "Capture actual response validation stage and response failure; correct the failing invariant",
+    "Unchanged complete 20-user / 3 x 200 / two-year release workload",
+    "Same-candidate full native/browser/mock-pilot acceptance"
+  ],
+  "artifacts": {
+    "application-before.ts": {
+      "path": ".scratch/dev/pms-record-batch/application-before.ts",
+      "sha256": "c4c011b7c81f51eeca4415fec5ac586b8565a4b706f2a2b16b0098311680a2a6"
+    },
+    "adapter-before.ts": {
+      "path": ".scratch/dev/pms-record-batch/adapter-before.ts",
+      "sha256": "b03aae2e13a4999128d0019a1e93789cd6da3ae07d2cd615b2fb5ba1f32125e0"
+    },
+    "test-before.ts": {
+      "path": ".scratch/dev/pms-record-batch/test-before.ts",
+      "sha256": "681faef8abac374cea74fd872d8dba5f23a21e1da3849b738bcee16adec70f2e"
+    },
+    "native-before.log": {
+      "path": ".scratch/dev/pms-record-batch/native-before.log",
+      "sha256": "695410ffaac90afd80c5641924a7e8ad036fbbb4a2f815d722e6ac8582609165"
+    },
+    "native-after.log": {
+      "path": ".scratch/dev/pms-record-batch/native-after.log",
+      "sha256": "fccbdcb3f7a68285209cf16e3a7f5237f2fe3bb7512d7de966485f92ac51f98b"
+    },
+    "native-batch-focused.log": {
+      "path": ".scratch/dev/pms-record-batch/native-batch-focused.log",
+      "sha256": "0c08e42cf66dcf82009a2f54c332488eadbe6eb6ae177fed113079a350adc038"
+    },
+    "source-before.json": {
+      "path": ".scratch/dev/pms-record-batch/source-before.json",
+      "sha256": "5b51884ad3870e6c4dd88b06010f48e797bd9d07cc9353666288d804e91a6d41"
+    },
+    ".scratch/dev/pms-record-batch/adapter-before.ts": {
+      "path": ".scratch/dev/pms-record-batch/adapter-before.ts",
+      "sha256": "b03aae2e13a4999128d0019a1e93789cd6da3ae07d2cd615b2fb5ba1f32125e0"
+    },
+    ".scratch/dev/pms-record-batch/application-before.ts": {
+      "path": ".scratch/dev/pms-record-batch/application-before.ts",
+      "sha256": "c4c011b7c81f51eeca4415fec5ac586b8565a4b706f2a2b16b0098311680a2a6"
+    },
+    ".scratch/dev/pms-record-batch/architecture.log": {
+      "path": ".scratch/dev/pms-record-batch/architecture.log",
+      "sha256": "61f27aa5d383438fa7955c201143725c76302dadbcb2c312efa2d398a9d6f86b"
+    },
+    ".scratch/dev/pms-record-batch/build.log": {
+      "path": ".scratch/dev/pms-record-batch/build.log",
+      "sha256": "4890bea8cc224d3130f7f0fb336c2156c2829271e0c6fa07b5da7e512151f919"
+    },
+    ".scratch/dev/pms-record-batch/lint.log": {
+      "path": ".scratch/dev/pms-record-batch/lint.log",
+      "sha256": "827c4aba480463caff85470227105c05ff46cd40693fc7c1b1f9f25d59f13231"
+    },
+    ".scratch/dev/pms-record-batch/native-after.log": {
+      "path": ".scratch/dev/pms-record-batch/native-after.log",
+      "sha256": "fccbdcb3f7a68285209cf16e3a7f5237f2fe3bb7512d7de966485f92ac51f98b"
+    },
+    ".scratch/dev/pms-record-batch/native-batch-focused.log": {
+      "path": ".scratch/dev/pms-record-batch/native-batch-focused.log",
+      "sha256": "0c08e42cf66dcf82009a2f54c332488eadbe6eb6ae177fed113079a350adc038"
+    },
+    ".scratch/dev/pms-record-batch/native-before.log": {
+      "path": ".scratch/dev/pms-record-batch/native-before.log",
+      "sha256": "695410ffaac90afd80c5641924a7e8ad036fbbb4a2f815d722e6ac8582609165"
+    },
+    ".scratch/dev/pms-record-batch/native-regression.log": {
+      "path": ".scratch/dev/pms-record-batch/native-regression.log",
+      "sha256": "0a3fe3620ebd64b37cd0a9bb57fb8abb708484050ac9e64dbb067f0f17d0e462"
+    },
+    ".scratch/dev/pms-record-batch/source-after.json": {
+      "path": ".scratch/dev/pms-record-batch/source-after.json",
+      "sha256": "5b51884ad3870e6c4dd88b06010f48e797bd9d07cc9353666288d804e91a6d41"
+    },
+    ".scratch/dev/pms-record-batch/source-before.json": {
+      "path": ".scratch/dev/pms-record-batch/source-before.json",
+      "sha256": "5b51884ad3870e6c4dd88b06010f48e797bd9d07cc9353666288d804e91a6d41"
+    },
+    ".scratch/dev/pms-record-batch/test-before.ts": {
+      "path": ".scratch/dev/pms-record-batch/test-before.ts",
+      "sha256": "681faef8abac374cea74fd872d8dba5f23a21e1da3849b738bcee16adec70f2e"
+    },
+    ".scratch/dev/pms-record-batch/typecheck.log": {
+      "path": ".scratch/dev/pms-record-batch/typecheck.log",
+      "sha256": "ae3aa3d40f2b7fdeaf8ae4398c41416876c85fc2ccc6aa232e526fdb75f340ef"
+    },
+    ".scratch/dev/pms-record-batch/unit-regression.log": {
+      "path": ".scratch/dev/pms-record-batch/unit-regression.log",
+      "sha256": "34e89e2fa947f5e338f153b46f935323967f659c138d8a248d658231f6dcd010"
+    },
+    ".scratch/dev/pms-record-batch-final/budget-after.json": {
+      "path": ".scratch/dev/pms-record-batch-final/budget-after.json",
+      "sha256": "4484df1e8d6e27d5da8b8f0f171fb9950746f026d59d544b1521902c234a26e7"
+    },
+    ".scratch/dev/pms-record-batch-final/budget-before.json": {
+      "path": ".scratch/dev/pms-record-batch-final/budget-before.json",
+      "sha256": "281c1dc7f8e2692996d1e25acd5e695357a3bbe0326fb315a58e68e9e0da3705"
+    },
+    ".scratch/dev/pms-record-batch-final/budget-load.json": {
+      "path": ".scratch/dev/pms-record-batch-final/budget-load.json",
+      "sha256": "ae51dbadcacc8991e3eed73a2f04d8232dc55c0b639d0024455b99ffb64bacdc"
+    },
+    ".scratch/dev/pms-record-batch-final/check-original.cjs": {
+      "path": ".scratch/dev/pms-record-batch-final/check-original.cjs",
+      "sha256": "9733aaf5a5a8c511dfe0a0f9614ba7971fab1dea89f66c961eef2b94abcf4ada"
+    },
+    ".scratch/dev/pms-record-batch-final/db-after.json": {
+      "path": ".scratch/dev/pms-record-batch-final/db-after.json",
+      "sha256": "05b8b4cd552134ec87236e25329d0579992926429a107c75c463dd6584af25d4"
+    },
+    ".scratch/dev/pms-record-batch-final/db-before.json": {
+      "path": ".scratch/dev/pms-record-batch-final/db-before.json",
+      "sha256": "05b8b4cd552134ec87236e25329d0579992926429a107c75c463dd6584af25d4"
+    },
+    ".scratch/dev/pms-record-batch-final/destroy-databases.log": {
+      "path": ".scratch/dev/pms-record-batch-final/destroy-databases.log",
+      "sha256": "3cf13361f90ad9609da715aa155156d8d855d8ff4cab6d9991f857d050d8cf61"
+    },
+    ".scratch/dev/pms-record-batch-final/destroy-stop.log": {
+      "path": ".scratch/dev/pms-record-batch-final/destroy-stop.log",
+      "sha256": "1b73a1612f8ad450c8dfa50c4200a9ba318081a23cd1622c6ed9b8a34575593c"
+    },
+    ".scratch/dev/pms-record-batch-final/original-check-final.log": {
+      "path": ".scratch/dev/pms-record-batch-final/original-check-final.log",
+      "sha256": "c7c794b2ee29ff1a8036278e8896a34e0d74d7a3f06b14f89544d96b507b3797"
+    },
+    ".scratch/dev/pms-record-batch-final/original-check-first-failure.json": {
+      "path": ".scratch/dev/pms-record-batch-final/original-check-first-failure.json",
+      "sha256": "462cd8a1f5cbcc306b0a105929f634fa5135684c1e6a205d97a60bb98de3379a"
+    },
+    ".scratch/dev/pms-record-batch-final/original-check.log": {
+      "path": ".scratch/dev/pms-record-batch-final/original-check.log",
+      "sha256": "015e219e1199dac299a956204cd0f8c18f3a541b30031b2156e1b83bcc802af4"
+    },
+    ".scratch/dev/pms-record-batch-final/original-reconciliation-first-query.json": {
+      "path": ".scratch/dev/pms-record-batch-final/original-reconciliation-first-query.json",
+      "sha256": "c8e7fbf22f52b3fbdc4119e5edd0b576b85956dbb4e030c244b9812e7351061c"
+    },
+    ".scratch/dev/pms-record-batch-final/original-reconciliation.json": {
+      "path": ".scratch/dev/pms-record-batch-final/original-reconciliation.json",
+      "sha256": "e4363991b164dc08a28019c12e19b020eff1bdeb6784abfe770ad066309ab85b"
+    },
+    ".scratch/dev/pms-record-batch-final/performance.log": {
+      "path": ".scratch/dev/pms-record-batch-final/performance.log",
+      "sha256": "d434045c2c00d082c34fdc6e437c8de3980108834831239fe4827e72483cd512"
+    },
+    ".scratch/dev/pms-record-batch-final/prepare.log": {
+      "path": ".scratch/dev/pms-record-batch-final/prepare.log",
+      "sha256": "d28d80965433215f3e3ade59d84883c899db7f6308ebe8f0a8c612c012b14579"
+    },
+    ".scratch/dev/pms-record-batch-final/run.txt": {
+      "path": ".scratch/dev/pms-record-batch-final/run.txt",
+      "sha256": "988ede9443ea1962b33b49530b50be4c383ac4393e6ca8e8e99dc1a89ac988da"
+    },
+    ".scratch/dev/pms-record-batch-final/scale-result/analysis.json": {
+      "path": ".scratch/dev/pms-record-batch-final/scale-result/analysis.json",
+      "sha256": "d7841d85b5972393ae95e0ffd5b1ae96229e0b9261eb6db3e320a013058bba78"
+    },
+    ".scratch/dev/pms-record-batch-final/scale-result/result.json": {
+      "path": ".scratch/dev/pms-record-batch-final/scale-result/result.json",
+      "sha256": "303ea6db40090121b440b6a3699ce265f69536e866c26dd82db11f52ed283e6f"
+    },
+    ".scratch/dev/pms-record-batch-final/start.log": {
+      "path": ".scratch/dev/pms-record-batch-final/start.log",
+      "sha256": "e68f7b50bfafc919a8dbbf4c0a19cf3bc0f9303e16987258ea70af970460d457"
+    }
+  },
+  "nativeRegression": {
+    "files": 3,
+    "cases": 187,
+    "passed": true,
+    "durationSeconds": 70.95,
+    "focusedProofCountsOverlap": true
+  },
+  "unitRegression": {
+    "files": 77,
+    "cases": 779,
+    "passed": true,
+    "durationSeconds": 26.37
+  },
+  "scaleRun": "f19fbbb1d5aa",
+  "staticVerification": {
+    "typecheck": true,
+    "lintErrors": 0,
+    "existingWarnings": 3,
+    "architecture": true,
+    "isolatedBuild": true
+  },
+  "release": {
+    "id": "2026-10-10T01-35-06-354Z",
+    "softwareVersion": "release-e7a3311f0fb810c6ee12f52b8c169584f1388f9c3f7feaf0588306ec6adea590"
+  },
+  "sameSourceAfterChecksAndLoad": true,
+  "analysis": {
+    "phases": {
+      "session": {
+        "count": 2079,
+        "queries": {
+          "1": 2079
+        },
+        "queryErrors": {
+          "0": 2079
+        },
+        "latency": {
+          "queryMs": {
+            "p95Ms": 17.924792000001617,
+            "sumMs": 8212.107272000008
+          },
+          "poolWaitMs": {
+            "p95Ms": 1.2399590000022727,
+            "sumMs": 490.1734080000624
+          },
+          "durationMs": {
+            "p95Ms": 46.60187500000029,
+            "sumMs": 26219.38340800008
+          }
+        }
+      },
+      "account_access": {
+        "count": 1836,
+        "queries": {
+          "6": 701,
+          "5": 1115,
+          "7": 20
+        },
+        "queryErrors": {
+          "0": 1836
+        },
+        "latency": {
+          "queryMs": {
+            "p95Ms": 55.411167000002024,
+            "sumMs": 39293.5541599999
+          },
+          "poolWaitMs": {
+            "p95Ms": 56.218668000001344,
+            "sumMs": 53561.8721009998
+          },
+          "durationMs": {
+            "p95Ms": 103.63354200000322,
+            "sumMs": 110593.99451000002
+          }
+        }
+      },
+      "pms_command": {
+        "count": 1108,
+        "queries": {
+          "21": 20,
+          "7": 699,
+          "15": 10,
+          "29": 1,
+          "26": 80,
+          "16": 74,
+          "12": 88,
+          "24": 6,
+          "28": 1,
+          "33": 7,
+          "78": 1,
+          "25": 2,
+          "85": 1,
+          "34": 1,
+          "61": 3,
+          "42": 2,
+          "44": 5,
+          "59": 1,
+          "68": 2,
+          "35": 10,
+          "22": 77,
+          "31": 3,
+          "53": 2,
+          "20": 1,
+          "70": 3,
+          "87": 1,
+          "19": 1,
+          "18": 1,
+          "36": 1,
+          "23": 1,
+          "48": 1,
+          "52": 2
+        },
+        "queryErrors": {
+          "0": 962,
+          "1": 120,
+          "2": 15,
+          "3": 5,
+          "4": 6
+        },
+        "latency": {
+          "queryMs": {
+            "p95Ms": 127.10145800001192,
+            "sumMs": 71739.15481999997
+          },
+          "poolWaitMs": {
+            "p95Ms": 27.973582999999053,
+            "sumMs": 13726.556215000011
+          },
+          "durationMs": {
+            "p95Ms": 149.83145800000057,
+            "sumMs": 88035.84592999994
+          }
+        }
+      }
+    },
+    "operations": {
+      "guest.save": {
+        "count": 100,
+        "p95Ms": 2081.756708000001,
+        "attempts": {
+          "1": 15,
+          "2": 18,
+          "3": 16,
+          "4": 14,
+          "5": 15,
+          "6": 11,
+          "7": 4,
+          "9": 4,
+          "11": 1,
+          "8": 2
+        }
+      },
+      "reservation.create": {
+        "count": 100,
+        "p95Ms": 2192.597334000002,
+        "attempts": {
+          "5": 22,
+          "7": 17,
+          "4": 9,
+          "6": 30,
+          "2": 2,
+          "9": 3,
+          "12": 3,
+          "3": 3,
+          "10": 2,
+          "8": 7,
+          "13": 1,
+          "11": 1
+        }
+      }
+    }
+  },
+  "analysisLimitations": [
+    "Original-response shape, caught exception category and replay stage/status/code were not retained. The exact failing validation stage and cause remain unproven.",
+    "The core samples are a partial workload; their p95 does not prove the full 840-read/843-write SLO.",
+    "SQL error counts are not retained SQLSTATE evidence.",
+    "Analysis was saved before separate manual UI activity; connection measurements are samples, not peaks."
+  ],
+  "originalCommittedReconciliation": {
+    "run": "f19fbbb1d5aa",
+    "originalReservations": {
+      "records": 100,
+      "unique_refs": 100,
+      "with_receipts": 100,
+      "failed_sample_original_committed": 1
+    },
+    "reservationQuoteSnapshots": {
+      "quotes": 100,
+      "total": "70620000"
+    },
+    "history": {
+      "records": 657000,
+      "versions": "657000"
+    },
+    "limitation": "Readonly committed-record evidence only; it does not prove either original HTTP response shape or the replay outcome."
+  },
+  "databaseBefore": {
+    "run": "f19fbbb1d5aa",
+    "stats": [
+      {
+        "datid": 619107997,
+        "deadlocks": "0",
+        "conflicts": "0"
+      }
+    ],
+    "triggers": [
+      {
+        "tgname": "release_configuration_changed"
+      },
+      {
+        "tgname": "work_cache_change"
+      },
+      {
+        "tgname": "work_cache_pms_booking_observation"
+      },
+      {
+        "tgname": "work_cache_truncate"
+      }
+    ]
+  },
+  "databaseAfter": {
+    "run": "f19fbbb1d5aa",
+    "stats": [
+      {
+        "datid": 619107997,
+        "deadlocks": "0",
+        "conflicts": "0"
+      }
+    ],
+    "triggers": [
+      {
+        "tgname": "release_configuration_changed"
+      },
+      {
+        "tgname": "work_cache_change"
+      },
+      {
+        "tgname": "work_cache_pms_booking_observation"
+      },
+      {
+        "tgname": "work_cache_truncate"
+      }
+    ]
+  },
+  "connectionBudgetSamples": [
+    {
+      "run": "f19fbbb1d5aa",
+      "limits": {
+        "max_connections": 180,
+        "reserved": 3
+      },
+      "observed": {
+        "total_connections": 41,
+        "owned_control_app_connections": 1,
+        "owned_control_jobs_connections": 2,
+        "owned_holding_app_connections": 1,
+        "owned_holding_jobs_connections": 1,
+        "owned_holding_waiting_locks": 0
+      }
+    },
+    {
+      "run": "f19fbbb1d5aa",
+      "limits": {
+        "max_connections": 180,
+        "reserved": 3
+      },
+      "observed": {
+        "total_connections": 68,
+        "owned_control_app_connections": 14,
+        "owned_control_jobs_connections": 2,
+        "owned_holding_app_connections": 16,
+        "owned_holding_jobs_connections": 1,
+        "owned_holding_waiting_locks": 4
+      }
+    },
+    {
+      "run": "f19fbbb1d5aa",
+      "limits": {
+        "max_connections": 180,
+        "reserved": 3
+      },
+      "observed": {
+        "total_connections": 37,
+        "owned_control_app_connections": 0,
+        "owned_control_jobs_connections": 2,
+        "owned_holding_app_connections": 0,
+        "owned_holding_jobs_connections": 1,
+        "owned_holding_waiting_locks": 0
+      }
+    }
+  ],
+  "cleanup": {
+    "ownedWebAndJobsStopped": true,
+    "ownedEightDatabasesRemoved": true,
+    "port3104Free": true
+  }
+}

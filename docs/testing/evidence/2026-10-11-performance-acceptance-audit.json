@@ -1,0 +1,1074 @@
+{
+  "auditedAtUTC": "2026-10-11T12:53:46.428860+00:00",
+  "objectiveUnchanged": true,
+  "currentRelease": "2026-10-11T12-03-17-729Z",
+  "currentSourceFingerprint": "ac53b636bb8e08700a3bace57c442d1ab211fc299e8110c21de2ba9ba2afd48f",
+  "goalComplete": false,
+  "loaderFileCount": 94,
+  "requirements": [
+    {
+      "id": "record-lazy-loading",
+      "status": "implemented; bounded current Home loading measured; broader record matrix incomplete",
+      "inspectedSources": [
+        "src/components/records/loaders",
+        "src/components/records/record-link.tsx"
+      ],
+      "finding": "94 current loader files confirmed. Final f13ca97b Home initial JS37.18% lower and20 Search-confirmed captured rounds per artifact. Existing Expense/PMS drawer/deep-link/draft proofs retained; all record types and Front receipt matrix are not proved."
+    },
+    {
+      "id": "pos-record-and-server-components",
+      "status": "implemented; Front receipt browser matrix incomplete",
+      "inspectedSources": [
+        "src/components/records/pos-record-console.tsx",
+        "src/components/records/pos-record-summary.tsx",
+        "src/app/holdings/[holdingSlug]/@record/[...path]/page.tsx"
+      ],
+      "finding": "Server initial summary as ReactNode and thin Client record controller retained, with pure Card/ActionAnchor Server-compatible primitives. Interactive forms/canvas remain Client. Empty current POS History prevents receipt/refund native coverage. New normal-auth API probe finds existing authorized acme-pos-thb company30history/11refund rows and completed THB receipt200 with matching company/sale; no new fixture or grant. Native receipt coverage is pending; prior empty Acme history is not a universal data blocker."
+    },
+    {
+      "id": "pms-pos-lazy-tools",
+      "status": "implemented tool boundaries; 41-file mode/active-screen split prepared but not applied",
+      "inspectedSources": [
+        "src/components/pms/workspace.tsx",
+        "src/components/pos/pos-console.tsx"
+      ],
+      "finding": "Current ac53 keeps original large PMS/POS controllers. Guarded 41-file default-SSR Client split has historical corrected virtual semantic proof, localization parity, and conditional c553/5db canonical identity. It is not applied or wire/native accepted. Additional dirty-portal registration/retention and user/Property reset variants are prepared only; they invalidate the 41-only identity if accepted."
+    },
+    {
+      "id": "initial-read-and-polling",
+      "status": "native cadence/history seed and delayed cancellation accepted; broad scope matrix incomplete",
+      "inspectedSources": [
+        "src/lib/pos-read-identity.ts",
+        "src/lib/latest-read.ts",
+        "src/components/pos/pos-controller.ts",
+        "src/components/pms/workspace.tsx"
+      ],
+      "finding": "Native visible POS5/PMS8 and hidden0 reads retained on dae9 source. Subsequent own POS draft source proves continuous untruncated History reload0initial GET and Search1GET, manual delayed old cancellation/newHistory200. Currentf13 POS scope test separates manager draft1 from Owner0 and persists Owner0 after reload; dirty-dialog commit still fails collection."
+    },
+    {
+      "id": "authorized-layout-reads",
+      "status": "implemented; existing role/company public acceptance retained",
+      "inspectedSources": [
+        "src/app/holdings/[holdingSlug]/layout.tsx"
+      ],
+      "finding": "Authorized independent reads and one Company name/slug lookup; prior public Owner/Finance/Beacon transitions retained with source-bound limitations."
+    },
+    {
+      "id": "expense-batch-facts",
+      "status": "implemented; native workflow2 parity accepted, explicit mixed legacy/current native parity and Work totals remain pending",
+      "inspectedSources": [
+        "src/server/modules/people_payroll/adapters/expense-batch-facts.ts"
+      ],
+      "finding": "Retain14 PostgreSQL/61 unit cases and original-reader workflow2 parity; same claimant1→12drafts stays5queries. Prepared2 native mixed workflow1/2 parity cases compare both read orders across6roles, blocked legacy initialization, exact values/IDs/counts and revocation. Only syntax/dry-run checked, not applied/run; full Work projection total parity remains separate."
+    },
+    {
+      "id": "pms-diagnostics",
+      "status": "implemented optional diagnostics; production public attribution unavailable",
+      "inspectedSources": [
+        "src/server/runtime/read-request.ts",
+        "src/server/runtime/read-metrics.ts"
+      ],
+      "finding": "Inspected read-request/read-metrics: generated IDs, pool wait, execution-plus-lock statement durations and40001/40P01 retry counters. Guarded release diagnostics require the owned3104 simulation; public release samples have noServer-Timing. No pool/transaction/retry-policy edit justified."
+    },
+    {
+      "id": "initial-javascript-gate",
+      "status": "historical bounded Home reduction; current ac53/post-split affected-route gates unmeasured",
+      "inspectedSources": [],
+      "finding": "Retain original eaefd vs f13 measured Home JS reduction37.18% and through-Search36.25%. These observations do not attest to current ac53 or unapplied candidate, PMS/POS initial wire bytes, or controls timing. Whole-first-pass original4.12 and incremental ac5310.52 artifacts are retained; exact-source/process/manifest guards prepared, whole artifact checksum walks and new measurements held."
+    },
+    {
+      "id": "controls-and-p95-gate",
+      "status": "contradicted by measured final cohort; sharper attribution prepared",
+      "inspectedSources": [],
+      "finding": "Final20/20 controls upper-bound median1273.1→1706.4ms andp951877.4→2710.8ms. Final API baseline399/400 withone502,current400/400; all four localp95 regress. Offline reanalysis estimates post-last-initial-script residual119.4→125.3ms, not isolated CPU. Collector also awaited document.complete; next controlled diagnostic must separate ready-only from full load without deleting prior failed results."
+    },
+    {
+      "id": "dev-stability",
+      "status": "contradicted by retained incidents; final recovery verified",
+      "inspectedSources": [],
+      "finding": "Two memory-threshold messages in the current detached dev log; most recent53476 to79875, bootstrap500s, deep-reload502 and first Company-context502. Subsequent browser/API/health recoveries do not establish long-session stability. Current detached f13 dev also self-restarted worker8390→21406 under launcher8368/CLI8388; POS timeout/unavailable observed. Recovered200 health and Owner0 UI do not accept stability."
+    },
+    {
+      "id": "checks-and-isolated-release",
+      "status": "ac53 six pre-browser phases passed in prior full; current full retry live, whole acceptance missing",
+      "inspectedSources": [],
+      "finding": "Prior ac53 full2026-10-11T11-01-11-286Z passed architecture,2787unit,2095integration,lint,typecheck,isolated-release, then readiness stopped before mobile recovery Playwright because ClamAV definitions crossed unchanged24h threshold; preserve aggregateRED. Current exact ac53/4690 retry2026-10-11T11-35-39-792Z handles68539/68552 live, aggregate absent. Exact selected193 native cases from ac53 raw receipts were directly audited; no post-split or supplemental acceptance."
+    },
+    {
+      "id": "environment-and-scope",
+      "status": "local/public development and private production health200; current native affected-page acceptance pending shared lane",
+      "inspectedSources": [],
+      "finding": "Current detached dev launcher8368 PPID1 and pinnedNode8388 remain live, listener58571 on3100, sharedPG5432 ready. Latest recorded local/publicdev/privateprod health200. No staging visited or changed. Actual public drawer/deep reload/draft/context/receipt acceptance on current candidate remains pending; health does not prove UI."
+    }
+  ],
+  "evidenceReceipts": [
+    {
+      "path": "docs/testing/evidence/2026-10-10-performance-first-pass.json",
+      "sha256": "cdf0d0d6d0e82c8f5cdb7788d958db223d1f8454e92a2963b80605df9064b11d",
+      "bytes": 1409074
+    },
+    {
+      "path": "docs/testing/evidence/2026-10-11-performance-goal.json",
+      "sha256": "9188888663d4b04df4e158a20e3bbb1afeecbe7e722c6db4d1ba15da66efc44c",
+      "bytes": 661829
+    },
+    {
+      "path": "docs/testing/evidence/2026-10-11-expense-employment-facts.json",
+      "sha256": "269d0f76f038fb939f57ef53b80286aab8c3ec587641d17680a59f9feffa4880",
+      "bytes": 17167
+    },
+    {
+      "path": "docs/testing/evidence/2026-10-11-performance-error-boundaries.json",
+      "sha256": "eac71700d0a986b3f42fd5e3784be30ec9add48088ae4d17496b45ab810af934",
+      "bytes": 1289922
+    },
+    {
+      "path": "docs/testing/evidence/2026-10-11-performance-forbidden-boundary.json",
+      "sha256": "cbcceaa44158c49a25ac58d4edb102050b4507964fe6f68bdfdd080ad41e3a6b",
+      "bytes": 305980
+    },
+    {
+      "path": "docs/testing/evidence/2026-10-11-performance-current-compiler.json",
+      "sha256": "959f333f073ba0ad5ae0b8d4696b1fc24e4ef7d9920a4b3d3015b4fd7cb95da6",
+      "bytes": 14909
+    },
+    {
+      "path": "docs/testing/evidence/2026-10-11-performance-record-prefetch.json",
+      "sha256": "bf4d5f49fc7607ba41710738364c4dd065c8a4cf0e54e11db91b280f630e9726",
+      "bytes": 8036
+    },
+    {
+      "file": "docs/testing/evidence/2026-10-11-performance-dev-heap.json",
+      "sha256": "3d9cef7b6ee2abab93e739d046ccca09aa89902c4cc790c0037b78b4b37c12c0"
+    }
+  ],
+  "externalAcceptanceRequirements": [
+    {
+      "requirement": "Front PMS/POS normal sign-in authorization",
+      "destinations": [
+        "https://dev-pms.jesadakorn.com",
+        "https://dev-pos.jesadakorn.com"
+      ],
+      "status": "explicit human authorization received; both normal sign-ins completed"
+    },
+    {
+      "requirement": "Shared public3100 measurement-window coordination",
+      "status": "Human authorization persists. Current full68539/68552 on ac53/4690 owns source/browser/optional workloads until terminal. Reserved sequence: existing PMS ac53 gates → root performance window → PMS upgrade/final aligned-source acceptance. PMS owner agreed; full owner acknowledgment pending."
+    },
+    {
+      "requirement": "Native computer access",
+      "status": "Human reported unlocked and browser reconnected; previous actual Chrome/native read-only transport worked. No new unlock/login question pending. Current native affected-page checks are held by shared full-run lane, so tool reconnection and full UI acceptance are not reconfirmed in this turn."
+    }
+  ],
+  "nextRequiredEvidence": [
+    "Current-source calibrated dev/browser measurements separated from release and public transport.",
+    "Remaining Front dirty-form role commit/reset and receipt/refund/editor matrix using already authorized existing acme-pos-thb fictional records; restore original Owner/Acme/opening0 after acceptance.",
+    "Explain or bound measured controls/local-p95 regressions before accepting latency goals.",
+    "Sustained dev correctness/readiness without memory-threshold restart, hydration mismatch or invalid bootstrap."
+  ],
+  "diagnosticContinuation": {
+    "evidence": "2026-10-11-performance-dev-heap.json",
+    "goalComplete": false,
+    "runtimeSourceUnchanged": true,
+    "remainingAcceptanceUnchanged": true
+  },
+  "authorizedContinuation": {
+    "evidence": "2026-10-11-performance-front-and-api-resume.json",
+    "runtimeSourceUnchanged": true,
+    "goalComplete": false,
+    "fullObjectiveUnchanged": true
+  },
+  "latestRuntimeCandidate": {
+    "release": "2026-10-11T12-03-17-729Z",
+    "sourceFingerprint": "ac53b636bb8e08700a3bace57c442d1ab211fc299e8110c21de2ba9ba2afd48f",
+    "fileManifestSHA256": "3d15df841cc09eb26584c2d4883a6a373321b692aec79d42bc6504be03c74a5e",
+    "currentlyServedMode": "development",
+    "wholeArtifactIntegrityVerifiedByRoot": false,
+    "staticGates": "Current4882 native tests directly GREEN; static/typecheck/isolated-build reported GREEN by owner. Fresh full13:45 stopped by interruption without aggregate receipt; browser partial only. Original desktop targeted corrected case GREEN retained; aggregate acceptance absent.",
+    "pairedMeasurement": "Current ac53/new split not measured; historical f13 cohort retained separately and controls/p95 gates failed.",
+    "evidence": "2026-10-11-performance-active-screen-preparation.json"
+  },
+  "finalSharedCohort": {
+    "evidence": "2026-10-11-performance-final-shared-cohort.json",
+    "initialDecodedJavaScriptReductionPercent": 37.18062681436981,
+    "controls30Percent": "failed",
+    "nonRegressingP95": "failed",
+    "developmentStability": "open",
+    "dataIdentityMatches": true,
+    "devRestored": true,
+    "heavyWindowReleased": true
+  },
+  "finalAvailability": {
+    "receipt": {
+      "path": ".scratch/dev/optimization-final-health-last.json",
+      "sha256": "4435dee3c881552265b3495561f2448be2d00914810650bcb43f285dcc9eeca1"
+    },
+    "results": {
+      "checkedAtUTC": "2026-10-11T03:55:39.160772+00:00",
+      "http": [
+        {
+          "url": "http://127.0.0.1:3100/api/health",
+          "exitCode": 0,
+          "response": "200 0.029184"
+        },
+        {
+          "url": "https://console-dev-erpx.jesadakorn.com/api/health",
+          "exitCode": 0,
+          "response": "200 0.139857"
+        },
+        {
+          "url": "http://127.0.0.1:3101/api/health",
+          "exitCode": 0,
+          "response": "200 0.034695"
+        }
+      ],
+      "postgresAcceptingConnections": true,
+      "devListener": "8390",
+      "detachedLauncher": "8368     1 /Users/fluke/Desktop/Work/erpx/.runtime/bun-1.2.17/bun-darwin-aarch64/bun",
+      "ownedPrivate3102Empty": true,
+      "publicHomeNativeSearchVerified": true,
+      "posOriginalOwnerAndOpeningZeroVerifiedAfterReload": true,
+      "sourceFingerprint": "f13ca97b1401ea244ae616242fcc873b16308d6dce04298c68dfa41918a484f7",
+      "stagingTouched": false,
+      "productionChanged": false
+    }
+  },
+  "precedingMeasuredCheckpoint": {
+    "release": "2026-10-10T19-59-00-002Z",
+    "sourceFingerprint": "dae9ff8f263604e859a87b37c3a9b10a1a3ec35f25e7669ca81c53c5d34ae405"
+  },
+  "nextBoundedRuntimeCandidate": {
+    "mainApplied": false,
+    "base41Patch": ".scratch/dev/optimization-active-front-screens-prepared/combined-mode-and-screen-split.patch",
+    "base41ExpectedRuntime": "c553ba5f185547ce70750adad13cb7b865d1132625c5b6f557b3231780d89a84",
+    "conditionalSupplementFingerprints": ".scratch/dev/optimization-virtual-supplement-fingerprint-ac53-verification43f.json",
+    "qrOriginalStandalonePatchSupersededByBase41LeafDeferral": true,
+    "supplementalDraftAndPropertyNativeBaselineRequired": true,
+    "pending": "Existing PMS gates on alignedac53/2b driver30104/browser30131, final same-source results/cleanup and explicit handoff; then root guarded41 application and fresh native/measurement acceptance. Interrupted broad full remains incomplete; no restart or names-only reuse."
+  },
+  "readinessAttributionEvidence": "2026-10-11-performance-readiness-attribution.json",
+  "existingPosFixtureEvidence": "docs/testing/evidence/2026-10-11-performance-existing-pos-fixture.json",
+  "quietWindow": {
+    "optionalReadUiTrafficHeld": true,
+    "sourceFreezeHeldThroughFinalReconciliation": true
+  },
+  "latestContinuationAvailability": {
+    "checkedUTC": "2026-10-11T12:55:19.981523+00:00",
+    "localDev": {
+      "url": "http://127.0.0.1:3100/api/health",
+      "status": 200,
+      "seconds": 0.129539
+    },
+    "publicDev": {
+      "url": "https://console-dev-erpx.jesadakorn.com/api/health",
+      "status": 200,
+      "seconds": 0.169168
+    },
+    "privateProduction": {
+      "url": "http://127.0.0.1:3101/api/health",
+      "status": 200,
+      "seconds": 0.050384
+    },
+    "postgres5432": "accepting connections",
+    "detachedLauncher": 8368,
+    "launcherPPID": 1,
+    "pinnedNode": 8388,
+    "listener": 58571,
+    "listenerCwd": "/Users/fluke/Desktop/Work/erpx",
+    "affectedNativePublicPageVerifiedThisWindow": false,
+    "nativePageReason": "Full browser/source capacity remains owned by confirmed live68539/68552; reserved root native window has not begun."
+  },
+  "remainingActiveScreenEvidence": "docs/testing/evidence/2026-10-11-performance-existing-pos-fixture.json",
+  "nextBoundedModeBoundary": {
+    "evidence": "docs/testing/evidence/2026-10-11-performance-existing-pos-fixture.json",
+    "preparedPatch": ".scratch/dev/optimization-pos-mode-split-prepared/mode-split.patch",
+    "mainApplied": false,
+    "syntaxAndExactBodies": "pass; five exact-body checks",
+    "typeLintBuildBrowser": "pending after source freeze",
+    "originalStep2Complete": false,
+    "pmsPreparedPatch": ".scratch/dev/optimization-pms-mode-split-prepared/mode-split.patch",
+    "fiveExactPmsBodyChecks": "passed; parser and apply-check only, no main edit"
+  },
+  "modeBoundaryPreparationEvidence": "docs/testing/evidence/2026-10-11-performance-mode-boundary-preparation.json",
+  "activeScreenPreparationEvidence": "docs/testing/evidence/2026-10-11-performance-active-screen-preparation.json",
+  "activeScreenPreparationStatus": {
+    "mainApplied": false,
+    "conditionalLeaves": 35,
+    "copiedBodyAndStatePreludeChecks": true,
+    "patchDryRunPassed": true,
+    "strictAndNativeAcceptance": "Prepared real-project semantic gate passed only; actual-main lint/regression/build/native/wire and latency acceptance pending",
+    "preparedSemanticTypecheckPassed": true,
+    "preparedSemanticDiagnostics": 0,
+    "virtualOverlayHash": "dd5f4a84ef2ee7c67cfef333f51dff27c845d0c9d0c6d7beacae4b64aa895eeb",
+    "preparedSemanticReceipt": ".scratch/dev/optimization-candidate-typecheck-passed-dd5f4a84.json",
+    "preparedSemanticReceiptSha256": "48fb88a581480cd4f64349273b049cc1ebccf2b8adbde85ac7e501bbed7a4d5d",
+    "actualMainApplied": false
+  },
+  "latestActiveScreenAvailabilityEvidence": "docs/testing/evidence/2026-10-11-performance-active-screen-preparation.json",
+  "latestContinuationAudit": {
+    "checkedUTC": "2026-10-11T13:46:57.049915+00:00",
+    "rootAppSourceChanged": false,
+    "ownerCurrentNarrowCaseTerminalRed": false,
+    "preparedOnlyVariants": 8,
+    "goalComplete": false,
+    "evidence": "2026-10-11-performance-active-screen-preparation.json",
+    "ownerCurrentNarrowOriginalDesktopCasePassed": true,
+    "freshFullActuallyLive": true,
+    "rootSourceAndOptionalWorkloadHold": true
+  },
+  "subsequentAuthHelperCandidateBoundary": {
+    "checkedUTC": "2026-10-11T07:53:02.057150+00:00",
+    "latestObservedRuntime": "c6844f8813e154beb7361ecc227ddc5cf71fc13fa3f7f489db4bddb5e39f20c8",
+    "latestObservedVerification": "46c5058193fbf0725fec455c3767da4ab6be2906915484594f0de2e063555564",
+    "prepared41StillUnapplied": true,
+    "preparedSemanticPassScopeEarlierF13ProjectOnly": true,
+    "route134AggregateFailedDuringFinanceAuthPrerequisite": true,
+    "actualPassedRouteReports": 23,
+    "nextNeededEvidence": "Coordinator sealed helper repair/provenance and successful normal-role auth, then remaining original route/HTTP/capacity/final gates; actual main performance apply and full acceptance remain pending",
+    "goalComplete": false
+  },
+  "ac53RequirementRollForward": {
+    "checkedUTC": "2026-10-11T12:53:46.428860+00:00",
+    "supersededRequirementStatuses": {
+      "pms-pos-lazy-tools": {
+        "id": "pms-pos-lazy-tools",
+        "status": "major tools deferred; original active-work-screen split remains incomplete",
+        "inspectedSources": [
+          "src/components/pms/workspace.tsx",
+          "src/components/pos/pos-console.tsx"
+        ],
+        "finding": "PMS workspace3824lines and POS console2665lines retain inline active-screen branches in their initial Client modules. Existing settings/refunds/closing/doc boundaries are real, but do not prove that only shell plus active screen loads. Static QR23,817-byte dependency is one smaller pending boundary. Source is frozen f13 until shared final reconciliation; no runtime edit. Next split must retain shell/controller/draft ownership and current URLs/API/authorization, with route-level wire and draft acceptance."
+      },
+      "initial-javascript-gate": {
+        "id": "initial-javascript-gate",
+        "status": "supported for bounded final-source Home observation",
+        "inspectedSources": [],
+        "finding": "Finalrelease2026-10-11T03-31-25-954Z: initial decoded bytes3,174,656→1,994,299 (37.18%, one complete check/phase); throughSearch20/20 medians3,181,659→2,028,323 (36.25%). Scripts belong to actual artifacts. Do not generalize this to every affected route."
+      },
+      "checks-and-isolated-release": {
+        "id": "checks-and-isolated-release",
+        "status": "current-source static/native gates passed; whole browser suite still incomplete",
+        "inspectedSources": [],
+        "finding": "Fresh full receipt2026-10-11T03-46-11-632Z matches f13ca97b/da3577;4881Vitest cases passed plus architecture/lint/typecheck/isolated-release phases. Receipt aggregatePassed=false because browser whole-suite acceptance is missing. PMS original business34 now pass; browser/route/supplemental/capacity/final reconciliation still live."
+      },
+      "environment-and-scope": {
+        "id": "environment-and-scope",
+        "status": "final public Home/POS and repeated health verified; retained incidents remain",
+        "inspectedSources": [],
+        "finding": "03:55:39UTC local/publicdev/privateprodHTTP200,PG5432 ready; pinned detachedlauncher8368/worker8390 survive. NativeHomeSearch works after closing separateChrome advice; POS normalreloadHoldingOwner/opening0. Owned3102empty. No staging/production change."
+      }
+    },
+    "runtimeFingerprint": "ac53b636bb8e08700a3bace57c442d1ab211fc299e8110c21de2ba9ba2afd48f",
+    "verificationFingerprint": "4690053d9c623dac5dd654126c19ed6b148b7ac969fd1948be8f0d599496c095",
+    "ownSourceDirectRecheckedUTC": "2026-10-11T12:55:19.981523+00:00",
+    "latestReleaseMetadataId": "2026-10-11T12-03-17-729Z",
+    "latestReleaseMetadataSource": "ac53b636bb8e08700a3bace57c442d1ab211fc299e8110c21de2ba9ba2afd48f",
+    "wholeArtifactInventoryNotVerified": true,
+    "currentFullTerminalReceiptAbsent": true,
+    "goalComplete": false,
+    "newRequirements": "Actual cross-property reset, portal dirty context confirmation, and same-property refreshed-version fence must accompany any draft supplement."
+  },
+  "supersededF13TopLevelCandidateMetadata": {
+    "currentRelease": "2026-10-11T03-31-25-954Z",
+    "latestRuntimeCandidate": {
+      "release": "2026-10-11T03-31-25-954Z",
+      "sourceFingerprint": "f13ca97b1401ea244ae616242fcc873b16308d6dce04298c68dfa41918a484f7",
+      "typecheck": "pass",
+      "isolatedBuild": "pass",
+      "pairedMeasurement": "completed controlled release Home20/20 and API400/400 each; baseline399 valid/current400 valid",
+      "checkpointEvidence": "2026-10-11-performance-pos-shift-draft.json"
+    },
+    "nextBoundedRuntimeCandidate": {
+      "mainApplied": false,
+      "patch": ".scratch/dev/optimization-pos-qr-lazy.patch",
+      "preparationReceipt": ".scratch/dev/optimization-pos-qr-lazy-prepared.json",
+      "reason": "defer QR library until payment canvas mounts; fence stale async imports",
+      "pending": "shared f13 source freeze release plus actual checks/bundle/render acceptance"
+    },
+    "externalAcceptanceRequirements": [
+      {
+        "requirement": "Front PMS/POS normal sign-in authorization",
+        "destinations": [
+          "https://dev-pms.jesadakorn.com",
+          "https://dev-pos.jesadakorn.com"
+        ],
+        "status": "explicit human authorization received; both normal sign-ins completed"
+      },
+      {
+        "requirement": "Shared public3100 measurement-window coordination",
+        "status": "Human authorization persists. Current full68539/68552 on ac53/4690 owns source/browser/optional workloads until terminal. Reserved sequence: existing PMS ac53 gates → root performance window → PMS upgrade/final aligned-source acceptance. PMS owner agreed; full owner acknowledgment pending."
+      },
+      {
+        "requirement": "Native computer access",
+        "status": "Human reported unlocked and browser reconnected; previous actual Chrome/native read-only transport worked. No new unlock/login question pending. Current native affected-page checks are held by shared full-run lane, so tool reconnection and full UI acceptance are not reconfirmed in this turn."
+      }
+    ]
+  },
+  "currentCandidateMetadataRolledForwardUTC": "2026-10-11T13:00:26.484093+00:00",
+  "expenseLegacyNativeParityCoverageCorrection": {
+    "checkedUTC": "2026-10-11T13:07:23.681855+00:00",
+    "previousRequirement": {
+      "id": "expense-batch-facts",
+      "status": "implemented; bounded native parity/query evidence retained",
+      "inspectedSources": [
+        "src/server/modules/people_payroll/adapters/expense-batch-facts.ts"
+      ],
+      "finding": "Prior 14 PostgreSQL/61 unit cases and original-reader parity; same claimant 1 to12 drafts stays at5 queries. This is not latency evidence."
+    },
+    "scopedEvidence": "Existing14 integration covers workflow2 native parity6roles, revocation, employment/date and12draft query budget. Legacy lifecycle/initializationorder have unit evidence; direct native mixed-version batch parity not yet shown.",
+    "preparedRegression": {
+      "preparedOnly": true,
+      "testSourceApplied": false,
+      "nativeOrCompilerRun": false,
+      "checkedUTC": "2026-10-11T13:06:22.041006+00:00",
+      "testFile": "tests/expense-v2.test.ts",
+      "preimageSHA256": "69f7a1a6a8c3c76b155f00610819cb6fed1a8827ee9780524f139c46c275375d",
+      "candidateSHA256": "5e8da26a799d2beabd26644b37abc8fc1c9e54bbc05ffc908a6da19b1f708c30",
+      "patchSHA256": "a9894230f5089f9e9f6662474c01a64a8d2ca106d8837ee156210d0464f0fa61",
+      "newNativeCases": 2,
+      "coverage": [
+        "Mixed workflow1/2 draft/in-review/approved rows across6 existing roles",
+        "Both batch-first and original-first on fresh owned fixtures",
+        "Native blocked legacy approval initialization before batch snapshot",
+        "Exact row values, identities and counts against original reader",
+        "Revoked assignment parity",
+        "Native original/batch Expense contribution to actual Work projection: exact item/queue/action output and total/todo/waiting/completed counts across6roles"
+      ],
+      "limits": [
+        "Expense contribution to Work is tested; other-source/full cached HTTP aggregate parity still belongs to the controlled API cohort.",
+        "Not a250/251 cardinality or query-budget proof",
+        "Native fixture behavior and semantic compilation remain untested until lane release"
+      ],
+      "runtimeFingerprintUnaffectedExceptExistingHelperDependencies": true,
+      "verificationFingerprintChangesIfApplied": true,
+      "guardedCandidateVerificationFingerprintsMustBeRecomputedAfterActualTestApply": true,
+      "updatedUTC": "2026-10-11T13:10:32.014542+00:00",
+      "syntaxParsedFiles": 1,
+      "patchDryRunPassed": true,
+      "testSourceStillUnchanged": true,
+      "original14NativeParityScope": "First two cases seed workflow2 via current saveExpense; unit cases attest legacy lifecycle and initialization order, not native mixed workflow1/2 batch parity.",
+      "existing193PassingAuditRetained": true,
+      "supersededPreparedPatchWithoutWorkProjectionAssertions": "6c27a7f0f1dd186316a3331e6d280a6b4acd6282770efb8191ee47b7c3b62e7a",
+      "currentTestSourceSHA256": "69f7a1a6a8c3c76b155f00610819cb6fed1a8827ee9780524f139c46c275375d"
+    },
+    "wholeWorkCountStillRequiresProjectionComparison": true,
+    "goalComplete": false,
+    "expenseWorkContributionParityPrepared": true,
+    "expenseWorkContributionParityNativeAccepted": false
+  },
+  "currentVerificationBoundaryAfterOwnerTestCorrection": {
+    "checkedUTC": "2026-10-11T13:41:49.350461+00:00",
+    "runtime": "ac53b636bb8e08700a3bace57c442d1ab211fc299e8110c21de2ba9ba2afd48f",
+    "verification": "43f06a3ad90960fe29d45381921c7d31cd392ed919c01eec29260e52e1ebdaf9",
+    "testOnlyOwnerCorrection": true,
+    "priorStaticAndNativeEvidenceRemainHistorical4690Assertions": true,
+    "narrowCurrent43fCasePassed": false,
+    "originalBusinessAssertionsUnchanged": true,
+    "actualPostSplitGatesRequired": true
+  },
+  "subsequentOwnerQualityReadinessVerificationBoundary": {
+    "checkedUTC": "2026-10-11T13:45:23.810097+00:00",
+    "runtime": "ac53b636bb8e08700a3bace57c442d1ab211fc299e8110c21de2ba9ba2afd48f",
+    "verification": "2b5548f6a40109638ade47957d999315dcfe0579627aa5879abc537632f257ce",
+    "originalBusinessAssertionsAndTimeoutRetained": true,
+    "narrowCaseProofPending": false,
+    "prepared43fIdentitiesAreDatedObservationNotCurrentAcceptedMeasurementIdentity": true,
+    "originalOneDesktopCasePassed": true,
+    "fullProofPending": true
+  },
+  "preparedConservativeReadinessMeasurement": {
+    "checkedUTC": "2026-10-11T14:15:14.043336+00:00",
+    "evidence": "2026-10-11-performance-active-screen-preparation.json",
+    "ignoredPreparation": ".scratch/dev/optimization-readiness-interval-preparation.json",
+    "preparedOnly": true,
+    "nativeTimingOrThirtyPercentAcceptance": false,
+    "priorUpperBoundCohortNotRelabeled": true
+  },
+  "currentFullInterruptedBoundary": {
+    "checkedUTC": "2026-10-11T14:51:37.272028+00:00",
+    "evidence": "2026-10-11-performance-active-screen-preparation.json",
+    "actualRunnerMissing": true,
+    "aggregateReceiptMissing": true,
+    "fullOwnerExplicitWorkloadRelease": true,
+    "remainingPmsCleanupAndExistingGatesPending": true,
+    "goalComplete": false,
+    "ownedCleanupCompleteAndPmsGatesActuallyLive": true,
+    "pmsGateHandles": [
+      "30104",
+      "30131"
+    ],
+    "existingPmsGatesAggregatePending": true,
+    "ownedInterruptedFullCleanupComplete": true,
+    "compoundPendingFieldClarification": "Interrupted-full owned cleanup is complete; existing PMS gates and their own final cleanup/handoff remain pending."
+  },
+  "latestDirectAvailability": {
+    "checkedUTC": "2026-10-11T15:12:31.553655+00:00",
+    "localDev": {
+      "status": 200,
+      "seconds": 0.134725
+    },
+    "publicDev": {
+      "status": 200,
+      "seconds": 0.164221,
+      "url": "https://console-dev-erpx.jesadakorn.com/api/health"
+    },
+    "privateProduction": {
+      "status": 200,
+      "seconds": 0.004392
+    },
+    "pg5432Accepting": true,
+    "devListenerPID": 58571,
+    "devListenerCwd": "/Users/fluke/Desktop/Work/erpx",
+    "detachedLauncherPID": 8368,
+    "detachedLauncherPPID": 1,
+    "affectedPublicUiAcceptanceStillPending": true,
+    "stagingAccessed": false
+  },
+  "actual41AndExpense2AppliedChecksPending": {
+    "appliedAtUTC": "2026-10-11T16:10:18.070909+00:00",
+    "before": {
+      "runtime": "ac53b636bb8e08700a3bace57c442d1ab211fc299e8110c21de2ba9ba2afd48f",
+      "verification": "2b5548f6a40109638ade47957d999315dcfe0579627aa5879abc537632f257ce"
+    },
+    "after": {
+      "runtime": "c553ba5f185547ce70750adad13cb7b865d1132625c5b6f557b3231780d89a84",
+      "verification": "c68d995055a083a7988b48ebcab7b79fe892e81b7d57f0bb2d1a8793ea1fefb3"
+    },
+    "appFileCount": 41,
+    "addedExpenseNativeCases": 2,
+    "expenseOriginalCasesPreserved": true,
+    "draftSupplementApplied": false,
+    "propertySupplementApplied": false,
+    "compilerLintNativeBuildUiMeasurementPending": true,
+    "wholePlanAccepted": false
+  },
+  "actualPostApplicationChecks20261011": {
+    "recordedUTC": "2026-10-11T16:41:11.163672+00:00",
+    "source": {
+      "observedUTC": "2026-10-11T16:25:39.053Z",
+      "runtime": "065f44bd120c4445fd959a011356cda60b10eba9e58344388b80726486a8c8ed",
+      "verification": "eecc30c8d014703091e5fe17fd38cd802aa97f7932f712716ee0039b3cdaf357"
+    },
+    "ownedSplitLintWarningsRemoved": true,
+    "typecheckExit": 0,
+    "lintExit": 0,
+    "lintWarnings": 3,
+    "lintWarningsPreExisting": true,
+    "architectureExit": 0,
+    "isolatedReleaseBuildExit": 0,
+    "releaseId": "2026-10-11T16-25-38-656Z",
+    "nativeRegression": {
+      "unitPassed": 180,
+      "otherIntegrationPassed": 8,
+      "expensePassed": 16,
+      "selectedCases": 204,
+      "initialNewLegacyCasesFailed": 2,
+      "repairedOnlyMissingLegacyFixtureFact": true,
+      "originalAssertionsPreserved": true,
+      "firstRunLog": ".scratch/dev/optimization-actual-41-2026-10-11T16-10-17Z/focused-regression.log",
+      "expenseRerunLog": ".scratch/dev/optimization-actual-41-2026-10-11T16-10-17Z/expense-legacy-fixture-regression.log"
+    },
+    "draftRetention": {
+      "nativeLossReproduced": true,
+      "appliedFiles": 3,
+      "afterReopenRetained": true,
+      "closedDialogAndFieldHidden": true,
+      "roleSwitchCancelGuardObserved": true,
+      "propertyResetSupplementApplied": false,
+      "onlyOnePropertyExposed": true,
+      "before": ".scratch/dev/optimization-actual-41-2026-10-11T16-10-17Z/draft-before.json",
+      "after": ".scratch/dev/optimization-actual-41-2026-10-11T16-10-17Z/draft-after.json"
+    },
+    "drawerBackForwardAndReload": ".scratch/dev/optimization-actual-41-2026-10-11T16-10-17Z/pms-entry-deeplink.json",
+    "publicDevBrowser20": {
+      "receipt": ".scratch/dev/optimization-actual-41-2026-10-11T16-10-17Z/home-dev-20.json",
+      "rounds": 20,
+      "valid": 20,
+      "sourceAndProcessStable": true,
+      "beforeAfterComparisonComplete": false
+    },
+    "devHeapOomAnd502Preserved": ".scratch/dev/optimization-actual-41-2026-10-11T16-10-17Z/dev-oom-restart.json",
+    "devRestored": true,
+    "wholePlanAccepted": false,
+    "performanceWindowReleased": false
+  },
+  "actualMeasurements20261011": {
+    "recordedUTC": "2026-10-11T17:22:57.081373+00:00",
+    "historicalSource": "065f44bd120c4445fd959a011356cda60b10eba9e58344388b80726486a8c8ed",
+    "verification": "eecc30c8d014703091e5fe17fd38cd802aa97f7932f712716ee0039b3cdaf357",
+    "apiCohorts": [
+      {
+        "receipt": ".scratch/dev/http-benchmark-2026-10-11T16-28-47-368Z/evidence.json",
+        "label": "after-41-draft-dev",
+        "measured": 400,
+        "failed": 0,
+        "sourceStable": true,
+        "processStable": true
+      },
+      {
+        "receipt": ".scratch/dev/http-benchmark-2026-10-11T16-45-16-549Z/evidence.json",
+        "label": "before-original-release",
+        "measured": 400,
+        "failed": 0,
+        "sourceStable": true,
+        "processStable": true
+      },
+      {
+        "receipt": ".scratch/dev/http-benchmark-2026-10-11T16-47-08-990Z/evidence.json",
+        "label": "after-41-draft-release",
+        "measured": 400,
+        "failed": 0,
+        "sourceStable": true,
+        "processStable": true
+      },
+      {
+        "receipt": ".scratch/dev/http-benchmark-2026-10-11T17-12-24-059Z/evidence.json",
+        "label": "before-41-direct-release",
+        "measured": 400,
+        "failed": 0,
+        "sourceStable": true,
+        "processStable": true
+      },
+      {
+        "receipt": ".scratch/dev/http-benchmark-2026-10-11T17-18-59-784Z/evidence.json",
+        "label": "after-41-direct-release",
+        "measured": 400,
+        "failed": 0,
+        "sourceStable": true,
+        "processStable": true
+      }
+    ],
+    "browserReleaseComparison": ".scratch/dev/optimization-actual-41-2026-10-11T16-10-17Z/home-all-release-comparison.json",
+    "directApiComparison": ".scratch/dev/optimization-actual-41-2026-10-11T16-10-17Z/api-direct-release-comparison.json",
+    "originalApiComparison": ".scratch/dev/optimization-actual-41-2026-10-11T16-10-17Z/api-release-comparison.json",
+    "uiPopupRegression": {
+      "passed": 2,
+      "receipt": ".scratch/dev/test-suites/browser/2026-10-11T16-49-05-309Z/receipt.json",
+      "receiptSHA256": "953cec6da1ae1e3db8c52c467366ad0d149242316988bca500b8d1d2c7190d79",
+      "exactOwnedCleanupAudit": ".scratch/dev/optimization-actual-41-2026-10-11T16-10-17Z/ui-popup-cleanup-audit.json"
+    },
+    "sourceEditLaneReleasedToPMS": true,
+    "runtimeAndVerificationLanesRemainRootExclusive": false,
+    "devTemporarilyCompiledWhileOfflinePeerEdits": true,
+    "normalBrowserLoginAfterUnlockSucceeded": true,
+    "consolePOSPilotGate": "Coming Soon; no feature rollout or auth bypass performed",
+    "wholePlanAccepted": false,
+    "readiness30PercentTargetMet": false,
+    "p95NonRegressionMet": false,
+    "oomStabilityResolved": false,
+    "subsequentOwnership": {
+      "recordedUTC": "2026-10-11T17:56:42.915675+00:00",
+      "targetedNativeAndCompiler": "PMS peer until explicit return; original measurements remain historical",
+      "nativeBrowserAnd3100Services": "root",
+      "broadJointGates": "deferred until peers source complete and lease return",
+      "devRestored": {
+        "launcherPid": 66205,
+        "listenerPid": 66221,
+        "initialHealth": 200,
+        "finalAvailabilityRecheckPending": true
+      }
+    }
+  },
+  "actualNativeFunctionalChecks20261012": {
+    "recordedUTC": "2026-10-11T17:56:42.915675+00:00",
+    "historicalServingSource": "065f44bd120c4445fd959a011356cda60b10eba9e58344388b80726486a8c8ed",
+    "currentMainSourceHasSubsequentPeerEdits": true,
+    "polling": {
+      "pms-live-polling-observation.json": {
+        "receipt": ".scratch/dev/optimization-actual-41-2026-10-11T16-10-17Z/pms-live-polling-observation.json",
+        "truncated": false,
+        "requests": [
+          {
+            "path": "/api/v1/front/acme/acme-co/pms/roles",
+            "count": 1,
+            "intervalsSeconds": [],
+            "statuses": [
+              200
+            ],
+            "durationsMs": [
+              119.525
+            ],
+            "overlapObserved": false
+          },
+          {
+            "path": "/api/v1/account/time-preference",
+            "count": 1,
+            "intervalsSeconds": [],
+            "statuses": [
+              200
+            ],
+            "durationsMs": [
+              117.722
+            ],
+            "overlapObserved": false
+          },
+          {
+            "path": "/api/v1/front/acme/acme-co/pms",
+            "count": 11,
+            "intervalsSeconds": [
+              7.970993,
+              8.038212,
+              7.999979,
+              7.978733,
+              8.022037,
+              8.000509,
+              7.956363,
+              8.018671,
+              8.023889,
+              7.959106
+            ],
+            "statuses": [
+              200,
+              200,
+              200,
+              200,
+              200,
+              200,
+              200,
+              200,
+              200,
+              200,
+              200
+            ],
+            "durationsMs": [
+              174.167,
+              184.96,
+              216.645,
+              180.965,
+              104.653,
+              191.032,
+              183.938,
+              139.971,
+              133.085,
+              162.487,
+              188.781
+            ],
+            "overlapObserved": false
+          }
+        ]
+      },
+      "pos-live-polling-observation.json": {
+        "receipt": ".scratch/dev/optimization-actual-41-2026-10-11T16-10-17Z/pos-live-polling-observation.json",
+        "truncated": false,
+        "requests": [
+          {
+            "path": "/api/v1/front/acme/acme-co/pos/roles",
+            "count": 1,
+            "intervalsSeconds": [],
+            "statuses": [
+              200
+            ],
+            "durationsMs": [
+              143.625
+            ],
+            "overlapObserved": false
+          },
+          {
+            "path": "/api/v1/account/time-preference",
+            "count": 1,
+            "intervalsSeconds": [],
+            "statuses": [
+              200
+            ],
+            "durationsMs": [
+              71.283
+            ],
+            "overlapObserved": false
+          },
+          {
+            "path": "/api/v1/front/acme/acme-co/pos",
+            "count": 4,
+            "intervalsSeconds": [
+              4.967134,
+              4.973907,
+              5.083415
+            ],
+            "statuses": [
+              200,
+              200,
+              200,
+              200
+            ],
+            "durationsMs": [
+              135.217,
+              113.433,
+              146.48,
+              213.947
+            ],
+            "overlapObserved": false
+          }
+        ]
+      }
+    },
+    "posHistory": {
+      "receipt": ".scratch/dev/optimization-actual-41-2026-10-11T16-10-17Z/pos-history-passive-observation.json",
+      "passiveWindowSeconds": 49,
+      "nativeFreshTabHistoryTransitionVerified": true,
+      "requestsObserved": 0,
+      "receiptBusinessRows": 0,
+      "receiptDetailVerified": false
+    },
+    "draftRoleScope": {
+      "cancelRetainsDirtyDraftVerified": true,
+      "acceptedRoleSwitchWithDirtyDraftVerified": false,
+      "blockingCondition": "Synchronous browser selectOption pauses at native window.confirm; CDP tool deadline interrupts attempt. Native accept was not confirmed; optimistic dropdown alone is not server role evidence. No application defect inferred.",
+      "normalCleanHoldingOwnerRestored": true,
+      "ownedDirtyDraftTabActuallyClosedViaNativeChrome": true,
+      "financialSubmissionPerformed": false
+    },
+    "propertyScope": {
+      "publicPropertiesObserved": [
+        "Teest"
+      ],
+      "twoPropertyResetVerified": false,
+      "preparedResetPatchApplied": false
+    },
+    "hiddenPollingNativeVerified": false,
+    "staleResponseNativeVerified": false,
+    "rootCreatedReadOnlyTabsClosedConfirmed": true,
+    "wholePlanAccepted": false
+  },
+  "subsequentSchemaFreeHelperExtraction": {
+    "recordedUTC": "2026-10-11T18:01:52.879127+00:00",
+    "applied": true,
+    "preparedManifest": ".scratch/dev/optimization-schema-free-helpers-prepared/manifest.json",
+    "observedHistoricalZodChunkDecodedBytes": 374823,
+    "dependenciesFound": [
+      "console-ui-utilities -> workplace-controls -> workplace-navigation -> people-lifecycle -> zod",
+      "SocialHome -> SocialPost -> SocialTextBody -> public/rules/social-text -> domain/social-text -> zod"
+    ],
+    "change": "Separate schema-free IAM route and social text token helpers, preserve all legacy function/type/schema exports and validation.",
+    "unitTypecheckLintArchitectureReleaseChecks": "Unit/typechecks/lint/architecture passed; isolated release pending lease",
+    "bundleReductionClaimed": false,
+    "checks": {
+      "receipt": ".scratch/dev/optimization-schema-free-helpers-prepared/verification-receipt.json",
+      "runtime": "3dbd49dbc2704b660405537fd2152af581a08cbfb5122a849a38490ec92703b2",
+      "verification": "132d7788945ad1134a84c650b966afcd135237f90127b1ea91e6e6f0ab886bb4",
+      "sourceStable": true,
+      "existingHelperTests": {
+        "passed": 66,
+        "failed": 0,
+        "pending": 0
+      },
+      "bothTypechecksExit": 0,
+      "ownedESLintExit": 0,
+      "fullLintExit": 0,
+      "fullLintPreexistingWarnings": 3,
+      "architectureExit": 0,
+      "exactLegacyEdges": 0
+    },
+    "isolatedRelease": {
+      "path": ".runtime/releases/2026-10-11T18-10-35-193Z",
+      "buildExit": 0,
+      "runtime": "3dbd49dbc2704b660405537fd2152af581a08cbfb5122a849a38490ec92703b2",
+      "datedVerification": "132d7788945ad1134a84c650b966afcd135237f90127b1ea91e6e6f0ab886bb4",
+      "fileManifestSha256": "e97e4ed477d7aeb9768891aa423ba8914f21873563e250bd9c0253086e50cfa3",
+      "wholePhysicalInventoryVerified": true,
+      "verifiedPaths": 17543,
+      "proof": ".scratch/dev/optimization-schema-free-helpers-prepared/release-audit.json",
+      "initialManifestParserPilotRetained": ".scratch/dev/optimization-schema-free-helpers-prepared/release-audit-manifest-parser-pilot.json",
+      "zodStillReferenced": true,
+      "conservativeManifestBytesBefore": 1554540,
+      "conservativeManifestBytesAfter": 1541594,
+      "manifestBytesAreNotInitialBrowserBytes": true,
+      "bundleImprovementAcceptance": false
+    }
+  },
+  "devFunctionalAvailability20261012": {
+    "recordedUTC": "2026-10-11T18:01:52.879347+00:00",
+    "launcherPid": 66205,
+    "listenerPid": 66221,
+    "detachedLauncherPPID": 1,
+    "mode": "development with evolving main, not historical sealed065f",
+    "publicHomeNormalSignInSucceeded": true,
+    "homeSearchDialogNativeOpenCloseVerified": true,
+    "screenshot": ".scratch/dev/optimization-actual-41-2026-10-11T16-10-17Z/current-dev-home-search.png",
+    "localHealth": 200,
+    "publicHealthBunFetch": 200,
+    "privateProductionHealth": 200,
+    "pythonUrllibPublicHealth": 403,
+    "pythonUrllib403Scope": "Transport-specific; same public health Bun fetch and authenticated browser succeeded. No access protections bypassed.",
+    "devOOMResolved": false,
+    "wholePlanAccepted": false
+  },
+  "readinessPhaseAttribution20261012": {
+    "receipt": ".scratch/dev/optimization-actual-41-2026-10-11T16-10-17Z/home-readiness-phase-attribution.json",
+    "interpretation": "Most observed upper-bound change predates first script discovery; cannot attribute it to hydration or identify a server/network cause without separate timing. Readiness30% and p95 remain unaccepted."
+  },
+  "subsequentFeatureEnvironmentPreparation": {
+    "recordedUTC": "2026-10-11T18:18:20.390498+00:00",
+    "preparedManifest": ".scratch/dev/optimization-feature-environment-prepared/manifest.json",
+    "mainApplied": true,
+    "actualRemainingPath": "Layout -> FeatureEnvironment in feature-page.tsx -> page-layouts.ts Zod schemas and layout-editor",
+    "change": "Separate exact feature navigation context/productionPageCut provider from editable widget page module; preserve legacy exports and same context object.",
+    "pending": "Supplemental desktop/mobile property and drawer UI passed. Exact-owned fixture cleanup, final combined source freeze, whole lint/architecture, and comparable browser/API measurements remain pending.",
+    "appliedUTC": "2026-10-11T18:23:45.731551+00:00",
+    "appliedReceipt": ".scratch/dev/optimization-feature-environment-prepared/applied-receipt.json",
+    "exactBodyPreservationAudit": ".scratch/dev/optimization-feature-environment-prepared/body-preservation-read-audit.json",
+    "checksAndRelease": "Fresh layout/page-cut/typecheck/owned ESLint checks passed; fresh isolated release succeeded and complete physical inventory hashes passed. Initial browser bytes and controls readiness remain unaccepted.",
+    "publicHomeFunctionalReceipt": ".scratch/dev/optimization-feature-environment-prepared/public-home-functional-receipt.json",
+    "freshTargetedChecks": {
+      "recordedUTC": "2026-10-11T18:38:52.759726+00:00",
+      "pageLayouts": {
+        "path": ".scratch/dev/pms-business-upgrade-group/provider-context-regression.json",
+        "passed": 13,
+        "failed": 0,
+        "pending": 0
+      },
+      "pageCut": {
+        "path": ".scratch/dev/pms-business-upgrade-group/provider-page-cut.json",
+        "passed": 2,
+        "failed": 0,
+        "pending": 0
+      },
+      "driver": ".scratch/dev/pms-business-upgrade-group/run-provider-context.ts",
+      "bothTypechecksExit": 0,
+      "ownedESLintExit": 0,
+      "terminalResultReportedByAuthorizedPMSPeer": true,
+      "independentRawTestJSONCountsRead": true,
+      "finalSourceBindingPending": true,
+      "bundleReductionClaimed": false
+    },
+    "lastPreparedFileSHARead": {
+      "recordedUTC": "2026-10-11T18:38:52.759837+00:00",
+      "allThreeMatch": true
+    },
+    "isolatedRelease": {
+      "path": ".runtime/releases/2026-10-11T18-36-55-007Z",
+      "runtime": "3a37b659e33ade4e14864e102fb595748fd89715b67e1c82cb18cf09e8e41fb8",
+      "verification": "6f8e7c3a025171cc81c8e55d486ec7fdd43263118b724be7d991adc7a926edb5",
+      "fileManifestSha256": "39ba9d706b5bbfcd08f5cff3b8b84eda98e5036414713bdcb199cef54eb62b7b",
+      "sourceStable": true,
+      "buildSucceededReportedByAuthorizedPMSPeer": true,
+      "wholePhysicalInventoryVerified": true,
+      "manifestEntries": 17589,
+      "verifiedFilePaths": 17591,
+      "physicalFiles": 17455,
+      "inventoryReceipt": ".scratch/dev/optimization-feature-environment-prepared/release-inventory-receipt.json",
+      "staticHomeAudit": ".scratch/dev/optimization-feature-environment-prepared/home-release-audit-2026-10-11T18-36-55-007Z-observed-summary.json",
+      "conservativeManifestUnionBytes": 1542209,
+      "referenceChecks": [
+        {
+          "name": "[project]/src/components/features/feature-environment.tsx",
+          "referencesZodChunk": false
+        },
+        {
+          "name": "[project]/src/components/workplace/console-ui-utilities.tsx",
+          "referencesZodChunk": false
+        },
+        {
+          "name": "[project]/src/components/beta/social-home.tsx",
+          "referencesZodChunk": false
+        },
+        {
+          "name": "[project]/src/components/features/feature-page.tsx",
+          "referencesZodChunk": true
+        }
+      ],
+      "zodRemainsInInactiveFeaturePageReference": true,
+      "browserBytesGateAccepted": false,
+      "readinessGateAccepted": false,
+      "finalAcceptanceCandidate": false,
+      "datedPrePropertyFixDiagnostic": true,
+      "rawStaticAuditRetentionLimitation": "Summary persisted from actual 18:39 tool output; not a new measurement. Original raw named JSON was overwritten by 18:51 audit; subsequent raw proofs now use exclusive release-specific names. No actual browser byte or readiness acceptance."
+    },
+    "actualPropertyDraftFinding": {
+      "reportedUTC": "2026-10-11T18:45:56.074319+00:00",
+      "reportedByAuthorizedPMSPeer": true,
+      "behavior": "Unsaved shift name and opening float from Property A remain visible after switching to Property B",
+      "propertyResetRequired": true,
+      "samePropertyRefreshMustRetainDraft": true,
+      "preparedRootSupplement": ".scratch/dev/optimization-pms-property-reset-prepared/",
+      "rootSupplementApplied": true,
+      "peerOwnsFix": true,
+      "nativeBrowserReceiptPending": true,
+      "appliedByAuthorizedPMSPeer": true,
+      "actualAppliedMatchesPreparedBytes": true,
+      "actualAppliedSHA256": "0c06eee71b20cecceba8855b56a32a55f4950c5f7b971d72ab53258f57c2fb99",
+      "rootReadRawRED": ".scratch/dev/pms-business-upgrade-group/ui-draft-before-visible.json",
+      "rootViewedRawREDScreenshot": ".scratch/dev/pms-business-upgrade-group/ui-draft-property-B.png",
+      "afterCompiledUIStillPending": false,
+      "afterCompiledDesktopUI": {
+        "path": ".scratch/dev/pms-business-upgrade-group/ui-diagnostic-desktop-after.json",
+        "runtime": "dd24b6cedc106cc88cc22638527082c67f63c8aeaf49ac8ab8470454de9e04af",
+        "release": {
+          "id": "2026-10-11T18-47-43-849Z",
+          "fileManifestSha256": "f906aa29be1401afb2aa89440e56562abfbb0e0f7d01fd3347e2bec2e44eff23"
+        },
+        "complete": true,
+        "samePropertyRefreshDraftRetained": true,
+        "staleDraftCommandHTTP": 409,
+        "staleDraftCommandCode": "PMS_VERSION_CONFLICT",
+        "staleCommandNoCommit": true,
+        "crossPropertyShiftName": "",
+        "crossPropertyOpeningFloat": "0",
+        "actualUpgradeRightDrawerWidth": 800,
+        "mobilePending": false
+      },
+      "mobileIncompleteObservation": {
+        "path": ".scratch/dev/pms-business-upgrade-group/ui-mobile-interrupted-driver.json",
+        "complete": false,
+        "errorClass": "Target page/context/browser closed",
+        "applicationRegressionInferred": false,
+        "retryAndFinalReceiptPending": true,
+        "supersededByCompletedRetry": true
+      },
+      "afterCompiledMobileUI": {
+        "path": ".scratch/dev/pms-business-upgrade-group/ui-diagnostic-mobile-after.json",
+        "runtime": "dd24b6cedc106cc88cc22638527082c67f63c8aeaf49ac8ab8470454de9e04af",
+        "release": {
+          "id": "2026-10-11T18-47-43-849Z",
+          "fileManifestSha256": "f906aa29be1401afb2aa89440e56562abfbb0e0f7d01fd3347e2bec2e44eff23"
+        },
+        "complete": true,
+        "samePropertyRefreshDraftRetained": true,
+        "staleDraftCommandHTTP": 409,
+        "staleDraftCommandCode": "PMS_VERSION_CONFLICT",
+        "staleCommandNoCommit": true,
+        "crossPropertyShiftName": "",
+        "crossPropertyOpeningFloat": "0",
+        "drawerBounds": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 844
+        },
+        "rootViewedViewportScreenshot": ".scratch/dev/pms-business-upgrade-group/ui-upgrade-mobile-viewport.png"
+      }
+    },
+    "postPropertyFixStaticHomeAudit": {
+      "path": ".scratch/dev/optimization-feature-environment-prepared/home-release-audit-2026-10-11T18-47-43-849Z.json",
+      "runtime": "dd24b6cedc106cc88cc22638527082c67f63c8aeaf49ac8ab8470454de9e04af",
+      "verification": "b43d94354c9f5e611853eb4f8ab1a199ca1d3de8cbb6194d0a5d56b18dba14ff",
+      "fileManifestSha256": "f906aa29be1401afb2aa89440e56562abfbb0e0f7d01fd3347e2bec2e44eff23",
+      "sourceStable": true,
+      "wholeInventoryPending": false,
+      "actualUIAndPerformancePending": true,
+      "wholeInventoryReceipt": ".scratch/dev/optimization-feature-environment-prepared/release-inventory-receipt-2026-10-11T18-47-43-849Z.json",
+      "verifiedFilePaths": 17591
+    }
+  },
+  "availabilityObservation20261012T1837": {
+    "localDevHealth": 200,
+    "publicDevHealth": 200,
+    "privateProductionHealth": 200,
+    "publicURL": "https://console-dev-erpx.jesadakorn.com/",
+    "transport": "Pinned Bun fetch with TLS verification enabled",
+    "devListenerPID": 66221,
+    "detachedLauncherPID": 66205,
+    "detachedLauncherParent": 1,
+    "workingDirectory": "/Users/fluke/Desktop/Work/erpx",
+    "postgres5432": "accepting connections",
+    "proofScope": "Dated availability observation, no uptime or OOM-resolution guarantee"
+  },
+  "nativeMacBlockerRevalidated20261012": {
+    "recordedUTC": "2026-10-11T19:09:25.493900+00:00",
+    "nativeTool": "cua.getApp Google Chrome",
+    "observation": "Mac remains locked; automatic unlock unavailable",
+    "existingUnlockQuestionPending": true,
+    "POSVerificationTabRetained": true,
+    "browserMeasurementsStillPending": true,
+    "independentCodeAndAPIWorkAvailable": true,
+    "goalBlocked": false
+  }
+}

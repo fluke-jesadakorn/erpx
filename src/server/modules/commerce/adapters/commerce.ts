@@ -1,3 +1,5 @@
+import { financeTransaction } from "../../finance/public/finance-transactions";
+import { ensureCustomerReceipt } from "../../finance/public/sales";
 import { commerceFinalOwnerProjectionSources as filesProjectionSources } from "../../files/public/commerce-final-owner-projection-sources";
 import { commerceFinalOwnerProjectionSources as procurementProjectionSources } from "../../procurement/public/commerce-final-owner-projection-sources";
 import { commerceFinalOwnerProjectionSources as recordsProjectionSources } from "../../records/public/commerce-final-owner-projection-sources";
@@ -56,6 +58,8 @@ async function commercePages(write: SqlDatabase, actor: WorkContext, query: {
     edit?: string;
     request?: string;
     status?: string;
+    startDate?: string;
+    endDate?: string;
 }) {
     const s = { sql: 'o.company_id=? AND (?::text IS NULL OR o.branch_id=?) AND (?::text IS NULL OR o.department_id=?)', args: [actor.companyId, actor.branchId, actor.branchId, actor.departmentId, actor.departmentId] };
     const search = query.q ?? '', branchArgs = [actor.companyId, actor.branchId, actor.branchId];
@@ -67,7 +71,7 @@ async function commercePages(write: SqlDatabase, actor: WorkContext, query: {
         descending?: boolean;
     }> = {
         orders: { sql: `SELECT o.*,p.name party_name,o.created_at::text page_key FROM commerce_orders o ${commerceFinancePageSources.orderPartyJoin}
-      WHERE ${s.sql} AND o.kind=? AND (?='' OR strpos(lower(o.number||' '||p.name||' '||o.state),lower(?))>0) AND (?='' OR o.state=?)`, args: [...s.args, query.view, search, search, query.status ?? '', query.status ?? ''], descending: true },
+      WHERE ${s.sql} AND o.kind=? AND (?='' OR strpos(lower(o.number||' '||p.name||' '||o.state),lower(?))>0) AND (?='' OR o.state=?) AND (?='' OR o.order_date>=?) AND (?='' OR o.order_date<=?)`, args: [...s.args, query.view, search, search, query.status ?? '', query.status ?? '', query.startDate ?? '', query.startDate ?? '', query.endDate ?? '', query.endDate ?? ''], descending: true },
         products: { sql: 'SELECT *,sku AS page_key FROM commerce_products WHERE company_id=?', args: [actor.companyId] },
         parties: commerceFinancePageSources.parties(actor.companyId, partyKind),
         warehouses: { sql: 'SELECT *,name AS page_key FROM commerce_warehouses WHERE company_id=? AND (?::text IS NULL OR branch_id=?)', args: branchArgs },
@@ -78,13 +82,18 @@ async function commercePages(write: SqlDatabase, actor: WorkContext, query: {
         readListPage<Row & {
             id: string;
             page_key: string;
-        }>(write, { ...lists[list], cursor: query.cursor, scope: [actor.companyId, actor.branchId, list, query.view, ...(list === 'parties' ? [partyKind] : []), search, ...(query.status ? [query.status] : [])] }),
+        }>(write, { ...lists[list], cursor: query.cursor, scope: [actor.companyId, actor.branchId, list, query.view, ...(list === 'parties' ? [partyKind] : []), search, ...(query.status ? [query.status] : []), query.startDate ?? '', query.endDate ?? ''] }),
         query.view === 'stock' ? readListPage<Row & {
             id: string;
             page_key: string;
         }>(write, commerceInventoryPageSources.movements(branchArgs, query.movementCursor, [actor.companyId, actor.branchId, 'movements'])) : null,
     ]);
     return { page, movementPage };
+}
+/** Sales lists do not require posting setup; preparing documents still does. */
+export async function commerceSalesDocuments(actor: WorkContext, query: { view: "sales" | "quote"; q?: string; status?: string; startDate?: string; endDate?: string; cursor?: string }) {
+    requirePermission(actor, "commerce.read");
+    return (await commercePages((await holdingResources(actor.holdingId)).write, actor, query)).page;
 }
 function unit(db: SqlDatabase): CommerceUnit<SqlStatement> {
     return {
@@ -111,7 +120,7 @@ function unit(db: SqlDatabase): CommerceUnit<SqlStatement> {
         readCommerceFulfillments1: facts => commerceFinanceJoinedFacts(db).readCommerceFulfillments1(facts),
         readCommerceReturnLines1: (facts: {
             id: string;
-        }) => db.prepare("SELECT fl.*,ol.product_id,ol.description,p.sku,COALESCE((SELECT SUM(rl.quantity_milli) FROM commerce_return_lines rl JOIN commerce_returns r ON r.id=rl.return_id WHERE rl.fulfillment_line_id=fl.id AND r.status!='rejected'),0) returned_milli FROM commerce_fulfillment_lines fl JOIN commerce_order_lines ol ON ol.id=fl.order_line_id JOIN commerce_products p ON p.id=ol.product_id JOIN commerce_fulfillments f ON f.id=fl.fulfillment_id WHERE f.order_id=? ORDER BY f.created_at,ol.ordinal").bind(facts.id).all<Row>(),
+        }) => db.prepare("SELECT fl.*,ol.product_id,ol.item_type,ol.description,p.sku,COALESCE((SELECT SUM(rl.quantity_milli) FROM commerce_return_lines rl JOIN commerce_returns r ON r.id=rl.return_id WHERE rl.fulfillment_line_id=fl.id AND r.status!='rejected'),0) returned_milli FROM commerce_fulfillment_lines fl JOIN commerce_order_lines ol ON ol.id=fl.order_line_id JOIN commerce_products p ON p.id=ol.product_id JOIN commerce_fulfillments f ON f.id=fl.fulfillment_id WHERE f.order_id=? ORDER BY f.created_at,ol.ordinal").bind(facts.id).all<Row>(),
         readCommerceReturns1: facts => commerceFinanceJoinedFacts(db).readCommerceReturns1(facts),
         readHrPeople1: (facts: {
             id: string;
@@ -149,7 +158,7 @@ function unit(db: SqlDatabase): CommerceUnit<SqlStatement> {
         readCommerceFulfillmentLines1: (facts: {
             lineId: string;
             fulfillmentId: string;
-        }) => db.prepare("SELECT fl.*,ol.product_id,p.tracking_mode FROM commerce_fulfillment_lines fl JOIN commerce_order_lines ol ON ol.id=fl.order_line_id JOIN commerce_products p ON p.id=ol.product_id WHERE fl.id=? AND fl.fulfillment_id=?").bind(facts.lineId, facts.fulfillmentId).first<Row>(),
+        }) => db.prepare("SELECT fl.*,ol.product_id,ol.item_type,p.tracking_mode FROM commerce_fulfillment_lines fl JOIN commerce_order_lines ol ON ol.id=fl.order_line_id JOIN commerce_products p ON p.id=ol.product_id WHERE fl.id=? AND fl.fulfillment_id=?").bind(facts.lineId, facts.fulfillmentId).first<Row>(),
         readProcurementBillMatchLines1: facts => CommerceProcurementFacts(db).readProcurementBillMatchLines1(facts),
         readCommerceReturnLines2: (facts: {
             id: string | number | null;
@@ -227,7 +236,7 @@ function unit(db: SqlDatabase): CommerceUnit<SqlStatement> {
         readFinanceJournalLines1: facts => CommerceFinanceFacts(db).readFinanceJournalLines1(facts),
         readCommerceReturnLines3: (facts: {
             returnId: string;
-        }) => db.prepare("SELECT * FROM commerce_return_lines WHERE return_id=? ORDER BY ordinal").bind(facts.returnId).all<Row>(),
+        }) => db.prepare("SELECT rl.*,ol.item_type FROM commerce_return_lines rl JOIN commerce_fulfillment_lines fl ON fl.id=rl.fulfillment_line_id JOIN commerce_order_lines ol ON ol.id=fl.order_line_id WHERE rl.return_id=? ORDER BY rl.ordinal").bind(facts.returnId).all<Row>(),
         readProcurementBillMatches1: facts => CommerceProcurementFacts(db).readProcurementBillMatches1(facts),
         prepareCommerceReturns3: (facts: {
             returnId: string;
@@ -261,7 +270,7 @@ function unit(db: SqlDatabase): CommerceUnit<SqlStatement> {
         prepareInventoryLotMoves1: facts => CommerceInventoryFacts(db).prepareInventoryLotMoves1(facts),
         prepareCommerceReturns4: (facts: {
             userId: string;
-            stockJournal: string;
+            stockJournal: string | null;
             creditJournal: string;
             baseCreditMinor: number;
             fact4: string | null;
@@ -304,7 +313,7 @@ function unit(db: SqlDatabase): CommerceUnit<SqlStatement> {
         }) => db.prepare("SELECT * FROM commerce_products WHERE id=? AND company_id=? AND status='active'").bind(facts.productId, facts.companyId).first<Row>(),
         prepareCommerceOrders2: (facts: {
             partyId: string;
-            warehouseId: string;
+            warehouseId: string | null;
             branch_id: string | number | null;
             orderDate: string;
             dueDate: string;
@@ -329,7 +338,7 @@ function unit(db: SqlDatabase): CommerceUnit<SqlStatement> {
             kind: "sales" | "purchase" | "quote";
             fact5: string;
             partyId: string;
-            warehouseId: string;
+            warehouseId: string | null;
             currency: string | number | null;
             orderDate: string;
             dueDate: string;
@@ -343,7 +352,7 @@ function unit(db: SqlDatabase): CommerceUnit<SqlStatement> {
             userId: string;
             now: number;
             now2: number;
-        }) => db.prepare("INSERT INTO commerce_orders(id,company_id,branch_id,department_id,kind,number,party_id,warehouse_id,currency,order_date,due_date,note,subtotal_minor,tax_minor,price_list_id,price_list_version,discount_reason,discount_approval_required,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(facts.record, facts.companyId, facts.branch_id, facts.departmentId, facts.kind, facts.fact5, facts.partyId, facts.warehouseId, facts.currency, facts.orderDate, facts.dueDate, facts.note, facts.subtotal, facts.tax, facts.fact14, facts.fact15, facts.fact16, facts.fact17, facts.userId, facts.now, facts.now2),
+        }) => db.prepare("INSERT INTO commerce_orders(id,company_id,branch_id,department_id,kind,number,party_id,warehouse_id,currency,order_date,due_date,note,subtotal_minor,tax_minor,price_list_id,price_list_version,discount_reason,discount_approval_required,created_by,created_at,updated_at) VALUES(?,?,?,?,?,CASE WHEN ?='quote' THEN erpx_sales_document_number(?,'QT',?) ELSE ? END,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(facts.record, facts.companyId, facts.branch_id, facts.departmentId, facts.kind, facts.kind, facts.companyId, facts.orderDate, facts.fact5, facts.partyId, facts.warehouseId, facts.currency, facts.orderDate, facts.dueDate, facts.note, facts.subtotal, facts.tax, facts.fact14, facts.fact15, facts.fact16, facts.fact17, facts.userId, facts.now, facts.now2),
         prepareCommerceOrderLines2: (facts: {
             id: string;
             record: string;
@@ -357,7 +366,8 @@ function unit(db: SqlDatabase): CommerceUnit<SqlStatement> {
             index: number;
             listPrice: number;
             discountBps: number;
-        }) => db.prepare("INSERT INTO commerce_order_lines(id,order_id,product_id,description,quantity_milli,price_minor,tax_bps,subtotal_minor,tax_minor,ordinal,list_price_minor,discount_bps) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)").bind(facts.id, facts.record, facts.productId, facts.name, facts.qty, facts.price, facts.taxBps, facts.subtotal, facts.tax, facts.index, facts.listPrice, facts.discountBps),
+            itemType: "stock" | "service";
+        }) => db.prepare("INSERT INTO commerce_order_lines(id,order_id,product_id,description,quantity_milli,price_minor,tax_bps,subtotal_minor,tax_minor,ordinal,list_price_minor,discount_bps,item_type) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(facts.id, facts.record, facts.productId, facts.name, facts.qty, facts.price, facts.taxBps, facts.subtotal, facts.tax, facts.index, facts.listPrice, facts.discountBps, facts.itemType),
         readCommerceFulfillments4: (facts: {
             id: string;
         }) => db.prepare("SELECT id FROM commerce_fulfillments WHERE order_id=? LIMIT 1").bind(facts.id).first(),
@@ -387,7 +397,7 @@ function unit(db: SqlDatabase): CommerceUnit<SqlStatement> {
             salesId: string;
             salesId2: string;
             id: string;
-        }) => db.prepare("INSERT INTO commerce_order_lines(id,order_id,product_id,description,quantity_milli,price_minor,tax_bps,subtotal_minor,tax_minor,ordinal,list_price_minor,discount_bps) SELECT ?||'-'||ordinal,?,product_id,description,quantity_milli,price_minor,tax_bps,subtotal_minor,tax_minor,ordinal,list_price_minor,discount_bps FROM commerce_order_lines WHERE order_id=?").bind(facts.salesId, facts.salesId2, facts.id),
+        }) => db.prepare("INSERT INTO commerce_order_lines(id,order_id,product_id,description,quantity_milli,price_minor,tax_bps,subtotal_minor,tax_minor,ordinal,list_price_minor,discount_bps,item_type) SELECT ?||'-'||ordinal,?,product_id,description,quantity_milli,price_minor,tax_bps,subtotal_minor,tax_minor,ordinal,list_price_minor,discount_bps,item_type FROM commerce_order_lines WHERE order_id=?").bind(facts.salesId, facts.salesId2, facts.id),
         prepareFinanceJournals1: facts => CommerceFinanceFacts(db).prepareFinanceJournals1(facts),
         prepareFinanceJournalLines1: facts => CommerceFinanceFacts(db).prepareFinanceJournalLines1(facts),
         readAttachments2: facts => CommerceFilesFacts(db).readAttachments2(facts),
@@ -399,7 +409,8 @@ function unit(db: SqlDatabase): CommerceUnit<SqlStatement> {
             userId: string;
             fact5: number;
             fact6: string | null;
-        }) => db.prepare("INSERT INTO commerce_fulfillments(id,order_id,number,fulfillment_date,created_by,created_at,evidence_note) VALUES(?,?,?,?,?,?,?)").bind(facts.fulfillment, facts.id, facts.fact2, facts.date, facts.userId, facts.fact5, facts.fact6),
+            completionMode: "goods" | "service" | "mixed";
+        }) => db.prepare("INSERT INTO commerce_fulfillments(id,order_id,number,fulfillment_date,created_by,created_at,evidence_note,completion_kind,completion_note) VALUES(?,?,?,?,?,?,?,?,?)").bind(facts.fulfillment, facts.id, facts.fact2, facts.date, facts.userId, facts.fact5, facts.fact6, facts.completionMode, facts.fact6 ?? ""),
         readCommerceOrderLines2: (facts: {
             lineId: string;
             id: string;
@@ -524,11 +535,12 @@ function unit(db: SqlDatabase): CommerceUnit<SqlStatement> {
             name: string;
             unit: string;
             trackingMode: "none" | "serial" | "lot";
+            itemType: "stock" | "service";
             fact4: number;
             taxBps: number;
             status: "active" | "archived";
             id: string;
-        }) => db.prepare("UPDATE commerce_products SET sku=?,name=?,unit=?,tracking_mode=?,price_minor=?,tax_bps=?,status=?,version=version+1 WHERE id=?").bind(facts.sku, facts.name, facts.unit, facts.trackingMode, facts.fact4, facts.taxBps, facts.status, facts.id),
+        }) => db.prepare("UPDATE commerce_products SET sku=?,name=?,unit=?,tracking_mode=?,item_type=?,price_minor=?,tax_bps=?,status=?,version=version+1 WHERE id=?").bind(facts.sku, facts.name, facts.unit, facts.trackingMode, facts.itemType, facts.fact4, facts.taxBps, facts.status, facts.id),
         prepareCommerceProducts2: (facts: {
             record: string;
             companyId: string;
@@ -536,10 +548,11 @@ function unit(db: SqlDatabase): CommerceUnit<SqlStatement> {
             name: string;
             unit: string;
             trackingMode: "none" | "serial" | "lot";
+            itemType: "stock" | "service";
             fact6: number;
             taxBps: number;
             status: "active" | "archived";
-        }) => db.prepare("INSERT INTO commerce_products(id,company_id,sku,name,unit,tracking_mode,price_minor,tax_bps,status) VALUES(?,?,?,?,?,?,?,?,?)").bind(facts.record, facts.companyId, facts.sku, facts.name, facts.unit, facts.trackingMode, facts.fact6, facts.taxBps, facts.status),
+        }) => db.prepare("INSERT INTO commerce_products(id,company_id,sku,name,unit,tracking_mode,item_type,price_minor,tax_bps,status) VALUES(?,?,?,?,?,?,?,?,?,?)").bind(facts.record, facts.companyId, facts.sku, facts.name, facts.unit, facts.trackingMode, facts.itemType, facts.fact6, facts.taxBps, facts.status),
         prepareFinanceParties2: facts => CommerceFinanceFacts(db).prepareFinanceParties2(facts),
         prepareFinanceParties3: facts => CommerceFinanceFacts(db).prepareFinanceParties3(facts),
         prepareCommerceWarehouses1: (facts: {
@@ -877,7 +890,8 @@ function unit(db: SqlDatabase): CommerceUnit<SqlStatement> {
         pages: (actor, query) => commercePages(db, actor, query)
     };
 }
-const application = createCommerceApplication<SqlStatement>({ clock: { now: () => Date.now() }, require: requirePermission, error: (status, code, message) => new ApiError(status, code, message), hash: sha256, forActor: async (actor) => unit((await holdingResources(actor.holdingId)).write), forContext: async () => { throw new Error("No registry context for this service"); }, attachmentReadable: attachmentsV2Readable, returnCompletionValues });
+function applicationFor(owner?: SqlDatabase) { return createCommerceApplication<SqlStatement>({ clock: { now: () => Date.now() }, require: requirePermission, error: (status, code, message) => new ApiError(status, code, message), hash: sha256, forActor: async (actor) => unit(owner ?? (await holdingResources(actor.holdingId)).write), forContext: async () => { throw new Error("No registry context for this service"); }, attachmentReadable: attachmentsV2Readable, returnCompletionValues }); }
+const application = applicationFor();
 export function commerceOverview(actor: WorkContext) { return application.commerceOverview(actor); }
 export function workOrderRows(actor: WorkContext, provided?: SqlDatabase) { return application.workOrderRows(actor, provided ? unit(provided) : undefined); }
 export function getOrder(actor: WorkContext, id: string, ownerWrite?: SqlDatabase) { return application.getOrder(actor, id, ownerWrite ? unit(ownerWrite) : undefined); }
@@ -887,11 +901,17 @@ export function decideCommerceReturn(actor: WorkContext, returnId: string, actio
 export function completeCommerceReturn(actor: WorkContext, returnId: string, input: z.infer<typeof returnCompleteSchema>, key: string) { return application.completeCommerceReturn(actor, returnId, input, key); }
 export function saveOrder(actor: WorkContext, id: string | null, input: z.infer<typeof orderSchema>, key: string, ownerWrite?: SqlDatabase) { return application.saveOrder(actor, id, input, key, ownerWrite ? unit(ownerWrite) : undefined); }
 export function transitionOrder(actor: WorkContext, id: string, input: z.infer<typeof transitionSchema>, key: string, ownerWrite?: SqlDatabase) { return application.transitionOrder(actor, id, input, key, ownerWrite ? unit(ownerWrite) : undefined); }
-export function fulfillOrder(actor: WorkContext, id: string, input: z.input<typeof fulfillmentSchema>, key: string) { return application.fulfillOrder(actor, id, input, key); }
-export function invoiceFulfillment(actor: WorkContext, fulfillmentId: string, input: z.infer<typeof invoiceFromDeliverySchema>, key: string) { return application.invoiceFulfillment(actor, fulfillmentId, input, key); }
-export function settleInvoice(actor: WorkContext, invoiceId: string, input: z.input<typeof settlementSchema>, key: string) { return application.settleInvoice(actor, invoiceId, input, key); }
+export function fulfillOrder(actor: WorkContext, id: string, input: z.input<typeof fulfillmentSchema>, key: string) { return holdingResources(actor.holdingId).then(({write}) => financeTransaction(write, tx => applicationFor(tx).fulfillOrder(actor, id, input, key))); }
+export function invoiceFulfillment(actor: WorkContext, fulfillmentId: string, input: z.infer<typeof invoiceFromDeliverySchema>, key: string) { return holdingResources(actor.holdingId).then(({write}) => financeTransaction(write, tx => applicationFor(tx).invoiceFulfillment(actor, fulfillmentId, input, key))); }
+export function settleInvoice(actor: WorkContext, invoiceId: string, input: z.input<typeof settlementSchema>, key: string) { return holdingResources(actor.holdingId).then(({write}) => financeTransaction(write, async tx => { const result = await applicationFor(tx).settleInvoice(actor, invoiceId, input, key); await ensureCustomerReceipt(tx, actor, result.paymentId); return result; })); }
 export function prepareInvoiceSettlement(write: SqlDatabase, actor: WorkContext, invoice: Row, expense: Row | null, input: z.infer<typeof settlementSchema>, key: string) { return application.prepareInvoiceSettlement(unit(write), actor, invoice, expense, input, key); }
-export function saveMaster(actor: WorkContext, kind: "products" | "parties" | "warehouses", id: string | null, input: unknown, key: string) { return application.saveMaster(actor, kind, id, input, key); }
+export async function saveMaster(actor: WorkContext, kind: "products" | "parties" | "warehouses", id: string | null, input: unknown, key: string) {
+    try { return await application.saveMaster(actor, kind, id, input, key); }
+    catch (error) {
+        if (error instanceof Error && error.message.includes("ITEM_TYPE_LOCKED")) throw new ApiError(409, "ITEM_TYPE_LOCKED", "This item has document or stock history. Create a new catalogue item to use a different type.");
+        throw error;
+    }
+}
 export function commercePage(actor: WorkContext, query: {
     view: string;
     kind?: string;
@@ -902,4 +922,6 @@ export function commercePage(actor: WorkContext, query: {
     edit?: string;
     request?: string;
     status?: string;
+    startDate?: string;
+    endDate?: string;
 }) { return application.commercePage(actor, query); }

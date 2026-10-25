@@ -5,7 +5,7 @@ import { notFound } from "next/navigation";
 import { requireWorkContext, publicScope } from "@/server/modules/identity_access/public/authorization";
 import { workspaceBase } from "@/lib/workspace";
 import { departmentOverrideDetail } from "@/server/modules/organization/public/department-decisions";
-import { DepartmentOverrideDecision } from "@/components/modules/department-override-decision";
+import { DepartmentOverrideDecision } from "@/components/records/loaders/modules--department-override-decision";
 import { OperationSummary } from "@/components/workplace/operation-summary";
 import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { PageContent, Card } from "@/components/ui/foundation";

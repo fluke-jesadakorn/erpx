@@ -1,0 +1,844 @@
+{
+  "runtime": "61d02a05665bdec4bc25a5b25cb9af9b40140960da76ed51b0228f9a37652581",
+  "scope": "File pass counts plus required-cases reporter enforcement; per-case JSON output was not requested for this run",
+  "selectedFiles": 133,
+  "totalPassingFileCounts": 1339,
+  "requiredReporter": "scripts/testing/required-cases-reporter.ts",
+  "files": [
+    {
+      "file": "tests/unit/pms-provider-fixture.test.ts",
+      "passingFileCount": 7,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/unit/request-memo.test.ts",
+      "passingFileCount": 6,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/unit/database-pool-policy.test.ts",
+      "passingFileCount": 9,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/unit/investor-report.test.ts",
+      "passingFileCount": 4,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/acceptance-evidence.test.ts",
+      "passingFileCount": 4,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/attachment-client.test.ts",
+      "passingFileCount": 5,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/attachment-crm-atomic-guard.test.ts",
+      "passingFileCount": 5,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/attachment-feature-context.test.tsx",
+      "passingFileCount": 9,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/attachment-formats.test.ts",
+      "passingFileCount": 8,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/attachment-gate-contract.test.ts",
+      "passingFileCount": 5,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/attachment-ops-health.test.ts",
+      "passingFileCount": 6,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/attachment-reconciliation-adjudication.test.ts",
+      "passingFileCount": 4,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/attachment-state.test.ts",
+      "passingFileCount": 8,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/attachment-withdraw-route.test.ts",
+      "passingFileCount": 1,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/attachments-v2.test.ts",
+      "passingFileCount": 29,
+      "registeredTitles": [
+        "canonical attachment lifecycle deletes canonical expired bytes through the owning max-one pool and records a retry exactly once",
+        "canonical attachment lifecycle keeps Minio fallback and remote deletion under one owning transaction with local-first retry",
+        "canonical attachment lifecycle preserves active Legal and orphan guards inside an owning cleanup transaction",
+        "canonical attachment lifecycle rejects foreign plain session and expired cleanup transactions without changing bytes or receipts"
+      ]
+    },
+    {
+      "file": "tests/business-commands.test.ts",
+      "passingFileCount": 4,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/business-readiness.test.ts",
+      "passingFileCount": 2,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/business-time.test.ts",
+      "passingFileCount": 3,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/calendar-api.test.ts",
+      "passingFileCount": 1,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/calendar-recurrence.test.ts",
+      "passingFileCount": 2,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/calendar-timeline.test.ts",
+      "passingFileCount": 5,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/calendar.test.ts",
+      "passingFileCount": 22,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/capability-delivery.test.ts",
+      "passingFileCount": 4,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/capability-gate-reviews.test.ts",
+      "passingFileCount": 1,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/cloudflare-bindings.test.ts",
+      "passingFileCount": 2,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/command-composition.test.ts",
+      "passingFileCount": 3,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/daily-plan.test.ts",
+      "passingFileCount": 4,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/engineering-completion.test.ts",
+      "passingFileCount": 6,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/engineering-gate-evidence.test.ts",
+      "passingFileCount": 4,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/engineering-inventory-report.test.ts",
+      "passingFileCount": 8,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/engineering-migration-upgrade.test.ts",
+      "passingFileCount": 1,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/engineering-performance.test.ts",
+      "passingFileCount": 3,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/engineering-platform-access.test.ts",
+      "passingFileCount": 4,
+      "registeredTitles": [
+        "prepares only the disposable ERPX realm for the existing Platform identity and retains normal owner authority",
+        "refuses a connector result returned for stale configuration and records provider failure without activating it",
+        "registers, tests, independently activates and disables a Platform connector while preserving current configuration and fixture evidence",
+        "reviews temporary Platform grants independently and refuses current reads, mutations and replay immediately after expiry or revocation"
+      ]
+    },
+    {
+      "file": "tests/engineering-recovery.test.ts",
+      "passingFileCount": 1,
+      "registeredTitles": [
+        "encrypts a complete isolated snapshot, restores immutable money and files, and rolls back only compatible releases"
+      ]
+    },
+    {
+      "file": "tests/engineering-service-hospitality-attachments.test.ts",
+      "passingFileCount": 30,
+      "registeredTitles": [
+        "Service and hospitality File Sources owner intake proves authorized intake scan binding reload and revocation for employee_request/fulfillment/action",
+        "Service and hospitality File Sources owner intake proves authorized intake scan binding reload and revocation for employee_request/fulfillment/record",
+        "Service and hospitality File Sources owner intake proves authorized intake scan binding reload and revocation for employee_request/it_request_evidence/action",
+        "Service and hospitality File Sources owner intake proves authorized intake scan binding reload and revocation for employee_request/it_request_evidence/record",
+        "Service and hospitality File Sources owner intake proves authorized intake scan binding reload and revocation for employee_request/request_evidence/action",
+        "Service and hospitality File Sources owner intake proves authorized intake scan binding reload and revocation for employee_request/request_evidence/record",
+        "Service and hospitality File Sources owner intake proves authorized intake scan binding reload and revocation for expense_claim/merchant_receipt/record",
+        "Service and hospitality File Sources owner intake proves authorized intake scan binding reload and revocation for expense_claim/receipt/record",
+        "Service and hospitality File Sources owner intake proves authorized intake scan binding reload and revocation for expense_claim/supporting_document/record",
+        "Service and hospitality File Sources owner intake proves authorized intake scan binding reload and revocation for expense_payment/payment_slip/action",
+        "Service and hospitality File Sources owner intake proves authorized intake scan binding reload and revocation for invoice_payment/payment_slip/action",
+        "Service and hospitality File Sources owner intake proves authorized intake scan binding reload and revocation for leave_request/leave_supporting_photo/action",
+        "Service and hospitality File Sources owner intake proves authorized intake scan binding reload and revocation for leave_request/leave_supporting_photo/record",
+        "Service and hospitality File Sources owner intake proves authorized intake scan binding reload and revocation for leave_request/medical_certificate/action",
+        "Service and hospitality File Sources owner intake proves authorized intake scan binding reload and revocation for leave_request/medical_certificate/record",
+        "Service and hospitality File Sources owner intake proves authorized intake scan binding reload and revocation for pms_guest/consent/record",
+        "Service and hospitality File Sources owner intake proves authorized intake scan binding reload and revocation for pms_guest/identity_document/record",
+        "Service and hospitality File Sources owner intake proves authorized intake scan binding reload and revocation for pms_lost_property/handover_evidence/action",
+        "Service and hospitality File Sources owner intake proves authorized intake scan binding reload and revocation for pms_lost_property/lost_property_photo/action",
+        "Service and hospitality File Sources owner intake proves authorized intake scan binding reload and revocation for pms_lost_property/lost_property_photo/record",
+        "Service and hospitality File Sources owner intake proves authorized intake scan binding reload and revocation for pms_property/ota_reconciliation/action",
+        "Service and hospitality File Sources owner intake proves authorized intake scan binding reload and revocation for pms_reservation/voucher/record",
+        "Service and hospitality File Sources owner intake proves authorized intake scan binding reload and revocation for pms_stay/signed_registration/record",
+        "Service and hospitality File Sources owner intake proves authorized intake scan binding reload and revocation for pms_stay/transfer_slip/record",
+        "Service and hospitality File Sources owner intake proves authorized intake scan binding reload and revocation for pms_task/damage_photo/action",
+        "Service and hospitality File Sources owner intake proves authorized intake scan binding reload and revocation for pms_task/room_photo/action",
+        "Service and hospitality File Sources owner intake proves authorized intake scan binding reload and revocation for pos_refund/refund_evidence/action",
+        "Service and hospitality File Sources owner intake proves authorized intake scan binding reload and revocation for pos_sale/void_evidence/action",
+        "Service and hospitality File Sources owner intake proves authorized intake scan binding reload and revocation for pos_shift/cash_variance/action",
+        "Service and hospitality File Sources owner intake proves authorized intake scan binding reload and revocation for staff_task/task_evidence/action"
+      ]
+    },
+    {
+      "file": "tests/engineering-stock-continuity.test.ts",
+      "passingFileCount": 1,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/engineering-verification.test.ts",
+      "passingFileCount": 11,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/executive-canvas.test.ts",
+      "passingFileCount": 68,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/executive-mcp.test.ts",
+      "passingFileCount": 16,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/feature-widget-registry.test.ts",
+      "passingFileCount": 2,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/file-orphan-preservation.test.ts",
+      "passingFileCount": 3,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/flow-routing.test.ts",
+      "passingFileCount": 15,
+      "registeredTitles": [
+        "cancels an approved order independently but requires a return after stock moved",
+        "enforces a versioned customer credit limit when sales approval creates exposure"
+      ]
+    },
+    {
+      "file": "tests/general-company-demo.test.ts",
+      "passingFileCount": 1,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/guided-intake.test.ts",
+      "passingFileCount": 9,
+      "registeredTitles": [
+        "enforces the independently approved Agent prompt and source policy for reviewed field proposals",
+        "rejects a field proposal when approved Agent governance changes while its provider is working"
+      ]
+    },
+    {
+      "file": "tests/hospitality-grid.test.ts",
+      "passingFileCount": 4,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/hospitality-page-cut.test.ts",
+      "passingFileCount": 2,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/inbox-source-coverage.test.ts",
+      "passingFileCount": 1,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/inbox.test.ts",
+      "passingFileCount": 5,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/list-page.test.ts",
+      "passingFileCount": 2,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/local-file-streams.test.ts",
+      "passingFileCount": 2,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/local-shortcuts.test.ts",
+      "passingFileCount": 4,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/native-proxy.test.ts",
+      "passingFileCount": 10,
+      "registeredTitles": [
+        "preserves live routes, prefix lookalikes and records APIs while rejecting only retired UI destination segments",
+        "returns an early 404 for retired UI destinations across Platform and every Holding scope without redirects or rewrites"
+      ]
+    },
+    {
+      "file": "tests/native-runtime.test.ts",
+      "passingFileCount": 7,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/navigation-counts.test.ts",
+      "passingFileCount": 2,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/page-error.test.ts",
+      "passingFileCount": 22,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/page-layouts.test.ts",
+      "passingFileCount": 13,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/pms-booking.test.ts",
+      "passingFileCount": 37,
+      "registeredTitles": [
+        "atomically confirms and queues email without creating money entries",
+        "deduplicates signed booking payment callbacks through durable jobs and rejects tampered payloads",
+        "recovers a partial booking refund after the provider accepts it but its response is lost",
+        "serializes staff and guest bookings for the last room"
+      ]
+    },
+    {
+      "file": "tests/pms-front-attachments.test.ts",
+      "passingFileCount": 2,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/pms-read-model.test.ts",
+      "passingFileCount": 18,
+      "registeredTitles": [
+        "keeps dashboard totals, readiness, guest labels and the complete legacy read while excluding history",
+        "retains fresh permission, company and branch privacy for every query model"
+      ]
+    },
+    {
+      "file": "tests/pms-reports.test.ts",
+      "passingFileCount": 6,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/pms.test.ts",
+      "passingFileCount": 81,
+      "registeredTitles": [
+        "binds room-task photos in the PMS action transaction and leaves stale evidence draft",
+        "cancels an unarrived room in a partially checked-in group and ignores stale housekeeping cycles",
+        "moves an in-house guest, extends safely and preserves room history",
+        "posts minibar and inventory cost together, rolling back insufficient stock",
+        "prepares reviewed PMS mappings once and retains independent approval and the financial freeze",
+        "requires inspected rooms and independent inspection; maintenance cannot displace guests",
+        "resumes a multi-chunk night from committed sources and serializes competing workers",
+        "separates security deposits, enforces refund independence and reverses advance VAT once",
+        "settles a pending hotel transfer only after independent exact bank evidence",
+        "settles the original opening receivable and invoices only new hotel service across two business days",
+        "splits and merges charges without repeating revenue and reverses the recipient entry once"
+      ]
+    },
+    {
+      "file": "tests/read-metrics.test.ts",
+      "passingFileCount": 8,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/read-request.test.ts",
+      "passingFileCount": 3,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/record-details.test.ts",
+      "passingFileCount": 6,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/record-drawer-routing.test.ts",
+      "passingFileCount": 5,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/release-acceptance.test.ts",
+      "passingFileCount": 7,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/request-ai.test.ts",
+      "passingFileCount": 9,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/request-draft-create.test.ts",
+      "passingFileCount": 2,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/request-experience.test.ts",
+      "passingFileCount": 4,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/routine-calendar.test.ts",
+      "passingFileCount": 3,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/routing-attention.test.ts",
+      "passingFileCount": 3,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/scoped-browser-staff.test.ts",
+      "passingFileCount": 2,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/sensitive-attachment-access.test.ts",
+      "passingFileCount": 5,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/simulation-only-adapters.test.ts",
+      "passingFileCount": 4,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/specialized-attachment-adapters.test.ts",
+      "passingFileCount": 4,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/spending-approvals.test.ts",
+      "passingFileCount": 14,
+      "registeredTitles": [
+        "filters beta approval administration before exposing non-expense business records",
+        "keeps approval administration subject to Company authority and original record access"
+      ]
+    },
+    {
+      "file": "tests/ui-format.test.ts",
+      "passingFileCount": 5,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/ui-registry.test.ts",
+      "passingFileCount": 8,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/unit/architecture-boundaries.test.ts",
+      "passingFileCount": 30,
+      "registeredTitles": [
+        "architecture enforcement keeps owner semantic arguments UI instructions and structured business errors outside the SQL guard",
+        "architecture enforcement rejects cooked SQL passed through any callable argument in presentation API and workers",
+        "architecture enforcement rejects generic SQL resource facades in presentation while allowing type-only contracts",
+        "architecture enforcement rejects native resource acquisition and bindings in non-API presentation through every import form",
+        "architecture enforcement rejects native runtime composition in components through aliases and dynamic imports",
+        "architecture enforcement resolves immutable SQL constants without leaking across nested scopes or shadowed parameters",
+        "architecture enforcement retains typed resource composition in HTTP and worker adapters without admitting their SQL",
+        "declared incomplete capabilities prevent clean owner completion",
+        "require-clean CLI rejects incomplete capability states and accepts clean controls"
+      ]
+    },
+    {
+      "file": "tests/unit/architecture-transaction.test.ts",
+      "passingFileCount": 2,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/unit/browser-results.test.ts",
+      "passingFileCount": 8,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/unit/test-selection.test.ts",
+      "passingFileCount": 65,
+      "registeredTitles": [
+        "rejects mixed run, non-owned and started ERPX realm browser targets before prerequisite writes",
+        "required native cases requires WorkCards business identities on both devices and retains only the explicit hardware sweep exclusion",
+        "test selection contracts requires the seeded Engineering Business fixture for real helper calls before browser execution",
+        "test selection contracts retains byte-exact oversized UTF-8 inventories through the pinned CLI stdout",
+        "test selection contracts retains every reviewed eligible browser identity when a nonempty suite loses or reclassifies a case",
+        "test selection contracts validates browser case order without narrowing selection or forwarding it to native execution"
+      ]
+    },
+    {
+      "file": "tests/web-push.test.ts",
+      "passingFileCount": 13,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/work-attention.test.ts",
+      "passingFileCount": 6,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/unit/navigation-streaming.test.ts",
+      "passingFileCount": 2,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/unit/navigation-snapshot.test.ts",
+      "passingFileCount": 5,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/unit/home-cache.test.ts",
+      "passingFileCount": 7,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/unit/home-lazy-loading.test.ts",
+      "passingFileCount": 2,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/work-cache.test.ts",
+      "passingFileCount": 27,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/work-card-preferences.test.ts",
+      "passingFileCount": 8,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/work-cards.test.ts",
+      "passingFileCount": 10,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/work-decision-kind.test.ts",
+      "passingFileCount": 1,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/work-fetch.test.ts",
+      "passingFileCount": 28,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/work-page.test.ts",
+      "passingFileCount": 5,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/work-read-model.test.ts",
+      "passingFileCount": 1,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/work-refresh.test.ts",
+      "passingFileCount": 3,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/work-review.test.ts",
+      "passingFileCount": 6,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/work-sources.test.ts",
+      "passingFileCount": 5,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/work-views.test.ts",
+      "passingFileCount": 6,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/workflow-projection.test.ts",
+      "passingFileCount": 5,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/workplace-catalogue.test.ts",
+      "passingFileCount": 3,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/workplace-navigation.test.ts",
+      "passingFileCount": 62,
+      "registeredTitles": [
+        "Side menu destination coverage exposes Operations through its scoped sidebar and launcher using existing manager permissions",
+        "Side menu destination coverage keeps Operations hidden without its module read permission or rollout and does not expose Projects"
+      ]
+    },
+    {
+      "file": "tests/workspace-preferences.test.ts",
+      "passingFileCount": 1,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/workspace.test.ts",
+      "passingFileCount": 5,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/unit/architecture-relocation.test.ts",
+      "passingFileCount": 2,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/unit/simulation-email.test.ts",
+      "passingFileCount": 3,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/unit/ci-regression.test.ts",
+      "passingFileCount": 18,
+      "registeredTitles": [
+        "full candidate acceptance aggregation requires same-candidate forward and reverse business coverage plus an independently cleaned declared failure on every CI shard"
+      ]
+    },
+    {
+      "file": "tests/unit/browser-prerequisites.test.ts",
+      "passingFileCount": 19,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/unit/browser-readiness.test.ts",
+      "passingFileCount": 5,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/unit/next-development-debug.test.ts",
+      "passingFileCount": 15,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/unit/pms-application.test.ts",
+      "passingFileCount": 58,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/unit/operations-services.test.ts",
+      "passingFileCount": 18,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/unit/record-services.test.ts",
+      "passingFileCount": 26,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/unit/files-application.test.ts",
+      "passingFileCount": 31,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/unit/workflow-services.test.ts",
+      "passingFileCount": 38,
+      "registeredTitles": [
+        "Approval administration owner queries administrative denial stops before reading the queue or business records",
+        "Approval administration owner queries an explicit record still reads the exact queue filter then resolves only that record",
+        "Approval administration owner queries beta kind and invalid explicit record filters stop before the queue",
+        "Approval administration owner queries beta queues exclude non-expense records before their access lookup",
+        "Approval administration owner queries inaccessible records never expose approvals and inaccessible approvals omit only their row",
+        "Approval administration owner queries queue ordering and record-first access checks preserve each destination",
+        "Approval administration owner queries unexpected record and approval faults propagate instead of returning a partial queue"
+      ]
+    },
+    {
+      "file": "tests/unit/work-calendar-services.test.ts",
+      "passingFileCount": 8,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/unit/work-services.test.ts",
+      "passingFileCount": 13,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/unit/work-ui-services.test.ts",
+      "passingFileCount": 30,
+      "registeredTitles": [
+        "denies request administration before reading request or route data",
+        "does not request configuration history for the Flow templates tab",
+        "filters inactive request routing and loads resource candidates only for blocked equipment work",
+        "keeps inaccessible Flow settings histories and readiness repositories unread",
+        "keeps single-post Home queries separate from feeds and personal schedule",
+        "prepares the Flow repository before evaluating current authority",
+        "recovers Home personal-summary failure without hiding either feed stream",
+        "resolves the document's recorded Branch before applying requested print mode",
+        "retains a specifically requested healthy routing record instead of requiring a blocker",
+        "uses only visible department ids and preserves Flow history category order"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-connection-services.test.ts",
+      "passingFileCount": 13,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/unit/case-screenshot.test.ts",
+      "passingFileCount": 7,
+      "registeredTitles": [
+        "case screenshot evidence does not attach a stale output image when the current capture fails",
+        "case screenshot evidence finishes only after the reporter has retained the screenshot attachment",
+        "case screenshot evidence isolates simultaneous cases using the same basename without writing the shared legacy path",
+        "case screenshot evidence leaves caller-owned screenshot options and nested clipping settings unchanged",
+        "case screenshot evidence never attaches evidence while the screenshot capture is still pending",
+        "case screenshot evidence propagates attachment retention failures instead of reporting captured evidence as retained",
+        "case screenshot evidence retains the original basename, capture options and exact screenshot bytes"
+      ]
+    },
+    {
+      "file": "tests/unit/work-shortcut-readiness.test.ts",
+      "passingFileCount": 11,
+      "registeredTitles": [
+        "Navigation counts without shortcuts loads counts without requiring a shortcut projection",
+        "Navigation counts without shortcuts preserves a published work count when an older refresh resolves",
+        "Navigation counts without shortcuts retains the published count after a failed refresh"
+      ]
+    },
+    {
+      "file": "tests/unit/work-shortcut-focus.test.ts",
+      "passingFileCount": 6,
+      "registeredTitles": [
+        "Work shortcut reorder focus consumes the reorder focus request once and leaves later draft edits' focus intact",
+        "Work shortcut reorder focus does not steal focus when an activated reorder control did not own focus",
+        "Work shortcut reorder focus keeps keyboard focus on the moved row's enabled down control at the top boundary",
+        "Work shortcut reorder focus keeps keyboard focus on the moved row's enabled up control at the bottom boundary",
+        "Work shortcut reorder focus retains the same enabled down control when the moved row remains inside the list",
+        "Work shortcut reorder focus retains the same enabled up control when the moved row remains inside the list"
+      ]
+    },
+    {
+      "file": "tests/unit/presentation-owner-queries.test.ts",
+      "passingFileCount": 10,
+      "registeredTitles": [
+        "Owner presentation query composition keeps Holding acquisition lazy and hides database and file capabilities",
+        "Owner presentation query composition passes the same prepared connection across People Organization and Operations reads",
+        "Owner presentation query composition preserves platform provisioning then Holding preparation then summary order without exposing resources",
+        "Owner presentation query composition projects public registration and onboarding scalars without exposing the runtime environment",
+        "Owner presentation query composition propagates resource and reader failures without converting visibility errors",
+        "Owner presentation query composition reads the saved workspace through the private Control connection with the original account identity",
+        "Owner presentation query composition removes every portal resource while retaining its actor and same-connection document read",
+        "Owner presentation query composition retains staff page data and lazy cross-owner readers without returning its write handle",
+        "Owner presentation query composition retains the IAM actor and provided native connection while hiding its database",
+        "Owner presentation query composition separates booking resource resolution from catalogue reading and preserves each error"
+      ]
+    },
+    {
+      "file": "tests/unit/browser-execution-plan.test.ts",
+      "passingFileCount": 5,
+      "registeredTitles": [
+        "rejects late fingerprint interruption while retaining completed cleanup and genuine declared-fault receipts",
+        "rejects unknown execution orders and duplicate or missing suite project selections",
+        "requires an exact declared fault probe in one registered suite project and preserves canonical case identity",
+        "reverses the complete suite project and case sequence without losing identities or mutating annotations",
+        "throws the declared harness fault only for its exact case and never for a normal acceptance case"
+      ]
+    },
+    {
+      "file": "tests/unit/browser-isolation-receipts.test.ts",
+      "passingFileCount": 7,
+      "registeredTitles": [
+        "independent browser repetition and failure restart acceptance counts business identities once while requiring a complete reverse pass after declared failure cleanup",
+        "independent browser repetition and failure restart acceptance rejects a missing repeated case even when forward acceptance passed",
+        "independent browser repetition and failure restart acceptance rejects a second forward run labelled as reverse and changed project exclusions",
+        "independent browser repetition and failure restart acceptance rejects an unexpected business failure, unexpected probe success, and an undeclared injected error",
+        "independent browser repetition and failure restart acceptance rejects candidate drift and retained cleanup failures in any experiment phase",
+        "independent browser repetition and failure restart acceptance rejects interrupted acceptance and shard provenance drift",
+        "independent browser repetition and failure restart acceptance rejects reused case data across passes and an incompletely destroyed failure cohort"
+      ]
+    },
+    {
+      "file": "tests/unit/guest-account-compat.test.ts",
+      "passingFileCount": 4,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/pms-cache-upgrade.test.ts",
+      "passingFileCount": 1,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/command-assertions.test.ts",
+      "passingFileCount": 7,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/command-assertions-upgrade.test.ts",
+      "passingFileCount": 1,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/command-receipts-partitions.test.ts",
+      "passingFileCount": 3,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/command-receipts-upgrade.test.ts",
+      "passingFileCount": 2,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/indexed-property-transactions.test.ts",
+      "passingFileCount": 2,
+      "registeredTitles": []
+    },
+    {
+      "file": "tests/pipelined-transactions.test.ts",
+      "passingFileCount": 4,
+      "registeredTitles": []
+    }
+  ],
+  "date": "2026-10-11",
+  "wholePlanComplete": false,
+  "verificationScopeNote": "The runtime and native tests were unchanged by the subsequent Playwright visible-locator correction; final browser results remain pending.",
+  "verificationOnlyExtension": {
+    "evidence": "docs/testing/evidence/2026-10-11-pms-operational-acceptance-extension.json",
+    "runtimeUnchanged": true,
+    "refreshedPmsNativeFilePassed": 84,
+    "currentCoveredCases": 1342,
+    "fullFresh1342Run": false
+  }
+}

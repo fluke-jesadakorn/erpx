@@ -253,9 +253,9 @@ type HotelOccupancyEvidenceDetail = {
   };
   queryHash: string;
 };
-type HotelFolioBalanceEvidenceDetail = {
-  provider: "pms-open-folios";
-  metric: "hotel-folio-balance";
+type HotelGuestAccountBalanceEvidenceDetail = {
+  provider: "pms-open-guestAccounts";
+  metric: "hotel-guest-account-balance";
   fields: string[];
   record: {
     id: string;
@@ -1091,7 +1091,7 @@ type ExecutiveEvidenceDetail =
   | ApprovedLeaveEvidenceDetail
   | AuthorizedOvertimeEvidenceDetail
   | HotelOccupancyEvidenceDetail
-  | HotelFolioBalanceEvidenceDetail
+  | HotelGuestAccountBalanceEvidenceDetail
   | HotelNightAuditBlockerEvidenceDetail
   | SupplierBillEvidenceDetail
   | SalesOrderEvidenceDetail
@@ -1143,7 +1143,7 @@ const evidenceMetrics = new Set<string>([
   "hotel-occupancy",
   "hotel-adr",
   "hotel-revpar",
-  "hotel-folio-balance",
+  "hotel-guest-account-balance",
   "hotel-night-audit-blockers",
   "invoice-match-exceptions",
   "sales-orders",
@@ -1302,7 +1302,7 @@ function HotelOccupancyEvidence({
         )}
       </dl>
       <p className={styles.finePrint}>
-        Night Audit version {detail.record.version} · Guest, reservation and folio fields are
+        Night Audit version {detail.record.version} · Guest, reservation and guest account fields are
         excluded.
         {Number(detail.record.invalid_revenue_count ?? "0") > 0
           ? ` ${detail.record.invalid_revenue_count} malformed room revenue value(s) were excluded.`
@@ -1319,11 +1319,11 @@ function HotelOccupancyEvidence({
     </>
   );
 }
-function HotelFolioBalanceEvidence({
+function HotelGuestAccountBalanceEvidence({
   detail,
   base,
 }: {
-  detail: HotelFolioBalanceEvidenceDetail;
+  detail: HotelGuestAccountBalanceEvidenceDetail;
   base: string;
 }) {
   return (
@@ -1334,7 +1334,7 @@ function HotelFolioBalanceEvidence({
           <dd>{detail.record.property_name}</dd>
         </div>
         <div>
-          <dt>Folio state</dt>
+          <dt>Guest Account state</dt>
           <dd>{detail.record.state}</dd>
         </div>
         <div>
@@ -1350,7 +1350,7 @@ function HotelFolioBalanceEvidence({
         </div>
       </dl>
       <p className={styles.finePrint}>
-        Folio version {detail.record.version} · Guest identity and individual folio entries are
+        Guest Account version {detail.record.version} · Guest identity and individual guest account entries are
         excluded. Only posted receivable journal lines are included. Fields read:{" "}
         {detail.fields.join(", ")} · Query {detail.queryHash.slice(0, 12)}
       </p>
@@ -1359,7 +1359,7 @@ function HotelFolioBalanceEvidence({
         className={styles.secondary}
         href={`${base}${detail.record.href}`}
       >
-        <ArrowUp size={14} /> Open PMS folio
+        <ArrowUp size={14} /> Open PMS guest account
       </UiActionLink>
     </>
   );
@@ -1393,7 +1393,7 @@ function HotelNightAuditBlockerEvidence({
       </dl>
       <p className={styles.finePrint}>
         Night Audit version {detail.record.version} · The stored error code is shown; job message
-        text and guest, reservation and folio fields are excluded. Fields read:{" "}
+        text and guest, reservation and guest account fields are excluded. Fields read:{" "}
         {detail.fields.join(", ")} · Query {detail.queryHash.slice(0, 12)}
       </p>
       <UiActionLink
@@ -4709,8 +4709,8 @@ export function ExecutiveCanvas({
                                                                                                         .number
                                                                                                     : `Overtime · ${evidenceDetail.record.work_date}`
                                                                                                   : evidenceDetail.provider ===
-                                                                                                      "pms-open-folios"
-                                                                                                    ? `${evidenceDetail.record.property_name} · Open folio`
+                                                                                                      "pms-open-guestAccounts"
+                                                                                                    ? `${evidenceDetail.record.property_name} · Open guest account`
                                                                                                     : evidenceDetail.provider ===
                                                                                                         "pms-night-audit-blockers"
                                                                                                       ? `${evidenceDetail.record.property_name} · ${evidenceDetail.record.business_date}`
@@ -4865,8 +4865,8 @@ export function ExecutiveCanvas({
                                                                                               "overdue-invoices"
                                                                                             ? "Search invoice status or service period"
                                                                                             : evidenceWidget.metric ===
-                                                                                                "hotel-folio-balance"
-                                                                                              ? "Search property, folio ID or state"
+                                                                                                "hotel-guest-account-balance"
+                                                                                              ? "Search property, guest account ID or state"
                                                                                               : evidenceWidget.metric ===
                                                                                                   "hotel-night-audit-blockers"
                                                                                                 ? "Search property, business date or error code"
@@ -4985,8 +4985,8 @@ export function ExecutiveCanvas({
                                                                                           "overdue-invoices"
                                                                                         ? "Search invoice status or service period"
                                                                                         : evidenceWidget.metric ===
-                                                                                            "hotel-folio-balance"
-                                                                                          ? "Search property, folio ID or state"
+                                                                                            "hotel-guest-account-balance"
+                                                                                          ? "Search property, guest account ID or state"
                                                                                           : evidenceWidget.metric ===
                                                                                               "hotel-night-audit-blockers"
                                                                                             ? "Search property, business date or error code"
@@ -5062,8 +5062,8 @@ export function ExecutiveCanvas({
                   ) : evidenceDetail.provider === "people-leave-overtime-requests" &&
                     evidenceDetail.metric === "authorized-overtime-duration" ? (
                     <AuthorizedOvertimeEvidence detail={evidenceDetail} base={base} />
-                  ) : evidenceDetail.provider === "pms-open-folios" ? (
-                    <HotelFolioBalanceEvidence detail={evidenceDetail} base={base} />
+                  ) : evidenceDetail.provider === "pms-open-guestAccounts" ? (
+                    <HotelGuestAccountBalanceEvidence detail={evidenceDetail} base={base} />
                   ) : evidenceDetail.provider === "pms-night-audit-blockers" ? (
                     <HotelNightAuditBlockerEvidence detail={evidenceDetail} base={base} />
                   ) : evidenceDetail.provider === "pms-night-audit" ? (

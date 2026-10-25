@@ -23,40 +23,47 @@ test.beforeEach(async ({ context, baseURL }) => {
 
 async function refreshAfterTabReturn(page: Page) {
   const response = page.waitForResponse(r => new URL(r.url()).pathname === `${api}/work/summary` && r.request().method() === "GET");
-  const other = await page.context().newPage();
-  try { await other.goto("about:blank"); await page.bringToFront(); return await response; }
-  finally { await other.close(); }
+  await expect(page.getByRole("button", { name: "New", exact: true })).toBeEnabled();
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  return await response;
 }
 
 test("WORK-001 filters survive queue changes and reload, then clear", async ({ page }, info) => {
-  await page.goto(`${base}/work`);
-  await page.getByLabel("Responsibility", { exact: true }).selectOption("requested");
-  await page.getByLabel("Work type", { exact: true }).selectOption("service_request");
+  await page.goto(`${base}/work?type=service_request`);
+  const workFilters = page.locator("#workspace-content form").filter({ has: page.getByLabel("Search work", { exact: true }) });
+  await expect(workFilters).toHaveCount(1);
+  await workFilters.getByLabel("Responsibility", { exact: true }).selectOption("requested");
+  await workFilters.getByLabel("Work type", { exact: true }).selectOption("all");
+  await expect(workFilters.getByLabel("Work type", { exact: true })).toHaveValue("all");
+  await workFilters.getByLabel("Work type", { exact: true }).selectOption("service_request");
   const search = `No such request ${randomUUID()}`;
-  await page.getByLabel("Search work", { exact: true }).fill(search);
-  await page.getByRole("button", { name: "Search", exact: true }).click();
+  await workFilters.getByLabel("Search work", { exact: true }).fill(search);
+  await workFilters.getByRole("button", { name: "Search", exact: true }).click();
   await expect(page.getByRole("region", { name: "Work results" })).toContainText("No matching work");
   if (info.project.name === "mobile") await page.getByRole("navigation", { name: "Mobile navigation", exact: true }).getByRole("link", { name: /My work/ }).click();
   const views = info.project.name === "mobile" ? page.getByRole("dialog", { name: "My work views", exact: true }) : page.locator('[aria-label="My work views"]');
-  await views.getByRole("link", { name: "Waiting", exact: true }).click();
-  await expect(page).toHaveURL(/view=waiting/);
-  await expect(page.getByLabel("Search work", { exact: true })).toHaveValue(search);
-  await expect(page.getByLabel("Work type", { exact: true })).toHaveValue("service_request");
+  await views.getByRole("link", { name: "Tracking", exact: true }).click();
+  const trackingFilters = page.getByRole("navigation", { name: "Tracking filters", exact: true });
+  await trackingFilters.getByRole("link", { name: "Waiting", exact: true }).click();
+  await expect(page).toHaveURL(url => url.searchParams.get("view") === "tracking" && url.searchParams.get("tracking") === "waiting");
+  await expect(workFilters.getByLabel("Search work", { exact: true })).toHaveValue(search);
+  await expect(workFilters.getByLabel("Work type", { exact: true })).toHaveValue("service_request");
   // A new named view resets responsibility. Refine within that view, then
   // verify the full filter set survives reload and Clear preserves Waiting.
-  await expect(page.getByLabel("Responsibility", { exact: true })).toHaveValue("all");
-  await page.getByLabel("Responsibility", { exact: true }).selectOption("requested");
-  await page.getByRole("button", { name: "Search", exact: true }).click();
+  await expect(workFilters.getByLabel("Responsibility", { exact: true })).toHaveValue("all");
+  await workFilters.getByLabel("Responsibility", { exact: true }).selectOption("requested");
+  await workFilters.getByRole("button", { name: "Search", exact: true }).click();
   await page.reload();
-  await expect(page.getByLabel("Search work", { exact: true })).toHaveValue(search);
-  await expect(page.getByLabel("Work type", { exact: true })).toHaveValue("service_request");
-  await expect(page.getByLabel("Responsibility", { exact: true })).toHaveValue("requested");
-  if (info.project.name !== "mobile") await expect(views.getByRole("link", { name: "Waiting", exact: true })).toHaveAttribute("aria-current", "page");
-  await page.getByRole("link", { name: "Clear filters", exact: true }).click();
-  await expect(page).toHaveURL(`${base}/work?view=waiting`);
-  await expect(page.getByLabel("Search work", { exact: true })).toHaveValue("");
-  await expect(page.getByLabel("Work type", { exact: true })).toHaveValue("all");
-  await expect(page.getByLabel("Responsibility", { exact: true })).toHaveValue("all");
+  await expect(workFilters).toHaveCount(1);
+  await expect(workFilters.getByLabel("Search work", { exact: true })).toHaveValue(search);
+  await expect(workFilters.getByLabel("Work type", { exact: true })).toHaveValue("service_request");
+  await expect(workFilters.getByLabel("Responsibility", { exact: true })).toHaveValue("requested");
+  await expect(trackingFilters.getByRole("link", { name: "Waiting", exact: true })).toHaveAttribute("aria-current", "page");
+  await workFilters.getByRole("link", { name: "Clear filters", exact: true }).click();
+  await expect(page).toHaveURL(`${base}/work?view=tracking&tracking=waiting`);
+  await expect(workFilters.getByLabel("Search work", { exact: true })).toHaveValue("");
+  await expect(workFilters.getByLabel("Work type", { exact: true })).toHaveValue("all");
+  await expect(workFilters.getByLabel("Responsibility", { exact: true })).toHaveValue("all");
 });
 
 for (const entry of [
@@ -98,7 +105,7 @@ test("WORK-005 failed summary refresh keeps filters and recovers through Retry w
   await page.goto(`${base}/work?${query}`);
   await expect(page.getByRole("heading", { name: "My work", exact: true })).toBeVisible();
   expect((await refreshAfterTabReturn(page)).ok()).toBe(true);
-  await expect(page.getByRole("button", { name: "Retry", exact: true })).toBeVisible();
+  await expect(page.locator("main").getByRole("button", { name: "Retry", exact: true })).toBeVisible();
   failure = true;
   expect((await refreshAfterTabReturn(page)).status()).toBe(503);
   await expect(page.getByRole("status").filter({ hasText: "E2E temporary summary failure" })).toBeVisible();
@@ -106,8 +113,8 @@ test("WORK-005 failed summary refresh keeps filters and recovers through Retry w
   await expect(page.getByRole("region", { name: "Work results" })).toBeVisible();
   await page.unroute(`**${api}/work/summary**`);
   const recovered = page.waitForResponse(r => new URL(r.url()).pathname === `${api}/work/summary` && r.status() === 200);
-  await page.getByRole("button", { name: "Retry", exact: true }).click(); await recovered;
-  await expect(page.getByRole("button", { name: "Retry", exact: true })).toHaveCount(0);
+  await page.locator("main").getByRole("button", { name: "Retry", exact: true }).click(); await recovered;
+  await expect(page.locator("main").getByRole("button", { name: "Retry", exact: true })).toHaveCount(0);
   await expect(page.getByRole("status").filter({ hasText: "E2E temporary summary failure" })).toHaveCount(0);
   await expect(page.getByLabel("Search work", { exact: true })).toHaveValue("recovery");
   await expect(page.getByLabel("Work type", { exact: true })).toHaveValue("service_request");
@@ -125,6 +132,9 @@ test("REQ-001 request draft survives reload and failed save, retries once, then 
     await page.getByRole("textbox", { name: "Title", exact: true }).fill(title);
     await page.getByRole("textbox", { name: "Describe the issue", exact: true }).fill("Development acceptance: recover a draft without submitting to a team.");
     await page.reload();
+    await page.getByRole("button", { name: "New", exact: true }).click();
+    await page.getByRole("dialog", { name: "New work" }).getByRole("link", { name: "Service request", exact: true }).click();
+    await expect(page.getByRole("dialog", { name: "Service request", exact: true })).toBeVisible();
     await expect(page.getByRole("textbox", { name: "Title", exact: true })).toHaveValue(title);
     await expect(page.getByRole("textbox", { name: "Describe the issue", exact: true })).toHaveValue("Development acceptance: recover a draft without submitting to a team.");
 

@@ -3,30 +3,30 @@ import { RecordLink as Link } from "@/components/records/record-link";
 import { AlertCircle, CheckCircle2, Info, LoaderCircle, Search, TriangleAlert } from "lucide-react";
 import {
   forwardRef,
-  type HTMLAttributes,
-  type AnchorHTMLAttributes,
   type ButtonHTMLAttributes,
   type InputHTMLAttributes,
   type ReactNode,
 } from "react";
 import { cn } from "@/lib/ui";
 import { Button } from "./button";
-import { buttonVariants, type UiButtonVariant, type UiSize } from "./button-variants";
+import { buttonVariants, type UiSize } from "./button-variants";
 import { TextInput } from "./input";
 
 import type { UiAppearance } from "./appearance";
+import type { ActionAnchorProps as ActionProps } from "./action-anchor";
 
 export { Menu, MenuTrigger, MenuContent, MenuItem, MenuSeparator, Popover, PopoverTrigger, PopoverContent, PopoverClose, Combobox, LocalTabs, TabsList, TabsTrigger, TabsPanel, Tooltip, TooltipProvider } from "./popups";
 export { PageContent, Stack, Panel, SectionHeader, FormGrid, FormLayout, FormActions, FilterBar, RecordList, RecordListItem, Badge, InlineNotice } from "./patterns";
 export type { UiAppearance } from "./appearance";
 
 export { Button } from "./button";
+export { Card, type UiDensity } from "./card";
+export { ActionAnchor } from "./action-anchor";
 export { Field } from "./field";
 export { TextInput, Select, TextArea } from "./input";
 export { Table, TableFrame } from "./table";
 export type { UiSize } from "./button-variants";
 export type UiTone = "neutral" | "brand" | "success" | "warning" | "danger" | "info";
-export type UiDensity = "compact" | "comfortable";
 
 export const IconButton = forwardRef<
   HTMLButtonElement,
@@ -62,11 +62,6 @@ export const IconButton = forwardRef<
   );
 });
 
-type ActionProps = AnchorHTMLAttributes<HTMLAnchorElement> & {
-  variant?: UiButtonVariant;
-  appearance?: UiAppearance;
-  size?: UiSize;
-};
 export function ActionLink({
   href,
   children,
@@ -88,27 +83,6 @@ export function ActionLink({
     >
       {children}
     </Link>
-  );
-}
-export function ActionAnchor({
-  children,
-  variant = "secondary",
-  appearance = "legacy",
-  size = "default",
-  className,
-  ...props
-}: ActionProps) {
-  return (
-    <a
-      data-slot="button"
-      data-size={size}
-      data-variant={variant}
-      data-appearance={appearance === "standard" ? appearance : undefined}
-      className={cn(buttonVariants({ variant, size }), appearance === "standard" && "ui-standard-control", className)}
-      {...props}
-    >
-      {children}
-    </a>
   );
 }
 
@@ -205,35 +179,6 @@ export function Alert({
   );
 }
 
-export function Card({
-  children,
-  density = "comfortable",
-  className,
-  as: Element = "section",
-  appearance = "legacy",
-  ...props
-}: HTMLAttributes<HTMLElement> & {
-  children: ReactNode;
-  density?: UiDensity;
-  appearance?: UiAppearance;
-  className?: string;
-  as?: "article" | "div" | "section";
-}) {
-  return (
-    <Element
-      {...props}
-      data-slot="card"
-      data-appearance={appearance}
-      className={cn(
-        "min-w-0 rounded-[var(--ui-radius-lg)] border border-[var(--ui-line)] bg-[var(--ui-card)]",
-        appearance === "standard" ? "ui-panel" : density === "compact" ? "p-4" : "p-4 sm:p-6",
-        className,
-      )}
-    >
-      {children}
-    </Element>
-  );
-}
 export function Toolbar({
   children,
   label = "Page actions",

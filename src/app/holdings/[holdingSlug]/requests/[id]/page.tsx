@@ -1,7 +1,7 @@
 import { recordsPresentationQueries } from "@/server/modules/records/public/presentation-queries";
 
 
-import { RecordSections } from "@/components/workplace/record-sections";
+import { RecordSections } from "@/components/records/loaders/workplace--record-sections";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
@@ -10,14 +10,8 @@ import { PageHeader } from "@/components/ui/primitives";
 import { FlowPanel,documentFlow } from "@/components/workplace/flow-panel";
 import { RecordNextAction } from "@/components/workplace/record-next-action";
 import { PurchaseRequestProgress } from "@/components/workplace/purchase-request-progress";
-import { RequestAi } from "@/components/workplace/request-ai";
-import {
-RequestActions,
-RequestEditor,
-RequestFiles,
-RequestHistory,
-RequestState,
-} from "@/components/workplace/request-controls";
+import { RequestAi } from "@/components/records/loaders/workplace--request-ai";
+import { RequestActions, RequestEditor, RequestFiles, RequestHistory, RequestState } from "@/components/records/loaders/workplace--request-controls";
 import styles from "@/components/workplace/services.module.css";
 import { approvalAdminHref } from "@/lib/administration";
 import { categoryLabel,requestKinds } from "@/lib/employee-services";

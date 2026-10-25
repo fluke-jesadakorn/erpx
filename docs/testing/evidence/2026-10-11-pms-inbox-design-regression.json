@@ -1,0 +1,25 @@
+{
+  "date": "2026-10-11",
+  "scope": "Focused shared workplace design diagnostic; not same-candidate whole PMS acceptance",
+  "complete": false,
+  "wholePlanAccepted": false,
+  "runtimeFingerprint": "ee632e029357d89d8bebe967c07871a5ba522a31b8d0975001bdb838f7603086",
+  "verificationFingerprint": "2197779cec02950b27b7376d9edf7723695d0bc02e652dff8f44473a495a512a",
+  "browserRun": "2026-10-10T17-06-40-849Z",
+  "passedCases": 18,
+  "projects": [
+    "desktop",
+    "mobile"
+  ],
+  "cleanupFailures": [],
+  "receiptSha256": "ec3a0262e9737ff9fa0abfc56883122a1cb9dc26997434322b4ec2a3cc883f0e",
+  "runtimeCorrection": "Inbox mobile-only CTA uses scoped .emptyList button.mobileStart selectors so its desktop display:none overrides the standard button selector; mobile keeps its 44px control.",
+  "fixtureCorrection": "Home attention is mocked at the current navigation source; work summary remains the source for Work. Normal read receipt, hydration, focus refresh, failure/recovery and revocation assertions remain intact.",
+  "visualInspection": "Actual 390px Dark Inbox screenshot inspected; sample fixture, normal login, no forced clicks.",
+  "remaining": [
+    "Fresh compiled release and instrumented CPU diagnostic",
+    "Strict uninstrumented capacity",
+    "Same-candidate full native/security/browser/route checks",
+    "Mock pilot final reconciliation"
+  ]
+}

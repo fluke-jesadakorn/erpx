@@ -67,6 +67,8 @@ This is an end-of-work availability requirement, not an uptime guarantee or an i
 
 Env `.env/.env.local` ignored (see `.env.example`). Legacy `.runtime/target/.cargo` not used — see `backup`. Keep `.env/node_modules/.next/out` out of Git; no secrets; no Cargo without ADR.
 
+Development browser login credentials are stored locally in ignored `.scratch/dev/credentials/console-dev.json` (mode `0600`). The user authorized saving and reusing this account for `https://console-dev-erpx.jesadakorn.com` without asking again. Use the normal sign-in flow; never print, commit, or copy these credentials to another environment.
+
 ## Structure
 
 > Map: `docs/TOC.md` (single hub).

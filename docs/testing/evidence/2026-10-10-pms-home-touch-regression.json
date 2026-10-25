@@ -1,0 +1,26 @@
+{
+  "complete": false,
+  "wholePlanAcceptance": false,
+  "status": "original keyboard/layout case passed on desktop across all six width/theme combinations; mobile project and whole acceptance pending",
+  "redReceipt": ".scratch/dev/test-suites/browser/2026-10-10T15-20-23-961Z/receipt.json",
+  "redReceiptSha256": "fd2e02d73cc1808798816125effb435979879483b9a6556706b55b4440504b09",
+  "cleanupFailures": [],
+  "failure": "Latest updates and Following were 42px high at mobile width 390; unchanged acceptance requires at least 44px.",
+  "fix": "Replace the Home workspace higher-specificity 42px override with the existing --ui-control-height token (44px). No assertion or threshold changes.",
+  "requiredCoverage": "keyboard; widths 390/768/1440; Light/Dark; original overflow and all visible mobile control-size assertions",
+  "file": "src/components/home/home-visual-prototype.module.css:661",
+  "runtimeFingerprint": "60f5fc06f54692d11e6c7d1b9fbe7588ff6a4eae2065a17ed1b9161aecdfc434",
+  "verificationFingerprint": "898666cc854e24c1b603c588a9ff3de9369e3040ab6f61dfb25e683b4d9b5666",
+  "release": "2026-10-10T15-25-05-743Z",
+  "green": {
+    "log": ".scratch/dev/test-suites/browser/2026-10-10T15-25-04-715Z/55baf30f4a77/playwright.log",
+    "logSha256": "04dd0058743c63dca45f0ad2333962a08e940d2f8846cb1804aab5be15cff1d3",
+    "report": ".scratch/dev/test-suites/browser/2026-10-10T15-25-04-715Z/55baf30f4a77/result.json",
+    "reportSha256": "d14dc4f8c09766b871df9d60dc02835aaae59caef6b11e73985f59f5d7856d34"
+  },
+  "visualInspection": {
+    "path": ".scratch/dev/test-suites/browser/2026-10-10T15-25-04-715Z/55baf30f4a77/artifacts/shared-workspace-shared-wo-59918-40px-light-and-dark-layouts-desktop/desktop-home-390-dark.png",
+    "sha256": "c778af45a8f7001a2b99728005bbe8069fcbd65e7a483d1881eef4a37dafbcec",
+    "observed": "Actual mobile Dark screenshot inspected: both feed filters retain readable labels and aligned touch areas; no horizontal overflow."
+  }
+}

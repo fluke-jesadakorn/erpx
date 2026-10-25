@@ -143,7 +143,14 @@ test("employee overtime is verified by a manager and independently handed off by
     await managerPage.goto(`/holdings/riverside-lantern/tasks/people_payroll/${leaveId}`, { waitUntil: "domcontentloaded" });
     await expect(managerPage.getByRole("button", { name: "Approve", exact: true })).toBeVisible();
     const managerLeaveApproval = managerPage.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith(`/leave-requests/${leaveId}/approve`));
-    await managerPage.getByRole("button", { name: "Approve", exact: true }).click();
+    const managerDecision = managerPage.getByRole("region", { name: "Your decision", exact: true });
+    await expect(managerDecision).toHaveCount(1);
+    await managerDecision.getByRole("button", { name: "Approve", exact: true }).click();
+    const managerConfirmation = managerDecision.locator("form");
+    await expect(managerConfirmation).toHaveCount(1);
+    const managerConfirm = managerConfirmation.getByRole("button", { name: "Confirm Approve", exact: true });
+    await expect(managerConfirm).toHaveAttribute("data-client-managed-ready", "true");
+    await managerConfirm.click();
     expect((await managerLeaveApproval).ok()).toBe(true);
     leaveDetail = (await (await managerContext.request.get(`/api/v1/holdings/riverside-lantern/leave-requests/${leaveId}`)).json()).data;
     expect(leaveDetail.state).toBe("pending_approval");
@@ -152,7 +159,14 @@ test("employee overtime is verified by a manager and independently handed off by
 
     await hrPage.goto(`/holdings/riverside-lantern/tasks/people_payroll/${leaveId}`, { waitUntil: "domcontentloaded" });
     const hrLeaveApproval = hrPage.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith(`/leave-requests/${leaveId}/approve`));
-    await hrPage.getByRole("button", { name: "Approve", exact: true }).click();
+    const hrDecision = hrPage.getByRole("region", { name: "Your decision", exact: true });
+    await expect(hrDecision).toHaveCount(1);
+    await hrDecision.getByRole("button", { name: "Approve", exact: true }).click();
+    const hrConfirmation = hrDecision.locator("form");
+    await expect(hrConfirmation).toHaveCount(1);
+    const hrConfirm = hrConfirmation.getByRole("button", { name: "Confirm Approve", exact: true });
+    await expect(hrConfirm).toHaveAttribute("data-client-managed-ready", "true");
+    await hrConfirm.click();
     expect((await hrLeaveApproval).ok()).toBe(true);
     await hrPage.reload({ waitUntil: "domcontentloaded" });
     leaveDetail = (await (await hrContext.request.get(`/api/v1/holdings/riverside-lantern/leave-requests/${leaveId}`)).json()).data;

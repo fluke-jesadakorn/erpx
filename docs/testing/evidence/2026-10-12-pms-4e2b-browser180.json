@@ -1,0 +1,2576 @@
+{
+  "candidate": {
+    "runtime": "4e2b60dc9e36878d4b6353a1a08470ccde2c960eb272fb954875c282b91ee909",
+    "verification": "50bce33b697dd5343dd05fc591c756a31133479048c287a2345a0dea218da7db",
+    "mainRuntime": "4e2b60dc9e36878d4b6353a1a08470ccde2c960eb272fb954875c282b91ee909",
+    "mainVerification": "50bce33b697dd5343dd05fc591c756a31133479048c287a2345a0dea218da7db",
+    "releaseDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.runtime/releases/2026-10-12T03-06-23-612Z",
+    "releaseId": "2026-10-12T03-06-23-612Z",
+    "fileManifestSha256": "9bd3aa57f8e6d8e4b2b89ce95f83b8779b83319b6d749207d052cec130ac09d4",
+    "releaseReusedForIdenticalRuntime": false
+  },
+  "requiredOriginalCases": 178,
+  "newCases": 2,
+  "totalRequiredCases": 180,
+  "passed": true,
+  "receipt": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/receipt.json",
+  "receiptSHA256": "09b7bc7204f1f3965b8a3e59ff6a6b2234cdeebf88753032e974e4dc9f8f4b85",
+  "perCaseEvidence": [
+    {
+      "suite": "pms.booking-payment-recovery.e2e",
+      "file": "pms-booking-payment-recovery.spec.ts",
+      "project": "desktop",
+      "title": "paid guest booking recovers interrupted receipt and independently approved partial refund without duplicate money",
+      "run": "09692aac0fd3",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/09692aac0fd3/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "a1cd446f9b556cca423aefa611310b18023ebc05fea57f41a0e55da43c17f644"
+    },
+    {
+      "suite": "pms.booking-payment-recovery.e2e",
+      "file": "pms-booking-payment-recovery.spec.ts",
+      "project": "mobile",
+      "title": "paid guest booking recovers interrupted receipt and independently approved partial refund without duplicate money",
+      "run": "a279f12ce403",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/a279f12ce403/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "f5280b77257a521f4469481506d560380635a60f7b4408c673dae3804a1c6b92"
+    },
+    {
+      "suite": "pms.demo-hospitality-setup.e2e",
+      "file": "demo-hospitality-setup.spec.ts",
+      "project": "desktop",
+      "title": "keeps hotel drafts scoped while refresh fences stale cash and an inspected higher room type upgrades through the drawer",
+      "run": "f8a0171e5758",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/f8a0171e5758/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "d23226b63695eec2475252501c45722fd7b625256ea82bea6678541d7493e12f"
+    },
+    {
+      "suite": "pms.demo-hospitality-setup.e2e",
+      "file": "demo-hospitality-setup.spec.ts",
+      "project": "desktop",
+      "title": "Riverside hotel and restaurant remain isolated and render for independent pilot roles",
+      "run": "93b642ed7d00",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/93b642ed7d00/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "0d6e2d8f0463c80a735fe38de612af530bdbe1c1badcf51184e8b92907a1c21a"
+    },
+    {
+      "suite": "pms.demo-hospitality-setup.e2e",
+      "file": "demo-hospitality-setup.spec.ts",
+      "project": "desktop",
+      "title": "cashier and kitchen complete a restaurant bill on the existing hotel guest account",
+      "run": "771d69098432",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/771d69098432/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "7e0f3e5e2eb7502762f5a0313b66da1937da8b5bd475986958880235959bc1c2"
+    },
+    {
+      "suite": "pms.demo-hospitality-setup.e2e",
+      "file": "demo-hospitality-setup.spec.ts",
+      "project": "desktop",
+      "title": "wrong-room, stale and revoked-cashier room charges leave the bill recoverable",
+      "run": "e10a8290222e",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/e10a8290222e/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "b31827981e7ec3d8c3e9ae7800fe12f51053412afa54b782a9b25541790a4891"
+    },
+    {
+      "suite": "pms.demo-hospitality-setup.e2e",
+      "file": "demo-hospitality-setup.spec.ts",
+      "project": "desktop",
+      "title": "hotel cashier records a transfer and independent Finance matches bank evidence",
+      "run": "e0072c9b6d74",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/e0072c9b6d74/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "03643bcd070f497b83ad25d868eb67ba4ee6a643d1d7766ded5590d03baae4ac"
+    },
+    {
+      "suite": "pms.demo-hospitality-setup.e2e",
+      "file": "demo-hospitality-setup.spec.ts",
+      "project": "desktop",
+      "title": "a typed transfer stays pending and the cashier can recover the bill",
+      "run": "44c294a088f4",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/44c294a088f4/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "61b2d876a6a755efcabff10a58f04fd428adbfeb51bc5ab0e9e51e60cb5c2aeb"
+    },
+    {
+      "suite": "pms.demo-hospitality-setup.e2e",
+      "file": "demo-hospitality-setup.spec.ts",
+      "project": "desktop",
+      "title": "cashier records an external tax reference and independent Finance verifies it",
+      "run": "ba232152954f",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/ba232152954f/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "ea89c219951d8a351998c3234d0e36fe5387700ff195e43d1ab7ee9b065d1227"
+    },
+    {
+      "suite": "pms.demo-hospitality-setup.e2e",
+      "file": "demo-hospitality-setup.spec.ts",
+      "project": "desktop",
+      "title": "Night Audit shows restaurant blockers and rejects an early close",
+      "run": "71f1e55c4866",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/71f1e55c4866/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "965b94165c2ef7a61ae5d85f0b4c69d9d33946ede58b8673a1fea279ccd74e1f"
+    },
+    {
+      "suite": "pms.demo-hospitality-setup.e2e",
+      "file": "demo-hospitality-setup.spec.ts",
+      "project": "desktop",
+      "title": "front desk and cashier settle checkout and recover Night Audit",
+      "run": "a5b30eca7f94",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/a5b30eca7f94/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "5941b03397fd86659a4ed72e7954e63c3796a458b973758be15d9fb746e13c02"
+    },
+    {
+      "suite": "pms.demo-hospitality-setup.e2e",
+      "file": "demo-hospitality-setup.spec.ts",
+      "project": "mobile",
+      "title": "keeps hotel drafts scoped while refresh fences stale cash and an inspected higher room type upgrades through the drawer",
+      "run": "550d8d792881",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/550d8d792881/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "4ec1efbf521ebf8f0392526b593e690748ea7dbc20b9c5b0794b633afe990b22"
+    },
+    {
+      "suite": "pms.demo-hospitality-setup.e2e",
+      "file": "demo-hospitality-setup.spec.ts",
+      "project": "mobile",
+      "title": "Riverside hotel and restaurant remain isolated and render for independent pilot roles",
+      "run": "fbdeadfcd1c0",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/fbdeadfcd1c0/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "f00e01625fd9639cf92182fd2fdad924231dc3a6252278d66a6c208e6e2d455a"
+    },
+    {
+      "suite": "pms.demo-hospitality-setup.e2e",
+      "file": "demo-hospitality-setup.spec.ts",
+      "project": "mobile",
+      "title": "cashier and kitchen complete a restaurant bill on the existing hotel guest account",
+      "run": "fe36358a27a2",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/fe36358a27a2/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "487032589cbca6b57d1802c03e1a2721131bb52aa93765b679db0d8b9ff1b733"
+    },
+    {
+      "suite": "pms.demo-hospitality-setup.e2e",
+      "file": "demo-hospitality-setup.spec.ts",
+      "project": "mobile",
+      "title": "wrong-room, stale and revoked-cashier room charges leave the bill recoverable",
+      "run": "a702f5a993ed",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/a702f5a993ed/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "af153fb743866214473472a580bfd1fd91d1a680c2013f94331630591799bef6"
+    },
+    {
+      "suite": "pms.demo-hospitality-setup.e2e",
+      "file": "demo-hospitality-setup.spec.ts",
+      "project": "mobile",
+      "title": "hotel cashier records a transfer and independent Finance matches bank evidence",
+      "run": "7e1d209c945d",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/7e1d209c945d/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "76fe42466441c72eaabcd6ce5f0a794c92d02108e1059ff928e6b1e7270ea214"
+    },
+    {
+      "suite": "pms.demo-hospitality-setup.e2e",
+      "file": "demo-hospitality-setup.spec.ts",
+      "project": "mobile",
+      "title": "a typed transfer stays pending and the cashier can recover the bill",
+      "run": "463b55852de7",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/463b55852de7/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "8feae4b53ba5b44d33a0fdee49b335dcc9bb36d51968c1f485e989fa2ea7f899"
+    },
+    {
+      "suite": "pms.demo-hospitality-setup.e2e",
+      "file": "demo-hospitality-setup.spec.ts",
+      "project": "mobile",
+      "title": "cashier records an external tax reference and independent Finance verifies it",
+      "run": "4e3c3c81057b",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/4e3c3c81057b/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "15dba947d8bd56ed21dc71724526a519d8113672cd0fb8730af5373ff12e827b"
+    },
+    {
+      "suite": "pms.demo-hospitality-setup.e2e",
+      "file": "demo-hospitality-setup.spec.ts",
+      "project": "mobile",
+      "title": "Night Audit shows restaurant blockers and rejects an early close",
+      "run": "5090a0349e83",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/5090a0349e83/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "e93ebeaa16af30dfcb6ea5f046de30fd91226a38092529f04d4083f74c370b98"
+    },
+    {
+      "suite": "pms.demo-hospitality-setup.e2e",
+      "file": "demo-hospitality-setup.spec.ts",
+      "project": "mobile",
+      "title": "front desk and cashier settle checkout and recover Night Audit",
+      "run": "a188aede5319",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/a188aede5319/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "bff30a38b680702ee99ff8d221de251a4184a84c44bf6925a21f865d5eb78a61"
+    },
+    {
+      "suite": "pms.booking.e2e",
+      "file": "pms-booking.spec.ts",
+      "project": "desktop",
+      "title": "guest portal is public without exposing internal PMS records",
+      "run": "0a9849ceea76",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/0a9849ceea76/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "0688225b6e26cb9c21bc5e11b9363ed84a8980c2eedad0081976936a4e7bd382"
+    },
+    {
+      "suite": "pms.booking.e2e",
+      "file": "pms-booking.spec.ts",
+      "project": "desktop",
+      "title": "searches, quotes and confirms a family stay in an isolated hotel",
+      "run": "303ca4ecc44a",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/303ca4ecc44a/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "42319c5e914f2eb1961d87183d254a4fcc451f6368f701f5b31d68df82ce64da"
+    },
+    {
+      "suite": "pms.booking.e2e",
+      "file": "pms-booking.spec.ts",
+      "project": "desktop",
+      "title": "reviewed hotel and room galleries publish sanitized images and disappear after revocation",
+      "run": "db43fbab2b6a",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/db43fbab2b6a/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "7000541ee61b18e07edb52ec88c081cbbc85d2e4fb5fd290eb5042b73917479b"
+    },
+    {
+      "suite": "pms.booking.e2e",
+      "file": "pms-booking.spec.ts",
+      "project": "desktop",
+      "title": "cancels one of two booked rooms and preserves the other room and accepted price",
+      "run": "02bf65898c0e",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/02bf65898c0e/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "3c737d276f551e2e2532f61ecba73a45efe14ad341517404b061db020e10a446"
+    },
+    {
+      "suite": "pms.booking.e2e",
+      "file": "pms-booking.spec.ts",
+      "project": "mobile",
+      "title": "guest portal is public without exposing internal PMS records",
+      "run": "7534e32e1bd2",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/7534e32e1bd2/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "911beca63fe38130417311c14c770f1cd0130f84592e7edf3357cda709c9bcb8"
+    },
+    {
+      "suite": "pms.booking.e2e",
+      "file": "pms-booking.spec.ts",
+      "project": "mobile",
+      "title": "searches, quotes and confirms a family stay in an isolated hotel",
+      "run": "433c15d82511",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/433c15d82511/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "6c4593b856dec3ca706d386f5945fe9411d8a8117777f548815499f0f4abe6ca"
+    },
+    {
+      "suite": "pms.booking.e2e",
+      "file": "pms-booking.spec.ts",
+      "project": "mobile",
+      "title": "reviewed hotel and room galleries publish sanitized images and disappear after revocation",
+      "run": "c5f4bcbd3305",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/c5f4bcbd3305/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "fe8ae87c794cec5a024fc1c6702d2c7f9883026d108ab2638d3337449b66f083"
+    },
+    {
+      "suite": "pms.booking.e2e",
+      "file": "pms-booking.spec.ts",
+      "project": "mobile",
+      "title": "cancels one of two booked rooms and preserves the other room and accepted price",
+      "run": "a6d4fbd6d48a",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/a6d4fbd6d48a/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "84b9c95ff5af5f1122e95c4085a9e13e58ceba1be2e23bd9e339014146006db4"
+    },
+    {
+      "suite": "pms.pms.e2e",
+      "file": "pms.spec.ts",
+      "project": "desktop",
+      "title": "PMS protects /holdings/acme/pms before exposing guest or room data",
+      "run": "9e9815bb58ac",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/9e9815bb58ac/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "0323fc4e6d63c56b2677e8dc3710cab17e9d1605a71e6a08ef3911e3f458223b"
+    },
+    {
+      "suite": "pms.pms.e2e",
+      "file": "pms.spec.ts",
+      "project": "desktop",
+      "title": "PMS protects /holdings/acme/pms/housekeeping before exposing guest or room data",
+      "run": "953046fa9ef7",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/953046fa9ef7/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "3a1254fb55eae5fe92a6eba7d0d956f62a3539bca902898282e6dc1023e42a01"
+    },
+    {
+      "suite": "pms.pms.e2e",
+      "file": "pms.spec.ts",
+      "project": "desktop",
+      "title": "PMS commands require an authenticated work context",
+      "run": "4f208e832cfe",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/4f208e832cfe/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "1a326a642f4ea3c0d7db7caa639ab40f056b19c297e2afc862405b54d3d82ec2"
+    },
+    {
+      "suite": "pms.pms.e2e",
+      "file": "pms.spec.ts",
+      "project": "mobile",
+      "title": "PMS protects /holdings/acme/pms before exposing guest or room data",
+      "run": "99f3d631485b",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/99f3d631485b/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "0ef02989cdda43f9e45db68236fdc62d050ae5751769ede425b598073122b3a3"
+    },
+    {
+      "suite": "pms.pms.e2e",
+      "file": "pms.spec.ts",
+      "project": "mobile",
+      "title": "PMS protects /holdings/acme/pms/housekeeping before exposing guest or room data",
+      "run": "0b2dec7abcc4",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/0b2dec7abcc4/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "b7e2f5baacfc129cdcb61b6140ea8028ccc3bde01409da0f5d8c9c581f901f4e"
+    },
+    {
+      "suite": "pms.pms.e2e",
+      "file": "pms.spec.ts",
+      "project": "mobile",
+      "title": "PMS commands require an authenticated work context",
+      "run": "186a5939c40d",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/186a5939c40d/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "63af89451aa9fee71684c09c43340892c324c419deaacd0650122ead959dcc26"
+    },
+    {
+      "suite": "pms.thai-hotel-v1-hotel.journeys",
+      "file": "thai-hotel-v1-hotel.spec.ts",
+      "project": "desktop",
+      "title": "H002 guest journey includes independent guest account correction, payment, checkout and Night Audit",
+      "run": "8b0245a9387c",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/8b0245a9387c/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "f03b8765f97d845124646b6c2c2882a73de3d07f56560ec7d5c545b26ce60966"
+    },
+    {
+      "suite": "pms.thai-hotel-v1-hotel.journeys",
+      "file": "thai-hotel-v1-hotel.spec.ts",
+      "project": "mobile",
+      "title": "H002 guest journey includes independent guest account correction, payment, checkout and Night Audit",
+      "run": "59a670f0f338",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/59a670f0f338/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "6edbaf1cf71273073be99e5187e30ba4f4362545f124ccf9882db1fa71ed59e1"
+    },
+    {
+      "suite": "shared.attachments.attachments-v2.e2e",
+      "file": "attachments-v2.spec.ts",
+      "project": "desktop",
+      "title": "canonical Leave evidence supports resilient private files on desktop and mobile",
+      "run": "4831e7349588",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/4831e7349588/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "0eb6333ecdef96290ddab2684709673a3955ff899bf63f89717f4986262ce18f"
+    },
+    {
+      "suite": "shared.attachments.attachments-v2.e2e",
+      "file": "attachments-v2.spec.ts",
+      "project": "mobile",
+      "title": "canonical Leave evidence supports resilient private files on desktop and mobile",
+      "run": "dabcbf2ac411",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/dabcbf2ac411/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "b541908cda78811dedb12ea413aa75f69c77f98b8c910833d6a77382cc2b176b"
+    },
+    {
+      "suite": "shared.calendar.calendar-layout.e2e",
+      "file": "calendar-layout.spec.ts",
+      "project": "desktop",
+      "title": "calendar opens in the month view with a selected day at every viewport",
+      "run": "4271fb075f43",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/4271fb075f43/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "95299e79b48625ecd09538bbe21117c3dcf64378e7891a5fa5978ff62f8f7b47"
+    },
+    {
+      "suite": "shared.calendar.calendar-layout.e2e",
+      "file": "calendar-layout.spec.ts",
+      "project": "desktop",
+      "title": "calendar view and filters follow URL history and event detail retains the view",
+      "run": "3738cea2f880",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/3738cea2f880/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "2998cba47415951585d82fe7d4c0316aebf677b6a4f7116d6db3779887ef93bd"
+    },
+    {
+      "suite": "shared.calendar.calendar-layout.e2e",
+      "file": "calendar-layout.spec.ts",
+      "project": "desktop",
+      "title": "month selection updates the date URL and outside-month dates open their month",
+      "run": "4f87cdfa7372",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/4f87cdfa7372/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "76e691021a9561c082ffbc8b1d4d2afd6ed11ee81655e0812d5ff2ea44a91803"
+    },
+    {
+      "suite": "shared.calendar.calendar-layout.e2e",
+      "file": "calendar-layout.spec.ts",
+      "project": "desktop",
+      "title": "month previews cap at two and the selected date keeps its full loaded list",
+      "run": "d37adc6e2bf1",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/d37adc6e2bf1/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "e396f6b07aae575397e8d96c83c30a8efa4c6375f22e82cf6233326f4662d24b"
+    },
+    {
+      "suite": "shared.calendar.calendar-layout.e2e",
+      "file": "calendar-layout.spec.ts",
+      "project": "desktop",
+      "title": "calendar attention stays compact and distinguishes loaded warning items",
+      "run": "ea28df7ede42",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/ea28df7ede42/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "1d0d4873e60395abcd80b0f38d2fbb07a8f19b05ed7cff3c54e6ad9d0e7706e6"
+    },
+    {
+      "suite": "shared.calendar.calendar-layout.e2e",
+      "file": "calendar-layout.spec.ts",
+      "project": "desktop",
+      "title": "calendar presets preserve date and timezone, reset people search, and restore history",
+      "run": "0514b9c92c88",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/0514b9c92c88/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "df88d719b4c62a0ed8f2719f88f4b8079426e269d63e0f0eb5ad06511a543d07"
+    },
+    {
+      "suite": "shared.calendar.calendar-layout.e2e",
+      "file": "calendar-layout.spec.ts",
+      "project": "desktop",
+      "title": "partial calendar sources share one retry notice and mark loaded results",
+      "run": "20192aa6494c",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/20192aa6494c/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "13bc1ac0fd7a2795a9f44a6ded6705ef41c02482c2ae542f9a66d880470e411d"
+    },
+    {
+      "suite": "shared.calendar.calendar-layout.e2e",
+      "file": "calendar-layout.spec.ts",
+      "project": "desktop",
+      "title": "week and day navigation move by their calendar period",
+      "run": "890c77263382",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/890c77263382/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "2955be17f92a82d714f169c3233fcc1eae0f2a562aa308d1914f3d14cbe792ee"
+    },
+    {
+      "suite": "shared.calendar.calendar-layout.e2e",
+      "file": "calendar-layout.spec.ts",
+      "project": "desktop",
+      "title": "authorized roster events open the roster planner",
+      "run": "b167094d4e0f",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/b167094d4e0f/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "af64d56274f9ec87c777f2ab2918f47a03e14d3b8de7f83a0f6811cbe2bf670a"
+    },
+    {
+      "suite": "shared.calendar.calendar-layout.e2e",
+      "file": "calendar-layout.spec.ts",
+      "project": "desktop",
+      "title": "day view renders a horizontally scrollable people timeline and opens event details",
+      "run": "e9adc3efe47d",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/e9adc3efe47d/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "457a1c0189046b6d577ec1b0122d64565e6ee6dcfc615d5ec5c90226096524c9"
+    },
+    {
+      "suite": "shared.calendar.calendar-layout.e2e",
+      "file": "calendar-layout.spec.ts",
+      "project": "mobile",
+      "title": "calendar opens in the month view with a selected day at every viewport",
+      "run": "16e82b1863cb",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/16e82b1863cb/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "a50210cdc8972b0f14aaca5c89ad75b1ad2bca301fff2212a471cb6a80ae095c"
+    },
+    {
+      "suite": "shared.calendar.calendar-layout.e2e",
+      "file": "calendar-layout.spec.ts",
+      "project": "mobile",
+      "title": "calendar view and filters follow URL history and event detail retains the view",
+      "run": "571fa5f90bd6",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/571fa5f90bd6/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "33f0a49d06ce6f45c5abc9e75da4f4562412fbb936277c6de2403f7d66754c3a"
+    },
+    {
+      "suite": "shared.calendar.calendar-layout.e2e",
+      "file": "calendar-layout.spec.ts",
+      "project": "mobile",
+      "title": "month selection updates the date URL and outside-month dates open their month",
+      "run": "11acf37001c0",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/11acf37001c0/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "0be25c1a0ec71d0f3e7d8354d27336c3af856104068245ef5e91f7e9746661a0"
+    },
+    {
+      "suite": "shared.calendar.calendar-layout.e2e",
+      "file": "calendar-layout.spec.ts",
+      "project": "mobile",
+      "title": "month previews cap at two and the selected date keeps its full loaded list",
+      "run": "28652b1e0ed1",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/28652b1e0ed1/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "0de39c640434251c55fd4b1761c75cdaa6f84415ad4e0b76e27e1a39b67e3b36"
+    },
+    {
+      "suite": "shared.calendar.calendar-layout.e2e",
+      "file": "calendar-layout.spec.ts",
+      "project": "mobile",
+      "title": "calendar attention stays compact and distinguishes loaded warning items",
+      "run": "435978f7df5e",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/435978f7df5e/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "4ed2911d9232ca3ac15daece229cd81aaa604ac1fed0091d457b4dd8716bb8fb"
+    },
+    {
+      "suite": "shared.calendar.calendar-layout.e2e",
+      "file": "calendar-layout.spec.ts",
+      "project": "mobile",
+      "title": "calendar presets preserve date and timezone, reset people search, and restore history",
+      "run": "c6d08e60d264",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/c6d08e60d264/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "f4fd8807ed52fec9527893439deeff2066e27846395fea4d68ebe99d1f7c47dd"
+    },
+    {
+      "suite": "shared.calendar.calendar-layout.e2e",
+      "file": "calendar-layout.spec.ts",
+      "project": "mobile",
+      "title": "partial calendar sources share one retry notice and mark loaded results",
+      "run": "9b97e030b7ad",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/9b97e030b7ad/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "6a508e1b7bb4dd98e9b9d3f79529d14a91c94a7e45b6cf63763e34b650bf839c"
+    },
+    {
+      "suite": "shared.calendar.calendar-layout.e2e",
+      "file": "calendar-layout.spec.ts",
+      "project": "mobile",
+      "title": "week and day navigation move by their calendar period",
+      "run": "5287caad83e1",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/5287caad83e1/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "4f99e9a1100e32d481644c743f306d7274f30f68ba0e7fb845989b8a0d3e1381"
+    },
+    {
+      "suite": "shared.calendar.calendar-layout.e2e",
+      "file": "calendar-layout.spec.ts",
+      "project": "mobile",
+      "title": "authorized roster events open the roster planner",
+      "run": "976b90a2a01a",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/976b90a2a01a/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "d8d2d5ba64d570f229bcd56a6ea5b44d4479c8c6fc0611370b8e2c7ca2259729"
+    },
+    {
+      "suite": "shared.calendar.calendar-layout.e2e",
+      "file": "calendar-layout.spec.ts",
+      "project": "mobile",
+      "title": "day view renders a horizontally scrollable people timeline and opens event details",
+      "run": "89d418b98c6f",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/89d418b98c6f/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "679d5fbd0c687c5becb65087ea7f152d0e23de05cf48fb9f831a73db444c76e2"
+    },
+    {
+      "suite": "finance.currency-selector.e2e",
+      "file": "currency-selector.spec.ts",
+      "project": "desktop",
+      "title": "signed-in ERP currency picker is searchable on desktop and mobile",
+      "run": "6364b6dc964b",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/6364b6dc964b/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "f8f91f6f34fee77d082ad2a84067b6430852f33c2bebc5c6e67aea9f58d99852"
+    },
+    {
+      "suite": "finance.currency-selector.e2e",
+      "file": "currency-selector.spec.ts",
+      "project": "desktop",
+      "title": "signed-in POS and PMS Front show the shared currency picker",
+      "run": "1ef370ad92b6",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/1ef370ad92b6/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "b9e28a853aaabf56851bbb05be55d9d4fab8d3ae363f8fe6259a85c26f5b664d"
+    },
+    {
+      "suite": "finance.currency-selector.e2e",
+      "file": "currency-selector.spec.ts",
+      "project": "mobile",
+      "title": "signed-in ERP currency picker is searchable on desktop and mobile",
+      "run": "989c6201335c",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/989c6201335c/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "2c8e6d0a867c640ac4c3ee1e38e225ccf416b3d177ef20554a75c9a82026fe43"
+    },
+    {
+      "suite": "finance.currency-selector.e2e",
+      "file": "currency-selector.spec.ts",
+      "project": "mobile",
+      "title": "signed-in POS and PMS Front show the shared currency picker",
+      "run": "d5cc6ac45ca4",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/d5cc6ac45ca4/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "95ce01bf14b46b92b15395792293de91dba70db3c5446860b05238099aa451b9"
+    },
+    {
+      "suite": "shared.ui.demo-client-form-hydration.e2e",
+      "file": "demo-client-form-hydration.spec.ts",
+      "project": "desktop",
+      "title": "isolated normal-login client forms block rapid native GET before hydration then save while native search keeps working",
+      "run": "8aed0b57d28f",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/8aed0b57d28f/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "cdef7044bad11d06048129370c9a3ad02f470910c97f8a7a65f22e79c12e2a48"
+    },
+    {
+      "suite": "shared.ui.demo-client-form-hydration.e2e",
+      "file": "demo-client-form-hydration.spec.ts",
+      "project": "mobile",
+      "title": "isolated normal-login client forms block rapid native GET before hydration then save while native search keeps working",
+      "run": "440b2d981f7b",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/440b2d981f7b/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "6e301183fef197ab7f995b50a90caea8d1868a2cbcd65dccd566d9d9b2795437"
+    },
+    {
+      "suite": "shared.ui.demo-workspace-header.e2e",
+      "file": "demo-workspace-header.spec.ts",
+      "project": "desktop",
+      "title": "workspace header keeps context, navigation and role actions usable across widths",
+      "run": "caa591291c28",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/caa591291c28/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "8998611592d85f4cfeff2969ca9c3204724d74d29c687fa0a750148e513f3a94"
+    },
+    {
+      "suite": "shared.ui.demo-workspace-header.e2e",
+      "file": "demo-workspace-header.spec.ts",
+      "project": "mobile",
+      "title": "workspace header keeps context, navigation and role actions usable across widths",
+      "run": "a4fd5f66c532",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/a4fd5f66c532/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "fbd009b4be15b8bf1676f473b252c8be32b6d240355eba6afd69399ae884e1b2"
+    },
+    {
+      "suite": "shared.ui.enterprise-ui.e2e",
+      "file": "enterprise-ui.spec.ts",
+      "project": "desktop",
+      "title": "canonical workspace routes and legacy aliases retain their scope",
+      "run": "2bdc95ed1160",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/2bdc95ed1160/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "bff4b1638eebeecabb5e50e7bfedb92855d1b24912d471c97bb82ba2a9420fe7"
+    },
+    {
+      "suite": "shared.ui.enterprise-ui.e2e",
+      "file": "enterprise-ui.spec.ts",
+      "project": "desktop",
+      "title": "development module and generic record UI routes are unavailable without redirects",
+      "run": "f804e9de8f17",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/f804e9de8f17/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "9ad63b97bc24f48f1bc8565fe3514b8dfb06f4fb42129e95f64875a427b5cc11"
+    },
+    {
+      "suite": "shared.ui.enterprise-ui.e2e",
+      "file": "enterprise-ui.spec.ts",
+      "project": "desktop",
+      "title": "desktop and mobile navigation place live business destinations correctly",
+      "run": "5920d8be447d",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/5920d8be447d/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "7b4b597b6f7372b466ea565e4d2eff3441467c81b65a0c1d5e105706dccd4dd8"
+    },
+    {
+      "suite": "shared.ui.enterprise-ui.e2e",
+      "file": "enterprise-ui.spec.ts",
+      "project": "desktop",
+      "title": "POS opens directly from the sidebar, rail, and app launcher",
+      "run": "3bc2dee5291f",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/3bc2dee5291f/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "d5d4412d99c9a1a48d41abe308bbd1656a2d77f4008b5817121edf5c6e5f4f8f"
+    },
+    {
+      "suite": "shared.ui.enterprise-ui.e2e",
+      "file": "enterprise-ui.spec.ts",
+      "project": "desktop",
+      "title": "breadcrumb returns to live business parents",
+      "run": "3e8716f68a1c",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/3e8716f68a1c/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "614b5dc789f4db31afba4a37076753b001dbe5feb7704a89d476db3b9a89af54"
+    },
+    {
+      "suite": "shared.ui.enterprise-ui.e2e",
+      "file": "enterprise-ui.spec.ts",
+      "project": "desktop",
+      "title": "a person row opens profile and employment in one detail panel",
+      "run": "e06d62cd53e0",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/e06d62cd53e0/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "3383c4365d2707603035860e155fdbeb6f1023ac004ae27141ea4b936821e897"
+    },
+    {
+      "suite": "shared.ui.enterprise-ui.e2e",
+      "file": "enterprise-ui.spec.ts",
+      "project": "desktop",
+      "title": "live workspace pages fit three widths and both themes",
+      "run": "e3c8b8409469",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/e3c8b8409469/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "20edf770cb7cf15089c5b4c7dba13e15d89bd14ca7196e6aa1e131d8b4059eab"
+    },
+    {
+      "suite": "shared.ui.enterprise-ui.e2e",
+      "file": "enterprise-ui.spec.ts",
+      "project": "desktop",
+      "title": "learn retains captioned lessons",
+      "run": "7bc20375e7a0",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/7bc20375e7a0/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "e6169ac4346c5a97b89cb8689c119c026e4e2c9dd0621ef5852ca936024cc734"
+    },
+    {
+      "suite": "shared.ui.enterprise-ui.e2e",
+      "file": "enterprise-ui.spec.ts",
+      "project": "desktop",
+      "title": "restricted staff sees only authorized live destinations",
+      "run": "f617206c63e5",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/f617206c63e5/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "9e0ff5d32c284eef8db26e92e8e522b2fb3a6d76be498d1c0b28489fadc0a9c0"
+    },
+    {
+      "suite": "shared.ui.enterprise-ui.e2e",
+      "file": "enterprise-ui.spec.ts",
+      "project": "desktop",
+      "title": "post drafts survive failures and collapsed UI; dialogs retain keyboard focus",
+      "run": "a31cdb0dcf0f",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/a31cdb0dcf0f/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "eaed5110a113a166f55625d0134fbd10dcb331115539e6faafae805d5f265a56"
+    },
+    {
+      "suite": "shared.ui.enterprise-ui.e2e",
+      "file": "enterprise-ui.spec.ts",
+      "project": "desktop",
+      "title": "Administration consolidates tools without granting staff approval management",
+      "run": "ab786ef50ee3",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/ab786ef50ee3/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "cecd82d195d99437a45d9869c08e34f3062c6f7d31efdcb820b440500f2866e7"
+    },
+    {
+      "suite": "shared.ui.enterprise-ui.e2e",
+      "file": "enterprise-ui.spec.ts",
+      "project": "mobile",
+      "title": "canonical workspace routes and legacy aliases retain their scope",
+      "run": "bbab6c567ef2",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/bbab6c567ef2/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "a15e727eda0ee75325a20e3ac3dcdd48355100456eb17444e873b240ad98d2f0"
+    },
+    {
+      "suite": "shared.ui.enterprise-ui.e2e",
+      "file": "enterprise-ui.spec.ts",
+      "project": "mobile",
+      "title": "development module and generic record UI routes are unavailable without redirects",
+      "run": "ebd689bc4134",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/ebd689bc4134/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "55a0a165a21b1abc3e2c3662f3ab305ad55e364e16d1be0635365f65ed7c3b01"
+    },
+    {
+      "suite": "shared.ui.enterprise-ui.e2e",
+      "file": "enterprise-ui.spec.ts",
+      "project": "mobile",
+      "title": "desktop and mobile navigation place live business destinations correctly",
+      "run": "f714c20f7f6c",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/f714c20f7f6c/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "77387c0c56007106a59dcb08c3a0e3fa6eff8b37f22877bcc7f7ad23b24786a4"
+    },
+    {
+      "suite": "shared.ui.enterprise-ui.e2e",
+      "file": "enterprise-ui.spec.ts",
+      "project": "mobile",
+      "title": "a person row opens profile and employment in one detail panel",
+      "run": "624f687d2924",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/624f687d2924/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "af96294a5fa5c1eee4dca72bce0ec367afc195b0523a08a5f4d6b208496844cb"
+    },
+    {
+      "suite": "shared.ui.enterprise-ui.e2e",
+      "file": "enterprise-ui.spec.ts",
+      "project": "mobile",
+      "title": "learn retains captioned lessons",
+      "run": "955d6013d475",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/955d6013d475/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "9b21fb89ac06d022b842bf1243ec6b5967c73bc7177403d025f536e0345f6186"
+    },
+    {
+      "suite": "shared.ui.enterprise-ui.e2e",
+      "file": "enterprise-ui.spec.ts",
+      "project": "mobile",
+      "title": "restricted staff sees only authorized live destinations",
+      "run": "a150dd5322e5",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/a150dd5322e5/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "0af75e17a7f9bc5bd904d26b82185a18edf18fd01083cf3f3d3ad97275bec225"
+    },
+    {
+      "suite": "shared.ui.enterprise-ui.e2e",
+      "file": "enterprise-ui.spec.ts",
+      "project": "mobile",
+      "title": "post drafts survive failures and collapsed UI; dialogs retain keyboard focus",
+      "run": "a304e7c4a475",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/a304e7c4a475/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "1768f7d169b8b3d28d5ce593ece8d124918b9cddab8774dd14d8d171636e883d"
+    },
+    {
+      "suite": "shared.ui.enterprise-ui.e2e",
+      "file": "enterprise-ui.spec.ts",
+      "project": "mobile",
+      "title": "Administration consolidates tools without granting staff approval management",
+      "run": "37a84cf8fce8",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/37a84cf8fce8/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "a82cc5325c68e4b59cd3fec1f4d8bc6b1afcb80dffffaed0ce08c3409b69b0ce"
+    },
+    {
+      "suite": "shared.ui.home-visual-scenarios.e2e",
+      "file": "home-visual-scenarios.spec.ts",
+      "project": "desktop",
+      "title": "Home layout with empty, long and multi-image feed content",
+      "run": "6eca161501c3",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/6eca161501c3/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "a0ba252751c55c6a79193bec8f8153d9240b56f07d52087690db130f9d3c4062"
+    },
+    {
+      "suite": "shared.ui.home-visual-scenarios.e2e",
+      "file": "home-visual-scenarios.spec.ts",
+      "project": "mobile",
+      "title": "Home layout with empty, long and multi-image feed content",
+      "run": "1a9af6630450",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/1a9af6630450/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "2ffe9ab32e8e4820b0fbea7130e0f96e1f58f549f2e6188c265d0009efef0ea1"
+    },
+    {
+      "suite": "shared.ui.local-review.e2e",
+      "file": "local-review.spec.ts",
+      "project": "desktop",
+      "title": "local draft review, failed request retry, evidence and independent approval",
+      "run": "4dda3a032045",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/4dda3a032045/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "32d51778fe1d5dc5c5f63a1a40b0c021ecd13470a5f9cff27ff3795ca6100a86"
+    },
+    {
+      "suite": "shared.ui.local-review.e2e",
+      "file": "local-review.spec.ts",
+      "project": "mobile",
+      "title": "local draft review, failed request retry, evidence and independent approval",
+      "run": "8762175679bc",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/8762175679bc/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "528c2206dbb34d38f2ab276bb671c811fc6843c7092f25ef42e941e35ef33907"
+    },
+    {
+      "suite": "shared.ui.page-layouts.e2e",
+      "file": "page-layouts.spec.ts",
+      "project": "desktop",
+      "title": "retired pages render fixed widgets without layout reads or controls",
+      "run": "d1df276db4a1",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/d1df276db4a1/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "69593d7a5159178b91163395bc6826820e0f1ad14a55ce53cbfe2db24154def0"
+    },
+    {
+      "suite": "shared.ui.page-layouts.e2e",
+      "file": "page-layouts.spec.ts",
+      "project": "desktop",
+      "title": "People layout previews width, order and visibility and cancel restores the page",
+      "run": "bd4e74bf8ad5",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/bd4e74bf8ad5/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "450259ed5bdbcdc46f60417acd0456ebc381fe9f0f0799100a76f9521b251cb4"
+    },
+    {
+      "suite": "shared.ui.page-layouts.e2e",
+      "file": "page-layouts.spec.ts",
+      "project": "desktop",
+      "title": "My work views remain reachable through sidebar or mobile submenu",
+      "run": "c0b1fa0ab4c3",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/c0b1fa0ab4c3/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "7132883ef155b868e33d651fa16f9abd4bf4d009d37dc3c6fc9e8fbf4c59803a"
+    },
+    {
+      "suite": "shared.ui.page-layouts.e2e",
+      "file": "page-layouts.spec.ts",
+      "project": "mobile",
+      "title": "retired pages render fixed widgets without layout reads or controls",
+      "run": "79f9de0d4e90",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/79f9de0d4e90/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "e15fc94c9fe7bca4875255517db8f809a3bb2604c1e43c53233fe37863b0b0cb"
+    },
+    {
+      "suite": "shared.ui.page-layouts.e2e",
+      "file": "page-layouts.spec.ts",
+      "project": "mobile",
+      "title": "People layout previews width, order and visibility and cancel restores the page",
+      "run": "2bdff794f548",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/2bdff794f548/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "4638d145b57d871bb13c8a0df23495d089c6ae0fb3ff17eb45280991969899fb"
+    },
+    {
+      "suite": "shared.ui.page-layouts.e2e",
+      "file": "page-layouts.spec.ts",
+      "project": "mobile",
+      "title": "My work views remain reachable through sidebar or mobile submenu",
+      "run": "e42a0f324e47",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/e42a0f324e47/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "ca63f43843118ae950ec5b12eecd2d81c5c8aaa341d52ed96423a0b8b654df05"
+    },
+    {
+      "suite": "shared.ui.shared-workspace.e2e",
+      "file": "shared-workspace.spec.ts",
+      "project": "desktop",
+      "title": "owner configures coverage through Organization and members retain drafts without a profile",
+      "run": "611686576b35",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/611686576b35/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "179e3ff627dcf28265c5110d1c3dd600aca78eb34d9cf1b93d7a329295c0e922"
+    },
+    {
+      "suite": "shared.ui.shared-workspace.e2e",
+      "file": "shared-workspace.spec.ts",
+      "project": "desktop",
+      "title": "service request moves through a shared team, questions, evidence, reopening and requester confirmation",
+      "run": "292024242791",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/292024242791/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "67e837ce0b5c0c044ef6d7819e00ce6431824544cf0ad23e5b35849c70813687"
+    },
+    {
+      "suite": "shared.ui.shared-workspace.e2e",
+      "file": "shared-workspace.spec.ts",
+      "project": "desktop",
+      "title": "equipment requires independent approval then records a handover without a financial posting",
+      "run": "8c2f7e36e794",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/8c2f7e36e794/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "9f40c13bdc6b14577539f2f8df57b71b23f2681ddcad9d8c7806c233bfae9b8c"
+    },
+    {
+      "suite": "shared.ui.shared-workspace.e2e",
+      "file": "shared-workspace.spec.ts",
+      "project": "desktop",
+      "title": "purchase requests hand off once to the existing approved and received order workflow",
+      "run": "819ecc4465eb",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/819ecc4465eb/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "998361af50cafa7d2b832b69b38450d7724a48726e0b3527b4c51f851f5a4770"
+    },
+    {
+      "suite": "shared.ui.shared-workspace.e2e",
+      "file": "shared-workspace.spec.ts",
+      "project": "desktop",
+      "title": "handbook editors publish a revision while employees cannot read or search the next draft",
+      "run": "bc17511f5d6b",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/bc17511f5d6b/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "21426b8d56b2a7be91fc502996a7c45e350bc653fe81b8dd4709673dad805381"
+    },
+    {
+      "suite": "shared.ui.shared-workspace.e2e",
+      "file": "shared-workspace.spec.ts",
+      "project": "desktop",
+      "title": "shared workspace supports keyboard access and 390, 768 and 1440px light and dark layouts",
+      "run": "c8a8b76b6b53",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/c8a8b76b6b53/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "aa1912153215cafd5ea371d19d6179eb86269550df30853177b08fa5984900bf"
+    },
+    {
+      "suite": "shared.ui.shared-workspace.e2e",
+      "file": "shared-workspace.spec.ts",
+      "project": "mobile",
+      "title": "owner configures coverage through Organization and members retain drafts without a profile",
+      "run": "d724d64e1c4a",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/d724d64e1c4a/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "ccdfdf9fda7c26979f343555669ae8be988dbd3982d91e31b8e17b19ed49a60a"
+    },
+    {
+      "suite": "shared.ui.shared-workspace.e2e",
+      "file": "shared-workspace.spec.ts",
+      "project": "mobile",
+      "title": "service request moves through a shared team, questions, evidence, reopening and requester confirmation",
+      "run": "d72249f7f01f",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/d72249f7f01f/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "ae28a550cec58f09adbe59dc6e15efeeb72ada069bbace1840f7e15d4fabd29b"
+    },
+    {
+      "suite": "shared.ui.shared-workspace.e2e",
+      "file": "shared-workspace.spec.ts",
+      "project": "mobile",
+      "title": "equipment requires independent approval then records a handover without a financial posting",
+      "run": "eec93c77eb87",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/eec93c77eb87/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "46f292fd16ec51bf9324bb0c0ddea97d756a08aa2276c9c0afc53f8ef4be891e"
+    },
+    {
+      "suite": "shared.ui.shared-workspace.e2e",
+      "file": "shared-workspace.spec.ts",
+      "project": "mobile",
+      "title": "purchase requests hand off once to the existing approved and received order workflow",
+      "run": "647a438b17f2",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/647a438b17f2/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "f7b8ed797895f4c527d0abe4b87f2c261e19ad030f95394c9e12daef499c7ee9"
+    },
+    {
+      "suite": "shared.ui.shared-workspace.e2e",
+      "file": "shared-workspace.spec.ts",
+      "project": "mobile",
+      "title": "handbook editors publish a revision while employees cannot read or search the next draft",
+      "run": "49e680800670",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/49e680800670/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "594804dec47ca0b24773955b60c11e518284a34e801dab84b6f21d0bc0118be3"
+    },
+    {
+      "suite": "shared.ui.shared-workspace.e2e",
+      "file": "shared-workspace.spec.ts",
+      "project": "mobile",
+      "title": "shared workspace supports keyboard access and 390, 768 and 1440px light and dark layouts",
+      "run": "1cbdc42f55b7",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/1cbdc42f55b7/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "0d7c89852ecfca7e06f6206fb2e45ffd7890b0e789e1ee9ea81b1700de794572"
+    },
+    {
+      "suite": "pms.thai-hotel-v1-ai.journeys",
+      "file": "thai-hotel-v1-ai.spec.ts",
+      "project": "desktop",
+      "title": "H002 AI drafts from authorized versions, cites hotel evidence, then falls back manually",
+      "run": "a0771c0a88fb",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/a0771c0a88fb/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "2c482fdf9e79fa6668a69c13e0bb75b802768c5b9320a8ecd096e4f70ef9b20a"
+    },
+    {
+      "suite": "pms.thai-hotel-v1-ai.journeys",
+      "file": "thai-hotel-v1-ai.spec.ts",
+      "project": "mobile",
+      "title": "H002 AI drafts from authorized versions, cites hotel evidence, then falls back manually",
+      "run": "b5f8bef7b60e",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/b5f8bef7b60e/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "7b1c7fb294688f566b88861726bf9cced5993bd6d3ec6185f91078458a9c4089"
+    },
+    {
+      "suite": "shared.ui.ui-foundation.e2e",
+      "file": "ui-foundation.spec.ts",
+      "project": "desktop",
+      "title": "canonical UI controls remain accessible across themes and widths",
+      "run": "086f8e75381f",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/086f8e75381f/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "dfeef3ede3a7ae3c68cf562bb0bcd7151673a73627e0b90311d107baeeebbc0e"
+    },
+    {
+      "suite": "shared.ui.ui-foundation.e2e",
+      "file": "ui-foundation.spec.ts",
+      "project": "desktop",
+      "title": "foundation supports keyboard focus and reduced motion",
+      "run": "44eb56ae0660",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/44eb56ae0660/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "79b62695c06b94509ddc12eff7d2d7c1c4431d5a5f569a956054680111a04403"
+    },
+    {
+      "suite": "shared.ui.ui-foundation.e2e",
+      "file": "ui-foundation.spec.ts",
+      "project": "mobile",
+      "title": "canonical UI controls remain accessible across themes and widths",
+      "run": "69c3d4f76b06",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/69c3d4f76b06/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "39518d2b9e7635cb55808b1987abf9091e83a3169d717d60b5b7249a779487cb"
+    },
+    {
+      "suite": "shared.ui.ui-foundation.e2e",
+      "file": "ui-foundation.spec.ts",
+      "project": "mobile",
+      "title": "foundation supports keyboard focus and reduced motion",
+      "run": "54226c1d7ac4",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/54226c1d7ac4/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "4930b0ce7ea400e33e91d05c3604fdc6cdd4cc6344aa06b9994a089d80c17101"
+    },
+    {
+      "suite": "shared.ui.ui-migration-contracts.e2e",
+      "file": "ui-migration-contracts.spec.ts",
+      "project": "desktop",
+      "title": "native form values, submitter and keyboard submit survive the UI migration",
+      "run": "9f0cd280d1da",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/9f0cd280d1da/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "8a46c53ca5d9bcbc909f2684017f6302d2680b5aec9dd066e4f3f6db6ba1ee40"
+    },
+    {
+      "suite": "shared.ui.ui-migration-contracts.e2e",
+      "file": "ui-migration-contracts.spec.ts",
+      "project": "desktop",
+      "title": "controlled dialogs retain dirty drafts, trap focus and restore the opener",
+      "run": "bfe8ecef680f",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/bfe8ecef680f/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "ee3413b4853a01a7fc910ef4a63040a8b79f3bf5d9d943f270d56745bf95fe8d"
+    },
+    {
+      "suite": "shared.ui.ui-migration-contracts.e2e",
+      "file": "ui-migration-contracts.spec.ts",
+      "project": "desktop",
+      "title": "light, dark and system appearance share the UI tokens and remain responsive",
+      "run": "710e002f074f",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/710e002f074f/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "21bc32531dddfe8d139e3c463c69089a3299cea8c2c96e4cc8a98beb3fcaec4e"
+    },
+    {
+      "suite": "shared.ui.ui-migration-contracts.e2e",
+      "file": "ui-migration-contracts.spec.ts",
+      "project": "mobile",
+      "title": "native form values, submitter and keyboard submit survive the UI migration",
+      "run": "b7920b99b973",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/b7920b99b973/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "aef9f50490826c6331770f5e222dbfead2e8fdd27dbe5c7ca059fe75d31f7211"
+    },
+    {
+      "suite": "shared.ui.ui-migration-contracts.e2e",
+      "file": "ui-migration-contracts.spec.ts",
+      "project": "mobile",
+      "title": "controlled dialogs retain dirty drafts, trap focus and restore the opener",
+      "run": "e0ce1198be34",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/e0ce1198be34/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "6f51ad12e7e89b637854cf21f3c9c408e04f181596679d3d574bf49d04f559b7"
+    },
+    {
+      "suite": "shared.ui.ui-migration-contracts.e2e",
+      "file": "ui-migration-contracts.spec.ts",
+      "project": "mobile",
+      "title": "light, dark and system appearance share the UI tokens and remain responsive",
+      "run": "07369fa255ff",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/07369fa255ff/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "1eb1aa18698cfdb75ddbb2a614753aa581479e2df1ff289222912a7c98113caf"
+    },
+    {
+      "suite": "shared.ui.ui-standard-popups.e2e",
+      "file": "ui-standard-popups.spec.ts",
+      "project": "desktop",
+      "title": "shared popup keyboard behavior works inside a dirty form drawer",
+      "run": "018fee9a7675",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/018fee9a7675/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "e24f38d8d906ed9738b478ce83047104fff5b744bce1dfe2f4b4fd52c55c727d"
+    },
+    {
+      "suite": "shared.ui.ui-standard-popups.e2e",
+      "file": "ui-standard-popups.spec.ts",
+      "project": "mobile",
+      "title": "shared popup keyboard behavior works inside a dirty form drawer",
+      "run": "85842dd315c7",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/85842dd315c7/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "2d9ad48d91a2935f487675e6ca52073e4134943acbf3b59cb634136244fe16f7"
+    },
+    {
+      "suite": "shared.ui.visual-hierarchy.e2e",
+      "file": "visual-hierarchy.spec.ts",
+      "project": "desktop",
+      "title": "Today priorities and feed at 390px in light",
+      "run": "976f8713708e",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/976f8713708e/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "e838cdc2d2a2fe05454897d0db70e32796d3e4ebc9eade858eba82cf50483aea"
+    },
+    {
+      "suite": "shared.ui.visual-hierarchy.e2e",
+      "file": "visual-hierarchy.spec.ts",
+      "project": "desktop",
+      "title": "Today priorities and feed at 1024px in light",
+      "run": "495d3b6b55c9",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/495d3b6b55c9/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "bd6d136d7fd584224394942c35e0360ed7818a6d8e3abf324229b1e7c1f3a3db"
+    },
+    {
+      "suite": "shared.ui.visual-hierarchy.e2e",
+      "file": "visual-hierarchy.spec.ts",
+      "project": "desktop",
+      "title": "Today priorities and feed at 1440px in light",
+      "run": "aece6fde25d1",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/aece6fde25d1/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "560177823fc9d69ef9260c801bc7c017a34a0ba0387d7b7f80fc0f54bb5e69c6"
+    },
+    {
+      "suite": "shared.ui.visual-hierarchy.e2e",
+      "file": "visual-hierarchy.spec.ts",
+      "project": "desktop",
+      "title": "Today priorities and feed at 390px in dark",
+      "run": "4c6d9023c4ce",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/4c6d9023c4ce/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "3ec7b8a5600ebf9cebcfdce3d5becdc4691ae04cceb40ca7dd9d2d2df6510b62"
+    },
+    {
+      "suite": "shared.ui.visual-hierarchy.e2e",
+      "file": "visual-hierarchy.spec.ts",
+      "project": "desktop",
+      "title": "Today priorities and feed at 1024px in dark",
+      "run": "ffa13c777dce",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/ffa13c777dce/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "c0ded4ae32a1f764f06d4ccacfb033f7eb9156551e58c46eec27298116d30adc"
+    },
+    {
+      "suite": "shared.ui.visual-hierarchy.e2e",
+      "file": "visual-hierarchy.spec.ts",
+      "project": "desktop",
+      "title": "Today priorities and feed at 1440px in dark",
+      "run": "54b05330d361",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/54b05330d361/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "a982e8b298730c39ea9db2f12a40b9a5eee69420b3935c5f5b496b2371f28eda"
+    },
+    {
+      "suite": "shared.ui.visual-hierarchy.e2e",
+      "file": "visual-hierarchy.spec.ts",
+      "project": "desktop",
+      "title": "priority cards distinguish blockers, overdue work and undated work",
+      "run": "75959fd8dd0f",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/75959fd8dd0f/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "21d91545c4b8c7a5b990c69a6f5a3727e7a8476a031e28844563035ad98677b8"
+    },
+    {
+      "suite": "shared.ui.visual-hierarchy.e2e",
+      "file": "visual-hierarchy.spec.ts",
+      "project": "desktop",
+      "title": "keyboard entry reaches the main content",
+      "run": "dae5b40d5fef",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/dae5b40d5fef/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "fbc6860bd059b034fac61efac022124859d0e70a1755b700b4571ecdd37e2e3b"
+    },
+    {
+      "suite": "shared.ui.visual-hierarchy.e2e",
+      "file": "visual-hierarchy.spec.ts",
+      "project": "mobile",
+      "title": "Today priorities and feed at 390px in light",
+      "run": "fc0de1daeaa2",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/fc0de1daeaa2/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "105b47e239cdacd69923b391fe542eaeeb0cc5e47c8537a5675613898473c2cb"
+    },
+    {
+      "suite": "shared.ui.visual-hierarchy.e2e",
+      "file": "visual-hierarchy.spec.ts",
+      "project": "mobile",
+      "title": "Today priorities and feed at 1024px in light",
+      "run": "282e0bebc4ea",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/282e0bebc4ea/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "85158c84f43d066098536e443fadd4aa2434b295cddc0ea9f5db2714570cc2c8"
+    },
+    {
+      "suite": "shared.ui.visual-hierarchy.e2e",
+      "file": "visual-hierarchy.spec.ts",
+      "project": "mobile",
+      "title": "Today priorities and feed at 1440px in light",
+      "run": "fd157d397088",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/fd157d397088/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "49250bb1949fffe87e8ecfda30ead5fd870a5048fd086197ab4681e95e0f9783"
+    },
+    {
+      "suite": "shared.ui.visual-hierarchy.e2e",
+      "file": "visual-hierarchy.spec.ts",
+      "project": "mobile",
+      "title": "Today priorities and feed at 390px in dark",
+      "run": "4dbbc49e01ba",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/4dbbc49e01ba/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "7f29e3fbcad10694e6ef74c8ba21b896f1bf4ba7cf54437556b8f7b5ce9829e8"
+    },
+    {
+      "suite": "shared.ui.visual-hierarchy.e2e",
+      "file": "visual-hierarchy.spec.ts",
+      "project": "mobile",
+      "title": "Today priorities and feed at 1024px in dark",
+      "run": "0f55ccb60693",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/0f55ccb60693/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "e597369880d4f85eba41f78b198abb5edbb1eda06566f1d4368f4f5415701f4b"
+    },
+    {
+      "suite": "shared.ui.visual-hierarchy.e2e",
+      "file": "visual-hierarchy.spec.ts",
+      "project": "mobile",
+      "title": "Today priorities and feed at 1440px in dark",
+      "run": "e52b5b6c568b",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/e52b5b6c568b/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "077a4ec0788c0039a19ff9b026f086018a7fb4f5bef04c2104a736c8b80bb21d"
+    },
+    {
+      "suite": "shared.ui.visual-hierarchy.e2e",
+      "file": "visual-hierarchy.spec.ts",
+      "project": "mobile",
+      "title": "priority cards distinguish blockers, overdue work and undated work",
+      "run": "6df0f3b638a3",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/6df0f3b638a3/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "3a190d62fb9b672a29d769054ef3bd1e8300261083364aa6b30fc65d2cfd6c29"
+    },
+    {
+      "suite": "shared.ui.visual-hierarchy.e2e",
+      "file": "visual-hierarchy.spec.ts",
+      "project": "mobile",
+      "title": "keyboard entry reaches the main content",
+      "run": "80b0de0d511f",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/80b0de0d511f/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "4c10ac43e0d503338b262d420056e1537a3ed30ef0dae8a29c5d4dd9987c6465"
+    },
+    {
+      "suite": "shared.work.work-cards.e2e",
+      "file": "work-cards.spec.ts",
+      "project": "desktop",
+      "title": "members without profiles use cards to create drafts and preserve filters, refresh and Back",
+      "run": "3e5b20e0cb4c",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/3e5b20e0cb4c/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "17bdbca7f6dd6d283a7831a29596a3c265649b537cb90b9ee76e6c9080e58002"
+    },
+    {
+      "suite": "shared.work.work-cards.e2e",
+      "file": "work-cards.spec.ts",
+      "project": "desktop",
+      "title": "pin order syncs between devices and conflicts preserve the proposed arrangement",
+      "run": "4ecd8d57ef85",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/4ecd8d57ef85/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "58eedb4e3f97d128d4a347f7db293776068ee5f3a8d4ca53bffc181c44e5dc1e"
+    },
+    {
+      "suite": "shared.work.work-cards.e2e",
+      "file": "work-cards.spec.ts",
+      "project": "desktop",
+      "title": "preference APIs reject forged authority and beta only offers supported actions",
+      "run": "10fd497bc496",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/10fd497bc496/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "90901c411869bdd9a14812624bc80c66c0ff69913c9d869e5a5c81d6db6295f0"
+    },
+    {
+      "suite": "shared.work.work-cards.e2e",
+      "file": "work-cards.spec.ts",
+      "project": "desktop",
+      "title": "focus refresh updates preferences and incomplete summaries keep other work usable",
+      "run": "135f8bf9c99d",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/135f8bf9c99d/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "db33c196e6109047d017d49ce2df6a2faa083fe8f4043ab630e56469bb226d99"
+    },
+    {
+      "suite": "shared.work.work-cards.e2e",
+      "file": "work-cards.spec.ts",
+      "project": "desktop",
+      "title": "an expense saved from a card appears once in the matching list and summary",
+      "run": "fbceb575e1de",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/fbceb575e1de/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "0e8d06189f17c506f6e1635ddfb8b15444c338a93278ad1cedf45e821cc1bb63"
+    },
+    {
+      "suite": "shared.work.work-cards.e2e",
+      "file": "work-cards.spec.ts",
+      "project": "desktop",
+      "title": "team and inventory cards follow company, branch and department scope",
+      "run": "40d491a4c9ae",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/40d491a4c9ae/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "2bdc3b6082011b89e1e190d0213725a2c1ae78a41696052cd208e22eee66d369"
+    },
+    {
+      "suite": "shared.work.work-cards.e2e",
+      "file": "work-cards.spec.ts",
+      "project": "desktop",
+      "title": "cards fit 390, 768 and 1440px in both themes and retain keyboard focus",
+      "run": "c8cc05d804e7",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/c8cc05d804e7/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "ce2322ab3a40be0be55911b5f028354ebf2a8c2471ed732ede5b61c06736b547"
+    },
+    {
+      "suite": "shared.work.work-cards.e2e",
+      "file": "work-cards.spec.ts",
+      "project": "mobile",
+      "title": "members without profiles use cards to create drafts and preserve filters, refresh and Back",
+      "run": "e079b6bbed3b",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/e079b6bbed3b/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "422967d829890ba34902d0b76fa55bcc89cc5701ee03f94b316128350987269c"
+    },
+    {
+      "suite": "shared.work.work-cards.e2e",
+      "file": "work-cards.spec.ts",
+      "project": "mobile",
+      "title": "pin order syncs between devices and conflicts preserve the proposed arrangement",
+      "run": "a140ba310dd0",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/a140ba310dd0/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "8a69e276288117710e2a6fe31f8fcf7c35bbb062e49d55c0b93a28e04f4cf9f2"
+    },
+    {
+      "suite": "shared.work.work-cards.e2e",
+      "file": "work-cards.spec.ts",
+      "project": "mobile",
+      "title": "preference APIs reject forged authority and beta only offers supported actions",
+      "run": "19b5bb0d61f2",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/19b5bb0d61f2/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "fc241284d116b8ced866c753703848370197491b339935b612001d6249aadff8"
+    },
+    {
+      "suite": "shared.work.work-cards.e2e",
+      "file": "work-cards.spec.ts",
+      "project": "mobile",
+      "title": "focus refresh updates preferences and incomplete summaries keep other work usable",
+      "run": "501e60acddbe",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/501e60acddbe/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "3a311166e732adf15f360e2c1099f8dc0df469fc098fe65ef390f95384d2159b"
+    },
+    {
+      "suite": "shared.work.work-cards.e2e",
+      "file": "work-cards.spec.ts",
+      "project": "mobile",
+      "title": "an expense saved from a card appears once in the matching list and summary",
+      "run": "d3be023f15d5",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/d3be023f15d5/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "d21d00501b150c936461b21ff565a0d0b0902b38b57894ba65af752d9271efd2"
+    },
+    {
+      "suite": "shared.work.work-cards.e2e",
+      "file": "work-cards.spec.ts",
+      "project": "mobile",
+      "title": "team and inventory cards follow company, branch and department scope",
+      "run": "442f6047266b",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/442f6047266b/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "cee391f815c26c450fe4c2f65ac6a0d17d905f6d6a07349a357011369cfd3cb7"
+    },
+    {
+      "suite": "shared.work.work-journeys.journeys",
+      "file": "work-journeys.spec.ts",
+      "project": "desktop",
+      "title": "WORK-001 filters survive queue changes and reload, then clear",
+      "run": "29f0108c0690",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/29f0108c0690/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "e6656641e2ab478d2e717b9a19a44e85f4574eb17ef921c6e84e5a90fea4ef2b"
+    },
+    {
+      "suite": "shared.work.work-journeys.journeys",
+      "file": "work-journeys.spec.ts",
+      "project": "desktop",
+      "title": "WORK-002 legacy /requests opens the corresponding Work list",
+      "run": "978bf524468e",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/978bf524468e/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "8631aa937acd3e4e239b4fe7d53b71c2e9284f3408c78aa2d4cf8f1ae6834c79"
+    },
+    {
+      "suite": "shared.work.work-journeys.journeys",
+      "file": "work-journeys.spec.ts",
+      "project": "desktop",
+      "title": "WORK-003 legacy /staff-tasks?queue=completed&q=acceptance opens the corresponding Work list",
+      "run": "4e84e4de2734",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/4e84e4de2734/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "acd915c042f9c36c22f69da6a4b5204895e881d7a9c1b2bc9cd38f8aab5a4c95"
+    },
+    {
+      "suite": "shared.work.work-journeys.journeys",
+      "file": "work-journeys.spec.ts",
+      "project": "desktop",
+      "title": "WORK-004 New work closes with Escape and restores keyboard focus",
+      "run": "8f62a77b1126",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/8f62a77b1126/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "931d0c39c88ee08ff9ead3095fc31950b2d2fd189cfbc7b23b4873541b7366d9"
+    },
+    {
+      "suite": "shared.work.work-journeys.journeys",
+      "file": "work-journeys.spec.ts",
+      "project": "desktop",
+      "title": "WORK-005 failed summary refresh keeps filters and recovers through Retry work",
+      "run": "2089019aec7d",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/2089019aec7d/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "82526fde1c5ef3bf58d8885c5779a833edf9489bec57f70514b0cf8ba52ffcf0"
+    },
+    {
+      "suite": "shared.work.work-journeys.journeys",
+      "file": "work-journeys.spec.ts",
+      "project": "desktop",
+      "title": "REQ-001 request draft survives reload and failed save, retries once, then cancels",
+      "run": "ec3ba83acd74",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/ec3ba83acd74/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "7b75b53ac2752a79a8cad1d53f896dc5742367a9b8aab9342ffad8d969367b2f"
+    },
+    {
+      "suite": "shared.work.work-journeys.journeys",
+      "file": "work-journeys.spec.ts",
+      "project": "mobile",
+      "title": "WORK-001 filters survive queue changes and reload, then clear",
+      "run": "8bf837e043b5",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/8bf837e043b5/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "f8541cbb87e03c899ccc52ab50157ea9f7bba9cca623a902d438df6dedea392c"
+    },
+    {
+      "suite": "shared.work.work-journeys.journeys",
+      "file": "work-journeys.spec.ts",
+      "project": "mobile",
+      "title": "WORK-002 legacy /requests opens the corresponding Work list",
+      "run": "248046894392",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/248046894392/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "80ac31e891eb81d77bd2954fadd82a4a9219cfab60e6b9c1d32ce9f95e3b69c3"
+    },
+    {
+      "suite": "shared.work.work-journeys.journeys",
+      "file": "work-journeys.spec.ts",
+      "project": "mobile",
+      "title": "WORK-003 legacy /staff-tasks?queue=completed&q=acceptance opens the corresponding Work list",
+      "run": "eecd798075ab",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/eecd798075ab/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "9335853fe4918ffced4736fe51a0b964f1e2b03a03b184dfc9683d81b25b13c7"
+    },
+    {
+      "suite": "shared.work.work-journeys.journeys",
+      "file": "work-journeys.spec.ts",
+      "project": "mobile",
+      "title": "WORK-004 New work closes with Escape and restores keyboard focus",
+      "run": "f54fa7766cba",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/f54fa7766cba/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "f0f0f9993c22b395a049a9e8a57676c0cae8e72590fca22cb90815bfbef3f85f"
+    },
+    {
+      "suite": "shared.work.work-journeys.journeys",
+      "file": "work-journeys.spec.ts",
+      "project": "mobile",
+      "title": "WORK-005 failed summary refresh keeps filters and recovers through Retry work",
+      "run": "60d8cc44b72e",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/60d8cc44b72e/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "cd2095a5511e1ae33d536d0c0749ede4e4c8d0cfeeb36794ae64f951b5ec050c"
+    },
+    {
+      "suite": "shared.work.work-journeys.journeys",
+      "file": "work-journeys.spec.ts",
+      "project": "mobile",
+      "title": "REQ-001 request draft survives reload and failed save, retries once, then cancels",
+      "run": "7a9d1d77f2f9",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/7a9d1d77f2f9/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "330c91adcf5803006ef65de3c299f4734c8522b24b283130719bebcf1ba8b829"
+    },
+    {
+      "suite": "shared.ui.workplace-design.e2e",
+      "file": "workplace-design.spec.ts",
+      "project": "desktop",
+      "title": "three working surfaces at 1440 in light",
+      "run": "0ecc30dcebdb",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/0ecc30dcebdb/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "e0f4836178b3a4adb909c4f53b9c117cd47720eecf277a20fe5a83067ac444fe"
+    },
+    {
+      "suite": "shared.ui.workplace-design.e2e",
+      "file": "workplace-design.spec.ts",
+      "project": "desktop",
+      "title": "three working surfaces at 1440 in dark",
+      "run": "a688014074d0",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/a688014074d0/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "f4851ac72ecdeda2d2e5b8be5985bca3fa71038090af7752ae00ad404bb0ad85"
+    },
+    {
+      "suite": "shared.ui.workplace-design.e2e",
+      "file": "workplace-design.spec.ts",
+      "project": "desktop",
+      "title": "three working surfaces at 1024 in light",
+      "run": "7e9cced811db",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/7e9cced811db/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "d0d63037bb506bbf1066294bcd30f5b688a3c5f2b7c6424c3a83481d62b36326"
+    },
+    {
+      "suite": "shared.ui.workplace-design.e2e",
+      "file": "workplace-design.spec.ts",
+      "project": "desktop",
+      "title": "three working surfaces at 1024 in dark",
+      "run": "46afca0df342",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/46afca0df342/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "15b8b3d9c3569aa2498e201307fa19b44d868e2ce4dd902eb2c5cc80534e2afb"
+    },
+    {
+      "suite": "shared.ui.workplace-design.e2e",
+      "file": "workplace-design.spec.ts",
+      "project": "desktop",
+      "title": "three working surfaces at 390 in light",
+      "run": "ccb183d8fa54",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/ccb183d8fa54/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "52f083623ee989f2a3b1f575f80b730c540bd9015ae9bd146292c2a11582612e"
+    },
+    {
+      "suite": "shared.ui.workplace-design.e2e",
+      "file": "workplace-design.spec.ts",
+      "project": "desktop",
+      "title": "three working surfaces at 390 in dark",
+      "run": "2a100d7e8a93",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/2a100d7e8a93/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "276fdecb649a452dcf8ff281ce779cc44d688ee92471e00281a132915928771b"
+    },
+    {
+      "suite": "shared.ui.workplace-design.e2e",
+      "file": "workplace-design.spec.ts",
+      "project": "desktop",
+      "title": "shared attention shows full totals, survives filters, recovers from failure and clears revoked data",
+      "run": "10aa572c2279",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/10aa572c2279/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "4458a102b35f748bc63b1e66a5d62dcc62ed7794916da066ef65f9e6b6c8eae9"
+    },
+    {
+      "suite": "shared.ui.workplace-design.e2e",
+      "file": "workplace-design.spec.ts",
+      "project": "desktop",
+      "title": "work rows show a real current owner and next handoff, and preserve the return filters",
+      "run": "6186deb26cfe",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/6186deb26cfe/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "3658dbc980d534e9457f899db010ebebba8d33e8ac694cdb8ebbc9de85522eb3"
+    },
+    {
+      "suite": "shared.ui.workplace-design.e2e",
+      "file": "workplace-design.spec.ts",
+      "project": "desktop",
+      "title": "System follows both color schemes and respects reduced motion",
+      "run": "87f585fb1ea2",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/87f585fb1ea2/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "92d548a42b3fc44eb5423cf7917f665e3d05ea1a46b22c38282f7f213169e5f4"
+    },
+    {
+      "suite": "shared.ui.workplace-design.e2e",
+      "file": "workplace-design.spec.ts",
+      "project": "mobile",
+      "title": "three working surfaces at 1440 in light",
+      "run": "dea0be1ec5c8",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/dea0be1ec5c8/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "95246b3382dba8496e9ae972731d5cbe6b62a1b919111503250c536643bc9f8a"
+    },
+    {
+      "suite": "shared.ui.workplace-design.e2e",
+      "file": "workplace-design.spec.ts",
+      "project": "mobile",
+      "title": "three working surfaces at 1440 in dark",
+      "run": "88bbfe03c963",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/88bbfe03c963/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "a441b24dcd92778e78efaa23b40640084643e0b63f2198297f5b5bf5f648956a"
+    },
+    {
+      "suite": "shared.ui.workplace-design.e2e",
+      "file": "workplace-design.spec.ts",
+      "project": "mobile",
+      "title": "three working surfaces at 1024 in light",
+      "run": "2df063fa9c5b",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/2df063fa9c5b/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "314b49f09f479a5630bf8e7bf837d6a3e01e47cc1b840af35fc9df1543f59c84"
+    },
+    {
+      "suite": "shared.ui.workplace-design.e2e",
+      "file": "workplace-design.spec.ts",
+      "project": "mobile",
+      "title": "three working surfaces at 1024 in dark",
+      "run": "1cb942251aaf",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/1cb942251aaf/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "29ada8c6a9aae51c25175226d051c6a02387e6892b9b185f3bc398889d653010"
+    },
+    {
+      "suite": "shared.ui.workplace-design.e2e",
+      "file": "workplace-design.spec.ts",
+      "project": "mobile",
+      "title": "three working surfaces at 390 in light",
+      "run": "e092a53fbeaf",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/e092a53fbeaf/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "e41d9b255a24dce5d1b1f2861632f5b46a2a8416dc8c83c0f8dc431d1fe567be"
+    },
+    {
+      "suite": "shared.ui.workplace-design.e2e",
+      "file": "workplace-design.spec.ts",
+      "project": "mobile",
+      "title": "three working surfaces at 390 in dark",
+      "run": "f1d688927949",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/f1d688927949/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "41c2cca1c4c56a6d6b4d9eb4ae12152e6be5933c65776b2fc532b8b31c8ce28b"
+    },
+    {
+      "suite": "shared.ui.workplace-design.e2e",
+      "file": "workplace-design.spec.ts",
+      "project": "mobile",
+      "title": "shared attention shows full totals, survives filters, recovers from failure and clears revoked data",
+      "run": "33251c1dfa7c",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/33251c1dfa7c/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "69ea9e3737c5112dda257c1a1af31a5f1f8c38b8edf2e33add37f20ccbe8bc64"
+    },
+    {
+      "suite": "shared.ui.workplace-design.e2e",
+      "file": "workplace-design.spec.ts",
+      "project": "mobile",
+      "title": "work rows show a real current owner and next handoff, and preserve the return filters",
+      "run": "280876219f36",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/280876219f36/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "75bcb233a113bb1a3b5e0ca8f8d1c5776607b2f49e850428696bad26c94ca224"
+    },
+    {
+      "suite": "shared.ui.workplace-design.e2e",
+      "file": "workplace-design.spec.ts",
+      "project": "mobile",
+      "title": "System follows both color schemes and respects reduced motion",
+      "run": "c8903d71a26b",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T03-19-13-344Z/c8903d71a26b/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "dd94bd47699b7df6809335f6c136d6e73e368fcf400b98b3c72defaf32e0c4ac"
+    }
+  ],
+  "excludedNonRequiredVariants": [
+    {
+      "suite": "shared.ui.enterprise-ui.e2e",
+      "file": "enterprise-ui.spec.ts",
+      "project": "mobile",
+      "title": "POS opens directly from the sidebar, rail, and app launcher",
+      "required": false,
+      "reason": "The case verifies the desktop sidebar and collapsed rail; mobile app launcher access remains required in the navigation case."
+    },
+    {
+      "suite": "shared.ui.enterprise-ui.e2e",
+      "file": "enterprise-ui.spec.ts",
+      "project": "mobile",
+      "title": "breadcrumb returns to live business parents",
+      "required": false,
+      "reason": "The full breadcrumb exists in the desktop shell; mobile uses the compact workspace menu covered by responsive navigation."
+    },
+    {
+      "suite": "shared.ui.enterprise-ui.e2e",
+      "file": "enterprise-ui.spec.ts",
+      "project": "mobile",
+      "title": "live workspace pages fit three widths and both themes",
+      "required": false,
+      "reason": "This case explicitly sweeps mobile, tablet and desktop widths in both themes once; device-specific navigation cases run in both projects."
+    },
+    {
+      "suite": "shared.work.work-cards.e2e",
+      "file": "work-cards.spec.ts",
+      "project": "mobile",
+      "title": "cards fit 390, 768 and 1440px in both themes and retain keyboard focus",
+      "required": false,
+      "reason": "This case explicitly sweeps narrow and wide viewports and hardware keyboard focus once; other card business cases remain required on mobile."
+    }
+  ],
+  "scope": "Fresh exact original178 plus2 new identities. Five business suites compiled; shared UI suites original isolated development fixtures per browser mapping. No skipped/flaky/interrupted/cleanup failures. Historical red retained separately.",
+  "wholePlanAccepted": false
+}

@@ -6,6 +6,7 @@ import { isTransactionalSqlDatabase } from "@/server/modules/runtime/public/runt
 import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
 import { pmsReadSelectionFromSearch } from "@/server/modules/pms/public/rules/pms-read-selection";
 import { measureReadRequest } from "@/server/modules/runtime/public/runtime/read-request";
+import { measureReadPhase } from "@/server/modules/runtime/public/runtime/read-metrics";
 export const dynamic = "force-dynamic";
 type Context = { params: Promise<{ holdingSlug: string }> };
 export async function GET(request: Request, { params }: Context) {
@@ -31,6 +32,7 @@ export async function GET(request: Request, { params }: Context) {
   });
 }
 export async function POST(request: Request, { params }: Context) {
+  return measureReadRequest("pms-command", async () => {
   try {
     const origin = request.headers.get("origin");
     if (origin && origin !== requestPublicOrigin(request))
@@ -54,8 +56,9 @@ export async function POST(request: Request, { params }: Context) {
     const { write } = await holdingResources(actor.holdingId);
     if (!isTransactionalSqlDatabase(write))
       throw new Error("POSTGRES_REQUIRED");
-    return Response.json({ data: await pmsCommand(write, actor, body, key) });
+    return Response.json({ data: await measureReadPhase("pms_command", () => pmsCommand(write, actor, body, key)) });
   } catch (e) {
     return errorResponse(e);
   }
+  });
 }

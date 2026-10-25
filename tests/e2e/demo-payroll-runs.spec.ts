@@ -241,10 +241,17 @@ test("isolated demo calculates and independently approves a payroll preview", as
     );
     expect(payrollReviewer, "independent payroll reviewer").toBeTruthy();
     await reviewStep.locator("summary").click();
-    await reviewStep
+    const ownerDrawer = routingPage.getByRole("dialog", { name: "Assign / change owner", exact: true });
+    await expect(ownerDrawer).toHaveCount(1);
+    await expect(ownerDrawer).toBeVisible();
+    const ownerForm = ownerDrawer.locator("form");
+    await expect(ownerForm).toHaveCount(1);
+    const saveOwner = ownerForm.getByRole("button", { name: "Save owner", exact: true });
+    await expect(saveOwner).toHaveAttribute("data-client-managed-ready", "true");
+    await ownerForm
       .locator('select[name="userId"]')
       .selectOption(payrollReviewer!.userId);
-    await reviewStep
+    await ownerForm
       .locator('input[name="reason"]')
       .fill("Assign independent Demo payroll reviewer.");
     const routingResponse = routingPage.waitForResponse(
@@ -252,7 +259,7 @@ test("isolated demo calculates and independently approves a payroll preview", as
         response.request().method() === "POST" &&
         response.url().includes(`/flows/payroll/${runId}`),
     );
-    await reviewStep.getByRole("button", { name: "Save owner", exact: true }).click();
+    await saveOwner.click();
     expect((await routingResponse).status()).toBe(200);
 
     const submitResponse = preparerPage.waitForResponse(

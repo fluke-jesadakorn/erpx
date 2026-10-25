@@ -1,0 +1,435 @@
+{
+  "run": "7f41c33d09a2",
+  "sourceFingerprint": "68e75fde8e5627895557663ebda261954a410c56589c74bb56845fcdf22bb1a0",
+  "verificationFingerprint": "2e7c70770826e39321dd089a7a23b6e9827bf93dabb4420e09cd108195f3bd67",
+  "release": {
+    "id": "2026-10-09T22-07-03-230Z",
+    "fileManifestSha256": "65d23c1eb530cdd3433ef38d2ef760d03eb49a5c143b9b0522b17533e36a7ac4"
+  },
+  "scope": "Release HTTP: 3 × 200 rooms, 730-day synthetic closed stay/reservation/account metadata; 20 distinct normal staff accounts. Historic revenue is not invented.",
+  "applicationPoolMax": 8,
+  "controlPoolMax": 5,
+  "jobsHoldingPoolMax": 1,
+  "counts": [
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    },
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    },
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    }
+  ],
+  "accounts": 20,
+  "rounds": 10,
+  "durationMs": 88431,
+  "readCount": 840,
+  "writeCount": 843,
+  "readP95Ms": 306.0786670000016,
+  "writeP95Ms": 2161.9678749999985,
+  "coreReadCount": 840,
+  "coreWriteCount": 400,
+  "financialEnabled": true,
+  "financialWriteCount": 200,
+  "financialWriteP95Ms": 1727.1752500000075,
+  "financialOperations": [
+    {
+      "operation": "shift.open",
+      "count": 20,
+      "p95Ms": 1393.166750000004
+    },
+    {
+      "operation": "charge.add",
+      "count": 20,
+      "p95Ms": 1697.4162910000014
+    },
+    {
+      "operation": "payment.receive",
+      "count": 40,
+      "p95Ms": 1675.1888340000005
+    },
+    {
+      "operation": "payment.deposit",
+      "count": 20,
+      "p95Ms": 1667.6208330000009
+    },
+    {
+      "operation": "refund.request",
+      "count": 20,
+      "p95Ms": 1470.914042000004
+    },
+    {
+      "operation": "refund.approve",
+      "count": 20,
+      "p95Ms": 254.75824999999895
+    },
+    {
+      "operation": "refund.pay",
+      "count": 20,
+      "p95Ms": 2020.6277919999993
+    },
+    {
+      "operation": "shift.close",
+      "count": 20,
+      "p95Ms": 1493.3701250000013
+    },
+    {
+      "operation": "shift.review",
+      "count": 20,
+      "p95Ms": 215.7446670000063
+    }
+  ],
+  "financialReconciliation": {
+    "history": {
+      "records": 657000,
+      "versions": "657000"
+    },
+    "balances": {
+      "accounts": 20,
+      "due": "0",
+      "advance": "200000",
+      "deposit": "40000"
+    },
+    "cash": {
+      "shifts": 20,
+      "cash": "475400",
+      "reviewed": true
+    },
+    "receipts": {
+      "receipts": 60,
+      "refunds": 20,
+      "received": "495400",
+      "refunded": "20000",
+      "settled": true
+    },
+    "journals": {
+      "debit": "999280",
+      "credit": "999280"
+    }
+  },
+  "operationalEnabled": true,
+  "operationalWriteCount": 220,
+  "operationalWriteP95Ms": 1545.6107090000005,
+  "operationalOperations": [
+    {
+      "operation": "reservation.create",
+      "count": 20,
+      "p95Ms": 1562.674125000005
+    },
+    {
+      "operation": "stay.assign",
+      "count": 20,
+      "p95Ms": 1462.3337500000052
+    },
+    {
+      "operation": "stay.check_in",
+      "count": 20,
+      "p95Ms": 1466.3387499999953
+    },
+    {
+      "operation": "stay.move",
+      "count": 20,
+      "p95Ms": 1545.6107090000005
+    },
+    {
+      "operation": "stay.change_dates",
+      "count": 20,
+      "p95Ms": 1486.9096250000002
+    },
+    {
+      "operation": "stay.preview_checkout",
+      "count": 20,
+      "p95Ms": 1674.7063340000022
+    },
+    {
+      "operation": "shift.open",
+      "count": 20,
+      "p95Ms": 1423.4123749999999
+    },
+    {
+      "operation": "payment.receive",
+      "count": 20,
+      "p95Ms": 1670.0322080000042
+    },
+    {
+      "operation": "stay.check_out",
+      "count": 20,
+      "p95Ms": 1440.0490410000057
+    },
+    {
+      "operation": "shift.close",
+      "count": 20,
+      "p95Ms": 1398.0194999999949
+    },
+    {
+      "operation": "shift.review",
+      "count": 20,
+      "p95Ms": 226.2922499999986
+    }
+  ],
+  "operationalReconciliation": {
+    "occupancy": {
+      "stays": 20,
+      "completed": true
+    },
+    "balances": {
+      "accounts": 20,
+      "due": "0",
+      "advance": "0",
+      "deposit": "0"
+    },
+    "cash": {
+      "shifts": 20,
+      "cash": "7062000",
+      "reviewed": true
+    },
+    "rooms": {
+      "rooms": 40,
+      "dirty": true
+    },
+    "charges": {
+      "charges": 20,
+      "total": "7062000"
+    },
+    "receipts": {
+      "receipts": 20,
+      "received": "7062000",
+      "settled": true
+    },
+    "journals": {
+      "debit": "22185280",
+      "credit": "22185280"
+    },
+    "history": {
+      "records": 657000,
+      "versions": "657000"
+    }
+  },
+  "closingEnabled": true,
+  "closingWriteCount": 23,
+  "closingWriteP95Ms": 1466.21104200001,
+  "closingOperations": [
+    {
+      "operation": "guest_account.close",
+      "count": 20,
+      "p95Ms": 1466.21104200001
+    },
+    {
+      "operation": "night.start",
+      "count": 3,
+      "p95Ms": 232.3517920000013
+    }
+  ],
+  "closingReconciliation": {
+    "invoices": {
+      "invoices": 20,
+      "total": "7062000",
+      "outstanding": "0",
+      "paid": true
+    },
+    "days": {
+      "hotels": 3,
+      "advanced": true
+    },
+    "nights": {
+      "nights": 3,
+      "capacity": 600,
+      "sold": 20,
+      "completed": true
+    },
+    "journals": {
+      "debit": "22185280",
+      "credit": "22185280"
+    },
+    "history": {
+      "records": 657000,
+      "versions": "657000"
+    }
+  },
+  "failedSamples": 0,
+  "sameProcesses": true,
+  "unchanged": true,
+  "samplesSha256": "818b1ae2a068335c61646cb0ee0f3a55b6d7bc22cef026e13e09a3e468759a64",
+  "passed": false,
+  "acceptance": false,
+  "financialCorrectnessPassed": true,
+  "financialFocusedPassed": false,
+  "financialPerformancePassed": false,
+  "operationalCorrectnessPassed": true,
+  "operationalPerformancePassed": true,
+  "closingCorrectnessPassed": true,
+  "closingPerformancePassed": true,
+  "nativeCases": {
+    "pms": 62,
+    "booking": 37,
+    "workCache": 26,
+    "companyMoneyService": 10,
+    "applicationUnit": 56,
+    "companyMoneySemanticUnit": 12,
+    "companyMoneyUnit": 3,
+    "total": 206
+  },
+  "checks": {
+    "typecheck": true,
+    "lint": true,
+    "lintExistingWarnings": 3,
+    "architecture": true,
+    "isolatedReleaseBuild": true
+  },
+  "coreOperations": [
+    {
+      "operation": "guest.save",
+      "count": 200,
+      "p95Ms": 1961.981334,
+      "attemptsP95": 8
+    },
+    {
+      "operation": "reservation.create",
+      "count": 200,
+      "p95Ms": 2201.2267500000016,
+      "attemptsP95": 10
+    }
+  ],
+  "quoteBatch": {
+    "owner": "Finance",
+    "scope": "Explicit invocation-local Company scales/rates; fresh facts for the next batch. No authority cached across commands/transactions.",
+    "persistence": "Independent per-date/source quote rows in up to 500-row inserts; all rows commit/rollback with the original PMS owner transaction. Original source-sensitive carry/reversal ordering remains.",
+    "nativeProofs": [
+      "Individual/batch FX, date and rounding parity",
+      "Company isolation and missing rate rejection",
+      "Fresh confirmed rate on the next invocation",
+      "Every member validated before persistence",
+      "Owner transaction rollback removes every batch row",
+      "501 independent USD snapshots split into two statements and conserve total 125751 minor units"
+    ],
+    "unitProof": "One Company rates/scales read per explicit batch; next Company/batch reads fresh facts."
+  },
+  "preparationFailure": {
+    "run": "013cfa86bd12",
+    "terminal": true,
+    "observed": "Third hotel enable failed Add rooms. Read-only inspection found second hotel held 400 rooms (including the scale-room-2 prefix and its own type), third hotel held zero rooms. No compiled load started.",
+    "correction": "Direct imperative binding replaces the asynchronous history loop callback room builder; authoritative count/type/active scope proof must pass for each property before enable/history. Fresh preparation passes exact 200 rooms per hotel and the final complete volume checks.",
+    "causeLimit": "The wrong binding is observed; a runtime/closure optimizer defect is not proven. No repair of the failed cohort or altered acceptance threshold.",
+    "ownedCohortRemoved": true,
+    "ownedDatabasesRemoved": 8
+  },
+  "databaseCounters": {
+    "id": 606984300,
+    "deadlocksBefore": 0,
+    "deadlocksAfter": 0,
+    "deadlockDelta": 0,
+    "conflictDelta": 0,
+    "caveat": "pg_stat_database.conflicts does not count serializable retries. Logical command durations include conflict retries and original-envelope replay."
+  },
+  "limitation": "Core 400 writes p95 2162 ms fails; reservation.create separately p95 2201 ms. Financial aggregate p95 1727 ms is below two seconds, but refund.pay p95 2021 ms fails its unchanged per-operation gate. No financial performance or whole-plan acceptance claimed. Front desk/closure/audit correctness and performance pass; whole-candidate browser/native and consolidated mock pilot remain open.",
+  "logs": {
+    "native": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-money-batch-corrected-native.log",
+      "sha256": "8558c23140c8b19711a052c73a7e12ecc0ec050fd409f0be4bf62428d6248dd0"
+    },
+    "unit": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-money-batch-corrected-unit.log",
+      "sha256": "b751cf6401f50eb769edc7ce2013d2734344ca2d3be4fca4cfba2d77fd8cc6a7"
+    },
+    "typecheck": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-money-batch-corrected-typecheck.log",
+      "sha256": "ae3aa3d40f2b7fdeaf8ae4398c41416876c85fc2ccc6aa232e526fdb75f340ef"
+    },
+    "lint": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-money-batch-corrected-lint.log",
+      "sha256": "827c4aba480463caff85470227105c05ff46cd40693fc7c1b1f9f25d59f13231"
+    },
+    "architecture": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-money-batch-corrected-architecture.log",
+      "sha256": "61f27aa5d383438fa7955c201143725c76302dadbcb2c312efa2d398a9d6f86b"
+    },
+    "build": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-money-batch-corrected-build.log",
+      "sha256": "951db229856a6e01d24a9778f589b8cd7d09ce0f9b8adae0575c64b896c7e0cc"
+    },
+    "prepare": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-money-batch-corrected-prepare.log",
+      "sha256": "eb617a4865ff0f28e02e927def0df56fafa431a2c7c161524d9a7fea67a828e1"
+    },
+    "start": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-money-batch-start.log",
+      "sha256": "ed2064600bb7eadf1b3da4bd764cfa28a0c7d36656d5f343c5e4425c4db7c27a"
+    },
+    "performance": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-money-batch-performance.log",
+      "sha256": "d326ae0ee48d3d5123262536f103fc0607061654cb51c5fcb1356b65b4f848c0"
+    },
+    "failedPreparation": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-money-batch-prepare.log",
+      "sha256": "a541690a254a93006ef3535564e4af0db23bfec54517234e5a487881062f3958"
+    },
+    "failedPreparationCleanup": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-money-batch-failed-prepare-destroy.log",
+      "sha256": "01a78f415f8c84edc1d4eb1da2171b912930da284efe5c4cc7a966c85080112b"
+    },
+    "destroy": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-money-batch-destroy.log",
+      "sha256": "80de67d20bd7cf0b07dd87f42a3a9547d270e7b9b722bb10a57152eb4423c2f8"
+    },
+    "docs": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-money-batch-docs.log",
+      "sha256": "47953e9e5ce33737a4e0befeb6914467d43ebf4cfaa34b65e8b6a8714548573f"
+    }
+  },
+  "diagnostics": {
+    "databaseBefore": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-money-batch-db-before.json",
+      "sha256": "e308ab8b7e8f580e46bdefd2ca5eca80287e722acd8c2091ba0819a82c000df4"
+    },
+    "databaseAfter": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-money-batch-db-after.json",
+      "sha256": "e308ab8b7e8f580e46bdefd2ca5eca80287e722acd8c2091ba0819a82c000df4"
+    },
+    "timings": {
+      "path": ".scratch/dev/pms-money-batch-scale-release-7f41c33d09a2/timings.jsonl",
+      "sha256": "38dcf43cbca1eddbb66fae72671ce7dae0510672aaf101d9a0de9fef4b6b2955"
+    },
+    "requests": {
+      "path": ".scratch/dev/pms-money-batch-scale-release-7f41c33d09a2/requests.jsonl",
+      "sha256": "2224918eb7afd8f77d143924d626c36a2c296a7c38846464ecd098ff71981848"
+    },
+    "failedPreparationDatabase": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-money-batch-preparation-failure.json",
+      "sha256": "2c958f3b04e9714e38417e06078bb174514c509ac0545f4bb3db88f15f948022"
+    }
+  },
+  "environment": {
+    "ownedCohortRemoved": true,
+    "ownedDatabasesRemoved": 8,
+    "simulationPortReleased": 3104,
+    "productionOrStagingChanged": false,
+    "localDevelopmentHealth": 200,
+    "publicDevelopmentHealth": 200,
+    "privateProductionHealth": 200,
+    "developmentPid": 45054,
+    "developmentWorkingDirectory": "/Users/fluke/Desktop/Work/erpx",
+    "postgresPid": 909,
+    "publicBrowser": {
+      "entry": "https://console-dev-erpx.jesadakorn.com/holdings/acme/pms",
+      "resolved": "https://dev-pms.jesadakorn.com/acme/acme-co/holding",
+      "authenticated": true,
+      "observed": "Company Today renders priorities and hotel overview with Online status. Read-only navigation, no UI transaction; this is separate from compiled-candidate browser acceptance."
+    }
+  },
+  "documentation": {
+    "passed": true,
+    "markdownFiles": 248,
+    "localLinks": 1286,
+    "ledgerFiles": 213
+  }
+}

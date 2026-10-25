@@ -1,3 +1,4 @@
+import { cachedHomeRead } from "../../work_projection/public/home-cache";
 import 'server-only';
 import { socialOrganizationAudienceName } from '../../organization/public/collaboration-home-projections';
 import { socialProjectAudienceName } from '../../projects/public/collaboration-home-projections';
@@ -334,7 +335,11 @@ function application(db: SqlDatabase) {
             args: [id], scope: [actor.companyId, actor.userId, id], cursor, limit: 20, descending: true,
         }), getTask: (...args) => inward(() => getTask(db, ...args)), getProject: (...args) => inward(() => getProject(db, ...args)), readablePmsSource: (...args) => inward(() => readablePmsSource(db, ...args)), pmsSourceLink, readablePost: (...args) => inward(() => readablePost(db, ...args)), sourceGuard: (...args) => sourceGuard(db, ...args), notification: (...args) => notification(db, ...args), authorityGuard: (...args) => authorityGuard(db, ...args), requireCompanyAuthority: (...args) => inward(() => requireCompanyAuthority(db, ...args)), validateMentions: (...args) => inward(() => validateMentions(db, ...args)), textStatements: (...args) => textStatements(db, ...args) });
 }
-export function socialAudienceOptions(db: SqlDatabase, actor: Actor) { return exposed(() => application(db).socialAudienceOptions(actor)); }
+export function socialAudienceOptions(db: SqlDatabase, actor: Actor) {
+  return cachedHomeRead(actor, db, "audience", null,
+    () => exposed(() => application(db).socialAudienceOptions(actor)),
+    { complete: value => Array.isArray(value.audiences) && Array.isArray(value.branches) });
+}
 export function socialUploadOwner(db: SqlDatabase, actor: StaffActor, id: string, edit = false) { return exposed(() => application(db).socialUploadOwner(actor, id, edit)); }
 export function createCommentUploadDraft(db: SqlDatabase, actor: StaffActor, postId: string, key: string) { return exposed(() => application(db).createCommentUploadDraft(actor, postId, key)); }
 export function cancelCommentUploadDraft(db: SqlDatabase, actor: StaffActor, id: string, key: string) { return exposed(() => application(db).cancelCommentUploadDraft(actor, id, key)); }
@@ -356,7 +361,17 @@ export function homePosts(db: SqlDatabase, actor: StaffActor, filter: {
     propertyId?: string;
     purpose?: PostPurpose;
     stream?: "conversations" | "milestones";
-} = {}) { return exposed(() => application(db).homePosts(actor, filter)); }
+} = {}) {
+  const load = () => exposed(() => application(db).homePosts(actor, filter));
+  // Some semantic source readers pass only a StaffActor. They cannot share a workspace cache.
+  if (!("holdingId" in actor) || !("scope" in actor) || !("modules" in actor)) return load();
+  const selection = { tag: filter.tag ?? null, following: !!filter.following,
+    branchId: filter.branchId ?? null, teamId: filter.teamId ?? null, before: filter.before ?? null,
+    beforeId: filter.beforeId ?? "", limit: Math.max(1, Math.min(filter.limit ?? 20, 20)),
+    propertyId: filter.propertyId ?? null, purpose: filter.purpose ?? null, stream: filter.stream ?? null };
+  return cachedHomeRead(actor as Actor, db, "feed", selection, load,
+    { complete: value => Array.isArray(value) && value.every(post => post.linkedSources.every(source => source.available)) });
+}
 export function postRevisionHistory(db: SqlDatabase, actor: StaffActor, id: string) { return exposed(() => application(db).postRevisionHistory(actor, id)); }
 export function postAction(db: SqlDatabase, actor: Actor, id: string, input: {
     action: "comment" | "delete_comment" | "edit_comment" | "appreciate" | "follow" | "report" | "hide" | "edit" | "retract";

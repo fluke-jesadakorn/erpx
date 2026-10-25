@@ -1,0 +1,83 @@
+{
+  "checkedAt": "2026-10-12T00:52:19.950449+00:00",
+  "scope": "Supplemental normal-account compiled HTTP rooming-list command boundary, persistence and replay proof. Not added to original native/browser required counts; not live hotel acceptance.",
+  "candidate": {
+    "runtime": "51701d69c6d65dc1ee28480e7de4b404c89f3e32f8ab6c912c551568114b6bf6",
+    "verification": "6bec217508702c495235e2a3740598d3132176d24be4d6af9cb1845bfe5c95c9",
+    "mainRuntime": "51701d69c6d65dc1ee28480e7de4b404c89f3e32f8ab6c912c551568114b6bf6",
+    "mainVerification": "6bec217508702c495235e2a3740598d3132176d24be4d6af9cb1845bfe5c95c9",
+    "releaseDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.runtime/releases/2026-10-11T19-44-51-044Z",
+    "releaseId": "2026-10-11T19-44-51-044Z",
+    "releaseReusedForIdenticalRuntime": true,
+    "verificationAmendment": "Only existing shared keyboard readiness and null-safe theme init; all runtime/native sources unchanged"
+  },
+  "release": {
+    "id": "2026-10-11T19-44-51-044Z",
+    "fileManifestSha256": "7db29e3d7e5e641451548166583c83a353770ef9e3a5b975436ed1af9f5788b5"
+  },
+  "run": "c8e784efc90e",
+  "actualPassingChecks": 10,
+  "checks": [
+    {
+      "name": "Normal password sign-in and current Company/assignment context; no test-token authentication",
+      "passed": true
+    },
+    {
+      "name": "Persisted two-room reservation begins with the original payer",
+      "passed": true
+    },
+    {
+      "name": "Authenticated stay.guest persists only selected guest; other stay, payer, frozen pricing and money unchanged",
+      "passed": true
+    },
+    {
+      "name": "Exact command replay preserves persisted state and original response",
+      "passed": true
+    },
+    {
+      "name": "Stale expectedVersion refuses without changing selected or unrelated records",
+      "passed": true
+    },
+    {
+      "name": "Missing guest refuses without altering the original rooming list",
+      "passed": true
+    },
+    {
+      "name": "Real guest of a different Property refuses without cross-hotel mutation",
+      "passed": true
+    },
+    {
+      "name": "Second room receives its own guest while retaining independent first guest and original payer/money",
+      "passed": true
+    },
+    {
+      "name": "Fresh authenticated HTTP read returns both persisted guest assignments",
+      "passed": true
+    },
+    {
+      "name": "Source and verification fingerprints unchanged",
+      "passed": true
+    }
+  ],
+  "rawResult": {
+    "file": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-joint-keyboard-repair-2026-10-12/rooming-proof/c8e784efc90e/result/result.json",
+    "SHA256": "9fd83b5e7d6f3e15ad8220909056e0e15b61ed55e062b5045b0d9de11f0ea933"
+  },
+  "actualHelper": {
+    "file": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-joint-keyboard-repair-2026-10-12/rooming-proof/attempt-03/workload.ts",
+    "SHA256": "88a2535a68990fee103780b1e5577010e8bf0f06706a8437a4aec82c44779c74"
+  },
+  "ownedCleanup": {
+    "run": "c8e784efc90e",
+    "destroyed": true,
+    "processesExited": true,
+    "checkedAt": "2026-10-12T00:47:28.955Z"
+  },
+  "sameCohortRatesOutcome": "Rates passed5 then failed on nonexistent private-rate customer references. This does not negate the completed10 rooming assertions; it does prevent combined40/UI6 acceptance.",
+  "scopeLimits": [
+    "Foreign Branch node is owned disposable fixture setup only; Property and guest creation plus tested cross-Property command use normal authenticated HTTP",
+    "Reservation audit version/history are explicitly checked; all payer/policy/other data, sibling records, GuestAccounts/entries and journals/lines remain immutable",
+    "No group-allotment UI acceptance, whole-feature acceptance or live hotel signoff from these10 alone"
+  ],
+  "wholePlanAccepted": false
+}

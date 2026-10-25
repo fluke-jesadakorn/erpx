@@ -1,3 +1,5 @@
+import { parseGuestAccountJson } from "@/lib/guest-account-compat";
+import { hasPermission } from "@/lib/permissions";
 import { pmsPresentationQueries } from "@/server/modules/pms/public/presentation-queries";
 import {recordCanonicalHref} from "@/lib/record-drawer";
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
@@ -8,7 +10,7 @@ import {
   FeatureWidget,
   WidgetGrid,
 } from "@/components/features/feature-page";
-import { money, type Entry, type Folio, type Guest, type PmsRecord } from "@/server/modules/pms/public/rules/pms-model";
+import { money, type Entry, type GuestAccount, type Guest, type PmsRecord } from "@/server/modules/pms/public/rules/pms-model";
 import { workspaceBase } from "@/lib/workspace";
 import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 
@@ -26,19 +28,19 @@ export default async function PmsDocument({
   params: Promise<{ holdingSlug: string; id: string }>;
 }) {
   const { holdingSlug, id } = await params,
-    actor = requirePermission(await requireWorkContext(holdingSlug), "pms.read"),
+    actor = await requireWorkContext(holdingSlug),
     presentation = await pmsPresentationQueries(actor.holdingId);
-  const { hasPermission } = await import("@/lib/permissions");
+  requirePermission(actor, hasPermission(actor,"pms.read") ? "pms.read" : "finance.read");
   if (!hasPermission(actor, "pms.cashier") && !hasPermission(actor, "pms.reports")) notFound();
   const queries = presentation.pmsDocumentQueries();
   const doc = await queries.document(id);
   if (!doc) notFound();
   const s = await presentation.loadPms(actor, doc.property_id);
   const postings = await queries.relatedPostings(doc.property_id, id);
-  const snap = JSON.parse(doc.snapshot_json) as {
+  const snap = parseGuestAccountJson(doc.snapshot_json) as {
     property: { name: string; currency: string };
     guest: Guest;
-    folio: Folio;
+    guestAccount: GuestAccount;
     entries: PmsRecord<"entry">[];
     amount: number;
     businessDate: string;
@@ -68,18 +70,18 @@ export default async function PmsDocument({
         <UiActionLink
           variant="secondary"
 
-          href={`${workspaceBase(publicScope(actor))}/pms/folios?property=${s.property.id}`}
+          href={`${workspaceBase(publicScope(actor))}/pms/guest-accounts?property=${s.property.id}`}
         >
           Back to bill
         </UiActionLink>
       </header>
       <FeatureTabs />
       <WidgetGrid pageKey="pms-documents-detail">
-        <FeatureWidget id="pms-folios-document" title="Document">
+        <FeatureWidget id="pms-guest-accounts-document" title="Document">
           <nav className={styles.sourceLinks} aria-label="Document sources">
             <UiActionLink
               variant="secondary"
-              href={`${workspaceBase(publicScope(actor))}/pms/folios?property=${s.property.id}&folio=${doc.folio_id}`}
+              href={`${workspaceBase(publicScope(actor))}/pms/guest-accounts?property=${s.property.id}&guestAccount=${doc.guest_account_id}`}
             >
               Guest account
             </UiActionLink>
@@ -121,7 +123,7 @@ export default async function PmsDocument({
           <p className={styles.reference}>PMS-{id}</p>
           <h2>{snap.guest.name}</h2>
           <p>{[snap.guest.email, snap.guest.phone].filter(Boolean).join(" · ")}</p>
-          <p>{snap.folio.name}</p>
+          <p>{snap.guestAccount.name}</p>
           <TableFrame label="Records" className="business-table-wrap">
             <Table className={`business-table ${styles.entries}`}>
               <thead>
@@ -151,7 +153,7 @@ export default async function PmsDocument({
             </Table>
           </TableFrame>
           <h2>Total {money(snap.amount, snap.property.currency)}</h2>
-          <p>Balance due at issue {money(snap.folio.due)}</p>
+          <p>Balance due at issue {money(snap.guestAccount.due)}</p>
           <p className="muted">
             Summary document from the PMS · Use your browser&apos;s print command to print or save a
             PDF

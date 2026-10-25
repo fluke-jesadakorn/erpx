@@ -19,6 +19,7 @@ import {guestBookingDocument} from "../src/server/pms/guest-document";
 import {staffBookingChange} from "../src/server/pms/staff-booking-changes";
 import { publicChangeQuote, confirmBookingChange } from "../src/server/pms-booking-changes";
 import { createHmac } from "node:crypto";
+import { posStripeWebhook,drainPos } from '../src/server/pos-stripe';
 import {pmsFinanceOverview} from '../src/server/pms/finance';
 import {createPmsStripePayment,pmsStripePaymentStatus,requestPmsStripeRefund,approvePmsStripeRefund,processPmsStripeRefund,recoverPmsStripeRefund} from '../src/server/pms-stripe';
 import { beforeAll, beforeEach, afterEach, expect, it, vi } from "vitest";
@@ -32,13 +33,14 @@ import { confirmManualRate } from "../src/server/company-money";
 
 vi.mock("../src/server/runtime", async () => {
   const { env } = await import("./runtime-env");
-  return { holdingResources: async () => ({ write: env.H001_DB }), runtimeEnv:async()=>({BETTER_AUTH_SECRET:"test-booking-secret-32-characters-long",ERPX_PUBLIC_ORIGIN:"https://hotel.example.test",RESEND_API_KEY:"test-key",RESEND_FROM:"hotel@example.test"}) };
+  return { holdingResources: async () => ({ write: env.H001_DB }), runtimeEnv:async()=>({CONTROL_DB:env.CONTROL_DB,BETTER_AUTH_SECRET:"test-booking-secret-32-characters-long",ERPX_PUBLIC_ORIGIN:"https://hotel.example.test",RESEND_API_KEY:"test-key",RESEND_FROM:"hotel@example.test"}) };
 });
 const db = env.H001_DB,
   key = () => crypto.randomUUID();
 let f: Awaited<ReturnType<typeof seedExpenseCompany>>,
   owner: WorkContext,
   reviewer: WorkContext,
+  operationalReviewer: WorkContext,
   propertyId: string,
   typeId: string,
   rateId: string,
@@ -47,6 +49,7 @@ let f: Awaited<ReturnType<typeof seedExpenseCompany>>,
   accounts: Config["accounts"];
 beforeAll(async () => {
   await applyMigrations(db, env.STAFF_TEST_MIGRATIONS);
+  await applyMigrations(env.CONTROL_DB,env.CONTROL_TEST_MIGRATIONS);
 });
 async function snapshot() {
   return loadPms(db, owner, propertyId);
@@ -68,6 +71,7 @@ beforeEach(async () => {
   await db.prepare("DELETE FROM pos_connections WHERE account_id='acct_hotel'").run();
   owner = f.owner;
   reviewer = await f.member("hotel-reviewer", "finance_approver");
+  operationalReviewer = await f.member("hotel-manager", "pms_manager");
   propertyId = (
     await pmsCommand(
       db,
@@ -137,7 +141,7 @@ beforeEach(async () => {
   await cmd("booking.save", settings());
   guestId = (await cmd("guest.save", { name: "Test Guest" })).id;
 });
-afterEach(()=>{vi.unstubAllGlobals();vi.unstubAllEnvs();});
+afterEach(()=>{vi.useRealTimers();vi.unstubAllGlobals();vi.unstubAllEnvs();});
 
 const now = Date.parse("2026-09-01T00:00:00Z");
 const delivery = {
@@ -246,7 +250,7 @@ it("atomically confirms and queues email without creating money entries", async 
     ),
     s = await snapshot();
   expect(records(s, "stay")).toHaveLength(1);
-  expect(records(s, "folio")).toHaveLength(1);
+  expect(records(s, "guest_account")).toHaveLength(1);
   expect(records(s, "entry")).toHaveLength(0);
   expect(b.number).toMatch(/^PMS-/);
   expect(availability(s, typeId, "2026-09-05").available).toBe(0);
@@ -416,9 +420,9 @@ it("rejects cancellation at the exact cutoff and after partial arrival or financ
   const s = await snapshot();
   record(s, "stay", records(s, "stay")[0].id).data.state = "in_house";
   expect(cancellationEligibility(s, b.id, now).allowed).toBe(false);
-  const folio = records(await snapshot(), "folio")[0];
+  const guestAccount = records(await snapshot(), "guest_account")[0];
   await cmd("charge.add", {
-    folioId: folio.id,
+    guestAccountId: guestAccount.id,
     description: "Extra service",
     price: 100,
   });
@@ -598,7 +602,7 @@ it("keeps confirmation replay immutable after cancellation", async () => {
     ),
   ).toEqual(original);
 });
-it('holds two rooms, then confirms and allocates each folio only after Stripe verifies the direct charge',async()=>{
+it('holds two rooms, then confirms and allocates each guest account only after Stripe verifies the direct charge',async()=>{
   vi.stubEnv('PMS_STRIPE_BOOKING_ENABLED','true');vi.stubEnv('POS_STRIPE_TEST_SECRET_KEY','sk_test_booking_fixture');
   await cmd('rate.save',{...record(await snapshot(),'rate',rateId).data,id:rateId,collection:{method:'full',depositPercent:30,changesAllowed:true}});
   await cmd('room.save',{number:'102',typeId,active:true});
@@ -621,7 +625,7 @@ it('holds two rooms, then confirms and allocates each folio only after Stripe ve
   paid=true;
   const confirmed=await bookingPaymentStatus(db,pending.attemptToken!,delivery,now+1000);
   expect(confirmed.state).toBe('confirmed');
-  const s=await snapshot();expect(records(s,'folio')).toHaveLength(2);expect(records(s,'entry').filter(e=>e.data.method==='stripe')).toHaveLength(2);
+  const s=await snapshot();expect(records(s,'guest_account')).toHaveLength(2);expect(records(s,'entry').filter(e=>e.data.method==='stripe')).toHaveLength(2);
   const receivedMoney=(await db.prepare("SELECT amount_units::text,usd_units::text,fx_rate_id FROM money_transaction_snapshots WHERE company_id=? AND source_type='pms_entry' AND carried_source_type='pms_booking_payment' AND carried_source_id=?").bind(f.company,attemptId).all<{amount_units:string;usd_units:string;fx_rate_id:string}>()).results;
   expect(receivedMoney).toHaveLength(2);expect(receivedMoney.every(row=>row.fx_rate_id===requestedMoney!.fx_rate_id)).toBe(true);
   expect(receivedMoney.reduce((n,row)=>n+BigInt(row.amount_units),BigInt(0))).toBe(BigInt(requestedMoney!.amount_units));
@@ -650,7 +654,7 @@ it('releases an unpaid hold and sends a payment that arrives later to refund rev
   expect(late.state).toBe('refund_review');expect(late.refundState).toBe('requested');
   expect(availability(await snapshot(),typeId,'2026-09-05').available).toBe(1);
 });
-it('requires Finance approval and Stripe success before a free-cancellation refund reaches each folio',async()=>{
+it('requires Finance approval and Stripe success before a free-cancellation refund reaches each guest account',async()=>{
   vi.stubEnv('PMS_STRIPE_BOOKING_ENABLED','true');vi.stubEnv('POS_STRIPE_TEST_SECRET_KEY','sk_test_booking_fixture');
   await cmd('rate.save',{...record(await snapshot(),'rate',rateId).data,id:rateId,collection:{method:'full',depositPercent:30,changesAllowed:true}});
   await db.prepare("INSERT INTO pos_connections(company_id,account_id,livemode,charges_enabled,payouts_enabled,card_enabled,promptpay_enabled,state,payout_interval,thb_bank_ready) VALUES(?, 'acct_hotel',false,true,true,true,true,'ready','daily',true)").bind(f.company).run();
@@ -669,18 +673,19 @@ it('requires Finance approval and Stripe success before a free-cancellation refu
   const cancelled=await cancelPublicReservation(db,'acme',await token(pending.id),delivery,now+2000);
   expect(cancelled.refundState).toBe('requested');
   expect((await db.prepare('SELECT refund_id FROM pms_booking_payments WHERE id=?').bind(attemptId).first<{refund_id:string|null}>())!.refund_id).toBeNull();
-  await approveBookingRefund(db,reviewer,attemptId);
+  await expect(approveBookingRefund(db,reviewer,attemptId)).rejects.toMatchObject({code:"PERMISSION_REQUIRED"});
+  await approveBookingRefund(db,operationalReviewer,attemptId);
   await processBookingRefund(db,attemptId,now+3000);
   expect((await db.prepare('SELECT refund_state FROM pms_booking_payments WHERE id=?').bind(attemptId).first<{refund_state:string}>())!.refund_state).toBe('processing');
   refundState='succeeded';await processBookingRefund(db,attemptId,now+4000);
   expect((await db.prepare('SELECT refund_state FROM pms_booking_payments WHERE id=?').bind(attemptId).first<{refund_state:string}>())!.refund_state).toBe('succeeded');
-  expect(records(await snapshot(),'folio')[0].data.advance).toBe(0);
+  expect(records(await snapshot(),'guest_account')[0].data.advance).toBe(0);
 });
 it('posts a counter PromptPay room payment and deposit only after Stripe confirms each intent',async()=>{
   vi.stubEnv('POS_STRIPE_TEST_SECRET_KEY','sk_test_booking_fixture');
   await db.prepare("INSERT INTO pos_connections(company_id,account_id,livemode,charges_enabled,payouts_enabled,card_enabled,promptpay_enabled,state,payout_interval,thb_bank_ready) VALUES(?, 'acct_hotel',false,true,true,true,true,'ready','daily',true)").bind(f.company).run();
   const reservation=await cmd('reservation.create',{guestId,source:'direct',rooms:[selection()]});
-  const folio=records(await snapshot(),'folio').find(item=>item.data.reservationId===reservation.id)!;
+  const guestAccount=records(await snapshot(),'guest_account').find(item=>item.data.reservationId===reservation.id)!;
   let paid=false,activeId='',activeAmount=0,serial=0;
   vi.stubGlobal('fetch',vi.fn(async(url:string|URL|Request,init?:RequestInit)=>{
     expect(new Headers(init?.headers).get('Stripe-Account')).toBe('acct_hotel');
@@ -690,20 +695,20 @@ it('posts a counter PromptPay room payment and deposit only after Stripe confirm
     }
     return new Response(JSON.stringify({id:`pi_counter_${serial}`,status:paid?'succeeded':'requires_action',amount_received:paid?activeAmount:0,currency:'thb',metadata:{pms_counter_payment_id:activeId}}));
   }));
-  const receipt=await createPmsStripePayment(db,owner,{propertyId,folioId:folio.id,kind:'receipt',amountMinor:5000,payerEmail:''},key(),now);
+  const receipt=await createPmsStripePayment(db,owner,{propertyId,guestAccountId:guestAccount.id,kind:'receipt',amountMinor:5000,payerEmail:''},key(),now);
   expect(receipt.state).toBe('pending');expect(receipt.qrData).toBe('000201010212');expect(records(await snapshot(),'entry')).toHaveLength(0);
   paid=true;expect((await pmsStripePaymentStatus(db,owner,receipt.id,now+1000)).state).toBe('succeeded');
   paid=false;
-  const deposit=await createPmsStripePayment(db,owner,{propertyId,folioId:folio.id,kind:'deposit',amountMinor:2000,payerEmail:''},key(),now+2000);
+  const deposit=await createPmsStripePayment(db,owner,{propertyId,guestAccountId:guestAccount.id,kind:'deposit',amountMinor:2000,payerEmail:''},key(),now+2000);
   paid=true;expect((await pmsStripePaymentStatus(db,owner,deposit.id,now+3000)).state).toBe('succeeded');
-  const latest=record(await snapshot(),'folio',folio.id);
+  const latest=record(await snapshot(),'guest_account',guestAccount.id);
   expect(latest.data.advance).toBe(5000);expect(latest.data.deposit).toBe(2000);
 });
 it('requires an independent Finance approval and Stripe confirmation for a counter refund',async()=>{
   vi.stubEnv('POS_STRIPE_TEST_SECRET_KEY','sk_test_booking_fixture');
   await db.prepare("INSERT INTO pos_connections(company_id,account_id,livemode,charges_enabled,payouts_enabled,card_enabled,promptpay_enabled,state,payout_interval,thb_bank_ready) VALUES(?, 'acct_hotel',false,true,true,true,true,'ready','daily',true)").bind(f.company).run();
   const reservation=await cmd('reservation.create',{guestId,source:'direct',rooms:[selection()]});
-  const folio=records(await snapshot(),'folio').find(item=>item.data.reservationId===reservation.id)!;
+  const guestAccount=records(await snapshot(),'guest_account').find(item=>item.data.reservationId===reservation.id)!;
   let paymentId='',refundState='pending';
   vi.stubGlobal('fetch',vi.fn(async(url:string|URL|Request,init?:RequestInit)=>{
     const path=String(url);
@@ -713,19 +718,20 @@ it('requires an independent Finance approval and Stripe confirmation for a count
     const body=init?.body as URLSearchParams;paymentId=body.get('metadata[pms_counter_payment_id]')??'';
     return new Response(JSON.stringify({id:'pi_counter',status:'requires_action',next_action:{promptpay_display_qr_code:{data:'000201010212'}}}));
   }));
-  const payment=await createPmsStripePayment(db,owner,{propertyId,folioId:folio.id,kind:'receipt',amountMinor:5000,payerEmail:'payer@example.com'},key(),now);
+  const payment=await createPmsStripePayment(db,owner,{propertyId,guestAccountId:guestAccount.id,kind:'receipt',amountMinor:5000,payerEmail:'payer@example.com'},key(),now);
   const sourceMoney=await db.prepare("SELECT fx_rate_id,usd_units::text FROM money_transaction_snapshots WHERE company_id=? AND source_type='pms_stripe_payment' AND source_id=? AND amount_kind='requested'").bind(f.company,payment.id).first<{fx_rate_id:string;usd_units:string}>();
   await confirmManualRate(reviewer,{currency:'THB',effectiveDate:'2026-09-01',currencyPerUsd:'40',note:'Provider receipt and refund must retain requested FX'},key());
   await pmsStripePaymentStatus(db,owner,payment.id,now+1000);
   await requestPmsStripeRefund(db,owner,payment.id,5000,'Guest cancellation');
   await expect(approvePmsStripeRefund(db,owner,payment.id)).rejects.toThrow();
   expect((await db.prepare('SELECT refund_id FROM pms_stripe_payments WHERE id=?').bind(payment.id).first<{refund_id:string|null}>())!.refund_id).toBeNull();
-  await approvePmsStripeRefund(db,reviewer,payment.id);
+  await expect(approvePmsStripeRefund(db,reviewer,payment.id)).rejects.toMatchObject({code:"PMS_APPROVAL_REQUIRED"});
+  await approvePmsStripeRefund(db,operationalReviewer,payment.id);
   await processPmsStripeRefund(db,payment.id,now+2000);
   expect((await db.prepare('SELECT refund_state FROM pms_stripe_payments WHERE id=?').bind(payment.id).first<{refund_state:string}>())!.refund_state).toBe('processing');
   refundState='succeeded';await processPmsStripeRefund(db,payment.id,now+3000);
   expect((await db.prepare('SELECT refund_state FROM pms_stripe_payments WHERE id=?').bind(payment.id).first<{refund_state:string}>())!.refund_state).toBe('succeeded');
-  expect(record(await snapshot(),'folio',folio.id).data.advance).toBe(0);
+  expect(record(await snapshot(),'guest_account',guestAccount.id).data.advance).toBe(0);
   const received=await db.prepare('SELECT entry_id FROM pms_stripe_payments WHERE id=?').bind(payment.id).first<{entry_id:string}>();
   expect(await db.prepare("SELECT amount_units::text,usd_units::text,fx_rate_id FROM money_transaction_snapshots WHERE company_id=? AND source_type='pms_entry' AND source_id=? AND amount_kind='total'").bind(f.company,received!.entry_id).first()).toEqual({amount_units:'5000',usd_units:sourceMoney!.usd_units,fx_rate_id:sourceMoney!.fx_rate_id});
   expect(await db.prepare("SELECT SUM(amount_units)::text amount,SUM(usd_units)::text usd FROM money_transaction_snapshots WHERE company_id=? AND source_type='pms_entry' AND (source_id=? OR original_source_id=?)").bind(f.company,received!.entry_id,received!.entry_id).first()).toEqual({amount:'0',usd:'0'});
@@ -797,11 +803,11 @@ it('reserves partial refunds cumulatively and rejects an approval by the request
  const provider=await onlinePolicy();const b=await createPublicReservation(db,'acme',await request(),key(),delivery,now);provider.pay();await bookingPaymentStatus(db,b.attemptToken!,delivery,now+1000);
  const stay=records(await snapshot(),'stay').find(st=>st.data.reservationId===b.id)!,paymentId=b.attemptToken!.split('.')[0];let refundId='';
  for(const amount of [5000,4000])await db.transaction(async tx=>{const s=await bookingSnapshot(tx,propertyId,undefined,true);const r=await requestBookingRefund(tx,s,paymentId,[{stayId:stay.id,amount}],'Partial refund',owner.userId,now+2000);refundId=r.id;});
- expect(record(await snapshot(),'folio',stay.data.folioId).data.refundReserved).toBe(9000);
+ expect(record(await snapshot(),'guest_account',stay.data.guestAccountId).data.refundReserved).toBe(9000);
  await expect(approveBookingRefund(db,owner,refundId)).rejects.toMatchObject({code:'PMS_INDEPENDENT_REFUND_APPROVAL'});
  await expect(db.transaction(async tx=>requestBookingRefund(tx,await bookingSnapshot(tx,propertyId,undefined,true),paymentId,[{stayId:stay.id,amount:13000}],'Too much',owner.userId,now+2001))).rejects.toMatchObject({code:'PMS_REFUND_EXCEEDS_PAYMENT'});
- await approveBookingRefund(db,reviewer,refundId);
- const folio=record(await snapshot(),'folio',stay.data.folioId);expect(folio.data.advance).toBe(17400);expect(folio.data.refundReserved).toBe(5000);
+ await approveBookingRefund(db,operationalReviewer,refundId);
+ const guestAccount=record(await snapshot(),'guest_account',stay.data.guestAccountId);expect(guestAccount.data.advance).toBe(17400);expect(guestAccount.data.refundReserved).toBe(5000);
  expect(Number(await db.prepare("SELECT SUM(l.credit_minor-l.debit_minor)::int n FROM finance_journal_lines l WHERE l.account_id=?").bind((await snapshot()).property.config.onlineAccounting!.refundPayable).first('n'))).toBe(4000);
 });
 it('confirms a timely provider payment after local hold expiry only when capacity is still available',async()=>{
@@ -843,7 +849,7 @@ it('uses each accepted room policy and posts cancellation fees separately from r
  const q=await publicChangeQuote(db,await token(b.id),'cancel',{items:[{stayId:stay.id}]},delivery,now+2000);
  expect(q.proposal.fee).toBe(2140);expect(q.proposal.refund).toBe(19260);
  await confirmBookingChange(db,'acme',await token(b.id),q.token,key(),delivery,now+2001);
- const current=await snapshot();expect(record(current,'stay',stay.id).data.state).toBe('cancelled');expect(record(current,'folio',stay.data.folioId).data.refundReserved).toBe(19260);
+ const current=await snapshot();expect(record(current,'stay',stay.id).data.state).toBe('cancelled');expect(record(current,'guest_account',stay.data.guestAccountId).data.refundReserved).toBe(19260);
  const credit=async(account:string)=>Number(await db.prepare('SELECT COALESCE(SUM(credit_minor-debit_minor),0) n FROM finance_journal_lines WHERE account_id=?').bind(account).first('n'));
  expect(await credit(feeAccount)).toBe(2000);expect(await credit(accounts.revenue)).toBe(0);expect((await manageBooking(db,await token(b.id),now+3000)).dueAtHotel).toBe(0);
 });
@@ -868,7 +874,7 @@ it('serves only guest documents belonging to the management token and excludes p
 it('retains counter partial refund generations and recovers a failed provider attempt without posting debt twice',async()=>{
  vi.stubEnv('POS_STRIPE_TEST_SECRET_KEY','sk_test_booking_fixture');
  await db.prepare("INSERT INTO pos_connections(company_id,account_id,livemode,charges_enabled,payouts_enabled,card_enabled,promptpay_enabled,state,payout_interval,thb_bank_ready) VALUES(?,'acct_hotel',false,true,true,true,true,'ready','daily',true)").bind(f.company).run();
- const reservation=await cmd('reservation.create',{guestId,source:'direct',rooms:[selection()]}),folio=records(await snapshot(),'folio').find(r=>r.data.reservationId===reservation.id)!;
+ const reservation=await cmd('reservation.create',{guestId,source:'direct',rooms:[selection()]}),guestAccount=records(await snapshot(),'guest_account').find(r=>r.data.reservationId===reservation.id)!;
  let paymentId='',serial=0;const refunds=new Map<string,{amount:number;status:string;metadata:Record<string,string>}>();
  vi.stubGlobal('fetch',vi.fn(async(url:string|URL|Request,init?:RequestInit)=>{
   const path=String(url),body=new URLSearchParams(String(init?.body??''));
@@ -877,21 +883,205 @@ it('retains counter partial refund generations and recovers a failed provider at
   if(path.includes('/payment_intents/'))return Response.json({id:'pi_partial',status:'succeeded',amount_received:5000,currency:'thb',metadata:{pms_counter_payment_id:paymentId}});
   paymentId=body.get('metadata[pms_counter_payment_id]')!;return Response.json({id:'pi_partial',status:'requires_action',next_action:{promptpay_display_qr_code:{data:'000201'}}});
  }));
- const payment=await createPmsStripePayment(db,owner,{propertyId,folioId:folio.id,kind:'receipt',amountMinor:5000,payerEmail:'payer@example.test'},key(),now);
+ const payment=await createPmsStripePayment(db,owner,{propertyId,guestAccountId:guestAccount.id,kind:'receipt',amountMinor:5000,payerEmail:'payer@example.test'},key(),now);
  await pmsStripePaymentStatus(db,owner,payment.id,now+1000);
- await requestPmsStripeRefund(db,owner,payment.id,2000,'First partial refund');await approvePmsStripeRefund(db,reviewer,payment.id);await processPmsStripeRefund(db,payment.id,now+2000);
- await requestPmsStripeRefund(db,owner,payment.id,3000,'Second partial refund');await approvePmsStripeRefund(db,reviewer,payment.id);await processPmsStripeRefund(db,payment.id,now+3000);
- expect(record(await snapshot(),'folio',folio.id).data.advance).toBe(0);
+ await requestPmsStripeRefund(db,owner,payment.id,2000,'First partial refund');await approvePmsStripeRefund(db,operationalReviewer,payment.id);await processPmsStripeRefund(db,payment.id,now+2000);
+ await requestPmsStripeRefund(db,owner,payment.id,3000,'Second partial refund');await approvePmsStripeRefund(db,operationalReviewer,payment.id);await processPmsStripeRefund(db,payment.id,now+3000);
+ expect(record(await snapshot(),'guest_account',guestAccount.id).data.advance).toBe(0);
  const liabilities=records(await snapshot(),'entry').filter(e=>e.data.description==='payment.refund_liability');expect(liabilities).toHaveLength(2);
  const owing=(await pmsFinanceOverview(owner,propertyId)).hotels[0];expect(owing.online.refundPayable).toBe(3000);expect(owing.onlineDifferences).toEqual({refundPayable:0,unallocated:0});
  await expect(recoverPmsStripeRefund(db,owner,payment.id,'Retry failed refund')).rejects.toThrow();
- await recoverPmsStripeRefund(db,reviewer,payment.id,'Retry verified failed refund');
+ await recoverPmsStripeRefund(db,operationalReviewer,payment.id,'Retry verified failed refund');
  // A guest can leave while the approved refund is still owed. Provider settlement must still post.
- await db.transaction(async tx=>{await tx.prepare("SELECT set_config('erpx.pms_write','on',true)").first();await tx.prepare("UPDATE pms_records SET data_json=jsonb_set(data_json::jsonb,'{state}','\"closed\"')::text WHERE id=?").bind(folio.id).run();});
+ await db.transaction(async tx=>{await tx.prepare("SELECT set_config('erpx.pms_write','on',true)").first();await tx.prepare("UPDATE pms_records SET data_json=jsonb_set(data_json::jsonb,'{state}','\"closed\"')::text WHERE id=?").bind(guestAccount.id).run();});
  await processPmsStripeRefund(db,payment.id,now+4000);await processPmsStripeRefund(db,payment.id,now+5000);
  expect(records(await snapshot(),'entry').filter(e=>e.data.description==='payment.refund_liability')).toHaveLength(2);
  const attempts=(await db.prepare('SELECT generation,state,amount_minor FROM pms_counter_refund_attempts WHERE payment_id=? ORDER BY generation').bind(payment.id).all()).results;
  expect((await pmsFinanceOverview(owner,propertyId)).hotels[0].online.refundPayable).toBe(0);
  expect(attempts).toEqual([{generation:0,state:'succeeded',amount_minor:2000},{generation:1,state:'failed',amount_minor:3000},{generation:2,state:'succeeded',amount_minor:3000}]);
  await expect(requestPmsStripeRefund(db,owner,payment.id,1,'Exceeds original')).rejects.toThrow();
+});
+
+it('recovers a partial booking refund after the provider accepts it but its response is lost',async()=>{
+ const provider=await onlinePolicy();await cmd('room.save',{number:'102',typeId,active:true});
+ const booking=await createPublicReservation(db,'acme',await request({quantity:2}),key(),delivery,now);provider.pay();await bookingPaymentStatus(db,booking.attemptToken!,delivery,now+1000);
+ const stays=records(await snapshot(),'stay').filter(st=>st.data.reservationId===booking.id),paymentId=booking.attemptToken!.split('.')[0];
+ const access=await token(booking.id),quote=await publicChangeQuote(db,access,'cancel',{items:[{stayId:stays[0].id}]},delivery,now+2000);
+ expect(quote.proposal.refund).toBe(21400);await confirmBookingChange(db,'acme',access,quote.token,key(),delivery,now+2001);
+ const refund=(await db.prepare('SELECT id FROM pms_booking_refund_requests WHERE payment_id=?').bind(paymentId).first<{id:string}>())!;
+ expect(await db.prepare('SELECT requested_by FROM pms_booking_refund_requests WHERE id=?').bind(refund.id).first('requested_by')).toBe('guest:self-service');
+ await approveBookingRefund(db,operationalReviewer,refund.id);
+ const existingFetch=fetch,accepted=new Map<string,{id:string;amount:number;currency:string;status:string;metadata:Record<string,string>}>(),keys:string[]=[];let loseResponse=true;
+ vi.stubGlobal('fetch',vi.fn(async(url:string|URL|Request,init?:RequestInit)=>{
+  const path=new URL(String(url)).pathname;
+  if(path.endsWith('/refunds')&&init?.method==='POST'){
+   expect(new Headers(init.headers).get('Stripe-Account')).toBe('acct_hotel');const idempotency=new Headers(init.headers).get('Idempotency-Key')!;keys.push(idempotency);
+   const body=new URLSearchParams(String(init.body));accepted.set(idempotency,accepted.get(idempotency)??{id:'re_lost_booking',amount:Number(body.get('amount')),currency:'thb',status:'succeeded',metadata:{pms_booking_payment_id:body.get('metadata[pms_booking_payment_id]')!,pms_booking_refund_id:body.get('metadata[pms_booking_refund_id]')!}});
+   if(loseResponse){loseResponse=false;throw new TypeError('Fictional provider accepted the refund; response connection lost');}
+   return Response.json(accepted.get(idempotency));
+  }
+  if(path.endsWith('/refunds/re_lost_booking'))return Response.json([...accepted.values()][0]);
+  return existingFetch(url,init);
+ }));
+ await expect(processBookingRefund(db,refund.id,now+3000)).rejects.toThrow('response connection lost');
+ expect(await db.prepare('SELECT state,provider_id,generation FROM pms_booking_refund_requests WHERE id=?').bind(refund.id).first()).toEqual({state:'approved',provider_id:null,generation:0});
+ expect((await pmsFinanceOverview(owner,propertyId)).hotels[0].online.refundPayable).toBe(21400);
+ // Fresh processor invocation reads only durable request/provider facts after the failure.
+ await processBookingRefund(db,refund.id,now+4000);await processBookingRefund(db,refund.id,now+5000);
+ expect(keys).toEqual([`pms-refund-${refund.id}-0`,`pms-refund-${refund.id}-0`]);expect(accepted.size).toBe(1);
+ expect(await db.prepare('SELECT state,provider_id,generation FROM pms_booking_refund_requests WHERE id=?').bind(refund.id).first()).toEqual({state:'succeeded',provider_id:'re_lost_booking',generation:0});
+ expect(await db.prepare('SELECT COUNT(*)::int n FROM pms_booking_refund_attempts WHERE request_id=?').bind(refund.id).first('n')).toBe(1);
+ const after=await snapshot();expect(record(after,'stay',stays[1].id)).toEqual(stays[1]);expect(record(after,'stay',stays[0].id).data.state).toBe('cancelled');
+ const finance=(await pmsFinanceOverview(owner,propertyId)).hotels[0];expect(finance.online.refundPayable).toBe(0);expect(finance.onlineDifferences).toEqual({refundPayable:0,unallocated:0});
+ expect(records(after,'entry').filter(e=>e.data.description==='payment.refund_settle')).toHaveLength(1);
+});
+
+it('deduplicates signed booking payment callbacks through durable jobs and rejects tampered payloads',async()=>{
+ vi.useFakeTimers({toFake:['Date']});vi.setSystemTime(now+1000);
+ const provider=await onlinePolicy(),booking=await createPublicReservation(db,'acme',await request(),key(),delivery,now);provider.pay();
+ const paymentId=booking.attemptToken!.split('.')[0];vi.stubEnv('POS_STRIPE_TEST_WEBHOOK_SECRET','whsec_booking_fixture');
+ await env.CONTROL_DB.prepare("INSERT INTO pos_stripe_routes(account_id,livemode,holding_id,company_id,created_at) VALUES('acct_hotel',false,'h001',?,?) ON CONFLICT(account_id,livemode) DO UPDATE SET holding_id=EXCLUDED.holding_id,company_id=EXCLUDED.company_id").bind(f.company,now).run();
+ const eventId=`evt_booking_${key()}`,raw=JSON.stringify({id:eventId,type:'payment_intent.succeeded',account:'acct_hotel',livemode:false,created:Math.floor((now+1000)/1000),data:{object:{id:'pi_fixture_1',metadata:{pms_booking_payment_id:paymentId}}}}),timestamp=Math.floor(Date.now()/1000),signature=`t=${timestamp},v1=${createHmac('sha256','whsec_booking_fixture').update(`${timestamp}.${raw}`).digest('hex')}`;
+ await expect(posStripeWebhook(raw+' ',signature)).rejects.toMatchObject({code:'POS_WEBHOOK_SIGNATURE'});
+ await posStripeWebhook(raw,signature);await posStripeWebhook(raw,signature);
+ expect(records(await snapshot(),'entry')).toHaveLength(0);
+ // Inject the durable lease left by an interrupted worker. An active lease
+ // must not be stolen; a subsequent worker can reclaim it after expiry.
+ await db.prepare("UPDATE pos_jobs SET state='running',lease_token='fictional-interrupted-worker',lease_until=? WHERE kind='event' AND record_id=?").bind(now+121000,eventId).run();
+ await drainPos(db,'h001',8,f.company);expect(records(await snapshot(),'entry')).toHaveLength(0);
+ vi.setSystemTime(now+121001);
+ await drainPos(db,'h001',8,f.company);await posStripeWebhook(raw,signature);await drainPos(db,'h001',8,f.company);
+ expect(await db.prepare('SELECT COUNT(*)::int n FROM pos_stripe_events WHERE id=? AND applied_at IS NOT NULL').bind(eventId).first('n')).toBe(1);
+ expect(await db.prepare("SELECT COUNT(*)::int n FROM pos_jobs WHERE kind='event' AND record_id=? AND state='completed'").bind(eventId).first('n')).toBe(1);
+ expect((await manageBooking(db,await token(booking.id),now+2000)).state).toBe('confirmed');
+ const s=await snapshot();expect(records(s,'entry').filter(e=>e.data.sourceKey===`online-payment:${paymentId}`)).toHaveLength(1);
+ expect(await db.prepare('SELECT COUNT(*)::int n FROM pms_booking_allocations WHERE payment_id=?').bind(paymentId).first('n')).toBe(1);
+});
+
+it('reviews and applies a staff group pickup date change within its held allotment without extra payment', async () => {
+  const blockId = (await cmd('block.create', { name: 'Staff review group', typeId, from: '2026-09-03', to: '2026-09-08', releaseDate: '2026-09-02', quantity: 1 })).id;
+  const booking = (await cmd('reservation.create', { guestId, source: 'phone', blockId, rooms: [selection({ arrival: '2026-09-03', departure: '2026-09-04' })] })).id;
+  const stay = records(await snapshot(), 'stay').find(row => row.data.reservationId === booking)!;
+  const body = { reservationId: booking, reason: 'Group moved its pickup dates', items: [{ stayId: stay.id, room: selection({ arrival: '2026-09-04', departure: '2026-09-06' }) }] };
+  const proposal = await staffBookingChange(db, owner, 'acme', { ...body, action: 'change-quote' }, key(), now + 1000) as Awaited<ReturnType<typeof publicChangeQuote>>;
+  expect(proposal.proposal.dueNow).toBe(0);
+  const confirm = { reservationId: booking, reason: body.reason, action: 'change-confirm', proposalToken: proposal.token }, replayKey = key();
+  const result = await staffBookingChange(db, owner, 'acme', confirm, replayKey, now + 1001);
+  expect(await staffBookingChange(db, owner, 'acme', confirm, replayKey, now + 1002)).toEqual(result);
+  const final = await snapshot();
+  expect(record(final, 'stay', stay.id).data).toMatchObject({ arrival: '2026-09-04', departure: '2026-09-06' });
+  expect(record(final, 'block', blockId).data.pickedStayIds).toEqual([stay.id]);
+  expect(availability(final, typeId, '2026-09-03')).toMatchObject({ occupied: 0, held: 1 });
+  expect(availability(final, typeId, '2026-09-04')).toMatchObject({ occupied: 1, held: 0 });
+  expect(records(final, 'entry')).toEqual([]);
+});
+
+it('allows authorized staff to review an active private company rate while public offers exclude it', async () => {
+  const privateRate = (await cmd('rate.save', { name: 'Company contract', typeId, from: '2026-09-01', to: '2026-12-31', price: 9000, market: 'company' })).id;
+  const booking = (await cmd('reservation.create', { guestId, source: 'phone', rooms: [selection()] })).id;
+  const stay = records(await snapshot(), 'stay').find(row => row.data.reservationId === booking)!;
+  const proposal = await staffBookingChange(db, owner, 'acme', { action: 'change-quote', reservationId: booking, reason: 'Use approved company contract', items: [{ stayId: stay.id, room: selection({ rateId: privateRate }) }] }, key(), now + 1000) as Awaited<ReturnType<typeof publicChangeQuote>>;
+  expect(proposal.proposal.items[0].quote?.lines[0].rateId).toBe(privateRate);
+  await expect(publicQuote(db, propertyId, [selection({ rateId: privateRate })], delivery, now)).rejects.toMatchObject({ code: 'PMS_RATE_UNAVAILABLE' });
+});
+
+it('protects own group quota while an additional-payment date change is pending and applies it once after payment', async () => {
+  vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(now + 1500);
+  const provider = await onlinePolicy();
+  await cmd('guest.save', { id: guestId, name: 'Group Guest', email: 'group@example.test' });
+  await cmd('room.save', { number: '102', typeId, active: true });
+  const blockId = (await cmd('block.create', { name: 'Paid revision group', typeId, from: '2026-09-03', to: '2026-09-08', releaseDate: '2026-09-02', quantity: 1 })).id;
+  const booking = (await cmd('reservation.create', { guestId, source: 'phone', blockId, rooms: [selection({ arrival: '2026-09-03', departure: '2026-09-04' })] })).id;
+  const stay = records(await snapshot(), 'stay').find(row => row.data.reservationId === booking)!;
+  const body = { action: 'change-quote', reservationId: booking, reason: 'Group requests two different nights', items: [{ stayId: stay.id, room: selection({ arrival: '2026-09-04', departure: '2026-09-06' }) }] };
+  const proposal = await staffBookingChange(db, owner, 'acme', body, key(), now + 1000) as Awaited<ReturnType<typeof publicChangeQuote>>;
+  expect(proposal.proposal.dueNow).toBe(21400);
+  const pending = await staffBookingChange(db, owner, 'acme', { action: 'change-confirm', reservationId: booking, reason: body.reason, proposalToken: proposal.token }, key(), now + 1001) as { attemptToken: string };
+  expect(pending.attemptToken).toBeTruthy();
+  const held = await snapshot();
+  expect(record(held, 'stay', stay.id).data.arrival).toBe('2026-09-03');
+  expect(availability(held, typeId, '2026-09-04').available).toBe(1);
+  await expect(cmd('reservation.create', { guestId, source: 'phone', blockId, rooms: [selection({ arrival: '2026-09-04', departure: '2026-09-06' })] })).rejects.toMatchObject({ code: 'PMS_BLOCK_UNAVAILABLE' });
+  provider.pay();
+  await bookingPaymentStatus(db, pending.attemptToken, delivery, now + 2000);
+  await bookingPaymentStatus(db, pending.attemptToken, delivery, now + 2001);
+  const final = await snapshot();
+  expect(record(final, 'stay', stay.id).data).toMatchObject({ arrival: '2026-09-04', departure: '2026-09-06' });
+  expect(record(final, 'block', blockId).data.pickedStayIds).toEqual([stay.id]);
+  expect(records(final, 'entry').filter(row => row.data.kind === 'payment')).toHaveLength(1);
+  expect(availability(final, typeId, '2026-09-04')).toMatchObject({ occupied: 1, held: 0, available: 1 });
+});
+
+it('deducts an existing manual room advance from additional collection during a staff booking review', async () => {
+  await onlinePolicy();
+  const booking = (await cmd('reservation.create', { guestId, source: 'phone', rooms: [selection()] })).id;
+  const stay = records(await snapshot(), 'stay').find(row => row.data.reservationId === booking)!;
+  const shiftId = (await cmd('shift.open', { name: 'Manual advance desk', opening: 0 })).id;
+  await cmd('payment.receive', { guestAccountId: stay.data.guestAccountId, shiftId, amount: 1000, method: 'cash', reference: 'Existing room advance' });
+  const proposal = await staffBookingChange(db, owner, 'acme', { action: 'change-quote', reservationId: booking, reason: 'Review with existing advance', items: [{ stayId: stay.id, room: selection() }] }, key(), now + 1000) as Awaited<ReturnType<typeof publicChangeQuote>>;
+  expect(proposal.proposal.dueNow).toBe(20400);
+  expect(proposal.proposal.refund).toBe(0);
+  expect(records(await snapshot(), 'entry').filter(row => row.data.kind === 'payment')).toHaveLength(1);
+});
+
+it('retains a manual advance on pay-at-hotel review and rejects stale funding before confirmation', async () => {
+  const booking = (await cmd('reservation.create', { guestId, source: 'phone', rooms: [selection()] })).id;
+  const stay = records(await snapshot(), 'stay').find(row => row.data.reservationId === booking)!;
+  const shiftId = (await cmd('shift.open', { name: 'Advance review desk', opening: 0 })).id;
+  await cmd('payment.receive', { guestAccountId: stay.data.guestAccountId, shiftId, amount: 1000, method: 'cash', reference: 'Existing advance' });
+  const body = { action: 'change-quote', reservationId: booking, reason: 'Review hotel collection with advance', items: [{ stayId: stay.id, room: selection() }] };
+  const proposal = await staffBookingChange(db, owner, 'acme', body, key(), now + 1000) as Awaited<ReturnType<typeof publicChangeQuote>>;
+  expect(proposal.proposal.dueNow).toBe(0);
+  expect(proposal.proposal.refund).toBe(0);
+  expect(proposal.proposal.items[0].dueAtHotel).toBe(20400);
+  await cmd('payment.receive', { guestAccountId: stay.data.guestAccountId, shiftId, amount: 500, method: 'cash', reference: 'Later advance' });
+  await expect(staffBookingChange(db, owner, 'acme', { action: 'change-confirm', reservationId: booking, reason: body.reason, proposalToken: proposal.token }, key(), now + 1001)).rejects.toMatchObject({ code: 'PMS_REFUND_FUNDING_CHANGED' });
+  expect(record(await snapshot(), 'guest_account', stay.data.guestAccountId).data.advance).toBe(1500);
+  expect(records(await snapshot(), 'refund')).toEqual([]);
+});
+
+it('requests excess manual advance refund on a staff revision without changing its issued receipt', async () => {
+  const booking = (await cmd('reservation.create', { guestId, source: 'phone', rooms: [selection()] })).id;
+  const stay = records(await snapshot(), 'stay').find(row => row.data.reservationId === booking)!;
+  const shiftId = (await cmd('shift.open', { name: 'Refund review desk', opening: 0 })).id;
+  await cmd('payment.receive', { guestAccountId: stay.data.guestAccountId, shiftId, amount: 15000, method: 'cash', reference: 'Original advance' });
+  const original = (await db.prepare('SELECT id,snapshot_json FROM pms_documents WHERE property_id=? ORDER BY id').bind(propertyId).all()).results;
+  const body = { action: 'change-quote', reservationId: booking, reason: 'Shorten manual booking', items: [{ stayId: stay.id, room: selection({ departure: '2026-09-06' }) }] };
+  const proposal = await staffBookingChange(db, owner, 'acme', body, key(), now + 1000) as Awaited<ReturnType<typeof publicChangeQuote>>;
+  expect(proposal.proposal.dueNow).toBe(0); expect(proposal.proposal.refund).toBe(4300);
+  await staffBookingChange(db, owner, 'acme', { action: 'change-confirm', reservationId: booking, reason: body.reason, proposalToken: proposal.token }, key(), now + 1001);
+  const refund = records(await snapshot(), 'refund')[0];
+  expect(refund.data).toMatchObject({ amount: 4300, state: 'requested', requestedBy: owner.userId });
+  expect(record(await snapshot(), 'guest_account', stay.data.guestAccountId).data.advance).toBe(15000);
+  expect((await db.prepare('SELECT id,snapshot_json FROM pms_documents WHERE property_id=? ORDER BY id').bind(propertyId).all()).results).toEqual(original);
+  await expect(cmd('refund.approve', { id: refund.id })).rejects.toMatchObject({ code: 'PMS_INDEPENDENT_APPROVER' });
+  await cmd('refund.approve', { id: refund.id }, operationalReviewer);
+  expect(record(await snapshot(), 'refund', refund.id).data.state).toBe('approved');
+});
+
+async function pendingGroupHoldFixture() {
+  vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(now + 1500);
+  await onlinePolicy();
+  await cmd('guest.save', { id: guestId, name: 'Pending Group Guest', email: 'pending-group@example.test' });
+  await cmd('room.save', { number: '102', typeId, active: true });
+  const blockId = (await cmd('block.create', { name: 'Protected group', typeId, from: '2026-09-03', to: '2026-09-08', releaseDate: '2026-09-02', quantity: 1 })).id;
+  const booking = (await cmd('reservation.create', { guestId, source: 'phone', blockId, rooms: [selection({ arrival: '2026-09-03', departure: '2026-09-04' })] })).id;
+  const stay = records(await snapshot(), 'stay').find(row => row.data.reservationId === booking)!;
+  const body = { action: 'change-quote', reservationId: booking, reason: 'Keep paid revision hold private to its owner', items: [{ stayId: stay.id, room: selection({ arrival: '2026-09-04', departure: '2026-09-06' }) }] };
+  const proposal = await staffBookingChange(db, owner, 'acme', body, key(), now + 1000) as Awaited<ReturnType<typeof publicChangeQuote>>;
+  await staffBookingChange(db, owner, 'acme', { action: 'change-confirm', reservationId: booking, reason: body.reason, proposalToken: proposal.token }, key(), now + 1001);
+  const s = await snapshot(), hold = records(s, 'block').find(row => row.data.bookingChangeId && !row.data.quotaOnly)!;
+  expect(hold).toBeTruthy(); return { s, hold };
+}
+
+it('refuses staff pickup of an internal provider hold without changing its capacity or booking', async () => {
+  const { s, hold } = await pendingGroupHoldFixture();
+  await expect(cmd('reservation.create', { guestId, source: 'phone', blockId: hold.id, rooms: [selection({ arrival: hold.data.from, departure: hold.data.to })] })).rejects.toMatchObject({ code: 'PMS_BLOCK_UNAVAILABLE' });
+  expect(await snapshot()).toEqual(s);
+});
+
+it('refuses ordinary staff release of an internal provider hold without changing its capacity or booking', async () => {
+  const { s, hold } = await pendingGroupHoldFixture();
+  await expect(cmd('block.release', { id: hold.id })).rejects.toMatchObject({ code: 'PMS_BLOCK_TYPE' });
+  expect(await snapshot()).toEqual(s);
 });

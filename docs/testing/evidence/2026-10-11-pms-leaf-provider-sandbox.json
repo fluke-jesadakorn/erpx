@@ -1,0 +1,129 @@
+{
+  "checkedAt": "2026-10-11T04:24:55.600099+00:00",
+  "status": "passed",
+  "sourceFingerprint": "f13ca97b1401ea244ae616242fcc873b16308d6dce04298c68dfa41918a484f7",
+  "verificationFingerprint": "da3577cbc0866b9770ad0279a6a5b54fe7f71120501f1846d6d2cea38c2b43f5",
+  "nativeProviderRehearsal": true,
+  "realStripeTestApi": true,
+  "realHostedCheckout": true,
+  "realMoney": false,
+  "mailDelivered": false,
+  "wholePlanAccepted": false,
+  "rawEvidencePrivate": ".scratch/dev/pms-2026-10-05/sandbox/2026-10-11T04-05-34-100Z/verification.json",
+  "rawSHA256": "221d258d8fedb840306867fd28a160d0fce752ae8ca50fd0dd83812ad47ff432",
+  "terminal": {
+    "finishedAt": "2026-10-11T04:24:05.244Z",
+    "exitCode": 0
+  },
+  "cases": [
+    {
+      "name": "card-full",
+      "policy": "full",
+      "state": "confirmed",
+      "refund": "succeeded"
+    },
+    {
+      "name": "card-deposit",
+      "policy": "deposit",
+      "state": "confirmed",
+      "refund": "succeeded"
+    },
+    {
+      "name": "card-3ds",
+      "policy": "full",
+      "state": "confirmed",
+      "refund": "succeeded"
+    },
+    {
+      "name": "card-declined",
+      "policy": "full",
+      "state": "provider_declined"
+    },
+    {
+      "name": "promptpay-full",
+      "policy": "full",
+      "state": "confirmed"
+    },
+    {
+      "name": "promptpay-deposit",
+      "policy": "deposit",
+      "state": "confirmed"
+    },
+    {
+      "name": "promptpay-expired",
+      "policy": "full",
+      "state": "provider_expired"
+    }
+  ],
+  "assertions": [
+    "promptpay-expired: real Stripe-hosted session expiry, local 30-minute hold clock fault injection; no receipt or revenue",
+    "card-full: real Checkout payment, verified provider timestamp, receipt and immutable allocation; repeat reconciliation no duplicate",
+    "card-full: independently approved 50% refund succeeded",
+    "card-deposit: real Checkout payment, verified provider timestamp, receipt and immutable allocation; repeat reconciliation no duplicate",
+    "card-deposit: independently approved 50% refund succeeded",
+    "card-3ds: real Checkout payment, verified provider timestamp, receipt and immutable allocation; repeat reconciliation no duplicate",
+    "card-3ds: independently approved 50% refund succeeded",
+    "card-declined: real Stripe PaymentIntent reports card_declined; booking stays unpaid, no receipt",
+    "promptpay-full: real Checkout payment, verified provider timestamp, receipt and immutable allocation; repeat reconciliation no duplicate",
+    "promptpay-deposit: real Checkout payment, verified provider timestamp, receipt and immutable allocation; repeat reconciliation no duplicate",
+    "All resulting PMS journals balance"
+  ],
+  "screenshots": [
+    {
+      "path": ".scratch/dev/pms-final-acceptance-leaf-2026-10-11/provider-browser/card-3ds-before.png",
+      "sha256": "9b692d77dfec55b39094d64f8b7cb5ef010de56258027674790caa3150f6cb2f"
+    },
+    {
+      "path": ".scratch/dev/pms-final-acceptance-leaf-2026-10-11/provider-browser/card-3ds-challenge.png",
+      "sha256": "ab0bbb2e1fdb1f62a570c8e7937bb4e41b9c3ae29fb5b9cc034992a03d912001"
+    },
+    {
+      "path": ".scratch/dev/pms-final-acceptance-leaf-2026-10-11/provider-browser/card-declined-after.png",
+      "sha256": "ac506cdffee5f76fbbfff6e70dec33f2ccc73fe6f40feb844f28c5801b4efc2c"
+    },
+    {
+      "path": ".scratch/dev/pms-final-acceptance-leaf-2026-10-11/provider-browser/card-deposit-before.png",
+      "sha256": "0a18e6bce952482a9235c6443198e5cf2a1cc86648e9ae36c65b8ca27e6ee0aa"
+    },
+    {
+      "path": ".scratch/dev/pms-final-acceptance-leaf-2026-10-11/provider-browser/card-full-after.png",
+      "sha256": "fb89040a04459c81a969c27095bb08a9ff665dbdef05cb90c9013c1f89b94374"
+    },
+    {
+      "path": ".scratch/dev/pms-final-acceptance-leaf-2026-10-11/provider-browser/card-full-before.png",
+      "sha256": "51d29749ae47048285fcf269b1cf82b3a481d8bc11a271e28a649d95f32fff28"
+    },
+    {
+      "path": ".scratch/dev/pms-final-acceptance-leaf-2026-10-11/provider-browser/card-full-return-outside-native-fixture.png",
+      "sha256": "8e9694cc76315eb9fb4a459b8889fbac9b45a1b26d965c9dd3c4b1b24e88e048"
+    },
+    {
+      "path": ".scratch/dev/pms-final-acceptance-leaf-2026-10-11/provider-browser/promptpay-deposit-authorized.png",
+      "sha256": "c1fe0edc6befbd41c4cbe9208fd49bdd130e2ab993e4b39309b99a9f0f7354b0"
+    },
+    {
+      "path": ".scratch/dev/pms-final-acceptance-leaf-2026-10-11/provider-browser/promptpay-deposit-qr.png",
+      "sha256": "17909cadb81d4cb9b3ceedaad21ac433e7165a34b94d2fd4d07589a964531898"
+    },
+    {
+      "path": ".scratch/dev/pms-final-acceptance-leaf-2026-10-11/provider-browser/promptpay-full-authorized.png",
+      "sha256": "c69c5076866d8d6a97f3e087143384457f07c59d14228b8e901b6632006fb0bf"
+    },
+    {
+      "path": ".scratch/dev/pms-final-acceptance-leaf-2026-10-11/provider-browser/promptpay-full-qr.png",
+      "sha256": "bfb067e03fb49cb7b8e26ea3280e24b91a0d45281832521df52e24b0c961637e"
+    }
+  ],
+  "scopeLimits": [
+    "Native provider test on isolated eight disposable databases; not compiled release web/jobs HTTP process.",
+    "Provider polling and hosted test UI do not attest to real signed-webhook or guest-return E2E; compiled recovery proofs remain separate.",
+    "Hosted return targets public development where isolated property does not exist; observed 404 retained as limitation, not accepted guest-return proof.",
+    "PromptPay refunds were not attempted; no controlled email inherited. Three card 50% refunds succeeded.",
+    "Screenshots labelled after/authorized may show processing or unchanged test UI; authoritative terminal provider/native state establishes results."
+  ],
+  "cleanup": {
+    "exitCodeZeroAfterFinallyCleanup": true,
+    "runtimeTestDirectoriesEmpty": true,
+    "source": "tests/runtime-env.ts validates erpx_test_admin ownership and removes only its random eight databases and directory"
+  }
+}

@@ -27,7 +27,7 @@ group(['net-pos-sales'],{alias:'x',owner:'pos_sale',ownerId:'x.sale_id'});
 group(['pos-payment-mix'],{alias:'p',owner:'pos_sale',ownerId:'s.id'});
 group(['hotel-rooms','hotel-occupancy','hotel-night-audit-blockers'],{alias:'r'});
 group(['hotel-adr','hotel-revpar'],{alias:'n'});
-group(['hotel-folio-balance'],{alias:'f'});
+group(['hotel-guest-account-balance'],{alias:'f'});
 group(['projects'],{alias:'p',owner:'project'});
 group(['overdue-project-milestones','project-dependency-blockers'],{alias:'m',owner:'project',ownerId:'p.id'});
 group(['project-actual-hours'],{alias:'l',owner:'project',ownerId:'p.id'});

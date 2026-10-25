@@ -4,6 +4,7 @@ import {createPosApplication,type PosRepository,type PosEffect} from "../../src/
 import {createPosDay,type PosDayUnit,type PosReadEffect} from "../../src/server/modules/pos/application/pos-daily";
 import {createPosImages,type PosImagesUnit} from "../../src/server/modules/pos/application/pos-images";
 import {createPosStripe,type PosStripeRepository} from "../../src/server/modules/pos/application/pos-stripe";
+import {createPosRead} from "../../src/server/modules/pos/application/pos";
 import {createVerifiedStripePaymentTime} from "../../src/server/modules/pos/application/stripe-payment-time";
 import {businessDate,portion,recipeQuantities,saleAmounts} from "../../src/server/modules/pos/domain/pos";
 import type {WorkContext} from "../../src/server/modules/identity_access/public/authorization";
@@ -17,7 +18,7 @@ it("POS calendar uses the provided instant at the Bangkok date boundary",()=>{ex
 it("POS tax-inclusive discounts retain the actual total and every partial-return cent",()=>{expect(saleAmounts(3000,107,700,true,21)).toEqual({subtotal:280,tax:20,total:300,discount:21});expect([0,1,2].map(previous=>portion(100,previous,1,3))).toEqual([33,34,33]);});
 it("POS recipe quantities combine conversions before stock reservation",()=>{expect(recipeQuantities([{productId:"milk",quantityMilli:200,conversionMicros:1000000},{productId:"milk",quantityMilli:100,conversionMicros:2000000}],1500)).toEqual([{productId:"milk",quantityMilli:600}]);});
 it("POS withdrawn command permission stops before opening a transaction",async()=>{const r=repository<PosRepository<PosEffect>>({});await expect(commands(()=>{throw error(403,"REVOKED","revoked");}).posCommand(r,actor,"sale.create",{},"command-key")).rejects.toMatchObject({code:"REVOKED"});});
-it("POS settings bootstrap requires Finance write in addition to POS configure",async()=>{const permissions:string[]=[];await expect(commands((_actor,permission)=>{permissions.push(permission);if(permission==="finance.write")throw error(403,"REVOKED","revoked");}).posCommand(repository<PosRepository<PosEffect>>({}),actor,"settings.bootstrap",{},"command-key")).rejects.toMatchObject({code:"REVOKED"});expect(permissions).toEqual(["pos.configure","finance.write"]);});
+it("POS settings bootstrap requires accounting preparation, store configuration and Finance write",async()=>{const permissions:string[]=[];await expect(commands((_actor,permission)=>{permissions.push(permission);if(permission==="finance.write")throw error(403,"REVOKED","revoked");}).posCommand(repository<PosRepository<PosEffect>>({}),actor,"settings.bootstrap",{},"command-key")).rejects.toMatchObject({code:"REVOKED"});expect(permissions).toEqual(["pos.accounting.prepare","pos.configure","finance.write"]);});
 it("POS department scope cannot resolve or mutate a company command",async()=>{await expect(commands().posCommand(repository<PosRepository<PosEffect>>({}),{...actor,departmentId:"department"},"sale.create",{},"command-key")).rejects.toMatchObject({code:"POS_BRANCH_REQUIRED"});});
 it("POS live connection activation requires the production gate before persistence",async()=>{await expect(commands(()=>{},key=>key==="NODE_ENV"?"production":undefined).posCommand(repository<PosRepository<PosEffect>>({}),actor,"connection.refresh",{},"command-key")).rejects.toMatchObject({code:"POS_PROVIDER_COMING_SOON"});});
 function replayUnit(grant=true,hash="request-hash"){
@@ -49,3 +50,14 @@ it("Stripe completion time follows provider pagination and never accepts another
 it("unverified Stripe success cannot substitute redirect or local receipt time",async()=>{await expect(createVerifiedStripePaymentTime({faultFixtures:false,events:async()=>({data:[],has_more:false}),error}).verifiedStripePaymentTime(paymentInput)).rejects.toMatchObject({code:"PMS_SUCCESS_TIME_PENDING"});});
 it("Stripe completion lookup remains bounded after five nonmatching event pages",async()=>{const events=vi.fn(async()=>({data:[{id:"evt_other",created:123,data:{object:{id:"pi_other"}}}],has_more:true}));await expect(createVerifiedStripePaymentTime({faultFixtures:false,events,error}).verifiedStripePaymentTime(paymentInput)).rejects.toMatchObject({code:"PMS_SUCCESS_TIME_PENDING"});expect(events).toHaveBeenCalledTimes(5);});
 it("Stripe provider lookup failure propagates without inventing a success time",async()=>{await expect(createVerifiedStripePaymentTime({faultFixtures:false,events:async()=>{throw new Error("PROVIDER_UNAVAILABLE");},error}).verifiedStripePaymentTime(paymentInput)).rejects.toThrow("PROVIDER_UNAVAILABLE");});
+
+it("POS and Finance workspace department refusal is a typed403 before repository access",async()=>{
+ const forActor=vi.fn(async()=>{throw new Error("Unexpected repository access");});
+ const required=vi.fn();
+ const reads=createPosRead({clock,uuid,hash:()=>"hash",environment:()=>undefined,require:required,error,forActor});
+ for(const branchId of [null,"branch"])for(const financeMode of [false,true]){
+  await expect(reads.posWorkspace({...actor,branchId,departmentId:"department"},undefined,"","reports",undefined,false,financeMode)).rejects.toMatchObject({status:403,code:"POS_BRANCH_REQUIRED"});
+ }
+ expect(forActor).not.toHaveBeenCalled();
+ expect(required.mock.calls.map(call=>call[1])).toEqual(["pos.read","finance.read","pos.read","finance.read"]);
+});

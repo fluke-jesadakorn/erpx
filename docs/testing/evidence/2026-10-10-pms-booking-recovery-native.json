@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "checkedOn": "2026-10-10",
+  "complete": false,
+  "scope": "Native PostgreSQL booking refund response-loss and signed callback/expired-lease recovery with fictional provider responses. No live money or real Stripe delivery. Not browser or actual process restart acceptance.",
+  "sourceFingerprint": "085f513697d1108dd99329767081c3cad886bde53921f4b3fd20c655fc2d3929",
+  "verificationFingerprint": "1c1462657e8f457e6620bdddcf8139a94d947c9852e98044d1544ad20fe15279",
+  "native": {
+    "file": "tests/pms-booking.test.ts",
+    "passed": 37,
+    "failed": 0,
+    "skipped": 0,
+    "artifact": {
+      "path": ".scratch/dev/pms-booking-recovery-lease-native.log",
+      "sha256": "aebc869495d1d5c1bcc3d3d6bf27b597eaa9ec5064facc6be9b7fdff5490c3ea"
+    }
+  },
+  "checks": {
+    "typecheck": {
+      "path": ".scratch/dev/pms-booking-recovery-typecheck-final.log",
+      "sha256": "ae3aa3d40f2b7fdeaf8ae4398c41416876c85fc2ccc6aa232e526fdb75f340ef"
+    },
+    "lint": {
+      "path": ".scratch/dev/pms-booking-recovery-lint.log",
+      "sha256": "827c4aba480463caff85470227105c05ff46cd40693fc7c1b1f9f25d59f13231"
+    }
+  },
+  "assertions": [
+    "Two paid room allocations; guest cancels one room and independent staff approves its refund liability",
+    "Provider mock accepts refund but connection loses its response; approved request retains null provider id and generation zero",
+    "Fresh processor invocation sends exactly the same original refund body/key; one provider refund and one durable attempt/settlement result",
+    "Unselected stay is unchanged and PMS/Finance refund payable reconciles to zero",
+    "Signed payment callback is durably queued; tampered raw body is rejected",
+    "Injected running worker lease is not stolen before expiry; another invocation reclaims the expired lease",
+    "Duplicate callbacks produce exactly one applied event, completed event job, payment allocation and receipt"
+  ],
+  "mockFaults": [
+    "Provider state and response loss simulated via fetch stub",
+    "Worker interrupted state injected in PostgreSQL; Date clock advances to lease expiry",
+    "Webhook signature generated with fixture signing secret; production signature verifier, routing and job consumer are used"
+  ],
+  "remaining": [
+    "Actual compiled process termination/restart with durable recovery",
+    "Paid guest cancellation/refund browser workflow",
+    "Real provider signed callback delivery remains distinct from this native mock",
+    "Full unchanged-candidate acceptance and write SLO"
+  ],
+  "changes": [
+    "Persona context close failures now propagate to browser test failures instead of silently dropping recording evidence"
+  ]
+}

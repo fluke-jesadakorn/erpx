@@ -1,0 +1,233 @@
+{
+  "scope": "Suppress automatic canonical-page prefetch for recognized RecordLink drawer targets; preserve normal links and all navigation/draft handlers",
+  "release": "2026-10-10T19-59-00-002Z",
+  "sourceFingerprint": "dae9ff8f263604e859a87b37c3a9b10a1a3ec35f25e7669ca81c53c5d34ae405",
+  "ownedFile": {
+    "path": "src/components/records/record-link.tsx",
+    "bytes": 1969,
+    "sha256": "3a6c44bbcdd2e07b8cfccb15f0cdfa50ec307a42e87947a088b459cd0a559684"
+  },
+  "preservation": {
+    "beforeFile": ".scratch/dev/compiler-current-2026-10-10T19-46-37-717Z/app/src/components/records/record-link.tsx",
+    "beforeSha256": "128c17dc24970d020b91a6f9d638fe8b6eda80ae813e1e6bf75b1c4111726a33",
+    "onlyPrefetchPropChanged": true,
+    "clickHandlerAndHrefUnchanged": true,
+    "nonRecordCallerPrefetchPreserved": true,
+    "runtimeTreesChangedSinceCompilerSnapshot": [
+      "src/components/records/record-link.tsx"
+    ]
+  },
+  "installedNextGuide": "node_modules/next/dist/docs/01-app/03-api-reference/02-components/link.md#prefetch",
+  "productionPrefetchBehavior": {
+    "recognizedRecordTarget": false,
+    "nativeProductionNetworkMeasured": false,
+    "reason": "Click intercepts canonical href and navigates to a different drawer URL; explicit prefetch=false disables viewport and hover prefetch in installed App Router."
+  },
+  "browser": {
+    "origin": "https://console-dev-erpx.jesadakorn.com",
+    "sourcePage": "/holdings/acme/work",
+    "recordKind": "expense",
+    "drawerQuery": true,
+    "workCount": 12,
+    "role": "holding owner",
+    "company": "Acme Corporation",
+    "openedThroughRecordLink": true,
+    "keepEditingPreservedUnsavedMarker": true,
+    "originalBlankPurposeRestored": true,
+    "temporaryDraftDiscardedWithoutSaving": true,
+    "backRestoresDrawer": true,
+    "forwardClosesDrawer": true,
+    "deepReloadAfterRecoveryRendersDrawer": true,
+    "noBusinessCommandSaved": true,
+    "screenshots": [
+      {
+        "path": ".scratch/dev/optimization-record-prefetch-drawer.png",
+        "bytes": 109839,
+        "sha256": "d1221b6aa8440bb7d54ee8274b0f2ae263a273094dbb965a65754c4c668e2a88"
+      },
+      {
+        "path": ".scratch/dev/optimization-record-prefetch-recovered-drawer.png",
+        "bytes": 143680,
+        "sha256": "2e8bfd71d869f902713e1dbf17cb9e749af19cd52cd4b2ed0e3b90b0976c7806"
+      }
+    ]
+  },
+  "failuresRetained": {
+    "initialTabNavigationTimeout": true,
+    "tabWasAliveAndReused": true,
+    "firstHomeToWorkClientClickDidNotNavigate": true,
+    "homeBootstrapApi500Routes": [
+      "navigation POST",
+      "attachments content GET",
+      "calendar announcements GET"
+    ],
+    "slowRequestsSecondsRange": [
+      40,
+      60
+    ],
+    "syntaxErrorClassification": "Invalid or unexpected token; no stack attribution established",
+    "firstDrawerDeepReloadPublic502": true,
+    "memoryThresholdRestart": {
+      "beforeWorker": 53476,
+      "afterWorker": 79875,
+      "sameCli": 40657,
+      "sameDetachedLauncher": 40637,
+      "logTotalThresholdMessagesAfter": 2,
+      "manualRestartPerformed": false
+    },
+    "reusedCliCookie401": [
+      {
+        "path": "/api/v1/holdings/acme/navigation",
+        "status": 401,
+        "ms": 281.185291,
+        "envelope": false
+      },
+      {
+        "path": "/api/v1/holdings/acme/calendar/announcements",
+        "status": 401,
+        "ms": 8729.3785,
+        "envelope": false
+      }
+    ],
+    "normalSignInFirstAttempt": {
+      "signedIn": true,
+      "ownerSelected": false,
+      "failure": "COMPANY_CONTEXT_HTTP_502",
+      "receipt": {
+        "path": ".scratch/dev/http-benchmark-2026-10-10T20-05-26-827Z/evidence.json",
+        "bytes": 1586,
+        "sha256": "b109a99fd8d289e5aa8f3897a8e3efb5fcaaee06873daefc3d193ddbe85ae422"
+      }
+    },
+    "normalSignInAfterRestart": {
+      "signedIn": true,
+      "ownerSelected": true,
+      "eightReadsStatus200": true,
+      "expectedPmsStreamedRedirect": 1,
+      "receipt": {
+        "path": ".scratch/dev/http-benchmark-2026-10-10T20-10-33-577Z/evidence.json",
+        "bytes": 6082,
+        "sha256": "0ffc4ac211f441119380a5b6cbd47e440ceca27f66ce8b38e3bded46cd1d988e"
+      }
+    },
+    "apiAfterRecovery": [
+      {
+        "path": "/api/v1/holdings/acme/navigation",
+        "status": 200,
+        "ms": 808.053667,
+        "envelope": true
+      },
+      {
+        "path": "/api/v1/holdings/acme/calendar/announcements",
+        "status": 200,
+        "ms": 7942.429,
+        "envelope": true
+      }
+    ]
+  },
+  "checks": {
+    "typecheck": "pass",
+    "ownedLint": "pass zero errors/warnings",
+    "regression": "33 cases / 7 files pass",
+    "architecture": "pass",
+    "isolatedReleaseBuild": "pass",
+    "fullLint": "pass zero errors / three existing warnings",
+    "documentation": "pass"
+  },
+  "checkReceipts": [
+    {
+      "path": ".scratch/dev/optimization-record-prefetch-typecheck.log",
+      "bytes": 73,
+      "sha256": "ae3aa3d40f2b7fdeaf8ae4398c41416876c85fc2ccc6aa232e526fdb75f340ef"
+    },
+    {
+      "path": ".scratch/dev/optimization-record-prefetch-lint.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/dev/optimization-record-prefetch-regression.log",
+      "bytes": 39795,
+      "sha256": "c930417a508abe1b90ab4af2c7f5a970d0453f47b37aeb8315968bab4f5ece19"
+    },
+    {
+      "path": ".scratch/dev/optimization-record-prefetch-architecture.log",
+      "bytes": 238,
+      "sha256": "61f27aa5d383438fa7955c201143725c76302dadbcb2c312efa2d398a9d6f86b"
+    },
+    {
+      "path": ".scratch/dev/optimization-record-prefetch-build.log",
+      "bytes": 25111,
+      "sha256": "8426fe1a9f4ad6f198efceefce90ae246e40b6eb246491bbd884a23283652d74"
+    },
+    {
+      "path": ".scratch/dev/optimization-record-prefetch-lint-full.log",
+      "bytes": 468,
+      "sha256": "827c4aba480463caff85470227105c05ff46cd40693fc7c1b1f9f25d59f13231"
+    },
+    {
+      "path": ".scratch/dev/optimization-record-prefetch-docs.log",
+      "bytes": 187,
+      "sha256": "124793c0ee6c61df3845aea546c45e107b4ab748da9b8138015f09934cf470fe"
+    }
+  ],
+  "availability": {
+    "checkedAtUTC": "2026-10-10T20:24:57Z",
+    "http": [
+      {
+        "url": "http://127.0.0.1:3100/api/health",
+        "exitCode": 0,
+        "response": "200 0.009868"
+      },
+      {
+        "url": "https://console-dev-erpx.jesadakorn.com/api/health",
+        "exitCode": 0,
+        "response": "200 0.185370"
+      },
+      {
+        "url": "http://127.0.0.1:3101/api/health",
+        "exitCode": 0,
+        "response": "200 0.007694"
+      }
+    ],
+    "listeners": {
+      "3100": [
+        79875
+      ],
+      "3102": []
+    },
+    "processes": [
+      {
+        "process": "40637     1 /Users/fluke/Desktop/Work/erpx/.runtime/bun-1.2.17/bun-darwin-aarch64/bun",
+        "cwd": "/Users/fluke/Desktop/Work/erpx"
+      },
+      {
+        "process": "40657 40640 /Users/fluke/Desktop/Work/erpx/.runtime/node/node-v24.20.0-darwin-arm64/bin/node",
+        "cwd": "/Users/fluke/Desktop/Work/erpx"
+      },
+      {
+        "process": "79875 40657 next-server (v16.3.4)",
+        "cwd": "/Users/fluke/Desktop/Work/erpx"
+      }
+    ],
+    "postgresAcceptingConnections": true,
+    "stagingTouched": false,
+    "publicBrowser": {
+      "url": "https://console-dev-erpx.jesadakorn.com/holdings/acme/work",
+      "role": "holding owner",
+      "workCount": 12,
+      "drawerClosed": true,
+      "searchEnabled": true
+    }
+  },
+  "limits": [
+    "Development does not automatically prefetch; actual production request/byte/readiness savings need a controlled production-mode browser comparison.",
+    "Retained failures and automatic restart mean long-session development stability remains open.",
+    "Front destination sign-in and cross-chat public-window coordination authorizations are still pending."
+  ],
+  "stagingTouched": false,
+  "sourceRecheckedAtEnd": {
+    "fingerprint": "dae9ff8f263604e859a87b37c3a9b10a1a3ec35f25e7669ca81c53c5d34ae405",
+    "matchesFinalRelease": true
+  }
+}

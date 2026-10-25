@@ -14,7 +14,7 @@ export type PmsSource = {
         number?: string;
         type?: string;
         roomId?: string;
-        folioId?: string;
+        guestAccountId?: string;
         requestedBy?: string;
         recordedBy?: string;
         userId?: string;
@@ -36,7 +36,7 @@ export function pmsSourceAllowed(actor: StaffActor, source: PmsSource) {
         case "block": return can("pms.housekeeping") || can("pms.inspect") || can("pms.maintenance");
         case "stay":
         case "reservation": return can("pms.frontdesk") || can("pms.reservations") || can("pms.cashier");
-        case "folio": return can("pms.cashier") || can("pms.reports");
+        case "guest_account": return can("pms.cashier") || can("pms.reports");
         case "refund":
         case "correction": return can("pms.approve") || (can("pms.cashier") && source.data.requestedBy === actor.userId);
         case "transfer": return can("finance.approve") || (can("pms.cashier") && source.data.recordedBy === actor.userId);
@@ -48,12 +48,12 @@ export function pmsSourceAllowed(actor: StaffActor, source: PmsSource) {
 export function pmsSourceLink(source: PmsSource) {
     const section = source.kind === "stay" ? "front-desk" : source.kind === "reservation" ? "reservations"
         : ["room", "task", "block"].includes(source.kind) ? "housekeeping" : source.kind === "shift" ? "cashier"
-            : source.kind === "night" ? "night-audit" : "folios";
+            : source.kind === "night" ? "night-audit" : "guest-accounts";
     const query = new URLSearchParams({ property: source.property_id, record: source.id });
-    if (source.data.folioId)
-        query.set("folio", source.data.folioId);
-    if (source.kind === "folio")
-        query.set("folio", source.id);
+    if (source.data.guestAccountId)
+        query.set("guestAccount", source.data.guestAccountId);
+    if (source.kind === "guest_account")
+        query.set("guestAccount", source.id);
     if (source.kind === "task")
         query.set("task", source.id);
     if (["transfer", "refund"].includes(source.kind))

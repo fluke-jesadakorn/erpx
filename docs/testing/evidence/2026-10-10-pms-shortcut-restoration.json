@@ -1,0 +1,61 @@
+{
+  "complete": false,
+  "wholePlanAcceptance": false,
+  "status": "All 13 Work Cards identities passed across staged diagnostics; final aggregate acceptance pending",
+  "redReceipt": ".scratch/dev/test-suites/browser/2026-10-10T16-24-19-834Z/receipt.json",
+  "redReceiptSha256": "afdf2178d870e71977ccdd66a120a36e0c6f905cd6bfecb6a5552b25b842e76f",
+  "cleanupFailures": [],
+  "passedCases": [
+    {
+      "suite": "shared.work.work-cards.e2e",
+      "project": "desktop",
+      "title": "members without profiles use cards to create drafts and preserve filters, refresh and Back",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-10T16-24-19-834Z/c6c889b83f2e/result.json"
+    },
+    {
+      "suite": "shared.work.work-cards.e2e",
+      "project": "desktop",
+      "title": "pin order syncs between devices and conflicts preserve the proposed arrangement",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-10T16-24-19-834Z/eebec072e5af/result.json"
+    },
+    {
+      "suite": "shared.work.work-cards.e2e",
+      "project": "desktop",
+      "title": "preference APIs reject forged authority and beta only offers supported actions",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-10T16-24-19-834Z/2618cc470c50/result.json"
+    },
+    {
+      "suite": "shared.work.work-cards.e2e",
+      "project": "desktop",
+      "title": "focus refresh updates preferences and incomplete summaries keep other work usable",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-10T16-24-19-834Z/6640849b7a2c/result.json"
+    },
+    {
+      "suite": "shared.work.work-cards.e2e",
+      "project": "desktop",
+      "title": "an expense saved from a card appears once in the matching list and summary",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-10T16-24-19-834Z/5b995755b19d/result.json"
+    },
+    {
+      "suite": "shared.work.work-cards.e2e",
+      "project": "desktop",
+      "title": "team and inventory cards follow company, branch and department scope",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-10T16-24-19-834Z/2557f75d93b4/result.json"
+    }
+  ],
+  "runtimeChange": "Restore committed WorkShortcuts sidebar/panel presentation with lazy client import and authorized current work/summary reads. Panel mounts on Apps open. Versioned preference endpoint and original conflict/dirty-draft semantics retained. Abort reads and clear visible cards on context switching or authority withdrawal; rejected 401/403/404/409 reads clear cards.",
+  "testChanges": "Incomplete-summary fixture uses its current work/summary boundary. Each of 20 Tab checks waits at most 1000 ms for the installed Base UI focus guard animation frame; all layouts, themes, touch bounds, Escape and return-focus assertions retained.",
+  "focusEvidence": "Error snapshot already has Customize shortcuts Close dialog active. Installed FloatingFocusManager.js onFocus guard uses enqueueFocus, which schedules requestAnimationFrame.",
+  "layoutKeyboardPassed": true,
+  "mobileBusinessPassedCases": 6,
+  "releaseDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.runtime/releases/2026-10-10T16-34-07-917Z",
+  "candidate": {
+    "runtime": "ea5fb44188d98cc173979fb51a468bd8e8b6d01e3ebd0b6d335c9a33081c0347",
+    "verification": "283feba83813251388e56fcf577a9f2899045ff3d5c0741febc10f6a5253da77"
+  },
+  "visualInspection": {
+    "path": ".scratch/dev/test-suites/browser/2026-10-10T16-33-25-470Z/40bc85e580ee/artifacts/work-cards-cards-fit-390-7-a2122-s-and-retain-keyboard-focus-desktop/work-390-dark.png",
+    "result": "Inspected actual 390px Dark App launcher; two-column six-card expanded panel, readable labels/actions and controls within viewport.",
+    "sha256": "d429bda342722971fc60f0ef476e91027dbc0c158d0772b9e91d7d3000b4e065"
+  }
+}

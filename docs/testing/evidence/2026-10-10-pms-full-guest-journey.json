@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 1,
+  "checkedOn": "2026-10-10",
+  "complete": false,
+  "scope": "Compiled fictional full guest lifecycle: phone booking, independent room preparation/inspection, check-in, cashier payment, independent charge correction, checkout, day-close worker restart and visual reload. Not full PMS plan acceptance.",
+  "candidate": {
+    "id": "2026-10-09T17-38-18-796Z",
+    "sourceFingerprint": "085f513697d1108dd99329767081c3cad886bde53921f4b3fd20c655fc2d3929",
+    "fileManifestSha256": "4265e6d214c278e3d83138961272c9d5701ef21372864bdf974d7d8bb8a3baca"
+  },
+  "verificationFingerprint": "70d9e20721f89298ebfa4c14ae94bfac6c158c3fb1a855c45c4b5afc8ac9ab5f",
+  "sourceAndAssertionsUnchanged": true,
+  "checks": {
+    "typecheck": {
+      "path": ".scratch/dev/pms-full-guest-journey/final-typecheck.log",
+      "sha256": "ae3aa3d40f2b7fdeaf8ae4398c41416876c85fc2ccc6aa232e526fdb75f340ef"
+    },
+    "lint": {
+      "path": ".scratch/dev/pms-full-guest-journey/final-lint.log",
+      "sha256": "827c4aba480463caff85470227105c05ff46cd40693fc7c1b1f9f25d59f13231"
+    }
+  },
+  "browser": [
+    {
+      "project": "desktop",
+      "cohort": "8fd15d92ba55",
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "report": {
+        "path": ".scratch/dev/pms-full-guest-journey/final-desktop.json",
+        "sha256": "97980599c65bd0da5b9df6e51e8766f199e50db3683a70506dfdac3d47d8caae"
+      },
+      "completedPage": {
+        "path": ".scratch/dev/pms-full-guest-journey/final-desktop-results/thai-hotel-v1-hotel-H002-g-4504b-nt-checkout-and-Night-Audit-desktop/completed-business-date.png",
+        "sha256": "a2f0f21b785efc96d98a5ddefd48d25773646eccaed263345ba5383f4a3decd4"
+      },
+      "workerRecovery": {
+        "sourceFingerprint": "085f513697d1108dd99329767081c3cad886bde53921f4b3fd20c655fc2d3929",
+        "release": {
+          "id": "2026-10-09T17-38-18-796Z",
+          "fileManifestSha256": "4265e6d214c278e3d83138961272c9d5701ef21372864bdf974d7d8bb8a3baca"
+        },
+        "firstWorkerPid": 10803,
+        "restartedWorkerPid": 10979,
+        "completed": {
+          "job": {
+            "state": "completed",
+            "error_code": null
+          },
+          "property": {
+            "state": "open",
+            "business_date": "2026-10-11"
+          }
+        }
+      }
+    },
+    {
+      "project": "mobile",
+      "cohort": "f89d96806705",
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "report": {
+        "path": ".scratch/dev/pms-full-guest-journey/final-mobile.json",
+        "sha256": "0c9a4d7e476e1a68f6d136e31afbf13cba006cbe459094c13198b61581aceca2"
+      },
+      "completedPage": {
+        "path": ".scratch/dev/pms-full-guest-journey/final-mobile-results/thai-hotel-v1-hotel-H002-g-4504b-nt-checkout-and-Night-Audit-mobile/completed-business-date.png",
+        "sha256": "5691fe1fded78ea07b03fe6158e1b94c71ef84442e20beb82ac9c5a2cb7b2b9d"
+      },
+      "workerRecovery": {
+        "sourceFingerprint": "085f513697d1108dd99329767081c3cad886bde53921f4b3fd20c655fc2d3929",
+        "release": {
+          "id": "2026-10-09T17-38-18-796Z",
+          "fileManifestSha256": "4265e6d214c278e3d83138961272c9d5701ef21372864bdf974d7d8bb8a3baca"
+        },
+        "firstWorkerPid": 12555,
+        "restartedWorkerPid": 12692,
+        "completed": {
+          "job": {
+            "state": "completed",
+            "error_code": null
+          },
+          "property": {
+            "state": "open",
+            "business_date": "2026-10-11"
+          }
+        }
+      }
+    }
+  ],
+  "assertions": [
+    "Normal Front authentication and separate role assignment for frontdesk, housekeeper, inspector, cashier, manager, auditor and restaurant cashier",
+    "Display THB preference persists; wrong-company, anonymous and forbidden rate requests rejected",
+    "Phone reservation retains accepted price lines",
+    "Room preparation checklist completed by housekeeper and independently inspected by supervisor",
+    "Inspected room 103 assigned; in-house stay/guest account persist",
+    "Cashier settles room charge, requests mistaken service-charge reversal; independent manager approves original-entry reversal",
+    "Night Audit blocks pending corrections; reversal posts once and account balance returns to zero",
+    "Guest checks out; one original guest-account invoice is paid and every PMS journal balances",
+    "Cashier counted cash equals expected cash with zero variance",
+    "Compiled jobs process is stopped/replaced around day-close and completes pending work",
+    "Night Audit reload shows next Business Date, no closing banner and completed prior day"
+  ],
+  "remaining": [
+    "Paid guest/provider browser recovery with actual payment-job interruption",
+    "Current enhanced eight-journey hospitality suite and combined final-candidate gates",
+    "Scale logical write p95 below 2000ms",
+    "All per-feature evidence audit and real rollout approval remain separate"
+  ]
+}

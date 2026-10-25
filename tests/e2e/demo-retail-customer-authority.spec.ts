@@ -18,17 +18,28 @@ test.describe('native retail and customer authority engineering workflows',()=>{
    const cashier=await businessActor(browser,info,loaded,'source','work'),reviewer=await businessActor(browser,info,loaded,'reviewer','pos?tab=history&queue=approval');
    contexts.push(cashier.context,reviewer.context);
    const frontPage=await cashier.context.newPage(),front=await businessPosFront(cashier.context,frontPage,loaded,cashier.userId);
-   async function openFront(query=''){await frontPage.goto(`${front.url}${query?`?${query}`:''}`,{waitUntil:holdScripts?'commit':'domcontentloaded'});await expect(frontPage.locator('[data-work-stale]')).toHaveAttribute('data-work-stale','false');}
+   async function openFront(query=''){
+    await frontPage.goto(`${front.url}${query?`?${query}`:''}`,{waitUntil:holdScripts?'commit':'domcontentloaded'});
+    await expect(frontPage.locator('[data-work-stale]')).toHaveAttribute('data-work-stale','false');
+    if(!holdScripts){
+     const language=frontPage.getByRole('button',{name:/^(EN|ไทย)$/});
+     await expect(language).toHaveAttribute('data-client-managed-ready','true');await expect(language).toBeEnabled();
+     if(await frontPage.locator('html').getAttribute('lang')!=='en')await frontPage.getByRole('button',{name:'EN',exact:true}).click();
+     await expect(frontPage.locator('html')).toHaveAttribute('lang','en');
+    }
+   }
    let heldScripts=0,earlyShiftPosts=0;const sensitiveGets:string[]=[];
    frontPage.on('request',request=>{const url=new URL(request.url());if(request.method()==='POST'&&url.pathname.endsWith('/pos/shift/open'))++earlyShiftPosts;if(request.method()==='GET'&&(url.searchParams.has('register')||url.searchParams.has('opening')))sensitiveGets.push(url.pathname);});
    await frontPage.route('**/_next/**',async route=>{if(holdScripts&&route.request().resourceType()==='script'){++heldScripts;await new Promise<void>(resolve=>releaseScripts.push(resolve));}await route.continue();});
    await openFront('tab=shifts');
-   const opening=frontPage.locator('form').filter({has:frontPage.getByRole('button',{name:/^Open cash (shift|session)$/})});
+   const openShiftName=/^(Open cash (shift|session)|เปิดกะเงินสด)$/;
+   const opening=frontPage.locator('form').filter({has:frontPage.getByRole('button',{name:openShiftName})});
+   await expect(opening).toHaveCount(1);
    await opening.locator('select[name="register"]').selectOption(r.registerId);await opening.locator('[name="opening"]').fill('100.00');
-   const submit=opening.getByRole('button',{name:/^Open cash (shift|session)$/});await expect(submit).toHaveAttribute('data-client-managed-ready','false');await expect(submit).toBeDisabled();
+   const submit=opening.getByRole('button',{name:openShiftName});await expect(submit).toHaveAttribute('data-client-managed-ready','false');await expect(submit).toBeDisabled();
    const box=await submit.boundingBox();expect(box).not.toBeNull();await frontPage.mouse.click(box!.x+box!.width/2,box!.y+box!.height/2);await opening.locator('[name="opening"]').press('Enter');expect(earlyShiftPosts).toBe(0);expect(sensitiveGets).toEqual([]);expect(heldScripts).toBeGreaterThan(0);
    holdScripts=false;for(const release of releaseScripts.splice(0))release();await expect(submit).toHaveAttribute('data-client-managed-ready','true');await expect(submit).toBeEnabled();await expect(opening.locator('[name="opening"]')).toHaveValue('100.00');await frontPage.unroute('**/_next/**');
-   const opened=await posClick(frontPage,'shift.open',()=>opening.getByRole('button',{name:/^Open cash (shift|session)$/}).click()),shiftId=String(opened.id);
+   const opened=await posClick(frontPage,'shift.open',()=>submit.click()),shiftId=String(opened.id);
    expect(earlyShiftPosts).toBe(1);expect(sensitiveGets).toEqual([]);
    await openFront();await businessReady(frontPage);
    await frontPage.getByRole('combobox',{name:'Register',exact:true}).selectOption(r.registerId);

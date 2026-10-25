@@ -1,0 +1,67 @@
+{
+  "observedAt": "2026-10-11T17:46:02.667558+00:00",
+  "scope": "Targeted main-source native iteration; not compiled-release or whole-plan acceptance",
+  "receipts": [
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-business-upgrade-group/unit-first.json",
+      "sha256": "c53738ccd6278bfd7b2f1c878cc4c6b123a3e27b1023d18b608dcf8cad07f02b",
+      "passed": 65,
+      "failed": 1,
+      "outsideSelectedPattern": 0,
+      "terminalExit": 1
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-business-upgrade-group/unit-after.json",
+      "sha256": "800a6fbb8c646697763063f552079200e0e503df51f3042df0943ab244e7cae5",
+      "passed": 66,
+      "failed": 0,
+      "outsideSelectedPattern": 0,
+      "terminalExit": 0
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-business-upgrade-group/postgres-first.json",
+      "sha256": "219b1e8fcb7113f97d20ce737e967dce362be151ca455804a3a986ed1997a880",
+      "passed": 2,
+      "failed": 1,
+      "outsideSelectedPattern": 102,
+      "terminalExit": 1
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-business-upgrade-group/postgres-after.json",
+      "sha256": "c530b0af0baabe0f2e5287a1a03f87b026dbba94b0602e5922a485788d95c556",
+      "passed": 3,
+      "failed": 0,
+      "outsideSelectedPattern": 102,
+      "terminalExit": 0
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-business-upgrade-group/postgres-regression.json",
+      "sha256": "db741bc02b52d9e9ccb9388196088fff86b6674bacbc86d5d929762e29479b8f",
+      "passed": 105,
+      "failed": 0,
+      "outsideSelectedPattern": 0,
+      "terminalExit": 0
+    }
+  ],
+  "typecheck": {
+    "main": true,
+    "engineeringTests": true,
+    "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-business-upgrade-group/typecheck-after.log"
+  },
+  "privacyActualRed": "Housekeeping complete read retained priced rate row",
+  "privacyRepair": "Remove rate rows and zero supply item prices for non-guest staff without configuration/accounting rights; remove upgrade reason and booking policy from housekeeping stay views",
+  "coveragePreserved": "Original required cases unchanged; eight unit and three PostgreSQL cases are supplementary",
+  "runtimeVerifiedOnPublicDev": false,
+  "remaining": [
+    "signed staff/group booking changes",
+    "multi-property dirty forms",
+    "compiled UI/browser",
+    "fresh required same-candidate gates"
+  ],
+  "wholePlanComplete": false,
+  "postTestObservedSource": {
+    "runtime": "fd7e5e708fc97066d1e2fc653805b6372bd7201f07443dae09795ecc4d9f775c",
+    "verification": "5314112c0d6c897a8b2f695c98735ab33486f62612a8fd64541904cde0ef7227",
+    "timing": "after targeted tests and before subsequent UI history labels; not a sealed build attestation"
+  }
+}

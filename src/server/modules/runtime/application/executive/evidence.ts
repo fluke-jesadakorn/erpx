@@ -9,7 +9,7 @@ import { hasModuleAccess } from '@/data/module-access';
 import { organizationChangeHref } from "@/server/modules/organization/public/rules/organization-domain";
 import { BusinessRuleError } from '../../../shared';
 import { operationsMetrics, type OperationsMetricId } from '../../domain/executive/operations-metric-ids';
-import { providerId, payrollSummaryMetric, payrollSummaryProviderId, payrollSummaryFields, approvedLeaveMetric, authorizedOvertimeMetric, peopleLeaveOvertimeProviderId, approvedLeaveFields, authorizedOvertimeFields, hotelOccupancyMetric, hotelOccupancyProviderId, hotelOccupancyFields, hotelRoomRevenueMetrics, HotelRoomRevenueMetric, hotelRoomRevenueFields, hotelFolioBalanceMetric, hotelFolioBalanceProviderId, hotelFolioBalanceFields, hotelNightAuditBlockersMetric, hotelNightAuditBlockersProviderId, hotelNightAuditBlockersFields, procurementProviderId, salesProviderId, qualityProviderId, financeMetrics, FinanceMetricId, salesMetrics, SalesMetricId, salesFulfillmentMetric, fieldVisitMetric, manufacturingCostMetric, customerActivityMetric, socialActivityMetric, legalMetrics, LegalMetricId, legalProviderId, maintenanceDowntimeMetric, maintenanceProviderId, supportIncidentMetric, supportIncidentProviderId, supportIncidentFields, supportTicketMetrics, SupportTicketMetricId, supportTicketProviderId, duplicateReviewMetric, duplicateReviewProviderId, duplicateReviewFields, closeBlockersMetric, closeBlockersProviderId, closeBlockersFields, identityChangeMetric, identityChangeProviderId, identityChangeFields, organizationNodeMetric, pendingStructureMetric, organizationProviderId, organizationNodeFields, pendingStructureFields, activeAssignmentsMetric, pendingAccessReviewsMetric, activeAssignmentsProviderId, pendingAccessReviewsProviderId, activeSubscriptionsMetric, overdueInvoicesMetric, activeSubscriptionsProviderId, overdueInvoicesProviderId, activeSubscriptionFields, legacySubscriptionFields, overdueInvoiceFields, activeAssignmentFields, pendingAccessReviewFields, maintenanceSearchFields, maintenanceDetailFields, qualityMetrics, searchableMetrics, searchFields, detailFields, procurementSearchFields, procurementDetailFields, salesSearchFields, salesDetailFields, salesOrderSearchFields, salesOrderDetailFields, commonFilters, querySchema, procurementQuerySchema, salesQuerySchema, salesFulfillmentQuerySchema, fieldVisitQuerySchema, manufacturingCostQuerySchema, qualityQuerySchema, customerActivityQuerySchema, socialActivityQuerySchema, legalQuerySchema, maintenanceQuerySchema, supportIncidentQuerySchema, supportTicketQuerySchema, duplicateReviewQuerySchema, closeBlockersQuerySchema, identityChangeQuerySchema, organizationNodeQuerySchema, pendingStructureQuerySchema, activeAssignmentsQuerySchema, pendingAccessReviewsQuerySchema, activeSubscriptionsQuerySchema, overdueInvoicesQuerySchema, payrollSummaryQuerySchema, peopleLeaveOvertimeQuerySchema, hotelOccupancyQuerySchema, hotelFolioBalanceQuerySchema, hotelNightAuditBlockersQuerySchema, availableStockMetric, availableStockProviderId, availableStockFields, availableStockQuerySchema, inventoryShortagesMetric, inventoryShortagesProviderId, inventoryShortagesFields, inventoryShortagesQuerySchema, stockedLocationsMetric, stockedLocationsQuerySchema, inventoryMovementsMetric, inventoryMovementsProviderId, inventoryMovementFields, inventoryMovementsQuerySchema, operationsProviderId, operationsQuerySchema, projectMilestoneMetric, projectMilestoneProviderId, projectMilestoneFields, projectMilestoneQuerySchema, projectDependencyMetric, projectDependencyProviderId, projectDependencyFields, projectDependencyQuerySchema, projectActualMetrics, ProjectActualMetric, projectActualProviderId, projectActualHoursFields, projectPostedCostFields, projectActualQuerySchema, InvoiceEvidenceRow, predicate, cursorValue, encodeCursor, LegalEvidenceRow, LegalHoldEvidenceRow, legalEvidenceCursor, encodeLegalEvidenceCursor, PayrollSummaryEvidenceRow, payrollSummaryCursor, encodePayrollSummaryCursor, peopleRequestCursor, encodePeopleRequestCursor, HotelOccupancyEvidenceRow, hotelOccupancyCursorValue, encodeHotelOccupancyCursor, HotelFolioBalanceEvidenceRow, hotelFolioBalanceCursorValue, encodeHotelFolioBalanceCursor, HotelNightAuditBlockerEvidenceRow, hotelNightAuditBlockerCursorValue, encodeHotelNightAuditBlockerCursor, SupplierBillEvidenceRow, SalesOrderEvidenceRow, SalesEvidenceCursor, salesCursorValue, encodeSalesCursor, SalesFulfillmentEvidenceRow, salesFulfillmentFields, salesFulfillmentCursorValue, encodeSalesFulfillmentCursor, FieldVisitEvidenceRow, fieldVisitFields, fieldVisitCursorValue, encodeFieldVisitCursor, QualityInspectionRow, qualitySearchFields, qualityDetailFields, qualityCursorValue, encodeQualityCursor, ManufacturingCostEvidenceRow, manufacturingCostProviderId, manufacturingCostSearchFields, manufacturingCostDetailFields, manufacturingCostCursorValue, encodeManufacturingCostCursor, customerActivityProviderId, customerActivityFields, customerActivityCursor, encodeCustomerActivityCursor, socialActivityProviderId, socialActivityFields, socialActivityCursor, encodeSocialActivityCursor, SupportIncidentEvidenceRow, supportIncidentCursorValue, encodeSupportIncidentCursor, encodeSupportIncidentRecordId, decodeSupportIncidentRecordId, supportIncidentNumber, SupportTicketEvidenceRow, supportTicketCursorValue, encodeSupportTicketCursor, encodeSupportTicketRecordId, decodeSupportTicketRecordId, supportTicketNumber, supportTicketFieldsFor, DuplicateReviewEvidenceRow, duplicateReviewCursorValue, encodeDuplicateReviewCursor, encodeDuplicateReviewRecordId, decodeDuplicateReviewRecordId, duplicateReviewNumber, IdentityChangeEvidenceRow, identityChangeCursorValue, encodeIdentityChangeCursor, encodeIdentityChangeRecordId, decodeIdentityChangeRecordId, identityChangeNumber, OrganizationNodeEvidenceRow, PendingStructureEvidenceRow, organizationEvidenceCursor, encodeOrganizationRecordId, decodeOrganizationRecordId, organizationEvidenceNumber, ActiveAssignmentEvidenceRow, PendingAccessReviewEvidenceRow, identityAccessCursor, encodeIdentityAccessRecordId, decodeIdentityAccessRecordId, CommercialSubscriptionRow, OverdueInvoiceEvidenceRow, commercialCursor, encodeCommercialSubscriptionId, decodeCommercialSubscriptionId, encodeOverdueInvoiceId, decodeOverdueInvoiceId, CloseBlockerEvidenceRow, closeBlockerCursorValue, encodeCloseBlockerCursor, encodeCloseBlockerRecordId, decodeCloseBlockerRecordId, closeBlockerNumber, closeBlockerCount, maintenanceCursorValue, encodeMaintenanceCursor, maintenanceEvidenceNumber, AvailableStockEvidenceRow, InventoryShortageEvidenceRow, InventoryMovementEvidenceRow, inventoryMovementCursorValue, encodeInventoryMovementCursor, encodeInventoryMovementRecordId, decodeInventoryMovementRecordId, inventoryMovementHref, availableStockCursorValue, encodeAvailableStockCursor, encodeAvailableStockRecordId, decodeAvailableStockRecordId, milliQuantity, ProjectMilestoneEvidenceRow, projectMilestoneCursor, ProjectDependencyEvidenceRow, projectDependencyBlockers, ProjectActualEvidenceRow, projectActualCursor, OperationsEvidenceRow, operationsEvidenceFields, operationsRecordId, decodeOperationsRecordId, operationsEvidenceCursor } from '../../domain/executive/evidence';
+import { providerId, payrollSummaryMetric, payrollSummaryProviderId, payrollSummaryFields, approvedLeaveMetric, authorizedOvertimeMetric, peopleLeaveOvertimeProviderId, approvedLeaveFields, authorizedOvertimeFields, hotelOccupancyMetric, hotelOccupancyProviderId, hotelOccupancyFields, hotelRoomRevenueMetrics, HotelRoomRevenueMetric, hotelRoomRevenueFields, hotelGuestAccountBalanceMetric, hotelGuestAccountBalanceProviderId, hotelGuestAccountBalanceFields, hotelNightAuditBlockersMetric, hotelNightAuditBlockersProviderId, hotelNightAuditBlockersFields, procurementProviderId, salesProviderId, qualityProviderId, financeMetrics, FinanceMetricId, salesMetrics, SalesMetricId, salesFulfillmentMetric, fieldVisitMetric, manufacturingCostMetric, customerActivityMetric, socialActivityMetric, legalMetrics, LegalMetricId, legalProviderId, maintenanceDowntimeMetric, maintenanceProviderId, supportIncidentMetric, supportIncidentProviderId, supportIncidentFields, supportTicketMetrics, SupportTicketMetricId, supportTicketProviderId, duplicateReviewMetric, duplicateReviewProviderId, duplicateReviewFields, closeBlockersMetric, closeBlockersProviderId, closeBlockersFields, identityChangeMetric, identityChangeProviderId, identityChangeFields, organizationNodeMetric, pendingStructureMetric, organizationProviderId, organizationNodeFields, pendingStructureFields, activeAssignmentsMetric, pendingAccessReviewsMetric, activeAssignmentsProviderId, pendingAccessReviewsProviderId, activeSubscriptionsMetric, overdueInvoicesMetric, activeSubscriptionsProviderId, overdueInvoicesProviderId, activeSubscriptionFields, legacySubscriptionFields, overdueInvoiceFields, activeAssignmentFields, pendingAccessReviewFields, maintenanceSearchFields, maintenanceDetailFields, qualityMetrics, searchableMetrics, searchFields, detailFields, procurementSearchFields, procurementDetailFields, salesSearchFields, salesDetailFields, salesOrderSearchFields, salesOrderDetailFields, commonFilters, querySchema, procurementQuerySchema, salesQuerySchema, salesFulfillmentQuerySchema, fieldVisitQuerySchema, manufacturingCostQuerySchema, qualityQuerySchema, customerActivityQuerySchema, socialActivityQuerySchema, legalQuerySchema, maintenanceQuerySchema, supportIncidentQuerySchema, supportTicketQuerySchema, duplicateReviewQuerySchema, closeBlockersQuerySchema, identityChangeQuerySchema, organizationNodeQuerySchema, pendingStructureQuerySchema, activeAssignmentsQuerySchema, pendingAccessReviewsQuerySchema, activeSubscriptionsQuerySchema, overdueInvoicesQuerySchema, payrollSummaryQuerySchema, peopleLeaveOvertimeQuerySchema, hotelOccupancyQuerySchema, hotelGuestAccountBalanceQuerySchema, hotelNightAuditBlockersQuerySchema, availableStockMetric, availableStockProviderId, availableStockFields, availableStockQuerySchema, inventoryShortagesMetric, inventoryShortagesProviderId, inventoryShortagesFields, inventoryShortagesQuerySchema, stockedLocationsMetric, stockedLocationsQuerySchema, inventoryMovementsMetric, inventoryMovementsProviderId, inventoryMovementFields, inventoryMovementsQuerySchema, operationsProviderId, operationsQuerySchema, projectMilestoneMetric, projectMilestoneProviderId, projectMilestoneFields, projectMilestoneQuerySchema, projectDependencyMetric, projectDependencyProviderId, projectDependencyFields, projectDependencyQuerySchema, projectActualMetrics, ProjectActualMetric, projectActualProviderId, projectActualHoursFields, projectPostedCostFields, projectActualQuerySchema, InvoiceEvidenceRow, predicate, cursorValue, encodeCursor, LegalEvidenceRow, LegalHoldEvidenceRow, legalEvidenceCursor, encodeLegalEvidenceCursor, PayrollSummaryEvidenceRow, payrollSummaryCursor, encodePayrollSummaryCursor, peopleRequestCursor, encodePeopleRequestCursor, HotelOccupancyEvidenceRow, hotelOccupancyCursorValue, encodeHotelOccupancyCursor, HotelGuestAccountBalanceEvidenceRow, hotelGuestAccountBalanceCursorValue, encodeHotelGuestAccountBalanceCursor, HotelNightAuditBlockerEvidenceRow, hotelNightAuditBlockerCursorValue, encodeHotelNightAuditBlockerCursor, SupplierBillEvidenceRow, SalesOrderEvidenceRow, SalesEvidenceCursor, salesCursorValue, encodeSalesCursor, SalesFulfillmentEvidenceRow, salesFulfillmentFields, salesFulfillmentCursorValue, encodeSalesFulfillmentCursor, FieldVisitEvidenceRow, fieldVisitFields, fieldVisitCursorValue, encodeFieldVisitCursor, QualityInspectionRow, qualitySearchFields, qualityDetailFields, qualityCursorValue, encodeQualityCursor, ManufacturingCostEvidenceRow, manufacturingCostProviderId, manufacturingCostSearchFields, manufacturingCostDetailFields, manufacturingCostCursorValue, encodeManufacturingCostCursor, customerActivityProviderId, customerActivityFields, customerActivityCursor, encodeCustomerActivityCursor, socialActivityProviderId, socialActivityFields, socialActivityCursor, encodeSocialActivityCursor, SupportIncidentEvidenceRow, supportIncidentCursorValue, encodeSupportIncidentCursor, encodeSupportIncidentRecordId, decodeSupportIncidentRecordId, supportIncidentNumber, SupportTicketEvidenceRow, supportTicketCursorValue, encodeSupportTicketCursor, encodeSupportTicketRecordId, decodeSupportTicketRecordId, supportTicketNumber, supportTicketFieldsFor, DuplicateReviewEvidenceRow, duplicateReviewCursorValue, encodeDuplicateReviewCursor, encodeDuplicateReviewRecordId, decodeDuplicateReviewRecordId, duplicateReviewNumber, IdentityChangeEvidenceRow, identityChangeCursorValue, encodeIdentityChangeCursor, encodeIdentityChangeRecordId, decodeIdentityChangeRecordId, identityChangeNumber, OrganizationNodeEvidenceRow, PendingStructureEvidenceRow, organizationEvidenceCursor, encodeOrganizationRecordId, decodeOrganizationRecordId, organizationEvidenceNumber, ActiveAssignmentEvidenceRow, PendingAccessReviewEvidenceRow, identityAccessCursor, encodeIdentityAccessRecordId, decodeIdentityAccessRecordId, CommercialSubscriptionRow, OverdueInvoiceEvidenceRow, commercialCursor, encodeCommercialSubscriptionId, decodeCommercialSubscriptionId, encodeOverdueInvoiceId, decodeOverdueInvoiceId, CloseBlockerEvidenceRow, closeBlockerCursorValue, encodeCloseBlockerCursor, encodeCloseBlockerRecordId, decodeCloseBlockerRecordId, closeBlockerNumber, closeBlockerCount, maintenanceCursorValue, encodeMaintenanceCursor, maintenanceEvidenceNumber, AvailableStockEvidenceRow, InventoryShortageEvidenceRow, InventoryMovementEvidenceRow, inventoryMovementCursorValue, encodeInventoryMovementCursor, encodeInventoryMovementRecordId, decodeInventoryMovementRecordId, inventoryMovementHref, availableStockCursorValue, encodeAvailableStockCursor, encodeAvailableStockRecordId, decodeAvailableStockRecordId, milliQuantity, ProjectMilestoneEvidenceRow, projectMilestoneCursor, ProjectDependencyEvidenceRow, projectDependencyBlockers, ProjectActualEvidenceRow, projectActualCursor, OperationsEvidenceRow, operationsEvidenceFields, operationsRecordId, decodeOperationsRecordId, operationsEvidenceCursor } from '../../domain/executive/evidence';
 import type { Clock } from '../../../shared';
 import type { currentAuthority } from "@/server/modules/runtime/public/executive/access";
 import type { metricCatalogFor } from "@/server/modules/runtime/public/executive/metrics";
@@ -46,7 +46,7 @@ type Tail<Value extends unknown[]> = Value extends [
     ...infer Rest
 ] ? Rest : never;
 export interface ExecutiveEvidenceRepository {
-    factsAudit(actor: WorkContext, provider: string, metric: "legal-records" | "legal-contract-value" | "legal-exposure" | "active-legal-obligations" | "active-legal-holds" | "active-subscriptions" | "overdue-invoices" | "receivables" | "payables" | "invoiced-sales" | "cash-receipts" | "close-blockers" | "sales-orders" | "sales-fulfillment-rate" | "sales-cancellations" | "sales-cancellation-value" | "purchase-orders" | "open-po-receipts" | "invoice-match-exceptions" | "headcount" | "approved-leave-duration" | "authorized-overtime-duration" | "payroll-summary" | "my-tasks" | "open-operations-exceptions" | "exception-resolution-time" | "operations-escalations" | "inventory" | "available-stock" | "inventory-shortages" | "inventory-movements" | "pos-sales" | "net-pos-sales" | "pos-payment-mix" | "hotel-rooms" | "hotel-occupancy" | "hotel-adr" | "hotel-revpar" | "hotel-folio-balance" | "hotel-night-audit-blockers" | "projects" | "overdue-project-milestones" | "project-actual-hours" | "project-posted-cost" | "project-dependency-blockers" | "routines" | "active-customers" | "recent-customer-activity" | "duplicate-reviews-pending" | "identity-change-events" | "open-support-tickets" | "overdue-support-sla" | "active-support-incidents" | "active-assets" | "asset-condition-location" | "asset-retirements" | "open-work-orders" | "asset-downtime" | "blocked-maintenance" | "quality-holds" | "quality-releases" | "inspection-pass-rate" | "opportunity-pipeline" | "overdue-followups" | "brand-profiles" | "brand-profile-updates" | "active-assignments" | "pending-access-reviews" | "active-organization-nodes" | "pending-structure-changes" | "marketing-lead-candidates" | "marketing-engagement-events" | "completed-manufacturing-orders" | "manufacturing-orders-with-scrap" | "production-cost" | "planning-shortage-scenarios" | "proposed-planning-recommendations" | "capacity-feasible-recommendations" | "open-ecommerce-carts" | "completed-ecommerce-checkouts" | "ecommerce-return-links" | "ecommerce-fulfillment-links" | "active-benefit-elections" | "published-benefit-plans" | "learning-completions" | "overdue-required-learning" | "open-requisitions" | "application-stage-counts" | "open-service-orders" | "service-billing-releases" | "field-visit-completion" | "approved-agent-versions" | "agent-invocation-outcomes" | "collaboration-thread-activity", action: "search" | "open", fields: string[], queryHash: string, now: number, auditRows: {
+    factsAudit(actor: WorkContext, provider: string, metric: "legal-records" | "legal-contract-value" | "legal-exposure" | "active-legal-obligations" | "active-legal-holds" | "active-subscriptions" | "overdue-invoices" | "receivables" | "payables" | "invoiced-sales" | "cash-receipts" | "close-blockers" | "sales-orders" | "sales-fulfillment-rate" | "sales-cancellations" | "sales-cancellation-value" | "purchase-orders" | "open-po-receipts" | "invoice-match-exceptions" | "headcount" | "approved-leave-duration" | "authorized-overtime-duration" | "payroll-summary" | "my-tasks" | "open-operations-exceptions" | "exception-resolution-time" | "operations-escalations" | "inventory" | "available-stock" | "inventory-shortages" | "inventory-movements" | "pos-sales" | "net-pos-sales" | "pos-payment-mix" | "hotel-rooms" | "hotel-occupancy" | "hotel-adr" | "hotel-revpar" | "hotel-guest-account-balance" | "hotel-night-audit-blockers" | "projects" | "overdue-project-milestones" | "project-actual-hours" | "project-posted-cost" | "project-dependency-blockers" | "routines" | "active-customers" | "recent-customer-activity" | "duplicate-reviews-pending" | "identity-change-events" | "open-support-tickets" | "overdue-support-sla" | "active-support-incidents" | "active-assets" | "asset-condition-location" | "asset-retirements" | "open-work-orders" | "asset-downtime" | "blocked-maintenance" | "quality-holds" | "quality-releases" | "inspection-pass-rate" | "opportunity-pipeline" | "overdue-followups" | "brand-profiles" | "brand-profile-updates" | "active-assignments" | "pending-access-reviews" | "active-organization-nodes" | "pending-structure-changes" | "marketing-lead-candidates" | "marketing-engagement-events" | "completed-manufacturing-orders" | "manufacturing-orders-with-scrap" | "production-cost" | "planning-shortage-scenarios" | "proposed-planning-recommendations" | "capacity-feasible-recommendations" | "open-ecommerce-carts" | "completed-ecommerce-checkouts" | "ecommerce-return-links" | "ecommerce-fulfillment-links" | "active-benefit-elections" | "published-benefit-plans" | "learning-completions" | "overdue-required-learning" | "open-requisitions" | "application-stage-counts" | "open-service-orders" | "service-billing-releases" | "field-visit-completion" | "approved-agent-versions" | "agent-invocation-outcomes" | "collaboration-thread-activity", action: "search" | "open", fields: string[], queryHash: string, now: number, auditRows: {
         id: string;
         version: number | null;
     }[]): Promise<void>;
@@ -180,7 +180,7 @@ export interface ExecutiveEvidenceRepository {
     }, metric: "hotel-occupancy" | "hotel-adr" | "hotel-revpar", recordId: string): Promise<{
         row: HotelOccupancyEvidenceRow | null;
     }>;
-    factsSearchHotelFolioBalanceEvidence(actor: WorkContext, input: {
+    factsSearchHotelGuestAccountBalanceEvidence(actor: WorkContext, input: {
         filters: {
             from: string;
             to: string;
@@ -188,20 +188,20 @@ export interface ExecutiveEvidenceRepository {
         };
         query: string;
         limit: number;
-        metric: "hotel-folio-balance";
+        metric: "hotel-guest-account-balance";
         cursor?: string | undefined;
     }, cursor: {
         propertyId: string;
         id: string;
     } | null): Promise<{
-        rows: HotelFolioBalanceEvidenceRow[];
+        rows: HotelGuestAccountBalanceEvidenceRow[];
     }>;
-    factsReadHotelFolioBalanceEvidence(actor: WorkContext, filters: {
+    factsReadHotelGuestAccountBalanceEvidence(actor: WorkContext, filters: {
         from: string;
         to: string;
         currency: string;
     }, recordId: string): Promise<{
-        row: HotelFolioBalanceEvidenceRow | null;
+        row: HotelGuestAccountBalanceEvidenceRow | null;
     }>;
     factsSearchHotelNightAuditBlockerEvidence(actor: WorkContext, input: {
         filters: {
@@ -1232,68 +1232,68 @@ export function createExecutiveEvidenceApplication(ports: ExecutiveEvidencePorts
         await ports.currentAuthority(actor);
         return { provider: hotelOccupancyProviderId, metric, fields, record, queryHash };
     }
-    async function requireHotelFolioBalanceEvidence(actor: WorkContext) {
+    async function requireHotelGuestAccountBalanceEvidence(actor: WorkContext) {
         await ports.currentAuthority(actor);
         if (!hasPermission(actor, "pms.read") || !hasPermission(actor, "pms.reports") || actor.departmentId || actor.beta)
             throw new BusinessRuleError(403, "EVIDENCE_FORBIDDEN", "This source record is not available in the current role or scope.");
         const catalog = await ports.metricCatalogFor(actor);
-        if (!catalog.some((item) => item.id === hotelFolioBalanceMetric && item.available))
+        if (!catalog.some((item) => item.id === hotelGuestAccountBalanceMetric && item.available))
             throw new BusinessRuleError(403, "EVIDENCE_FORBIDDEN", "This source record is not available in the current role or scope.");
         await ports.assertProductionModuleEnabled(actor.companyId, "pms");
     }
-    async function searchHotelFolioBalanceEvidence(actor: WorkContext, input: z.infer<typeof hotelFolioBalanceQuerySchema>) {
-        await requireHotelFolioBalanceEvidence(actor);
-        const cursor = hotelFolioBalanceCursorValue(input.cursor);
+    async function searchHotelGuestAccountBalanceEvidence(actor: WorkContext, input: z.infer<typeof hotelGuestAccountBalanceQuerySchema>) {
+        await requireHotelGuestAccountBalanceEvidence(actor);
+        const cursor = hotelGuestAccountBalanceCursorValue(input.cursor);
         const { rows } = await r.
-            factsSearchHotelFolioBalanceEvidence(actor, input, cursor);
+            factsSearchHotelGuestAccountBalanceEvidence(actor, input, cursor);
         const hasMore = rows.length > input.limit;
         const items = rows.slice(0, input.limit);
-        const queryHash = await ports.digest(JSON.stringify({ providerId: hotelFolioBalanceProviderId, metric: input.metric, currency: input.filters.currency, scope: [actor.companyId, actor.assignmentId, actor.branchId], query: input.query, cursor: input.cursor ?? null }));
+        const queryHash = await ports.digest(JSON.stringify({ providerId: hotelGuestAccountBalanceProviderId, metric: input.metric, currency: input.filters.currency, scope: [actor.companyId, actor.assignmentId, actor.branchId], query: input.query, cursor: input.cursor ?? null }));
         await ports.currentAuthority(actor);
-        await audit(actor, hotelFolioBalanceProviderId, input.metric, "search", items.map(({ id, version }) => ({ id, version })), hotelFolioBalanceFields, queryHash);
+        await audit(actor, hotelGuestAccountBalanceProviderId, input.metric, "search", items.map(({ id, version }) => ({ id, version })), hotelGuestAccountBalanceFields, queryHash);
         await ports.currentAuthority(actor);
         return {
-            provider: hotelFolioBalanceProviderId,
+            provider: hotelGuestAccountBalanceProviderId,
             metric: input.metric,
-            fields: hotelFolioBalanceFields,
+            fields: hotelGuestAccountBalanceFields,
             items: items.map((row) => ({
                 id: row.id,
-                label: `${row.property_name} · Open folio`,
+                label: `${row.property_name} · Open guest account`,
                 summary: `${row.balance_minor} ${row.currency} posted balance · ${row.state}`,
                 status: row.state,
                 version: row.version,
                 amount: row.balance_minor,
                 currency: row.currency,
-                href: `/pms/folios?property=${encodeURIComponent(row.property_id)}&folio=${encodeURIComponent(row.id)}`,
+                href: `/pms/guest-accounts?property=${encodeURIComponent(row.property_id)}&guestAccount=${encodeURIComponent(row.id)}`,
             })),
             hasMore,
-            nextCursor: hasMore && items.length ? encodeHotelFolioBalanceCursor(items.at(-1)!) : null,
+            nextCursor: hasMore && items.length ? encodeHotelGuestAccountBalanceCursor(items.at(-1)!) : null,
             queryHash,
         };
     }
-    async function readHotelFolioBalanceEvidence(actor: WorkContext, recordId: string, filters: Filters) {
-        await requireHotelFolioBalanceEvidence(actor);
-        const { row } = await r.factsReadHotelFolioBalanceEvidence(actor, filters, recordId);
+    async function readHotelGuestAccountBalanceEvidence(actor: WorkContext, recordId: string, filters: Filters) {
+        await requireHotelGuestAccountBalanceEvidence(actor);
+        const { row } = await r.factsReadHotelGuestAccountBalanceEvidence(actor, filters, recordId);
         if (!row)
             throw new BusinessRuleError(404, "EVIDENCE_NOT_FOUND", "This source record is unavailable in the selected role, scope or filters.");
         const snapshot = await ports.loadPms(actor, row.property_id);
-        const folio = snapshot.records.find((candidate): candidate is PmsRecord<"folio"> => candidate.id === row.id && candidate.kind === "folio");
-        if (!folio || folio.version !== Number(row.version) || !["open", "credit"].includes(folio.data.state))
+        const guestAccount = snapshot.records.find((candidate): candidate is PmsRecord<"guest_account"> => candidate.id === row.id && candidate.kind === "guest_account");
+        if (!guestAccount || guestAccount.version !== Number(row.version) || !["open", "credit"].includes(guestAccount.data.state))
             throw new BusinessRuleError(404, "EVIDENCE_NOT_FOUND", "This source record is unavailable in the selected role, scope or filters.");
         const record = {
-            id: folio.id,
+            id: guestAccount.id,
             property_name: snapshot.property.name,
             currency: row.currency,
-            state: folio.data.state,
+            state: guestAccount.data.state,
             posted_receivable_balance_minor: row.balance_minor,
-            version: folio.version,
-            href: `/pms/folios?property=${encodeURIComponent(snapshot.property.id)}&folio=${encodeURIComponent(folio.id)}`,
+            version: guestAccount.version,
+            href: `/pms/guest-accounts?property=${encodeURIComponent(snapshot.property.id)}&guestAccount=${encodeURIComponent(guestAccount.id)}`,
         };
-        const queryHash = await ports.digest(JSON.stringify({ providerId: hotelFolioBalanceProviderId, metric: hotelFolioBalanceMetric, currency: filters.currency, scope: [actor.companyId, actor.assignmentId, actor.branchId], recordId }));
+        const queryHash = await ports.digest(JSON.stringify({ providerId: hotelGuestAccountBalanceProviderId, metric: hotelGuestAccountBalanceMetric, currency: filters.currency, scope: [actor.companyId, actor.assignmentId, actor.branchId], recordId }));
         await ports.currentAuthority(actor);
-        await audit(actor, hotelFolioBalanceProviderId, hotelFolioBalanceMetric, "open", [{ id: record.id, version: record.version }], hotelFolioBalanceFields, queryHash);
+        await audit(actor, hotelGuestAccountBalanceProviderId, hotelGuestAccountBalanceMetric, "open", [{ id: record.id, version: record.version }], hotelGuestAccountBalanceFields, queryHash);
         await ports.currentAuthority(actor);
-        return { provider: hotelFolioBalanceProviderId, metric: hotelFolioBalanceMetric, fields: hotelFolioBalanceFields, record, queryHash };
+        return { provider: hotelGuestAccountBalanceProviderId, metric: hotelGuestAccountBalanceMetric, fields: hotelGuestAccountBalanceFields, record, queryHash };
     }
     async function requireHotelNightAuditBlockerEvidence(actor: WorkContext) {
         await ports.currentAuthority(actor);
@@ -3001,7 +3001,7 @@ export function createExecutiveEvidenceApplication(ports: ExecutiveEvidencePorts
         return { provider: operationsProviderId, metric, fields, record, queryHash };
     }
     async function searchExecutiveEvidence(actor: WorkContext, raw: unknown) {
-        const common = z.object({ metric: z.enum([...financeMetrics, payrollSummaryMetric, approvedLeaveMetric, authorizedOvertimeMetric, hotelOccupancyMetric, ...hotelRoomRevenueMetrics, hotelFolioBalanceMetric, hotelNightAuditBlockersMetric, "invoice-match-exceptions", ...salesMetrics, salesFulfillmentMetric, fieldVisitMetric, manufacturingCostMetric, customerActivityMetric, socialActivityMetric, ...qualityMetrics, ...legalMetrics, closeBlockersMetric, identityChangeMetric, organizationNodeMetric, pendingStructureMetric, activeAssignmentsMetric, pendingAccessReviewsMetric, activeSubscriptionsMetric, overdueInvoicesMetric, maintenanceDowntimeMetric, duplicateReviewMetric, supportTicketMetrics[0], supportTicketMetrics[1], supportIncidentMetric, stockedLocationsMetric, availableStockMetric, inventoryShortagesMetric, inventoryMovementsMetric, projectMilestoneMetric, projectDependencyMetric, ...projectActualMetrics, ...operationsMetrics, ...agentEvidenceMetrics, ...crmEvidenceMetrics, ...brandEvidenceMetrics, ...learningEvidenceMetrics, ...talentEvidenceMetrics, ...posEvidenceMetrics, ...marketingEvidenceMetrics, ...planningEvidenceMetrics]), ...commonFilters }).strict().parse(raw);
+        const common = z.object({ metric: z.enum([...financeMetrics, payrollSummaryMetric, approvedLeaveMetric, authorizedOvertimeMetric, hotelOccupancyMetric, ...hotelRoomRevenueMetrics, hotelGuestAccountBalanceMetric, hotelNightAuditBlockersMetric, "invoice-match-exceptions", ...salesMetrics, salesFulfillmentMetric, fieldVisitMetric, manufacturingCostMetric, customerActivityMetric, socialActivityMetric, ...qualityMetrics, ...legalMetrics, closeBlockersMetric, identityChangeMetric, organizationNodeMetric, pendingStructureMetric, activeAssignmentsMetric, pendingAccessReviewsMetric, activeSubscriptionsMetric, overdueInvoicesMetric, maintenanceDowntimeMetric, duplicateReviewMetric, supportTicketMetrics[0], supportTicketMetrics[1], supportIncidentMetric, stockedLocationsMetric, availableStockMetric, inventoryShortagesMetric, inventoryMovementsMetric, projectMilestoneMetric, projectDependencyMetric, ...projectActualMetrics, ...operationsMetrics, ...agentEvidenceMetrics, ...crmEvidenceMetrics, ...brandEvidenceMetrics, ...learningEvidenceMetrics, ...talentEvidenceMetrics, ...posEvidenceMetrics, ...marketingEvidenceMetrics, ...planningEvidenceMetrics]), ...commonFilters }).strict().parse(raw);
         if (crmEvidenceMetrics.includes(common.metric as typeof crmEvidenceMetrics[number]))
             return ports.searchCrmEvidence(actor, common);
         if (agentEvidenceMetrics.includes(common.metric as typeof agentEvidenceMetrics[number]))
@@ -3030,8 +3030,8 @@ export function createExecutiveEvidenceApplication(ports: ExecutiveEvidencePorts
             return searchPeopleLeaveOvertimeEvidence(actor, peopleLeaveOvertimeQuerySchema.parse(common));
         if (common.metric === hotelOccupancyMetric || hotelRoomRevenueMetrics.includes(common.metric as HotelRoomRevenueMetric))
             return searchHotelOccupancyEvidence(actor, hotelOccupancyQuerySchema.parse(common));
-        if (common.metric === hotelFolioBalanceMetric)
-            return searchHotelFolioBalanceEvidence(actor, hotelFolioBalanceQuerySchema.parse(common));
+        if (common.metric === hotelGuestAccountBalanceMetric)
+            return searchHotelGuestAccountBalanceEvidence(actor, hotelGuestAccountBalanceQuerySchema.parse(common));
         if (common.metric === hotelNightAuditBlockersMetric)
             return searchHotelNightAuditBlockerEvidence(actor, hotelNightAuditBlockersQuerySchema.parse(common));
         if (operationsMetrics.includes(common.metric as OperationsMetricId))
@@ -3117,8 +3117,8 @@ export function createExecutiveEvidenceApplication(ports: ExecutiveEvidencePorts
             return readPeopleLeaveOvertimeEvidence(actor, metric, recordId, filters);
         if (metric === hotelOccupancyMetric || hotelRoomRevenueMetrics.includes(metric as HotelRoomRevenueMetric))
             return readHotelOccupancyEvidence(actor, metric as typeof hotelOccupancyMetric | HotelRoomRevenueMetric, recordId, filters);
-        if (metric === hotelFolioBalanceMetric)
-            return readHotelFolioBalanceEvidence(actor, recordId, filters);
+        if (metric === hotelGuestAccountBalanceMetric)
+            return readHotelGuestAccountBalanceEvidence(actor, recordId, filters);
         if (metric === hotelNightAuditBlockersMetric)
             return readHotelNightAuditBlockerEvidence(actor, recordId, filters);
         if (operationsMetrics.includes(metric as OperationsMetricId))

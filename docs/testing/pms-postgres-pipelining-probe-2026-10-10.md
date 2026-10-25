@@ -1,0 +1,7 @@
+# PostgreSQL batch transport probe — 2026-10-10
+
+Diagnostic only; no candidate/runtime change and no acceptance claim. The current pinned `pg` implementation and its TypeScript configuration support `pipeline: true`. Official behavior: commands sent on one checked-out client execute in order, with a separate result/error boundary per query. See [node-postgres pipelining](https://node-postgres.com/features/pipelining) and [Client API](https://node-postgres.com/apis/client).
+
+The private scratch probe used the existing loopback test administrator connection to `postgres`, a session-local temporary table, and 30 transactions of 20 parameterized inserts. No application or installed database data was read or modified. Mean batch time was 1.610 ms sequential and 0.301 ms pipelined. Both modes retained 600 committed rows. An ordered duplicate-key transaction returned `ok`, `23505`, `25P02`; explicit rollback removed both attempted new rows. Temporary tables vanished when the clients closed.
+
+This measures driver overhead on a small idle table, not PMS capacity. Any implementation must validate all statement ownership and parameters before dispatch; retain SQL order, SERIALIZABLE, guards, original error selection and complete settlement before rollback/release; verify failed middle statements, dependent statements, rollback and connection reuse. All required native/browser/recovery/capacity checks must run again on the resulting frozen candidate. Installed pool configuration and production remain untouched.

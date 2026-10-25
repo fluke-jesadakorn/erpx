@@ -1,0 +1,515 @@
+{
+  "complete": false,
+  "wholePlanAcceptance": false,
+  "status": "Full1301 native/focused44/static/release pass; full scale core SLO fails, zero invalid samples and exact money/history reconciliation",
+  "source": {
+    "runtime": "2322ee6ed91e5cfd610f67645e0fd25b0eaee19617ec6ae26c67e6788983b50c",
+    "verification": "f82f0f5a82f95d9b38fb48bd0196e2d5aad65e20a36ff13833c65409a0dc1db3"
+  },
+  "baseline": {
+    "runtime": "40915d0225c70e5eabba70ffd2e269610142943ca683a9a4195650f74e81e7df",
+    "verification": "45883aae5bcfa16750ef26362930ba49d79319e300124c866d5f95b3cae6f3d0"
+  },
+  "implementation": {
+    "scope": "Ordinary auth initialization only, scoped by runtime identity and current Control database/pool",
+    "key": "SHA256 of complete origin/auth policy, local cookie/rate-limit behavior and secret",
+    "boundedPoliciesPerRuntime": 16,
+    "concurrentConstruction": "One promise shared per key; failed initialization removed",
+    "dynamicDirectoryAndLegalInvitation": "Fresh constructor and configuration on every explicit invocation",
+    "sessionAndAuthority": "No values cached; existing per-call joined session/user SQL and account/directory/role guards unchanged"
+  },
+  "packageInspection": {
+    "betterAuth": "1.7.2",
+    "references": [
+      "node_modules/better-auth/dist/auth/base.mjs",
+      "node_modules/better-auth/dist/api/to-auth-endpoints.mjs",
+      "node_modules/better-auth/dist/api/dispatch.mjs"
+    ],
+    "findings": "Factory starts auth context and endpoint initialization; handler/dispatch construct request context and API dispatch uses per-call request state"
+  },
+  "focusedProof": {
+    "red": {
+      "exitCode": 1,
+      "failed": 1,
+      "skipped": 3,
+      "failure": "Eight same-runtime/policy factories, each with one real session query, rather than one shared initialization"
+    },
+    "green": {
+      "exitCode": 0,
+      "passed": 1,
+      "skipped": 3
+    },
+    "nativeSecurity": {
+      "exitCode": 0,
+      "files": 4,
+      "passed": 44,
+      "failed": 0,
+      "betaAuth": 7,
+      "iam": 31,
+      "supportSessions": 4,
+      "throttle": 2,
+      "covered": [
+        "Concurrent factory construction and fresh one-query reads",
+        "Concurrent different authenticated accounts",
+        "Fresh profile after PostgreSQL update",
+        "PMS/POS cookie separation",
+        "Secret rotation and recovery",
+        "Same origin/secret with a genuinely different owned Control database",
+        "Expiry and deletion immediately observed",
+        "Changed ordinary signup policy",
+        "Independent legal-invitation allowlists",
+        "Explicit OIDC config re-read and withdrawn provider rejection with no network",
+        "Company-scoped session revocation before directory refresh",
+        "Stale directory and failed refresh fail closed",
+        "Current published role/grant/member/scope evidence"
+      ]
+    },
+    "optionsFidelity": {
+      "optionsAndCallbacksByteIdentical": true,
+      "beforeSha256": "6dfc7ace7f20e2dc271022a4dd6385c275a002381488fe164e4ae33413f09b6c",
+      "afterSha256": "6dfc7ace7f20e2dc271022a4dd6385c275a002381488fe164e4ae33413f09b6c",
+      "bytes": 2622
+    }
+  },
+  "typecheck": true,
+  "architecture": true,
+  "liveHandles": {},
+  "performanceRootCause": "Unproven; frozen2322 candidate full workload core p95 2088.612ms still fails strict2000ms; fresh session 1query per invocation, account-access5\u20137queries and optimistic version contention remain measured",
+  "remaining": [
+    "Full same-candidate native and unchanged3x200/730d/20user release workload",
+    "Final required browser inventory and consolidated mock-pilot/feature audit"
+  ],
+  "artifacts": {
+    "native-red.log": {
+      "path": ".scratch/dev/pms-auth-factory/native-red.log",
+      "sha256": "e2aabdeb375f81e422f4185e6fda3245947090ac1ce8561abec57b65d6ed48e9"
+    },
+    "native-green.log": {
+      "path": ".scratch/dev/pms-auth-factory/native-green.log",
+      "sha256": "4771c958471654dfea38ac2ff19c880c351db49dfe366a197fd26614266009df"
+    },
+    "native-authority.log": {
+      "path": ".scratch/dev/pms-auth-factory/native-authority.log",
+      "sha256": "44a0ea2572b996c928ec2d9575e864b25f091ebe9b915b4de1423efa83f8d864"
+    },
+    "native-security.log": {
+      "path": ".scratch/dev/pms-auth-factory/native-security.log",
+      "sha256": "6251b6ceb1ba47a6c597692a622ccfd70f6ea201117ec0c2bc186925aa4a9391"
+    },
+    "options-fidelity.json": {
+      "path": ".scratch/dev/pms-auth-factory/options-fidelity.json",
+      "sha256": "e1b1438cef9f50f00d9d752142f493ecb8a8f82cbb05d71a078c83a03cb389c2"
+    },
+    "source-before.json": {
+      "path": ".scratch/dev/pms-auth-factory/source-before.json",
+      "sha256": "346981fff0f7a03aa0b18d232e193ecb841dd37680ee538d684e0d5c4633a6d9"
+    },
+    "source-before-build.json": {
+      "path": ".scratch/dev/pms-auth-factory/source-before-build.json",
+      "sha256": "7b609c725f6538d0c92951be829bb8f14bbfea397b49f9e2afc131f6ca3b0f18"
+    },
+    "typecheck-final.log": {
+      "path": ".scratch/dev/pms-auth-factory/typecheck-final.log",
+      "sha256": "ae3aa3d40f2b7fdeaf8ae4398c41416876c85fc2ccc6aa232e526fdb75f340ef"
+    },
+    "architecture.log": {
+      "path": ".scratch/dev/pms-auth-factory/architecture.log",
+      "sha256": "61f27aa5d383438fa7955c201143725c76302dadbcb2c312efa2d398a9d6f86b"
+    },
+    "lint.log": {
+      "path": ".scratch/dev/pms-auth-factory/lint.log",
+      "sha256": "827c4aba480463caff85470227105c05ff46cd40693fc7c1b1f9f25d59f13231"
+    },
+    "native-full.log": {
+      "path": ".scratch/dev/pms-auth-factory/native-full.log",
+      "sha256": "2fde9522ebbd23d09910f649239e8e3fac964fde5ab436d669215b4cd9a8a4eb"
+    },
+    "build.log": {
+      "path": ".scratch/dev/pms-auth-factory/build.log",
+      "sha256": "5a2370a9968283dfe97cfede5704b1b322e21f6e367f0f3b2eca45d09dbb726d"
+    },
+    "prepare.log": {
+      "path": ".scratch/dev/pms-auth-factory/prepare.log",
+      "sha256": "2d54161f8457190e3c9f6ab9272c707608d13f7c222155761f9285d387e92b90"
+    },
+    "fixture-maintenance.json": {
+      "path": ".scratch/dev/pms-auth-factory/fixture-maintenance.json",
+      "sha256": "c92501242640d1b9ad8d41e024fc908748064893930735ba2249e9ac5d36efd0"
+    },
+    "db-before.json": {
+      "path": ".scratch/dev/pms-auth-factory/db-before.json",
+      "sha256": "b72908324d129b97d025ebca94aaca474c8bc483245434ff7773e2e435ae90e6"
+    },
+    "db-after.json": {
+      "path": ".scratch/dev/pms-auth-factory/db-after.json",
+      "sha256": "b72908324d129b97d025ebca94aaca474c8bc483245434ff7773e2e435ae90e6"
+    },
+    "budget-before.json": {
+      "path": ".scratch/dev/pms-auth-factory/budget-before.json",
+      "sha256": "d7263295c1e773f685281d1b61cf3825b612a86cbee4a3880ca62c12da056cb0"
+    },
+    "budget-after.json": {
+      "path": ".scratch/dev/pms-auth-factory/budget-after.json",
+      "sha256": "496b5ce2884b7e17feaaca4c9b482020a932d38dcbf97353d394a740bf7a8d6f"
+    },
+    "performance.log": {
+      "path": ".scratch/dev/pms-auth-factory/performance.log",
+      "sha256": "9f5e8d063ab34d378a3ba4c736506ffe9aca77f74549561ae88b0be1a25c43fc"
+    },
+    "destroy-stop.log": {
+      "path": ".scratch/dev/pms-auth-factory/destroy-stop.log",
+      "sha256": "071892b3238f9224b9b2c08cbc91634f7f4de18a5e844fc4adfda69cb4ef7370"
+    },
+    "destroy-databases.log": {
+      "path": ".scratch/dev/pms-auth-factory/destroy-databases.log",
+      "sha256": "ea93a4ad2562bfd75859598226261e7ab1e245ac2f6437b821c2d9a574bf0740"
+    }
+  },
+  "lint": {
+    "exitCode": 0,
+    "errors": 0,
+    "preExistingWarnings": 3
+  },
+  "freshScaleRun": "52a4fe80c19b",
+  "scaleConfiguration": {
+    "properties": 3,
+    "roomsPerProperty": 200,
+    "historyDays": 730,
+    "concurrentUsers": 20,
+    "holdingPool": 8,
+    "controlPool": 8,
+    "jobsHoldingPool": 1,
+    "jobsControlPool": 2
+  },
+  "release": {
+    "id": "2026-10-10T03-44-29-508Z",
+    "sourceFingerprint": "2322ee6ed91e5cfd610f67645e0fd25b0eaee19617ec6ae26c67e6788983b50c",
+    "fileManifestSha256": "e8ab03c7737dcb7e0befefd7d77bb1f8e7b6501252c05ffdb8460682bd1f2947",
+    "schemaSha256": "990c8152f3d5b71aed6a952e7929b4f66ce55976fe9ca759dbd039b2f483c537",
+    "node": "24.20.0",
+    "postgres": "18.6"
+  },
+  "docsCheck": true,
+  "nativeFull": {
+    "passed": true,
+    "unitCases": 779,
+    "unitFiles": 77,
+    "unitDurationSeconds": 26.0,
+    "integrationCases": 522,
+    "integrationFiles": 49,
+    "integrationDurationSeconds": 381.99,
+    "total": 1301,
+    "authFocusedSeparate": 44,
+    "note": "Module PMS full selection does not include beta-auth-billing; focused44 security receipt retained separately"
+  },
+  "freshScalePrepared": true,
+  "fixtureMaintenance": {
+    "cacheFactsUnchanged": true,
+    "scope": [
+      "owned H001_DB",
+      "owned CONTROL_DB"
+    ]
+  },
+  "performance": {
+    "run": "52a4fe80c19b",
+    "sourceFingerprint": "2322ee6ed91e5cfd610f67645e0fd25b0eaee19617ec6ae26c67e6788983b50c",
+    "verificationFingerprint": "f82f0f5a82f95d9b38fb48bd0196e2d5aad65e20a36ff13833c65409a0dc1db3",
+    "release": {
+      "id": "2026-10-10T03-44-29-508Z",
+      "fileManifestSha256": "e8ab03c7737dcb7e0befefd7d77bb1f8e7b6501252c05ffdb8460682bd1f2947"
+    },
+    "scope": "Release HTTP: 3 \u00d7 200 rooms, 730-day synthetic closed stay/reservation/account metadata; 20 distinct normal staff accounts. Historic revenue is not invented.",
+    "applicationPoolMax": 8,
+    "controlPoolMax": 8,
+    "jobsHoldingPoolMax": 1,
+    "counts": [
+      {
+        "rooms": 200,
+        "archived_stays": 73000,
+        "reservations": 73000,
+        "archived_accounts": 73000
+      },
+      {
+        "rooms": 200,
+        "archived_stays": 73000,
+        "reservations": 73000,
+        "archived_accounts": 73000
+      },
+      {
+        "rooms": 200,
+        "archived_stays": 73000,
+        "reservations": 73000,
+        "archived_accounts": 73000
+      }
+    ],
+    "accounts": 20,
+    "rounds": 10,
+    "durationMs": 86376,
+    "readCount": 840,
+    "writeCount": 843,
+    "readP95Ms": 309.19595899999695,
+    "writeP95Ms": 2088.6118750000023,
+    "coreReadCount": 840,
+    "coreWriteCount": 400,
+    "financialEnabled": true,
+    "financialWriteCount": 200,
+    "financialWriteP95Ms": 1577.663708999993,
+    "financialOperations": [
+      {
+        "operation": "shift.open",
+        "count": 20,
+        "p95Ms": 1375.6260000000038
+      },
+      {
+        "operation": "charge.add",
+        "count": 20,
+        "p95Ms": 1619.107167000002
+      },
+      {
+        "operation": "payment.receive",
+        "count": 40,
+        "p95Ms": 1651.1580840000024
+      },
+      {
+        "operation": "payment.deposit",
+        "count": 20,
+        "p95Ms": 1577.663708999993
+      },
+      {
+        "operation": "refund.request",
+        "count": 20,
+        "p95Ms": 1347.531624999996
+      },
+      {
+        "operation": "refund.approve",
+        "count": 20,
+        "p95Ms": 232.95966600000247
+      },
+      {
+        "operation": "refund.pay",
+        "count": 20,
+        "p95Ms": 1522.0550830000066
+      },
+      {
+        "operation": "shift.close",
+        "count": 20,
+        "p95Ms": 1318.6654169999965
+      },
+      {
+        "operation": "shift.review",
+        "count": 20,
+        "p95Ms": 213.41154200000165
+      }
+    ],
+    "financialReconciliation": {
+      "history": {
+        "records": 657000,
+        "versions": "657000"
+      },
+      "balances": {
+        "accounts": 20,
+        "due": "0",
+        "advance": "200000",
+        "deposit": "40000"
+      },
+      "cash": {
+        "shifts": 20,
+        "cash": "475400",
+        "reviewed": true
+      },
+      "receipts": {
+        "receipts": 60,
+        "refunds": 20,
+        "received": "495400",
+        "refunded": "20000",
+        "settled": true
+      },
+      "journals": {
+        "debit": "999280",
+        "credit": "999280"
+      }
+    },
+    "operationalEnabled": true,
+    "operationalWriteCount": 220,
+    "operationalWriteP95Ms": 1579.2445829999924,
+    "operationalOperations": [
+      {
+        "operation": "reservation.create",
+        "count": 20,
+        "p95Ms": 1506.8554169999989
+      },
+      {
+        "operation": "stay.assign",
+        "count": 20,
+        "p95Ms": 1468.7921659999993
+      },
+      {
+        "operation": "stay.check_in",
+        "count": 20,
+        "p95Ms": 1708.319709000003
+      },
+      {
+        "operation": "stay.move",
+        "count": 20,
+        "p95Ms": 1491.8806660000118
+      },
+      {
+        "operation": "stay.change_dates",
+        "count": 20,
+        "p95Ms": 1440.0470829999977
+      },
+      {
+        "operation": "stay.preview_checkout",
+        "count": 20,
+        "p95Ms": 1677.3989580000052
+      },
+      {
+        "operation": "shift.open",
+        "count": 20,
+        "p95Ms": 1358.314875000011
+      },
+      {
+        "operation": "payment.receive",
+        "count": 20,
+        "p95Ms": 1655.9029169999994
+      },
+      {
+        "operation": "stay.check_out",
+        "count": 20,
+        "p95Ms": 1404.715292000008
+      },
+      {
+        "operation": "shift.close",
+        "count": 20,
+        "p95Ms": 1395.7489589999896
+      },
+      {
+        "operation": "shift.review",
+        "count": 20,
+        "p95Ms": 259.15575000000536
+      }
+    ],
+    "operationalReconciliation": {
+      "occupancy": {
+        "stays": 20,
+        "completed": true
+      },
+      "balances": {
+        "accounts": 20,
+        "due": "0",
+        "advance": "0",
+        "deposit": "0"
+      },
+      "cash": {
+        "shifts": 20,
+        "cash": "7062000",
+        "reviewed": true
+      },
+      "rooms": {
+        "rooms": 40,
+        "dirty": true
+      },
+      "charges": {
+        "charges": 20,
+        "total": "7062000"
+      },
+      "receipts": {
+        "receipts": 20,
+        "received": "7062000",
+        "settled": true
+      },
+      "journals": {
+        "debit": "22185280",
+        "credit": "22185280"
+      },
+      "history": {
+        "records": 657000,
+        "versions": "657000"
+      }
+    },
+    "closingEnabled": true,
+    "closingWriteCount": 23,
+    "closingWriteP95Ms": 1404.9088340000017,
+    "closingOperations": [
+      {
+        "operation": "guest_account.close",
+        "count": 20,
+        "p95Ms": 1404.9088340000017
+      },
+      {
+        "operation": "night.start",
+        "count": 3,
+        "p95Ms": 198.06549999999697
+      }
+    ],
+    "closingReconciliation": {
+      "invoices": {
+        "invoices": 20,
+        "total": "7062000",
+        "outstanding": "0",
+        "paid": true
+      },
+      "days": {
+        "hotels": 3,
+        "advanced": true
+      },
+      "nights": {
+        "nights": 3,
+        "capacity": 600,
+        "sold": 20,
+        "completed": true
+      },
+      "journals": {
+        "debit": "22185280",
+        "credit": "22185280"
+      },
+      "history": {
+        "records": 657000,
+        "versions": "657000"
+      }
+    },
+    "failedSamples": 0,
+    "sameProcesses": true,
+    "unchanged": true,
+    "samplesSha256": "a76b535bafa24a7509019d5e3f036ca090aa22c8c5c08237c5d03dc863c87cf3",
+    "passed": false
+  },
+  "cleanup": {
+    "stoppedOwnedProcessGroups": true,
+    "ownedDatabasesDestroyed": true
+  },
+  "browserRequired": {
+    "status": "intentionally interrupted for next candidate optimization; not full acceptance",
+    "evidenceDirectory": ".scratch/dev/test-suites/browser/2026-10-10T03-55-50-849Z",
+    "requiredCases": 178,
+    "suites": 23,
+    "mapping": ".scratch/dev/pms-auth-factory/browser-mapping.json",
+    "compiledBusinessSuites": 6,
+    "otherSuites": "Original isolated-development fixtures, lanes and normal actors; not claimed all compiled",
+    "separateBroaderUatMatrix": "The 2080-case ERP-wide route matrix is not part of this178-case E2E/journey baseline; PMS route scope audit remains required",
+    "passedCases": 7,
+    "interrupted": "SIGINT",
+    "cleanupFailures": [],
+    "PMSUatRouteAudit": {
+      "templates": 12,
+      "requiredCases": 38,
+      "desktop": 19,
+      "mobile": 19,
+      "status": "prepared explicit original-case selection; not executed"
+    }
+  },
+  "sourceAfterPerformance": {
+    "runtime": "2322ee6ed91e5cfd610f67645e0fd25b0eaee19617ec6ae26c67e6788983b50c",
+    "verification": "f82f0f5a82f95d9b38fb48bd0196e2d5aad65e20a36ff13833c65409a0dc1db3"
+  },
+  "environment": {
+    "localDevHealth": 200,
+    "publicDevHealth": 200,
+    "privateProductionHealth": 200,
+    "devPid": 89739,
+    "postgresPid": 909,
+    "publicPage": "https://console-dev-erpx.jesadakorn.com/holdings/acme/pms?variant=A",
+    "manualPublicRoomDrawerVerified": true,
+    "screenshot": ".scratch/dev/pms-auth-factory/public-deluxe-drawer.jpg"
+  }
+}

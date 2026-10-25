@@ -1,0 +1,226 @@
+{
+  "checkedAt": "2026-10-11T06:34:24.578633+00:00",
+  "wholePlanAccepted": false,
+  "originalAggregate": {
+    "runtime": "f13ca97b1401ea244ae616242fcc873b16308d6dce04298c68dfa41918a484f7",
+    "verification": "da3577cbc0866b9770ad0279a6a5b54fe7f71120501f1846d6d2cea38c2b43f5",
+    "passed": false,
+    "expectedCases": 148,
+    "unexpectedCases": 1,
+    "receipt": ".scratch/dev/test-suites/browser/2026-10-11T04-01-35-947Z/receipt.json",
+    "receiptSHA256": "e3308bae9d7f57ac3ca5dfb018f6d78cd256dfd491810de0ef7e41c2b80bcb25",
+    "interrupted": null,
+    "cleanupFailures": [],
+    "failedCase": "WORK-001 filters survive queue changes and reload, then clear",
+    "project": "desktop",
+    "failedOwnedRun": "b4be83e1ee4d",
+    "ownedDirectoryAbsent": true,
+    "driverExitCode": 1
+  },
+  "diagnosis": {
+    "error": "Strict locator ambiguity after reload: two exact Work type select matches, one under workspace-content and one outside.",
+    "observedUI": "Screenshot/AX preserve requested responsibility, service_request type and search text in actual Work form.",
+    "limit": "Second node lifecycle/root cause not diagnosed beyond reported outside-workspace match; no product data-loss inference."
+  },
+  "change": "Scope WORK-001 filter labels, Search button and Clear filters link to the Work form inside #workspace-content containing Search work. Keep Tracking filters navigation for queue links. Add exact-one-form assertions before actions and after reload.",
+  "sourcePreservation": {
+    "beforeSHA256": "42f477c5ba7f2f748233938aa943b85a5a4a644a7ac25fd1cfb5ef3579183adb",
+    "afterSHA256": "3c12fa24fc106b71ced39c94c1c41a189edbc83e7f8ffef3706f495770b4f8b2",
+    "onlyTestChanged": "WORK-001",
+    "reversedLocatorScopingAndRemovedTwoAddedUniqueFormGuardsEqualsExactOriginalSource": true,
+    "allOriginalTitlesAndAssertionsValuesPreserved": true,
+    "addedAssertions": 2,
+    "runtimeSourceChanged": false,
+    "bothRootsSynced": true,
+    "focusedExecuted": false
+  },
+  "diagnostic": {
+    "status": "terminal-passed",
+    "toolSession": null,
+    "scope": {
+      "runtime": "f13ca97b1401ea244ae616242fcc873b16308d6dce04298c68dfa41918a484f7",
+      "verification": "b4a60af5e695ef487aa18df24cfa06ef6647489c3e85a28de35ea7754e107c00",
+      "requiredCases": [
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/work-journeys.spec.ts",
+          "title": "REQ-001 request draft survives reload and failed save, retries once, then cancels",
+          "project": "desktop"
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/work-journeys.spec.ts",
+          "title": "REQ-001 request draft survives reload and failed save, retries once, then cancels",
+          "project": "mobile"
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/work-journeys.spec.ts",
+          "title": "WORK-001 filters survive queue changes and reload, then clear",
+          "project": "desktop"
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/work-journeys.spec.ts",
+          "title": "WORK-001 filters survive queue changes and reload, then clear",
+          "project": "mobile"
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/work-journeys.spec.ts",
+          "title": "WORK-002 legacy /requests opens the corresponding Work list",
+          "project": "desktop"
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/work-journeys.spec.ts",
+          "title": "WORK-002 legacy /requests opens the corresponding Work list",
+          "project": "mobile"
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/work-journeys.spec.ts",
+          "title": "WORK-003 legacy /staff-tasks?queue=completed&q=acceptance opens the corresponding Work list",
+          "project": "desktop"
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/work-journeys.spec.ts",
+          "title": "WORK-003 legacy /staff-tasks?queue=completed&q=acceptance opens the corresponding Work list",
+          "project": "mobile"
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/work-journeys.spec.ts",
+          "title": "WORK-004 New work closes with Escape and restores keyboard focus",
+          "project": "desktop"
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/work-journeys.spec.ts",
+          "title": "WORK-004 New work closes with Escape and restores keyboard focus",
+          "project": "mobile"
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/work-journeys.spec.ts",
+          "title": "WORK-005 failed summary refresh keeps filters and recovers through Retry work",
+          "project": "desktop"
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/work-journeys.spec.ts",
+          "title": "WORK-005 failed summary refresh keeps filters and recovers through Retry work",
+          "project": "mobile"
+        }
+      ],
+      "scope": "Full original twelve-case Work journeys diagnostic; isolated development, original normal-login fixture; not full PMS acceptance."
+    },
+    "expectedCases": 12,
+    "notFullPmsAcceptance": true,
+    "exitCode": 0,
+    "cases": 12,
+    "terminal": {
+      "runtime": "f13ca97b1401ea244ae616242fcc873b16308d6dce04298c68dfa41918a484f7",
+      "verification": "b4a60af5e695ef487aa18df24cfa06ef6647489c3e85a28de35ea7754e107c00",
+      "requiredCases": [
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/work-journeys.spec.ts",
+          "title": "REQ-001 request draft survives reload and failed save, retries once, then cancels",
+          "project": "desktop"
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/work-journeys.spec.ts",
+          "title": "REQ-001 request draft survives reload and failed save, retries once, then cancels",
+          "project": "mobile"
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/work-journeys.spec.ts",
+          "title": "WORK-001 filters survive queue changes and reload, then clear",
+          "project": "desktop"
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/work-journeys.spec.ts",
+          "title": "WORK-001 filters survive queue changes and reload, then clear",
+          "project": "mobile"
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/work-journeys.spec.ts",
+          "title": "WORK-002 legacy /requests opens the corresponding Work list",
+          "project": "desktop"
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/work-journeys.spec.ts",
+          "title": "WORK-002 legacy /requests opens the corresponding Work list",
+          "project": "mobile"
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/work-journeys.spec.ts",
+          "title": "WORK-003 legacy /staff-tasks?queue=completed&q=acceptance opens the corresponding Work list",
+          "project": "desktop"
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/work-journeys.spec.ts",
+          "title": "WORK-003 legacy /staff-tasks?queue=completed&q=acceptance opens the corresponding Work list",
+          "project": "mobile"
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/work-journeys.spec.ts",
+          "title": "WORK-004 New work closes with Escape and restores keyboard focus",
+          "project": "desktop"
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/work-journeys.spec.ts",
+          "title": "WORK-004 New work closes with Escape and restores keyboard focus",
+          "project": "mobile"
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/work-journeys.spec.ts",
+          "title": "WORK-005 failed summary refresh keeps filters and recovers through Retry work",
+          "project": "desktop"
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/work-journeys.spec.ts",
+          "title": "WORK-005 failed summary refresh keeps filters and recovers through Retry work",
+          "project": "mobile"
+        }
+      ],
+      "scope": "Full original twelve-case Work journeys diagnostic; isolated development, original normal-login fixture; not full PMS acceptance.",
+      "evidenceDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-11T06-33-43-104Z",
+      "cases": 12,
+      "runtimeFingerprint": "f13ca97b1401ea244ae616242fcc873b16308d6dce04298c68dfa41918a484f7",
+      "verificationFingerprint": "b4a60af5e695ef487aa18df24cfa06ef6647489c3e85a28de35ea7754e107c00",
+      "execution": {
+        "caseOrder": "forward",
+        "mode": "acceptance"
+      },
+      "passed": true,
+      "aggregateAccepted": false
+    },
+    "receiptSHA256": "a246ee7b931a745feaf1573c40734e789fb3dccb08595f7b0ce029c826cc4eaf",
+    "cleanupFailures": [],
+    "interrupted": null
+  },
+  "additionalAuditGap": "Generic encrypted-recovery fixture seeds Finance/Legal/expense rows and all schema tracks, but no explicit PMS property/reservation/Guest Account/room-task fixture. PMS-specific populated restore proof remains required before final acceptance.",
+  "pmsRecoveryExtension": {
+    "status": "terminal-passed",
+    "evidence": "docs/testing/evidence/2026-10-11-pms-populated-recovery.json",
+    "existingNativeCaseCount": 1,
+    "uniqueNativeTotal": 1342,
+    "runtime": "f13ca97b1401ea244ae616242fcc873b16308d6dce04298c68dfa41918a484f7",
+    "verification": "fb1e307c6be52ea3a280d65cc5c01e02782dcd01728295a1b02b07759a511b64",
+    "scope": "Augmented original encrypted restore case passed; full PMS acceptance remains pending."
+  }
+}

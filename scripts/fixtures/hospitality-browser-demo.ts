@@ -15,7 +15,7 @@ type Fixture = {
 };
 type DemoUser={label:string;email:string;role:string;userId:string;roles:string[]};
 
-export async function seedHospitalityBrowserDemo(input:{db:SqlDatabase;control:SqlDatabase;files:Parameters<typeof import("../../fixtures/expenses/company").seedExpenseCompany>[1];passwordHash:string;run:string;origin:string}) {
+export async function seedHospitalityBrowserDemo(input:{db:SqlDatabase;control:SqlDatabase;files:Parameters<typeof import("../../fixtures/expenses/company").seedExpenseCompany>[1];passwordHash:string;run:string;origin:string;menuImages?:boolean}) {
   if(!(input.db instanceof PostgresDatabase))throw new Error("ISOLATED_POSTGRES_REQUIRED");
   const db=input.db;
   const fixture=JSON.parse(await readFile(resolve(import.meta.dir,"../../fixtures/hospitality/pilot-example.json"),"utf8")) as Fixture;
@@ -254,39 +254,49 @@ export async function seedHospitalityBrowserDemo(input:{db:SqlDatabase;control:S
   await postJournal(finance,String(opening.id),crypto.randomUUID(),{expectedVersion:1});
   const pos=async(operation:string,details:unknown)=>posCommand(db,admin,operation,details,crypto.randomUUID());
   await pos("settings.save",{enabled:true,currency:"THB",timezone:"Asia/Bangkok",cashierDiscountBps:0,accounts:{chartId:f.chart,...posAccounts},expectedVersion:0});
-  const registerId=String((await pos("register.save",{warehouseId,name:fixture.restaurant.register,mode:"restaurant"})).id);
+  await posCommand(db,finance,"accounting.approve",{expectedVersion:1},crypto.randomUUID());
+  const registerId=String((await pos("register.save",{warehouseId,propertyId,name:fixture.restaurant.register,mode:"restaurant"})).id);
   for(const table of fixture.restaurant.tables)await pos("table.create",{registerId,name:table,seats:4});
   for(const item of fixture.restaurant.menu)await pos("catalog.save",{productId:products[item.sku],barcode:"",category:"Restaurant",kind:item.recipe?"recipe":"stock",station:item.sku==="TEA"||item.sku==="COFFEE"?"Bar":"Kitchen",recipe:item.recipe?.map(part=>({productId:products[part.sku],quantityMilli:part.quantityMilli}))??[],modifiers:[],taxInclusive:false,expectedVersion:0});
+  if(input.menuImages) {
+    const {savePosProductImage}=await import("../../src/server/pos-images");
+    const images:Record<string,string>={"RICE-CHICKEN":"menu-basil-chicken","RICE-VEG":"menu-fried-rice",NOODLES:"menu-noodles",TEA:"menu-thai-tea",COFFEE:"menu-latte",WATER:"menu-water"};
+    for(const item of fixture.restaurant.menu) {
+      const image=images[item.sku];
+      if(!image)throw new Error("HOSPITALITY_MENU_IMAGE_REQUIRED");
+      await savePosProductImage(admin,products[item.sku],new Uint8Array(await readFile(resolve(import.meta.dir,`../../fixtures/pos/images/${image}.png`))),"image/png","generated",crypto.randomUUID(),1,{fixture:image,generatedFor:"Fictional isolated hospitality catalog"});
+    }
+  }
   const guide={version:1,kind:"isolated-real-workflow",title:fixture.name,origin:input.origin,companyId:f.company,propertyId,registerId,reset:{destroy:`bun run demo:destroy -- ${input.run}`,prepare:"bun run demo:prepare"},sandbox:true,actors:users,
     scenarios:[{id:"restaurant-room-charge",startingState:`Room 101 is inspected on ${date}; room ${occupied?.number??"202"} has an existing checked-in example guest. No restaurant bill exists.`,steps:[
-      {actor:"frontDesk",href:`${input.origin}/holdings/riverside-lantern/pms/reservations?property=${propertyId}`,action:"Create a reservation, assign room 101, and check in the guest.",expected:"The stay appears as in-house with an open folio and inspected room."},
+      {actor:"frontDesk",href:`${input.origin}/holdings/riverside-lantern/pms/reservations?property=${propertyId}`,action:"Create a reservation, assign room 101, and check in the guest.",expected:"The stay appears as in-house with an open guest account and inspected room."},
       {actor:"cashier",href:`${input.origin}/holdings/riverside-lantern/pos`,action:"Open a restaurant bill and add Basil chicken rice and Thai iced tea.",expected:"The bill remains open with a reviewable THB total."},
       {actor:"kitchen",href:`${input.origin}/holdings/riverside-lantern/pos?tab=kitchen`,action:"Prepare and deliver the kitchen items.",expected:"Each recipe item reaches Delivered and stock is consumed once."},
-      {actor:"cashier",href:`${input.origin}/holdings/riverside-lantern/pos`,action:"Charge the complete bill to the in-house guest folio.",expected:"The bill is completed with one linked PMS charge and no POS payment."},
+      {actor:"cashier",href:`${input.origin}/holdings/riverside-lantern/pos`,action:"Charge the complete bill to the in-house guest account.",expected:"The bill is completed with one linked PMS charge and no POS payment."},
       {actor:"financeApprover",href:`${input.origin}/holdings/riverside-lantern/finance`,action:"Review the PMS posting and reconcile the linked source.",expected:"PMS owns the revenue posting; POS does not duplicate it."},
       {actor:"nightAuditor",href:`${input.origin}/holdings/riverside-lantern/pms/night-audit?property=${propertyId}`,action:"Review day-close blockers and close only after reconciliation.",expected:"An unresolved blocker prevents close; a resolved day has one recoverable audit result."}
-    ],expected:"Exactly one POS sale, PMS folio charge and PMS revenue posting remain linked after reload."},
+    ],expected:"Exactly one POS sale, PMS guest account charge and PMS revenue posting remain linked after reload."},
     {id:"pending-bank-transfer",startingState:"The cashier creates a new unpaid restaurant bill in the reset run.",steps:[
       {actor:"cashier",href:`${input.origin}/holdings/riverside-lantern/pos`,action:"Record a bank-transfer reference without imported bank evidence.",expected:"The payment stays pending and the bill cannot complete."},
       {actor:"financePreparer",href:`${input.origin}/holdings/riverside-lantern/finance/bank`,action:"Import matching sandbox bank evidence.",expected:"The bank row is available for independent verification; no money moves outside the demo."},
-      {actor:"financeApprover",href:`${input.origin}/holdings/riverside-lantern/pos`,action:"Verify the exact amount, reference, currency, company and bank account.",expected:"One bank match settles one POS payment; an incorrect row remains unmatched."}
+      {actor:"financeApprover",href:`${input.origin}/holdings/riverside-lantern/finance/restaurants`,action:"Verify the exact amount, reference, currency, company and bank account.",expected:"One bank match settles one POS payment; an incorrect row remains unmatched."}
     ],expected:"Pending and verified amounts are shown separately."},
-    {id:"hotel-verified-transfer",startingState:"The checked-in example guest has an open hotel folio. No hotel bank transfer has been recorded.",steps:[
-      {actor:"hotelCashier",href:`${input.origin}/holdings/riverside-lantern/pms/cashier?property=${propertyId}`,action:"Open a hotel cashier shift, then record a bank-transfer reference against the guest folio.",expected:"The transfer is pending; the folio and bank ledger remain unchanged."},
-      {actor:"financePreparer",href:`${input.origin}/holdings/riverside-lantern/finance/bank`,action:"Import a fictional THB statement row for the hotel's configured bank account, date, exact amount and reference.",expected:"The row is available to an independent Finance approver without settling the folio."},
-      {actor:"financeApprover",href:`${input.origin}/holdings/riverside-lantern/pms/folios?property=${propertyId}`,action:"Select the exact imported row and verify the pending hotel transfer.",expected:"One PMS folio receipt, Finance payment and matched bank row are linked and survive reload."}
-    ],expected:"A typed reference never settles the folio by itself; cancellation leaves no payment."},
-    {id:"checkout-and-day-close",startingState:"The checked-in example guest has an open folio and the hotel business day is open. Use this after any restaurant room charge you want included.",steps:[
-      {actor:"frontDesk",href:`${input.origin}/holdings/riverside-lantern/pms/front-desk?property=${propertyId}`,action:"Post the room night before checkout and review the folio balance.",expected:"The room charge appears once on the same guest folio."},
-      {actor:"hotelCashier",href:`${input.origin}/holdings/riverside-lantern/pms/folios?property=${propertyId}`,action:"Open a hotel cash shift and collect the remaining folio balance using cash or an independently verified transfer.",expected:"The folio balance is zero and the receipt survives reload."},
+    {id:"hotel-verified-transfer",startingState:"The checked-in example guest has an open hotel guest account. No hotel bank transfer has been recorded.",steps:[
+      {actor:"hotelCashier",href:`${input.origin}/holdings/riverside-lantern/pms/cashier?property=${propertyId}`,action:"Open a hotel cashier shift, then record a bank-transfer reference against the guest account.",expected:"The transfer is pending; the guest account and bank ledger remain unchanged."},
+      {actor:"financePreparer",href:`${input.origin}/holdings/riverside-lantern/finance/bank`,action:"Import a fictional THB statement row for the hotel's configured bank account, date, exact amount and reference.",expected:"The row is available to an independent Finance approver without settling the guest account."},
+      {actor:"financeApprover",href:`${input.origin}/holdings/riverside-lantern/finance/hotels`,action:"Select the exact imported row and verify the pending hotel transfer.",expected:"One PMS guest account receipt, Finance payment and matched bank row are linked and survive reload."}
+    ],expected:"A typed reference never settles the guest account by itself; cancellation leaves no payment."},
+    {id:"checkout-and-day-close",startingState:"The checked-in example guest has an open guest account and the hotel business day is open. Use this after any restaurant room charge you want included.",steps:[
+      {actor:"frontDesk",href:`${input.origin}/holdings/riverside-lantern/pms/front-desk?property=${propertyId}`,action:"Post the room night before checkout and review the guest account balance.",expected:"The room charge appears once on the same guest account."},
+      {actor:"hotelCashier",href:`${input.origin}/holdings/riverside-lantern/pms/guest-accounts?property=${propertyId}`,action:"Open a hotel cash shift and collect the remaining guest account balance using cash or an independently verified transfer.",expected:"The guest account balance is zero and the receipt survives reload."},
       {actor:"frontDesk",href:`${input.origin}/holdings/riverside-lantern/pms/front-desk?property=${propertyId}`,action:"Check out the guest after the balance is settled.",expected:"The stay is checked out and the departure room needs housekeeping."},
-      {actor:"hotelCashier",href:`${input.origin}/holdings/riverside-lantern/pms/folios?property=${propertyId}`,action:"Issue the folio invoice, count the hotel cash shift, and record the handover.",expected:"The invoice is paid, the folio is closed, and the shift has no unexplained variance."},
+      {actor:"hotelCashier",href:`${input.origin}/holdings/riverside-lantern/pms/guest-accounts?property=${propertyId}`,action:"Issue the guest account invoice, count the hotel cash shift, and record the handover.",expected:"The invoice is paid, the guest account is closed, and the shift has no unexplained variance."},
       {actor:"cashier",href:`${input.origin}/holdings/riverside-lantern/pos?tab=shifts`,action:"Resolve or cancel any open restaurant bill, then count and close the restaurant cash session.",expected:"No open restaurant bill or cash session blocks the hotel day."},
       {actor:"nightAuditor",href:`${input.origin}/holdings/riverside-lantern/pms/night-audit?property=${propertyId}`,action:"Review the hotel and restaurant controls, then start the recoverable day-close job.",expected:"The worker completes the close, advances the business date, and keeps journals balanced."},
       {actor:"administrator",href:`${input.origin}/holdings/riverside-lantern/pms/night-audit?property=${propertyId}`,action:"If the initiating auditor loses access and the job blocks, review the reason and resume it with current authority.",expected:"The blocked date stays frozen until the authorized resume succeeds; no room night posts twice."}
-    ],expected:"The guest folio invoice is paid, restaurant cash is counted, and the next business date opens only after Night Audit completes."},
+    ],expected:"The guest account invoice is paid, restaurant cash is counted, and the next business date opens only after Night Audit completes."},
     {id:"wrong-room-recovery",startingState:"A checked-in example guest is in room 202 and a new restaurant bill is open.",steps:[
-      {actor:"cashier",href:`${input.origin}/holdings/riverside-lantern/pos`,action:"Attempt to charge a nonexistent or checked-out stay.",expected:"The bill remains open with no folio entry, stock consumption or posting."},
+      {actor:"cashier",href:`${input.origin}/holdings/riverside-lantern/pos`,action:"Attempt to charge a nonexistent or checked-out stay.",expected:"The bill remains open with no guest account entry, stock consumption or posting."},
       {actor:"cashier",href:`${input.origin}/holdings/riverside-lantern/pos`,action:"Choose the verified in-house stay and retry with a fresh version.",expected:"Exactly one charge is created; repeating the same command key returns it."}
     ],expected:"Failed attempts do not duplicate revenue or stock movements."}]};
   return {companyId:f.company,propertyId,registerId,warehouseId,openingJournalId:opening.id,openingInventoryAccountId:pmsAccounts.inventory,roomIds:rooms,roomTypeIds:types,rateIds:rates,productIds:products,supplierIds:[supplierOne.id,supplierTwo.id],purchaseRequestId:purchaseRequest.id,payrollGroupId,payrollEngagementIds,payrollPersonIds,leaveTypeId,leavePolicyId,leaveAssignmentId,rosterWeekId,rosterShiftId,users,guide};

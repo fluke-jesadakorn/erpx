@@ -1,0 +1,93 @@
+{
+  "checkedAt": "2026-10-11T11:37:29.792852+00:00",
+  "candidate": {
+    "runtime": "ac53b636bb8e08700a3bace57c442d1ab211fc299e8110c21de2ba9ba2afd48f",
+    "verification": "4690053d9c623dac5dd654126c19ed6b148b7ac969fd1948be8f0d599496c095",
+    "mainRuntime": "ac53b636bb8e08700a3bace57c442d1ab211fc299e8110c21de2ba9ba2afd48f",
+    "mainVerification": "4690053d9c623dac5dd654126c19ed6b148b7ac969fd1948be8f0d599496c095",
+    "releaseDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.runtime/releases/2026-10-11T10-52-06-388Z",
+    "releaseId": "2026-10-11T10-52-06-388Z"
+  },
+  "fullReceipt": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/full/2026-10-11T11-01-11-286Z/receipt.json",
+  "fullReceiptSHA256": "7dadc9aa9cd1df56993ddc0623a7006908a61f3efe92ad61bbd0f2c040a2c217",
+  "fullPassed": false,
+  "fullPhases": [
+    {
+      "phase": "architecture",
+      "passed": true
+    },
+    {
+      "phase": "unit",
+      "passed": true
+    },
+    {
+      "phase": "integration",
+      "passed": true
+    },
+    {
+      "phase": "lint",
+      "passed": true
+    },
+    {
+      "phase": "typecheck",
+      "passed": true
+    },
+    {
+      "phase": "isolated-release",
+      "passed": true
+    }
+  ],
+  "browserReceipt": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-11T11-30-36-135Z/receipt.json",
+  "browserReceiptSHA256": "1c5ce91b5d31a693018d7b1e75d2e6433ee6b58bf39e431b04e2ab059ee2cd2b",
+  "browserPassed": false,
+  "actualPassingOriginalCase": {
+    "suite": "pms.booking-payment-recovery.e2e",
+    "file": "pms-booking-payment-recovery.spec.ts",
+    "project": "desktop",
+    "title": "paid guest booking recovers interrupted receipt and independently approved partial refund without duplicate money",
+    "run": "a2f691dd7157",
+    "report": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-11T11-30-36-135Z/a2f691dd7157/result.json",
+    "passed": true,
+    "cleanup": {
+      "completed": true,
+      "ownedDirectoryAbsent": true
+    }
+  },
+  "failedStartupOriginalCase": {
+    "suite": "pms.booking-payment-recovery.e2e",
+    "file": "pms-booking-payment-recovery.spec.ts",
+    "project": "mobile",
+    "title": "paid guest booking recovers interrupted receipt and independently approved partial refund without duplicate money",
+    "run": "55d02edd1340",
+    "report": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-11T11-30-36-135Z/55d02edd1340/result.json",
+    "passed": false,
+    "cleanup": {
+      "completed": true,
+      "ownedDirectoryAbsent": true
+    }
+  },
+  "playwrightCaseReportExists": false,
+  "failure": "LOCAL_ATTACHMENT_RUNTIME_NOT_READY:CLAMAV_DEFINITIONS_STALE",
+  "failureScope": "Mobile fixture server startup before case execution; not a failed business assertion or a passing skipped case",
+  "baselineScanner": {
+    "enabled": true,
+    "ready": true,
+    "engine": "ClamAV 1.5.4/28149/Sat Oct 10 13:24:04 2026",
+    "definitionUpdatedAt": 1791632018617,
+    "error": null
+  },
+  "baselineReconciledAt": 1791718245176,
+  "startLogSHA256": "88c23f90fede9da9ab49c60f7579c89473f053742af6d3a21c366dd12c79fc98",
+  "allRecordedOwnedCleanupVerified": true,
+  "currentReadOnlyScannerObservation": {
+    "version": "ClamAV 1.5.4/28150/Sun Oct 11 13:26:01 2026",
+    "definitionFile": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/clamav/db/daily.cld",
+    "actualModifiedAt": "2026-10-11T11:35:00.985905+00:00",
+    "freshclamLogDatabaseTestPassed": true,
+    "refreshPerformedByRoot": false,
+    "thresholdChanged": false,
+    "scannerDisabled": false
+  },
+  "nextLane": "Await coordination with fullowner before starting conflicting workloads",
+  "wholePlanAccepted": false
+}

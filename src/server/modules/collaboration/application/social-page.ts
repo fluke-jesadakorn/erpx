@@ -11,12 +11,12 @@ export interface SocialPagePorts {
   moderate(): Promise<boolean>;
 }
 export function createSocialPageQuery(ports: SocialPagePorts) {
-  return async (actor: Pick<WorkContext, "beta">, input: { postId?: string; tag?: string }) => {
+  return async (actor: Pick<WorkContext, "beta">, input: { postId?: string; tag?: string; skipDay?: boolean; skipMilestones?: boolean }) => {
     await ports.prepare();
-    const initialDay = !input.postId && !actor.beta ? ports.seed().catch(() => null) : undefined;
+    const initialDay = !input.skipDay && !input.postId && !actor.beta ? ports.seed().catch(() => null) : undefined;
     const [posts, milestones, options, moderate] = await Promise.all([
       input.postId ? ports.post(input.postId).then(post => [post]) : ports.feed({ limit: 8, stream: "conversations", tag: input.tag }),
-      input.postId ? Promise.resolve([]) : ports.feed({ limit: 8, stream: "milestones", tag: input.tag }),
+      input.postId || input.skipMilestones ? Promise.resolve([]) : ports.feed({ limit: 8, stream: "milestones", tag: input.tag }),
       ports.audience(), ports.moderate(),
     ]);
     return { posts, milestones, options, moderate, initialDay, post: input.postId ? posts[0] : null };

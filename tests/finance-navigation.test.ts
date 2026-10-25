@@ -10,7 +10,8 @@ describe("Finance area navigation", () => {
     const model = workplaceNavigation(context);
     expect(model.categories.find(category => category.id === "finance")?.apps.map(item => item.label)).toEqual(["Today", "Documents", "Cash", "Accounting", "Reports"]);
     for (const [route, destination, sidebar] of [
-      ["finance/invoices/invoice-1?kind=payable", "finance-payables", "finance-receivables"],
+      ["finance/sales", "finance-sales", "finance-sales"],
+      ["finance/invoices/invoice-1?kind=payable", "finance-payables", "finance-sales"],
       ["finance/payments/payment-1", "finance-payments", "finance-payments"],
       ["finance/supplier-batches/batch-1", "finance-supplier-batches", "finance-payments"],
       ["finance/refunds/refund-1", "finance-refunds", "finance-payments"],
@@ -19,14 +20,14 @@ describe("Finance area navigation", () => {
       ["finance/tax/filing-1", "finance-tax", "finance-ledger"],
       ["finance/engines", "finance-engines", "finance-ledger"],
       ["finance/group", "finance-group", "finance-reports"],
-      ["expenses/expense-1", "finance-expenses", "finance-receivables"],
+      ["expenses/expense-1", "finance-expenses", "finance-sales"],
     ]) {
       const url = new URL(`${base}/${route}`, "https://test.invalid");
       expect(resolveNavigation(model, base, url.pathname, url.searchParams), route).toMatchObject({ activeId: destination, sidebarId: sidebar });
       expect(model.search.some(item => item.id === destination), destination).toBe(true);
     }
     const items = financeNavigation(context);
-    for (const area of ["documents", "cash", "accounting", "reports"] as const) expect(financeAreaItems(items, area).length).toBeLessThanOrEqual(3);
+    for (const area of ["documents", "cash", "accounting", "reports"] as const) expect(financeAreaItems(items, area).length).toBeLessThanOrEqual(area === "documents" ? 4 : 3);
   });
 
   it("retains role, scope and release gates without exposing hidden tools in search", () => {

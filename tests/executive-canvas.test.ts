@@ -882,7 +882,7 @@ it("reconciles hotel occupancy to completed Night Audit snapshots with current P
   expect(first.items.some(item=>item.id===malformed||item.id===pending||item.id===westApr)).toBe(false);
   const detail=await readExecutiveEvidence(db,f.owner,"hotel-occupancy",eastTwo,filters);
   expect(detail.record).toMatchObject({id:eastTwo,property_name:"East Inn",business_date:"2026-04-02",state:"completed",sold:"10",capacity:"10",href:`/pms/reports?property=${east}`});
-  expect(detail.record).not.toHaveProperty("guest_name");expect(detail.record).not.toHaveProperty("folio_balance");
+  expect(detail.record).not.toHaveProperty("guest_name");expect(detail.record).not.toHaveProperty("guestAccount_balance");
   await expect(readExecutiveEvidence(db,f.owner,"hotel-occupancy",pending,filters)).rejects.toMatchObject({code:"EVIDENCE_NOT_FOUND"});
   await expect(readExecutiveEvidence(db,f.owner,"hotel-occupancy",malformed,filters)).rejects.toMatchObject({code:"EVIDENCE_NOT_FOUND"});
   await expect(searchExecutiveEvidence(db,f.claimant,{metric:"hotel-occupancy",filters,limit:10})).rejects.toMatchObject({code:"EVIDENCE_FORBIDDEN"});
@@ -891,7 +891,7 @@ it("reconciles hotel occupancy to completed Night Audit snapshots with current P
     .bind(f.company,f.owner.userId).all<{provider_id:string;action:string;record_id:string|null;record_version:number|null;fields:string}>()).results;
   expect(audit.some(row=>row.provider_id==="pms-night-audit"&&row.action==="search"&&row.record_id===eastTwo&&row.record_version===1)).toBe(true);
   expect(audit.some(row=>row.action==="open"&&row.record_id===eastTwo&&row.record_version===1)).toBe(true);
-  expect(audit.every(row=>JSON.parse(row.fields).every((field:string)=>!field.includes("guest")&&!field.includes("folio")&&!field.includes("entry")))).toBe(true);
+  expect(audit.every(row=>JSON.parse(row.fields).every((field:string)=>!field.includes("guest")&&!field.includes("guest_account")&&!field.includes("entry")))).toBe(true);
 
   const reportId=(await createReport(db,f.owner,key(),"Hotel occupancy access")).id,
     definition=definitionSchema.parse({...emptyDefinition("Hotel occupancy access"),widgets:[{id:"occupancy",title:"Hotel occupancy",metric:"hotel-occupancy",kind:"line",breakdown:"month",width:"full"}]});
@@ -983,11 +983,11 @@ it("reconciles PMS ADR and RevPAR to completed Night Audits and linked room reve
   const audit=(await db.prepare("SELECT provider_id,action,record_id,record_version,field_ids::text fields FROM executive_evidence_access_events WHERE company_id=? AND actor_id=? AND metric_id='hotel-adr' ORDER BY created_at,id")
     .bind(f.company,f.owner.userId).all<{provider_id:string;action:string;record_id:string|null;record_version:number|null;fields:string}>()).results;
   expect(audit.some(row=>row.action==="open"&&row.record_id===eastApr1&&row.record_version===1)).toBe(true);
-  expect(audit.every(row=>JSON.parse(row.fields).every((field:string)=>!field.toLowerCase().includes("guest")&&!field.toLowerCase().includes("description")&&!field.toLowerCase().includes("folio")))).toBe(true);
+  expect(audit.every(row=>JSON.parse(row.fields).every((field:string)=>!field.toLowerCase().includes("guest")&&!field.toLowerCase().includes("description")&&!field.toLowerCase().includes("guest_account")))).toBe(true);
 });
-it("reconciles current PMS folio balances to posted receivable journals without exposing guest fields",async()=>{
+it("reconciles current PMS guest account balances to posted receivable journals without exposing guest fields",async()=>{
   const filters={from:"2020-01-01",to:"2020-01-31",currency:"THB"},now=Date.now(),
-    east=`executive-folio-east-${key()}`,west=`executive-folio-west-${key()}`,otherBranch=`${f.company}-folio-west-branch`,
+    east=`executive-guestAccount-east-${key()}`,west=`executive-guestAccount-west-${key()}`,otherBranch=`${f.company}-guestAccount-west-branch`,
     receivable=`${f.company}-pms-receivable-${key()}`;
   await db.prepare("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id) VALUES(?,'branch',?,'West Branch',?,?,?)")
     .bind(otherBranch,otherBranch,f.company,f.company,otherBranch).run();
@@ -996,14 +996,14 @@ it("reconciles current PMS folio balances to posted receivable journals without 
   for(const [id,branch,name] of [[east,f.branch,"East Inn"],[west,otherBranch,"West Inn"]] as const)
     await db.prepare("INSERT INTO pms_properties(id,company_id,branch_id,name,business_date,config_json,created_by,updated_at) VALUES(?,?,?,?,'2026-09-24',?,?,?)")
       .bind(id,f.company,branch,name,JSON.stringify({currency:"THB",accounts:{receivable}}),f.owner.userId,now).run();
-  async function addFolio(propertyId:string,id:string,state:string,version=1) {
-    await db.prepare("INSERT INTO pms_records(id,property_id,kind,data_json,version,updated_at) VALUES(?,?,'folio',?, ?,?)")
+  async function addGuestAccount(propertyId:string,id:string,state:string,version=1) {
+    await db.prepare("INSERT INTO pms_records(id,property_id,kind,data_json,version,updated_at) VALUES(?,?,'guest_account',?, ?,?)")
       .bind(id,propertyId,JSON.stringify({name:"Private guest record",guestId:`guest-${id}`,reservationId:`reservation-${id}`,state,due:1250}),version,now).run();
   }
-  async function addPosting(propertyId:string,folioId:string,amount:number,status:"posted"|"draft"|"reversed",suffix:string) {
+  async function addPosting(propertyId:string,guestAccountId:string,amount:number,status:"posted"|"draft"|"reversed",suffix:string) {
     const entryId=`executive-entry-${key()}`,journalId=`executive-journal-${key()}`;
     await db.prepare("INSERT INTO pms_records(id,property_id,kind,data_json,version,updated_at) VALUES(?,?,'entry',?,1,?)")
-      .bind(entryId,propertyId,JSON.stringify({folioId,kind:"charge",date:"2026-09-24",total:amount}),now).run();
+      .bind(entryId,propertyId,JSON.stringify({guestAccountId,kind:"charge",date:"2026-09-24",total:amount}),now).run();
     await db.prepare(`INSERT INTO finance_journals
       (id,company_id,chart_id,period_id,journal_number,entry_date,currency,source_type,source_id,status,created_by,posted_by,posted_at,created_at,updated_at)
       VALUES(?,?,?,?,?,'2026-09-24','THB','manual',?,?,?, ?,?,?,?)`)
@@ -1015,45 +1015,48 @@ it("reconciles current PMS folio balances to posted receivable journals without 
     if(status!=="draft")await db.prepare("UPDATE finance_journals SET status=?,posted_by=?,posted_at=? WHERE id=?")
       .bind(status,f.owner.userId,now,journalId).run();
     await db.prepare("INSERT INTO pms_postings(id,property_id,source_key,record_id,journal_id,business_date) VALUES(?,?,?,?,?,'2026-09-24')")
-      .bind(`pms-posting-${key()}`,propertyId,`folio-fixture:${suffix}`,entryId,journalId).run();
+      .bind(`pms-posting-${key()}`,propertyId,`guestAccount-fixture:${suffix}`,entryId,journalId).run();
     return entryId;
   }
-  const openId=`executive-folio-open-${key()}`,secondOpenId=`executive-folio-open-second-${key()}`,closedId=`executive-folio-closed-${key()}`,
-    pendingId=`executive-folio-pending-${key()}`,westId=`executive-folio-west-open-${key()}`;
-  await addFolio(east,openId,"open",3);await addFolio(east,secondOpenId,"open");await addFolio(east,closedId,"closed");await addFolio(east,pendingId,"open");await addFolio(west,westId,"open");
+  const openId=`executive-guestAccount-open-${key()}`,secondOpenId=`executive-guestAccount-open-second-${key()}`,closedId=`executive-guestAccount-closed-${key()}`,
+    pendingId=`executive-guestAccount-pending-${key()}`,westId=`executive-guestAccount-west-open-${key()}`;
+  await addGuestAccount(east,openId,"open",3);await addGuestAccount(east,secondOpenId,"open");await addGuestAccount(east,closedId,"closed");await addGuestAccount(east,pendingId,"open");await addGuestAccount(west,westId,"open");
   await addPosting(east,openId,2000,"posted","east-charge");await addPosting(east,openId,-750,"posted","east-credit");
   await addPosting(east,secondOpenId,100,"posted","east-second-charge");
   await addPosting(east,closedId,900,"posted","closed-charge");await addPosting(east,pendingId,500,"draft","pending-charge");
   await addPosting(east,pendingId,300,"reversed","reversed-charge");await addPosting(west,westId,400,"posted","west-charge");
 
-  const total=await queryMetric(db,f.owner,"hotel-folio-balance",filters),branches=await queryMetric(db,f.owner,"hotel-folio-balance",filters,"branch"),
-    properties=await queryMetric(db,f.owner,"hotel-folio-balance",filters,"property");
+  const total=await queryMetric(db,f.owner,"hotel-guest-account-balance",filters),branches=await queryMetric(db,f.owner,"hotel-guest-account-balance",filters,"branch"),
+    properties=await queryMetric(db,f.owner,"hotel-guest-account-balance",filters,"property");
   expect(total).toMatchObject({total:"1750",unit:"money",currency:"THB",status:"ready",scopeBoundary:{level:"company"}});
-  expect(total.rows).toEqual([{label:"Open folio balances",value:"1750"}]);
+  expect(total.rows).toEqual([{label:"Open guest account balances",value:"1750"}]);
   expect(total.definition).toContain("date filter does not apply");
   expect(branches.rows).toEqual([{label:"Branch",value:"1350"},{label:"West Branch",value:"400"}]);
   expect(properties.rows).toEqual([{label:"East Inn",value:"1350"},{label:"West Inn",value:"400"}]);
-  expect((await queryMetric(db,{...f.owner,branchId:f.branch},"hotel-folio-balance",filters)).total).toBe("1350");
-  expect((await queryMetric(db,f.owner,"hotel-folio-balance",{...filters,currency:"USD"})).status).toBe("empty");
-  await expect(queryMetric(db,{...f.owner,departmentId:f.department},"hotel-folio-balance",filters)).rejects.toMatchObject({code:"METRIC_FORBIDDEN"});
-  await expect(queryMetric(db,f.claimant,"hotel-folio-balance",filters)).rejects.toMatchObject({code:"METRIC_FORBIDDEN"});
+  expect((await queryMetric(db,{...f.owner,branchId:f.branch},"hotel-guest-account-balance",filters)).total).toBe("1350");
+  expect((await queryMetric(db,f.owner,"hotel-guest-account-balance",{...filters,currency:"USD"})).status).toBe("empty");
+  await expect(queryMetric(db,{...f.owner,departmentId:f.department},"hotel-guest-account-balance",filters)).rejects.toMatchObject({code:"METRIC_FORBIDDEN"});
+  await expect(queryMetric(db,f.claimant,"hotel-guest-account-balance",filters)).rejects.toMatchObject({code:"METRIC_FORBIDDEN"});
 
-  const search=await searchExecutiveEvidence(db,f.owner,{metric:"hotel-folio-balance",filters,query:"East Inn",limit:1}),
-    next=await searchExecutiveEvidence(db,f.owner,{metric:"hotel-folio-balance",filters,query:"East Inn",limit:1,cursor:search.nextCursor!});
-  expect(search.provider).toBe("pms-open-folios");expect(search.items).toHaveLength(1);expect(next.items).toHaveLength(1);
+  const search=await searchExecutiveEvidence(db,f.owner,{metric:"hotel-guest-account-balance",filters,query:"East Inn",limit:1}),
+    next=await searchExecutiveEvidence(db,f.owner,{metric:"hotel-guest-account-balance",filters,query:"East Inn",limit:1,cursor:search.nextCursor!});
+  expect(search.provider).toBe("pms-open-guestAccounts");expect(search.items).toHaveLength(1);expect(next.items).toHaveLength(1);
   expect(new Set([search.items[0].id,next.items[0].id])).toEqual(new Set([openId,secondOpenId]));
-  expect(search.items[0]).toMatchObject({id:openId,label:"East Inn · Open folio",summary:"1250 THB posted balance · open",currency:"THB",amount:"1250",href:`/pms/folios?property=${east}&folio=${openId}`});
+  expect(search.items[0]).toMatchObject({id:openId,label:"East Inn · Open guest account",summary:"1250 THB posted balance · open",currency:"THB",amount:"1250",href:`/pms/guest-accounts?property=${east}&guestAccount=${openId}`});
   expect(JSON.stringify(search)).not.toContain("Private guest record");
-  const detail=await readExecutiveEvidence(db,f.owner,"hotel-folio-balance",openId,filters);
-  expect(detail.record).toMatchObject({id:openId,property_name:"East Inn",currency:"THB",state:"open",posted_receivable_balance_minor:"1250",version:3,href:`/pms/folios?property=${east}&folio=${openId}`});
+  const detail=await readExecutiveEvidence(db,f.owner,"hotel-guest-account-balance",openId,filters);
+  expect(detail.record).toMatchObject({id:openId,property_name:"East Inn",currency:"THB",state:"open",posted_receivable_balance_minor:"1250",version:3,href:`/pms/guest-accounts?property=${east}&guestAccount=${openId}`});
   expect(detail.record).not.toHaveProperty("guest_name");expect(detail.record).not.toHaveProperty("guestId");expect(detail.record).not.toHaveProperty("name");
-  await expect(readExecutiveEvidence(db,f.owner,"hotel-folio-balance",closedId,filters)).rejects.toMatchObject({code:"EVIDENCE_NOT_FOUND"});
-  await expect(searchExecutiveEvidence(db,f.claimant,{metric:"hotel-folio-balance",filters,limit:10})).rejects.toMatchObject({code:"EVIDENCE_FORBIDDEN"});
-  const audit=(await db.prepare("SELECT provider_id,action,record_id,record_version,field_ids::text fields FROM executive_evidence_access_events WHERE company_id=? AND actor_id=? AND metric_id='hotel-folio-balance' ORDER BY created_at,id")
+  await expect(readExecutiveEvidence(db,f.owner,"hotel-guest-account-balance",closedId,filters)).rejects.toMatchObject({code:"EVIDENCE_NOT_FOUND"});
+  await expect(searchExecutiveEvidence(db,f.claimant,{metric:"hotel-guest-account-balance",filters,limit:10})).rejects.toMatchObject({code:"EVIDENCE_FORBIDDEN"});
+  const audit=(await db.prepare("SELECT provider_id,action,record_id,record_version,field_ids::text fields FROM executive_evidence_access_events WHERE company_id=? AND actor_id=? AND metric_id='hotel-guest-account-balance' ORDER BY created_at,id")
     .bind(f.company,f.owner.userId).all<{provider_id:string;action:string;record_id:string|null;record_version:number|null;fields:string}>()).results;
-  expect(audit.some(row=>row.provider_id==="pms-open-folios"&&row.action==="search"&&row.record_id===openId&&row.record_version===3)).toBe(true);
+  expect(audit.some(row=>row.provider_id==="pms-open-guestAccounts"&&row.action==="search"&&row.record_id===openId&&row.record_version===3)).toBe(true);
   expect(audit.some(row=>row.action==="open"&&row.record_id===openId&&row.record_version===3)).toBe(true);
-  expect(audit.every(row=>JSON.parse(row.fields).every((field:string)=>!field.toLowerCase().includes("guest")&&!field.toLowerCase().includes("folio.name")&&!field.toLowerCase().includes("entry")))).toBe(true);
+  for(const row of audit)expect(JSON.parse(row.fields)).toEqual([
+    'guest_account.id','guest_account.state','guest_account.version',
+    'property.name','property.currency','posted_receivable_balance_minor',
+  ]);
 });
 it("reconciles blocked Night Audit jobs with property scope and metadata-only evidence",async()=>{
   const filters={from:"2026-04-01",to:"2026-04-30",currency:"THB"},now=Date.now(),

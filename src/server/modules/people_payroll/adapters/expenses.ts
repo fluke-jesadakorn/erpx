@@ -9,6 +9,7 @@ import { expenseNativeEffects as financeExpenseEffects } from "../../finance/pub
 import { createCurrentExpenseReader, createExpenseApprovalFields, createExpenseDetail, createExpenseOptions } from "../application/expense-projections";
 import { authorizeExpenseReversal, createTransitionExpense, createPrepareExpensePosting, createReverseExpense } from "../application/expense-lifecycle";
 import { createExpenseReads } from "../application/expense-reads";
+import {expenseBatchFacts, type ExpenseBatchFacts} from "./expense-batch-facts";
 import { createRevokeExpenseAttachment } from "../application/expense-evidence";
 import { createPostExpense } from "../application/expense-commands";
 import { expenseCommandPort, expenseMutation, expenseStatements } from "./expense-command-port";
@@ -91,9 +92,9 @@ function visibility(actor: WorkContext) {
     ],
   };
 }
-async function currentExpenseReader(db: SqlDatabase, actor: WorkContext, row: ExpenseRow) {
+async function currentExpenseReader(db: SqlDatabase, actor: WorkContext, row: ExpenseRow, facts?:ExpenseBatchFacts) {
   return createCurrentExpenseReader({
-    async auditReader(actor, row) { return Boolean(await db
+    async auditReader(actor, row) { if(facts)return facts.auditReader(actor,row); return Boolean(await db
       .prepare(
         `SELECT 1 FROM (${identity_accessProjectionSources.assignments}) assignments WHERE company_id=? AND id=? AND iam_role_allows(role,company_id,'expense.audit.read') AND revoked_at IS NULL AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(user_id,company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_from<=? AND valid_until>? AND (scope_kind='holding' OR (scope_kind='branch' AND scope_node_id=?) OR (scope_kind='department' AND scope_node_id=?))`,
       )
@@ -106,20 +107,20 @@ async function currentExpenseReader(db: SqlDatabase, actor: WorkContext, row: Ex
         row.department_id,
       )
       .first()); },
-    async participant(actor, row) { return Boolean(await db
+    async participant(actor, row) { if(facts)return facts.participant(actor,row); return Boolean(await db
       .prepare(
         `SELECT 1 FROM (${workflowProjectionSources.approval_decisions}) d JOIN (${workflowProjectionSources.approval_instances}) i ON i.id=d.instance_id WHERE i.record_type='expense' AND i.record_id=? AND i.company_id=? AND d.actor_user_id=? AND d.action IN ('approve','reject')`,
       )
       .bind(row.id, actor.companyId, actor.userId)
       .first()); },
-    async canDecide(actor, id) { return (await approvalView(db, "expense", id, actor)).canDecide; },
+    async canDecide(actor, id) { return (await (facts ? facts.approval(actor,id) : approvalView(db, "expense", id, actor))).canDecide; },
   })(actor, row);
 }
-async function approvalFields(write: SqlDatabase, actor: WorkContext, row: ExpenseRow): Promise<ExpenseRow> {
+async function approvalFields(write: SqlDatabase, actor: WorkContext, row: ExpenseRow, facts?:ExpenseBatchFacts): Promise<ExpenseRow> {
   return createExpenseApprovalFields({
-    requirements: row => expenseRequirements(write, row),
-    current: (actor, row) => expenseWorkflowFields(write, actor, row),
-    approval: (actor, id) => approvalView(write, "expense", id, actor),
+    requirements: row => facts ? facts.requirements(row) : expenseRequirements(write, row),
+    current: (actor, row) => expenseWorkflowFields(write, actor, row, facts?.approval),
+    approval: (actor, id) => facts ? facts.approval(actor,id) : approvalView(write, "expense", id, actor),
     department: (actor, row) => departmentRoute(write, actor.companyId, String(row.claimant_user_id ?? row.created_by), [String(row.prepared_by ?? row.created_by)]),
   })(actor, row);
 }
@@ -127,7 +128,7 @@ const expenseSelect = `SELECT x.*,COALESCE(p.legal_name,x.claimant_name,'Company
   FROM finance_expenses x LEFT JOIN hr_people p ON p.id=x.employee_id
   LEFT JOIN (${financeProjectionSources.finance_accounts}) a ON a.id=x.category_account_id LEFT JOIN (${financeProjectionSources.finance_invoices}) i ON i.id=x.invoice_id`;
 /** Bind persistence, visibility and actor once, including transaction-owned reads. */
-export function nativeExpenseReads(write: SqlDatabase, actor: WorkContext) {
+export function nativeExpenseReads(write: SqlDatabase, actor: WorkContext, options: {batch?:boolean} = {}) {
   const scope = visibility(actor);
   const reads = createExpenseReads<ExpenseRow>({
     async legacyIds(context) {
@@ -144,6 +145,10 @@ export function nativeExpenseReads(write: SqlDatabase, actor: WorkContext) {
     visibleRow: (_context, id) => write.prepare(`${expenseSelect} WHERE x.id=? AND ${scope.sql}`).bind(id, ...scope.args).first<ExpenseRow>(),
     canRead: (context, row) => currentExpenseReader(write, context, row),
     decorate: (context, row) => approvalFields(write, context, row),
+    prepareBatch: options.batch === false ? undefined : async(context,rows) => {
+      const facts=await expenseBatchFacts(write,context,rows);
+      return {canRead:(actor,row)=>currentExpenseReader(write,actor,row,facts),decorate:(actor,row)=>approvalFields(write,actor,row,facts)};
+    },
     error: violation => new ApiError(violation.status, violation.code, violation.message),
   });
   return { list: () => reads.list(actor), get: (id: string) => reads.get(actor, id) };

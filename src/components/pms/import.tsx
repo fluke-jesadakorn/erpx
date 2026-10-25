@@ -1,4 +1,5 @@
 "use client";
+import {FrontLocalizedTree} from "@/components/front/front-language";
 import { Button, Field, TextArea, TextInput } from "@/components/ui/foundation";
 
 import { useRef, useState } from "react";
@@ -77,7 +78,7 @@ export function PmsImport({
     }
   }
   return (
-    <div className="content-stack">
+    <FrontLocalizedTree><div className="content-stack">
       <p>
         Preview rooms, rates, guests and open stays before saving. Amounts are THB satang. Cutover
         must match the hotel&apos;s business date: <strong>{businessDate}</strong>.
@@ -212,6 +213,6 @@ export function PmsImport({
         </section>
       ))}
       {!batches.length && <p>No import batches for this hotel yet.</p>}
-    </div>
+    </div></FrontLocalizedTree>
   );
 }

@@ -528,7 +528,8 @@ test("AI suggestions fill blanks, preserve human edits and require explicit repl
     });
     await page.goto(`${base}/expenses/${id}`);
     await expect.poll(() => aiRequestMethods.length).toBeGreaterThan(0);
-    expect(aiRequestMethods).toEqual(["GET"]);
+    expect(aiRequestMethods.length).toBeGreaterThan(0);
+    expect([...new Set(aiRequestMethods)]).toEqual(["GET"]);
     await expect(page.getByLabel("Merchant", { exact: true })).toHaveValue(
       "Human merchant",
     );
@@ -538,17 +539,16 @@ test("AI suggestions fill blanks, preserve human edits and require explicit repl
     await expect(
       page.getByRole("textbox", { name: "Business purpose", exact: true }),
     ).toHaveValue("");
+    await page.locator('summary').filter({hasText:/^Fill from receipt · AI assistance$/}).click();
     await page
       .getByText("Extraction details and sources", { exact: true })
       .click();
     await page
       .getByText("Suggested fields and sources", { exact: true })
       .click();
-    await page
-      .locator(".row")
-      .filter({ has: page.getByText("AI merchant", { exact: true }) })
-      .getByRole("button", { name: "Use suggestion" })
-      .click();
+    const merchantSuggestion=page.locator(".ui-record-item").filter({has:page.getByText("AI merchant",{exact:true})});
+    await expect(merchantSuggestion).toHaveCount(1);
+    await merchantSuggestion.getByRole("button",{name:"Use suggestion",exact:true}).click();
     await expect(page.getByLabel("Merchant", { exact: true })).toHaveValue(
       "AI merchant",
     );
@@ -565,8 +565,9 @@ test("AI suggestions fill blanks, preserve human edits and require explicit repl
       .getByLabel("Merchant", { exact: true })
       .fill("My final human edit");
     await page.unroute(`**/expenses/${id}/ai`);
-    await page.route(`**/expenses/${id}/ai`, (route) =>
-      route.fulfill({
+    await page.route(`**/expenses/${id}/ai`, (route) => {
+      aiRequestMethods.push(route.request().method());
+      return route.fulfill({
         json: {
           data: {
             allowed: true,
@@ -579,8 +580,8 @@ test("AI suggestions fill blanks, preserve human edits and require explicit repl
             proposal: null,
           },
         },
-      }),
-    );
+      });
+    });
     await page.reload();
     await expect(
       page.getByLabel("Receipt number", { exact: true }),
@@ -588,6 +589,8 @@ test("AI suggestions fill blanks, preserve human edits and require explicit repl
     await expect(page.getByLabel("Merchant", { exact: true })).toHaveValue(
       "My final human edit",
     );
+    expect(aiRequestMethods.length).toBeGreaterThan(0);
+    expect([...new Set(aiRequestMethods)]).toEqual(["GET"]);
   } finally {
     await context.close();
   }

@@ -43477,10 +43477,10 @@
           "component": "RecordCollectionDrawer",
           "line": 12,
           "props": {
-            "title": "\"Folio entry\""
+            "title": "\"Guest Account entry\""
           },
           "conditions": [],
-          "trigger": "\"Folio entry\"",
+          "trigger": "\"Guest Account entry\"",
           "verification": "pending"
         }
       ],
@@ -49340,8 +49340,8 @@
             "label": "\"Records\""
           },
           "conditions": [
-            "currentFolio",
-            "section === \"folios\" && showCashierForms",
+            "currentGuestAccount",
+            "section === \"guestAccounts\" && showCashierForms",
             "!canOperate"
           ],
           "trigger": "caller/data dependent; inspect owner",
@@ -49352,8 +49352,8 @@
           "line": 1375,
           "props": {},
           "conditions": [
-            "currentFolio",
-            "section === \"folios\" && showCashierForms",
+            "currentGuestAccount",
+            "section === \"guestAccounts\" && showCashierForms",
             "!canOperate"
           ],
           "trigger": "caller/data dependent; inspect owner",
@@ -49364,8 +49364,8 @@
           "line": 1597,
           "props": {},
           "conditions": [
-            "currentFolio",
-            "section === \"folios\" && showCashierForms",
+            "currentGuestAccount",
+            "section === \"guestAccounts\" && showCashierForms",
             "!canOperate"
           ],
           "trigger": "caller/data dependent; inspect owner",
@@ -49480,8 +49480,8 @@
             "label": "\"Records\""
           },
           "conditions": [
-            "currentFolio",
-            "section === \"folios\" &&\n                (can(\"pms.cashier\") || can(\"pms.reports\") || can(\"pms.approve\"))",
+            "currentGuestAccount",
+            "section === \"guestAccounts\" &&\n                (can(\"pms.cashier\") || can(\"pms.reports\") || can(\"pms.approve\"))",
             "!p"
           ],
           "trigger": "caller/data dependent; inspect owner",
@@ -49492,8 +49492,8 @@
           "line": 2880,
           "props": {},
           "conditions": [
-            "currentFolio",
-            "section === \"folios\" &&\n                (can(\"pms.cashier\") || can(\"pms.reports\") || can(\"pms.approve\"))",
+            "currentGuestAccount",
+            "section === \"guestAccounts\" &&\n                (can(\"pms.cashier\") || can(\"pms.reports\") || can(\"pms.approve\"))",
             "!p"
           ],
           "trigger": "caller/data dependent; inspect owner",
@@ -49504,8 +49504,8 @@
           "line": 3216,
           "props": {},
           "conditions": [
-            "currentFolio",
-            "section === \"folios\" &&\n                (can(\"pms.cashier\") || can(\"pms.reports\") || can(\"pms.approve\"))",
+            "currentGuestAccount",
+            "section === \"guestAccounts\" &&\n                (can(\"pms.cashier\") || can(\"pms.reports\") || can(\"pms.approve\"))",
             "!p"
           ],
           "trigger": "caller/data dependent; inspect owner",
@@ -49517,7 +49517,7 @@
           "props": {},
           "conditions": [
             "!rows(\"refund\").some((r) => ![\"paid\", \"rejected\"].includes(r.data.state)) &&\n                        !rows(\"credit\").some((r) => r.data.state === \"requested\")",
-            "section === \"folios\" &&\n                (can(\"pms.cashier\") || can(\"pms.reports\") || can(\"pms.approve\"))",
+            "section === \"guestAccounts\" &&\n                (can(\"pms.cashier\") || can(\"pms.reports\") || can(\"pms.approve\"))",
             "!p"
           ],
           "trigger": "caller/data dependent; inspect owner",
@@ -49529,7 +49529,7 @@
           "props": {},
           "conditions": [
             "!data.chargeCorrections.length",
-            "section === \"folios\" &&\n                (can(\"pms.cashier\") || can(\"pms.reports\") || can(\"pms.approve\"))",
+            "section === \"guestAccounts\" &&\n                (can(\"pms.cashier\") || can(\"pms.reports\") || can(\"pms.approve\"))",
             "!p"
           ],
           "trigger": "caller/data dependent; inspect owner",
@@ -49540,8 +49540,8 @@
           "line": 3376,
           "props": {},
           "conditions": [
-            "!currentFolio?.data.invoiceId &&\n                        !data.documents.some(\n                          (d) => !currentFolio || d.folio_id === currentFolio.id,\n                        )",
-            "section === \"folios\" &&\n                (can(\"pms.cashier\") || can(\"pms.reports\") || can(\"pms.approve\"))",
+            "!currentGuestAccount?.data.invoiceId &&\n                        !data.documents.some(\n                          (d) => !currentGuestAccount || d.guest_account_id === currentGuestAccount.id,\n                        )",
+            "section === \"guestAccounts\" &&\n                (can(\"pms.cashier\") || can(\"pms.reports\") || can(\"pms.approve\"))",
             "!p"
           ],
           "trigger": "caller/data dependent; inspect owner",
@@ -66769,7 +66769,7 @@
         "GripHorizontal",
         "GripVertical",
         "History",
-        "HotelFolioBalanceEvidence",
+        "HotelGuestAccountBalanceEvidence",
         "HotelNightAuditBlockerEvidence",
         "HotelOccupancyEvidence",
         "IdentityChangeEvidence",

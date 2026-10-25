@@ -1,8 +1,8 @@
 # ERPX UAT route inventory
 
-Generated from `src/app` page files on 2026-10-06. The route source fingerprint is `83dd04d7369000c1c15cb2c850e4d92a9fa60446c5491ae80553da596c55ffac`. This inventories implemented page files and is not a capability-catalog acceptance claim.
+Generated from `src/app` page files on 2026-10-12. The route source fingerprint is `feda76768c8daf52940a88d4b7f6bc507a15ffcfde8b3a3fbfd9c273416aa0ee`. This inventories implemented page files and is not a capability-catalog acceptance claim.
 
-- 218 page routes in source (current source count)
+- 227 page routes in source (current source count)
 - Desktop Chrome and Pixel 7 emulation
 - Anonymous, intended-role and explicit-denial access checks are recorded separately in Playwright results.
 - Holding routes are exercised at holding, branch, department, and branch-plus-department scopes.
@@ -73,6 +73,10 @@ Generated from `src/app` page files on 2026-10-06. The route source fingerprint 
 | `/holdings/[holdingSlug]/finance/group-editions/[id]/source/[journalId]` | Holding workspace | login-or-explicit-denial | finance_approver | holding, branch, department, branch-department | sample record + invalid ID |
 | `/holdings/[holdingSlug]/finance/group-editions` | Holding workspace | login-or-explicit-denial | finance_approver | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/finance/group` | Holding workspace | login-or-explicit-denial | finance_approver | holding, branch, department, branch-department | page route |
+| `/holdings/[holdingSlug]/finance/hospitality-settings` | Holding workspace | login-or-explicit-denial | finance_approver | holding, branch, department, branch-department | page route |
+| `/holdings/[holdingSlug]/finance/hotel-accounts/[id]` | Holding workspace | login-or-explicit-denial | finance_approver | holding, branch, department, branch-department | sample record + invalid ID |
+| `/holdings/[holdingSlug]/finance/hotel-documents/[id]` | Holding workspace | login-or-explicit-denial | finance_approver | holding, branch, department, branch-department | sample record + invalid ID |
+| `/holdings/[holdingSlug]/finance/hotel-import` | Holding workspace | login-or-explicit-denial | finance_approver | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/finance/hotels` | Holding workspace | login-or-explicit-denial | finance_approver | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/finance/instruments` | Holding workspace | login-or-explicit-denial | finance_approver | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/finance/invoices/[id]` | Holding workspace | login-or-explicit-denial | finance_approver | holding, branch, department, branch-department | sample record + invalid ID |
@@ -85,6 +89,11 @@ Generated from `src/app` page files on 2026-10-06. The route source fingerprint 
 | `/holdings/[holdingSlug]/finance/refunds/[id]` | Holding workspace | login-or-explicit-denial | finance_approver | holding, branch, department, branch-department | sample record + invalid ID |
 | `/holdings/[holdingSlug]/finance/refunds` | Holding workspace | login-or-explicit-denial | finance_approver | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/finance/reports` | Holding workspace | login-or-explicit-denial | finance_approver | holding, branch, department, branch-department | page route |
+| `/holdings/[holdingSlug]/finance/restaurants` | Holding workspace | login-or-explicit-denial | finance_approver | holding, branch, department, branch-department | page route |
+| `/holdings/[holdingSlug]/finance/sales/new` | Holding workspace | login-or-explicit-denial | finance_approver | holding, branch, department, branch-department | page route |
+| `/holdings/[holdingSlug]/finance/sales` | Holding workspace | login-or-explicit-denial | finance_approver | holding, branch, department, branch-department | page route |
+| `/holdings/[holdingSlug]/finance/sales/receipts/[id]` | Holding workspace | login-or-explicit-denial | finance_approver | holding, branch, department, branch-department | sample record + invalid ID |
+| `/holdings/[holdingSlug]/finance/sales/settings` | Holding workspace | login-or-explicit-denial | finance_approver | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/finance/setup` | Holding workspace | login-or-explicit-denial | finance_approver | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/finance/statement-packages/[id]` | Holding workspace | login-or-explicit-denial | finance_approver | holding, branch, department, branch-department | sample record + invalid ID |
 | `/holdings/[holdingSlug]/finance/supplier-batches/[id]` | Holding workspace | login-or-explicit-denial | finance_approver | holding, branch, department, branch-department | sample record + invalid ID |

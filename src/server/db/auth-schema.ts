@@ -1,3 +1,4 @@
+import { relations } from "drizzle-orm";
 import {
   pgTable,
   text,
@@ -72,3 +73,15 @@ export const rateLimit = pgTable("rateLimit", {
   count: bigint("count", { mode: "number" }).notNull(),
   lastRequest: bigint("lastRequest", { mode: "number" }).notNull(),
 });
+
+// ORM metadata only: preserve existing credential/session tables and codecs.
+export const userRelations = relations(user, ({ many }) => ({
+  sessions: many(session),
+  accounts: many(account),
+}));
+export const sessionRelations = relations(session, ({ one }) => ({
+  user: one(user, { fields: [session.userId], references: [user.id] }),
+}));
+export const accountRelations = relations(account, ({ one }) => ({
+  user: one(user, { fields: [account.userId], references: [user.id] }),
+}));

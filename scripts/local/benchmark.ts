@@ -6,7 +6,8 @@ if (Bun.spawnSync([node, "--version"]).stdout.toString().trim() !== "v24.20.0")
   throw new Error("Benchmark requires Node 24.20.0.");
 await mkdir(".scratch/dev", { recursive: true });
 const packages = await Bun.file("package.json").json();
-const built = await Bun.build({ entrypoints: ["scripts/local/benchmark-reads.ts"], target: "node",
+const entry = process.argv[2] === "work-snapshot" ? "scripts/local/benchmark-work-snapshot.ts" : "scripts/local/benchmark-reads.ts";
+const built = await Bun.build({ entrypoints: [entry], target: "node",
   external: [...Object.keys(packages.dependencies), ...Object.keys(packages.devDependencies)],
   outdir: ".scratch/dev", naming: "benchmark-reads.mjs" });
 if (!built.success) throw new AggregateError(built.logs, "Benchmark build failed");

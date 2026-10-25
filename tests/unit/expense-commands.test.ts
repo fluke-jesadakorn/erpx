@@ -216,6 +216,17 @@ describe("Expense owner reads", () => {
     await expect(createExpenseReads(ports).get(actor, "missing")).rejects.toMatchObject({ status: 404, code: "EXPENSE_NOT_FOUND" });
     expect(ports.decorate).not.toHaveBeenCalled();
   });
+  it("prepares batch facts after legacy initialization and applies the original visibility gate before decorating",async()=>{
+    const ports=reads(),order:string[]=[];
+    ports.initializeApproval=async()=>{order.push("legacy");};
+    ports.prepareBatch=async(context,rows)=>{expect(context).toBe(actor);expect(rows).toHaveLength(2);order.push("batch");return {canRead:ports.canRead,decorate:ports.decorate};};
+    expect(await createExpenseReads(ports).list(actor)).toEqual([row]);
+    expect(order).toEqual(["legacy","batch"]);
+    expect(ports.decorate).toHaveBeenCalledTimes(1);
+    order.length=0;
+    await createExpenseReads(ports).get(actor,"expense");
+    expect(order).toEqual([]);
+  });
 });
 
 describe("Expense legacy lifecycle and journal orchestration", () => {

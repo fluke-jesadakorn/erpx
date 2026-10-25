@@ -2,6 +2,18 @@
   "version": 1,
   "cases": [
     {
+      "runner": "playwright",
+      "file": "tests/e2e/pms-booking-payment-recovery.spec.ts",
+      "title": "paid guest booking recovers interrupted receipt and independently approved partial refund without duplicate money",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms-booking-payment-recovery.spec.ts",
+      "title": "paid guest booking recovers interrupted receipt and independently approved partial refund without duplicate money",
+      "project": "mobile"
+    },
+    {
       "runner": "vitest",
       "file": "tests/unit/agent-services.test.ts",
       "title": "Workspace assistant authorization and evidence /crm guide preserves Commerce authority and rejects unauthorized or revoked contexts before evidence and provider reads"
@@ -316,46 +328,6 @@
     },
     {
       "runner": "vitest",
-      "file": "tests/unit/work-shortcut-readiness.test.ts",
-      "title": "Work shortcut preference readiness keeps Customize gated until the delayed owner preference snapshot has been parsed"
-    },
-    {
-      "runner": "vitest",
-      "file": "tests/unit/work-shortcut-readiness.test.ts",
-      "title": "Work shortcut preference readiness ends initial loading on failure and lets the real Retry callback recover saved pins"
-    },
-    {
-      "runner": "vitest",
-      "file": "tests/unit/work-shortcut-readiness.test.ts",
-      "title": "Work shortcut preference readiness shows an unavailable owner preference read with Retry instead of an endless loading shelf"
-    },
-    {
-      "runner": "vitest",
-      "file": "tests/unit/work-shortcut-readiness.test.ts",
-      "title": "Work shortcut preference readiness retains the last saved pins while a later refresh failure disables editing with its error"
-    },
-    {
-      "runner": "vitest",
-      "file": "tests/unit/work-shortcut-readiness.test.ts",
-      "title": "Work shortcut preference readiness retains newer saved pins without hiding a later unavailable owner preference read"
-    },
-    {
-      "runner": "vitest",
-      "file": "tests/unit/work-shortcut-readiness.test.ts",
-      "title": "Work shortcut preference readiness accepts a successful owner save and never regresses it to an older navigation response"
-    },
-    {
-      "runner": "vitest",
-      "file": "tests/unit/work-shortcut-readiness.test.ts",
-      "title": "Work shortcut preference readiness does not let an aborted older read unlock Customize before the current read succeeds"
-    },
-    {
-      "runner": "vitest",
-      "file": "tests/unit/work-shortcut-readiness.test.ts",
-      "title": "Work shortcut preference readiness starts unready again when the authority scope remounts the provider"
-    },
-    {
-      "runner": "vitest",
       "file": "tests/unit/work-shortcut-focus.test.ts",
       "title": "Work shortcut reorder focus keeps keyboard focus on the moved row's enabled down control at the top boundary"
     },
@@ -653,6 +625,189 @@
       "runner": "vitest",
       "file": "tests/unit/browser-execution-plan.test.ts",
       "title": "rejects late fingerprint interruption while retaining completed cleanup and genuine declared-fault receipts"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/work-shortcut-readiness.test.ts",
+      "title": "Navigation counts without shortcuts loads counts without requiring a shortcut projection"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/work-shortcut-readiness.test.ts",
+      "title": "Navigation counts without shortcuts preserves a published work count when an older refresh resolves"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/work-shortcut-readiness.test.ts",
+      "title": "Navigation counts without shortcuts retains the published count after a failed refresh"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms-booking.spec.ts",
+      "title": "reviewed hotel and room galleries publish sanitized images and disappear after revocation",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms-booking.spec.ts",
+      "title": "reviewed hotel and room galleries publish sanitized images and disappear after revocation",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms-booking.spec.ts",
+      "title": "cancels one of two booked rooms and preserves the other room and accepted price",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms-booking.spec.ts",
+      "title": "cancels one of two booked rooms and preserves the other room and accepted price",
+      "project": "mobile"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/pms-booking.test.ts",
+      "title": "recovers a partial booking refund after the provider accepts it but its response is lost"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/pms-booking.test.ts",
+      "title": "deduplicates signed booking payment callbacks through durable jobs and rejects tampered payloads"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/finance-sales-workspace.spec.ts",
+      "title": "English sales workspace opens drawers, calculates invoices and keeps direct forms available",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/finance-sales-workspace.spec.ts",
+      "title": "English sales workspace opens drawers, calculates invoices and keeps direct forms available",
+      "project": "mobile"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/pms-application.test.ts",
+      "title": "upgrades only remaining nights and retains past prices, type occupancy and original money records"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/pms-application.test.ts",
+      "title": "repeated upgrades on one business date retain both decisions without zero-length inventory periods"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/pms-application.test.ts",
+      "title": "upgrade rejects uninspected rooms, incompatible rates, and issued destination bills before changing the stay"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/pms-application.test.ts",
+      "title": "extends upgraded stays without reassigning past room type or nightly price"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/pms-application.test.ts",
+      "title": "reuses cancelled group quota while preserving both historical pickup IDs"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/pms-application.test.ts",
+      "title": "supports back-to-back group pickups but rejects overlapping use of the same quota"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/pms-application.test.ts",
+      "title": "changes pickup dates into its own remaining allotment without double-counting held capacity"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/pms-application.test.ts",
+      "title": "returns remaining source-type group quota after upgrade and consumes target capacity exactly once"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/pms-application.test.ts",
+      "title": "counts durable pending group claims once and returns the allotment when the hold expires"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/pms-application.test.ts",
+      "title": "keeps a quota-only revision claim from consuming physical room capacity twice"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/pms-booking.test.ts",
+      "title": "reviews and applies a staff group pickup date change within its held allotment without extra payment"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/pms-booking.test.ts",
+      "title": "allows authorized staff to review an active private company rate while public offers exclude it"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/pms-booking.test.ts",
+      "title": "protects own group quota while an additional-payment date change is pending and applies it once after payment"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/pms-booking.test.ts",
+      "title": "deducts an existing manual room advance from additional collection during a staff booking review"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/pms-booking.test.ts",
+      "title": "retains a manual advance on pay-at-hotel review and rejects stale funding before confirmation"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/pms-booking.test.ts",
+      "title": "requests excess manual advance refund on a staff revision without changing its issued receipt"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/pms-booking.test.ts",
+      "title": "refuses staff pickup of an internal provider hold without changing its capacity or booking"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/pms-booking.test.ts",
+      "title": "refuses ordinary staff release of an internal provider hold without changing its capacity or booking"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/pms-read-model.test.ts",
+      "title": "keeps room and supply context while withholding pricing and upgrade reasons from housekeeping reads"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/pms-read-model.test.ts",
+      "title": "retains legacy PMS rows and rejects malformed optional upgrade and pending-quota containers"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/pms.test.ts",
+      "title": "commits an in-house room upgrade once with version fencing and immutable original receipt evidence"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/pms.test.ts",
+      "title": "serializes concurrent last group pickups and returns quota after cancellation without erasing pickup history"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/demo-hospitality-setup.spec.ts",
+      "title": "keeps hotel drafts scoped while refresh fences stale cash and an inspected higher room type upgrades through the drawer",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/demo-hospitality-setup.spec.ts",
+      "title": "keeps hotel drafts scoped while refresh fences stale cash and an inspected higher room type upgrades through the drawer",
+      "project": "mobile"
     }
   ]
 }

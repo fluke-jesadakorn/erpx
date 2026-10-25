@@ -1,0 +1,67 @@
+{
+  "complete": false,
+  "wholePlanAcceptance": false,
+  "status": "Rejected and removed: additional pre-transaction query worsens unchanged capacity",
+  "red": {
+    "failed": 1,
+    "passed": 77,
+    "artifact": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-guest-envelope-guard/red.log"
+  },
+  "green": {
+    "passed": 209,
+    "files": 6,
+    "artifact": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-guest-envelope-guard/green-focused.log"
+  },
+  "semantics": {
+    "singleFreshSqlSnapshot": true,
+    "scopedProperty": true,
+    "sameSnapshotReceiptAbsence": true,
+    "moduleAvailabilityPredicate": true,
+    "onlyStaleGuestRejection": true,
+    "existingReceiptsUseOriginalTransaction": true,
+    "acceptedWritesUseOriginalLocksAndSerializable": true,
+    "noVersionOrAuthorityCache": true,
+    "noUiSnapshotForWrites": true,
+    "unchangedExpectedVersionAndEnvelope": true
+  },
+  "previousCapacity": {
+    "passed": false,
+    "guestP95Ms": 2272.183209,
+    "reservationP95Ms": 1518.280292,
+    "ownedDatabasesDestroyed": 8,
+    "evidence": "docs/testing/evidence/2026-10-10-pms-pipelined-capacity.json"
+  },
+  "pending": [
+    "Frozen release and unchanged full capacity",
+    "Whole native/security/recovery",
+    "All required browsers",
+    "Mock pilot and environment final acceptance"
+  ],
+  "greenRace": {
+    "passed": 83,
+    "pms": 79,
+    "batch": 4,
+    "artifact": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-guest-envelope-guard/green-race.log"
+  },
+  "candidate": {
+    "runtimeFingerprint": "2b445c51016c3bbc95ddf0cb2fb87e7a10649d4e29c90828e890dbd0a3068daa",
+    "verificationFingerprint": "5186fc16ef399bc470613dd2221185dd6367d95ca6b920c7f0aed95303fd322f",
+    "release": "2026-10-10T10-16-27-269Z",
+    "isolatedBuildPassed": true
+  },
+  "static": {
+    "typecheck": true,
+    "lintErrors": 0,
+    "existingWarnings": 3,
+    "architecture": true,
+    "documentation": true
+  },
+  "disposition": "Original locked version/replay path retained; next optimization combines owner metadata reads inside that transaction.",
+  "capacity": {
+    "passed": false,
+    "guestP95Ms": 2603.607084,
+    "reservationP95Ms": 2552.097209,
+    "invalidSamples": 0,
+    "ownedDatabasesDestroyed": 8
+  }
+}

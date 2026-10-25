@@ -1,6 +1,6 @@
 import { captureCaseScreenshot } from "../helpers/case-screenshot";
 import { test, expect } from '@playwright/test';
-import {openAccountMenu,searchRoleOptions,selectRoleForSetup} from '../helpers/context-switching-browser';
+import {openAccountMenu,matchingRoleOptions,selectRoleForSetup} from '../helpers/context-switching-browser';
 
 test.setTimeout(180_000);
 test.use({actionTimeout:30_000,navigationTimeout:60_000});
@@ -35,10 +35,10 @@ test('switches areas and preserves roles', async ({ page, context }) => {
     ]);
     await expect(page.locator('[data-work-company]')).toHaveAttribute('data-work-company',companyId);
     await openAccountMenu(page);
-    const roleOptions=await searchRoleOptions(page,'');
-    expect(await roleOptions.getByRole('option').count()).toBeGreaterThanOrEqual(17);
-    const employeeOptions=await searchRoleOptions(page,'employee');
-    await employeeOptions.getByRole('option').first().click();
+    const roleOptions=await matchingRoleOptions(page,'');
+    expect(await roleOptions.count()).toBeGreaterThanOrEqual(17);
+    const employeeOptions=await matchingRoleOptions(page,'employee');
+    await employeeOptions.first().click();
     await expect(page.getByRole('button',{name:/Account menu for/})).toContainText(/employee/i);
   }
   await switcher.click();
@@ -106,8 +106,8 @@ test('failed company selection leaves the active company usable, owner can open 
   await page.unroute('**/companies/active');
   await page.keyboard.press('Escape');
   await openAccountMenu(page);
-  const roles=await searchRoleOptions(page,'holding owner');
-  await roles.getByRole('option').click();
+  const roles=await matchingRoleOptions(page,'holding owner');
+  await roles.click();
   await expect(page.locator('.active-work-role')).toContainText('holding owner',{timeout:30_000});
   await expect(page).toHaveURL(/\/holdings\/acme\/home$/);
   await captureCaseScreenshot(page, `workspace-${testInfo.project.name}.png`);

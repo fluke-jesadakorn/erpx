@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { z } from 'zod';
 import { PostgresDatabase } from './postgres';
+import { databasePoolLimits,databasePoolSize } from '../../lib/database-pool-policy';
 import { LocalFileStore } from './filesystem';
 import { MinioFileStore } from './minio';
 import type { SqlDatabase, FileStore } from './types';
@@ -30,7 +31,7 @@ const manifestSchema = z.object({ version: z.literal(1), databases: z.record(z.s
   slots: z.array(z.object({ id: z.string().regex(/^[a-z0-9]{3,24}$/), write: z.string(), read: z.string(), files: z.string(), beta: z.boolean().optional(), internal: z.boolean().optional() })).max(22) });
 const runtimeGlobal = globalThis as typeof globalThis & { erpxDevRuntime?: { key: string; env: RuntimeEnv } };
 let singleton: RuntimeEnv | undefined;
-function runtimeKey() { return JSON.stringify([process.env.ERPX_DATABASE_MANIFEST, process.env.ERPX_PROCESS_ROLE, process.env.ERPX_DEV_PG_POOL_MAX, process.env.ERPX_PUBLIC_ORIGIN, process.env.ERPX_MARKETING_ORIGIN, process.env.ERPX_FRONT_PMS_ORIGIN, process.env.ERPX_FRONT_POS_ORIGIN, process.env.ERPX_DATA_DIR, process.env.ERPX_MINIO_ENDPOINT, process.env.ERPX_MINIO_BUCKET]); }
+function runtimeKey() { return JSON.stringify([process.env.ERPX_DATABASE_MANIFEST, process.env.ERPX_PROCESS_ROLE, process.env.ERPX_DEV_PG_POOL_MAX,process.env.ERPX_APP_PG_POOL_MAX,process.env.ERPX_CONTROL_PG_POOL_MAX, process.env.ERPX_PUBLIC_ORIGIN, process.env.ERPX_MARKETING_ORIGIN, process.env.ERPX_FRONT_PMS_ORIGIN, process.env.ERPX_FRONT_POS_ORIGIN, process.env.ERPX_DATA_DIR, process.env.ERPX_MINIO_ENDPOINT, process.env.ERPX_MINIO_BUCKET]); }
 
 export function getRuntime(): RuntimeEnv {
   if (singleton) return singleton;
@@ -95,12 +96,11 @@ export function getRuntime(): RuntimeEnv {
     if (!['http:', 'https:'].includes(endpoint.protocol) || endpoint.pathname !== '/' || endpoint.search || endpoint.hash) throw new Error('ERPX_MINIO_ENDPOINT_INVALID');
   }
   const role = process.env.ERPX_PROCESS_ROLE === 'jobs' ? 'jobs' : 'app';
-  const devPool = Number(process.env.ERPX_DEV_PG_POOL_MAX ?? 6);
-  if (!Number.isInteger(devPool) || devPool < 1 || devPool > 16) throw new Error('INVALID_DEV_PG_POOL_MAX');
+  const poolLimits=databasePoolLimits({application:process.env.ERPX_APP_PG_POOL_MAX,development:process.env.ERPX_DEV_PG_POOL_MAX,control:process.env.ERPX_CONTROL_PG_POOL_MAX});
   for (const [binding, connectionString] of Object.entries(manifest.databases)) {
     // Installer provides independently scoped database logins; a separate jobs
     // manifest grants projection writes that the web process cannot perform.
-    env[binding] = new PostgresDatabase({ connectionString, application_name: `erpx-${role}`, max: binding === 'CONTROL_DB' ? (role === 'jobs' ? 2 : 5) : (process.env.NODE_ENV === 'development' && role === 'app' ? devPool : 1) });
+    env[binding] = new PostgresDatabase({ connectionString, application_name: `erpx-${role}`, max:databasePoolSize(binding,role,process.env.NODE_ENV,poolLimits) });
   }
   // Schema migrations use a separately provisioned login. The web process gets
   // these credentials only from the private, sibling migration manifest; app

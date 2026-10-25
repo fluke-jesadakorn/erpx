@@ -3,7 +3,7 @@ import { requireWorkContext, publicScope } from "@/server/modules/identity_acces
 import { workspaceBase } from "@/lib/workspace";
 import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { marketingDetail } from "@/server/modules/marketing/public/marketing";
-import { MarketingConsole } from "@/components/modules/marketing-console";
+import { MarketingConsole } from "@/components/records/loaders/modules--marketing-console";
 import { PageContent, Card } from "@/components/ui/foundation";
 export const dynamic = "force-dynamic";
 export default async function Page({

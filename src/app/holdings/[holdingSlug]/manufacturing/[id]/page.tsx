@@ -3,8 +3,8 @@ import { requireWorkContext, publicScope } from "@/server/modules/identity_acces
 import { workspaceBase } from "@/lib/workspace";
 import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { productionDetail } from "@/server/modules/manufacturing/public/production";
-import { ProductionConsole } from "@/components/modules/production-console";
-import { RecordDocumentPanel } from "@/components/attachments/record-document-panel";
+import { ProductionConsole } from "@/components/records/loaders/modules--production-console";
+import { RecordDocumentPanel } from "@/components/records/loaders/attachments--record-document-panel";
 import { hasPermission } from "@/lib/permissions";
 import { PageContent, Card } from "@/components/ui/foundation";
 export const dynamic = "force-dynamic";

@@ -1,0 +1,71 @@
+{
+  "complete": false,
+  "wholePlanAcceptance": false,
+  "runtimeFingerprint": "540ac35fabccd740a0a304facd334889023f0980c31608d6b170be28855093c4",
+  "verificationFingerprint": "fef14c62ae4e8d012ccd994b2420c70e72f7ef4f6d6bac1f4b2d49c913c3cf6a",
+  "release": "2026-10-10T10-59-49-107Z",
+  "runtimeUnchanged": true,
+  "native": {
+    "unitPassed": 779,
+    "postgresPassed": 556,
+    "totalPassed": 1335,
+    "failed": 0,
+    "compiledRecoveryIncluded": true,
+    "populatedUpgradeIncluded": true
+  },
+  "security": {
+    "passed": 47,
+    "failed": 0
+  },
+  "static": {
+    "typecheck": "passed",
+    "lintErrors": 0,
+    "existingLintWarnings": 3,
+    "architecture": "passed",
+    "documentation": "passed"
+  },
+  "browser": {
+    "required": 178,
+    "routeRequired": 38,
+    "status": "failed; whole acceptance remains open",
+    "passedBeforeFailure": 77,
+    "failedCase": {
+      "suite": "shared.ui.enterprise-ui.e2e",
+      "project": "mobile",
+      "title": "desktop and mobile navigation place live business destinations correctly"
+    },
+    "cleanupFailures": [],
+    "receipt": ".scratch/dev/test-suites/browser/2026-10-10T13-15-50-272Z/receipt.json"
+  },
+  "releaseCapacity": {
+    "guestSaveP95Ms": 2272.183209,
+    "passed": false,
+    "evidence": "2026-10-10-pms-pipelined-capacity.json"
+  },
+  "artifacts": [
+    {
+      "path": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-final-contract-regression/native-full.log",
+      "sha256": "bb801709c422576ebb5312325ecf892e04cd9a552b10fe4971a2818620e23f53"
+    },
+    {
+      "path": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-final-contract-regression/security.log",
+      "sha256": "6940e7a1ae6bf01b7ad11381aa1a47d6e2e16758facd6d8afab20f87db2cbb7c"
+    },
+    {
+      "path": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-final-contract-regression/typecheck.log",
+      "sha256": "ae3aa3d40f2b7fdeaf8ae4398c41416876c85fc2ccc6aa232e526fdb75f340ef"
+    },
+    {
+      "path": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-final-contract-regression/lint.log",
+      "sha256": "0211741eacc108089202fadacf856c584e3bfc48d4ce33a4fa7a8b4d08de2a88"
+    },
+    {
+      "path": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-final-contract-regression/architecture.log",
+      "sha256": "61f27aa5d383438fa7955c201143725c76302dadbcb2c312efa2d398a9d6f86b"
+    },
+    {
+      "path": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-final-contract-regression/docs.log",
+      "sha256": "3eed93af76a70548a199e3fd546d2f131b4bac74b428312d7199395d312c0b37"
+    }
+  ]
+}

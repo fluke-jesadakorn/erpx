@@ -1,0 +1,501 @@
+{
+  "checkedAt": "2026-10-11T20:59:13.178364+00:00",
+  "scope": "User-authorized installed development1041 only; no staging or private production migration",
+  "runtimeFingerprint": "51701d69c6d65dc1ee28480e7de4b404c89f3e32f8ab6c912c551568114b6bf6",
+  "verificationFingerprint": "299c85a71a3f9bd369189710e8dcf8db9da956177f559f49d4f857d6767dd362",
+  "migration": "1041_pms_upgrade_periods_pending_group_claims.sql",
+  "command": "Pinned Bun1.2.17 bun run db:migrate:local with pinned Bun/Node PATH",
+  "preflight": {
+    "checkedAt": "2026-10-11T20:56:09.520Z",
+    "scope": "Read-only local development migration preflight, no staging or production connections, no schema writes",
+    "reports": [
+      {
+        "binding": "CONTROL_DB",
+        "database": "erpx_dev_control",
+        "track": "control",
+        "pending": []
+      },
+      {
+        "binding": "CONTROL_READ_DB",
+        "database": "erpx_dev_control_read",
+        "track": "control-read",
+        "pending": []
+      },
+      {
+        "binding": "H001_DB",
+        "database": "erpx_dev_h001_write",
+        "track": "holding-write",
+        "pending": [
+          "1041_pms_upgrade_periods_pending_group_claims.sql"
+        ],
+        "incompatibleRows": 0
+      },
+      {
+        "binding": "H001_READ_DB",
+        "database": "erpx_dev_h001_read",
+        "track": "holding-read",
+        "pending": []
+      },
+      {
+        "binding": "H002_DB",
+        "database": "erpx_dev_h002_write",
+        "track": "holding-write",
+        "pending": [
+          "1041_pms_upgrade_periods_pending_group_claims.sql"
+        ],
+        "incompatibleRows": 0
+      },
+      {
+        "binding": "H002_READ_DB",
+        "database": "erpx_dev_h002_read",
+        "track": "holding-read",
+        "pending": []
+      },
+      {
+        "binding": "H003_DB",
+        "database": "erpx_dev_h003_write",
+        "track": "holding-write",
+        "pending": [
+          "1041_pms_upgrade_periods_pending_group_claims.sql"
+        ],
+        "incompatibleRows": 0
+      },
+      {
+        "binding": "H003_READ_DB",
+        "database": "erpx_dev_h003_read",
+        "track": "holding-read",
+        "pending": []
+      }
+    ]
+  },
+  "after": {
+    "checkedAt": "2026-10-11T20:58:22.658Z",
+    "scope": "Read-only local development migration preflight, no staging or production connections, no schema writes",
+    "reports": [
+      {
+        "binding": "CONTROL_DB",
+        "database": "erpx_dev_control",
+        "track": "control",
+        "pending": []
+      },
+      {
+        "binding": "CONTROL_READ_DB",
+        "database": "erpx_dev_control_read",
+        "track": "control-read",
+        "pending": []
+      },
+      {
+        "binding": "H001_DB",
+        "database": "erpx_dev_h001_write",
+        "track": "holding-write",
+        "pending": [],
+        "incompatibleRows": 0
+      },
+      {
+        "binding": "H001_READ_DB",
+        "database": "erpx_dev_h001_read",
+        "track": "holding-read",
+        "pending": []
+      },
+      {
+        "binding": "H002_DB",
+        "database": "erpx_dev_h002_write",
+        "track": "holding-write",
+        "pending": [],
+        "incompatibleRows": 0
+      },
+      {
+        "binding": "H002_READ_DB",
+        "database": "erpx_dev_h002_read",
+        "track": "holding-read",
+        "pending": []
+      },
+      {
+        "binding": "H003_DB",
+        "database": "erpx_dev_h003_write",
+        "track": "holding-write",
+        "pending": [],
+        "incompatibleRows": 0
+      },
+      {
+        "binding": "H003_READ_DB",
+        "database": "erpx_dev_h003_read",
+        "track": "holding-read",
+        "pending": []
+      }
+    ]
+  },
+  "backups": {
+    "checkedAt": "2026-10-11T20:56:53.854Z",
+    "scope": "Local development pre1041 backups only; no staging/production, no installed restore",
+    "reports": [
+      {
+        "binding": "H001_DB",
+        "database": "erpx_dev_h001_write",
+        "file": ".scratch/dev/pms-final299-public-check/pre1041-backup/erpx_dev_h001_write.dump",
+        "bytes": 8214590,
+        "SHA256": "a016b4f79d254da11e71e720b46e3ba2a21f77559eb4f6a78c60bf6e92108cd9",
+        "archiveListVerified": true,
+        "mode": "0600"
+      },
+      {
+        "binding": "H002_DB",
+        "database": "erpx_dev_h002_write",
+        "file": ".scratch/dev/pms-final299-public-check/pre1041-backup/erpx_dev_h002_write.dump",
+        "bytes": 4063691,
+        "SHA256": "70a44fde9efc6998999b02f6725ce09355c2dbb1fcbb311d520d1ccaa9a3194b",
+        "archiveListVerified": true,
+        "mode": "0600"
+      },
+      {
+        "binding": "H003_DB",
+        "database": "erpx_dev_h003_write",
+        "file": ".scratch/dev/pms-final299-public-check/pre1041-backup/erpx_dev_h003_write.dump",
+        "bytes": 3659270,
+        "SHA256": "29967077c2354fa6558fc722d8a76d6fa74e7494f433355cea23d135936fe13a",
+        "archiveListVerified": true,
+        "mode": "0600"
+      }
+    ]
+  },
+  "beforeData": {
+    "phase": "before",
+    "checkedAt": "2026-10-11T20:57:58.801Z",
+    "scope": "Read-only repeatable-read PMS/GL/document digest boundary; no installed data writes",
+    "reports": [
+      {
+        "binding": "H001_DB",
+        "database": "erpx_dev_h001_write",
+        "tables": [
+          {
+            "table": "pms_properties",
+            "count": 4,
+            "digest": "4724c0a2b517295389302e5befe17ba2"
+          },
+          {
+            "table": "pms_records",
+            "count": 172,
+            "digest": "5bac9d812204c8adc656fe7b4bc15786"
+          },
+          {
+            "table": "pms_sources",
+            "count": 13,
+            "digest": "79fff0d9f995171ea05e6d0e14a67e50"
+          },
+          {
+            "table": "pms_postings",
+            "count": 32,
+            "digest": "2f7a5dee86a601df5c7c65a856c43e35"
+          },
+          {
+            "table": "pms_documents",
+            "count": 11,
+            "digest": "bc0957732728bf5e1663aeb399813ef7"
+          },
+          {
+            "table": "finance_journals",
+            "count": 1056,
+            "digest": "22e491df96289b5cbf6f20b550f6f690"
+          },
+          {
+            "table": "finance_journal_lines",
+            "count": 2317,
+            "digest": "7fd5a37d3904c13bda9633d4b80ef483"
+          }
+        ],
+        "constraints": []
+      },
+      {
+        "binding": "H002_DB",
+        "database": "erpx_dev_h002_write",
+        "tables": [
+          {
+            "table": "pms_properties",
+            "count": 0,
+            "digest": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "table": "pms_records",
+            "count": 0,
+            "digest": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "table": "pms_sources",
+            "count": 0,
+            "digest": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "table": "pms_postings",
+            "count": 0,
+            "digest": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "table": "pms_documents",
+            "count": 0,
+            "digest": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "table": "finance_journals",
+            "count": 50,
+            "digest": "cef4cf40b18a8ab841e2bda8188f26f1"
+          },
+          {
+            "table": "finance_journal_lines",
+            "count": 100,
+            "digest": "ed54caf7b27026e33c9080c8cc4005aa"
+          }
+        ],
+        "constraints": []
+      },
+      {
+        "binding": "H003_DB",
+        "database": "erpx_dev_h003_write",
+        "tables": [
+          {
+            "table": "pms_properties",
+            "count": 0,
+            "digest": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "table": "pms_records",
+            "count": 0,
+            "digest": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "table": "pms_sources",
+            "count": 0,
+            "digest": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "table": "pms_postings",
+            "count": 0,
+            "digest": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "table": "pms_documents",
+            "count": 0,
+            "digest": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "table": "finance_journals",
+            "count": 0,
+            "digest": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "table": "finance_journal_lines",
+            "count": 0,
+            "digest": "d41d8cd98f00b204e9800998ecf8427e"
+          }
+        ],
+        "constraints": []
+      }
+    ]
+  },
+  "afterData": {
+    "phase": "after",
+    "checkedAt": "2026-10-11T20:58:22.513Z",
+    "scope": "Read-only repeatable-read PMS/GL/document digest boundary; no installed data writes",
+    "reports": [
+      {
+        "binding": "H001_DB",
+        "database": "erpx_dev_h001_write",
+        "tables": [
+          {
+            "table": "pms_properties",
+            "count": 4,
+            "digest": "4724c0a2b517295389302e5befe17ba2"
+          },
+          {
+            "table": "pms_records",
+            "count": 172,
+            "digest": "5bac9d812204c8adc656fe7b4bc15786"
+          },
+          {
+            "table": "pms_sources",
+            "count": 13,
+            "digest": "79fff0d9f995171ea05e6d0e14a67e50"
+          },
+          {
+            "table": "pms_postings",
+            "count": 32,
+            "digest": "2f7a5dee86a601df5c7c65a856c43e35"
+          },
+          {
+            "table": "pms_documents",
+            "count": 11,
+            "digest": "bc0957732728bf5e1663aeb399813ef7"
+          },
+          {
+            "table": "finance_journals",
+            "count": 1056,
+            "digest": "22e491df96289b5cbf6f20b550f6f690"
+          },
+          {
+            "table": "finance_journal_lines",
+            "count": 2317,
+            "digest": "7fd5a37d3904c13bda9633d4b80ef483"
+          }
+        ],
+        "constraints": [
+          {
+            "conname": "pms_pending_group_claim_shape",
+            "convalidated": true
+          },
+          {
+            "conname": "pms_stay_upgrade_history_shape",
+            "convalidated": true
+          }
+        ]
+      },
+      {
+        "binding": "H002_DB",
+        "database": "erpx_dev_h002_write",
+        "tables": [
+          {
+            "table": "pms_properties",
+            "count": 0,
+            "digest": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "table": "pms_records",
+            "count": 0,
+            "digest": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "table": "pms_sources",
+            "count": 0,
+            "digest": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "table": "pms_postings",
+            "count": 0,
+            "digest": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "table": "pms_documents",
+            "count": 0,
+            "digest": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "table": "finance_journals",
+            "count": 50,
+            "digest": "cef4cf40b18a8ab841e2bda8188f26f1"
+          },
+          {
+            "table": "finance_journal_lines",
+            "count": 100,
+            "digest": "ed54caf7b27026e33c9080c8cc4005aa"
+          }
+        ],
+        "constraints": [
+          {
+            "conname": "pms_pending_group_claim_shape",
+            "convalidated": true
+          },
+          {
+            "conname": "pms_stay_upgrade_history_shape",
+            "convalidated": true
+          }
+        ]
+      },
+      {
+        "binding": "H003_DB",
+        "database": "erpx_dev_h003_write",
+        "tables": [
+          {
+            "table": "pms_properties",
+            "count": 0,
+            "digest": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "table": "pms_records",
+            "count": 0,
+            "digest": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "table": "pms_sources",
+            "count": 0,
+            "digest": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "table": "pms_postings",
+            "count": 0,
+            "digest": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "table": "pms_documents",
+            "count": 0,
+            "digest": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "table": "finance_journals",
+            "count": 0,
+            "digest": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "table": "finance_journal_lines",
+            "count": 0,
+            "digest": "d41d8cd98f00b204e9800998ecf8427e"
+          }
+        ],
+        "constraints": [
+          {
+            "conname": "pms_pending_group_claim_shape",
+            "convalidated": true
+          },
+          {
+            "conname": "pms_stay_upgrade_history_shape",
+            "convalidated": true
+          }
+        ]
+      }
+    ]
+  },
+  "tableDigestsUnchanged": 21,
+  "newValidatedConstraints": 6,
+  "allEightTracksCurrent": true,
+  "privateProductionTouched": false,
+  "stagingTouched": false,
+  "installedRestorePerformed": false,
+  "rawReceipts": [
+    {
+      "file": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-final299-public-check/dev1041-before.json",
+      "SHA256": "920cd99d7a856c3e4b5bb2d0d5a83dc3d2589f7259c5146bac08f18dcb7e7a04"
+    },
+    {
+      "file": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-final299-public-check/dev1041-after.json",
+      "SHA256": "32b9a51c33f360713c4b87feb4270e28bbd95646fb0cf470cdf7333c04f96496"
+    },
+    {
+      "file": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-final299-public-check/dev-migration-preflight-before.json",
+      "SHA256": "ed85c300a0bc67d4e67a30a04eeea6888ecb83d2ac311ec10bfb94f5ef0cbf8f"
+    },
+    {
+      "file": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-final299-public-check/dev-migration-preflight.json",
+      "SHA256": "1c69372ccd33e9dde5f5147a4981daea74560b92b46afb0aadb403b1b9acb765"
+    },
+    {
+      "file": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-final299-public-check/dev1041-migration.log",
+      "SHA256": "51daccef4e14f8ec1ddbffcc3ab4557022c97ba491c1f9dd87bfefc3122095af"
+    },
+    {
+      "file": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-final299-public-check/dev1041-migration-startup-refusal.log",
+      "SHA256": "e34de5ead2d3514b7b80ad8fa8e1478a3c7f7c57b4e65a01e7a1b7382a6f6ff8"
+    },
+    {
+      "file": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-final299-public-check/pre1041-backup/receipt.json",
+      "SHA256": "76dcc2510847374c665c8522d2d88f5772aa56e34b72ad6b822055317fc46df1"
+    }
+  ],
+  "retainedStartupRefusal": "First package-script launch exited127 because its child bun was not on PATH; migration did not run. Pinned PATH launch then exited0.",
+  "devRestartDiagnostic": "Peer observed Next child process replacement at20:57:34Z under unchanged detached launcher, before successful migration20:58. This agent did not restart dev or change watched app/config; cause remains unproven. Health recovered200 separately. Do not infer migration caused restart.",
+  "priorPerformanceBoundary": "Prior peer API comparisons were measured before installed dev1041; they remain dated and are not rebound after schema change.",
+  "wholePlanAccepted": false,
+  "confirmedRestartCauseAfterInitialCheckpoint": {
+    "file": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/optimization-feature-environment-prepared/current-dev-memory-threshold-restart.json",
+    "SHA256": "3b9149724b7fc7619a12dee50aa8c8a5e5fc1c6dbd41e46217d0b5521acd4948",
+    "actualCause": "Server is approaching the used memory threshold, restarting...",
+    "automaticMemoryThresholdRestart": true,
+    "sustainedStabilityGatePassed": false
+  }
+}

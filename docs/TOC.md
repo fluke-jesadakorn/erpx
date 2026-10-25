@@ -9,6 +9,9 @@ Reviewed 2026-10-03. This is the single entry point. [Production plan](productio
 - [Service boundaries and isolated verification](contracts/next/service-boundaries.md)
 - [Executive remote MCP and agent connection guide](contracts/next/executive-mcp.md)
 - [Record detail drawers](contracts/next/record-drawers.md), [record/table coverage](contracts/next/record-drawer-inventory.json)
+- [Hospitality ownership and Guest Accounts](adr/ADR-040-hospitality-module-ownership-and-guest-accounts.md) · [development verification](testing/hospitality-boundaries-2026-10-08.md)
+- [Canonical receipt storage](adr/ADR-042-canonical-command-receipt-partitions.md)
+- [Command guard transaction scope](adr/ADR-041-transaction-local-command-assertions.md)
 - [Business glossary](../CONTEXT.md), [architecture decisions](adr/README.md), [contract compatibility policy](../CONTRACT_POLICY.md)
 - [Operations](../ops/README.md), [private production runtime](../ops/macos/README.md), [incident](../ops/runbooks/nextjs-incident.md), [recovery](../ops/runbooks/nextjs-recovery.md)
 - [Workplace routes and handoffs](journeys/2026-09-26-workplace-journey-inventory.md), [UI components](ux-ui/component-inventory.md), [UI migration evidence](ux-ui/ui-migration-2026-10-02.md), [UI standardization status and coverage](ux-ui/ui-standardization.md)
@@ -22,6 +25,8 @@ Reviewed 2026-10-03. This is the single entry point. [Production plan](productio
 - [Engineering scenario register](testing/engineering-scenarios.json), [required gate scenarios](testing/engineering-gate-scenarios.json), [Legal engineering UAT](testing/legal-uat-engineering-cases.json), [attachment owner cases](testing/engineering-attachment-owner-cases.json)
 - [Company release acceptance](contracts/next/business-readiness.md), [explicit inventory reviews](status/capability-gate-reviews.json), [generated inventory manifest](status/business-acceptance-manifest.json)
 - [Checksum evidence ledger](status/business-acceptance-evidence.json), [verification guide](testing/README.md), [durable evidence](testing/evidence/)
+- [Home and menu streaming measurements — 2026-10-09](testing/home-menu-streaming-2026-10-09.json)
+- [Investor capture and offline gallery](testing/investor-capture.md)
 - [E2E specification](testing/e2e-specification.md), [isolated browser simulation](testing/isolated-browser-simulation.md), [working demo](testing/working-demo-company.md), [generated source-route inventory](testing/uat-route-inventory.md)
 - Dated official-source reviews: [Thai payroll](testing/thai-payroll-rules-2026-10-02.md), [Thai Finance tax](testing/thai-finance-tax-rules-2026-10-03.md), [Thai accounting](testing/thai-accounting-research-2026-09-30.md), [NPAEs reporting](testing/npaes-reporting-2026-10-03.md)
 
@@ -36,3 +41,13 @@ Superseded plans, duplicated Rust maps and completed documentation-triage ticket
 Staging operations are documented in the [staging runbook](../ops/macos/staging.md) and require an explicit staging request. Normal development verification uses [the development console](https://console-dev-erpx.jesadakorn.com/).
 
 - [People evaluation: Skills, Performance & Compensation](contracts/next/people-evaluation.md) — annual evidence, scoped comparisons and reviewed compensation.
+
+### PMS design, vendor comparison and 2026-10-09 implementation
+
+- [Official PMS research and three-year TCO inputs](testing/pms-market-research-2026-10-09.md)
+- [Per-feature ownership and acceptance register](testing/pms-feature-register-2026-10-09.md)
+- [Implementation checks and remaining acceptance](testing/pms-implementation-2026-10-09.md)
+- [Mock pilot inputs, reviewers and reconciliation checks](testing/pms-mock-pilot-2026-10-09.md)
+- [67-capability mock engineering review register](testing/pms-feature-review-2026-10-11.md)
+
+The active delivery checklist remains [production plan](production-plan.md).

@@ -1,11 +1,11 @@
 import { FeaturePage } from "@/components/features/feature-page";
-import { FinanceRecordWorkspace } from "@/components/finance/finance-record-workspace";
+import { FinanceRecordWorkspace } from "@/components/records/loaders/finance--finance-record-workspace";
 import {requireWorkContext,publicScope} from "@/server/modules/identity_access/public/authorization";
 import {workspaceBase} from '@/lib/workspace';
 import {refundWorkspace} from "@/server/modules/finance/public/refunds";
-import {RefundConsole} from '@/components/modules/refund-console';
+import { RefundConsole } from "@/components/records/loaders/modules--refund-console";
 import {pageError} from "@/server/modules/work_projection/public/page-error";
-import {RecordDocumentPanel} from '@/components/attachments/record-document-panel';
+import { RecordDocumentPanel } from "@/components/records/loaders/attachments--record-document-panel";
 import {hasPermission} from '@/lib/permissions';
 export const dynamic='force-dynamic';
 export default async function RefundPage({params}:{params:Promise<{holdingSlug:string;id:string}>}) {

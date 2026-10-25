@@ -1,0 +1,101 @@
+{
+  "checkedAt": "2026-10-12T00:52:19.951537+00:00",
+  "scope": "Owned supplemental fixtures and expected audit witness corrected; no product or required-test-source change",
+  "candidate": {
+    "runtime": "51701d69c6d65dc1ee28480e7de4b404c89f3e32f8ab6c912c551568114b6bf6",
+    "verification": "6bec217508702c495235e2a3740598d3132176d24be4d6af9cb1845bfe5c95c9",
+    "mainRuntime": "51701d69c6d65dc1ee28480e7de4b404c89f3e32f8ab6c912c551568114b6bf6",
+    "mainVerification": "6bec217508702c495235e2a3740598d3132176d24be4d6af9cb1845bfe5c95c9",
+    "releaseDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.runtime/releases/2026-10-11T19-44-51-044Z",
+    "releaseId": "2026-10-11T19-44-51-044Z",
+    "releaseReusedForIdenticalRuntime": true,
+    "verificationAmendment": "Only existing shared keyboard readiness and null-safe theme init; all runtime/native sources unchanged"
+  },
+  "repairs": {
+    "checkedAt": "2026-10-12T00:41:54.262125+00:00",
+    "failureRun": "00fcca10eb32",
+    "originalHelperSHA256": "c4bf8a5882c38a3380117a47e31c49677dc61d2713e99059e1eee874554075d2",
+    "repairedHelperSHA256": "88a2535a68990fee103780b1e5577010e8bf0f06706a8437a4aec82c44779c74",
+    "scope": "Ignored supplemental witness only; original10 cases/counts/budgets/auth/replay/stale/missing/foreign Property and financial assertions retained",
+    "observedFailure": "stay.guest appends reservation audit history and increments its version; the old financial witness incorrectly compared the entire reservation as immutable money",
+    "sourceReviewed": {
+      "file": "src/lib/pms-engine.ts",
+      "SHA256": "f0aea9402e5d10512c82808ef90b4c350416ee02504b7069e2a81e737ee1ae3b",
+      "stayGuestLines": "1139 and post-command audit at2515..2537"
+    },
+    "strongerAssertions": [
+      "Exact affected IDs only; no added/removed records",
+      "Selected stay version+1 and onlyguestId change",
+      "Reservation version+1, exact originalhistory prefix plus one stay guest event by actual signed-in actor",
+      "Original payer/policy/all other reservation fields unchanged",
+      "All other records byte-identical",
+      "Every GuestAccount/entry and Finance journal/line byte-identical"
+    ],
+    "oldCleanup": {
+      "run": "00fcca10eb32",
+      "destroyed": true,
+      "processesExited": true,
+      "checkedAt": "2026-10-12T00:39:45.830Z"
+    },
+    "runtimeSourceChanged": false,
+    "requiredTestSourceChanged": false,
+    "retryStarted": true,
+    "wholePlanAccepted": false,
+    "additionalFixtureSchemaCorrection": {
+      "change": "The foreign-property fixture now supplies current.property.businessDate",
+      "reason": "Current property.create schema requires businessDate; prepared helper omitted it",
+      "observedSource": "src/server/modules/pms/application/pms.ts property.create branch",
+      "failureExecutedForThisOmission": false
+    },
+    "retryAuthorizedByActualTerminalAndWitnessCorrection": true,
+    "oldRunPointerArchivedAndClearedAfterOwnedCleanup": true,
+    "newDriver": "post-rooming-repair-driver.ts",
+    "oldFailedTerminalsPreserved": true,
+    "retryDriverPid": 73200,
+    "retryMetadataSupervisorPid": 73257,
+    "fixtureBranchCorrection": {
+      "failedRun": "94fc7d1f199f",
+      "actualPassingChecks": 6,
+      "failure": "property.create reused occupied Branch and returned409PMS_CONFLICT",
+      "sourceInvariant": "migrations/postgres/holding-write/0031_pms.sql UNIQUE(company_id,branch_id)",
+      "change": "Seed only a new organization Branch in the exact-owned disposable fixture, then create foreign Property/guest through original normal authenticated HTTP",
+      "testedPmsRecordsSeededBySql": false,
+      "oldCleanup": {
+        "run": "94fc7d1f199f",
+        "destroyed": true,
+        "processesExited": true,
+        "checkedAt": "2026-10-12T00:44:43.459Z"
+      }
+    },
+    "privateRateCounterpartyFixtureCorrection": {
+      "failedRun": "c8e784efc90e",
+      "rooming10ActualPassed": true,
+      "ratesActualPassingChecks": 5,
+      "failure": "PMS_PARTY_INVALID422: prepared company/agent rates referenced nonexistent parties",
+      "change": "Create each active THB customer via normal authorized FinanceHTTP201 and verify its actual Company/kind/status/currency/person scope before original rate.save and private/public quote assertions",
+      "pmsValidationUnchanged": true,
+      "oldCleanup": {
+        "run": "c8e784efc90e",
+        "destroyed": true,
+        "processesExited": true,
+        "checkedAt": "2026-10-12T00:47:28.955Z"
+      },
+      "original30ChecksPreserved": true
+    },
+    "ratesRepairedHelperSHA256": "188b213f8ba58e45eb104844696bfc6345c753b57ae533d8bad91bd0202581da",
+    "currentTerminal": "post-rates-party-fixture-terminal.json"
+  },
+  "retainedActualRooming10Evidence": "docs/testing/evidence/2026-10-12-pms-rooming-http10.json",
+  "currentDriverPid": 73200,
+  "currentMetadataPid": 73257,
+  "currentTerminal": "post-rates-party-fixture-terminal.json",
+  "unchangedCounts": {
+    "originalHttpRooming": 10,
+    "originalRatesReportsMaintenance": 30,
+    "additionalGroupUi": 6,
+    "metadata": 8,
+    "strictReads": 840,
+    "strictWrites": 843
+  },
+  "wholePlanAccepted": false
+}

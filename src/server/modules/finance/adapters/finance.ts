@@ -1,3 +1,6 @@
+import { salesInvoiceLines } from "./sales-lines";
+import { financeTransaction } from "../public/finance-transactions";
+import { ensureCustomerReceipt } from "../public/sales";
 import { clearWorkflowCommandAssertions } from "../../workflow/public/command-assertion-effects";
 import { financeOwnerDecisionEffects } from "../../workflow/public/finance-owner-decision-effects";
 export type { FinanceRow } from "../domain/finance";
@@ -47,7 +50,7 @@ import { minorToDecimal } from "@/lib/finance-money";
 import { prepareAttachmentBinding } from "@/server/modules/files/public/attachments/service";
 import { companyRates, snapshotMoney, snapshotMoneyCarry, snapshotMoneyReversal } from "@/server/modules/finance/public/company-money";
 import { requireFinanceMoneyScale } from "@/server/modules/finance/public/finance-money-policy";
-import { currentInvoiceLines, nativeInvoicePosting, prepareInvoiceLineRevision } from "@/server/modules/finance/public/finance-invoice-lines";
+import { nativeInvoicePosting, prepareInvoiceLineRevision } from "@/server/modules/finance/public/finance-invoice-lines";
 import { readyPaymentWithholding, prepareWithholdingConsumption, prepareWithholdingReversal } from "@/server/modules/finance/public/finance-withholding";
 /** Money crossing an API boundary is a decimal string. Storage uses integer minor units. */
 export { minorToDecimal } from "@/lib/finance-money";
@@ -180,7 +183,7 @@ export async function releasePayment(actor: WorkContext, paymentId: string, inpu
     expectedVersion: number;
     proof: string;
 }, id: string) { return paymentService().releasePayment(actor, paymentId, input, id); }
-export async function confirmPayment(actor: WorkContext, paymentId: string, input: z.input<typeof confirmPaymentSchema>, key: string) { return paymentService().confirmPayment(actor, paymentId, input, key); }
+export async function confirmPayment(actor: WorkContext, paymentId: string, input: z.input<typeof confirmPaymentSchema>, key: string) { const { write } = await resources(actor); return financeTransaction(write, async tx => { const result = await paymentService(tx).confirmPayment(actor, paymentId, input, key); await ensureCustomerReceipt(tx, actor, paymentId); return result; }); }
 export async function allocatePayment(actor: WorkContext, paymentId: string, input: {
     invoiceId: string;
     amount: string;
@@ -409,7 +412,7 @@ function journalReviewService(provided?: SqlDatabase) {
 function financeReadService(provided?:SqlDatabase) {
     let pending: Promise<SqlDatabase> | undefined;
     const db = (actor: WorkContext) => pending ??= provided ? (createFinanceResourcePolicy({error:(...args)=>new ApiError(...args),hasPermission})(actor,true),Promise.resolve(provided)) : resources(actor, true).then(r => r.write);
-    return createFinanceReads({ error: (...args) => new ApiError(...args), authorize: requirePermission, ready: async (actor) => { await db(actor); }, currentLines: async (companyId, id, revision) => currentInvoiceLines(await pending!, companyId, id, revision), reportCharts: async (actor) => (await (await db(actor)).prepare('SELECT id FROM finance_charts WHERE company_id=?').bind(actor.companyId).all<{
+    return createFinanceReads({ error: (...args) => new ApiError(...args), authorize: requirePermission, ready: async (actor) => { await db(actor); }, currentLines: async (companyId, id, revision) => salesInvoiceLines(await pending!, companyId, id, revision), reportCharts: async (actor) => (await (await db(actor)).prepare('SELECT id FROM finance_charts WHERE company_id=?').bind(actor.companyId).all<{
             id: string;
         }>()).results, reportChart: async (actor, id) => !!await (await db(actor)).prepare('SELECT 1 FROM finance_charts WHERE id=? AND company_id=?').bind(id, actor.companyId).first(), reportPeriod: async (actor, id) => !!await (await db(actor)).prepare('SELECT 1 FROM finance_periods WHERE id=? AND company_id=?').bind(id, actor.companyId).first(), reportPeriodDates: async (actor, id) => (await db(actor)).prepare('SELECT start_date,end_date FROM finance_periods WHERE id=? AND company_id=?').bind(id, actor.companyId).first<{
             start_date: string;
@@ -676,9 +679,9 @@ function invoiceService(provided?: SqlDatabase) {
             ]);
         } });
 }
-function paymentService() {
+function paymentService(provided?: SqlDatabase) {
     let pending: Promise<SqlDatabase> | undefined;
-    const db = (actor: WorkContext) => pending ??= resources(actor).then(r => r.write);
+    const db = (actor: WorkContext) => pending ??= resources(actor).then(r => provided ?? r.write);
     let requestedSnapshot: SqlStatement | undefined, withholding: Awaited<ReturnType<typeof readyPaymentWithholding>> | null = null, attachmentBinding: Awaited<ReturnType<typeof prepareAttachmentBinding>> | null = null, snapshot: SqlStatement | undefined, bankSnapshot: SqlStatement | undefined, withheldSnapshot: SqlStatement | null = null, taxConsumption: Awaited<ReturnType<typeof prepareWithholdingConsumption>> | null = null;
     const journals = new Map<string, Awaited<ReturnType<typeof prepareJournal>>>();
     return createFinancePayments({ error: (...args) => new ApiError(...args), authorize: requirePermission, now: Date.now, id: () => crypto.randomUUID(), digest: hash, ready: async (actor) => { await db(actor); }, prior: async <Result>(actor:WorkContext,key:string,operation:string,input:unknown) => priorCommand<Result>(await db(actor), actor, key, operation, input), replay: async <Result>(actor:WorkContext,key:string,operation:string,id:string,input:unknown) => replayCommand<Result>(await db(actor), actor, key, operation, id, input), moneyScale: async (companyId, currency) => requireFinanceMoneyScale(await pending!, companyId, currency), prepareRequestedMoney: async (actor, paymentId, input, currency, amount) => { requestedSnapshot = await legacyMoneySnapshot(await db(actor), actor, { sourceType: 'finance_payment', sourceId: paymentId, amountKind: 'requested', transactionDate: input.paymentDate, currency, amountUnits: amount }); }, withholding: async (actor, payment, key, date, allocations) => { withholding = await readyPaymentWithholding(await db(actor), actor, payment, key, date, allocations); return withholding ? { source: { liabilityAccountId: withholding.source.liabilityAccountId } } : null; }, prepareAttachments: async (actor, paymentId, input, key) => { attachmentBinding = await prepareAttachmentBinding(await db(actor), actor, { attachmentSetIds: input.attachmentSetIds, bindingContract: { targetType: 'finance_payment', bindingType: 'finance_payment_confirmation', contexts: [{ purposeKey: 'payment_proof', componentKind: 'action', componentRef: 'bank-confirmation' }] }, targetId: paymentId, expectedTargetVersion: input.expectedVersion, commandId: key, bindingId: `${paymentId}:${input.expectedVersion + 1}` }); }, functionalFx: async (actor, currency, baseCurrency, date) => confirmedFunctionalFxMicros(await db(actor), actor, currency, baseCurrency, date), prepareJournal: async (actor, input, key, status) => { const write = await db(actor), plan = await journalPreparation(write)(actor, input, key, status); journals.set(plan.result.id, journalStatements(write, actor, input, key, status, plan)); return plan; }, prepareSettlementEvidence: async (actor, paymentId, payment, bank, journal, key, netBankMinor) => {

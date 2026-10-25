@@ -1,0 +1,17 @@
+.workspace { display:grid; gap:1.25rem; }
+.metrics { display:grid; gap:1rem; grid-template-columns:repeat(3,minmax(0,1fr)); }
+.metric { display:grid; gap:.65rem; padding:1.25rem; border:1px solid var(--ui-line); border-radius:var(--ui-radius-lg); background:var(--ui-card); }
+.metric h2 { font-size:.95rem; margin:0; color:var(--ui-muted); }
+.metric a { display:flex; flex-wrap:wrap; justify-content:space-between; gap:.75rem; font-size:1.25rem; font-weight:600; }
+.tabs { display:flex; gap:.5rem; overflow:auto; border-bottom:1px solid var(--ui-line); }
+.tab { white-space:nowrap; padding:.8rem 1rem; text-decoration:none; border-bottom:3px solid transparent; }
+.tab[aria-current=page] { border-color:var(--ui-brand); font-weight:650; }
+.filters { display:flex; flex-wrap:wrap; gap:.75rem; align-items:end; }
+.filters > :first-child { flex:1; min-width:12rem; }
+.form { display:grid; gap:1rem; }
+.line { border:1px solid var(--ui-line); border-radius:var(--ui-radius-md); padding:1rem; display:grid; gap:.75rem; min-width:0; }
+.total { text-align:right; line-height:1.8; padding:1rem; background:var(--ui-card-2); border-radius:var(--ui-radius-md); }
+.receipt { max-width:850px; margin:auto; display:grid; gap:1.5rem; }
+.receiptHeader { display:flex; justify-content:space-between; gap:1rem; flex-wrap:wrap; }
+@media (max-width:640px) { .metrics { grid-template-columns:1fr; } .metric { padding:1rem; } .filters > * { flex:1 1 45%; } }
+@media print { .noPrint { display:none!important; } .receipt { width:100%; } }

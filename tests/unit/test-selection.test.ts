@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { parseTestArguments } from "../../scripts/testing/arguments";
 import { assertExplicitSelectionIncluded, importSpecifiers, loadCatalogue, reachesDatabaseFixture, repositoryRoot, requiresEngineeringBusinessFixture, resolveImport, selectSuites, validateBrowserFixtureContract, validateCatalogue, type Catalogue, type Suite } from "../../scripts/testing/catalogue";
@@ -36,14 +36,22 @@ describe("test selection contracts", () => {
     const actual = loadCatalogue();
     const files = actual.suites.filter(candidate => ["e2e", "journeys"].includes(candidate.lane)).flatMap(candidate => candidate.files);
     expect([...new Set(baseline.cases.map(test => test.file))].sort()).toEqual([...files].sort());
-    expect(baseline.cases).toHaveLength(483);
+    expect(baseline.cases).toHaveLength(491);
     expect(baseline.excludedCases).toHaveLength(9);
     expect(baseline.cases.filter(test => test.file === "tests/e2e/enterprise-ui.spec.ts")).toHaveLength(19);
     expect(baseline.excludedCases.filter(test => test.file === "tests/e2e/enterprise-ui.spec.ts")).toHaveLength(3);
     const registered = loadRequiredCases();
-    const observed = [...baseline.cases.map(test => ({ ...test, required: true })), ...baseline.excludedCases.map(test => ({ ...test, required: false }))];
+    const reviewedSupplemental = (["desktop", "mobile"] as const).map(project => ({
+      runner: "playwright" as const,
+      file: "tests/e2e/demo-hospitality-setup.spec.ts",
+      title: "keeps hotel drafts scoped while refresh fences stale cash and an inspected higher room type upgrades through the drawer",
+      project,
+    }));
+    for (const test of reviewedSupplemental) expect(registered.some(candidate => requiredCaseKey(candidate) === requiredCaseKey(test))).toBe(true);
+    const reviewed = [...baseline.cases, ...reviewedSupplemental];
+    const observed = [...reviewed.map(test => ({ ...test, required: true })), ...baseline.excludedCases.map(test => ({ ...test, required: false }))];
     expect(() => assertRequiredCaseInventory(registered, observed, { runner: "playwright", files })).not.toThrow();
-    for (const test of baseline.cases) {
+    for (const test of reviewed) {
       const scope = { runner: "playwright" as const, files: [test.file] };
       const peers = observed.filter(candidate => candidate.file === test.file);
       const removed = peers.filter(candidate => requiredCaseKey(candidate) !== requiredCaseKey(test));
@@ -172,6 +180,14 @@ describe("test selection contracts", () => {
     expect(() => validateCatalogue(malformed)).toThrow(`INVALID_TEST_SUITE:${actual.suites[0].id}`);
     expect(actual.suites.filter(suite => suite.lane === "provider").every(suite => !!suite.provider?.required.length)).toBe(true);
   });
+  it("confines fictional PMS provider recovery to booking E2E with real jobs and scanner", () => {
+    const actual = loadCatalogue(), id = 'pms.booking-payment-recovery.e2e';
+    expect(actual.suites.find(suite => suite.id === id)).toMatchObject({ fictionalProvider: 'pms-stripe', fixture: 'booking', lane: 'e2e', requires: { jobs: true, scanner: true } });
+    for (const change of [{ fixture: 'hospitality' }, { lane: 'provider' }, { fictionalProvider: 'live-stripe' }, { requires: { jobs: false, scanner: true } }, { requires: { jobs: true, scanner: false } }]) {
+      const changed = { ...actual, suites: actual.suites.map(suite => suite.id === id ? { ...suite, ...change } : suite) } as Catalogue;
+      expect(() => validateCatalogue(changed)).toThrow(`INVALID_FICTIONAL_PROVIDER_SUITE:${id}`);
+    }
+  });
   it("selects the declared service fixture, scan workers and People dependency for existing browser proofs", () => {
     const actual = loadCatalogue();
     expect(actual.suites.find(suite => suite.id === "shared.ui.shared-workspace.e2e")).toMatchObject({ fixture: "services", requires: { jobs: true, scanner: true } });
@@ -196,9 +212,11 @@ describe("test selection contracts", () => {
     expect(actual.suites.find(suite => suite.id === "identity_access.demo-identity-activation-revocation.e2e")).toMatchObject({ owner: "identity_access", files: ["tests/e2e/demo-identity-activation-revocation.spec.ts"], fixture: "general-company", requires: { jobs: false, scanner: false } });
   });
   it("strips ambient PostgreSQL credentials from units while retaining them for integration", () => {
-    const environment = { ERPX_TEST_ADMIN_URL: "postgresql://administrator@localhost/postgres", PGPASSWORD: "isolated-password", PGDATABASE: "postgres", ERPX_NODE_BIN: "/pinned/node", NODE_ENV: "test" };
-    expect(vitestChildEnvironment(environment, false)).toEqual({ ERPX_NODE_BIN: "/pinned/node", NODE_ENV: "test" });
-    expect(vitestChildEnvironment(environment, true)).toEqual(environment);
+    const environment = { ERPX_TEST_ADMIN_URL: "postgresql://administrator@localhost/postgres", PGPASSWORD: "isolated-password", PGDATABASE: "postgres", ERPX_NODE_BIN: "/pinned/node", ERPX_TEST_PG_BIN: "/postgresql/18/bin", PATH: `/usr/local/bin${delimiter}/usr/bin`, NODE_ENV: "test" };
+    const childPath = `/postgresql/18/bin${delimiter}/usr/local/bin${delimiter}/usr/bin`;
+    expect(vitestChildEnvironment(environment, false)).toEqual({ ERPX_NODE_BIN: "/pinned/node", ERPX_TEST_PG_BIN: "/postgresql/18/bin", PATH: childPath, NODE_ENV: "test" });
+    expect(vitestChildEnvironment(environment, true)).toEqual({ ...environment, PATH: childPath });
+    expect(vitestChildEnvironment({ ...environment, PATH: childPath }, true).PATH).toBe(childPath);
     expect(environment.PGDATABASE).toBe("postgres");
   });
   it("selects the shared currency UI proof when any of its actual ERP or Front owners change", () => {

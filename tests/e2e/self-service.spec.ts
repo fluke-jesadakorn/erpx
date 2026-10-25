@@ -62,7 +62,7 @@ test('Home keeps its feed, one shared shelf, keyboard access and independent fai
  const article=feed.getByRole('article').first();
  const thanks=article.getByRole('button',{name:/^Thanks/});
  const initialReaction=await thanks.getAttribute('aria-pressed');await thanks.click();await expect(thanks).toHaveAttribute('aria-pressed',initialReaction==='true'?'false':'true');await thanks.click();await expect(thanks).toHaveAttribute('aria-pressed',initialReaction!);
- await article.getByRole('button',{name:/^Comment/}).click();await expect(article.getByLabel('Write a comment',{exact:true})).toBeVisible();await article.getByRole('button',{name:/^Comment/}).click();
+ await article.getByRole('button',{name:/^Comment/}).click();await expect(article.getByRole('combobox',{name:'Write a comment',exact:true})).toBeVisible();await article.getByRole('button',{name:/^Comment/}).click();
  await article.getByLabel('More post actions').click();const follow=article.getByRole('button',{name:/^(Unfollow|Follow) conversation$/});const initialFollow=await follow.getAttribute('aria-pressed');await follow.click();await expect(follow).toHaveAttribute('aria-pressed',initialFollow==='true'?'false':'true');await follow.click();await expect(follow).toHaveAttribute('aria-pressed',initialFollow!);await article.getByLabel('More post actions').click();
  const before=await feed.getByRole('article').count();await page.getByRole('button',{name:/Load .*older updates/}).click();await expect.poll(()=>feed.getByRole('article').count()).toBeGreaterThan(before);
  const composer=page.locator('details.beta-composer');
@@ -71,7 +71,11 @@ test('Home keeps its feed, one shared shelf, keyboard access and independent fai
  await expect(editor).toBeVisible();
  await expect(editor.getByLabel('Post message',{exact:true})).toBeVisible();
  await editor.getByLabel('Post message',{exact:true}).fill('Unpublished self-service verification draft');
- await editor.getByRole('button',{name:'Close dialog',exact:true}).click();await expect(editor).toBeHidden();
+ await editor.getByRole('button',{name:'Close dialog',exact:true}).click();
+ const unsaved=page.getByRole('dialog',{name:'Unsaved changes',exact:true});
+ await expect(unsaved).toBeVisible();
+ await unsaved.getByRole('button',{name:'Close without saving',exact:true}).click();
+ await expect(unsaved).toBeHidden();await expect(editor).toBeHidden();
  await page.unroute('**/self-service/summary');
  const recovered=page.waitForResponse(r=>new URL(r.url()).pathname===`/api/v1${base}/self-service/summary`&&r.status()===200);
  await day.getByRole('button',{name:'Try again',exact:true}).click();await recovered;

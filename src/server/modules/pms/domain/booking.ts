@@ -32,7 +32,7 @@ export type BookingPaymentRow = {
 };
 export type PaymentAllocation = {
     stayId: string;
-    folioId: string;
+    guestAccountId: string;
     amount: number;
 };
 export const publicReservationSchema = z.object({

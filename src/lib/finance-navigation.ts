@@ -19,6 +19,7 @@ type Destination = {
 /** One destination catalog owns discovery, area navigation and retained URLs. */
 export const financeDestinations: readonly Destination[] = [
   { id: "finance-overview", label: "Today", route: "finance", area: "today", icon: "home", keywords: ["my work", "finance work", "priorities"] },
+  { id: "finance-sales", label: "Sales & collections", route: "finance/sales", area: "documents", icon: "invoice", keywords: ["quotations", "sales orders", "invoices", "receipts", "collections"] },
   { id: "finance-receivables", label: "Receivables", route: "finance/invoices?kind=receivable&queue=open", area: "documents", icon: "invoice", keywords: ["accounts receivable", "collections", "customer invoices"] },
   { id: "finance-payables", label: "Payables", route: "finance/invoices?kind=payable&queue=open", area: "documents", icon: "invoice", keywords: ["accounts payable", "supplier invoices"] },
   { id: "finance-expenses", label: "Employee expenses", route: "expenses", area: "documents", icon: "expense", keywords: ["expense claims", "reimbursements"], expense: true },
@@ -30,6 +31,8 @@ export const financeDestinations: readonly Destination[] = [
   { id: "finance-tax", label: "Tax", route: "finance/tax", area: "accounting", icon: "ledger", keywords: ["VAT", "ภ.พ.30", "tax register", "filing workpapers"] },
   { id: "finance-close", label: "Period close", route: "finance/close", area: "accounting", icon: "routine", keywords: ["close checklist", "revaluation", "reconciliation"] },
   { id: "finance-hotels", label: "Hotel source reconciliation", route: "finance/hotels", area: "accounting", icon: "pms", keywords: ["hotel accounting", "PMS GL", "advances", "deposits"], tool: true, hotel: true },
+  { id: "finance-restaurants", label: "Restaurant accounting", route: "finance/restaurants", area: "accounting", icon: "commerce", keywords: ["POS accounting", "settlement", "daily confirmation"], tool: true },
+  { id: "finance-hospitality-settings", label: "Hotel accounting settings", route: "finance/hospitality-settings", area: "setup", icon: "pms", keywords: ["PMS accounting mapping"], tool: true, hotel: true },
   { id: "finance-engines", label: "Calculations & schedules", route: "finance/engines", area: "accounting", icon: "routine", keywords: ["calculation engines", "cash flow", "accruals", "goodwill", "NCI", "equity method", "manufacturing costing"], tool: true, advanced: true },
   { id: "finance-reports", label: "Company reports", route: "finance/reports", area: "reports", icon: "ledger", keywords: ["reports", "trial balance", "financial statements", "aging"] },
   { id: "finance-group", label: "Group reports", route: "finance/group", area: "reports", icon: "organization", keywords: ["group reporting", "consolidation", "intercompany", "NCI"], holdingOnly: true, advanced: true },
@@ -38,7 +41,7 @@ export const financeDestinations: readonly Destination[] = [
 
 export const financeAreas = [
   { id: "today", label: "Today", destination: "finance-overview" },
-  { id: "documents", label: "Documents", destination: "finance-receivables" },
+  { id: "documents", label: "Documents", destination: "finance-sales" },
   { id: "cash", label: "Cash", destination: "finance-payments" },
   { id: "accounting", label: "Accounting", destination: "finance-ledger" },
   { id: "reports", label: "Reports", destination: "finance-reports" },
@@ -104,9 +107,10 @@ export function financeDestinationForRoute(section: string | undefined, kind?: s
   return ({
     "due-drafts":"finance-overview",
     ledger: "finance-ledger", accounting: "finance-ledger", journals: "finance-ledger", assets: "finance-ledger", "book-adjustments": "finance-ledger", instruments: "finance-ledger", "asset-policies": "finance-ledger",
+    sales: "finance-sales",
     invoices: kind === "payable" ? "finance-payables" : "finance-receivables",
     contracts: "finance-receivables", collections: "finance-payments",
-    payments: "finance-payments", bank: "finance-bank", hotels: "finance-hotels", close: "finance-close",
+    restaurants:"finance-restaurants", "hospitality-settings":"finance-hospitality-settings", "hotel-accounts":"finance-hotels", "hotel-documents":"finance-hotels", "hotel-import":"finance-hotels", payments: "finance-payments", bank: "finance-bank", hotels: "finance-hotels", close: "finance-close",
     tax: "finance-tax", reports: "finance-reports", engines: "finance-engines", group: "finance-group", "group-editions":"finance-group",
     setup: "finance-setup", refunds: "finance-refunds", "supplier-batches": "finance-supplier-batches",
   } as Record<string, string>)[section ?? ""] ?? "finance-overview";

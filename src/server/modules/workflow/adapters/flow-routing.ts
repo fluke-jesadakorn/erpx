@@ -52,7 +52,7 @@ function flowAfterEffects(db: SqlDatabase, actor: StaffActor, key: string, kind:
 const tables: Record<FlowKind, string> = { expense: "finance_expenses", leave: "leave_requests", staff_task: "staff_tasks", request: "employee_requests", stock_count: "inventory_counts", transfer: "inventory_transfers", order: "commerce_orders", invoice: "finance_invoices", journal: "finance_journals", payroll: "hr_payroll_runs", record: "workspace_records" };
 function application(provided?: SqlDatabase) {
     let database = provided!;
-    const repository: FlowRoutingRepository<SqlStatement> = { readFlowRecordRow(companyId: string, id: string, kind: FlowKind) { return workflowRecord(database, kind, companyId, id); },
+    const repository: FlowRoutingRepository<SqlStatement> = { async readFlowRecordRow(companyId: string, id: string, kind: FlowKind) { const row = await workflowRecord(database, kind, companyId, id); if (row && kind === "order") return { ...row, has_service_lines: await commerce_flow_routing(database).readServiceOrder(companyId,id) ? 1 : 0 }; return row; },
         readWorkFulfillmentsRows(companyId: string) { return commerce_flow_routing(database).readWorkFulfillmentsRows(companyId); },
         readDefinitionsInstance(company_id: string, approvalKind: "expense" | "leave" | "request" | "stock_count" | "transfer" | "order" | "invoice" | "journal" | "payroll" | "record" | "task", id: string | number | null) { return database.prepare("SELECT * FROM approval_instances WHERE company_id=? AND record_type=? AND record_id=? ORDER BY insertion_order DESC LIMIT 1").bind(company_id, approvalKind, id).first<ApprovalInstance>(); },
         readDefinitionsApprovalSteps(id: string) { return database.prepare("SELECT * FROM approval_steps WHERE instance_id=? ORDER BY ordinal").bind(id).all<ApprovalStep>(); },
@@ -62,10 +62,20 @@ function application(provided?: SqlDatabase) {
         readDefinitionsPending(id: string | number | null) { return commerce_flow_routing(database).readDefinitionsPending(id); },
         readDefinitionsReady(id: string | number | null) { return commerce_flow_routing(database).readDefinitionsReady(id); },
         readDefinitionsStockGl(id: string | number | null) { return commerce_flow_routing(database).readDefinitionsStockGl(id); },
-        readDefinitionsRequest(source_id: string | number | null, company_id: string) { return records_flow_routing(database).readDefinitionsRequest(source_id, company_id); },
-        readDefinitionsJournal2(journal_id: string | number, company_id: string) { return finance_flow_routing(database).readDefinitionsJournal2(journal_id, company_id); },
+        // Only read-only policy snapshots share company-scoped source facts.
+        // Commands keep their individual reads on the transaction client.
+        readDefinitionsRequest(source_id: string | number | null, company_id: string) { if (!hasPolicyReadSnapshot()) return records_flow_routing(database).readDefinitionsRequest(source_id, company_id);
+            return nativePolicyRead(database, JSON.stringify(["flow-source-requests",company_id]), async () => {
+                const rows = (await records_flow_routing(database).readWorkflowRequests(company_id)).results;
+                const bySource = new Map<string, typeof rows[number]>();
+                for (const row of rows) if (!bySource.has(row.source_id)) bySource.set(row.source_id,row);
+                return bySource;
+            }).then(rows => rows.get(String(source_id)) ?? null); },
+        readDefinitionsJournal2(journal_id: string | number, company_id: string) { if (!hasPolicyReadSnapshot()) return finance_flow_routing(database).readDefinitionsJournal2(journal_id, company_id);
+            return nativePolicyRead(database, JSON.stringify(["flow-source-journals",company_id]), async () => new Map((await finance_flow_routing(database).readWorkflowJournals(company_id)).results.map(row => [row.id,row]))).then(rows => rows.get(String(journal_id)) ?? null); },
         readDefinitionsDelivery(source_id: string | number | null) { return commerce_flow_routing(database).readDefinitionsDelivery(source_id); },
-        readDefinitionsPaymentBatch(company_id: string, id: string | number | null) { return people_payroll_flow_routing(database).readDefinitionsPaymentBatch(company_id, id); },
+        readDefinitionsPaymentBatch(company_id: string, id: string | number | null) { if (!hasPolicyReadSnapshot()) return people_payroll_flow_routing(database).readDefinitionsPaymentBatch(company_id, id);
+            return nativePolicyRead(database, JSON.stringify(["flow-payment-batches",company_id]), async () => new Map((await people_payroll_flow_routing(database).readWorkflowPaymentBatches(company_id)).results.map(row => [row.source_id,row]))).then(rows => rows.get(String(id)) ?? null); },
         readSharedFlowReferencesRoutesdefaultsevents(companyId: string) { return database.prepare("SELECT * FROM flow_routes WHERE company_id=?").bind(companyId).all<Route & {
             kind: string;
             record_id: string;

@@ -1,0 +1,119 @@
+{
+  "checkedAt": "2026-10-11T22:47:17.271807+00:00",
+  "scope": "Observed initial assistant GET500 followed by scoped diagnostics and exact two original unmodified candidate cases. No root-cause or product-fix claim.",
+  "candidate": {
+    "runtime": "51701d69c6d65dc1ee28480e7de4b404c89f3e32f8ab6c912c551568114b6bf6",
+    "verification": "6bec217508702c495235e2a3740598d3132176d24be4d6af9cb1845bfe5c95c9",
+    "mainRuntime": "51701d69c6d65dc1ee28480e7de4b404c89f3e32f8ab6c912c551568114b6bf6",
+    "mainVerification": "6bec217508702c495235e2a3740598d3132176d24be4d6af9cb1845bfe5c95c9",
+    "releaseDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.runtime/releases/2026-10-11T19-44-51-044Z",
+    "releaseId": "2026-10-11T19-44-51-044Z",
+    "releaseReusedForIdenticalRuntime": true,
+    "verificationAmendment": "Only existing shared keyboard readiness and null-safe theme init; all runtime/native sources unchanged"
+  },
+  "originalFailure": {
+    "run": "e7e0cd3ce64d",
+    "route": "GET /api/v1/holdings/riverside-lantern/assistant?path=%2Fhome&mode=page",
+    "status": 500,
+    "wallMs": 1801,
+    "nextMs": 1729,
+    "applicationMs": 70,
+    "effect": "Initial view failed; no panel POST reached server; original15s wait timed out",
+    "resume83Passed": 10,
+    "resume83Failed": 1,
+    "all11CaseCleanupCompleted": true,
+    "rawReceipt": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-11T22-11-07-841Z/receipt.json",
+    "sha256": "5a4eaa88eb8746df81158e417fc8ee43baf08fe342396845f5ed9315fbb1ca1f"
+  },
+  "diagnostics": [
+    {
+      "kind": "GET-only",
+      "result": {
+        "run": "f9263325c45c",
+        "diagnosticCompleted": true,
+        "cleanupCompleted": true,
+        "candidateSourceUnchanged": true,
+        "acceptanceEvidence": false
+      },
+      "status": 200
+    },
+    {
+      "kind": "Original full desktop journey with copied GET route logging only",
+      "result": {
+        "run": "9f84b0689c32",
+        "diagnosticCompleted": true,
+        "cleanupCompleted": true,
+        "candidateSourceUnchanged": true,
+        "acceptanceEvidence": false
+      },
+      "expectedCases": 1,
+      "passedCases": 1,
+      "acceptanceEvidence": false
+    }
+  ],
+  "freshUninstrumentedOriginalAI2": {
+    "passed": true,
+    "cases": 2,
+    "receipt": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-11T22-40-27-626Z/receipt.json",
+    "sha256": "e23c0c976dff82db16245ceb4ec3b0969f04c92a4ac1b7ef33c89f842e9bf059",
+    "perCaseEvidence": [
+      {
+        "suite": "pms.thai-hotel-v1-ai.journeys",
+        "file": "thai-hotel-v1-ai.spec.ts",
+        "project": "desktop",
+        "title": "H002 AI drafts from authorized versions, cites hotel evidence, then falls back manually",
+        "run": "70021707c9c0",
+        "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-11T22-40-27-626Z/70021707c9c0/result.json",
+        "passed": true,
+        "cleanup": {
+          "completed": true,
+          "ownedDirectoryAbsent": true
+        }
+      },
+      {
+        "suite": "pms.thai-hotel-v1-ai.journeys",
+        "file": "thai-hotel-v1-ai.spec.ts",
+        "project": "mobile",
+        "title": "H002 AI drafts from authorized versions, cites hotel evidence, then falls back manually",
+        "run": "b47605f7cfe1",
+        "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-11T22-40-27-626Z/b47605f7cfe1/result.json",
+        "passed": true,
+        "cleanup": {
+          "completed": true,
+          "ownedDirectoryAbsent": true
+        }
+      }
+    ],
+    "sourceOrTestChanged": false,
+    "normalCleanupCompleted": true
+  },
+  "limits": [
+    "Original500 remains actual historical failure and its underlying cause is not established",
+    "Instrumented diagnostics are not counted as candidate acceptance",
+    "Two new unmodified required cases pass current517/6bec; this is not proof of sustained uptime or clearance of prior development errors",
+    "No timeout/assertion/suite/inventory weakening and no runtime change"
+  ],
+  "continuation": {
+    "remainingRequiredCases": 71,
+    "pid": 31377,
+    "requiredCompositePartition": "95 untouched historical +2 keyboard repair +10 current shared workflow +2 current AI +71 remaining =180",
+    "routes134HTTP40StrictMetadataProviderAndFinalAcceptanceRemain": true
+  },
+  "wholePlanAccepted": false,
+  "sourceReview": {
+    "checkedAt": "2026-10-11T23:16:14.290836+00:00",
+    "scope": "Source inspection only; no concurrent replay or root-cause proof",
+    "privateSessionCreation": "Deterministic actor/company/assignment/scope/conversation/generation ID; INSERT uses scoped ON CONFLICT DO NOTHING, and controls use ON CONFLICT(session_id) DO NOTHING",
+    "conclusion": "A missing duplicate-insert guard is not supported by current source. Do not make a runtime change or claim500 fixed from this hypothesis.",
+    "files": [
+      {
+        "file": "src/server/modules/agent/application/governance.ts",
+        "sha256": "8afb31874b07182fce3aecf09a2d589407803468c1edae1c8088f45716d6c2ef"
+      },
+      {
+        "file": "src/server/modules/agent/adapters/agent-governance.ts",
+        "sha256": "8874fe7019d42863a73f6f620e4a47f86bc2e07f5896904dcb13a018f8f80a9c"
+      }
+    ]
+  }
+}

@@ -27,7 +27,7 @@ function unit(db: SqlDatabase): PosDayUnit<SqlStatement> {
         }) => all(db, "SELECT id,method,amount_minor,tendered_minor,reference,finance_payment_id FROM pos_payments WHERE sale_id=? AND state='succeeded' ORDER BY created_at,id", facts.saleId),
         readPmsSources1: (facts: {
             fact0: string;
-        }) => one(db, `SELECT property_id,record_id folio_entry_id FROM (${pmsProjectionSources.pms_sources}) pms_sources WHERE source_key=?`, facts.fact0),
+        }) => one(db, `SELECT property_id,record_id guest_account_entry_id FROM (${pmsProjectionSources.pms_sources}) pms_sources WHERE source_key=?`, facts.fact0),
         writePosSaleDocuments1: (facts: {
             saleId: string;
             company_id: string | number | boolean | null;

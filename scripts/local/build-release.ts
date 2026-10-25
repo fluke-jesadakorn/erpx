@@ -41,6 +41,9 @@ await cp(join(work,'ops/macos/install-attachment-runtime.py'),join(release,'ops/
 await cp(join(work,'ops/macos/attachment-rollout.md'),join(release,'ops/macos/attachment-rollout.md'));
 for(const name of ['erpxctl.py','offsite.py','recovery_status.py'])await cp(join(work,'ops/macos',name),join(release,'ops/macos',name));
 await cp(join(work,'scripts/legal'),join(release,'scripts/legal'),{recursive:true});
+// Disabled unless the isolated booking launcher attests an exact fictional cohort.
+await mkdir(join(release,'tools'),{recursive:true});
+await cp(join(work,'scripts/local/pms-provider-fixture.mjs'),join(release,'tools/pms-provider-fixture.mjs'));
 const productionDefines={'process.env.NODE_ENV':JSON.stringify('production')};
 const extraction=await Bun.build({entrypoints:[join(work,'scripts/legal/extract_docx.mjs')],outdir:join(release,'scripts/legal'),target:'node',format:'esm',naming:'extract_docx.mjs',env:'disable',define:productionDefines});
 if(!extraction.success)throw new Error('LEGAL_EXTRACTOR_BUILD_FAILED');
@@ -64,4 +67,7 @@ await writeFile(join(release,'release-files.json'),artifactManifest);
 const manifest={id,softwareVersion,sourceFingerprint,deploymentId:softwareVersion,node:'24.20.0',postgres:'18.6',attachmentRuntime,createdAt:new Date().toISOString(),schemaSha256:schemaHash.digest('hex'),lockfileSha256:createHash('sha256').update(await readFile(join(work,'bun.lock'))).digest('hex'),fileManifestSha256:createHash('sha256').update(artifactManifest).digest('hex')};
 await writeFile(join(release,'release.json'),JSON.stringify(manifest,null,2));
 await rm(join(root,'.runtime/releases/latest'),{force:true});await symlink(release,join(root,'.runtime/releases/latest'));
+// Remove only this build's completed workspace. Releases may still be referenced
+// by running verification, retained evidence or rollback requirements.
+await rm(work,{recursive:true,force:true});
 console.log(`Release: ${release}`);

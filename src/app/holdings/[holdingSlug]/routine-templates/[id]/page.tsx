@@ -1,10 +1,7 @@
 import { staffPresentationQueries } from "@/server/modules/work_projection/public/presentation-context-queries";
 
 import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
-import {
-RoutineScheduleControls,
-TaskEditor,
-} from "@/components/modules/staff-work-controls";
+import { RoutineScheduleControls, TaskEditor } from "@/components/records/loaders/modules--staff-work-controls";
 import { pageError } from "@/server/modules/work_projection/public/page-error";
 
 

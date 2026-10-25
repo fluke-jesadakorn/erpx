@@ -24,11 +24,14 @@ function draftKey(base: string, ownerKey: string, date: string) {
 export function HandoverComposer({
   base,
   onPublished,
+  initialOpen = false,
 }: {
   base: string;
+  initialOpen?: boolean;
   onPublished: () => Promise<void>;
 }) {
-  const [open, setOpen] = useState(false);
+  const messageField = useRef<HTMLTextAreaElement>(null);
+  const [open, setOpen] = useState(initialOpen);
   const [view, setView] = useState<HandoverView | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [recipients, setRecipients] = useState<string[]>([]);
@@ -92,9 +95,11 @@ export function HandoverComposer({
     const fromHash = () => {
       if (window.location.hash === "#handover") setOpen(true);
     };
+    const fromEvent = () => setOpen(true);
+    window.addEventListener("erpx:open-handover", fromEvent);
     fromHash();
     window.addEventListener("hashchange", fromHash);
-    return () => window.removeEventListener("hashchange", fromHash);
+    return () => { window.removeEventListener("hashchange", fromHash); window.removeEventListener("erpx:open-handover", fromEvent); };
   }, []);
   useEffect(() => {
     if (!open || view || loading || error) return;
@@ -112,6 +117,10 @@ export function HandoverComposer({
       /* Publishing remains available without browser storage. */
     }
   }, [base, view, open, selected, body]);
+
+  useEffect(() => {
+    if (open && view) messageField.current?.focus({ preventScroll: true });
+  }, [open, view]);
 
   function toggleSource(id: string) {
     const next = selected.includes(id)
@@ -208,7 +217,7 @@ export function HandoverComposer({
           Handover published. <Link href={`${base}/posts/${publishedId}`}>Open post</Link>
         </InlineNotice>
       )}
-      <Dialog appearance="standard" open={open} onClose={() => setOpen(false)} title="Pass work to the next person" presentation="form-drawer" dismissDisabled={publishing}><div id="handover-editor" className={styles.editor}>
+      <Dialog appearance="standard" open={open} onClose={() => setOpen(false)} title="Pass work to the next person" finalFocus={() => document.querySelector<HTMLButtonElement>("#handover button")} presentation="form-drawer" dismissDisabled={publishing}><div id="handover-editor" className={styles.editor}>
         {loading && <InlineNotice tone="info" role="status">Loading readable tasks…</InlineNotice>}
         {error && (
           <InlineNotice tone="danger" className={styles.error} role="alert">
@@ -254,7 +263,7 @@ export function HandoverComposer({
                 </fieldset>
                 <Field appearance="standard" className={styles.message}>
                   Handover message
-                  <TextArea appearance="standard"
+                  <TextArea ref={messageField} appearance="standard"
                     rows={8}
                     maxLength={3000}
                     value={body}

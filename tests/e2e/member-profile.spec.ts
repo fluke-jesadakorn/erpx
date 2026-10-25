@@ -21,17 +21,52 @@ test("another member's profile aligns the feed width with the profile card", asy
       data: { email: "noah@erpx.dev", password: "Noah-ERPX-2026!" },
     });
     expect(login.status(), await login.text()).toBe(200);
-    await selectFixtureAssignment(author, "acme-co", "seed_usr_noah", "acme", "/branches/new-york");
-    const api = "/api/v1/holdings/acme/branches/new-york/beta/drafts";
+    // Noah's branch-only role derives Company from New York lineage.
     const origin = new URL(baseURL!).origin;
+    const assignmentApi = "/api/v1/holdings/acme/branches/new-york/assignments/active";
+    const currentRole = await author.request.get(assignmentApi);
+    expect(currentRole.ok(), await currentRole.text()).toBe(true);
+    const current = (await currentRole.json()).data;
+    expect(current).toMatchObject({ companyId: "acme-co", userId: "usr_noah" });
+    expect(current.options.some((option: { id: string }) => option.id === "seed_usr_noah")).toBe(true);
+    const selectedRole = await author.request.post(assignmentApi, {
+      headers: { Origin: origin },
+      data: { assignmentId: "seed_usr_noah", revision: current.revision },
+    });
+    expect(selectedRole.ok(), await selectedRole.text()).toBe(true);
+    const persistedRole = await author.request.get(assignmentApi);
+    expect(persistedRole.ok(), await persistedRole.text()).toBe(true);
+    expect((await persistedRole.json()).data).toMatchObject({
+      valid: true, companyId: "acme-co", userId: "usr_noah", assignmentId: "seed_usr_noah",
+    });
+    const authorPage = await author.newPage();
+    await authorPage.goto("/holdings/acme/branches/new-york/home");
+    const workContext = authorPage.locator("[data-work-assignment]");
+    await expect(workContext).toHaveCount(1);
+    await expect(workContext).toHaveAttribute("data-work-stale", "false");
+    await expect(workContext).toHaveAttribute("data-work-user", "usr_noah");
+    await expect(workContext).toHaveAttribute("data-work-company", "acme-co");
+    await expect(workContext).toHaveAttribute("data-work-assignment", "seed_usr_noah");
+    const stamp = await workContext.evaluate((element) => {
+      const node = element as HTMLElement;
+      return { revision: node.dataset.workRevision!, company: node.dataset.workCompany!, assignment: node.dataset.workAssignment! };
+    });
+    expect(stamp.revision).toMatch(/^\d+$/);
+    const commandHeaders = {
+      Origin: origin,
+      "x-erpx-context-revision": stamp.revision,
+      "x-erpx-context-company": stamp.company,
+      "x-erpx-context-assignment": stamp.assignment,
+    };
+    const api = "/api/v1/holdings/acme/branches/new-york/beta/drafts";
     const draft = await author.request.post(api, {
-      headers: { Origin: origin, "Idempotency-Key": randomUUID() },
+      headers: { ...commandHeaders, "Idempotency-Key": randomUUID() },
       data: { body: "Profile layout fixture: Noah's published update.", audience: { kind: "branch", id: "new-york" }, expectedVersion: 1 },
     });
     expect(draft.ok(), await draft.text()).toBe(true);
     const saved = (await draft.json()).data as { id: string; version: number };
     const publish = await author.request.post(`${api}/${saved.id}/publish`, {
-      headers: { Origin: origin, "Idempotency-Key": randomUUID() },
+      headers: { ...commandHeaders, "Idempotency-Key": randomUUID() },
       data: { expectedVersion: saved.version },
     });
     expect(publish.ok(), await publish.text()).toBe(true);

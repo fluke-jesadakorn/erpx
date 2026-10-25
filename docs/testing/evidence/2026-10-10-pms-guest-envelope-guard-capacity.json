@@ -1,0 +1,287 @@
+{
+  "run": "a973e4dc02b8",
+  "sourceFingerprint": "2b445c51016c3bbc95ddf0cb2fb87e7a10649d4e29c90828e890dbd0a3068daa",
+  "verificationFingerprint": "5186fc16ef399bc470613dd2221185dd6367d95ca6b920c7f0aed95303fd322f",
+  "samplesSha256": "2b27d4ce8309d2bd6fdc73b09c9cdadbdd49ff9c44f23a1a396c491c02c0458c",
+  "checks": {
+    "sourceMatchesFrozenCandidate": true,
+    "sourceUnchanged": true,
+    "sameProcesses": true,
+    "samplesDigestMatches": true,
+    "exactReadCount": true,
+    "exactWriteCount": true,
+    "allSamplesValid": true,
+    "completeFinancialOperationalClosing": true,
+    "originalHarnessPassed": false,
+    "everyOperationWithinStrictTarget": false
+  },
+  "operations": [
+    {
+      "stage": "cashier",
+      "kind": "write",
+      "operation": "charge.add",
+      "count": 20,
+      "p95Ms": 1693.9107919999951,
+      "limitMs": 2000,
+      "passed": true
+    },
+    {
+      "stage": "cashier",
+      "kind": "write",
+      "operation": "payment.deposit",
+      "count": 20,
+      "p95Ms": 1577.198457999999,
+      "limitMs": 2000,
+      "passed": true
+    },
+    {
+      "stage": "cashier",
+      "kind": "write",
+      "operation": "payment.receive",
+      "count": 40,
+      "p95Ms": 1659.776125000004,
+      "limitMs": 2000,
+      "passed": true
+    },
+    {
+      "stage": "cashier",
+      "kind": "write",
+      "operation": "refund.approve",
+      "count": 20,
+      "p95Ms": 192.82454100000177,
+      "limitMs": 2000,
+      "passed": true
+    },
+    {
+      "stage": "cashier",
+      "kind": "write",
+      "operation": "refund.pay",
+      "count": 20,
+      "p95Ms": 1531.6582500000004,
+      "limitMs": 2000,
+      "passed": true
+    },
+    {
+      "stage": "cashier",
+      "kind": "write",
+      "operation": "refund.request",
+      "count": 20,
+      "p95Ms": 1330.1279159999976,
+      "limitMs": 2000,
+      "passed": true
+    },
+    {
+      "stage": "cashier",
+      "kind": "write",
+      "operation": "shift.close",
+      "count": 20,
+      "p95Ms": 1297.4320840000073,
+      "limitMs": 2000,
+      "passed": true
+    },
+    {
+      "stage": "cashier",
+      "kind": "write",
+      "operation": "shift.open",
+      "count": 20,
+      "p95Ms": 1359.9039580000026,
+      "limitMs": 2000,
+      "passed": true
+    },
+    {
+      "stage": "cashier",
+      "kind": "write",
+      "operation": "shift.review",
+      "count": 20,
+      "p95Ms": 171.71270799999184,
+      "limitMs": 2000,
+      "passed": true
+    },
+    {
+      "stage": "closing",
+      "kind": "write",
+      "operation": "guest_account.close",
+      "count": 20,
+      "p95Ms": 1371.557084,
+      "limitMs": 2000,
+      "passed": true
+    },
+    {
+      "stage": "closing",
+      "kind": "write",
+      "operation": "night.start",
+      "count": 3,
+      "p95Ms": 213.86179199999606,
+      "limitMs": 2000,
+      "passed": true
+    },
+    {
+      "stage": "core",
+      "kind": "read",
+      "operation": "calendar",
+      "count": 200,
+      "p95Ms": 206.94716699999844,
+      "limitMs": 1000,
+      "passed": true
+    },
+    {
+      "stage": "core",
+      "kind": "read",
+      "operation": "dashboard",
+      "count": 200,
+      "p95Ms": 298.7309170000008,
+      "limitMs": 1000,
+      "passed": true
+    },
+    {
+      "stage": "core",
+      "kind": "read",
+      "operation": "guest-accounts",
+      "count": 200,
+      "p95Ms": 282.8092909999996,
+      "limitMs": 1000,
+      "passed": true
+    },
+    {
+      "stage": "core",
+      "kind": "read",
+      "operation": "rooms",
+      "count": 200,
+      "p95Ms": 255.99025000000074,
+      "limitMs": 1000,
+      "passed": true
+    },
+    {
+      "stage": "core",
+      "kind": "read",
+      "operation": "seven-day-report",
+      "count": 40,
+      "p95Ms": 367.36883300000045,
+      "limitMs": 1000,
+      "passed": true
+    },
+    {
+      "stage": "core",
+      "kind": "write",
+      "operation": "guest.save",
+      "count": 200,
+      "p95Ms": 2603.6070839999957,
+      "limitMs": 2000,
+      "passed": false
+    },
+    {
+      "stage": "core",
+      "kind": "write",
+      "operation": "reservation.create",
+      "count": 200,
+      "p95Ms": 2552.0972089999996,
+      "limitMs": 2000,
+      "passed": false
+    },
+    {
+      "stage": "operational",
+      "kind": "write",
+      "operation": "payment.receive",
+      "count": 20,
+      "p95Ms": 1638.2331669999985,
+      "limitMs": 2000,
+      "passed": true
+    },
+    {
+      "stage": "operational",
+      "kind": "write",
+      "operation": "reservation.create",
+      "count": 20,
+      "p95Ms": 1337.9833749999962,
+      "limitMs": 2000,
+      "passed": true
+    },
+    {
+      "stage": "operational",
+      "kind": "write",
+      "operation": "shift.close",
+      "count": 20,
+      "p95Ms": 1266.4752910000097,
+      "limitMs": 2000,
+      "passed": true
+    },
+    {
+      "stage": "operational",
+      "kind": "write",
+      "operation": "shift.open",
+      "count": 20,
+      "p95Ms": 1276.9430830000056,
+      "limitMs": 2000,
+      "passed": true
+    },
+    {
+      "stage": "operational",
+      "kind": "write",
+      "operation": "shift.review",
+      "count": 20,
+      "p95Ms": 177.84850000000733,
+      "limitMs": 2000,
+      "passed": true
+    },
+    {
+      "stage": "operational",
+      "kind": "write",
+      "operation": "stay.assign",
+      "count": 20,
+      "p95Ms": 1302.940333999999,
+      "limitMs": 2000,
+      "passed": true
+    },
+    {
+      "stage": "operational",
+      "kind": "write",
+      "operation": "stay.change_dates",
+      "count": 20,
+      "p95Ms": 1362.7688749999943,
+      "limitMs": 2000,
+      "passed": true
+    },
+    {
+      "stage": "operational",
+      "kind": "write",
+      "operation": "stay.check_in",
+      "count": 20,
+      "p95Ms": 1288.0065829999949,
+      "limitMs": 2000,
+      "passed": true
+    },
+    {
+      "stage": "operational",
+      "kind": "write",
+      "operation": "stay.check_out",
+      "count": 20,
+      "p95Ms": 1340.1348750000034,
+      "limitMs": 2000,
+      "passed": true
+    },
+    {
+      "stage": "operational",
+      "kind": "write",
+      "operation": "stay.move",
+      "count": 20,
+      "p95Ms": 1324.567750000002,
+      "limitMs": 2000,
+      "passed": true
+    },
+    {
+      "stage": "operational",
+      "kind": "write",
+      "operation": "stay.preview_checkout",
+      "count": 20,
+      "p95Ms": 1610.866458000004,
+      "limitMs": 2000,
+      "passed": true
+    }
+  ],
+  "passed": false,
+  "policy": "Unchanged workload, all samples retained; p95 nearest rank, strict read <1000ms and every write operation <2000ms. Aggregate harness success alone is insufficient.",
+  "complete": false,
+  "wholePlanAcceptance": false,
+  "disposition": "Rejected pre-transaction guard; removed",
+  "ownedDatabasesDestroyed": 8
+}

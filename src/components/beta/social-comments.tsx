@@ -33,12 +33,16 @@ export function SocialComments({
   userId,
   onChanged,
   settingsUrl,
+  expanded = true,
+  onExpand,
 }: {
   api: string;
   post: HomePost;
   userId: string;
   onChanged: () => Promise<void>;
   settingsUrl?: string;
+  expanded?: boolean;
+  onExpand?: () => void;
 }) {
   const [loaded, setLoaded] = useState<HomePost["comments"]>([]);
   const [deletedIds, setDeletedIds] = useState<string[]>([]);
@@ -434,6 +438,32 @@ export function SocialComments({
         </div>
       </form>
     );
+  }
+
+  if (!expanded) {
+    const preview = comments.slice(-2);
+    return preview.length || post.commentCount > 0 ? (
+      <div className="beta-comments" aria-label="Recent comments">
+        {preview.map((comment) => (
+          <div className="beta-comment" key={comment.id}>
+            <div>
+              <strong>{comment.author_name}</strong>
+              {comment.parent_comment_id && (
+                <small> · Reply to {comment.parent_author_name ?? "an earlier comment"}</small>
+              )}
+              <SocialTextBody appearance="standard" body={comment.body} mentions={comment.mentions}
+                doc={comment.richContent?.blocks[0]?.type === "text" ? comment.richContent.blocks[0].doc : null}
+                base={api.replace(/^\/api\/v1/, "")} />
+            </div>
+          </div>
+        ))}
+        {post.commentCount > 2 && (
+          <Button appearance="standard" type="button" variant="ghost" onClick={onExpand}>
+            ดูความคิดเห็นทั้งหมด
+          </Button>
+        )}
+      </div>
+    ) : null;
   }
 
   return (

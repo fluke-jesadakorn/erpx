@@ -9,7 +9,7 @@ import { minorToDecimal } from "@/lib/finance-money";
 import { vatPackageLabels, vatTreatmentLabels } from "@/lib/finance-vat-labels";
 import { vatPackageDetail, type TaxRow } from "@/server/modules/finance/public/finance-tax-register";
 import { FinanceWorkspace } from "@/components/finance/finance-workspace";
-import { VatPackageControls } from "@/components/finance/vat-register-controls";
+import { VatPackageControls } from "@/components/records/loaders/finance--vat-register-controls";
 import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { Card } from "@/components/ui/foundation";
 

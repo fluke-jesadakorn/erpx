@@ -308,6 +308,7 @@ export function createFinancePayments(ports: FinancePaymentPorts) {
         }
         const netBankMinor = Number(payment.amount_minor) - Number(payment.withheld_minor ?? 0);
         const bank = await ports.confirmationBank({ input, actor }), signed = payment.kind === "receipt" ? Number(payment.amount_minor) : -netBankMinor;
+        if (bank && (!["unmatched", "proposed"].includes(String(bank.match_status)) || Number(bank.version) !== input.bankVersion)) throw ports.error(409, "BANK_EVIDENCE_CHANGED", "The bank transaction changed or was claimed by another workflow. Refresh its evidence.");
         if (!bank || bank.bank_account !== payment.bank_account || bank.currency !== payment.currency || Number(bank.amount_minor) !== signed || String(bank.transaction_date) < String(payment.payment_date) || !["unmatched", "proposed"].includes(String(bank.match_status)) || Number(bank.version) !== input.bankVersion)
             throw ports.error(422, "BANK_EVIDENCE_MISMATCH", "Match the selected account, currency, date and exact bank amount.");
         const withholding = await ports.withholding(actor, payment, key, String(bank.transaction_date), input.allocations);

@@ -1,0 +1,43 @@
+{
+  "date": "2026-10-11",
+  "scope": "Fresh same-source native/security and uninstrumented capacity checkpoint; whole acceptance pending",
+  "complete": false,
+  "wholePlanAccepted": false,
+  "runtimeFingerprint": "a7d5fc2f90e6f98c4a42759b4b9f2f35899bc0eda31dfbae6bfa8a6617debd26",
+  "verificationFingerprint": "4c13818c8f09fa20534da7939c7f4389106cd4b48e78cbf51d977bad21ad1866",
+  "release": "2026-10-10T17-42-40-805Z",
+  "native": {
+    "unit": 780,
+    "postgres": 558,
+    "total": 1338,
+    "securitySeparately": 47,
+    "staticChecksPassed": true,
+    "beforeAfterSourceMatched": true
+  },
+  "capacity": {
+    "run": "c8182d8bd1d8",
+    "instrumented": false,
+    "readCount": 840,
+    "writeCount": 843,
+    "readP95Ms": 288.3767079999998,
+    "coreWriteP95Ms": 2051.1394580000015,
+    "failedOperations": [
+      {
+        "stage": "core",
+        "kind": "write",
+        "operation": "guest.save",
+        "count": 200,
+        "p95Ms": 2128.932249999998,
+        "limitMs": 2000,
+        "passed": false
+      }
+    ],
+    "allSamplesValid": true,
+    "moneyHistoryAuditsReconciled": true,
+    "sameProcesses": true,
+    "sourceUnchanged": true,
+    "ownedCohortDestroyed": true,
+    "passed": false
+  },
+  "next": "Extend the byte-identical request-local digest computation scope to the separately invoked Proxy, identified in the retained CPU profile; preserve direct synchronous responses and fresh origin/artifact checks."
+}

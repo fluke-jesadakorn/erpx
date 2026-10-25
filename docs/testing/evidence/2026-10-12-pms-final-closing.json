@@ -1,0 +1,62 @@
+{
+  "checkedAt": "2026-10-12T08:33:05.824Z",
+  "scope": "Final closing receipt for approved PMS mock engineering; actual canonical source fingerprints and recent environment availability, not real-hotel/production activation",
+  "runtime": "4e2b60dc9e36878d4b6353a1a08470ccde2c960eb272fb954875c282b91ee909",
+  "verification": "baf2b73727a5106b9153f71c54c336dfc399f763c83607aa41290d0c7943cfbb",
+  "sourceRootsAgree": true,
+  "availability": {
+    "checkedAt": "2026-10-12T08:31:18.946Z",
+    "scope": "Availability checkpoint during ongoing PMS mock-pilot acceptance, not final delivery",
+    "checks": [
+      {
+        "url": "http://127.0.0.1:3100/api/health",
+        "status": 200
+      },
+      {
+        "url": "https://console-dev-erpx.jesadakorn.com/api/health",
+        "status": 200
+      },
+      {
+        "url": "http://127.0.0.1:3101/api/health",
+        "status": 200
+      }
+    ],
+    "postgres": {
+      "exitCode": 0,
+      "output": "127.0.0.1:5432 - accepting connections"
+    },
+    "listener": {
+      "exitCode": 0,
+      "output": "89299 81052 next-server (v16.3.4)"
+    },
+    "workingDirectory": {
+      "exitCode": 0,
+      "output": "p89299\nfcwd\nn/Users/fluke/Desktop/Work/erpx"
+    },
+    "detachedLauncher": {
+      "exitCode": 0,
+      "output": "81038     1 /Users/fluke/Desktop/Work/erpx/.runtime/bun-1.2.17/bun-darwin-aarch64/bun run dev"
+    },
+    "passed": true,
+    "stagingAccessed": false,
+    "privateProductionChanged": false
+  },
+  "artifacts": [
+    {
+      "file": "docs/testing/evidence/2026-10-12-pms-final67-mock-acceptance.json",
+      "sha256": "b46ed3eb9148e6486ebd51dd5310fd50447b67127d1f03779cc642aa37ecd219"
+    },
+    {
+      "file": "docs/testing/evidence/2026-10-12-pms-final19-mock-acceptance.json",
+      "sha256": "f4781551234730964a252d4809661ee77046147c8d234bd1e3152dcaf51fece3"
+    }
+  ],
+  "mockScopeComplete": true,
+  "postPilotExplicitlyDeferred": true,
+  "realHotelAccepted": false,
+  "realMoneyAuthorized": false,
+  "productionPublished": false,
+  "stagingAccessed": false,
+  "otherPerformanceGoalAccepted": false,
+  "evidenceDescriptionCorrection": "Provider native-harness callback404 pixel observation retained explicitly; no runtime or acceptance-scope change"
+}

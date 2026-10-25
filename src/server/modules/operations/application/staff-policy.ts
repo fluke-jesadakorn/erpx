@@ -48,9 +48,11 @@ export function createStaffPolicyApplication<Effect>(ports: StaffPolicyPorts<Eff
         departmentId?: string;
         levelId?: string;
     } = {}) {
-        const now = ports.clock.now();
+        return structuredClone(await ports.policyRead(JSON.stringify(["staff-people",companyId,filters.departmentId ?? null,filters.levelId ?? null]),async () => {
+        const now = ports.policyNow();
         const { results } = await r.readStaffPeopleResults(companyId, now, now, filters.departmentId ?? null, filters.departmentId ?? null, filters.levelId ?? null, filters.levelId ?? null, filters.levelId ?? null);
         return results;
+        }));
     }
     async function rosterStaffPeople(companyId: string, departmentId: string, firstDate: string, lastDate: string) {
         const now = ports.clock.now();

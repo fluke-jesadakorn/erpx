@@ -1,0 +1,77 @@
+{
+  "checkedAt": "2026-10-11T13:29:46.884268+00:00",
+  "scope": "Actual terminal full run failure; no PMS or whole-plan acceptance",
+  "fullPassed": false,
+  "runtimeFingerprint": "ac53b636bb8e08700a3bace57c442d1ab211fc299e8110c21de2ba9ba2afd48f",
+  "verificationFingerprint": "4690053d9c623dac5dd654126c19ed6b148b7ac969fd1948be8f0d599496c095",
+  "terminalProcessIdsGone": [
+    68539,
+    68552
+  ],
+  "phases": [
+    {
+      "phase": "architecture",
+      "passed": true
+    },
+    {
+      "phase": "unit",
+      "passed": true
+    },
+    {
+      "phase": "integration",
+      "passed": true
+    },
+    {
+      "phase": "lint",
+      "passed": true
+    },
+    {
+      "phase": "typecheck",
+      "passed": true
+    },
+    {
+      "phase": "isolated-release",
+      "passed": true
+    }
+  ],
+  "nativeRows": 4882,
+  "browserReceiptCount": 103,
+  "browserFailedCases": [
+    {
+      "suite": "shared.business-journeys.demo-engineering-business.journeys",
+      "file": "demo-engineering-business.spec.ts",
+      "project": "desktop",
+      "title": "native business engineering workflows checks out immutable online prices delivers with scanned evidence and closes its native customer return Quality and original-value credit",
+      "run": "1579468390a9",
+      "report": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-11T12-04-52-635Z/1579468390a9/result.json",
+      "passed": false,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      }
+    }
+  ],
+  "failedCaseStats": {
+    "startTime": "2026-10-11T13:23:49.985Z",
+    "duration": 241116.039,
+    "expected": 0,
+    "skipped": 0,
+    "unexpected": 1,
+    "flaky": 0
+  },
+  "interrupted": null,
+  "cleanupFailures": [],
+  "evidenceSHA256": {
+    "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/full/2026-10-11T11-35-39-792Z/receipt.json": "7dadc9aa9cd1df56993ddc0623a7006908a61f3efe92ad61bbd0f2c040a2c217",
+    "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-11T12-04-52-635Z/receipt.json": "576502dbfc4ca0da9f25c615c7a3ebeb36d001bbc042c06260da24d178a22d23",
+    "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-11T12-04-52-635Z/1579468390a9/result.json": "797de3ce823fc946bf4b9e3c4548aae7b1eda41162404c79ebaa9195871fa80b"
+  },
+  "laneReleased": false,
+  "fullBoundaryReleaseWritten": false,
+  "automaticRestart": false,
+  "scopeLimits": [
+    "Timeout is an actual browser case failure; do not relabel it as scanner readiness or acceptance.",
+    "Failure cause requires current trace/source investigation; no timeout change is authorized by this evidence.",
+    "Native phases passing do not establish full browser isolation/forward/reverse acceptance."
+  ]
+}
