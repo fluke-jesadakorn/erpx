@@ -66,7 +66,10 @@ test("seeded employee signs in through the UI and keeps their session after relo
   await page.goto("/login");
   await page.getByLabel("Work email").fill(email!);
   await page.getByLabel(/^Password(?:\s*\*)?$/).fill(password!);
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await Promise.all([
+    page.waitForURL(/\/(?:holdings\/[^/]+\/home|work-role\?.*)$/, { waitUntil: "domcontentloaded" }),
+    page.getByRole("button", { name: "Sign in", exact: true }).click(),
+  ]);
   await expect(page).toHaveURL(/\/(?:holdings\/[^/]+\/home|work-role\?.*)$/);
   if(page.url().includes('/work-role')){
     await expect(page.getByRole('heading',{name:'Choose your work role',exact:true})).toBeVisible();
