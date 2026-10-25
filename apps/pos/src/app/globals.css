@@ -1759,6 +1759,7 @@
 @source "../../../../packages/server-identity_access/src/adapters/pos-stripe-facts.ts";
 @source "../../../../packages/server-identity_access/src/adapters/private-file-denial-authority.ts";
 @source "../../../../packages/server-identity_access/src/adapters/private-session-preferences.ts";
+@source "../../../../packages/server-identity_access/src/adapters/product-front-launch.ts";
 @source "../../../../packages/server-identity_access/src/adapters/product-session-revocation.ts";
 @source "../../../../packages/server-identity_access/src/adapters/product-sso-context.ts";
 @source "../../../../packages/server-identity_access/src/adapters/product-sso-store.ts";
@@ -1922,6 +1923,7 @@
 @source "../../../../packages/server-identity_access/src/public/pos-stripe-facts.ts";
 @source "../../../../packages/server-identity_access/src/public/private-file-denial-authority.ts";
 @source "../../../../packages/server-identity_access/src/public/private-session-preferences.ts";
+@source "../../../../packages/server-identity_access/src/public/product-front-launch.ts";
 @source "../../../../packages/server-identity_access/src/public/product-sso.ts";
 @source "../../../../packages/server-identity_access/src/public/product-workspace.ts";
 @source "../../../../packages/server-identity_access/src/public/profile-account.ts";
@@ -3952,6 +3954,7 @@
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/uploads/[id]/content/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/uploads/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/workspace-preference/route.ts";
+@source "../../../../packages/workplace/src/routes/choose-work-role/page.tsx";
 @source "../../../../packages/workplace/src/routes/error.tsx";
 @source "../../../../packages/workplace/src/routes/forbidden.tsx";
 @source "../../../../packages/workplace/src/routes/front-access/error.tsx";
@@ -4100,6 +4103,7 @@
 @source "../../../../packages/workplace/src/routes/holdings/[holdingSlug]/loading.tsx";
 @source "../../../../packages/workplace/src/routes/holdings/[holdingSlug]/not-found.tsx";
 @source "../../../../packages/workplace/src/routes/holdings/forbidden.tsx";
+@source "../../../../packages/workplace/src/routes/launch/route.ts";
 @source "../../../../packages/workplace/src/routes/layout.tsx";
 @source "../../../../packages/workplace/src/routes/login/directory-login.tsx";
 @source "../../../../packages/workplace/src/routes/login/login-form.tsx";
