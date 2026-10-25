@@ -767,7 +767,7 @@ async function financialOwnerPage(name:'Expenses'|'PayrollPage',ports:Record<str
  const file=name==='Expenses'?"packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/expenses/screen.tsx":"packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/people/payroll/screen.tsx";
  const source=await readFile(new URL('../../../'+file,import.meta.url),'utf8'),tree=ts.createSourceFile(file,source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),node=tree.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text===name);
  if(!node||!ts.isFunctionDeclaration(node))throw Error('ACTUAL_FINANCIAL_PAGE_REQUIRED');
- const declaration=node.getText(tree).replace(/^export\s+default\s+/,''),code=ts.transpileModule(declaration,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.React,jsxFactory:'createElement',jsxFragmentFactory:'Fragment'}}).outputText;
+ const declaration=node.getText(tree).replace(/^export\s+default\s+/,''),code=ts.transpileModule(declaration,{compilerOptions:{esModuleInterop: false, target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.React,jsxFactory:'createElement',jsxFragmentFactory:'Fragment'}}).outputText;
  return new Function(...Object.keys(ports),`${code}\nreturn ${name};`)(...Object.values(ports)) as (props:{params:Promise<{holdingSlug:string}>;searchParams?:Promise<object>})=>Promise<import('react').ReactElement>;
 }
 it('renders the actual Expense collection without the unavailable New claim handoff only for the named financial source',async()=>{
@@ -789,7 +789,7 @@ it('selects financial presentation from the actual canonical request and current
  const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),{peopleFinancialEntry}=await import('@erpx/server-people_payroll/public/rules/financial-product-entry'),{workspacePathParts}=await import('@erpx/feature-work_projection/lib/destination-registry'),actualHosts=await vi.importActual<typeof import("@erpx/feature-runtime/lib/product-hosts")>("@erpx/feature-runtime/lib/product-hosts");
  const file='packages/server-people_payroll/src/adapters/financial-product-presentation-request.ts',source=await readFile(new URL('../../../'+file,import.meta.url),'utf8'),tree=ts.createSourceFile(file,source,ts.ScriptTarget.Latest,true),node=tree.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='peopleFinancialSourcePresentation');
  if(!node||!ts.isFunctionDeclaration(node))throw Error('ACTUAL_FINANCIAL_PRESENTATION_REQUIRED');
- const code=ts.transpileModule(node.getText(tree).replace(/^export\s+/,''),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
+ const code=ts.transpileModule(node.getText(tree).replace(/^export\s+/,''),{compilerOptions:{esModuleInterop: false, target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
  let request=new Headers({host:'console-dev-erpx.jesadakorn.com','x-erpx-page-path':'/holdings/acme/finance/documents/expenses'});
  const entry=vi.fn(async()=>({sourceRecord:true})),ports={headers:async()=>request,productHostForHost:(host:string|null)=>actualHosts.productHostForHost(host,{routing:true,sso:true,environment:'development'}),workspacePathParts,peopleFinancialEntry,productPageAccess:entry};
  const presentation=new Function(...Object.keys(ports),`${code}\nreturn peopleFinancialSourcePresentation;`)(...Object.values(ports)) as (actor:{companyId:string},kind:'expense'|'payroll')=>Promise<boolean>;

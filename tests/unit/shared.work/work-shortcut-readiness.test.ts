@@ -267,7 +267,7 @@ it('keeps an actual Work purchase request title when product navigation is held 
   contextPort={busy:false,switchContext:vi.fn()},
   contextSwitch={contextSwitchBlockReason:()=>null,hasUnsavedWork:()=>document.querySelector('[data-work-dirty="true"]')!==null,setContextSwitching:vi.fn()},
   compile=async(path:string,exportName:string,dependencies:(name:string)=>unknown)=>{
-   const text=await readFile(new URL(`../../../${path}`,import.meta.url),'utf8'),code=ts.transpileModule(text,{compilerOptions:{jsx:ts.JsxEmit.ReactJSX,module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,loadedModule={exports:{} as Record<string,unknown>};
+   const text=await readFile(new URL(`../../../${path}`,import.meta.url),'utf8'),code=ts.transpileModule(text,{compilerOptions:{esModuleInterop: false, jsx:ts.JsxEmit.ReactJSX,module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,loadedModule={exports:{} as Record<string,unknown>};
    new Function('require','module','exports',code)((name:string)=>name==='react'?reactHooks:name==='react/jsx-runtime'?require(name):dependencies(name),loadedModule,loadedModule.exports);return loadedModule.exports[exportName] as (props:Record<string,unknown>)=>React.ReactNode;
   };
  const requestEditor=await compile('packages/workplace/src/components/request-controls-content.tsx','RequestEditor',name=>{

@@ -66,7 +66,7 @@ export async function runScoped(options:Options){
    await execute([process.execPath,'scripts/testing/layout.ts']);
    const tools=plan.changed.filter(file=>/^scripts\//.test(file)&&/\.[cm]?[jt]sx?$/.test(file)&&existsSync(resolve(root,file)));
    if(tools.length){
-    await execute([pinnedNode(),'node_modules/typescript/bin/tsc','--noEmit','--project','tsconfig.json']);
+    await execute([pinnedNode(),'node_modules/@typescript/native/bin/tsc','--noEmit','--project','tsconfig.json']);
     await execute([pinnedNode(),'node_modules/eslint/bin/eslint.js',...tools]);
    }
    if(plan.apps.length || plan.changed.some(file=>/^(?:packages|src|apps|scripts\/architecture)\//.test(file)))await execute([process.execPath,'scripts/architecture/check.ts']);
@@ -77,7 +77,7 @@ export async function runScoped(options:Options){
    const testFiles=[...plan.native,...plan.browser].flatMap(suite=>suite.files);
    if(testFiles.length){
     const key=workspaceFingerprint(graph,[...selectedTypecheckInputs(testFiles),...verificationSources(plan.native)],['scripts/testing/selected-typecheck.ts','tests/config/tsconfig.json','tsconfig.base.json']);
-    await pureTask('test-types-'+key,()=>execute([pinnedNode(),'--max-old-space-size=8192','node_modules/typescript/bin/tsc','--noEmit','--project',selectedTypecheckConfig(testFiles)]));
+    await pureTask('test-types-'+key,()=>execute([pinnedNode(),'--max-old-space-size=8192','node_modules/@typescript/native/bin/tsc','--noEmit','--project',selectedTypecheckConfig(testFiles)]));
    }
    if(units.length){const sourceKey=workspaceFingerprint(graph,verificationSources(units),['scripts/testing/test.ts','scripts/testing/vitest-config.ts','tests/config/vitest.unit.config.mts','scripts/testing/required-cases-reporter.ts']);const key=createHash('sha256').update(sourceKey).update(JSON.stringify(Object.entries(vitestChildEnvironment(process.env,false)).sort(([a],[b])=>a.localeCompare(b)))).digest('hex');await pureTask(key,()=>execute([process.execPath,'scripts/testing/test.ts','unit',...units.map(suite=>`--suite=${suite.id}`)]));}
    // External state is always exercised. Never reuse a passing integration receipt.

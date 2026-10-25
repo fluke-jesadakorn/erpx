@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { moduleRegistry } from "@erpx/catalogue/module-registry";
+import { appDefinition } from "@erpx/contracts/apps";
 import { developmentProductOrigin, destinationProduct, futureProductOrigin, modulePlacement, productIds, products, sharedHostKeys, validateProductRegistry } from "@erpx/contracts/product-registry";
 import { configuredProductOrigin, configuredProductHandoff, productHostConfiguration, productHostForHost, trustedProductOrigin } from "@erpx/feature-runtime/lib/product-hosts";
 import { productPageAllowed } from "@erpx/feature-runtime/lib/product-route-policy";
@@ -38,7 +39,7 @@ describe("product registry", () => {
   });
   it("keeps every Office landing on an existing canonical page", () => {
     for (const product of products.filter(product => product.shell === "office")) {
-      expect(existsSync(resolve("src/app/holdings/[holdingSlug]", product.landing, "page.tsx")), product.id).toBe(true);
+      expect(existsSync(resolve(appDefinition(product.id).directory, "src/app/holdings/[holdingSlug]", product.landing, "page.tsx")), product.id).toBe(true);
     }
   });
   it("uses the most specific product destination and preserves record-owner paths", () => {

@@ -259,6 +259,6 @@
     "@erpx/server-talent": "workspace:*",
     "@erpx/server-workflow": "workspace:*",
     "server-only": "0.0.1",
-    "sharp": "0.35.4"
+    "sharp": "0.35.5"
   }
 }

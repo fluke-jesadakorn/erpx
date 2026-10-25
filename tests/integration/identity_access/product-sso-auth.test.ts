@@ -35,6 +35,21 @@ async function signIn(origin: string) {
   expect(response.status).toBe(200);
   return { response, cookie: cookies(response) };
 }
+it("keeps equal external subjects separate across providers after the Better Auth account identity migration", async () => {
+  const user = await db.prepare('SELECT id FROM "user" WHERE email=?').bind(email).first<{ id: string }>();
+  const subject = randomUUID(), instant = Date.now();
+  const insert = (provider: string) => db.prepare('INSERT INTO account(id,"accountId","providerId","userId","createdAt","updatedAt") VALUES(?,?,?,?,?,?)')
+    .bind(randomUUID(), subject, provider, user!.id, instant, instant).run();
+  await insert("directory-fixture-a");
+  await insert("directory-fixture-b");
+  const accounts = await db.prepare('SELECT "providerId",issuer FROM account WHERE "accountId"=? ORDER BY "providerId"').bind(subject).all();
+  expect(accounts.results).toEqual([
+    { providerId: "directory-fixture-a", issuer: null },
+    { providerId: "directory-fixture-b", issuer: null },
+  ]);
+  await expect(insert("directory-fixture-a")).rejects.toThrow();
+  expect((await signIn(issuer)).response.status).toBe(200);
+});
 it("registers central metadata through real credential sign-in and uses secure host-only cookies", async () => {
   const { createAuth } = await import("@erpx/server-identity_access/adapters/auth");
   const signedIn = await signIn(issuer);

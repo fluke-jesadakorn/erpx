@@ -299,8 +299,8 @@
     "@erpx/server-work_projection": "workspace:*",
     "@erpx/server-workflow": "workspace:*",
     "server-only": "0.0.1",
-    "sharp": "0.35.4",
+    "sharp": "0.35.5",
     "web-push": "3.6.7",
-    "zod": "4.5.4"
+    "zod": "4.6.7"
   }
 }

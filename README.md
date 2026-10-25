@@ -18,7 +18,9 @@ git show cc0887d --stat                    # baseline
 
 ## Stack
 
-Next.js 16.4 App Router + React 19.3 + TypeScript + Tailwind 4, built as a standalone Node.js 26.11.1 release. Bun 1.4.3 manages the toolchain; PostgreSQL 18.6 stores relational data and durable jobs, and private filesystem adapters store evidence. The installed private production service remains on Node.js 24.20.0 until a reviewed release is deployed. Cloudflare Tunnel provides HTTPS ingress. No Cargo.
+Next.js 16.4.3 App Router + React 19.3.1 + TypeScript 7 + Tailwind 4, built as a standalone Node.js 26.11.1 release. Bun 1.4.3 manages the toolchain; PostgreSQL 18.6 stores relational data and durable jobs, and private filesystem adapters store evidence. The installed private production service remains on Node.js 24.20.0 until a reviewed release is deployed. Cloudflare Tunnel provides HTTPS ingress. No Cargo.
+
+Typechecks use the TypeScript 7 native compiler. The `typescript` dependency aliases Microsoft’s TypeScript 6 compatibility package because Next.js, ESLint and repository AST tools still require its compiler API; `@typescript/native` supplies TypeScript 7 and the `tsc` command. Both are pinned in the lockfile. Security overrides keep esbuild and Zod patched and retain a patched Undici 7 for Cloudflare’s compatible API.
 
 ```bash
 bun install --frozen-lockfile

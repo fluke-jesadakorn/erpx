@@ -129,7 +129,7 @@ function mountedManager(send: typeof fetch) {
     if (name.endsWith(".css")) return {default: new Proxy({}, {get: (_target, key) => String(key)})};
     throw Error("Unexpected live dependency: " + name);
   };
-  const code = ts.transpileModule(readFileSync(path, "utf8"), {compilerOptions: {jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022}}).outputText;
+  const code = ts.transpileModule(readFileSync(path, "utf8"), {compilerOptions: {esModuleInterop: false, jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022}}).outputText;
   new Function("require", "module", "exports", code)(localRequire, evaluated, evaluated.exports);
   const component = (evaluated.exports.GuestBookingManagementWorkspace ?? evaluated.exports.GuestBookingManager) as (props: {slug: string}) => React.ReactNode;
   type Node = React.ReactElement<Record<string, unknown>>;

@@ -20,7 +20,7 @@ export function workspaceTaskDefinition(graph: WorkspaceGraph, app: AppDefinitio
  const runtimeInputs=inputs([...runtimeSources,...common,...compiler,...[...graph.files.keys()].filter(file=>/^(?:public|migrations)\//.test(file))]);
  // A new type result may be required while the inner artifact cache still reuses
  // an identical runtime. Verification helpers are not runtime compiler inputs.
- return {extends:['//'],tasks:{typecheck:{inputs:[...verificationInputs,'$TURBO_ROOT$/node_modules/typescript/package.json'],outputs:['.cache/typecheck.tsbuildinfo']},lint:{inputs:[...verificationInputs,'$TURBO_ROOT$/eslint.config.mjs'],outputs:[]},build:{dependsOn:['typecheck'],inputs:runtimeInputs,outputs:['.build/**'],env:['NEXT_PUBLIC_*','NEXT_DEPLOYMENT_ID'],passThroughEnv:['ERPX_NODE_BIN']}}};
+ return {extends:['//'],tasks:{typecheck:{inputs:[...verificationInputs,'$TURBO_ROOT$/node_modules/typescript/package.json','$TURBO_ROOT$/node_modules/@typescript/native/package.json'],outputs:['.cache/typecheck.tsbuildinfo']},lint:{inputs:[...verificationInputs,'$TURBO_ROOT$/eslint.config.mjs'],outputs:[]},build:{dependsOn:['typecheck'],inputs:runtimeInputs,outputs:['.build/**'],env:['NEXT_PUBLIC_*','NEXT_DEPLOYMENT_ID'],passThroughEnv:['ERPX_NODE_BIN']}}};
 }
 /** Explicit file inputs avoid treating unrelated owners or verifiers as runtime. */
 export function refreshWorkspaceTaskInputs(check=false) {

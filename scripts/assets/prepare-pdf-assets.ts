@@ -1,6 +1,6 @@
 import { cp, mkdir } from "node:fs/promises";
 import { join } from "node:path";
-const version = "6.3.289",
+const version = "6.4.299",
   source = join(import.meta.dir, "../../node_modules/pdfjs-dist"),
   target = join(import.meta.dir, `../../public/vendor/pdfjs-${version}`);
 
