@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { selectRoleForSetup } from "../helpers/context-switching-browser";
+import { selectAcmeHoldingOwner } from "./helpers/select-acme-holding-owner";
 
 test("Home feed controls and saved widget layout remain usable", async ({ page }) => {
   const email = process.env.ERPX_REVIEW_EMAIL;
@@ -11,10 +11,12 @@ test("Home feed controls and saved widget layout remain usable", async ({ page }
   await page.getByLabel(/^Password(?:\s*\*)?$/).fill(password!);
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/holdings\/acme(?:\/branches\/[^/]+)?\/(?:home|work-role)(?:\?.*)?$/);
-  await selectRoleForSetup(page.context(), "holding_owner");
+  await selectAcmeHoldingOwner(page);
   await page.goto("/holdings/acme/home");
   await expect(page.getByRole("heading", { name: "Today", exact: true })).toBeVisible();
-  await expect(page.getByRole("region", { name: "Team updates", exact: true })).toBeVisible();
+  const feed=page.getByRole("region",{name:"Team updates",exact:true});
+  await expect(feed).toHaveCount(1);
+  await expect(feed).toBeVisible();
 
   const composer = page.locator("details.beta-composer");
   await composer.locator("summary").first().click();
@@ -34,9 +36,9 @@ test("Home feed controls and saved widget layout remain usable", async ({ page }
   await expect(page.getByRole("combobox", { name: "Filter branch" })).toHaveJSProperty("selectedIndex", 1);
   await page.getByRole("combobox", { name: "Filter branch" }).selectOption("");
 
-  const firstPost = page.getByRole("article").first();
+  const firstPost = feed.getByRole("article").first();
   await firstPost.getByRole("button", { name: /Comment/ }).click();
-  await expect(firstPost.getByLabel("Write a comment")).toBeVisible();
+  await expect(firstPost.getByRole("combobox",{name:"Write a comment",exact:true})).toBeVisible();
   await firstPost.locator("details.post-more > summary").click();
   await expect(firstPost.getByRole("button", { name: "Summarize" })).toBeVisible();
 
@@ -57,7 +59,7 @@ test("Home feed controls and saved widget layout remain usable", async ({ page }
   await expect(widget).toBeVisible();
   await page.goto("/holdings/acme/home");
 
-  await page.getByRole("article").first().locator('.beta-person a[href*="/posts/"]').click();
+  await feed.getByRole("article").first().locator('.beta-person a[href*="/posts/"]').click();
   await expect(page.getByRole("heading", { name: "Team conversation" })).toBeVisible();
-  await expect(page.getByRole("article")).toHaveCount(1);
+  await expect(feed.getByRole("article")).toHaveCount(1);
 });

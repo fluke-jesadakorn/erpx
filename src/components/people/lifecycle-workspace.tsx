@@ -1324,6 +1324,7 @@ export function LifecyclePanel({
         {data.canManage && person.status !== "ended" && (
           <Button
             type="submit"
+            clientManaged
             variant="primary"
 
             onClick={() => {

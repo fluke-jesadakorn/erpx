@@ -1,5 +1,6 @@
+import { captureInvestorCheckpoint } from "../helpers/investor-capture";
 import {createEngineeringBrowserContext} from './helpers/engineering-browser-evidence';
-import { expect, test, type BrowserContext, type Page } from "@playwright/test";
+import { expect, test, type BrowserContext, type Page, type Route } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
@@ -84,11 +85,56 @@ test("isolated demo publishes a mentioned update and keeps thread actions after 
     await expect(supportOption).toBeVisible();
     await supportOption.click();
     await composer.getByLabel("Post audience").selectOption({ index: 1 });
-    await composer.getByRole("button", { name: "Share update", exact: true }).click();
+    let releaseFeed!: () => void;
+    const feedGate = new Promise<void>(resolve => { releaseFeed = resolve; });
+    let feedHeld = false;
+    const feedPath = /\/api\/v1\/holdings\/simulation\/beta\/home(?:\?|$)/;
+    const holdFeed = async (route: Route) => {
+      if (route.request().method() === "GET") {
+        feedHeld = true;
+        await feedGate;
+      }
+      await route.continue();
+    };
+    await ownerPage.route(feedPath, holdFeed);
+    try {
+      const publication = ownerPage.waitForResponse(response =>
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname.startsWith("/api/v1/holdings/simulation/beta/drafts/") &&
+        new URL(response.url()).pathname.endsWith("/publish"));
+      await composer.getByRole("button", { name: "Share update", exact: true }).click();
+      expect((await publication).status()).toBe(200);
+      await expect.poll(() => feedHeld).toBe(true);
+      await expect(composer).toBeVisible();
+      for (const name of ["Post type", "Post audience", "Link existing work"]) {
+        await expect(composer.getByRole("combobox", { name, exact: true })).toBeDisabled();
+      }
+      await expect(composer.getByLabel("Post message", { exact: true })).toHaveAttribute("contenteditable", "false");
+      await expect(composer.getByLabel("Add images to post", { exact: true })).toBeDisabled();
+      for (const name of ["Advanced", "Save draft", "Share update"]) {
+        await expect(composer.getByRole("button", { name, exact: true })).toBeDisabled();
+      }
+    } finally {
+      releaseFeed();
+      await ownerPage.unrouteAll({ behavior: "wait" });
+    }
+    await expect(composer).not.toBeVisible();
     await expect(ownerPage.locator("#workspace-content").getByText(body.replace(" @Support", " @Support agent"), { exact: true })).toBeVisible();
     const post = ownerPage.getByRole("article").filter({ hasText: "Operations handoff" });
     await expect(post).toBeVisible();
     await expect(post.getByText(/@Support agent/)).toBeVisible();
+    await captureInvestorCheckpoint(ownerPage, "social-update", post);
+
+    await ownerPage.locator("#workspace-content details.beta-composer summary").click();
+    await expect(composer).toBeVisible();
+    await expect(composer.getByLabel("Post message", { exact: true })).toHaveText("");
+    await expect(composer.getByLabel("Post audience")).toHaveValue("");
+    await expect(composer.getByLabel("Post type")).toHaveValue("update");
+    await expect(composer.getByLabel("Link existing work")).toHaveValue("");
+    await composer.getByRole("button", { name: "Close dialog", exact: true }).click();
+    await expect(ownerPage.getByRole("dialog", { name: "Unsaved changes", exact: true })).not.toBeVisible();
+    await expect(composer).not.toBeVisible();
+    await expect(post).toBeVisible();
 
     await signInRole(employeeContext, employeePage, credentials, "employee");
     await expect(
@@ -135,6 +181,7 @@ test("isolated demo publishes a mentioned update and keeps thread actions after 
       .first();
     await reloaded.getByRole("button", { name: /Comment/ }).click();
     await expect(reloaded.getByText(reply, { exact: true })).toBeVisible();
+    await captureInvestorCheckpoint(employeePage, "social-thread", reloaded);
     await expect(reloaded.getByRole("button", { name: /Thanks/ })).toHaveAttribute(
       "aria-pressed",
       "true",

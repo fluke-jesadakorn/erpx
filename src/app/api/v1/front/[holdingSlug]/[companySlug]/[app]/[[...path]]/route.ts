@@ -21,6 +21,7 @@ import { posProductImage } from "@/server/modules/pos/public/pos-images";
 import {frontTaxDocumentCommand,frontTaxDocumentView} from "@/server/modules/finance/public/hospitality-tax-documents";
 import {taxDocumentRequest} from "@/server/modules/finance/public/hospitality-tax-document-request";
 import {frontPmsAttachmentPaths,frontPmsAttachmentRequest} from "@/server/modules/pms/public/pms/front-attachments";
+import { moneyContext, preferenceSchema, saveCurrencyPreference } from "@/server/modules/finance/public/company-money";
 
 export const dynamic = "force-dynamic";
 
@@ -86,6 +87,10 @@ export async function GET(request: Request, { params }: Context) {
     if (rawApp !== "pos" && rawApp !== "pms")
       throw new ApiError(404, "NOT_FOUND", "Not found.");
     const app = rawApp as FrontAppKind;
+    if (path.length === 1 && path[0] === "money") {
+      const actor = await frontActor(request, holdingSlug, companySlug, app);
+      return Response.json({ data: { ...await moneyContext(actor), canConfirmRate: false } }, { headers: { "Cache-Control": "private, no-store" } });
+    }
     if(app==='pms'&&frontPmsAttachmentPaths.has(path[0]))return await frontPmsAttachmentRequest(request,await frontActor(request,holdingSlug,companySlug,app),path);
     if(path.length===1&&path[0]==='tax-documents'){
       const actor=await frontActor(request,holdingSlug,companySlug,app);
@@ -167,6 +172,15 @@ export async function POST(request: Request, { params }: Context) {
       return Response.json({ data: { assignmentId: assignment.id, revision: selected.revision } }, { headers: { "Cache-Control": "private, no-store" } });
     }
     const actor = await frontActor(request, holdingSlug, companySlug, app);
+
+    if (path[0] === "money") {
+      if (path.length !== 2 || path[1] !== "preference")
+        throw new ApiError(403, "FRONT_COMMAND_FORBIDDEN", "Currency administration is handled in ERPX.");
+      const input = await request.json().catch(() => { throw new ApiError(422, "INVALID_JSON", "Use a JSON body."); });
+      const parsed = preferenceSchema.safeParse(input);
+      if (!parsed.success) throw new ApiError(422, "INVALID_CURRENCY", parsed.error.issues[0]?.message ?? "Invalid currency.");
+      return Response.json({ data: await saveCurrencyPreference(actor, parsed.data, commandKey(request)) }, { headers: { "Cache-Control": "private, no-store" } });
+    }
 
     if(path.length===1&&path[0]==='tax-documents'){
       const {command,key}=await taxDocumentRequest(request);

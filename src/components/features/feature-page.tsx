@@ -3,8 +3,6 @@ import type { UiAppearance } from "@/components/ui/appearance";
 import { Button } from "@/components/ui/foundation";
 import {
   createContext,
-  lazy,
-  Suspense,
   useContext,
   useState,
   type HTMLAttributes,
@@ -18,12 +16,10 @@ import { featureLocation, legacyWidgetTarget, isConfigurablePage } from "@/lib/p
 import { productionPageCut, type PageCutEntry } from "@/lib/hospitality-page-cut";
 import { ComingSoonPage } from "@/components/workplace/coming-soon-page";
 import { GridLocation, PageDrawer } from "./widget-context";
+import { LayoutGrid } from "./layout-editor";
 export { FeatureWidget } from "./feature-widget";
 import styles from "./features.module.css";
 
-const LayoutGrid = lazy(() =>
-  import("./layout-editor").then((module) => ({ default: module.LayoutGrid })),
-);
 const Environment = createContext<NavigationContext>({
   workspaceBase: "/account",
   scopeKind: "platform",
@@ -130,19 +126,17 @@ export function WidgetGrid({
   return (
     <GridLocation value={{ target }}>
       {isConfigurablePage(pageKey) ? (
-        <Suspense fallback={fixed}>
-          <LayoutGrid
-            key={`${navigation.workspaceBase}:${pageKey}`}
-            {...props}
-            className={className}
-            pageKey={pageKey}
-            navigation={navigation}
-            feature={feature}
-            target={target}
-          >
-            {children}
-          </LayoutGrid>
-        </Suspense>
+        <LayoutGrid
+          key={`${navigation.workspaceBase}:${pageKey}`}
+          {...props}
+          className={className}
+          pageKey={pageKey}
+          navigation={navigation}
+          feature={feature}
+          target={target}
+        >
+          {children}
+        </LayoutGrid>
       ) : fixed}
     </GridLocation>
   );

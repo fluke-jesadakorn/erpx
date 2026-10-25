@@ -208,8 +208,8 @@ export default async function FrontAppPage({
   }
   const quickAccessItems = frontActionItems(app, actor, frontHref);
   const quickAccessPreference = await readQuickAccessPreferences(entry.userId, "front-" + app, entry.companyId);
-  const money = await moneyContext(actor);
-  return <FrontAppShell holdingSlug={holdingSlug} companySlug={companySlug} companyId={entry.companyId} companyName={entry.companyName} shortName={entry.shortName} accentColor={entry.accentColor} logoAttachmentId={entry.logoPublicationId??entry.logoAttachmentId} app={app} standalone={standalone} erpHref={workspace} frontLocation={localPath} locationName={actor.scope.kind === "branch" ? actor.scope.branchName : actor.scope.kind === "department" ? actor.scope.departmentName : entry.companyName} userId={entry.userId} initialLanguage={language} initialTheme={appearancePreference(cookieStore.get("erpx_appearance")?.value)} money={money} moneyApiBase={`/api/v1${workspaceBase(publicScope(actor))}`} quickAccess={{
+  const money = { ...await moneyContext(actor), canConfirmRate: false };
+  return <FrontAppShell holdingSlug={holdingSlug} companySlug={companySlug} companyId={entry.companyId} companyName={entry.companyName} shortName={entry.shortName} accentColor={entry.accentColor} logoAttachmentId={entry.logoPublicationId??entry.logoAttachmentId} app={app} standalone={standalone} erpHref={workspace} frontLocation={localPath} locationName={actor.scope.kind === "branch" ? actor.scope.branchName : actor.scope.kind === "department" ? actor.scope.departmentName : entry.companyName} userId={entry.userId} initialLanguage={language} initialTheme={appearancePreference(cookieStore.get("erpx_appearance")?.value)} money={money} moneyApiBase={`/api/v1/front/${encodeURIComponent(holdingSlug)}/${encodeURIComponent(companySlug)}/${app}`} quickAccess={{
     items: quickAccessItems,
     preference: quickAccessPreference,
     defaultIds: quickAccessItems.slice(0, 6).map((item) => item.id),

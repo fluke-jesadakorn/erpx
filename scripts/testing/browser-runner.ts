@@ -43,20 +43,6 @@ async function execute(args: string[], env: Record<string, string | undefined>, 
   } finally { active.delete(child); await handle.close(); }
 }
 
-async function ready(origin: string, pid: number) {
-  const until = Date.now() + 120_000;
-  while (Date.now() < until) {
-    if (interrupted) throw new Error("BROWSER_RUN_INTERRUPTED");
-    try { process.kill(pid, 0); }
-    catch { throw new Error(`BROWSER_COHORT_PROCESS_EXITED:${origin}`); }
-    try {
-      const responses = await Promise.all(["health", "ready"].map(path => fetch(`${origin}/api/${path}`, { signal: AbortSignal.timeout(3_000) })));
-      if (responses.every(response => response.status === 200)) { await wait(250); return; }
-    } catch { /* Retain only private logs; readiness does not expose their secrets. */ }
-    await wait(500);
-  }
-  throw new Error(`BROWSER_COHORT_NOT_READY:${origin}`);
-}
 
 export type BrowserRunCaseReceipt = { suite: string; file?: string; project: "desktop" | "mobile"; title?: string; run?: string; report?: string; passed?: boolean; required?: false; reason?: string; faultProbe?: true; failure?: string; cleanup?: { completed: boolean; ownedDirectoryAbsent: boolean } };
 export type BrowserRunReceipt = { version: 1; passed: boolean; runtimeFingerprint: string; verificationFingerprint: string; shard: BrowserShard | null; interrupted: string | null; suites: string[]; cleanupFailures: string[]; inventory: BrowserInventoryCase[]; receipts: BrowserRunCaseReceipt[]; execution: { caseOrder: BrowserCaseOrder; mode: "acceptance" | "fault-probe"; faultProbe?: BrowserCaseIdentity } };
@@ -64,11 +50,14 @@ export class BrowserFaultProbeError extends Error {
   constructor(readonly evidenceDirectory: string) { super(browserFaultProbeError); this.name = "BrowserFaultProbeError"; }
 }
 
-export async function runBrowserSuites(suites: Suite[], options: { projects?: ("desktop" | "mobile")[]; grep?: string; headed?: boolean; releaseDirectory?: string; shard?: BrowserShard; caseOrder?: BrowserCaseOrder; faultProbe?: BrowserCaseIdentity } = {}) {
+export async function runBrowserSuites(suites: Suite[], options: { projects?: ("desktop" | "mobile")[]; grep?: string; headed?: boolean; releaseDirectory?: string; shard?: BrowserShard; caseOrder?: BrowserCaseOrder; faultProbe?: BrowserCaseIdentity; investorCapture?: boolean; port?: 3102 | 3104; caseSelection?: { suite: string; title: string; project: "desktop" | "mobile" }[]; onInvestorEvidence?: (directory: string) => void } = {}) {
   if (!suites.length || suites.some(suite => !["e2e", "journeys", "uat"].includes(suite.lane))) throw new Error("BROWSER_SUITES_REQUIRED");
   if (options.shard && (options.grep || options.projects)) throw new Error("SHARDED_BROWSER_FULL_INVENTORY_REQUIRED");
   const caseOrder = parseBrowserCaseOrder(options.caseOrder ?? "forward");
-  const groups = orderedBrowserExecutionGroups(suites, options.projects ?? ["desktop", "mobile"], caseOrder);
+  const selection = options.caseSelection;
+  if (selection && (!selection.length || new Set(selection.map(item => JSON.stringify(item))).size !== selection.length || selection.some(item => !suites.some(suite => suite.id === item.suite) || !["desktop", "mobile"].includes(item.project)))) throw new Error("INVALID_BROWSER_CASE_SELECTION");
+  if (selection && (options.shard || options.grep || options.faultProbe)) throw new Error("EXPLICIT_BROWSER_SELECTION_CONFLICT");
+  const groups = orderedBrowserExecutionGroups(suites, options.projects ?? ["desktop", "mobile"], caseOrder).filter(group => !selection || selection.some(item => item.suite === group.suite.id && item.project === group.project));
   assertBrowserFaultProbeSelection(options.faultProbe, groups);
   if (options.faultProbe && (options.shard || options.grep)) throw new Error("EXACT_BROWSER_FAULT_PROBE_SELECTION_REQUIRED");
   const execution: BrowserRunReceipt["execution"] = { caseOrder, mode: options.faultProbe ? "fault-probe" : "acceptance", ...(options.faultProbe ? { faultProbe: options.faultProbe } : {}) };
@@ -76,6 +65,7 @@ export async function runBrowserSuites(suites: Suite[], options: { projects?: ("
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const evidence = join(root, ".scratch/dev/test-suites/browser", stamp);
   await mkdir(evidence, { recursive: true, mode: 0o700 });
+  options.onInvestorEvidence?.(evidence);
   const runtimeFingerprint = await runtimeSourceFingerprint(root), verificationFingerprint = await verificationSourceFingerprint(root, runtimeFingerprint);
   const receipts: BrowserRunCaseReceipt[] = [];
   const inventory: BrowserInventoryCase[] = [];
@@ -106,7 +96,10 @@ export async function runBrowserSuites(suites: Suite[], options: { projects?: ("
         const selected = required.filter(test => isBrowserFaultProbeCase(suite.id, test, options.faultProbe));
         if (selected.length !== 1 || !browserCaseProjectRequirement(selected[0]).required || selected[0].expectedStatus !== "passed") throw new Error("REQUIRED_BROWSER_FAULT_PROBE_CASE_NOT_FOUND");
       }
+      const selected = selection?.filter(item => item.suite === suite.id && item.project === project);
+      if (selected?.some(item => required.filter(test => test.title === item.title).length !== 1)) throw new Error("EXACT_BROWSER_SELECTED_CASE_REQUIRED");
       for (const test of orderedBrowserExecutionCases(required, caseOrder)) {
+        if (selected && !selected.some(item => item.title === test.title)) continue;
         const requirement = browserCaseProjectRequirement(test);
         inventory.push({ suite: suite.id, file: test.file, project, title: test.title, ...requirement });
         if (options.faultProbe && !isBrowserFaultProbeCase(suite.id, test, options.faultProbe)) continue;
@@ -157,7 +150,7 @@ export async function runBrowserSuites(suites: Suite[], options: { projects?: ("
   }
 
   async function cohort(suite: Suite, project: "desktop" | "mobile", wanted?: BrowserCase): Promise<BrowserCase[]> {
-    const run = randomBytes(6).toString("hex"), port = suite.lane === "uat" || suite.fixture === "legal" ? 3104 : 3102;
+    const run = randomBytes(6).toString("hex"), port = options.port ?? (suite.lane === "uat" || suite.fixture === "legal" ? 3104 : 3102);
     const origin = `http://127.0.0.1:${port}`, output = join(evidence, run);
     await freePort(port); await mkdir(output, { mode: 0o700 });
     const verifyRelease = suite.lane === "uat" && Boolean(releaseDirectory);
@@ -188,7 +181,7 @@ export async function runBrowserSuites(suites: Suite[], options: { projects?: ("
       await execute(simulation("prepare"), { ...env, ERPX_BROWSER_SIMULATION_TEMPLATE_RUN: template.run }, join(output, "prepare.log"));
       const state = JSON.parse(await readFile(join(root, ".runtime/browser", run, "state.json"), "utf8"));
       if (state.sourceFingerprint !== runtimeFingerprint || state.origin !== origin || state.run !== run || !state.ready) throw new Error("BROWSER_COHORT_IDENTITY_CHANGED");
-      const testEnv = { ...env, ...localBrowserActorEnvironment(suite.fixture, state.fixture), ERPX_DEMO_RUN: run, ERPX_BROWSER_SIMULATION_RUN: run, ERPX_E2E_BASE_URL: origin,
+      const testEnv = { ...env, ERPX_INVESTOR_CAPTURE: options.investorCapture ? "1" : undefined, ...localBrowserActorEnvironment(suite.fixture, state.fixture), ERPX_DEMO_RUN: run, ERPX_BROWSER_SIMULATION_RUN: run, ERPX_E2E_BASE_URL: origin,
         ERPX_E2E_FIXTURE: join(root, ".runtime/browser", run, "fixture.json"), ERPX_SERVICES_FIXTURE: join(root, ".runtime/browser", run, "fixture.json"),
         ERPX_UAT_AUTH_DIR: suite.lane === "uat" ? join(root, ".runtime/browser", run, "uat-auth") : "",
         ERPX_UAT_EVIDENCE_FILE: suite.lane === "uat" && wanted ? await prepareUatCaseEvidence(root, run, output) : undefined,
@@ -202,9 +195,9 @@ export async function runBrowserSuites(suites: Suite[], options: { projects?: ("
         await execute(simulation("start"), { ...env, ERPX_BROWSER_SIMULATION_RELEASE_DIR: verifyRelease ? releaseDirectory : undefined }, join(output, "start.log"));
         const started = JSON.parse(await readFile(join(root, ".runtime/browser", run, "state.json"), "utf8"));
         if (!Number.isInteger(started.pid) || started.pid < 1) throw new Error("BROWSER_COHORT_PROCESS_REQUIRED");
-        await ready(origin, started.pid);
+        await execute([node, "scripts/testing/browser-readiness.mts", origin, String(started.pid)], env, join(output, "readiness.log"));
         Object.assign(testEnv, await prepareBrowserCasePrerequisites({ suite, wanted, run, directory: join(root, ".runtime/browser", run), releaseDirectory, evidenceDirectory: output, environment: testEnv, execute }));
-        await ready(origin, started.pid);
+        await execute([node, "scripts/testing/browser-readiness.mts", origin, String(started.pid)], env, join(output, "prerequisites-readiness.log"));
         if (suite.lane === "uat") {
           const profiles = requiredUatAuthProfiles(suite, wanted);
           if (profiles.length) await execute([process.execPath, "scripts/local/prepare-uat-auth.ts"], { ...testEnv, ERPX_UAT_AUTH_PROFILES: profiles.join(",") }, join(output, "auth.log"));

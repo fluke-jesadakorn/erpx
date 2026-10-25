@@ -85,7 +85,7 @@ test("isolated demo links a support case to its sales source and records removal
     const supportDrawer = ownerPage.getByRole("dialog", { name: "New service case", exact: true });
     await expect(supportDrawer).toBeVisible();
     const supportForm = supportDrawer.locator("form").filter({
-      has: supportDrawer.getByRole("heading", { name: "Record customer issue from order", exact: true }),
+      has: ownerPage.getByRole("heading", { name: "Record customer issue from order", exact: true }),
     });
     await expect(supportForm).toHaveCount(1);
     await supportForm.locator('input[name="title"]').fill(title);

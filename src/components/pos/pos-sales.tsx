@@ -1520,6 +1520,11 @@ export function PosSaleWorkspace({
                   )}
                 </>
               )}
+              {data.roomCharge && (
+                <p role="status" className={styles.alert}>
+                  {t("ลงบัญชีห้องพักแล้ว", "Charged to hotel folio")}
+                </p>
+              )}
               {sale.state === "completed" && data.receipt && (
                 <Button
                   type="submit"

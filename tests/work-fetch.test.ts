@@ -195,6 +195,39 @@ it('acknowledges the submitted field version instead of later edits made while t
  expect(saved[0].formEditVersion).not.toBe(form.getAttribute('data-erpx-edit-version'));
 });
 
+it.each(['none','another form'])('attributes an asynchronous upload completion to its submitted form with %s focused',async focus=>{
+ const form={getAttribute:()=> 'submitted-fields'} as unknown as HTMLFormElement;
+ const unrelated={getAttribute:()=> 'unrelated-fields'};
+ Object.defineProperty(document,'activeElement',{configurable:true,value:focus==='none'?null:{closest:()=>unrelated}});
+ const saved:unknown[]=[];view.addEventListener('erpx:record-command-saved',event=>saved.push((event as CustomEvent).detail));
+ const network=vi.fn(async(_input:RequestInfo|URL,_init?:RequestInit)=>Response.json({data:{id:'signed-copy'}}));vi.stubGlobal('fetch',network);
+ await workFetch('/api/v1/holdings/acme/legal/items/one/executed-copies',{method:'POST',body:'original request body'},{form,formEditVersion:'submitted-fields'});
+ expect(saved).toEqual([{form,formEditVersion:'submitted-fields'}]);
+ expect(network.mock.calls[0]).toHaveLength(2);
+ expect(network.mock.calls[0][1]).toMatchObject({method:'POST',body:'original request body'});
+});
+it('retains the explicit submitted version across asynchronous preparation and newer edits',async()=>{
+ let fields='submitted-fields',finish!:(response:Response)=>void;
+ const form={getAttribute:()=>fields} as unknown as HTMLFormElement;
+ const completion={form,formEditVersion:form.getAttribute('data-erpx-edit-version')};
+ fields='edit-during-file-hash';
+ const saved:{form:unknown;formEditVersion:string|null}[]=[];view.addEventListener('erpx:record-command-saved',event=>saved.push((event as CustomEvent).detail));
+ vi.stubGlobal('fetch',vi.fn(()=>new Promise<Response>(resolve=>{finish=resolve;})));
+ const pending=workFetch('/api/v1/holdings/acme/legal/items/one/executed-copies',{method:'POST'},completion);
+ fields='edit-during-server-save';finish(Response.json({data:{id:'signed-copy'}}));await pending;
+ expect(saved).toEqual([{form,formEditVersion:'submitted-fields'}]);
+ expect(saved[0].formEditVersion).not.toBe(form.getAttribute('data-erpx-edit-version'));
+});
+it.each(['server refusal','context changed'])('does not acknowledge an explicit upload form when %s',async failure=>{
+ const form={getAttribute:()=> 'submitted-fields'} as unknown as HTMLFormElement;
+ const saved=vi.fn();view.addEventListener('erpx:record-command-saved',saved);
+ let finish!:(response:Response)=>void;vi.stubGlobal('fetch',vi.fn(()=>new Promise<Response>(resolve=>{finish=resolve;})));
+ const pending=workFetch('/api/v1/holdings/acme/legal/items/one/executed-copies',{method:'POST'},{form,formEditVersion:'submitted-fields'});
+ if(failure==='context changed')context.dataset.workRevision='8';
+ finish(failure==='server refusal'?Response.json({error:{code:'COPY_CONFLICT'}},{status:409}):Response.json({data:{id:'signed-copy'}}));
+ expect((await pending).status).toBe(409);expect(saved).not.toHaveBeenCalled();
+});
+
 it("also confirms a dirty rendered form and exposes pending state until switching finishes", () => {
   dirtyMarker = true;
   view.confirm.mockReturnValue(false);

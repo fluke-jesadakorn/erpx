@@ -37,6 +37,37 @@ test("stale company preference recovers holding access without allowing unauthor
   const unchanged = await context.request.get("/api/v1/holdings/acme/assignments/active");
   expect(unchanged.ok(), await unchanged.text()).toBe(true);
   expect((await unchanged.json()).data).toMatchObject({ valid: true, companyId: "acme-co", userId: "usr_mali", assignmentId: "asg_mali_owner", revision: restored.revision });
+
+  // Real local API prefixes are rewritten by the proxy. Company selection is
+  // rejected by lineage even when its target is outside this account's grants.
+  const rememberedBefore = await context.request.get("/", { maxRedirects: 0 });
+  expect(rememberedBefore.status()).toBe(307);
+  expect(rememberedBefore.headers().location).toBe("/holdings/acme/home");
+  const preferenceCookies = async () => (await context.cookies())
+    .filter(cookie => cookie.name === "erpx_company_h001" || cookie.name === "erpx_last_workspace")
+    .map(cookie => ({ name: cookie.name, value: cookie.value }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const cookiesBefore = await preferenceCookies();
+  for (const suffix of ["/branches/bangkok", "/branches/bangkok/departments/operations"]) {
+    const localApi = `/api/v1/holdings/acme${suffix}`;
+    const selectionBefore = await context.request.get(`${localApi}/assignments/active`);
+    expect(selectionBefore.ok(), await selectionBefore.text()).toBe(true);
+    const selection = (await selectionBefore.json()).data;
+    expect(selection).toMatchObject({ valid: true, companyId: "acme-co", userId: "usr_mali", assignmentId: "asg_mali_owner", revision: restored.revision });
+    const localDenied = await context.request.post(`${localApi}/companies/active`, {
+      headers: { Origin: new URL(baseURL!).origin },
+      data: { companyId: "beacon-co" },
+    });
+    expect(localDenied.status()).toBe(409);
+    expect(await localDenied.json()).toMatchObject({ error: { code: "COMPANY_DERIVED_FROM_LINEAGE" } });
+    const selectionAfter = await context.request.get(`${localApi}/assignments/active`);
+    expect(selectionAfter.ok(), await selectionAfter.text()).toBe(true);
+    expect((await selectionAfter.json()).data).toEqual(selection);
+    expect(await preferenceCookies()).toEqual(cookiesBefore);
+    const rememberedAfter = await context.request.get("/", { maxRedirects: 0 });
+    expect(rememberedAfter.status()).toBe(rememberedBefore.status());
+    expect(rememberedAfter.headers().location).toBe(rememberedBefore.headers().location);
+  }
   await page.getByRole("button", { name: "Switch workspace", exact: true }).click();
   const choices = page.getByRole("dialog", { name: "Switch workspace", exact: true });
   await expect(choices).not.toContainText("Beacon Labs");

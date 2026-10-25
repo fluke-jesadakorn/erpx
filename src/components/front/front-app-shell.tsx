@@ -203,6 +203,7 @@ export function FrontAppShell({
     getServerConnectivitySnapshot,
   );
   const [language, setLanguage] = useState(initialLanguage);
+  const languageReady = useHydrated();
   const theme = useSyncExternalStore(
     subscribeAppearance,
     getAppearanceSnapshot,
@@ -290,6 +291,8 @@ export function FrontAppShell({
               variant="plain"
               type="button"
               className={styles.language}
+              disabled={!languageReady}
+              data-client-managed-ready={String(languageReady)}
               onClick={() => changeLanguage(language === "th" ? "en" : "th")}
             >
               {language === "th" ? "EN" : "ไทย"}

@@ -54,12 +54,12 @@ test("searches, quotes and confirms a family stay in an isolated hotel", async (
     page.getByRole("heading", { name: "Review your stay" }),
   ).toBeVisible();
   await expect(
-    page.getByText(`Free cancellation until ${cancellationDate} 18:00`, { exact: true }),
+    page.getByText(`Free cancellation until ${cancellationDate} 18:00 (Asia/Bangkok). After this deadline, contact the hotel. Pay at the hotel.`, { exact: true }),
   ).toBeVisible();
   await page
     .getByLabel("I have reviewed the dates, full price and cancellation terms.")
     .check();
-  await page.getByRole("button", { name: "Confirm · pay at hotel" }).click();
+  await page.getByRole("button", { name: "Confirm reservation", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: /Booking confirmed · PMS-/ }),
   ).toBeVisible();

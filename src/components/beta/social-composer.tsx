@@ -85,6 +85,7 @@ export function SocialComposer({
   const [draft, setDraft] = useState<Draft | null>(null);
   const [guided, setGuided] = useState<Record<string, string> | null>(null);
   const composer = useRef<HTMLDetailsElement>(null);
+  const [composerRevision, setComposerRevision] = useState(0);
   const [editorLoaded, setEditorLoaded] = useState(false);
   const [editorResetKey, setEditorResetKey] = useState(0);
   const [focusSignal, setFocusSignal] = useState(0);
@@ -296,9 +297,12 @@ export function SocialComposer({
         setAudience("");
         setParticipants([]);
         setSources([]);
+        setSourceChoice("");
         setPurpose("update");
         setMessage(`Shared with ${choice?.label ?? "your selected audience"}.`);
         await onPublished();
+        // A published draft is committed; reopen with fresh drawer dirty state.
+        setComposerRevision((value) => value + 1);
       } else setMessage("Draft saved. Only you can see it.");
     });
   }
@@ -317,7 +321,7 @@ export function SocialComposer({
   ];
   return (
     <>
-      <FormDisclosure appearance="standard" drawerTitle="Share an update" contentClassName={socialStyles.home} dismissDisabled={busy}
+      <FormDisclosure key={composerRevision} appearance="standard" drawerTitle="Share an update" contentClassName={socialStyles.home} dismissDisabled={busy}
         ref={composer}
         className="ui-panel beta-composer"
         onToggle={(event) => {
@@ -337,6 +341,7 @@ export function SocialComposer({
           <PenLine className="beta-compose-icon" size={18} aria-hidden="true" />
           <ChevronDown className="beta-compose-chevron" size={16} aria-hidden="true" />
         </summary>
+        <fieldset disabled={busy} style={{ display: "contents" }}>
         {guided && (
           <InlineNotice tone="info" className="notice" role="status">
             <p>
@@ -528,6 +533,7 @@ export function SocialComposer({
           </details>
         )}
       <InlineNotice tone="info" className="beta-status" role="status">{busy ? "Saving…" : message}</InlineNotice>
+        </fieldset>
       </FormDisclosure>
     </>
   );

@@ -18,6 +18,13 @@ async function gotoFrontPms(page:Page,companyId:string,section:string,query:Reco
   await expect(page.locator("[data-work-company]").first()).toHaveAttribute("data-work-company",companyId);
 }
 
+async function pmsDrawerForm(page:Page,title:string){
+  const drawer=page.getByRole('dialog',{name:title,exact:true});await expect(drawer).toHaveCount(1);await expect(drawer).toBeVisible();
+  const form=drawer.locator('form');await expect(form).toHaveCount(1);
+  await expect(form.getByRole('button',{name:title,exact:true})).toHaveAttribute('data-client-managed-ready','true');
+  return form;
+}
+
 async function signIn(context:BrowserContext,credentials:Credentials,role:string) {
   const frontApp=role.startsWith("pms_")?"pms":role.startsWith("pos_")?"pos":null;
   if(frontApp){
@@ -268,9 +275,12 @@ test("hotel cashier records a transfer and independent Finance matches bank evid
     expect(folio).toBeTruthy();
     await gotoFrontPms(cashierPage,state.fixture.hospitality.companyId,"folios",{property:propertyId,folio:folio.id});
     await cashierPage.locator('#workspace-content, #front-content').locator("summary").filter({hasText:"Record bank transfer pending verification"}).click();
-    await cashierPage.locator('#workspace-content, #front-content').getByLabel("Transfer amount").fill("42.80");
-    await cashierPage.locator('#workspace-content, #front-content').getByLabel("Bank transfer reference").fill(transferReference);
-    await cashierPage.getByRole("button",{name:"Record bank transfer pending verification",exact:true}).click();
+    const transferForm=await pmsDrawerForm(cashierPage,'Record bank transfer pending verification');
+    await transferForm.getByLabel("Transfer amount").fill("42.80");
+    await transferForm.getByLabel("Bank transfer reference").fill(transferReference);
+    const transferSaved=cashierPage.waitForResponse(response=>response.request().method()==='POST'&&new URL(response.url()).pathname===`/api/v1/front/riverside-lantern/${encodeURIComponent(state.fixture.hospitality.companyId)}/pms`);
+    await transferForm.getByRole("button",{name:"Record bank transfer pending verification",exact:true}).click();
+    expect((await transferSaved).ok()).toBe(true);
     const pendingTransferCard=cashierPage.locator('#workspace-content, #front-content').locator("article").filter({hasText:transferReference}).last();
     await expect(pendingTransferCard.getByText("Pending",{exact:true})).toBeVisible();
     const manifest=JSON.parse(await readFile(resolve(directory,"databases.json"),"utf8")) as {databases:{H002_DB:string}};
@@ -333,6 +343,14 @@ test("a typed transfer stays pending and the cashier can recover the bill",async
   try {
     await signIn(cashier,credentials,"pos_cashier");
     const page=await cashier.newPage();
+    await page.goto("/holdings/riverside-lantern/pos?tab=shifts");
+    const shifts=(await(await cashier.request.get("/api/v1/holdings/riverside-lantern/pos?tab=shifts")).json()).data.shifts;
+    if(!shifts.some((shift:{state:string})=>shift.state==="open")){
+      const opened=page.waitForResponse(response=>response.request().method()==='POST'&&response.url().endsWith('/pos/shift/open'));
+      await page.getByRole('button',{name:'Open cash shift',exact:true}).click();
+      expect((await opened).ok()).toBe(true);
+    }
+    await expect(page.getByRole('button',{name:'Close cash shift',exact:true})).toBeVisible();
     await page.goto("/holdings/riverside-lantern/pos");
     await page.getByRole("button",{name:"New sale / takeaway",exact:true}).click();
     await page.getByRole("button",{name:/Bottled water/}).click();
@@ -491,15 +509,22 @@ test("front desk and cashier settle checkout and recover Night Audit",async({bro
     }
     await gotoFrontPms(cashierPage,state.fixture.hospitality.companyId,"folios",{property:propertyId,folio:folioId});
     await cashierPage.locator('#workspace-content, #front-content').locator("summary").filter({hasText:"Receive payment / advance"}).click();
-    await cashierPage.locator('#workspace-content, #front-content').getByLabel("Amount",{exact:false}).first().fill((folio.data.due/100).toFixed(2));
+    const receiptForm=await pmsDrawerForm(cashierPage,'Receive payment / advance');
+    const receiptAmount=receiptForm.locator('input[name="amount"]');
+    await expect(receiptAmount).toHaveCount(1);await expect(receiptAmount).toHaveAttribute('type','number');
+    await receiptAmount.fill((folio.data.due/100).toFixed(2));
     await submitPms(cashierPage,"Receive payment / advance");
     const paid=(await(await cashier.request.get(pmsApi)).json()).data;
     expect(paid.snapshot.records.find((row:{id:string})=>row.id===folioId).data.due).toBe(0);
 
     await frontDeskPage.reload();
-    await frontDeskPage.locator('#workspace-content, #front-content').locator("summary").filter({hasText:"Check out"}).click();
+    const departingStay=frontDeskPage.locator(`#front-content article[data-pms-record="${stay.id}"]`);
+    await expect(departingStay).toHaveCount(1);await expect(departingStay).toBeVisible();
+    await departingStay.locator("summary").filter({hasText:"Check out"}).click();
     await submitPms(frontDeskPage,"Check out");
-    await expect(frontDeskPage.locator('#workspace-content, #front-content').getByText("Checked out",{exact:true}).first()).toBeVisible();
+    await expect(departingStay).toHaveCount(0);
+    const checkedOut=(await(await frontDesk.request.get(pmsApi)).json()).data;
+    expect(checkedOut.snapshot.records.find((row:{id:string})=>row.id===stay.id)?.data).toMatchObject({state:'checked_out',folioId});
     await gotoFrontPms(cashierPage,state.fixture.hospitality.companyId,"folios",{property:propertyId,folio:folioId});
     const closeFolio=cashierPage.locator('#workspace-content, #front-content').locator("details").filter({hasText:"Close folio"}).last();
     await expect(closeFolio).toBeVisible();

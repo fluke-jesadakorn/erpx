@@ -3,7 +3,6 @@ import { join, resolve } from "node:path";
 import { createHash } from "node:crypto";
 import type { BrowserCase } from "./browser-results";
 import type { Suite } from "./catalogue";
-import { repositoryRoot } from "./catalogue";
 import { pinnedBunBinary } from "./runtime-tooling";
 
 export const browserPrerequisiteIds = ["legal-worker", "legal-ai", "encrypted-recovery"] as const;
@@ -64,6 +63,7 @@ export async function prepareBrowserCasePrerequisites(input: {
 }): Promise<Record<string, string>> {
   const required = browserCasePrerequisites(input.suite, input.wanted);
   if (input.suite.fixture !== "legal" || input.suite.lane !== "uat") return {};
+  const { repositoryRoot } = await import("./catalogue");
   const { run, execute } = input, root = repositoryRoot, directory = resolve(input.directory), output = join(input.evidenceDirectory, "prerequisites");
   if (directory !== join(root, ".runtime/browser", run) || !resolve(input.evidenceDirectory).startsWith(join(root, ".scratch/dev/test-suites/browser") + "/")) throw new Error("OWNED_BROWSER_PREREQUISITE_DIRECTORIES_REQUIRED");
   const state = JSON.parse(await readFile(join(directory, "state.json"), "utf8")) as CompiledState;

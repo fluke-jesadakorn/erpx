@@ -17,8 +17,33 @@ async function login(context: BrowserContext, who: string) {
     },
   });
   expect(response.ok()).toBeTruthy();
-  const assignments: Record<string, string> = { mali: "seed_usr_mali", nisa: "workflow_controller", ava: "seed_usr_ava", noah: "seed_usr_noah" };
-  await selectFixtureAssignment(context, "acme-co", assignments[who], "acme", ["ava", "noah"].includes(who) ? (who === "ava" ? "/branches/bangkok" : "/branches/new-york") : "");
+  if (who === "ava" || who === "noah") {
+    // Local roles derive Company from the branch; no holding Company grant is needed.
+    const branch = who === "ava" ? "bangkok" : "new-york";
+    const assignmentId = `seed_usr_${who}`;
+    const endpoint = `/api/v1/holdings/acme/branches/${branch}/assignments/active`;
+    const current = await context.request.get(endpoint);
+    expect(current.ok(), `Read ${branch} role: ${current.status()}`).toBe(true);
+    const state = (await current.json()).data;
+    expect(state).toMatchObject({ companyId: "acme-co", userId: `usr_${who}` });
+    expect(Number.isInteger(state.revision) && state.revision >= 0).toBe(true);
+    expect(state.options.filter((option: { id: string }) => option.id === assignmentId)).toEqual([
+      expect.objectContaining({ id: assignmentId, companyId: "acme-co", role: who === "ava" ? "hr_admin" : "employee", scopeKind: "branch", scopeNodeId: branch }),
+    ]);
+    const selected = await context.request.post(endpoint, {
+      headers: { Origin: process.env.ERPX_E2E_BASE_URL ?? "http://127.0.0.1:3102" },
+      data: { assignmentId, revision: state.revision },
+    });
+    expect(selected.ok(), `Select ${branch} role: ${selected.status()}`).toBe(true);
+    const selection = (await selected.json()).data;
+    expect(selection).toMatchObject({ userId: `usr_${who}`, companyId: "acme-co", assignmentId, appliesToWorkspace: true });
+    const persisted = await context.request.get(endpoint);
+    expect(persisted.ok(), `Verify ${branch} role: ${persisted.status()}`).toBe(true);
+    expect((await persisted.json()).data).toMatchObject({ valid: true, userId: `usr_${who}`, companyId: "acme-co", assignmentId, revision: selection.revision });
+  } else {
+    const assignments: Record<string, string> = { mali: "seed_usr_mali", nisa: "workflow_controller" };
+    await selectFixtureAssignment(context, "acme-co", assignments[who]);
+  }
 }
 async function fits(page: Page) {
   expect(

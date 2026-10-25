@@ -72,7 +72,10 @@ test('UAT-02/03/09/23: request from Today restores a Thai draft, routes to Legal
     const page=await context.newPage();await page.goto(`${base(requester)}/home`);
     await page.getByRole('button',{name:testInfo.project.name==='mobile'?'Start work':'Start',exact:true}).click();
     await page.getByRole('dialog',{name:'Start work',exact:true}).getByRole('link',{name:'Request legal advice',exact:true}).click();
-    const console=page.locator('#workspace-content');await expect(console.getByRole('heading',{name:'New request',exact:true})).toBeVisible();
+    const requestDrawer=page.getByRole('dialog',{name:'New request',exact:true});await expect(requestDrawer).toHaveCount(1);await expect(requestDrawer).toBeVisible();
+    await expect(requestDrawer.getByRole('heading',{name:'New request',exact:true})).toBeVisible();
+    const console=requestDrawer.locator('form');await expect(console).toHaveCount(1);
+    const saveRecord=console.getByRole('button',{name:'Save record',exact:true});await expect(saveRecord).toHaveAttribute('data-client-managed-ready','true');
     const owner=console.getByRole('combobox',{name:'Owner',exact:true});await expect.poll(()=>owner.locator('option').count()).toBeGreaterThan(0);
     const title=`Thai Legal UAT ${testInfo.project.name} ${key()}`;
     await console.getByLabel('Title',{exact:true}).fill(title);
@@ -82,13 +85,13 @@ test('UAT-02/03/09/23: request from Today restores a Thai draft, routes to Legal
     expect(ownOptions.length).toBeGreaterThan(0);
     expect(ownOptions.some(value=>value.includes('other branch'))).toBe(false);
     await expect(owner).toHaveValue(requester.userId);
-    await page.reload();await expect(console.getByLabel('Title',{exact:true})).toHaveValue(title);
+    await page.reload();await expect(requestDrawer).toBeVisible();await expect(saveRecord).toHaveAttribute('data-client-managed-ready','true');await expect(console.getByLabel('Title',{exact:true})).toHaveValue(title);
     await expect(owner).toHaveValue(requester.userId);
-    await expect(page.locator('#workspace-content').getByText('Your unsent details were restored in this tab. Review them before saving.',{exact:true})).toBeVisible();
+    await expect(requestDrawer.getByText('Your unsent details were restored in this tab. Review them before saving.',{exact:true})).toBeVisible();
     const saved=page.waitForResponse(response=>response.request().method()==='POST'&&new URL(response.url()).pathname.endsWith('/legal'));
-    await page.getByRole('button',{name:'Save record',exact:true}).click();const created=await checked(await saved);
+    await saveRecord.click();const created=await checked(await saved);
     await expect(page.getByRole('heading',{name:title,exact:true})).toBeVisible();
-    await page.getByRole('button',{name:'Workflow',exact:true}).click();
+    await page.getByRole('tablist',{name:'Legal record sections',exact:true}).getByRole('tab',{name:'Workflow',exact:true}).click();
     await page.getByRole('combobox',{name:'Next state',exact:true}).selectOption('review');
     const transition=page.getByRole('button',{name:'Change state',exact:true}).locator('..').locator('..');
     await transition.getByLabel('Reason',{exact:true}).fill('Submit a synthetic question for legal triage');
@@ -136,7 +139,7 @@ test('UAT-04/05/06/07: ordered independent approval and signed-copy review prese
     await apiCommand(owner,manager,{action:'document',id,expectedVersion:current.item.version,name:'Signatory authority',body:'Synthetic training signer authority. UAT only.'});
     current=await record();const authority=current.documents.find((document:{name:string})=>document.name==='Signatory authority').id;
     for(const user of [first,second]){current=await record();await apiCommand(owner,manager,{action:'member',id,expectedVersion:current.item.version,userId:user.userId,access:'read'});}
-    const page=await owner.newPage();await open(page,manager,id);await page.getByRole('button',{name:'Workflow',exact:true}).click();
+    const page=await owner.newPage();await open(page,manager,id);await page.getByRole('tablist',{name:'Legal record sections',exact:true}).getByRole('tab',{name:'Workflow',exact:true}).click();
     const route=page.getByRole('heading',{name:'Contract approval route'}).locator('..');
     await route.getByRole('combobox',{name:'Document version',exact:true}).selectOption(draft);
     await route.getByRole('combobox',{name:'Reviewer 1',exact:true}).selectOption(first.userId);
@@ -149,26 +152,36 @@ test('UAT-04/05/06/07: ordered independent approval and signed-copy review prese
     current=await record();const outOfOrder=await reviewer2.request.post(`/api/v1${base(second)}/legal`,{headers:{...workHeaders(reviewer2,second),'Idempotency-Key':key()},data:{action:'approval.decide',id,expectedVersion:current.item.version,decision:'approve',reason:'Cannot skip the independent first reviewer'}});
     expect(outOfOrder.status()).toBeGreaterThanOrEqual(400);
     for(const [context,user] of [[reviewer1,first],[reviewer2,second]] as const){
-      const reviewPage=await context.newPage();await open(reviewPage,user,id);await reviewPage.getByRole('button',{name:'Workflow',exact:true}).click();
+      const reviewPage=await context.newPage();await open(reviewPage,user,id);await reviewPage.getByRole('tablist',{name:'Legal record sections',exact:true}).getByRole('tab',{name:'Workflow',exact:true}).click();
       const decision=reviewPage.getByRole('button',{name:'Record my decision',exact:true}).locator('..');
       await decision.getByLabel('Reason',{exact:true}).fill('Independent review of exact fictional locked version');
       await submitUi(reviewPage,'Record my decision');
     }
-    await page.reload();await page.getByRole('button',{name:'Documents',exact:true}).click();
+    await page.reload();await page.getByRole('tablist',{name:'Legal record sections',exact:true}).getByRole('tab',{name:'Documents',exact:true}).click();
     await page.locator('#workspace-content').getByText('Import a signed original or corrected revision',{exact:true}).click();
     const copies=page.getByRole('region',{name:'Executed copies'});
-    await copies.getByRole('combobox',{name:'Approved document',exact:true}).selectOption(draft);
-    await copies.getByLabel('Signing date (Gregorian)',{exact:true}).fill('2026-09-30');
-    await copies.getByLabel('Parties, one per line',{exact:true}).fill('Company A\nSynthetic Supplier');
-    await copies.getByLabel('Number of pages, including annexes',{exact:true}).fill('1');
-    await copies.getByLabel('Signer name',{exact:true}).fill('Training signer');
-    await copies.getByLabel('Party represented',{exact:true}).fill('Company A');
-    await copies.getByRole('listbox',{name:'Authority evidence for signer 1',exact:true}).selectOption(authority);
-    await copies.getByLabel('Signed PDF or scanned image',{exact:true}).setInputFiles(guide.signedPdfPath);
+    const importDrawer=page.getByRole('dialog',{name:'Import a signed original or corrected revision',exact:true});await expect(importDrawer).toHaveCount(1);await expect(importDrawer).toBeVisible();
+    const importForm=importDrawer.locator('form');await expect(importForm).toHaveCount(1);
+    const importSubmit=importForm.getByRole('button',{name:'Import for independent review',exact:true});await expect(importSubmit).toHaveAttribute('data-client-managed-ready','true');
+    async function closeImportedCopy(){
+      await expect(importSubmit).toBeEnabled();
+      await expect(importForm.getByLabel('Signing date (Gregorian)',{exact:true})).toHaveValue('');
+      await importDrawer.getByRole('button',{name:'Close dialog',exact:true}).click();
+      await expect(page.getByRole('dialog',{name:'Unsaved changes',exact:true})).toHaveCount(0);
+      await expect(importDrawer).toBeHidden();
+    }
+    await importForm.getByRole('combobox',{name:'Approved document',exact:true}).selectOption(draft);
+    await importForm.getByLabel('Signing date (Gregorian)',{exact:true}).fill('2026-09-30');
+    await importForm.getByLabel('Parties, one per line',{exact:true}).fill('Company A\nSynthetic Supplier');
+    await importForm.getByLabel('Number of pages, including annexes',{exact:true}).fill('1');
+    await importForm.getByLabel('Signer name',{exact:true}).fill('Training signer');
+    await importForm.getByLabel('Party represented',{exact:true}).fill('Company A');
+    await importForm.getByRole('listbox',{name:'Authority evidence for signer 1',exact:true}).selectOption(authority);
+    await importForm.getByLabel('Signed PDF or scanned image',{exact:true}).setInputFiles(guide.signedPdfPath);
     const imported=page.waitForResponse(response=>response.request().method()==='POST'&&new URL(response.url()).pathname.endsWith(`/items/${id}/executed-copies`));
-    await copies.getByRole('button',{name:'Import for independent review',exact:true}).click();await checked(await imported);
+    await importSubmit.click();await checked(await imported);await closeImportedCopy();
     await expect(copies.getByText(/pending review/)).toBeVisible();
-    const reviewPage=await reviewer2.newPage();await open(reviewPage,second,id);await reviewPage.getByRole('button',{name:'Documents',exact:true}).click();
+    const reviewPage=await reviewer2.newPage();await open(reviewPage,second,id);await reviewPage.getByRole('tablist',{name:'Legal record sections',exact:true}).getByRole('tab',{name:'Documents',exact:true}).click();
     const independent=reviewPage.getByRole('region',{name:'Executed copies'});
     await independent.getByRole('combobox',{name:'Review decision',exact:true}).selectOption('confirm');
     await independent.getByLabel('Review reason and evidence',{exact:true}).fill('Missing pages cannot be certified in the fictional rehearsal');
@@ -178,10 +191,11 @@ test('UAT-04/05/06/07: ordered independent approval and signed-copy review prese
     await refusedCommand(owner,manager,id,'executed.review',{executedCopyId:firstCopies[0].id,decision:'confirm',checks:{contentMatches:true,pagesComplete:true,partiesVerified:true,signaturesComplete:true,authorityVerified:true},reason:'Importer cannot independently confirm their own signed copy'},403);
     await independent.getByRole('combobox',{name:'Review decision',exact:true}).selectOption('changes_required');await independent.getByLabel('Review reason and evidence',{exact:true}).fill('Synthetic changed copy requires a corrected original and new independent review');await submitUi(reviewPage,'Record independent copy review');expect((await record()).item.state).toBe('approved');
     const corrected=await PDFDocument.load(await readFile(guide.signedPdfPath)),font=await corrected.embedFont(StandardFonts.Helvetica);corrected.getPages()[0].drawText('Corrected synthetic revision for independent review.',{x:40,y:580,size:10,font});
-    await page.reload();await page.getByRole('button',{name:'Documents',exact:true}).click();await page.locator('#workspace-content').getByText('Import a signed original or corrected revision',{exact:true}).click();
-    await copies.getByRole('combobox',{name:'Approved document',exact:true}).selectOption(draft);await copies.getByLabel('Signing date (Gregorian)',{exact:true}).fill('2026-09-30');await copies.getByLabel('Parties, one per line',{exact:true}).fill('Company A\nSynthetic Supplier');await copies.getByLabel('Number of pages, including annexes',{exact:true}).fill('1');await copies.getByLabel('Signer name',{exact:true}).fill('Training signer');await copies.getByLabel('Party represented',{exact:true}).fill('Company A');await copies.getByRole('listbox',{name:'Authority evidence for signer 1',exact:true}).selectOption(authority);await copies.getByLabel('Signed PDF or scanned image',{exact:true}).setInputFiles({name:'signed-corrected.pdf',mimeType:'application/pdf',buffer:Buffer.from(await corrected.save())});
-    const correction=page.waitForResponse(response=>response.request().method()==='POST'&&new URL(response.url()).pathname.endsWith(`/items/${id}/executed-copies`));await copies.getByRole('button',{name:'Import for independent review',exact:true}).click();await checked(await correction);expect((await record()).item.state).toBe('approved');
-    await reviewPage.reload();await reviewPage.getByRole('button',{name:'Documents',exact:true}).click();
+    await page.reload();await page.getByRole('tablist',{name:'Legal record sections',exact:true}).getByRole('tab',{name:'Documents',exact:true}).click();await page.locator('#workspace-content').getByText('Import a signed original or corrected revision',{exact:true}).click();
+    await expect(importDrawer).toHaveCount(1);await expect(importDrawer).toBeVisible();await expect(importForm).toHaveCount(1);await expect(importSubmit).toHaveAttribute('data-client-managed-ready','true');
+    await importForm.getByRole('combobox',{name:'Approved document',exact:true}).selectOption(draft);await importForm.getByLabel('Signing date (Gregorian)',{exact:true}).fill('2026-09-30');await importForm.getByLabel('Parties, one per line',{exact:true}).fill('Company A\nSynthetic Supplier');await importForm.getByLabel('Number of pages, including annexes',{exact:true}).fill('1');await importForm.getByLabel('Signer name',{exact:true}).fill('Training signer');await importForm.getByLabel('Party represented',{exact:true}).fill('Company A');await importForm.getByRole('listbox',{name:'Authority evidence for signer 1',exact:true}).selectOption(authority);await importForm.getByLabel('Signed PDF or scanned image',{exact:true}).setInputFiles({name:'signed-corrected.pdf',mimeType:'application/pdf',buffer:Buffer.from(await corrected.save())});
+    const correction=page.waitForResponse(response=>response.request().method()==='POST'&&new URL(response.url()).pathname.endsWith(`/items/${id}/executed-copies`));await importSubmit.click();await checked(await correction);await closeImportedCopy();expect((await record()).item.state).toBe('approved');
+    await reviewPage.reload();await reviewPage.getByRole('tablist',{name:'Legal record sections',exact:true}).getByRole('tab',{name:'Documents',exact:true}).click();
     const correctedPanel=independent.getByRole('heading',{name:/signed-corrected.pdf/}).locator('..');await correctedPanel.getByRole('combobox',{name:'Review decision',exact:true}).selectOption('confirm');
     for(const label of ['Content matches the approved version','All pages and annexes are present','All parties and their details are correct','Every required signature is present','Signatory authority evidence is complete and valid'])await correctedPanel.getByLabel(label,{exact:true}).check();
     await correctedPanel.getByLabel('Review reason and evidence',{exact:true}).fill('Synthetic copy, pages, parties and authority independently checked');
@@ -282,7 +296,7 @@ test('UAT-01: Company forms and templates require independent review before they
   await currentCommand(independent,reviewer,template.id,'transition',{state:'approved',reason:'Independent review of exact fixture wording'});
   await currentCommand(owner,manager,target.id,'template.apply',{templateId:template.id,values:{party:'Fictional Supplier'}});
   const applied=await record(owner,manager,target.id);expect(applied.documents[0].body).toBe('Training agreement with Fictional Supplier; no real legal terms.');expect(applied.links.some((link:{target_id:string;relation:string})=>link.target_id===template.id&&link.relation==='derived')).toBe(true);
-  const page=await owner.newPage();await open(page,manager,target.id);await page.getByRole('button',{name:'Documents',exact:true}).click();await expect(page.locator('#workspace-content pre').filter({hasText:'Training agreement with Fictional Supplier; no real legal terms.'})).toHaveText('Training agreement with Fictional Supplier; no real legal terms.');await page.screenshot({path:testInfo.outputPath('reviewed-template-and-company-form.png'),fullPage:true});
+  const page=await owner.newPage();await open(page,manager,target.id);await page.getByRole('tablist',{name:'Legal record sections',exact:true}).getByRole('tab',{name:'Documents',exact:true}).click();await expect(page.locator('#workspace-content pre').filter({hasText:'Training agreement with Fictional Supplier; no real legal terms.'})).toHaveText('Training agreement with Fictional Supplier; no real legal terms.');await page.screenshot({path:testInfo.outputPath('reviewed-template-and-company-form.png'),fullPage:true});
  }finally{await Promise.all(contexts.map(context=>context.close()));}
 });
 
@@ -327,9 +341,10 @@ test('UAT-12/13/16: reviewed dates and typed case, corporate and IP actions reta
    await featureTransition(owner,manager,matter.id,'case_event','completed',{evidence:`Synthetic ${eventType} original receipt`},row.id);
   }
   const evidence=await checked(await owner.request.get(`/api/v1${base(manager)}/legal/evidence/${matter.id}`));expect(evidence.workflowHistory).toHaveLength(18);expect(evidence.workflowHistory.every((entry:{item_id:string})=>entry.item_id===matter.id)).toBe(true);
-  const page=await owner.newPage();await open(page,manager,matter.id);await page.getByRole('button',{name:'Tasks & controls',exact:true}).click();await page.locator('#workspace-content').getByText('Review a deadline calculation',{exact:true}).click();
-  const calculator=page.locator('#workspace-content').getByText('Review a deadline calculation',{exact:true}).locator('..');await calculator.getByLabel('Start local date',{exact:true}).fill('2028-01-31');await calculator.getByLabel('Period',{exact:true}).fill('1');await calculator.getByRole('combobox',{name:'Counting method',exact:true}).selectOption('months');await calculator.getByRole('button',{name:'Preview date',exact:true}).click();await expect(calculator.getByText('2028-02-29',{exact:true})).toBeVisible();
-  await calculator.getByLabel('Start local date',{exact:true}).fill('2026-09-18');await calculator.getByRole('combobox',{name:'Counting method',exact:true}).selectOption('business_days');await calculator.getByLabel('Reviewed holidays, YYYY-MM-DD separated by spaces',{exact:true}).fill('2026-09-21');await calculator.getByRole('button',{name:'Preview date',exact:true}).click();await expect(calculator.getByText('2026-09-22',{exact:true})).toBeVisible();expect((await record(owner,manager,matter.id)).item.due_date).toBeNull();
+  const page=await owner.newPage();await open(page,manager,matter.id);await page.getByRole('tablist',{name:'Legal record sections',exact:true}).getByRole('tab',{name:'Tasks & controls',exact:true}).click();await page.locator('#workspace-content').getByText('Review a deadline calculation',{exact:true}).click();
+  const calculatorDrawer=page.getByRole('dialog',{name:'Review a deadline calculation',exact:true});await expect(calculatorDrawer).toHaveCount(1);await expect(calculatorDrawer).toBeVisible();
+  const calculator=calculatorDrawer.locator('form');await expect(calculator).toHaveCount(1);await expect(calculator.getByRole('button',{name:'Preview date',exact:true})).toHaveAttribute('data-client-managed-ready','true');await calculator.getByLabel('Start local date',{exact:true}).fill('2028-01-31');await calculator.getByLabel('Period',{exact:true}).fill('1');await calculator.getByRole('combobox',{name:'Counting method',exact:true}).selectOption('months');await calculator.getByRole('button',{name:'Preview date',exact:true}).click();await expect(calculatorDrawer.getByText('2028-02-29',{exact:true})).toBeVisible();
+  await calculator.getByLabel('Start local date',{exact:true}).fill('2026-09-18');await calculator.getByRole('combobox',{name:'Counting method',exact:true}).selectOption('business_days');await calculator.getByLabel('Reviewed holidays, YYYY-MM-DD separated by spaces',{exact:true}).fill('2026-09-21');await calculator.getByRole('button',{name:'Preview date',exact:true}).click();await expect(calculatorDrawer.getByText('2026-09-22',{exact:true})).toBeVisible();expect((await record(owner,manager,matter.id)).item.due_date).toBeNull();
   for(const [kind,category,data,actionData,filed] of [
    ['corporate','corporate_action',{recordType:'Synthetic filing'},{actionType:'filing',authority:'Synthetic registrar',requirements:'Reviewed fictional entity documents'},'submitted'],
    ['license','corporate_action',{issuer:'Synthetic licensing authority'},{actionType:'renewal',authority:'Synthetic licensing authority',requirements:'Reviewed fictional renewal package'},'submitted'],
@@ -341,7 +356,7 @@ test('UAT-12/13/16: reviewed dates and typed case, corporate and IP actions reta
    await featureTransition(owner,manager,item.id,category,filed,{evidence:'Synthetic accepted submission receipt'});await featureTransition(owner,manager,item.id,category,'completed',{evidence:'Synthetic accepted registration or renewed-permit receipt'});
    expect(await feature(owner,manager,item.id,category)).toMatchObject({state:'completed',data:{evidence:'Synthetic accepted registration or renewed-permit receipt'}});
   }
-   await page.reload();await page.getByRole('button',{name:'Tasks & controls',exact:true}).click();const enforcement=page.locator('#workspace-content').getByRole('heading',{name:'Synthetic enforcement completed',exact:true});await expect(enforcement).toHaveCount(1);await expect(enforcement).toBeVisible();await page.screenshot({path:testInfo.outputPath('typed-case-actions-and-reviewed-dates.png'),fullPage:true});
+   await page.reload();await page.getByRole('tablist',{name:'Legal record sections',exact:true}).getByRole('tab',{name:'Tasks & controls',exact:true}).click();const enforcement=page.locator('#workspace-content').getByRole('heading',{name:'Synthetic enforcement completed',exact:true});await expect(enforcement).toHaveCount(1);await expect(enforcement).toBeVisible();await page.screenshot({path:testInfo.outputPath('typed-case-actions-and-reviewed-dates.png'),fullPage:true});
  }finally{await Promise.all(contexts.map(context=>context.close()));}
 });
 
@@ -359,7 +374,7 @@ test('UAT-14/15: DSAR clarification and breach known-event time require typed in
   await featureTransition(owner,manager,breach,'privacy_case','assessed',{assessment:'Synthetic event impact review',evidence:'Original synthetic event log',riskLevel:'high',notificationDecision:'pending'});row=await feature(owner,manager,breach,'privacy_case');await refusedCommand(owner,manager,breach,'feature.transition',{category:'privacy_case',featureId:row.id,featureVersion:row.version,state:'review',reason:'Pending notification cannot be approved'},409);
   await featureTransition(owner,manager,breach,'privacy_case','review',{notificationDecision:'required',notificationBasis:'Synthetic risk assessment supports notification',responseDecision:'notify'});await featureTransition(independent,reviewer,breach,'privacy_case','approved');await featureTransition(owner,manager,breach,'privacy_case','responded',{response:'Scoped synthetic notification delivered',evidence:'Synthetic notification delivery receipt'});await featureTransition(owner,manager,breach,'privacy_case','closed');
   const final=await feature(owner,manager,breach,'privacy_case');expect(final).toMatchObject({state:'closed',due_date:'2026-10-20',data:{knownAt,riskLevel:'high',notificationDecision:'required',responseDecision:'notify'}});
-  const page=await owner.newPage();await open(page,manager,breach);await page.getByRole('button',{name:'Tasks & controls',exact:true}).click();await expect(page.locator('#workspace-content').getByText(knownAt,{exact:true})).toBeVisible();await page.reload();await page.getByRole('button',{name:'Tasks & controls',exact:true}).click();await expect(page.locator('#workspace-content').getByText('Scoped synthetic notification delivered',{exact:true})).toBeVisible();await page.screenshot({path:testInfo.outputPath('reviewed-privacy-known-event-and-response.png'),fullPage:true});
+  const page=await owner.newPage();await open(page,manager,breach);await page.getByRole('tablist',{name:'Legal record sections',exact:true}).getByRole('tab',{name:'Tasks & controls',exact:true}).click();await expect(page.locator('#workspace-content').getByText(knownAt,{exact:true})).toBeVisible();await page.reload();await page.getByRole('tablist',{name:'Legal record sections',exact:true}).getByRole('tab',{name:'Tasks & controls',exact:true}).click();await expect(page.locator('#workspace-content').getByText('Scoped synthetic notification delivered',{exact:true})).toBeVisible();await page.screenshot({path:testInfo.outputPath('reviewed-privacy-known-event-and-response.png'),fullPage:true});
  }finally{await Promise.all(contexts.map(context=>context.close()));}
 });
 
@@ -410,7 +425,7 @@ test('UAT-18: cyclic evidence links retain both holds and releasing one preserve
   const directory=resolve('.runtime/browser',run!);await promisify(execFile)(pinnedBunBinary(resolve('.')),['--env-file=/dev/null','scripts/local/run-server-script.ts','scripts/fixtures/legal-isolated-destruction-uat.ts',run!,'hold',second.id],{cwd:resolve('.'),timeout:90_000,env:browserChildEnvironment(process.env,{NODE_ENV:'development',ERPX_ENVIRONMENT:'local',ERPX_DATA_DIR:directory,ERPX_DATABASE_MANIFEST:resolve(directory,'databases.json')})});
   const preservation=JSON.parse(await readFile(resolve(directory,`legal-preservation-${second.id}-hold.json`),'utf8'));expect(preservation).toMatchObject({scope:'isolated-engineering',run,itemId:second.id,remainingHolds:1,originalSha256:originalHash,deleteRefused:true,replacementRefused:true});expect(preservation.codes).toEqual(['LEGAL_HOLD_BLOCKS_FILE_MUTATION','LEGAL_HOLD_BLOCKS_FILE_MUTATION']);
   const download=await owner.request.get(`/api/v1${base(manager)}/legal/documents/${document.id}`);expect(download.status()).toBe(200);expect(createHash('sha256').update(await download.body()).digest('hex')).toBe(originalHash);
-  const page=await independent.newPage();await open(page,reviewer,second.id);await page.getByRole('button',{name:'Holds',exact:true}).click();await expect(page.locator('#workspace-content').getByText('Synthetic first dispute preservation',{exact:true})).toBeVisible();await page.reload();expect((await record(independent,reviewer,second.id)).holds).toHaveLength(1);await page.screenshot({path:testInfo.outputPath('remaining-overlapping-hold.png'),fullPage:true});
+  const page=await independent.newPage();await open(page,reviewer,second.id);await page.getByRole('tablist',{name:'Legal record sections',exact:true}).getByRole('tab',{name:'Holds',exact:true}).click();await expect(page.locator('#workspace-content').getByText('Synthetic first dispute preservation',{exact:true})).toBeVisible();await page.reload();expect((await record(independent,reviewer,second.id)).holds).toHaveLength(1);await page.screenshot({path:testInfo.outputPath('remaining-overlapping-hold.png'),fullPage:true});
  }finally{await Promise.all(contexts.map(context=>context.close()));}
 });
 
@@ -431,7 +446,7 @@ test('UAT-23/24: repeated and concurrent imports preserve one atomic register wi
   const foreignExport=await crossHolding.request.get(`/api/v1${base(foreign)}/legal/export/matter`);expect(foreignExport.status()).toBe(200);expect(await foreignExport.text()).not.toContain(marker);
   const id=created.items[0].id,initial=await record(owner,manager,id),commands=[1,2].map(index=>owner.request.post(endpoint,{headers:{...workHeaders(owner,manager),'Idempotency-Key':key()},data:{action:'comment',id,expectedVersion:initial.item.version,body:`Concurrent tab ${index}`}}));const concurrent=await Promise.all(commands);expect(concurrent.map(response=>response.status()).sort()).toEqual([200,409]);const after=await record(owner,manager,id);expect(after.item.version).toBe(initial.item.version+1);expect(after.comments).toHaveLength(1);
   const repeatKey=key(),body={action:'comment',id,expectedVersion:after.item.version,body:'Lost response retried with the original command key'},repeat=()=>owner.request.post(endpoint,{headers:{...workHeaders(owner,manager),'Idempotency-Key':repeatKey},data:body});const receipt=await checked(await repeat());expect(await checked(await repeat())).toEqual(receipt);const final=await record(owner,manager,id);expect(final.item.version).toBe(after.item.version+1);expect(final.comments.filter((comment:{body:string})=>comment.body===body.body)).toHaveLength(1);
-  const page=await owner.newPage();await open(page,manager,id);await page.getByRole('button',{name:'Overview',exact:true}).click();await expect(page.getByRole('heading',{name:'Discussion',exact:true})).toBeVisible();const discussionComment=page.locator('#workspace-content').getByText(body.body,{exact:true});await expect(discussionComment).toHaveCount(1);await expect(discussionComment).toBeVisible();await page.reload();expect((await record(owner,manager,id)).comments).toHaveLength(2);await page.screenshot({path:testInfo.outputPath('atomic-import-and-command-replay.png'),fullPage:true});
+  const page=await owner.newPage();await open(page,manager,id);await page.getByRole('tablist',{name:'Legal record sections',exact:true}).getByRole('tab',{name:'Overview',exact:true}).click();await expect(page.getByRole('heading',{name:'Discussion',exact:true})).toBeVisible();const discussionComment=page.locator('#workspace-content').getByText(body.body,{exact:true});await expect(discussionComment).toHaveCount(1);await expect(discussionComment).toBeVisible();await page.reload();expect((await record(owner,manager,id)).comments).toHaveLength(2);await page.screenshot({path:testInfo.outputPath('atomic-import-and-command-replay.png'),fullPage:true});
  }finally{await Promise.all(contexts.map(context=>context.close()));}
 });
 
@@ -454,7 +469,7 @@ test('UAT-19: independently approved canonical destruction resumes the same immu
   await currentCommand(owner,manager,id,'retention.retry',{requestId:request.id,reason:'Resume the retained execution journal; do not replace the reviewed manifest'});await drain('resume');const completed=await checked(await owner.request.get(`${endpoint}/retention/${id}`));expect(completed.requests[0]).toMatchObject({id:request.id,state:'completed',error:null,manifest:request.manifest});expect((await owner.request.get(`${endpoint}/documents/${original.id}`)).status()).toBe(410);
   const fault=JSON.parse(await readFile(resolve(directory,`legal-destruction-${request.id}-fault.json`),'utf8')),recovery=JSON.parse(await readFile(resolve(directory,`legal-destruction-${request.id}-resume.json`),'utf8'));expect(recovery).toMatchObject({scope:'isolated-engineering',run,requestId:request.id,state:'completed',manifestSha256:fault.manifestSha256,sourceState:'destroyed',ledgerStored:0,certificateCount:1,remaining:0});expect(recovery.originalChecksums).toContain(original.checksum);
   const retained=await record(owner,manager,id);expect(retained.documents[0]).toMatchObject({checksum:original.checksum,body:''});expect(retained.events.filter((event:{action:string})=>event.action==='retention.destroyed')).toHaveLength(1);
-  const page=await independent.newPage();await open(page,reviewer,id);await page.getByRole('button',{name:'Retention',exact:true}).click();await expect(page.locator('#workspace-content').getByText('completed',{exact:true}).first()).toBeVisible();await page.reload();expect((await record(independent,reviewer,id)).documents[0].checksum).toBe(original.checksum);await page.screenshot({path:testInfo.outputPath('destruction-interruption-and-certificate.png'),fullPage:true});
+  const page=await independent.newPage();await open(page,reviewer,id);await page.getByRole('tablist',{name:'Legal record sections',exact:true}).getByRole('tab',{name:'Retention',exact:true}).click();await expect(page.locator('#workspace-content').getByText('completed',{exact:true}).first()).toBeVisible();await page.reload();expect((await record(independent,reviewer,id)).documents[0].checksum).toBe(original.checksum);await page.screenshot({path:testInfo.outputPath('destruction-interruption-and-certificate.png'),fullPage:true});
  }finally{await Promise.all(contexts.map(context=>context.close()));}
 });
 
@@ -518,6 +533,6 @@ test('UAT-22: unavailable Legal AI leaves untrusted evidence inert and a persist
   const history=()=>context.request.get(`${aiEndpoint}/ai/${created.id}`);await expect.poll(async()=>(await checked(await history())).find((proposal:{id:string})=>proposal.id===generationKey)?.state,{timeout:60_000}).toBe('failed');const failed=(await checked(await history())).find((proposal:{id:string})=>proposal.id===generationKey);expect(failed.proposal).toBeNull();expect(failed.error).toBeTruthy();
   const untouched=await record(context,manager,created.id);expect(untouched.item.state).toBe('draft');expect(untouched.shares).toEqual([]);expect(untouched.envelopes).toEqual([]);expect(untouched.events.some((event:{action:string})=>['approved','ai.accepted','signing.sent'].includes(event.action))).toBe(false);
   await apiCommand(context,manager,{action:'settings',enabled:true,aiEnabled:false});await currentCommand(context,manager,created.id,'document',{name:'Reviewed manual replacement',body:'A human reviewed this fictional draft after the provider was unavailable.'});const after=await record(context,manager,created.id);expect(after.documents).toHaveLength(2);expect(after.documents[0].body).toBe('A human reviewed this fictional draft after the provider was unavailable.');expect(after.item.state).toBe('draft');
-  const page=await context.newPage();await open(page,manager,created.id);await page.getByRole('button',{name:'Documents',exact:true}).click();await expect(page.locator('#workspace-content pre').filter({hasText:after.documents[0].body})).toHaveText(after.documents[0].body);await page.reload();expect((await record(context,manager,created.id)).documents).toHaveLength(2);await page.screenshot({path:testInfo.outputPath('legal-ai-failure-manual-fallback.png'),fullPage:true});
+  const page=await context.newPage();await open(page,manager,created.id);await page.getByRole('tablist',{name:'Legal record sections',exact:true}).getByRole('tab',{name:'Documents',exact:true}).click();await expect(page.locator('#workspace-content pre').filter({hasText:after.documents[0].body})).toHaveText(after.documents[0].body);await page.reload();expect((await record(context,manager,created.id)).documents).toHaveLength(2);await page.screenshot({path:testInfo.outputPath('legal-ai-failure-manual-fallback.png'),fullPage:true});
  }finally{await context.close();}
 });

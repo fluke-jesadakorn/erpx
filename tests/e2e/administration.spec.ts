@@ -277,8 +277,11 @@ test("a profile owns level, activation and distinct access commands", async ({
   async function lifecycleChange(kind: "suspend" | "transfer" | "offboarding", status: "suspended" | "active" | "ended") {
     await page.goto(profile);
     await expect(workspace).toHaveCount(1);
-    await workspace.getByRole("button", { name: "Start a change", exact: true }).click();
+    const startChange = workspace.getByRole("button", { name: "Start a change", exact: true });
+    await expect(startChange).toHaveAttribute("data-client-managed-ready", "true");
+    await startChange.click();
     const dialog = page.getByRole("dialog", { name: `UX employee ${suffix} · employment change`, exact: true });
+    await expect(dialog).toBeVisible();
     await dialog.getByRole("combobox", { name: "Change", exact: true }).selectOption(kind);
     if (kind === "transfer") {
       await dialog.getByRole("combobox", { name: "Position", exact: true }).selectOption(position!.id);

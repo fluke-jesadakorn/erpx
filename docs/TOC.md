@@ -22,6 +22,7 @@ Reviewed 2026-10-03. This is the single entry point. [Production plan](productio
 - [Engineering scenario register](testing/engineering-scenarios.json), [required gate scenarios](testing/engineering-gate-scenarios.json), [Legal engineering UAT](testing/legal-uat-engineering-cases.json), [attachment owner cases](testing/engineering-attachment-owner-cases.json)
 - [Company release acceptance](contracts/next/business-readiness.md), [explicit inventory reviews](status/capability-gate-reviews.json), [generated inventory manifest](status/business-acceptance-manifest.json)
 - [Checksum evidence ledger](status/business-acceptance-evidence.json), [verification guide](testing/README.md), [durable evidence](testing/evidence/)
+- [Investor capture and offline gallery](testing/investor-capture.md)
 - [E2E specification](testing/e2e-specification.md), [isolated browser simulation](testing/isolated-browser-simulation.md), [working demo](testing/working-demo-company.md), [generated source-route inventory](testing/uat-route-inventory.md)
 - Dated official-source reviews: [Thai payroll](testing/thai-payroll-rules-2026-10-02.md), [Thai Finance tax](testing/thai-finance-tax-rules-2026-10-03.md), [Thai accounting](testing/thai-accounting-research-2026-09-30.md), [NPAEs reporting](testing/npaes-reporting-2026-10-03.md)
 

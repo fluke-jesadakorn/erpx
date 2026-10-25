@@ -83,8 +83,21 @@ test("isolated demo carries an approved warehouse transfer through dispatch and 
     await receiverPage.locator("#workspace-content textarea").first().fill("Independent receiving warehouse review authorizes the carrier dispatch");
     await command(receiverPage, `/stock-transfers/${transferId}/post`, "Approve transport for dispatch");
     console.log("stock-transit: approved");
-    await receiverPage.getByRole("link", { name: "Open dispatch, receipt and discrepancies", exact: true }).click();
+    const transitLink = receiverPage.getByRole("link", { name: "Open dispatch, receipt and discrepancies", exact: true });
+    await expect(transitLink).toHaveCount(1);
+    await expect(transitLink).toHaveAttribute('href', /^\/holdings\/simulation\/stock-transit\/transit-[^/?]+$/);
+    const transitHref = (await transitLink.getAttribute('href'))!;
+    const transitId = transitHref.split('/').at(-1)!;
+    await transitLink.click();
+    await expect(receiverPage).toHaveURL(url => url.searchParams.get('detailKind') === 'stock_transit' && url.searchParams.get('detailId') === transitId);
+    const transitDrawer = receiverPage.getByTestId('record-detail-drawer');
+    await expect(transitDrawer).toHaveCount(1);
+    await expect(transitDrawer).toBeVisible();
+    const fullTransit = transitDrawer.getByRole('link', { name: 'Open full page ↗', exact: true });
+    await expect(fullTransit).toHaveAttribute('href', transitHref);
+    await fullTransit.click();
     await receiverPage.waitForURL(/\/holdings\/simulation\/stock-transit\/transit-/);
+    await expect(transitDrawer).toBeHidden();
     const transitPath = new URL(receiverPage.url()).pathname;
 
     await sourcePage.goto(transitPath, { waitUntil: "domcontentloaded" });

@@ -196,7 +196,15 @@ test("isolated demo receives lot and serial stock with independent approval and 
       await expect(journalLink).toHaveCount(1);
       await expect(journalLink).toHaveAttribute("href", `/holdings/simulation/finance/journals/${receipt.journal_id}`);
       await journalLink.click();
+      await expect(financePage).toHaveURL(url => url.searchParams.get('detailKind') === 'journal' && url.searchParams.get('detailId') === receipt.journal_id);
+      const journalDrawer = financePage.getByTestId('record-detail-drawer');
+      await expect(journalDrawer).toHaveCount(1);
+      await expect(journalDrawer).toBeVisible();
+      const fullJournal = journalDrawer.getByRole('link', { name: 'Open full page ↗', exact: true });
+      await expect(fullJournal).toHaveAttribute('href', `/holdings/simulation/finance/journals/${receipt.journal_id}`);
+      await fullJournal.click();
       await expect(financePage).toHaveURL(new RegExp(`/finance/journals/${receipt.journal_id}$`));
+      await expect(journalDrawer).toBeHidden();
       const main = financePage.getByRole("main");
       const expectJournalAmounts = async () => {
         for (const [account, debit, credit] of [
@@ -205,9 +213,16 @@ test("isolated demo receives lot and serial stock with independent approval and 
         ]) {
           const row = main.getByRole("cell", { name: account, exact: true }).locator("xpath=ancestor::tr[1]");
           await expect(row).toHaveCount(1);
-          await expect(row.getByRole("cell")).toHaveCount(3);
+          await expect(row.locator('xpath=ancestor::table[1]').getByRole('columnheader')).toHaveText(['Account','Debit (THB)','Credit (THB)','Details']);
+          await expect(row.getByRole("cell")).toHaveCount(4);
           await expect(row.getByRole("cell").nth(1)).toHaveText(debit);
           await expect(row.getByRole("cell").nth(2)).toHaveText(credit);
+          const accountLink=row.getByRole('cell').nth(0).getByRole('link',{name:account,exact:true});
+          await expect(accountLink).toHaveCount(1);
+          await expect(accountLink).toHaveAttribute('href',/^\/holdings\/simulation\/record-details\/finance_account\/[^/?]+$/);
+          const detailsLink=row.getByRole('cell').nth(3).getByRole('link',{name:'View details',exact:true});
+          await expect(detailsLink).toHaveCount(1);
+          await expect(detailsLink).toHaveAttribute('href',(await accountLink.getAttribute('href'))!);
         }
       };
       await expectJournalAmounts();

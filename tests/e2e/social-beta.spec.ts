@@ -22,9 +22,32 @@ async function login(context: BrowserContext, name: "mali" | "nisa" | "ava" | "n
     },
   });
   expect(r.status(), await r.text()).toBe(200);
-  const assignmentId = name === "nisa" ? "workflow_controller" : `seed_usr_${name}`;
-  const workspaceSuffix = name === "ava" ? "/branches/bangkok" : name === "noah" ? "/branches/new-york" : "";
-  await selectFixtureAssignment(context, "acme-co", assignmentId, "acme", workspaceSuffix);
+  if (name === "ava" || name === "noah") {
+    // Local roles derive Company from the branch; no holding Company grant is needed.
+    const branch = name === "ava" ? "bangkok" : "new-york";
+    const assignmentId = `seed_usr_${name}`;
+    const endpoint = `/api/v1/holdings/acme/branches/${branch}/assignments/active`;
+    const current = await context.request.get(endpoint);
+    expect(current.ok(), `Read ${branch} role: ${current.status()}`).toBe(true);
+    const state = (await current.json()).data;
+    expect(state).toMatchObject({ companyId: "acme-co", userId: `usr_${name}` });
+    expect(Number.isInteger(state.revision) && state.revision >= 0).toBe(true);
+    expect(state.options.filter((option: { id: string }) => option.id === assignmentId)).toEqual([
+      expect.objectContaining({ id: assignmentId, companyId: "acme-co", role: name === "ava" ? "hr_admin" : "employee", scopeKind: "branch", scopeNodeId: branch }),
+    ]);
+    const selected = await context.request.post(endpoint, {
+      headers: { Origin: process.env.ERPX_E2E_BASE_URL ?? "http://127.0.0.1:3102" },
+      data: { assignmentId, revision: state.revision },
+    });
+    expect(selected.ok(), `Select ${branch} role: ${selected.status()}`).toBe(true);
+    const selection = (await selected.json()).data;
+    expect(selection).toMatchObject({ userId: `usr_${name}`, companyId: "acme-co", assignmentId, appliesToWorkspace: true });
+    const persisted = await context.request.get(endpoint);
+    expect(persisted.ok(), `Verify ${branch} role: ${persisted.status()}`).toBe(true);
+    expect((await persisted.json()).data).toMatchObject({ valid: true, userId: `usr_${name}`, companyId: "acme-co", assignmentId, revision: selection.revision });
+  } else {
+    await selectFixtureAssignment(context, "acme-co", name === "nisa" ? "workflow_controller" : "seed_usr_mali");
+  }
 }
 async function pasteImages(editor: Locator, names: string[], caret: number) {
   await editor.focus();
@@ -458,7 +481,7 @@ test("social post → manual task → evidence → independent acceptance, with 
     );
     await article.getByRole("button", { name: /Comment/ }).click();
     await article
-      .getByLabel("Write a comment", { exact: true })
+      .getByRole("combobox", { name: "Write a comment", exact: true })
       .fill("Please inspect the power switch.");
     await article.getByRole("button", { name: "Reply", exact: true }).click();
     await expect(

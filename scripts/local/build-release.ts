@@ -64,4 +64,7 @@ await writeFile(join(release,'release-files.json'),artifactManifest);
 const manifest={id,softwareVersion,sourceFingerprint,deploymentId:softwareVersion,node:'24.20.0',postgres:'18.6',attachmentRuntime,createdAt:new Date().toISOString(),schemaSha256:schemaHash.digest('hex'),lockfileSha256:createHash('sha256').update(await readFile(join(work,'bun.lock'))).digest('hex'),fileManifestSha256:createHash('sha256').update(artifactManifest).digest('hex')};
 await writeFile(join(release,'release.json'),JSON.stringify(manifest,null,2));
 await rm(join(root,'.runtime/releases/latest'),{force:true});await symlink(release,join(root,'.runtime/releases/latest'));
+// Remove only this build's completed workspace. Releases may still be referenced
+// by running verification, retained evidence or rollback requirements.
+await rm(work,{recursive:true,force:true});
 console.log(`Release: ${release}`);

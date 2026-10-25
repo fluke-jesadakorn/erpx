@@ -29,7 +29,9 @@ test("Front POS shortcuts stay local and change the visible tab", async ({ brows
     await expect(shiftLink).toHaveAttribute("href", /\?tab=shifts$/);
     await shiftLink.click();
     await expect(page).toHaveURL(/\?tab=shifts$/);
-    await expect(page.locator('nav[aria-label="Point of sale"] button[aria-current="page"]')).toHaveText("Cash shifts");
+    const selectedShift=page.locator('nav[aria-label="Point of sale"] button[aria-current="page"]');
+    await expect(selectedShift).toHaveCount(1);
+    await expect(selectedShift).toHaveAccessibleName("Cash shifts");
     expect(new URL(page.url()).origin).toBe(frontOrigin("pos"));
   } finally {
     await context.close();

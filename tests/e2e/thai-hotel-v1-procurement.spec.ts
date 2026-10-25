@@ -27,9 +27,25 @@ async function signInRole(context: BrowserContext, page: Page, credentials: Cred
 
 async function requestCommand(page: Page, requestId: string, button: string, note: string) {
   const workspace = page.locator("#workspace-content:visible");
-  await workspace.getByLabel("Message or decision evidence", { exact: true }).fill(note);
+  let action: Locator;
+  if (button === "Approve") {
+    await expect(workspace.getByLabel("Message or decision evidence", { exact: true })).toBeEnabled();
+    const decision = workspace.getByRole("region", { name: "Your decision", exact: true });
+    await expect(decision).toHaveCount(1);
+    await decision.getByRole("button", { name: "Approve", exact: true }).click();
+    const confirmation = decision.locator("form");
+    await expect(confirmation).toHaveCount(1);
+    action = confirmation.getByRole("button", { name: "Confirm Approve", exact: true });
+    await expect(action).toHaveAttribute("data-client-managed-ready", "true");
+    await confirmation.getByLabel("Reason", { exact: true }).fill(note);
+  } else {
+    await workspace.getByLabel("Message or decision evidence", { exact: true }).fill(note);
+    action = workspace.getByRole("button", { name: button, exact: true });
+  }
+  await expect(action).toHaveCount(1);
+  await expect(action).toBeVisible();
   const response = page.waitForResponse((item) => item.request().method() === "POST" && item.url().includes(`/api/v1/holdings/riverside-lantern/requests/${requestId}/actions`));
-  await workspace.getByRole("button", { name: button, exact: true }).click();
+  await action.click();
   const result = await response;
   expect(result.ok(), await result.text()).toBe(true);
   await page.goto(`${page.url().split("?")[0]}?refresh=${Date.now()}`, { waitUntil: "domcontentloaded" });
@@ -78,11 +94,18 @@ async function assignWorkflowOwner(page: Page, path: string, kind: "order" | "jo
   const ownerDisclosure = step.locator("details summary");
   await ownerDisclosure.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest", behavior: "instant" }));
   await clickInVisualViewport(page, ownerDisclosure);
-  await step.locator('select[name="userId"]').selectOption(user.userId);
-  await step.locator('input[name="reason"]').fill(reason);
+  const ownerDrawer = page.getByRole("dialog", { name: "Assign / change owner", exact: true });
+  await expect(ownerDrawer).toHaveCount(1);
+  await expect(ownerDrawer).toBeVisible();
+  const ownerForm = ownerDrawer.locator("form");
+  await expect(ownerForm).toHaveCount(1);
+  const saveOwner = ownerForm.getByRole("button", { name: "Save owner", exact: true });
+  await expect(saveOwner).toHaveAttribute("data-client-managed-ready", "true");
+  await expect(ownerForm.locator('select[name="saveDefault"]')).toHaveValue("record");
+  await ownerForm.locator('select[name="userId"]').selectOption(user.userId);
+  await ownerForm.locator('input[name="reason"]').fill(reason);
   const id = path.split("?")[0].split("/").at(-1)!;
   const response = page.waitForResponse((item) => item.request().method() === "POST" && item.url().endsWith(`/flows/${kind}/${id}`));
-  const saveOwner = step.getByRole("button", { name: "Save owner", exact: true });
   await saveOwner.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest", behavior: "instant" }));
   await clickInVisualViewport(page, saveOwner);
   const result = await response;
@@ -126,15 +149,15 @@ test("isolated demo carries an approved purchase request through split RFQs, rec
 
     const managerPage = await managerContext.newPage();
     await signInRole(managerContext, managerPage, credentials, "people_manager", manager!, path);
-    await requestCommand(managerPage, requestId, "Approve request", "Line manager reviewed the business need and approved the request.");
+    await requestCommand(managerPage, requestId, "Approve", "Line manager reviewed the business need and approved the request.");
 
     const preparerPage = await preparerContext.newPage();
     await signInRole(preparerContext, preparerPage, credentials, "finance_preparer", preparer!, path);
-    await requestCommand(preparerPage, requestId, "Approve request", "Finance preparer reviewed the planned spending and source evidence.");
+    await requestCommand(preparerPage, requestId, "Approve", "Finance preparer reviewed the planned spending and source evidence.");
 
     const approverPage = await approverContext.newPage();
     await signInRole(approverContext, approverPage, credentials, "finance_approver", approver!, path);
-    await requestCommand(approverPage, requestId, "Approve request", "Finance approver independently approved the planned spending.");
+    await requestCommand(approverPage, requestId, "Approve", "Finance approver independently approved the planned spending.");
 
     const buyerPage = await buyerContext.newPage();
     await signInRole(buyerContext, buyerPage, credentials, "purchasing_operator", buyer!, path);
@@ -336,23 +359,33 @@ test("isolated demo carries an approved purchase request through split RFQs, rec
 
     const createAndPostBill = async () => {
       await preparerPage.goto(`/holdings/riverside-lantern/supplier-bills?refresh=${Date.now()}`, { waitUntil: "domcontentloaded" });
-      await preparerPage.getByText(/Match one supplier invoice to/, { exact: false }).first().click();
-      await field(preparerPage, "Supplier invoice reference", { exact: true }).fill("DEMO-REQUEST-INVOICE-CONSOLIDATED");
-      const invoiceDate = field(preparerPage, "Invoice date", { exact: true });
+      const captureTitle = "Match one supplier invoice to one or more receipts";
+      const capture = preparerPage.locator("#workspace-content:visible summary").filter({ hasText: new RegExp(`^${captureTitle}$`) });
+      await expect(capture).toHaveCount(1);
+      await capture.click();
+      const billDrawer = preparerPage.getByRole("dialog", { name: captureTitle, exact: true });
+      await expect(billDrawer).toHaveCount(1);
+      await expect(billDrawer).toBeVisible();
+      const billForm = billDrawer.locator("form");
+      await expect(billForm).toHaveCount(1);
+      const sendInvoice = billForm.getByRole("button", { name: "Send invoice for independent matching review", exact: true });
+      await expect(sendInvoice).toHaveAttribute("data-client-managed-ready", "true");
+      await billForm.getByLabel("Supplier invoice reference", { exact: true }).fill("DEMO-REQUEST-INVOICE-CONSOLIDATED");
+      const invoiceDate = billForm.getByLabel("Invoice date", { exact: true });
       const earliestInvoiceDate = await invoiceDate.getAttribute("min");
       expect(earliestInvoiceDate, "invoice cannot predate the latest matched receipt").toBeTruthy();
       await invoiceDate.fill(earliestInvoiceDate!);
       await expect(invoiceDate).toHaveValue(earliestInvoiceDate!);
-      await field(preparerPage, "Payment due date", { exact: true }).fill("2026-10-22");
-      const billQuantities = preparerPage.locator('input[name^="quantity-"]');
+      await billForm.getByLabel("Payment due date", { exact: true }).fill("2026-10-22");
+      const billQuantities = billForm.locator('input[name^="quantity-"]');
       await expect(billQuantities).toHaveCount(3);
       // The capture form is keyed by receipt-line id and may order lines by
       // database id. Its defaults are the exact posted receipt quantities and
       // unit prices, so keep those values instead of assuming PO order.
       expect((await billQuantities.evaluateAll((inputs) => inputs.map((input) => (input as HTMLInputElement).value).sort()))).toEqual(["3", "3", "4"]);
-      await field(preparerPage, "Supplier invoice evidence", { exact: true }).fill("One supplier invoice covers the six-unit and four-unit receipts from the approved request.");
+      await billForm.getByLabel("Supplier invoice evidence", { exact: true }).fill("One supplier invoice covers the six-unit and four-unit receipts from the approved request.");
       const billResponse = preparerPage.waitForResponse((item) => item.request().method() === "POST" && item.url().endsWith("/api/v1/holdings/riverside-lantern/supplier-bills"));
-      await preparerPage.getByRole("button", { name: "Send invoice for independent matching review", exact: true }).click();
+      await sendInvoice.click();
       const billResult = await billResponse;
       expect(billResult.ok(), await billResult.text()).toBe(true);
       const billId = String((await billResult.json()).data.id);

@@ -3,6 +3,7 @@ import {
   test,
   expect as baseExpect,
   type BrowserContext,
+  type Locator,
   type Page,
 } from "@playwright/test";
 import { readFileSync, existsSync } from "node:fs";
@@ -32,12 +33,42 @@ test.use({ actionTimeout: 20000 });
 const expect = baseExpect.configure({ timeout: 20000 }),
   base = "/holdings/acme",
   api = `/api/v1${base}`;
+const commandPages = new WeakMap<BrowserContext, Page>();
+const commandActors = new WeakMap<BrowserContext, Fixture["actors"][string]>();
 async function login(context: BrowserContext, who: string) {
   const response = await context.request.post("/api/auth/sign-in/email", {
     data: { email: fixture.actors[who].email, password: fixture.password },
   });
   expect(response.ok(), await response.text()).toBeTruthy();
   await selectFixtureAssignment(context, fixture.company, fixture.actors[who].assignmentId);
+  commandActors.set(context, fixture.actors[who]);
+}
+async function commandHeaders(context: BrowserContext) {
+  const actor = commandActors.get(context);
+  expect(actor, "An existing fixture actor must be selected before a command.").toBeTruthy();
+  let page = commandPages.get(context);
+  if (!page) {
+    page = await context.newPage();
+    await page.goto(`${base}/home`);
+    commandPages.set(context, page);
+  }
+  const work = page.locator("[data-work-assignment]");
+  await expect(work).toHaveCount(1);
+  await expect(work).toHaveAttribute("data-work-stale", "false");
+  await expect(work).toHaveAttribute("data-work-company", fixture.company);
+  await expect(work).toHaveAttribute("data-work-user", actor!.userId);
+  await expect(work).toHaveAttribute("data-work-assignment", actor!.assignmentId);
+  const stamp = await work.evaluate((element) => {
+    const node = element as HTMLElement;
+    return { revision: node.dataset.workRevision!, company: node.dataset.workCompany!, assignment: node.dataset.workAssignment! };
+  });
+  expect(stamp.revision).toMatch(/^\d+$/);
+  return {
+    Origin: new URL(page.url()).origin,
+    "x-erpx-context-revision": stamp.revision,
+    "x-erpx-context-company": stamp.company,
+    "x-erpx-context-assignment": stamp.assignment,
+  };
 }
 async function post(
   context: BrowserContext,
@@ -48,7 +79,7 @@ async function post(
   const response = await context.request.post(`${api}/${route}`, {
     headers: {
       "Idempotency-Key": key,
-      Origin: process.env.ERPX_E2E_BASE_URL ?? "http://127.0.0.1:3100",
+      ...await commandHeaders(context),
     },
     data,
   });
@@ -86,15 +117,33 @@ async function clickAction(
 ) {
   const evidence = page.getByLabel("Message or decision evidence");
   await expect(evidence).toBeVisible();
-  await evidence.fill(note);
-  await expect(evidence).toHaveValue(note);
+  await expect(evidence).toBeEnabled();
+  let action: Locator;
+  if (label === "Approve" || label === "Return for correction") {
+    const decision = page.getByRole("region", { name: "Your decision", exact: true });
+    await expect(decision).toHaveCount(1);
+    await decision.getByRole("button", { name: label, exact: true }).click();
+    const confirmation = decision.locator("form");
+    await expect(confirmation).toHaveCount(1);
+    action = confirmation.getByRole("button", { name: `Confirm ${label}`, exact: true });
+    await expect(action).toHaveAttribute("data-client-managed-ready", "true");
+    const reason = confirmation.getByLabel("Reason", { exact: true });
+    await reason.fill(note);
+    await expect(reason).toHaveValue(note);
+  } else {
+    await evidence.fill(note);
+    await expect(evidence).toHaveValue(note);
+    action = page.getByRole("button", { name: label, exact: true });
+  }
+  await expect(action).toHaveCount(1);
+  await expect(action).toBeVisible();
   const response = page.waitForResponse(
     (r) =>
       r.url().includes("/requests/") &&
       r.url().endsWith("/actions") &&
       r.request().method() === "POST",
   );
-  await page.getByRole("button", { name: label, exact: true }).click();
+  await action.click();
   const r = await response;
   expect(r.ok(), await r.text()).toBeTruthy();
   await page.reload();
@@ -349,7 +398,7 @@ test("equipment requires independent approval then records a handover without a 
     .poll(async () => (await read(context, id)).request.state)
     .toBe("awaiting_approval");
   await headPage.reload();
-  await clickAction(headPage, "Approve request");
+  await clickAction(headPage, "Approve");
   const handler = await browser.newContext(),
     hp = await handler.newPage();
   await login(handler, "it");
@@ -415,10 +464,11 @@ test("purchase requests hand off once to the existing approved and received orde
     await expect(hp.getByText("Purchasing execution is unavailable in this beta workspace. Your approved request remains saved.")).toBeVisible();
     await expect(hp.getByRole("link", { name: "Prepare purchase order in Purchasing" })).toHaveCount(0);
     const denied = await handler.request.post(`${api}/commerce/orders`, {
-      headers: { "Idempotency-Key": randomUUID() },
+      headers: { ...await commandHeaders(handler), "Idempotency-Key": randomUUID() },
       data: { kind: "purchase", requestId: r.id },
     });
     expect(denied.status()).toBe(403);
+    expect((await denied.json()).error.code).toBe("BETA_CAPABILITY_UNAVAILABLE");
     expect((await read(context, r.id)).request.state).toBe("in_progress");
     await owner.close();
     await handler.close();
@@ -476,7 +526,7 @@ test("purchase requests hand off once to the existing approved and received orde
   });
   const partial = await read(handler, r.id),
     denied = await handler.request.post(`${api}/requests/${r.id}/actions`, {
-      headers: { "Idempotency-Key": randomUUID() },
+      headers: { ...await commandHeaders(handler), "Idempotency-Key": randomUUID() },
       data: {
         action: "resolve",
         expectedVersion: partial.request.version,
@@ -484,6 +534,7 @@ test("purchase requests hand off once to the existing approved and received orde
       },
     });
   expect(denied.status()).toBe(409);
+  expect((await denied.json()).error.code).toBe("PURCHASE_NOT_RECEIVED");
   data = await orderData();
   await post(handler, `commerce/orders/${order.id}/fulfill`, {
     expectedVersion: data.order.version,

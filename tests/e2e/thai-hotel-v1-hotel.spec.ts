@@ -1,7 +1,9 @@
+import { captureInvestorCheckpoint } from "../helpers/investor-capture";
 import { expect, test } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { pinnedBunBinary } from "../../scripts/testing/runtime-tooling";
 import { Pool } from "pg";
 import { frontOrigin, frontWorkspacePath, signInFrontRole, type SimulatedFrontCredentials } from "../helpers/front-simulation-session";
 
@@ -42,6 +44,39 @@ test("H002 guest journey includes independent folio correction, payment, checkou
     const frontPage = await frontDesk.newPage();
     const reservations = pmsPath(`reservations?property=${propertyId}`);
     await signInFrontRole(frontDesk, frontPage, credentials, "pms_frontdesk", "pms", companyId, reservations);
+    await frontPage.locator("summary").filter({ hasText: /^More\s*···$/ }).click();
+    const currencyPicker = frontPage.getByRole("button", { name: "Choose display currency", exact: true });
+    await currencyPicker.click();
+    await frontPage.getByRole("textbox", { name: "Search currency", exact: true }).fill("THB");
+    const currencySaved = frontPage.waitForResponse(response => response.request().method() === "POST" && response.url().endsWith("/money/preference"));
+    await frontPage.getByRole("option", { name: /^THB\b/ }).click();
+    const currencyResult = await currencySaved;
+    expect(currencyResult.ok(), `${currencyResult.status()}: ${JSON.stringify((await currencyResult.json()).error ?? null)}`).toBe(true);
+    await expect(currencyPicker).toContainText("THB");
+    await expect(currencyPicker).toHaveAttribute("aria-expanded", "false");
+    await frontPage.locator("summary").filter({ hasText: /^More\s*···$/ }).click();
+    const frontMoney = `${frontOrigin("pms")}/api/v1/front/riverside-lantern/${companyId}/pms/money`;
+    const moneyContext = await frontDesk.request.get(frontMoney, { headers: { "x-erpx-front-location": "holding" } });
+    expect(moneyContext.status()).toBe(200);
+    expect((await moneyContext.json()).data).toMatchObject({ companyId, displayCurrency: "THB", canConfirmRate: false });
+    expect(moneyContext.headers()["cache-control"]).toBe("private, no-store");
+    const wrongCompany = await frontDesk.request.get(`${frontOrigin("pms")}/api/v1/front/riverside-lantern/wrong-company/pms/money`, { headers: { "x-erpx-front-location": "holding" } });
+    expect(wrongCompany.status()).toBe(404);
+    expect((await wrongCompany.json()).error.code).toBe("FRONT_NOT_FOUND");
+    const missingContext = await frontDesk.request.post(`${frontMoney}/rates`, { headers: { Origin: frontOrigin("pms"), "x-erpx-front-location": "holding", "Idempotency-Key": crypto.randomUUID() }, data: {} });
+    expect(missingContext.status()).toBe(409);
+    expect((await missingContext.json()).error.code).toBe("WORK_CONTEXT_CHANGED");
+    const currencyHeaders = await currencyResult.request().allHeaders();
+    const moneyContextHeaders = Object.fromEntries(Object.entries(currencyHeaders).filter(([name]) => name.startsWith("x-erpx-context-") || name === "x-erpx-front-location"));
+    const forbiddenRate = await frontDesk.request.post(`${frontMoney}/rates`, { headers: { ...moneyContextHeaders, Origin: frontOrigin("pms"), "Idempotency-Key": crypto.randomUUID() }, data: {} });
+    expect(forbiddenRate.status()).toBe(403);
+    expect((await forbiddenRate.json()).error.code).toBe("FRONT_COMMAND_FORBIDDEN");
+    const anonymousMoney = await browser.newContext(testInfo.project.use);
+    try {
+      expect((await anonymousMoney.request.get(frontMoney)).status()).toBe(401);
+    } finally {
+      await anonymousMoney.close();
+    }
     const cashierPage = await cashier.newPage();
     await signInFrontRole(cashier, cashierPage, credentials, "pms_cashier", "pms", companyId, pmsPath(`folios?property=${propertyId}`));
     const managerPage = await manager.newPage();
@@ -83,10 +118,13 @@ test("H002 guest journey includes independent folio correction, payment, checkou
     await frontPage.getByRole("button", { name: "Review price & policy", exact: true }).click();
     await expect(frontPage.getByRole("heading", { name: "Review your stay", exact: true })).toBeVisible();
     await expect(frontPage.getByText(/Stay total/)).toBeVisible();
-    await frontPage.getByRole("checkbox").check();
+    const confirmReservation = frontPage.getByRole("button", { name: "Confirm reservation", exact: true });
+    await expect(confirmReservation).toHaveAttribute("data-client-managed-ready", "true");
+    await frontPage.getByRole("checkbox", { name: "I have reviewed the dates, full price and cancellation terms.", exact: true }).check();
     const bookingResponse = frontPage.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith(pmsCommandPath));
-    await frontPage.getByRole("button", { name: "Continue to secure payment", exact: true }).click();
-    expect((await bookingResponse).ok()).toBe(true);
+    await confirmReservation.click();
+    const bookingResult = await bookingResponse;
+    expect(bookingResult.ok(), `${bookingResult.status()}: ${JSON.stringify((await bookingResult.json()).error ?? null)}`).toBe(true);
     await expect(frontPage.getByRole("status").filter({ hasText: "reservation is now available in the list below" })).toBeVisible();
 
     const created = (await (await frontDesk.request.get(`/api/v1/holdings/riverside-lantern/pms?property=${propertyId}`)).json()).data;
@@ -104,8 +142,12 @@ test("H002 guest journey includes independent folio correction, payment, checkou
     const housekeepingPage = await housekeeping.newPage();
     await signInFrontRole(housekeeping, housekeepingPage, credentials, "pms_housekeeping", "pms", companyId, pmsPath(`housekeeping?property=${propertyId}`));
     await housekeepingPage.goto(pmsUrl(`housekeeping?property=${propertyId}`), { waitUntil: "domcontentloaded" });
-    const createTaskDetails = housekeepingPage.locator("details").filter({ hasText: "Create housekeeping task" }).filter({ hasText: "103" }).first();
-    await createTaskDetails.locator("summary").click();
+    await housekeepingPage.locator("summary").filter({ hasText: /^Create housekeeping task$/ }).click();
+    const createTaskSummary = housekeepingPage.locator("summary").filter({ hasText: /^Create housekeeping task · Room 103$/ });
+    await expect(createTaskSummary).toHaveCount(1);
+    await createTaskSummary.click();
+    const createTaskDetails = createTaskSummary.locator("..");
+    await expect(createTaskDetails.getByRole("button", { name: "Create housekeeping task · Room 103", exact: true })).toHaveAttribute("data-client-managed-ready", "true");
     await createTaskDetails.locator("select").selectOption("arrival");
     await createTaskDetails.locator('input[type="date"]').fill(today);
     const taskResponse = housekeepingPage.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith(pmsCommandPath));
@@ -138,10 +180,17 @@ test("H002 guest journey includes independent folio correction, payment, checkou
     expect((await startResponse).ok()).toBe(true);
     const completeDetails = workingCard.locator("details").filter({ hasText: "Mark task complete" });
     await completeDetails.locator("summary").click();
-    for (const checkbox of await completeDetails.getByRole("checkbox").all()) await checkbox.check();
-    await completeDetails.getByLabel("Notes", { exact: true }).fill("Fictional room preparation completed and checked against the arrival list.");
+    const completeDrawer = housekeepingPage.getByRole("dialog", { name: "Mark task complete", exact: true });
+    await expect(completeDrawer).toBeVisible();
+    const completeForm = completeDrawer.locator("form");
+    await expect(completeForm).toHaveCount(1);
+    await expect(completeForm.getByRole("button", { name: "Mark task complete", exact: true })).toHaveAttribute("data-client-managed-ready", "true");
+    const checklist = completeForm.locator('input[type="checkbox"][name^="check_"]');
+    await expect(checklist).toHaveCount(5);
+    for (const checkbox of await checklist.all()) await checkbox.check();
+    await completeForm.getByLabel("Notes", { exact: true }).fill("Fictional room preparation completed and checked against the arrival list.");
     const completeResponse = housekeepingPage.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith(pmsCommandPath));
-    await completeDetails.getByRole("button", { name: "Mark task complete", exact: true }).click();
+    await completeForm.getByRole("button", { name: "Mark task complete", exact: true }).click();
     expect((await completeResponse).ok()).toBe(true);
 
     await inspectorPage.reload({ waitUntil: "domcontentloaded" });
@@ -182,6 +231,7 @@ test("H002 guest journey includes independent folio correction, payment, checkou
     expect((await checkInResponse).ok()).toBe(true);
     await frontPage.reload({ waitUntil: "domcontentloaded" });
     await expect(frontPage.locator("article").filter({ hasText: guestName }).first()).toContainText("In house");
+    await captureInvestorCheckpoint(frontPage, "hotel-checkin", frontPage.locator("article").filter({ hasText: guestName }).first());
     if (testInfo.project.name === "mobile") {
       const viewportWidth = await frontPage.evaluate(() => window.innerWidth);
       const documentWidth = await frontPage.evaluate(() => document.documentElement.scrollWidth);
@@ -227,9 +277,14 @@ test("H002 guest journey includes independent folio correction, payment, checkou
     await cashierPage.goto(pmsUrl(`folios?property=${propertyId}&folio=${folioId}`), { waitUntil: "domcontentloaded" });
     const receive = cashierPage.locator("details").filter({ hasText: "Receive payment / advance" }).first();
     await receive.locator("summary").click();
-    await receive.locator('input[name="amount"]').fill((Number(folioBeforeCheckout.data.due) / 100).toFixed(2));
-    await receive.locator('select[name="method"]').selectOption("cash");
-    await receive.locator('select[name="shiftId"]').selectOption(String(cashierShift!.id));
+    const receiveDrawer = cashierPage.getByRole("dialog", { name: "Receive payment / advance", exact: true });
+    await expect(receiveDrawer).toBeVisible();
+    const receiveForm = receiveDrawer.locator("form");
+    await expect(receiveForm).toHaveCount(1);
+    await expect(receiveForm.getByRole("button", { name: "Receive payment / advance", exact: true })).toHaveAttribute("data-client-managed-ready", "true");
+    await receiveForm.locator('input[name="amount"]').fill((Number(folioBeforeCheckout.data.due) / 100).toFixed(2));
+    await receiveForm.locator('select[name="method"]').selectOption("cash");
+    await receiveForm.locator('select[name="shiftId"]').selectOption(String(cashierShift!.id));
     await sendPms(cashierPage, "Receive payment / advance");
     const paidBeforeCheckout = (await (await cashier.request.get(pmsApi)).json()).data;
     expect(paidBeforeCheckout.snapshot.records.find((record: PmsRecord) => record.kind === "folio" && record.id === folioId)?.data.due).toBe(0);
@@ -296,6 +351,8 @@ test("H002 guest journey includes independent folio correction, payment, checkou
 
     await cashierPage.goto(pmsUrl(`folios?property=${propertyId}&folio=${folioId}`), { waitUntil: "domcontentloaded" });
     const closeFolio = cashierPage.locator("details").filter({ hasText: "Close folio" }).first();
+    await expect(closeFolio.locator("summary")).toBeVisible();
+    await captureInvestorCheckpoint(cashierPage, "hotel-folio", closeFolio.locator("summary"));
     await closeFolio.locator("summary").click();
     await sendPms(cashierPage, "Close folio");
     const closed = (await (await cashier.request.get(pmsApi)).json()).data;
@@ -313,16 +370,19 @@ test("H002 guest journey includes independent folio correction, payment, checkou
     await sendPms(cashierPage, "Close cash shift");
 
     const posApi = "/api/v1/holdings/riverside-lantern/pos?tab=shifts";
-    const posShifts = (await (await posCashier.request.get(posApi)).json()).data.shifts as Array<{ id: string; state: string; expected_minor: number }>;
+    const posShifts = (await (await posCashier.request.get(posApi)).json()).data.shifts as Array<{ id: string; state: string; register_name: string; cash_expected_minor: number }>;
     if (posShifts.some((shift) => shift.state === "open")) {
       await posPage.goto(`${frontOrigin("pos")}${frontWorkspacePath(companyId, "?tab=shifts")}`, { waitUntil: "domcontentloaded" });
       for (const shift of posShifts.filter((item) => item.state === "open")) {
         const cash = await db.query("SELECT COALESCE(SUM(p.amount_minor),0)::bigint amount FROM pos_payments p JOIN pos_sales s ON s.id=p.sale_id WHERE s.shift_id=$1 AND p.method='cash' AND p.state='succeeded'", [shift.id]);
-        const counted = Number(shift.expected_minor);
+        const counted = Number(shift.cash_expected_minor);
         expect(Number(cash.rows[0].amount)).toBeLessThanOrEqual(counted);
-        await posPage.getByLabel("Count cash", { exact: true }).fill((counted / 100).toFixed(2));
+        const shiftCard = posPage.locator("article").filter({ has: posPage.getByRole("heading", { name: shift.register_name, exact: true }) }).filter({ has: posPage.getByRole("button", { name: "Close cash shift", exact: true }) });
+        await expect(shiftCard).toHaveCount(1);
+        await shiftCard.getByLabel("Enter counted total", { exact: true }).check();
+        await shiftCard.getByLabel("Counted cash", { exact: true }).fill((counted / 100).toFixed(2));
         const closePos = posPage.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/pos/shift/close"));
-        await posPage.getByRole("button", { name: "Close cash shift", exact: true }).click();
+        await shiftCard.getByRole("button", { name: "Close cash shift", exact: true }).click();
         expect((await closePos).ok()).toBe(true);
       }
     }
@@ -330,12 +390,13 @@ test("H002 guest journey includes independent folio correction, payment, checkou
     await auditorPage.goto(pmsUrl(`night-audit?property=${propertyId}`), { waitUntil: "domcontentloaded" });
     const startDayClose = auditorPage.locator("details").filter({ hasText: "Start day close" }).first();
     await expect(startDayClose.locator("summary")).toBeVisible();
+    await captureInvestorCheckpoint(auditorPage, "hotel-audit", startDayClose.locator("summary"));
     await startDayClose.locator("summary").click();
     await sendPms(auditorPage, "Start day close");
     const closing = (await (await auditor.request.get(pmsApi)).json()).data;
     expect(closing.snapshot.property.state).toBe("closing");
     expect(closing.snapshot.records.some((record: PmsRecord) => record.kind === "night" && record.data.state === "pending")).toBe(true);
-    const completed = JSON.parse(execFileSync("bun", ["--conditions=react-server", resolve("scripts/fixtures/hospitality-drain-demo-job.ts"), run], { cwd: resolve("."), timeout: 30_000 }).toString()) as { job: { state: string; error_code: string | null }; property: { state: string; business_date: string } };
+    const completed = JSON.parse(execFileSync(pinnedBunBinary(resolve(".")), ["--env-file=/dev/null", "scripts/local/run-server-script.ts", "scripts/fixtures/hospitality-drain-demo-job.ts", run], { cwd: resolve("."), timeout: 30_000 }).toString()) as { job: { state: string; error_code: string | null }; property: { state: string; business_date: string } };
     expect(completed).toMatchObject({ job: { state: "completed", error_code: null }, property: { state: "open" } });
     expect(completed.property.business_date).not.toBe(closing.snapshot.property.businessDate);
 

@@ -78,19 +78,18 @@ test("workspace header keeps context, navigation and role actions usable across 
   await page.getByRole("dialog",{name:"Switch workspace",exact:true}).getByRole("button",{name:/Isolated browser simulation/}).click();
   await expect(page).not.toHaveURL(/\/branches\//);await ready();
   await chrome.getByRole("button",{name:/Account menu for/}).click();
-  const account=page.getByRole("dialog",{name:"Account switcher",exact:true});
-  await searchRoleOptions(page,"treasury");
-  await account.getByRole("option",{name:/treasury/i}).click();
+  const treasuryRoles=await searchRoleOptions(page,"treasury");
+  await treasuryRoles.getByRole("option",{name:/treasury/i}).click();
   await ready();await expect(chrome.locator(".active-work-role")).toContainText("treasury");
   await page.reload();await ready();await expect(chrome.locator(".active-work-role")).toContainText("treasury");
   await chrome.getByRole("button",{name:/Account menu for/}).click();
-  await searchRoleOptions(page,"hr admin");
-  await account.getByRole("option",{name:/hr admin/i}).click();
+  const hrRoles=await searchRoleOptions(page,"hr admin");
+  await hrRoles.getByRole("option",{name:/hr admin/i}).click();
   await ready();await expect(chrome.locator(".active-work-role")).toContainText("hr admin");
   // Company changes require this account's independently published administrator role.
   await chrome.getByRole("button",{name:/Account menu for/}).click();
-  await searchRoleOptions(page,"holding owner");
-  await account.getByRole("option",{name:/holding owner/i}).click();
+  const ownerRoles=await searchRoleOptions(page,"holding owner");
+  await ownerRoles.getByRole("option",{name:/holding owner/i}).click();
   await ready();await expect(chrome.locator(".active-work-role")).toContainText("holding owner");
   await page.goto("/holdings/simulation/people/organization?changeState=all#organization-change-queue");await ready();
   const detail=page.getByTestId("people-detail");

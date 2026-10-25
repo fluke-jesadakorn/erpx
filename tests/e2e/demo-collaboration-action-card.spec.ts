@@ -1,3 +1,4 @@
+import { captureInvestorCheckpoint } from "../helpers/investor-capture";
 import {createEngineeringBrowserContext} from './helpers/engineering-browser-evidence';
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
@@ -69,6 +70,7 @@ test("isolated demo routes a record-linked action card to its owner", async ({ b
     await ownerPage.locator("#workspace-content:visible summary").getByText(title, { exact: true }).click();
     const ownerCardDrawer = ownerPage.getByRole("dialog", { name: title, exact: true });
     await expect(ownerCardDrawer.locator("form").getByRole("heading", { name: title, exact: true })).toBeVisible();
+    await captureInvestorCheckpoint(ownerPage, "action-created", ownerCardDrawer);
     await ownerCardDrawer.getByRole("button", { name: "Close dialog", exact: true }).click();
     await expect(ownerCardDrawer).not.toBeVisible();
 
@@ -80,6 +82,7 @@ test("isolated demo routes a record-linked action card to its owner", async ({ b
     await expect(cardForm).toHaveCount(1);
     await expect(cardForm.getByRole("heading", { name: title, exact: true })).toBeVisible();
     await expect(cardForm.getByText(/open/).first()).toBeVisible();
+    await captureInvestorCheckpoint(employeePage, "action-owner", cardDrawer);
     await cardForm.locator('select[name="action"]').selectOption("complete");
     await cardForm.locator('textarea[name="evidence"]').fill("Customer confirmed Tuesday at 10:00 by recorded phone contact.");
     await cardForm.locator('textarea[name="reason"]').fill("Action completed with source evidence");
@@ -95,6 +98,8 @@ test("isolated demo routes a record-linked action card to its owner", async ({ b
     const retained=await employeeContext.request.get("/api/v1/holdings/simulation/collaboration");
     expect(retained.status()).toBe(200);
     expect((await retained.json()).data.cards.find((card:{id:string})=>card.id===createdCard.id)).toMatchObject({version:2,status:"completed",source_type:"commerce_order",source_id:salesScenario!.sourceRecord!.id,owner_id:employee!.userId});
+    await expect(cardForm.getByText(/completed/).first()).toBeVisible();
+    await captureInvestorCheckpoint(employeePage, "action-completed", cardDrawer);
   } finally {
     await ownerContext.close();
     await employeeContext.close();

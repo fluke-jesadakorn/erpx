@@ -58,14 +58,16 @@ export async function signInFrontRole(
   expect(assignmentResponse.ok(), await assignmentResponse.text()).toBe(true);
 
   await page.goto(`${origin}/login?next=${encodeURIComponent(destination)}`, { waitUntil: "domcontentloaded" });
-  await page.waitForLoadState("networkidle");
+  const signIn = page.getByRole("button", { name: /^(Sign in|เข้าสู่ระบบ)$/i });
+  await expect(signIn).toHaveAttribute("data-client-managed-ready", "true");
+  await expect(signIn).toBeEnabled();
   await page.locator('input[type="email"]').fill(user!.email);
   await page.locator('input[type="password"]').fill(credentials.password);
   await Promise.all([
-    page.waitForURL((url) => url.hostname === new URL(origin).hostname && url.pathname !== "/login", { timeout: 30_000 }),
-    page.getByRole("button", { name: /^(Sign in|เข้าสู่ระบบ)$/i }).click(),
+    page.waitForURL((url) => url.hostname === new URL(origin).hostname && url.pathname !== "/login", { timeout: 30_000, waitUntil: "domcontentloaded" }),
+    signIn.click(),
   ]);
-  await page.waitForLoadState("networkidle");
+  await expect(page.locator(`[data-work-assignment][data-front-app="${app}"][data-front-location="holding"]`)).toBeVisible();
 
   const roleEndpoint = `/api/v1/front/riverside-lantern/${encodeURIComponent(companyId)}/${app}/roles`;
   let roleStateResponse: { status: number; body: { data: { revision: number } } } | null = null;
@@ -98,7 +100,6 @@ export async function signInFrontRole(
   expect(selected.status, `${role} Front role selection`).toBe(200);
 
   await page.goto(`${origin}${destination}`, { waitUntil: "domcontentloaded" });
-  await page.waitForLoadState("networkidle");
   // The destination page is server-rendered and does not always issue another
   // roles fetch during navigation. The authenticated browser fetch and role
   // selection above validate the endpoint; these page attributes validate
@@ -106,8 +107,13 @@ export async function signInFrontRole(
   await expect(page.locator("[data-work-assignment]")).toHaveAttribute("data-work-assignment", assignment.id);
   await expect(page.locator("[data-work-stale]")).toHaveAttribute("data-work-stale", "false");
   const html = page.locator("html");
-  const initialLanguage = await html.getAttribute("lang");
-  expect(initialLanguage === "en" || initialLanguage === "th").toBe(true);
+  const languageToggle = page.getByRole("button", { name: /^(EN|ไทย)$/ });
+  await expect(languageToggle).toHaveAttribute("data-client-managed-ready", "true");
+  await expect(languageToggle).toBeEnabled();
+  const toggleLabel = await languageToggle.textContent();
+  expect(toggleLabel === "EN" || toggleLabel === "ไทย").toBe(true);
+  const initialLanguage = toggleLabel === "EN" ? "th" : "en";
+  await expect(html).toHaveAttribute("lang", initialLanguage);
   const nextLanguage = initialLanguage === "th" ? "en" : "th";
   await page.getByRole("button", { name: initialLanguage === "th" ? "EN" : "ไทย", exact: true }).click();
   await expect(html).toHaveAttribute("lang", nextLanguage);

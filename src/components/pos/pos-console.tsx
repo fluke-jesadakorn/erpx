@@ -1088,9 +1088,9 @@ export function PosConsole({
   );
   const receiptDrawer = searchParams.get("detailKind") === "pos_sale" && searchParams.get("detailId") ? <RecordDrawer title={data.sale ? s(data.sale,"number") : "Receipt"} fullHref={`?tab=sale&sale=${encodeURIComponent(searchParams.get("detailId")!)}`}>
     {error && <p role="alert">{error}<Button onClick={()=>void refresh().catch(()=>{})}>Retry</Button></p>}
-    {data.sale && s(data.sale,"id") === searchParams.get("detailId") ? <PosRecordDetail key={s(data.sale,"id")} canEdit={can("pos.sell")} data={data} api={api} erpBase={erpBase} busy={busy} send={send} registerId={registerId} setRegisterId={setRegisterId} pickSale={pickSale} openShifts={()=>setTab("shifts")}/> : <p role="status">Loading receipt…</p>}
+    {data.sale && s(data.sale,"id") === searchParams.get("detailId") ? <PosRecordDetail key={s(data.sale,"id")} canEdit={can("pos.sell")} canVerifyTransfer={!frontMode && can("finance.approve")} online={online} data={data} api={api} erpBase={erpBase} busy={busy} send={send} registerId={registerId} setRegisterId={setRegisterId} pickSale={pickSale} openShifts={()=>setTab("shifts")}/> : <p role="status">Loading receipt…</p>}
   </RecordDrawer> : null;
-  if (recordOnly) return <div className="ui-stack">{error && <p role="alert">{error}<Button onClick={()=>void refresh().catch(()=>{})}>Retry</Button></p>}{data.sale ? <PosRecordDetail key={s(data.sale,"id")} canEdit={can("pos.sell")} data={data} api={api} erpBase={erpBase} busy={busy} send={send} registerId={registerId} setRegisterId={setRegisterId} pickSale={pickSale} openShifts={()=>setTab("shifts")}/> : <p role="alert">Receipt unavailable in this work scope.</p>}</div>;
+  if (recordOnly) return <div className="ui-stack">{error && <p role="alert">{error}<Button onClick={()=>void refresh().catch(()=>{})}>Retry</Button></p>}{data.sale ? <PosRecordDetail key={s(data.sale,"id")} canEdit={can("pos.sell")} canVerifyTransfer={!frontMode && can("finance.approve")} online={online} data={data} api={api} erpBase={erpBase} busy={busy} send={send} registerId={registerId} setRegisterId={setRegisterId} pickSale={pickSale} openShifts={()=>setTab("shifts")}/> : <p role="alert">Receipt unavailable in this work scope.</p>}</div>;
   if (frontMode)
     return (
       <>{receiptDrawer}<FrontPosDaily

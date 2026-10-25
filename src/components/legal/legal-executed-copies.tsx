@@ -55,9 +55,10 @@ export function LegalExecutedCopies({
     };
   }, [call, detail.item.id, detail.item.version]);
   async function upload(form: HTMLFormElement) {
+    const values = new FormData(form);
+    const completion = { form, formEditVersion: form.getAttribute("data-erpx-edit-version") };
     setError("");
     setUploading(true);
-    const values = new FormData(form);
     try {
       const file = values.get("file");
       if (!(file instanceof File) || !file.size || file.size > 10 * 1024 * 1024)
@@ -123,7 +124,7 @@ export function LegalExecutedCopies({
         method: "POST",
         headers: { "Idempotency-Key": attempt.key },
         body,
-      });
+      }, completion);
       const result = await response.json();
       if (!response.ok) {
         if (
@@ -142,7 +143,7 @@ export function LegalExecutedCopies({
       try {
         sessionStorage.removeItem(storageKey);
       } catch {}
-      form.reset();
+      if (completion.formEditVersion === form.getAttribute("data-erpx-edit-version")) form.reset();
       await onRefresh();
     } catch (error) {
       setError(error instanceof Error ? error.message : "Signed-copy import failed.");
