@@ -3,6 +3,8 @@
 
 ## Current verification checkpoint — 2026-10-25
 
+Current presentation amendment: the user requests removing the development Console410/migration page as though Console were absent. Its pages/APIs and WebSocket upgrades now use a generic404 without ERPX/Console branding, migration text, Apps link, redirect or cookies. Exact health/ready reads remain through Account; existing retirement guards and owner-host access remain in place. Older410 screenshots/receipts below retain their original historical scope. Full acceptance remains deferred. Scoped verification of this amendment is pending.
+
 Resource-completeness correction is closed on clean candidate `bba35abc3efcd5ba07bc0b8ddcd315b6081ff19c`. The first candidate `0aa955ac` omitted ignored generated PDF runtime assets and is **not a complete current runtime release**; its earlier inventory/CSS/brand receipts retain that limited scope (`release-resource-gap-589.json`). Both release and isolated builders now prepare pinned PDF assets before fingerprinting. The corrected22-app build passes worker/cmap/font/WASM direct HTTP hashes, relocated inventories and current runtime fingerprints; Finance also proves a real warm build cache hit. The asset preparer is an explicit outer task input so changes cannot be hidden by a stale Turborepo result.
 
 This checkpoint supersedes the pending benchmark statements in the earlier delivery log below. All evidence in this section is **development verification, acceptance:false**. Full acceptance remains deferred; no staging or installed production configuration/service is changed.

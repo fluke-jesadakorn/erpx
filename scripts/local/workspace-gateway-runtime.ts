@@ -259,7 +259,7 @@ server.on("upgrade", async (req, downstream, head) => {
   try {
     // Health exceptions apply to HTTP reads; retired origins never upgrade.
     if(consoleRetirementResult({host:retirementHost(req.headers.host),method:req.method??'GET',url:'/',accept:req.headers.accept},environment)){
-      settings();downstream.unpipe(waiting);waiting.destroy();downstream.end('HTTP/1.1 410 Gone\r\nConnection: close\r\nCache-Control: private, no-store\r\nContent-Length: 0\r\n\r\n');return;
+      settings();downstream.unpipe(waiting);waiting.destroy();downstream.end('HTTP/1.1 404 Not Found\r\nConnection: close\r\nCache-Control: private, no-store\r\nContent-Length: 0\r\n\r\n');return;
     }
     const id=target(req);releaseDemand=holdDemand(id);
     const app = await ensure(id);if(downstream.destroyed)return;app.requests++;releaseDemand();app.servedRequest=true; app.lastUsed = Date.now();

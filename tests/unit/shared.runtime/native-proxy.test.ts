@@ -322,19 +322,21 @@ it('retires every Console page, login, callback, asset and API method before rew
  const paths=['/','/login','/activate?token=private-token','/holdings/acme/support','/holdings/acme/branches/bangkok/departments/finance/finance/invoices?new=1','/api/auth/sign-in/email','/api/v1/holdings/acme/pos','/api/pos/stripe/webhook','/api/v1/stripe/webhook','/sso/callback?code=private-code','/_next/static/chunks/app.js','/_next/image?url=private-image','/vendor/file.js','/erpx-push-sw.js','/manifest.webmanifest','/api/health/','/api/ready/extra'];
  for(const path of paths)for(const method of ['GET','HEAD','POST','PUT','PATCH','DELETE','OPTIONS']){
   const response=proxy(new NextRequest('http://127.0.0.1:3100'+path,{method,headers:{host:'console-dev-erpx.jesadakorn.com','next-action':'old-action','x-erpx-workspace-kind':'holding'}}));
-  expect(response.status).toBe(410);expect(response.headers.get('location')).toBeNull();
+  expect(response.status).toBe(404);expect(response.headers.get('location')).toBeNull();
   expect(response.headers.get('x-middleware-next')).toBeNull();expect(response.headers.get('x-middleware-rewrite')).toBeNull();expect(response.headers.get('set-cookie')).toBeNull();
   expect(response.headers.get('cache-control')).toBe('private, no-store');expect(response.headers.get('referrer-policy')).toBe('no-referrer');
   const body=await response.text();expect(body).not.toMatch(/private-token|private-code|private-image/);
-  if(method==='HEAD')expect(body).toBe('');else expect(body).toContain('https://apps-dev-erpx.jesadakorn.com/');
+  if(method==='HEAD')expect(body).toBe('');else expect(body).toBe('Not Found\n');
  }
- const json=proxy(new NextRequest('http://127.0.0.1:3100/api/v1/holdings/acme/finance',{method:'POST',headers:{host:'console-dev-erpx.jesadakorn.com'}}));
- expect(await json.json()).toEqual({error:{code:'CONSOLE_RETIRED',message:'Console has moved. Open ERPX Apps to continue.',appsUrl:'https://apps-dev-erpx.jesadakorn.com/'}});
+ const json=proxy(new NextRequest('http://127.0.0.1:3100/api/v1/holdings/acme/finance',{method:'POST',headers:{host:'console-dev-erpx.jesadakorn.com',accept:'application/json'}}));
+ expect(json.headers.get('content-type')).toBe('text/plain; charset=utf-8');
+ expect(await json.text()).toBe('Not Found\n');
 });
 it('preserves health and ready, rejects foreign hosts and cannot reopen retired Console through an SSO outage',()=>{
  enableDevelopmentProducts();vi.stubEnv('ERPX_CONSOLE_RETIRED','enabled');
  const request=(path:string,host='console-dev-erpx.jesadakorn.com')=>proxy(new NextRequest('http://127.0.0.1:3100'+path,{headers:{host}}));
  for(const path of ['/api/health','/api/ready'])expect(request(path).headers.get('x-middleware-next')).toBe('1');
+ for(const path of ['/api/health','/api/ready'])for(const method of ['POST','PUT','PATCH','DELETE','OPTIONS'])expect(proxy(new NextRequest('http://127.0.0.1:3100'+path,{method,headers:{host:'console-dev-erpx.jesadakorn.com'}})).status).toBe(404);
  for(const path of ['/api/health','/api/ready'])for(const method of ['GET','HEAD']){
   const health=new NextRequest('http://127.0.0.1:3217'+path+'?probe=read-only',{method,headers:{host:'console-dev-erpx.jesadakorn.com'}});
   const response=accountProxy(health);expect(response.status).toBe(200);expect(response.headers.get('x-middleware-next')).toBe('1');expect(response.headers.get('x-erpx-app')).toBe('account');
@@ -345,7 +347,7 @@ it('preserves health and ready, rejects foreign hosts and cannot reopen retired 
 
  expect(request('/','unknown.example').status).toBe(421);expect(request('/api/health','127.0.0.1:3100').status).toBe(200);
  expect(request('/','apps-dev-erpx.jesadakorn.com').status).toBe(200);
- for(const flag of ['ERPX_PRODUCT_ROUTING','ERPX_PRODUCT_SSO']){vi.stubEnv(flag,'disabled');expect(request('/login').status).toBe(410);vi.stubEnv(flag,'enabled');}
+ for(const flag of ['ERPX_PRODUCT_ROUTING','ERPX_PRODUCT_SSO']){vi.stubEnv(flag,'disabled');expect(request('/login').status).toBe(404);vi.stubEnv(flag,'enabled');}
  for(const environment of ['staging','production']){vi.stubEnv('ERPX_ENVIRONMENT',environment);expect(request('/login').status).toBe(200);expect(accountProxy(new NextRequest('http://127.0.0.1:3217/api/health',{headers:{host:'console-dev-erpx.jesadakorn.com'}})).status).toBe(421);}
  vi.stubEnv('ERPX_ENVIRONMENT','local');vi.stubEnv('ERPX_CONSOLE_RETIRED','disabled');expect(request('/login').status).toBe(200);
  for(const path of ['/_next/static/chunks/app.js','/_next/image?url=image','/vendor/file.js']){

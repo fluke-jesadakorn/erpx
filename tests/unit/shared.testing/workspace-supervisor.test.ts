@@ -114,11 +114,11 @@ it('retires Console HTTP and upgrades before app startup and sends health only t
      let body='';res.on('data',chunk=>body+=chunk);res.on('end',()=>done({status:res.statusCode!,body,location:res.headers.location,cookie:res.headers['set-cookie']}));
     });req.on('error',reject);req.end(method==='POST'?'private-command-body':undefined);
    });
-   expect(result.status).toBe(410);expect(result.location).toBeUndefined();expect(result.cookie).toBeUndefined();expect(result.body).not.toContain('must-not-replay');expect(result.body).not.toContain('private-command-body');
+   expect(result.status).toBe(404);expect(result.location).toBeUndefined();expect(result.cookie).toBeUndefined();expect(result.body).not.toContain('must-not-replay');expect(result.body).not.toContain('private-command-body');expect(result.body).toBe(method==='HEAD'?'':'Not Found\n');
   }
   for(const host of ['console-dev-erpx.jesadakorn.com','127.0.0.1:3104','localhost:3104','[::1]:3104'])for(const path of ['/_next/hmr','/api/health','/api/ready']){
   const upgrade=await new Promise<string>((done,reject)=>{const socket=connect(3104,'127.0.0.1');let text='';socket.on('connect',()=>socket.write(`GET ${path} HTTP/1.1\r\nHost: ${host}\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n`));socket.on('data',chunk=>text+=chunk);socket.on('end',()=>done(text));socket.on('error',reject);});
-  expect(upgrade).toContain('HTTP/1.1 410 Gone');}
+  expect(upgrade).toContain('HTTP/1.1 404 Not Found');}
   await expect(readFile(join(root,'account-requests.log'))).rejects.toMatchObject({code:'ENOENT'});
   for(const host of ['console-dev-erpx.jesadakorn.com','127.0.0.1:3104','localhost:3104','[::1]:3104'])expect(await get(3104,host,'/api/health')).toEqual({status:200,body:'account-health'});
   const reads=(await readFile(join(root,'account-requests.log'),'utf8')).trim().split('\n');expect(reads.length).toBeGreaterThanOrEqual(2);expect(new Set(reads)).toEqual(new Set(['GET /api/health']));
