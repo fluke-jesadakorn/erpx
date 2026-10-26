@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync, readlinkSync, readdirSync } from "node:fs";
 import { resolve, posix } from "node:path";
 import { execFileSync } from "node:child_process";
 import { parseWorkspaceSource, type WorkspaceSource } from "./workspace-imports";
@@ -12,6 +12,24 @@ export type WorkspaceGraph = { appDirectories?: Map<string,string>; sourceCache?
 const resourcePrefix = 'resource-input:';
 export function workspaceInputFile(file: string) { return file.startsWith(resourcePrefix) ? file.slice(resourcePrefix.length) : file; }
 const sourceExtension = /\.(?:[cm]?[jt]sx?|rs|json|css|mjs|md|mdx|yml|yaml|py|sh|plist|toml|html|sql)$/;
+const workspaceDirectories = ["apps", "packages", "src", "scripts", "tests", "fixtures", "public", "docs", ".github", "ops", "migrations"];
+const rootInputs = new Set(["next.config.ts", "tsconfig.base.json", "tsconfig.json", "postcss.config.mjs", "package.json", "bun.lock", ".env.example", "eslint.config.mjs", "README.md", "AGENTS.md", "CONTEXT.md", "CONTRACT_POLICY.md", "LICENSE", "NOTICE", "LICENSING.md", "CONTRIBUTING.md", "SECURITY.md", "CODE_OF_CONDUCT.md", "GOVERNANCE.md", ".bun-version", ".node-version", "bunfig.toml", "turbo.json", ".gitignore", ...cargoRootInputs]);
+// Next metadata and app public assets are inputs even when no JS imports them.
+// A public symlink is inventoried as its target text; never traverse its target.
+const appResource = /^apps\/[^/]+\/(?:public(?:\/|$)|src\/app\/(?:[^/]+\/)*(?:favicon\.ico|(?:icon|apple-icon|opengraph-image|twitter-image)\d*\.(?:ico|jpe?g|png|svg|gif)|robots\.txt|sitemap\.xml|manifest\.webmanifest)$)/;
+function workspacePath(file: string) {
+  return rootInputs.has(file) || workspaceDirectories.some(directory => file.startsWith(directory + '/')) &&
+    (sourceExtension.test(file) || isCargoInput(file) || file === '.github/CODEOWNERS' || /^(?:public|docs|fixtures)\//.test(file) || appResource.test(file));
+}
+function resourceInput(file: string) {
+  return /^(?:public|docs|\.github|ops|migrations)\//.test(file) || appResource.test(file) ||
+    file === '.env.example' || file === 'LICENSE' || file === 'NOTICE' || /^[A-Z][A-Z_.-]*\.md$/.test(file);
+}
+function graphContent(file: string, bytes: Buffer, symlink = false) {
+  return resourceInput(file) || symlink
+    ? (symlink ? 'symlink-sha256:' : 'resource-sha256:') + createHash('sha256').update(bytes).digest('hex')
+    : bytes.toString('utf8');
+}
 const ignored = new Set(["node_modules", ".next", ".build", ".cache", ".turbo"]);
 export function workspaceSourcePaths(root = repositoryRoot): string[] {
   function visit(directory: string): string[] {
@@ -19,11 +37,10 @@ export function workspaceSourcePaths(root = repositoryRoot): string[] {
     return readdirSync(resolve(root, directory), { withFileTypes: true }).flatMap(entry => {
       const file = `${directory}/${entry.name}`;
       return entry.isDirectory() && !ignored.has(entry.name) ? visit(file)
-        : entry.isFile() && (sourceExtension.test(entry.name) || file === '.github/CODEOWNERS' || /^(?:public|docs|fixtures)(?:\/|$)/.test(directory)) && !["next-env.d.ts", "next.config.compiled.js"].includes(entry.name) ? [file] : [];
+        : (entry.isFile() || entry.isSymbolicLink() && appResource.test(file)) && workspacePath(file) && !["next-env.d.ts", "next.config.compiled.js"].includes(entry.name) ? [file] : [];
     });
   }
-  return [...["apps", "packages", "src", "scripts", "tests", "fixtures", "public", "docs", ".github", "ops", "migrations"].flatMap(visit),
-    ...["next.config.ts", "tsconfig.base.json", "tsconfig.json", "postcss.config.mjs", "package.json", "bun.lock", "eslint.config.mjs", "README.md", "AGENTS.md", "CONTEXT.md", "CONTRACT_POLICY.md", "LICENSE", "NOTICE", "LICENSING.md", "CONTRIBUTING.md", "SECURITY.md", "CODE_OF_CONDUCT.md", "GOVERNANCE.md", ".bun-version", ".node-version", "bunfig.toml", "turbo.json", ".gitignore", ...cargoRootInputs].filter(file => existsSync(resolve(root, file)))].sort();
+  return [...workspaceDirectories.flatMap(visit), ...[...rootInputs].filter(file => existsSync(resolve(root, file)))].sort();
 }
 export function createWorkspaceGraph(files: Map<string, string>, parseSource: (file:string,source:string)=>WorkspaceSource = parseWorkspaceSource, options:{excludeStyleSources?:boolean}={}): WorkspaceGraph {
   files = new Map(files);
@@ -134,7 +151,7 @@ export function createWorkspaceGraph(files: Map<string, string>, parseSource: (f
   const graph: WorkspaceGraph = { files, imports, runtimeImports, reverse, appDirectories, apps: new Map() };
   for (const app of appDefinitions) {
     const directory=appDirectories.get(app.package)??app.directory;
-    const entries = [...names].filter(file => file.startsWith(`${directory}/src/`) || file === `${directory}/next.config.mjs` || file === `${directory}/package.json`);
+    const entries = [...names].filter(file => file.startsWith(`${directory}/src/`) || file === `${directory}/public` || file.startsWith(`${directory}/public/`) || file === `${directory}/next.config.mjs` || file === `${directory}/package.json`);
     graph.apps.set(app.id, dependencyClosure(graph, entries));
   }
   return graph;
@@ -144,7 +161,10 @@ function graphWithSourceCache(files:Map<string,string>,root:string,cacheRoot=roo
   try{const graph=createWorkspaceGraph(files,cache.parse,{excludeStyleSources});cache.flush();graph.sourceCache={...cache.stats};return graph;}catch(error){cache.flush();throw error;}
 }
 export function loadWorkspaceGraph(root = repositoryRoot, options:{cacheRoot?:string;excludeStyleSources?:boolean}={}): WorkspaceGraph {
-  return graphWithSourceCache(new Map(workspaceSourcePaths(root).map(file => [file, /^(?:public|docs|\.github|ops|migrations)\//.test(file) || /^(?:README|AGENTS|CONTEXT|CONTRACT_POLICY)\.md$/.test(file) ? "resource-sha256:" + createHash("sha256").update(readFileSync(resolve(root, file))).digest("hex") : readFileSync(resolve(root, file), "utf8")])),root,options.cacheRoot,options.excludeStyleSources);
+  return graphWithSourceCache(new Map(workspaceSourcePaths(root).map(file => {
+    const path = resolve(root, file), symlink = lstatSync(path).isSymbolicLink();
+    return [file, graphContent(file, symlink ? Buffer.from(readlinkSync(path)) : readFileSync(path), symlink)];
+  })),root,options.cacheRoot,options.excludeStyleSources);
 }
 
 export function dependencyClosure(graph: Pick<WorkspaceGraph, "imports">, entries: Iterable<string>): Set<string> {
@@ -197,7 +217,7 @@ export function appRuntimeFingerprint(graph: WorkspaceGraph, id: string) {
     if (manifest.scripts) for (const name of Object.keys(manifest.scripts)) if (/^(?:test(?::|$)|lint(?::|$)|typecheck(?::|$))/.test(name)) delete manifest.scripts[name];
     runtime.files.set(file, JSON.stringify(manifest));
   }
-  const entries = [...graph.files.keys()].filter(file => file.startsWith(`${directory}/src/`) || file.startsWith(`${directory}/`) && /(?:config|package)\./.test(file));
+  const entries = [...graph.files.keys()].filter(file => file.startsWith(`${directory}/src/`) || file === `${directory}/public` || file.startsWith(`${directory}/public/`) || file.startsWith(`${directory}/`) && /(?:config|package)\./.test(file));
   const source = workspaceFingerprint(runtime, entries, ["scripts/local/app-next-config.ts", "next.config.ts", "postcss.config.mjs", ...[...graph.files.keys()].filter(file => /^(?:public|migrations)\//.test(file))]);
   return createHash("sha256").update(source).update(JSON.stringify(Object.entries(process.env).filter(([key]) => key.startsWith("NEXT_PUBLIC_")).sort(([a],[b]) => a.localeCompare(b)))).digest("hex");
 }
@@ -209,15 +229,18 @@ if (import.meta.main) {
 /** Read both sides of a candidate without switching the shared checkout. */
 export function loadRevisionWorkspaceGraph(revision: string, root = repositoryRoot): WorkspaceGraph {
   const sha = execFileSync('git', ['rev-parse', '--verify', `${revision}^{commit}`], { cwd: root, encoding: 'utf8' }).trim();
-  const paths = execFileSync('git', ['ls-tree', '-rz', '--name-only', sha], { cwd: root, encoding: 'utf8', maxBuffer:64*1024*1024 }).split('\0')
-    .filter(file => (sourceExtension.test(file) || isCargoInput(file) || ['LICENSE','NOTICE','.github/CODEOWNERS'].includes(file) || /^(?:public|docs|fixtures)\//.test(file)) && (/^(?:apps|packages|src|scripts|tests|fixtures|public|docs|\.github|ops|migrations)\//.test(file) || ['next.config.ts','tsconfig.base.json','tsconfig.json','postcss.config.mjs','package.json','bun.lock','eslint.config.mjs','README.md','AGENTS.md','CONTEXT.md','CONTRACT_POLICY.md','LICENSE','NOTICE','LICENSING.md','CONTRIBUTING.md','SECURITY.md','CODE_OF_CONDUCT.md','GOVERNANCE.md','.bun-version','.node-version','bunfig.toml','turbo.json','.gitignore',...cargoRootInputs].includes(file)));
+  const tree = execFileSync('git', ['ls-tree', '-rz', sha], { cwd: root, encoding: 'utf8', maxBuffer:64*1024*1024 }).split('\0').filter(Boolean).map(row => {
+    const separator = row.indexOf('\t');
+    return { file: row.slice(separator + 1), symlink: row.startsWith('120000 ') };
+  }).filter(({file}) => workspacePath(file));
+  const paths = tree.map(({file}) => file);
   if (paths.some(file => /[\r\n]/.test(file))) throw new Error('UNSUPPORTED_GIT_SOURCE_NAME');
   const contents = execFileSync('git', ['cat-file', '--batch'], { cwd: root, input: paths.map(file => `${sha}:${file}\n`).join(''), maxBuffer: 512 * 1024 * 1024 });
   const files = new Map<string,string>(); let offset = 0;
-  for (const file of paths) {
+  for (const {file, symlink} of tree) {
     const end = contents.indexOf(10, offset), metadata = contents.subarray(offset, end).toString().split(' '), size = Number(metadata.at(-1));
     if (metadata[1] !== 'blob' || !Number.isSafeInteger(size)) throw new Error(`GIT_SOURCE_UNREADABLE:${file}`);
-    offset = end + 1; files.set(file, /^(?:public|docs|\.github|ops|migrations)\//.test(file) || /^(?:README|AGENTS|CONTEXT|CONTRACT_POLICY)\.md$/.test(file) ? "resource-sha256:" + createHash("sha256").update(contents.subarray(offset,offset + size)).digest("hex") : contents.subarray(offset, offset + size).toString()); offset += size + 1;
+    offset = end + 1; files.set(file, graphContent(file, contents.subarray(offset, offset + size), symlink)); offset += size + 1;
   }
   return graphWithSourceCache(files,root);
 }

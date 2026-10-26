@@ -1,4 +1,5 @@
 import{workspaceBrowserFixtureProfile}from '../../../scripts/testing/development-host-profile';
+import { execFileSync } from 'node:child_process';
 import{firstRouteCompile,firstRouteEnsure}from '../../../scripts/performance/route-compile-metrics';
 import{runtimeOwnerCycles}from '../../../scripts/architecture/owner-cycles';
 import { mkdtemp, mkdir, writeFile, rm, realpath } from 'node:fs/promises';
@@ -7,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { runtimeSourceFingerprint } from '../../../scripts/local/source-fingerprint';
 import { describe, expect, it, vi } from 'vitest';
-import { createWorkspaceGraph, selectWorkspaceSuites, selectCandidateSuites, appRuntimeFingerprint, workspaceFingerprint } from '../../../scripts/testing/workspace-graph';
+import { createWorkspaceGraph, loadWorkspaceGraph, loadRevisionWorkspaceGraph, changedWorkspaceFiles, selectWorkspaceSuites, selectCandidateSuites, appRuntimeFingerprint, workspaceFingerprint } from '../../../scripts/testing/workspace-graph';
 import type { Suite } from '../../../scripts/testing/catalogue';
 import { workspaceStyleSheet } from '../../../scripts/assets/workspace-styles';
 import { Scanner } from '@tailwindcss/oxide';
@@ -104,6 +105,46 @@ it('updates newly imported sources during a live watch and closes its owned watc
  }finally{watcher.close();await rm(root,{recursive:true,force:true});}
 });
 describe('workspace impact boundaries',()=>{
+ it('maps tracked root inputs and deleted legacy app assets from both Git revisions without following public symlinks',async()=>{
+  const root=await mkdtemp(join(tmpdir(),'erpx-revision-inputs-')),outside=await mkdtemp(join(tmpdir(),'erpx-private-inputs-'));
+  const git=(...args:string[])=>execFileSync('git',args,{cwd:root,encoding:'utf8'}).trim();
+  const assets=['apps/work/public','apps/work/src/app/apple-icon.png','apps/work/src/app/favicon.ico','apps/work/src/app/icon.svg'];
+  const tracked=new Map<string,string|Buffer>([
+   ['.env.example','ERPX_ENVIRONMENT=development\n'],['bun.lock','lock-v1'],
+   ['apps/work/package.json','{"name":"@erpx/app-work"}'],['apps/work/src/app/page.tsx','export default function Page(){return "Legacy";}'],
+   ['apps/work/src/app/apple-icon.png',Buffer.from([0,255,1,254])],['apps/work/src/app/favicon.ico',Buffer.from([0,0,1,0])],['apps/work/src/app/icon.svg','<svg/>'],
+   ['apps/finance/package.json','{"name":"@erpx/app-finance"}'],['apps/finance/src/app/page.tsx','export default function Page(){return "Finance";}'],
+   ['apps/finance/src/app/icon.png',Buffer.from([1,2,255])],['apps/finance/public/owner.bin',Buffer.from([254,3,0])],
+  ]);
+  try{
+   git('init','--quiet');
+   for(const[file,bytes]of tracked){await mkdir(dirname(join(root,file)),{recursive:true});await writeFile(join(root,file),bytes);}
+   await writeFile(join(outside,'private.ts'),'private material');await symlink(outside,join(root,'apps/work/public'));
+   // Private environment files and unregistered binary source are never admitted.
+   await writeFile(join(root,'.env.local'),'private');await writeFile(join(root,'apps/finance/src/unknown.bin'),'unknown');
+   git('add','--',...tracked.keys(),'apps/work/public');git('-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','--quiet','-m','base');
+   const baseSha=git('rev-parse','HEAD'),base=loadRevisionWorkspaceGraph(baseSha,root),local=loadWorkspaceGraph(root);
+   for(const file of ['.env.example','bun.lock',...assets,'apps/finance/public/owner.bin'])expect(local.files.get(file)).toBe(base.files.get(file));
+   expect(base.files.get(assets[1])).toMatch(/^resource-sha256:[a-f0-9]{64}$/);
+   expect(base.files.get(assets[0])).toMatch(/^symlink-sha256:[a-f0-9]{64}$/);
+   expect([...local.files.keys()]).not.toContain('apps/work/public/private.ts');expect(local.files.has('.env.local')).toBe(false);
+   expect(local.files.has('apps/finance/src/unknown.bin')).toBe(false);
+   const before=appRuntimeFingerprint(local,'finance');
+   await writeFile(join(outside,'private.ts'),'changed private material');
+   expect(loadWorkspaceGraph(root).files.get(assets[0])).toBe(local.files.get(assets[0]));
+   await writeFile(join(root,'apps/finance/public/owner.bin'),Buffer.from([253,3,0]));
+   expect(appRuntimeFingerprint(loadWorkspaceGraph(root),'finance')).not.toBe(before);
+   await rm(join(root,'apps/work'),{recursive:true});await writeFile(join(root,'.env.example'),'ERPX_ENVIRONMENT=test\n');await writeFile(join(root,'bun.lock'),'lock-v2');
+   git('add','--update');git('-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','--quiet','-m','head');
+   const headSha=git('rev-parse','HEAD'),head=loadRevisionWorkspaceGraph(headSha,root),changed=changedWorkspaceFiles(root,baseSha,headSha);
+   const selected=selectCandidateSuites(head,base,suites,changed);
+   expect(selected.suites.map(item=>item.id)).toEqual(['finance','people']);
+   for(const asset of assets)expect(selected.removed).toContain(asset);
+   expect(()=>selectCandidateSuites(head,base,suites,assets)).not.toThrow();
+   expect(()=>selectCandidateSuites(head,base,suites,['apps/finance/src/unknown.bin'])).toThrow('WORKSPACE_CHANGE_UNMAPPED');
+   expect(()=>selectCandidateSuites(head,base,suites,['.env.local'])).toThrow('WORKSPACE_CHANGE_UNMAPPED');
+  }finally{await rm(root,{recursive:true,force:true});await rm(outside,{recursive:true,force:true});}
+ });
  it('preserves historical app identity across a folder rename and a deleted dependency',()=>{
   const original=sources(),next=sources();
   original.set('apps/apps/package.json','{"name":"@erpx/app-apps"}');
