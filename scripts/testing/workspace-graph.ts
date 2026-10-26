@@ -252,6 +252,13 @@ function configuredAppChanges(head: WorkspaceGraph, base: WorkspaceGraph, change
     if(source===undefined){if(required)throw new Error('WORKSPACE_SETTINGS_MAPPING_REQUIRED');return{bundlers:{} as Record<string,string>,defaultBundler:'webpack',activeApps:[] as string[]};}
     let value;try{value=JSON.parse(source);}catch{throw new Error('WORKSPACE_SETTINGS_MAPPING_REQUIRED');}
     const ids=new Set(['compat',...appDefinitions.map(app=>app.id)]),compilers=new Set(['webpack','turbopack']);
+    // Base settings describe that exact revision, including apps retired since
+    // then. Admit an additional historical ID only with its recorded package
+    // owner and route entry; the current candidate still uses today's registry.
+    if(!required)for(const [name,directory]of graph.appDirectories??[]){
+      const id=/^@erpx\/app-([a-z][a-z0-9-]*)$/.exec(name)?.[1];
+      if(id&&graph.files.has(`${directory}/src/app/page.tsx`))ids.add(id);
+    }
     if(!value||typeof value!=='object'||value.version!==1||!value.bundlers||typeof value.bundlers!=='object'||Array.isArray(value.bundlers)||Object.entries(value.bundlers).some(([id,bundler])=>!ids.has(id)||!compilers.has(bundler as string))||!compilers.has(value.defaultBundler??'webpack')||!Array.isArray(value.activeApps)||value.activeApps.some((id:unknown)=>typeof id!=='string'||id==='compat'||!ids.has(id)))throw new Error('WORKSPACE_SETTINGS_MAPPING_REQUIRED');
     return{bundlers:value.bundlers as Record<string,string>,defaultBundler:value.defaultBundler??'webpack',activeApps:value.activeApps as string[]};
   }

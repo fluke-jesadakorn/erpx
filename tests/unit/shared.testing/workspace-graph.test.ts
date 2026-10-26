@@ -111,6 +111,7 @@ describe('workspace impact boundaries',()=>{
   const assets=['apps/work/public','apps/work/src/app/apple-icon.png','apps/work/src/app/favicon.ico','apps/work/src/app/icon.svg'];
   const tracked=new Map<string,string|Buffer>([
    ['.env.example','ERPX_ENVIRONMENT=development\n'],['bun.lock','lock-v1'],
+   ['scripts/local/workspace-settings.json',JSON.stringify({version:1,bundlers:{work:'turbopack',finance:'webpack'},activeApps:['work','finance']})],
    ['apps/work/package.json','{"name":"@erpx/app-work"}'],['apps/work/src/app/page.tsx','export default function Page(){return "Legacy";}'],
    ['apps/work/src/app/apple-icon.png',Buffer.from([0,255,1,254])],['apps/work/src/app/favicon.ico',Buffer.from([0,0,1,0])],['apps/work/src/app/icon.svg','<svg/>'],
    ['apps/finance/package.json','{"name":"@erpx/app-finance"}'],['apps/finance/src/app/page.tsx','export default function Page(){return "Finance";}'],
@@ -135,6 +136,7 @@ describe('workspace impact boundaries',()=>{
    await writeFile(join(root,'apps/finance/public/owner.bin'),Buffer.from([253,3,0]));
    expect(appRuntimeFingerprint(loadWorkspaceGraph(root),'finance')).not.toBe(before);
    await rm(join(root,'apps/work'),{recursive:true});await writeFile(join(root,'.env.example'),'ERPX_ENVIRONMENT=test\n');await writeFile(join(root,'bun.lock'),'lock-v2');
+   await writeFile(join(root,'scripts/local/workspace-settings.json'),JSON.stringify({version:1,bundlers:{finance:'webpack'},activeApps:['finance']}));
    git('add','--update');git('-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','--quiet','-m','head');
    const headSha=git('rev-parse','HEAD'),head=loadRevisionWorkspaceGraph(headSha,root),changed=changedWorkspaceFiles(root,baseSha,headSha);
    const selected=selectCandidateSuites(head,base,suites,changed);
@@ -497,6 +499,19 @@ it('fails configured app selection when a compiler mapping is invalid or removed
   expect(()=>selectCandidateSuites(createWorkspaceGraph(files),createWorkspaceGraph(sources()),suites,[path])).toThrow('WORKSPACE_SETTINGS_MAPPING_REQUIRED');
   files.set(path,JSON.stringify({version:1,bundlers:{},activeApps:[]}));const base=createWorkspaceGraph(files);files.delete(path);
   expect(()=>selectCandidateSuites(createWorkspaceGraph(files),base,suites,[path])).toThrow('WORKSPACE_SETTINGS_MAPPING_REQUIRED');
+});
+it('accepts source-bound retired settings only in the historical graph and rejects unknown candidate settings',()=>{
+  const path='scripts/local/workspace-settings.json',original=sources();
+  original.set('apps/work/package.json','{"name":"@erpx/app-work"}');original.set('apps/work/src/app/page.tsx','export default function Page(){return "Legacy";}');
+  original.set(path,JSON.stringify({version:1,bundlers:{work:'turbopack',finance:'webpack'},activeApps:['work','finance']}));
+  const base=createWorkspaceGraph(original),candidate=sources();candidate.set(path,JSON.stringify({version:1,bundlers:{finance:'turbopack'},activeApps:['finance']}));
+  const selected=selectCandidateSuites(createWorkspaceGraph(candidate),base,suites,[path]);expect(selected.apps).toEqual(['finance']);expect(selected.suites.map(suite=>suite.id)).toEqual(['finance']);
+  candidate.set('apps/work/package.json',original.get('apps/work/package.json')!);candidate.set('apps/work/src/app/page.tsx',original.get('apps/work/src/app/page.tsx')!);
+  candidate.set(path,original.get(path)!);expect(()=>selectCandidateSuites(createWorkspaceGraph(candidate),base,suites,[path])).toThrow('WORKSPACE_SETTINGS_MAPPING_REQUIRED');
+  const ghost=new Map(original);ghost.set(path,JSON.stringify({version:1,bundlers:{ghost:'webpack'},activeApps:['ghost']}));
+  const validHead=sources();validHead.set(path,JSON.stringify({version:1,bundlers:{finance:'webpack'},activeApps:['finance']}));
+  expect(()=>selectCandidateSuites(createWorkspaceGraph(validHead),createWorkspaceGraph(ghost),suites,[path])).toThrow('WORKSPACE_SETTINGS_MAPPING_REQUIRED');
+  ghost.set('apps/ghost/package.json','{"name":"@erpx/app-ghost"}');expect(()=>selectCandidateSuites(createWorkspaceGraph(validHead),createWorkspaceGraph(ghost),suites,[path])).toThrow('WORKSPACE_SETTINGS_MAPPING_REQUIRED');
 });
 
 
