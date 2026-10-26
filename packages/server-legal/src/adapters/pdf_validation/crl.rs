@@ -16,6 +16,9 @@ use x509_cert::{
 use super::{crypto::approved_signature_algorithm, trust::OperatorTrustStore};
 use crate::domain::pdf_validation::ValidationState;
 
+mod scope;
+use scope::{ALL_REASONS, applicable_reasons, same_directory_name};
+
 struct CrlEvidence {
     list: CertificateList,
     number: Option<Vec<u8>>,
@@ -24,6 +27,7 @@ struct CrlEvidence {
     distribution: Option<Vec<u8>>,
     indirect: bool,
     freshest: bool,
+    reasons: u16,
 }
 
 pub(super) struct CrlEvaluation {
@@ -71,7 +75,10 @@ pub(super) fn certificate_status(
     let mut unresolved = false;
     let mut unresolved_delta = false;
     for (openssl_crl, der) in &trust.crls {
-        if openssl_crl.issuer_name().to_der().ok() != issuer.subject_name().to_der().ok()
+        if !openssl_crl
+            .issuer_name()
+            .try_cmp(issuer.subject_name())
+            .is_ok_and(|ordering| ordering.is_eq())
             || !openssl_crl.verify(&issuer_key).unwrap_or(false)
         {
             continue;
@@ -112,9 +119,9 @@ pub(super) fn certificate_status(
                     .iter()
                     .any(|extension| extension.extn_id.to_string() == "2.5.29.27")
             });
-        match evidence(list, is_ca) {
+        match evidence(list, &certificate, is_ca) {
             Ok(info) => candidates.push(info),
-            Err(ScopeFailure::Excluded) => {}
+            Err(ScopeFailure::Excluded | ScopeFailure::Unusable) => {}
             Err(ScopeFailure::Unresolved) if is_delta => unresolved_delta = true,
             Err(ScopeFailure::Unresolved) => unresolved = true,
         }
@@ -123,7 +130,7 @@ pub(super) fn certificate_status(
         && candidates
             .iter()
             .any(|candidate| candidate.base.is_none() && candidate.freshest);
-    let mut good = false;
+    let mut coverage = 0;
     for base in candidates
         .iter()
         .filter(|candidate| candidate.base.is_none())
@@ -147,24 +154,19 @@ pub(super) fn certificate_status(
                 })
                 .collect();
             if matching.len() > 1 {
-                // Multiple current, nonidentical deltas need full reconciliation.
-                // Never select a good answer by ordering or CRL number alone.
-                unresolved = true;
-                let mut all_absent = true;
+                // Resolve every usable current candidate. A consistent good
+                // answer is independent of operator filename/iteration order.
+                // Never let a good first delta hide proved current revocation.
+                let mut states = Vec::new();
                 for delta in &matching {
-                    match entry_status(delta, &certificate, moment) {
+                    match effective_entry_status(base, Some(delta), &certificate, moment) {
                         Ok(EntryStatus::Revoked) => return ValidationState::Invalid.into(),
-                        Ok(EntryStatus::NotListed) => {}
-                        _ => all_absent = false,
+                        Ok(state) => states.push(state),
+                        Err(()) => unresolved = true,
                     }
                 }
-                if all_absent
-                    && matches!(
-                        entry_status(base, &certificate, moment),
-                        Ok(EntryStatus::Revoked)
-                    )
-                {
-                    return ValidationState::Invalid.into();
+                if states.len() == matching.len() {
+                    coverage |= base.reasons;
                 }
                 continue;
             }
@@ -175,21 +177,8 @@ pub(super) fn certificate_status(
         } else {
             None
         };
-        let state = match delta
-            .map(|delta| entry_status(delta, &certificate, moment))
-            .transpose()
-        {
-            Ok(Some(EntryStatus::Revoked)) => return ValidationState::Invalid.into(),
-            Ok(Some(EntryStatus::Removed)) => EntryStatus::NotListed,
-            Ok(Some(EntryStatus::NotListed)) | Ok(None) => {
-                match entry_status(base, &certificate, moment) {
-                    Ok(state) => state,
-                    Err(()) => {
-                        unresolved = true;
-                        continue;
-                    }
-                }
-            }
+        let state = match effective_entry_status(base, delta, &certificate, moment) {
+            Ok(state) => state,
             Err(()) => {
                 unresolved = true;
                 continue;
@@ -197,11 +186,11 @@ pub(super) fn certificate_status(
         };
         match state {
             EntryStatus::Revoked => return ValidationState::Invalid.into(),
-            EntryStatus::NotListed | EntryStatus::Removed => good = true,
+            EntryStatus::NotListed | EntryStatus::Removed => coverage |= base.reasons,
         }
     }
     CrlEvaluation {
-        state: if good && !unresolved {
+        state: if coverage == ALL_REASONS && !unresolved {
             ValidationState::Valid
         } else {
             ValidationState::Indeterminate
@@ -216,16 +205,24 @@ fn integer_cmp(left: &[u8], right: &[u8]) -> std::cmp::Ordering {
 
 enum ScopeFailure {
     Excluded,
+    // An unrecognised critical extension makes this CRL unusable (RFC5280
+    // 6.3.3(b)). It cannot refute an independently complete, supported proof.
+    Unusable,
     Unresolved,
 }
 
-fn evidence(list: CertificateList, is_ca: bool) -> Result<CrlEvidence, ScopeFailure> {
+fn evidence(
+    list: CertificateList,
+    certificate: &Certificate,
+    is_ca: bool,
+) -> Result<CrlEvidence, ScopeFailure> {
     let mut number = None;
     let mut base = None;
     let mut authority = None;
     let mut distribution = None;
     let mut indirect = false;
     let mut freshest = false;
+    let mut issuing_point = None;
     let mut seen = std::collections::HashSet::new();
     for extension in list
         .tbs_cert_list
@@ -276,8 +273,12 @@ fn evidence(list: CertificateList, is_ca: bool) -> Result<CrlEvidence, ScopeFail
                 // type's AssociatedOid metadata to choose an extension.
                 let point = IssuingDistributionPoint::from_der(bytes)
                     .map_err(|_| ScopeFailure::Unresolved)?;
-                if point.only_contains_ca_certs && point.only_contains_user_certs {
-                    return Err(ScopeFailure::Unresolved);
+                if u8::from(point.only_contains_ca_certs)
+                    + u8::from(point.only_contains_user_certs)
+                    + u8::from(point.only_contains_attribute_certs)
+                    > 1
+                {
+                    return Err(ScopeFailure::Unusable);
                 }
                 if point.only_contains_attribute_certs
                     || (point.only_contains_user_certs && is_ca)
@@ -285,15 +286,22 @@ fn evidence(list: CertificateList, is_ca: bool) -> Result<CrlEvidence, ScopeFail
                 {
                     return Err(ScopeFailure::Excluded);
                 }
-                if point.distribution_point.is_some() || point.only_some_reasons.is_some() {
-                    return Err(ScopeFailure::Unresolved);
-                }
                 indirect = point.indirect_crl;
+                issuing_point = Some(point);
                 distribution = Some(bytes.to_vec());
             }
-            _ if extension.critical => return Err(ScopeFailure::Unresolved),
+            _ if extension.critical => return Err(ScopeFailure::Unusable),
             _ => {}
         }
+    }
+    let reasons = applicable_reasons(
+        certificate,
+        &list.tbs_cert_list.issuer,
+        issuing_point.as_ref(),
+    )
+    .map_err(|_| ScopeFailure::Unresolved)?;
+    if reasons == 0 {
+        return Err(ScopeFailure::Excluded);
     }
     Ok(CrlEvidence {
         list,
@@ -303,6 +311,7 @@ fn evidence(list: CertificateList, is_ca: bool) -> Result<CrlEvidence, ScopeFail
         distribution,
         indirect,
         freshest,
+        reasons,
     })
 }
 
@@ -310,6 +319,22 @@ enum EntryStatus {
     NotListed,
     Revoked,
     Removed,
+}
+
+fn effective_entry_status(
+    base: &CrlEvidence,
+    delta: Option<&CrlEvidence>,
+    certificate: &Certificate,
+    moment: OffsetDateTime,
+) -> Result<EntryStatus, ()> {
+    match delta
+        .map(|delta| entry_status(delta, certificate, moment))
+        .transpose()?
+    {
+        Some(EntryStatus::Revoked) => Ok(EntryStatus::Revoked),
+        Some(EntryStatus::Removed) => Ok(EntryStatus::NotListed),
+        Some(EntryStatus::NotListed) | None => entry_status(base, certificate, moment),
+    }
 }
 
 fn entry_status(
@@ -359,8 +384,15 @@ fn entry_status(
                 _ => {}
             }
         }
-        if entry.serial_number == certificate.tbs_certificate.serial_number
-            && issuers.contains(&certificate.tbs_certificate.issuer)
+        if entry.serial_number != certificate.tbs_certificate.serial_number {
+            continue;
+        }
+        let issuer_matches = issuers.iter().try_fold(false, |matched, issuer| {
+            Ok::<_, ()>(
+                matched || same_directory_name(issuer, &certificate.tbs_certificate.issuer)?,
+            )
+        })?;
+        if issuer_matches
             && entry.revocation_date.to_unix_duration().as_secs() as i128
                 <= i128::from(moment.unix_timestamp())
         {

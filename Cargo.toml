@@ -1,5 +1,5 @@
 [workspace]
-members = ["packages/server-shared", "packages/server-runtime", "packages/server-legal", "src/composition", "packages/server-finance", "packages/server-identity_access", "packages/server-organization", "packages/server-people_payroll"]
+members = ["packages/server-shared", "packages/server-runtime", "packages/server-legal", "src/composition", "packages/server-finance", "packages/server-identity_access", "packages/server-organization", "packages/server-people_payroll", "packages/server-files", "packages/server-manage_erpx", "packages/server-commercial", "packages/server-platform_administration", "packages/server-pms"]
 resolver = "3"
 
 [workspace.package]
@@ -16,6 +16,12 @@ erpx-server-finance = { path = "packages/server-finance" }
 erpx-server-identity-access = { path = "packages/server-identity_access" }
 erpx-server-organization = { path = "packages/server-organization" }
 erpx-server-people-payroll = { path = "packages/server-people_payroll" }
+erpx-server-files = { path = "packages/server-files" }
+erpx-server-manage-erpx = { path = "packages/server-manage_erpx" }
+erpx-server-commercial = { path = "packages/server-commercial" }
+erpx-server-platform-administration = { path = "packages/server-platform_administration" }
+erpx-server-pms = { path = "packages/server-pms" }
+erpx-server-legal = { path = "packages/server-legal" }
 axum = { version = "=0.8.9", default-features = false, features = ["http1", "json", "tokio", "query"] }
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = { version = "=1.0.151", features = ["float_roundtrip"] }
@@ -37,6 +43,13 @@ sqlx = { version = "=0.9.0", default-features = false, features = ["postgres", "
 uuid = { version = "=1.29.0", default-features = false, features = ["v4"] }
 tempfile = "=3.27.0"
 ring = "=0.17.14"
+subtle = "=2.6.1"
+docx-rs = { version = "=0.4.22", default-features = false }
+zip = { version = "=8.6.0", default-features = false, features = ["deflate"] }
+reqwest = { version = "=0.13.5", default-features = false, features = ["json", "rustls-no-provider"] }
+rustls = { version = "=0.23.46", default-features = false, features = ["ring", "std", "tls12"] }
+webpki-roots = "=1.0.11"
+lettre = { version = "=0.11.23", default-features = false, features = ["builder", "smtp-transport", "tokio1-rustls-tls"] }
 url = "=2.5.8"
 base64 = { version = "=0.23.1", default-features = false, features = ["std"] }
 roxmltree = { version = "=0.21.2", default-features = false, features = ["std"] }
@@ -45,11 +58,13 @@ argon2 = { version = "=0.6.0", features = ["getrandom"] }
 getrandom = "=0.4.3"
 ts-rs = "=12.0.1"
 utoipa = "=6.0.0"
-icu_collator = { version = "=2.3.1", default-features = false, features = ["compiled_data"] }
-icu_locale = { version = "=2.3.0", default-features = false }
+icu_collator = { version = "=2.1.0", default-features = false, features = ["compiled_data"] }
+icu_collator_data = { version = "=2.1.0", default-features = false }
+icu_locale = { version = "=2.1.1", default-features = false }
 num-bigint = { version = "=0.5.1", default-features = false }
 num-traits = { version = "=0.2.19", default-features = false }
-nix = { version = "=0.31.3", default-features = false, features = ["resource"] }
+nix = { version = "=0.31.3", default-features = false, features = ["resource", "fs", "signal", "process"] }
+rustix = { version = "=1.1.5", default-features = false, features = ["std", "process"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

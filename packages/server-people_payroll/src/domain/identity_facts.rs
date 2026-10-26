@@ -6,6 +6,8 @@ use erpx_server_shared::public::{BusinessError, CompanyId, FailureKind, RecordId
 pub struct EngagementAuthorityWitness {
     pub id: RecordId,
     pub version: i64,
+    pub branch_id: Option<RecordId>,
+    pub department_id: Option<RecordId>,
 }
 
 /// Minimal People-owned facts for Identity. This is neither an access grant nor a wire DTO.

@@ -15,7 +15,11 @@ pub struct SignatureValidation {
     pub field: String,
     pub status: ValidationState,
     pub integrity: ValidationState,
+    /// B0's separately evaluated soft-fail path diagnostic.
     pub certificate_chain: ValidationState,
+    /// The required offline path, including complete revocation proof. A soft
+    /// diagnostic cannot supply this evidence or veto an independently proved path.
+    pub required_certificate_chain: ValidationState,
     pub certificate_validity: ValidationState,
     pub revocation: ValidationState,
     pub timestamp: ValidationState,
@@ -51,6 +55,7 @@ impl SignatureValidation {
             status: ValidationState::Indeterminate,
             integrity: ValidationState::Indeterminate,
             certificate_chain: ValidationState::Indeterminate,
+            required_certificate_chain: ValidationState::Indeterminate,
             certificate_validity: ValidationState::Indeterminate,
             revocation: ValidationState::Indeterminate,
             timestamp: ValidationState::Indeterminate,

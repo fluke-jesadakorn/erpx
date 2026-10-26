@@ -6,8 +6,10 @@ fn main() {
     if arguments == ["--openapi"] {
         let mut document = erpx_server_identity_access::public::account_openapi();
         document.merge(erpx_server_identity_access::public::credentials_openapi());
+        document.merge(erpx_server_identity_access::public::account_sso::sso_openapi());
+        document.merge(erpx_server_identity_access::public::invitation_openapi());
         document.info.title = "ERPX native Account authentication".into();
-        document.info.description=Some("Native Account authentication and credential lifecycle. Unmounted during migration; provider delivery, current invitation owner authority assembly, SSO and complete owner authorization remain pending. This document is not runtime or release acceptance.".into());
+        document.info.description=Some("Native Account authentication and credential lifecycle. Unmounted during migration; worker/provider runtime assembly and live delivery acceptance, invitation administration/existing-account linking, directory/MFA and complete owner authorization remain pending. This document is not runtime or release acceptance.".into());
         if let Some(alias) = document.paths.paths.get("/api/auth/sign-in/email").cloned() {
             document
                 .paths
@@ -35,8 +37,18 @@ fn main() {
         EmailSignUpInput::decl(&configuration),
         EmailVerificationInput::decl(&configuration),
         PasswordChangeInput::decl(&configuration),
+        AccountSsoStartInput::decl(&configuration),
+        AccountSsoAuthorizeInput::decl(&configuration),
+        AccountSsoCallbackInput::decl(&configuration),
+        AccountInvitationInspectInput::decl(&configuration),
+        AccountInvitationAcceptInput::decl(&configuration),
+        AccountInvitationInfo::decl(&configuration),
+        AccountInvitationInspectResponse::decl(&configuration),
+        AccountInvitationAccepted::decl(&configuration),
+        AccountInvitationAcceptResponse::decl(&configuration),
         PasswordResetRequestInput::decl(&configuration),
         PasswordResetInput::decl(&configuration),
+        AccountPasswordResetLinkQuery::decl(&configuration),
         EmailVerificationRequestInput::decl(&configuration),
         DeviceSelectionInput::decl(&configuration),
         AccountUserDto::decl(&configuration),

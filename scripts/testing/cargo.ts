@@ -1,9 +1,10 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { posix, resolve } from 'node:path';
 import type { Suite } from './catalogue';
+import { vitestChildEnvironment } from './runner-environment';
 
 export type CargoSuite = { framework: 'cargo'; cargo: { package: string; targets: string[]; features?: string[] } };
-export type CargoTestTarget = { name: string; path: string };
+export type CargoTestTarget = { name: string; path: string; requiredFeatures?: string[] };
 export type CargoCaseObservation = { runner: 'cargo'; file: string; title: string; status: 'passed' | 'failed' | 'skipped' };
 export const cargoRootInputs = ['Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml'] as const;
 export const isCargoInput = (file: string) => file.endsWith('.rs') || /(?:^|\/)Cargo\.(?:toml|lock)$/.test(file) || file === 'rust-toolchain.toml';
@@ -14,7 +15,10 @@ export function cargoTestTargets(manifest: string): CargoTestTarget[] {
     const name = /^name\s*=\s*"([A-Za-z0-9_-]+)"\s*$/m.exec(match[1])?.[1];
     const path = /^path\s*=\s*"([^"\n]+)"\s*$/m.exec(match[1])?.[1];
     if (!name || !path) throw new Error('EXPLICIT_CARGO_TEST_TARGET_REQUIRED');
-    return { name, path };
+    const required=/^required-features\s*=\s*\[([\s\S]*?)\]\s*$/m.exec(match[1]);
+    const requiredFeatures=required?[...required[1].matchAll(/"([A-Za-z0-9_-]+)"/g)].map(feature=>feature[1]):[];
+    if(/^required-features\s*=/m.test(match[1])&&!required)throw new Error('EXPLICIT_CARGO_TEST_FEATURES_REQUIRED');
+    return { name, path, ...(requiredFeatures.length?{requiredFeatures}:{}) };
   });
 }
 
@@ -54,18 +58,38 @@ export function validateCargoSuite(suite: Suite, root: string): void {
     return;
   }
   const configuration = suite.cargo;
-  if (!['unit', 'integration'].includes(suite.lane) || !configuration || !/^[a-z][a-z0-9_-]+$/.test(configuration.package) || !Array.isArray(configuration.targets) || !configuration.targets.length || new Set(configuration.targets).size !== configuration.targets.length || configuration.targets.some(target => !/^[A-Za-z0-9_-]+$/.test(target)) || configuration.features?.some(feature => !/^[A-Za-z0-9_/-]+$/.test(feature))) throw new Error(`INVALID_CARGO_SUITE:${suite.id}`);
+  if (!['unit', 'integration', 'provider'].includes(suite.lane) || !configuration || !/^[a-z][a-z0-9_-]+$/.test(configuration.package) || !Array.isArray(configuration.targets) || !configuration.targets.length || new Set(configuration.targets).size !== configuration.targets.length || configuration.targets.some(target => !/^[A-Za-z0-9_-]+$/.test(target)) || configuration.features?.some(feature => !/^[A-Za-z0-9_/-]+$/.test(feature))) throw new Error(`INVALID_CARGO_SUITE:${suite.id}`);
+  if (suite.lane === 'provider' && (suite.fixture !== 'provider' || suite.postgres !== undefined || !suite.provider || !Array.isArray(suite.provider.required) || !suite.provider.required.length || suite.provider.required.some(name => !/^[A-Z][A-Z0-9_]*$/.test(name)) || !suite.provider.environment || Object.entries(suite.provider.environment).some(([name,value]) => !/^[A-Z][A-Z0-9_]*$/.test(name) || typeof value !== 'string'))) throw new Error(`CARGO_PROVIDER_PREREQUISITES_REQUIRED:${suite.id}`);
   const manifestFile = suite.verificationInputs?.find(file => file.endsWith('/Cargo.toml') && existsSync(resolve(root, file)) && cargoPackageName(readFileSync(resolve(root, file), 'utf8')) === configuration.package);
   if (!manifestFile) throw new Error(`CARGO_PACKAGE_MANIFEST_REQUIRED:${suite.id}`);
   const targets = cargoTestTargets(readFileSync(resolve(root, manifestFile), 'utf8'));
   const selected = configuration.targets.map(name => {
     const target = targets.find(target => target.name === name);
     if (!target) throw new Error(`CARGO_TEST_TARGET_UNDECLARED:${suite.id}:${name}`);
+    if(target.requiredFeatures?.some(feature=>!configuration.features?.includes(feature)))throw new Error(`CARGO_REQUIRED_FEATURE_MISSING:${suite.id}:${name}`);
     return posix.normalize(posix.join(posix.dirname(manifestFile), target.path));
   });
   if (JSON.stringify([...selected].sort()) !== JSON.stringify([...suite.files].sort()) || suite.files.some(file => !file.endsWith('.test.rs'))) throw new Error(`CARGO_TARGET_FILE_MISMATCH:${suite.id}`);
   for (const file of suite.files) if (!/#\[(?:[A-Za-z_][A-Za-z0-9_]*::)?test(?:\]|\()/.test(readFileSync(resolve(root, file), 'utf8'))) throw new Error(`CARGO_TEST_CASE_REQUIRED:${suite.id}:${file}`);
   for (const file of cargoRootInputs) if (!suite.verificationInputs?.includes(file) || !existsSync(resolve(root, file))) throw new Error(`CARGO_SOURCE_INPUT_REQUIRED:${suite.id}:${file}`);
+}
+
+/** A native provider is an explicit invocation, never an ordinary unit/CI fallback.
+ * Missing prerequisites fail before spawning Cargo, and scanner-only providers
+ * do not inherit the isolated database administrator or ambient PG connection.
+ */
+export function cargoChildEnvironment(suite: Suite, environment: Record<string,string|undefined>) {
+  let selected={...environment};
+  if(suite.lane==='provider'){
+    if(!suite.provider?.required.length)throw new Error(`CARGO_PROVIDER_PREREQUISITES_REQUIRED:${suite.id}`);
+    const tools=new Set(['PATH','HOME','TMPDIR','TMP','TEMP','LANG','LC_ALL','LC_CTYPE','TZ','SYSTEMROOT','SystemRoot','WINDIR','USERPROFILE','XDG_CACHE_HOME','CARGO_HOME','RUSTUP_HOME','RUSTUP_TOOLCHAIN','RUSTC','RUSTDOC','CARGO_TARGET_DIR','CARGO_BUILD_TARGET','ERPX_CARGO_BIN','ERPX_NODE_BIN','ERPX_BUN_BIN']);
+    selected=Object.fromEntries(Object.entries(environment).filter(([name])=>tools.has(name)));
+    for(const variable of suite.provider.required)selected[variable]=environment[variable];
+    Object.assign(selected,suite.provider.environment);
+    for(const variable of suite.provider.required)if(!selected[variable]?.trim())throw new Error(`PROVIDER_PREREQUISITE_REQUIRED:${suite.id}:${variable}`);
+    selected.ERPX_SELECTED_PROVIDER='1';
+  }
+  return vitestChildEnvironment(selected,suite.lane==='integration');
 }
 
 /** Cargo manifests bind every source in a crate and local workspace dependencies.

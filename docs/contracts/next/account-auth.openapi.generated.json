@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "ERPX native Account authentication",
-    "description": "Native Account authentication and credential lifecycle. Unmounted during migration; provider delivery, current invitation owner authority assembly, SSO and complete owner authorization remain pending. This document is not runtime or release acceptance.",
+    "description": "Native Account authentication and credential lifecycle. Unmounted during migration; worker/provider runtime assembly and live delivery acceptance, invitation administration/existing-account linking, directory/MFA and complete owner authorization remain pending. This document is not runtime or release acceptance.",
     "license": {
       "name": "Apache-2.0",
       "identifier": "Apache-2.0"
@@ -194,6 +194,64 @@
             }
           },
           "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountAuthErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountAuthErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountAuthErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/reset-password/{token}": {
+      "get": {
+        "tags": [],
+        "operationId": "reset_link",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "description": "Opaque one-use reset proof",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "callbackURL",
+            "in": "query",
+            "description": "Relative Account return path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "303": {
+            "description": "Private redirect to the reset form; proof is not consumed"
+          },
+          "400": {
             "content": {
               "application/json": {
                 "schema": {
@@ -574,6 +632,113 @@
         }
       }
     },
+    "/api/v1/account-invitations": {
+      "get": {
+        "tags": [],
+        "operationId": "inspect",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "query",
+            "description": "Private invitation bearer proof",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountInvitationInspectResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountAuthErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountAuthErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [],
+        "operationId": "accept",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountInvitationAcceptInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountInvitationAcceptResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountAuthErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountAuthErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountAuthErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountAuthErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/account/device-accounts": {
       "get": {
         "tags": [],
@@ -785,6 +950,124 @@
           }
         }
       }
+    },
+    "/sso/authorize": {
+      "get": {
+        "tags": [],
+        "operationId": "authorize",
+        "parameters": [
+          {
+            "name": "transaction",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "challenge",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "303": {
+            "description": "Current Account session grants an exact Holding callback; anonymous users continue through Account login"
+          },
+          "404": {},
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountAuthErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sso/callback": {
+      "get": {
+        "tags": [],
+        "operationId": "callback",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "303": {
+            "description": "One atomic grant consumption, host-only Holding session cookie, and clean Holding-relative redirect"
+          },
+          "404": {},
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountAuthErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sso/start": {
+      "get": {
+        "tags": [],
+        "operationId": "start",
+        "parameters": [
+          {
+            "name": "next",
+            "in": "query",
+            "description": "Holding-relative destination; credentials and fragments are removed",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "303": {
+            "description": "Exact Account authorization redirect and host-only browser/PKCE cookie"
+          },
+          "404": {},
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountAuthErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -817,6 +1100,90 @@
         },
         "additionalProperties": false
       },
+      "AccountInvitationAcceptInput": {
+        "type": "object",
+        "required": [
+          "token",
+          "password"
+        ],
+        "properties": {
+          "password": {
+            "type": "string"
+          },
+          "token": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AccountInvitationAcceptResponse": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AccountInvitationAccepted"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AccountInvitationAccepted": {
+        "type": "object",
+        "required": [
+          "activated"
+        ],
+        "properties": {
+          "activated": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AccountInvitationInfo": {
+        "type": "object",
+        "required": [
+          "name",
+          "email",
+          "existingAccount"
+        ],
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "existingAccount": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AccountInvitationInspectInput": {
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "properties": {
+          "token": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AccountInvitationInspectResponse": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AccountInvitationInfo"
+          }
+        },
+        "additionalProperties": false
+      },
       "AccountOperationResponse": {
         "type": "object",
         "required": [
@@ -825,6 +1192,18 @@
         "properties": {
           "status": {
             "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AccountPasswordResetLinkQuery": {
+        "type": "object",
+        "required": [
+          "callbackURL"
+        ],
+        "properties": {
+          "callbackURL": {
+            "type": "string"
           }
         },
         "additionalProperties": false
@@ -876,6 +1255,54 @@
           },
           "user": {
             "$ref": "#/components/schemas/AccountUserDto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AccountSsoAuthorizeInput": {
+        "type": "object",
+        "required": [
+          "transaction",
+          "state",
+          "challenge"
+        ],
+        "properties": {
+          "challenge": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "transaction": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AccountSsoCallbackInput": {
+        "type": "object",
+        "required": [
+          "code",
+          "state"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AccountSsoStartInput": {
+        "type": "object",
+        "properties": {
+          "next": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "additionalProperties": false

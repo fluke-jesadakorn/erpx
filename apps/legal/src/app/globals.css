@@ -4,6 +4,7 @@
 @source "../../../../packages/catalogue/src/module-registry.ts";
 @source "../../../../packages/catalogue/src/production-scope.ts";
 @source "../../../../packages/contracts/src/apps.ts";
+@source "../../../../packages/contracts/src/business-role-modules.generated.ts";
 @source "../../../../packages/contracts/src/console-retirement.ts";
 @source "../../../../packages/contracts/src/development-module-admission.ts";
 @source "../../../../packages/contracts/src/holding-fetch.ts";
@@ -30,6 +31,7 @@
 @source "../../../../packages/feature-finance/src/lib/finance-starter.ts";
 @source "../../../../packages/feature-finance/src/lib/finance-thai-document.ts";
 @source "../../../../packages/feature-finance/src/lib/thai-finance-tax-pack.ts";
+@source "../../../../packages/feature-identity_access/src/adapters/http/account-auth.ts";
 @source "../../../../packages/feature-identity_access/src/components/account-preferences-context.tsx";
 @source "../../../../packages/feature-identity_access/src/components/account-preferences-provider.tsx";
 @source "../../../../packages/feature-identity_access/src/components/device-account-login-choices.tsx";

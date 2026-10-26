@@ -1,10 +1,13 @@
 use crate::{
     application::hierarchy::{OrganizationReadFuture, OrganizationReadPort},
-    domain::hierarchy::{HierarchyLineage, OrganizationNode, WorkspaceRouteQuery},
+    domain::hierarchy::{
+        CompanyContext, HierarchyLineage, OrganizationNode, WorkspaceRouteQuery, company_context,
+        workspace_missing,
+    },
 };
-use erpx_server_runtime::public::postgres::PgTransactionError;
-use erpx_server_shared::public::{BusinessError, CompanyId, FailureKind, HoldingId};
-use sqlx::{PgConnection, Row, postgres::PgRow};
+use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
+use erpx_server_shared::public::{BusinessError, CompanyId, FailureKind, HoldingId, RecordId};
+use sqlx::{Connection, PgConnection, Row, postgres::PgRow};
 /// Borrows the caller's leased connection; never opens, commits or releases a transaction.
 pub struct PgOrganizationReader<'c> {
     holding_id: HoldingId,
@@ -16,6 +19,25 @@ impl<'c> PgOrganizationReader<'c> {
             holding_id,
             connection,
         }
+    }
+    /// Original owner sources carry node IDs rather than browser path slugs.
+    /// Resolve exactly those IDs on the caller's transaction, retaining tuple
+    /// fences so an earlier SERIALIZABLE snapshot cannot certify changed nodes.
+    pub async fn scope_context(
+        &mut self,
+        company: &CompanyId,
+        branch: Option<&RecordId>,
+        department: Option<&RecordId>,
+    ) -> Result<CompanyContext, PgTransactionError<BusinessError>> {
+        if !self.connection.is_in_transaction() {
+            return Err(PersistenceError::new("ORGANIZATION_TRANSACTION_REQUIRED").into());
+        }
+        let row=sqlx::query("WITH c AS MATERIALIZED(SELECT * FROM organization_nodes WHERE id=$1 AND kind='company' AND status='active' FOR SHARE),
+          b AS MATERIALIZED(SELECT * FROM organization_nodes WHERE $2::text IS NOT NULL AND id=$2 AND company_id=$1 AND parent_id=$1 AND kind='branch' AND status='active' FOR SHARE),
+          d AS MATERIALIZED(SELECT * FROM organization_nodes WHERE $3::text IS NOT NULL AND id=$3 AND company_id=$1 AND kind='department' AND status='active' AND (($2::text IS NULL AND branch_id IS NULL AND parent_id=$1) OR ($2::text IS NOT NULL AND branch_id=$2 AND parent_id=$2)) FOR SHARE)
+          SELECT to_jsonb(c) company,(SELECT to_jsonb(b) FROM b) branch,(SELECT to_jsonb(d) FROM d) department FROM c WHERE ($2::text IS NULL OR EXISTS(SELECT 1 FROM b)) AND ($3::text IS NULL OR EXISTS(SELECT 1 FROM d))")
+          .bind(company.as_str()).bind(branch.map(RecordId::as_str)).bind(department.map(RecordId::as_str)).fetch_optional(&mut *self.connection).await?.ok_or_else(workspace_missing)?;
+        company_context(self.holding_id.clone(), lineage(row)?).map_err(Into::into)
     }
 }
 fn unavailable() -> BusinessError {

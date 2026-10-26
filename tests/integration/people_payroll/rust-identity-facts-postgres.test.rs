@@ -40,6 +40,7 @@ async fn wait_for_source_lock(pool: &DatabasePool) -> bool {
 async fn people_facts_are_company_scoped_minimal_and_current() {
     fixture::with_database(2, |pool| async move {
         setup(&pool).await;
+        sqlx::query("UPDATE hr_engagements SET branch_id='branch',department_id='department',version=version+1 WHERE id='engagement'").execute(pool.raw()).await.unwrap();
         let mut outside = pool.raw().acquire().await.unwrap();
         assert!(PgPeopleAuthorityReader::new(&mut outside).person_for_user(&CompanyId::new("company").unwrap(), &UserId::new("user").unwrap()).await.is_err());
         drop(outside);
@@ -49,6 +50,7 @@ async fn people_facts_are_company_scoped_minimal_and_current() {
             let mut reader = PgPeopleAuthorityReader::new(connection);
             let company = CompanyId::new("company").unwrap(); let user = UserId::new("user").unwrap();
             let person = reader.person_for_user(&company, &user).await?.unwrap();
+            assert_eq!(person.active_engagements[0].branch_id.as_ref().map(|v|v.as_str()),Some("branch")); assert_eq!(person.active_engagements[0].department_id.as_ref().map(|v|v.as_str()),Some("department"));
             assert_eq!(person.person_id.as_str(), "person"); assert_eq!(person.active_engagements.len(), 1); assert!(person.active_hr_subject());
             let debug = format!("{person:?}"); assert!(!debug.contains("PRIVATE_"));
             assert!(reader.person_subject(&CompanyId::new("foreign").unwrap(), &person.person_id).await?.is_none());

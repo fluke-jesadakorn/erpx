@@ -10,7 +10,7 @@ use crate::{
     domain::{account_auth::*, account_credentials::*},
 };
 use erpx_server_runtime::public::postgres::{DatabasePool, PgUnitOfWork};
-use erpx_server_shared::public::BusinessError;
+use erpx_server_shared::public::{BusinessError, Clock};
 use sha2::{Digest, Sha256};
 use sqlx::{PgConnection, Row};
 use std::sync::Arc;
@@ -19,12 +19,14 @@ pub struct PostgresAccountCredentials {
     unit: PgUnitOfWork,
     environment: String,
     invitations: Arc<dyn InvitationCredentialAuthority>,
+    clock: Arc<dyn Clock + Send + Sync>,
 }
 impl PostgresAccountCredentials {
     pub fn from_control_database(
         pool: DatabasePool,
         environment: String,
         invitations: Arc<dyn InvitationCredentialAuthority>,
+        clock: Arc<dyn Clock + Send + Sync>,
     ) -> Result<Self, BusinessError> {
         if environment != "development" {
             return Err(BusinessError::invalid(
@@ -36,12 +38,13 @@ impl PostgresAccountCredentials {
             unit: PgUnitOfWork::new(pool),
             environment,
             invitations,
+            clock,
         })
     }
 }
 async fn locks(connection: &mut PgConnection) -> TxResult<()> {
     lock_session_writes(connection).await?;
-    sqlx::query("LOCK TABLE account,native_account_proofs,native_account_mail_outbox,native_account_credential_events,account_invitations,account_invitation_claims IN SHARE ROW EXCLUSIVE MODE").execute(connection).await?;
+    sqlx::query("LOCK TABLE account,native_account_proofs,native_account_mail_outbox,native_account_credential_events,account_invitations,account_invitation_claims,holding_bindings IN SHARE ROW EXCLUSIVE MODE").execute(connection).await?;
     Ok(())
 }
 fn fingerprint(hash: &PasswordHash) -> String {
@@ -113,8 +116,8 @@ async fn proof(
     kind: CredentialProofKind,
     digest: &SecretDigest,
     now: i64,
-) -> TxResult<(String, CredentialSnapshot)> {
-    let row=sqlx::query("SELECT id,user_id,email,credential_fingerprint FROM native_account_proofs WHERE token_digest=$1 AND kind=$2 AND consumed_at IS NULL AND created_at<=$3 AND expires_at>$3").bind(digest.as_str()).bind(kind.as_str()).bind(now).fetch_optional(&mut *connection).await?.ok_or_else(invalid_proof)?;
+) -> TxResult<(String, CredentialSnapshot, i64)> {
+    let row=sqlx::query("SELECT id,user_id,email,credential_fingerprint,expires_at FROM native_account_proofs WHERE token_digest=$1 AND kind=$2 AND consumed_at IS NULL AND created_at<=$3 AND expires_at>$3").bind(digest.as_str()).bind(kind.as_str()).bind(now).fetch_optional(&mut *connection).await?.ok_or_else(invalid_proof)?;
     let email = EmailAddress::new(&row.try_get::<String, _>("email")?)?;
     let current = credential(connection, &email)
         .await?
@@ -126,7 +129,7 @@ async fn proof(
     {
         return Err(invalid_proof().into());
     }
-    Ok((row.try_get("id")?, current))
+    Ok((row.try_get("id")?, current, row.try_get("expires_at")?))
 }
 async fn revoke_all(connection: &mut PgConnection, user_id: &str, now: i64) -> TxResult<()> {
     let sessions = sqlx::query_scalar::<_, String>("SELECT id FROM session WHERE \"userId\"=$1")
@@ -186,14 +189,42 @@ async fn authenticated_credential(
 }
 
 impl AccountCredentialRepository for PostgresAccountCredentials {
+    fn inspect_password_reset(&self, token: SecretDigest, _now: i64) -> AccountFuture<'_, ()> {
+        Box::pin(async move {
+            finish(
+                self.unit
+                    .run(options(), |connection| {
+                        let token = token.clone();
+                        let clock = self.clock.clone();
+                        Box::pin(async move {
+                            lock_session_reads(connection).await?;
+                            sqlx::query("LOCK TABLE account,native_account_proofs IN SHARE MODE")
+                                .execute(&mut *connection)
+                                .await?;
+                            proof(
+                                connection,
+                                CredentialProofKind::PasswordReset,
+                                &token,
+                                clock.now().get(),
+                            )
+                            .await?;
+                            Ok(())
+                        })
+                    })
+                    .await,
+            )
+        })
+    }
     fn request_mail(&self, input: PreparedCredentialMail) -> AccountFuture<'_, ()> {
         Box::pin(async move {
             finish(
                 self.unit
                     .run(options(), |connection| {
-                        let input = input.clone();
+                        let mut input = input.clone();
+                        let clock = self.clock.clone();
                         Box::pin(async move {
                             locks(connection).await?;
+                            input.now = clock.now().get();
                             queue(connection, input).await
                         })
                     })
@@ -207,16 +238,18 @@ impl AccountCredentialRepository for PostgresAccountCredentials {
                 self.unit
                     .run(options(), |connection| {
                         let input = input.clone();
+                        let clock = self.clock.clone();
                         Box::pin(async move {
                             locks(connection).await?;
-                            let (id, current) = proof(
+                            let now = clock.now().get();
+                            let (id, current, expires) = proof(
                                 connection,
                                 CredentialProofKind::PasswordReset,
                                 &input.token_digest,
-                                input.now,
+                                now,
                             )
                             .await?;
-                            replace_password(connection, &current, &input.password_hash, input.now)
+                            replace_password(connection, &current, &input.password_hash, now)
                                 .await?;
                             audit(
                                 connection,
@@ -224,9 +257,13 @@ impl AccountCredentialRepository for PostgresAccountCredentials {
                                 &current.user_id,
                                 "password_reset",
                                 Some(&id),
-                                input.now,
+                                now,
                             )
-                            .await
+                            .await?;
+                            if clock.now().get() >= expires {
+                                return Err(invalid_proof().into());
+                            }
+                            Ok(())
                         })
                     })
                     .await,
@@ -235,32 +272,40 @@ impl AccountCredentialRepository for PostgresAccountCredentials {
     }
     fn verify_email(&self, input: VerifyCredential) -> AccountFuture<'_, VerifiedCredential> {
         Box::pin(async move {
-            finish(self.unit.run(options(),|connection|{let input=input.clone();let environment=self.environment.clone();Box::pin(async move{
-  locks(connection).await?;let(id,current)=proof(connection,CredentialProofKind::EmailVerification,&input.token_digest,input.now).await?;
-  let(browser_id,created_browser)=ensure_browser(connection,&input.proof,&input.candidate_browser,input.now).await?;let state=browser(connection,&browser_id).await?.ok_or_else(invalid_proof)?;revision(&state,input.expected_revision,input.now)?;
-  sqlx::query("UPDATE \"user\" SET \"emailVerified\"=1,\"updatedAt\"=$2 WHERE id=$1").bind(&current.user_id).bind(input.now).execute(&mut *connection).await?;cancel_proofs(connection,&current.user_id,Some(CredentialProofKind::EmailVerification.as_str()),input.now).await?;
-  let completed=issue_account_session(connection,IssuedAccountSession{proof:input.proof,browser:browser_id,session_id:input.session_id,session_digest:input.session_digest,handle:input.handle,user_id:current.user_id.clone(),now:input.now},&environment).await?;
-  audit(connection,&input.event_id,&current.user_id,"email_verified",Some(&id),input.now).await?;Ok(VerifiedCredential{completed,created_browser})
+            finish(self.unit.run(options(),|connection|{let input=input.clone();let environment=self.environment.clone();let clock=self.clock.clone();Box::pin(async move{
+  locks(connection).await?;
+                            let now=clock.now().get();let(id,current,expires)=proof(connection,CredentialProofKind::EmailVerification,&input.token_digest,now).await?;
+  let(browser_id,created_browser)=ensure_browser(connection,&input.proof,&input.candidate_browser,now).await?;let state=browser(connection,&browser_id).await?.ok_or_else(invalid_proof)?;revision(&state,input.expected_revision,now)?;
+  sqlx::query("UPDATE \"user\" SET \"emailVerified\"=1,\"updatedAt\"=$2 WHERE id=$1").bind(&current.user_id).bind(now).execute(&mut *connection).await?;cancel_proofs(connection,&current.user_id,Some(CredentialProofKind::EmailVerification.as_str()),now).await?;
+  let completed=issue_account_session(connection,IssuedAccountSession{proof:input.proof,browser:browser_id,session_id:input.session_id,session_digest:input.session_digest,handle:input.handle,user_id:current.user_id.clone(),now},&environment).await?;
+  audit(connection,&input.event_id,&current.user_id,"email_verified",Some(&id),now).await?;if clock.now().get()>=expires{return Err(invalid_proof().into());}Ok(VerifiedCredential{completed,created_browser})
  })}).await)
         })
     }
     fn current_credential(
         &self,
         proof: DeviceProof,
-        now: i64,
+        _now: i64,
     ) -> AccountFuture<'_, CredentialSnapshot> {
         Box::pin(async move {
             finish(
                 self.unit
                     .run(options(), |connection| {
                         let proof = proof.clone();
+                        let clock = self.clock.clone();
                         let environment = self.environment.clone();
                         Box::pin(async move {
                             lock_session_reads(connection).await?;
                             sqlx::query("LOCK TABLE account IN SHARE MODE")
                                 .execute(&mut *connection)
                                 .await?;
-                            authenticated_credential(connection, &proof, &environment, now).await
+                            authenticated_credential(
+                                connection,
+                                &proof,
+                                &environment,
+                                clock.now().get(),
+                            )
+                            .await
                         })
                     })
                     .await,
@@ -273,20 +318,22 @@ impl AccountCredentialRepository for PostgresAccountCredentials {
                 self.unit
                     .run(options(), |connection| {
                         let input = input.clone();
+                        let clock = self.clock.clone();
                         let environment = self.environment.clone();
                         Box::pin(async move {
                             locks(connection).await?;
+                            let now = clock.now().get();
                             let current = authenticated_credential(
                                 connection,
                                 &input.proof,
                                 &environment,
-                                input.now,
+                                now,
                             )
                             .await?;
                             if current.password_hash != input.previous {
                                 return Err(denied().into());
                             }
-                            replace_password(connection, &current, &input.password_hash, input.now)
+                            replace_password(connection, &current, &input.password_hash, now)
                                 .await?;
                             audit(
                                 connection,
@@ -294,7 +341,7 @@ impl AccountCredentialRepository for PostgresAccountCredentials {
                                 &current.user_id,
                                 "password_changed",
                                 None,
-                                input.now,
+                                now,
                             )
                             .await
                         })
@@ -305,13 +352,18 @@ impl AccountCredentialRepository for PostgresAccountCredentials {
     }
     fn sign_up(&self, input: SignUpCredential) -> AccountFuture<'_, ()> {
         Box::pin(async move {
-            let result=self.unit.run(options(),|connection|{let input=input.clone();let invitations=self.invitations.clone();Box::pin(async move{
-   locks(connection).await?;
+            let result=self.unit.run(options(),|connection|{let mut input=input.clone();let invitations=self.invitations.clone();let clock=self.clock.clone();Box::pin(async move{
+   locks(connection).await?;input.mail.now=clock.now().get();
    let row=sqlx::query("SELECT id,holding_id,company_id,person_id,email,name,role,scope_kind,branch_id,department_id,created_by,assignment_id,expires_at,created_at FROM account_invitations WHERE token_hash=$1 AND status='pending' AND expires_at>$2").bind(input.invitation_digest.as_str()).bind(input.mail.now).fetch_optional(&mut *connection).await?.ok_or_else(signup_unavailable)?;
    let id:String=row.try_get("id")?;let email=EmailAddress::new(&row.try_get::<String,_>("email")?)?;if email!=input.email{return Err(signup_unavailable().into());}
    let holding_id:String=row.try_get("holding_id")?;let company_id:String=row.try_get("company_id")?;
-   let person_id:String=row.try_get("person_id")?;let name:String=row.try_get("name")?;let query=InvitationCredentialQuery{invitation_id:id.clone(),holding_id,company_id,person_id,name:name.clone(),role_payload:row.try_get("role")?,scope_kind:row.try_get("scope_kind")?,branch_id:row.try_get("branch_id")?,department_id:row.try_get("department_id")?,created_by:row.try_get("created_by")?,assignment_id:row.try_get("assignment_id")?,expires_at:row.try_get("expires_at")?,created_at:row.try_get("created_at")?,email:email.clone(),now:input.mail.now};
-   let lease=invitations.inspect(&query).await?;let facts=lease.facts();validate_invitation_credential(facts)?;if facts.invitation_id!=id||facts.holding_id!=query.holding_id||facts.company_id!=query.company_id||facts.person_id!=query.person_id||facts.email!=email||facts.now!=input.mail.now{return Err(signup_unavailable().into());}
+   let person_id:String=row.try_get("person_id")?;let name:String=row.try_get("name")?;
+   let created_by:String=row.try_get("created_by")?;
+   let authorizer_control_active:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM \"user\" u LEFT JOIN principals p ON p.user_id=u.id WHERE u.id=$1 AND COALESCE(p.status,'active')='active')").bind(&created_by).fetch_one(&mut *connection).await?;
+   let holding_binding_active:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM holding_bindings WHERE holding_id=$1 AND status='active')").bind(&holding_id).fetch_one(&mut *connection).await?;
+   if !authorizer_control_active||!holding_binding_active{return Err(signup_unavailable().into());}
+   let query=InvitationCredentialQuery{invitation_id:id.clone(),holding_id,company_id,person_id,name:name.clone(),role_payload:row.try_get("role")?,scope_kind:row.try_get("scope_kind")?,branch_id:row.try_get("branch_id")?,department_id:row.try_get("department_id")?,created_by,authorizer_control_active,holding_binding_active,assignment_id:row.try_get("assignment_id")?,expires_at:row.try_get("expires_at")?,created_at:row.try_get("created_at")?,email:email.clone(),now:input.mail.now};
+   let mut lease=invitations.inspect(&query).await?;let facts=lease.facts();validate_invitation_credential(facts)?;if facts.invitation_id!=id||facts.holding_id!=query.holding_id||facts.company_id!=query.company_id||facts.person_id!=query.person_id||facts.email!=email||facts.now<input.mail.now{return Err(signup_unavailable().into());}input.mail.now=facts.now;
    let exists:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM \"user\" WHERE lower(email)=$1)").bind(email.as_str()).fetch_one(&mut *connection).await?;if exists{return Err(signup_unavailable().into());}
    let user_id=format!("usr_invite_{id}");
    sqlx::query("INSERT INTO account_invitation_claims(invitation_id,eligible,claimed_at) VALUES($1,1,$2)").bind(&id).bind(input.mail.now).execute(&mut *connection).await?;
@@ -320,6 +372,7 @@ impl AccountCredentialRepository for PostgresAccountCredentials {
    sqlx::query("INSERT INTO principals(id,user_id,display_name,status,created_at) VALUES($1,$2,$3,'active',$4)").bind(input.principal_id).bind(&user_id).bind(name).bind(input.mail.now).execute(&mut *connection).await?;
    sqlx::query("UPDATE account_invitations SET status='accepted',accepted_user_id=$2 WHERE id=$1 AND status='pending'").bind(&id).bind(&user_id).execute(&mut *connection).await?;
    queue(connection,input.mail.clone()).await?;audit(connection,&format!("signup-{}",input.mail.event_id),&user_id,"invitation_credential_created",Some(&input.mail.proof_id),input.mail.now).await?;
+   lease.recheck(clock.now().get()).await?;
    Ok(((),lease))
   })}).await;
             // The owner lease remains alive through the successful Control commit, including retries.

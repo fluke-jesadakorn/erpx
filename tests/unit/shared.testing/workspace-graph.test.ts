@@ -98,7 +98,9 @@ it('updates newly imported sources during a live watch and closes its owned watc
   await writeFile(join(root,file),initial.replace('p-4','p-8'));
   await new Promise(done=>setTimeout(done,80));expect(refresh).not.toHaveBeenCalled();
   await writeFile(join(root,file),'import "@erpx/ui/new";'+initial);
-  await vi.waitFor(()=>expect(refresh).toHaveBeenCalledTimes(1),{timeout:3000});
+  // Recursive macOS filesystem notifications coalesce the initial subtree
+  // events. Wait for the real delivery without assuming a 3s scheduling bound.
+  await vi.waitFor(()=>expect(refresh).toHaveBeenCalledTimes(1),{timeout:10_000});
   expect(css).toContain('packages/ui/src/new.tsx');
   watcher.close();await writeFile(join(root,file),'import "./other";'+initial);
   await new Promise(done=>setTimeout(done,80));expect(refresh).toHaveBeenCalledTimes(1);expect(report).not.toHaveBeenCalled();

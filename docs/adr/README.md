@@ -75,3 +75,5 @@ Historical Rust terms and dated rollout evidence in older decisions apply to tha
 - [ADR-052: Rust modular monolith and domain-aligned frontend](ADR-052-rust-backend-and-domain-aligned-frontend.md) — accepted development migration and sequential container preparation.
 
 - [ADR-053: Explicit PDF seed Key Usage prohibitions](ADR-053-explicit-pdf-seed-key-usage-prohibitions.md) — preserve explicit prohibitions and record the narrow legacy-oracle security exception.
+
+- [ADR-054: Competing delta CRLs](ADR-054-preserve-proved-revocation-across-competing-delta-crls.md) — preserve independently proved revocation and record its separate legacy-oracle exception.

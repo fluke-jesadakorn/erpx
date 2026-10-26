@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { cargoCaseResults, cargoQualityFeatureArguments, cargoSuiteArguments, cargoTestTargets, validateCargoSuite } from '../../../scripts/testing/cargo';
+import { cargoCaseResults, cargoChildEnvironment, cargoQualityFeatureArguments, cargoSuiteArguments, cargoTestTargets, validateCargoSuite } from '../../../scripts/testing/cargo';
 import { parseTestArguments } from '../../../scripts/testing/arguments';
 import type { Suite } from '../../../scripts/testing/catalogue';
 import { createWorkspaceGraph, dependencyClosure, selectCandidateSuites, selectWorkspaceSuites, workspaceFingerprint } from '../../../scripts/testing/workspace-graph';
@@ -33,6 +33,21 @@ function fixtureRoot() {
 }
 
 describe('Rust catalogue and source selection', () => {
+  it('requires explicit native provider prerequisites and keeps them outside automatic candidate selection',()=>{
+    const root=fixtureRoot(),provider:Suite={...nativeSuite(),id:'files.scanner.provider',lane:'provider',fixture:'provider',provider:{environment:{ERPX_SCANNER_TEST:'1'},required:['ERPX_CLAMD_SOCKET','ERPX_CLAMAV_DATABASE_DIR']}};
+    expect(()=>validateCargoSuite(provider,root)).not.toThrow();
+    expect(()=>validateCargoSuite({...provider,provider:undefined},root)).toThrow('CARGO_PROVIDER_PREREQUISITES_REQUIRED');
+    expect(()=>validateCargoSuite({...provider,postgres:{mode:'raw',slots:['CONTROL_DB'],migratedSlots:[]}},root)).toThrow('CARGO_PROVIDER_PREREQUISITES_REQUIRED');
+    expect(()=>cargoChildEnvironment(provider,{ERPX_CLAMD_SOCKET:'/owned/clamd.sock'})).toThrow('PROVIDER_PREREQUISITE_REQUIRED:files.scanner.provider:ERPX_CLAMAV_DATABASE_DIR');
+    const ambient={ERPX_CLAMD_SOCKET:'/owned/clamd.sock',ERPX_CLAMAV_DATABASE_DIR:'/owned/definitions',ERPX_TEST_ADMIN_URL:'private-admin',PGPASSWORD:'private',ERPX_SCANNER_TEST:'ambient',PATH:'/owned/tools',HOME:'/owned/home',CARGO_HOME:'/owned/cargo',DATABASE_URL:'private-database',BETTER_AUTH_SECRET:'private-auth',STRIPE_SECRET_KEY:'private-payment',OPENAI_API_KEY:'private-ai',AI_CREDENTIAL_KEYS:'private-keyring',CARGO_REGISTRIES_EXAMPLE_TOKEN:'private-registry'};
+    const selected=cargoChildEnvironment(provider,ambient);
+    expect(selected).toMatchObject({ERPX_SELECTED_PROVIDER:'1',ERPX_SCANNER_TEST:'1',ERPX_CLAMD_SOCKET:'/owned/clamd.sock'});
+    expect(selected.ERPX_TEST_ADMIN_URL).toBeUndefined();expect(selected.PGPASSWORD).toBeUndefined();expect(ambient.ERPX_SCANNER_TEST).toBe('ambient');
+    for(const key of ['DATABASE_URL','BETTER_AUTH_SECRET','STRIPE_SECRET_KEY','OPENAI_API_KEY','AI_CREDENTIAL_KEYS','CARGO_REGISTRIES_EXAMPLE_TOKEN'])expect(selected[key],key).toBeUndefined();
+    expect(selected).toMatchObject({PATH:'/owned/tools',HOME:'/owned/home',CARGO_HOME:'/owned/cargo'});
+    const graph=createWorkspaceGraph(nativeSources());expect(selectCandidateSuites(graph,graph,[provider],['Cargo.lock']).suites).toEqual([]);
+    expect(cargoChildEnvironment(nativeSuite(),{ERPX_TEST_ADMIN_URL:'private-admin'}).ERPX_TEST_ADMIN_URL).toBeUndefined();
+  });
   it('refuses exit-zero Cargo summaries with ignored, filtered, missing or empty cases', () => {
     const green = 'running 1 test\ntest money_is_exact ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s\n';
     expect(cargoCaseResults(green, sharedTest)).toMatchObject({ passed: true, acceptance: false, cases: [{ runner: 'cargo', file: sharedTest, title: 'money_is_exact', status: 'passed' }] });
@@ -57,6 +72,13 @@ describe('Rust catalogue and source selection', () => {
   it('recognizes multiple explicit Cargo targets without swallowing later manifest sections', () => {
     expect(cargoTestTargets('[package]\nname="owner"\n[[test]]\nname="one"\npath="first.test.rs"\n[[test]]\nname="two"\npath="second.test.rs"\n[lints]\nworkspace=true\n')).toEqual([{ name: 'one', path: 'first.test.rs' }, { name: 'two', path: 'second.test.rs' }]);
     expect(() => cargoTestTargets('[[test]]\nname="unnamed-file"\n')).toThrow('EXPLICIT_CARGO_TEST_TARGET_REQUIRED');
+  });
+  it('requires registered worker features so conditional native cases cannot disappear from a passing receipt',()=>{
+    const root=fixtureRoot(),sources=nativeSources();
+    writeFileSync(join(root,shared),sources.get(shared)!+'required-features = ["worker"]\n[features]\nworker=[]\n');
+    expect(()=>validateCargoSuite(nativeSuite(),root)).toThrow('CARGO_REQUIRED_FEATURE_MISSING');
+    expect(()=>validateCargoSuite({...nativeSuite(),cargo:{...nativeSuite().cargo!,features:['worker']}},root)).not.toThrow();
+    expect(cargoTestTargets('[[test]]\nname="worker"\npath="worker.test.rs"\nrequired-features = [\n "worker",\n "contract",\n]\n')).toEqual([{name:'worker',path:'worker.test.rs',requiredFeatures:['worker','contract']}]);
   });
 
   it('maps shared Rust source changes through local Cargo dependencies without creating JavaScript owner cycles', () => {

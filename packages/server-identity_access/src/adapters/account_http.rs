@@ -73,7 +73,7 @@ async fn cors_response(
 fn invalid(code: &'static str) -> BusinessError {
     BusinessError::invalid(code, "The Account request is invalid.")
 }
-fn one_header<'a>(
+pub(crate) fn one_header<'a>(
     headers: &'a HeaderMap,
     name: &'static str,
 ) -> Result<Option<&'a str>, BusinessError> {

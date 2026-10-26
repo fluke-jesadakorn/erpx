@@ -18,7 +18,7 @@ pub(crate) fn finish_signature(signature: &mut SignatureValidation) {
     };
     signature.status = aggregate([
         signature.integrity,
-        signature.certificate_chain,
+        signature.required_certificate_chain,
         signature.certificate_validity,
         signature.revocation,
         signature.timestamp,

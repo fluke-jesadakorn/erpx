@@ -81,6 +81,7 @@ export async function runScoped(options:Options){
    }
    if(plan.changed.some(file=>isCargoInput(file)||file.startsWith('scripts/docs/export-account-contracts')||file==='scripts/docs/generate-account-contracts.ts'||file==='packages/contracts/src/account-auth.generated.ts'||file==='docs/contracts/next/account-auth.openapi.generated.json'))await execute([process.execPath,'scripts/docs/generate-account-contracts.ts','--check']);
    if(plan.changed.some(file=>isCargoInput(file)||file.startsWith('packages/server-identity_access/resources/')||file==='scripts/docs/export-permission-contracts.rs'||file==='scripts/docs/generate-permission-contracts.ts'||file==='packages/contracts/src/permission-catalog.generated.json'))await execute([process.execPath,'scripts/docs/generate-permission-contracts.ts','--check']);
+   if(plan.changed.some(file=>isCargoInput(file)||file.startsWith('packages/server-identity_access/resources/')||file==='scripts/docs/export-work-module-contracts.rs'||file==='scripts/docs/generate-work-module-contracts.ts'||file==='packages/contracts/src/business-role-modules.generated.ts'))await execute([process.execPath,'scripts/docs/generate-work-module-contracts.ts','--check']);
    const testFiles=[...plan.native,...plan.browser].filter(suite=>suite.framework!=='cargo').flatMap(suite=>suite.files);
    if(testFiles.length){
     const key=workspaceFingerprint(graph,[...selectedTypecheckInputs(testFiles),...verificationSources(plan.native)],['scripts/testing/selected-typecheck.ts','tests/config/tsconfig.json','tsconfig.base.json']);

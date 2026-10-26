@@ -48,6 +48,10 @@ fn supported_seed_and_dss_policies_match_independent_b0_evidence() {
 }
 
 fn assert_exact_cases(source: &str) {
+    assert_exact_cases_except(source, &["seed_key_usage_forbidden_only_legacy_gap"]);
+}
+
+fn assert_exact_cases_except(source: &str, excluded: &[&str]) {
     let corpus: serde_json::Value = serde_json::from_str(source).expect("conformance corpus");
     let moment = time::OffsetDateTime::parse(
         corpus["validationTime"].as_str().unwrap(),
@@ -56,7 +60,7 @@ fn assert_exact_cases(source: &str) {
     .unwrap();
     let mut mismatches = Vec::new();
     for case in corpus["cases"].as_array().unwrap() {
-        if !case["conservativeGap"].is_null() {
+        if excluded.contains(&case["name"].as_str().unwrap()) {
             continue;
         }
         let pdf = hex::decode(case["pdfHex"].as_str().unwrap()).unwrap();
@@ -220,9 +224,31 @@ fn legacy_seed_forbidden_only_bug_never_becomes_a_valid_rust_result() {
 }
 
 #[test]
-fn ambiguous_crl_evidence_cannot_produce_valid_or_erase_proved_revocation() {
+fn supported_crl_scopes_and_consistent_deltas_match_retained_b0_evidence() {
+    assert_exact_cases_except(
+        include_str!("../../../fixtures/legal/pdf-signatures/conformance-crl-guards.v1.json"),
+        &["competing_delta_revoked_second"],
+    );
+}
+
+#[test]
+fn named_relative_and_partitioned_crls_match_independent_signed_evidence() {
+    assert_exact_cases(include_str!(
+        "../../../fixtures/legal/pdf-signatures/conformance-crl-scope.v1.json"
+    ));
+}
+
+#[test]
+fn a_good_first_delta_cannot_erase_independently_proved_later_revocation() {
+    // Accepted security correction, with the frozen B0 result retained:
+    // docs/adr/ADR-054-preserve-proved-revocation-across-competing-delta-crls.md
+    use sha2::Digest;
     let corpus: serde_json::Value = serde_json::from_str(include_str!(
         "../../../fixtures/legal/pdf-signatures/conformance-crl-guards.v1.json"
+    ))
+    .unwrap();
+    let source: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../fixtures/legal/pdf-signatures/competing-delta-source.v1.json"
     ))
     .unwrap();
     let moment = time::OffsetDateTime::parse(
@@ -230,8 +256,16 @@ fn ambiguous_crl_evidence_cannot_produce_valid_or_erase_proved_revocation() {
         &time::format_description::well_known::Rfc3339,
     )
     .unwrap();
+    let mut checked = 0;
     for case in corpus["cases"].as_array().unwrap() {
+        if case["name"] != "competing_delta_revoked_second" {
+            continue;
+        }
         let pdf = hex::decode(case["pdfHex"].as_str().unwrap()).unwrap();
+        assert_eq!(
+            hex::encode(sha2::Sha256::digest(&pdf)),
+            source["fixture"]["pdfSha256"]
+        );
         let trust = OperatorTrustStore::from_materials(
             case["trust"]
                 .as_array()
@@ -247,27 +281,16 @@ fn ambiguous_crl_evidence_cannot_produce_valid_or_erase_proved_revocation() {
         let report = validate_signed_pdf(&pdf, &trust, moment);
         let actual = serde_json::to_value(&report).unwrap();
         assert_eq!(
-            actual["status"], case["guard"],
-            "{} B0={} actual={actual}",
-            case["name"], case["expected"]
+            case["expected"]["status"], "valid",
+            "retained B0 receipt changed"
         );
+        assert_eq!(actual["status"], "invalid");
         assert_eq!(actual["signatures"][0]["integrity"], "valid");
-        if case["guard"] == "indeterminate" {
-            assert_eq!(
-                report.signatures[0].revocation,
-                ValidationState::Indeterminate
-            );
-            assert!(
-                report.signatures[0]
-                    .reasons
-                    .iter()
-                    .any(|reason| reason == "REVOCATION_EVIDENCE_INSUFFICIENT")
-            );
-        } else if case["guard"] == "invalid" {
-            assert_eq!(report.signatures[0].revocation, ValidationState::Invalid);
-        }
+        assert_eq!(report.signatures[0].revocation, ValidationState::Invalid);
+        checked += 1;
     }
-    assert_exact_cases(include_str!(
-        "../../../fixtures/legal/pdf-signatures/conformance-crl-guards.v1.json"
-    ));
+    assert_eq!(
+        checked, 1,
+        "the frozen security regression must remain present"
+    );
 }

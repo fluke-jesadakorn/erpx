@@ -1,3 +1,4 @@
+pub use crate::domain::account_mail::OpenedAccountMail;
 use crate::{
     application::account_credentials::AccountMailCryptography,
     domain::{
@@ -24,12 +25,6 @@ struct MailPayload {
     account_origin: String,
     return_path: String,
     token: String,
-}
-pub struct OpenedAccountMail {
-    pub kind: CredentialProofKind,
-    pub account_origin: String,
-    pub return_path: String,
-    pub token: OpaqueSecret,
 }
 /// Key bytes are injected from private runtime configuration and are never serialized or debug printed.
 pub struct AccountMailKeyring {
@@ -103,6 +98,15 @@ impl AccountMailKeyring {
             return_path: account_return_path(Some(&value.return_path))?,
             token: OpaqueSecret::new(value.token)?,
         })
+    }
+}
+impl crate::application::account_mail::AccountMailOpening for AccountMailKeyring {
+    fn open_mail(
+        &self,
+        proof_id: &str,
+        ciphertext: &str,
+    ) -> Result<OpenedAccountMail, BusinessError> {
+        self.open(proof_id, ciphertext)
     }
 }
 impl AccountMailCryptography for AccountMailKeyring {

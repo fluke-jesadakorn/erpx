@@ -384,10 +384,26 @@ fn certificate_revocation(
     moment: OffsetDateTime,
     depth: usize,
 ) -> ValidationState {
+    certificate_revocation_with_policy(certificate, issuer, chain, trust, moment, depth, true)
+}
+
+fn certificate_revocation_with_policy(
+    certificate: &X509Ref,
+    issuer: &X509Ref,
+    chain: &[X509],
+    trust: &OperatorTrustStore,
+    moment: OffsetDateTime,
+    depth: usize,
+    use_crls: bool,
+) -> ValidationState {
     if depth >= 8 {
         return ValidationState::Indeterminate;
     }
-    let crl = super::crl::certificate_status(certificate, issuer, trust, moment);
+    let crl = if use_crls {
+        super::crl::certificate_status(certificate, issuer, trust, moment)
+    } else {
+        ValidationState::Indeterminate.into()
+    };
     if crl.state == ValidationState::Invalid {
         return crl.state;
     }
@@ -629,18 +645,89 @@ fn has_relevant_ocsp(chain: &[X509], trust: &OperatorTrustStore) -> bool {
                 // a failed jurisdiction check, not an absent-evidence soft failure.
                 let parsed = || {
                     let certificate = Certificate::from_der(&pair[0].to_der().ok()?).ok()?;
+                    let issuer = Certificate::from_der(&pair[1].to_der().ok()?).ok()?;
                     let response =
                         x509_ocsp::OcspResponse::from_der(&response.to_der().ok()?).ok()?;
                     let bytes = response.response_bytes?;
                     let response =
                         x509_ocsp::BasicOcspResponse::from_der(bytes.response.as_bytes()).ok()?;
                     Some(response.tbs_response_data.responses.iter().any(|response| {
-                        response.cert_id.serial_number == certificate.tbs_certificate.serial_number
+                        let id = &response.cert_id;
+                        let Some(algorithm) = digest(&id.hash_algorithm.oid.to_string()) else {
+                            return true;
+                        };
+                        // B0 treats a response for another serial under the
+                        // same issuer key as a failed jurisdiction assertion.
+                        let name_matches =
+                            issuer.tbs_certificate.subject.to_der().is_ok_and(|name| {
+                                hash(algorithm, &name).is_ok_and(|value| {
+                                    value.as_ref() == id.issuer_name_hash.as_bytes()
+                                })
+                            });
+                        let key_matches = hash(
+                            algorithm,
+                            issuer
+                                .tbs_certificate
+                                .subject_public_key_info
+                                .subject_public_key
+                                .raw_bytes(),
+                        )
+                        .is_ok_and(|value| value.as_ref() == id.issuer_key_hash.as_bytes());
+                        key_matches
+                            || (name_matches
+                                && id.serial_number == certificate.tbs_certificate.serial_number)
                     }))
                 };
                 parsed().unwrap_or(false)
             })
     })
+}
+
+fn declares_crl(certificate: &X509Ref) -> bool {
+    let declared = || {
+        let certificate = Certificate::from_der(&certificate.to_der().ok()?).ok()?;
+        Some(
+            certificate
+                .tbs_certificate
+                .get::<x509_cert::ext::pkix::CrlDistributionPoints>()
+                .ok()??
+                .1
+                .0
+                .iter()
+                .any(|point| point.distribution_point.is_some() || point.crl_issuer.is_some()),
+        )
+    };
+    declared() == Some(true)
+}
+
+fn soft_fail_chain_revocation(
+    chain: &[X509],
+    trust: &OperatorTrustStore,
+    moment: OffsetDateTime,
+) -> ValidationState {
+    for pair in chain.windows(2) {
+        let declared_crl = declares_crl(&pair[0]);
+        let relevant_crl = declared_crl
+            && trust.crls.iter().any(|(crl, _)| {
+                crl.issuer_name()
+                    .try_cmp(pair[1].subject_name())
+                    .is_ok_and(|ordering| ordering.is_eq())
+            });
+        if (relevant_crl || has_relevant_ocsp(pair, trust))
+            && certificate_revocation_with_policy(
+                &pair[0],
+                &pair[1],
+                chain,
+                trust,
+                moment,
+                0,
+                declared_crl,
+            ) != ValidationState::Valid
+        {
+            return ValidationState::Indeterminate;
+        }
+    }
+    ValidationState::Valid
 }
 
 #[derive(Sequence)]
@@ -994,12 +1081,10 @@ pub(super) fn verify_signature(
     } else {
         match chain(&certificate, &certificates, trust, moment, false) {
             Ok(chain) => {
-                result.certificate_chain = ValidationState::Valid;
+                result.certificate_chain = soft_fail_chain_revocation(&chain, trust, moment);
                 result.revocation = revocation(&chain, trust, moment);
-                // Preserve B0's soft-fail chain meaning: absent revocation data
-                // may be tolerated here, but a relevant failed OCSP check is not.
-                if result.revocation != ValidationState::Valid && has_relevant_ocsp(&chain, trust) {
-                    result.certificate_chain = ValidationState::Indeterminate;
+                if result.revocation == ValidationState::Valid {
+                    result.required_certificate_chain = ValidationState::Valid;
                 }
             }
             Err(reason) => result.reasons.push(reason.to_owned()),

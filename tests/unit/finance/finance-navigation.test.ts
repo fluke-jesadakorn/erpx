@@ -83,6 +83,7 @@ import {FinanceChrome} from "@erpx/feature-finance/components/finance-chrome";
 import {InvoiceActions} from "@erpx/feature-finance/components/invoice-controls";
 import {markFinanceFormEdited} from "@erpx/feature-finance/components/finance-draft-boundary";
 import {WorkEntryNavigation} from "@erpx/workplace/components/topic-navigation";
+import {ProductLinkEnvironment} from "@erpx/workplace/components/product-link-context";
 import {canonicalUiHref} from "@erpx/feature-work_projection/lib/destination-registry";
 import {FeatureNavigationContext} from "@erpx/feature-shared/components/features/feature-environment";
 import {JournalAction} from "@erpx/feature-finance/components/ledger-controls";
@@ -131,6 +132,16 @@ it("shows and activates Employee expenses in the legacy Finance menu",()=>{
  expect(html).toContain('data-work-entry-navigation="finance-sales"');
  expect(html).toContain('aria-label="Finance documents: Employee expenses"');
  expect(html).not.toContain('aria-label="Finance work areas"');
+});
+it.each(["/holdings/acme/branches/bangkok/finance/documents/sales/invoices","/bangkok/finance/documents/sales/invoices"])("renders the same authorized topic menu when Next exposes rewritten path %s before hydration",ssrPath=>{
+ const visible="/bangkok/finance/documents/sales/invoices";
+ const navigation:NavigationContext={...context,workspaceBase:"/holdings/acme/branches/bangkok",scopeKind:"branch",financeWorkspaceV2:true,language:"en",permissions:["finance.read"]};
+ const Environment=ProductLinkEnvironment as ComponentType<Omit<ComponentProps<typeof ProductLinkEnvironment>,"children">>;
+ const render=()=>renderToStaticMarkup(createElement(Environment,{audience:"finance",holdingSlug:"acme",initialPathname:visible},createElement(WorkEntryNavigation,{context:navigation})));
+ mockedNavigation.pathname=ssrPath;
+ const server=render();expect(server).toContain('data-work-entry-navigation="finance-sales"');expect(server).toContain('aria-label="Finance documents: Invoices"');
+ vi.stubGlobal("window",{location:{host:"acme.jesadakorn.com",origin:"https://acme.jesadakorn.com"}});mockedNavigation.pathname=visible;
+ expect(render()).toBe(server);
 });
 it("hides Employee expenses from the legacy Finance menu when the actor has no expense read authority",()=>{
  const html=renderExpenseNavigation(`${base}/expenses`,false,"finance-expenses",["finance.read"]);

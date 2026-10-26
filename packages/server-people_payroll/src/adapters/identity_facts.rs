@@ -29,7 +29,7 @@ impl<'c> PgPeopleAuthorityReader<'c> {
         let person: String = row.try_get("id")?;
         let user: Option<String> = row.try_get("user_id")?;
         let merged: Option<String> = row.try_get("merged_into_id")?;
-        let engagements = sqlx::query("SELECT id,version FROM hr_engagements WHERE company_id=$1 AND person_id=$2 AND status='active' ORDER BY id")
+        let engagements = sqlx::query("SELECT id,version,branch_id,department_id FROM hr_engagements WHERE company_id=$1 AND person_id=$2 AND status='active' ORDER BY id")
             .bind(&company).bind(&person).fetch_all(&mut *self.connection).await?;
         let mut witnesses = Vec::with_capacity(engagements.len());
         for row in engagements {
@@ -37,6 +37,16 @@ impl<'c> PgPeopleAuthorityReader<'c> {
                 id: RecordId::new(row.try_get::<String, _>("id")?)
                     .map_err(|_| PgTransactionError::Business(invalid_source()))?,
                 version: row.try_get("version")?,
+                branch_id: row
+                    .try_get::<Option<String>, _>("branch_id")?
+                    .map(RecordId::new)
+                    .transpose()
+                    .map_err(|_| PgTransactionError::Business(invalid_source()))?,
+                department_id: row
+                    .try_get::<Option<String>, _>("department_id")?
+                    .map(RecordId::new)
+                    .transpose()
+                    .map_err(|_| PgTransactionError::Business(invalid_source()))?,
             });
         }
         let facts = PersonAuthorityFacts {

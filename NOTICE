@@ -11,6 +11,13 @@ This source tree includes:
 - Noto Sans Thai font software: Copyright 2022 The Noto Project Authors,
   SIL Open Font License 1.1. See public/fonts/OFL.txt and
   public/fonts/NotoSansThai-OFL.txt.
+- Dingbat Unicode mapping data from dingbat-to-unicode 1.0.2:
+  Copyright (c) 2021 Michael Williamson, BSD-2-Clause.
+  See packages/server-legal/licenses/dingbat-to-unicode-BSD-2-Clause.txt and
+  packages/server-legal/src/adapters/document_docx/dingbats.rs.
+- ICU4X compiled collation software/data 2.1.0 (CLDR 48): Unicode-3.0.
+  Copyright 2020-2024 Unicode, Inc.; adapted ICU portions retain their notices.
+  See packages/server-commercial/licenses/ICU4X-Unicode-3.0.txt and Cargo.lock.
 
 See LICENSING.md and docs/community/provenance.json for the scope of the
 current project grant and the incomplete historical and asset review.

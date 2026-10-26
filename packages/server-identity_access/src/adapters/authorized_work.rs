@@ -1,0 +1,219 @@
+use crate::{
+    adapters::{
+        account_sessions::verify_session_in_transaction,
+        permission_catalog::permission_catalog,
+        postgres_effective_authority::{current_authority_facts, lock_effective_authority_sources},
+        work_admission::work_module_catalog,
+    },
+    application::{account_ports::DeviceProof, effective_authority::authorize_effective_work},
+    domain::{
+        account_auth::{AccountPolicy, RequestAudience},
+        effective_authority::*,
+        work_context::{HoldingWorkspaceRequest, WorkContextRequest},
+    },
+};
+use erpx_server_runtime::public::postgres::{
+    DatabasePool, PgRequestLease, PgTransactionError, PgUnitOfWork, PgWorkFuture, SessionLock,
+    TransactionOptions,
+};
+use erpx_server_shared::public::{BusinessError, Clock, FailureKind, HoldingId, RecordId, UserId};
+use sha2::{Digest, Sha256};
+use sqlx::PgConnection;
+use std::sync::Arc;
+
+/// Owns transaction freshness, retries only the Holding operation, and retains
+/// Control parent/device proof through its commit. This is not an HTTP router.
+pub struct HoldingWorkAuthorizer {
+    control: PgRequestLease,
+    holding: PgUnitOfWork,
+    holding_id: HoldingId,
+    policy: AccountPolicy,
+    clock: Arc<dyn Clock + Send + Sync>,
+}
+impl HoldingWorkAuthorizer {
+    pub fn new(
+        control: DatabasePool,
+        holding: DatabasePool,
+        holding_id: HoldingId,
+        policy: AccountPolicy,
+        clock: Arc<dyn Clock + Send + Sync>,
+    ) -> Result<Self, BusinessError> {
+        policy.validate()?;
+        Ok(Self {
+            control: PgRequestLease::new(control),
+            holding: PgUnitOfWork::new(holding),
+            holding_id,
+            policy,
+            clock,
+        })
+    }
+    /// The callback may run four times. It must write effects/outbox/receipts on
+    /// this borrowed connection, and must not make external effects or commit it.
+    /// Its context is borrowed, cannot escape in T, and is checked again after
+    /// the callback before the only Holding commit.
+    pub async fn execute<T: Send + 'static, F>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: HoldingWorkspaceRequest,
+        access: WorkAuthorizationRequest,
+        action: F,
+    ) -> Result<T, PgTransactionError<BusinessError>>
+    where
+        F: for<'c> Fn(
+                &'c mut PgConnection,
+                &'c AuthorizedWorkContext,
+            ) -> PgWorkFuture<'c, T, BusinessError>
+            + Clone
+            + Send
+            + Sync
+            + 'static,
+    {
+        let Some(RequestAudience::Holding { audience }) = self.policy.audience(host) else {
+            return Err(missing().into());
+        };
+        if audience
+            != format!(
+                "holding:{}:{}:{host}",
+                self.policy.environment,
+                self.holding_id.as_str()
+            )
+        {
+            return Err(missing().into());
+        }
+        let audience = RequestAudience::Holding { audience };
+        let environment = self.policy.environment.clone();
+        let holding = self.holding.clone();
+        let holding_id = self.holding_id.clone();
+        let clock = self.clock.clone();
+        self.control
+            .run(move |connection| {
+                Box::pin(async move {
+                    let session = verify_session_in_transaction(
+                        connection,
+                        &proof,
+                        &audience,
+                        &environment,
+                        clock.now().get(),
+                    )
+                    .await?
+                    .ok_or_else(|| {
+                        BusinessError::new(
+                            FailureKind::Unauthenticated,
+                            "UNAUTHENTICATED",
+                            "Sign in to continue.",
+                        )
+                    })?;
+                    let request = WorkContextRequest {
+                        holding_id: holding_id.clone(),
+                        company_id: input.company_id,
+                        branch_slug: input.branch_slug,
+                        department_slug: input.department_slug,
+                        session_id: RecordId::new(session.id)?,
+                        user_id: UserId::new(session.user.id)?,
+                        session_expires_at: session.expires_at,
+                        expected: input.expected,
+                        mutation: input.mutation,
+                    };
+                    let key = hex::encode(Sha256::digest(
+                        format!(
+                            "{}:{}{}:{}",
+                            request.session_id.as_str().len(),
+                            request.session_id.as_str(),
+                            request.company_id.as_str().len(),
+                            request.company_id.as_str()
+                        )
+                        .as_bytes(),
+                    ));
+                    holding
+                        .run(
+                            TransactionOptions {
+                                session_lock: Some(SessionLock {
+                                    namespace: "work-context".into(),
+                                    key,
+                                }),
+                                prefer_indexed_reads: false,
+                            },
+                            move |connection| {
+                                let request = request.clone();
+                                let access = access.clone();
+                                let clock = clock.clone();
+                                let action = action.clone();
+                                Box::pin(async move {
+                                    // Nothing may query this Holding transaction before all source locks.
+                                    lock_effective_authority_sources(&mut *connection).await?;
+                                    let facts = current_authority_facts(
+                                        &mut *connection,
+                                        &request,
+                                        clock.now().get(),
+                                    )
+                                    .await?;
+                                    let catalog = permission_catalog()?;
+                                    let modules = work_module_catalog()?;
+                                    let context = authorize_effective_work(
+                                        &request,
+                                        &access,
+                                        facts,
+                                        catalog,
+                                        modules,
+                                        clock.now().get(),
+                                    )?;
+                                    let result = action(&mut *connection, &context).await?;
+                                    context.require_current_time(clock.now().get())?;
+                                    let facts = current_authority_facts(
+                                        &mut *connection,
+                                        &request,
+                                        clock.now().get(),
+                                    )
+                                    .await?;
+                                    let final_context = authorize_effective_work(
+                                        &request,
+                                        &access,
+                                        facts,
+                                        catalog,
+                                        modules,
+                                        clock.now().get(),
+                                    )?;
+                                    if !same_authority(&context, &final_context) {
+                                        return Err(authority_error(
+                                            "WORK_AUTHORITY_CHANGED",
+                                            "Your current work authority changed.",
+                                        )
+                                        .into());
+                                    }
+                                    Ok(result)
+                                })
+                            },
+                        )
+                        .await
+                })
+            })
+            .await
+    }
+}
+pub(crate) fn same_authority(a: &AuthorizedWorkContext, b: &AuthorizedWorkContext) -> bool {
+    a.user_id == b.user_id
+        && a.session_id == b.session_id
+        && a.holding_id == b.holding_id
+        && a.selection.assignment().id == b.selection.assignment().id
+        && a.selection.assignment().version == b.selection.assignment().version
+        && a.selection.revision() == b.selection.revision()
+        && a.selection.role_revision() == b.selection.role_revision()
+        && a.identity_version == b.identity_version
+        && a.hr_appointment_version == b.hr_appointment_version
+        && a.emergency_until == b.emergency_until
+        && a.principal_id == b.principal_id
+        && a.person_id == b.person_id
+        && a.person_user_ids == b.person_user_ids
+        && a.permissions == b.permissions
+        && a.grantable_permissions == b.grantable_permissions
+        && a.modules == b.modules
+        && a.expires_at == b.expires_at
+}
+fn missing() -> BusinessError {
+    BusinessError::new(
+        FailureKind::NotFound,
+        "WORKSPACE_NOT_FOUND",
+        "Workspace not found.",
+    )
+}

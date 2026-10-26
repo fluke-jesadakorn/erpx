@@ -14,6 +14,8 @@ fn facts() -> PersonAuthorityFacts {
         active_engagements: vec![EngagementAuthorityWitness {
             id: RecordId::new("engagement").unwrap(),
             version: 1,
+            branch_id: None,
+            department_id: None,
         }],
     }
 }

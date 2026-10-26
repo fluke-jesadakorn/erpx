@@ -1,0 +1,30 @@
+[package]
+name = "erpx-server-pms"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+autotests = false
+
+[dependencies]
+erpx-server-shared.workspace = true
+erpx-server-runtime.workspace = true
+erpx-server-platform-administration.workspace = true
+sqlx.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+hex.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+uuid.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true
+
+[[test]]
+name = "scheduled_legal_postgres"
+path = "../../tests/integration/pms/rust-scheduled-legal-postgres.test.rs"

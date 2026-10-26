@@ -3,17 +3,23 @@ mod fixture;
 
 use base64::{Engine, engine::general_purpose::STANDARD};
 use erpx_server_legal::public::{
-    BoundedPdfVerifier, LegalInspectionDocument, LegalOriginalRead, PdfProcessLimits,
-    PdfVerificationJob, PdfVerificationRepository, PdfVerifierProcess,
-    PgLegalPdfVerificationBridge, PgPdfVerificationRepository, ValidationState, verify_company_pdf,
+    AuthorizedPdfSnapshot, BoundedPdfVerifier, LegalInspectionDocument, LegalOriginalRead,
+    LegalProcessingActor, LegalProcessingDocument, LegalProcessingJob, LegalProcessingKind,
+    LegalProcessingLease, LegalProcessingQueueAuthority, LegalProcessingReceipt,
+    LegalProcessingSourceRequest, PdfProcessLimits, PdfVerificationEvidence,
+    PdfVerificationFailure, PdfVerificationJob, PdfVerificationRepository, PdfVerifierProcess,
+    PgLegalPdfVerificationBridge, PgLegalProcessingBridge, PgLegalProcessingRepository,
+    PgPdfVerificationRepository, ValidationState, compute_prepared_legal_pdf,
+    inspect_current_legal_pdf, load_current_legal_processing_source, prepare_current_legal_pdf,
+    retain_current_legal_pdf, verify_company_pdf,
 };
 use erpx_server_runtime::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
 use erpx_server_shared::public::{
-    BusinessError, Clock, CompanyId, FailureKind, HoldingId, IdentifierSource, RecordId,
-    TimestampMillis, UserId,
+    BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId, IdentifierSource,
+    RecordId, TimestampMillis, UserId,
 };
 use sha2::{Digest, Sha256};
 use sqlx::PgConnection;
@@ -74,6 +80,93 @@ struct Bridge {
     pdf: Vec<u8>,
     mode: Arc<AtomicU8>,
 }
+impl PgLegalProcessingBridge for Bridge {
+    async fn authorize_queue(
+        &mut self,
+        _: &mut PgConnection,
+        _: &LegalProcessingActor,
+        _: &CommandKey,
+        _: &LegalProcessingDocument,
+        _: LegalProcessingKind,
+    ) -> Result<LegalProcessingQueueAuthority, PgTransactionError<BusinessError>> {
+        Err(BusinessError::invalid(
+            "TEST_PRODUCER_NOT_CONFIGURED",
+            "This fixture only tests the worker.",
+        )
+        .into())
+    }
+    async fn replay(
+        &mut self,
+        _: &mut PgConnection,
+        _: &LegalProcessingActor,
+        _: &CommandKey,
+        _: &RecordId,
+        _: LegalProcessingKind,
+    ) -> Result<Option<LegalProcessingReceipt>, PgTransactionError<BusinessError>> {
+        Err(BusinessError::invalid(
+            "TEST_PRODUCER_NOT_CONFIGURED",
+            "This fixture only tests the worker.",
+        )
+        .into())
+    }
+    async fn record_queued(
+        &mut self,
+        _: &mut PgConnection,
+        _: &LegalProcessingActor,
+        _: &CommandKey,
+        _: &LegalProcessingDocument,
+        _: LegalProcessingKind,
+        _: &LegalProcessingReceipt,
+    ) -> Result<(), PgTransactionError<BusinessError>> {
+        Err(BusinessError::invalid(
+            "TEST_PRODUCER_NOT_CONFIGURED",
+            "This fixture only tests the worker.",
+        )
+        .into())
+    }
+    async fn candidate_eligible(
+        &mut self,
+        _: &mut PgConnection,
+        job: &LegalProcessingJob,
+    ) -> Result<bool, PgTransactionError<BusinessError>> {
+        assert_eq!(job.company_id.as_str(), "company-a");
+        Ok(self.mode.load(Ordering::SeqCst) != 1)
+    }
+    async fn authorize_completion(
+        &mut self,
+        _: &mut PgConnection,
+        lease: &LegalProcessingLease,
+    ) -> Result<(), PgTransactionError<BusinessError>> {
+        assert_eq!(lease.job.created_by.as_str(), "requester");
+        if self.mode.load(Ordering::SeqCst) == 1 {
+            Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "LEGAL_PERMISSION_REQUIRED",
+                "Authority changed.",
+            )
+            .into())
+        } else {
+            Ok(())
+        }
+    }
+    async fn authorize_status(
+        &mut self,
+        _: &mut PgConnection,
+        _: &LegalProcessingActor,
+        _: &RecordId,
+    ) -> Result<(), PgTransactionError<BusinessError>> {
+        if self.mode.load(Ordering::SeqCst) == 1 {
+            Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "LEGAL_PERMISSION_REQUIRED",
+                "Authority changed.",
+            )
+            .into())
+        } else {
+            Ok(())
+        }
+    }
+}
 impl PgLegalPdfVerificationBridge for Bridge {
     async fn authorize_document(
         &mut self,
@@ -107,14 +200,30 @@ impl PgLegalPdfVerificationBridge for Bridge {
     }
     async fn read_original(
         &mut self,
-        _: &mut PgConnection,
+        connection: &mut PgConnection,
         _: &PdfVerificationJob,
         document: &LegalInspectionDocument,
         max: usize,
     ) -> Result<LegalOriginalRead, PgTransactionError<BusinessError>> {
         assert!(document.attachment_link_id.is_some());
         assert!(self.pdf.len() <= max);
+        let (revision,state,destroyed_at):(i64,String,Option<i64>) = sqlx::query_as(
+            "SELECT revision::bigint,source_state,destroyed_at FROM attachments WHERE id='source' FOR SHARE",
+        )
+        .fetch_one(connection)
+        .await?;
+        if state != "available" || destroyed_at.is_some() {
+            return Err(BusinessError::new(
+                FailureKind::Conflict,
+                "FILE_SOURCE_CHANGED",
+                "The original source changed.",
+            )
+            .into());
+        }
         Ok(LegalOriginalRead {
+            source_data_sha256: hex::encode(Sha256::digest(
+                format!("synthetic-source-data/v1:{revision}").as_bytes(),
+            )),
             bytes: self.pdf.clone(),
             witness: "canonical-original-1".to_owned(),
         })
@@ -357,6 +466,146 @@ async fn raw_object_key_and_self_approved_company_trust_are_refused_before_verif
             })).await;
             assert!(matches!(result,Err(PgTransactionError::Business(ref error)) if error.code==expected));
             assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM legal_document_inspections").fetch_one(pool.raw()).await.unwrap(),0);
+        }).await;
+    }
+}
+
+struct UnavailableVerifier;
+impl PdfVerifierProcess for UnavailableVerifier {
+    async fn verify(
+        &self,
+        _: AuthorizedPdfSnapshot,
+        _: TimestampMillis,
+    ) -> Result<PdfVerificationEvidence, PdfVerificationFailure> {
+        Err(PdfVerificationFailure::WorkerUnavailable)
+    }
+}
+
+#[tokio::test]
+async fn committed_job_lease_actual_pdf_inspection_and_completion_share_the_current_owner_unit() {
+    fixture::with_database(2,|pool|async move {
+        setup(&pool,true,false).await;
+        let directory=private_directory();
+        let verifier=Arc::new(BoundedPdfVerifier::new(Path::new(env!("CARGO_BIN_EXE_erpx-validate-pdf")),directory.path(),PdfProcessLimits::default()).unwrap());
+        let uow=PgUnitOfWork::new(pool.clone());
+        for (name,tool_unavailable) in [("queued-pdf",false),("queued-failed-tool",true)] {
+            sqlx::query("INSERT INTO legal_processing_jobs(id,company_id,item_id,document_id,checksum,kind,state,actor_json,created_by,created_at)SELECT $1,'company-a','item','document',checksum,'verify','queued','{}','requester',0 FROM legal_documents WHERE id='document'").bind(name).execute(pool.raw()).await.unwrap();
+            let lease=uow.run::<_,BusinessError,_>(TransactionOptions::default(),|connection|Box::pin(async move {
+                let mut bridge=Bridge{pdf:pdf(),mode:Arc::new(AtomicU8::new(0))};let mut ids=Identifiers{prefix:"claimed-job",next:0};
+                Ok(PgLegalProcessingRepository::new(HoldingId::new("holding-a").unwrap(),CompanyId::new("company-a").unwrap(),connection,&mut bridge,&FixedClock,&mut ids).claim(None).await?.lease.unwrap())
+            })).await.unwrap();
+            assert_eq!(lease.job.id.as_str(),name);
+            let verifier=verifier.clone();
+            let result=uow.run::<_,BusinessError,_>(TransactionOptions::default(),move|connection| {
+                let lease=lease.clone();let verifier=verifier.clone();Box::pin(async move {
+                    let mut bridge=Bridge{pdf:pdf(),mode:Arc::new(AtomicU8::new(0))};let mut ids=Identifiers{prefix:if tool_unavailable{"tool-failed"}else{"real-job"},next:0};
+                    let source=load_current_legal_processing_source(connection,LegalProcessingSourceRequest{holding_id:HoldingId::new("holding-a").unwrap(),company_id:CompanyId::new("company-a").unwrap(),job_id:lease.job.id.clone(),lease_token:lease.token.clone()},FixedClock.now().get()).await?;
+                    source.require_current_or_completed(connection,FixedClock.now().get()).await?;
+                    let result=if tool_unavailable {inspect_current_legal_pdf(connection,&mut bridge,&UnavailableVerifier,&FixedClock,&mut ids,&source).await?}
+                    else {inspect_current_legal_pdf(connection,&mut bridge,&*verifier,&FixedClock,&mut ids,&source).await?};
+                    assert!(source.require_current(connection,FixedClock.now().get()).await.is_err(),"strict running guard must not broaden silently");
+                    source.require_current_or_completed(connection,FixedClock.now().get()).await?;
+                    Ok(result)
+                })
+            }).await.unwrap();
+            assert_eq!(result["status"],if tool_unavailable{"indeterminate"}else{"valid"});
+            assert_eq!(result["processingJobId"],name);
+            let persisted:(String,String)=sqlx::query_as("SELECT state,result_json FROM legal_processing_jobs WHERE id=$1").bind(name).fetch_one(pool.raw()).await.unwrap();
+            assert_eq!(persisted.0,"completed");assert_eq!(serde_json::from_str::<serde_json::Value>(&persisted.1).unwrap(),result);
+            if tool_unavailable {assert!(result["signatures"].as_array().unwrap().is_empty());assert_eq!(result["trustStoreDigest"],"");assert!(result["reasons"].as_array().unwrap().iter().any(|reason|reason=="VERIFIER_UNAVAILABLE"));}
+            else {assert_eq!(result["signatures"][0]["requiredCertificateChain"],"valid");}
+        }
+        assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM legal_document_inspections").fetch_one(pool.raw()).await.unwrap(),2);
+    }).await;
+}
+
+struct OffsetClock(i64);
+impl Clock for OffsetClock {
+    fn now(&self) -> TimestampMillis {
+        TimestampMillis::new(FixedClock.now().get() + self.0)
+    }
+}
+
+struct WritingVerifier {
+    inner: BoundedPdfVerifier,
+    pool: DatabasePool,
+    mutation: &'static str,
+}
+impl PdfVerifierProcess for WritingVerifier {
+    async fn verify(
+        &self,
+        snapshot: AuthorizedPdfSnapshot,
+        moment: TimestampMillis,
+    ) -> Result<PdfVerificationEvidence, PdfVerificationFailure> {
+        let retained:i64=sqlx::query_scalar("SELECT count(*) FROM pg_stat_activity WHERE datname=current_database() AND state='idle in transaction'").fetch_one(self.pool.raw()).await.unwrap();
+        assert_eq!(
+            retained, 0,
+            "no owner transaction may remain during computation"
+        );
+        let writer = async {
+            match self.mutation {
+                "trust" => {
+                    sqlx::query("UPDATE legal_trust_material SET state='retired',version=version+1 WHERE kind='root'").execute(self.pool.raw()).await.unwrap();
+                }
+                "source" => {
+                    sqlx::query("UPDATE attachments SET source_state='destroyed',destroyed_at=1 WHERE id='source'")
+                        .execute(self.pool.raw())
+                        .await
+                        .unwrap();
+                }
+                _ => {}
+            }
+        };
+        tokio::time::timeout(std::time::Duration::from_secs(2), writer)
+            .await
+            .expect("current source/trust writers were blocked by computation");
+        self.inner.verify(snapshot, moment).await
+    }
+}
+
+#[tokio::test]
+async fn split_pdf_computation_releases_locks_and_remints_current_source_and_trust_before_retention()
+ {
+    for mutation in ["allowed-authority-token-change", "trust", "source"] {
+        fixture::with_database(2,move |pool|async move {
+            setup(&pool,true,false).await;
+            sqlx::query("INSERT INTO legal_processing_jobs(id,company_id,item_id,document_id,checksum,kind,state,actor_json,created_by,created_at)SELECT 'split-job','company-a','item','document',checksum,'verify','queued','{}','requester',0 FROM legal_documents WHERE id='document'").execute(pool.raw()).await.unwrap();
+            let uow=PgUnitOfWork::new(pool.clone());
+            let lease=uow.run::<_,BusinessError,_>(TransactionOptions::default(),|connection|Box::pin(async move {
+                let mut bridge=Bridge{pdf:pdf(),mode:Arc::new(AtomicU8::new(0))};let mut ids=Identifiers{prefix:"split-lease",next:0};
+                Ok(PgLegalProcessingRepository::new(HoldingId::new("holding-a").unwrap(),CompanyId::new("company-a").unwrap(),connection,&mut bridge,&FixedClock,&mut ids).claim(None).await?.lease.unwrap())
+            })).await.unwrap();
+            let prepared=uow.run::<_,BusinessError,_>(TransactionOptions::default(),move |connection| {
+                let lease=lease.clone();Box::pin(async move {
+                    let source=load_current_legal_processing_source(connection,LegalProcessingSourceRequest{holding_id:lease.job.holding_id.clone(),company_id:lease.job.company_id.clone(),job_id:lease.job.id.clone(),lease_token:lease.token.clone()},FixedClock.now().get()).await?;
+                    let mut bridge=Bridge{pdf:pdf(),mode:Arc::new(AtomicU8::new(0))};let mut ids=Identifiers{prefix:"prepared-only",next:0};
+                    prepare_current_legal_pdf(connection,&mut bridge,&FixedClock,&mut ids,&source).await
+                })
+            }).await.unwrap();
+            let directory=private_directory();
+            let verifier=WritingVerifier{inner:BoundedPdfVerifier::new(Path::new(env!("CARGO_BIN_EXE_erpx-validate-pdf")),directory.path(),PdfProcessLimits::default()).unwrap(),pool:pool.clone(),mutation};
+            // This call has no database/authority/source witness argument.
+            let computed=Arc::new(compute_prepared_legal_pdf(prepared,&verifier,&OffsetClock(5_000)).await.unwrap());
+            assert_eq!(computed.report().status,ValidationState::Valid,"dated computation uses its original supplied input");
+            let retained=uow.run::<_,BusinessError,_>(TransactionOptions::default(),move |connection| {
+                let computed=computed.clone();Box::pin(async move {
+                    let lease=computed.lease();
+                    let source=load_current_legal_processing_source(connection,LegalProcessingSourceRequest{holding_id:lease.job.holding_id.clone(),company_id:lease.job.company_id.clone(),job_id:lease.job.id.clone(),lease_token:lease.token.clone()},OffsetClock(6_000).now().get()).await?;
+                    let mut bridge=Bridge{pdf:pdf(),mode:Arc::new(AtomicU8::new(if mutation=="allowed-authority-token-change"{2}else{0}))};let mut ids=Identifiers{prefix:"split-retained",next:0};
+                    let result=retain_current_legal_pdf(connection,&mut bridge,&OffsetClock(6_000),&mut ids,&source,&computed).await?;
+                    source.require_current_or_completed(connection,OffsetClock(6_000).now().get()).await?;
+                    Ok(result)
+                })
+            }).await;
+            let count:i64=sqlx::query_scalar("SELECT count(*) FROM legal_document_inspections").fetch_one(pool.raw()).await.unwrap();
+            if mutation=="allowed-authority-token-change" {
+                let retained=retained.unwrap();assert_eq!(count,1);assert_eq!(retained["status"],"valid");assert_eq!(retained["computedInput"]["preparedAt"],FixedClock.now().get());assert_eq!(retained["validatedAt"],"2026-10-27T06:00:05Z");
+                assert!(!retained.to_string().contains("erpx-pdf-prepared-data-v1"));
+                let created:i64=sqlx::query_scalar("SELECT created_at FROM legal_document_inspections").fetch_one(pool.raw()).await.unwrap();assert_eq!(created,OffsetClock(6_000).now().get());
+            } else {
+                assert!(matches!(retained,Err(PgTransactionError::Business(ref error))if ["PDF_VERIFICATION_SNAPSHOT_CHANGED","FILE_SOURCE_CHANGED"].contains(&error.code)));assert_eq!(count,0);
+                assert_eq!(sqlx::query_scalar::<_,String>("SELECT state FROM legal_processing_jobs WHERE id='split-job'").fetch_one(pool.raw()).await.unwrap(),"running");
+            }
         }).await;
     }
 }

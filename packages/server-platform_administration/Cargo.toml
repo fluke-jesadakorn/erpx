@@ -1,0 +1,34 @@
+[package]
+name = "erpx-server-platform-administration"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+autotests = false
+
+[package.metadata.erpx]
+verification-roots = ["resources", "../../fixtures/platform_administration/rust-legal-release", "../../scripts/testing/fixtures/generate-legal-release-rust-oracle.ts"]
+
+[dependencies]
+erpx-server-shared.workspace = true
+erpx-server-runtime.workspace = true
+erpx-server-organization.workspace = true
+erpx-server-identity-access.workspace = true
+sqlx.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+hex.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+uuid.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true
+
+[[test]]
+name = "legal_release"
+path = "../../tests/unit/platform_administration/rust-legal-release.test.rs"

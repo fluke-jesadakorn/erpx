@@ -95,7 +95,8 @@ impl Password {
         Ok(Self(value))
     }
     pub fn new_credential(value: String) -> Result<Self, BusinessError> {
-        if value.chars().count() < 12 {
+        // The current invitation policy uses JavaScript String.length (UTF-16).
+        if value.encode_utf16().count() < 12 {
             return Err(BusinessError::invalid(
                 "PASSWORD_TOO_SHORT",
                 "Use at least 12 characters.",

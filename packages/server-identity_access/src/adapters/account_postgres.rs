@@ -430,10 +430,10 @@ impl AccountRepository for PostgresAccountRepository {
                                         select_browser(connection, id, None, now).await?;
                                     }
                                     RequestAudience::Holding { .. } => {
-                                        sqlx::query("DELETE FROM session WHERE id=$1")
-                                            .bind(session.id)
-                                            .execute(connection)
-                                            .await?;
+                                        let parent:String=sqlx::query_scalar("SELECT parent_session_id FROM sso_session_bindings WHERE session_id=$1 AND environment=$2").bind(&session.id).bind(&environment).fetch_one(&mut *connection).await?;
+                                        let browser:String=sqlx::query_scalar("SELECT browser_id FROM account_device_accounts WHERE session_id=$1").bind(&parent).fetch_one(&mut *connection).await?;
+                                        expire_family(connection,&parent).await?;
+                                        select_browser(connection,&SecretDigest::new(browser)?,None,now).await?;
                                     }
                                 }
                             }

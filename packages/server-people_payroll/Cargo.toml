@@ -29,3 +29,11 @@ path = "../../tests/integration/people_payroll/rust-identity-facts-postgres.test
 
 [lints]
 workspace = true
+
+[[test]]
+name = "invitation_person_link"
+path = "../../tests/unit/people_payroll/rust-invitation-person-link.test.rs"
+
+[[test]]
+name = "invitation_person_link_postgres"
+path = "../../tests/integration/people_payroll/rust-invitation-person-link-postgres.test.rs"

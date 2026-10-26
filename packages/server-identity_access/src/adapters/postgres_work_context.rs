@@ -57,6 +57,7 @@ struct AssignmentSql {
     user_id: String,
     company_id: String,
     role: String,
+    modules_json: String,
     scope_kind: String,
     scope_node_id: Option<String>,
     version: i64,
@@ -128,6 +129,8 @@ impl CurrentWorkContextPort for PgWorkContextReader<'_> {
                         user_id: UserId::new(a.user_id)?,
                         company_id: CompanyId::new(a.company_id)?,
                         role: a.role,
+                        modules: serde_json::from_str(&a.modules_json)
+                            .map_err(|_| unavailable())?,
                         scope_kind: scope(&a.scope_kind)?,
                         scope_node_id: a.scope_node_id.map(RecordId::new).transpose()?,
                         version: a.version,

@@ -7,19 +7,42 @@ license.workspace = true
 publish.workspace = true
 autotests = false
 
+[features]
+legal-pdf-worker = ["erpx-server-legal/pdf-verifier"]
+
 [[bin]]
 name = "erpx-server"
 path = "src/main.rs"
 
 [dependencies]
 erpx-server-runtime.workspace = true
+erpx-server-shared.workspace = true
+erpx-server-identity-access.workspace = true
+erpx-server-legal.workspace = true
+erpx-server-files.workspace = true
+erpx-server-commercial.workspace = true
+erpx-server-platform-administration.workspace = true
+erpx-server-pms.workspace = true
+sha2.workspace = true
+hex.workspace = true
+uuid.workspace = true
+sqlx.workspace = true
 axum.workspace = true
 tokio.workspace = true
 serde_json.workspace = true
 
+[dev-dependencies]
+time.workspace = true
+tempfile.workspace = true
+
 [[test]]
 name = "composition"
 path = "../../tests/unit/shared.architecture/rust-composition.test.rs"
+
+[[test]]
+name = "legal_queued_authority"
+path = "../../tests/integration/legal/rust-queued-authority-composition.test.rs"
+required-features = ["legal-pdf-worker"]
 
 [lints]
 workspace = true

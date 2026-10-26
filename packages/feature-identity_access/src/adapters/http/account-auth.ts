@@ -1,5 +1,5 @@
 import type { AccountAuthPort, AccountAuthResult } from "../../application/account-auth-port";
-import type { AccountAuthError, AccountOperationResponse, AccountSessionResponse, AccountUserDto, DeviceAccountsDto, EmailSignInResponse } from "@erpx/contracts/account-auth";
+import type { AccountAuthError, AccountOperationResponse, AccountSessionResponse, AccountUserDto, DeviceAccountsDto, EmailSignInResponse, AccountInvitationInspectResponse, AccountInvitationAcceptResponse } from "@erpx/contracts/account-auth";
 
 type FetchPort = (input: string, init: RequestInit) => Promise<Response>;
 type Validator<T> = (input: unknown) => input is T;
@@ -12,6 +12,8 @@ const handle = (value: unknown): value is string => typeof value === "string" &&
 const user: Validator<AccountUserDto> = (value): value is AccountUserDto => record(value) && keys(value, ["id", "name", "email", "emailVerified", "image"]) && text(value.id) && text(value.name) && text(value.email) && typeof value.emailVerified === "boolean" && nullableText(value.image);
 const signedIn: Validator<EmailSignInResponse> = (value): value is EmailSignInResponse => record(value) && keys(value, ["user"]) && user(value.user);
 const operation: Validator<AccountOperationResponse> = (value): value is AccountOperationResponse => record(value) && keys(value, ["status"]) && value.status === true;
+const invitationInfo: Validator<AccountInvitationInspectResponse> = (value): value is AccountInvitationInspectResponse => record(value) && keys(value, ["data"]) && record(value.data) && keys(value.data, ["name", "email", "existingAccount"]) && text(value.data.name) && text(value.data.email) && typeof value.data.existingAccount === "boolean";
+const invitationAccepted: Validator<AccountInvitationAcceptResponse> = (value): value is AccountInvitationAcceptResponse => record(value) && keys(value, ["data"]) && record(value.data) && keys(value.data, ["activated"]) && value.data.activated === true;
 const date = (value: unknown): value is string => typeof value === "string" && /^\d{4}-\d{2}-\d{2}T/.test(value) && Number.isFinite(Date.parse(value));
 const session: Validator<AccountSessionResponse> = (value): value is AccountSessionResponse => record(value) && keys(value, ["user", "session"]) && user(value.user) && record(value.session) && keys(value.session, ["id", "userId", "expiresAt", "createdAt", "updatedAt"]) && text(value.session.id) && value.session.userId === value.user.id && date(value.session.expiresAt) && date(value.session.createdAt) && date(value.session.updatedAt);
 const devices: Validator<DeviceAccountsDto> = (value): value is DeviceAccountsDto => record(value) && keys(value, ["initialized", "revision", "maximum", "accounts"]) && typeof value.initialized === "boolean" && safeRevision(value.revision) && value.maximum === 5 && Array.isArray(value.accounts) && value.accounts.length <= 5 && value.accounts.every(account => record(account) && keys(account, ["handle", "name", "email", "image", "current"]) && handle(account.handle) && text(account.name) && text(account.email) && nullableText(account.image) && typeof account.current === "boolean") && new Set(value.accounts.map(account => account.handle)).size === value.accounts.length && value.accounts.filter(account => account.current).length <= 1;
@@ -39,6 +41,10 @@ export function createAccountAuthHttpPort(fetcher: FetchPort = (input, init) => 
     sendVerificationEmail: input => request("/api/auth/send-verification-email", "POST", operation, input),
     verifyEmail: input => input.revision !== undefined && !safeRevision(input.revision) ? Promise.resolve(failed("INVALID_DEVICE_REVISION", "Review your current saved accounts.")) : request("/api/auth/verify-email", "POST", signedIn, input),
     changePassword: input => request("/api/auth/change-password", "POST", operation, input),
+    invitations: {
+      inspect: token => request(`/api/v1/account-invitations?token=${encodeURIComponent(token)}`, "GET", invitationInfo),
+      accept: input => request("/api/v1/account-invitations", "POST", invitationAccepted, input),
+    },
     multiSession: {
       listDeviceSessions: () => request("/api/v1/account/device-accounts", "GET", devices),
       setActive: input => !safeRevision(input.revision) || !handle(input.handle) ? Promise.resolve(failed("INVALID_DEVICE_SELECTION", "Review your current saved accounts.")) : request("/api/v1/account/device-accounts/active", "POST", devices, input),

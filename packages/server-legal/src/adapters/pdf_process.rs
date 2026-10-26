@@ -388,6 +388,7 @@ async fn run_child(
         serde_json::from_slice(&stdout).map_err(|_| PdfVerificationFailure::WorkerProtocol)?;
     validate_report(&report, &prepared)?;
     Ok(PdfVerificationEvidence {
+        computation: None,
         snapshot: prepared.stamp,
         report,
         inspection_id: None,
@@ -462,7 +463,7 @@ fn validate_report(
             && report.signatures.iter().any(|signature| {
                 [
                     signature.integrity,
-                    signature.certificate_chain,
+                    signature.required_certificate_chain,
                     signature.certificate_validity,
                     signature.revocation,
                     signature.timestamp,

@@ -6,6 +6,20 @@ const handle = "00000000-0000-4000-8000-000000000001";
 const devices = { initialized: true, revision: 12, maximum: 5, accounts: [{ handle, name: user.name, email: user.email, image: null, current: true }] };
 const response = (value: unknown, status = 200) => Response.json(value, { status });
 
+it("keeps invitation inspection and activation behind exact typed envelopes without accepting credential extensions", async () => {
+  const fetcher = vi.fn<(input: string, init: RequestInit) => Promise<Response>>(async () => response({ data: { name: user.name, email: user.email, existingAccount: false } }));
+  const client = createAccountAuthHttpPort(fetcher);
+  expect((await client.invitations.inspect("synthetic proof/?&")).data?.data.email).toBe(user.email);
+  expect(fetcher.mock.calls[0][0]).toBe("/api/v1/account-invitations?token=synthetic%20proof%2F%3F%26");
+  fetcher.mockImplementation(async () => response({ data: { activated: true } }));
+  expect((await client.invitations.accept({ token: "synthetic-proof", password: "synthetic-password" })).data?.data.activated).toBe(true);
+  expect(JSON.parse(String(fetcher.mock.calls[1][1].body))).toEqual({ token: "synthetic-proof", password: "synthetic-password" });
+  for (const value of [{ data: { activated: false } }, { data: { activated: true, token: "private" } }, { activated: true }]) {
+    fetcher.mockImplementation(async () => response(value));
+    expect((await client.invitations.accept({ token: "synthetic-proof", password: "synthetic-password" })).error?.code).toBe("ACCOUNT_RESPONSE_INVALID");
+  }
+});
+
 it("preserves email/reset/verification call shapes with explicit credentialed HTTP requests", async () => {
   const fetcher = vi.fn<(input: string, init: RequestInit) => Promise<Response>>(async () => response({ status: true }));
   const client = createAccountAuthHttpPort(fetcher);

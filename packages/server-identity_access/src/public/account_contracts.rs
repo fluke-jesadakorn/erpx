@@ -93,6 +93,76 @@ pub struct PasswordChangeInput {
 
 #[derive(Deserialize)]
 #[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(deny_unknown_fields)]
+pub struct AccountSsoStartInput {
+    #[cfg_attr(feature = "contracts", ts(optional))]
+    pub next: Option<String>,
+}
+#[derive(Deserialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(deny_unknown_fields)]
+pub struct AccountSsoAuthorizeInput {
+    pub transaction: String,
+    pub state: String,
+    pub challenge: String,
+}
+#[derive(Deserialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(deny_unknown_fields)]
+pub struct AccountSsoCallbackInput {
+    pub code: String,
+    pub state: String,
+}
+
+#[derive(Deserialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(deny_unknown_fields)]
+pub struct AccountInvitationInspectInput {
+    pub token: String,
+}
+#[derive(Deserialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(deny_unknown_fields)]
+pub struct AccountPasswordResetLinkQuery {
+    #[serde(rename = "callbackURL")]
+    pub callback_url: String,
+}
+#[derive(Deserialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(deny_unknown_fields)]
+pub struct AccountInvitationAcceptInput {
+    pub token: String,
+    pub password: String,
+}
+#[derive(Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AccountInvitationInfo {
+    pub name: String,
+    pub email: String,
+    pub existing_account: bool,
+}
+#[derive(Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(deny_unknown_fields)]
+pub struct AccountInvitationInspectResponse {
+    pub data: AccountInvitationInfo,
+}
+#[derive(Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(deny_unknown_fields)]
+pub struct AccountInvitationAccepted {
+    pub activated: bool,
+}
+#[derive(Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(deny_unknown_fields)]
+pub struct AccountInvitationAcceptResponse {
+    pub data: AccountInvitationAccepted,
+}
+
+#[derive(Deserialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PasswordResetRequestInput {
     pub email: String,

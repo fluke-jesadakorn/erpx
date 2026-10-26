@@ -32,6 +32,20 @@ pub async fn setup(
     pool: &DatabasePool,
     invitations: Arc<dyn InvitationCredentialAuthority>,
 ) -> Scenario {
+    setup_with_clock(
+        pool,
+        invitations,
+        Arc::new(MutableClock(AtomicI64::new(
+            account::FixedClock.now().get(),
+        ))),
+    )
+    .await
+}
+pub async fn setup_with_clock(
+    pool: &DatabasePool,
+    invitations: Arc<dyn InvitationCredentialAuthority>,
+    clock: Arc<MutableClock>,
+) -> Scenario {
     let files = load_migrations(
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"),
         MigrationTrack::Control,
@@ -41,6 +55,7 @@ pub async fn setup(
     migrate_database(pool, MigrationTrack::Control, &files)
         .await
         .unwrap();
+    sqlx::query("INSERT INTO holding_bindings(holding_id,slug,display_name,write_binding,read_binding,files_binding) VALUES('h001','acme','Synthetic Acme','HOLDING_H001_DB','HOLDING_H001_READ_DB','HOLDING_H001_FILES')").execute(pool.raw()).await.unwrap();
     let passwords = Arc::new(Argon2Passwords::new(2).unwrap());
     let hash = passwords
         .hash(Password::new_credential(PASSWORD.into()).unwrap())
@@ -54,9 +69,6 @@ pub async fn setup(
         sqlx::query("INSERT INTO \"user\"(id,name,email,\"emailVerified\",\"createdAt\",\"updatedAt\") VALUES($1,$1,$2,$3,$4,$4)").bind(id).bind(email).bind(verified).bind(account::NOW).execute(pool.raw()).await.unwrap();
         sqlx::query("INSERT INTO account(id,\"accountId\",\"providerId\",issuer,\"userId\",password,\"createdAt\",\"updatedAt\") VALUES($1,$1,'credential','local:credential',$1,$2,$3,$3)").bind(id).bind(hash.as_str()).bind(account::NOW).execute(pool.raw()).await.unwrap();
     }
-    let clock = Arc::new(MutableClock(AtomicI64::new(
-        account::FixedClock.now().get(),
-    )));
     let keyring = Arc::new(
         AccountMailKeyring::new(
             "synthetic-test-only".into(),
@@ -90,6 +102,7 @@ pub async fn setup(
                     pool.clone(),
                     "development".into(),
                     invitations,
+                    clock.clone(),
                 )
                 .unwrap(),
             ),

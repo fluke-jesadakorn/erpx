@@ -41,6 +41,7 @@ pub struct WorkAssignmentFact {
     pub user_id: UserId,
     pub company_id: CompanyId,
     pub role: String,
+    pub modules: Vec<String>,
     pub scope_kind: WorkScopeKind,
     pub scope_node_id: Option<RecordId>,
     pub version: i64,
@@ -84,6 +85,7 @@ pub struct CurrentWorkSelection {
     pub(crate) assignment: WorkAssignmentFact,
     pub(crate) revision: i64,
     pub(crate) role_revision: i64,
+    pub(crate) expires_at: i64,
 }
 impl CurrentWorkSelection {
     pub fn workspace(&self) -> &WorkspaceLineageFact {
@@ -97,6 +99,9 @@ impl CurrentWorkSelection {
     }
     pub fn role_revision(&self) -> i64 {
         self.role_revision
+    }
+    pub fn expires_at(&self) -> i64 {
+        self.expires_at
     }
 }
 pub fn context_error(code: &'static str) -> BusinessError {

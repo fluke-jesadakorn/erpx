@@ -128,6 +128,10 @@ fn validate_current_selection(
         ));
     }
     Ok(CurrentWorkSelection {
+        expires_at: request
+            .session_expires_at
+            .min(selection.expires_at)
+            .min(assignment.valid_until),
         workspace,
         assignment,
         revision: selection.revision,

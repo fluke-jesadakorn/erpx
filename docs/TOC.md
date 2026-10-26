@@ -7,6 +7,9 @@ Reviewed 2026-10-23. This is the single entry point. [Production plan](productio
 ## Current system
 
 - [Active Rust/Next.js delivery plan](production-plan.md), [owner migration register](status/rust-backend-migration.json), [architecture decision](adr/ADR-052-rust-backend-and-domain-aligned-frontend.md) and [PDF policy exception](adr/ADR-053-explicit-pdf-seed-key-usage-prohibitions.md).
+- [Native Files original-read migration contract](contracts/next/rust-files-migration.md).
+- [Native Commercial purchase migration contract](contracts/next/rust-commercial-migration.md).
+- [Native scheduled Legal release evidence](contracts/next/rust-release-readiness.md).
 
 - [Open-source preparation and provenance](community/open-source.md), [contributing](../CONTRIBUTING.md), [governance](../GOVERNANCE.md), [security reporting](../SECURITY.md), [licensing scope](../LICENSING.md).
 

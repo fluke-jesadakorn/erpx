@@ -17,7 +17,7 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
-use erpx_server_shared::public::BusinessError;
+use erpx_server_shared::public::{BusinessError, FailureKind};
 use std::{collections::BTreeSet, sync::Arc};
 
 #[derive(Clone)]
@@ -54,6 +54,7 @@ pub fn account_credentials_router(
             post(request_verification),
         )
         .route("/api/auth/reset-password", post(reset_password))
+        .route("/api/auth/reset-password/{token}", get(reset_link))
         .route("/api/auth/change-password", post(change_password))
         .route(
             "/api/auth/verify-email",
@@ -110,6 +111,75 @@ fn status() -> Response {
         Json(AccountOperationResponse { status: true }).into_response(),
         None,
     )
+}
+#[cfg_attr(feature="contracts",utoipa::path(get,path="/api/auth/reset-password/{token}",params(("token"=String,Path,description="Opaque one-use reset proof"),("callbackURL"=String,Query,description="Relative Account return path")),responses((status=303,description="Private redirect to the reset form; proof is not consumed"),(status=400,body=AccountAuthErrorResponse),(status=403,body=AccountAuthErrorResponse),(status=503,body=AccountAuthErrorResponse))))]
+async fn reset_link(State(state): State<CredentialHttpState>, request: Request) -> Response {
+    let (parts, body) = request.into_parts();
+    drop(body);
+    let result = async {
+        central(&state.authentication, &parts.headers, false, false)?;
+        if parts.uri.query().is_some_and(|query| query.len() > 4096) {
+            return Err(BusinessError::invalid(
+                "INVALID_RETURN_PATH",
+                "Use the current Account reset link.",
+            ));
+        }
+        let Query(input) = Query::<AccountPasswordResetLinkQuery>::try_from_uri(&parts.uri)
+            .map_err(|_| {
+                BusinessError::invalid("INVALID_RETURN_PATH", "Use the current Account reset link.")
+            })?;
+        let return_path = account_return_path(Some(&input.callback_url))?;
+        let mut target = url::Url::parse(&state.authentication.policy.account_origin)
+            .map_err(|_| BusinessError::invalid("INVALID_RETURN_PATH", "Use the Account origin."))?
+            .join(&return_path)
+            .map_err(|_| {
+                BusinessError::invalid("INVALID_RETURN_PATH", "Use the Account origin.")
+            })?;
+        if target.origin().ascii_serialization() != state.authentication.policy.account_origin {
+            return Err(BusinessError::invalid(
+                "INVALID_RETURN_PATH",
+                "Use the Account origin.",
+            ));
+        }
+        let retained = target
+            .query_pairs()
+            .filter(|(key, _)| key != "token" && key != "error")
+            .map(|(key, value)| (key.into_owned(), value.into_owned()))
+            .collect::<Vec<_>>();
+        target.set_query(None);
+        target.query_pairs_mut().extend_pairs(retained);
+        let token = parts
+            .uri
+            .path()
+            .strip_prefix("/api/auth/reset-password/")
+            .unwrap_or_default()
+            .to_owned();
+        match state
+            .credentials
+            .inspect_password_reset(token.clone())
+            .await
+        {
+            Ok(()) => {
+                target.query_pairs_mut().append_pair("token", &token);
+            }
+            Err(error) if error.kind == FailureKind::Unavailable => return Err(error),
+            Err(_) => {
+                target
+                    .query_pairs_mut()
+                    .append_pair("error", "INVALID_TOKEN");
+            }
+        }
+        let mut response = StatusCode::SEE_OTHER.into_response();
+        response.headers_mut().insert(
+            header::LOCATION,
+            HeaderValue::from_str(target.as_str()).map_err(|_| {
+                BusinessError::invalid("INVALID_RETURN_PATH", "Use the Account reset link.")
+            })?,
+        );
+        Ok::<_, BusinessError>(private(response, None))
+    }
+    .await;
+    result.unwrap_or_else(failure)
 }
 
 #[cfg_attr(feature="contracts",utoipa::path(post,path="/api/auth/sign-up/email",request_body=EmailSignUpInput,responses((status=200,body=AccountOperationResponse),(status=400,body=AccountAuthErrorResponse),(status=403,body=AccountAuthErrorResponse),(status=503,body=AccountAuthErrorResponse))))]
@@ -294,6 +364,7 @@ pub fn credentials_openapi() -> utoipa::openapi::OpenApi {
             request_reset,
             request_verification,
             reset_password,
+            reset_link,
             change_password,
             verify_email,
             verify_link
@@ -302,6 +373,7 @@ pub fn credentials_openapi() -> utoipa::openapi::OpenApi {
             EmailSignUpInput,
             PasswordResetRequestInput,
             PasswordResetInput,
+            AccountPasswordResetLinkQuery,
             PasswordChangeInput,
             EmailVerificationRequestInput,
             EmailVerificationInput

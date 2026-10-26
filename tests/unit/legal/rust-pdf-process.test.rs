@@ -10,7 +10,7 @@ use erpx_server_legal::public::{
     ApprovedCompanyTrustMaterial, AuthorizedPdfSnapshot, BoundedPdfVerifier, PDF_BUSINESS_LIMIT,
     PdfProcessLimits, PdfVerificationEvidence, PdfVerificationFailure, PdfVerificationJob,
     PdfVerificationRepository, PdfVerifierProcess, TrustMaterialKind, TrustMaterialState,
-    ValidationState, verify_company_pdf,
+    ValidationState, inspect_company_pdf_for_processing, verify_company_pdf,
 };
 use erpx_server_shared::public::{Clock, CompanyId, HoldingId, RecordId, TimestampMillis, UserId};
 use sha2::{Digest, Sha256};
@@ -89,15 +89,19 @@ fn job() -> PdfVerificationJob {
 }
 
 fn trusted_snapshot() -> AuthorizedPdfSnapshot {
-    let corpus: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../fixtures/legal/pdf-signatures/conformance.v1.json"
-    ))
-    .unwrap();
+    corpus_snapshot(
+        include_str!("../../../fixtures/legal/pdf-signatures/conformance.v1.json"),
+        "trusted_crl",
+    )
+}
+
+fn corpus_snapshot(source: &str, name: &str) -> AuthorizedPdfSnapshot {
+    let corpus: serde_json::Value = serde_json::from_str(source).unwrap();
     let case = corpus["cases"]
         .as_array()
         .unwrap()
         .iter()
-        .find(|case| case["name"] == "trusted_crl")
+        .find(|case| case["name"] == name)
         .unwrap();
     let mut result = snapshot(&hex::decode(case["pdfHex"].as_str().unwrap()).unwrap());
     result.trust = case["trust"]
@@ -213,6 +217,99 @@ async fn actual_rust_child_verifies_and_binds_approved_company_material() {
     );
     assert_eq!(evidence.snapshot.trust.len(), count);
     assert_clean(root.path());
+}
+
+#[tokio::test]
+async fn required_path_proof_is_distinct_from_the_legacy_soft_diagnostic() {
+    let source =
+        include_str!("../../../fixtures/legal/pdf-signatures/conformance-crl-scope.v1.json");
+    let root = private_tempdir();
+    let worker = verifier(
+        Path::new(env!("CARGO_BIN_EXE_erpx-validate-pdf")),
+        root.path(),
+        90_000,
+        2 * 1024 * 1024,
+    );
+    for (name, expected) in [
+        ("reason_partition_complete_union", ValidationState::Valid),
+        (
+            "reason_partition_incomplete",
+            ValidationState::Indeterminate,
+        ),
+    ] {
+        let result = worker
+            .verify(corpus_snapshot(source, name), FixedClock.now())
+            .await
+            .unwrap();
+        assert_eq!(result.report.status, expected, "{name}");
+        assert_eq!(
+            result.report.signatures[0].certificate_chain,
+            ValidationState::Indeterminate
+        );
+        assert_eq!(
+            result.report.signatures[0].required_certificate_chain,
+            expected
+        );
+        assert_clean(root.path());
+    }
+}
+
+#[tokio::test]
+async fn child_protocol_refuses_valid_without_explicit_required_path_proof() {
+    use erpx_server_legal::public::{OperatorTrustStore, TrustMaterial, validate_signed_pdf};
+    let corpus: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../fixtures/legal/pdf-signatures/conformance.v1.json"
+    ))
+    .unwrap();
+    let case = corpus["cases"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|case| case["name"] == "trusted_crl")
+        .unwrap();
+    let trust = OperatorTrustStore::from_materials(
+        case["trust"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|item| TrustMaterial {
+                path: item["path"].as_str().unwrap().to_owned(),
+                content: hex::decode(item["hex"].as_str().unwrap()).unwrap(),
+            })
+            .collect(),
+    )
+    .unwrap();
+    let moment = time::OffsetDateTime::from_unix_timestamp(FixedClock.now().get() / 1000).unwrap();
+    let valid = validate_signed_pdf(
+        &hex::decode(case["pdfHex"].as_str().unwrap()).unwrap(),
+        &trust,
+        moment,
+    );
+    assert_eq!(valid.status, ValidationState::Valid);
+    for missing in [true, false] {
+        let root = private_tempdir();
+        let worker = verifier(helper(), root.path(), 5_000, 2 * 1024 * 1024);
+        let mut report = serde_json::to_value(&valid).unwrap();
+        report["trustStoreDigest"] = hex::encode(Sha256::digest(b"[]")).into();
+        if missing {
+            report["signatures"][0]
+                .as_object_mut()
+                .unwrap()
+                .remove("requiredCertificateChain");
+        } else {
+            report["signatures"][0]["requiredCertificateChain"] = "indeterminate".into();
+        }
+        let mut payload = b"report:".to_vec();
+        payload.extend(serde_json::to_vec(&report).unwrap());
+        assert_eq!(
+            worker
+                .verify(snapshot(&payload), FixedClock.now())
+                .await
+                .unwrap_err(),
+            PdfVerificationFailure::WorkerProtocol
+        );
+        assert_clean(root.path());
+    }
 }
 
 #[tokio::test]
@@ -484,6 +581,80 @@ async fn application_requires_exact_scope_and_a_current_retention_transaction() 
         PdfVerificationFailure::InvalidScope
     );
     assert_clean(root.path());
+}
+
+struct FailingVerifier(PdfVerificationFailure);
+impl PdfVerifierProcess for FailingVerifier {
+    async fn verify(
+        &self,
+        _: AuthorizedPdfSnapshot,
+        _: TimestampMillis,
+    ) -> Result<PdfVerificationEvidence, PdfVerificationFailure> {
+        Err(self.0)
+    }
+}
+
+#[tokio::test]
+async fn processing_retains_tool_failure_as_unknown_only_after_current_snapshot_revalidation() {
+    let root = private_tempdir();
+    let worker = verifier(helper(), root.path(), 100, 2048);
+    let mut repository = Repository {
+        snapshot: snapshot(b"sleep"),
+        changed: false,
+        retained: false,
+    };
+    let result = inspect_company_pdf_for_processing(&mut repository, &worker, &FixedClock, &job())
+        .await
+        .unwrap();
+    assert!(repository.retained);
+    assert!(result.inspection_id.is_some());
+    assert_eq!(result.report.status, ValidationState::Indeterminate);
+    assert!(result.report.signatures.is_empty());
+    assert!(
+        result
+            .report
+            .reasons
+            .iter()
+            .any(|reason| reason == "VERIFIER_DEADLINE_EXCEEDED")
+    );
+    assert!(
+        result.report.trust_store_digest.is_empty(),
+        "no successful child digest may be invented"
+    );
+    assert_clean(root.path());
+    repository.changed = true;
+    repository.retained = false;
+    assert_eq!(
+        inspect_company_pdf_for_processing(
+            &mut repository,
+            &FailingVerifier(PdfVerificationFailure::WorkerFailed),
+            &FixedClock,
+            &job()
+        )
+        .await
+        .unwrap_err(),
+        PdfVerificationFailure::SnapshotChanged
+    );
+    assert!(!repository.retained);
+    repository.changed = false;
+    for failure in [
+        PdfVerificationFailure::WorkerCancelled,
+        PdfVerificationFailure::TrustChecksum,
+        PdfVerificationFailure::UnapprovedTrust,
+    ] {
+        assert_eq!(
+            inspect_company_pdf_for_processing(
+                &mut repository,
+                &FailingVerifier(failure),
+                &FixedClock,
+                &job()
+            )
+            .await
+            .unwrap_err(),
+            failure
+        );
+        assert!(!repository.retained);
+    }
 }
 
 #[test]

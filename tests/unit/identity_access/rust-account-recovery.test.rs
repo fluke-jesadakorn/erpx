@@ -1,5 +1,85 @@
 use erpx_server_identity_access::public::*;
 
+#[test]
+fn invitation_scope_matches_current_grant_rules_without_missing_node_wildcards() {
+    for (parent, node, scope, branch, department, expected) in [
+        ("holding", None, "holding", None, None, true),
+        (
+            "holding",
+            None,
+            "department",
+            None,
+            Some("company-department"),
+            true,
+        ),
+        (
+            "branch",
+            Some("north"),
+            "department",
+            Some("north"),
+            Some("payroll"),
+            true,
+        ),
+        (
+            "branch",
+            Some("south"),
+            "department",
+            Some("north"),
+            Some("payroll"),
+            false,
+        ),
+        ("branch", None, "branch", None, None, false),
+        (
+            "department",
+            Some("payroll"),
+            "department",
+            Some("north"),
+            Some("payroll"),
+            true,
+        ),
+        (
+            "department",
+            Some("payroll"),
+            "branch",
+            Some("north"),
+            None,
+            false,
+        ),
+        ("branch", Some("north"), "holding", None, None, false),
+        ("holding", None, "holding", Some("north"), None, false),
+        ("holding", None, "platform", None, None, false),
+    ] {
+        assert_eq!(
+            invitation_scope_covers(parent, node, scope, branch, department),
+            expected
+        );
+    }
+}
+
+#[test]
+fn staff_invitation_payload_never_accepts_directory_or_existing_account_credentials() {
+    let grant = StaffInvitationGrant::parse(r#"{"role":"custom_staff","expires":1800000000000.0}"#)
+        .unwrap();
+    assert_eq!(grant.role, "custom_staff");
+    assert_eq!(grant.expires, 1800000000000);
+    let it_admin =
+        StaffInvitationGrant::parse(r#"{"role":"it_admin","expires":1800000000000}"#).unwrap();
+    assert!(it_admin.supports_scope("holding"));
+    assert!(!it_admin.supports_scope("branch"));
+    assert!(!it_admin.supports_scope("department"));
+    assert!(!grant.supports_scope("platform"));
+    for payload in [
+        r#"{"role":"custom_staff","expires":1800000000000,"direct":true}"#,
+        r#"{"role":"custom_staff","expires":1800000000000,"existingUserId":"someone"}"#,
+        r#"{"role":"","expires":1800000000000}"#,
+        r#"{"role":"staff","expires":9007199254740992}"#,
+        r#"{"role":"staff","expires":12.5}"#,
+        r#"{"role":"staff","expires":"1800000000000"}"#,
+    ] {
+        assert!(StaffInvitationGrant::parse(payload).is_err());
+    }
+}
+
 fn invitation() -> InvitationCredentialFacts {
     InvitationCredentialFacts {
         invitation_id: "synthetic-invitation".into(),

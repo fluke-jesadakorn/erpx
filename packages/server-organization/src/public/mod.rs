@@ -1,4 +1,7 @@
 //! Organization structural facts are not authorization evidence.
+pub use crate::adapters::business_acceptance::{
+    CompanyBusinessAcceptance, PgCompanyBusinessAcceptanceReader, lock_business_acceptance_sources,
+};
 pub use crate::adapters::postgres_authority_seats::{
     PgOrganizationAuthorityReader, lock_organization_authority_sources,
 };

@@ -259,8 +259,7 @@ async fn host_bound_children_require_current_parent_selection_and_active_princip
  }).await;
 }
 #[tokio::test]
-async fn ordinary_holding_signout_preserves_parent_and_account_signout_preserves_other_saved_accounts()
- {
+async fn holding_signout_revokes_current_family_and_preserves_other_saved_accounts() {
     database::with_database(2, |pool| async move {
         let service = setup(&pool).await;
         let a = service
@@ -293,7 +292,7 @@ async fn ordinary_holding_signout_preserves_parent_and_account_signout_preserves
                 .session(&proof, RequestAudience::Account)
                 .await
                 .unwrap()
-                .is_some()
+                .is_none()
         );
         service
             .sign_out(&proof, RequestAudience::Account)

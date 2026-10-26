@@ -8,20 +8,31 @@ publish.workspace = true
 autotests = false
 
 [package.metadata.erpx]
-verification-roots = ["resources", "../../fixtures/identity_access/permissions"]
+verification-roots = ["resources", "../../fixtures/identity_access/permissions", "../../scripts/testing/fixtures/generate-work-admission-oracle.ts"]
 
 [lib]
 path = "src/lib.rs"
 
 [features]
 contracts = ["dep:ts-rs", "dep:utoipa"]
+mail-resend = ["dep:reqwest", "dep:rustls", "dep:webpki-roots"]
+mail-smtp = ["dep:lettre"]
+mail-providers = ["mail-resend", "mail-smtp"]
 
 [dependencies]
+reqwest = { workspace = true, optional = true }
+rustls = { workspace = true, optional = true }
+webpki-roots = { workspace = true, optional = true }
+lettre = { workspace = true, optional = true }
+base64.workspace = true
+url.workspace = true
 ring.workspace = true
+subtle.workspace = true
 erpx-server-shared.workspace = true
 erpx-server-organization.workspace = true
 erpx-server-people-payroll.workspace = true
 erpx-server-runtime.workspace = true
+erpx-server-manage-erpx.workspace = true
 argon2.workspace = true
 getrandom.workspace = true
 sha2.workspace = true
@@ -78,3 +89,48 @@ path = "../../tests/unit/identity_access/rust-permission-catalog.test.rs"
 
 [lints]
 workspace = true
+
+[[example]]
+name = "export-work-module-contracts"
+path = "../../scripts/docs/export-work-module-contracts.rs"
+
+[[test]]
+name = "work_admission"
+path = "../../tests/unit/identity_access/rust-work-admission.test.rs"
+
+[[test]]
+name = "effective_authority_postgres"
+path = "../../tests/integration/identity_access/rust-effective-authority-postgres.test.rs"
+
+[[test]]
+name = "account_sso"
+path = "../../tests/unit/identity_access/rust-account-sso.test.rs"
+
+[[test]]
+name = "account_sso_postgres"
+path = "../../tests/integration/identity_access/rust-account-sso-postgres.test.rs"
+
+[[test]]
+name = "invitation_authority_postgres"
+path = "../../tests/integration/identity_access/rust-invitation-authority-postgres.test.rs"
+
+[[test]]
+name = "account_invitation_activation_postgres"
+path = "../../tests/integration/identity_access/rust-account-invitation-activation-postgres.test.rs"
+
+[[test]]
+name = "account_mail"
+path = "../../tests/unit/identity_access/rust-account-mail.test.rs"
+
+[[test]]
+name = "account_mail_postgres"
+path = "../../tests/integration/identity_access/rust-account-mail-postgres.test.rs"
+
+[[test]]
+name = "account_mail_transport"
+path = "../../tests/provider/identity_access/rust-account-mail-transport.test.rs"
+required-features = ["mail-providers"]
+
+[[test]]
+name = "release_reviewers_postgres"
+path = "../../tests/integration/identity_access/rust-release-reviewers-postgres.test.rs"

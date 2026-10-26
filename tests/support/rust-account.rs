@@ -8,11 +8,18 @@ pub fn policy() -> AccountPolicy {
         account_host: "account.example.test".into(),
         environment: "development".into(),
         require_email_verification: true,
-        holdings: vec![HoldingOrigin {
-            origin: "https://acme.example.test".into(),
-            host: "acme.example.test".into(),
-            audience: "holding:development:h001:acme.example.test".into(),
-        }],
+        holdings: vec![
+            HoldingOrigin {
+                origin: "https://acme.example.test".into(),
+                host: "acme.example.test".into(),
+                audience: "holding:development:h001:acme.example.test".into(),
+            },
+            HoldingOrigin {
+                origin: "https://northstar.example.test".into(),
+                host: "northstar.example.test".into(),
+                audience: "holding:development:h002:northstar.example.test".into(),
+            },
+        ],
     }
 }
 pub fn empty() -> PresentedSecrets {

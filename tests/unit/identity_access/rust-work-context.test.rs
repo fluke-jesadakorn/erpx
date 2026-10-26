@@ -49,6 +49,7 @@ fn snapshot() -> WorkContextSnapshot {
             user_id: request.user_id,
             company_id: request.company_id,
             role: "finance_preparer".into(),
+            modules: vec!["finance".into()],
             scope_kind: WorkScopeKind::Branch,
             scope_node_id: Some(RecordId::new("branch").unwrap()),
             version: 3,

@@ -120,6 +120,8 @@ fn email_password_and_session_windows_reject_ambiguous_or_unbounded_input() {
     }
     assert!(Password::new_credential("short".into()).is_err());
     assert!(Password::new_credential("twelve-characters".into()).is_ok());
+    assert!(Password::new_credential("🔐".repeat(6)).is_ok());
+    assert!(Password::new_credential("🔐".repeat(5)).is_err());
     assert!(Password::sign_in("a".repeat(4097)).is_err());
     assert!(valid_session_window(100, 100 + SESSION_LIFETIME_MS, 101));
     for (a, e, n) in [

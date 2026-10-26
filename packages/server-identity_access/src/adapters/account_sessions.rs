@@ -185,7 +185,7 @@ pub(crate) async fn read_session(
         }
         RequestAudience::Holding { audience } => {
             let row = sqlx::query(r#"SELECT child.id session_id,child."userId" user_id,u.name,u.email,u."emailVerified" email_verified,u.image,
-              cb.authenticated_at,LEAST(cb.absolute_expires_at,(EXTRACT(EPOCH FROM child."expiresAt"::timestamptz)*1000)::bigint) expires_at
+              cb.authenticated_at,LEAST(cb.absolute_expires_at,pb.absolute_expires_at,(EXTRACT(EPOCH FROM child."expiresAt"::timestamptz)*1000)::bigint,(EXTRACT(EPOCH FROM parent."expiresAt"::timestamptz)*1000)::bigint) expires_at
               FROM session child JOIN sso_session_bindings cb ON cb.session_id=child.id
               JOIN session parent ON parent.id=cb.parent_session_id AND parent."userId"=child."userId"
               JOIN sso_session_bindings pb ON pb.session_id=parent.id
@@ -196,7 +196,7 @@ pub(crate) async fn read_session(
               AND pb.audience='account' AND pb.parent_session_id IS NULL AND COALESCE(p.status,'active')='active'
               AND child."expiresAt"::timestamptz>to_timestamp($4::double precision/1000) AND parent."expiresAt"::timestamptz>to_timestamp($4::double precision/1000)
               AND pb.authenticated_at<=$4 AND pb.absolute_expires_at>$4 AND pb.absolute_expires_at<=pb.authenticated_at+43200000
-              AND cb.authenticated_at<=$4 AND cb.authenticated_at>=pb.authenticated_at AND cb.absolute_expires_at>$4
+              AND cb.authenticated_at<=$4 AND cb.authenticated_at=pb.authenticated_at AND cb.absolute_expires_at>$4
               AND cb.absolute_expires_at<=cb.authenticated_at+43200000 AND cb.absolute_expires_at<=pb.absolute_expires_at"#)
                 .bind(active.as_str()).bind(audience).bind(environment).bind(now).fetch_optional(connection).await?;
             row.as_ref().map(session_row).transpose()

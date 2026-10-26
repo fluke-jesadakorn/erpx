@@ -9,7 +9,7 @@ import { attachmentToolEnvironment } from "./runtime-tooling";
 import { writeJsonOutput } from "./json-output";
 import { assertTestPlacement } from "./layout";
 import { runDevelopmentTests } from "./development";
-import { cargoCaseResults, cargoTargetInvocations } from './cargo';
+import { cargoCaseResults, cargoChildEnvironment, cargoTargetInvocations } from './cargo';
 
 if (Bun.version !== "1.4.3") throw new Error("Tests require Bun 1.4.3.");
 const options = parseTestArguments(process.argv.slice(2));
@@ -137,8 +137,9 @@ for (const kind of ["unit", "integration", "provider"] as const) {
 }
 for (const suite of suites.filter(suite => suite.framework === 'cargo')) {
   if (suite.lane === 'integration') databaseCredentials();
+  const cargoEnvironment=cargoChildEnvironment(suite,env);
   for (const invocation of cargoTargetInvocations(suite, root, options.forwarded)) {
-    const child = Bun.spawn(['cargo', ...invocation.arguments], { cwd: root, env: vitestChildEnvironment(env, suite.lane === 'integration'), stdin: 'inherit', stdout: 'pipe', stderr: 'inherit' });
+    const child = Bun.spawn(['cargo', ...invocation.arguments], { cwd: root, env: cargoEnvironment, stdin: 'inherit', stdout: 'pipe', stderr: 'inherit' });
     const onInt = () => child.kill('SIGINT'), onTerm = () => child.kill('SIGTERM');
     process.on('SIGINT', onInt); process.on('SIGTERM', onTerm);
     let output = '', exit: number;

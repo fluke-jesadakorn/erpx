@@ -65,6 +65,9 @@ fn main() {
             fs::write(root.join("inspected"), b"ok").unwrap();
             println!("{{\"status\":\"valid\"}}");
         }
+        _ if mode.starts_with(b"report:") => {
+            std::io::stdout().write_all(&mode[7..]).unwrap();
+        }
         _ => println!("not a verifier report"),
     }
 }

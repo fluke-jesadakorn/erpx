@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./business-role-modules": "./src/business-role-modules.generated.ts",
     "./account-auth": "./src/account-auth.generated.ts",
     "./permission-catalog": "./src/permission-catalog.generated.json",
     "./holding-hosts": "./src/holding-hosts.ts",

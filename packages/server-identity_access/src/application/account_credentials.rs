@@ -72,6 +72,7 @@ pub struct SignUpCredential {
 }
 
 pub trait AccountCredentialRepository: Send + Sync {
+    fn inspect_password_reset(&self, token: SecretDigest, now: i64) -> AccountFuture<'_, ()>;
     fn request_mail(&self, input: PreparedCredentialMail) -> AccountFuture<'_, ()>;
     fn reset_password(&self, input: ResetCredential) -> AccountFuture<'_, ()>;
     fn verify_email(&self, input: VerifyCredential) -> AccountFuture<'_, VerifiedCredential>;
@@ -87,7 +88,9 @@ pub trait AccountCredentialRepository: Send + Sync {
 /// A trusted Holding adapter must retain current IAM/People source locks until the Control commit.
 pub trait InvitationCredentialLease: Send {
     fn facts(&self) -> &InvitationCredentialFacts;
+    fn recheck(&mut self, now: i64) -> AccountFuture<'_, ()>;
 }
+#[derive(Clone)]
 pub struct InvitationCredentialQuery {
     pub invitation_id: String,
     pub holding_id: String,
@@ -102,6 +105,8 @@ pub struct InvitationCredentialQuery {
     pub assignment_id: String,
     pub expires_at: i64,
     pub created_at: i64,
+    pub authorizer_control_active: bool,
+    pub holding_binding_active: bool,
     pub email: EmailAddress,
     pub now: i64,
 }
@@ -154,7 +159,13 @@ impl AccountCredentials {
         email: EmailAddress,
         return_path: Option<&str>,
     ) -> Result<PreparedCredentialMail, BusinessError> {
-        let path = account_return_path(return_path)?;
+        let path = account_return_path(return_path.or(
+            if kind == CredentialProofKind::PasswordReset {
+                Some("/reset-password")
+            } else {
+                None
+            },
+        ))?;
         let token = self.secrets.issue()?;
         let proof_id = self.secrets.identifier()?;
         let ciphertext =
@@ -198,6 +209,15 @@ impl AccountCredentials {
                 event_id: self.secrets.identifier()?,
                 now: self.clock.now().get(),
             })
+            .await
+    }
+    pub async fn inspect_password_reset(&self, token: String) -> Result<(), BusinessError> {
+        let token = OpaqueSecret::new(token).map_err(|_| invalid_proof())?;
+        self.repository
+            .inspect_password_reset(
+                self.secrets.digest(SecretPurpose::PasswordReset, &token),
+                self.clock.now().get(),
+            )
             .await
     }
     pub async fn verify_email(
@@ -289,15 +309,15 @@ impl AccountCredentials {
             ));
         }
         let email = EmailAddress::new(email)?;
+        let password_hash = self
+            .passwords
+            .hash(Password::new_credential(password)?)
+            .await?;
         let mail = self.prepared_mail(
             CredentialProofKind::EmailVerification,
             email.clone(),
             return_path,
         )?;
-        let password_hash = self
-            .passwords
-            .hash(Password::new_credential(password)?)
-            .await?;
         self.repository
             .sign_up(SignUpCredential {
                 invitation_digest: self.secrets.digest(SecretPurpose::Invitation, &token),

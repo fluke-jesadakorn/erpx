@@ -1,0 +1,37 @@
+# Native Legal document extraction component
+
+This is component evidence, not whole-owner readiness or a mounted production worker. Runtime extraction uses Rust plus operator-selected Poppler/Tesseract executables; Mammoth, JSZip, sharp and Node are development-only corpus generators. No Python or JavaScript extraction fallback exists in the Rust worker.
+
+## Frozen independent evidence
+
+`fixtures/legal/documents/docx-conformance.v1.json` captures 29 independently executed Mammoth 1.13.0 cases through the B0 raw-text semantics. It includes the original helper/source hashes, Thai, entities, surrogate pairs, tabs/ignored breaks, tracked changes, deleted paragraphs, tables/merges, content controls/checkboxes, VML text, symbols, namespaces, alternate main parts and the 200,000 UTF16-unit boundary. The native adapter uses vetted `zip` and `roxmltree` decoders and a bounded WordML raw-text visitor. The corpus is a supported-case proof, not a claim of exhaustive OOXML support. Hostile ZIP/DTD/path/depth/expansion cases test an explicit resource contract separately; they do not rewrite B0 expected text.
+
+`native-conformance.v1.json` captures five B0 provider cases: text-layer PDF, PNG, JPEG, two-page scanned PDF and refusal of a 26-page scanned PDF. It binds the exact installed Poppler/Tesseract executables and English traineddata hash. The provider lane requires this explicit profile and fails on changed binaries. This English fixture profile does **not** prove Thai recognition. Production preserves explicit `eng+tha`; a missing Thai resource is a configuration failure, never a fallback to English. A future tool/language profile requires separate evidence without overwriting the frozen receipt.
+
+The factual 1,061-entry dingbat mapping is attributed to `dingbat-to-unicode` 1.0.2, Copyright 2021 Michael Williamson, BSD-2-Clause. The exact license is retained in `packages/server-legal/licenses/dingbat-to-unicode-BSD-2-Clause.txt`; its source SHA is in the generated Rust header and the pinned dev-only `generate_dingbats.mjs`. No npm runtime dependency is introduced by this table.
+
+## Worker resource and ownership contract
+
+Authored `text/plain` uses the explicit `DocumentExtractionSource::InlineText { body }` data variant. It has no original-file MIME and never launches a parser/tool. Canonical uploaded bytes use `Original { media_type, bytes }` with only PDF/PNG/JPEG/DOCX. The result validator takes an explicit source kind; authored text is never coerced to PDF.
+
+The optional `document-provider` feature is independent of PDF cryptography and absent from the default API dependency closure. `erpx-extract-document` is an inbound process adapter. The caller supplies bounded bytes, declared MIME and checksum; only operator composition supplies executable/language paths. The adapter never accepts a job-selected filesystem path or launches a shell. Owned temporary directories are 0700; input/config files are create-new 0600; the environment is cleared. OCR threads are explicitly limited to one through the supported OpenMP settings.
+
+The outer supervisor admits at most 10 MiB, one active request per shared adapter instance, 2 MiB combined child stdout/stderr and 540 seconds of aggregate compute. DOCX also has a 30-second outer cap. Native per-tool limits remain: PDF text 30s/2MiB, PDF info 15s/100kB, rasterization 90s/100kB, image OCR 45s/2MiB, scanned-page OCR 20s/1MB. The remaining aggregate budget always wins. Text-layer PDFs retain longer page support; scanned PDFs remain limited to 25 pages, rasterized at most 1600 pixels. A bounded 10,000-entry page map and 200,000 UTF16-unit text/shared-page budget prevent unbounded result allocation. Truncation preserves whole Unicode scalars; unlike JavaScript slicing, it cannot produce an isolated surrogate at the boundary. Draft text always requires review.
+
+The dedicated CLI applies CPU/stack/descriptor/core/file-size limits before reading input. Linux additionally applies per-process DATA/AS ceilings; both platforms monitor aggregate process-group RSS every 25ms against 512MiB. RSS sampling on macOS is a measured limit, not a hard kernel memory reservation, and per-process limits do not replace PR2's container memory limit.
+
+All tools inherit a new, dedicated process group. The supervisor uses vetted `rustix::process::waitid` with `NOWAIT` to observe leader exit while leaving its PID unreaped, pinning the group identifier against reuse. On normal exit, deadline, cancellation, shutdown, output/memory overflow or failure it repeatedly kills the owned group, checks descendants, reaps directly owned adopted children, then reaps the leader. Pipe EOF alone is never completion. A dropped caller leaves an independent supervisor task owning its semaphore, child and temp directory until cleanup finishes. Unrelated processes are never selected by name, port or PID inventory for signalling.
+
+The 540s work deadline reserves 60s inside the existing 600s job lease for cleanup/retention. This explicitly corrects B0's possible 635s sum of per-tool waits; it can refuse slow worst-case input rather than promise identical timing. If kernel cleanup exceeds 60s, the adapter becomes unhealthy and continues owning the group and permit until cleanup completes. It never releases partial text as success or silently starts another job. Host initialization must reap orphaned zombies; PR2 must include container init/owned shutdown. No userspace task can clean up after its own host/executor is forcibly killed. Process groups/resource limits are not a general sandbox for a compromised executable that deliberately escapes its group; the fixed approved Poppler/Tesseract commands do not daemonize.
+
+## Transaction boundary and pending work
+
+The completed PDF component exposes short authorized prepare → owned computation outside DB → fresh current retention phases. Real service PG tests already prove Control/IAM writers can commit during compute and current revocation prevents final retention. Transaction-bound Legal, Files and Commercial witnesses never cross compute; stable input data alone can cross, and final authority is reminted.
+
+OCR extraction currently provides a bounded compute component. Its matching production short-transaction prepare/final-retention assembly, actual Legal record/readiness bridge and export workflows remain pending. It must use the same fresh source/Identity/Commercial/Files/preservation checks before any result is retained. No route, installed worker or service has been activated by these tests.
+
+## Verification
+
+The catalogue owns `legal.rust-document-extraction.unit`, `legal.rust-docx-extraction.unit`, `legal.rust-document-process.unit` and `legal.rust-document.provider`. The provider lane is explicit and excluded from normal native unit selection. Disposable Rust helpers prove nested-child cleanup, exited leaders with open/closed descendant pipes, caller cancellation, drain, unrelated-process survival, output limits, group RSS, busy admission and aggregate deadline across partially processed pages. These helpers are never runtime artifacts.
+
+To reproduce development receipts before accepting a new separately versioned corpus, run the pinned Node against `generate_docx.mjs` or `generate_native.mjs` from the repository root. Those tools touch only synthetic fixture data and private disposable temporary directories. Preserve existing frozen receipts after their milestone commit.

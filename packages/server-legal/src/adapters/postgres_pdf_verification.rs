@@ -60,11 +60,12 @@ struct LoadedSource {
     document: LegalInspectionDocument,
     stamp: PdfVerificationSnapshotStamp,
     file_witness: Option<String>,
+    source_data_sha256: String,
 }
 
-/// A single inspection inside the caller-owned serializable Holding transaction.
-/// Company/preservation locks remain held through the bounded offline child and
-/// retention. Composition must commit the surrounding job state/owner effects.
+/// One currently authorized repository inside a borrowed Holding transaction.
+/// Production workers use separate instances for short prepare/final phases and
+/// compute outside the database. Atomic conformance helpers remain unmounted.
 pub struct PgPdfVerificationRepository<'c, Bridge, ClockSource, Identifiers> {
     holding_id: HoldingId,
     company_id: CompanyId,
@@ -94,6 +95,21 @@ impl<'c, Bridge, ClockSource, Identifiers>
             identifiers,
             loaded: None,
         }
+    }
+    pub(super) fn prepared_source_data(&self) -> Result<(LegalInspectionDocument, String), Error> {
+        let loaded = self
+            .loaded
+            .as_ref()
+            .ok_or(PdfVerificationFailure::InvalidSnapshot)?;
+        Ok((loaded.document.clone(), loaded.source_data_sha256.clone()))
+    }
+    pub(super) fn retention_stamp(&self) -> Result<PdfVerificationSnapshotStamp, Error> {
+        Ok(self
+            .loaded
+            .as_ref()
+            .ok_or(PdfVerificationFailure::InvalidSnapshot)?
+            .stamp
+            .clone())
     }
 }
 
@@ -129,13 +145,25 @@ impl<
             .authorize_document(self.connection, job, &document)
             .await?;
         check_witness(&authorization_revision)?;
-        let (pdf, file_witness) = if document.attachment_link_id.is_some() {
+        let (pdf, file_witness, source_data_sha256) = if document.attachment_link_id.is_some() {
             let source = self
                 .bridge
                 .read_original(self.connection, job, &document, PDF_BUSINESS_LIMIT)
                 .await?;
             check_witness(&source.witness)?;
-            (source.bytes, Some(source.witness))
+            if source.source_data_sha256.len() != 64
+                || !source
+                    .source_data_sha256
+                    .bytes()
+                    .all(|byte| byte.is_ascii_hexdigit())
+            {
+                return Err(PdfVerificationFailure::InvalidSnapshot.into());
+            }
+            (
+                source.bytes,
+                Some(source.witness),
+                source.source_data_sha256,
+            )
         } else if document.object_key.is_some() {
             return Err(PgTransactionError::Business(BusinessError::new(
                 FailureKind::NotFound,
@@ -143,7 +171,12 @@ impl<
                 "The document requires its canonical attachment lifecycle.",
             )));
         } else {
-            (body.into_bytes(), None)
+            let data = serde_json::json!({"format":"erpx-inline-legal-source/v1","holding":job.holding_id.as_str(),"company":job.company_id.as_str(),"document":document.id.as_str(),"version":document.version,"checksum":document.checksum_sha256,"mediaType":document.media_type});
+            (
+                body.into_bytes(),
+                None,
+                hex::encode(Sha256::digest(data.to_string().as_bytes())),
+            )
         };
         if pdf.len() > PDF_BUSINESS_LIMIT {
             return Err(PdfVerificationFailure::DocumentSizeLimit.into());
@@ -172,6 +205,7 @@ impl<
             document,
             stamp,
             file_witness,
+            source_data_sha256,
         });
         Ok(AuthorizedPdfSnapshot {
             holding_id: job.holding_id.clone(),
@@ -250,6 +284,13 @@ impl<
             serde_json::json!(inspection_id.as_str()),
         );
         object.insert("trustMaterials".to_owned(), serde_json::json!(materials));
+        if let Some(computation) = &evidence.computation {
+            object.insert("computedInput".to_owned(),serde_json::json!({"format":"erpx-pdf-computation/v1","jobId":computation.job_id.as_str(),"attempt":computation.attempt,"documentId":computation.document_version_id.as_str(),"documentVersion":computation.document_version,"checksum":computation.document_checksum_sha256,"sourceDataSha256":computation.original_source_data_sha256,"preparedAt":computation.prepared_at,"validatedAt":evidence.report.validated_at}));
+        }
+        object.insert(
+            "processingJobId".to_owned(),
+            serde_json::json!(job.job_id.as_str()),
+        );
         let json = serde_json::to_string(&result)
             .map_err(|_| PersistenceError::new("LEGAL_INSPECTION_ENCODING_FAILED"))?;
         let inserted=sqlx::query("INSERT INTO legal_document_inspections(id,document_id,kind,result_json,created_by,created_at) SELECT $1,$2,'verify',$3,$4,$5 WHERE NOT EXISTS(SELECT 1 FROM legal_destructions WHERE item_id=$6 AND state IN ('executing','completed'))")

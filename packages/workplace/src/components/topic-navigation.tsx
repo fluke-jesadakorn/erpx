@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { usePathname } from "next/navigation";
+import { useProductNavigationScope, useProductPathname } from "@erpx/workplace/components/product-link-context";
 import { ChevronDown } from "lucide-react";
 import { Button, TextInput } from "@erpx/ui/components/foundation";
 import { Dialog } from "@erpx/ui/components/dialog";
@@ -39,10 +39,15 @@ export function TopicDirectory({label,items,selected,search="",onNavigate,langua
 }
 
 export function WorkEntryNavigation({context}:{context:NavigationContext}) {
-  const pathname = usePathname(), query = useSearchParams();
+  const pathname = useProductPathname(), scope = useProductNavigationScope(), query = useSearchParams();
   if (context.beta || context.scopeKind === "platform") return null;
-  const canonicalPath = new URL(canonicalUiHref(pathname + "?" + query), "https://topics.invalid").pathname;
-  const path = workspacePathParts(canonicalPath)?.path;
+  const visiblePath = new URL(canonicalUiHref(pathname + "?" + query), "https://topics.invalid").pathname;
+  // The visible Holding URL also exists during SSR, where there is no window
+  // from which to infer its Holding. Resolve it from the same trusted scope on
+  // both sides, then use the owner's path to select the authorized menu.
+  const parts = workspacePathParts(visiblePath, scope.holdingSlug);
+  const canonicalPath = parts ? `${parts.base}/${parts.path}` : visiblePath;
+  const path = parts?.path;
   // Record-only continuations must never acquire collection discovery here.
   if (!path || !destinationForPath(path) && !Object.hasOwn(workEntryRoots,path) && !["work","calendar","inbox"].includes(path)) return null;
   const model = workplaceNavigation(context), root = navigationWorkEntry(model,context.workspaceBase,canonicalPath);

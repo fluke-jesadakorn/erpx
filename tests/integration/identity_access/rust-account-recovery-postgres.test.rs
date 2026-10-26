@@ -254,16 +254,21 @@ async fn signup_without_a_current_invitation_owner_authority_creates_no_account_
     database::with_database(2,|pool|async move{
   let scenario=fixture::setup(&pool,Arc::new(UnavailableInvitationCredentialAuthority)).await;
 fixture::account::assert_error(scenario.credentials.sign_up("New Staff".into(),"new@example.test",fixture::PASSWORD.into(),None,None).await,"INVITATION_REQUIRED");let router=account_credentials_router(scenario.auth.clone(),scenario.credentials.clone()).unwrap();let response=post(router,"/api/auth/sign-up/email",serde_json::json!({"name":"New Synthetic Staff","email":"new@example.test","password":fixture::PASSWORD})).await;assert_eq!(response.status(),StatusCode::FORBIDDEN);
-  let token=SystemAuthenticationSecrets.issue().unwrap();let digest=SystemAuthenticationSecrets.digest(SecretPurpose::Invitation,&token);sqlx::query("INSERT INTO account_invitations(id,token_hash,holding_id,company_id,person_id,email,name,role,scope_kind,created_by,assignment_id,expires_at,created_at) VALUES('invitation-new',$1,'h001','company','person','new@example.test','New Staff','{}','holding','admin','grant',$2,$3)").bind(digest.as_str()).bind(fixture::account::NOW+3600000).bind(fixture::account::NOW).execute(pool.raw()).await.unwrap();assert!(scenario.credentials.sign_up("New Staff".into(),"new@example.test",fixture::PASSWORD.into(),Some(token.expose().into()),None).await.is_err());assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM \"user\" WHERE email='new@example.test'").fetch_one(pool.raw()).await.unwrap(),0);assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM native_account_mail_outbox").fetch_one(pool.raw()).await.unwrap(),0);
+  let token=SystemAuthenticationSecrets.issue().unwrap();let digest=SystemAuthenticationSecrets.digest(SecretPurpose::Invitation,&token);sqlx::query("INSERT INTO account_invitations(id,token_hash,holding_id,company_id,person_id,email,name,role,scope_kind,created_by,assignment_id,expires_at,created_at) VALUES('invitation-new',$1,'h001','company','person','new@example.test','New Staff','{}','holding','fixture-a','grant',$2,$3)").bind(digest.as_str()).bind(fixture::account::NOW+3600000).bind(fixture::account::NOW).execute(pool.raw()).await.unwrap();assert!(scenario.credentials.sign_up("New Staff".into(),"new@example.test",fixture::PASSWORD.into(),Some(token.expose().into()),None).await.is_err());assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM \"user\" WHERE email='new@example.test'").fetch_one(pool.raw()).await.unwrap(),0);assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM native_account_mail_outbox").fetch_one(pool.raw()).await.unwrap(),0);
  }).await;
 }
 
-// Explicit repository-test authority. The actual IAM/People adapter remains unmounted and pending.
+// Explicit repository-test authority. The separate actual IAM/People adapter has its own two-database suite and remains unmounted.
 struct ReviewedFixtureAuthority;
 struct ReviewedFixtureLease(InvitationCredentialFacts);
 impl InvitationCredentialLease for ReviewedFixtureLease {
     fn facts(&self) -> &InvitationCredentialFacts {
         &self.0
+    }
+    fn recheck(&mut self, now: i64) -> AccountFuture<'_, ()> {
+        let mut facts = self.0.clone();
+        facts.now = now;
+        Box::pin(async move { validate_invitation_credential(&facts) })
     }
 }
 impl InvitationCredentialAuthority for ReviewedFixtureAuthority {
@@ -304,7 +309,7 @@ async fn reviewed_fixture_signup_atomically_creates_fresh_credentials_and_mail_w
  {
     database::with_database(2,|pool|async move {
   let scenario=fixture::setup(&pool,Arc::new(ReviewedFixtureAuthority)).await;let token=SystemAuthenticationSecrets.issue().unwrap();let digest=SystemAuthenticationSecrets.digest(SecretPurpose::Invitation,&token);
-  sqlx::query("INSERT INTO account_invitations(id,token_hash,holding_id,company_id,person_id,email,name,role,scope_kind,created_by,assignment_id,expires_at,created_at) VALUES('reviewed-invitation',$1,'h001','company','person','new@example.test','Reviewed Staff','{}','holding','admin','grant',$2,$3)").bind(digest.as_str()).bind(fixture::account::NOW+3_600_000).bind(fixture::account::NOW).execute(pool.raw()).await.unwrap();
+  sqlx::query("INSERT INTO account_invitations(id,token_hash,holding_id,company_id,person_id,email,name,role,scope_kind,created_by,assignment_id,expires_at,created_at) VALUES('reviewed-invitation',$1,'h001','company','person','new@example.test','Reviewed Staff','{}','holding','fixture-a','grant',$2,$3)").bind(digest.as_str()).bind(fixture::account::NOW+3_600_000).bind(fixture::account::NOW).execute(pool.raw()).await.unwrap();
   scenario.credentials.sign_up("Submitted display name".into(),"NEW@example.test",fixture::PASSWORD.into(),Some(token.expose().into()),Some("/onboarding")).await.unwrap();
   let row=sqlx::query("SELECT u.name,u.\"emailVerified\",a.password,a.issuer FROM \"user\" u JOIN account a ON a.\"userId\"=u.id WHERE u.email='new@example.test'").fetch_one(pool.raw()).await.unwrap();use sqlx::Row;assert_eq!(row.get::<String,_>("name"),"Reviewed Staff");assert_eq!(row.get::<i64,_>("emailVerified"),0);assert_eq!(row.get::<String,_>("issuer"),"local:credential");assert!(row.get::<String,_>("password").starts_with("$argon2id$v=19$m=65536,t=3,p=1$"));
   assert!(scenario.credentials.sign_up("Submitted display name".into(),"new@example.test",fixture::NEW_PASSWORD.into(),Some(token.expose().into()),None).await.is_err());
