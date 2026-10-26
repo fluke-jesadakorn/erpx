@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { cargoCaseResults, cargoSuiteArguments, cargoTestTargets, validateCargoSuite } from '../../../scripts/testing/cargo';
+import { cargoCaseResults, cargoQualityFeatureArguments, cargoSuiteArguments, cargoTestTargets, validateCargoSuite } from '../../../scripts/testing/cargo';
 import { parseTestArguments } from '../../../scripts/testing/arguments';
 import type { Suite } from '../../../scripts/testing/catalogue';
 import { createWorkspaceGraph, dependencyClosure, selectCandidateSuites, selectWorkspaceSuites, workspaceFingerprint } from '../../../scripts/testing/workspace-graph';
@@ -83,4 +83,36 @@ describe('Rust catalogue and source selection', () => {
     const suites = [nativeSuite(), nativeSuite('erpx-server-runtime', 'runtime_foundation', runtimeTest, runtime)];
     expect(selectCandidateSuites(createWorkspaceGraph(changed), before, suites, ['packages/server-shared/src/domain/money.rs']).suites).toEqual(suites);
   });
+  it('checks selected worker and contract features without enabling vendored packaging dependencies', () => {
+    const sources = nativeSources();
+    sources.set('packages/server-identity_access/Cargo.toml', '[package]\nname="erpx-server-identity-access"\n[features]\ncontracts=["dep:ts-rs"]\n');
+    const legal = { ...nativeSuite(), cargo: { package: 'erpx-server-legal', targets: ['pdf_validation'], features: ['pdf-verifier'] } };
+    expect(cargoQualityFeatureArguments(sources, [legal])).toEqual(['--features', 'erpx-server-identity-access/contracts,erpx-server-legal/pdf-verifier']);
+    expect(cargoQualityFeatureArguments(nativeSources(), [nativeSuite()])).toEqual([]);
+  });
+  it('tracks a separate composition binary through runtime infrastructure without an owner dependency cycle', () => {
+    const sources = nativeSources(), service = 'src/composition/Cargo.toml', test = 'tests/unit/shared.architecture/rust-composition.test.rs';
+    sources.set('Cargo.toml', sources.get('Cargo.toml')! + 'erpx-server-runtime = { path = "packages/server-runtime" }\n');
+    sources.set(service, '[package]\nname="erpx-service"\n[dependencies]\nerpx-server-runtime.workspace = true\n[[test]]\nname="composition"\npath="../../tests/unit/shared.architecture/rust-composition.test.rs"\n');
+    sources.set('src/composition/src/main.rs', 'fn main() {}'); sources.set(test, '#[test] fn owners_are_pending() {}');
+    const suite = nativeSuite('erpx-service', 'composition', test, service), graph = createWorkspaceGraph(sources);
+    expect(dependencyClosure(graph, [test])).toContain('packages/server-shared/src/domain/money.rs');
+    expect(selectWorkspaceSuites(graph, [nativeSuite(), suite], { changed: ['src/composition/src/main.rs'] }).suites).toEqual([suite]);
+    expect(runtimeOwnerCycles(graph)).toEqual([]);
+  });
+
+  it('includes added and removed migrations through declared native resource roots', () => {
+    const sources = nativeSources(), migration = 'migrations/postgres/control/0001_init.sql', added = 'migrations/postgres/control/0002_next.sql';
+    sources.set(runtime, sources.get(runtime)! + '[package.metadata.erpx]\nverification-roots = [\n  "../../migrations/postgres",\n]\n');
+    sources.set(migration, 'CREATE TABLE initial(id int);');
+    const before = createWorkspaceGraph(sources), suites = [nativeSuite(), nativeSuite('erpx-server-runtime', 'runtime_foundation', runtimeTest, runtime)];
+    const candidate = new Map(sources); candidate.set(added, 'ALTER TABLE initial ADD COLUMN next int;');
+    expect(selectCandidateSuites(createWorkspaceGraph(candidate), before, suites, [added]).suites).toEqual([suites[1]]);
+    expect(workspaceFingerprint(createWorkspaceGraph(candidate), [runtimeTest])).not.toBe(workspaceFingerprint(before, [runtimeTest]));
+    const invalid = new Map(sources); invalid.set(runtime, sources.get(runtime)!.replace('../../migrations/postgres', '../../../outside'));
+    expect(() => createWorkspaceGraph(invalid)).toThrow('CARGO_RESOURCE_ROOT_INVALID');
+    candidate.delete(migration);
+    expect(selectCandidateSuites(createWorkspaceGraph(candidate), before, suites, [migration]).suites).toEqual([suites[1]]);
+  });
+
 });

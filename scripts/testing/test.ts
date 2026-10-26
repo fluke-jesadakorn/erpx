@@ -73,9 +73,11 @@ if (options.list) {
 
 const candidates = [process.env.ERPX_NODE_BIN, resolve(root, ".runtime/node/node-v26.11.1-darwin-arm64/bin/node"), resolve(root, ".runtime/deployment/runtime/node/bin/node")].filter((path): path is string => !!path && existsSync(path));
 const node = candidates[0];
-if (!node) throw new Error("Pinned Node is missing. Set ERPX_NODE_BIN to Node 26.11.1.");
-const version = Bun.spawnSync([node, "--version"]);
-if (version.exitCode !== 0 || version.stdout.toString().trim() !== "v26.11.1") throw new Error("Tests require Node 26.11.1.");
+if (suites.some(suite => suite.framework !== 'cargo')) {
+  if (!node) throw new Error("Pinned Node is missing. Set ERPX_NODE_BIN to Node 26.11.1.");
+  const version = Bun.spawnSync([node, "--version"]);
+  if (version.exitCode !== 0 || version.stdout.toString().trim() !== "v26.11.1") throw new Error("Tests require Node 26.11.1.");
+}
 
 const attachmentMode = process.env.ERPX_TEST_ATTACHMENTS_V2 ?? "false";
 if (!["false", "true"].includes(attachmentMode)) throw new Error("INVALID_TEST_ATTACHMENT_MODE");
@@ -101,6 +103,7 @@ async function execute(argv: string[], childEnv: Record<string, string | undefin
 for (const kind of ["unit", "integration", "provider"] as const) {
   const selected = suites.filter(suite => suite.lane === kind && suite.framework !== 'cargo');
   if (!selected.length) continue;
+  if (!node) throw new Error("Pinned Node is missing. Set ERPX_NODE_BIN to Node 26.11.1.");
   if (kind === "integration") databaseCredentials();
   // Every external lane is a deliberate invocation. Missing dependencies fail before collecting skipped tests.
   if (kind === "provider") {

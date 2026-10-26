@@ -27,6 +27,8 @@
     "files:audit:dev": "bun scripts/local/run-server-script.ts scripts/local/audit-file-provenance.ts",
     "status:capabilities": "bun scripts/docs/generate-capability-matrix.ts",
     "docs:check": "bun scripts/docs/check-documentation.ts",
+    "contracts:account": "bun scripts/docs/generate-account-contracts.ts",
+    "contracts:account:check": "bun scripts/docs/generate-account-contracts.ts --check",
     "ui:inventory": "bun scripts/ui/generate-ui-inventory.mjs",
     "test:e2e:local": "playwright test --config tests/config/playwright.config.ts",
     "test:e2e:dev": "playwright test --config tests/config/playwright.config.ts",
@@ -92,10 +94,10 @@
     "workspaces:tasks": "bun scripts/testing/workspace-tasks.ts",
     "workspaces:styles": "bun scripts/assets/workspace-styles.ts",
     "console:retirement:dev:check": "bun scripts/local/check-console-retirement.ts --development-workspaces",
-    "rust:check": "cargo check --workspace --all-targets --locked",
-    "rust:test": "cargo test --workspace --locked",
+    "rust:check": "cargo check --workspace --all-targets --features erpx-server-legal/pdf-verifier,erpx-server-identity-access/contracts --locked",
+    "rust:test": "bun scripts/testing/rust-unit.ts",
     "rust:fmt": "cargo fmt --all -- --check",
-    "rust:clippy": "cargo clippy --workspace --all-targets --locked -- -D warnings"
+    "rust:clippy": "cargo clippy --workspace --all-targets --features erpx-server-legal/pdf-verifier,erpx-server-identity-access/contracts --locked -- -D warnings"
   },
   "packageManager": "bun@1.4.3",
   "dependencies": {

@@ -97,17 +97,19 @@ def unsigned():
     return output.getvalue()
 
 
-def signed(cert=SIGNER, timestamp=True, permission=None, lock=None, source=None, field_name="Signature", signer_key=SIGNER_KEY, prefer_pss=False, md_algorithm="sha256", tsa_cert=TSA):
+def signed(cert=SIGNER, timestamp=True, permission=None, lock=None, source=None, field_name="Signature", signer_key=SIGNER_KEY, prefer_pss=False, md_algorithm="sha256", tsa_cert=TSA, ignore_seed=False, reason=None):
     store = SimpleCertificateStore()
     store.register(asn_certificate(ROOT))
     signer = SimpleSigner(asn_certificate(cert), asn_key(signer_key), store, prefer_pss=prefer_pss)
     output = io.BytesIO()
     metadata = PdfSignatureMetadata(field_name=field_name, md_algorithm=md_algorithm,
-        certify=permission is not None, docmdp_permissions=permission or MDPPerm.FILL_FORMS)
+        certify=permission is not None, docmdp_permissions=permission or MDPPerm.FILL_FORMS, reason=reason)
     timestamper = DummyTimeStamper(asn_certificate(tsa_cert), asn_key(TSA_KEY),
         certs_to_embed=store, fixed_dt=MOMENT - timedelta(minutes=5)) if timestamp else None
     field_spec = SigFieldSpec(sig_field_name=field_name, field_mdp_spec=lock) if lock else None
-    PdfSigner(metadata, signer, timestamper=timestamper, new_field_spec=field_spec).sign_pdf(
+    pdf_signer = PdfSigner(metadata, signer, timestamper=timestamper, new_field_spec=field_spec)
+    pdf_signer._ignore_sv = ignore_seed  # Development adversarial fixture only.
+    pdf_signer.sign_pdf(
         IncrementalPdfFileWriter(io.BytesIO(source or unsigned())), output=output)
     return output.getvalue()
 

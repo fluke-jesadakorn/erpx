@@ -259,8 +259,10 @@ const server = createServer(async (req, res) => {
     // A failed upstream is never retried: this stream may be a business mutation.
     const headers = { ...req.headers }; delete headers["x-erpx-workspace-preview"];
     const transportPrefix=`/__erpx/${id}`;
-    const upstreamPath=holdingRoutingEnabled(environment)&&holdingHostForHost(req.headers.host)&&(req.url??'').startsWith(transportPrefix+'/api/')?req.url!.slice(transportPrefix.length):req.url;
+    const holdingWorker=holdingRoutingEnabled(environment)&&!!holdingHostForHost(req.headers.host)&&(req.url??'').split('?')[0]===transportPrefix+'/erpx-push-sw.js';
+    const upstreamPath=holdingRoutingEnabled(environment)&&holdingHostForHost(req.headers.host)&&((req.url??'').startsWith(transportPrefix+'/api/')||holdingWorker)?req.url!.slice(transportPrefix.length):req.url;
     const upstream = httpRequest({ host: "127.0.0.1", port: app.port, method: req.method, path: upstreamPath, headers }, response => {
+      if(holdingWorker&&response.statusCode===200)response.headers['service-worker-allowed']='/';
       if(id!=='compat'&&holdingRoutingEnabled(environment)&&response.headers.location)response.headers.location=holdingGatewayLocation(req.headers.host??'',req.url??'/',response.headers.location,id);
       res.writeHead(response.statusCode ?? 502, response.statusMessage, response.headers); response.pipe(res);
       response.once("error", error => failed(res, error));

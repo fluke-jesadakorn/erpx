@@ -83,6 +83,17 @@ export function cargoVerificationEdges(files: ReadonlyMap<string, string>): Map<
     if (manifest === 'Cargo.toml' || !manifest.endsWith('/Cargo.toml') || !cargoPackageName(text)) continue;
     const directory = posix.dirname(manifest);
     for (const input of cargoRootInputs) add(manifest, input);
+    const resources = /^\[package\.metadata\.erpx\]\s*\n([\s\S]*?)(?=^\[|$(?![\s\S]))/m.exec(text)?.[1];
+    const roots = resources && /^verification-roots\s*=\s*\[([\s\S]*?)\]\s*(?:#[^\n]*)?$/m.exec(resources)?.[1];
+    if (resources && /verification-roots/.test(resources) && roots === undefined) throw new Error(`CARGO_RESOURCE_ROOT_INVALID:${manifest}`);
+    for (const match of roots?.matchAll(/"([^"\n]+)"/g) ?? []) {
+      const resource = posix.normalize(posix.join(directory, match[1]));
+      if (match[1].startsWith('/') || match[1].includes('\\') || resource === '..' || resource.startsWith('../') || resource.split('/').some(part => /^\.env(?:\.|$)/.test(part) || ['.git','.scratch','.runtime','target','node_modules'].includes(part))) throw new Error(`CARGO_RESOURCE_ROOT_INVALID:${manifest}`);
+      const members = [...files.keys()].filter(file => file === resource || file.startsWith(`${resource}/`));
+      if (!members.length) throw new Error(`CARGO_RESOURCE_ROOT_UNMAPPED:${manifest}:${resource}`);
+      for (const file of members) add(manifest, file);
+    }
+
     for (const file of files.keys()) if (file.startsWith(`${directory}/src/`) && file.endsWith('.rs')) { add(manifest, file); add(file, manifest); }
     for (const target of cargoTestTargets(text)) {
       const path = posix.normalize(posix.join(directory, target.path)); add(path, manifest);
@@ -93,4 +104,16 @@ export function cargoVerificationEdges(files: ReadonlyMap<string, string>): Map<
     for (const match of text.matchAll(/\bpath\s*=\s*"([^"\n]+)"/g)) add(manifest, posix.normalize(posix.join(directory, match[1], 'Cargo.toml')));
   }
   return result;
+}
+
+/** Check worker-only and contract-generation code without forcing packaging choices such as vendored OpenSSL. */
+export function cargoQualityFeatureArguments(files: ReadonlyMap<string,string>, suites: readonly Suite[]): string[] {
+  const features = new Set(suites.filter(suite => suite.framework === 'cargo').flatMap(suite => (suite.cargo?.features ?? []).map(feature => `${suite.cargo!.package}/${feature}`)));
+  for (const [file, source] of files) {
+    if (!file.endsWith('/Cargo.toml')) continue;
+    const name = cargoPackageName(source);
+    const section = /^\[features\]\s*\n([\s\S]*?)(?=^\[|$(?![\s\S]))/m.exec(source)?.[1];
+    if (name && section && /^contracts\s*=/m.test(section)) features.add(`${name}/contracts`);
+  }
+  return features.size ? ['--features', [...features].sort().join(',')] : [];
 }

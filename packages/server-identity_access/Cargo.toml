@@ -1,0 +1,80 @@
+[package]
+name = "erpx-server-identity-access"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+autotests = false
+
+[package.metadata.erpx]
+verification-roots = ["resources", "../../fixtures/identity_access/permissions"]
+
+[lib]
+path = "src/lib.rs"
+
+[features]
+contracts = ["dep:ts-rs", "dep:utoipa"]
+
+[dependencies]
+ring.workspace = true
+erpx-server-shared.workspace = true
+erpx-server-organization.workspace = true
+erpx-server-people-payroll.workspace = true
+erpx-server-runtime.workspace = true
+argon2.workspace = true
+getrandom.workspace = true
+sha2.workspace = true
+hex.workspace = true
+time.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+axum.workspace = true
+tokio.workspace = true
+sqlx.workspace = true
+ts-rs = { workspace = true, optional = true }
+utoipa = { workspace = true, optional = true }
+
+[dev-dependencies]
+uuid.workspace = true
+tower.workspace = true
+
+[[example]]
+name = "export-account-contracts"
+path = "../../scripts/docs/export-account-contracts.rs"
+required-features = ["contracts"]
+
+[[test]]
+name = "work_context"
+path = "../../tests/unit/identity_access/rust-work-context.test.rs"
+
+[[test]]
+name = "work_context_postgres"
+path = "../../tests/integration/identity_access/rust-work-context-postgres.test.rs"
+
+[[test]]
+name = "account_auth"
+path = "../../tests/unit/identity_access/rust-account-auth.test.rs"
+
+[[test]]
+name = "account_auth_postgres"
+path = "../../tests/integration/identity_access/rust-account-auth-postgres.test.rs"
+
+[[test]]
+name = "account_recovery"
+path = "../../tests/unit/identity_access/rust-account-recovery.test.rs"
+
+[[test]]
+name = "account_recovery_postgres"
+path = "../../tests/integration/identity_access/rust-account-recovery-postgres.test.rs"
+
+[[example]]
+name = "export-permission-contracts"
+path = "../../scripts/docs/export-permission-contracts.rs"
+
+[[test]]
+name = "permission_catalog"
+path = "../../tests/unit/identity_access/rust-permission-catalog.test.rs"
+
+[lints]
+workspace = true

@@ -20,5 +20,9 @@ serde_json.workspace = true
 name = "shared_core"
 path = "../../tests/unit/shared.architecture/rust-shared-core.test.rs"
 
+[[test]]
+name = "json_numbers"
+path = "../../tests/unit/shared.architecture/rust-json-numbers.test.rs"
+
 [lints]
 workspace = true

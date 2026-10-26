@@ -71,3 +71,7 @@ Historical Rust terms and dated rollout evidence in older decisions apply to tha
 | [ADR-050: Apps Feed and Work retirement](ADR-050-apps-feed-and-work-retirement.md) | Accepted for development; Cloudflare retirement requires current administration access. |
 
 - [ADR-051: Holding addresses and workspace paths](ADR-051-holding-addresses-and-workspace-paths.md) — development host identity, explicit scope and shared app namespaces.
+
+- [ADR-052: Rust modular monolith and domain-aligned frontend](ADR-052-rust-backend-and-domain-aligned-frontend.md) — accepted development migration and sequential container preparation.
+
+- [ADR-053: Explicit PDF seed Key Usage prohibitions](ADR-053-explicit-pdf-seed-key-usage-prohibitions.md) — preserve explicit prohibitions and record the narrow legacy-oracle security exception.

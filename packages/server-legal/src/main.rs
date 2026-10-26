@@ -1,9 +1,15 @@
 //! Offline conformance/operations entrypoint; it has no database or network access.
-use erpx_server_legal::public::{OperatorTrustStore, validate_signed_pdf};
+use erpx_server_legal::public::{
+    OperatorTrustStore, enforce_pdf_child_resource_limits, validate_signed_pdf,
+};
 use std::{env, fs, io::Read, path::Path};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
 fn main() {
+    if enforce_pdf_child_resource_limits().is_err() {
+        eprintln!("VERIFIER_RESOURCE_LIMIT_UNAVAILABLE");
+        std::process::exit(2);
+    }
     let arguments: Vec<_> = env::args().skip(1).collect();
     if arguments.len() != 3 {
         eprintln!(

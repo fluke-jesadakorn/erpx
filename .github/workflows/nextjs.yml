@@ -84,6 +84,7 @@ jobs:
           name: development-verification-${{ github.sha }}
           path: |
             .scratch/dev/test-suites/workspaces/
+            .scratch/dev/test-suites/cargo/
             .scratch/dev/test-suites/browser/
           if-no-files-found: warn
   acceptance:

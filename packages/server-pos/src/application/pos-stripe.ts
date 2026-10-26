@@ -513,7 +513,7 @@ export function createPosStripe(ports: {
             return stripeCall(Boolean(p.livemode), 'payment_intents', { ...options, key: `${options.key}-billing-email-v2`, body });
         }
     }
-    async function posStripeWebhook(raw: string, signature: string) {
+    async function posStripeWebhook(raw: string, signature: string, expectedHoldingId?:string) {
         const secrets = [ports.environment("POS_STRIPE_TEST_WEBHOOK_SECRET"), ports.environment("POS_STRIPE_LIVE_WEBHOOK_SECRET")].filter((s): s is string => Boolean(s));
         if (!verifySignature(raw, signature, secrets))
             fail('POS_WEBHOOK_SIGNATURE', 'Invalid signature', 400);
@@ -524,6 +524,7 @@ export function createPosStripe(ports: {
         const env = await ports.resources(), route = await env.control.controlOne1({ arg0: event.account, arg1: event.livemode });
         if (!route)
             return { received: true, ignored: true };
+        if(expectedHoldingId&&str(route,'holding_id')!==expectedHoldingId)fail('POS_WEBHOOK_HOLDING_MISMATCH','This account belongs to another Holding.',404);
         const db = await ports.forHolding(str(route, 'holding_id'));
         await db.transaction(async (tx) => {
             await tx.writePosStripeEvents1({ id: event.id, account: event.account, livemode: event.livemode, company_id: route.company_id, type: event.type, fact5: JSON.stringify(event.data.object), fact6: ports.clock.now() });

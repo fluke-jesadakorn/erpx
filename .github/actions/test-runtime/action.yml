@@ -41,7 +41,7 @@ runs:
         sudo freshclam
         sudo mkdir -p /tmp/erpx-clamav
         sudo chown clamav:clamav /tmp/erpx-clamav
-        printf '%s\n' 'Foreground yes' 'LocalSocket /tmp/erpx-clamav/clamd.sock' 'LocalSocketMode 666' 'DatabaseDirectory /var/lib/clamav' 'User clamav' 'ScanPDF yes' 'ScanArchive yes' 'LogFile /tmp/erpx-clamav/clamd.log' > /tmp/erpx-clamav/clamd.conf
+        printf '%s\n' 'Foreground yes' 'LocalSocket /tmp/erpx-clamav/clamd.sock' 'LocalSocketMode 666' 'DatabaseDirectory /var/lib/clamav' 'User clamav' 'ScanPDF yes' 'ScanArchive yes' 'LogFile /tmp/erpx-clamav/clamd.log' | sudo tee /tmp/erpx-clamav/clamd.conf > /dev/null
         sudo clamd --config-file=/tmp/erpx-clamav/clamd.conf &
         for attempt in $(seq 1 60); do test -S /tmp/erpx-clamav/clamd.sock && break; sleep 1; done
         test -S /tmp/erpx-clamav/clamd.sock

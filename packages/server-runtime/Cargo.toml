@@ -7,12 +7,11 @@ license.workspace = true
 publish.workspace = true
 autotests = false
 
+[package.metadata.erpx]
+verification-roots = ["../../migrations/postgres"]
+
 [lib]
 path = "src/lib.rs"
-
-[[bin]]
-name = "erpx-server"
-path = "src/main.rs"
 
 [dependencies]
 erpx-server-shared.workspace = true
@@ -20,10 +19,15 @@ axum.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
+sqlx.workspace = true
+sha2.workspace = true
+hex.workspace = true
 
 [dev-dependencies]
 tower.workspace = true
 syn.workspace = true
+uuid.workspace = true
+tempfile.workspace = true
 
 [[test]]
 name = "runtime_foundation"
@@ -32,6 +36,18 @@ path = "../../tests/unit/shared.architecture/rust-runtime-foundation.test.rs"
 [[test]]
 name = "rust_architecture"
 path = "../../tests/unit/shared.architecture/rust-architecture.test.rs"
+
+[[test]]
+name = "postgres_config"
+path = "../../tests/unit/shared.architecture/rust-postgres-config.test.rs"
+
+[[test]]
+name = "postgres_transactions"
+path = "../../tests/integration/shared.persistence/rust-postgres.test.rs"
+
+[[test]]
+name = "postgres_migrations"
+path = "../../tests/integration/shared.persistence/rust-migrations.test.rs"
 
 [lints]
 workspace = true

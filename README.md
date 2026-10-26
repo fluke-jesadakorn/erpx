@@ -50,13 +50,14 @@ The rich local dataset and demo personas are documented in [docs/local-seed.md](
 Install the toolchain pinned by `rust-toolchain.toml`, then use the native commands below. The inventory command reads implementation metadata and does not start a service or change a database.
 
 ```bash
-cargo test --workspace --locked
-cargo fmt --all -- --check
-cargo clippy --workspace --all-targets --locked -- -D warnings
-cargo run --locked --package erpx-server-runtime --bin erpx-server -- owners
+bun run rust:test
+bun run rust:fmt
+bun run rust:check
+bun run rust:clippy
+cargo run --locked --package erpx-service --bin erpx-server -- owners
 ```
 
-Use the registered test catalogue for affected native/TypeScript checks. Ordinary development does not run production acceptance, deploy services or publish images. Follow [SECURITY.md](SECURITY.md) for vulnerability reports and [GOVERNANCE.md](GOVERNANCE.md) for ownership and architecture decisions.
+The native unit command uses catalogue targets and case receipts without database access. PostgreSQL suites require a configured local test administrator and explicit integration selection; the fixture creates and drops only its leased disposable databases. Use the registered test catalogue for affected native/TypeScript checks. Ordinary development does not run production acceptance, deploy services or publish images. Follow [SECURITY.md](SECURITY.md) for vulnerability reports and [GOVERNANCE.md](GOVERNANCE.md) for ownership and architecture decisions.
 
 ## Structure
 

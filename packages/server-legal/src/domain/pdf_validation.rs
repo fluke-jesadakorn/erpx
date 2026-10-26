@@ -19,6 +19,8 @@ pub struct SignatureValidation {
     pub certificate_validity: ValidationState,
     pub revocation: ValidationState,
     pub timestamp: ValidationState,
+    /// Document/seed constraints are separate from cryptographic integrity.
+    pub policy: ValidationState,
     pub subject: String,
     pub issuer: String,
     pub serial: String,
@@ -41,6 +43,7 @@ pub struct PdfValidationReport {
     pub engine: String,
 }
 
+#[cfg(feature = "pdf-verifier")]
 impl SignatureValidation {
     pub(crate) fn unresolved(field: String, reason: &str) -> Self {
         Self {
@@ -51,6 +54,7 @@ impl SignatureValidation {
             certificate_validity: ValidationState::Indeterminate,
             revocation: ValidationState::Indeterminate,
             timestamp: ValidationState::Indeterminate,
+            policy: ValidationState::Indeterminate,
             subject: String::new(),
             issuer: String::new(),
             serial: String::new(),
@@ -63,6 +67,7 @@ impl SignatureValidation {
     }
 }
 
+#[cfg(feature = "pdf-verifier")]
 pub(crate) fn aggregate(states: impl IntoIterator<Item = ValidationState>) -> ValidationState {
     let mut found = false;
     let mut unknown = false;

@@ -804,7 +804,6 @@
         "@erpx/server-organization": "workspace:*",
         "@erpx/ui": "workspace:*",
         "@erpx/workplace": "workspace:*",
-        "better-auth": "1.7.12",
         "lucide-react": "1.61.0",
         "next": "16.4.3",
         "react": "19.3.1",
@@ -1040,6 +1039,7 @@
       "name": "@erpx/feature-platform_administration",
       "version": "0.0.0",
       "dependencies": {
+        "@erpx/contracts": "workspace:*",
         "@erpx/feature-people_payroll": "workspace:*",
         "@erpx/feature-records": "workspace:*",
         "@erpx/feature-runtime": "workspace:*",

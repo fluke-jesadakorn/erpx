@@ -1,1 +1,12 @@
+#[cfg(feature = "pdf-verifier")]
+pub(crate) mod pdf_process;
+#[cfg(feature = "pdf-verifier")]
+pub(crate) mod pdf_resource_limits;
+#[cfg(feature = "pdf-verifier")]
 pub(crate) mod pdf_validation;
+#[cfg(feature = "pdf-verifier")]
+pub(crate) mod postgres_pdf_verification;
+pub(crate) mod postgres_trust;
+pub(crate) mod postgres_trust_commands;
+#[cfg(feature = "trust-materials")]
+pub(crate) mod trust_material_inspector;

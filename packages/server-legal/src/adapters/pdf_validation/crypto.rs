@@ -13,7 +13,7 @@ use openssl::{
     ocsp::{OcspCertId, OcspCertStatus, OcspFlag, OcspResponseStatus},
     stack::Stack,
     x509::{
-        CrlStatus, X509, X509PurposeId, X509Ref, X509StoreContext,
+        X509, X509PurposeId, X509Ref, X509StoreContext,
         store::{X509Store, X509StoreBuilder},
         verify::X509VerifyParam,
     },
@@ -21,7 +21,7 @@ use openssl::{
 use sha2::{Digest, Sha256};
 use std::cmp::Ordering;
 use time::{Duration, OffsetDateTime, PrimitiveDateTime, format_description::well_known::Rfc3339};
-use x509_cert::{Certificate, crl::CertificateList, spki::AlgorithmIdentifierOwned};
+use x509_cert::{Certificate, spki::AlgorithmIdentifierOwned};
 use x509_tsp::TstInfo;
 
 const SIGNED_DATA: &str = "1.2.840.113549.1.7.2";
@@ -81,6 +81,83 @@ fn parsed_cms(bytes: &[u8]) -> Result<(SignedData, Vec<X509>, X509), &'static st
     Ok((signed, certificates, matching.remove(0)))
 }
 
+pub(super) fn seed_cms_evidence(bytes: &[u8]) -> Result<(String, bool), &'static str> {
+    let (signed, _, _) = parsed_cms(bytes)?;
+    let signer = signed.signer_infos.0.get(0).ok_or("MISSING_CMS_SIGNER")?;
+    let digest = match signer.digest_alg.oid.to_string().as_str() {
+        "2.16.840.1.101.3.4.2.1" => "sha256",
+        "2.16.840.1.101.3.4.2.2" => "sha384",
+        "2.16.840.1.101.3.4.2.3" => "sha512",
+        "2.16.840.1.101.3.4.2.4" => "sha224",
+        "1.3.14.3.2.26" => "sha1",
+        "1.2.840.113549.2.5" => "md5",
+        _ => return Err("SEED_VALUE_CONSTRAINTS_UNRESOLVED"),
+    };
+    let adobe_revocation = signer.signed_attrs.as_ref().is_some_and(|attributes| {
+        attributes
+            .iter()
+            .any(|attribute| attribute.oid.to_string() == "1.2.840.113583.1.1.8")
+    });
+    Ok((digest.to_owned(), adobe_revocation))
+}
+
+pub(super) fn seed_signer_certificate(bytes: &[u8]) -> Result<Certificate, &'static str> {
+    let (_, _, signer) = parsed_cms(bytes)?;
+    Certificate::from_der(
+        &signer
+            .to_der()
+            .map_err(|_| "SEED_VALUE_CONSTRAINTS_UNRESOLVED")?,
+    )
+    .map_err(|_| "SEED_VALUE_CONSTRAINTS_UNRESOLVED")
+}
+
+pub(super) fn seed_authorities(
+    bytes: &[u8],
+    trust: &OperatorTrustStore,
+    moment: OffsetDateTime,
+) -> Result<Vec<Certificate>, &'static str> {
+    let (_, embedded, signer) = parsed_cms(bytes)?;
+    chain(&signer, &embedded, trust, moment, false)?
+        .iter()
+        .skip(1)
+        .map(|certificate| {
+            Certificate::from_der(
+                &certificate
+                    .to_der()
+                    .map_err(|_| "SEED_VALUE_CONSTRAINTS_UNRESOLVED")?,
+            )
+            .map_err(|_| "SEED_VALUE_CONSTRAINTS_UNRESOLVED")
+        })
+        .collect()
+}
+
+pub(super) fn seed_subject_attributes(bytes: &[u8]) -> Result<Vec<(String, String)>, &'static str> {
+    let (_, _, signer) = parsed_cms(bytes)?;
+    let typed = seed_signer_certificate(bytes)?;
+    let identifiers: Vec<_> = typed
+        .tbs_certificate
+        .subject
+        .0
+        .iter()
+        .flat_map(|rdn| rdn.0.iter())
+        .map(|attribute| attribute.oid.to_string())
+        .collect();
+    let values = signer
+        .subject_name()
+        .entries()
+        .map(|entry| {
+            entry
+                .data()
+                .to_string()
+                .map_err(|_| "SEED_VALUE_CONSTRAINTS_UNRESOLVED")
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    if identifiers.len() != values.len() {
+        return Err("SEED_VALUE_CONSTRAINTS_UNRESOLVED");
+    }
+    Ok(identifiers.into_iter().zip(values).collect())
+}
+
 fn digest(oid: &str) -> Option<MessageDigest> {
     match oid {
         "2.16.840.1.101.3.4.2.1" => Some(MessageDigest::sha256()),
@@ -109,7 +186,7 @@ struct PssParameters {
     trailer: Option<u64>,
 }
 
-fn approved_signature_algorithm(algorithm: &AlgorithmIdentifierOwned) -> bool {
+pub(super) fn approved_signature_algorithm(algorithm: &AlgorithmIdentifierOwned) -> bool {
     match algorithm.oid.to_string().as_str() {
         "1.2.840.113549.1.1.10" => {
             let Some(parameters) = &algorithm.parameters else {
@@ -310,96 +387,11 @@ fn certificate_revocation(
     if depth >= 8 {
         return ValidationState::Indeterminate;
     }
-    let Ok(now) = Asn1Time::from_unix(moment.unix_timestamp()) else {
-        return ValidationState::Indeterminate;
-    };
-    let Ok(issuer_key) = issuer.public_key() else {
-        return ValidationState::Indeterminate;
-    };
-    let mut good = false;
-    for (crl, der) in &trust.crls {
-        if crl.issuer_name().to_der().ok() != issuer.subject_name().to_der().ok()
-            || !crl.verify(&issuer_key).unwrap_or(false)
-        {
-            continue;
-        }
-        let Some(this_update) = openssl_time(&crl.last_update()) else {
-            continue;
-        };
-        let next_update = crl
-            .next_update()
-            .and_then(|next| openssl_time(&next))
-            .unwrap_or(this_update + Duration::minutes(30));
-        if this_update > moment + Duration::SECOND || next_update < moment - Duration::SECOND {
-            continue;
-        }
-        let Ok(parsed) = CertificateList::from_der(der) else {
-            continue;
-        };
-        if !approved_signature_algorithm(&parsed.signature_algorithm) {
-            continue;
-        }
-        // A full direct issuer CRL is evaluated here. Delta, indirect and
-        // partitioned CRLs need scope/reason processing and cannot prove good.
-        if parsed
-            .tbs_cert_list
-            .crl_extensions
-            .as_ref()
-            .is_some_and(|extensions| {
-                extensions.iter().any(|extension| {
-                    !["2.5.29.20", "2.5.29.35"].contains(&extension.extn_id.to_string().as_str())
-                })
-            })
-        {
-            continue;
-        }
-        if parsed
-            .tbs_cert_list
-            .revoked_certificates
-            .as_ref()
-            .is_some_and(|entries| {
-                entries.iter().any(|entry| {
-                    entry
-                        .crl_entry_extensions
-                        .as_ref()
-                        .is_some_and(|extensions| {
-                            extensions.iter().any(|extension| {
-                                extension.critical || extension.extn_id.to_string() == "2.5.29.29"
-                            })
-                        })
-                })
-            })
-        {
-            continue;
-        }
-        let Ok(issuer_der) = issuer.to_der() else {
-            continue;
-        };
-        let Ok(issuer_certificate) = Certificate::from_der(&issuer_der) else {
-            continue;
-        };
-        if issuer_certificate
-            .tbs_certificate
-            .get::<x509_cert::ext::pkix::KeyUsage>()
-            .ok()
-            .flatten()
-            .is_some_and(|(_, usage)| !usage.crl_sign())
-        {
-            continue;
-        }
-        match crl.get_by_serial(certificate.serial_number()) {
-            CrlStatus::Revoked(entry)
-                if entry
-                    .revocation_date()
-                    .compare(&now)
-                    .is_ok_and(|order| order != Ordering::Greater) =>
-            {
-                return ValidationState::Invalid;
-            }
-            CrlStatus::NotRevoked => good = true,
-            _ => {}
-        }
+    let crl = super::crl::certificate_status(certificate, issuer, trust, moment);
+    if crl.state == ValidationState::Invalid {
+        return crl.state;
     }
+    let mut good = crl.state == ValidationState::Valid;
     let Ok(response_store) = store(trust, moment, X509PurposeId::ANY) else {
         return ValidationState::Indeterminate;
     };
@@ -409,7 +401,7 @@ fn certificate_revocation(
         .ocsp_responders()
         .is_ok_and(|responders| !responders.is_empty())
     {
-        return if good {
+        return if good && !crl.unresolved {
             ValidationState::Valid
         } else {
             ValidationState::Indeterminate
@@ -505,7 +497,7 @@ fn certificate_revocation(
             }
         }
     }
-    if good {
+    if good && !crl.unresolved {
         ValidationState::Valid
     } else {
         ValidationState::Indeterminate

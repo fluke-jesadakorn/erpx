@@ -35,3 +35,12 @@ it("returns permitted page actors unchanged", () => {
   expect(requirePermission(actor, "finance.read")).toBe(actor);
   expect(mocks.forbidden).not.toHaveBeenCalled();
 });
+
+import legacyPermissionCases from "../../../fixtures/identity_access/permissions/legacy-explicit-permissions.v1.json";
+import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
+it("keeps generated browser permission projections compatible with the recorded explicit IAM matrix", () => {
+  for (const row of legacyPermissionCases.cases) {
+    const actor: PermissionActor = { role: "holding_owner", scope: { kind: row.scope }, permissions: row.granted ? [row.permission] : [], ...(row.identity ? { userId: "synthetic-actor" } : {}) };
+    expect(hasPermission(actor, row.permission), JSON.stringify(row)).toBe(row.expected);
+  }
+});

@@ -1,10 +1,13 @@
+mod crl;
 mod crypto;
 mod document;
+mod seed;
 mod trust;
 
 use crate::application::pdf_validation::{finish_report, finish_signature};
 use crate::domain::pdf_validation::{PdfValidationReport, SignatureValidation, ValidationState};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
+pub(crate) use trust::material_digest;
 pub use trust::{OperatorTrustStore, TrustMaterial};
 
 /// Verify one immutable PDF version using only approved, supplied evidence.
@@ -30,6 +33,30 @@ pub fn validate_signed_pdf(
             return report;
         }
     };
+    if document.signatures.iter().any(|field| {
+        matches!(
+            field
+                .dictionary
+                .get(b"Type")
+                .and_then(lopdf::Object::as_name),
+            Ok(b"DocTimeStamp")
+        ) || matches!(
+            field
+                .dictionary
+                .get(b"SubFilter")
+                .and_then(lopdf::Object::as_name),
+            Ok(b"ETSI.RFC3161")
+        )
+    }) {
+        // B0's ordinary-signature entrypoint rejects document timestamps and
+        // returns one indeterminate document, without partial signature output.
+        // Do not invent document-timestamp validity from a CMS signature alone.
+        report.reasons = vec![
+            "VALIDATION_FAILED".to_owned(),
+            "DOCUMENT_TIMESTAMP_POLICY_UNRESOLVED".to_owned(),
+        ];
+        return report;
+    }
     for field in &document.signatures {
         let mut signature = match document::signed_content(pdf, field) {
             Ok(content) => {
@@ -49,12 +76,16 @@ pub fn validate_signed_pdf(
             ];
             return report;
         }
-        // Seed-value certificate/handler policies require additional conformance
-        // work. Do not silently treat an unimplemented policy as satisfied.
-        if field.field.has(b"SV") {
+        if let Err(reason) =
+            seed::satisfied(pdf, &document, field, signature.timestamp, trust, moment)
+        {
             signature
                 .reasons
-                .push("SEED_VALUE_CONSTRAINTS_UNRESOLVED".to_owned());
+                .push(if reason == "SEED_VALUE_CONSTRAINTS_FAILURE" {
+                    reason.to_owned()
+                } else {
+                    "SEED_VALUE_CONSTRAINTS_UNRESOLVED".to_owned()
+                });
         }
         match document::modification_policy(pdf, &document, field) {
             document::Modification::Allowed => {}

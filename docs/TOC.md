@@ -6,6 +6,8 @@ Reviewed 2026-10-23. This is the single entry point. [Production plan](productio
 
 ## Current system
 
+- [Active Rust/Next.js delivery plan](production-plan.md), [owner migration register](status/rust-backend-migration.json), [architecture decision](adr/ADR-052-rust-backend-and-domain-aligned-frontend.md) and [PDF policy exception](adr/ADR-053-explicit-pdf-seed-key-usage-prohibitions.md).
+
 - [Open-source preparation and provenance](community/open-source.md), [contributing](../CONTRIBUTING.md), [governance](../GOVERNANCE.md), [security reporting](../SECURITY.md), [licensing scope](../LICENSING.md).
 
 - [Apps Feed and Work retirement](adr/ADR-050-apps-feed-and-work-retirement.md).
@@ -28,6 +30,7 @@ Reviewed 2026-10-23. This is the single entry point. [Production plan](productio
 
 - [Start and verify](../README.md), [developer instructions](../AGENTS.md), [local development seed](local-seed.md)
 - [Current owner contracts](contracts/next/README.md), [33-module catalogue workflows](contracts/next/catalogue.md), [route reference](contracts/next/route-table.md)
+- [Native Rust runtime and retained request leases](contracts/next/rust-runtime.md), [native Account credential migration and remaining parity](contracts/next/rust-account-migration.md)
 - [Service boundaries and isolated verification](contracts/next/service-boundaries.md)
 - [Executive remote MCP and agent connection guide](contracts/next/executive-mcp.md)
 - [Record detail drawers](contracts/next/record-drawers.md), [record/table coverage](contracts/next/record-drawer-inventory.json)

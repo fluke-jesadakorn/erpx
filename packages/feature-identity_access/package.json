@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./application/account-auth-port": "./src/application/account-auth-port.ts",
+    "./adapters/http/account-auth": "./src/adapters/http/account-auth.ts",
     "./components/account-profile-form": "./src/components/account-profile-form.tsx",
     "./components/account-home": "./src/components/account-home.tsx",
     "./components/technology/directory-workspace.module.css": "./src/components/technology/directory-workspace.module.css",
@@ -92,7 +94,6 @@
     "@erpx/server-organization": "workspace:*",
     "@erpx/ui": "workspace:*",
     "@erpx/workplace": "workspace:*",
-    "better-auth": "1.7.12",
     "lucide-react": "1.61.0",
     "next": "16.4.3",
     "react": "19.3.1",

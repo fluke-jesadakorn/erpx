@@ -1,4 +1,4 @@
-# ERPX — Product app workspaces and fast development verification
+# ERPX — Rust and Next.js development delivery
 
 ## Rust backend, domain-aligned frontend and container preparation — 2026-10-27
 
@@ -14,11 +14,19 @@ Active user-authorized goal: preserve all current source changes, migrate every 
 
 The established availability, staging isolation, current-source verification and immutable-evidence requirements below remain in force. This section does not promote any prior development receipt into Rust acceptance.
 
+### Current implementation boundary
+
+R1 is pushed as `fcf6ad04b` in draft PR1. The late Holding source overlay was reconciled cleanly through a three-way patch from checkpoint B0; the private source manifest is `ee7b572155f3bc3baa63809cf3080c1f881b0be463839a96b32a060033530bfb`. Public browser journeys remain a separate pending handoff gate: the authenticated Holding launcher renders, but Finance branch launch has returned Cloudflare502 despite healthy local/public health endpoints. Do not infer acceptance from that overlay or successful retries.
+
+Corrective commit `61c039972` fixes the Actions service health-command quoting that prevented B0 from reaching checkout. Its subsequent run created PostgreSQL successfully, then exposed a scanner configuration permission error before tests. The scanner fix is prepared with R2; neither run is a passing verification receipt. The [explicit PDF seed prohibition decision](adr/ADR-053-explicit-pdf-seed-key-usage-prohibitions.md) records a narrowly tested security correction separately from exact legacy-oracle parity.
+
+R2 adds real SQLx migration/unit-of-work infrastructure, scoped Organization hierarchy reads, Account credential/device work, bounded Legal verifier execution and Finance calculation/journal preparation slices. Tests exercise real disposable PostgreSQL transactions and independent retained-source oracles. These are partial owner implementations. No business owner is enabled merely because its crate compiles, and the [migration register](status/rust-backend-migration.json) remains `backendMigrated:false`. Existing TypeScript runtime is retained until full owner and interface parity passes.
+
 ## Holding addresses — 2026-10-26
 
 The authorized development address model is Holding → Company/branch/department → app. [ADR-051](adr/ADR-051-holding-addresses-and-workspace-paths.md) and the [address contract](contracts/next/holding-addresses.md) supersede the product-host and automatic last-workspace entry instructions in the earlier dated sections. Exact registrations are Acme, Northstar and ERPX Internal on `jesadakorn.com`; Account remains central. The gateway dispatches paths into independent apps; `/__erpx/<app>/` separates API, image, static and HMR transport. Child sessions bind to the Holding hostname/environment and original owner authorization runs on every request. Root/unscoped app entry requires a fresh scope selection.
 
-Development migration1073 replaced14 conflicting branch/department slugs transactionally across the three Holding write databases, preserving identity/relationships/history and restoring immutable route guards. No old-slug aliases are created. Former app hosts return generic404; exact Console health/ready reads remain. The [runbook](../ops/macos/holding-development.md) and [live infrastructure receipt](../ops/macos/holding-development-live.json) describe publication and rollback. Current verification is development-only, acceptance:false. Production naming remains `{holding}.erpx.com` metadata; staging and installed private production are outside this change.
+Development migration1073 replaced14 conflicting branch/department slugs transactionally across the three Holding write databases, preserving identity/relationships/history and restoring immutable route guards. No old-slug aliases are created. Former app hosts return generic404; exact Console health/ready reads remain. The [runbook](../ops/macos/holding-development.md) and [live infrastructure receipt](../ops/macos/holding-development-live.json) describe publication and rollback. Selected verification passes691 routing/identity/Front/Booking units,184 POS provider units,87 identity integrations and58 People lifecycle integrations, plus typecheck, lint, catalogue, architecture/structure and isolated Finance/Apps/POS/Booking builds. The full browser matrix, intermittent public PMS Cloudflare502/1033 and Stripe Connect callback allowlist verification remain open. Booking was inspected at390×844 and its emulation restored. Current verification is development-only, acceptance:false. Production naming remains `{holding}.erpx.com` metadata; staging and installed private production are outside this change.
 
 
 ## Apps Feed and Work retirement — 2026-10-26

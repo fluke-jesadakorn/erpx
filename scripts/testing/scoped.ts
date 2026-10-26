@@ -10,7 +10,7 @@ import { verificationSources, loadCatalogue, validateCatalogue, repositoryRoot a
 import { dependencyClosure, workspaceInputFile, changedWorkspaceFiles, loadRevisionWorkspaceGraph, loadWorkspaceGraph, selectCandidateSuites, selectWorkspaceSuites, workspaceFingerprint } from './workspace-graph';
 import { pinnedNode } from '../local/app-task';
 import { refreshWorkspaceTaskInputs } from './workspace-tasks';
-import { cargoRootInputs, isCargoInput } from './cargo';
+import { cargoRootInputs, isCargoInput, cargoQualityFeatureArguments } from './cargo';
 
 type Options={mode:'dev'|'ci'|'build';apps:string[];base?:string;head?:string;list:boolean;json:boolean;watch:boolean};
 export function scopedArguments(input:string[]):Options {
@@ -77,8 +77,10 @@ export async function runScoped(options:Options){
    const units=plan.native.filter(suite=>suite.lane==='unit'),integration=plan.native.filter(suite=>suite.lane==='integration');
    if(plan.native.some(suite=>suite.framework==='cargo') || plan.changed.some(isCargoInput)){
     await execute(['cargo','fmt','--all','--','--check']);
-    await execute(['cargo','clippy','--workspace','--all-targets','--locked','--','-D','warnings']);
+    await execute(['cargo','clippy','--workspace','--all-targets',...cargoQualityFeatureArguments(graph.files,loadCatalogue().suites),'--locked','--','-D','warnings']);
    }
+   if(plan.changed.some(file=>isCargoInput(file)||file.startsWith('scripts/docs/export-account-contracts')||file==='scripts/docs/generate-account-contracts.ts'||file==='packages/contracts/src/account-auth.generated.ts'||file==='docs/contracts/next/account-auth.openapi.generated.json'))await execute([process.execPath,'scripts/docs/generate-account-contracts.ts','--check']);
+   if(plan.changed.some(file=>isCargoInput(file)||file.startsWith('packages/server-identity_access/resources/')||file==='scripts/docs/export-permission-contracts.rs'||file==='scripts/docs/generate-permission-contracts.ts'||file==='packages/contracts/src/permission-catalog.generated.json'))await execute([process.execPath,'scripts/docs/generate-permission-contracts.ts','--check']);
    const testFiles=[...plan.native,...plan.browser].filter(suite=>suite.framework!=='cargo').flatMap(suite=>suite.files);
    if(testFiles.length){
     const key=workspaceFingerprint(graph,[...selectedTypecheckInputs(testFiles),...verificationSources(plan.native)],['scripts/testing/selected-typecheck.ts','tests/config/tsconfig.json','tsconfig.base.json']);

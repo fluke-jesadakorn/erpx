@@ -13,17 +13,24 @@ pub trait IdentifierSource {
     fn next(&mut self) -> RecordId;
 }
 
-pub type TransactionFuture<'a, Output> =
-    Pin<Box<dyn Future<Output = Result<Output, BusinessError>> + Send + 'a>>;
+pub type TransactionFuture<'a, Output, Error = BusinessError> =
+    Pin<Box<dyn Future<Output = Result<Output, Error>> + Send + 'a>>;
 
-/// An adapter constructs all owner ports against one transaction. A nested
-/// owner receives those ports, never a pool, SQL statement or fresh connection.
-/// Owned outputs cannot retain a borrowed transaction after this boundary ends.
+/// A replay coordinator constructs fresh owner ports for every serializable attempt.
+/// The callback may run again after a database conflict; external effects belong
+/// in an outbox, and owned outputs cannot retain a transaction or leased port.
+/// A retained cross-database authorization lease is a separate one-attempt contract.
 pub trait UnitOfWork<Ports> {
-    fn run<'a, Output, Work>(&'a mut self, work: Work) -> TransactionFuture<'a, Output>
+    type Error: From<BusinessError> + Send + 'static;
+    fn run<'a, Output, Work>(
+        &'a mut self,
+        work: Work,
+    ) -> TransactionFuture<'a, Output, Self::Error>
     where
         Output: Send + 'static,
-        Work: for<'tx> FnOnce(&'tx mut Ports) -> TransactionFuture<'tx, Output> + Send + 'a;
+        Work: for<'tx> FnMut(&'tx mut Ports) -> TransactionFuture<'tx, Output, Self::Error>
+            + Send
+            + 'a;
 }
 
 pub trait CommandReceipts<Identity, Output> {

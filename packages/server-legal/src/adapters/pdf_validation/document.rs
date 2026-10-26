@@ -75,7 +75,10 @@ fn load(bytes: &[u8]) -> Result<Document, &'static str> {
     Ok(document)
 }
 
-fn resolve<'a>(document: &'a Document, object: &'a Object) -> Result<&'a Object, &'static str> {
+pub(super) fn resolve<'a>(
+    document: &'a Document,
+    object: &'a Object,
+) -> Result<&'a Object, &'static str> {
     document
         .dereference(object)
         .map(|(_, object)| object)
@@ -143,7 +146,7 @@ fn collect_fields(
     Ok(())
 }
 
-fn byte_range(field: &SignatureField, size: usize) -> Result<[usize; 4], &'static str> {
+pub(super) fn byte_range(field: &SignatureField, size: usize) -> Result<[usize; 4], &'static str> {
     let values = field
         .dictionary
         .get(b"ByteRange")
@@ -474,6 +477,102 @@ fn valid_dss(document: &Document, value: &Object) -> bool {
     true
 }
 
+/// A maintenance graph may update its own existing nodes only when no other
+/// catalog branch can reach them, in either revision. This prevents a DSS or
+/// Metadata alias from granting permission to overwrite a drawing object.
+fn allow_owned_maintenance_graph(
+    key: &[u8],
+    old: &Document,
+    current: &Document,
+    allowed: &mut HashSet<ObjectId>,
+) -> Result<(), Modification> {
+    let (Ok(old_catalog), Ok(new_catalog)) = (old.catalog(), current.catalog()) else {
+        return Err(Modification::Unresolved);
+    };
+    let Some(new_value) = new_catalog.get(key).ok() else {
+        return Ok(());
+    };
+    let mut old_graph = HashSet::new();
+    if let Ok(value) = old_catalog.get(key)
+        && !references(old, value, &mut old_graph, 0)
+    {
+        return Err(Modification::Unresolved);
+    }
+    let mut new_graph = HashSet::new();
+    if !references(current, new_value, &mut new_graph, 0) {
+        return Err(Modification::Unresolved);
+    }
+    let mut old_protected_catalog = old_catalog.clone();
+    old_protected_catalog.remove(key);
+    let mut new_protected_catalog = new_catalog.clone();
+    new_protected_catalog.remove(key);
+    let mut old_protected = HashSet::new();
+    let mut new_protected = HashSet::new();
+    if !references(
+        old,
+        &Object::Dictionary(old_protected_catalog),
+        &mut old_protected,
+        0,
+    ) || !references(
+        current,
+        &Object::Dictionary(new_protected_catalog),
+        &mut new_protected,
+        0,
+    ) {
+        return Err(Modification::Unresolved);
+    }
+    for id in &new_graph {
+        if old.objects.contains_key(id)
+            && old.objects.get(id) != current.objects.get(id)
+            && (old_protected.contains(id) || new_protected.contains(id))
+        {
+            return Err(Modification::Forbidden);
+        }
+    }
+    for id in old_graph.intersection(&new_graph) {
+        if old.objects.get(id) != current.objects.get(id) {
+            if old_protected.contains(id) || new_protected.contains(id) {
+                return Err(Modification::Forbidden);
+            }
+            allowed.insert(*id);
+        }
+    }
+    if allow_new_graph(new_value, old, current, allowed, 0)
+        && new_graph
+            .iter()
+            .all(|id| allow_new_graph(&Object::Reference(*id), old, current, allowed, 0))
+    {
+        Ok(())
+    } else {
+        Err(Modification::Unresolved)
+    }
+}
+
+fn valid_xmp(document: &Document, value: &Object) -> bool {
+    if !matches!(value, Object::Reference(_)) {
+        return false;
+    }
+    let Ok(Object::Stream(stream)) = resolve(document, value) else {
+        return false;
+    };
+    let Ok(bytes) = stream.get_plain_content_with_limit(32 * 1024 * 1024) else {
+        return false;
+    };
+    let Ok(text) = std::str::from_utf8(&bytes) else {
+        return false;
+    };
+    let options = roxmltree::ParsingOptions {
+        allow_dtd: false,
+        nodes_limit: 100_000,
+        entity_resolver: None,
+    };
+    let Ok(xml) = roxmltree::Document::parse_with_options(text, options) else {
+        return false;
+    };
+    let root = xml.root_element();
+    root.tag_name().namespace() == Some("adobe:ns:meta/") && root.tag_name().name() == "xmpmeta"
+}
+
 fn allow_added_signatures(
     old: &Document,
     current: &Document,
@@ -687,7 +786,7 @@ pub(super) fn modification_policy(
     }
     let catalog_changes = changed_keys(old_catalog, new_catalog);
     // Signature-maintenance DSS updates are allowed even for DocMDP P=1.
-    if !only_keys(&catalog_changes, &[b"DSS", b"AcroForm"]) {
+    if !only_keys(&catalog_changes, &[b"DSS", b"AcroForm", b"Metadata"]) {
         return if permission == 1 {
             Modification::Forbidden
         } else {
@@ -701,8 +800,24 @@ pub(super) fn modification_policy(
         if !valid_dss(&current.document, dss) {
             return Modification::Forbidden;
         }
-        if !allow_new_graph(dss, &old, &current.document, &mut allowed, 0) {
-            return Modification::Unresolved;
+        if let Err(state) =
+            allow_owned_maintenance_graph(b"DSS", &old, &current.document, &mut allowed)
+        {
+            return state;
+        }
+    }
+    if let Ok(metadata) = new_catalog.get(b"Metadata") {
+        if !valid_xmp(&current.document, metadata)
+            || old_catalog
+                .get(b"Metadata")
+                .is_ok_and(|value| !valid_xmp(&old, value))
+        {
+            return Modification::Forbidden;
+        }
+        if let Err(state) =
+            allow_owned_maintenance_graph(b"Metadata", &old, &current.document, &mut allowed)
+        {
+            return state;
         }
     }
     for (id, old_object) in &old.objects {

@@ -48,6 +48,7 @@ export function parseHoldingRoute(holdingSlug: string, pathname: string): Holdin
   const parts = pathname.split('/').filter(Boolean);
   if (parts.some(part => part === '.' || part === '..')) return null;
   if (parts[0] === '__erpx') {
+    if(appKey(parts[1])&&parts[2]==='erpx-push-sw.js'&&parts.length===3)return {app:parts[1],internalPath:'/erpx-push-sw.js',kind:'transport'};
     if(['pos','pms'].includes(parts[1])&&parts[2]==='front'&&parts[3]===holdingSlug&&validSegment(parts[4]??'')&&parts[5]==='logo'&&parts.length===6)
       return {app:parts[1] as 'pos'|'pms',internalPath:`/front/${holdingSlug}/${parts[4]}/${parts[1]}/logo`,kind:'transport'};
     if (!appKey(parts[1]) || !['api', '_next'].includes(parts[2])) return null;
@@ -56,7 +57,7 @@ export function parseHoldingRoute(holdingSlug: string, pathname: string): Holdin
     return { app: parts[1], internalPath, kind: 'transport' };
   }
   if (!parts.length) return { app: 'apps', internalPath: '/product-entry', kind: 'entry' };
-  if (['api', '_next', 'brand', 'fonts', 'vendor'].includes(parts[0]) || /^(?:favicon\.|icon[.-]|apple-icon\.|manifest\.|robots\.)/.test(parts[0])) {
+  if (['api', '_next', 'brand', 'fonts', 'vendor','erpx-push-sw.js'].includes(parts[0]) || /^(?:favicon\.|icon[.-]|apple-icon\.|manifest\.|robots\.)/.test(parts[0])) {
     if (!holdingPathMatches(holdingSlug, pathname)) return null;
     return { app: 'apps', internalPath: pathname, kind: 'system' };
   }

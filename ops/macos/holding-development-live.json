@@ -58,5 +58,99 @@
   "productionDeployed": false,
   "stagingAccessed": false,
   "evidenceDirectory": ".scratch/dev/holding-addresses/",
-  "providerAcceptance": false
+  "providerAcceptance": false,
+  "verificationUpdatedAt": "2026-10-27",
+  "stripeTestWebhook": {
+    "id": "we_1ULP9mKLj1zd9NnvYA8ULFtT",
+    "url": "https://acme.jesadakorn.com/__erpx/pos/api/pos/stripe/webhook",
+    "status": "enabled",
+    "liveMode": false,
+    "signingSecretRotated": false,
+    "eventsPreserved": true,
+    "currentConnectedHoldingIds": [
+      "h001"
+    ],
+    "invalidSignatureLocalAndPublicStatus": 400
+  },
+  "verification": {
+    "unitCases": 691,
+    "posProviderUnitCases": 184,
+    "identityIntegrationCases": 87,
+    "peopleLifecycleIntegrationCases": 58,
+    "typecheck": "passed",
+    "lintErrors": 0,
+    "catalogueSuites": 589,
+    "architectureAndStructure": "passed",
+    "isolatedBuilds": [
+      "finance",
+      "apps",
+      "pos",
+      "booking"
+    ],
+    "browser": "Authenticated Finance and explicit root selection inspected; POS desktop rendered; Booking empty publication state inspected at390x844 and emulation reset. Full responsive, record/draft and account-switch/logout matrix remains incomplete; PMS public navigation encountered Cloudflare502/1033.",
+    "acceptance": false
+  },
+  "remaining": [
+    "Public Console/PMS return530 (Tunnel1033); private3101 health timed out at final check. Local3100 remains200. Installed service logs require administrator access; no installed service was restarted. Complete the remaining browser matrix after recovery.",
+    "Sign into the matching Stripe Dashboard to verify/update Connect callback allowlist; public PMS payment remains disabled."
+  ],
+  "lastHttpReceipt": {
+    "local": 200,
+    "console-health": 200,
+    "private": 200,
+    "acme-health": 200,
+    "northstar-health": 200,
+    "erpx-internal-health": 200,
+    "acme-root": 307,
+    "book": 200,
+    "cross-holding": 404,
+    "finance-retired": 404,
+    "apps-retired": 404,
+    "pos-retired": 404,
+    "pms-retired": 404,
+    "admin-retired": 404,
+    "booking-retired": 404,
+    "portal-retired": 404,
+    "legal-portal-retired": 404,
+    "forms-retired": 404,
+    "work-retired": 404,
+    "console-retired": 404
+  },
+  "finalAvailability": [
+    {
+      "name": "local",
+      "url": "http://127.0.0.1:3100/api/health",
+      "status": 200,
+      "exit": 0,
+      "checkedAt": "2026-10-26T17:55:43.603795+00:00"
+    },
+    {
+      "name": "public-console",
+      "url": "https://console-dev-erpx.jesadakorn.com/api/health",
+      "status": 530,
+      "exit": 0,
+      "checkedAt": "2026-10-26T17:55:43.739516+00:00"
+    },
+    {
+      "name": "private",
+      "url": "http://127.0.0.1:3101/api/health",
+      "status": 0,
+      "exit": 28,
+      "checkedAt": "2026-10-26T17:56:03.756402+00:00"
+    },
+    {
+      "name": "public-pms",
+      "url": "https://acme.jesadakorn.com/bangkok/pms",
+      "status": 530,
+      "exit": 0,
+      "checkedAt": "2026-10-26T17:56:04.014107+00:00"
+    },
+    {
+      "name": "retired-console",
+      "url": "https://console-dev-erpx.jesadakorn.com/",
+      "status": 530,
+      "exit": 0,
+      "checkedAt": "2026-10-26T17:56:04.119979+00:00"
+    }
+  ]
 }

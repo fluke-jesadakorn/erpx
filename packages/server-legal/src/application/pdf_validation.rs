@@ -3,6 +3,19 @@ use crate::domain::pdf_validation::{PdfValidationReport, SignatureValidation, ag
 /// The application applies the three-state policy to independently verified evidence.
 pub(crate) fn finish_signature(signature: &mut SignatureValidation) {
     use crate::domain::pdf_validation::ValidationState;
+    signature.policy = if signature.reasons.iter().any(|reason| {
+        reason == "DOCUMENT_MODIFICATION_POLICY_FAILURE"
+            || reason == "SEED_VALUE_CONSTRAINTS_FAILURE"
+    }) {
+        ValidationState::Invalid
+    } else if signature.reasons.iter().any(|reason| {
+        reason == "DOCUMENT_MODIFICATION_POLICY_UNRESOLVED"
+            || reason == "SEED_VALUE_CONSTRAINTS_UNRESOLVED"
+    }) {
+        ValidationState::Indeterminate
+    } else {
+        ValidationState::Valid
+    };
     signature.status = aggregate([
         signature.integrity,
         signature.certificate_chain,
@@ -21,6 +34,7 @@ pub(crate) fn finish_signature(signature: &mut SignatureValidation) {
     if signature.reasons.iter().any(|reason| {
         reason == "DOCUMENT_MODIFICATION_POLICY_UNRESOLVED"
             || reason == "SEED_VALUE_CONSTRAINTS_UNRESOLVED"
+            || reason == "SEED_VALUE_CONSTRAINTS_FAILURE"
     }) && signature.status == ValidationState::Valid
     {
         signature.status = ValidationState::Indeterminate;

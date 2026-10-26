@@ -23,10 +23,7 @@ import {
   setContextSwitching,
 } from "@erpx/feature-work_projection/lib/context-switch";
 
-type DeviceSession = {
-  session: { token: string; userId: string };
-  user: { id: string; name: string; email: string; image?: string | null };
-};
+import type { DeviceAccountDto as DeviceSession } from "@erpx/contracts/account-auth";
 
 type Props = {
   accountNavigation?: boolean;
@@ -66,11 +63,13 @@ function LegacyAccountSwitcher({
   const [pending, setPending] = useState("");
   const [error, setError] = useState("");
   const [sessions, setSessions] = useState<DeviceSession[]>([]);
+  const [deviceRevision, setDeviceRevision] = useState<number | null>(null);
 
   async function loadAccounts() {
     const { authClient } = await import("@erpx/feature-identity_access/lib/auth-client");
     const result = await authClient.multiSession.listDeviceSessions();
-    if (result.data) setSessions(result.data as DeviceSession[]);
+    if (result.data) { setSessions(result.data.accounts); setDeviceRevision(result.data.revision); }
+    else { setDeviceRevision(null); setError(result.error?.message ?? "Saved accounts could not be loaded."); }
   }
 
   useEffect(() => {
@@ -119,8 +118,8 @@ function LegacyAccountSwitcher({
   }, [open, adding, appearance]);
 
   async function chooseAccount(session: DeviceSession) {
-    if (session.user.id === activeUser.id || pending || busy) return;
-    setPending(`account:${session.user.id}`);
+    if (session.current || deviceRevision === null || pending || busy) return;
+    setPending(`account:${session.handle}`);
     setError("");
     try {
       await switchContext({
@@ -131,8 +130,10 @@ function LegacyAccountSwitcher({
           if (workspaceBase !== "/platform") await leavePushSession(workspaceBase);
           const { authClient } = await import("@erpx/feature-identity_access/lib/auth-client");
           const result = await authClient.multiSession.setActive({
-            sessionToken: session.session.token,
+            handle: session.handle,
+            revision: deviceRevision,
           });
+          if (result.error?.code === "DEVICE_ACCOUNTS_CHANGED") await loadAccounts();
           if (result.error)
             throw new Error(result.error.message ?? "Account could not be selected.");
         },
@@ -160,6 +161,7 @@ function LegacyAccountSwitcher({
           const result = await authClient.signIn.email({
             email: String(form.get("email")),
             password: String(form.get("password")),
+            ...(deviceRevision === null ? {} : { revision: deviceRevision }),
           });
           if (result.error) throw new Error(result.error.message ?? "Account could not be added.");
         },
@@ -233,9 +235,9 @@ function LegacyAccountSwitcher({
     }
   }
 
-  const accounts = sessions.some((item) => item.user.id === activeUser.id)
+  const accounts = sessions.some((item) => item.current)
     ? sessions
-    : [{ session: { token: "", userId: activeUser.id }, user: activeUser }, ...sessions];
+    : [{ handle: "current-account", name: activeUser.name, email: activeUser.email, image: null, current: true }, ...sessions];
 
   const trigger = (      <Button appearance={appearance}
         variant="plain"
@@ -278,25 +280,25 @@ function LegacyAccountSwitcher({
             <>
               <div className="account-list">
                 {accounts.map((item) => {
-                  const active = item.user.id === activeUser.id;
+                  const active = item.current;
                   return (
                     <Button appearance={appearance}
                       variant="plain"
                       type="button"
                       className={`account-option ${active ? "active" : ""}`}
                       aria-current={active ? "true" : undefined}
-                      key={item.user.id}
-                      disabled={Boolean(pending)}
+                      key={item.handle}
+                      disabled={Boolean(pending) || (!active && deviceRevision === null)}
                       onClick={() => void chooseAccount(item)}
                     >
-                      <PersonAvatar name={item.user.name} />
+                      <PersonAvatar name={item.name} />
                       <span>
-                        <strong>{item.user.name}</strong>
-                        <small>{item.user.email}</small>
+                        <strong>{item.name}</strong>
+                        <small>{item.email}</small>
                       </span>
                       {active ? (
                         <Check size={17} />
-                      ) : pending === `account:${item.user.id}` ? (
+                      ) : pending === `account:${item.handle}` ? (
                         <span className="mini-spinner" />
                       ) : (
                         <LogIn size={16} />

@@ -1,5 +1,7 @@
 # Identity and access — implementation and operations
 
+The [native Account migration register](rust-account-migration.md) records implemented Rust source, generated HTTP contracts and the remaining parity gates. Native sign-in does not establish completion of this owner or authorize its runtime activation.
+
 Apps is the staff product owning Feed and the application selector. The retired Work host/audience is no longer accepted; its child sessions are not converted to Apps sessions. Normal Account SSO and other product sessions retain their existing policies. Apps workspace memory is scoped by account and reconciled against current owner-authorized Company/Workspace choices before opening Feed.
 
 The prospective [product SSO contract](product-separation.md#sso-protocol) adds creation-time audience/parent binding behind disabled development flags. Legacy login/session behavior remains in effect until product cutover acceptance. The new protocol is not yet accepted for account switching, directory callback migration, Holding tombstones, queued authority or Push.

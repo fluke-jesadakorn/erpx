@@ -3,7 +3,7 @@ use openssl::{
     x509::{X509, X509Crl},
 };
 use sha2::{Digest, Sha256};
-use std::{fs, path::Path};
+use std::{fs, io::Read, path::Path};
 
 /// One approved operator-owned item. Content is public trust material, never a private key.
 #[derive(Clone, Debug)]
@@ -27,14 +27,14 @@ impl OperatorTrustStore {
             return Err("TRUST_MATERIAL_LIMIT".to_owned());
         }
         materials.sort_by(|left, right| left.path.cmp(&right.path));
+        let digest = material_digest(&materials)?;
         let mut store = Self {
             roots: Vec::new(),
             intermediates: Vec::new(),
             crls: Vec::new(),
             ocsps: Vec::new(),
-            digest: String::new(),
+            digest,
         };
-        let mut manifest = Vec::new();
         let mut previous = None;
         for material in materials {
             if previous.as_ref() == Some(&material.path) {
@@ -76,28 +76,30 @@ impl OperatorTrustStore {
                 }
                 _ => return Err("INVALID_TRUST_MATERIAL_PATH".to_owned()),
             }
-            let checksum = hex::encode(Sha256::digest(&material.content));
-            // Match the historical manifest's JSON tuple framing (including spaces).
-            manifest.push(format!(
-                "[{}, {}]",
-                serde_json::to_string(&material.path).map_err(|_| "TRUST_MANIFEST")?,
-                serde_json::to_string(&checksum).map_err(|_| "TRUST_MANIFEST")?
-            ));
             previous = Some(material.path);
         }
         if store.roots.len() + store.intermediates.len() > 100 {
             return Err("TRUST_CERTIFICATE_LIMIT".to_owned());
         }
-        store.digest = hex::encode(Sha256::digest(
-            format!("[{}]", manifest.join(", ")).as_bytes(),
-        ));
         Ok(store)
     }
 
     /// Read a prepared private trust directory; symbolic links and special files are refused.
     pub fn from_directory(directory: &Path) -> Result<Self, String> {
+        if !fs::symlink_metadata(directory)
+            .map_err(|_| "TRUST_DIRECTORY_UNAVAILABLE")?
+            .is_dir()
+        {
+            return Err("TRUST_DIRECTORY_SPECIAL_FILE".to_owned());
+        }
         let mut materials = Vec::new();
+        let mut total = 0;
         for kind in ["roots", "intermediates", "revocation"] {
+            match fs::symlink_metadata(directory.join(kind)) {
+                Ok(metadata) if metadata.is_dir() => {}
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+                _ => return Err("TRUST_DIRECTORY_SPECIAL_FILE".to_owned()),
+            }
             let entries = match fs::read_dir(directory.join(kind)) {
                 Ok(entries) => entries,
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
@@ -116,7 +118,16 @@ impl OperatorTrustStore {
                     .file_name()
                     .into_string()
                     .map_err(|_| "INVALID_TRUST_MATERIAL_PATH")?;
-                let content = fs::read(entry.path()).map_err(|_| "TRUST_DIRECTORY_UNAVAILABLE")?;
+                let file =
+                    fs::File::open(entry.path()).map_err(|_| "TRUST_DIRECTORY_UNAVAILABLE")?;
+                let mut content = Vec::new();
+                file.take(4 * 1024 * 1024 + 1)
+                    .read_to_end(&mut content)
+                    .map_err(|_| "TRUST_DIRECTORY_UNAVAILABLE")?;
+                total += content.len();
+                if content.len() > 4 * 1024 * 1024 || total > 32 * 1024 * 1024 {
+                    return Err("TRUST_MATERIAL_LIMIT".to_owned());
+                }
                 materials.push(TrustMaterial {
                     path: format!("{kind}/{name}"),
                     content,
@@ -128,4 +139,24 @@ impl OperatorTrustStore {
         }
         Self::from_materials(materials)
     }
+}
+
+pub(crate) fn material_digest(materials: &[TrustMaterial]) -> Result<String, String> {
+    let mut sorted: Vec<_> = materials.iter().collect();
+    sorted.sort_by(|left, right| left.path.cmp(&right.path));
+    let manifest: Result<Vec<_>, String> = sorted
+        .into_iter()
+        .map(|material| {
+            let checksum = hex::encode(Sha256::digest(&material.content));
+            // Historical Python tuple framing, including spaces.
+            Ok(format!(
+                "[{}, {}]",
+                serde_json::to_string(&material.path).map_err(|_| "TRUST_MANIFEST")?,
+                serde_json::to_string(&checksum).map_err(|_| "TRUST_MANIFEST")?
+            ))
+        })
+        .collect();
+    Ok(hex::encode(Sha256::digest(
+        format!("[{}]", manifest?.join(", ")).as_bytes(),
+    )))
 }

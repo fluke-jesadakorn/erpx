@@ -114,7 +114,14 @@ async function dropLeasedDatabases(admin: Pool, lease: SuiteLease) {
     const row=(await admin.query("SELECT pg_get_userbyid(datdba) owner,shobj_description(oid,'pg_database') description FROM pg_database WHERE datname=$1",[database])).rows[0];
     if(!row)continue;
     if(row.owner!=='erpx_test_admin'||row.description!==suiteMarker(lease))throw new Error('TEST_DATABASE_OWNERSHIP_CHANGED');
-    if((await admin.query('SELECT 1 FROM pg_stat_activity WHERE datname=$1',[database])).rowCount)throw new Error('OWNED_TEST_DATABASE_STILL_BUSY');
+    // pool.end() can finish before PostgreSQL removes the terminated backend
+    // from pg_stat_activity. Wait for that acknowledgement; never force-drop
+    // or terminate a still-live connection.
+    const deadline=Date.now()+1000;
+    while((await admin.query('SELECT 1 FROM pg_stat_activity WHERE datname=$1',[database])).rowCount){
+      if(Date.now()>=deadline)throw new Error('OWNED_TEST_DATABASE_STILL_BUSY');
+      await new Promise(resolve=>setTimeout(resolve,20));
+    }
     owned.push(database);
   }
   for(const database of owned)await admin.query(`DROP DATABASE "${database}"`);

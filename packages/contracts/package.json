@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./account-auth": "./src/account-auth.generated.ts",
+    "./permission-catalog": "./src/permission-catalog.generated.json",
     "./holding-hosts": "./src/holding-hosts.ts",
     "./holding-fetch": "./src/holding-fetch.ts",
     "./workforce-self-service-entry": "./src/workforce-self-service-entry.ts",

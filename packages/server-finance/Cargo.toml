@@ -1,0 +1,40 @@
+[package]
+name = "erpx-server-finance"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+autotests = false
+
+[package.metadata.erpx]
+verification-roots = ["../catalogue/src/iso-4217-current.json", "../../fixtures/finance/rust-instruments", "../../tests/support/finance", "../../scripts/testing/fixtures/generate-finance-rust-goldens.ts", "../../scripts/testing/fixtures/finance-node-oracle.ts"]
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+erpx-server-shared.workspace = true
+erpx-server-runtime.workspace = true
+sqlx.workspace = true
+icu_collator.workspace = true
+icu_locale.workspace = true
+num-bigint.workspace = true
+num-traits.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+uuid.workspace = true
+
+[[test]]
+name = "instrument_policies"
+path = "../../tests/unit/finance/rust-instrument-policies.test.rs"
+
+[[test]]
+name = "journal_postgres"
+path = "../../tests/integration/finance/rust-journal-postgres.test.rs"
+
+[lints]
+workspace = true

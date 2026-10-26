@@ -67,6 +67,7 @@ export async function holdingAwareProxy(request:NextRequest){
   const prepared=await prepareHoldingRequest(request);
   if(prepared instanceof NextResponse)return prepared;
   if(prepared){
+    if(request.nextUrl.pathname.startsWith('/__erpx/')&&prepared.nextUrl.pathname.startsWith('/front/'))return NextResponse.rewrite(holdingRewriteUrl(request,prepared.nextUrl.pathname),{request:{headers:prepared.headers},headers:{'Cache-Control':'private, no-store'}});
     if(prepared.nextUrl.pathname==='/product-entry')return NextResponse.rewrite(holdingRewriteUrl(request,'/product-entry'),{request:{headers:prepared.headers}});
     return runWithRequestMemo(()=>finishHoldingResponse(request,prepared,routeRequest(prepared)));
   }
@@ -128,7 +129,7 @@ function routeRequest(request: NextRequest) {
     if (destination && canonical !== path + request.nextUrl.search) return NextResponse.redirect(destination, 307);
   }
   if (productHost) {
-    const assets = path.startsWith("/_next/") || publicFont || path.startsWith("/brand/") || (!frontApp && path === "/manifest.webmanifest") || /^\/(?:favicon\.ico|icon\.svg|apple-icon\.png|icon-(?:192|512|maskable-512)\.png)$/.test(path);
+    const assets = path.startsWith("/_next/") || path==='/erpx-push-sw.js' || publicFont || path.startsWith("/brand/") || (!frontApp && path === "/manifest.webmanifest") || /^\/(?:favicon\.ico|icon\.svg|apple-icon\.png|icon-(?:192|512|maskable-512)\.png)$/.test(path);
     if (!assets && path !== "/api/health" && path !== "/api/ready" && path !== "/robots.txt" && !productPageAllowed(productHost, path, request.method)) return new NextResponse("Not found", { status: 404 });
     // Shared product assets must not fall through to Front's operational URL parser.
     // Keep its existing favicon redirect for company-aware Front icons.

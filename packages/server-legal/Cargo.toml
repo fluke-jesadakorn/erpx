@@ -7,35 +7,80 @@ license.workspace = true
 publish.workspace = true
 autotests = false
 
+[package.metadata.erpx]
+verification-roots = ["../../fixtures/legal/pdf-signatures", "../../tests/support/legal"]
+
 [lib]
 path = "src/lib.rs"
 
 [[bin]]
 name = "erpx-validate-pdf"
 path = "src/main.rs"
+required-features = ["pdf-verifier"]
 
 [features]
 default = []
-vendored-openssl = ["openssl/vendored"]
+trust-materials = ["dep:x509-cert", "dep:der", "dep:const-oid", "dep:sha2", "dep:hex", "dep:base64"]
+pdf-verifier = ["trust-materials", "dep:roxmltree", "dep:openssl", "dep:lopdf", "dep:cms", "dep:der", "dep:x509-cert", "dep:x509-tsp", "dep:x509-ocsp", "dep:const-oid", "dep:sha2", "dep:hex", "dep:tokio", "dep:tempfile", "dep:nix", "dep:sysinfo"]
+vendored-openssl = ["pdf-verifier", "openssl/vendored"]
 
 [dependencies]
-openssl.workspace = true
-lopdf.workspace = true
-cms.workspace = true
-der.workspace = true
-x509-cert.workspace = true
-x509-tsp.workspace = true
-x509-ocsp.workspace = true
-const-oid.workspace = true
-sha2.workspace = true
-hex.workspace = true
+erpx-server-runtime.workspace = true
+sqlx.workspace = true
+url.workspace = true
+base64 = { workspace = true, optional = true }
+roxmltree = { workspace = true, optional = true }
+openssl = { workspace = true, optional = true }
+lopdf = { workspace = true, optional = true }
+cms = { workspace = true, optional = true }
+der = { workspace = true, optional = true }
+x509-cert = { workspace = true, optional = true }
+x509-tsp = { workspace = true, optional = true }
+x509-ocsp = { workspace = true, optional = true }
+const-oid = { workspace = true, optional = true }
+sha2 = { workspace = true, optional = true }
+hex = { workspace = true, optional = true }
 serde.workspace = true
 serde_json.workspace = true
 time.workspace = true
+tokio = { workspace = true, optional = true }
+tempfile = { workspace = true, optional = true }
+erpx-server-shared.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+uuid.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+nix = { workspace = true, optional = true }
 
 [[test]]
 name = "pdf_validation"
 path = "../../tests/unit/legal/rust-pdf-validation.test.rs"
+required-features = ["pdf-verifier"]
+
+[[test]]
+name = "pdf_process"
+path = "../../tests/unit/legal/rust-pdf-process.test.rs"
+required-features = ["pdf-verifier"]
+
+[target.'cfg(target_os = "macos")'.dependencies]
+sysinfo = { workspace = true, optional = true }
+
+[[test]]
+name = "trust_management"
+path = "../../tests/unit/legal/rust-trust-management.test.rs"
+required-features = ["trust-materials"]
+
+[[test]]
+name = "trust_postgres"
+path = "../../tests/integration/legal/rust-trust-postgres.test.rs"
+required-features = ["trust-materials"]
+
+[[test]]
+name = "pdf_verification_postgres"
+path = "../../tests/integration/legal/rust-pdf-verification-postgres.test.rs"
+required-features = ["pdf-verifier"]
 
 [lints]
 workspace = true

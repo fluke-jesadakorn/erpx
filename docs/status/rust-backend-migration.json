@@ -120,11 +120,11 @@
     {
       "id": "finance",
       "package": "erpx-server-finance",
-      "phase": "pending",
+      "phase": "foundation",
       "businessMigrationComplete": false,
       "surfaces": {
-        "domain": "pending",
-        "application": "pending",
+        "domain": "foundation",
+        "application": "foundation",
         "http": "pending",
         "ssr": "pending",
         "jobs": "pending",
@@ -267,11 +267,11 @@
     {
       "id": "people_payroll",
       "package": "erpx-server-people-payroll",
-      "phase": "pending",
+      "phase": "foundation",
       "businessMigrationComplete": false,
       "surfaces": {
-        "domain": "pending",
-        "application": "pending",
+        "domain": "foundation",
+        "application": "foundation",
         "http": "pending",
         "ssr": "pending",
         "jobs": "pending",

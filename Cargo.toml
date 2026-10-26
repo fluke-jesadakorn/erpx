@@ -1,5 +1,5 @@
 [workspace]
-members = ["packages/server-shared", "packages/server-runtime", "packages/server-legal"]
+members = ["packages/server-shared", "packages/server-runtime", "packages/server-legal", "src/composition", "packages/server-finance", "packages/server-identity_access", "packages/server-organization", "packages/server-people_payroll"]
 resolver = "3"
 
 [workspace.package]
@@ -11,10 +11,15 @@ publish = false
 
 [workspace.dependencies]
 erpx-server-shared = { path = "packages/server-shared" }
-axum = { version = "=0.8.9", default-features = false, features = ["http1", "json", "tokio"] }
+erpx-server-runtime = { path = "packages/server-runtime" }
+erpx-server-finance = { path = "packages/server-finance" }
+erpx-server-identity-access = { path = "packages/server-identity_access" }
+erpx-server-organization = { path = "packages/server-organization" }
+erpx-server-people-payroll = { path = "packages/server-people_payroll" }
+axum = { version = "=0.8.9", default-features = false, features = ["http1", "json", "tokio", "query"] }
 serde = { version = "=1.0.229", features = ["derive"] }
-serde_json = "=1.0.151"
-tokio = { version = "=1.53.1", default-features = false, features = ["macros", "net", "rt-multi-thread", "signal"] }
+serde_json = { version = "=1.0.151", features = ["float_roundtrip"] }
+tokio = { version = "=1.53.1", default-features = false, features = ["macros", "net", "rt-multi-thread", "signal", "process", "io-util", "time", "sync", "fs"] }
 tower = { version = "=0.5.3", features = ["util"] }
 openssl = "=0.10.81"
 lopdf = { version = "=0.46.0", default-features = false }
@@ -28,6 +33,23 @@ sha2 = "=0.10.9"
 hex = "=0.4.3"
 time = { version = "=0.3.55", features = ["formatting", "parsing", "macros", "serde"] }
 syn = { version = "=2.0.119", features = ["full", "visit"] }
+sqlx = { version = "=0.9.0", default-features = false, features = ["postgres", "runtime-tokio", "tls-rustls-ring", "json", "time", "uuid"] }
+uuid = { version = "=1.29.0", default-features = false, features = ["v4"] }
+tempfile = "=3.27.0"
+ring = "=0.17.14"
+url = "=2.5.8"
+base64 = { version = "=0.23.1", default-features = false, features = ["std"] }
+roxmltree = { version = "=0.21.2", default-features = false, features = ["std"] }
+sysinfo = { version = "=0.39.6", default-features = false, features = ["system"] }
+argon2 = { version = "=0.6.0", features = ["getrandom"] }
+getrandom = "=0.4.3"
+ts-rs = "=12.0.1"
+utoipa = "=6.0.0"
+icu_collator = { version = "=2.3.1", default-features = false, features = ["compiled_data"] }
+icu_locale = { version = "=2.3.0", default-features = false }
+num-bigint = { version = "=0.5.1", default-features = false }
+num-traits = { version = "=0.2.19", default-features = false }
+nix = { version = "=0.31.3", default-features = false, features = ["resource"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
