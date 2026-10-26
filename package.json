@@ -91,7 +91,11 @@
     "workspaces:catalogue": "bun scripts/testing/workspace-catalogue.ts",
     "workspaces:tasks": "bun scripts/testing/workspace-tasks.ts",
     "workspaces:styles": "bun scripts/assets/workspace-styles.ts",
-    "console:retirement:dev:check": "bun scripts/local/check-console-retirement.ts --development-workspaces"
+    "console:retirement:dev:check": "bun scripts/local/check-console-retirement.ts --development-workspaces",
+    "rust:check": "cargo check --workspace --all-targets --locked",
+    "rust:test": "cargo test --workspace --locked",
+    "rust:fmt": "cargo fmt --all -- --check",
+    "rust:clippy": "cargo clippy --workspace --all-targets --locked -- -D warnings"
   },
   "packageManager": "bun@1.4.3",
   "dependencies": {
@@ -169,5 +173,6 @@
     "esbuild": "0.28.2",
     "undici": "7.30.1",
     "zod": "4.6.7"
-  }
+  },
+  "license": "Apache-2.0"
 }

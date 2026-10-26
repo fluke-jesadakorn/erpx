@@ -1,15 +1,20 @@
-import { workFetch } from "@erpx/feature-work_projection/lib/work-fetch";
-import { announceWorkChange } from "@erpx/feature-work_projection/lib/work-refresh";
-import {captureWorkCommandContext} from "@erpx/feature-work_projection/lib/command-context";
-import {retainWorkCommandCompletion} from "@erpx/feature-work_projection/lib/command-completion";
+import { workFetch, announceWorkChange, captureWorkCommandContext, retainWorkCommandCompletion } from "@erpx/feature-work_projection/public/client";
+import { financeCommandSignature } from "../../domain/command-attempt";
+import { createFinanceCommandAttempts } from "../../application/command-attempts";
 
 /** Keep the command identity after an uncertain response, scoped to the rendered work role. */
 export function createFinanceCommandFetch(send: typeof workFetch = workFetch) {
-  const attempts = new Map<string, {key:string;completion:ReturnType<typeof retainWorkCommandCompletion>}>();
+  const attempts = createFinanceCommandAttempts({
+    createKey: () => crypto.randomUUID(),
+    retainCompletion: () => {
+      const form = typeof document === "undefined" ? null : document.activeElement?.closest<HTMLFormElement>("form");
+      return retainWorkCommandCompletion(form ? { form, formEditVersion: form.getAttribute("data-erpx-edit-version") } : undefined);
+    },
+  });
   function attemptSignature(input:RequestInfo|URL,method:string,body:string) {
     const context = typeof document === "undefined" ? null : document.querySelector<HTMLElement>("[data-work-revision]");
     const stamp = context ? [context.dataset.workUser, context.dataset.workRevision, context.dataset.workCompany, context.dataset.workAssignment] : [];
-    return JSON.stringify([input instanceof Request ? input.url : String(input), method, stamp, body]);
+    return financeCommandSignature({ target: input instanceof Request ? input.url : String(input), method, scope: stamp, body });
   }
   // Callers that decode the original response defer local completion until
   // their own receipt/context check; a clone alone cannot release the key.
@@ -20,12 +25,7 @@ export function createFinanceCommandFetch(send: typeof workFetch = workFetch) {
     if (!["POST", "PUT", "PATCH", "DELETE"].includes(method) || typeof init?.body !== "string") return send(input, init);
     const signature = attemptSignature(input,method,init.body);
     const headers = new Headers(init.headers);
-    let attempt = attempts.get(signature);
-    if (!attempt) {
-      const form=typeof document==="undefined"?null:document.activeElement?.closest<HTMLFormElement>("form");
-      attempt={key:crypto.randomUUID(),completion:retainWorkCommandCompletion(form?{form,formEditVersion:form.getAttribute("data-erpx-edit-version")}:undefined)};
-      attempts.set(signature, attempt);
-    }
+    const attempt = attempts.retain(signature);
     headers.set("Idempotency-Key", attempt.key);
     const completion=attempt.completion(),assertCurrent=captureWorkCommandContext();
     const response = await send(input, { ...init, headers },completion,"caller");
@@ -42,8 +42,7 @@ export function createFinanceCommandFetch(send: typeof workFetch = workFetch) {
         receipts.set(response,()=>{
           assertCurrent();
           if(signature!==attemptSignature(input,method,init.body as string))throw Object.assign(new Error('Return to the original Finance command before retrying.'),{code:'WORK_CONTEXT_CHANGED'});
-          if(attempts.get(signature)!==retainedAttempt)return false;
-          attempts.delete(signature);
+          if(!attempts.acknowledge(signature,retainedAttempt))return false;
           if(typeof window!=="undefined") {
             const originalCompletion=retainedAttempt.completion();
             if(originalCompletion){
@@ -63,8 +62,20 @@ export function createFinanceCommandFetch(send: typeof workFetch = workFetch) {
   return Object.assign(financeRequest,{
     acknowledge,
     hasAttempt:(input:RequestInfo|URL,body:string,method="POST")=>attempts.has(attemptSignature(input,method,body)),
-    completion:(input:RequestInfo|URL,body:string,method="POST")=>attempts.get(attemptSignature(input,method,body))?.completion(),
+    completion:(input:RequestInfo|URL,body:string,method="POST")=>attempts.completion(attemptSignature(input,method,body))?.(),
   });
 }
 
 export const financeCommandFetch = createFinanceCommandFetch();
+
+/** Decode transport outcomes at the edge; application code never receives Response. */
+export async function submitFinanceCommand(input: { readonly target: string; readonly body: string }) {
+  const response = await financeCommandFetch(input.target, { method: "POST", headers: { "Content-Type": "application/json" }, body: input.body }, "caller");
+  const result = await response.json();
+  if (!response.ok) return {
+    kind: "rejected" as const,
+    definitive: response.status < 500 && result.error?.code !== "WORK_CONTEXT_CHANGED",
+    message: result.error?.message ?? "The Finance action could not be saved.",
+  };
+  return { kind: "acknowledged" as const, data: result.data, acknowledge: () => financeCommandFetch.acknowledge(response) };
+}

@@ -92,7 +92,8 @@
     "./lib/calendar-command": "./src/lib/calendar-command.ts",
     "./lib/sidebar-catalog": "./src/lib/sidebar-catalog.ts",
     "./lib/apps-launcher": "./src/lib/apps-launcher.ts",
-    "./lib/navigation-presentation": "./src/lib/navigation-presentation.ts"
+    "./lib/navigation-presentation": "./src/lib/navigation-presentation.ts",
+    "./public/client": "./src/public/client.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

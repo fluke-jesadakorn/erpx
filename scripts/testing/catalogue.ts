@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { internalRequiredCases, loadRequiredCases } from "./required-case-inventory";
 import { loadProviderRehearsals } from "./provider-rehearsals";
+import { validateCargoSuite } from './cargo';
 
 export const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 export const testLanes = ["unit", "integration", "e2e", "journeys", "uat", "provider"] as const;
@@ -16,6 +17,8 @@ export type Suite = {
   owner: string;
   modules: string[];
   files: string[];
+  framework?: 'vitest' | 'cargo';
+  cargo?: { package: string; targets: string[]; features?: string[] };
   verificationInputs?: string[];
   fixture: FixtureProfile;
   requires: { jobs: boolean; scanner: boolean };
@@ -66,7 +69,7 @@ export function assertExplicitSelectionIncluded(selection: Selection, suites: Su
 export function discoverTests(root: string): string[] {
   const visit = (directory: string): string[] => readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
     const path = resolve(directory, entry.name);
-    return entry.isDirectory() ? visit(path) : /\.(?:test\.[cm]?[jt]sx?|spec\.[cm]?[jt]sx?)$/.test(entry.name) ? [relative(root, path).replaceAll("\\", "/")] : [];
+    return entry.isDirectory() ? visit(path) : /\.(?:test\.(?:[cm]?[jt]sx?|rs)|spec\.[cm]?[jt]sx?)$/.test(entry.name) ? [relative(root, path).replaceAll("\\", "/")] : [];
   });
   return visit(resolve(root, "tests")).sort();
 }
@@ -181,6 +184,7 @@ export function validateCatalogue(catalogue: Catalogue, root = repositoryRoot): 
     if (suite.serial !== undefined && (typeof suite.serial?.reason !== "string" || !suite.serial.reason.trim())) throw new Error(`SERIAL_SUITE_REASON_REQUIRED:${suite.id}`);
     if (suite.verificationInputs !== undefined && (!Array.isArray(suite.verificationInputs) || new Set(suite.verificationInputs).size !== suite.verificationInputs.length || suite.verificationInputs.some(file =>
       typeof file !== "string" || isAbsolute(file) || file.includes("\\") || file.split("/").some(part => !part || part === "." || part === ".." || ["node_modules", ".next", ".build", ".cache", ".turbo", ".scratch", ".runtime", ".git"].includes(part)) || !existsSync(resolve(root,file))))) throw new Error(`INVALID_SUITE_VERIFICATION_INPUT:${suite.id}`);
+    validateCargoSuite(suite, root);
     if (!suite.modules.every(module => catalogue.modules.includes(module))) throw new Error(`UNKNOWN_SUITE_MODULE:${suite.id}`);
     if (suite.lane === "unit" || suite.lane === "integration") {
       if (suite.ci && (typeof suite.ci.critical !== "boolean" || typeof suite.ci.reason !== "string" || !suite.ci.reason.trim())) throw new Error(`NATIVE_CI_CLASSIFICATION_REQUIRED:${suite.id}`);
@@ -189,6 +193,7 @@ export function validateCatalogue(catalogue: Catalogue, root = repositoryRoot): 
     for (const file of suite.files) {
       if (isAbsolute(file) || file.split("/").includes("..") || files.has(file) || !existsSync(resolve(root, file))) throw new Error(`INVALID_OR_DUPLICATE_TEST_FILE:${file}`);
       files.add(file);
+      if (file.endsWith('.rs') !== (suite.framework === 'cargo')) throw new Error(`TEST_FRAMEWORK_SOURCE_MISMATCH:${file}`);
       if (["e2e", "journeys", "uat"].includes(suite.lane) !== /\.spec\.[cm]?[jt]sx?$/.test(file)) throw new Error(`TEST_FRAMEWORK_LANE_MISMATCH:${file}`);
       if (suite.lane === "unit" && reachesDatabaseFixture(file, root)) throw new Error(`UNIT_IMPORTS_POSTGRES_FIXTURE:${file}`);
     }

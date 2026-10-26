@@ -1,5 +1,19 @@
 # ERPX — Product app workspaces and fast development verification
 
+## Rust backend, domain-aligned frontend and container preparation — 2026-10-27
+
+Active user-authorized goal: preserve all current source changes, migrate every active backend owner to the Rust modular monolith in [ADR-052](adr/ADR-052-rust-backend-and-domain-aligned-frontend.md), align frontend ownership and dependency direction, then prepare minimal production containers and Dev Container onboarding. Merge two sequential PRs into `development`; keep production/staging deployment, image/repository publication and automatic production acceptance outside this goal.
+
+- **B0 saved:** private branch `codex/rust-backend-migration`, commit `a5ed8737a`, preserves the stable current-source overlay after a reviewed credential scan. This is WIP with `acceptance:false`, not Holding cutover or Rust parity evidence. Preserve later changes from the concurrent Holding task through explicit three-way reconciliation.
+- **PR1 / R1:** introduce only implemented Rust foundation crates, native test/catalogue support, frontend domain/application/adapter boundaries and the early Legal verifier conformance work. Record every original owner and runtime surface as pending until proved migrated.
+- **PR1 / R2:** migrate business-owner batches and their frontend readers/commands in parallel. Preserve HTTP behavior, transactions, current authority, uncertain retries and newer drafts. Fresh scoped databases/synthetic seed are allowed; preserve SQL tracks and receipt checksums.
+- **PR1 / R3:** reconcile completed ADR-051 seams, finish Rust authentication/jobs/files/providers and offline PDF verification, remove TypeScript/Python backend runtime, run exact-candidate checks, then merge PR1. A pending owner, incomplete verifier or compatibility backend prevents this milestone.
+- **PR2 / D1-D2:** only after PR1 merges, implement minimal runtime images/Compose, development toolchain containers with persistent Linux caches and local HTTPS, English onboarding/operations, SBOM/notices and restore/rollback verification; merge PR2 without releasing production.
+- **Parallel scheduling:** keep independent domain, fixtures, architecture and OSS tasks running while exact host/origin, SSO, gateway/namespace and dependent browser seams await source-bound completion. Do not modify the concurrent task's checkout or infer completion from documentation alone.
+- **Delivery:** one B0 checkpoint, three cohesive Rust milestones and two container milestones, with corrective commits only when needed. Push each checkpoint to the private remote and preserve history with merge commits. Keep live configuration, credentials, runtime data and generated outputs out of commits.
+
+The established availability, staging isolation, current-source verification and immutable-evidence requirements below remain in force. This section does not promote any prior development receipt into Rust acceptance.
+
 ## Holding addresses — 2026-10-26
 
 The authorized development address model is Holding → Company/branch/department → app. [ADR-051](adr/ADR-051-holding-addresses-and-workspace-paths.md) and the [address contract](contracts/next/holding-addresses.md) supersede the product-host and automatic last-workspace entry instructions in the earlier dated sections. Exact registrations are Acme, Northstar and ERPX Internal on `jesadakorn.com`; Account remains central. The gateway dispatches paths into independent apps; `/__erpx/<app>/` separates API, image, static and HMR transport. Child sessions bind to the Holding hostname/environment and original owner authorization runs on every request. Root/unscoped app entry requires a fresh scope selection.

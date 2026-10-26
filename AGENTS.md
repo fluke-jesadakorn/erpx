@@ -10,11 +10,11 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # AGENTS.md
 
-ERPX is a Bun workspaces monorepo of Next.js applications rooted at this directory (rebuilt from Rust/Dioxus on 2026-09-02).
+ERPX is a Bun workspaces monorepo of Next.js applications rooted at this directory (rebuilt from Rust/Dioxus on 2026-09-02). The accepted Rust modular-monolith and domain-aligned frontend migration is recorded in `docs/adr/ADR-052-rust-backend-and-domain-aligned-frontend.md`; implementation status is explicit and foundation code is not a migrated business backend.
 
 ## Tooling
 
-Use Bun 1.4.3, Node.js 26.11.1, and Next.js 16.4 with the pinned toolchain. New standalone releases target Node.js 26.11.1; the installed private production service remains on Node.js 24.20.0 until a reviewed release is deployed. PostgreSQL 18.6, private local files and durable PostgreSQL jobs run behind Cloudflare Tunnel (ADR-024). Rust/Cargo/Dioxus/Tonic/SQLx are no longer part of this branch — full Rust source is archived on `backup/rust-2026-09-02` tag `rust-archive-2026-09-02` and baseline `cc0887d` per the recovery references in `README.md`.
+Use Bun 1.4.3, Node.js 26.11.1, Next.js 16.4 and the Rust toolchain pinned by `rust-toolchain.toml`. New standalone releases target Node.js 26.11.1; the installed private production service remains on Node.js 24.20.0 until a reviewed release is deployed. PostgreSQL 18.6, private local files and durable PostgreSQL jobs run behind Cloudflare Tunnel (ADR-024). ADR-052 introduces the new Cargo workspace incrementally; the migration register, rather than scaffold existence, identifies completed owners. The earlier Rust/Dioxus/Tonic system remains archived on `backup/rust-2026-09-02` tag `rust-archive-2026-09-02` and baseline `cc0887d` per the recovery references in `README.md`; do not restore its obsolete runtime or schema.
 
 ```bash
 bun --version  # 1.4.3
@@ -67,7 +67,7 @@ Do not touch staging unless the user explicitly instructs you to do so. This inc
 
 This is an end-of-work availability requirement, not an uptime guarantee or an instruction to install an automatic boot service.
 
-Env `.env/.env.local` ignored (see `.env.example`). Legacy `.runtime/target/.cargo` not used — see `backup`. Keep `.env/node_modules/.next/out` out of Git; no secrets; no Cargo without ADR.
+Env `.env/.env.local` ignored (see `.env.example`). Legacy `.runtime/target/.cargo` not used — see `backup`. Keep `.env/node_modules/.next/out` and Cargo build output out of Git; no secrets. Rust workspace changes follow ADR-052; archived Rust recovery is reference material, not the current schema or runtime.
 
 Development browser login credentials are stored locally in ignored `.scratch/dev/credentials/console-dev.json` (mode `0600`). The user authorized saving and reusing this account for `https://console-dev-erpx.jesadakorn.com` without asking again. Use the normal sign-in flow; never print, commit, or copy these credentials to another environment.
 

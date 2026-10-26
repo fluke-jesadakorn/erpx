@@ -1,0 +1,30 @@
+name: Feature or architecture proposal
+description: Discuss a change before implementing a material contract or architecture decision.
+title: "proposal: "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem and intended users
+      description: Explain the concrete workflow and what success would look like.
+    validations:
+      required: true
+  - type: textarea
+    id: approach
+    attributes:
+      label: Proposed behavior and alternatives
+      description: Identify meaningful alternatives and their tradeoffs.
+    validations:
+      required: true
+  - type: textarea
+    id: boundaries
+    attributes:
+      label: Owners and compatibility
+      description: Identify affected domains, APIs, schema, authorization or operational boundaries.
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation and provenance
+      description: Explain how the result could be checked and identify external source or assets.

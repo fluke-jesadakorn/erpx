@@ -1,6 +1,8 @@
-# ERPX — Next.js (rebuilt 2026-09-02)
+# ERPX — Rust backend migration and Next.js applications
 
-Start with the [current production plan](docs/production-plan.md): the in-progress migration to21 independent Next.js apps (Apps owns Feed; the separate Work product is retired) in Bun workspaces and a scoped development/test platform. [ADR-049](docs/adr/ADR-049-product-app-workspaces-and-development-verification.md) records the architecture; [documentation index](docs/TOC.md) is the single hub. Historical engineering receipts certify only their recorded candidate.
+Start with the [current production plan](docs/production-plan.md) and [ADR-052](docs/adr/ADR-052-rust-backend-and-domain-aligned-frontend.md): migrate the business backend to a Rust modular monolith and align frontend domain/application/adapter boundaries while retaining 21 independent Next.js applications. Cargo and Bun workspaces share this repository. The [documentation index](docs/TOC.md) is the single hub; historical engineering receipts certify only their recorded candidate.
+
+The Rust implementation is **in progress**. The [migration register](docs/status/rust-backend-migration.json) records pending owners and runtime surfaces. Foundation liveness, native tests and PDF conformance cases are not a migrated business system. The TypeScript backend remains until its replacement has passed owner-level cutover checks. Docker and Dev Container onboarding follow in the second PR after the Rust migration merges; they are not available yet. See [contribution guidance](CONTRIBUTING.md), [licensing](LICENSING.md) and [public-readiness gates](docs/community/open-source.md).
 
 The development gateway serves port3100 and starts apps lazily on owned ports3200–3299. Registered Holding hosts select independent apps by path; see [ADR-051](docs/adr/ADR-051-holding-addresses-and-workspace-paths.md). Installed production and staging are outside this migration. Full acceptance is deferred to an explicitly frozen production candidate and never runs automatically in daily CI.
 Set `ERPX_DEV_MAX_APPS` in ignored `.env.local` only when the machine has room for more concurrent app processes (1–12; default4). Account and Apps share that budget. An app with active requests or HMR connections is never evicted.
@@ -18,7 +20,7 @@ git show cc0887d --stat                    # baseline
 
 ## Stack
 
-Next.js 16.4.3 App Router + React 19.3.1 + TypeScript 7 + Tailwind 4, built as a standalone Node.js 26.11.1 release. Bun 1.4.3 manages the toolchain; PostgreSQL 18.6 stores relational data and durable jobs, and private filesystem adapters store evidence. The installed private production service remains on Node.js 24.20.0 until a reviewed release is deployed. Cloudflare Tunnel provides HTTPS ingress. No Cargo.
+Next.js 16.4.3 App Router + React 19.3.1 + TypeScript 7 + Tailwind 4, built as a standalone Node.js 26.11.1 release. Bun 1.4.3 manages the frontend toolchain; Rust 1.99.1 and locked Cargo dependencies provide the new backend implementation. PostgreSQL 18.6 stores relational data and durable jobs, and private filesystem adapters store evidence. The installed private production service remains on Node.js 24.20.0 until a reviewed release is deployed. Cloudflare Tunnel provides the existing installation's HTTPS ingress.
 
 Typechecks use the TypeScript 7 native compiler. The `typescript` dependency aliases Microsoft’s TypeScript 6 compatibility package because Next.js, ESLint and repository AST tools still require its compiler API; `@typescript/native` supplies TypeScript 7 and the `tsc` command. Both are pinned in the lockfile. Security overrides keep esbuild and Zod patched and retain a patched Undici 7 for Cloudflare’s compatible API.
 
@@ -42,6 +44,19 @@ bun run build:affected                   # independent app build outputs/cache
 Development starts at a registered Holding: [Acme](https://acme.jesadakorn.com/), [Northstar](https://northstar.jesadakorn.com/) or [ERPX](https://erpx-internal.jesadakorn.com/). Select a Company, branch or department explicitly, then an app, for example `/bangkok/finance` or `/bangkok/finance-dept/finance`. Company work uses `/finance?company=acme-co`. Account remains central at [Account](https://account-dev-erpx.jesadakorn.com/). Former app hosts return generic404; Console retains exact health/ready reads. The [Holding development runbook](ops/macos/holding-development.md) records routing, migration and operations. Production and staging remain unchanged; full acceptance is deferred.
 
 The rich local dataset and demo personas are documented in [docs/local-seed.md](docs/local-seed.md).
+
+## Rust migration verification
+
+Install the toolchain pinned by `rust-toolchain.toml`, then use the native commands below. The inventory command reads implementation metadata and does not start a service or change a database.
+
+```bash
+cargo test --workspace --locked
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo run --locked --package erpx-server-runtime --bin erpx-server -- owners
+```
+
+Use the registered test catalogue for affected native/TypeScript checks. Ordinary development does not run production acceptance, deploy services or publish images. Follow [SECURITY.md](SECURITY.md) for vulnerability reports and [GOVERNANCE.md](GOVERNANCE.md) for ownership and architecture decisions.
 
 ## Structure
 

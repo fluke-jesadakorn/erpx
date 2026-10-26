@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { assertExplicitSelectionIncluded, loadCatalogue, listSelection, reachesDatabaseFixture, repositoryRoot as root, selectSuites, validateCatalogue, type Suite } from "./catalogue";
 import { parseTestArguments } from "./arguments";
@@ -9,6 +9,7 @@ import { attachmentToolEnvironment } from "./runtime-tooling";
 import { writeJsonOutput } from "./json-output";
 import { assertTestPlacement } from "./layout";
 import { runDevelopmentTests } from "./development";
+import { cargoCaseResults, cargoTargetInvocations } from './cargo';
 
 if (Bun.version !== "1.4.3") throw new Error("Tests require Bun 1.4.3.");
 const options = parseTestArguments(process.argv.slice(2));
@@ -98,7 +99,7 @@ async function execute(argv: string[], childEnv: Record<string, string | undefin
 }
 
 for (const kind of ["unit", "integration", "provider"] as const) {
-  const selected = suites.filter(suite => suite.lane === kind);
+  const selected = suites.filter(suite => suite.lane === kind && suite.framework !== 'cargo');
   if (!selected.length) continue;
   if (kind === "integration") databaseCredentials();
   // Every external lane is a deliberate invocation. Missing dependencies fail before collecting skipped tests.
@@ -129,6 +130,31 @@ for (const kind of ["unit", "integration", "provider"] as const) {
     const exactPatternArgs = registeredCase?.runner === "vitest" ? ["--testNamePattern", exactNativeCasePattern(registeredCase.title)] : [];
     const exit = await execute([node, resolve(root, "node_modules/vitest/vitest.mjs"), "run", "--config", postgres ? "tests/config/vitest.integration.config.mts" : "tests/config/vitest.unit.config.mts", ...options.forwarded, ...exactPatternArgs, ...defaultReporter, "--reporter", resolve(root, "scripts/testing/required-cases-reporter.ts")], childEnv);
     if (exit !== 0) process.exit(exit);
+  }
+}
+for (const suite of suites.filter(suite => suite.framework === 'cargo')) {
+  if (suite.lane === 'integration') databaseCredentials();
+  for (const invocation of cargoTargetInvocations(suite, root, options.forwarded)) {
+    const child = Bun.spawn(['cargo', ...invocation.arguments], { cwd: root, env: vitestChildEnvironment(env, suite.lane === 'integration'), stdin: 'inherit', stdout: 'pipe', stderr: 'inherit' });
+    const onInt = () => child.kill('SIGINT'), onTerm = () => child.kill('SIGTERM');
+    process.on('SIGINT', onInt); process.on('SIGTERM', onTerm);
+    let output = '', exit: number;
+    try {
+      const reader = child.stdout.getReader(), decoder = new TextDecoder();
+      while (true) {
+        const { value, done } = await reader.read(); if (done) break;
+        process.stdout.write(value); output += decoder.decode(value, { stream: true });
+        if (output.length > 16 * 1024 * 1024) { child.kill('SIGTERM'); throw new Error('CARGO_TEST_OUTPUT_LIMIT'); }
+      }
+      output += decoder.decode(); exit = await child.exited;
+    } finally { process.off('SIGINT', onInt); process.off('SIGTERM', onTerm); }
+    const results = cargoCaseResults(output, invocation.file);
+    const receipt = { ...results, passed: exit === 0 && results.passed, suite: suite.id, package: suite.cargo!.package, target: invocation.target, exitCode: exit };
+    const directory = resolve(root, '.scratch/dev/test-suites/cargo', new Date().toISOString().replace(/[:.]/g, '-'));
+    mkdirSync(directory, { recursive: true, mode: 0o700 });
+    writeFileSync(resolve(directory, `${suite.id}-${invocation.target}.json`), JSON.stringify(receipt, null, 2) + '\n', { mode: 0o600 });
+    if (exit !== 0) process.exit(exit);
+    if (!receipt.passed) throw new Error(`CARGO_REQUIRED_CASES_NOT_EXECUTED:${suite.id}:${invocation.target}`);
   }
 }
 const browser = suites.filter(suite => ["e2e", "journeys", "uat"].includes(suite.lane));

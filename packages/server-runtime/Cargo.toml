@@ -1,0 +1,37 @@
+[package]
+name = "erpx-server-runtime"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+autotests = false
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "erpx-server"
+path = "src/main.rs"
+
+[dependencies]
+erpx-server-shared.workspace = true
+axum.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+tower.workspace = true
+syn.workspace = true
+
+[[test]]
+name = "runtime_foundation"
+path = "../../tests/unit/shared.architecture/rust-runtime-foundation.test.rs"
+
+[[test]]
+name = "rust_architecture"
+path = "../../tests/unit/shared.architecture/rust-architecture.test.rs"
+
+[lints]
+workspace = true

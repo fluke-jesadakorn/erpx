@@ -43,6 +43,9 @@ export async function runtimeSourceFingerprint(root: string, environment: NodeJS
     }
   }
   const configuration = ["bun.lock", "package.json", "next.config.ts", "tsconfig.base.json", "postcss.config.mjs"];
+  for (const name of ['Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml', 'tests/config/tsconfig.frontend.json', 'LICENSE', 'NOTICE', 'LICENSING.md', 'CONTRIBUTING.md', 'SECURITY.md', 'CODE_OF_CONDUCT.md', 'GOVERNANCE.md']) {
+    try { await access(join(root, name)); configuration.push(name); } catch { /* Historical TypeScript-only candidates have no Cargo workspace. */ }
+  }
   for (const name of configuration) hash.update(name).update("\0").update(await readFile(join(root, name))).update("\0");
   const ops = ["ops/macos/install-attachment-runtime.py", "ops/macos/attachment-rollout.md",
     "ops/macos/erpxctl.py", "ops/macos/offsite.py", "ops/macos/recovery_status.py",

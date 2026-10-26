@@ -130,7 +130,8 @@
     "./lib/record-route-definitions": "./src/lib/record-route-definitions.ts",
     "./lib/record-drawer": "./src/lib/record-drawer.ts",
     "./lib/source-record": "./src/lib/source-record.ts",
-    "./lib/mention-read": "./src/lib/mention-read.ts"
+    "./lib/mention-read": "./src/lib/mention-read.ts",
+    "./public/client": "./src/public/client.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

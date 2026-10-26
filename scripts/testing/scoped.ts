@@ -10,6 +10,7 @@ import { verificationSources, loadCatalogue, validateCatalogue, repositoryRoot a
 import { dependencyClosure, workspaceInputFile, changedWorkspaceFiles, loadRevisionWorkspaceGraph, loadWorkspaceGraph, selectCandidateSuites, selectWorkspaceSuites, workspaceFingerprint } from './workspace-graph';
 import { pinnedNode } from '../local/app-task';
 import { refreshWorkspaceTaskInputs } from './workspace-tasks';
+import { cargoRootInputs, isCargoInput } from './cargo';
 
 type Options={mode:'dev'|'ci'|'build';apps:string[];base?:string;head?:string;list:boolean;json:boolean;watch:boolean};
 export function scopedArguments(input:string[]):Options {
@@ -70,11 +71,15 @@ export async function runScoped(options:Options){
     await execute([pinnedNode(),'node_modules/eslint/bin/eslint.js',...tools]);
    }
    if(plan.apps.length || plan.changed.some(file=>/^(?:packages|src|apps|scripts\/architecture)\//.test(file)))await execute([process.execPath,'scripts/architecture/check.ts']);
-   if(plan.changed.some(file=>file.startsWith('docs/')||file.endsWith('.md')))await execute([process.execPath,'scripts/docs/check-documentation.ts']);
+   if(plan.changed.some(file=>file.startsWith('docs/')||file.endsWith('.md')||['LICENSE','NOTICE','.github/CODEOWNERS'].includes(file)||file.startsWith('.github/ISSUE_TEMPLATE/')))await execute([process.execPath,'scripts/docs/check-documentation.ts']);
    refreshWorkspaceTaskInputs();
    if(plan.apps.length)await execute([process.execPath,resolve(root,'node_modules/turbo/bin/turbo'),'run','lint','typecheck',...plan.apps.map(id=>`--filter=@erpx/app-${id}`),'--cache=local:rw','--concurrency=2','--output-logs=errors-only']);
    const units=plan.native.filter(suite=>suite.lane==='unit'),integration=plan.native.filter(suite=>suite.lane==='integration');
-   const testFiles=[...plan.native,...plan.browser].flatMap(suite=>suite.files);
+   if(plan.native.some(suite=>suite.framework==='cargo') || plan.changed.some(isCargoInput)){
+    await execute(['cargo','fmt','--all','--','--check']);
+    await execute(['cargo','clippy','--workspace','--all-targets','--locked','--','-D','warnings']);
+   }
+   const testFiles=[...plan.native,...plan.browser].filter(suite=>suite.framework!=='cargo').flatMap(suite=>suite.files);
    if(testFiles.length){
     const key=workspaceFingerprint(graph,[...selectedTypecheckInputs(testFiles),...verificationSources(plan.native)],['scripts/testing/selected-typecheck.ts','tests/config/tsconfig.json','tsconfig.base.json']);
     await pureTask('test-types-'+key,()=>execute([pinnedNode(),'--max-old-space-size=8192','node_modules/@typescript/native/bin/tsc','--noEmit','--project',selectedTypecheckConfig(testFiles)]));
@@ -104,7 +109,7 @@ async function watchScoped(options:Options){
   if(!name||/(?:^|\/)(?:node_modules|\.next|\.build|\.cache|\.turbo)(?:\/|$)/.test(name)||/(?:next-env\.d\.ts|tsconfig\.tsbuildinfo|turbo\.json)$/.test(name))return;
   if(relevant(`${directory}/${name}`))changed();
  }));
- const rootInputs=new Set(['package.json','bun.lock','tsconfig.base.json','tsconfig.json','next.config.ts','eslint.config.mjs','postcss.config.mjs','turbo.json']);
+ const rootInputs=new Set(['package.json','bun.lock','tsconfig.base.json','tsconfig.json','next.config.ts','eslint.config.mjs','postcss.config.mjs','turbo.json',...cargoRootInputs]);
  watchers.push(watch(root,(_,name)=>{if(name && rootInputs.has(name))changed();}));
  const finish=()=>{terminated=true;for(const watcher of watchers)watcher.close();if(timer)clearTimeout(timer);pending=false;cancel();};
  process.once('SIGINT',finish);process.once('SIGTERM',finish);

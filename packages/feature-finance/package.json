@@ -75,7 +75,6 @@
     "./lib/expense-posting-setup-command": "./src/lib/expense-posting-setup-command.ts",
     "./lib/finance-vat-labels": "./src/lib/finance-vat-labels.ts",
     "./lib/refund-command-controls": "./src/lib/refund-command-controls.ts",
-    "./lib/finance-command-fetch": "./src/lib/finance-command-fetch.ts",
     "./lib/finance-starter": "./src/lib/finance-starter.ts",
     "./lib/finance-report-periods": "./src/lib/finance-report-periods.ts",
     "./lib/bank-command": "./src/lib/bank-command.ts",
@@ -356,7 +355,9 @@
     "./routes/holdings/[holdingSlug]/@record/finance/documents/expenses/[id]/page": "./src/routes/holdings/[holdingSlug]/@record/finance/documents/expenses/[id]/page.tsx",
     "./routes/holdings/[holdingSlug]/@record/finance/reports/statement-packages/[id]/[recordSection]/page": "./src/routes/holdings/[holdingSlug]/@record/finance/reports/statement-packages/[id]/[recordSection]/page.tsx",
     "./routes/holdings/[holdingSlug]/@record/finance/reports/statement-packages/[id]/page": "./src/routes/holdings/[holdingSlug]/@record/finance/reports/statement-packages/[id]/page.tsx",
-    "./routes/api/v1/holdings/[holdingSlug]/finance/route": "./src/routes/api/v1/holdings/[holdingSlug]/finance/route.ts"
+    "./routes/api/v1/holdings/[holdingSlug]/finance/route": "./src/routes/api/v1/holdings/[holdingSlug]/finance/route.ts",
+    "./public/client": "./src/public/client.ts",
+    "./public/contracts": "./src/public/contracts.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

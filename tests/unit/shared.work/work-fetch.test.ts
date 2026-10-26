@@ -1,4 +1,4 @@
-import { createFinanceCommandFetch } from "@erpx/feature-finance/lib/finance-command-fetch";
+import { createFinanceCommandFetch } from "@erpx/feature-finance/public/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { workFetch } from "@erpx/feature-work_projection/lib/work-fetch";
 import {

@@ -19,7 +19,7 @@ Read alongside these implementation sources:
   [new-work dialog](../../packages/workplace/src/components/new-work.tsx).
 - [Request editor and actions](../../packages/workplace/src/components/request-controls.tsx),
   [request service](../../packages/server-records/src/public/employee-requests.ts),
-  [browser draft recovery](../../packages/ui/src/components/use-recoverable-draft.tsx), and
+  [browser draft recovery](../../packages/feature-shared/src/components/use-recoverable-draft.tsx), and
   [command retry](../../packages/feature-work_projection/src/components/staff-work-controls.tsx).
 - [Named workflow handoffs](../production-plan.md),
   [local personas and connected examples](../local-seed.md), and

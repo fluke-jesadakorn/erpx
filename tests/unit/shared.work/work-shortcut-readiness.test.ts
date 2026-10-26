@@ -281,7 +281,7 @@ it('keeps an actual Work purchase request title when product navigation is held 
   if(name.endsWith("@erpx/workplace/components/workspace-link"))return{default:newWorkLink};
   if(name.endsWith("@erpx/feature-shared/lib/destination-router"))return{useRouter:()=>router};
   if(name.endsWith("@erpx/ui/components/use-hydrated"))return{useHydrated:()=>true};
-  if(name.endsWith("@erpx/ui/components/use-recoverable-draft"))return{useRecoverableDraft};
+  if(name.endsWith("@erpx/feature-shared/components/use-recoverable-draft"))return{useRecoverableDraft};
   if(name.endsWith('/guided-intake'))return{clearGuidedIntakeHandoff:vi.fn(),readGuidedIntakeHandoff:()=>null};
   if(name.endsWith("@erpx/feature-people_payroll/components/time/time-preference-context"))return{TimeText:()=>null};
   if(name.endsWith("@erpx/feature-work_projection/components/use-staff-command"))return{useStaffCommand:()=>({send,busy:false,error:''})};

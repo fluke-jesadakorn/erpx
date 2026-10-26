@@ -8,7 +8,7 @@ import { Button, Field, Select, TextInput } from "@erpx/ui/components/foundation
 
 import { useState } from "react";
 import { useRouter } from "@erpx/feature-shared/lib/destination-router";
-import { financeCommandFetch as workFetch } from "@erpx/feature-finance/lib/finance-command-fetch";
+import { financeCommandFetch as workFetch } from "@erpx/feature-finance/public/client";
 import { Card, FormGrid, FormLayout } from "@erpx/ui/components/foundation";
 
 type Row = Record<string, string | number | null>;

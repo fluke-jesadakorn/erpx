@@ -3,7 +3,7 @@ import {groupAppsSidebar,groupHospitalitySidebar,sidebarSelection} from '@erpx/f
 import {SidebarSection,sidebarInitialGroup} from '@erpx/ui/components/sidebar-navigation';
 import {InboxUpdates} from "@erpx/feature-collaboration/components/messaging/inbox-updates";
 import {RecordLink} from "@erpx/feature-records/components/record-link";
-import {RecordScopeProvider} from "@erpx/ui/components/record-context";
+import {RecordScopeProvider} from "@erpx/feature-records/public/client";
 import {createElement as h,type ReactNode} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
 import {productNavigationHref,productHrefString,frontProductLaunchTarget,isProductHandoffHref,type ProductNavigationScope} from '@erpx/feature-work_projection/lib/product-navigation';

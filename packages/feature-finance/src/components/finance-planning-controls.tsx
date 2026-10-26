@@ -6,7 +6,7 @@ import {EmbeddedRecord} from "@erpx/ui/components/record-context";
 import {RecordLink} from "@erpx/feature-records/components/record-link";
 import {recordCanonicalHref} from "@erpx/feature-records/lib/record-drawer";
 import { useContext,useState } from "react";
-import { financeCommandFetch as workFetch } from "@erpx/feature-finance/lib/finance-command-fetch";
+import { financeCommandFetch as workFetch } from "@erpx/feature-finance/public/client";
 import { financeCsvRows } from "@erpx/feature-finance/lib/finance-csv";
 import { minorToDecimal } from "@erpx/feature-finance/lib/finance-money";
 import {

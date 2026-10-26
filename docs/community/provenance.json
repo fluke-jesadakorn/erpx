@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "reviewedAt": "2026-10-27",
+  "maintainer": "fluke-jesadakorn",
+  "inventoryComplete": false,
+  "publicReleaseReady": false,
+  "entries": [
+    {
+      "id": "current-erpx-owned-source",
+      "paths": ["apps/", "packages/", "src/", "scripts/", "tests/", "docs/"],
+      "declaredLicense": "Apache-2.0",
+      "reviewStatus": "scope-declared",
+      "basis": "The project owner authorized the current ERPX-owned source and documentation grant on 2026-10-27. Third-party material and historical source require their own review; this category is not a complete file-level rights audit."
+    },
+    {
+      "id": "archived-rust-source",
+      "gitRefs": ["refs/heads/backup/rust-2026-09-02", "refs/tags/rust-archive-2026-09-02"],
+      "declaredLicense": "LicenseRef-Proprietary",
+      "reviewStatus": "pending",
+      "basis": "Historical declaration retained. Determine the source rights and any explicit additional grant before reuse or public-history publication."
+    },
+    {
+      "id": "vendored-shadcn",
+      "paths": ["vendor/shadcn/"],
+      "noticeFiles": ["vendor/shadcn/LICENSE", "vendor/shadcn/source-lock.json"],
+      "declaredLicense": "MIT",
+      "reviewStatus": "notice-reviewed",
+      "basis": "Existing MIT notice and source lock retained; adapted source must retain required attribution."
+    },
+    {
+      "id": "noto-thai-fonts",
+      "paths": ["public/fonts/"],
+      "noticeFiles": ["public/fonts/OFL.txt", "public/fonts/NotoSansThai-OFL.txt"],
+      "declaredLicense": "OFL-1.1",
+      "reviewStatus": "notice-reviewed",
+      "basis": "Existing Noto Project Authors notices and SIL Open Font License retained."
+    },
+    {
+      "id": "generated-hotel-media",
+      "paths": ["public/pms-demo/rooms/"],
+      "noticeFiles": ["public/pms-demo/rooms/README.md"],
+      "reviewStatus": "pending",
+      "basis": "The existing README documents fictional AI-generated media and its generation history. Confirm redistribution scope as part of asset review."
+    },
+    {
+      "id": "brand-and-preview-media",
+      "paths": ["public/brand/", "public/preview/"],
+      "reviewStatus": "pending",
+      "basis": "Record asset authorship, acquisition and redistribution terms; keep trademark use distinct from the source-code license."
+    },
+    {
+      "id": "historical-evidence-and-operator-metadata",
+      "paths": ["docs/archive/", "docs/testing/", "ops/"],
+      "reviewStatus": "pending",
+      "basis": "Review screenshots, private paths, provider resource identifiers and personal data. Preserve original dated or checksum-protected evidence and label any public redacted derivatives."
+    },
+    {
+      "id": "dependency-and-runtime-inventory",
+      "paths": ["package.json", "bun.lock", "Cargo.toml", "Cargo.lock", "rust-toolchain.toml"],
+      "reviewStatus": "pending",
+      "basis": "Complete the transitive JavaScript, Rust, native-tool and eventual image dependency/license inventory for the actual release. No complete SBOM or compliance clearance is claimed here."
+    }
+  ]
+}

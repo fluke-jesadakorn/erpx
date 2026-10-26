@@ -7,7 +7,6 @@
     "./components/appearance": "./src/components/appearance.ts",
     "./components/workspace-overlay": "./src/components/workspace-overlay.tsx",
     "./components/ui-standard-demo": "./src/components/ui-standard-demo.tsx",
-    "./components/use-recoverable-draft": "./src/components/use-recoverable-draft.tsx",
     "./components/main": "./src/components/main.tsx",
     "./components/ui-contract-demo": "./src/components/ui-contract-demo.tsx",
     "./components/card": "./src/components/card.tsx",
@@ -45,7 +44,9 @@
     "./components/input": "./src/components/input.tsx",
     "./components/use-hydrated": "./src/components/use-hydrated.ts",
     "./lib/cn": "./src/lib/cn.ts",
-    "./components/sidebar-navigation": "./src/components/sidebar-navigation.tsx"
+    "./components/sidebar-navigation": "./src/components/sidebar-navigation.tsx",
+    "./lib/unsaved-changes": "./src/lib/unsaved-changes.ts",
+    "./components/navigation-context": "./src/components/navigation-context.tsx"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
@@ -53,12 +54,6 @@
   },
   "dependencies": {
     "@base-ui/react": "1.9.0",
-    "@erpx/feature-organization": "workspace:*",
-    "@erpx/feature-records": "workspace:*",
-    "@erpx/feature-shared": "workspace:*",
-    "@erpx/feature-work_projection": "workspace:*",
-    "@erpx/front": "workspace:*",
-    "@erpx/workplace": "workspace:*",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
     "lucide-react": "1.61.0",

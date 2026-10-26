@@ -6,6 +6,8 @@ Reviewed 2026-10-23. This is the single entry point. [Production plan](productio
 
 ## Current system
 
+- [Open-source preparation and provenance](community/open-source.md), [contributing](../CONTRIBUTING.md), [governance](../GOVERNANCE.md), [security reporting](../SECURITY.md), [licensing scope](../LICENSING.md).
+
 - [Apps Feed and Work retirement](adr/ADR-050-apps-feed-and-work-retirement.md).
 
 - [Product separation: registry, packages and SSO implementation boundary](contracts/next/product-separation.md), [21-host desired-state manifest](contracts/next/product-registry.generated.json), [development rollout/rollback](../ops/macos/product-development.md)

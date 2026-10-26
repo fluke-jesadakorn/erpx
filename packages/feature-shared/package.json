@@ -62,7 +62,8 @@
     "./lib/executive/coverage": "./src/lib/executive/coverage.ts",
     "./lib/executive/connections": "./src/lib/executive/connections.ts",
     "./lib/executive/theme": "./src/lib/executive/theme.ts",
-    "./components/hospitality/grouped-navigation": "./src/components/hospitality/grouped-navigation.tsx"
+    "./components/hospitality/grouped-navigation": "./src/components/hospitality/grouped-navigation.tsx",
+    "./components/use-recoverable-draft": "./src/components/use-recoverable-draft.tsx"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

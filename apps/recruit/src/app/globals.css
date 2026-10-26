@@ -45,6 +45,9 @@
 @source "../../../../packages/feature-files/src/lib/attachment-client.ts";
 @source "../../../../packages/feature-files/src/lib/attachment-state.ts";
 @source "../../../../packages/feature-files/src/lib/document-pages.ts";
+@source "../../../../packages/feature-finance/src/adapters/browser/finance-command-fetch.ts";
+@source "../../../../packages/feature-finance/src/application/command-attempts.ts";
+@source "../../../../packages/feature-finance/src/application/submit-command.ts";
 @source "../../../../packages/feature-finance/src/components/bank-controls.tsx";
 @source "../../../../packages/feature-finance/src/components/consolidation-run-console.tsx";
 @source "../../../../packages/feature-finance/src/components/finance-accrual-controls.tsx";
@@ -67,11 +70,12 @@
 @source "../../../../packages/feature-finance/src/components/money/currency-provider.tsx";
 @source "../../../../packages/feature-finance/src/components/purchase-context.tsx";
 @source "../../../../packages/feature-finance/src/components/use-finance-command.ts";
+@source "../../../../packages/feature-finance/src/domain/command-attempt.ts";
+@source "../../../../packages/feature-finance/src/domain/submission.ts";
 @source "../../../../packages/feature-finance/src/lib/bank-command.ts";
 @source "../../../../packages/feature-finance/src/lib/company-money.ts";
 @source "../../../../packages/feature-finance/src/lib/document-post-control.ts";
 @source "../../../../packages/feature-finance/src/lib/finance-ai.ts";
-@source "../../../../packages/feature-finance/src/lib/finance-command-fetch.ts";
 @source "../../../../packages/feature-finance/src/lib/finance-csv.ts";
 @source "../../../../packages/feature-finance/src/lib/finance-money.ts";
 @source "../../../../packages/feature-finance/src/lib/finance-navigation.ts";
@@ -80,6 +84,7 @@
 @source "../../../../packages/feature-finance/src/lib/finance-starter.ts";
 @source "../../../../packages/feature-finance/src/lib/finance-thai-document.ts";
 @source "../../../../packages/feature-finance/src/lib/thai-finance-tax-pack.ts";
+@source "../../../../packages/feature-finance/src/public/client.ts";
 @source "../../../../packages/feature-identity_access/src/components/account-preferences-context.tsx";
 @source "../../../../packages/feature-identity_access/src/components/account-preferences-provider.tsx";
 @source "../../../../packages/feature-identity_access/src/components/device-account-login-choices.tsx";
@@ -198,12 +203,14 @@
 @source "../../../../packages/feature-records/src/components/record-domain-controls.tsx";
 @source "../../../../packages/feature-records/src/components/record-drawer.tsx";
 @source "../../../../packages/feature-records/src/components/record-link.tsx";
+@source "../../../../packages/feature-records/src/components/record-scope.tsx";
 @source "../../../../packages/feature-records/src/components/record-supplement.tsx";
 @source "../../../../packages/feature-records/src/components/record-workspace.tsx";
 @source "../../../../packages/feature-records/src/components/source-record-presentation.ts";
 @source "../../../../packages/feature-records/src/lib/record-drawer.ts";
 @source "../../../../packages/feature-records/src/lib/record-route-definitions.ts";
 @source "../../../../packages/feature-records/src/lib/source-record.ts";
+@source "../../../../packages/feature-records/src/public/client.ts";
 @source "../../../../packages/feature-recruit/src/routes/api/v1/holdings/[holdingSlug]/talent/route.ts";
 @source "../../../../packages/feature-recruit/src/routes/holdings/[holdingSlug]/@record/people-organization/talent/[id]/[recordSection]/page.tsx";
 @source "../../../../packages/feature-recruit/src/routes/holdings/[holdingSlug]/@record/people-organization/talent/[id]/page.tsx";
@@ -236,6 +243,7 @@
 @source "../../../../packages/feature-shared/src/components/features/feature-widget.tsx";
 @source "../../../../packages/feature-shared/src/components/features/layout-editor.tsx";
 @source "../../../../packages/feature-shared/src/components/features/widget-context.tsx";
+@source "../../../../packages/feature-shared/src/components/use-recoverable-draft.tsx";
 @source "../../../../packages/feature-shared/src/lib/access-problem.ts";
 @source "../../../../packages/feature-shared/src/lib/administration.ts";
 @source "../../../../packages/feature-shared/src/lib/ai-draft.ts";
@@ -311,6 +319,7 @@
 @source "../../../../packages/feature-work_projection/src/lib/workspace-choice.ts";
 @source "../../../../packages/feature-work_projection/src/lib/workspace-memory-client.ts";
 @source "../../../../packages/feature-work_projection/src/lib/workspace.ts";
+@source "../../../../packages/feature-work_projection/src/public/client.ts";
 @source "../../../../packages/front/src/components/front-error.tsx";
 @source "../../../../packages/front/src/components/front-language.tsx";
 @source "../../../../packages/server-agent/src/adapters/agent-governance.ts";
@@ -3757,6 +3766,7 @@
 @source "../../../../packages/ui/src/components/interaction-suspension.tsx";
 @source "../../../../packages/ui/src/components/list-pagination.tsx";
 @source "../../../../packages/ui/src/components/main.tsx";
+@source "../../../../packages/ui/src/components/navigation-context.tsx";
 @source "../../../../packages/ui/src/components/patterns.tsx";
 @source "../../../../packages/ui/src/components/person-avatar.tsx";
 @source "../../../../packages/ui/src/components/popups.tsx";
@@ -3765,10 +3775,10 @@
 @source "../../../../packages/ui/src/components/sidebar-navigation.tsx";
 @source "../../../../packages/ui/src/components/table.tsx";
 @source "../../../../packages/ui/src/components/use-hydrated.ts";
-@source "../../../../packages/ui/src/components/use-recoverable-draft.tsx";
 @source "../../../../packages/ui/src/components/workspace-overlay.tsx";
 @source "../../../../packages/ui/src/components/workspace.tsx";
 @source "../../../../packages/ui/src/lib/cn.ts";
+@source "../../../../packages/ui/src/lib/unsaved-changes.ts";
 @source "../../../../packages/workplace/src/components/access-state.tsx";
 @source "../../../../packages/workplace/src/components/admin-workspace-menus.tsx";
 @source "../../../../packages/workplace/src/components/app-navigation.tsx";
@@ -3803,6 +3813,7 @@
 @source "../../../../packages/workplace/src/components/review-decision.tsx";
 @source "../../../../packages/workplace/src/components/role-select.tsx";
 @source "../../../../packages/workplace/src/components/topic-navigation.tsx";
+@source "../../../../packages/workplace/src/components/ui-navigation.tsx";
 @source "../../../../packages/workplace/src/components/work-context-boundary.tsx";
 @source "../../../../packages/workplace/src/components/workplace-controls.tsx";
 @source "../../../../packages/workplace/src/components/workspace-assistant-content.tsx";

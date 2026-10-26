@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "id": "legal-th-operations-checkpoint",
+      "document": "docs/testing/legal-th-operations-v1-uat.md",
+      "path": ".scratch/dev/legal-checkpoint-evidence.json",
+      "sha256": "6b79644b59041351726f58e3f25b501afe696c05fcfca66c262e5998e01b1693",
+      "source": {
+        "commit": "43d5b1775120750cb8f5b173146d2e023773d3de",
+        "documentSha256": "74fe29b1bbe475057fa31399d7a739301c741e38f15b68e7dbe4f93e3aaeaf7c"
+      },
+      "retention": {
+        "status": "recorded-private",
+        "repositoryRoot": "/Users/fluke/Desktop/Work/erpx",
+        "observedAt": "2026-10-27"
+      },
+      "publication": "unpublished"
+    }
+  ]
+}

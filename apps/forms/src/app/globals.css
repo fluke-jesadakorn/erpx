@@ -71,9 +71,11 @@
 @source "../../../../packages/feature-people_payroll/src/lib/workforce-evidence-client.ts";
 @source "../../../../packages/feature-records/src/components/collection-record-link.tsx";
 @source "../../../../packages/feature-records/src/components/record-link.tsx";
+@source "../../../../packages/feature-records/src/components/record-scope.tsx";
 @source "../../../../packages/feature-records/src/lib/record-drawer.ts";
 @source "../../../../packages/feature-records/src/lib/record-route-definitions.ts";
 @source "../../../../packages/feature-records/src/lib/source-record.ts";
+@source "../../../../packages/feature-records/src/public/client.ts";
 @source "../../../../packages/feature-runtime/src/lib/application-origins.ts";
 @source "../../../../packages/feature-runtime/src/lib/console-retirement.ts";
 @source "../../../../packages/feature-runtime/src/lib/database-pool-policy.ts";
@@ -82,6 +84,7 @@
 @source "../../../../packages/feature-runtime/src/lib/product-api-policy.ts";
 @source "../../../../packages/feature-runtime/src/lib/product-hosts.ts";
 @source "../../../../packages/feature-runtime/src/lib/product-route-policy.ts";
+@source "../../../../packages/feature-shared/src/components/use-recoverable-draft.tsx";
 @source "../../../../packages/feature-shared/src/lib/access-problem.ts";
 @source "../../../../packages/feature-shared/src/lib/administration.ts";
 @source "../../../../packages/feature-shared/src/lib/ai-draft.ts";
@@ -1450,6 +1453,7 @@
 @source "../../../../packages/ui/src/components/input.tsx";
 @source "../../../../packages/ui/src/components/interaction-suspension.tsx";
 @source "../../../../packages/ui/src/components/main.tsx";
+@source "../../../../packages/ui/src/components/navigation-context.tsx";
 @source "../../../../packages/ui/src/components/patterns.tsx";
 @source "../../../../packages/ui/src/components/person-avatar.tsx";
 @source "../../../../packages/ui/src/components/popups.tsx";
@@ -1457,9 +1461,9 @@
 @source "../../../../packages/ui/src/components/sidebar-navigation.tsx";
 @source "../../../../packages/ui/src/components/table.tsx";
 @source "../../../../packages/ui/src/components/use-hydrated.ts";
-@source "../../../../packages/ui/src/components/use-recoverable-draft.tsx";
 @source "../../../../packages/ui/src/components/workspace-overlay.tsx";
 @source "../../../../packages/ui/src/lib/cn.ts";
+@source "../../../../packages/ui/src/lib/unsaved-changes.ts";
 @source "../../../../packages/workplace/src/components/access-state.tsx";
 @source "../../../../packages/workplace/src/components/app-navigation.tsx";
 @source "../../../../packages/workplace/src/components/context-switch-context.ts";
@@ -1480,6 +1484,7 @@
 @source "../../../../packages/workplace/src/components/request-validation.tsx";
 @source "../../../../packages/workplace/src/components/review-decision.tsx";
 @source "../../../../packages/workplace/src/components/role-select.tsx";
+@source "../../../../packages/workplace/src/components/ui-navigation.tsx";
 @source "../../../../packages/workplace/src/components/workplace-controls.tsx";
 @source "../../../../packages/workplace/src/components/workspace-link.tsx";
 @source "../../../../packages/workplace/src/components/workspace-menu.tsx";

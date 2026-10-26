@@ -1,0 +1,17 @@
+ERPX
+Copyright 2026 ERPX contributors.
+
+ERPX-owned current source and documentation are provided under Apache-2.0.
+Third-party material retains its own license and attribution.
+
+This source tree includes:
+
+- shadcn source: Copyright (c) 2023 shadcn, MIT License.
+  See vendor/shadcn/LICENSE and vendor/shadcn/source-lock.json.
+- Noto Sans Thai font software: Copyright 2022 The Noto Project Authors,
+  SIL Open Font License 1.1. See public/fonts/OFL.txt and
+  public/fonts/NotoSansThai-OFL.txt.
+
+See LICENSING.md and docs/community/provenance.json for the scope of the
+current project grant and the incomplete historical and asset review.
+This notice is informational; it does not change any license terms.

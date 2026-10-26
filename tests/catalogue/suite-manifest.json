@@ -1277,7 +1277,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -1401,6 +1402,7 @@
       },
       "apps": [],
       "packages": [
+        "@erpx/contracts",
         "@erpx/feature-billing",
         "@erpx/feature-records",
         "@erpx/feature-shared",
@@ -1670,11 +1672,13 @@
         "forms"
       ],
       "packages": [
+        "@erpx/contracts",
         "@erpx/feature-files",
         "@erpx/feature-records",
         "@erpx/feature-work_projection",
         "@erpx/server-support",
-        "@erpx/server-talent"
+        "@erpx/server-talent",
+        "@erpx/ui"
       ]
     },
     {
@@ -2186,6 +2190,7 @@
         "forms"
       ],
       "packages": [
+        "@erpx/contracts",
         "@erpx/feature-records",
         "@erpx/feature-work_projection",
         "@erpx/server-files",
@@ -2328,6 +2333,7 @@
         "@erpx/server-talent",
         "@erpx/server-work_projection",
         "@erpx/server-workflow",
+        "@erpx/ui",
         "@erpx/workplace"
       ]
     },
@@ -2581,11 +2587,13 @@
         "forms"
       ],
       "packages": [
+        "@erpx/contracts",
         "@erpx/feature-files",
         "@erpx/feature-records",
         "@erpx/feature-work_projection",
         "@erpx/server-support",
-        "@erpx/server-talent"
+        "@erpx/server-talent",
+        "@erpx/ui"
       ]
     },
     {
@@ -2853,7 +2861,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -2990,7 +2999,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -3505,6 +3515,7 @@
         "admin"
       ],
       "packages": [
+        "@erpx/contracts",
         "@erpx/feature-records",
         "@erpx/feature-work_projection",
         "@erpx/server-billing",
@@ -4463,7 +4474,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -4788,6 +4800,7 @@
         "@erpx/server-talent",
         "@erpx/server-work_projection",
         "@erpx/server-workflow",
+        "@erpx/ui",
         "@erpx/workplace"
       ],
       "postgres": {
@@ -5094,7 +5107,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "raw",
@@ -5934,7 +5948,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -6127,7 +6142,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "raw",
@@ -6690,7 +6706,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -6787,6 +6804,7 @@
         "@erpx/server-talent",
         "@erpx/server-work_projection",
         "@erpx/server-workflow",
+        "@erpx/ui",
         "@erpx/workplace"
       ],
       "postgres": {
@@ -6979,7 +6997,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -7411,7 +7430,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -10090,7 +10110,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ]
     },
     {
@@ -10629,11 +10650,13 @@
         "forms"
       ],
       "packages": [
+        "@erpx/contracts",
         "@erpx/feature-files",
         "@erpx/feature-records",
         "@erpx/feature-work_projection",
         "@erpx/server-support",
-        "@erpx/server-talent"
+        "@erpx/server-talent",
+        "@erpx/ui"
       ]
     },
     {
@@ -12567,7 +12590,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ]
     },
     {
@@ -12698,7 +12722,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ]
     },
     {
@@ -12829,7 +12854,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ]
     },
     {
@@ -12960,7 +12986,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ]
     },
     {
@@ -13070,7 +13097,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -13529,7 +13557,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -14196,7 +14225,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "raw",
@@ -14302,7 +14332,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -14701,7 +14732,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -14815,7 +14847,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -14969,7 +15002,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -15153,6 +15187,7 @@
         "people"
       ],
       "packages": [
+        "@erpx/contracts",
         "@erpx/feature-files",
         "@erpx/feature-finance",
         "@erpx/feature-people_payroll",
@@ -15160,7 +15195,8 @@
         "@erpx/feature-shared",
         "@erpx/feature-work_projection",
         "@erpx/server-support",
-        "@erpx/server-talent"
+        "@erpx/server-talent",
+        "@erpx/ui"
       ]
     },
     {
@@ -15384,7 +15420,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ]
     },
     {
@@ -15470,7 +15507,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -15979,7 +16017,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -16163,7 +16202,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -17157,7 +17197,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -18277,7 +18318,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -18369,7 +18411,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -18853,7 +18896,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -19471,7 +19515,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -19566,7 +19611,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -20233,7 +20279,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -20378,7 +20425,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ]
     },
     {
@@ -20511,7 +20559,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -20603,7 +20652,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -20695,7 +20745,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -20787,7 +20838,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -20881,7 +20933,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -21271,6 +21324,7 @@
         "legal-portal"
       ],
       "packages": [
+        "@erpx/contracts",
         "@erpx/feature-records",
         "@erpx/feature-work_projection",
         "@erpx/server-legal",
@@ -22219,6 +22273,7 @@
         "@erpx/server-talent",
         "@erpx/server-work_projection",
         "@erpx/server-workflow",
+        "@erpx/ui",
         "@erpx/workplace"
       ],
       "postgres": {
@@ -22662,7 +22717,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -22857,8 +22913,7 @@
         "@erpx/server-talent",
         "@erpx/server-work_projection",
         "@erpx/server-workflow",
-        "@erpx/ui",
-        "@erpx/workplace"
+        "@erpx/ui"
       ]
     },
     {
@@ -23063,7 +23118,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -23160,7 +23216,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -23344,21 +23401,59 @@
       "packages": [
         "@erpx/catalogue",
         "@erpx/contracts",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-finance",
         "@erpx/feature-identity_access",
+        "@erpx/feature-legal",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
         "@erpx/feature-records",
         "@erpx/feature-runtime",
+        "@erpx/feature-sales",
         "@erpx/feature-shared",
         "@erpx/feature-work_projection",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
         "@erpx/server-collaboration",
+        "@erpx/server-commerce",
         "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
         "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
         "@erpx/server-organization",
         "@erpx/server-people_payroll",
+        "@erpx/server-planning",
         "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
         "@erpx/server-runtime",
+        "@erpx/server-sales",
         "@erpx/server-shared",
         "@erpx/server-support",
         "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow",
         "@erpx/workplace"
       ]
     },
@@ -23585,7 +23680,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "raw",
@@ -23821,7 +23917,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -24047,18 +24144,10 @@
         "admin"
       ],
       "packages": [
-        "@erpx/contracts",
         "@erpx/feature-organization",
-        "@erpx/feature-records",
         "@erpx/feature-shared",
-        "@erpx/feature-work_projection",
-        "@erpx/server-commercial",
-        "@erpx/server-identity_access",
         "@erpx/server-organization",
-        "@erpx/server-support",
-        "@erpx/server-talent",
-        "@erpx/ui",
-        "@erpx/workplace"
+        "@erpx/ui"
       ]
     },
     {
@@ -24141,7 +24230,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -24184,8 +24274,11 @@
         "@erpx/catalogue",
         "@erpx/contracts",
         "@erpx/feature-billing",
+        "@erpx/feature-brand",
         "@erpx/feature-collaboration",
         "@erpx/feature-commerce",
+        "@erpx/feature-customer_authority",
+        "@erpx/feature-files",
         "@erpx/feature-finance",
         "@erpx/feature-identity_access",
         "@erpx/feature-legal",
@@ -24320,7 +24413,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -24597,7 +24691,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -24892,7 +24987,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -25102,7 +25198,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -25502,8 +25599,7 @@
         "@erpx/server-talent",
         "@erpx/server-work_projection",
         "@erpx/server-workflow",
-        "@erpx/ui",
-        "@erpx/workplace"
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -25560,7 +25656,6 @@
         "@erpx/feature-sales",
         "@erpx/feature-shared",
         "@erpx/feature-work_projection",
-        "@erpx/front",
         "@erpx/server-agent",
         "@erpx/server-assets",
         "@erpx/server-benefits",
@@ -25684,7 +25779,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -25776,7 +25872,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -25869,7 +25966,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -25989,8 +26087,7 @@
         "@erpx/server-talent",
         "@erpx/server-work_projection",
         "@erpx/server-workflow",
-        "@erpx/ui",
-        "@erpx/workplace"
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -26082,7 +26179,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -26135,7 +26233,6 @@
         "@erpx/feature-sales",
         "@erpx/feature-shared",
         "@erpx/feature-work_projection",
-        "@erpx/front",
         "@erpx/server-agent",
         "@erpx/server-assets",
         "@erpx/server-benefits",
@@ -26452,8 +26549,7 @@
         "@erpx/server-talent",
         "@erpx/server-work_projection",
         "@erpx/server-workflow",
-        "@erpx/ui",
-        "@erpx/workplace"
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -26557,7 +26653,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -26656,7 +26753,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -26755,7 +26853,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -26855,7 +26954,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -26953,7 +27053,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -27052,7 +27153,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -27240,7 +27342,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -27443,7 +27546,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -27544,7 +27648,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "raw",
@@ -27637,7 +27742,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -27729,7 +27835,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -27829,8 +27936,7 @@
         "@erpx/server-talent",
         "@erpx/server-work_projection",
         "@erpx/server-workflow",
-        "@erpx/ui",
-        "@erpx/workplace"
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -27926,7 +28032,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -28022,7 +28129,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -28540,7 +28648,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -29175,7 +29284,9 @@
         "forms"
       ],
       "packages": [
-        "@erpx/feature-work_projection"
+        "@erpx/contracts",
+        "@erpx/feature-work_projection",
+        "@erpx/ui"
       ]
     },
     {
@@ -29718,7 +29829,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "raw",
@@ -30101,7 +30213,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -30370,7 +30483,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -30604,6 +30718,7 @@
         "forms"
       ],
       "packages": [
+        "@erpx/contracts",
         "@erpx/feature-billing",
         "@erpx/feature-finance",
         "@erpx/feature-people_payroll",
@@ -30700,7 +30815,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -30798,7 +30914,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ]
     },
     {
@@ -31537,7 +31654,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "raw",
@@ -31631,7 +31749,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -31726,7 +31845,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -31819,7 +31939,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -31914,7 +32035,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -32009,7 +32131,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -32104,7 +32227,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -32310,6 +32434,7 @@
         "@erpx/server-talent",
         "@erpx/server-work_projection",
         "@erpx/server-workflow",
+        "@erpx/ui",
         "@erpx/workplace"
       ],
       "postgres": {
@@ -32403,7 +32528,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -32588,7 +32714,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -32681,7 +32808,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -32979,6 +33107,7 @@
         "@erpx/server-talent",
         "@erpx/server-work_projection",
         "@erpx/server-workflow",
+        "@erpx/ui",
         "@erpx/workplace"
       ],
       "postgres": {
@@ -33076,7 +33205,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -34802,6 +34932,7 @@
         "@erpx/server-talent",
         "@erpx/server-work_projection",
         "@erpx/server-workflow",
+        "@erpx/ui",
         "@erpx/workplace"
       ],
       "postgres": {
@@ -35091,7 +35222,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -35381,7 +35513,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ]
     },
     {
@@ -35591,8 +35724,10 @@
         "forms"
       ],
       "packages": [
+        "@erpx/contracts",
         "@erpx/feature-finance",
-        "@erpx/feature-work_projection"
+        "@erpx/feature-work_projection",
+        "@erpx/ui"
       ]
     },
     {
@@ -35727,7 +35862,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ]
     },
     {
@@ -35948,7 +36084,9 @@
         "forms"
       ],
       "packages": [
-        "@erpx/feature-work_projection"
+        "@erpx/contracts",
+        "@erpx/feature-work_projection",
+        "@erpx/ui"
       ]
     },
     {
@@ -36081,7 +36219,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -36357,7 +36496,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ]
     },
     {
@@ -36493,7 +36633,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "raw",
@@ -36635,7 +36776,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ]
     },
     {
@@ -36855,7 +36997,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -38183,6 +38326,7 @@
         "booking"
       ],
       "packages": [
+        "@erpx/contracts",
         "@erpx/feature-records",
         "@erpx/feature-work_projection",
         "@erpx/server-pms",
@@ -39896,7 +40040,6 @@
         "@erpx/feature-sales",
         "@erpx/feature-shared",
         "@erpx/feature-work_projection",
-        "@erpx/front",
         "@erpx/server-agent",
         "@erpx/server-assets",
         "@erpx/server-benefits",
@@ -40026,8 +40169,7 @@
         "@erpx/server-talent",
         "@erpx/server-work_projection",
         "@erpx/server-workflow",
-        "@erpx/ui",
-        "@erpx/workplace"
+        "@erpx/ui"
       ]
     },
     {
@@ -40195,7 +40337,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ]
     },
     {
@@ -40289,7 +40432,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ]
     },
     {
@@ -42011,7 +42155,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ]
     },
     {
@@ -43447,8 +43592,7 @@
         "@erpx/server-talent",
         "@erpx/server-work_projection",
         "@erpx/server-workflow",
-        "@erpx/ui",
-        "@erpx/workplace"
+        "@erpx/ui"
       ]
     },
     {
@@ -43623,7 +43767,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ]
     },
     {
@@ -44096,6 +44241,7 @@
         "@erpx/server-talent",
         "@erpx/server-work_projection",
         "@erpx/server-workflow",
+        "@erpx/ui",
         "@erpx/workplace"
       ]
     },
@@ -44489,7 +44635,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ]
     },
     {
@@ -45193,7 +45340,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ]
     },
     {
@@ -47050,7 +47198,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ]
     },
     {
@@ -47394,6 +47543,7 @@
         "@erpx/server-talent",
         "@erpx/server-work_projection",
         "@erpx/server-workflow",
+        "@erpx/ui",
         "@erpx/workplace"
       ],
       "postgres": {
@@ -47984,7 +48134,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -48165,7 +48316,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "raw",
@@ -48267,7 +48419,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -48361,8 +48514,7 @@
         "@erpx/server-talent",
         "@erpx/server-work_projection",
         "@erpx/server-workflow",
-        "@erpx/ui",
-        "@erpx/workplace"
+        "@erpx/ui"
       ]
     },
     {
@@ -50078,7 +50230,7 @@
         "reason": "Development dependency selection exercises this suite when affected; historical PR metadata is retained only for older receipt readers."
       },
       "serial": {
-        "reason": "Owns the exclusive isolated gateway listener3104 and disposable process-fixture app ports3290\u20133291."
+        "reason": "Owns the exclusive isolated gateway listener3104 and disposable process-fixture app ports3290–3291."
       },
       "verificationInputs": [
         "scripts/local/dev.ts",
@@ -51268,7 +51420,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "ci": {
         "critical": false,
@@ -53371,8 +53524,546 @@
       "packages": [
         "@erpx/catalogue",
         "@erpx/contracts",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-finance",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-legal",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "H001_DB",
+          "H001_READ_DB"
+        ],
+        "migratedSlots": []
+      }
+    },
+    {
+      "lane": "unit",
+      "owner": "shared.architecture",
+      "modules": [
+        "agent",
+        "assets",
+        "benefits",
+        "brand",
+        "collaboration",
+        "commercial",
+        "crm",
+        "customer_360",
+        "customer_authority",
+        "ecommerce",
+        "field_service",
+        "finance",
+        "identity_access",
+        "inventory",
+        "learning",
+        "legal",
+        "maintenance",
+        "manage_erpx",
+        "manufacturing",
+        "marketing",
+        "operations",
+        "organization",
+        "people_payroll",
+        "planning",
+        "platform_administration",
+        "pms",
+        "pos",
+        "procurement",
+        "projects",
+        "quality",
+        "sales",
+        "support",
+        "talent"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "apps": [
+        "apps",
+        "pos",
+        "pms",
+        "finance",
+        "people",
+        "sales",
+        "supply",
+        "assets",
+        "projects",
+        "recruit",
+        "learn",
+        "support",
+        "service",
+        "legal",
+        "manufacturing",
+        "account",
+        "admin",
+        "booking",
+        "portal",
+        "legal-portal",
+        "forms"
+      ],
+      "packages": [
+        "@erpx/server-shared"
+      ],
+      "ci": {
+        "critical": true,
+        "reason": "Protects the Rust migration boundary, exact shared evidence and fail-closed readiness."
+      },
+      "id": "shared.architecture.rust-shared-core.unit",
+      "files": [
+        "tests/unit/shared.architecture/rust-shared-core.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-shared",
+        "targets": [
+          "shared_core"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-shared/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml"
+      ]
+    },
+    {
+      "lane": "unit",
+      "owner": "shared.architecture",
+      "modules": [
+        "agent",
+        "assets",
+        "benefits",
+        "brand",
+        "collaboration",
+        "commercial",
+        "crm",
+        "customer_360",
+        "customer_authority",
+        "ecommerce",
+        "field_service",
+        "finance",
+        "identity_access",
+        "inventory",
+        "learning",
+        "legal",
+        "maintenance",
+        "manage_erpx",
+        "manufacturing",
+        "marketing",
+        "operations",
+        "organization",
+        "people_payroll",
+        "planning",
+        "platform_administration",
+        "pms",
+        "pos",
+        "procurement",
+        "projects",
+        "quality",
+        "sales",
+        "support",
+        "talent"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "apps": [
+        "apps",
+        "pos",
+        "pms",
+        "finance",
+        "people",
+        "sales",
+        "supply",
+        "assets",
+        "projects",
+        "recruit",
+        "learn",
+        "support",
+        "service",
+        "legal",
+        "manufacturing",
+        "account",
+        "admin",
+        "booking",
+        "portal",
+        "legal-portal",
+        "forms"
+      ],
+      "packages": [
+        "@erpx/contracts",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ],
+      "ci": {
+        "critical": true,
+        "reason": "Protects the Rust migration boundary, exact shared evidence and fail-closed readiness."
+      },
+      "id": "shared.architecture.rust-runtime-foundation.unit",
+      "files": [
+        "tests/unit/shared.architecture/rust-runtime-foundation.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-runtime",
+        "targets": [
+          "runtime_foundation"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-runtime/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "docs/status/rust-backend-migration.json",
+        "packages/contracts/src/ownership.json"
+      ]
+    },
+    {
+      "lane": "unit",
+      "owner": "legal",
+      "modules": [
+        "legal"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "apps": [
+        "legal",
+        "legal-portal"
+      ],
+      "packages": [
+        "@erpx/server-legal"
+      ],
+      "ci": {
+        "critical": true,
+        "reason": "Imported PDF signatures must retain offline trust and three-state fail-closed validation in Rust."
+      },
+      "id": "legal.rust-pdf-validation.unit",
+      "files": [
+        "tests/unit/legal/rust-pdf-validation.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-legal",
+        "targets": [
+          "pdf_validation"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-legal/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml"
+      ]
+    },
+    {
+      "lane": "unit",
+      "owner": "shared.testing",
+      "modules": [
+        "agent",
+        "assets",
+        "benefits",
+        "brand",
+        "collaboration",
+        "commercial",
+        "crm",
+        "customer_360",
+        "customer_authority",
+        "ecommerce",
+        "field_service",
+        "finance",
+        "identity_access",
+        "inventory",
+        "learning",
+        "legal",
+        "maintenance",
+        "manage_erpx",
+        "manufacturing",
+        "marketing",
+        "operations",
+        "organization",
+        "people_payroll",
+        "planning",
+        "platform_administration",
+        "pms",
+        "pos",
+        "procurement",
+        "projects",
+        "quality",
+        "sales",
+        "support",
+        "talent"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "apps": [
+        "apps",
+        "pos",
+        "pms",
+        "finance",
+        "people",
+        "sales",
+        "supply",
+        "assets",
+        "projects",
+        "recruit",
+        "learn",
+        "support",
+        "service",
+        "legal",
+        "manufacturing",
+        "account",
+        "admin",
+        "booking",
+        "portal",
+        "legal-portal",
+        "forms"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
         "@erpx/feature-account",
         "@erpx/feature-admin",
+        "@erpx/feature-agent",
+        "@erpx/feature-apps",
+        "@erpx/feature-assets",
+        "@erpx/feature-benefits",
+        "@erpx/feature-billing",
+        "@erpx/feature-booking",
+        "@erpx/feature-brand",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-commercial",
+        "@erpx/feature-crm",
+        "@erpx/feature-customer_360",
+        "@erpx/feature-customer_authority",
+        "@erpx/feature-ecommerce",
+        "@erpx/feature-field_service",
+        "@erpx/feature-files",
+        "@erpx/feature-finance",
+        "@erpx/feature-forms",
+        "@erpx/feature-iam",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-inventory",
+        "@erpx/feature-learn",
+        "@erpx/feature-learning",
+        "@erpx/feature-legal",
+        "@erpx/feature-legal-portal",
+        "@erpx/feature-maintenance",
+        "@erpx/feature-manufacturing",
+        "@erpx/feature-marketing",
+        "@erpx/feature-operations",
+        "@erpx/feature-organization",
+        "@erpx/feature-people",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-platform_administration",
+        "@erpx/feature-pms",
+        "@erpx/feature-portal",
+        "@erpx/feature-pos",
+        "@erpx/feature-procurement",
+        "@erpx/feature-projects",
+        "@erpx/feature-quality",
+        "@erpx/feature-records",
+        "@erpx/feature-recruit",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-service",
+        "@erpx/feature-shared",
+        "@erpx/feature-supply",
+        "@erpx/feature-support",
+        "@erpx/feature-talent",
+        "@erpx/feature-work_projection",
+        "@erpx/feature-workflow",
+        "@erpx/front",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-billing",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow",
+        "@erpx/ui",
+        "@erpx/workplace"
+      ],
+      "ci": {
+        "critical": true,
+        "reason": "Native Rust tests, source changes and Cargo locks must be selected and fingerprinted without falling through Vitest."
+      },
+      "id": "shared.testing.rust-runner.unit",
+      "files": [
+        "tests/unit/shared.testing/rust-runner.test.ts"
+      ],
+      "verificationInputs": [
+        "scripts/testing/test.ts",
+        "scripts/testing/scoped.ts",
+        "scripts/testing/impact.ts",
+        "scripts/local/source-fingerprint.ts"
+      ]
+    },
+    {
+      "lane": "unit",
+      "owner": "shared.architecture",
+      "modules": [
+        "agent",
+        "assets",
+        "benefits",
+        "brand",
+        "collaboration",
+        "commercial",
+        "crm",
+        "customer_360",
+        "customer_authority",
+        "ecommerce",
+        "field_service",
+        "finance",
+        "identity_access",
+        "inventory",
+        "learning",
+        "legal",
+        "maintenance",
+        "manage_erpx",
+        "manufacturing",
+        "marketing",
+        "operations",
+        "organization",
+        "people_payroll",
+        "planning",
+        "platform_administration",
+        "pms",
+        "pos",
+        "procurement",
+        "projects",
+        "quality",
+        "sales",
+        "support",
+        "talent"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "apps": [
+        "apps",
+        "pos",
+        "pms",
+        "finance",
+        "people",
+        "sales",
+        "supply",
+        "assets",
+        "projects",
+        "recruit",
+        "learn",
+        "support",
+        "service",
+        "legal",
+        "manufacturing",
+        "account",
+        "admin",
+        "booking",
+        "portal",
+        "legal-portal",
+        "forms"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
         "@erpx/feature-billing",
         "@erpx/feature-collaboration",
         "@erpx/feature-commerce",
@@ -53429,18 +54120,467 @@
         "@erpx/server-talent",
         "@erpx/server-work_projection",
         "@erpx/server-workflow",
-        "@erpx/workplace"
+        "@erpx/ui"
       ],
-      "postgres": {
-        "mode": "raw",
-        "slots": [
-          "CONTROL_DB",
-          "CONTROL_READ_DB",
-          "H001_DB",
-          "H001_READ_DB"
-        ],
-        "migratedSlots": []
-      }
+      "ci": {
+        "critical": true,
+        "reason": "Protects portable frontend interaction layers and their explicit public client/server facades."
+      },
+      "id": "shared.architecture.frontend-boundaries.unit",
+      "files": [
+        "tests/unit/shared.architecture/frontend-boundaries.test.ts"
+      ]
+    },
+    {
+      "lane": "unit",
+      "owner": "shared.architecture",
+      "modules": [
+        "agent",
+        "assets",
+        "benefits",
+        "brand",
+        "collaboration",
+        "commercial",
+        "crm",
+        "customer_360",
+        "customer_authority",
+        "ecommerce",
+        "field_service",
+        "finance",
+        "identity_access",
+        "inventory",
+        "learning",
+        "legal",
+        "maintenance",
+        "manage_erpx",
+        "manufacturing",
+        "marketing",
+        "operations",
+        "organization",
+        "people_payroll",
+        "planning",
+        "platform_administration",
+        "pms",
+        "pos",
+        "procurement",
+        "projects",
+        "quality",
+        "sales",
+        "support",
+        "talent"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "apps": [
+        "apps",
+        "pos",
+        "pms",
+        "finance",
+        "people",
+        "sales",
+        "supply",
+        "assets",
+        "projects",
+        "recruit",
+        "learn",
+        "support",
+        "service",
+        "legal",
+        "manufacturing",
+        "account",
+        "admin",
+        "booking",
+        "portal",
+        "legal-portal",
+        "forms"
+      ],
+      "packages": [
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ],
+      "ci": {
+        "critical": true,
+        "reason": "Rust AST checks must reject framework effects, private owner imports, layer backdoors and source-injection macros."
+      },
+      "id": "shared.architecture.rust-architecture.unit",
+      "files": [
+        "tests/unit/shared.architecture/rust-architecture.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-runtime",
+        "targets": [
+          "rust_architecture"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-runtime/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "scripts/testing/rust-architecture.rs"
+      ]
+    },
+    {
+      "id": "shared.testing.frontend-typecheck-config.unit",
+      "lane": "unit",
+      "owner": "shared.testing",
+      "modules": [
+        "agent",
+        "assets",
+        "benefits",
+        "brand",
+        "collaboration",
+        "commercial",
+        "crm",
+        "customer_360",
+        "customer_authority",
+        "ecommerce",
+        "field_service",
+        "finance",
+        "identity_access",
+        "inventory",
+        "learning",
+        "legal",
+        "maintenance",
+        "manage_erpx",
+        "manufacturing",
+        "marketing",
+        "operations",
+        "organization",
+        "people_payroll",
+        "planning",
+        "platform_administration",
+        "pms",
+        "pos",
+        "procurement",
+        "projects",
+        "quality",
+        "sales",
+        "support",
+        "talent"
+      ],
+      "files": [
+        "tests/unit/shared.testing/frontend-typecheck-config.test.ts"
+      ],
+      "verificationInputs": [
+        "tests/config/tsconfig.frontend.json",
+        "tsconfig.base.json",
+        "packages/catalogue/tsconfig.json",
+        "packages/contracts/tsconfig.json",
+        "packages/feature-account/tsconfig.json",
+        "packages/feature-admin/tsconfig.json",
+        "packages/feature-agent/tsconfig.json",
+        "packages/feature-apps/tsconfig.json",
+        "packages/feature-assets/tsconfig.json",
+        "packages/feature-benefits/tsconfig.json",
+        "packages/feature-billing/tsconfig.json",
+        "packages/feature-booking/tsconfig.json",
+        "packages/feature-brand/tsconfig.json",
+        "packages/feature-collaboration/tsconfig.json",
+        "packages/feature-commerce/tsconfig.json",
+        "packages/feature-commercial/tsconfig.json",
+        "packages/feature-crm/tsconfig.json",
+        "packages/feature-customer_360/tsconfig.json",
+        "packages/feature-customer_authority/tsconfig.json",
+        "packages/feature-ecommerce/tsconfig.json",
+        "packages/feature-field_service/tsconfig.json",
+        "packages/feature-files/tsconfig.json",
+        "packages/feature-finance/tsconfig.json",
+        "packages/feature-forms/tsconfig.json",
+        "packages/feature-iam/tsconfig.json",
+        "packages/feature-identity_access/tsconfig.json",
+        "packages/feature-inventory/tsconfig.json",
+        "packages/feature-learn/tsconfig.json",
+        "packages/feature-learning/tsconfig.json",
+        "packages/feature-legal-portal/tsconfig.json",
+        "packages/feature-legal/tsconfig.json",
+        "packages/feature-maintenance/tsconfig.json",
+        "packages/feature-manufacturing/tsconfig.json",
+        "packages/feature-marketing/tsconfig.json",
+        "packages/feature-operations/tsconfig.json",
+        "packages/feature-organization/tsconfig.json",
+        "packages/feature-people/tsconfig.json",
+        "packages/feature-people_payroll/tsconfig.json",
+        "packages/feature-platform_administration/tsconfig.json",
+        "packages/feature-pms/tsconfig.json",
+        "packages/feature-portal/tsconfig.json",
+        "packages/feature-pos/tsconfig.json",
+        "packages/feature-procurement/tsconfig.json",
+        "packages/feature-projects/tsconfig.json",
+        "packages/feature-quality/tsconfig.json",
+        "packages/feature-records/tsconfig.json",
+        "packages/feature-recruit/tsconfig.json",
+        "packages/feature-runtime/tsconfig.json",
+        "packages/feature-sales/tsconfig.json",
+        "packages/feature-service/tsconfig.json",
+        "packages/feature-shared/tsconfig.json",
+        "packages/feature-supply/tsconfig.json",
+        "packages/feature-support/tsconfig.json",
+        "packages/feature-talent/tsconfig.json",
+        "packages/feature-work_projection/tsconfig.json",
+        "packages/feature-workflow/tsconfig.json",
+        "packages/front/tsconfig.json",
+        "packages/server-agent/tsconfig.json",
+        "packages/server-assets/tsconfig.json",
+        "packages/server-benefits/tsconfig.json",
+        "packages/server-billing/tsconfig.json",
+        "packages/server-brand/tsconfig.json",
+        "packages/server-collaboration/tsconfig.json",
+        "packages/server-commerce/tsconfig.json",
+        "packages/server-commercial/tsconfig.json",
+        "packages/server-crm/tsconfig.json",
+        "packages/server-customer_360/tsconfig.json",
+        "packages/server-customer_authority/tsconfig.json",
+        "packages/server-ecommerce/tsconfig.json",
+        "packages/server-field_service/tsconfig.json",
+        "packages/server-files/tsconfig.json",
+        "packages/server-finance/tsconfig.json",
+        "packages/server-identity_access/tsconfig.json",
+        "packages/server-inventory/tsconfig.json",
+        "packages/server-learning/tsconfig.json",
+        "packages/server-legal/tsconfig.json",
+        "packages/server-maintenance/tsconfig.json",
+        "packages/server-manage_erpx/tsconfig.json",
+        "packages/server-manufacturing/tsconfig.json",
+        "packages/server-marketing/tsconfig.json",
+        "packages/server-operations/tsconfig.json",
+        "packages/server-organization/tsconfig.json",
+        "packages/server-people_payroll/tsconfig.json",
+        "packages/server-planning/tsconfig.json",
+        "packages/server-platform_administration/tsconfig.json",
+        "packages/server-pms/tsconfig.json",
+        "packages/server-pos/tsconfig.json",
+        "packages/server-procurement/tsconfig.json",
+        "packages/server-projects/tsconfig.json",
+        "packages/server-quality/tsconfig.json",
+        "packages/server-records/tsconfig.json",
+        "packages/server-runtime/tsconfig.json",
+        "packages/server-sales/tsconfig.json",
+        "packages/server-shared/tsconfig.json",
+        "packages/server-support/tsconfig.json",
+        "packages/server-talent/tsconfig.json",
+        "packages/server-work_projection/tsconfig.json",
+        "packages/server-workflow/tsconfig.json",
+        "packages/ui/tsconfig.json",
+        "packages/workplace/tsconfig.json"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Frontend package typechecks must include explicit Next ambient types on a clean clone without leaking them into backend contracts."
+      },
+      "apps": [
+        "apps",
+        "pos",
+        "pms",
+        "finance",
+        "people",
+        "sales",
+        "supply",
+        "assets",
+        "projects",
+        "recruit",
+        "learn",
+        "support",
+        "service",
+        "legal",
+        "manufacturing",
+        "account",
+        "admin",
+        "booking",
+        "portal",
+        "legal-portal",
+        "forms"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-account",
+        "@erpx/feature-admin",
+        "@erpx/feature-agent",
+        "@erpx/feature-apps",
+        "@erpx/feature-assets",
+        "@erpx/feature-benefits",
+        "@erpx/feature-billing",
+        "@erpx/feature-booking",
+        "@erpx/feature-brand",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-commercial",
+        "@erpx/feature-crm",
+        "@erpx/feature-customer_360",
+        "@erpx/feature-customer_authority",
+        "@erpx/feature-ecommerce",
+        "@erpx/feature-field_service",
+        "@erpx/feature-files",
+        "@erpx/feature-finance",
+        "@erpx/feature-forms",
+        "@erpx/feature-iam",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-inventory",
+        "@erpx/feature-learn",
+        "@erpx/feature-learning",
+        "@erpx/feature-legal",
+        "@erpx/feature-legal-portal",
+        "@erpx/feature-maintenance",
+        "@erpx/feature-manufacturing",
+        "@erpx/feature-marketing",
+        "@erpx/feature-operations",
+        "@erpx/feature-organization",
+        "@erpx/feature-people",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-platform_administration",
+        "@erpx/feature-pms",
+        "@erpx/feature-portal",
+        "@erpx/feature-pos",
+        "@erpx/feature-procurement",
+        "@erpx/feature-projects",
+        "@erpx/feature-quality",
+        "@erpx/feature-records",
+        "@erpx/feature-recruit",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-service",
+        "@erpx/feature-shared",
+        "@erpx/feature-supply",
+        "@erpx/feature-support",
+        "@erpx/feature-talent",
+        "@erpx/feature-work_projection",
+        "@erpx/feature-workflow",
+        "@erpx/front",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-billing",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow",
+        "@erpx/ui",
+        "@erpx/workplace"
+      ]
+    },
+    {
+      "id": "shared.testing.documentation-references.unit",
+      "lane": "unit",
+      "owner": "shared.testing",
+      "modules": [
+        "agent",
+        "assets",
+        "benefits",
+        "brand",
+        "collaboration",
+        "commercial",
+        "crm",
+        "customer_360",
+        "customer_authority",
+        "ecommerce",
+        "field_service",
+        "finance",
+        "identity_access",
+        "inventory",
+        "learning",
+        "legal",
+        "maintenance",
+        "manage_erpx",
+        "manufacturing",
+        "marketing",
+        "operations",
+        "organization",
+        "people_payroll",
+        "planning",
+        "platform_administration",
+        "pms",
+        "pos",
+        "procurement",
+        "projects",
+        "quality",
+        "sales",
+        "support",
+        "talent"
+      ],
+      "files": [
+        "tests/unit/shared.testing/documentation-references.test.ts"
+      ],
+      "verificationInputs": [
+        "scripts/docs/documentation-references.ts",
+        "docs/status/historical-source-snapshots.json",
+        "docs/status/private-artifact-references.json"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Historical source and private evidence references must remain source-bound without publishing private artifact bytes."
+      },
+      "apps": [
+        "apps",
+        "pos",
+        "pms",
+        "finance",
+        "people",
+        "sales",
+        "supply",
+        "assets",
+        "projects",
+        "recruit",
+        "learn",
+        "support",
+        "service",
+        "legal",
+        "manufacturing",
+        "account",
+        "admin",
+        "booking",
+        "portal",
+        "legal-portal",
+        "forms"
+      ],
+      "packages": []
     }
   ]
 }

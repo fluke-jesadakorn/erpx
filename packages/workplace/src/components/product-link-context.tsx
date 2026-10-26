@@ -4,6 +4,7 @@ import {usePathname} from 'next/navigation';
 import Link from "next/link";
 import type { ProductHostKey } from "@erpx/server-commercial/public/rules/product-registry";
 import type { ProductNavigationScope } from "@erpx/feature-work_projection/lib/product-navigation";
+import { WorkspaceUiNavigation } from "@erpx/workplace/components/ui-navigation";
 
 const Context = createContext<ProductNavigationScope & { appsHref?: string; initialPathname?:string }>({ audience: null });
 
@@ -14,7 +15,7 @@ export function ProductLinkEnvironment({ audience, appsHref, holdingSlug, initia
   initialPathname?:string;
   children: ReactNode;
 }) {
-  return <Context value={{ audience, appsHref, holdingSlug, initialPathname }}>{children}</Context>;
+  return <Context value={{ audience, appsHref, holdingSlug, initialPathname }}><WorkspaceUiNavigation>{children}</WorkspaceUiNavigation></Context>;
 }
 
 export function ProductWorkLinks({ companyId, companySlug, workspaceBase, children }: {

@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { dirname, relative, resolve } from "node:path";
-import { execFileSync } from 'node:child_process';
+import { relative, resolve } from "node:path";
+import { resolveDocumentationReference, type HistoricalSourceSnapshot, type PrivateArtifactReference } from "./documentation-references";
 
 const root = resolve(import.meta.dir, "../..");
 const errors: string[] = [];
@@ -11,12 +11,9 @@ const ledger = JSON.parse(read(resolve(root, "docs/status/business-acceptance-ev
   records: Array<{ evidence: Array<{ path: string; sha256: string }> }>;
 };
 const protectedPaths = new Set(ledger.records.flatMap(row => row.evidence.map(item => item.path)));
-const sourceSnapshots=JSON.parse(read(resolve(root,'docs/status/historical-source-snapshots.json'))) as {entries:Array<{document:string;commit:string}>};
-function historicalSource(document:string,file:string) {
- const snapshot=sourceSnapshots.entries.find(entry=>entry.document===document);
- if(!snapshot||!file.startsWith('src/')||!/^[a-f0-9]{40}$/.test(snapshot.commit))return false;
- try {execFileSync('git',['cat-file','-e',`${snapshot.commit}:${file}`],{cwd:root,stdio:'ignore'});return true;}catch{return false;}
-}
+const sourceSnapshots=JSON.parse(read(resolve(root,'docs/status/historical-source-snapshots.json'))) as {entries:HistoricalSourceSnapshot[]};
+const privateArtifacts=JSON.parse(read(resolve(root,'docs/status/private-artifact-references.json'))) as {version:number;entries:PrivateArtifactReference[]};
+if (privateArtifacts.version !== 1 || !Array.isArray(privateArtifacts.entries)) throw new Error("INVALID_PRIVATE_ARTIFACT_REGISTER");
 for (const row of ledger.records) for (const evidence of row.evidence) {
   const path = resolve(root, evidence.path);
   if (!existsSync(path) || hash(path) !== evidence.sha256) errors.push(`Missing/changed evidence: ${evidence.path}`);
@@ -32,13 +29,47 @@ function walk(directory: string) {
   }
 }
 for (const directory of ["docs", "ops", "Designed", "fixtures", ".agents", ".github", ".claude"]) walk(resolve(root, directory));
-for (const name of ["README.md", "AGENTS.md", "CLAUDE.md", "CONTEXT.md", "CONTRACT_POLICY.md", "CUTOVER.md"])
+for (const name of ["README.md", "AGENTS.md", "CLAUDE.md", "CONTEXT.md", "CONTRACT_POLICY.md", "CUTOVER.md", "LICENSING.md", "CONTRIBUTING.md", "SECURITY.md", "CODE_OF_CONDUCT.md", "GOVERNANCE.md"])
   if (existsSync(resolve(root, name))) documents.push(resolve(root, name));
+
+// Community metadata is a preparation contract, not a public-release receipt.
+for (const name of ["LICENSE", "NOTICE", "LICENSING.md", "CONTRIBUTING.md", "SECURITY.md", "CODE_OF_CONDUCT.md", "GOVERNANCE.md", ".github/CODEOWNERS", ".github/PULL_REQUEST_TEMPLATE.md", ".github/ISSUE_TEMPLATE/bug_report.yml", ".github/ISSUE_TEMPLATE/proposal.yml", ".github/ISSUE_TEMPLATE/config.yml", "docs/community/open-source.md", "docs/community/provenance.json"])
+  if (!existsSync(resolve(root, name))) errors.push(`Missing community foundation: ${name}`);
+if (existsSync(resolve(root, "LICENSE")) && !read(resolve(root, "LICENSE")).includes("Version 2.0, January 2004"))
+  errors.push("The current project license must contain the Apache-2.0 text");
+if (JSON.parse(read(resolve(root, "package.json"))).license !== "Apache-2.0")
+  errors.push("The root package must declare the current Apache-2.0 license");
+const provenancePath = resolve(root, "docs/community/provenance.json");
+if (existsSync(provenancePath)) {
+  const provenance = JSON.parse(read(provenancePath)) as {
+    version: number;
+    inventoryComplete: boolean;
+    publicReleaseReady: boolean;
+    entries: Array<{ id: string; paths?: string[]; gitRefs?: string[]; noticeFiles?: string[]; reviewStatus: string; basis: string }>;
+  };
+  const statuses = new Set(["scope-declared", "notice-reviewed", "pending", "cleared"]);
+  const ids = new Set<string>();
+  if (provenance.version !== 1 || typeof provenance.inventoryComplete !== "boolean" || typeof provenance.publicReleaseReady !== "boolean" || !Array.isArray(provenance.entries) || !provenance.entries.length)
+    errors.push("Invalid community provenance register");
+  else for (const entry of provenance.entries) {
+    if (!entry.id || ids.has(entry.id) || !statuses.has(entry.reviewStatus) || !entry.basis || !(entry.paths?.length || entry.gitRefs?.length))
+      errors.push(`Invalid community provenance entry: ${entry.id}`);
+    ids.add(entry.id);
+    for (const name of [...(entry.paths ?? []), ...(entry.noticeFiles ?? [])]) {
+      const path = resolve(root, name);
+      if (relative(root, path).startsWith("..") || !existsSync(path)) errors.push(`Missing/unsafe provenance source: ${name}`);
+    }
+  }
+  if (provenance.inventoryComplete && provenance.entries.some(entry => entry.reviewStatus !== "cleared"))
+    errors.push("A complete provenance inventory requires every entry to be cleared");
+  if (provenance.publicReleaseReady && !provenance.inventoryComplete)
+    errors.push("Public-release readiness requires a complete provenance inventory");
+}
 const withoutCode = (text: string) => text.replace(/```[\s\S]*?```|~~~[\s\S]*?~~~/g, "");
 const anchorCache = new Map<string, Set<string>>();
-function anchors(path: string) {
+function anchors(path: string, source?: string) {
   if (anchorCache.has(path)) return anchorCache.get(path)!;
-  const text = withoutCode(read(path)), ids = new Set<string>(), counts = new Map<string, number>();
+  const text = withoutCode(source ?? read(path)), ids = new Set<string>(), counts = new Map<string, number>();
   for (const heading of text.matchAll(/^#{1,6}\s+(.+)$/gm)) {
     const label = heading[1].replace(/\[([^\]]+)\]\([^)]*\)/g, "$1").replace(/<[^>]*>/g, "");
     const slug = label.toLowerCase().replace(/[^\p{L}\p{N}\p{M}_\s-]/gu, "").replace(/\s/g, "-");
@@ -52,6 +83,8 @@ function anchors(path: string) {
 }
 
 let checked = 0;
+let historicalSources = 0;
+const privateReferences = new Map<string, "checksum-verified" | "unverified">();
 for (const path of documents) {
   const name = relative(root, path);
   // Immutable historical evidence retains its original link topology. It is
@@ -66,11 +99,20 @@ for (const path of documents) {
     const raw = target[1].replace(/^<|>$/g, "");
     if (/^[\w+.-]+:|^\/\//.test(raw)) continue;
     const [destination, fragment] = raw.split("#");
-    const resolved = destination ? resolve(dirname(path), decodeURIComponent(destination)) : path;
     checked++;
-    if (!existsSync(resolved)&&!historicalSource(name,relative(root,resolved))) errors.push(`${name}: missing local link ${raw}`);
-    else if (fragment && /\.mdx?$/.test(resolved) && !anchors(resolved).has(decodeURIComponent(fragment)))
-      errors.push(`${name}: missing anchor ${raw}`);
+    try {
+      const reference = resolveDocumentationReference({ root, document: name, destination, snapshots: sourceSnapshots.entries, privateArtifacts: privateArtifacts.entries });
+      if (reference.kind === "missing") errors.push(`${name}: missing local link ${raw}`);
+      else if (reference.kind === "private-artifact") privateReferences.set(reference.id, reference.availability);
+      else {
+        const historical = reference.kind === "historical-source";
+        if (historical) historicalSources++;
+        if (fragment && /\.mdx?$/.test(reference.path) && !anchors(historical ? `${reference.commit}:${reference.path}` : reference.path, historical ? reference.markdown : undefined).has(decodeURIComponent(fragment)))
+          errors.push(`${name}: missing anchor ${raw}`);
+      }
+    } catch (error) {
+      errors.push(`${name}: invalid local link ${raw}: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 }
 
@@ -91,4 +133,8 @@ if (routes.exitCode !== 0) errors.push(routes.stderr.toString().trim() || "Gener
 if (errors.length) {
   for (const error of errors) console.error(error);
   process.exitCode = 1;
-} else console.log(`Documentation verified: ${documents.length} Markdown files inventoried; ${checked} local links/anchors, ${protectedPaths.size} ledger files, scenario sources and generated artifacts checked.`);
+} else {
+  const available = [...privateReferences.values()].filter(status => status === "checksum-verified").length;
+  console.log(`Documentation checked: ${documents.length} Markdown files inventoried; ${checked} local references, ${historicalSources} historical source objects, ${protectedPaths.size} ledger files, scenario sources and generated artifacts checked.`);
+  console.log(`Known unpublished private artifacts: ${privateReferences.size}; ${available} available and checksum-verified; ${privateReferences.size - available} with availability unverified. Private references do not establish release acceptance.`);
+}

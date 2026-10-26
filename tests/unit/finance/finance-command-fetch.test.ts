@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { createFinanceCommandFetch } from "@erpx/feature-finance/lib/finance-command-fetch";
+import { createFinanceCommandFetch } from "@erpx/feature-finance/public/client";
 
 afterEach(()=>vi.unstubAllGlobals());
 

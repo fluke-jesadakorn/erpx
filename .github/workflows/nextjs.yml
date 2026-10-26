@@ -48,6 +48,11 @@ jobs:
       - uses: ./.github/actions/test-runtime
         with:
           browser: 'true'
+      - name: Install the pinned Rust verification toolchain
+        shell: bash
+        run: |
+          rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy
+          sudo apt-get install -y libssl-dev pkg-config
       - name: Resolve the exact event candidate
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -105,6 +110,11 @@ jobs:
       - uses: ./.github/actions/test-runtime
         with:
           browser: 'true'
+      - name: Install the pinned Rust acceptance toolchain
+        shell: bash
+        run: |
+          rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy
+          sudo apt-get install -y libssl-dev pkg-config
       - name: Accept the explicitly selected clean candidate
         env:
           CANDIDATE: ${{ inputs.candidate }}

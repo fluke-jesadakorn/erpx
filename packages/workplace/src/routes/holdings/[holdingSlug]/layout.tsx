@@ -15,7 +15,7 @@ import { workspaceNavigation, restrictedWorkspaceNavigation } from "@erpx/server
 import { workProjectionPresentationQueries } from "@erpx/server-work_projection/public/presentation-queries";
 
 import { RecordWorkspaceProvider } from "@erpx/feature-records/components/record-workspace";
-import { RecordScopeProvider } from "@erpx/ui/components/record-context";
+import { RecordScopeProvider } from "@erpx/feature-records/public/client";
 import { MainContent } from "@erpx/ui/components/main";
 import { Button } from "@erpx/ui/components/foundation";
 import { measureReadPhase } from "@erpx/server-runtime/public/runtime/read-metrics";

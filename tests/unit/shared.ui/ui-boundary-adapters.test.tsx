@@ -14,14 +14,25 @@ import WorkspaceLink from "@erpx/workplace/components/workspace-link";
 import { ProductLinkEnvironment, ProductWorkLinks } from "@erpx/workplace/components/product-link-context";
 import { DestinationIndexView } from "@erpx/workplace/components/destination-index-view";
 import { scopeFor } from "../../../scripts/ui/standard-scope.mjs";
+import { Table } from "@erpx/ui/components/table";
+import { ListFilters } from "@erpx/ui/components/list-filters";
+import { SetupChecklist } from "@erpx/ui/components/setup-checklist";
+import { UiNavigationProvider } from "@erpx/ui/components/navigation-context";
+import { RecordLink, RecordScopeProvider } from "@erpx/feature-records/public/client";
+import { registerUnsavedChanges } from "@erpx/ui/lib/unsaved-changes";
+import { hasUnsavedWork } from "@erpx/feature-work_projection/lib/context-switch";
 
 const roots: string[] = [];
 function expandedRouteClosure(manifest: { closurePaths: string[] }, route: { closureIds?: number[]; entryIds?:number[] }) {
   return routeClosureIds(manifest,route).map((index:number) => manifest.closurePaths[index]);
 }
 const observedLinks = vi.hoisted(() => ({ props: [] as ComponentProps<typeof NextLink>[] }));
-const observedNavigation = vi.hoisted(() => ({ dialogs: [] as ComponentProps<typeof Dialog>[], refresh: vi.fn() }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: observedNavigation.refresh }) }));
+const observedNavigation = vi.hoisted(() => ({ dialogs: [] as ComponentProps<typeof Dialog>[], refresh: vi.fn(), pathname: "/holdings/acme/finance/documents/invoices" }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: observedNavigation.refresh }),
+  usePathname: () => observedNavigation.pathname,
+  useSearchParams: () => new URLSearchParams("tag=one&tag=two"),
+}));
 vi.mock("@erpx/ui/components/dialog", async importOriginal => {
   const actual = await importOriginal<typeof import("@erpx/ui/components/dialog")>();
   const { createElement } = await import("react");
@@ -42,7 +53,67 @@ afterEach(() => {
   observedLinks.props.length = 0;
   observedNavigation.dialogs.length = 0;
   observedNavigation.refresh.mockClear();
+  observedNavigation.pathname = "/holdings/acme/finance/documents/invoices";
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
+});
+
+it("keeps owner-connected record row actions and empty-row column spans after injecting navigation into primitives", () => {
+  const html = renderToStaticMarkup(<ProductLinkEnvironment audience="finance">
+    <RecordScopeProvider base="/holdings/acme">
+      <Table><thead><tr><th>Record</th><th>Status</th></tr></thead><tbody>
+        <tr><td><RecordLink href="/holdings/acme/finance/invoices/fixture-invoice">Fictional invoice</RecordLink></td><td>Draft</td></tr>
+        <tr><td colSpan={2}>No other records</td></tr>
+      </tbody></Table>
+    </RecordScopeProvider>
+  </ProductLinkEnvironment>);
+  expect(html).toContain('data-slot="table"');
+  expect(html).toContain('class="ui-record-open-action"');
+  expect(html).toContain('class="sr-only">Details</span>');
+  expect(html).toMatch(/col[Ss]pan="3"/);
+  const hrefs = [...html.matchAll(/href="([^"]+)"/g)].map(match => new URL(match[1].replaceAll("&amp;", "&"), "https://fixture.invalid"));
+  expect(hrefs).toHaveLength(2);
+  for (const href of hrefs) {
+    expect(href.pathname).toBe("/holdings/acme/finance/documents/invoices/fixture-invoice/overview");
+    const back = new URL(href.searchParams.get("returnTo")!, "https://fixture.invalid");
+    expect(back.searchParams.getAll("tag")).toEqual(["one", "two"]);
+  }
+});
+
+it("keeps owned filter actions and repeated retained values through shell-provided filter navigation", () => {
+  observedNavigation.pathname = "/holdings/acme/people-organization/people/directory/current";
+  const html = renderToStaticMarkup(<ProductLinkEnvironment audience="people">
+    <ListFilters appearance="standard" action="/holdings/acme/people" query="Fictional" preserve={{status:"current",tag:["one","two"]}}/>
+  </ProductLinkEnvironment>);
+  expect(html).toContain('action="/holdings/acme/people-organization/people/directory/current"');
+  expect(html.match(/name="tag"/g)).toHaveLength(2);
+  expect(html).not.toContain('name="status"');
+  const href = /href="([^"]+)"/.exec(html)?.[1];
+  expect(href).toBeDefined();
+  expect(new URL(href!.replaceAll("&amp;", "&"), "https://fixture.invalid").searchParams.getAll("tag")).toEqual(["one","two"]);
+});
+
+it("renders checklist owner labels and a supplied link without reading a Front shell language", () => {
+  const Link = ({href,children}:ComponentProps<typeof NextLink>) => <a href={String(href)} data-owner-link>{children}</a>;
+  const html = renderToStaticMarkup(<UiNavigationProvider bindings={{Link}}>
+    <SetupChecklist title="ความพร้อม" labels={{remaining:count=>`เตรียม ${count} รายการ`,setup:"ตั้งค่า"}} items={[{id:"setup",label:"ตัวอย่าง",ready:false,owner:"ผู้ดูแล",href:"/fixture/setup"}]}/>
+  </UiNavigationProvider>);
+  expect(html).toContain('class="card setup-checklist"');
+  expect(html).toContain("เตรียม 1 รายการ");
+  expect(html).toContain('href="/fixture/setup" data-owner-link="true">ตั้งค่า</a>');
+});
+
+it("shares primitive dirty registrations with the existing workspace navigation guard", () => {
+  vi.stubGlobal("document", {querySelector:()=>null});
+  let dirty = true;
+  const unregister = registerUnsavedChanges(() => dirty);
+  try {
+    expect(hasUnsavedWork()).toBe(true);
+    dirty = false;
+    expect(hasUnsavedWork()).toBe(false);
+    dirty = true;
+    unregister();
+    expect(hasUnsavedWork()).toBe(false);
+  } finally { unregister(); vi.unstubAllGlobals(); }
 });
 
 it("renders a single real Next anchor with canonical scoped destination and the caller's content and presentation", () => {

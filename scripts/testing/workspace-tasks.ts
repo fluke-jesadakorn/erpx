@@ -13,7 +13,7 @@ export function workspaceTaskDefinition(graph: WorkspaceGraph, app: AppDefinitio
  // The launcher reads compiler selection from settings. Hash that file for the
  // outer task; the inner artifact cache still keys only the selected compiler.
  const compiler=['scripts/local/app-task.ts','scripts/local/workspace-settings.json','scripts/local/isolated-app-build.ts','scripts/local/standalone-links.ts','scripts/local/app-artifact-cache.ts','scripts/local/workspace-copy-input.ts','scripts/assets/prepare-pdf-assets.ts'];
- const verification=['scripts/testing/workspace-graph.ts','scripts/testing/workspace-imports.ts','scripts/testing/workspace-source-cache.ts','scripts/testing/scoped-lint.ts','scripts/testing/app-typecheck.ts'];
+ const verification=['scripts/testing/workspace-graph.ts','scripts/testing/workspace-imports.ts','scripts/testing/workspace-source-cache.ts','scripts/testing/scoped-lint.ts','scripts/testing/app-typecheck.ts','tests/config/tsconfig.frontend.json'];
  const literal=(file:string)=>file.replace(/[\[\]{}?*!]/g,'\\$&');
  const inputs=(files:string[])=>['$TURBO_DEFAULT$',...[...new Set(files)].map(file=>`$TURBO_ROOT$/${literal(file)}`),'!.cache/**','!.turbo/**','!.next/**','!.build/**','!node_modules/**','!next-env.d.ts','!turbo.json','!AGENTS.md'];
  const verificationInputs=inputs([...sources,...common,...verification]);
