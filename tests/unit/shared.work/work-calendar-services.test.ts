@@ -45,7 +45,7 @@ it('Calendar known validation errors keep the same correction key and an already
 
 it.each(['role revision','opaque presentation source','stale boundary','replaced boundary','switch generation'] as const)('Calendar retains the exact uncertain command when %s changes while its real response body is decoding',async changed=>{
  const node={isConnected:true,dataset:{workUser:'original-user',workRevision:'7',workCompany:'original-company',workAssignment:'original-assignment',workStale:'false'}};let currentNode=node;
- const browser=Object.assign(new EventTarget(),{location:{origin:'https://work-dev-erpx.jesadakorn.com'}});
+ const browser=Object.assign(new EventTarget(),{location:{origin:'https://apps-dev-erpx.jesadakorn.com'}});
  vi.stubGlobal('window',browser);vi.stubGlobal('document',{querySelector:(selector:string)=>selector==='[data-work-revision]'?currentNode:null,documentElement:{dataset:{}}});
  let signalBody!:()=>void,release!:ReadableStreamDefaultController<Uint8Array>;
  const bodyStarted=new Promise<void>(resolve=>{signalBody=resolve;}),body=new ReadableStream<Uint8Array>({start(controller){release=controller;}});

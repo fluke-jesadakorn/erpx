@@ -330,6 +330,7 @@ it('standard POS PromptPay recovery retries the exact existing payment version a
 });
 
 
+import {groupHospitalitySidebar} from '@erpx/feature-work_projection/lib/sidebar-catalog';
 import {posMenu as standardNativePosMenu} from '@erpx/feature-shared/components/hospitality/module-menu';
 function mountStandardFrontPos(recordOnly=false, drawer=true) {
  const require=deviceRequire(import.meta.url), ts=require('typescript') as typeof import('typescript'), hooks=deviceHooks();
@@ -352,6 +353,7 @@ function mountStandardFrontPos(recordOnly=false, drawer=true) {
   if(name.endsWith("@erpx/ui/components/foundation"))return {Button:'Button',Card:'Card'};
   if(name.endsWith("@erpx/ui/components/primitives"))return {PageHeader:'PageHeader'};
   if(name.endsWith('/workspace'))return {WorkspaceSections:'WorkspaceSections'};
+  if(name.endsWith('/hospitality/grouped-navigation'))return {HospitalityGroupedNavigation:'HospitalityGroupedNavigation'};
   if(name.endsWith("@erpx/front/components/front-language"))return {useFrontLanguage:()=> 'en',FrontLocalizedTree:({children}:{children:React.ReactNode})=>children};
   if(name.endsWith("@erpx/feature-shared/lib/front-language"))return {frontText:(value:string)=>value};
   if(name.endsWith("@erpx/feature-shared/components/hospitality/module-menu"))return {posMenu:standardNativePosMenu};
@@ -391,9 +393,9 @@ it('standard POS daily navigation retains current owner permissions and the orig
  const mounted=mountStandardFrontPos(false,false);
  try{
   mounted.model.data.permissions={'pos.read':true};mounted.model.tab='history';mounted.model.loadedTab='history';
-  const nodes=mounted.render(),navigation=nodes.find(node=>node.type==='WorkspaceSections');
-  expect(navigation).toBeDefined();expect(navigation!.props.selected).toBe('history');
-  expect(navigation!.props.items).toEqual([{id:'history',title:'History',description:'Find any receipt'}]);
+  const nodes=mounted.render(),navigation=nodes.find(node=>node.type==='HospitalityGroupedNavigation'||node.type==='WorkspaceSections');
+  expect(navigation).toBeDefined();expect(navigation!.props.current??navigation!.props.selected).toBe('history');
+  expect((navigation!.props.items as {id:string;label?:string;title?:string;description:string}[]).map(item=>({id:item.id,title:item.label??item.title,description:item.description}))).toEqual([{id:'history',title:'History',description:'Find any receipt'}]);
   Reflect.apply(navigation!.props.onSelect as (tab:string)=>void,undefined,['history']);
   expect(mounted.model.setTab).toHaveBeenCalledExactlyOnceWith('history');expect(mounted.send).not.toHaveBeenCalled();
   expect(nodes.find(node=>node.type==='PageHeader')?.props.appearance).toBe('standard');
@@ -475,9 +477,52 @@ it.each([false,true] as const)('actual standard POS readiness retains native reg
  finally{vi.unstubAllGlobals();}
 });
 it('actual standard POS mobile navigation closes its picker and invokes only the native selected tab',()=>{
- const require=deviceRequire(import.meta.url),ts=require('typescript') as typeof import('typescript'),hooks=deviceHooks(),source=deviceRead(deviceResolve(process.env.ERPX_POS_DEVICE_SOURCE_ROOT??'.','packages/feature-pos/src/components/standard-pos-backoffice-navigation.tsx'),'utf8'),compiled=ts.transpileModule(source,{compilerOptions:{esModuleInterop: false, module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText,vm={exports:{} as Record<string,unknown>},onSelect=vi.fn(),ports=(name:string):unknown=>{if(name==='react')return {...hooks.react,useId:()=> 'native-pos-picker'};if(name==='react/jsx-runtime')return require(name);if(name==='lucide-react')return {ChevronDown:'ChevronDown'};if(name.endsWith("@erpx/ui/components/foundation"))return {Button:'Button'};if(name.endsWith('.module.css'))return {default:new Proxy({}, {get:(_target,key)=>String(key)})};throw Error('Unexpected standard POS navigation import '+name);};new Function('require','module','exports',compiled)(ports,vm,vm.exports);const Nav=vm.exports.StandardPosBackofficeNavigation as (props:Record<string,unknown>)=>React.ReactNode,items=standardNativePosMenu('en').filter(item=>['reports','settings'].includes(item.id)),collect=(value:React.ReactNode,out:React.ReactElement<Record<string,unknown>>[]=[]):React.ReactElement<Record<string,unknown>>[]=>{React.Children.forEach(value,child=>{if(!React.isValidElement<Record<string,unknown>>(child))return;out.push(child);collect(child.props.children as React.ReactNode,out);});return out;},render=()=>hooks.render(()=>collect(Nav({items,current:'reports',label:'Restaurant accounting',onSelect})));
- try{let nodes=render(),picker=nodes.find(node=>node.type==='Button'&&node.props['aria-controls']==='native-pos-picker');expect(picker?.props.appearance).toBe('standard');expect(picker?.props['aria-expanded']).toBe(false);Reflect.apply(picker!.props.onClick as ()=>void,undefined,[]);nodes=render();picker=nodes.find(node=>node.type==='Button'&&node.props['aria-controls']==='native-pos-picker');expect(picker?.props['aria-expanded']).toBe(true);const settings=nodes.find(node=>node.type==='Button'&&node.props['aria-label']==='Settings');Reflect.apply(settings!.props.onClick as ()=>void,undefined,[]);expect(onSelect).toHaveBeenCalledExactlyOnceWith('settings');nodes=render();expect(nodes.find(node=>node.type==='Button'&&node.props['aria-controls']==='native-pos-picker')?.props['aria-expanded']).toBe(false);expect(nodes.find(node=>node.type==='nav')?.props['aria-label']).toBe('Restaurant accounting');expect(nodes.find(node=>node.type==='Button'&&node.props['aria-label']==='Reports')?.props['aria-current']).toBe('page');}
- finally{hooks.close();}
+ const require=deviceRequire(import.meta.url),ts=require('typescript') as typeof import('typescript'),hooks=deviceHooks(),onSelect=vi.fn();
+ const css={default:new Proxy({}, {get:(_target,key)=>String(key)})};
+ const compile=(path:string,ports:(name:string)=>unknown)=>{
+  const source=deviceRead(deviceResolve(process.env.ERPX_POS_DEVICE_SOURCE_ROOT??'.',path),'utf8');
+  const code=ts.transpileModule(source,{compilerOptions:{esModuleInterop:false,module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText;
+  const vm={exports:{} as Record<string,unknown>};new Function('require','module','exports',code)(ports,vm,vm.exports);return vm.exports;
+ };
+ const sharedPorts=(name:string):unknown=>{
+  if(name==='react')return {...hooks.react,useId:()=> 'native-pos-picker'};
+  if(name==='react/jsx-runtime')return require(name);
+  if(name==='lucide-react')return {ChevronDown:'ChevronDown'};
+  if(name.endsWith('/components/button')||name.endsWith('/components/foundation'))return {Button:'Button'};
+  if(name.endsWith('/components/sidebar-navigation'))return {
+   SidebarSection:({children}:{children:React.ReactNode})=>React.createElement('section',null,children),
+   SidebarItemContent:({children}:{children:React.ReactNode})=>React.createElement('span',null,children),
+   sidebarItemClassName:'sidebarItem',useSidebarAccordion:()=>({openId:'management',toggle:vi.fn()}),
+  };
+  if(name.endsWith('/lib/sidebar-catalog'))return {groupHospitalitySidebar};
+  if(name.endsWith('/components/workspace-link'))return {default:'a'};
+  if(name.endsWith('/components/front-language'))return {useFrontLanguage:()=> 'en'};
+  if(name.endsWith('.module.css'))return css;
+  throw Error('Unexpected standard POS navigation import '+name);
+ };
+ const shared=compile('packages/feature-shared/src/components/hospitality/grouped-navigation.tsx',sharedPorts);
+ const ports=(name:string)=>name.endsWith('/hospitality/grouped-navigation')?shared:sharedPorts(name);
+ const Nav=compile('packages/feature-pos/src/components/standard-pos-backoffice-navigation.tsx',ports).StandardPosBackofficeNavigation as (props:Record<string,unknown>)=>React.ReactNode;
+ const items=standardNativePosMenu('en').filter(item=>['reports','settings'].includes(item.id));
+ type Node=React.ReactElement<Record<string,unknown>>;
+ const collect=(value:React.ReactNode,out:Node[]=[]):Node[]=>{
+  React.Children.forEach(value,child=>{if(!React.isValidElement<Record<string,unknown>>(child))return;out.push(child);
+   if(typeof child.type==='function')collect(Reflect.apply(child.type,undefined,[child.props]) as React.ReactNode,out);
+   else collect(child.props.children as React.ReactNode,out);
+  });return out;
+ };
+ const render=()=>hooks.render(()=>collect(Nav({items,current:'reports',label:'Restaurant accounting',onSelect})));
+ try{
+  let nodes=render();const picker=nodes.find(node=>node.type==='Button'&&node.props['aria-controls']==='native-pos-picker');
+  expect(picker?.props.appearance).toBe('standard');expect(picker?.props['aria-expanded']).toBe(false);
+  Reflect.apply(picker!.props.onClick as ()=>void,undefined,[]);nodes=render();
+  expect(nodes.find(node=>node.type==='Button'&&node.props['aria-controls']==='native-pos-picker')?.props['aria-expanded']).toBe(true);
+  const settings=nodes.find(node=>node.type==='Button'&&node.props['aria-label']==='Settings');
+  Reflect.apply(settings!.props.onClick as ()=>void,undefined,[]);expect(onSelect).toHaveBeenCalledExactlyOnceWith('settings');nodes=render();
+  expect(nodes.find(node=>node.type==='Button'&&node.props['aria-controls']==='native-pos-picker')?.props['aria-expanded']).toBe(false);
+  expect(nodes.find(node=>node.type==='nav')?.props['aria-label']).toBe('Restaurant accounting');
+  expect(nodes.find(node=>node.type==='Button'&&node.props['aria-label']==='Reports')?.props['aria-current']).toBe('page');
+ }finally{hooks.close();}
 });
 
 // Generic POS recovery uses the actual native receipt branch and workFetch;

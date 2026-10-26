@@ -66,6 +66,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -112,7 +113,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -208,7 +208,6 @@
       },
       "apps": [
         "pms",
-        "apps",
         "account",
         "admin",
         "booking"
@@ -267,7 +266,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -279,6 +278,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -325,7 +325,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -427,7 +426,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -442,7 +441,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -456,6 +454,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -502,7 +501,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -571,7 +569,6 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -665,7 +662,6 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -694,7 +690,6 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -788,7 +783,6 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -871,7 +865,6 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -960,7 +953,6 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -1054,7 +1046,6 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -1136,7 +1127,6 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -1657,7 +1647,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -1672,7 +1662,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -1740,7 +1729,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -1755,7 +1744,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -1884,7 +1872,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -1899,7 +1887,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -1915,6 +1902,7 @@
         "@erpx/feature-collaboration",
         "@erpx/feature-commerce",
         "@erpx/feature-crm",
+        "@erpx/feature-customer_authority",
         "@erpx/feature-ecommerce",
         "@erpx/feature-files",
         "@erpx/feature-finance",
@@ -1923,6 +1911,8 @@
         "@erpx/feature-manufacturing",
         "@erpx/feature-organization",
         "@erpx/feature-people_payroll",
+        "@erpx/feature-pms",
+        "@erpx/feature-pos",
         "@erpx/feature-quality",
         "@erpx/feature-records",
         "@erpx/feature-runtime",
@@ -1930,6 +1920,7 @@
         "@erpx/feature-shared",
         "@erpx/feature-support",
         "@erpx/feature-work_projection",
+        "@erpx/front",
         "@erpx/server-agent",
         "@erpx/server-assets",
         "@erpx/server-benefits",
@@ -2026,7 +2017,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -2041,7 +2032,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -2173,7 +2163,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -2188,7 +2178,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -2257,7 +2246,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -2272,7 +2261,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -2395,7 +2383,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -2410,7 +2398,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -2424,6 +2411,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -2470,7 +2458,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -2571,7 +2558,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -2586,7 +2573,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -2654,7 +2640,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -2669,7 +2655,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -2788,7 +2773,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -2803,7 +2788,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -3127,7 +3111,6 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -3221,7 +3204,6 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -3314,7 +3296,6 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -3399,7 +3380,6 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -3492,7 +3472,6 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -3522,7 +3501,6 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -3561,7 +3539,6 @@
         ]
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -3645,7 +3622,6 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -3675,7 +3651,6 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -3768,7 +3743,6 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -3864,7 +3838,6 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -4170,7 +4143,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -4185,7 +4158,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -4314,7 +4286,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -4329,7 +4301,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -4660,7 +4631,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -4675,7 +4646,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -4739,7 +4709,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -4754,7 +4724,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -4885,7 +4854,7 @@
         "reason": "Pure recurrence expansion and DST wall-clock behavior; no money, authorization, transactions, or tenant/private-file decisions are asserted."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -4900,7 +4869,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -4967,7 +4935,7 @@
         "reason": "Pure timeline geometry, date-range clipping, and DST slot presentation; no money, authorization, transactions, or tenant/private-file decisions are asserted."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -4982,7 +4950,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -5049,7 +5016,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -5064,7 +5031,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -5194,7 +5160,7 @@
         "reason": "Checks capability inventory and evidence links for reporting; it does not validate a financial decision, authority boundary, transaction, or required test result."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -5209,7 +5175,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -5245,6 +5210,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -5291,7 +5257,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -5392,7 +5357,7 @@
         "reason": "Checks report vocabulary and retained review metadata; it does not authorize a business operation or determine required test execution."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -5407,7 +5372,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -5471,7 +5435,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -5486,7 +5450,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -5581,7 +5544,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work"
+        "apps"
       ],
       "packages": [
         "@erpx/catalogue",
@@ -5704,7 +5667,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -5719,7 +5682,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -7369,7 +7331,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -7384,7 +7346,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -7489,7 +7450,6 @@
       "apps": [
         "people",
         "support",
-        "apps",
         "account",
         "admin",
         "portal"
@@ -7583,7 +7543,6 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -7682,7 +7641,6 @@
         ]
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -7760,7 +7718,6 @@
         "scanner": false
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -7785,9 +7742,8 @@
         "scanner": false
       },
       "apps": [
-        "work",
-        "people",
         "apps",
+        "people",
         "account",
         "admin"
       ],
@@ -7815,9 +7771,8 @@
         "scanner": false
       },
       "apps": [
-        "work",
-        "people",
         "apps",
+        "people",
         "account",
         "admin"
       ],
@@ -7827,6 +7782,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -7873,7 +7829,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -7970,7 +7925,7 @@
         "scanner": true
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -7985,7 +7940,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -8011,7 +7965,6 @@
         "scanner": false
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -8021,6 +7974,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -8067,7 +8021,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -8172,7 +8125,7 @@
         "scanner": false
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -8187,7 +8140,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -8214,7 +8166,6 @@
         "scanner": false
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -8236,7 +8187,6 @@
         "scanner": false
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -8319,7 +8269,7 @@
         "scanner": false
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -8334,7 +8284,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -8360,7 +8309,7 @@
         "scanner": false
       },
       "apps": [
-        "work"
+        "apps"
       ],
       "packages": [
         "@erpx/catalogue",
@@ -8368,6 +8317,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -8414,7 +8364,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -8479,7 +8428,7 @@
         "scanner": true
       },
       "apps": [
-        "work"
+        "apps"
       ],
       "packages": []
     },
@@ -8499,7 +8448,7 @@
         "scanner": false
       },
       "apps": [
-        "work"
+        "apps"
       ],
       "packages": []
     },
@@ -8519,7 +8468,7 @@
         "scanner": false
       },
       "apps": [
-        "work"
+        "apps"
       ],
       "packages": [
         "@erpx/catalogue",
@@ -8527,6 +8476,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -8573,7 +8523,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -8639,7 +8588,6 @@
         "scanner": false
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -8726,7 +8674,6 @@
       },
       "apps": [
         "sales",
-        "apps",
         "account",
         "admin",
         "portal"
@@ -8737,6 +8684,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -8783,7 +8731,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -9209,6 +9156,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -9255,7 +9203,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -9333,6 +9280,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -9379,7 +9327,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -9447,7 +9394,6 @@
       },
       "apps": [
         "people",
-        "apps",
         "account",
         "admin"
       ],
@@ -9512,7 +9458,6 @@
         "scanner": false
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -9585,6 +9530,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -9631,7 +9577,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -9771,6 +9716,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -9817,7 +9763,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -9894,6 +9839,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -9940,7 +9886,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -10046,7 +9991,7 @@
         "scanner": false
       },
       "apps": [
-        "work"
+        "apps"
       ],
       "packages": []
     },
@@ -10077,12 +10022,11 @@
         "scanner": false
       },
       "apps": [
-        "work",
+        "apps",
         "people",
         "sales",
         "recruit",
         "learn",
-        "apps",
         "account",
         "admin",
         "forms"
@@ -10197,7 +10141,7 @@
         "scanner": false
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -10212,7 +10156,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -10270,7 +10213,7 @@
         "scanner": false
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -10285,7 +10228,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -10331,7 +10273,6 @@
         "scanner": false
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -10354,7 +10295,7 @@
         "scanner": false
       },
       "apps": [
-        "work",
+        "apps",
         "people"
       ],
       "packages": []
@@ -10407,7 +10348,7 @@
         "scanner": false
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -10422,7 +10363,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -10448,7 +10388,6 @@
         "scanner": false
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -10524,6 +10463,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -10570,7 +10510,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -10667,7 +10606,7 @@
         "scanner": false
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -10682,7 +10621,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -10714,7 +10652,6 @@
         "scanner": false
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -10739,7 +10676,6 @@
         "scanner": true
       },
       "apps": [
-        "work",
         "apps",
         "account",
         "admin"
@@ -10762,7 +10698,7 @@
         "scanner": false
       },
       "apps": [
-        "work"
+        "apps"
       ],
       "packages": []
     },
@@ -10783,7 +10719,6 @@
         "scanner": false
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -10812,7 +10747,6 @@
         "scanner": false
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -10822,6 +10756,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -10868,7 +10803,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -10934,7 +10868,6 @@
         "scanner": false
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -10993,7 +10926,7 @@
         "scanner": false
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -11008,7 +10941,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -11140,6 +11072,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -11186,7 +11119,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -11252,7 +11184,6 @@
         "scanner": false
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -11281,7 +11212,6 @@
         "scanner": false
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -11303,7 +11233,6 @@
         "scanner": false
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -11325,7 +11254,6 @@
         "scanner": false
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -11399,7 +11327,7 @@
         "scanner": true
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -11414,7 +11342,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -11440,7 +11367,7 @@
         "scanner": false
       },
       "apps": [
-        "work"
+        "apps"
       ],
       "packages": []
     },
@@ -11462,7 +11389,7 @@
         "scanner": true
       },
       "apps": [
-        "work",
+        "apps",
         "people"
       ],
       "packages": []
@@ -11508,7 +11435,7 @@
         "scanner": true
       },
       "apps": [
-        "work",
+        "apps",
         "people",
         "projects"
       ],
@@ -11566,6 +11493,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -11612,7 +11540,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -11710,6 +11637,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -11756,7 +11684,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -11824,7 +11751,6 @@
       },
       "apps": [
         "people",
-        "apps",
         "account",
         "admin"
       ],
@@ -11898,6 +11824,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -11944,7 +11871,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -12067,7 +11993,7 @@
         "mode": "case-annotations"
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -12082,7 +12008,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -12096,6 +12021,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -12142,7 +12068,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -12239,7 +12164,7 @@
         "scanner": false
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -12254,7 +12179,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -12312,7 +12236,7 @@
         "scanner": false
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -12327,7 +12251,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -12385,7 +12308,7 @@
         "scanner": false
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -12400,7 +12323,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -12414,6 +12336,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -12460,7 +12383,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -12565,7 +12487,7 @@
         "scanner": false
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -12580,7 +12502,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -12697,7 +12618,7 @@
         "scanner": false
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -12712,7 +12633,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -12829,7 +12749,7 @@
         "scanner": false
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -12844,7 +12764,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -12961,7 +12880,7 @@
         "scanner": false
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -12976,7 +12895,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -13061,7 +12979,6 @@
         "scanner": false
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -13413,7 +13330,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -13428,7 +13345,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -13679,7 +13595,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -13694,7 +13610,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -13759,7 +13674,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -13774,7 +13689,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -13839,7 +13753,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -13854,7 +13768,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -13981,7 +13894,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -13996,7 +13909,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -14060,7 +13972,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -14075,7 +13987,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -14205,7 +14116,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -14220,7 +14131,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -14458,7 +14368,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -14473,7 +14383,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -14602,7 +14511,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -14617,7 +14526,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -14726,12 +14634,11 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "people",
         "sales",
         "recruit",
         "learn",
-        "apps",
         "account",
         "admin",
         "forms"
@@ -14840,12 +14747,11 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "people",
         "sales",
         "recruit",
         "learn",
-        "apps",
         "account",
         "admin",
         "forms"
@@ -14982,7 +14888,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -14997,7 +14903,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -15131,7 +15036,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -15146,7 +15051,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -15402,7 +15306,7 @@
         "reason": "Checks static widget identities, layout schema, and page registration only; it does not assert business data access or mutation."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -15417,7 +15321,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -15634,7 +15537,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -15649,7 +15552,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -19046,7 +18948,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -19061,7 +18963,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -19250,7 +19151,6 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -19287,7 +19187,6 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -19370,7 +19269,6 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -19493,7 +19391,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -19508,7 +19406,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -19608,7 +19505,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work"
+        "apps"
       ],
       "packages": [
         "@erpx/catalogue",
@@ -19704,7 +19601,6 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -19800,7 +19696,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work"
+        "apps"
       ],
       "packages": [
         "@erpx/feature-shared",
@@ -19827,7 +19723,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work"
+        "apps"
       ],
       "packages": [
         "@erpx/catalogue",
@@ -20116,7 +20012,6 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -20198,7 +20093,6 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -20280,7 +20174,6 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -20407,7 +20300,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -20422,7 +20315,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -20541,7 +20433,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -20556,7 +20448,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -22395,7 +22286,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -22410,7 +22301,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -22535,7 +22425,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -22550,7 +22440,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -22668,7 +22557,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -22683,7 +22572,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -22998,6 +22886,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -23044,7 +22933,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -23211,7 +23099,6 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -23308,7 +23195,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work"
+        "apps"
       ],
       "packages": [
         "@erpx/catalogue",
@@ -23432,7 +23319,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -23447,7 +23334,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -23618,7 +23504,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -23633,7 +23519,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -23765,7 +23650,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -23780,7 +23665,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -23877,7 +23761,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work"
+        "apps"
       ],
       "packages": [
         "@erpx/catalogue",
@@ -23972,7 +23856,6 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -24066,7 +23949,6 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -24161,7 +24043,6 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -24201,7 +24082,6 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -24297,7 +24177,6 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -24382,7 +24261,6 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -24509,7 +24387,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -24524,7 +24402,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -24642,7 +24519,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -24657,7 +24534,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -27212,7 +27088,6 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -27306,7 +27181,6 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -27401,7 +27275,6 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -28183,7 +28056,6 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -28306,7 +28178,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -28321,7 +28193,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -28448,7 +28319,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -28463,7 +28334,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -28588,7 +28458,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -28603,7 +28473,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -28737,7 +28606,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -28752,7 +28621,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -28920,7 +28788,7 @@
         ]
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -28935,7 +28803,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -28999,7 +28866,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -29014,7 +28881,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -29143,7 +29009,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -29158,7 +29024,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -29287,7 +29152,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -29302,7 +29167,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -29366,7 +29230,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -29381,7 +29245,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -29601,7 +29464,7 @@
         "reason": "Pure recurring-date and timezone calculations; no money, authorization, transactions, or tenant/private-file decisions are asserted."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -29616,7 +29479,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -29680,7 +29542,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -29695,7 +29557,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -30306,7 +30167,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -30321,7 +30182,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -30419,7 +30279,6 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -30578,7 +30437,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -30593,7 +30452,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -30723,7 +30581,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -30738,7 +30596,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -30782,7 +30639,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work"
+        "apps"
       ],
       "packages": [
         "@erpx/catalogue",
@@ -30881,7 +30738,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work"
+        "apps"
       ],
       "packages": [
         "@erpx/catalogue",
@@ -30966,7 +30823,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work"
+        "apps"
       ],
       "packages": [
         "@erpx/catalogue",
@@ -31080,7 +30937,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -31095,7 +30952,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -31225,7 +31081,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -31240,7 +31096,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -31338,7 +31193,6 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -31432,7 +31286,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work"
+        "apps"
       ],
       "packages": [
         "@erpx/catalogue",
@@ -31521,7 +31375,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work"
+        "apps"
       ],
       "packages": [
         "@erpx/catalogue",
@@ -31623,7 +31477,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work"
+        "apps"
       ],
       "packages": [
         "@erpx/catalogue",
@@ -31717,7 +31571,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work"
+        "apps"
       ],
       "packages": [
         "@erpx/catalogue",
@@ -31811,7 +31665,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work"
+        "apps"
       ],
       "packages": [
         "@erpx/catalogue",
@@ -32314,7 +32168,6 @@
       },
       "apps": [
         "support",
-        "apps",
         "account",
         "admin",
         "portal"
@@ -32865,7 +32718,6 @@
       },
       "apps": [
         "support",
-        "apps",
         "account",
         "admin",
         "portal"
@@ -32962,7 +32814,6 @@
       },
       "apps": [
         "support",
-        "apps",
         "account",
         "admin",
         "portal"
@@ -33064,7 +32915,6 @@
         "sales",
         "support",
         "service",
-        "apps",
         "account",
         "admin",
         "portal"
@@ -33438,7 +33288,7 @@
         "reason": "Checks date, timezone, and generic number presentation only; it does not test monetary conversion, rounding, tax, or access."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -33453,7 +33303,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -33517,7 +33366,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -33532,7 +33381,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -33598,7 +33446,7 @@
         "reason": "Checks presentation migration rules and frozen UI evidence; it does not test money, authority, transactions, or tenant/private-file access."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -33613,7 +33461,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -33627,6 +33474,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -33673,7 +33521,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -33774,7 +33621,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -33789,7 +33636,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -33803,6 +33649,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -33849,7 +33696,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -33950,7 +33796,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -33965,7 +33811,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -33979,6 +33824,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -34025,7 +33871,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -34126,7 +33971,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -34141,7 +33986,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -34232,7 +34076,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -34247,7 +34091,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -34261,6 +34104,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -34307,7 +34151,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -34435,7 +34278,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -34450,7 +34293,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -34464,6 +34306,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -34510,7 +34353,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -34580,7 +34422,6 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -34675,7 +34516,6 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -34758,7 +34598,6 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -34884,7 +34723,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -34899,7 +34738,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -35035,7 +34873,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -35050,7 +34888,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -35174,7 +35011,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -35189,7 +35026,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -35324,7 +35160,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -35339,7 +35175,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -35468,7 +35303,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -35483,7 +35318,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -35602,7 +35436,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -35617,7 +35451,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -35735,7 +35568,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -35750,7 +35583,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -35815,7 +35647,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -35830,7 +35662,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -35951,7 +35782,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -35966,7 +35797,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -36095,7 +35925,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -36110,7 +35940,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -36174,7 +36003,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -36189,7 +36018,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -36319,7 +36147,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -36334,7 +36162,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -36452,7 +36279,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -36467,7 +36294,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -36586,7 +36412,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -36601,7 +36427,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -36732,7 +36557,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -36747,7 +36572,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -36866,7 +36690,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -36881,7 +36705,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -37066,7 +36889,6 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -37148,7 +36970,6 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -37274,7 +37095,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -37289,7 +37110,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -37416,7 +37236,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -37431,7 +37251,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -37524,7 +37343,6 @@
         "people",
         "recruit",
         "learn",
-        "apps",
         "account",
         "admin"
       ],
@@ -37651,7 +37469,6 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -37885,7 +37702,6 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -37918,7 +37734,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "sales",
         "assets",
         "service",
@@ -38092,9 +37908,8 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
-        "people",
         "apps",
+        "people",
         "account",
         "admin"
       ],
@@ -38176,7 +37991,6 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -38270,9 +38084,8 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
-        "people",
         "apps",
+        "people",
         "account",
         "admin"
       ],
@@ -38429,7 +38242,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -38444,7 +38257,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -38458,6 +38270,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -38504,7 +38317,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -38607,7 +38419,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -38622,7 +38434,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -38636,6 +38447,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -38682,7 +38494,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -38844,7 +38655,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "finance",
         "supply",
         "service"
@@ -39114,7 +38925,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "finance",
         "supply"
       ],
@@ -39204,7 +39015,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "sales",
         "portal"
       ],
@@ -39300,12 +39111,11 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "finance",
         "people",
         "sales",
-        "apps",
         "account",
         "admin",
         "portal"
@@ -39481,7 +39291,6 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -39566,9 +39375,8 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
-        "people",
         "apps",
+        "people",
         "account",
         "admin"
       ],
@@ -39653,7 +39461,6 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
         "apps",
         "account",
         "admin"
@@ -39689,7 +39496,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "finance",
         "supply"
       ],
@@ -39779,7 +39586,6 @@
       },
       "apps": [
         "legal",
-        "apps",
         "account",
         "admin",
         "legal-portal"
@@ -39870,7 +39676,6 @@
       },
       "apps": [
         "people",
-        "apps",
         "account",
         "admin"
       ],
@@ -39904,7 +39709,6 @@
       },
       "apps": [
         "people",
-        "apps",
         "account",
         "admin"
       ],
@@ -39986,7 +39790,6 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -40073,7 +39876,6 @@
       },
       "apps": [
         "people",
-        "apps",
         "account",
         "admin"
       ],
@@ -40164,7 +39966,6 @@
       "apps": [
         "finance",
         "people",
-        "apps",
         "account",
         "admin"
       ],
@@ -40332,7 +40133,6 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
         "apps",
         "account",
         "admin"
@@ -40425,9 +40225,8 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
-        "people",
         "apps",
+        "people",
         "account",
         "admin"
       ],
@@ -40711,7 +40510,6 @@
         "pms",
         "finance",
         "sales",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -41324,11 +41122,10 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pms",
         "people",
         "projects",
-        "apps",
         "account",
         "admin",
         "booking"
@@ -41506,7 +41303,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "finance",
         "projects"
       ],
@@ -41851,10 +41648,9 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "people",
         "projects",
-        "apps",
         "account",
         "admin"
       ],
@@ -42134,7 +41930,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -42149,7 +41945,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -42473,7 +42268,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -42488,7 +42283,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -42663,7 +42457,6 @@
       "apps": [
         "finance",
         "people",
-        "apps",
         "account",
         "admin"
       ],
@@ -43082,7 +42875,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pms",
         "finance",
         "people",
@@ -43090,7 +42883,6 @@
         "supply",
         "support",
         "legal",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -43348,14 +43140,13 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "finance",
         "people",
         "supply",
         "support",
         "legal",
-        "apps",
         "admin",
         "portal",
         "legal-portal"
@@ -43577,7 +43368,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -43592,7 +43383,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -43768,10 +43558,9 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "finance",
         "people",
-        "apps",
         "account",
         "admin"
       ],
@@ -44129,7 +43918,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -44144,7 +43933,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -44239,13 +44027,12 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
         "people",
         "projects",
-        "apps",
         "account",
         "admin",
         "booking"
@@ -44335,7 +44122,6 @@
       },
       "apps": [
         "finance",
-        "apps",
         "account",
         "admin"
       ],
@@ -44422,9 +44208,8 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
-        "people",
         "apps",
+        "people",
         "account",
         "admin"
       ],
@@ -44538,7 +44323,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -44553,7 +44338,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -44643,9 +44427,8 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
-        "support",
         "apps",
+        "support",
         "account",
         "admin",
         "portal"
@@ -44811,9 +44594,8 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
-        "people",
         "apps",
+        "people",
         "account",
         "admin"
       ],
@@ -44930,7 +44712,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -44945,7 +44727,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -44959,6 +44740,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -45005,7 +44787,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -45106,7 +44887,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -45121,7 +44902,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -45246,7 +45026,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -45261,7 +45041,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -45334,7 +45113,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -45349,7 +45128,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -45470,7 +45248,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -45485,7 +45263,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -45499,6 +45276,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -45545,7 +45323,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -45646,7 +45423,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -45661,7 +45438,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -45675,6 +45451,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -45721,7 +45498,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -45797,7 +45573,6 @@
         "pos",
         "pms",
         "finance",
-        "apps",
         "account",
         "admin",
         "booking"
@@ -46136,7 +45911,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -46151,7 +45926,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -46280,7 +46054,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -46295,7 +46069,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -46422,7 +46195,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -46437,7 +46210,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -46566,7 +46338,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -46581,7 +46353,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -46710,7 +46481,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -46725,7 +46496,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -46854,7 +46624,7 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -46869,7 +46639,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -46998,7 +46767,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -47013,7 +46782,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -47046,7 +46814,6 @@
       },
       "apps": [
         "people",
-        "apps",
         "account",
         "admin"
       ],
@@ -47080,7 +46847,6 @@
       },
       "apps": [
         "people",
-        "apps",
         "account",
         "admin"
       ],
@@ -47206,7 +46972,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -47221,7 +46987,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -47336,7 +47101,7 @@
         "scanner": false
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -47351,7 +47116,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -47384,7 +47148,6 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -47398,16 +47161,20 @@
         "@erpx/feature-commerce",
         "@erpx/feature-commercial",
         "@erpx/feature-customer_authority",
+        "@erpx/feature-files",
         "@erpx/feature-finance",
         "@erpx/feature-identity_access",
         "@erpx/feature-legal",
         "@erpx/feature-organization",
         "@erpx/feature-people_payroll",
+        "@erpx/feature-pms",
+        "@erpx/feature-pos",
         "@erpx/feature-records",
         "@erpx/feature-runtime",
         "@erpx/feature-sales",
         "@erpx/feature-shared",
         "@erpx/feature-work_projection",
+        "@erpx/front",
         "@erpx/server-agent",
         "@erpx/server-assets",
         "@erpx/server-benefits",
@@ -47460,7 +47227,8 @@
         "identity_access"
       ],
       "files": [
-        "tests/unit/identity_access/product-sso.test.ts"
+        "tests/unit/identity_access/product-sso.test.ts",
+        "tests/unit/identity_access/holding-routing.test.ts"
       ],
       "fixture": "none",
       "requires": {
@@ -47472,7 +47240,6 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -47482,16 +47249,21 @@
         "@erpx/feature-billing",
         "@erpx/feature-collaboration",
         "@erpx/feature-commerce",
+        "@erpx/feature-customer_authority",
+        "@erpx/feature-files",
         "@erpx/feature-finance",
         "@erpx/feature-identity_access",
         "@erpx/feature-legal",
         "@erpx/feature-organization",
         "@erpx/feature-people_payroll",
+        "@erpx/feature-pms",
+        "@erpx/feature-pos",
         "@erpx/feature-records",
         "@erpx/feature-runtime",
         "@erpx/feature-sales",
         "@erpx/feature-shared",
         "@erpx/feature-work_projection",
+        "@erpx/front",
         "@erpx/server-agent",
         "@erpx/server-assets",
         "@erpx/server-benefits",
@@ -47545,7 +47317,8 @@
       ],
       "files": [
         "tests/integration/identity_access/product-sso.test.ts",
-        "tests/integration/identity_access/product-sso-auth.test.ts"
+        "tests/integration/identity_access/product-sso-auth.test.ts",
+        "tests/integration/identity_access/device-accounts.test.ts"
       ],
       "fixture": "postgres",
       "requires": {
@@ -47557,7 +47330,6 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -47656,7 +47428,6 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -47749,7 +47520,6 @@
         "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -47832,7 +47602,8 @@
         "pms"
       ],
       "files": [
-        "tests/unit/shared.ui/product-launcher.test.ts"
+        "tests/unit/shared.ui/product-launcher.test.ts",
+        "tests/unit/shared.ui/apps-launcher.test.ts"
       ],
       "fixture": "none",
       "requires": {
@@ -47846,7 +47617,6 @@
       "apps": [
         "pos",
         "pms",
-        "apps",
         "account",
         "admin",
         "booking"
@@ -47941,7 +47711,6 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -48037,7 +47806,6 @@
       },
       "apps": [
         "people",
-        "apps",
         "account",
         "admin"
       ],
@@ -48120,7 +47888,6 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -48158,7 +47925,6 @@
       },
       "apps": [
         "people",
-        "apps",
         "account",
         "admin"
       ],
@@ -48252,7 +48018,6 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -48339,7 +48104,6 @@
       },
       "apps": [
         "people",
-        "apps",
         "account",
         "admin"
       ],
@@ -48443,7 +48207,6 @@
         "finance",
         "people",
         "sales",
-        "apps",
         "account",
         "admin",
         "forms"
@@ -48539,7 +48302,6 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -48626,7 +48388,6 @@
       },
       "apps": [
         "support",
-        "apps",
         "account",
         "admin",
         "portal"
@@ -48723,7 +48484,6 @@
       },
       "apps": [
         "support",
-        "apps",
         "account",
         "admin",
         "portal"
@@ -48821,7 +48581,6 @@
         "finance",
         "support",
         "service",
-        "apps",
         "account",
         "admin",
         "portal"
@@ -48915,7 +48674,6 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -49119,7 +48877,7 @@
         "scanner": true
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -49134,7 +48892,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -49148,6 +48905,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -49194,7 +48952,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -49264,7 +49021,6 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -49274,6 +49030,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -49320,7 +49077,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -49421,7 +49177,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -49436,7 +49192,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -49634,7 +49389,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -49649,7 +49404,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -49767,7 +49521,7 @@
         "reason": "Assertions or helpers cover a business state, money/accounting, current authority, idempotency, company/branch/private-file isolation, or required-test result integrity; retain it in every PR baseline."
       },
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -49782,7 +49536,6 @@
         "service",
         "legal",
         "manufacturing",
-        "apps",
         "account",
         "admin",
         "booking",
@@ -49868,9 +49621,8 @@
         "scanner": false
       },
       "apps": [
-        "work",
-        "people",
         "apps",
+        "people",
         "account",
         "admin"
       ],
@@ -49880,6 +49632,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -49926,7 +49679,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -49997,11 +49749,10 @@
         "scanner": false
       },
       "apps": [
-        "work",
+        "apps",
         "finance",
         "people",
         "recruit",
-        "apps",
         "account",
         "admin"
       ],
@@ -50011,6 +49762,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -50057,7 +49809,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -50129,7 +49880,6 @@
         "reason": "Exercises broker crash recovery and lease enumeration against owned disposable databases."
       },
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -50220,7 +49970,6 @@
       },
       "apps": [
         "finance",
-        "apps",
         "account",
         "admin"
       ],
@@ -50230,6 +49979,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -50276,7 +50026,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -50329,7 +50078,7 @@
         "reason": "Development dependency selection exercises this suite when affected; historical PR metadata is retained only for older receipt readers."
       },
       "serial": {
-        "reason": "Owns the exclusive isolated gateway listener3104 and disposable process-fixture app ports3290–3291."
+        "reason": "Owns the exclusive isolated gateway listener3104 and disposable process-fixture app ports3290\u20133291."
       },
       "verificationInputs": [
         "scripts/local/dev.ts",
@@ -50368,6 +50117,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -50414,7 +50164,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -50576,6 +50325,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -50622,7 +50372,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -50695,7 +50444,6 @@
         "scripts/testing/workspace-browser-runtime.ts"
       ],
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -50705,6 +50453,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -50751,7 +50500,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -50825,7 +50573,6 @@
         "scripts/testing/workspace-browser-runtime.ts"
       ],
       "apps": [
-        "apps",
         "account",
         "admin"
       ],
@@ -50835,6 +50582,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -50881,7 +50629,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -50954,7 +50701,7 @@
         "scripts/testing/workspace-browser-runtime.ts"
       ],
       "apps": [
-        "work"
+        "apps"
       ],
       "packages": [
         "@erpx/catalogue",
@@ -50962,6 +50709,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -51008,7 +50756,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -51089,6 +50836,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -51135,7 +50883,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -51216,6 +50963,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -51262,7 +51010,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -51337,7 +51084,7 @@
         "scripts/testing/workspace-browser-runtime.ts"
       ],
       "apps": [
-        "work",
+        "apps",
         "people",
         "recruit"
       ],
@@ -51347,6 +51094,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -51393,7 +51141,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -51459,11 +51206,12 @@
         "scanner": false
       },
       "apps": [
-        "work"
+        "apps"
       ],
       "packages": [
         "@erpx/catalogue",
         "@erpx/contracts",
+        "@erpx/feature-apps",
         "@erpx/feature-billing",
         "@erpx/feature-collaboration",
         "@erpx/feature-commerce",
@@ -51479,7 +51227,6 @@
         "@erpx/feature-runtime",
         "@erpx/feature-sales",
         "@erpx/feature-shared",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/server-agent",
         "@erpx/server-assets",
@@ -51560,6 +51307,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -51606,7 +51354,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -51687,6 +51434,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -51733,7 +51481,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -51814,6 +51561,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -51860,7 +51608,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -51941,6 +51688,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -51987,7 +51735,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -52068,6 +51815,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -52114,7 +51862,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -52196,6 +51943,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -52242,7 +51990,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -52323,6 +52070,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -52369,7 +52117,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -52451,6 +52198,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -52497,7 +52245,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -52578,6 +52325,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -52624,7 +52372,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -52705,6 +52452,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -52751,7 +52499,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -52833,6 +52580,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -52879,7 +52627,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -52961,6 +52708,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -53007,7 +52755,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -53089,6 +52836,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -53135,7 +52883,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -53217,6 +52964,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -53263,7 +53011,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -53345,6 +53092,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -53391,7 +53139,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -53478,7 +53225,7 @@
         "scripts/testing/workspace-browser-runtime.ts"
       ],
       "apps": [
-        "work",
+        "apps",
         "pos",
         "pms",
         "finance",
@@ -53502,6 +53249,7 @@
         "@erpx/feature-account",
         "@erpx/feature-admin",
         "@erpx/feature-agent",
+        "@erpx/feature-apps",
         "@erpx/feature-assets",
         "@erpx/feature-benefits",
         "@erpx/feature-billing",
@@ -53548,7 +53296,6 @@
         "@erpx/feature-supply",
         "@erpx/feature-support",
         "@erpx/feature-talent",
-        "@erpx/feature-work",
         "@erpx/feature-work_projection",
         "@erpx/feature-workflow",
         "@erpx/front",
@@ -53596,6 +53343,104 @@
         "@erpx/ui",
         "@erpx/workplace"
       ]
+    },
+    {
+      "id": "identity_access.holding-addresses.integration",
+      "lane": "integration",
+      "owner": "identity_access",
+      "modules": [
+        "identity_access",
+        "organization"
+      ],
+      "files": [
+        "tests/integration/identity_access/holding-addresses.test.ts"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
+      },
+      "apps": [
+        "account",
+        "admin"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-account",
+        "@erpx/feature-admin",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-customer_authority",
+        "@erpx/feature-finance",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-legal",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-pms",
+        "@erpx/feature-pos",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow",
+        "@erpx/workplace"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB"
+        ],
+        "migratedSlots": []
+      }
     }
   ]
 }

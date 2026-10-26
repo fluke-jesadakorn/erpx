@@ -4,6 +4,7 @@ import { resolve, dirname } from "node:path";
 import { connect } from "node:net";
 import { execFileSync } from "node:child_process";
 import { appDefinition } from "@erpx/contracts/apps";
+import {holdingRoutingEnabled,holdingHosts} from '@erpx/contracts/holding-hosts';
 import { prepareNextDevelopment } from "./prepare-next-development";
 import { pinnedNode } from "./app-task";
 
@@ -32,7 +33,7 @@ if (occupied) {
     if (!existsSync(previewFile)) throw new Error("EXISTING_DEVELOPMENT_GATEWAY_REQUIRED_FOR_APP_PREWARM");
     const token = JSON.parse(readFileSync(previewFile,"utf8")).token;
     execFileSync(pinnedNode(),[resolve(root,'scripts/local/prewarm-apps.mjs')],{cwd:root,
-      input:JSON.stringify({version:1,port:3100,token,apps:[...new Set(selected)].map(id=>({id,host:new URL(appDefinition(id).origin).host}))}),stdio:['pipe','pipe','inherit']});
+      input:JSON.stringify({version:1,port:3100,token,apps:[...new Set(selected)].map(id=>holdingRoutingEnabled(process.env)&&id!=='account'?{id,host:holdingHosts[0].hostname,path:`/__erpx/${id}/api/health`}:{id,host:new URL(appDefinition(id).origin).host})}),stdio:['pipe','pipe','inherit']});
   }
   console.log("Reusing the existing ERPX development server on 3100."); process.exit(0);
 }

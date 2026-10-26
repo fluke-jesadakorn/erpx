@@ -85,7 +85,8 @@ it('keeps legacy organization settings navigation on the organization workspace'
 it('provides distinct Server Component pages and clickable breadcrumb parents for every destination',()=>{
  const paths=destinations.map(destination=>destination.path);
  expect(new Set(paths).size).toBe(paths.length);
- for(const path of paths){const file=`apps/compat/src/app/holdings/[holdingSlug]/${path}/page.tsx`;expect(existsSync(file),path).toBe(true);expect(readFileSync(file,'utf8')).not.toMatch(/^['"]use client['"]/);for(const crumb of destinationTrail(base,path).slice(0,-1))expect(existsSync(`apps/compat/src/app/holdings/[holdingSlug]/${crumb.href!.slice(base.length+1)}/page.tsx`),crumb.href).toBe(true);}
+ const page=(path:string)=>{const owner=destinationProduct(path),owned=`apps/${owner==='apps'?'launcher':owner}/src/app/holdings/[holdingSlug]/${path}/page.tsx`;return existsSync(owned)?owned:`apps/compat/src/app/holdings/[holdingSlug]/${path}/page.tsx`;};
+ for(const path of paths){const file=page(path);expect(existsSync(file),path).toBe(true);expect(readFileSync(file,'utf8')).not.toMatch(/^['"]use client['"]/);for(const crumb of destinationTrail(base,path).slice(0,-1))expect(existsSync(page(crumb.href!.slice(base.length+1))),crumb.href).toBe(true);}
  expect(existsSync('src/app/holdings/[holdingSlug]/technology/page.tsx')).toBe(false);
  expect(existsSync('src/app/platform/billing/page.tsx')).toBe(false);
 });

@@ -1,3 +1,4 @@
+import {holdingRoutingEnabled} from '@erpx/contracts/holding-hosts';
 import { constants,existsSync } from 'node:fs';
 import { cp,mkdir,readFile,readdir,rm,writeFile,open,readlink,realpath } from 'node:fs/promises';
 import { join,relative,resolve } from 'node:path';
@@ -16,7 +17,7 @@ async function files(directory:string):Promise<string[]>{
  return (await Promise.all(entries.map(async entry=>entry.isDirectory()?files(join(directory,entry.name)):entry.isFile()?[join(directory,entry.name)]:[]))).flat();
 }
 async function keyFor(id:string,bundler:string){
- const runtime=appRuntimeFingerprint(loadWorkspaceGraph(root),id),hash=createHash('sha256').update('isolated-app-build/v2').update(runtime).update(bundler).update(process.env.NEXT_DEPLOYMENT_ID??'default-runtime-deployment');
+ const runtime=appRuntimeFingerprint(loadWorkspaceGraph(root),id),hash=createHash('sha256').update('isolated-app-build/v2').update(holdingRoutingEnabled(process.env)?'holding-hosts':'product-hosts').update(runtime).update(bundler).update(process.env.NEXT_DEPLOYMENT_ID??'default-runtime-deployment');
  for(const name of ['scripts/local/app-task.ts','scripts/local/isolated-app-build.ts','scripts/local/standalone-links.ts','scripts/local/app-artifact-cache.ts','scripts/local/workspace-copy-input.ts'])hash.update(name).update(await readFile(join(root,name)));
  return {runtime,key:hash.digest('hex')};
 }
@@ -46,7 +47,7 @@ export async function buildIsolatedApp(id:string,bundler='webpack'){
   await writeFile(join(snapshot,'packages/catalogue/src/release-artifact.json'),JSON.stringify({softwareVersion:deploymentId})+'\n');
   // Pass compiler/network trust inputs explicitly. Installed DB, auth and
   // provider credentials never become ambient inputs to an app build.
-  const compilerKeys=new Set(['PATH','HOME','TMPDIR','TMP','TEMP','LANG','LC_ALL','TZ','CI','HTTP_PROXY','HTTPS_PROXY','NO_PROXY','http_proxy','https_proxy','no_proxy','NODE_EXTRA_CA_CERTS','SSL_CERT_FILE','SSL_CERT_DIR','TERM','TERM_PROGRAM','NEXT_TELEMETRY_DISABLED','CODEX_CI','CODEX_SHELL','CODEX_THREAD_ID']);
+  const compilerKeys=new Set(['ERPX_HOLDING_ROUTING','ERPX_ENVIRONMENT','ERPX_PRODUCT_ENVIRONMENT','PATH','HOME','TMPDIR','TMP','TEMP','LANG','LC_ALL','TZ','CI','HTTP_PROXY','HTTPS_PROXY','NO_PROXY','http_proxy','https_proxy','no_proxy','NODE_EXTRA_CA_CERTS','SSL_CERT_FILE','SSL_CERT_DIR','TERM','TERM_PROGRAM','NEXT_TELEMETRY_DISABLED','CODEX_CI','CODEX_SHELL','CODEX_THREAD_ID']);
   const environment={...Object.fromEntries(Object.entries(process.env).filter(([name])=>compilerKeys.has(name)||name.startsWith('NEXT_PUBLIC_'))),NODE_ENV:'production',NODE_OPTIONS:'--max-old-space-size=8192',NEXT_DEPLOYMENT_ID:deploymentId,ERPX_BUILD_DIR:'.build',ERPX_APP_ID:id,ERPX_REPOSITORY_ROOT:snapshot,ERPX_RELEASE_NO_WEBPACK_CACHE:'1',ERPX_NODE_BIN:pinnedNode()};
   let attempts=0,passed=false;
   while(!passed&&attempts<2){

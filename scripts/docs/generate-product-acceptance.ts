@@ -17,7 +17,7 @@ const capabilities = (JSON.parse(readFileSync(resolve(root, "packages/catalogue/
 }).capabilities;
 const suites = (JSON.parse(readFileSync(resolve(root, "tests/catalogue/suite-manifest.json"), "utf8")) as { suites: { id: string; lane: string; modules: string[]; files: string[] }[] }).suites;
 const packages: Record<keyof typeof modulePlacement, string[]> = {
-  brand: [...productIds], commercial: [], identity_access: [...productIds], organization: [...productIds],
+  brand: commercialPackages.filter(item => item.kind === "base").map(item => item.id), commercial: [], identity_access: commercialPackages.filter(item => item.kind === "base").map(item => item.id), organization: commercialPackages.filter(item => item.kind === "base").map(item => item.id),
   platform_administration: [], manage_erpx: [], customer_360: ["sales", "pos", "pms", "support", "service"], customer_authority: ["sales-portal", "support-portal"],
   support: ["support", "support-portal", "service"], finance: ["finance", "finance-advanced", "pos", "pms", "sales", "supply", "assets", "service", "manufacturing"],
   pos: ["pos", "pos-restaurant", "pos-hotel-charge"], pms: ["pms", "pms-minibar-linen"], sales: ["sales"], crm: ["sales"],
@@ -69,7 +69,7 @@ const portalExternalSignupBrowserCases: SurfaceBrowserCase[] = (["desktop", "mob
   executionOrigin: "local-simulation-only",
 }));
 const surfaces: Surface[] = [
-  { id: "apps", workflows: ["all-company-branch-department-product-selection", "single-product-direct-entry", "dirty-product-switch"], pages: ["packages/workplace/src/routes/product-entry/page.tsx", "packages/workplace/src/routes/choose-work-role/page.tsx"], apis: ["packages/workplace/src/routes/launch/route.ts"] },
+  { id: "apps", workflows: ["all-company-branch-department-product-selection", "single-product-direct-entry", "dirty-product-switch"], pages: ["packages/workplace/src/entries/workspace.tsx", "apps/launcher/src/app/applications/page.tsx", "packages/workplace/src/routes/choose-work-role/page.tsx"], apis: ["packages/workplace/src/routes/launch/route.ts"] },
   { id: "account", workflows: ["central-login-and-directory-link", "profile-language-theme", "role-company-account-switch", "mfa-expiry-replay-family-all-device-revocation", "authorized-package-area"], pages: ["packages/workplace/src/routes/login/page.tsx", "packages/workplace/src/routes/product-entry/page.tsx"], apis: ["packages/workplace/src/routes/sso/[action]/route.ts", "packages/workplace/src/routes/api/auth/[...all]/route.ts", "packages/feature-account/src/routes/api/v1/account/profile/route.ts", "packages/workplace/src/routes/api/v1/account/preferences/route.ts"] },
   { id: "admin", workflows: ["company-brand-organization-iam", "platform-only-entry", "provider-authority-separation", "legacy-preview-apply-and-audit"], pages: ["packages/workplace/src/routes/product-entry/page.tsx", "packages/feature-admin/src/routes/provider/commercial/page.tsx", "packages/feature-admin/src/routes/provider/commercial/packages/page.tsx"], apis: ["packages/feature-admin/src/routes/api/v1/platform/commercial/[[...path]]/route.ts"] },
   { id: "booking", workflows: ["tenant-room-availability-reservation-consent-payment-callback"], pages: ["packages/feature-booking/src/routes/book/[holdingSlug]/page.tsx"], apis: ["packages/feature-booking/src/routes/api/public/booking/[holdingSlug]/[action]/route.ts"], services: ["packages/server-pms/src/public/public-booking-body.ts"] },
@@ -90,9 +90,10 @@ type ProductWorkflow = {
   tests: string[];
 };
 const productWorkflows: ProductWorkflow[] = [{
-  id: "work:company-executive-and-scoped-mcp", product: "work", owner: "runtime",
-  pages: ["packages/feature-work/src/routes/holdings/[holdingSlug]/insights/executive/page.tsx", "packages/feature-work/src/routes/holdings/[holdingSlug]/insights/executive/reports/[reportId]/page.tsx"],
-  apis: ["packages/feature-work/src/routes/api/v1/holdings/[holdingSlug]/executive/[[...path]]/route.ts", "packages/feature-work/src/routes/api/v1/holdings/[holdingSlug]/executive/connections/route.ts", "packages/feature-work/src/routes/api/mcp/executive/route.ts"],
+  // Stable historical receipt identity; the live product and origin are Apps.
+  id: "work:company-executive-and-scoped-mcp", product: "apps", owner: "runtime",
+  pages: ["packages/feature-apps/src/routes/holdings/[holdingSlug]/insights/executive/page.tsx", "packages/feature-apps/src/routes/holdings/[holdingSlug]/insights/executive/reports/[reportId]/page.tsx"],
+  apis: ["packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/executive/[[...path]]/route.ts", "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/executive/connections/route.ts", "packages/feature-apps/src/routes/api/mcp/executive/route.ts"],
   services: ["packages/server-runtime/src/adapters/executive/reports.ts", "packages/server-runtime/src/adapters/executive/mcp.ts", "packages/server-identity_access/src/application/product-workspace.ts", "packages/server-work_projection/src/domain/product-landings.ts"],
   tests: ["tests/unit/identity_access/product-workspace.test.ts", "tests/unit/shared.ui/workplace-navigation.test.ts", "tests/integration/shared.executive/executive-canvas.test.ts", "tests/integration/shared.executive/executive-mcp.test.ts", "tests/e2e/shared.executive/executive-work-mcp.spec.ts"],
 }, {
@@ -368,7 +369,7 @@ for (const workflow of productWorkflows) {
   if (!productIds.some(id => id === workflow.product)) errors.push(`Unknown product workflow: ${workflow.id}`);
   for (const path of [...workflow.pages, ...workflow.apis, ...workflow.services, ...(workflow.schema ?? []), ...workflow.tests]) if (!existsSync(resolve(root, path))) errors.push(`Missing product workflow source: ${workflow.id}/${path}`);
 }
-if (modules.length !== 33 || new Set(modules.map(row => row.moduleId)).size !== 33 || surfaces.length !== sharedHostKeys.length) errors.push("INCOMPLETE_PRODUCT_COVERAGE");
+if (modules.length !== 33 || new Set(modules.map(row => row.moduleId)).size !== 33 || surfaces.length !== sharedHostKeys.length + 1) errors.push("INCOMPLETE_PRODUCT_COVERAGE");
 const register = { version: 3, environment: "development", deliveryPlan: "docs/production-plan.md",
   sourceFingerprint: fingerprint, verificationFingerprint,
   baseline: { source: ".scratch/dev/product-migration-baseline-2026-10-14/", privateAuthority: "read-only per-database snapshots; no secrets or personal authority rows in this register", performance: "compiled baseline retained; observations pending" },

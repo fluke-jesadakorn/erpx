@@ -1,4 +1,5 @@
 import { applicationOrigin } from "@erpx/feature-runtime/lib/application-origins";
+import {holdingRoutingEnabled,holdingHosts} from '@erpx/contracts/holding-hosts';
 import { drainProvisioning } from "@erpx/server-identity_access/public/technology";
 import { drainPeopleLifecycle } from "@erpx/server-people_payroll/public/people-lifecycle-jobs";
 import { drainDirectoryOperations } from "@erpx/server-identity_access/public/directory-operations";
@@ -157,15 +158,16 @@ export async function attachmentWork(env: JobEnv) {
 }
 
 export async function pmsWork(env: JobEnv) {
+ const holdingOrigins=holdingRoutingEnabled(process.env)?{holdingOrigins:Object.fromEntries(holdingHosts.map(host=>[host.holdingSlug,`https://${host.hostname}`]))}:{};
  for (const slot of await activeSlots(env)) if (!slot.beta) {
    const db=registeredResources(env,slot.id).write as PostgresDatabase;
    await (await import("../../../../../packages/server-pms/src/public/pms")).drainPms(db);
-   await (await import("@erpx/server-pms/public/pms-booking")).drainBookingPayments(db,{secret:String(env.BETTER_AUTH_SECRET),origin:applicationOrigin("booking",String(env.ERPX_PUBLIC_ORIGIN))!,apiKey:typeof env.RESEND_API_KEY==='string'?env.RESEND_API_KEY:undefined,from:typeof env.RESEND_FROM==='string'?env.RESEND_FROM:undefined});
+   await (await import("@erpx/server-pms/public/pms-booking")).drainBookingPayments(db,{...holdingOrigins,secret:String(env.BETTER_AUTH_SECRET),origin:applicationOrigin("booking",String(env.ERPX_PUBLIC_ORIGIN))!,apiKey:typeof env.RESEND_API_KEY==='string'?env.RESEND_API_KEY:undefined,from:typeof env.RESEND_FROM==='string'?env.RESEND_FROM:undefined});
    await (await import("@erpx/server-pms/public/pms-stripe")).drainPmsStripePayments(db);
    {
      const booking=await import("@erpx/server-pms/public/pms-booking");
      const {simulationBookingEmailProvider}=await import("@erpx/server-pms/public/simulation-email");
-     await booking.deliverBookingEmails(db,{secret: String(env.BETTER_AUTH_SECRET),origin: applicationOrigin("booking",String(env.ERPX_PUBLIC_ORIGIN))!,apiKey:typeof env.RESEND_API_KEY === "string" ? env.RESEND_API_KEY : undefined,from:typeof env.RESEND_FROM === "string" ? env.RESEND_FROM : undefined},simulationBookingEmailProvider(env));
+     await booking.deliverBookingEmails(db,{...holdingOrigins,secret: String(env.BETTER_AUTH_SECRET),origin: applicationOrigin("booking",String(env.ERPX_PUBLIC_ORIGIN))!,apiKey:typeof env.RESEND_API_KEY === "string" ? env.RESEND_API_KEY : undefined,from:typeof env.RESEND_FROM === "string" ? env.RESEND_FROM : undefined},simulationBookingEmailProvider(env));
    }
  }
 

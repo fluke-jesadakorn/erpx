@@ -10,7 +10,7 @@ type PrivateSessionActor={userId:string;sessionId:string;email:string;audience:s
  * final checks, never as a fallible check after the Holding audit commits.
  * A completed read may precede a queued family revocation; this is not a
  * distributed transaction or a guarantee about later network delivery. */
-export async function withCurrentPrivateSessionRead<Result>(actor:PrivateSessionActor,run:(assertCurrent:()=>Promise<void>)=>Promise<Result>){
+async function currentSessionLease<Result>(actor:PrivateSessionActor,run:(assertCurrent:()=>Promise<void>)=>Promise<Result>,verified:boolean){
  const owner=(await runtimeEnv()).CONTROL_DB as PostgresDatabase;
  if(!owner.pool)throw new ApiError(503,"SESSION_READ_TRANSACTION_REQUIRED","Private reads require the native current-session owner.");
  const client=await owner.pool.connect();let active=false;
@@ -25,9 +25,13 @@ export async function withCurrentPrivateSessionRead<Result>(actor:PrivateSession
    if(!active)throw new Error("PRIVATE_SESSION_READ_CLOSED");
    try{await assertAccountPreferenceSession(database,actor);}catch(error){if(error instanceof ApiError&&error.code==="SESSION_REVOKED")throw new ApiError(401,"SESSION_REVOKED","Sign in again to open this private document.");throw error;}
    const user=await database.prepare('SELECT email,"emailVerified" verified FROM "user" WHERE id=?').bind(actor.userId).first<{email:string;verified:number}>();
-   if(!user||!Number(user.verified)||user.email.toLowerCase()!==actor.email.toLowerCase())throw new ApiError(401,"SESSION_REVOKED","Sign in again to open this private document.");
+   if(!user||verified&&!Number(user.verified)||user.email.toLowerCase()!==actor.email.toLowerCase())throw new ApiError(401,"SESSION_REVOKED","Sign in again to open this private document.");
   };
   await assertCurrent();const result=await run(assertCurrent);await client.query("COMMIT");return result;
  }catch(error){await client.query("ROLLBACK").catch(()=>{});if(["55P03","40P01"].includes((error as {code?:string}).code??""))throw new ApiError(409,"SESSION_AUTHORITY_BUSY","Your sign-in is changing. Reload and try again.");throw error;
  }finally{active=false;client.release();}
 }
+export const withCurrentPrivateSessionRead=<Result>(actor:PrivateSessionActor,run:(assertCurrent:()=>Promise<void>)=>Promise<Result>)=>currentSessionLease(actor,run,true);
+/** Role selection retains its original account policy. Owner role eligibility
+ * is checked inside this session-first lease without imposing document email policy. */
+export const withCurrentWorkSelectionSession=<Result>(actor:PrivateSessionActor,run:(assertCurrent:()=>Promise<void>)=>Promise<Result>)=>currentSessionLease(actor,run,false);

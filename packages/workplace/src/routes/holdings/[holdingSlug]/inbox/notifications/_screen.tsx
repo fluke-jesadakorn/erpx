@@ -16,7 +16,7 @@ export default async function Inbox({ params, searchParams }: {
     searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
     const actor = await requireWorkContext((await params).holdingSlug), base = workspaceBase(publicScope(actor)), query = await searchParams;
-    const data=await notificationWorkspace(actor,productHostForHost((await headers()).get("host"))==="work");
+    const data=await notificationWorkspace(actor,productHostForHost((await headers()).get("host"))==="apps");
     const tab="updates",key=`${actor.companyId}:${actor.assignmentId}:${actor.authority?.revision??0}`;
     const updates=<InboxUpdates key={key} base={base} canBroadcast={!data.notificationsOnly&&hasPermission(actor,"inbox.notice.broadcast")} notificationsOnly={data.notificationsOnly} initial={data.initial}/>;
     return <PageContent as={FeaturePage} data-source="live">

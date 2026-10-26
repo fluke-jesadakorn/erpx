@@ -1,5 +1,5 @@
 import "server-only";
-import { peopleAccessSnapshot } from "@erpx/server-identity_access/public/people-access";
+import { peopleAccessSnapshot, peopleRelationshipsSnapshot } from "@erpx/server-identity_access/public/people-access";
 import { iamContext } from "@erpx/server-identity_access/public/iam-context";
 import { organizationAccessData } from "@erpx/server-organization/public/organization-access";
 import { peopleLifecycleData } from "@erpx/server-people_payroll/public/people-lifecycle";
@@ -17,6 +17,7 @@ type ReadArguments<F extends (...args: never[]) => unknown> = Parameters<F> exte
 export async function iamPresentationQueries(holdingSlug: string | null) {
   const { db, actor } = await iamContext(holdingSlug);
   return { actor, queries: {
+    peopleRelationshipsSnapshot: (...args: ReadArguments<typeof peopleRelationshipsSnapshot>) => peopleRelationshipsSnapshot(db, ...args),
     peopleAccessSnapshot: (...args: ReadArguments<typeof peopleAccessSnapshot>) => peopleAccessSnapshot(db, ...args),
     organizationAccessData: (...args: ReadArguments<typeof organizationAccessData>) => organizationAccessData(db, ...args),
     peopleLifecycleData: (...args: ReadArguments<typeof peopleLifecycleData>) => peopleLifecycleData(db, ...args),

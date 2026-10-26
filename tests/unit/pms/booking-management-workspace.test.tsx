@@ -113,6 +113,7 @@ function mountedManager(send: typeof fetch) {
   const context = {registerUnsavedWork: (check: () => boolean) => {dirtyChecks.add(check); return () => {dirtyChecks.delete(check);};}, contextIsSwitching: () => false, hasUnsavedWork: () => forcedDirty || [...dirtyChecks].some(check => check())};
   const evaluated = {exports: {} as Record<string, unknown>}, path = process.env.ERPX_GUEST_BOOKING_SOURCE ?? "packages/feature-pms/src/components/guest-booking-management-workspace.tsx";
   const localRequire = (name: string) => {
+    if(name==='@erpx/contracts/holding-fetch')return {holdingFetch:(...args:Parameters<typeof fetch>)=>globalThis.fetch(...args)};
     if (name === "react") return {...React, useState, useRef, useEffect: effect, useLayoutEffect: effect};
     if (name === "react/jsx-runtime") return require(name);
     if (name.endsWith("@erpx/ui/components/foundation")) return primitives;

@@ -1,4 +1,5 @@
 "use client";
+import {holdingFetch} from '@erpx/contracts/holding-fetch';
 import { Button } from "@erpx/ui/components/foundation";
 
 import { useEffect, useRef, useState } from "react";
@@ -54,7 +55,7 @@ export function WorkContextBoundary({ appearance = "legacy",
       typeof BroadcastChannel === "undefined" ? null : new BroadcastChannel("erpx-work-context");
     async function check() {
       try {
-        const response = await fetch(
+        const response = await holdingFetch(
           frontRoleEndpoint ? `${frontRoleEndpoint}/roles` : `/api/v1${base}/assignments/active`,
           {
             cache: "no-store",
@@ -65,6 +66,10 @@ export function WorkContextBoundary({ appearance = "legacy",
         );
         if (!active) return;
         if (response.status === 401) {
+          if (document.documentElement.dataset.deviceAccounts === 'true') {
+            window.dispatchEvent(new Event('erpx:device-account-stale'));
+            return;
+          }
           window.location.replace(
             "/login?reason=expired&next=" +
               encodeURIComponent(

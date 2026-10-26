@@ -3,6 +3,7 @@ import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypt
 import type { TransactionalSqlDatabase, SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { bindingIsCurrent, browserTransactionLifetime, safeProductReturnPath, sessionLifetime, singleUseGrantLifetime, type SsoSessionBinding } from "@erpx/server-identity_access/domain/product-sso";
 import {revokeProductSessionFamily} from '@erpx/server-identity_access/adapters/product-session-revocation';
+import {deviceSessionSelected,ensureDeviceSessionBinding} from '@erpx/server-identity_access/adapters/device-account-store';
 
 export const ssoHash = (value: string) => createHash("sha256").update(value).digest("base64url");
 const secret = () => randomBytes(32).toString("base64url");
@@ -26,7 +27,7 @@ export function productSsoStore(db: TransactionalSqlDatabase, environment: "deve
     const row = await database.prepare(`SELECT b.*,s."userId" AS user_id,s."expiresAt" AS session_expires_at
       FROM sso_session_bindings b JOIN session s ON s.id=b.session_id
       WHERE b.session_id=? ${lock ? "FOR UPDATE OF s" : ""}`).bind(id).first<BindingRow & { user_id: string; session_expires_at: string }>();
-    if (!row || row.parent_session_id || !bindingIsCurrent(binding(row), "account", environment, instant) || new Date(row.session_expires_at).getTime() <= instant) return rejected();
+    if (!row || row.parent_session_id || !bindingIsCurrent(binding(row), "account", environment, instant) || new Date(row.session_expires_at).getTime() <= instant || !await deviceSessionSelected(database, id)) return rejected();
     return row;
   }
   return {
@@ -77,6 +78,7 @@ export function productSsoStore(db: TransactionalSqlDatabase, environment: "deve
           !equal(browser.browser_hash, ssoHash(browserSecret)) || !equal(browser.state_hash, ssoHash(input.state)) || !equal(grant.state_hash, browser.state_hash) ||
           !equal(browser.challenge, ssoHash(verifier)) || !equal(grant.challenge, browser.challenge)) return rejected();
         const parent = await central(tx, grant.parent_session_id, instant, true);
+        await ensureDeviceSessionBinding(tx,parent.session_id,instant);
         const expiresAt = Math.min(Number(parent.absolute_expires_at), new Date(parent.session_expires_at).getTime());
         const date = new Date(instant).toISOString();
         await tx.prepare(`INSERT INTO session(id,token,"userId","createdAt","updatedAt","expiresAt") VALUES(?,?,?,?,?,?)`)
@@ -102,7 +104,7 @@ export function productSsoStore(db: TransactionalSqlDatabase, environment: "deve
         }>();
       if (!row || !bindingIsCurrent(binding(row), audience, environment, instant) || row.parent_audience !== "account" || row.parent_environment !== environment || row.grandparent ||
         row.parent_user_id !== row.userId || Number(row.parent_authenticated_at) !== Number(row.authenticated_at) || Number(row.parent_absolute_expires_at) < Number(row.absolute_expires_at) ||
-        new Date(row.parent_expires_at).getTime() <= instant || new Date(row.expiresAt).getTime() <= instant) return null;
+        new Date(row.parent_expires_at).getTime() <= instant || new Date(row.expiresAt).getTime() <= instant || !await deviceSessionSelected(db, row.parent_session_id!,true)) return null;
       return {
         session: { id: row.id, userId: row.userId, token: "", expiresAt: new Date(Math.min(new Date(row.expiresAt).getTime(), new Date(row.parent_expires_at).getTime(), Number(row.absolute_expires_at))), createdAt: new Date(Number(row.authenticated_at)), updatedAt: new Date(Number(row.authenticated_at)), ipAddress: null, userAgent: null },
         user: { id: row.userId, name: row.name, email: row.email, emailVerified: Boolean(Number(row.emailVerified)), image: row.image, createdAt: new Date(Number(row.user_created_at)), updatedAt: new Date(Number(row.user_updated_at)) },

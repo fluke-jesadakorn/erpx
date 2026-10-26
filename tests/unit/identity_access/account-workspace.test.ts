@@ -10,11 +10,22 @@ vi.mock("@erpx/server-runtime/public/presentation-configuration",()=>({publicBet
 vi.mock("@erpx/feature-identity_access/lib/auth-client",()=>({authClient:{signIn:{email:vi.fn()}}}));
 import {isValidElement,type ReactNode,type ReactElement} from 'react';
 import {accountWorkspaceTarget,accountWorkspaceLoginReturn} from '@erpx/server-identity_access/public/rules/account-workspace';
+import {deviceAccountReturn,deviceDirectoryLogin} from '@erpx/server-identity_access/public/rules/device-account-return';
 import {accountWorkspaceRequest} from '@erpx/server-identity_access/public/account-workspace';
 import {ApiError} from '@erpx/server-runtime/public/http';
 const origin='https://account-dev-erpx.jesadakorn.com';
 const request=(next='/my-access?tag=one&tag=two#roles',host='account-dev-erpx.jesadakorn.com')=>new Request('https://'+host+'/account/launch?'+new URLSearchParams({next}),{headers:{host}});
 beforeEach(()=>{vi.clearAllMocks();mocks.enabled=true;mocks.host='account-dev-erpx.jesadakorn.com';mocks.session.mockResolvedValue({session:{user:{id:'platform-only'},session:{id:'current-central-session'}}});});
+it('returns an added Directory account only to a known staff app and strips credentials from its original page',()=>{
+ const value='/account/device-return?'+new URLSearchParams({app:'finance',next:'/holdings/acme/finance/documents?code=private&token=private&queue=open'}),clean='/account/device-return?'+new URLSearchParams({app:'finance',next:'/holdings/acme/finance/documents?queue=open'});
+ expect(deviceAccountReturn(value)).toBe(clean);expect(deviceAccountReturn(clean)).toBe(clean);
+ for(const app of ['apps','admin','pos','pms'])expect(deviceAccountReturn('/account/device-return?'+new URLSearchParams({app,next:'/'}))).toBeTruthy();
+ for(const value of ['/account/device-return?app=portal','/account/device-return?app=account','/account/device-return?app=console','/account/device-return?app=finance&app=people','/account/device-return?app=finance&next=/&next=/private','/account/device-return?app=finance&code=private','/account/device-return?app=finance#override','https://evil.test/account/device-return?app=finance'])expect(deviceAccountReturn(value)).toBeNull();
+ expect(deviceAccountReturn('/account/device-return?'+new URLSearchParams({app:'finance',next:'https://evil.test/'}))).toBe('/account/device-return?app=finance&next=%2F');
+ const connection='11111111-2222-4333-8444-555555555555',link=origin+'/login?'+new URLSearchParams({connection,next:'https://evil.test/',code:'private'}),destination=deviceDirectoryLogin(link,origin,'finance','/holdings/acme/finance/documents?token=private&queue=open')!;
+ expect(new URL(destination).searchParams.get('connection')).toBe(connection);expect(new URL(destination).searchParams.get('next')).toBe('/account/device-return?'+new URLSearchParams({app:'finance',next:'/holdings/acme/finance/documents?queue=open'}));expect(destination).not.toContain('private');expect(destination).not.toContain('evil');
+ for(const link of ['https://evil.test/login?connection='+connection,origin+'/login?connection='+connection+'&connection='+connection,origin+'/security?connection='+connection,origin+'/login?connection=invalid'])expect(deviceDirectoryLogin(link,origin,'finance','/')).toBeNull();
+});
 it('admits only three exact self paths and removes callback credentials while preserving ordinary repeated query and fragment',()=>{
  for(const path of ['/my-access','/security','/my-profile'])expect(accountWorkspaceTarget(path+'?code=private&state=secret&token=secret&session_token=secret&_rsc=private&tag=one&tag=two#details')).toBe(path+'?tag=one&tag=two#details');
  for(const value of ['/','/my-profile/other','/my-profile/','/holdings/acme/people-organization/profiles/user/overview','/api/v1/account/profile','/sso/callback','/account/launch?next=/security','https://evil.test/my-access','//evil.test/my-access','/x/../my-access','/%6dy-access','/my-access%2fother','/my-access?x=%00','/security?x=%5c','/my-access?bad=%zz'])expect(accountWorkspaceTarget(value)).toBeNull();

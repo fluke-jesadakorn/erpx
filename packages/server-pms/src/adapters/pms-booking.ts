@@ -1,4 +1,5 @@
 import {hydratePmsReceiptAllocationCredits} from "../../../../packages/server-pms/src/adapters/pms";
+import {holdingRoutingEnabled,holdingHosts} from '@erpx/contracts/holding-hosts';
 import {bookingEmailDeliveryPayload} from "@erpx/server-pms/adapters/booking-email-delivery";
 import "server-only";
 import {publicSurfaceOrigin} from '@erpx/server-identity_access/public/public-surface-entry';
@@ -30,6 +31,7 @@ export async function bookingEnv(): Promise<BookingEnv> {
     return {
         secret: env.BETTER_AUTH_SECRET,
         origin: publicSurfaceOrigin('booking',env.ERPX_PUBLIC_ORIGIN),
+        ...(holdingRoutingEnabled(process.env)?{holdingOrigins:Object.fromEntries(holdingHosts.map(host=>[host.holdingSlug,`https://${host.hostname}`]))}:{}),
         apiKey: env.RESEND_API_KEY,
         from: env.RESEND_FROM,
     };

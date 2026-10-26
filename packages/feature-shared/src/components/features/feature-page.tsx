@@ -9,6 +9,8 @@ import {
 import Link from "@erpx/workplace/components/workspace-link";
 import { usePathname } from "next/navigation";
 import { useSearchParams } from "@erpx/feature-shared/lib/destination-search";
+import { destinationForPath, workspacePathParts } from "@erpx/feature-work_projection/lib/destination-registry";
+import { workEntryRoots } from "@erpx/feature-work_projection/lib/navigation-presentation";
 import { Settings2 } from "lucide-react";
 import { featureLocation, legacyWidgetTarget, isConfigurablePage } from "@erpx/feature-work_projection/lib/page-layouts-view";
 import { GridLocation, PageDrawer } from "@erpx/feature-shared/components/features/widget-context";
@@ -25,6 +27,8 @@ export function FeatureTabs({ appearance = "legacy" }: { appearance?: UiAppearan
     pathname = usePathname(),
     search = useSearchParams();
   const feature = featureLocation(navigation, pathname, new URLSearchParams(search));
+  const collection = workspacePathParts(pathname)?.path;
+  if (collection && (destinationForPath(collection) || Object.hasOwn(workEntryRoots, collection))) return null;
   if (
     feature.id === "work" ||
     feature.id === "people" ||

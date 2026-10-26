@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@erpx/feature-finance": "workspace:*",
+    "@erpx/server-work_projection": "workspace:*",
     "@erpx/workplace": "workspace:*",
     "next": "16.4.3",
     "react": "19.3.1",

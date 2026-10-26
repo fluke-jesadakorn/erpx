@@ -1,6 +1,7 @@
 "use client";
+import {ProductAccountTrigger} from "@erpx/workplace/components/product-account-provider";
 import {developmentProductOrigin} from "@erpx/server-commercial/public/product-registry";
-import {ProductWorkLinks,useProductNavigationScope} from "@erpx/workplace/components/product-link-context";
+import {AppsHomeLink,ProductWorkLinks,useProductNavigationScope,useProductPathname} from "@erpx/workplace/components/product-link-context";
 import {ProductNavigationBoundary} from "@erpx/workplace/components/product-navigation-boundary";
 import { MainContent } from "@erpx/ui/components/main";
 import { Badge, Button, Card, Field, InlineNotice, Select } from "@erpx/ui/components/foundation";
@@ -15,7 +16,6 @@ import {
 } from "react";
 import Image from "next/image";
 import Link from "@erpx/workplace/components/workspace-link";
-import { usePathname } from "next/navigation";
 import { useSearchParams } from "@erpx/feature-shared/lib/destination-search";
 import { useRouter } from "@erpx/feature-shared/lib/destination-router";
 import styles from "@erpx/front/components/standard-front-app-shell.module.css";
@@ -206,7 +206,7 @@ export function StandardFrontAppShell({
   children: ReactNode;
 }) {
   const productScope=useProductNavigationScope();
-  const pathname = usePathname(),
+  const pathname = useProductPathname(),
     search = useSearchParams();
   const online = useSyncExternalStore(
     subscribeToConnectivity,
@@ -229,10 +229,11 @@ export function StandardFrontAppShell({
   const appHome = standalone
     ? "/" + encodeURIComponent(holdingSlug) + "/" + encodeURIComponent(companySlug)
     : base + "/" + app;
-  const logo = base + "/" + app + "/logo";
+  const logo = productScope.holdingSlug?`/__erpx/${app}/front/${encodeURIComponent(holdingSlug)}/${encodeURIComponent(companySlug)}/logo`:base + "/" + app + "/logo";
   const style = { "--front-accent": accentColor } as CSSProperties;
   const canonicalFront = `/front/${encodeURIComponent(holdingSlug)}/${encodeURIComponent(companySlug)}/${app}`;
-  const returnPath = pathname.startsWith("/front/")
+  const visibleParts=pathname.split('/').filter(Boolean),publicTail=visibleParts.slice(visibleParts.indexOf(app)+1).join('/');
+  const returnPath = productScope.holdingSlug&&frontLocation?`${canonicalFront}/${frontLocation}${publicTail?'/'+publicTail:''}`:pathname.startsWith("/front/")
     ? pathname
     : `${canonicalFront}${pathname.slice(`/${encodeURIComponent(holdingSlug)}/${encodeURIComponent(companySlug)}`.length)}`;
   function sharedWork(path: string, hash = "") {
@@ -296,7 +297,7 @@ export function StandardFrontAppShell({
           {language === "th" ? "ข้ามไปยังเนื้อหา" : "Skip to page content"}
         </a>
         <header className={styles.header}>
-          <a className={styles.brand} href={appHome + "/"} aria-label={title + " home"}>
+          <AppsHomeLink className={styles.brand}>
             {logoAttachmentId ? (
               <Image src={logo} alt="" width={128} height={128} unoptimized />
             ) : (
@@ -308,7 +309,7 @@ export function StandardFrontAppShell({
               <strong>{title}</strong>
               <small>{locationName ?? companyName}</small>
             </span>
-          </a>
+          </AppsHomeLink>
           <div className={styles.controls}>
             <Badge className={styles.connectivity} tone={online ? "success" : "danger"} role="status">
               {online
@@ -343,6 +344,7 @@ export function StandardFrontAppShell({
               <option value="dark">{language === "th" ? "มืด" : "Dark"}</option>
               <option value="system">{language === "th" ? "ตามระบบ" : "System"}</option>
             </Select>
+            <ProductAccountTrigger language={language} companyId={companyId} roleLabel={workRole?.options.find(option=>option.id===workRole.assignmentId)?.label}/>
             <details className={styles.accountMenu}>
               <summary>
                 {language === "th" ? "เพิ่มเติม" : "More"}
@@ -362,7 +364,7 @@ export function StandardFrontAppShell({
                   {erpHref && frontLocation && <Link className={styles.changeLocation} href={sharedWork(app)}>
                     {language === "th" ? "จัดการและตั้งค่า" : "Back office & setup"}
                   </Link>}
-                  <a data-product-switch className={styles.changeLocation} href={developmentProductOrigin("apps") + "/sso/start"}>Apps</a>
+                  <a data-product-switch className={styles.changeLocation} href={productScope.holdingSlug?'/':developmentProductOrigin("apps") + "/sso/start"}>Apps</a>
                 </> : erpHref && (
                   <a className={styles.changeLocation} href={erpHref}>
                     {language === "th" ? "← กลับ ERP" : "← Back to ERP"}
@@ -433,6 +435,7 @@ export function StandardFrontAppShell({
                 placement="rail"
                 embedded
               />
+              <ProductAccountTrigger sidebar language={language} companyId={companyId} roleLabel={workRole?.options.find(option=>option.id===workRole.assignmentId)?.label}/>
             </aside>
           )}
           <MainContent className={styles.content} id="front-content" tabIndex={-1}>

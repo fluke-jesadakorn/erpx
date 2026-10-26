@@ -2,6 +2,7 @@ import { destinationProduct, type ProductHostKey } from "@erpx/server-commercial
 import { canonicalUiHref, workspacePathParts } from "@erpx/feature-work_projection/lib/destination-registry";
 import { configuredProductHandoff, configuredProductOrigin, trustedProductOrigin } from "@erpx/feature-runtime/lib/product-hosts";
 import { consoleOrigin } from "@erpx/feature-runtime/lib/erpx-hosts";
+import {holdingRoutingEnabled,holdingUiUrl,holdingPublicUiUrl} from '@erpx/contracts/holding-hosts';
 
 /** Link construction only. Every destination retains its normal session,
  * Company, assignment, purchase and record checks. Console is a legacy origin. */
@@ -22,6 +23,7 @@ export function appsOrigin() {
 /** Re-enter through Account when leaving another host; a previously signed-in
  * Apps cookie must not silently select a different account's session. */
 export function appsEntryUrl(): string | undefined {
+  if(holdingRoutingEnabled(process.env))return '/';
   const origin = applicationOrigin("apps");
   return origin === configuredProductOrigin("apps") ? configuredProductHandoff("apps")! : origin;
 }
@@ -34,6 +36,10 @@ export function accountOrigin() {
 /** A provider return selects a Company through ordinary Admin SSO/launch.
  * The hint cannot supply Company, Platform, IAM or payment authority. */
 export function adminCompanyHandoff(companyId: string, pathname: string, legacy = consoleOrigin()?.origin): string {
+  if(holdingRoutingEnabled(process.env)){
+    const mapped=holdingUiUrl(canonicalUiHref(pathname),companyId);
+    if(mapped)return mapped;
+  }
   const origin = applicationOrigin("admin", legacy);
   if (!origin) throw new Error("APPLICATION_ORIGIN_REQUIRED");
   const target = canonicalUiHref(pathname);
@@ -67,6 +73,10 @@ export function accountRecoveryDeliveryUrl(value: string): string {
 /** Resolve old page links without treating Console as a shared destination.
  * Set pathname separately so even a double slash can never change the host. */
 export function applicationUrl(pathname = "/", search = "") {
+  if(holdingRoutingEnabled(process.env)){
+    const target=canonicalUiHref(pathname+search),mapped=holdingUiUrl(target)??holdingPublicUiUrl(target);
+    if(mapped)return new URL(mapped);
+  }
   let owner: ProductHostKey = "apps";
   if (/^\/(?:login|signup|activate|join|forgot-password|reset-password|verify-email|my-profile|my-access|security|account)(?:\/|$)/.test(pathname)
     || /^\/legal-portal\/(?:enroll|continue)(?:\/|$)/.test(pathname)) owner = "account";

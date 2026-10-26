@@ -5,8 +5,9 @@ import {adminWorkspaceTarget} from '@erpx/server-identity_access/public/rules/ad
 import {accountWorkspaceTarget} from '@erpx/server-identity_access/public/rules/account-workspace';
 import {publicSurfaceTarget,publicSurfaceLaunchPath,legalEnrollmentEntryTarget} from '@erpx/server-identity_access/public/rules/public-surface-entry';
 import type {UrlObject} from 'node:url';
+import {holdingHostForHost,holdingOrigin,holdingUiUrl,holdingPublicUiUrl,holdingFrontUiUrl,parseHoldingRoute} from '@erpx/contracts/holding-hosts';
 
-export type ProductNavigationScope={audience:ProductHostKey|null;companyId?:string;companySlug?:string;workspaceBase?:string};
+export type ProductNavigationScope={audience:ProductHostKey|null;companyId?:string;companySlug?:string;workspaceBase?:string;holdingSlug?:string};
 const credentials=['code','state','token','session_token','_rsc'];
 const frontViews={pos:['sale','kitchen','history','shifts','notifications'],pms:['today','front-desk','reservations','rooms','housekeeping','guest-accounts','cashier','night-audit','notifications']};
 const legacyFrontOrigins={pos:'https://dev-pos.jesadakorn.com',pms:'https://dev-pms.jesadakorn.com'};
@@ -48,6 +49,18 @@ function frontFromOffice(app:'pos'|'pms',destination:string,url:URL,scope:Produc
 /** Navigation only. Owner launch, release, current IAM and record policy remain
  * authoritative. No API, callback, mutation or cross-Company scope is rewritten. */
 export function productNavigationHref(href:string,scope:ProductNavigationScope):{href:string;handoff:boolean}{
+ if(scope.holdingSlug){
+  const origin=holdingOrigin(scope.holdingSlug)!;
+  let url:URL;try{url=new URL(href,origin);}catch{return {href,handoff:false};}
+  if(!holdingHostForHost(url.host)&&!ownedOrigin(url.origin)||url.username||url.password)return {href,handoff:false};
+  const frontApp=url.pathname.match(/^\/front\/[^/]+\/[^/]+\/(pos|pms)(?:\/|$)/)?.[1] as 'pos'|'pms'|undefined;
+  const mapped=holdingUiUrl(canonicalUiHref(url.pathname+url.search+url.hash),scope.companySlug??scope.companyId)
+    ??holdingPublicUiUrl(url.pathname+url.search+url.hash)
+    ??(frontApp||scope.audience==='pos'||scope.audience==='pms'?holdingFrontUiUrl(url.pathname+url.search+url.hash,frontApp??scope.audience as 'pos'|'pms'):null);
+  if(mapped){const destination=new URL(mapped),holding=holdingHostForHost(destination.host),owner=holding&&parseHoldingRoute(holding.holdingSlug,destination.pathname)?.app;return {href:mapped,handoff:destination.origin!==origin||owner!==scope.audience};}
+  const holding=holdingHostForHost(url.host);
+  if(holding)return {href:url.href,handoff:url.origin!==origin||parseHoldingRoute(holding.holdingSlug,url.pathname)?.app!==scope.audience};
+ }
  const raw={href,handoff:false},unchanged={href:canonicalUiHref(href),handoff:false};
  if(href.startsWith('//'))return raw;
  if(!scope.audience||href.startsWith('#')||!href.startsWith('/')&&!/^https:\/\//.test(href)||href.startsWith('//'))return unchanged;
@@ -117,6 +130,7 @@ export function productNavigationHref(href:string,scope:ProductNavigationScope):
  * requested by an imperative dirty-guard event. This is never an access grant. */
 export function isProductHandoffHref(value:string){
  try{const url=new URL(value);if(url.username||url.password)return false;
+  if(holdingHostForHost(url.host)&&url.protocol==='https:')return !/^\/(?:__erpx|api)(?:\/|$)/.test(url.pathname);
   if(url.origin===developmentProductOrigin('account')&&url.pathname==='/account/launch')return !url.hash&&url.searchParams.getAll('next').length===1&&[...url.searchParams.keys()].every(key=>key==='next')&&accountWorkspaceTarget(url.searchParams.get('next'))!==null;
   if(url.origin===developmentProductOrigin('account')&&legalEnrollmentEntryTarget(url.pathname+url.search+url.hash))return true;
   const publicTarget=publicSurfaceTarget(url.pathname+url.search+url.hash);

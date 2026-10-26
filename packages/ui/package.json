@@ -13,6 +13,7 @@
     "./components/card": "./src/components/card.tsx",
     "./components/person-avatar.module.css": "./src/components/person-avatar.module.css",
     "./components/workspace.module.css": "./src/components/workspace.module.css",
+    "./components/interaction-suspension": "./src/components/interaction-suspension.tsx",
     "./components/field": "./src/components/field.tsx",
     "./components/list-pagination": "./src/components/list-pagination.tsx",
     "./components/destination-filter-form": "./src/components/destination-filter-form.tsx",
@@ -43,7 +44,8 @@
     "./components/components.css": "./src/components/components.css",
     "./components/input": "./src/components/input.tsx",
     "./components/use-hydrated": "./src/components/use-hydrated.ts",
-    "./lib/cn": "./src/lib/cn.ts"
+    "./lib/cn": "./src/lib/cn.ts",
+    "./components/sidebar-navigation": "./src/components/sidebar-navigation.tsx"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

@@ -349,7 +349,7 @@ it("uses Work/POS/Hotel owner origins and stops old Console Push at retirement w
     for(const [key,value] of Object.entries({ERPX_ENVIRONMENT:"local",ERPX_PUBLIC_ORIGIN:"https://console-dev-erpx.jesadakorn.com",ERPX_PRODUCT_ENVIRONMENT:"development",ERPX_PRODUCT_ROUTING:"enabled",ERPX_PRODUCT_SSO:"enabled",ERPX_CONSOLE_RETIRED:"disabled"}))vi.stubEnv(key,value);
     for(const owner of ["work","pos","pms"])expect(allowedPushOrigin(`https://${owner}-dev-erpx.jesadakorn.com`)).toBe(true);
     for(const owner of ["account","apps","booking","portal","legal-portal","forms"])expect(allowedPushOrigin(`https://${owner}-dev-erpx.jesadakorn.com`)).toBe(false);
-    expect(allowedPushOrigin("https://work-dev-erpx.jesadakorn.com.foreign.example")).toBe(false);
+    expect(allowedPushOrigin("https://apps-dev-erpx.jesadakorn.com.foreign.example")).toBe(false);
     const retiredDevice={...subscription,endpoint:subscription.endpoint+"-retirement-"+crypto.randomUUID()};
     await registerPush(db,actor,"https://console-dev-erpx.jesadakorn.com","/holdings/test/inbox?tab=updates",retiredDevice);
     await publishInboxEvent(db,{key:`retired-push:${crypto.randomUUID()}`,companyId:actor.companyId,sourceType:"task",sourceId:"retained-task",sourceVersion:1,category:"work",preview:"Retained private update",recipientIds:[actor.userId]});

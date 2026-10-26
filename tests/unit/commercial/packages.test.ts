@@ -8,6 +8,25 @@ const now = 1_000;
 const grant = (packageId: string, extra: Partial<CompanyPackageGrant> = {}): CompanyPackageGrant => ({ companyId: "c1", packageId, packageVersion: 1, state: "active", startsAt: 0, endsAt: null, version: 1, reason: "Fixture", evidence: "test:approved", ...extra });
 const retained = (packageId: string, extra: Partial<CompanyPackageHistoryRight> = {}): CompanyPackageHistoryRight => ({ companyId: "c1", packageId, packageVersion: 1, sourceGrantVersion: 1, sourceEventId: "reviewed-purchase", retainedAt: 0, ...extra });
 const decision = (grants: CompanyPackageGrant[], capability: string, purpose: "new-work" | "settle-existing" | "history" = "new-work", history: CompanyPackageHistoryRight[] = []) => purchasedCapability(grants, "c1", capability, purpose, now, history);
+it("maps immutable Work purchases to Apps without inventing a grant or changing lifecycle rights", () => {
+  expect(commercialPackages.filter(item => item.productId === "apps").map(item => [item.id, item.dependencies])).toEqual([
+    ["work", []], ["work-social", ["work"]], ["work-messages", ["work"]], ["work-routines", ["work"]],
+  ]);
+  expect(commercialPackages.some(item => item.id === "apps")).toBe(false);
+  const active = [grant("work"), grant("work-social")];
+  expect(visiblePurchasedProducts(active, "c1", now)).toEqual(["apps"]);
+  expect(decision(active, "work.social").allowed).toBe(true);
+  const draining = active.map(item => ({ ...item, state: "draining" as const }));
+  expect(visiblePurchasedProducts(draining, "c1", now)).toEqual([]);
+  expect(visiblePurchasedProducts(draining, "c1", now, "history")).toEqual(["apps"]);
+  expect(decision(draining, "work.social").code).toBe("PACKAGE_DRAINING");
+  expect(decision(draining, "work.social", "settle-existing").allowed).toBe(true);
+  const history = [retained("work"), retained("work-social")];
+  expect(visiblePurchasedProducts([], "c1", now, "history", history)).toEqual(["apps"]);
+  expect(decision([], "work.social", "history", history).allowed).toBe(true);
+  expect(decision([], "work.social", "new-work", history).allowed).toBe(false);
+  expect(visiblePurchasedProducts(active, "another-company", now, "history", history)).toEqual([]);
+});
 it("separates readable product entry from permission to start new work", () => {
   const draining=[grant('support',{state:'draining'})];
   expect(visiblePurchasedProducts(draining,'c1',now)).toEqual([]);expect(visiblePurchasedProducts(draining,'c1',now,'history')).toEqual(['support']);

@@ -1,6 +1,25 @@
 import { expect, it } from "vitest";
 import { anonymousAccountAuthPath, bindingIsCurrent, safeProductReturnPath, sessionLifetime } from "@erpx/server-identity_access/domain/product-sso";
 import { productWorkspaceTarget } from "@erpx/server-identity_access/domain/product-workspace";
+import { isProductHostKey } from "@erpx/contracts/product-registry";
+it("rejects retired Work identity and never adopts its child session for Apps", () => {
+  expect(isProductHostKey("work")).toBe(false);
+  expect(isProductHostKey("apps")).toBe(true);
+  const binding = { sessionId: "old-child", audience: "work", environment: "development", parentSessionId: "account-parent", authenticatedAt: 0, absoluteExpiresAt: sessionLifetime };
+  expect(bindingIsCurrent(binding, "apps", "development", 1000)).toBe(false);
+  expect(bindingIsCurrent({ ...binding, audience: "account" }, "account", "development", 1000)).toBe(true);
+  expect(bindingIsCurrent({ ...binding, audience: "finance" }, "finance", "development", 1000)).toBe(true);
+});
+it('finishes the actual account provider server stream when a descendant report resolves after its Suspense fallback',async()=>{
+ const {createElement,lazy,Suspense}=await import('react'),{renderToReadableStream}=await import('react-dom/server'),{ProductAccountProvider}=await import('@erpx/workplace/components/product-account-provider');
+ let complete!:(value:{default:()=>import('react').ReactElement})=>void;
+ const pending=new Promise<{default:()=>import('react').ReactElement}>(resolve=>{complete=resolve;}),Report=lazy(()=>pending),errors:unknown[]=[];
+ const stream=await renderToReadableStream(createElement(ProductAccountProvider,{user:{id:'stream-user',name:'Stream user',email:'stream@example.test'},audience:'pms',accountOrigin:'https://account-dev-erpx.jesadakorn.com',appsHref:'https://apps-dev-erpx.jesadakorn.com/',children:createElement(Suspense,{fallback:createElement('p',null,'Report loading')},createElement(Report))}),{onError:error=>{errors.push(error);}});
+ const reader=stream.getReader(),decoder=new TextDecoder(),initial=await reader.read();expect(decoder.decode(initial.value)).toContain('Report loading');
+ complete({default:()=>createElement('section',null,'Streamed report')});let html=decoder.decode(initial.value);
+ for(;;){const chunk=await reader.read();if(chunk.done)break;html+=decoder.decode(chunk.value);}
+ expect(errors).toEqual([]);expect(html).toContain('Streamed report');expect(html).not.toContain('<!--$!-->');expect(html).not.toContain('$RX(');
+});
 it("restricts product Company selection to its own Office pages and preserves destination queries", () => {
   const next = "/holdings/acme/branches/b1/departments/d1/finance/documents?status=paid&filter=a%2Fb#selected";
   expect(productWorkspaceTarget("finance", "company-two", next)).toEqual({ companyId: "company-two", target: next,

@@ -2,6 +2,14 @@
 
 Business language for ERPX, independent of implementation. Current delivery scope and status belong in the [production plan](docs/production-plan.md).
 
+**ERPX Apps**: ERPX's main workplace, bringing the Feed and available applications together for the person's chosen Company and Workspace.
+_Avoid_: Work as a separate product name.
+
+**All apps**: The person's available applications and administration areas in a chosen Company and Workspace. Availability reflects their current access.
+
+**Organization Address**: A Holding's shared entrance to its applications and published customer services. Branches and Departments identify workspaces within that organization; each Company retains its own legal identity and data policies.
+_Avoid_: Product subdomain, Company subdomain when referring to a Holding.
+
 ## Pilot acceptance
 
 **Stock Item**: A saleable item whose delivery changes inventory quantity and value. A Stock Item can share a sales document with a Service Item.

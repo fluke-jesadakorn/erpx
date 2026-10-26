@@ -1,0 +1,36 @@
+.trigger { min-width: 0; text-align: start; }
+.trigger > span { display: grid; min-width: 0; overflow-wrap: anywhere; }
+.trigger small { color: var(--ui-muted); font-size: .8rem; font-weight: 400; }
+.modal { width: min(1120px, calc(100% - 3rem)); height: min(780px, calc(100dvh - 3rem)); }
+.modalBody { display: flex; flex-direction: column; padding: 0; flex: 1; min-height: 0; }
+.panes { display: grid; grid-template-columns: minmax(240px, 34%) minmax(0, 1fr); min-height: 0; flex: 1; }
+.tree, .results { min-width: 0; overflow-y: auto; padding: 1.25rem; scrollbar-width: thin; }
+.tree { border-inline-end: 1px solid var(--ui-line); }
+.tree ul { list-style: none; margin: .5rem 0; padding-inline-start: 1rem; }
+.tree > ul { padding-inline-start: 0; }
+.tree summary { min-height: 44px; padding: .5rem .2rem; cursor: pointer; overflow-wrap: anywhere; }
+.tree summary svg { display: inline; margin-inline-end: .4rem; vertical-align: middle; }
+.area { display: flex; align-items: center; gap: .5rem; min-height: 44px; padding: .5rem; border: 1px solid transparent; border-radius: var(--ui-radius-md); background: transparent; color: inherit; font: inherit; text-align: start; cursor: pointer; width: 100%; }
+.area > span { overflow-wrap: anywhere; }
+.area svg { flex-shrink: 0; }
+.area[aria-pressed="true"] { border-color: var(--ui-brand); background: var(--ui-card); }
+.area:hover { background: var(--ui-paper); }
+.results { display: flex; flex-direction: column; gap: 1rem; }
+.results h2 { margin: 0 0 .5rem; font-size: 1.05rem; overflow-wrap: anywhere; }
+.search { display: grid; gap: .5rem; font-size: .85rem; color: var(--ui-muted); }
+.hint { color: var(--ui-muted); font-size: .85rem; margin: 0; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: .75rem; }
+.app { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: .65rem; min-height: 80px; padding: 1rem; border: 1px solid var(--ui-line); border-radius: var(--ui-radius-md); background: var(--ui-paper); color: inherit; text-decoration: none; }
+.app strong { font-size: .95rem; overflow-wrap: anywhere; }
+.app > svg { color: var(--ui-brand); }
+.app small { grid-column: 2 / -1; color: var(--ui-muted); }
+.administration { display: grid; gap: .5rem; border-top: 1px solid var(--ui-line); padding-top: .75rem; }
+.administration a { display: flex; align-items: center; gap: .5rem; min-height: 44px; color: inherit; }
+.area:focus-visible, .app:focus-visible, .tree summary:focus-visible, .results a:focus-visible { outline: 2px solid var(--ui-brand); outline-offset: 2px; }
+@media (max-width: 767px) {
+  .modal { position: fixed; inset: 0; margin: 0; width: 100%; height: 100dvh; max-height: 100dvh; border-radius: 0; }
+  .modalBody { overflow-y: auto; padding-bottom: env(safe-area-inset-bottom); }
+  .panes { display: flex; flex-direction: column; flex: 0 0 auto; }
+  .tree, .results { overflow-y: visible; }
+  .tree { border-inline-end: 0; border-bottom: 1px solid var(--ui-line); }
+}

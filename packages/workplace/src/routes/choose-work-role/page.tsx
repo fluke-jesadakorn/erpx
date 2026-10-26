@@ -1,8 +1,8 @@
+import {AppsHomeLink} from "@erpx/workplace/components/product-link-context";
 import {productAccessLabel} from '@erpx/feature-work_projection/lib/product-access-label';
 import { preferredAccountLanguage } from "@erpx/server-identity_access/public/account-preference-snapshot";
 import { cookies, headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
-import Link from "next/link";
 import { configuredProductHandoff, productHostForHost } from "@erpx/feature-runtime/lib/product-hosts";
 import { product } from "@erpx/server-commercial/public/product-registry";
 import { productWorkspaceTarget, productWorkRoleChoices, productLaunchPath } from "@erpx/server-identity_access/public/product-workspace";
@@ -33,8 +33,8 @@ export default async function ProductWorkRolePage({ searchParams }: {
   if (data?.target && query.notice !== "access-changed") redirect(productLaunchPath(input));
   return <ProductNavigationBoundary language={language}><div className={styles.shell}>
     <header className={styles.header}>
-      <Link href="/" className={styles.brand} prefetch={false}><ProductBrand appearance="standard" variant="symbol" className={styles.mark} />
-        <strong>ERPX {definition.label[language]}</strong></Link>
+      <AppsHomeLink className={styles.brand}><ProductBrand appearance="standard" variant="symbol" className={styles.mark} />
+        <strong>ERPX {definition.label[language]}</strong></AppsHomeLink>
       <nav className={styles.links}><a data-product-switch href={configuredProductHandoff("apps")!}>Apps</a><a data-product-switch href={configuredProductHandoff("account")!}>Account</a></nav>
     </header>
     <PageContent as="main"><Stack>

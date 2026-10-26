@@ -14,7 +14,7 @@ import { collaborationMessageSource } from '@erpx/server-files/public/collaborat
 import {withMessagingUploadRollback} from '@erpx/server-files/public/messaging-upload-rollback';
 import { metadata } from '@erpx/server-collaboration/domain/messaging-files';
 import {withMessagingPurchasedCommand} from '@erpx/server-collaboration/adapters/messaging-purchases';
-import {workPackageEnforcementMode} from '@erpx/server-commercial/public/purchase-command-boundary';
+import {appsPackageEnforcementMode} from '@erpx/server-commercial/public/purchase-command-boundary';
 import { createMessagingFileApplication,type MessagingFilePorts } from '@erpx/server-collaboration/application/messaging-files';
 async function inward<T>(run: () => Promise<T>) { try {
     return await run();
@@ -26,7 +26,7 @@ catch (error) {
 } }
 export function validMessagingSignature(type: string, data: Uint8Array) { return detectedAttachmentMediaType(data, type) === type; }
 export async function uploadMessagingFile(db: SqlDatabase, files: FileStore, actor: WorkContext, roomId: string, input: z.infer<typeof metadata>, request: Request) {
-    const mode=await workPackageEnforcementMode();
+    const mode=await appsPackageEnforcementMode();
     const submit=async(uploadFiles:FileStore,rememberIntent:(id:string)=>void)=>{
     const portsFor=(db:SqlDatabase,owned=true):MessagingFilePorts<SqlStatement>=>({ clock: { now: () => Date.now() }, ...(owned&&mode!=='disabled'?{owned:<Result>(key:string,run:(unit:MessagingFilePorts<SqlStatement>)=>Promise<Result>)=>withMessagingPurchasedCommand(db,actor,{key,operation:'messaging.upload',id:roomId,privateFiles:true,purpose:'new-work'},tx=>run(portsFor(tx,false)))}:{}), commands: { replay: (...args) => inward(() => replayCommand(db, ...args)), commit: (...args) => inward(() => executeCommand(db, ...args)) }, repository: { bindFile: (...args) => db.prepare('INSERT INTO messaging_files(id,room_id,created_by,original_name,media_type,bytes,object_key,checksum,created_at,attachment_set_id,attachment_link_id,attachment_source_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)').bind(...args) }, room: (...args) => inward(() => messagingRoom(db, ...args)), roomGuard: (...args) => messagingGuard(db, ...args), readOnly: attachmentsV2ReadOnly, contentLength: () => Number(request.headers.get('content-length')), openInput: () => request.body?.getReader(), validSignature: validMessagingSignature, sha256, files: { createSet: (...args) => inward(() => createAttachmentSet(db, ...args)), reserveFile: async (...args) => {const reservation=await inward(() => reserveAttachmentFile(db, ...args));rememberIntent(reservation.uploadIntentId);return reservation;}, completeUpload: (a, i, b, o) => inward(() => completeAttachmentUpload(db, uploadFiles, a, i, b, o)), scan: source => scanAttachmentNow(db, uploadFiles, source), source: (...args) => collaborationMessageSource(db, ...args) } });
     const app=createMessagingFileApplication(portsFor(db));

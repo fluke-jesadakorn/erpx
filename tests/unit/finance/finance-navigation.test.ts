@@ -27,7 +27,7 @@ it("allows Sales invoice preparation under either entitled Finance owner and clo
 describe("Finance area navigation", () => {
   it("keeps discovery and existing detail URLs while highlighting one of six areas", () => {
     const model = workplaceNavigation(context);
-    expect(model.categories.find(category => category.id === "finance")?.apps.map(item => item.label)).toEqual(["Today", "Documents", "Cash", "Accounting", "Reports", "Setup"]);
+    expect(model.categories.find(category => category.id === "finance")?.apps.map(item => item.label)).toEqual(["Finance work", "Finance documents", "Cash & banking", "Accounting & tax", "Reports", "Finance settings"]);
     for (const [route, destination, sidebar] of [
       ["finance/sales", "finance-sales", "finance-sales"],
       ["finance/invoices/invoice-1?kind=payable", "finance-payables", "finance-sales"],
@@ -82,6 +82,8 @@ import {FinancePurchaseProvider} from "@erpx/feature-finance/components/purchase
 import {FinanceChrome} from "@erpx/feature-finance/components/finance-chrome";
 import {InvoiceActions} from "@erpx/feature-finance/components/invoice-controls";
 import {markFinanceFormEdited} from "@erpx/feature-finance/components/finance-draft-boundary";
+import {WorkEntryNavigation} from "@erpx/workplace/components/topic-navigation";
+import {canonicalUiHref} from "@erpx/feature-work_projection/lib/destination-registry";
 import {FeatureNavigationContext} from "@erpx/feature-shared/components/features/feature-environment";
 import {JournalAction} from "@erpx/feature-finance/components/ledger-controls";
 import type {FinancePurchaseControls} from "@erpx/server-finance/public/rules/purchase-controls";
@@ -119,26 +121,27 @@ it("quarantines a reloaded invoice when the live Company role no longer matches 
 const sourceOnly:FinancePurchaseControls={"finance.accounting":{newWork:false,settleExisting:false,history:false,revision:"opaque"}};
 function renderFinancePost<Props extends object>(Component:ComponentType<Props>,props:Props,purchases:FinancePurchaseControls|undefined|null=sourceOnly){const provider={purchases:purchases ?? undefined,sourceHistory:true,children:createElement(Component,props)};return renderToStaticMarkup(createElement(FinancePurchaseProvider,provider));}
 function renderExpenseNavigation(pathname:string,financeWorkspaceV2:boolean,active="finance-expenses",permissions:readonly string[]=["finance.read","expense.read"]){
- mockedNavigation.pathname=pathname;
+ mockedNavigation.pathname=canonicalUiHref(pathname);
  const navigation:NavigationContext={...context,financeWorkspaceV2,permissions};
  const FinanceChromeWithChildArgument=FinanceChrome as ComponentType<Omit<ComponentProps<typeof FinanceChrome>,"children">>;
- return renderToStaticMarkup(createElement(FeatureNavigationContext.Provider,{value:navigation},createElement(FinanceChromeWithChildArgument,{base,active,title:"Employee expenses",description:"Expense claims"},createElement("p",null,"Expense page"))));
+ return renderToStaticMarkup(createElement(FeatureNavigationContext.Provider,{value:navigation},createElement(WorkEntryNavigation,{context:navigation}),createElement(FinanceChromeWithChildArgument,{base,active,title:"Employee expenses",description:"Expense claims"},createElement("p",null,"Expense page"))));
 }
 it("shows and activates Employee expenses in the legacy Finance menu",()=>{
  const html=renderExpenseNavigation(`${base}/expenses`,false);
- expect(html).toContain('aria-label="Finance work areas"');
- expect(html).toMatch(/<a(?=[^>]*href="\/holdings\/acme\/finance\/documents\/expenses")(?=[^>]*data-active="true")[^>]*>Employee expenses<\/a>/);
+ expect(html).toContain('data-work-entry-navigation="finance-sales"');
+ expect(html).toContain('aria-label="Finance documents: Employee expenses"');
+ expect(html).not.toContain('aria-label="Finance work areas"');
 });
 it("hides Employee expenses from the legacy Finance menu when the actor has no expense read authority",()=>{
  const html=renderExpenseNavigation(`${base}/expenses`,false,"finance-expenses",["finance.read"]);
- expect(html).toContain('aria-label="Finance work areas"');
- expect(html).not.toContain(">Employee expenses</a>");
- expect(html).toContain(">Sales &amp; collections</a>");
+ expect(html).not.toContain('aria-label="Finance documents: Employee expenses"');
+ expect(workplaceNavigation({...context,permissions:["finance.read"]}).categories.find(category=>category.id==='finance')?.apps.find(item=>item.id==='finance-sales')?.submodules?.some(item=>item.href.endsWith('/expenses'))).toBe(false);
 });
 it.each(["/holdings/acme/finance/documents/expenses","/holdings/acme/finance/documents/expenses/expense-1"])("highlights Employee expenses in the modern Finance menu at %s",pathname=>{
  const html=renderExpenseNavigation(pathname,true);
- expect(html).toContain('aria-label="Documents views"');
- expect(html).toMatch(/<a(?=[^>]*href="\/holdings\/acme\/finance\/documents\/expenses")(?=[^>]*aria-current="page")[^>]*>Employee expenses<\/a>/);
+ if(pathname.endsWith('/expenses'))expect(html).toContain('aria-label="Finance documents: Employee expenses"');
+ else expect(html).not.toContain('data-work-entry-navigation');
+ expect(html).not.toContain('aria-label="Documents views"');
 });
 it("limits a source posting inclusion to the exact document post path",()=>{
  const post={path:"invoices/invoice/post",canPost:true};expect(financeDocumentCommandAllowed(false,post.path,post)).toBe(true);

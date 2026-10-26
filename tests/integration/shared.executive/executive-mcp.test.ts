@@ -50,7 +50,7 @@ async function report() {
 }
 
 it("connects the official client through Work while denying its valid credential on Finance and retired Console before MCP dispatch",async()=>{
- const work="https://work-dev-erpx.jesadakorn.com",credential=await token(),c=new Client({name:"original-work-migration-client",version:"1.0.0"});clients.push(c);
+ const work="https://apps-dev-erpx.jesadakorn.com",credential=await token(),c=new Client({name:"original-work-migration-client",version:"1.0.0"});clients.push(c);
  vi.stubEnv("ERPX_ENVIRONMENT","local");vi.stubEnv("ERPX_PRODUCT_ENVIRONMENT","development");vi.stubEnv("ERPX_PRODUCT_ROUTING","enabled");vi.stubEnv("ERPX_PRODUCT_SSO","enabled");vi.stubEnv("ERPX_PUBLIC_ORIGIN","https://console-dev-erpx.jesadakorn.com");vi.stubEnv("ERPX_CONSOLE_RETIRED","enabled");
  try{
   await c.connect(new StreamableHTTPClientTransport(new URL("/api/mcp/executive",work),{authProvider:{token:async()=>credential.secret},fetch:async(input,init)=>{const incoming=new Request(input instanceof Request?input.url:String(input),init);incoming.headers.set("host",new URL(incoming.url).host);const boundary=proxy(new NextRequest(incoming.clone()));expect(boundary.headers.get("x-middleware-next")).toBe("1");return handleExecutiveMcp(incoming);}}));

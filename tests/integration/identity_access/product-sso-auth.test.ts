@@ -105,7 +105,20 @@ it("completes start/authorize/callback with host-bound cookies and a clean URL t
   const copied = await (await createAuth("https://people-dev-erpx.jesadakorn.com")).api.getSession({ headers: request("https://people-dev-erpx.jesadakorn.com", "/", cookies(callback)).headers });
   expect(copied).toBeNull();
   const replay = await productSsoRequest(request(app, callbackUrl.pathname + callbackUrl.search, cookies(start)), "callback");
-  expect(replay.status).toBe(400);
+  expect(replay.status).toBe(303);
+  expect(replay.headers.get("location")).toBe(issuer + "/login?reason=sso_expired&app=finance");
+  expect(replay.headers.get("cache-control")).toBe("private, no-store");
+  expect(replay.headers.get("referrer-policy")).toBe("no-referrer");
+  expect(replay.headers.getSetCookie()).toEqual([expect.stringContaining("__Host-erpx-sso=; Path=/; Max-Age=0; Secure; HttpOnly; SameSite=lax")]);
+  expect(replay.headers.getSetCookie().some(value => value.startsWith("__Host-erpx-product="))).toBe(false);
+
+  const expired = await productSsoRequest(request(app, "/sso/start"), "start");
+  const expiredUrl = new URL(expired.headers.get("location")!);
+  await db.prepare("UPDATE sso_browser_transactions SET created_at=created_at-300000,expires_at=expires_at-300000 WHERE id=?").bind(expiredUrl.searchParams.get("transaction")).run();
+  const recovery = await productSsoRequest(request(issuer, expiredUrl.pathname + expiredUrl.search, central.cookie), "authorize");
+  expect(recovery.status).toBe(303);
+  expect(recovery.headers.get("location")).toBe(issuer + "/login?reason=sso_expired");
+  expect(recovery.headers.get("location")).not.toMatch(/transaction|state|challenge|code/);
 });
 
 async function profileAccount(id:string=randomUUID()) {
@@ -440,7 +453,9 @@ it.each(['pos','pms'] as const)('frontCompanyQuickControlExpiry rolls back actua
 it.each(['pos','pms'] as const)('frontCompanyQuickControlBody refreshes the actual %s Holding role after a streamed body before any Control preference write',async kind=>{
  await withCompanyFrontAccount(kind,async f=>{expect((await companyFrontQuickRequest(f)).status).toBe(200);let entered!:()=>void,controller!:ReadableStreamDefaultController<Uint8Array>;const ready=new Promise<void>(resolve=>{entered=resolve;}),stream=new ReadableStream<Uint8Array>({start(value){controller=value;},pull(){entered();return new Promise<void>(()=>{});}},{highWaterMark:0}),command=randomUUID(),init:RequestInit&{duplex:'half'}={method:'POST',headers:{host:new URL(f.origin).host,origin:f.origin,cookie:f.cookie,'content-type':'application/json','Idempotency-Key':command,'x-erpx-front-location':'holding'},body:stream,duplex:'half'},req=new Request(`${f.origin}/api/v1/front/${f.holdingSlug}/${f.companySlug}/${f.app}/quick-access`,init);providerRequestHeaders.value=req.headers;const {POST}=await import('@erpx/workplace/routes/api/v1/front/[holdingSlug]/[companySlug]/[app]/[[...path]]/route'),writing=POST(req,{params:Promise.resolve({holdingSlug:f.holdingSlug,companySlug:f.companySlug,app:f.app,path:['quick-access']})});
  try{await Promise.race([ready,writing.then(response=>{throw Error('Expected actual bounded Front body, got '+response.status);})]);await env.H001_DB.prepare('UPDATE assignments SET revoked_at=1,version=version+1 WHERE user_id=? AND company_id=?').bind(f.id,f.companyId).run();}finally{controller.enqueue(new TextEncoder().encode(JSON.stringify({pinnedIds:[],expectedVersion:0})));controller.close();}
- const response=await writing;expect({status:response.status,body:await response.json()}).toMatchObject({status:409,body:{error:{code:'COMPANY_REQUIRED'}}});expect(await db.prepare('SELECT 1 FROM quick_access_preferences WHERE user_id=?').bind(f.id).first()).toBeNull();expect(await db.prepare('SELECT 1 FROM quick_access_preference_receipts WHERE id=?').bind(command).first()).toBeNull();
+ // Front now resolves the explicit Company rather than falling back to its
+ // cookie. The refreshed owner rejects the revoked role before either write.
+ const response=await writing;expect({status:response.status,body:await response.json()}).toMatchObject({status:403,body:{error:{code:'FRONT_ACCESS_DENIED'}}});expect(await db.prepare('SELECT 1 FROM quick_access_preferences WHERE user_id=?').bind(f.id).first()).toBeNull();expect(await db.prepare('SELECT 1 FROM quick_access_preference_receipts WHERE id=?').bind(command).first()).toBeNull();
  });
 });
 it.each(['pos','pms'] as const)('frontCompanyQuickControlScope preserves actual %s actions CAS replay legacy Front auth and unverified own-account preference policy',async kind=>{
@@ -541,4 +556,71 @@ it("opens an original password recovery token on Account without requiring or cr
   expect(await db.prepare('SELECT count(*)::int n FROM session WHERE "userId"=?').bind(owner).first("n")).toBe(before);
   expect(await db.prepare("SELECT value FROM verification WHERE identifier=?").bind(`reset-password:${token}`).first("value")).toBe(owner);
   expect((await GET(request(issuer, "/api/auth/list-sessions"))).status).toBe(401);
+});
+
+async function nativeSwitcherRequest(origin:string,cookie:string,path:string,body?:unknown){
+ const route=await import('@erpx/server-work_projection/public/account-switcher'),{runWithRequestMemo}=await import('@erpx/server-runtime/public/runtime/request-memo');
+ const req=request(origin,path,cookie,body===undefined?'GET':'POST',body);if(body!==undefined)req.headers.set('Idempotency-Key',randomUUID());providerRequestHeaders.value=req.headers;
+ return runWithRequestMemo(()=>body===undefined?route.switcherContextRequest(req):route.roleSelectionRequest(req));
+}
+it('shared account menu selects native assigned Platform roles and remembers the choice without changing grants',async()=>{
+ const f=await providerFixture(),before=(await(await nativeSwitcherRequest(adminOrigin,f.adminCookie,'/api/v1/account/switcher-context')).json()).data as import('@erpx/feature-identity_access/lib/device-accounts').SwitcherContext;
+ expect(before.user.id).toBe(f.id);expect(before.workspaces).toEqual([]);expect(before.provider?.choices).toHaveLength(2);
+ const choice=before.provider!.choices.find(choice=>choice.id!==before.provider!.selectedId)!,input={workspaceKey:'provider',assignmentId:choice.id,version:choice.version,revision:before.provider!.revision,accountKey:f.id};
+ expect((await nativeSwitcherRequest(adminOrigin,f.adminCookie,'/api/v1/account/role-selection',input)).status).toBe(200);
+ expect(await db.prepare('SELECT platform_assignment_id FROM account_workspace_preferences WHERE user_id=?').bind(f.id).first('platform_assignment_id')).toBe(choice.id);
+ expect((await providerSeed(f)).selectedId).toBe(choice.id);expect((await nativeSwitcherRequest(adminOrigin,f.adminCookie,'/api/v1/account/role-selection',input)).status).toBe(409);
+ expect(await db.prepare('SELECT count(*) n FROM platform_assignments WHERE user_id=?').bind(f.id).first('n')).toBe(2);
+ providerRequestHeaders.value=new Headers();
+});
+it('shared account menu uses native Company assignment version and revision checks and rejects revoked choices',async()=>{
+ await withAdminDiscovery(async f=>{
+  const extra=randomUUID();await env.H001_DB.prepare("INSERT INTO assignments(id,user_id,role,modules_json,company_id,valid_from,valid_until,scope_kind) VALUES(?,?,'holding_owner','[\"identity_access\"]',?,0,9999999999999,'holding')").bind(extra,f.owner.userId,f.company).run();
+  const discovery=await nativeSwitcherRequest(adminOrigin,f.account.cookie,'/api/v1/account/switcher-context');expect(discovery.status).toBe(200);
+  const available=(await discovery.json()).data as import('@erpx/feature-identity_access/lib/device-accounts').SwitcherContext;
+  expect(await env.H001_DB.prepare('SELECT 1 FROM active_work_contexts WHERE session_id=?').bind(f.account.sessionId).first()).toBeNull();
+  const workspace=available.workspaces.find(choice=>choice.kind==='admin'&&choice.companyId===f.company&&choice.target==='/holdings/test/administration')!;expect(workspace).toBeDefined();
+  const read=await nativeSwitcherRequest(adminOrigin,f.account.cookie,'/api/v1/account/switcher-context?'+new URLSearchParams({workspace:workspace.key}));expect(read.status).toBe(200);const before=(await read.json()).data as import('@erpx/feature-identity_access/lib/device-accounts').SwitcherContext;
+  expect(before.roles.some(role=>role.id===extra)).toBe(true);
+  const input={workspaceKey:workspace.key,assignmentId:extra,version:1,revision:before.revision,accountKey:f.account.id};
+  expect((await nativeSwitcherRequest(adminOrigin,f.account.cookie,'/api/v1/account/role-selection',{...input,accountKey:'foreign-account'})).status).toBe(409);
+  expect((await nativeSwitcherRequest(adminOrigin,f.account.cookie,'/api/v1/account/role-selection',{...input,version:999})).status).toBe(409);
+  expect((await nativeSwitcherRequest(adminOrigin,f.account.cookie,'/api/v1/account/role-selection',input)).status).toBe(200);
+  expect(await env.H001_DB.prepare('SELECT assignment_id FROM active_work_contexts WHERE session_id=? AND company_id=?').bind(f.account.sessionId,f.company).first('assignment_id')).toBe(extra);
+  await env.H001_DB.prepare('UPDATE assignments SET revoked_at=1,version=version+1 WHERE id=?').bind(extra).run();
+  const revoked=await nativeSwitcherRequest(adminOrigin,f.account.cookie,'/api/v1/account/role-selection',{...input,revision:before.revision+1});expect([403,409]).toContain(revoked.status);
+ });
+});
+
+it('device switching fences native queued Work authority and Push in the owning Holding without revoking another device',async()=>{
+ await withAdminDiscovery(async f=>{
+  const {runWithRequestMemo}=await import('@erpx/server-runtime/public/runtime/request-memo'),{adminWorkRoleChoices,adminWorkspaceTarget}=await import('@erpx/server-identity_access/public/admin-workspace'),{requireWorkContext}=await import('@erpx/server-identity_access/public/authorization'),{requireQueuedCommandAuthority}=await import('@erpx/server-identity_access/public/queued-command-authority'),{currentPushSession}=await import('@erpx/server-identity_access/public/collaboration-push-session');
+  const target=adminWorkspaceTarget(f.company,'/holdings/test/administration')!;
+  const choices=await adminWorkRoleChoices(target),selected=choices.options.find(option=>option.assignmentId===f.owner.assignmentId)!;await(await import('@erpx/server-identity_access/public/admin-workspace')).selectAdminWorkRole(target,selected.assignmentId,choices.revision,selected.assignmentVersion);const actor=await runWithRequestMemo(()=>requireWorkContext('test'));
+  await expect(requireQueuedCommandAuthority(env.H001_DB,actor,'iam.read')).resolves.toBeDefined();
+  const subscription={session_id:f.account.sessionId,user_id:f.account.id,company_id:f.company};expect(await currentPushSession(db,env.H001_DB,subscription,Date.now())).toBe(true);
+  const sibling=await adminDiscoverySession(await personalSibling(f.central));providerRequestHeaders.value=request(adminOrigin,'/holdings/test/administration',sibling.cookie).headers;const siblingChoices=await adminWorkRoleChoices(target);await(await import('@erpx/server-identity_access/public/admin-workspace')).selectAdminWorkRole(target,f.owner.assignmentId,siblingChoices.revision,selected.assignmentVersion);
+  const other=await profileAccount(),{deviceAccountStore}=await import('@erpx/server-identity_access/adapters/device-account-store'),{invalidateDeviceWorkContexts}=await import('@erpx/server-identity_access/adapters/device-account-revocation');
+  const browser=await db.prepare('SELECT browser_id FROM account_device_accounts WHERE session_id=?').bind(f.central.sessionId).first<string>('browser_id');expect(browser).toBeTruthy();
+  const store=deviceAccountStore(db,browser!,Date.now,invalidateDeviceWorkContexts),proof=[f.central.sessionId,other.sessionId],initial=await store.initialize(proof,f.central.sessionId),next=initial.state.accounts.find(account=>account.email===other.email)!;
+  await store.activate(proof,next.handle,initial.state.revision);
+  await expect(requireQueuedCommandAuthority(env.H001_DB,actor,'iam.read')).rejects.toMatchObject({code:'QUEUED_AUTHORITY_CHANGED'});
+  expect(await currentPushSession(db,env.H001_DB,subscription,Date.now())).toBe(false);
+  expect(await env.H001_DB.prepare('SELECT 1 FROM iam_revoked_sessions WHERE session_id=? AND company_id=? AND user_id=?').bind(f.account.sessionId,f.company,f.account.id).first()).not.toBeNull();
+  expect(await env.H001_DB.prepare('SELECT 1 FROM active_work_contexts WHERE session_id=?').bind(sibling.sessionId).first()).not.toBeNull();
+  expect(await currentPushSession(db,env.H001_DB,{...subscription,session_id:sibling.sessionId},Date.now())).toBe(true);
+ });
+});
+it('an interrupted multi-Holding invalidation fails closed and does not acknowledge a new selected account',async()=>{
+ await withAdminDiscovery(async f=>{
+  const {adminWorkRoleChoices,adminWorkspaceTarget,selectAdminWorkRole}=await import('@erpx/server-identity_access/public/admin-workspace'),target=adminWorkspaceTarget(f.company,'/holdings/test/administration')!,choices=await adminWorkRoleChoices(target),selected=choices.options.find(option=>option.assignmentId===f.owner.assignmentId)!;await selectAdminWorkRole(target,selected.assignmentId,choices.revision,selected.assignmentVersion);
+  const other=await profileAccount(),{deviceAccountStore}=await import('@erpx/server-identity_access/adapters/device-account-store'),{invalidateDeviceWorkContexts}=await import('@erpx/server-identity_access/adapters/device-account-revocation');
+  const browser=(await db.prepare('SELECT browser_id FROM account_device_accounts WHERE session_id=?').bind(f.central.sessionId).first<string>('browser_id'))!,proof=[f.central.sessionId,other.sessionId];
+  const ordinary=deviceAccountStore(db,browser),initial=await ordinary.initialize(proof,f.central.sessionId),next=initial.state.accounts.find(account=>account.email===other.email)!;
+  const interrupted=deviceAccountStore(db,browser,Date.now,async sessions=>{await invalidateDeviceWorkContexts(sessions);throw Error('Declared later Holding interruption');});
+  await expect(interrupted.activate(proof,next.handle,initial.state.revision)).rejects.toThrow('Declared later Holding interruption');
+  const actual=await ordinary.read(proof);expect(actual.revision).toBe(initial.state.revision);expect(actual.accounts.find(account=>account.current)?.email).toBe(f.central.email);
+  expect(await env.H001_DB.prepare('SELECT 1 FROM iam_revoked_sessions WHERE session_id=?').bind(f.account.sessionId).first()).not.toBeNull();
+  expect(await env.H001_DB.prepare('SELECT 1 FROM active_work_contexts WHERE session_id=?').bind(f.account.sessionId).first()).toBeNull();
+ });
 });

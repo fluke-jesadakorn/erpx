@@ -1,3 +1,4 @@
+import {ssoAudienceForHost} from '@erpx/feature-runtime/lib/product-hosts';
 import 'server-only';
 import {currentSession} from '@erpx/server-identity_access/public/authorization';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
@@ -17,7 +18,7 @@ export async function frontQuickAccessRequest(request:Request,app:FrontHostApp,r
   input=change?{pinnedIds:change.pinnedIds===null?null:[...change.pinnedIds],expectedVersion:change.expectedVersion,requestKey:change.requestKey}:undefined,
   availableIds=frontCompanyItems(await frontCompanyChoices(app)).map(item=>item.id);
  const assertContext=()=>{if(image()!==captured)throw new ApiError(401,'SESSION_REVOKED','The current Front account changed.');};
- return withCurrentSelfAccountPreferences({userId:session.user.id,sessionId:session.session.id,audience:productHostForHost(requestHeaders.get('host'))},async database=>{
+ return withCurrentSelfAccountPreferences({userId:session.user.id,sessionId:session.session.id,audience:ssoAudienceForHost(requestHeaders.get('host'))},async database=>{
   assertContext();return input?saveSessionQuickAccessPreferences(database,{...input,userId:session.user.id,surface:'front-picker',contextKey:app,availableIds}):readSessionQuickAccessPreferences(database,session.user.id,'front-picker',app);
  },assertContext);
 }
@@ -32,7 +33,7 @@ export async function frontCompanyQuickAccessRequest(request:Request,app:FrontHo
   actor=readChange?await refreshActor():initialActor;
  if(actor.userId!==session.user.id||actorScope(actor)!==scope)throw new ApiError(409,'FRONT_CONTEXT_CHANGED','The original Front role or workspace changed. Reload before saving your shortcuts.');
  const availableIds=frontActionItems(app,actor,'').map(item=>item.id),assertContext=()=>{if(image()!==captured)throw new ApiError(401,'SESSION_REVOKED','The current Front account changed.');};
- return withCurrentSelfAccountPreferences({userId:session.user.id,sessionId:session.session.id,audience:productHostForHost(requestHeaders.get('host'))},async database=>{
+ return withCurrentSelfAccountPreferences({userId:session.user.id,sessionId:session.session.id,audience:ssoAudienceForHost(requestHeaders.get('host'))},async database=>{
   assertContext();return input?saveSessionQuickAccessPreferences(database,{...input,userId:actor.userId,surface:'front-'+app,contextKey:actor.companyId,availableIds}):readSessionQuickAccessPreferences(database,actor.userId,'front-'+app,actor.companyId);
  },assertContext);
 }

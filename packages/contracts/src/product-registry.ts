@@ -1,9 +1,9 @@
 import {socialPostSourceEntry} from './social-post-entry.ts';
 import {workforceSelfServiceEntry} from './workforce-self-service-entry.ts';
 /** Product presentation is independent of module identity and commercial authority. */
-export const productIds = ["work", "pos", "pms", "finance", "people", "sales", "supply", "assets", "projects", "recruit", "learn", "support", "service", "legal", "manufacturing"] as const;
+export const productIds = ["apps", "pos", "pms", "finance", "people", "sales", "supply", "assets", "projects", "recruit", "learn", "support", "service", "legal", "manufacturing"] as const;
 export type ProductId = typeof productIds[number];
-export const sharedHostKeys = ["apps", "account", "admin", "booking", "portal", "legal-portal", "forms"] as const;
+export const sharedHostKeys = ["account", "admin", "booking", "portal", "legal-portal", "forms"] as const;
 export type ProductHostKey = ProductId | typeof sharedHostKeys[number];
 export type ProductDefinition = {
   id: ProductId;
@@ -16,7 +16,7 @@ export type ProductDefinition = {
 };
 
 export const products: readonly ProductDefinition[] = [
-  { id: "work", label: { en: "Work", th: "งาน" }, icon: "BriefcaseBusiness", shell: "office", landing: "home", destinations: ["work", "calendar", "knowledge", "home", "inbox", "insights/executive", "projects-routines/tasks", "projects-routines/routines", "projects-routines/operations"], modules: ["operations", "collaboration"] },
+  { id: "apps", label: { en: "Apps", th: "แอป" }, icon: "BriefcaseBusiness", shell: "office", landing: "home", destinations: ["work", "calendar", "knowledge", "home", "inbox", "insights/executive", "projects-routines/tasks", "projects-routines/routines", "projects-routines/operations"], modules: ["operations", "collaboration"] },
   { id: "pos", label: { en: "POS", th: "ขายหน้าร้าน" }, icon: "ShoppingCart", shell: "front", landing: "sale", destinations: ["pos", "sale", "kitchen", "history", "shifts"], modules: ["pos"] },
   { id: "pms", label: { en: "Hotel", th: "โรงแรม" }, icon: "Hotel", shell: "front", landing: "front-desk", destinations: ["pms", "front-desk", "reservations", "rooms", "housekeeping", "guest-accounts", "cashier", "night-audit"], modules: ["pms"] },
   { id: "finance", label: { en: "Finance", th: "การเงิน" }, icon: "Landmark", shell: "office", landing: "finance/documents", destinations: ["finance"], modules: ["finance"] },
@@ -39,7 +39,7 @@ export const modulePlacement = {
   platform_administration: "provider", manage_erpx: "provider", customer_360: "shared", customer_authority: "shared",
   support: "support", finance: "finance", pos: "pos", pms: "pms", sales: "sales", crm: "sales",
   assets: "assets", maintenance: "assets", inventory: "supply", procurement: "supply", quality: "supply",
-  operations: "work", collaboration: "work", legal: "legal", people_payroll: "people", benefits: "people",
+  operations: "apps", collaboration: "apps", legal: "legal", people_payroll: "people", benefits: "people",
   marketing: "sales", ecommerce: "sales", manufacturing: "manufacturing", planning: "manufacturing",
   projects: "projects", learning: "learn", talent: "recruit", field_service: "service", agent: "shared",
 } as const;
@@ -56,7 +56,7 @@ export function futureProductOrigin(key: ProductHostKey, environment: "developme
 }
 
 export function destinationProduct(destination: string): ProductId | undefined {
-  if(socialPostSourceEntry(destination)||workforceSelfServiceEntry(destination))return "work";
+  if(socialPostSourceEntry(destination)||workforceSelfServiceEntry(destination))return "apps";
   const matches = products.flatMap(entry => entry.destinations
     .filter(prefix => destination === prefix || destination.startsWith(prefix + "/"))
     .map(prefix => ({ id: entry.id, length: prefix.length })));

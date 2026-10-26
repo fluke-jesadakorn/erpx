@@ -450,7 +450,9 @@ export function createPosStripe(ports: {
     provider: {
         request(live: boolean, path: string, options?: StripeOptions): Promise<unknown>;
         secret(live: boolean): string;
-        origin(): string;
+        origin(holdingSlug?: string): string;
+        callbackUrl?(holdingSlug: string): string;
+        saleReturn?(holdingSlug: string, companyId: string, saleId: string): string;
         settingsReturn?(holdingSlug: string, companyId: string): string;
         fetch(url: string, init: RequestInit & {
             timeoutMs: number;
@@ -538,7 +540,7 @@ export function createPosStripe(ports: {
         const client = ports.environment(live ? 'POS_STRIPE_LIVE_CLIENT_ID' : 'POS_STRIPE_TEST_CLIENT_ID');
         if (!client)
             fail('POS_STRIPE_OAUTH_NOT_CONFIGURED', 'Platform has not configured Connect OAuth');
-        const params = new URLSearchParams({ response_type: 'code', client_id: client, scope: 'read_write', state, redirect_uri: `${ports.provider.origin()}/api/v1/holdings/${holdingSlug}/pos/connect/callback`, 'stripe_user[country]': 'TH', 'stripe_user[currency]': 'thb' });
+        const params = new URLSearchParams({ response_type: 'code', client_id: client, scope: 'read_write', state, redirect_uri: ports.provider.callbackUrl?.(holdingSlug)??`${ports.provider.origin(holdingSlug)}/api/v1/holdings/${holdingSlug}/pos/connect/callback`, 'stripe_user[country]': 'TH', 'stripe_user[currency]': 'thb' });
         return `https://connect.stripe.com/oauth/authorize?${params}`;
     }
     async function bindAccount(db: PosStripeRepository, holdingId: string, companyId: string, accountId: string, live: boolean) {
@@ -912,7 +914,7 @@ export function createPosStripe(ports: {
             await bindAccount(db, holdingId, str(job, 'company_id'), String(accountId), Boolean(payload.livemode));
             connection = await db.readPosConnections1({ company_id: job.company_id });
             const url = ports.provider.settingsReturn?.(payload.holdingSlug, String(job.company_id))
-                ?? `${ports.provider.origin()}/holdings/${payload.holdingSlug}/settings/stripe`;
+                ?? `${ports.provider.origin(payload.holdingSlug)}/holdings/${payload.holdingSlug}/settings/stripe`;
             const link = z.object({ url: z.string().url(), expires_at: z.number().int().positive() }).parse(await ports.provider.request(Boolean(connection!.livemode), 'account_links', { method: 'POST', key: `pos-link-${job.id}`, body: { account: String(accountId), type: 'account_onboarding', return_url: url, refresh_url: url } }));
             if (typeof link.url !== 'string' || new URL(link.url).hostname !== 'connect.stripe.com')
                 throw new Error('POS_CONNECT_URL_INVALID');
@@ -940,7 +942,8 @@ export function createPosStripe(ports: {
                     return false;
                 }
                 const sale = (await db.readPosSales2({ sale_id: p.sale_id }))!, env = await ports.resources(), binding = await env.control.controlOne4({ arg0: holdingId });
-                const returnUrl = `${ports.provider.origin()}/holdings/${binding?.slug}/pos?sale=${sale.id}`;
+                const slug=String(binding?.slug);
+                const returnUrl = ports.provider.saleReturn?.(slug,str(p,'company_id'),String(sale.id))??`${ports.provider.origin(slug)}/holdings/${slug}/pos?sale=${sale.id}`;
                 const session = await stripeCall(Boolean(p.livemode), 'checkout/sessions', { method: 'POST', account: str(p, 'stripe_account'), key: `pos-checkout-${p.id}`, body: { mode: 'payment', 'payment_method_types[0]': p.method === 'stripe_promptpay' ? 'promptpay' : 'card', 'line_items[0][price_data][currency]': 'thb', 'line_items[0][price_data][unit_amount]': String(p.amount_minor), 'line_items[0][price_data][product_data][name]': String(sale.number), 'line_items[0][quantity]': '1', 'metadata[pos_payment_id]': str(p, 'id'), 'payment_intent_data[metadata][pos_payment_id]': str(p, 'id'), success_url: returnUrl, cancel_url: returnUrl, expires_at: String(Math.floor(Number(p.created_at) / 1000) + 1800) } });
                 if (typeof session.url !== 'string' || new URL(session.url).hostname !== 'checkout.stripe.com')
                     throw new Error('POS_CHECKOUT_URL_INVALID');

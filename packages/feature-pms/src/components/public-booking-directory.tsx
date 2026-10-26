@@ -1,3 +1,4 @@
+import {publicHoldingPath} from '@erpx/feature-runtime/lib/holding-paths';
 import { cookies } from "next/headers";
 import { appearancePreference } from "@erpx/feature-shared/lib/appearance-preference";
 import { publicBookingDirectory } from "@erpx/server-pms/public/public-booking-directory";
@@ -19,7 +20,7 @@ export async function PublicBookingDirectory() {
       <section id="hotels" className={styles.surface}>
         <BookingCopy as="h2">Our hotels</BookingCopy>
         {hotels.length ? hotels.map(hotel => {
-          const path = `/book/${encodeURIComponent(hotel.slug)}`;
+          const path = `${publicHoldingPath(hotel.slug,'book')}`;
           return <article className={styles.offer} key={`${hotel.slug}:${hotel.id}`}>
             <div><BookingGallery slug={hotel.slug} compact images={hotel.images}/><h3><a href={`${path}/${encodeURIComponent(hotel.id)}`}>{hotel.name}</a></h3><p>{hotel.description}</p><p>{hotel.address}</p>
               <a href={`${path}/manage`}><BookingCopy>Manage booking</BookingCopy></a>

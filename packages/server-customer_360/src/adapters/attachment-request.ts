@@ -1,3 +1,4 @@
+import {ssoAudienceForHost} from '@erpx/feature-runtime/lib/product-hosts';
 import 'server-only';
 import {sessionFromRequest} from '@erpx/server-identity_access/public/auth';
 import {withCurrentPrivateSessionRead} from '@erpx/server-identity_access/public/private-session-read';
@@ -25,7 +26,7 @@ async function currentRequest(request:Request,holdingSlug:string){
 
 export async function customerPortalUploadRequest(request:Request,holdingSlug:string,uploadId:string,buffer:ArrayBuffer){
  const current=await currentRequest(request,holdingSlug);
- return withCurrentPrivateSessionRead({userId:current.user.userId,email:current.user.email,sessionId:current.session.session.id,audience:productHostForHost(request.headers.get('host'))},async assertSession=>{
+ return withCurrentPrivateSessionRead({userId:current.user.userId,email:current.user.email,sessionId:current.session.session.id,audience:ssoAudienceForHost(request.headers.get('host'))},async assertSession=>{
   const holding=await holdingBindingBySlug(holdingSlug),resources=await holdingResources(holding.id),actor=current.application.actor(current.user,holding),bindingId=await customerPortalAttachmentTarget(resources.write,'upload',uploadId),binding=await customerPortalBindingScope(resources.write,actor,bindingId),attachmentActor=customerPortalWorkContext(actor,binding);
   const intent=await appAttachmentSources(resources.write).portalReservation(uploadId,actor.userId,binding.company_id);
   if(!intent)throw new ApiError(404,'UPLOAD_NOT_FOUND','Upload intent not found.');
@@ -44,7 +45,7 @@ export async function customerPortalUploadRequest(request:Request,holdingSlug:st
 
 export async function customerPortalEvidenceRequest(request:Request,holdingSlug:string,linkId:string){
  const current=await currentRequest(request,holdingSlug);
- return withCurrentPrivateSessionRead({userId:current.user.userId,email:current.user.email,sessionId:current.session.session.id,audience:productHostForHost(request.headers.get('host'))},async assertSession=>{
+ return withCurrentPrivateSessionRead({userId:current.user.userId,email:current.user.email,sessionId:current.session.session.id,audience:ssoAudienceForHost(request.headers.get('host'))},async assertSession=>{
   const holding=await holdingBindingBySlug(holdingSlug),resources=await holdingResources(holding.id),actor=current.application.actor(current.user,holding),bindingId=await customerPortalAttachmentTarget(resources.write,'link',linkId),binding=await customerPortalBindingScope(resources.write,actor,bindingId),attachmentActor=customerPortalWorkContext(actor,binding);
   const assertCurrent=async()=>{current.assertImage();await assertSession();};
   return portalAttachmentContentForRequest(resources.write,resources.files,attachmentActor,linkId,assertCurrent);
@@ -53,7 +54,7 @@ export async function customerPortalEvidenceRequest(request:Request,holdingSlug:
 
 export async function customerPortalAttachmentCommandRequest(request:Request,holdingSlug:string,command:Parameters<typeof portalAttachmentCommandForRequest>[2]){
  const current=await currentRequest(request,holdingSlug);
- return withCurrentPrivateSessionRead({userId:current.user.userId,email:current.user.email,sessionId:current.session.session.id,audience:productHostForHost(request.headers.get('host'))},async assertSession=>{
+ return withCurrentPrivateSessionRead({userId:current.user.userId,email:current.user.email,sessionId:current.session.session.id,audience:ssoAudienceForHost(request.headers.get('host'))},async assertSession=>{
   const holding=await holdingBindingBySlug(holdingSlug),resources=await holdingResources(holding.id),actor=current.application.actor(current.user,holding),bindingId=command.kind==='create'?command.input.targetId:await customerPortalAttachmentTarget(resources.write,command.kind==='reserve'?'set':'link',command.kind==='reserve'?command.setId:command.linkId),binding=await customerPortalBindingScope(resources.write,actor,bindingId),attachmentActor=customerPortalWorkContext(actor,binding);
   let source:string|null|undefined;
   const assertCurrent=async(database:SqlDatabase)=>{
@@ -68,7 +69,7 @@ export async function customerPortalAttachmentCommandRequest(request:Request,hol
 
 export async function customerPortalAttachmentMetadataRequest(request:Request,holdingSlug:string,read:Parameters<typeof portalAttachmentMetadataReadForRequest>[2]){
  const current=await currentRequest(request,holdingSlug);
- return withCurrentPrivateSessionRead({userId:current.user.userId,email:current.user.email,sessionId:current.session.session.id,audience:productHostForHost(request.headers.get('host'))},async assertSession=>{
+ return withCurrentPrivateSessionRead({userId:current.user.userId,email:current.user.email,sessionId:current.session.session.id,audience:ssoAudienceForHost(request.headers.get('host'))},async assertSession=>{
   const holding=await holdingBindingBySlug(holdingSlug),resources=await holdingResources(holding.id),actor=current.application.actor(current.user,holding),bindingId=read.kind==='sets'?read.input.targetId:await customerPortalAttachmentTarget(resources.write,'link',read.linkId),binding=await customerPortalBindingScope(resources.write,actor,bindingId),attachmentActor=customerPortalWorkContext(actor,binding);
   let source:string|null|undefined;
   const assertCurrent=async(database:SqlDatabase)=>{

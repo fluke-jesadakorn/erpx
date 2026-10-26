@@ -1,7 +1,7 @@
 import {expect,test,type Browser,type BrowserContext,type Page,type TestInfo} from '@playwright/test';
 import {readFile,writeFile} from 'node:fs/promises';
 import {relative,resolve} from 'node:path';
-import {prepareProductPurchases,verifyProductHost} from '../../support/browser/product-host-session';
+import {chooseApplicationsWorkspace,prepareProductPurchases,verifyProductHost} from '../../support/browser/product-host-session';
 import {signIn} from '../../support/helpers/context-switching-browser';
 import {companyAdminOwnerReadsProductHostCase,financeSalesInvoiceProductHostCase,productHostReadOnlyWorkflowForCase,readProductHostLease,workRequestDraftProductHostCase} from '../../../scripts/testing/product-host-cohort';
 import {createHash,randomUUID} from 'node:crypto';
@@ -77,8 +77,8 @@ test(financeSalesInvoiceProductHostCase,async({browser},testInfo)=>{
 
 test(workRequestDraftProductHostCase,async({browser},testInfo)=>{
  test.setTimeout(240_000);if(!process.env.ERPX_PRODUCT_HOST_LEASE)throw Error('ARMED_OFFICIAL_PRODUCT_HOST_MODE_REQUIRED');
- await verifyProductHost(browser,testInfo,'work',async({page,context,origin,companyId,scopedBusinessWorkflow})=>{
-  expect(origin).toBe('https://work-dev-erpx.jesadakorn.com');expect(scopedBusinessWorkflow).toBe('work.request-draft');
+ await verifyProductHost(browser,testInfo,'apps',async({page,context,origin,companyId,scopedBusinessWorkflow})=>{
+  expect(origin).toBe('https://apps-dev-erpx.jesadakorn.com');expect(scopedBusinessWorkflow).toBe('work.request-draft');
   const title=`Migration Work draft ${randomUUID()}`,description='A service request created and cancelled through the isolated Work product host.';
   const supportOrigin='https://support-dev-erpx.jesadakorn.com',workPath='/holdings/simulation/work/actions',requestsPath='/api/v1/holdings/simulation/requests',requestApi=(host:string,id:string)=>host+requestsPath+'/'+encodeURIComponent(id),workUrl=()=>origin+workPath+`?queue=all&type=service_request&q=${encodeURIComponent(title)}`;
   const keys:string[]=[];let requestId:string|undefined;
@@ -133,9 +133,9 @@ test(companyAdminOwnerReadsProductHostCase,async({browser},testInfo)=>{
   ]);
   await page.getByRole('link',{name:'Open Apps',exact:true}).click();
   await expect(page).toHaveURL(new RegExp(`^${appsOrigin.replaceAll('.','\\.')}/`));
-  await expect(page.getByRole('heading',{name:/Choose a workspace|เลือกพื้นที่ทำงาน/})).toBeVisible();
+  await chooseApplicationsWorkspace(page,companyId,'/holdings/simulation');
   const adminOrigin='https://admin-dev-erpx.jesadakorn.com',companyTarget='/holdings/simulation/administration',tiles=[] as {href:string;target:string}[];
-  for(const anchor of await page.locator('a[data-product-switch].tile').all()){
+  for(const anchor of await page.locator('a[data-product-switch]').all()){
    const rawHref=await anchor.getAttribute('href');if(!rawHref)continue;const href=new URL(rawHref,page.url());
    if(href.origin!==adminOrigin||href.pathname!=='/sso/start')continue;const next=href.searchParams.get('next');if(!next)continue;
    const target=new URL(next,adminOrigin);if(target.pathname==='/admin/launch'&&target.searchParams.get('companyId')===companyId&&target.searchParams.get('next')===companyTarget)tiles.push({href:href.href,target:target.href});
@@ -287,7 +287,7 @@ function productTargetFromAppsHref(href: string) {
 }
 
 async function productTiles(page: Page) {
-  const links = await page.locator("a[data-product-switch].tile").all();
+  const links = await page.locator("a[data-product-switch]").all();
   const result: { href: string; companyId: string; target: string; origin: string }[] = [];
   for (const link of links) {
     const rawHref = await link.getAttribute("href");
@@ -298,16 +298,16 @@ async function productTiles(page: Page) {
   return result;
 }
 
-async function openApps(page: Page) {
+async function openApps(page: Page, companyId: string, scope: "branch" | "department" = "branch") {
   await page.goto(`${accountOrigin}/my-profile`);
   await expect(page.getByRole("heading", { name: /Your account|บัญชีของคุณ/ })).toBeVisible();
   await page.getByRole("link", { name: "Apps", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`^${appsOrigin.replaceAll(".", "\\.")}/`));
-  await expect(page.getByRole("heading", { name: /Choose a workspace|เลือกพื้นที่ทำงาน/ })).toBeVisible();
+  await chooseApplicationsWorkspace(page, companyId, base => scope === "branch" ? base.includes("/branches/") && !base.includes("/departments/") : base.includes("/departments/"));
 }
 
 async function selectVisibleTile(page: Page, href: string) {
-  const links = await page.locator("a[data-product-switch].tile").all();
+  const links = await page.locator("a[data-product-switch]").all();
   for (const link of links) {
     const rawHref = await link.getAttribute("href");
     if (rawHref && new URL(rawHref, page.url()).href === href) {
@@ -381,7 +381,7 @@ for (const { email, scope, scopeName } of scopedUsers) {
     const context = await signedInAccountContext(browser, testInfo, fixture.credentials, user!);
     try {
       const page = await context.newPage();
-      await openApps(page);
+      await openApps(page, fixture.state.fixture.companyId, scope);
       const candidate = (await productTiles(page)).find(tile => {
         if (tile.companyId !== fixture.state.fixture.companyId) return false;
         const pathname = new URL(tile.target, tile.origin).pathname;
@@ -426,11 +426,11 @@ test("Branch user cannot open another Company through an Apps product context", 
   const context = await signedInAccountContext(browser, testInfo, fixture.credentials, user!);
   try {
     const page = await context.newPage();
-    await openApps(page);
+    await openApps(page, fixture.state.fixture.companyId);
     const visibleCompanies = (await productTiles(page)).map(tile => tile.companyId);
     expect(visibleCompanies).not.toContain(fixture.state.fixture.hospitality.companyId);
 
-    const denied = new URL("/launch", "https://work-dev-erpx.jesadakorn.com");
+    const denied = new URL("/launch", "https://apps-dev-erpx.jesadakorn.com");
     denied.searchParams.set("companyId", fixture.state.fixture.hospitality.companyId);
     denied.searchParams.set("next", "/holdings/simulation/home");
     await page.goto(denied.href);

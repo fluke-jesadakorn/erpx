@@ -22,7 +22,7 @@ export function workspaceBrowserFixtureProfile(raw:string|undefined,apps:readonl
  if(raw===undefined)return undefined;
  if(!apps?.length)throw new Error('WORKSPACE_FIXTURE_PROFILE_REQUIRES_WORKSPACE');
  if(raw!=='money-people'&&raw!=='public-hosts')throw new Error('EXPLICIT_WORKSPACE_FIXTURE_PROFILE_REQUIRED');
- const permitted=raw==='money-people'?['compat','account','apps','finance','people','work']:raw==='public-hosts'?['account','apps','booking','portal','legal-portal','forms']:null;
+ const permitted=raw==='money-people'?['compat','account','apps','finance','people','apps']:raw==='public-hosts'?['account','apps','booking','portal','legal-portal','forms']:null;
  if(!permitted||apps.some(app=>!permitted.includes(app))||raw==='money-people'&&consoleRetired||raw==='public-hosts'&&!consoleRetired)throw new Error('EXPLICIT_WORKSPACE_FIXTURE_PROFILE_REQUIRED');
  return raw;
 }

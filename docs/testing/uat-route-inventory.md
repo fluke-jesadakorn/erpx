@@ -1,6 +1,6 @@
 # ERPX UAT route inventory
 
-Generated from `apps/compat/src/app` compatibility page files on 2026-10-23. The route source fingerprint is `e371ccf8cdda6cd03abcb1421376f4ec22cb3ec3db638ee5ce7cf640cf0c02d2`. This inventories implemented page files and is not a capability-catalog acceptance claim.
+Generated from `apps/compat/src/app` compatibility page files on 2026-10-26. The route source fingerprint is `040545c8c57ff8627885d39818f4bc3430213cdb8f1c628d65ef2fba0277019b`. This inventories implemented page files and is not a capability-catalog acceptance claim.
 
 - 942 page routes in source (current source count)
 - Desktop Chrome and Pixel 7 emulation

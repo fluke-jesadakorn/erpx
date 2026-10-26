@@ -3,7 +3,7 @@ import { packageDefinition } from "@erpx/server-commercial/domain/packages";
 
 /** Module IDs remain owner identities, including package-included handoffs. */
 const owners: Record<ProductId, readonly string[]> = {
-  work: ["operations", "collaboration"], pos: ["pos", "finance", "inventory"],
+  apps: ["operations", "collaboration"], pos: ["pos", "finance", "inventory"],
   pms: ["pms", "pos", "finance", "inventory"], finance: ["finance"],
   people: ["people_payroll", "benefits", "finance"], sales: ["sales", "crm", "inventory", "finance"],
   supply: ["procurement", "inventory", "quality", "finance"], assets: ["assets", "maintenance", "finance"],

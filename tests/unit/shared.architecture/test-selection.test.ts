@@ -216,7 +216,7 @@ describe("test selection contracts", () => {
         title,
         project,
       }))),
-      ...(["work", "pos", "pms", "finance", "people", "sales", "supply", "assets", "projects", "recruit", "learn", "support", "service", "legal", "manufacturing"] as const).flatMap(product => (["desktop", "mobile"] as const).map(project => ({
+      ...(["apps", "pos", "pms", "finance", "people", "sales", "supply", "assets", "projects", "recruit", "learn", "support", "service", "legal", "manufacturing"] as const).flatMap(product => (["desktop", "mobile"] as const).map(project => ({
         runner: "playwright" as const,
         file: "tests/e2e/identity_access/product-hosts.spec.ts",
         title: `isolated ${product} Account Apps SSO reaches its actual owner landing and API`,

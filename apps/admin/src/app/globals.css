@@ -6,6 +6,8 @@
 @source "../../../../packages/contracts/src/apps.ts";
 @source "../../../../packages/contracts/src/console-retirement.ts";
 @source "../../../../packages/contracts/src/development-module-admission.ts";
+@source "../../../../packages/contracts/src/holding-fetch.ts";
+@source "../../../../packages/contracts/src/holding-hosts.ts";
 @source "../../../../packages/contracts/src/product-registry.ts";
 @source "../../../../packages/contracts/src/social-post-entry.ts";
 @source "../../../../packages/contracts/src/work-social-api.ts";
@@ -306,6 +308,8 @@
 @source "../../../../packages/feature-identity_access/src/components/account-preferences-context.tsx";
 @source "../../../../packages/feature-identity_access/src/components/account-preferences-provider.tsx";
 @source "../../../../packages/feature-identity_access/src/components/admin-role-choice-form.tsx";
+@source "../../../../packages/feature-identity_access/src/components/device-account-login-choices.tsx";
+@source "../../../../packages/feature-identity_access/src/components/people-access-workspace.tsx";
 @source "../../../../packages/feature-identity_access/src/components/provider-context-boundary.tsx";
 @source "../../../../packages/feature-identity_access/src/components/provider-context-switcher.tsx";
 @source "../../../../packages/feature-identity_access/src/components/revoke-company-access.tsx";
@@ -336,6 +340,7 @@
 @source "../../../../packages/feature-identity_access/src/lib/technology-navigation.ts";
 @source "../../../../packages/feature-identity_access/src/lib/use-organization-access-command.ts";
 @source "../../../../packages/feature-identity_access/src/lib/user-management.ts";
+@source "../../../../packages/feature-identity_access/src/lib/verified-form-submit.ts";
 @source "../../../../packages/feature-identity_access/src/lib/work-role-display.ts";
 @source "../../../../packages/feature-inventory/src/components/inventory-reorder-console.tsx";
 @source "../../../../packages/feature-learning/src/components/learning-console.tsx";
@@ -522,13 +527,12 @@
 @source "../../../../packages/feature-talent/src/components/talent-editor.tsx";
 @source "../../../../packages/feature-talent/src/components/use-talent-command.ts";
 @source "../../../../packages/feature-talent/src/lib/command.ts";
-@source "../../../../packages/feature-work_projection/src/components/quick-access/shelf.tsx";
-@source "../../../../packages/feature-work_projection/src/components/quick-access/use-local-preference.ts";
 @source "../../../../packages/feature-work_projection/src/components/staff-work-controls.tsx";
 @source "../../../../packages/feature-work_projection/src/components/today/start-actions.tsx";
 @source "../../../../packages/feature-work_projection/src/components/today/start-prompt.tsx";
 @source "../../../../packages/feature-work_projection/src/components/use-staff-command.ts";
 @source "../../../../packages/feature-work_projection/src/lib/ai/workspace-assistant.ts";
+@source "../../../../packages/feature-work_projection/src/lib/apps-launcher.ts";
 @source "../../../../packages/feature-work_projection/src/lib/calendar-date-domain.ts";
 @source "../../../../packages/feature-work_projection/src/lib/calendar-date.ts";
 @source "../../../../packages/feature-work_projection/src/lib/calendar-domain.ts";
@@ -544,19 +548,18 @@
 @source "../../../../packages/feature-work_projection/src/lib/front-work-return.ts";
 @source "../../../../packages/feature-work_projection/src/lib/local-shortcuts.ts";
 @source "../../../../packages/feature-work_projection/src/lib/navigation-catalog.ts";
+@source "../../../../packages/feature-work_projection/src/lib/navigation-presentation.ts";
 @source "../../../../packages/feature-work_projection/src/lib/page-layouts-view.ts";
 @source "../../../../packages/feature-work_projection/src/lib/page-layouts.ts";
 @source "../../../../packages/feature-work_projection/src/lib/product-access-label.ts";
 @source "../../../../packages/feature-work_projection/src/lib/product-navigation.ts";
-@source "../../../../packages/feature-work_projection/src/lib/product-office-navigation.ts";
-@source "../../../../packages/feature-work_projection/src/lib/quick-access.ts";
 @source "../../../../packages/feature-work_projection/src/lib/request-actions.ts";
 @source "../../../../packages/feature-work_projection/src/lib/request-draft-create.ts";
 @source "../../../../packages/feature-work_projection/src/lib/section-workspaces.ts";
 @source "../../../../packages/feature-work_projection/src/lib/self-service.ts";
+@source "../../../../packages/feature-work_projection/src/lib/sidebar-catalog.ts";
 @source "../../../../packages/feature-work_projection/src/lib/work-attention.ts";
 @source "../../../../packages/feature-work_projection/src/lib/work-cards.ts";
-@source "../../../../packages/feature-work_projection/src/lib/work-category-tone.ts";
 @source "../../../../packages/feature-work_projection/src/lib/work-fetch.ts";
 @source "../../../../packages/feature-work_projection/src/lib/work-item.ts";
 @source "../../../../packages/feature-work_projection/src/lib/work-page.ts";
@@ -2022,6 +2025,7 @@
 @source "../../../../packages/server-identity_access/src/adapters/commercial-seat-facts.ts";
 @source "../../../../packages/server-identity_access/src/adapters/company-acceptance-facts.ts";
 @source "../../../../packages/server-identity_access/src/adapters/company-acceptance-projection.ts";
+@source "../../../../packages/server-identity_access/src/adapters/device-account-store.ts";
 @source "../../../../packages/server-identity_access/src/adapters/directory-field-mapping.ts";
 @source "../../../../packages/server-identity_access/src/adapters/directory-lookup.ts";
 @source "../../../../packages/server-identity_access/src/adapters/directory-operations-api.ts";
@@ -2091,6 +2095,7 @@
 @source "../../../../packages/server-identity_access/src/adapters/position-gpo.ts";
 @source "../../../../packages/server-identity_access/src/adapters/presentation-context-queries.ts";
 @source "../../../../packages/server-identity_access/src/adapters/private-file-denial-authority.ts";
+@source "../../../../packages/server-identity_access/src/adapters/private-session-read.ts";
 @source "../../../../packages/server-identity_access/src/adapters/product-session-revocation.ts";
 @source "../../../../packages/server-identity_access/src/adapters/product-sso-context.ts";
 @source "../../../../packages/server-identity_access/src/adapters/product-sso-store.ts";
@@ -2104,6 +2109,7 @@
 @source "../../../../packages/server-identity_access/src/adapters/provider-context-store.ts";
 @source "../../../../packages/server-identity_access/src/adapters/provider-context.ts";
 @source "../../../../packages/server-identity_access/src/adapters/provider-entry.ts";
+@source "../../../../packages/server-identity_access/src/adapters/provider-switcher.ts";
 @source "../../../../packages/server-identity_access/src/adapters/queued-command-authority.ts";
 @source "../../../../packages/server-identity_access/src/adapters/queued-social-source-authority.ts";
 @source "../../../../packages/server-identity_access/src/adapters/record-source-authority.ts";
@@ -2177,6 +2183,7 @@
 @source "../../../../packages/server-identity_access/src/domain/authorization.ts";
 @source "../../../../packages/server-identity_access/src/domain/beta-access.ts";
 @source "../../../../packages/server-identity_access/src/domain/command-policy.ts";
+@source "../../../../packages/server-identity_access/src/domain/device-account-return.ts";
 @source "../../../../packages/server-identity_access/src/domain/directories.ts";
 @source "../../../../packages/server-identity_access/src/domain/directory-field-mapping.ts";
 @source "../../../../packages/server-identity_access/src/domain/directory-operations.ts";
@@ -2306,6 +2313,7 @@
 @source "../../../../packages/server-identity_access/src/public/position-gpo.ts";
 @source "../../../../packages/server-identity_access/src/public/presentation-context-queries.ts";
 @source "../../../../packages/server-identity_access/src/public/private-file-denial-authority.ts";
+@source "../../../../packages/server-identity_access/src/public/private-session-read.ts";
 @source "../../../../packages/server-identity_access/src/public/product-sso.ts";
 @source "../../../../packages/server-identity_access/src/public/product-workspace.ts";
 @source "../../../../packages/server-identity_access/src/public/profile-account.ts";
@@ -2314,6 +2322,7 @@
 @source "../../../../packages/server-identity_access/src/public/project-worker-startup-subject.ts";
 @source "../../../../packages/server-identity_access/src/public/provider-context.ts";
 @source "../../../../packages/server-identity_access/src/public/provider-entry.ts";
+@source "../../../../packages/server-identity_access/src/public/provider-switcher.ts";
 @source "../../../../packages/server-identity_access/src/public/queued-command-authority.ts";
 @source "../../../../packages/server-identity_access/src/public/queued-social-source-authority.ts";
 @source "../../../../packages/server-identity_access/src/public/record-source-authority.ts";
@@ -2326,6 +2335,7 @@
 @source "../../../../packages/server-identity_access/src/public/rules/access-problem.ts";
 @source "../../../../packages/server-identity_access/src/public/rules/account-workspace.ts";
 @source "../../../../packages/server-identity_access/src/public/rules/admin-workspace.ts";
+@source "../../../../packages/server-identity_access/src/public/rules/device-account-return.ts";
 @source "../../../../packages/server-identity_access/src/public/rules/page-entry-return.ts";
 @source "../../../../packages/server-identity_access/src/public/rules/product-sso.ts";
 @source "../../../../packages/server-identity_access/src/public/rules/public-surface-entry.ts";
@@ -2961,6 +2971,7 @@
 @source "../../../../packages/server-organization/src/adapters/work-role-path-facts.ts";
 @source "../../../../packages/server-organization/src/adapters/workflow-approvals-facts.ts";
 @source "../../../../packages/server-organization/src/adapters/workspace-choices.ts";
+@source "../../../../packages/server-organization/src/adapters/workspace-route-company.ts";
 @source "../../../../packages/server-organization/src/application/access.ts";
 @source "../../../../packages/server-organization/src/application/company-business-acceptance.ts";
 @source "../../../../packages/server-organization/src/application/department-authority.ts";
@@ -3083,6 +3094,7 @@
 @source "../../../../packages/server-organization/src/public/work-role-path-facts.ts";
 @source "../../../../packages/server-organization/src/public/workflow-approvals-facts.ts";
 @source "../../../../packages/server-organization/src/public/workspace-choices.ts";
+@source "../../../../packages/server-organization/src/public/workspace-route-company.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/addon-package-obligations.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/agent-ai-usage-projection.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/agent-member-name-projection.ts";
@@ -4189,6 +4201,7 @@
 @source "../../../../packages/server-talent/src/public/record-purchases.ts";
 @source "../../../../packages/server-talent/src/public/rules/product-entry.ts";
 @source "../../../../packages/server-talent/src/public/talent.ts";
+@source "../../../../packages/server-work_projection/src/adapters/account-switcher.ts";
 @source "../../../../packages/server-work_projection/src/adapters/admin-launcher.ts";
 @source "../../../../packages/server-work_projection/src/adapters/calendar-announcements-facts.ts";
 @source "../../../../packages/server-work_projection/src/adapters/calendar-appointments-facts.ts";
@@ -4244,6 +4257,7 @@
 @source "../../../../packages/server-work_projection/src/adapters/work-role-store.ts";
 @source "../../../../packages/server-work_projection/src/adapters/work-summary.ts";
 @source "../../../../packages/server-work_projection/src/adapters/work.ts";
+@source "../../../../packages/server-work_projection/src/adapters/workspace-entry-presentation-query.ts";
 @source "../../../../packages/server-work_projection/src/adapters/workspace-preferences.ts";
 @source "../../../../packages/server-work_projection/src/application/admin-launcher.ts";
 @source "../../../../packages/server-work_projection/src/application/calendar/access.ts";
@@ -4297,6 +4311,7 @@
 @source "../../../../packages/server-work_projection/src/domain/work-cards.ts";
 @source "../../../../packages/server-work_projection/src/domain/work-items.ts";
 @source "../../../../packages/server-work_projection/src/domain/work-reports.ts";
+@source "../../../../packages/server-work_projection/src/public/account-switcher.ts";
 @source "../../../../packages/server-work_projection/src/public/admin-launcher.ts";
 @source "../../../../packages/server-work_projection/src/public/calendar-announcements-facts.ts";
 @source "../../../../packages/server-work_projection/src/public/calendar-appointments-facts.ts";
@@ -4336,6 +4351,7 @@
 @source "../../../../packages/server-work_projection/src/public/work-role-store.ts";
 @source "../../../../packages/server-work_projection/src/public/work-summary.ts";
 @source "../../../../packages/server-work_projection/src/public/work.ts";
+@source "../../../../packages/server-work_projection/src/public/workspace-entry-presentation-query.ts";
 @source "../../../../packages/server-work_projection/src/public/workspace-preferences.ts";
 @source "../../../../packages/server-workflow/src/adapters/agent-bootstrap-assertions.ts";
 @source "../../../../packages/server-workflow/src/adapters/approval-administration.ts";
@@ -4483,6 +4499,7 @@
 @source "../../../../packages/ui/src/components/foundation.tsx";
 @source "../../../../packages/ui/src/components/hierarchy-tree.tsx";
 @source "../../../../packages/ui/src/components/input.tsx";
+@source "../../../../packages/ui/src/components/interaction-suspension.tsx";
 @source "../../../../packages/ui/src/components/list-pagination.tsx";
 @source "../../../../packages/ui/src/components/main.tsx";
 @source "../../../../packages/ui/src/components/patterns.tsx";
@@ -4491,6 +4508,7 @@
 @source "../../../../packages/ui/src/components/primitives.tsx";
 @source "../../../../packages/ui/src/components/record-context.tsx";
 @source "../../../../packages/ui/src/components/setup-checklist.tsx";
+@source "../../../../packages/ui/src/components/sidebar-navigation.tsx";
 @source "../../../../packages/ui/src/components/table.tsx";
 @source "../../../../packages/ui/src/components/use-hydrated.ts";
 @source "../../../../packages/ui/src/components/use-recoverable-draft.tsx";
@@ -4501,6 +4519,9 @@
 @source "../../../../packages/workplace/src/components/access-state.tsx";
 @source "../../../../packages/workplace/src/components/admin-workspace-menus.tsx";
 @source "../../../../packages/workplace/src/components/app-navigation.tsx";
+@source "../../../../packages/workplace/src/components/apps-launcher.tsx";
+@source "../../../../packages/workplace/src/components/apps-sidebar.tsx";
+@source "../../../../packages/workplace/src/components/apps-workspace-memory.tsx";
 @source "../../../../packages/workplace/src/components/auth-shell.tsx";
 @source "../../../../packages/workplace/src/components/coming-soon-page.tsx";
 @source "../../../../packages/workplace/src/components/console-ui-utilities.tsx";
@@ -4516,10 +4537,10 @@
 @source "../../../../packages/workplace/src/components/navigation-counts.tsx";
 @source "../../../../packages/workplace/src/components/new-work.tsx";
 @source "../../../../packages/workplace/src/components/office-product-menus.tsx";
-@source "../../../../packages/workplace/src/components/office-product-picker.tsx";
 @source "../../../../packages/workplace/src/components/pilot-feature-rollout.tsx";
 @source "../../../../packages/workplace/src/components/platform-role-switcher-loader.tsx";
 @source "../../../../packages/workplace/src/components/platform-role-switcher.tsx";
+@source "../../../../packages/workplace/src/components/product-account-provider.tsx";
 @source "../../../../packages/workplace/src/components/product-link-context.tsx";
 @source "../../../../packages/workplace/src/components/product-navigation-boundary.tsx";
 @source "../../../../packages/workplace/src/components/remember-workspace.tsx";
@@ -4533,8 +4554,8 @@
 @source "../../../../packages/workplace/src/components/role-select.tsx";
 @source "../../../../packages/workplace/src/components/section-workspace.tsx";
 @source "../../../../packages/workplace/src/components/service-teams.tsx";
+@source "../../../../packages/workplace/src/components/topic-navigation.tsx";
 @source "../../../../packages/workplace/src/components/work-context-boundary.tsx";
-@source "../../../../packages/workplace/src/components/work-shortcuts.tsx";
 @source "../../../../packages/workplace/src/components/workplace-controls.tsx";
 @source "../../../../packages/workplace/src/components/workspace-assistant-content.tsx";
 @source "../../../../packages/workplace/src/components/workspace-assistant.tsx";
@@ -4542,6 +4563,7 @@
 @source "../../../../packages/workplace/src/components/workspace-link.tsx";
 @source "../../../../packages/workplace/src/components/workspace-menu.tsx";
 @source "../../../../packages/workplace/src/entries/workspace.tsx";
+@source "../../../../packages/workplace/src/holding-proxy.ts";
 @source "../../../../packages/workplace/src/proxy.ts";
 @source "../../../../packages/workplace/src/routes/api/health/route.ts";
 @source "../../../../packages/workplace/src/routes/api/ready/route.ts";

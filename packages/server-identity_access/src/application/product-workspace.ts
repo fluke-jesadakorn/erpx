@@ -93,9 +93,9 @@ export function createProductWorkspace(ports: {
     const retainedCustomerReceipt=definition.id==="finance"?salesCustomerReceiptEntry(destination):null;
     const retainedDocument=definition.id==="finance"?financeDocumentEntry(destination):null;
     const retainedQuality=definition.id==="supply"?qualitySourceEntry(destination):null;
-    const retainedSelf=definition.id==="work"?workforceSelfServiceEntry(destination):null;
-    const retainedPost=definition.id==="work"?socialPostSourceEntry(destination):null;
-    const retainedTask=definition.id==="work"?projectTaskSourceEntry(destination):null;
+    const retainedSelf=definition.id==="apps"?workforceSelfServiceEntry(destination):null;
+    const retainedPost=definition.id==="apps"?socialPostSourceEntry(destination):null;
+    const retainedTask=definition.id==="apps"?projectTaskSourceEntry(destination):null;
     const retainedHire=definition.id==="people"?talentHireSourceEntry(destination):null;
     const retainedCandidatePrivacy=definition.id==="recruit"?talentCandidatePrivacySourceEntry(destination):null;
     const retainedLegalSetup=definition.id==="finance"&&destination==="finance/setup/thai-tax";
@@ -106,7 +106,7 @@ export function createProductWorkspace(ports: {
     const retainedManufacturingPostingSetup=definition.id==="manufacturing"&&manufacturingPostingSetupEntry(destination);
     const retainedInitialPhysicalStock=definition.id==="sales"?initialPhysicalStockCountEntry(destination):null;
     const retainedSalesPostingSetup=definition.id==="sales"&&destination==="customers-sales/sales/settings/posting";
-    const retainedNotifications=definition.id==="work"&&destination==="inbox/notifications"&&purchasedCapabilities(facts.grants,input.companyId,"history",ports.now(),facts.history).includes("foundation.notifications");
+    const retainedNotifications=definition.id==="apps"&&destination==="inbox/notifications"&&purchasedCapabilities(facts.grants,input.companyId,"history",ports.now(),facts.history).includes("foundation.notifications");
     const visibleProduct=commercialAdmissionDeferred||visiblePurchasedProducts(facts.grants, input.companyId, ports.now(), "history", facts.history).includes(definition.id);
     if (!visibleProduct&&!retainedExpensePrerequisites&&!retainedPayrollPrerequisites&&!retainedFinancial&&!retainedLearningWorker&&!retainedProjectWorker&&!retainedServiceParts&&!retainedServiceStock&&!retainedPosInitialStock&&!retainedAssetsFinancial&&!retainedManufacturingInitialStock&&!retainedManufacturingPostingSetup&&!retainedInitialPhysicalStock&&!retainedCustomerReceipt&&!retainedDocument&&!retainedLegalSetup&&!retainedPostingSetup&&!retainedSalesPostingSetup&&!retainedNotifications&&!retainedQuality&&!retainedTask&&!retainedHire&&!retainedCandidatePrivacy&&!retainedPost&&!retainedSelf)
       throw ports.error(403, "PRODUCT_PACKAGE_REQUIRED", "This Company has no available purchase or retained history for this product.");
@@ -121,9 +121,9 @@ export function createProductWorkspace(ports: {
       if (!authority.modulesByAssignment.has(assignment.id) || !authority.permissionsByAssignment.has(assignment.id) ||
         !Number.isSafeInteger(assignment.version) || assignment.version! < 1) continue;
       const modules = authority.presentationModulesByAssignment.get(assignment.id) ?? [];
-      const readyModules = (await Promise.all([...new Set([...modules, ...(definition.id === "work" ? ["operations",...(retainedPost?["collaboration"]:[]),...(destination === "insights/executive" || destination.startsWith("insights/executive/") ? ["executive"] : [])] : [])])]
+      const readyModules = (await Promise.all([...new Set([...modules, ...(definition.id === "apps" ? ["operations",...(retainedPost?["collaboration"]:[]),...(destination === "insights/executive" || destination.startsWith("insights/executive/") ? ["executive"] : [])] : [])])]
         .map(async id => await ready(id) ? id : null))).filter((id): id is string => id !== null);
-      const executiveDestination = definition.id === "work" && (destination === "insights/executive" || destination.startsWith("insights/executive/"));
+      const executiveDestination = definition.id === "apps" && (destination === "insights/executive" || destination.startsWith("insights/executive/"));
       const canSeeExecutive = executiveDestination ? await ports.executiveVisible?.(access, assignment) ?? false : undefined;
       const context = { role: assignment.role, permissions: authority.permissionsByAssignment.get(assignment.id),
         modules, readyModules, beta: authority.beta, scopeKind: access.scope.kind, commercialAdmissionDeferred,

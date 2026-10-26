@@ -61,7 +61,8 @@
     "./lib/executive/numbers": "./src/lib/executive/numbers.ts",
     "./lib/executive/coverage": "./src/lib/executive/coverage.ts",
     "./lib/executive/connections": "./src/lib/executive/connections.ts",
-    "./lib/executive/theme": "./src/lib/executive/theme.ts"
+    "./lib/executive/theme": "./src/lib/executive/theme.ts",
+    "./components/hospitality/grouped-navigation": "./src/components/hospitality/grouped-navigation.tsx"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

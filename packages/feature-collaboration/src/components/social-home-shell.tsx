@@ -10,8 +10,9 @@ import { HomeVisualPrototype } from "@erpx/feature-work_projection/components/ho
 import { TodayTools, HomePriorities, MobileAttentionCount, MobileAttentionNotice } from "@erpx/feature-collaboration/components/social-home-controls";
 import styles from "@erpx/feature-collaboration/components/social.module.css";
 
-export function SocialHomeShell({ base, name, single, sourceOnly=false, calendarEnabled, contextKey, canRequestLegal, children }: {
+export function SocialHomeShell({ base, name, single, sourceOnly=false, calendarEnabled, contextKey, canRequestLegal, children, language = "en" }: {
   base: string; name: string; single: boolean; sourceOnly?:boolean; calendarEnabled: boolean;
+  language?: "en" | "th";
   contextKey?: string; canRequestLegal: boolean; children: ReactNode;
 }) {
   return (
@@ -20,9 +21,9 @@ export function SocialHomeShell({ base, name, single, sourceOnly=false, calendar
         <header className="beta-heading">
           <div>
             <span className="beta-hero-kicker">
-              {sourceOnly?"Included conversation":<>Your workspace <span aria-hidden="true">/</span> Today</>}
+              {sourceOnly?"Included conversation":<>ERPX Apps <span aria-hidden="true">/</span> {language === "th" ? "ฟีด" : "Feed"}</>}
             </span>
-            <h1>{single ? "Team conversation" : "Today"}</h1>
+            <h1>{single ? "Team conversation" : language === "th" ? "ฟีด" : "Feed"}</h1>
             <p>
               {single
                 ? "Follow this conversation."
@@ -34,7 +35,7 @@ export function SocialHomeShell({ base, name, single, sourceOnly=false, calendar
             <span className="beta-hero-pane beta-hero-pane-back" />
             <span className="beta-hero-pane beta-hero-pane-front" />
           </div>
-          {single ? <Link href={sourceOnly?configuredProductHandoff("apps")??"/":canonicalUiHref(`${base}/home`)}>{sourceOnly?"Back to Apps":"Back to Today"}</Link> : null}
+          {single ? <Link href={sourceOnly?configuredProductHandoff("apps")??"/":canonicalUiHref(`${base}/home`)}>{language === "th" ? "กลับฟีด" : "Back to Feed"}</Link> : null}
         </header>
         {!single && <Suspense><MobileAttentionNotice base={base} /></Suspense>}
         <div className={single ? styles.singleLayout : styles.homeLayout}>

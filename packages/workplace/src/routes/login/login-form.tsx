@@ -1,4 +1,5 @@
 "use client";
+import {deviceAccountReturn} from "@erpx/server-identity_access/public/rules/device-account-return";
 import { useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { authClient } from "@erpx/feature-identity_access/lib/auth-client";
@@ -32,7 +33,7 @@ export function LoginForm({ next, frontMode = false, appearance = "legacy" }: { 
       }
       // SSO exchanges single-use grants through cross-origin HTTP redirects.
       // An RSC navigation plus refresh can consume the same exchange twice.
-      if (next?.startsWith("/sso/authorize?") || next&&(accountWorkspaceLoginReturn(next)===next||legalEnrollmentReturnPath(next)===next)) {
+      if (next?.startsWith("/sso/authorize?") || next&&(accountWorkspaceLoginReturn(next)===next||deviceAccountReturn(next)===next||legalEnrollmentReturnPath(next)===next)) {
         window.location.assign(next);
         return;
       }

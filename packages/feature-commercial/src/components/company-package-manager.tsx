@@ -1,4 +1,5 @@
 "use client";
+import {holdingFetch} from '@erpx/contracts/holding-fetch';
 
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import {useProviderContext} from "@erpx/feature-identity_access/components/provider-context-boundary";
@@ -44,7 +45,7 @@ export function CompanyPackageManager({ companies, canApply, language }: { compa
     controller.current?.abort(); const abort = new AbortController(); controller.current = abort;
     const ticket = ++epoch.current, generation = contextGeneration(); setPending(true); setError("");
     try {
-      const response = await fetch(path, { method, cache: "no-store", signal: abort.signal,
+      const response = await holdingFetch(path, { method, cache: "no-store", signal: abort.signal,
         ...(method === "POST" ? { headers: { "Content-Type": "application/json", ...(key ? { "Idempotency-Key": key } : {}) }, body: JSON.stringify(input) } : {}) });
       const body = await response.json();
       if (ticket !== epoch.current || generation !== contextGeneration() || abort.signal.aborted) return;

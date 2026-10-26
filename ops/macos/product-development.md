@@ -1,5 +1,7 @@
 # Product development rollout and rollback
 
+Superseded for current development routing by the [Holding development runbook](holding-development.md) and [ADR-051](../../docs/adr/ADR-051-holding-addresses-and-workspace-paths.md). The product-host rollout and receipts below retain their earlier scope. Do not republish old hosts or use the expired administration token.
+
 Status: **22 development hosts published; complete product/workflow acceptance remains open**. The [product contract](../../docs/contracts/next/product-separation.md) and [desired-state registry](../../docs/contracts/next/product-registry.generated.json) define the product mapping. The [live infrastructure receipt](product-development-live.json) records exact DNS/cache IDs and observed checks, separately from package/workflow readiness.
 
 ## Deployment and naming

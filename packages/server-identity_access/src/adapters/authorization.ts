@@ -1,4 +1,5 @@
 import{requestedHoldingScope}from '@erpx/server-identity_access/public/requested-holding-scope';
+import {holdingHostForHost,holdingRoutingEnabled} from '@erpx/contracts/holding-hosts';
 export{requestedHoldingScope};
 import {providerContextSelectedAssignment} from '@erpx/server-identity_access/adapters/provider-context-selection';
 import {productHostForHost} from '@erpx/feature-runtime/lib/product-hosts';
@@ -74,6 +75,8 @@ export const listWorkspaceCompanyPresentationFacts = cache(async (holdingId: Hol
 export const listWorkspaceCompanies = cache(async (holdingId: HoldingId): Promise<WorkspaceCompany[]> =>
     (await listWorkspaceCompanyPresentationFacts(holdingId)).map(({ id, name }) => ({ id, name })));
 export async function resolveWorkspaceScope(requested: HoldingWorkspaceScope, options: WorkspaceResolutionOptions = {}) {
+    const host=holdingRoutingEnabled(process.env)&&holdingHostForHost((await headers()).get('host'));
+    if(host&&host.holdingSlug!==requested.holdingSlug)throw identityError(404,'WORKSPACE_NOT_FOUND','Workspace not found.');
     let write: SqlDatabase;
     return createResolveWorkspaceScope({ binding: async (slug) => { const binding = await holdingBindingBySlug(slug); write = (await holdingResources(binding.id)).write; return binding; }, headers, session: currentSession, preference: async (userId, holdingId) => readCompanyPreference((await runtimeEnv()).CONTROL_DB, userId, holdingId), companies: listWorkspaceCompanies, companyBySlug: async (slug) => write.prepare(`SELECT id,kind,slug,display_name,parent_id,company_id,branch_id
              ${organizationSources.authorization_organization_nodes_from} WHERE kind='company' AND slug=? AND status='active'`).bind(slug).first<OrganizationNode>(), companyById: async (id) => write.prepare(`SELECT id,kind,slug,display_name,parent_id,company_id,branch_id

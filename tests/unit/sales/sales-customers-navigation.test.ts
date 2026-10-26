@@ -32,10 +32,10 @@ it("opens saved owner records in the active list without losing filters", () => 
 it("shows two workspaces and keeps every auxiliary task searchable", () => {
   const model = workplaceNavigation({ workspaceBase: base, role: "holding_owner", moduleIds: ["marketing", "ecommerce"] });
   const category = model.categories.find(category => category.id === "customers-sales")!;
-  expect(category.apps.map(item => item.label)).toEqual(["Sales", "Customers"]);
-  expect(category.secondaryItems?.map(item => item.id)).toEqual(["marketing", "ecommerce"]);
+  expect(category.apps.map(item => item.label)).toEqual(["Sales work", "Opportunities", "Customers & contacts", "Sales documents", "Marketing", "Sales channels"]);
+  expect(category.secondaryItems ?? []).toEqual([]);
   for (const text of ["Follow-ups", "Pipeline", "Quotations", "Price lists", "Customer access", "Support cases", "Marketing", "Channels", "Contacts", "reports"]) expect(navigationLauncher(model, text).results.length, text).toBeGreaterThan(0);
-  expect(resolveNavigation(model, base, `${base}/customers-sales/sales/pipeline/lead-1/overview`).sidebarId).toBe("sales-hub");
+  expect(resolveNavigation(model, base, `${base}/customers-sales/sales/pipeline/lead-1/overview`).sidebarId).toBe("crm-pipeline");
   expect(resolveNavigation(model, base, `${base}/customers-sales/customers/service/cases/ticket-1/overview`).sidebarId).toBe("customers-hub");
   expect(navigationTrail(model, base, `${base}/customers-sales/sales/pipeline/lead-1/overview`).map(item => item.label)).toEqual(["Customers & sales", "Sales", "Pipeline", "Lead 1", "Overview"]);
 });

@@ -85,6 +85,8 @@ define(
   "privileged",
 );
 define("iam.directory.apply", "Apply directory and resource changes", "identity_access", [owner, "it_admin"], ["Preview and fresh MFA"], "privileged");
+define("people.relationships.read", "Read people relationships", "people_payroll", [owner, "hr_admin", "it_admin"]);
+define("people.relationships.manage", "Maintain people relationships", "people_payroll", [owner, "hr_admin", "it_admin"], ["Company scope; relationship metadata only"], "privileged");
 define("iam.access.apply", "Apply People identities and access", "identity_access", [owner, "it_admin"], ["Preview and fresh MFA; delegated ceiling"], "privileged");
 define("iam.attributes.manage", "Manage custom field definitions and access", "identity_access", [owner], ["Field ownership and access policy"], "privileged");
 define(
@@ -622,6 +624,8 @@ for (const p of definitions) {
     [
       "iam.roles.manage",
       "iam.access.apply",
+      "people.relationships.read",
+      "people.relationships.manage",
       "iam.attributes.manage",
       "iam.directory.manage",
       "iam.directory.apply",

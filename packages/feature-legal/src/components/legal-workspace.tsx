@@ -1,6 +1,6 @@
 "use client";
 import WorkspaceLink from '@erpx/workplace/components/workspace-link';
-import {legalActionPurchased,legalKindCapability} from "@erpx/server-legal/public/rules/purchases";
+import {legalActionPurchased} from "@erpx/server-legal/public/rules/purchases";
 import {registerUnsavedWork} from "@erpx/feature-work_projection/lib/context-switch";
 import { canonicalUiHref } from "@erpx/feature-work_projection/lib/destination-registry";
 import { DraftFormDrawer } from "@erpx/ui/components/draft-form-drawer";
@@ -19,7 +19,7 @@ import { InlineNotice } from "@erpx/ui/components/foundation";
 import { Button, Field, Select, Table, TextArea, TextInput, LocalTabs, TabsList, TabsTrigger, TabsPanel } from "@erpx/ui/components/foundation";
 
 import { TimeText } from "@erpx/feature-people_payroll/components/time/time-preference-context";
-import { BarChart3, BookOpen, Globe2, Plus, X, Scale } from "lucide-react";
+import { Plus, X, Scale } from "lucide-react";
 import { workFetch } from "@erpx/feature-work_projection/lib/work-fetch";
 import { LegalApproval, LegalEditor } from "@erpx/feature-legal/components/legal-review";
 const LegalReports = dynamic(() => import("@erpx/feature-legal/components/legal-reports").then(module => module.LegalReports));
@@ -42,7 +42,6 @@ import {createLegalDocumentUploadClient} from '@erpx/feature-legal/lib/document-
 import { useState, useCallback, useEffect, useMemo, useRef, type FormEvent } from "react";
 import { OperationSummary } from "@erpx/workplace/components/operation-summary";
 import {
-  kinds,
   labels,
   fields,
   allowedTransitions,
@@ -231,7 +230,6 @@ export function LegalWorkspace({
       setBusy(false);
     }
   }
-  function select(k: LegalKind) {router.push(`${base}/legal?kind=${k}`,{scroll:false});}
 
   const total = data.counts.reduce((n, c) => n + c.count, 0),
     count = (states: string[]) =>
@@ -336,37 +334,6 @@ export function LegalWorkspace({
           </div>
         ))}
       </div>
-      <div className={s.toolBar} aria-label="Legal tools">
-        <span className={s.toolLabel}>Workspace tools</span>
-        {(
-          [
-            ["reports", "Reports", BarChart3],
-            ["knowledge", "Knowledge search", BookOpen],
-            ["thailand", "Thailand starter pack", Globe2],
-            ["laws", "Official law sources", BookOpen],
-            ["release", "Company readiness", Scale],
-          ] as const
-        )
-          .filter(
-            ([id]) =>
-              (id !== "thailand" || (can("create") && data.enabled)) &&
-              (id !== "release" || can("manage")),
-          )
-          .map(([id, label, Icon]) => (
-            <Button appearance="standard"
-              type="submit"
-              variant="ghost"
-              key={id}
-              className={s.toolButton}
-              aria-expanded={tool === id}
-              aria-controls="legal-tool-panel"
-              onClick={() => setTool(tool === id ? null : id)}
-            >
-              <Icon size={16} aria-hidden="true" />
-              {label}
-            </Button>
-          ))}
-      </div>
       {tool && (
         <section
           id="legal-tool-panel"
@@ -425,48 +392,7 @@ export function LegalWorkspace({
         </section>
       )}
       </>}
-      <div className={embedded ? "ui-stack" : s.layout}>
-        {!embedded && <nav className={s.nav} aria-label="Legal registers">
-          <span className={s.navLabel}>WORKSPACE</span>
-          <Button appearance="standard"
-            type="submit"
-            variant="ghost"
-            aria-current={workView === "mine"}
-            onClick={() => {
-              setWorkView("mine");
-              setSelected(null);
-              setCreating(false);
-              setEditing(false);
-            }}
-          >
-            My legal work
-          </Button>
-          <Button appearance="standard"
-            type="submit"
-            variant="ghost"
-            aria-current={workView === "deadlines"}
-            onClick={() => {
-              setWorkView("deadlines");
-              setSelected(null);
-              setCreating(false);
-              setEditing(false);
-            }}
-          >
-            Deadlines
-          </Button>
-          <span className={s.navLabel}>REGISTERS</span>
-          {kinds.filter(k=>!data.purchases||data.purchases[legalKindCapability(k)]?.history).map((k) => (
-            <Button appearance="standard"
-              type="submit"
-              variant="ghost"
-              key={k}
-              aria-current={workView === "register" && k === kind}
-              onClick={() => select(k)}
-            >
-              <span>{labels[k]}</span>
-            </Button>
-          ))}
-        </nav>}
+      <div className={embedded ? "ui-stack" : s.layout} style={embedded ? undefined : {gridTemplateColumns:"minmax(0,1fr)"}}>
         <Card as="section" appearance="standard" className={s.panel}>
           {(creating || editing) && (
             <ItemForm

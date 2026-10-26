@@ -3,9 +3,14 @@ import { guestInputSchema } from "@erpx/feature-pms/lib/pms-booking-domain";
 export type BookingEnv = {
     secret: string;
     origin: string;
+    holdingOrigins?: Readonly<Record<string,string>>;
     apiKey?: string;
     from?: string;
 };
+export function bookingPublicUrl(env:BookingEnv,slug:string,suffix:string){
+    const origin=env.holdingOrigins?.[slug];
+    return origin?`${origin}/book${suffix}`:`${env.origin}/book/${encodeURIComponent(slug)}${suffix}`;
+}
 export type BookingPaymentRow = {
     id: string;
     property_id: string;

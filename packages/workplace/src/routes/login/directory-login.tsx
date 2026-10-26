@@ -1,4 +1,6 @@
 "use client";
+import {holdingFetch} from '@erpx/contracts/holding-fetch';
+import {deviceAccountReturn} from "@erpx/server-identity_access/public/rules/device-account-return";
 import { InlineNotice } from "@erpx/ui/components/foundation";
 
 import { Button, Field, TextInput } from "@erpx/ui/components/foundation";
@@ -28,7 +30,7 @@ export function DirectoryLogin({
     setPending(true);
     setError("");
     try {
-      const response = await fetch(
+      const response = await holdingFetch(
         mode === "oidc" ? "/api/auth/sign-in/social" : "/api/auth/directory/sign-in",
         {
           method: "POST",
@@ -48,7 +50,7 @@ export function DirectoryLogin({
       if (!response.ok) throw new Error(r.message ?? "Directory sign-in failed.");
       if (r.url) window.location.assign(r.url);
       // The SSO exchange is single-use; do not follow it with RSC push/refresh.
-      else if(next.startsWith('/sso/authorize?')||accountWorkspaceLoginReturn(next)===next||legalEnrollmentReturnPath(next)===next)window.location.assign(next);
+      else if(next.startsWith('/sso/authorize?')||accountWorkspaceLoginReturn(next)===next||deviceAccountReturn(next)===next||legalEnrollmentReturnPath(next)===next)window.location.assign(next);
       else {
         router.push(next);
         router.refresh();

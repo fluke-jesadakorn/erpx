@@ -23,6 +23,8 @@ export function PeopleNavigation({
     | "roster"
     | "directory"
     | "users"
+    | "external"
+    | "unclassified"
     | "organization"
     | "access"
     | "payroll"
@@ -36,7 +38,9 @@ export function PeopleNavigation({
 }) {
   const ids: Record<typeof active, string> = {
     directory: "people-directory",
-    users: "people-users-access",
+    users: "people-external",
+    external: "people-external",
+    unclassified: "people-unclassified",
     evaluation: "people-evaluation",
     roster: "people-directory",
     organization: "people-directory",

@@ -1,3 +1,4 @@
+import {requestProductOrigin} from '@erpx/feature-runtime/lib/product-hosts';
 import {NextResponse} from 'next/server';
 import {productFrontLaunch} from '@erpx/server-identity_access/public/product-front-launch';
 import {productHostForHost,configuredProductOrigin} from '@erpx/feature-runtime/lib/product-hosts';
@@ -13,7 +14,7 @@ async function launch(request:Request){
  // POST failures retain their original status and never cross-host redirect.
  if(request.method==='GET'&&request.headers.get('accept')?.includes('text/html')&&[403,404].includes(response.status)&&audience){
   const query=new URL(request.url).searchParams,input=productWorkspaceTarget(audience,query.get('companyId'),query.get('next'));
-  const origin=configuredProductOrigin(audience);
+  const origin=requestProductOrigin(audience,request.headers);
   if(input&&origin)return NextResponse.redirect(new URL(productWorkRolePath(input,'access-changed'),origin),{status:303,headers:{'Cache-Control':'private, no-store','Referrer-Policy':'no-referrer'}});
  }
  return response;

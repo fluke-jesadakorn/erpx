@@ -7,6 +7,9 @@ import { officeApiAllowed, posStartupApiAllowed, posInitialPhysicalStockApiAllow
 export function productPageAllowed(host: ProductHostKey, pathname: string, method = "GET") {
   if (pathname === "/" || pathname.startsWith("/sso/")) return true;
   if (pathname === "/public/launch") return host === "portal" || host === "legal-portal";
+  if (pathname === "/account/continue") return host === "apps" || host === "admin" || product(host) !== undefined;
+  if (pathname === "/account/device-return") return host === "account";
+  if (["/api/v1/account/switcher-context", "/api/v1/account/role-selection"].includes(pathname)) return (host === "apps" || host === "admin" || product(host) !== undefined) && (pathname.endsWith("switcher-context") ? method === "GET" : method === "POST");
   if (pathname === "/legal-portal/continue") return host === "account";
   if (pathname === "/legal-portal/enroll") return host === "account" || host === "legal-portal";
   if (["/my-access", "/security", "/my-profile", "/account/launch"].includes(pathname)) return host === "account";
@@ -37,7 +40,6 @@ export function productPageAllowed(host: ProductHostKey, pathname: string, metho
     if (host === "forms") return pathname.startsWith("/api/public/marketing/") || /^\/api\/public\/holdings\/[^/]+\/media-publications\/[^/]+\/content$/.test(pathname);
     if (host === "account") return pathname.startsWith("/api/auth/") || pathname.startsWith("/api/v1/account/")
       || pathname === "/api/v1/account-invitations" || pathname === "/api/v1/join";
-    if (host === "apps") return pathname.startsWith("/api/auth/") || pathname === "/api/v1/account/work-context";
     // Front retains its independent daily parser after this transport boundary.
     // Do not expose Office API families merely because Front is a product host.
     if (product(host)?.shell === "front") {
@@ -56,7 +58,7 @@ export function productPageAllowed(host: ProductHostKey, pathname: string, metho
   if (host === "legal-portal") return /^\/legal-portal\/[^/]+(?:\/|$)/.test(pathname) || pathname === "/login";
   if (host === "forms") return /^\/forms\/[^/]+\/[^/]+\/?$/.test(pathname);
   if (host === "account") return ["/login", "/signup", "/activate", "/join", "/forgot-password", "/verify-email", "/reset-password", "/my-access", "/security", "/my-profile", "/account/launch"].includes(pathname);
-  if (host === "apps") return pathname === "/login";
+  if (pathname === "/applications") return host === "apps";
   if (pathname === "/login") return true;
   if (product(host)?.shell === "front") return pathname.startsWith("/holdings/")
     ? productFrontBackofficeAllowed(host, pathname, method) : true; // Native daily paths retain their separate parser.
@@ -68,7 +70,7 @@ export function productPageAllowed(host: ProductHostKey, pathname: string, metho
   if (host === "admin") return destination[0] === "administration"
     || parts[1] === "erpx" && ["erpx-management", "manage-erpx"].includes(parts[2]);
   const ownerPath = destination.join("/");
-  if (host === "work" && (socialPostSourceEntry(ownerPath) || workforceSelfServiceEntry(ownerPath))) return true;
+  if (host === "apps" && (socialPostSourceEntry(ownerPath) || workforceSelfServiceEntry(ownerPath))) return true;
   return destinationProduct(ownerPath) === host;
 }
 

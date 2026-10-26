@@ -2,8 +2,8 @@
   "version": 3,
   "environment": "development",
   "deliveryPlan": "docs/production-plan.md",
-  "sourceFingerprint": "e223add7025a5242bb2b64dcd328ac5adaade2fb899b23859081b2f892593c53",
-  "verificationFingerprint": "880031a9ec685dbe72c7884aa6f4eaa2577ac8e97b20e6fc6ab01823ce3006ce",
+  "sourceFingerprint": "694373975c70463027c72d43baea023b6cd3e86e2223b5ad41cf403b5ebb9d8a",
+  "verificationFingerprint": "26320e544960df2b9c3602e1438312de43b411088c907e89a0f67b1ae2823e05",
   "baseline": {
     "source": ".scratch/dev/product-migration-baseline-2026-10-14/",
     "privateAuthority": "read-only per-database snapshots; no secrets or personal authority rows in this register",
@@ -329,7 +329,8 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "identity_access.admin-workspace-smoke.e2e"
       ]
     },
     {
@@ -1325,7 +1326,11 @@
         "shared.attachments.specialized-attachment-media.unit",
         "shared.executive.executive-work-mcp.e2e",
         "shared.testing.workspace-graph.unit",
-        "shared.testing.postgres-templates.integration"
+        "shared.testing.postgres-templates.integration",
+        "shared.testing.workspace-supervisor.unit",
+        "identity_access.workspace-hmr.e2e",
+        "identity_access.admin-workspace-smoke.e2e",
+        "identity_access.holding-addresses.integration"
       ]
     },
     {
@@ -1754,7 +1759,8 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "identity_access.holding-addresses.integration"
       ]
     },
     {
@@ -3081,7 +3087,9 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "customer_authority.portal-workspace-smoke.e2e",
+        "shared.ui.application-hmr.e2e"
       ]
     },
     {
@@ -3553,7 +3561,9 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "support.workspace-smoke.e2e",
+        "shared.ui.application-hmr.e2e"
       ]
     },
     {
@@ -4324,7 +4334,10 @@
         "finance.finance-operations-attachment-policy.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
         "shared.attachments.specialized-attachment-media.unit",
-        "shared.testing.workspace-graph.unit"
+        "shared.testing.workspace-graph.unit",
+        "shared.testing.workspace-supervisor.unit",
+        "finance.workspace-smoke.e2e",
+        "shared.ui.application-hmr.e2e"
       ]
     },
     {
@@ -4753,7 +4766,9 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "pms.pos-workspace-smoke.e2e",
+        "shared.ui.application-hmr.e2e"
       ]
     },
     {
@@ -5185,7 +5200,9 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "sales.workspace-smoke.e2e",
+        "shared.ui.application-hmr.e2e"
       ]
     },
     {
@@ -5601,7 +5618,9 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "assets.workspace-smoke.e2e",
+        "shared.ui.application-hmr.e2e"
       ]
     },
     {
@@ -6507,14 +6526,14 @@
     },
     {
       "moduleId": "operations",
-      "placement": "work",
+      "placement": "apps",
       "packages": [
         "work",
         "work-routines"
       ],
       "packageMappingPurpose": "traceability only; does not authorize a grant or dependency management UI",
       "landing": "home",
-      "productOrigin": "https://work-dev-erpx.jesadakorn.com",
+      "productOrigin": "https://apps-dev-erpx.jesadakorn.com",
       "jobs": [
         "packages/server-operations/src/adapters/people-lifecycle-worker-effects.ts",
         "packages/server-operations/src/public/people-lifecycle-worker-effects.ts",
@@ -6535,7 +6554,7 @@
             "packages/feature-operations/src/components/operations-console.tsx"
           ],
           "apis": [
-            "packages/feature-work/src/routes/api/v1/holdings/[holdingSlug]/operations/route.ts"
+            "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/operations/route.ts"
           ],
           "services": [
             "packages/server-operations/src/public/operations-exceptions.ts"
@@ -6583,7 +6602,7 @@
             "packages/feature-operations/src/components/operations-console.tsx"
           ],
           "apis": [
-            "packages/feature-work/src/routes/api/v1/holdings/[holdingSlug]/operations/route.ts"
+            "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/operations/route.ts"
           ],
           "services": [
             "packages/server-operations/src/public/operations-exceptions.ts"
@@ -6630,7 +6649,7 @@
             "packages/feature-operations/src/components/operations-console.tsx"
           ],
           "apis": [
-            "packages/feature-work/src/routes/api/v1/holdings/[holdingSlug]/operations/route.ts"
+            "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/operations/route.ts"
           ],
           "services": [
             "packages/server-operations/src/public/operations-exceptions.ts"
@@ -6678,7 +6697,7 @@
             "packages/feature-operations/src/components/operations-console.tsx"
           ],
           "apis": [
-            "packages/feature-work/src/routes/api/v1/holdings/[holdingSlug]/operations/route.ts"
+            "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/operations/route.ts"
           ],
           "services": [
             "packages/server-operations/src/public/operations-exceptions.ts"
@@ -6726,7 +6745,7 @@
             "packages/feature-operations/src/components/operations-console.tsx"
           ],
           "apis": [
-            "packages/feature-work/src/routes/api/v1/holdings/[holdingSlug]/operations/route.ts"
+            "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/operations/route.ts"
           ],
           "services": [
             "packages/server-operations/src/public/operations-exceptions.ts"
@@ -6774,7 +6793,7 @@
             "packages/feature-operations/src/components/operations-console.tsx"
           ],
           "apis": [
-            "packages/feature-work/src/routes/api/v1/holdings/[holdingSlug]/operations/route.ts"
+            "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/operations/route.ts"
           ],
           "services": [
             "packages/server-operations/src/public/operations-exceptions.ts"
@@ -6980,7 +6999,12 @@
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
         "shared.attachments.specialized-attachment-media.unit",
-        "shared.executive.executive-work-mcp.e2e"
+        "shared.executive.executive-work-mcp.e2e",
+        "shared.testing.workspace-graph.unit",
+        "operations.workspace-smoke.e2e",
+        "shared.work.product-workspace-hmr.e2e",
+        "operations.work-social-api.unit",
+        "shared.ui.application-hmr.e2e"
       ]
     },
     {
@@ -7388,7 +7412,9 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "procurement.workspace-smoke.e2e",
+        "shared.ui.application-hmr.e2e"
       ]
     },
     {
@@ -8175,7 +8201,11 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "legal.file-destruction-ports.unit",
+        "legal.workspace-smoke.e2e",
+        "legal.legal-portal-workspace-smoke.e2e",
+        "shared.ui.application-hmr.e2e"
       ]
     },
     {
@@ -8696,7 +8726,11 @@
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
         "shared.attachments.specialized-attachment-media.unit",
-        "shared.executive.executive-work-mcp.e2e"
+        "shared.executive.executive-work-mcp.e2e",
+        "shared.testing.workspace-graph.unit",
+        "people_payroll.workspace-smoke.e2e",
+        "shared.work.product-workspace-hmr.e2e",
+        "shared.ui.application-hmr.e2e"
       ]
     },
     {
@@ -9552,7 +9586,9 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "marketing.forms-workspace-smoke.e2e",
+        "shared.ui.application-hmr.e2e"
       ]
     },
     {
@@ -10019,7 +10055,9 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "manufacturing.workspace-smoke.e2e",
+        "shared.ui.application-hmr.e2e"
       ]
     },
     {
@@ -10886,7 +10924,9 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "projects.workspace-smoke.e2e",
+        "shared.ui.application-hmr.e2e"
       ]
     },
     {
@@ -12121,7 +12161,9 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "learning.workspace-smoke.e2e",
+        "learning.workspace-hmr.e2e"
       ]
     },
     {
@@ -12585,7 +12627,10 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "shared.testing.workspace-graph.unit",
+        "talent.workspace-smoke.e2e",
+        "shared.work.product-workspace-hmr.e2e"
       ]
     },
     {
@@ -13061,7 +13106,9 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "field_service.workspace-smoke.e2e",
+        "shared.ui.application-hmr.e2e"
       ]
     },
     {
@@ -13558,14 +13605,14 @@
     },
     {
       "moduleId": "collaboration",
-      "placement": "work",
+      "placement": "apps",
       "packages": [
         "work-social",
         "work-messages"
       ],
       "packageMappingPurpose": "traceability only; does not authorize a grant or dependency management UI",
       "landing": "home",
-      "productOrigin": "https://work-dev-erpx.jesadakorn.com",
+      "productOrigin": "https://apps-dev-erpx.jesadakorn.com",
       "jobs": [
         "packages/server-runtime/src/adapters/runtime/jobs.ts",
         "packages/server-runtime/src/public/runtime/jobs.ts",
@@ -13583,7 +13630,7 @@
             "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/home/screen.tsx"
           ],
           "apis": [
-            "packages/feature-work/src/routes/api/v1/holdings/[holdingSlug]/feed/route.ts"
+            "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/feed/route.ts"
           ],
           "services": [
             "packages/server-collaboration/src/public/social.ts"
@@ -13629,7 +13676,7 @@
             "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/home/screen.tsx"
           ],
           "apis": [
-            "packages/feature-work/src/routes/api/v1/holdings/[holdingSlug]/feed/route.ts"
+            "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/feed/route.ts"
           ],
           "services": [
             "packages/server-collaboration/src/public/social.ts"
@@ -13675,7 +13722,7 @@
             "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/feed/screen.tsx"
           ],
           "apis": [
-            "packages/feature-work/src/routes/api/v1/holdings/[holdingSlug]/feed/route.ts"
+            "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/feed/route.ts"
           ],
           "services": [
             "packages/server-collaboration/src/public/social.ts"
@@ -13721,7 +13768,7 @@
             "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/feed/screen.tsx"
           ],
           "apis": [
-            "packages/feature-work/src/routes/api/v1/holdings/[holdingSlug]/feed/route.ts"
+            "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/feed/route.ts"
           ],
           "services": [
             "packages/server-collaboration/src/public/social.ts"
@@ -13766,7 +13813,7 @@
             "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/feed/screen.tsx"
           ],
           "apis": [
-            "packages/feature-work/src/routes/api/v1/holdings/[holdingSlug]/feed/route.ts"
+            "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/feed/route.ts"
           ],
           "services": [
             "packages/server-collaboration/src/public/social.ts"
@@ -13811,7 +13858,7 @@
             "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/inbox/screen.tsx"
           ],
           "apis": [
-            "packages/feature-work/src/routes/api/v1/holdings/[holdingSlug]/messaging/[[...path]]/route.ts"
+            "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/messaging/[[...path]]/route.ts"
           ],
           "services": [
             "packages/server-collaboration/src/public/messaging-files.ts"
@@ -13857,7 +13904,7 @@
             "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/collaboration/screen.tsx"
           ],
           "apis": [
-            "packages/feature-work/src/routes/api/v1/holdings/[holdingSlug]/collaboration/route.ts"
+            "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/collaboration/route.ts"
           ],
           "services": [
             "packages/server-collaboration/src/public/collaboration-work.ts"
@@ -13902,7 +13949,7 @@
             "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/collaboration/screen.tsx"
           ],
           "apis": [
-            "packages/feature-work/src/routes/api/v1/holdings/[holdingSlug]/collaboration/route.ts"
+            "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/collaboration/route.ts"
           ],
           "services": [
             "packages/server-collaboration/src/public/collaboration-work.ts"
@@ -14111,7 +14158,8 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "operations.work-social-api.unit"
       ]
     },
     {
@@ -14846,7 +14894,10 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "pms.pms-workspace-smoke.e2e",
+        "pms.booking-workspace-smoke.e2e",
+        "shared.ui.application-hmr.e2e"
       ]
     },
     {
@@ -15230,16 +15281,16 @@
   "productWorkflows": [
     {
       "id": "work:company-executive-and-scoped-mcp",
-      "product": "work",
+      "product": "apps",
       "owner": "runtime",
       "pages": [
-        "packages/feature-work/src/routes/holdings/[holdingSlug]/insights/executive/page.tsx",
-        "packages/feature-work/src/routes/holdings/[holdingSlug]/insights/executive/reports/[reportId]/page.tsx"
+        "packages/feature-apps/src/routes/holdings/[holdingSlug]/insights/executive/page.tsx",
+        "packages/feature-apps/src/routes/holdings/[holdingSlug]/insights/executive/reports/[reportId]/page.tsx"
       ],
       "apis": [
-        "packages/feature-work/src/routes/api/v1/holdings/[holdingSlug]/executive/[[...path]]/route.ts",
-        "packages/feature-work/src/routes/api/v1/holdings/[holdingSlug]/executive/connections/route.ts",
-        "packages/feature-work/src/routes/api/mcp/executive/route.ts"
+        "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/executive/[[...path]]/route.ts",
+        "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/executive/connections/route.ts",
+        "packages/feature-apps/src/routes/api/mcp/executive/route.ts"
       ],
       "services": [
         "packages/server-runtime/src/adapters/executive/reports.ts",
@@ -15254,7 +15305,7 @@
         "tests/integration/shared.executive/executive-mcp.test.ts",
         "tests/e2e/shared.executive/executive-work-mcp.spec.ts"
       ],
-      "origin": "https://work-dev-erpx.jesadakorn.com",
+      "origin": "https://apps-dev-erpx.jesadakorn.com",
       "acceptance": {
         "implemented": {
           "state": "source-changed",
@@ -15470,7 +15521,8 @@
         }
       ],
       "pages": [
-        "packages/workplace/src/routes/product-entry/page.tsx",
+        "packages/workplace/src/entries/workspace.tsx",
+        "apps/launcher/src/app/applications/page.tsx",
         "packages/workplace/src/routes/choose-work-role/page.tsx"
       ],
       "apis": [

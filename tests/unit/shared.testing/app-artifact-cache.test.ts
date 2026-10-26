@@ -97,7 +97,7 @@ async function combinedReleaseFixture() {
 it('verifies all 22 relocated apps plus gateway/jobs and refuses development evidence as a frozen candidate',async()=>{
  const f=await combinedReleaseFixture();try{
   const {verifyWorkspaceRelease}=await import('../../../scripts/local/workspace-release-manifest');
-  expect(Object.keys((await verifyWorkspaceRelease(f.root)).apps)).toHaveLength(22);
+  expect(Object.keys((await verifyWorkspaceRelease(f.root)).apps)).toHaveLength(21);
   await expect(verifyWorkspaceRelease(f.root,{frozen:true})).rejects.toThrow('EXACT_COMBINED_RELEASE_REQUIRED');
   await expect(verifyWorkspaceRelease(f.root,{candidate:'c'.repeat(40)})).rejects.toThrow('EXACT_COMBINED_RELEASE_REQUIRED');
   await writeFile(join(f.root,'apps/finance/entry.mjs'),'tampered');

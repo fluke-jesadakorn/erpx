@@ -10,10 +10,13 @@
     "lint": "bun ../../scripts/testing/scoped-lint.ts --app=apps"
   },
   "dependencies": {
+    "@erpx/feature-apps": "workspace:*",
+    "@erpx/server-work_projection": "workspace:*",
     "@erpx/workplace": "workspace:*",
     "next": "16.4.3",
     "react": "19.3.1",
     "react-dom": "19.3.1",
-    "@erpx/contracts": "workspace:*"
+    "@erpx/contracts": "workspace:*",
+    "@erpx/server-identity_access": "workspace:*"
   }
 }

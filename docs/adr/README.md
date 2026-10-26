@@ -67,3 +67,7 @@ Historical Rust terms and dated rollout evidence in older decisions apply to tha
 - [ADR-048 — Ticket-bound Support Portal](ADR-048-ticket-bound-support-portal.md)
 
 - [ADR-049 — Product app workspaces and development verification](ADR-049-product-app-workspaces-and-development-verification.md)
+
+| [ADR-050: Apps Feed and Work retirement](ADR-050-apps-feed-and-work-retirement.md) | Accepted for development; Cloudflare retirement requires current administration access. |
+
+- [ADR-051: Holding addresses and workspace paths](ADR-051-holding-addresses-and-workspace-paths.md) — development host identity, explicit scope and shared app namespaces.

@@ -1,3 +1,4 @@
+import {reservedWorkspaceSlug} from '@erpx/contracts/holding-hosts';
 import {z} from 'zod';
 import {BusinessRuleError} from '@erpx/server-shared/index';
 import type {OrganizationTemplatePosition} from "@erpx/server-organization/public/rules/organization-domain";
@@ -17,7 +18,7 @@ export const organizationNodeChangeSchema=z.object({
   displayName:z.string().trim().min(2).max(120),branchId:z.string().min(1).nullable().default(null),
   expectedNodeVersion:z.number().int().positive().nullable().default(null),expectedVersion:z.number().int().min(0),reason:z.string().trim().min(3).max(1000),
   previewSnapshot:z.string().regex(/^[a-f0-9]{64}$/).optional(),
-});
+}).superRefine((input,context)=>{if(input.action==='create'&&input.slug&&reservedWorkspaceSlug(input.slug))context.addIssue({code:'custom',path:['slug'],message:'Choose a workspace slug distinct from applications and system routes.'});});
 export const organizationNodeDecisionSchema=z.object({expectedVersion:z.number().int().positive(),decision:z.enum(["approve","reject"]),reason:z.string().trim().min(3).max(1000),attachmentSetIds:z.array(z.string().min(1)).max(20).optional()});
 export const organizationChangeFiltersSchema=z.object({
   changeId:z.string().trim().min(1).max(200).nullable().catch(null),

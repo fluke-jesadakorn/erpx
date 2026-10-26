@@ -1,7 +1,7 @@
 import Link from "@erpx/workplace/components/workspace-link";
 import type { ReactNode } from "react";
 import { PageContent } from "@erpx/ui/components/foundation";
-import { hubHref, salesViews, customersViews, type HubQuery } from "@erpx/server-sales/public/rules/navigation";
+import { hubHref, type HubQuery } from "@erpx/server-sales/public/rules/navigation";
 import styles from "@erpx/feature-sales/components/customers/hub.module.css";
 import {canonicalUiHref} from "@erpx/feature-work_projection/lib/destination-registry";
 
@@ -9,7 +9,6 @@ export function HubShell({ base, hub, view, access, actions, children, reviewCou
   base: string; hub: "sales" | "customers"; view: string;
   access: Record<string, boolean>; actions?: ReactNode; children: ReactNode; reviewCount?: number | null;
 }) {
-  const tabs = hub === "sales" ? salesViews : customersViews;
   return <PageContent className={styles.workspace}>
     <header className={styles.header}>
       <div><p className={styles.eyebrow}>Customers &amp; sales</p><h1>{hub === "sales" ? "Sales" : "Customers"}</h1><p className={styles.description}>{hub === "sales" ? "Move the next conversation and sale forward." : "Keep customer information, conversations and service connected."}</p></div>
@@ -20,9 +19,6 @@ export function HubShell({ base, hub, view, access, actions, children, reviewCou
         {actions}
       </div>
     </header>
-    <nav className={styles.tabs} aria-label={`${hub === "sales" ? "Sales" : "Customers"} views`}>
-      {tabs.filter(([id]) => access[id]).map(([id, label]) => <Link key={id} href={hubHref(base, hub, { view: id })} aria-current={view === id ? "page" : undefined}>{label}</Link>)}
-    </nav>
     <div className={styles.content}>{children}</div>
   </PageContent>;
 }

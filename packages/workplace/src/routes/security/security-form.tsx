@@ -1,4 +1,5 @@
 "use client";
+import {holdingFetch} from '@erpx/contracts/holding-fetch';
 import { InlineNotice } from "@erpx/ui/components/foundation";
 
 import { Button, Field, TextArea, TextInput } from "@erpx/ui/components/foundation";
@@ -29,7 +30,7 @@ export function AccountSecurity({initialEmergency}:{initialEmergency?:Awaited<Re
     setEmergencyLoading(true);
     setEmergencyError("");
     try {
-      const r = await fetch("/api/v1/account/iam/emergency/active", {
+      const r = await holdingFetch("/api/v1/account/iam/emergency/active", {
           cache: "no-store",
         }),
         v = await r.json();
@@ -45,7 +46,7 @@ export function AccountSecurity({initialEmergency}:{initialEmergency?:Awaited<Re
   useEffect(() => {
     if(initialEmergency!==undefined)return;
     let current = true;
-    void fetch("/api/v1/account/iam/emergency/active", { cache: "no-store" })
+    void holdingFetch("/api/v1/account/iam/emergency/active", { cache: "no-store" })
       .then(async (r) => {
         const v = await r.json();
         if (!r.ok) throw new Error(v.error?.message ?? "Unable to load temporary access.");
@@ -81,7 +82,7 @@ export function AccountSecurity({initialEmergency}:{initialEmergency?:Awaited<Re
       }
     }
     try {
-      const r = await fetch("/api/v1/account/iam/" + path, {
+      const r = await holdingFetch("/api/v1/account/iam/" + path, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

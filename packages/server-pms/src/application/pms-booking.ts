@@ -4,7 +4,7 @@ import { bookingOffers as evaluateOffers, bookingQuote as evaluateQuote, collect
 import { availability as evaluateAvailability } from "@erpx/feature-pms/lib/pms-inventory-domain";
 import { record, records, type Kind, type Property, type Snapshot } from "@erpx/server-pms/domain/pms";
 import { executePms, PmsError, type Effects } from "@erpx/feature-pms/lib/pms-engine";
-import { publicReservationSchema, type BookingEnv, type BookingPaymentRow, type PaymentAllocation } from "@erpx/server-pms/domain/booking";
+import { publicReservationSchema, bookingPublicUrl, type BookingEnv, type BookingPaymentRow, type PaymentAllocation } from "@erpx/server-pms/domain/booking";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { Clock } from "@erpx/server-shared/application/ports";
 import type { CapabilityPurpose } from "@erpx/server-commercial/public/rules/packages";
@@ -505,7 +505,7 @@ export function createPmsBooking<Effect extends PmsBookingEffect>(ports: {
     async function queueMail(db: PmsBookingUnit<Effect>, s: Snapshot, reservationId: string, slug: string, kind: "confirmation" | "cancellation" | "access" | "change" | "refund", env: BookingEnv, now: number) {
         const { id, token } = await issueBookingToken(db, s.property.id, reservationId, env, now);
         const b = bookingSummary(s, reservationId, now);
-        const link = `${env.origin}/book/${encodeURIComponent(slug)}/manage#token=${encodeURIComponent(token)}`;
+        const link = bookingPublicUrl(env,slug,`/manage#token=${encodeURIComponent(token)}`);
         const subject = `${b.hotel.name} · ${kind === "cancellation" ? "Cancellation" : kind === "access" ? "Booking access" : kind === "change" ? "Booking updated" : kind === "refund" ? "Refund confirmed" : "Booking confirmation"} ${b.number}`;
         const payload = {
             from: env.from,
@@ -657,7 +657,7 @@ export function createPmsBooking<Effect extends PmsBookingEffect>(ports: {
             const guest = await db.readPmsRecords1({ reservation_id: row.reservation_id, property_id: row.property_id });
             if (!guest?.email)
                 throw ports.error(409, 'PMS_GUEST_EMAIL_REQUIRED', 'Guest email is required for booking payment');
-            const success = `${env.origin}/book/${encodeURIComponent(slug)}/${encodeURIComponent(row.property_id)}?attempt=${encodeURIComponent(token)}`;
+            const success = bookingPublicUrl(env,slug,`/${encodeURIComponent(row.property_id)}?attempt=${encodeURIComponent(token)}`);
             const session = await ports.stripeCall(Boolean(row.livemode), 'checkout/sessions', { method: 'POST', account: row.account_id, key: `pms-booking-${id}`, body: { mode: 'payment', customer_email: guest.email, ...Object.fromEntries((parseGuestAccountJson(row.methods_json) as string[]).map((method, index) => [`payment_method_types[${index}]`, method])), 'line_items[0][price_data][currency]': 'thb', 'line_items[0][price_data][unit_amount]': String(row.amount_minor), 'line_items[0][price_data][product_data][name]': 'Hotel reservation', 'line_items[0][quantity]': '1', 'metadata[pms_booking_payment_id]': id, 'payment_intent_data[metadata][pms_booking_payment_id]': id, success_url: success, cancel_url: success, expires_at: String(Math.floor((Number(row.expires_at) + 60000) / 1000)) } });
             if (typeof session.url !== 'string' || new URL(session.url).hostname !== 'checkout.stripe.com')
                 throw ports.error(502, 'PMS_CHECKOUT_URL_INVALID', 'Stripe did not return a valid checkout URL');

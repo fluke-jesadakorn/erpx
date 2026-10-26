@@ -271,7 +271,8 @@
     "./domain/organization": "./src/domain/organization.ts",
     "./domain/position-moves": "./src/domain/position-moves.ts",
     "./domain/department-decisions": "./src/domain/department-decisions.ts",
-    "./domain/organization-work": "./src/domain/organization-work.ts"
+    "./domain/organization-work": "./src/domain/organization-work.ts",
+    "./public/workspace-route-company": "./src/public/workspace-route-company.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

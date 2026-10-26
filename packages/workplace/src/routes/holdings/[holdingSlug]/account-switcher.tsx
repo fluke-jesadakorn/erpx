@@ -13,6 +13,7 @@ import { useHydrated } from "@erpx/ui/components/use-hydrated";
 import { useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, LogIn, LogOut, Plus, UserRound } from "lucide-react";
 import styles from "@erpx/workplace/components/account.module.css";
+import {ProductAccountTrigger,useProductAccount} from '@erpx/workplace/components/product-account-provider';
 import { Appearance } from "@erpx/workplace/components/workplace-controls";
 import { leavePushSession } from "@erpx/feature-shared/lib/push-client";
 import { useContextSwitch } from "@erpx/workplace/components/context-switch-provider";
@@ -39,7 +40,12 @@ type Props = {
   theme: string;
 };
 
-export function AccountSwitcher({
+export function AccountSwitcher(props:Props){
+  const productAccount=useProductAccount();
+  if(productAccount)return <ProductAccountTrigger companyId={props.companyId} workspaceBase={props.workspaceBase} roleLabel={props.assignments?.find(option=>option.id===props.preferredAssignmentId)?.label??props.assignments?.find(option=>option.id===props.preferredAssignmentId)?.role.replaceAll('_',' ')}/>;
+  return <LegacyAccountSwitcher {...props}/>;
+}
+function LegacyAccountSwitcher({
   accountNavigation = false,
   appearance = "legacy",
   workspaceBase,

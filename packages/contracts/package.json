@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./holding-hosts": "./src/holding-hosts.ts",
+    "./holding-fetch": "./src/holding-fetch.ts",
     "./workforce-self-service-entry": "./src/workforce-self-service-entry.ts",
     "./ownership.json": "./src/ownership.json",
     "./work-social-api": "./src/work-social-api.ts",

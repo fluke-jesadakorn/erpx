@@ -4,57 +4,24 @@ import { ActionLink as UiActionLink } from "@erpx/ui/components/foundation";
 
 import { Button } from "@erpx/ui/components/foundation";
 
-import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
 import { usePathname } from "next/navigation";
 import { useSearchParams } from "@erpx/feature-shared/lib/destination-search";
 import type { ReactNode } from "react";
-import { ChevronDown, Settings2, Sparkles } from "lucide-react";
+import { Settings2, Sparkles } from "lucide-react";
 import { useFeatureNavigation } from "@erpx/feature-shared/components/features/feature-page";
 import {
   financeAreaForDestination,
-  financeAreaItems,
   financeAreas,
-  financeContextHref,
   financeDestinations,
   financeDestinationForRoute,
   financeNavigation,
-  financeRootItems,
   financeSidebarId,
 } from "@erpx/feature-finance/lib/finance-navigation";
 import { FinanceAiPanel } from "@erpx/feature-finance/components/finance-ai-panel";
 import styles from "@erpx/feature-finance/components/finance-workspace.module.css";
 import { FinancePurchaseProvider } from "@erpx/feature-finance/components/purchase-context";
 import { financeActionAllowed, type FinancePurchaseControls } from "@erpx/server-finance/public/rules/purchase-controls";
-import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 
-const legacyIds = [
-  "finance-overview",
-  "finance-sales",
-  "finance-receivables",
-  "finance-expenses",
-  "finance-payables",
-  "finance-bank",
-  "finance-hotels",
-  "finance-ledger",
-  "finance-tax",
-  "finance-close",
-  "finance-reports",
-  "finance-engines",
-  "finance-group",
-  "finance-setup",
-];
-const legacyLabels: Record<string, string> = {
-  "finance-overview": "My work",
-  "finance-expenses": "Employee expenses",
-  "finance-bank": "Cash & banking",
-  "finance-hotels": "Hotel accounting",
-  "finance-ledger": "Accounting",
-  "finance-tax": "Tax",
-  "finance-reports": "Reports",
-  "finance-engines": "Calculation engines",
-  "finance-group": "Group reporting",
-  "finance-setup": "Setup",
-};
 const legacyActive: Record<string, string> = {
   work: "finance-overview",
   receivables: "finance-receivables",
@@ -109,8 +76,6 @@ export function FinanceChrome({
 }: FinanceChromeProps) {
   const actions = !actionsPurpose || financeActionAllowed(purchases, actionsPurpose) ? suppliedActions : undefined;
   const context = useFeatureNavigation();
-  const expenseNavigationActor = { role: context.role ?? "employee", permissions: context.permissions, assignmentScope: context.scopeKind };
-  const canReadExpenses = hasPermission(expenseNavigationActor, "expense.read") || hasPermission(expenseNavigationActor, "expense.review.read");
   const pathname = usePathname();
   const query = useSearchParams();
   if (!context.financeWorkspaceV2)
@@ -124,20 +89,6 @@ export function FinanceChrome({
           </div>
           {actions}
         </header>
-        <nav className={styles.nav} aria-label="Finance work areas">
-          {legacyIds.filter(id => id !== "finance-expenses" || canReadExpenses).map((id) => {
-            const destination = financeDestinations.find((entry) => entry.id === id)!;
-            return (
-              <Link
-                key={id}
-                href={canonicalUiHref(`${base}/${destination.route}`)}
-                data-active={legacyActive[active] === id || undefined}
-              >
-                {legacyLabels[id] ?? destination.label}
-              </Link>
-            );
-          })}
-        </nav>
         {children}
       </div></FinancePurchaseProvider>
     );
@@ -152,18 +103,8 @@ export function FinanceChrome({
     resolved.activeId = active === "payables" ? "finance-payables" : "finance-receivables";
   resolved.sidebarId = financeSidebarId(resolved.activeId);
   const area = financeAreaForDestination(resolved.activeId);
-  const tabs = financeAreaItems(items, area);
-  const roots = financeRootItems(items);
   const areaLabel = financeAreas.find((entry) => entry.id === area)?.label ?? "Setup";
-  const tools = items.filter((item) =>
-    financeDestinations.some(
-      (destination) => destination.id === item.id && destination.area === area && destination.tool,
-    ),
-  );
   const setup = items.find((item) => item.id === "finance-setup");
-  const linkContext = new URLSearchParams(query.toString());
-  if (financialContext) linkContext.set("chart", financialContext.chartId);
-  const href = (value: string) => financeContextHref(value, linkContext);
 
   return (
     <FinancePurchaseProvider purchases={purchases} sourceHistory={sourceHistory}><div
@@ -201,7 +142,7 @@ export function FinanceChrome({
             <UiActionLink appearance="standard"
               variant="ghost"
               className={styles.iconAction}
-              href={href(setup.href)}
+              href={canonicalUiHref(setup.href)}
               aria-label="Finance setup"
               title="Finance setup"
             >
@@ -210,53 +151,6 @@ export function FinanceChrome({
           )}
         </div>
       </header>
-      <details className={styles.areaPicker}>
-        <summary>
-          {areaLabel}
-          <ChevronDown size={16} aria-hidden="true" />
-        </summary>
-        <nav aria-label="Finance areas">
-          {roots.map((item) => (
-            <Link
-              href={href(item.href)}
-              key={item.id}
-              aria-current={resolved.sidebarId === item.id ? "page" : undefined}
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-      </details>
-      {(tabs.length > 1 || tools.length > 0) && (
-        <div className={styles.localBar}>
-          <nav className={styles.localNav} aria-label={`${areaLabel} views`}>
-            {tabs.map((item) => (
-              <Link
-                href={href(item.href)}
-                key={item.id}
-                aria-current={resolved.activeId === item.id ? "page" : undefined}
-              >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-          {tools.length > 0 && (
-            <details className={styles.tools}>
-              <summary>
-                {area === "accounting" ? "Accounting tools" : area === "cash" ? "Payment tools" : `${areaLabel} tools`}
-                <ChevronDown size={15} aria-hidden="true" />
-              </summary>
-              <div>
-                {tools.map((item) => (
-                  <Link href={href(item.href)} key={item.id}>
-                    {item.label}
-                  </Link>
-                ))}
-              </div>
-            </details>
-          )}
-        </div>
-      )}
       {(context.scopeKind ?? "holding") === "holding" && area !== "setup" && (
         <FinanceAiPanel
           base={base}

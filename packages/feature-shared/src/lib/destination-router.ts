@@ -2,7 +2,7 @@
 import { useRouter as useNextRouter } from 'next/navigation';
 import { canonicalUiHref } from '@erpx/feature-work_projection/lib/destination-registry';
 import {useProductNavigationScope} from "@erpx/workplace/components/product-link-context";
-import {productNavigationHref,isProductHandoffHref,type ProductNavigationScope} from "@erpx/feature-work_projection/lib/product-navigation";
+import {productNavigationHref,type ProductNavigationScope} from "@erpx/feature-work_projection/lib/product-navigation";
 import {hasUnsavedWork} from "@erpx/feature-work_projection/lib/context-switch";
 import {useCallback,useMemo} from 'react';
 export function destinationHref(href:string,scope:ProductNavigationScope={audience:null},options:{preserveQuery?:boolean}={}) {
@@ -18,7 +18,9 @@ export function useRouter() {
  const router=useNextRouter(),scope=useProductNavigationScope();
  const navigate=useCallback((method:"push"|"replace",href:string,options?:Parameters<typeof router.push>[1],preserveQuery=false)=>{
   const target=destinationHref(href,scope,{preserveQuery});
-  if(scope.audience&&isProductHandoffHref(target)&&hasUnsavedWork()){window.dispatchEvent(new CustomEvent("erpx:product-navigate",{detail:{href:target}}));return;}
+  const handoff=productNavigationHref(href,scope).handoff;
+  if(scope.audience&&handoff&&hasUnsavedWork()){window.dispatchEvent(new CustomEvent("erpx:product-navigate",{detail:{href:target}}));return;}
+  if(scope.holdingSlug&&handoff){window.location[method==='replace'?'replace':'assign'](target);return;}
   router[method](target,options);
  },[router,scope]);
  return useMemo(()=>({...router,push:(href:string,options?:Parameters<typeof router.push>[1])=>navigate("push",href,options),replace:(href:string,options?:Parameters<typeof router.replace>[1])=>navigate("replace",href,options),pushPreservingQuery:(href:string,options?:Parameters<typeof router.push>[1])=>navigate("push",href,options,true)}),[router,navigate]);

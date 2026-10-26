@@ -1,3 +1,4 @@
+import {ssoAudienceForHost} from '@erpx/feature-runtime/lib/product-hosts';
 import 'server-only';
 import {productHostForHost} from '@erpx/feature-runtime/lib/product-hosts';
 import {currentSession} from '@erpx/server-identity_access/public/authorization';
@@ -13,7 +14,7 @@ import {portalCommand} from '@erpx/server-legal/adapters/legal/portal';
 export async function legalPortalCommandRequest(holdingSlug:string,raw:unknown,key:string){
  const {session,requestHeaders}=await currentSession(),actor=legalPortalActor(session.user,session.session.id,(status,code,message)=>new ApiError(status,code,message));
  const image=()=>JSON.stringify({session,headers:[...requestHeaders.entries()]}),captured=image();
- return withCurrentPrivateSessionRead({userId:actor.userId,email:actor.email,sessionId:actor.sessionId,audience:productHostForHost(requestHeaders.get('host'))},async assertSession=>{
+ return withCurrentPrivateSessionRead({userId:actor.userId,email:actor.email,sessionId:actor.sessionId,audience:ssoAudienceForHost(requestHeaders.get('host'))},async assertSession=>{
   const assertCurrent=async()=>{if(image()!==captured)throw new ApiError(401,'SESSION_REVOKED','The shared Legal command sign-in changed.');await assertSession();};
   const binding=await holdingBindingBySlug(holdingSlug),resources=await holdingResources(binding.id);
   if(!(resources.write instanceof PostgresDatabase))throw new ApiError(503,'LEGAL_PORTAL_TRANSACTION_REQUIRED','The shared Legal command requires its original Holding owner.');

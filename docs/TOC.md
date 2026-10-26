@@ -1,10 +1,14 @@
 # ERPX documentation index
 
+Current address contract: [Holding → workspace → app](contracts/next/holding-addresses.md), [ADR-051](adr/ADR-051-holding-addresses-and-workspace-paths.md), [development runbook](../ops/macos/holding-development.md) and [live infrastructure receipt](../ops/macos/holding-development-live.json).
+
 Reviewed 2026-10-23. This is the single entry point. [Production plan](production-plan.md) owns delivery scope; contracts own current behavior; recorded evidence identifies the source, environment and date it actually verified.
 
 ## Current system
 
-- [Product separation: registry, packages and SSO implementation boundary](contracts/next/product-separation.md), [22-host desired-state manifest](contracts/next/product-registry.generated.json), [development rollout/rollback](../ops/macos/product-development.md)
+- [Apps Feed and Work retirement](adr/ADR-050-apps-feed-and-work-retirement.md).
+
+- [Product separation: registry, packages and SSO implementation boundary](contracts/next/product-separation.md), [21-host desired-state manifest](contracts/next/product-registry.generated.json), [development rollout/rollback](../ops/macos/product-development.md)
 - [Development Commercial permission-evidence checkpoint](testing/commercial-compatibility-2026-10-14.md): exact-source native/build/browser evidence; implementation-only Admin receipts and remaining acceptance
 - [Development product navigation checkpoint](testing/product-navigation-2026-10-14.md): shared dirty confirmation, fifteen Company previews, exact-source full native lane and remaining migration gates
 - [Development product-entry checkpoint](testing/product-entry-2026-10-15.md): per-role landings, explicit role selection, private server time preferences and current verification limits
@@ -39,7 +43,7 @@ Reviewed 2026-10-23. This is the single entry point. [Production plan](productio
 
 ## Verification and acceptance
 
-- [People: HR employee directory and IT external access](contracts/next/people-external-access.md)
+- [People: relationships and independent account administration](contracts/next/people-external-access.md)
 
 - [Repository file placement and relocation verification — 2026-10-13](testing/repository-file-organization-2026-10-13.md)
 - [Required browser verification round and incomplete coverage — 2026-10-13](testing/repository-required-browser-verification-2026-10-13.md)
@@ -64,7 +68,7 @@ Edit the owner contract and the production plan when their facts change. Regener
 
 Superseded plans, duplicated Rust maps and completed documentation-triage tickets were removed after consolidating surviving ownership/control requirements into the catalogue and owner contracts. [Cutover and verified Git recovery references](../README.md#recovery) retain their recovery boundary. [Archived immutable Rust evidence](archive/README.md) remains date-scoped; it does not describe the current stack.
 
-Staging operations are documented in the [staging runbook](../ops/macos/staging.md) and require an explicit staging request. Normal development verification uses [the development console](https://console-dev-erpx.jesadakorn.com/).
+Staging operations are documented in the [staging runbook](../ops/macos/staging.md) and require an explicit staging request. Normal development verification uses registered [Acme Holding](https://acme.jesadakorn.com/) and central Account.
 
 - [People evaluation: Skills, Performance & Compensation](contracts/next/people-evaluation.md) — annual evidence, scoped comparisons and reviewed compensation.
 

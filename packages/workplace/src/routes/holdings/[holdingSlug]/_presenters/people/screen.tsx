@@ -1,8 +1,6 @@
 import { canonicalUiHref } from "@erpx/feature-work_projection/lib/destination-registry";
 import { peopleSettingsHref } from "@erpx/feature-people_payroll/lib/people-route-context";
 import { peoplePayrollPresentationQueries } from "@erpx/server-people_payroll/public/presentation-queries";
-import { PeopleAccessWorkspace } from "@erpx/feature-identity_access/components/people-access-workspace";
-import { iamPresentationQueries } from "@erpx/server-identity_access/public/presentation-context-queries";
 
 import { ActionLink as UiActionLink } from "@erpx/ui/components/foundation";
 import { BetaPeople } from "@erpx/feature-collaboration/components/people-page";
@@ -14,7 +12,7 @@ import { ListPagination } from "@erpx/ui/components/list-pagination";
 import { PageHeader } from "@erpx/ui/components/primitives";
 import { PeopleEditor } from "@erpx/feature-people_payroll/components/lazy-people-editor";
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
-import { workspaceBase, workspaceApiHref } from "@erpx/feature-work_projection/lib/workspace";
+import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { publicScope,requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import { pageError } from "@erpx/server-work_projection/public/page-error";
 
@@ -24,7 +22,6 @@ import { peopleDirectoryPage } from "@erpx/server-people_payroll/public/people-d
 import { getPerson } from "@erpx/server-people_payroll/public/people-payroll";
 
 
-import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
 import { forbidden, redirect } from "next/navigation";
 
 import directory from "@erpx/workplace/routes/holdings/[holdingSlug]/_presenters/people/directory.module.css";
@@ -66,12 +63,9 @@ export default async function PeoplePage({
   if (search.view === "payroll" && !actor.beta) redirect(canonicalUiHref(`${workspaceBase(publicScope(actor))}/people/payroll`));
   if (actor.beta) return <BetaPeople actor={actor} member={search.member} />;
   const base = workspaceBase(publicScope(actor));
-  if (!search.view && hasPermission(actor, "iam.read") && !hasPermission(actor, "people.read") && !actor.branchId && !actor.departmentId) redirect(canonicalUiHref(`${base}/people?view=users`));
-  if (search.view === "users") {
-    if (!hasPermission(actor, "iam.read")) forbidden();
-    const {queries,actor:iam} = await iamPresentationQueries(holdingSlug);
-    const data = await queries.peopleAccessSnapshot(iam).catch(error=>pageError(error,holdingSlug));
-    return <FeaturePage className="content-stack" data-source="live"><PageHeader appearance="standard" eyebrow="People" title="Users & Access" description="Manage internal accounts, external organizations and teams, and scoped access." /><PeopleNavigation base={base} actor={actor} scopeKind={actor.scope.kind} active="users" /><PeopleAccessWorkspace initial={data} initialView={["users","organizations","teams","roles"].includes(search.section??"")?search.section as "users"|"organizations"|"teams"|"roles":"users"} api={workspaceApiHref(publicScope(actor),"iam/people-access")} /></FeaturePage>;
+  if (search.view === "users" || search.view === "external" || search.view === "unclassified") {
+    const query=new URLSearchParams(Object.entries(search).filter((entry):entry is [string,string]=>entry[1]!==undefined));
+    redirect(canonicalUiHref(`${base}/people?${query}`));
   }
   const archived = search.status === "archived";
   const canManage = canManagePeople(actor);
@@ -126,10 +120,6 @@ export default async function PeoplePage({
               gpoPositions={lifecycle?.positions}
             />
           )}
-          <nav className={directory.viewTabs} data-feature-tabs aria-label="People directory status">
-            <Link href={canonicalUiHref(`${base}/people`)} aria-current={!archived ? "page" : undefined}>Current</Link>
-            <Link href={canonicalUiHref(`${base}/people?status=archived`)} aria-current={archived ? "page" : undefined}>Archived</Link>
-          </nav>
           <WidgetGrid>
             {directoryPage && <FeatureWidget appearance="standard" id={archived ? "archived-profiles" : exploring ? "people-explorer" : "current-profiles"} title={archived ? "Archived profiles" : exploring ? "People explorer" : "Current profiles"}>
               <PeopleDirectoryWorkspace

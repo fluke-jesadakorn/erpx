@@ -1,4 +1,5 @@
 import { routePath, routePrefixes, sourcePath, workspacePathParts, canonicalUiHref } from "@erpx/feature-work_projection/lib/destination-registry";
+import {holdingHostForHost} from '@erpx/contracts/holding-hosts';
 /** Drawer references select an owner reader; they never confer authority. */
 import {recordRoutes,recordSections,defaultRecordSection,recordBasePath,type RecordKind,type RecordTarget} from '@erpx/feature-records/lib/record-route-definitions';
 export {recordRoutes,recordSections,defaultRecordSection,isRecordKind} from '@erpx/feature-records/lib/record-route-definitions';
@@ -6,8 +7,11 @@ export type {RecordKind,RecordTarget} from '@erpx/feature-records/lib/record-rou
 export function recordRouteTemplate(kind:RecordKind,args:Record<string,string>={}){return recordBasePath(kind,args,routePath);}
 export function recordTarget(href: string, base: string): RecordTarget | null {
  let url:URL;try{url=new URL(href,'https://erpx.invalid');}catch{return null;}
- if(url.origin!=='https://erpx.invalid'||!url.pathname.startsWith(base+'/')||url.searchParams.get('print')==='1')return null;
- const destination=url.pathname.slice(base.length+1),args=Object.fromEntries(url.searchParams);
+ if(url.origin!=='https://erpx.invalid'||url.searchParams.get('print')==='1')return null;
+ const parts=workspacePathParts(url.pathname,base.match(/^\/holdings\/([^/]+)/)?.[1]);
+ const ownerPath=parts?parts.base+'/'+parts.path:url.pathname;
+ if(!ownerPath.startsWith(base+'/'))return null;
+ const destination=ownerPath.slice(base.length+1),args=Object.fromEntries(url.searchParams);
  // Accept owner-generated inputs during normalization; these are not public aliases.
  const legacy=sourcePath(destination);
  if(legacy==='legal'&&args.record)return {kind:'legal',id:args.record,args};
@@ -41,16 +45,17 @@ export function recordCanonicalHref(base:string,target:RecordTarget) {
  for(const [key,value] of Object.entries(args))if(!['section','tab','detailKind','detailId','detailArgs','detailPage','detailMode','record','sale','periodId','kind',...(['project','order'].includes(target.kind)?['view']:[]),...(target.kind==='order'?['type']:[])].includes(key))url.searchParams.set(key,value);
  return url.pathname+url.search;
 }
-export function withoutRecordDrawer(current:string) {
- const url=new URL(current,'https://erpx.invalid'),parts=workspacePathParts(url.pathname),target=parts?recordTarget(url.pathname,parts.base):null;
+export function withoutRecordDrawer(current:string,holdingSlug?:string) {
+ const url=new URL(current,'https://erpx.invalid'),holding=holdingSlug??holdingHostForHost(url.host)?.holdingSlug,parts=workspacePathParts(url.pathname,holding),target=parts?recordTarget(url.pathname,parts.base):null;
  const returnTo=url.searchParams.get('returnTo');
  const frontBase=url.pathname.match(/^(\/front\/[^/]+\/[^/]+\/(?:pos|pms)\/(?:holding|branches\/[^/]+(?:\/departments\/[^/]+)?|departments\/[^/]+))\//)?.[1]??url.pathname.match(/^(\/[^/]+\/[^/]+\/(?:holding|branches\/[^/]+(?:\/departments\/[^/]+)?|departments\/[^/]+))\//)?.[1];
  const returnBase=parts?.base??frontBase;
- if(returnTo&&returnBase&&!returnTo.startsWith('//')&&returnTo.startsWith(returnBase+'/')){
+ if(returnTo&&returnBase&&returnTo.startsWith('/')&&!returnTo.startsWith('//')){
   const destination=new URL(returnTo,'https://erpx.invalid');
   // The return path is untrusted query data. Keep it inside the current
   // workspace while preserving list selectors and filters exactly.
-  if(destination.origin==='https://erpx.invalid'&&destination.pathname.startsWith(returnBase+'/'))return destination.pathname+destination.search+destination.hash;
+  const destinationParts=workspacePathParts(destination.pathname,holding);
+  if(destination.origin==='https://erpx.invalid'&&(destination.pathname.startsWith(returnBase+'/')||parts&&destinationParts?.base===parts.base))return destination.pathname+destination.search+destination.hash;
  }
  if(target){url.pathname=url.pathname.split('/').slice(0,-2).join('/');}
  else url.pathname=url.pathname.replace(/\/records\/[^/]+\/[^/]+\/overview$/,'');
@@ -58,10 +63,10 @@ export function withoutRecordDrawer(current:string) {
  for(const name of ['returnTo','detailKind','detailId','detailArgs','detailPage','detailMode'])url.searchParams.delete(name);
  return canonicalUiHref(url.pathname+url.search+url.hash);
 }
-export function recordDrawerHref(current:string,target:RecordTarget) {
- const url=new URL(current,'https://erpx.invalid'),parts=workspacePathParts(url.pathname);
+export function recordDrawerHref(current:string,target:RecordTarget,holdingSlug?:string) {
+ const url=new URL(current,'https://erpx.invalid'),holding=holdingSlug??holdingHostForHost(url.host)?.holdingSlug,parts=workspacePathParts(url.pathname,holding);
  if(!parts)return current;
  const next=new URL(recordCanonicalHref(parts.base,target),'https://erpx.invalid');
- next.searchParams.set('returnTo',withoutRecordDrawer(current));
+ next.searchParams.set('returnTo',withoutRecordDrawer(current,holding));
  return next.pathname+next.search;
 }

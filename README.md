@@ -1,8 +1,8 @@
 # ERPX — Next.js (rebuilt 2026-09-02)
 
-Start with the [current production plan](docs/production-plan.md): the in-progress migration to22 independent Next.js apps in Bun workspaces and a scoped development/test platform. [ADR-049](docs/adr/ADR-049-product-app-workspaces-and-development-verification.md) records the architecture; [documentation index](docs/TOC.md) is the single hub. Historical engineering receipts certify only their recorded candidate.
+Start with the [current production plan](docs/production-plan.md): the in-progress migration to21 independent Next.js apps (Apps owns Feed; the separate Work product is retired) in Bun workspaces and a scoped development/test platform. [ADR-049](docs/adr/ADR-049-product-app-workspaces-and-development-verification.md) records the architecture; [documentation index](docs/TOC.md) is the single hub. Historical engineering receipts certify only their recorded candidate.
 
-The development gateway serves port3100 and starts apps lazily on owned ports3200–3299. Each host switches only after its scoped checks and browser smoke pass. Installed production and staging are outside this migration. Full acceptance is deferred to an explicitly frozen production candidate and never runs automatically in daily CI.
+The development gateway serves port3100 and starts apps lazily on owned ports3200–3299. Registered Holding hosts select independent apps by path; see [ADR-051](docs/adr/ADR-051-holding-addresses-and-workspace-paths.md). Installed production and staging are outside this migration. Full acceptance is deferred to an explicitly frozen production candidate and never runs automatically in daily CI.
 Set `ERPX_DEV_MAX_APPS` in ignored `.env.local` only when the machine has room for more concurrent app processes (1–12; default4). Account and Apps share that budget. An app with active requests or HMR connections is never evicted.
 
 ## Recovery
@@ -39,13 +39,13 @@ bun run test:ci --base=<sha> --head=<sha>  # clean exact candidate verification
 bun run build:affected                   # independent app build outputs/cache
 ```
 
-Development starts at [ERPX Apps](https://apps-dev-erpx.jesadakorn.com/). All22 hosts use their own app processes; the retired development Console and local Console business surface return a generic404 without Console branding or a migration page. Console health remains200 through Account. Production and staging remain unchanged. Installed post-cutover visual verification and the remaining platform/performance gates are tracked in the production plan; full acceptance is deferred.
+Development starts at a registered Holding: [Acme](https://acme.jesadakorn.com/), [Northstar](https://northstar.jesadakorn.com/) or [ERPX](https://erpx-internal.jesadakorn.com/). Select a Company, branch or department explicitly, then an app, for example `/bangkok/finance` or `/bangkok/finance-dept/finance`. Company work uses `/finance?company=acme-co`. Account remains central at [Account](https://account-dev-erpx.jesadakorn.com/). Former app hosts return generic404; Console retains exact health/ready reads. The [Holding development runbook](ops/macos/holding-development.md) records routing, migration and operations. Production and staging remain unchanged; full acceptance is deferred.
 
 The rich local dataset and demo personas are documented in [docs/local-seed.md](docs/local-seed.md).
 
 ## Structure
 
-- `apps/<id>/`: app-owned routes, layouts, handlers, config, route types and build output; no imports from another app. `apps/compat` retains non-product compatibility source. The authorized development Console cutover is active; its pages/APIs return404 and health/ready reads use Account. Product hosts use their own applications. Apps keeps the stable `apps` host/CLI identity in `apps/launcher/`.
+- `apps/<id>/`: app-owned routes, layouts, handlers, config, route types and build output; no imports from another app. `apps/compat` retains non-product compatibility source. The authorized development Console cutover is active; its pages/APIs return404 and health/ready reads use Account. Product hosts use their own applications. Apps keeps the stable `apps` app/CLI identity in `apps/launcher/`.
 - `packages/server-<owner>/src/{domain,application,adapters,public}/`: in-process business owners; consumers use named public exports and typed ports.
 - `packages/feature-<owner>/`, `packages/ui/`, `packages/workplace/`, `packages/front/`: owner presentation, primitives and shells with explicit subpath exports. `packages/contracts/` owns pure host/product metadata and shared contracts.
 - `tests/{unit,integration,e2e,journeys,uat,provider}/<owner>/`: executable suites, assigned from the catalogue rather than filenames. `tests/support/` holds helpers/setup; `tests/catalogue/` holds required-case registers; `tests/config/` holds runner/typecheck configuration.

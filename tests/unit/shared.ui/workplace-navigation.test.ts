@@ -1,10 +1,13 @@
+import {products,productIds,sharedHostKeys} from '@erpx/contracts/product-registry';
+import {groupAppsSidebar,groupHospitalitySidebar,sidebarSelection} from '@erpx/feature-work_projection/lib/sidebar-catalog';
+import {SidebarSection,sidebarInitialGroup} from '@erpx/ui/components/sidebar-navigation';
 import {InboxUpdates} from "@erpx/feature-collaboration/components/messaging/inbox-updates";
 import {RecordLink} from "@erpx/feature-records/components/record-link";
 import {RecordScopeProvider} from "@erpx/ui/components/record-context";
 import {createElement as h,type ReactNode} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
 import {productNavigationHref,productHrefString,frontProductLaunchTarget,isProductHandoffHref,type ProductNavigationScope} from '@erpx/feature-work_projection/lib/product-navigation';
-import {ProductLinkEnvironment,ProductWorkLinks,useProductNavigationScope} from '@erpx/workplace/components/product-link-context';
+import {AppsHomeLink,ProductLinkEnvironment,ProductWorkLinks,useProductNavigationScope} from '@erpx/workplace/components/product-link-context';
 import WorkspaceLink from '@erpx/workplace/components/workspace-link';
 import {useRouter as useDestinationRouter} from '@erpx/feature-shared/lib/destination-router';
 const linkMocks=vi.hoisted(()=>({push:vi.fn(),replace:vi.fn(),dirty:vi.fn(()=>false),dispatch:vi.fn()}));
@@ -15,34 +18,80 @@ afterEach(()=>{vi.unstubAllGlobals();linkMocks.dirty.mockReturnValue(false);link
 import {describe,it,expect,vi,afterEach} from "vitest";
 import {workplaceNavigation,navigationTrail,resolveNavigation,navigationCategory,navigationCollapsedValue,pmsSidebarHref} from "@erpx/feature-work_projection/lib/workplace-navigation";
 import {navigationLauncher} from "@erpx/feature-work_projection/lib/navigation-catalog";
+import {destinationWorkEntry, workEntries, navigationWorkEntry, navigationTopicHref} from "@erpx/feature-work_projection/lib/navigation-presentation";
+import {destinations} from "@erpx/feature-work_projection/lib/destination-registry";
 import {builtInPermissions} from "@erpx/feature-identity_access/lib/permissions";
 import {workViews,filterWork,workTypes,type WorkItem} from "@erpx/feature-work_projection/lib/work-item";
 import {pmsCrossLinks} from "@erpx/feature-pms/lib/pms-cross-links";
 const base="/holdings/acme";
 const owner=workplaceNavigation({workspaceBase:base,role:"holding_owner",canManageApprovals:true,adminSections:["people","organization","approvals","usage","ai","feedback"]});
-describe("Side menu destination coverage",()=>{
- it("keeps Finance navigation and command destinations on Finance without changing the compatibility Console",()=>{
-  const input={workspaceBase:base,role:"holding_owner",moduleIds:["finance","people_payroll","crm","sales","operations","support"],canManageApprovals:true,adminSections:["people","organization","approvals","feedback"] as ("people"|"organization"|"approvals"|"feedback")[]};
-  const legacy=workplaceNavigation(input),finance=workplaceNavigation({...input,productId:"finance"});
-  expect(legacy.primary.some(item=>item.id==='home')).toBe(true);
-  expect(finance.primary).toEqual([]);
-  expect(finance.search.some(item=>item.href.startsWith(base+'/finance/'))).toBe(true);
-  expect(finance.search.some(item=>item.href.includes('/people-organization/')||item.href.includes('/customers-sales/')||item.href===base+'/home')).toBe(false);
-  for(const item of [...finance.search,...finance.categories.flatMap(category=>category.apps)])expect(item.href===base+'/finance'||item.href.startsWith(base+'/finance/'),item.href).toBe(true);
+describe("Main work entry presentation",()=>{
+ it("retains Company, hotel and accounting scope while dropping old record state and cursors",()=>{
+  const query=new URLSearchParams('companyId=original&property=hotel-one&chartId=chart-one&cursor=old&detailId=old&q=old&companyId=second');
+  const bank=new URL(navigationTopicHref(base+'/finance/cash/bank',query),'https://test.invalid');
+  expect(bank.searchParams.getAll('companyId')).toEqual(['original','second']);expect(bank.searchParams.get('property')).toBe('hotel-one');
+  expect(bank.searchParams.get('chart')).toBe('chart-one');expect(bank.searchParams.has('chartId')).toBe(false);
+  for(const key of ['cursor','detailId','q'])expect(bank.searchParams.has(key)).toBe(false);
+  const invoices=new URL(navigationTopicHref(base+'/finance/documents/receivable?queue=open',query),'https://test.invalid');
+  expect(invoices.searchParams.get('chartId')).toBe('chart-one');expect(invoices.searchParams.get('queue')).toBe('open');expect(invoices.searchParams.has('chart')).toBe(false);
  });
- it("keeps POS and Hotel backoffice navigation on the actual product owner without exposing the other Office menus",()=>{
-  for(const app of ['pos','pms'] as const){
-   const model=workplaceNavigation({workspaceBase:base,role:'holding_owner',productId:app,moduleIds:[app,'finance','people_payroll','sales'],canManageApprovals:true,adminSections:['people','organization','approvals','feedback']});
-   expect(model.search.length).toBeGreaterThan(0);expect(model.primary).toEqual([]);
-   for(const item of model.search)expect(item.href===base+'/'+app||item.href.startsWith(base+'/'+app+'/'),item.href).toBe(true);
-   expect(model.search.some(item=>item.href===base+'/'+app+'/settings')).toBe(true);
+ it("keeps the five platform entries inside the authorized ERPX holding",()=>{
+  const own=workplaceNavigation({workspaceBase:'/holdings/erpx',scopeKind:'holding',role:'holding_owner',manageErpxVisible:true});
+  expect(own.categories.find(category=>category.id==='erpx-management')?.apps).toHaveLength(5);
+  for(const workspaceBase of [base,'/holdings/erpx/branches/main'])expect(workplaceNavigation({workspaceBase,scopeKind:workspaceBase===base?'holding':'branch',role:'holding_owner',manageErpxVisible:true}).categories.some(category=>category.id==='erpx-management')).toBe(false);
+ });
+ it("covers every registered destination with 60 company entries and five separate platform entries",()=>{
+  expect(workEntries.filter(item=>item.categoryId!=="erpx-management")).toHaveLength(60);
+  expect(workEntries.filter(item=>item.categoryId==="erpx-management")).toHaveLength(5);
+  for(const destination of destinations) expect(destinationWorkEntry(destination),destination.path).toBeTruthy();
+  const model=workplaceNavigation({workspaceBase:base,role:"holding_owner",moduleIds:["talent","benefits","marketing","ecommerce","assets","maintenance","field_service","planning","manufacturing","learning","agent","quality","operations"],adminSections:["brand","organization","people","approvals","ai","usage","feedback"],canManageApprovals:true,handbookAccess:{editor:true,owner:true}});
+  expect(model.categories.map(category=>category.apps.length)).toEqual([9,6,3,6,3,4,6,4,4,2,3,1,9]);
+  const topics=model.categories.flatMap(category=>category.apps.flatMap(item=>item.submodules??[]));
+  for(const page of model.search.filter(item=>item.workEntryId&&!['home','work','calendar','inbox'].includes(item.workEntryId)))expect(topics.some(topic=>topic.href.split('?')[0]===page.href.split('?')[0])||model.categories.some(category=>category.apps.some(root=>root.href===page.href)),page.href).toBe(true);
+  for(const root of model.categories.flatMap(category=>category.apps)){const paths=root.submodules?.map(item=>new URL(item.href,'https://test.invalid').pathname)??[];expect(new Set(paths).size,root.id).toBe(paths.length);}
+ });
+ it("selects the permitted payslip landing without exposing payroll administration",()=>{
+  const model=workplaceNavigation({workspaceBase:base,permissions:["people.read"],availableAppIds:["people"]});
+  const payroll=model.categories.flatMap(category=>category.apps).find(item=>item.id==='people-payroll');
+  expect(payroll?.href).toBe(base+'/people-organization/people/payslips');
+  expect(payroll?.submodules?.map(item=>item.href)).toEqual([payroll!.href]);
+  expect(navigationWorkEntry(model,base,payroll!.href)?.id).toBe('people-payroll');
+ });
+ it.each(['holding','branch','department'] as const)("keeps explicit ownership and authorized landings in %s scope",scopeKind=>{
+  const workspaceBase=base+(scopeKind==='holding'?'':scopeKind==='branch'?'/branches/main':'/branches/main/departments/team');
+  const model=workplaceNavigation({workspaceBase,scopeKind,role:'holding_owner'});
+  for(const [path,id] of [['people-organization/people/organization','people-directory'],['people-organization/people/payslips','people-payroll'],['inventory-quality/transit','operations-transfers'],['services/assets/maintenance','assets'],['services/legal/contract','legal'],['administration/pilot-features','technology-business-readiness']] as const){
+   const selected=navigationWorkEntry(model,workspaceBase,workspaceBase+'/'+path);
+   if(model.search.some(item=>item.href===workspaceBase+'/'+path))expect(selected?.id).toBe(id);
+   expect(selected?.id).not.toBe('people-roster');
   }
+  for(const root of model.categories.flatMap(category=>category.apps))expect(model.search.some(item=>item.href===root.href),root.id).toBe(true);
  });
- it("retains Work daily navigation while keeping People data outside that host's menus",()=>{
-  const work=workplaceNavigation({workspaceBase:base,role:'holding_owner',productId:'work',moduleIds:['operations','people_payroll','finance']});
-  expect(work.primary.map(item=>item.id)).toEqual(['home','work','calendar','inbox']);
-  expect(work.search.some(item=>item.href.includes('/people-organization/'))).toBe(false);
-  expect(work.search.some(item=>item.href.includes('/finance/'))).toBe(false);
+ it("hides empty categories and continuations that require a named record proof",()=>{
+  const model=workplaceNavigation({workspaceBase:base,permissions:[],moduleIds:[],availableAppIds:[]});
+  expect(model.categories.every(category=>category.apps.length>0)).toBe(true);
+  for(const id of ['finance','people-organization','administration','erpx-management'])expect(model.categories.some(category=>category.id===id)).toBe(false);
+  for(const suffix of ['services/assets/accounting','services/field-service/settings/parts','knowledge/learning/settings/learners'])expect(owner.search.some(item=>item.href===base+'/'+suffix)).toBe(false);
+ });
+});
+describe("Side menu destination coverage",()=>{
+ it.each(['apps','finance','people','pos','pms'] as const)("shows the complete authorized Office menu on %s", productId => {
+  const input={workspaceBase:base,role:"holding_owner",moduleIds:["finance","people_payroll","pos","pms","crm","sales","operations","support"],canManageApprovals:true,adminSections:["people","organization","approvals","feedback"] as ("people"|"organization"|"approvals"|"feedback")[]};
+  const complete=workplaceNavigation(input), actual=workplaceNavigation({...input,productId});
+  expect(actual).toEqual(complete);
+  expect(actual.primary.some(item=>item.id==='home')).toBe(true);
+  expect(actual.search.some(item=>item.href.includes('/finance/'))).toBe(true);
+  expect(actual.search.some(item=>item.href.includes('/people-organization/'))).toBe(true);
+  expect(actual.categories.every(category=>category.apps.length || category.secondaryItems?.length)).toBe(true);
+ });
+ it('preserves permission, module and readiness filtering on every Office host',()=>{
+  const input={workspaceBase:base,role:'employee',moduleIds:['operations'],permissions:['records.read'],availableAppIds:['operations']};
+  for(const productId of ['apps','finance','people'] as const){
+    const actual=workplaceNavigation({...input,productId});
+    expect(actual).toEqual(workplaceNavigation(input));
+    expect(actual.apps.some(app=>app.id==='finance'||app.id==='people')).toBe(false);
+    expect(actual.categories.every(category=>category.apps.length || category.secondaryItems?.length)).toBe(true);
+  }
  });
  it("keeps ERPX Management in its authorized holding placement",()=>{
   const model=workplaceNavigation({workspaceBase:"/holdings/erpx",scopeKind:"holding",role:"holding_owner",manageErpxVisible:true});
@@ -69,7 +118,7 @@ describe("Side menu destination coverage",()=>{
   const permissions=builtInPermissions("operations_manager");expect(permissions).toContain("records.read");expect(permissions).toContain("module.operations.read");
   for(const [workspaceBase,scopeKind] of [[base,"holding"],["/holdings/erpx","holding"],[base+"/branches/bangkok","branch"]] as const){
    const model=workplaceNavigation({workspaceBase,scopeKind,role:"operations_manager",permissions,moduleIds:["operations"],availableAppIds:["operations"]});
-   expect(model.categories.find(c=>c.id==="projects-routines")?.apps.map(i=>[i.id,i.label,i.href,i.ownerModuleId])).toEqual([["operations","Operations",workspaceBase+"/projects-routines/operations","operations"]]);
+   expect(model.categories.find(c=>c.id==="projects-routines")?.apps.map(i=>[i.id,i.label,i.href,i.ownerModuleId])).toEqual([["operations","Exception tracking",workspaceBase+"/projects-routines/operations","operations"]]);
    expect(navigationLauncher(model,"Operations").results.map(r=>[r.item.label,r.item.href,r.categoryId])).toEqual([["Operations",workspaceBase+"/projects-routines/operations","projects-routines"]]);
    expect(model.apps.some(a=>a.id==="finance")).toBe(false);
   }
@@ -83,7 +132,7 @@ describe("Side menu destination coverage",()=>{
  });
  it.each([
   ["administration/technology/directory/connections",["Administration","Technology","Directory","Connections"],"technology"],
-  ["people-organization/people/directory/current",["People & organization","People","Directory","Current"],"people"],
+  ["people-organization/people/directory/current",["People & organization","People","Employees","Current"],"people"],
   ["people-organization/people/hr-settings/leave",["People & organization","People","HR settings","Leave & overtime"],"people"],
   ["customers-sales/sales/documents/quote",["Customers & sales","Sales","Documents","Quotations"],"sales"],
   ["inventory-quality/products",["Inventory & quality","Products"],"inventory"],
@@ -95,7 +144,7 @@ describe("Side menu destination coverage",()=>{
 describe("Workplace discovery",()=>{
  it("keeps role and scope restrictions in discovery",()=>{
   const inventory=workplaceNavigation({workspaceBase:base,permissions:["inventory.read"]});expect(inventory.apps.some(a=>["sales","procurement"].includes(a.id))).toBe(false);expect(inventory.search.some(i=>i.id==="people-settings")).toBe(false);
-  for(const scopeKind of ["branch","department"] as const){const nav=workplaceNavigation({workspaceBase:base+"/branches/main"+(scopeKind==="department"?"/departments/front":""),scopeKind,role:"holding_owner"});expect(nav.search.some(i=>i.id==="people-payroll"||i.id==="technology-business-readiness")).toBe(false);if(scopeKind==="department")expect(nav.apps.some(a=>a.id==="pos"||a.id==="pms")).toBe(false);}
+  for(const scopeKind of ["branch","department"] as const){const nav=workplaceNavigation({workspaceBase:base+"/branches/main"+(scopeKind==="department"?"/departments/front":""),scopeKind,role:"holding_owner"});expect(nav.search.some(i=>i.href.endsWith("/people/payroll/dashboard")||i.id==="technology-business-readiness")).toBe(false);if(scopeKind==="department")expect(nav.apps.some(a=>a.id==="pos"||a.id==="pms")).toBe(false);}
   const housekeeper=workplaceNavigation({workspaceBase:base,role:"pms_housekeeping"});expect(housekeeper.search.some(i=>["pms-cashier","pms-reports","pms-night-audit"].includes(i.id))).toBe(false);
  });
  it("keeps staff search inside authorized destinations",()=>{const nav=workplaceNavigation({workspaceBase:base,role:"employee",adminSections:["feedback"]});expect(nav.primary.map(i=>i.id)).toEqual(["home","work","calendar","inbox"]);expect(nav.search.some(i=>!i.id.startsWith("start-")&&i.href.includes("/finance"))).toBe(false);expect(nav.search.some(i=>i.href.includes("/modules/"))).toBe(false);});
@@ -104,7 +153,7 @@ describe("Workplace discovery",()=>{
    expect(views.map(i=>i.href)).toEqual([...workViews.filter(([id])=>id!=="team"&&id!=="routing"||id==="team"&&team||id==="routing"&&routing).map(([id])=>base+"/work/"+id),base+"/work/reports"]);
   }
  });
- it("keeps daily submenu URLs explicit",()=>{expect(owner.primary.find(i=>i.id==="calendar")?.submodules?.map(i=>i.href)).toEqual([base+"/calendar/mine",base+"/calendar/team",base+"/calendar/coverage"]);expect(owner.primary.find(i=>i.id==="inbox")?.submodules?.map(i=>i.href)).toEqual([base+"/inbox/messages",base+"/inbox/teams",base+"/inbox/notifications"]);});
+ it("keeps daily submenu URLs explicit",()=>{expect(owner.primary.find(i=>i.id==="calendar")?.submodules?.map(i=>i.href)).toEqual([base+"/calendar/mine",base+"/calendar/team",base+"/calendar/coverage"]);expect(owner.primary.find(i=>i.id==="inbox")?.submodules?.map(i=>i.href)).toEqual([base+"/inbox/messages",base+"/inbox/teams",base+"/inbox/notifications",base+"/administration/notifications"]);});
  it("uses the server approval flag independently from readable sections",()=>{
   const readable=workplaceNavigation({workspaceBase:base,role:"employee",adminSections:["approvals"],canManageApprovals:false});expect(readable.search.some(i=>i.id==="administration-approvals")).toBe(false);
  });
@@ -126,11 +175,11 @@ describe('Product owner link transport',()=>{
  });
  it('moves original Company Executive deep links to Work with their Company, node, report, repeated filters and canvas fragment',()=>{
   const scoped={...scope,workspaceBase:base+'/branches/main/departments/team'},path=scoped.workspaceBase+'/insights/executive/reports/original?tag=one&tag=two#canvas';
-  const result=productNavigationHref('https://console-dev-erpx.jesadakorn.com'+path,scoped),target=unwrap(result.href);expect(result.handoff).toBe(true);expect(target.sso.origin).toBe('https://work-dev-erpx.jesadakorn.com');expect(target.launch.searchParams.get('companyId')).toBe('company-two');expect(target.next).toBe(path);
-  expect(productNavigationHref(path,{...scoped,audience:'work'})).toEqual({href:path,handoff:false});
+  const result=productNavigationHref('https://console-dev-erpx.jesadakorn.com'+path,scoped),target=unwrap(result.href);expect(result.handoff).toBe(true);expect(target.sso.origin).toBe('https://apps-dev-erpx.jesadakorn.com');expect(target.launch.searchParams.get('companyId')).toBe('company-two');expect(target.next).toBe(path);
+  expect(productNavigationHref(path,{...scoped,audience:'apps'})).toEqual({href:path,handoff:false});
  });
  it('maps all Office product owners through the shared registry and leaves own-product links local',()=>{
-  for(const [destination,owner] of [['home','work'],['people-organization/people/directory/current','people'],['customers-sales/sales/pipeline','sales'],['purchasing/orders','supply'],['projects-routines/projects','projects'],['people-organization/talent','recruit'],['knowledge/learning','learn'],['services/desk','support'],['services/field-service','service'],['services/legal/mine','legal'],['production/manufacturing','manufacturing']] as const){const result=productNavigationHref(base+'/'+destination,scope);expect(result.handoff).toBe(true);expect(unwrap(result.href).sso.hostname).toBe(owner+'-dev-erpx.jesadakorn.com');}
+  for(const [destination,owner] of [['home','apps'],['people-organization/people/directory/current','people'],['customers-sales/sales/pipeline','sales'],['purchasing/orders','supply'],['projects-routines/projects','projects'],['people-organization/talent','recruit'],['knowledge/learning','learn'],['services/desk','support'],['services/field-service','service'],['services/legal/mine','legal'],['production/manufacturing','manufacturing']] as const){const result=productNavigationHref(base+'/'+destination,scope);expect(result.handoff).toBe(true);expect(unwrap(result.href).sso.hostname).toBe(owner+'-dev-erpx.jesadakorn.com');}
   expect(productNavigationHref(base+'/services/assets/register?q=current',scope)).toEqual({href:base+'/services/assets/register?q=current',handoff:false});
   expect(productNavigationHref('https://console-dev-erpx.jesadakorn.com'+base+'/services/assets/register',scope)).toEqual({href:base+'/services/assets/register',handoff:false});
  });
@@ -172,6 +221,12 @@ describe('Product owner link transport',()=>{
   expect(isProductHandoffHref('https://finance-dev-erpx.jesadakorn.com/sso/start?next=/')).toBe(true);expect(isProductHandoffHref('https://evil.test/sso/start')).toBe(false);expect(isProductHandoffHref('https://erpx.jesadakorn.com/sso/start')).toBe(false);
  });
  const tree=(child:ReactNode)=>h(ProductLinkEnvironment,{audience:'assets',children:h(ProductWorkLinks,{companyId:'company-two',companySlug:'acme-co',workspaceBase:base,children:child})});
+ it('keeps every brand on the configured Apps entry across nested workspace scopes and domain changes',()=>{
+  for(const audience of [...productIds,...sharedHostKeys])for(const appsHref of ['https://apps-dev-erpx.jesadakorn.com/sso/start?next=%2F','https://apps.example.test/sso/start?next=%2F','/']){
+   const html=renderToStaticMarkup(h(ProductLinkEnvironment,{audience,appsHref,children:h(ProductWorkLinks,{companyId:'company-two',workspaceBase:base,children:h(AppsHomeLink,{className:'brand'},'ERPX')})}));
+   expect(html).toContain(`href="${appsHref}"`);expect(html).toContain('aria-label="ERPX Apps"');expect(html).toContain('data-product-switch="true"');expect(html).toContain('data-prefetch="false"');expect(html).not.toContain('company-two');
+  }
+ });
  it('renders actual cross-product anchors before hydration with a dirty-guard marker and no SSO prefetch',()=>{
   const html=renderToStaticMarkup(tree(h(WorkspaceLink,{href:base+'/finance/invoices/invoice-1',prefetch:true},'Owned invoice')));expect(html).toContain('https://finance-dev-erpx.jesadakorn.com/sso/start');expect(html).toContain('data-product-switch="true"');expect(html).toContain('data-prefetch="false"');expect(html).toContain('company-two');
   const explicit=renderToStaticMarkup(tree(h(WorkspaceLink,{href:'https://apps-dev-erpx.jesadakorn.com/sso/start?next=/',...{'data-product-switch':true}},'Apps')));expect(explicit).toContain('data-product-switch="true"');
@@ -232,7 +287,7 @@ describe('Account self link transport without a Company role',()=>{
  const scope:ProductNavigationScope={audience:'admin'};
  const unwrap=(href:string)=>{const bridge=new URL(href);expect(bridge.origin).toBe('https://account-dev-erpx.jesadakorn.com');expect(bridge.pathname).toBe('/account/launch');expect([...bridge.searchParams.keys()]).toEqual(['next']);return bridge.searchParams.get('next')!;};
  it('maps the three explicit self pages from Office, Front and Platform-only shared hosts and retains repeated query and fragment',()=>{
-  for(const audience of ['work','pos','pms','admin','apps'] as const)for(const path of ['/my-access','/security','/my-profile']){const value=path+'?tag=one&tag=two#details',result=productNavigationHref(value,{audience});expect(result.handoff).toBe(true);expect(unwrap(result.href)).toBe(value);expect(isProductHandoffHref(result.href)).toBe(true);}
+  for(const audience of ['apps','pos','pms','admin'] as const)for(const path of ['/my-access','/security','/my-profile']){const value=path+'?tag=one&tag=two#details',result=productNavigationHref(value,{audience});expect(result.handoff).toBe(true);expect(unwrap(result.href)).toBe(value);expect(isProductHandoffHref(result.href)).toBe(true);}
   expect(unwrap(productNavigationHref('https://console-dev-erpx.jesadakorn.com/my-access?tag=one#roles',scope).href)).toBe('/my-access?tag=one#roles');
  });
  it('uses the already selected central Account locally and never forwards callback credentials',()=>{
@@ -258,7 +313,7 @@ describe('actual owner cross-product links',()=>{
  it('renders the actual collaboration inbox handoff from Hotel while keeping CSV on its original API',async()=>{
   const {CollaborationWorkConsole}=await import('@erpx/feature-collaboration/components/collaboration-work-console');
   const data:Parameters<typeof CollaborationWorkConsole>[0]['data']={relations:[],cards:[{id:'card',version:1,status:'open',owner_id:'owner',created_by:'author',updated_at:1,due_at:1,owner_eligible:1,source_type:'commerce_order',source_id:'order',source_href:'/finance/invoices/invoice?tag=one&tag=two#review',source_title:'Current invoice',title:'Review actual invoice'}],people:[],sourceTypes:[],canWrite:false,canReview:false};
-  const html=renderToStaticMarkup(tree(h(CollaborationWorkConsole,{base,data})));expect(html).toContain('href="/api/v1/holdings/acme/collaboration?format=csv"');expect(html).toContain('data-product-switch="true"');const hrefs=[...html.matchAll(/href="([^\"]+)"/g)].map(match=>match[1].replaceAll('&amp;','&'));const source=hrefs.find(href=>href.startsWith('https://work-dev-erpx.jesadakorn.com/'))!;expect(source).toBeTruthy();const next=new URL(source).searchParams.get('next')!;const target=new URL(next,'https://target.invalid').searchParams.get('next')!;expect(target).toBe(base+'/inbox');expect(html).toContain('data-prefetch="false"');
+  const html=renderToStaticMarkup(tree(h(CollaborationWorkConsole,{base,data})));expect(html).toContain('href="/api/v1/holdings/acme/collaboration?format=csv"');expect(html).toContain('data-product-switch="true"');const hrefs=[...html.matchAll(/href="([^\"]+)"/g)].map(match=>match[1].replaceAll('&amp;','&'));const source=hrefs.find(href=>href.startsWith('https://apps-dev-erpx.jesadakorn.com/'))!;expect(source).toBeTruthy();const next=new URL(source).searchParams.get('next')!;const target=new URL(next,'https://target.invalid').searchParams.get('next')!;expect(target).toBe(base+'/inbox');expect(html).toContain('data-prefetch="false"');
  });
  it('renders actual assistant settings recovery on Admin before hydration without prefetching SSO',async()=>{
   const {SocialAgentStatus}=await import('@erpx/feature-collaboration/components/social-agent-status');const html=renderToStaticMarkup(tree(h(SocialAgentStatus,{reply:{id:'reply',state:'failed',error:'Configuration needs review',actor_id:'other',requester_name:'Other colleague',attempt:1},api:'/api/v1'+base,userId:'current',onChanged:async()=>{},aiName:'Assistant',settingsUrl:base+'/settings?section=ai#provider'})));expect(html).toContain('https://admin-dev-erpx.jesadakorn.com/sso/start?');expect(html).toContain('data-product-switch="true"');expect(html).toContain('data-prefetch="false"');expect(html).not.toContain('href="'+base+'/administration/');
@@ -266,7 +321,7 @@ describe('actual owner cross-product links',()=>{
 });
 it('hands off only registered personal Leave and Overtime owner pages through Work without interpreting generic People records',()=>{
  const scope:ProductNavigationScope={audience:'pms',companyId:'company-two',companySlug:'acme-co',workspaceBase:base};
- for(const path of ['leave','leave/new','overtime','overtime/new','overtime/actual-overtime/overview','tasks/people_payroll/actual-leave/overview']){const result=productNavigationHref(base+'/'+path+'?tag=one&tag=two#evidence',scope);expect(result.handoff).toBe(true);const sso=new URL(result.href);expect(sso.origin).toBe('https://work-dev-erpx.jesadakorn.com');const launch=new URL(sso.searchParams.get('next')!,'https://launch.invalid');expect(launch.searchParams.get('companyId')).toBe('company-two');expect(launch.searchParams.get('next')).toBe(base+'/'+path+'?tag=one&tag=two#evidence');}
+ for(const path of ['leave','leave/new','overtime','overtime/new','overtime/actual-overtime/overview','tasks/people_payroll/actual-leave/overview']){const result=productNavigationHref(base+'/'+path+'?tag=one&tag=two#evidence',scope);expect(result.handoff).toBe(true);const sso=new URL(result.href);expect(sso.origin).toBe('https://apps-dev-erpx.jesadakorn.com');const launch=new URL(sso.searchParams.get('next')!,'https://launch.invalid');expect(launch.searchParams.get('companyId')).toBe('company-two');expect(launch.searchParams.get('next')).toBe(base+'/'+path+'?tag=one&tag=two#evidence');}
  for(const path of ['tasks/people_payroll','tasks/people_payroll/new','tasks/people_payroll/actual-leave/private','overtime/actual-overtime/private','leave/private'])expect(productNavigationHref(base+'/'+path,scope).handoff).toBe(false);
  expect(productNavigationHref('/holdings/other/leave',scope).handoff).toBe(false);expect(productNavigationHref(base+'/branches/other/leave',scope).handoff).toBe(false);expect(productNavigationHref('/api/v1'+base+'/leave',scope).handoff).toBe(false);
 });
@@ -322,4 +377,83 @@ it('retains actual POS ModuleTiles selection callbacks instead of manufacturing 
  Reflect.apply(history!.onClick!,undefined,[]);
  expect(onSelect.mock.calls).toEqual([['history']]);
  expect(tileButtons.props.find(props=>props['aria-label']==='Sale')?.['aria-current']).toBe('page');
+});
+
+
+describe("Grouped product sidebars", () => {
+ it("partitions all eligible products exactly once and keeps the caller's original handoffs", () => {
+  const entries = products.map(product => ({id:product.id,productId:product.id,label:product.label.en,href:`https://${product.id}.example/launch?company=original#scope`}));
+  const model = groupAppsSidebar([{id:'applications',label:'All apps',href:'/applications'},...entries,{id:'account',label:'Account',href:'/account'},entries[0]], 'en');
+  expect(model.primary.map(item=>item.id)).toEqual(['applications','apps']);
+  const grouped = model.groups.flatMap(group=>group.items);
+  expect(new Set(grouped.map(item=>item.id)).size).toBe(products.length-1);
+  expect(grouped).toHaveLength(products.length-1);
+  expect([...model.primary.filter(item=>item.productId),...grouped].map(item=>item.href).sort()).toEqual(entries.map(item=>item.href).sort());
+  expect(model.groups.find(group=>group.id==='services')?.items.map(item=>item.id)).toEqual(['assets','service','legal']);
+  expect(model.groups.find(group=>group.id==='customers-sales')?.items.map(item=>item.id)).toEqual(['sales','support']);
+  expect(model.account?.href).toBe('/account');
+ });
+ it("omits empty categories and never synthesizes an unauthorized product or Provider destination", () => {
+  const model = groupAppsSidebar([{id:'finance',productId:'finance',label:'การเงิน',href:'/allowed'}], 'th');
+  expect(model.primary).toEqual([]);
+  expect(model.groups.map(group=>[group.label,group.items.map(item=>item.href)])).toEqual([['การเงิน',['/allowed']]]);
+  expect(groupAppsSidebar([], 'en').groups).toEqual([]);
+  expect(groupAppsSidebar([{id:'provider',groupId:'administration',label:'Provider',href:'/provider'}], 'en').groups[0].items[0].href).toBe('/provider');
+ });
+ it("preserves native Hotel property hrefs and partitions only owner-filtered hospitality actions", () => {
+  for (const app of ['pos','pms'] as const) {
+   const menu = (app==='pos'?posMenu('en'):pmsMenu('en')).map(item=>({...item,href:`/native/${item.id}?property=selected`}));
+   const visible = menu.filter((_, index)=>index%2===0);
+   const groups = groupHospitalitySidebar(app, visible, 'th');
+   const entries = groups.flatMap(group=>group.items);
+   expect(entries.map(item=>item.id).sort()).toEqual(visible.map(item=>item.id).sort());
+   expect(new Set(entries.map(item=>item.id)).size).toBe(entries.length);
+   expect(entries.map(item=>item.href).sort()).toEqual(visible.map(item=>item.href).sort());
+   expect(groups.every(group=>group.items.length>0)).toBe(true);
+  }
+ });
+ it("selects the exact visible child page and opens its authorized category", () => {
+  for (const [productId,path,expected] of [['finance','finance/documents','finance-sales'],['sales','customers-sales/sales/pipeline','crm-pipeline'],['learn','knowledge/learning','learning'],['people','people-organization/people/directory/current','people-directory'],['assets','services/assets/register','assets']] as const) {
+   const model=workplaceNavigation({workspaceBase:base,productId,role:'holding_owner',moduleIds:products.find(product=>product.id===productId)!.modules,financeWorkspaceV2:true});
+   const active=resolveNavigation(model,base,base+'/'+path),selected=sidebarSelection(model,active,base+'/'+path);
+   expect(selected.itemId).toBe(expected);expect(selected.categoryId).toBeTruthy();
+  }
+  const model=workplaceNavigation({workspaceBase:base,productId:'apps',role:'holding_owner'});
+  expect(sidebarSelection(model,resolveNavigation(model,base,base+'/home'),base+'/home')).toEqual({itemId:null,categoryId:null});
+ });
+ it("opens the active category before a saved choice and tolerates obsolete or missing storage", () => {
+  expect(sidebarInitialGroup(['people','finance'],'finance','people')).toBe('finance');
+  expect(sidebarInitialGroup(['people','finance'],null,'finance')).toBe('finance');
+  expect(sidebarInitialGroup(['people','finance'],null,'retired')).toBe('people');
+  expect(sidebarInitialGroup(['people','finance'],null,null)).toBe('people');
+  expect(sidebarInitialGroup(['people','finance'],null,'')).toBeNull();
+  expect(sidebarInitialGroup([],null,'finance')).toBeNull();
+ });
+ it("renders unique disclosure targets with hidden children and an accessible active link", () => {
+  const section = (label:string,open:boolean) => h(SidebarSection,{label,open,icon:h('svg'),onToggle:()=>{},children:h('a',{href:'/original?property=h1','aria-current':'page'},'Original destination')});
+  const html=renderToStaticMarkup(h('nav',null,section('Finance',true),section('People',false)));
+  const controls=[...html.matchAll(/aria-controls="([^"]+)"/g)].map(match=>match[1]);
+  expect(controls).toHaveLength(2);expect(new Set(controls).size).toBe(2);
+  for(const id of controls)expect(html).toContain(`id="${id}"`);
+  expect(html).toContain('aria-expanded="false"');expect(html).toContain('hidden=""');
+  expect(html).toContain('aria-current="page"');expect(html).toContain('/original?property=h1');
+ });
+});
+
+it("separates relationship discovery from account administration",()=>{
+ const hr=workplaceNavigation({workspaceBase:base,role:"hr_admin"}), it=workplaceNavigation({workspaceBase:base,role:"it_admin"});
+ for(const model of [hr,it])for(const id of ["people-external","people-unclassified"])expect(model.search.some(item=>item.id===id)).toBe(true);
+ expect(hr.search.some(item=>item.id==="technology-accounts")).toBe(false);
+ expect(it.search.some(item=>item.id==="technology-accounts")).toBe(true);
+});
+
+it("retains selected subjects, repeated filters and fragments when legacy People/IAM links move",()=>{
+ for(const [from,to] of [["people?view=users&section=users","administration/technology/resources/accounts"],["people-organization/people/users-access/users","administration/technology/resources/accounts"],["people-organization/people/users-access/roles","administration/technology/settings/roles"],["people-organization/people/users-access/teams","people-organization/people/external/teams"],["iam/users","administration/technology/resources/accounts"]]){
+  const url=new URL(canonicalUiHref(`${base}/${from}${from.includes("?")?"&":"?"}subject=account-one&q=alex&status=active&filter=one&filter=two#details`),"https://test.invalid");
+  expect(url.pathname).toBe(`${base}/${to}`);expect(url.searchParams.get("subject")).toBe("account-one");expect(url.searchParams.get("q")).toBe("alex");expect(url.searchParams.getAll("filter")).toEqual(["one","two"]);expect(url.hash).toBe("#details");
+ }
+});
+
+it("keeps external team filters on the relationship owner instead of opening an employee team",()=>{
+ expect(canonicalUiHref(`${base}/people?view=external&section=users&team=vendor-team&q=alex&status=active`)).toBe(`${base}/people-organization/people/external/users?team=vendor-team&q=alex&status=active`);
 });

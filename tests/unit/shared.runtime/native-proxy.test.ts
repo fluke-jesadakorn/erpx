@@ -12,6 +12,20 @@ beforeEach(()=>{
  vi.stubEnv('ERPX_PRODUCT_ROUTING','disabled');
  vi.stubEnv('ERPX_CONSOLE_RETIRED','disabled');
 });
+it('admits exact shared account switcher handlers before the owned Front operational parser without widening legacy or provider routes',()=>{
+ vi.stubEnv('ERPX_ENVIRONMENT','local');vi.stubEnv('ERPX_PRODUCT_ENVIRONMENT','development');vi.stubEnv('ERPX_PRODUCT_ROUTING','enabled');vi.stubEnv('ERPX_PRODUCT_SSO','enabled');
+ vi.stubEnv('ERPX_FRONT_POS_ORIGIN','https://dev-pos.jesadakorn.com');vi.stubEnv('ERPX_FRONT_PMS_ORIGIN','https://dev-pms.jesadakorn.com');
+ const request=(host:string,path:string,method='GET')=>proxy(new NextRequest('http://127.0.0.1:3100'+path,{method,headers:{host}}));
+ for(const app of ['pos','pms']){
+  const host=app+'-dev-erpx.jesadakorn.com';
+  for(const [path,method] of [['/account/continue?next=%2F','GET'],['/api/v1/account/switcher-context?check=1','GET'],['/api/v1/account/role-selection','POST']]){
+   const response=request(host,path,method);expect(response.headers.get('x-middleware-next')).toBe('1');expect(response.headers.get('x-middleware-rewrite')).toBeNull();expect(response.headers.get('location')).toBeNull();
+  }
+  expect(request(host,'/api/v1/account/switcher-context','POST').status).toBe(404);expect(request(host,'/api/v1/account/role-selection').status).toBe(404);
+  for(const path of ['/api/v1/account/device-accounts','/api/v1/platform/context','/api/v1/holdings/acme/finance/invoices','/api/v1/account/switcher-context/extra'])expect(request(host,path).status).toBe(404);
+  expect(request('dev-'+app+'.jesadakorn.com','/api/v1/account/switcher-context').status).toBe(404);
+ }
+});
 it('temporarily preserves scoped Support GET aliases on the same development surface without redirecting mutations',()=>{
  vi.stubEnv('ERPX_PUBLIC_ORIGIN','https://console-dev-erpx.jesadakorn.com');
  vi.stubEnv('ERPX_ENVIRONMENT','local');vi.stubEnv('ERPX_PRODUCT_ENVIRONMENT','development');
@@ -298,7 +312,7 @@ function enableDevelopmentProducts() {
 it('rejects cross-owner Office APIs before dispatch without redirects, cookies or forged workspace scope, and preserves native dependencies',()=>{
  enableDevelopmentProducts();vi.stubEnv('__NEXT_NO_MIDDLEWARE_URL_NORMALIZE','true');
  const request=(host:string,path:string,method='POST')=>proxy(new NextRequest('http://127.0.0.1:3100'+path,{method,headers:{host:`${host}-dev-erpx.jesadakorn.com`,'x-erpx-workspace-kind':'holding','x-erpx-branch-slug':'forged','x-erpx-department-slug':'forged'}}));
- for(const host of ['work','finance','people','sales','supply','assets','projects','recruit','learn','support','service','legal','manufacturing','admin']){
+ for(const host of ['apps','finance','people','sales','supply','assets','projects','recruit','learn','support','service','legal','manufacturing','admin']){
   const other=host==='finance'?'people/payroll/runs':'finance/journals';
   for(const scope of ['', 'branches/main/','departments/team/','branches/main/departments/team/'])for(const method of ['GET','HEAD','POST','PATCH','DELETE','OPTIONS']){
    const response=request(host,`/api/v1/holdings/acme/${scope}${other}?tag=one&tag=two`,method);
@@ -307,7 +321,7 @@ it('rejects cross-owner Office APIs before dispatch without redirects, cookies o
    expect(response.headers.get('cache-control')).toBe('private, no-store');
   }
  }
- for(const [host,resource] of [['projects','finance/project-cost-allocations'],['work','leave-requests/leave1/approve'],['recruit','people/hire-handoffs/consume'],['admin','pos/connection/oauth']]){
+ for(const [host,resource] of [['projects','finance/project-cost-allocations'],['apps','leave-requests/leave1/approve'],['recruit','people/hire-handoffs/consume'],['admin','pos/connection/oauth']]){
   const response=request(host,`/api/v1/holdings/acme/branches/main/departments/team/${resource}?tag=one&tag=two`);
   expect(response.status,host).toBe(200);
   expect(response.headers.get('location')).toBeNull();
@@ -332,23 +346,23 @@ it('retires every Console page, login, callback, asset and API method before rew
  expect(json.headers.get('content-type')).toBe('text/plain; charset=utf-8');
  expect(await json.text()).toBe('Not Found\n');
 });
-it('preserves health and ready, rejects foreign hosts and cannot reopen retired Console through an SSO outage',()=>{
+it('preserves health and ready, rejects foreign hosts and cannot reopen retired Console through an SSO outage',async()=>{
  enableDevelopmentProducts();vi.stubEnv('ERPX_CONSOLE_RETIRED','enabled');
  const request=(path:string,host='console-dev-erpx.jesadakorn.com')=>proxy(new NextRequest('http://127.0.0.1:3100'+path,{headers:{host}}));
  for(const path of ['/api/health','/api/ready'])expect(request(path).headers.get('x-middleware-next')).toBe('1');
  for(const path of ['/api/health','/api/ready'])for(const method of ['POST','PUT','PATCH','DELETE','OPTIONS'])expect(proxy(new NextRequest('http://127.0.0.1:3100'+path,{method,headers:{host:'console-dev-erpx.jesadakorn.com'}})).status).toBe(404);
  for(const path of ['/api/health','/api/ready'])for(const method of ['GET','HEAD']){
   const health=new NextRequest('http://127.0.0.1:3217'+path+'?probe=read-only',{method,headers:{host:'console-dev-erpx.jesadakorn.com'}});
-  const response=accountProxy(health);expect(response.status).toBe(200);expect(response.headers.get('x-middleware-next')).toBe('1');expect(response.headers.get('x-erpx-app')).toBe('account');
-  expect(appProxy('finance')(health).status).toBe(421);
+  const response=await accountProxy(health);expect(response.status).toBe(200);expect(response.headers.get('x-middleware-next')).toBe('1');expect(response.headers.get('x-erpx-app')).toBe('account');
+  expect((await appProxy('finance')(health)).status).toBe(421);
  }
- for(const path of ['/api/health/','/api/ready/extra','/login','/api/auth/sign-in/email'])expect(accountProxy(new NextRequest('http://127.0.0.1:3217'+path,{headers:{host:'console-dev-erpx.jesadakorn.com'}})).status).toBe(421);
- for(const method of ['POST','PUT','PATCH','DELETE','OPTIONS'])expect(accountProxy(new NextRequest('http://127.0.0.1:3217/api/health',{method,headers:{host:'console-dev-erpx.jesadakorn.com'}})).status).toBe(421);
+ for(const path of ['/api/health/','/api/ready/extra','/login','/api/auth/sign-in/email'])expect((await accountProxy(new NextRequest('http://127.0.0.1:3217'+path,{headers:{host:'console-dev-erpx.jesadakorn.com'}}))).status).toBe(421);
+ for(const method of ['POST','PUT','PATCH','DELETE','OPTIONS'])expect((await accountProxy(new NextRequest('http://127.0.0.1:3217/api/health',{method,headers:{host:'console-dev-erpx.jesadakorn.com'}}))).status).toBe(421);
 
  expect(request('/','unknown.example').status).toBe(421);expect(request('/api/health','127.0.0.1:3100').status).toBe(200);
  expect(request('/','apps-dev-erpx.jesadakorn.com').status).toBe(200);
  for(const flag of ['ERPX_PRODUCT_ROUTING','ERPX_PRODUCT_SSO']){vi.stubEnv(flag,'disabled');expect(request('/login').status).toBe(404);vi.stubEnv(flag,'enabled');}
- for(const environment of ['staging','production']){vi.stubEnv('ERPX_ENVIRONMENT',environment);expect(request('/login').status).toBe(200);expect(accountProxy(new NextRequest('http://127.0.0.1:3217/api/health',{headers:{host:'console-dev-erpx.jesadakorn.com'}})).status).toBe(421);}
+ for(const environment of ['staging','production']){vi.stubEnv('ERPX_ENVIRONMENT',environment);expect(request('/login').status).toBe(200);expect((await accountProxy(new NextRequest('http://127.0.0.1:3217/api/health',{headers:{host:'console-dev-erpx.jesadakorn.com'}}))).status).toBe(421);}
  vi.stubEnv('ERPX_ENVIRONMENT','local');vi.stubEnv('ERPX_CONSOLE_RETIRED','disabled');expect(request('/login').status).toBe(200);
  for(const path of ['/_next/static/chunks/app.js','/_next/image?url=image','/vendor/file.js']){
   const response=request(path,'pos-dev-erpx.jesadakorn.com');expect(response.headers.get('cache-control')).toBeNull();expect(response.headers.get('x-middleware-next')).toBe('1');
@@ -356,7 +370,7 @@ it('preserves health and ready, rejects foreign hosts and cannot reopen retired 
 });
 it('resolves marketing and account invitation entry on registry owners with scope and repeated filters intact',()=>{
  enableDevelopmentProducts();vi.stubEnv('ERPX_MARKETING_ORIGIN','https://dev-erpx.jesadakorn.com');
- const paths={apps:'/',account:'/activate',admin:'/holdings/acme/administration/organization',booking:'/book/acme',portal:'/customer-portal/acme','legal-portal':'/legal-portal/acme',forms:'/forms/acme/contact',work:'/holdings/acme/work',pos:'/holdings/acme/pos',pms:'/holdings/acme/pms',finance:'/holdings/acme/finance/accounting/journals',people:'/holdings/acme/people-organization/people',sales:'/holdings/acme/customers-sales/sales',supply:'/holdings/acme/purchasing',assets:'/holdings/acme/services/assets',projects:'/holdings/acme/projects-routines',recruit:'/holdings/acme/people-organization/talent',learn:'/holdings/acme/knowledge/learning',support:'/holdings/acme/customers-sales/customers/service',service:'/holdings/acme/services/field-service',legal:'/holdings/acme/services/legal',manufacturing:'/holdings/acme/production'};
+ const paths={apps:'/',account:'/activate',admin:'/holdings/acme/administration/organization',booking:'/book/acme',portal:'/customer-portal/acme','legal-portal':'/legal-portal/acme',forms:'/forms/acme/contact',pos:'/holdings/acme/pos',pms:'/holdings/acme/pms',finance:'/holdings/acme/finance/accounting/journals',people:'/holdings/acme/people-organization/people',sales:'/holdings/acme/customers-sales/sales',supply:'/holdings/acme/purchasing',assets:'/holdings/acme/services/assets',projects:'/holdings/acme/projects-routines',recruit:'/holdings/acme/people-organization/talent',learn:'/holdings/acme/knowledge/learning',support:'/holdings/acme/customers-sales/customers/service',service:'/holdings/acme/services/field-service',legal:'/holdings/acme/services/legal',manufacturing:'/holdings/acme/production'};
  for(const [owner,path] of Object.entries(paths)){
   const url=applicationUrl(path,'?tag=one&tag=two');expect(url.origin).toBe(`https://${owner}-dev-erpx.jesadakorn.com`);expect(url.searchParams.getAll('tag')).toEqual(['one','two']);
  }
@@ -382,4 +396,20 @@ it('returns POS provider setup through the actual Admin Company launch without c
  const launch=new URL(href.searchParams.get('next')!,'https://admin-dev-erpx.jesadakorn.com');
  expect(launch.pathname).toBe('/admin/launch');expect(launch.searchParams.get('companyId')).toBe('original-company');expect(launch.searchParams.get('next')).toBe('/holdings/acme/administration/stripe');
  expect(adminCompanyHandoff('original-company','/holdings/acme/settings/stripe','https://isolated.example.test')).toBe('https://isolated.example.test/holdings/acme/administration/stripe');
+});
+
+it('redirects exact retained People account bookmarks through normal owner SSO without forwarding mutations',()=>{
+ vi.stubEnv('ERPX_ENVIRONMENT','local');vi.stubEnv('ERPX_PRODUCT_ENVIRONMENT','development');vi.stubEnv('ERPX_PRODUCT_ROUTING','enabled');vi.stubEnv('ERPX_PRODUCT_SSO','enabled');
+ const request=(path:string,method='GET')=>proxy(new NextRequest('http://127.0.0.1:3100'+path,{method,headers:{host:'people-dev-erpx.jesadakorn.com'}}));
+ const base='/holdings/acme',query='subject=account-one&q=alex&filter=one&filter=two';
+ for(const suffix of ['people-organization/people/users-access/users','people?view=users','iam/users']){
+  const response=request(`${base}/${suffix}${suffix.includes('?')?'&':'?'}${query}`),location=new URL(response.headers.get('location')!);
+  expect(response.status).toBe(307);expect(location.origin).toBe('https://admin-dev-erpx.jesadakorn.com');expect(location.pathname).toBe('/sso/start');
+  const target=new URL(location.searchParams.get('next')!,'https://test.invalid');expect(target.pathname).toBe(base+'/administration/technology/resources/accounts');expect(target.searchParams.get('subject')).toBe('account-one');expect(target.searchParams.getAll('filter')).toEqual(['one','two']);
+  expect(request(`${base}/${suffix}`, 'POST').headers.get('location')).toBeNull();
+ }
+ const team=request(`${base}/people-organization/people/users-access/teams?${query}`),target=new URL(team.headers.get('location')!);
+ expect(target.origin).toBe('https://people-dev-erpx.jesadakorn.com');expect(target.pathname).toBe(base+'/people-organization/people/external/teams');expect(target.searchParams.get('subject')).toBe('account-one');
+ expect(request(base+'/people-organization/people/unclassified').headers.get('location')).toBeNull();
+ expect(request('/api/v1/holdings/acme/people/access').headers.get('location')).toBeNull();
 });

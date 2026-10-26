@@ -7,7 +7,7 @@ import {iamMutationGuards} from '@erpx/server-identity_access/public/iam-store';
 import {workContextGuards} from '@erpx/server-workflow/public/command-guards';
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
-import {workPackageEnforcementMode,readPurchasedAccess,checkPurchasedCapability,companyPurchaseReadLocks,purchaseCommandBoundary,purchaseCommandFailure} from '@erpx/server-commercial/public/purchase-command-boundary';
+import {appsPackageEnforcementMode,readPurchasedAccess,checkPurchasedCapability,companyPurchaseReadLocks,purchaseCommandBoundary,purchaseCommandFailure} from '@erpx/server-commercial/public/purchase-command-boundary';
 import type {CapabilityPurpose} from '@erpx/server-commercial/public/rules/packages';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import {isTransactionalSqlDatabase,type SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
@@ -25,7 +25,7 @@ async function current(database:SqlDatabase,actor:WorkContext,command=false){
 /** Only minimal controls leave the owner. Original Company membership and
  * owner-appointed editor authority remain separate checks in the service. */
 export async function handbookPurchaseAccess(database:SqlDatabase,actor:WorkContext):Promise<HandbookPurchaseControls|undefined>{
- const mode=await workPackageEnforcementMode();if(mode==='disabled')return;
+ const mode=await appsPackageEnforcementMode();if(mode==='disabled')return;
  if(mode==='enforced')await current(database,actor);
  await checkPurchasedCapability(database,mode,{companyId:actor.companyId,capability:'work.handbook',purpose:'history'});
  const access=await readPurchasedAccess(database,mode,{companyId:actor.companyId,capability:'work.handbook'});
@@ -34,20 +34,20 @@ export async function handbookPurchaseAccess(database:SqlDatabase,actor:WorkCont
 /** Fixed native article alias a; filters the actual collection before its
  * original cursor/LIMIT without changing owner-appointed draft visibility. */
 export async function handbookReadScope(actor:WorkContext){
- if(await workPackageEnforcementMode()!=='enforced')return {where:'TRUE',args:[] as (string|number|null)[]};
+ if(await appsPackageEnforcementMode()!=='enforced')return {where:'TRUE',args:[] as (string|number|null)[]};
  const current=currentAssignmentReadScope(actor,'workforce_actor_scope');
  return {where:`EXISTS(WITH handbook_clock AS MATERIALIZED(SELECT ${packageClockSql} now_ms) SELECT 1 FROM handbook_clock CROSS JOIN LATERAL(SELECT a.company_id,?::text branch_id,?::text department_id)workforce_actor_scope WHERE ${current.where} AND ${scheduledFeaturePredicate('a.company_id','collaboration')} AND ${purchasedCapabilityPredicate('a.company_id','work.handbook','history','handbook_clock.now_ms')})`,args:[actor.branchId,actor.departmentId,...current.args]};
 }
 /** Legacy generic sources must resolve to an actual readable native article;
  * a notice label never licenses private drafts or a missing source. */
 export async function handbookSourceReadScope(actor:WorkContext,surface:'records'|'staff'|'inbox'){
- if(await workPackageEnforcementMode()!=='enforced')return {where:'TRUE',args:[] as (string|number|null)[]};
+ if(await appsPackageEnforcementMode()!=='enforced')return {where:'TRUE',args:[] as (string|number|null)[]};
  const id=surface==='records'?'workspace_records.id':surface==='staff'?'staff_notifications.record_id':'e.source_id',company=surface==='records'?'workspace_records.company_id':surface==='staff'?'staff_notifications.company_id':'e.company_id',scope=await handbookReadScope(actor),actual=`EXISTS(SELECT 1 FROM handbook_articles original_handbook WHERE original_handbook.id=${id})`,visible=`EXISTS(SELECT 1 FROM handbook_articles a WHERE a.id=${id} AND a.company_id=${company} AND ${scope.where} AND ((a.archived=0 AND a.published_revision IS NOT NULL) OR ?::text='holding_owner' OR EXISTS(SELECT 1 FROM handbook_editors editor WHERE editor.company_id=a.company_id AND editor.user_id=?)))`;
  const type=surface==='staff'?'staff_notifications.record_type':'e.source_type';
  return {where:surface==='records'?`(NOT ${actual} OR ${visible})`:`(${type} NOT IN ('handbook','handbook_article') OR ${visible})`,args:[...scope.args,actor.role,actor.userId]};
 }
 export async function requireHandbookWorkspaceRead(database:SqlDatabase,actor:WorkContext,id:string){
- if(await workPackageEnforcementMode()!=='enforced')return;
+ if(await appsPackageEnforcementMode()!=='enforced')return;
  const scope=await handbookSourceReadScope(actor,'records');
  if(!await database.prepare(`SELECT ${scope.where} allowed FROM(SELECT ?::text id,?::text company_id)workspace_records`).bind(...scope.args,id,actor.companyId).first('allowed'))throw new ApiError(404,'ARTICLE_NOT_FOUND','This original handbook source is unavailable.');
 }
@@ -62,7 +62,7 @@ type Command={key:string;operation:string;id?:string;purpose:CapabilityPurpose};
  * original service still validates exact replay, membership, owner/editor,
  * publication/revision and version guards inside this complete transaction. */
 export async function withHandbookPurchasedCommand<Result>(owner:SqlDatabase,actor:WorkContext,command:Command,run:(database:SqlDatabase)=>Promise<Result>,authorize:(database:SqlDatabase)=>Promise<unknown>){
- const mode=await workPackageEnforcementMode();if(mode==='disabled')return run(owner);
+ const mode=await appsPackageEnforcementMode();if(mode==='disabled')return run(owner);
  if(!isTransactionalSqlDatabase(owner))throw new ApiError(503,'WORK_HANDBOOK_TRANSACTION_REQUIRED','Handbook commands require their complete fresh Holding transaction.');
  try{return await owner.transaction(async database=>{
   const locks=companyPurchaseReadLocks(database,actor.companyId);

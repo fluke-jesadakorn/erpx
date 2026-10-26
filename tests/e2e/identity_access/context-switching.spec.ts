@@ -271,7 +271,7 @@ test("an account that keeps the workspace refreshes People in place and invalida
   await expect(page.locator("[data-work-user]")).toHaveAttribute("data-work-user", people.id);
   await expect(page.getByRole("button", { name: new RegExp(`Account menu for .*${peopleEmail.replaceAll(".", "\\.")}`) })).toBeVisible();
   await expect(page.locator(".active-work-role")).toContainText("people manager");
-  await expect(page.getByRole("heading", { name: "Positions and people", exact: true })).toBeVisible();
+  await expect(page.getByTestId("people-unit-summaries")).toBeVisible();
   await expect(page.getByRole("dialog", { name: "Account switcher", exact: true })).not.toBeVisible();
   await expect(page.getByRole("dialog", { name: "Switch workspace", exact: true })).not.toBeVisible();
   await expect(page).toHaveURL(url);

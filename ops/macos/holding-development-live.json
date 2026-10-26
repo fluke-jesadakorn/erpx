@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "observedAt": "2026-10-26",
+  "environment": "development",
+  "acceptance": false,
+  "tunnel": {
+    "name": "erpx-local",
+    "uuid": "750f6ab5-1a43-4369-a40a-f6c88ccfb9c6",
+    "service": "http://127.0.0.1:3100",
+    "otherRoutesPreserved": true
+  },
+  "hosts": [
+    {
+      "holdingId": "h001",
+      "hostname": "acme.jesadakorn.com",
+      "published": true,
+      "dnsCnameCreated": true
+    },
+    {
+      "holdingId": "h002",
+      "hostname": "northstar.jesadakorn.com",
+      "published": true,
+      "dnsCnameCreated": true
+    },
+    {
+      "holdingId": "h003",
+      "hostname": "erpx-internal.jesadakorn.com",
+      "published": true,
+      "dnsCnameCreated": true
+    }
+  ],
+  "cacheRule": {
+    "id": "30ce9522677d42a2bbfe0dc3f78aef33",
+    "name": "ERPX Holding development: bypass cache",
+    "status": "active",
+    "scope": "exact registered Holding hosts, including /__erpx/"
+  },
+  "redirectRules": {
+    "ids": [
+      "02150c8e57404873b031b44944e7d678",
+      "bc7a8870bb47450980f980a2bb36872a"
+    ],
+    "change": "exclude ERPX development Account/Holding/retired product hosts; preserve all existing conditions and targets"
+  },
+  "organizationMigration": {
+    "version": 1073,
+    "changed": {
+      "h001": 10,
+      "h002": 4,
+      "h003": 0
+    },
+    "identityAndLineagePreserved": true,
+    "immutableTriggerRestored": true,
+    "remainingReservedSlugs": 0
+  },
+  "retiredHostBehavior": "generic404, no redirects or business forwarding; existing Tunnel/DNS tombstones retained",
+  "consoleException": "exact health/ready reads remain200",
+  "productionDeployed": false,
+  "stagingAccessed": false,
+  "evidenceDirectory": ".scratch/dev/holding-addresses/",
+  "providerAcceptance": false
+}

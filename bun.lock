@@ -89,6 +89,7 @@
       "dependencies": {
         "@erpx/contracts": "workspace:*",
         "@erpx/feature-admin": "workspace:*",
+        "@erpx/server-work_projection": "workspace:*",
         "@erpx/workplace": "workspace:*",
         "next": "16.4.3",
         "react": "19.3.1",
@@ -101,6 +102,7 @@
       "dependencies": {
         "@erpx/contracts": "workspace:*",
         "@erpx/feature-assets": "workspace:*",
+        "@erpx/server-work_projection": "workspace:*",
         "@erpx/workplace": "workspace:*",
         "next": "16.4.3",
         "react": "19.3.1",
@@ -126,6 +128,7 @@
         "@erpx/contracts": "workspace:*",
         "@erpx/feature-account": "workspace:*",
         "@erpx/feature-admin": "workspace:*",
+        "@erpx/feature-apps": "workspace:*",
         "@erpx/feature-assets": "workspace:*",
         "@erpx/feature-booking": "workspace:*",
         "@erpx/feature-finance": "workspace:*",
@@ -144,7 +147,6 @@
         "@erpx/feature-service": "workspace:*",
         "@erpx/feature-supply": "workspace:*",
         "@erpx/feature-support": "workspace:*",
-        "@erpx/feature-work": "workspace:*",
         "@erpx/workplace": "workspace:*",
         "next": "16.4.3",
         "react": "19.3.1",
@@ -157,6 +159,7 @@
       "dependencies": {
         "@erpx/contracts": "workspace:*",
         "@erpx/feature-finance": "workspace:*",
+        "@erpx/server-work_projection": "workspace:*",
         "@erpx/workplace": "workspace:*",
         "next": "16.4.3",
         "react": "19.3.1",
@@ -180,6 +183,9 @@
       "version": "0.0.0",
       "dependencies": {
         "@erpx/contracts": "workspace:*",
+        "@erpx/feature-apps": "workspace:*",
+        "@erpx/server-identity_access": "workspace:*",
+        "@erpx/server-work_projection": "workspace:*",
         "@erpx/workplace": "workspace:*",
         "next": "16.4.3",
         "react": "19.3.1",
@@ -192,6 +198,7 @@
       "dependencies": {
         "@erpx/contracts": "workspace:*",
         "@erpx/feature-learn": "workspace:*",
+        "@erpx/server-work_projection": "workspace:*",
         "@erpx/workplace": "workspace:*",
         "next": "16.4.3",
         "react": "19.3.1",
@@ -204,6 +211,7 @@
       "dependencies": {
         "@erpx/contracts": "workspace:*",
         "@erpx/feature-legal": "workspace:*",
+        "@erpx/server-work_projection": "workspace:*",
         "@erpx/workplace": "workspace:*",
         "next": "16.4.3",
         "react": "19.3.1",
@@ -228,6 +236,7 @@
       "dependencies": {
         "@erpx/contracts": "workspace:*",
         "@erpx/feature-manufacturing": "workspace:*",
+        "@erpx/server-work_projection": "workspace:*",
         "@erpx/workplace": "workspace:*",
         "next": "16.4.3",
         "react": "19.3.1",
@@ -240,6 +249,7 @@
       "dependencies": {
         "@erpx/contracts": "workspace:*",
         "@erpx/feature-people": "workspace:*",
+        "@erpx/server-work_projection": "workspace:*",
         "@erpx/workplace": "workspace:*",
         "next": "16.4.3",
         "react": "19.3.1",
@@ -252,6 +262,7 @@
       "dependencies": {
         "@erpx/contracts": "workspace:*",
         "@erpx/feature-pms": "workspace:*",
+        "@erpx/server-work_projection": "workspace:*",
         "@erpx/workplace": "workspace:*",
         "next": "16.4.3",
         "react": "19.3.1",
@@ -276,6 +287,7 @@
       "dependencies": {
         "@erpx/contracts": "workspace:*",
         "@erpx/feature-pos": "workspace:*",
+        "@erpx/server-work_projection": "workspace:*",
         "@erpx/workplace": "workspace:*",
         "next": "16.4.3",
         "react": "19.3.1",
@@ -288,6 +300,7 @@
       "dependencies": {
         "@erpx/contracts": "workspace:*",
         "@erpx/feature-projects": "workspace:*",
+        "@erpx/server-work_projection": "workspace:*",
         "@erpx/workplace": "workspace:*",
         "next": "16.4.3",
         "react": "19.3.1",
@@ -300,6 +313,7 @@
       "dependencies": {
         "@erpx/contracts": "workspace:*",
         "@erpx/feature-recruit": "workspace:*",
+        "@erpx/server-work_projection": "workspace:*",
         "@erpx/workplace": "workspace:*",
         "next": "16.4.3",
         "react": "19.3.1",
@@ -312,6 +326,7 @@
       "dependencies": {
         "@erpx/contracts": "workspace:*",
         "@erpx/feature-sales": "workspace:*",
+        "@erpx/server-work_projection": "workspace:*",
         "@erpx/workplace": "workspace:*",
         "next": "16.4.3",
         "react": "19.3.1",
@@ -324,6 +339,7 @@
       "dependencies": {
         "@erpx/contracts": "workspace:*",
         "@erpx/feature-service": "workspace:*",
+        "@erpx/server-work_projection": "workspace:*",
         "@erpx/workplace": "workspace:*",
         "next": "16.4.3",
         "react": "19.3.1",
@@ -336,6 +352,7 @@
       "dependencies": {
         "@erpx/contracts": "workspace:*",
         "@erpx/feature-supply": "workspace:*",
+        "@erpx/server-work_projection": "workspace:*",
         "@erpx/workplace": "workspace:*",
         "next": "16.4.3",
         "react": "19.3.1",
@@ -348,18 +365,7 @@
       "dependencies": {
         "@erpx/contracts": "workspace:*",
         "@erpx/feature-support": "workspace:*",
-        "@erpx/workplace": "workspace:*",
-        "next": "16.4.3",
-        "react": "19.3.1",
-        "react-dom": "19.3.1",
-      },
-    },
-    "apps/work": {
-      "name": "@erpx/app-work",
-      "version": "0.0.0",
-      "dependencies": {
-        "@erpx/contracts": "workspace:*",
-        "@erpx/feature-work": "workspace:*",
+        "@erpx/server-work_projection": "workspace:*",
         "@erpx/workplace": "workspace:*",
         "next": "16.4.3",
         "react": "19.3.1",
@@ -446,6 +452,32 @@
         "@erpx/server-agent": "workspace:*",
         "@erpx/ui": "workspace:*",
         "react": "19.3.1",
+      },
+    },
+    "packages/feature-apps": {
+      "name": "@erpx/feature-apps",
+      "version": "0.0.0",
+      "dependencies": {
+        "@erpx/contracts": "workspace:*",
+        "@erpx/feature-projects": "workspace:*",
+        "@erpx/feature-records": "workspace:*",
+        "@erpx/feature-runtime": "workspace:*",
+        "@erpx/feature-shared": "workspace:*",
+        "@erpx/feature-work_projection": "workspace:*",
+        "@erpx/server-collaboration": "workspace:*",
+        "@erpx/server-files": "workspace:*",
+        "@erpx/server-identity_access": "workspace:*",
+        "@erpx/server-manage_erpx": "workspace:*",
+        "@erpx/server-operations": "workspace:*",
+        "@erpx/server-runtime": "workspace:*",
+        "@erpx/server-support": "workspace:*",
+        "@erpx/server-work_projection": "workspace:*",
+        "@erpx/ui": "workspace:*",
+        "@erpx/workplace": "workspace:*",
+        "lucide-react": "1.61.0",
+        "next": "16.4.3",
+        "react": "19.3.1",
+        "zod": "4.6.7",
       },
     },
     "packages/feature-assets": {
@@ -590,6 +622,7 @@
       "name": "@erpx/feature-commercial",
       "version": "0.0.0",
       "dependencies": {
+        "@erpx/contracts": "workspace:*",
         "@erpx/feature-identity_access": "workspace:*",
         "@erpx/feature-people_payroll": "workspace:*",
         "@erpx/feature-work_projection": "workspace:*",
@@ -634,6 +667,7 @@
       "name": "@erpx/feature-customer_authority",
       "version": "0.0.0",
       "dependencies": {
+        "@erpx/contracts": "workspace:*",
         "@erpx/feature-crm": "workspace:*",
         "@erpx/feature-files": "workspace:*",
         "@erpx/feature-identity_access": "workspace:*",
@@ -756,6 +790,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@erpx/catalogue": "workspace:*",
+        "@erpx/contracts": "workspace:*",
         "@erpx/feature-brand": "workspace:*",
         "@erpx/feature-collaboration": "workspace:*",
         "@erpx/feature-files": "workspace:*",
@@ -834,8 +869,10 @@
       "version": "0.0.0",
       "dependencies": {
         "@erpx/catalogue": "workspace:*",
+        "@erpx/contracts": "workspace:*",
         "@erpx/feature-people_payroll": "workspace:*",
         "@erpx/feature-records": "workspace:*",
+        "@erpx/feature-runtime": "workspace:*",
         "@erpx/feature-shared": "workspace:*",
         "@erpx/feature-work_projection": "workspace:*",
         "@erpx/server-identity_access": "workspace:*",
@@ -906,6 +943,7 @@
       "name": "@erpx/feature-marketing",
       "version": "0.0.0",
       "dependencies": {
+        "@erpx/contracts": "workspace:*",
         "@erpx/feature-collaboration": "workspace:*",
         "@erpx/feature-crm": "workspace:*",
         "@erpx/feature-shared": "workspace:*",
@@ -934,6 +972,7 @@
       "name": "@erpx/feature-organization",
       "version": "0.0.0",
       "dependencies": {
+        "@erpx/contracts": "workspace:*",
         "@erpx/feature-files": "workspace:*",
         "@erpx/feature-identity_access": "workspace:*",
         "@erpx/feature-people_payroll": "workspace:*",
@@ -972,6 +1011,7 @@
       "name": "@erpx/feature-people_payroll",
       "version": "0.0.0",
       "dependencies": {
+        "@erpx/contracts": "workspace:*",
         "@erpx/feature-brand": "workspace:*",
         "@erpx/feature-field_service": "workspace:*",
         "@erpx/feature-files": "workspace:*",
@@ -1017,6 +1057,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@erpx/catalogue": "workspace:*",
+        "@erpx/contracts": "workspace:*",
         "@erpx/feature-brand": "workspace:*",
         "@erpx/feature-collaboration": "workspace:*",
         "@erpx/feature-files": "workspace:*",
@@ -1024,6 +1065,7 @@
         "@erpx/feature-identity_access": "workspace:*",
         "@erpx/feature-people_payroll": "workspace:*",
         "@erpx/feature-records": "workspace:*",
+        "@erpx/feature-runtime": "workspace:*",
         "@erpx/feature-shared": "workspace:*",
         "@erpx/feature-support": "workspace:*",
         "@erpx/feature-work_projection": "workspace:*",
@@ -1399,34 +1441,12 @@
         "server-only": "0.0.1",
       },
     },
-    "packages/feature-work": {
-      "name": "@erpx/feature-work",
-      "version": "0.0.0",
-      "dependencies": {
-        "@erpx/contracts": "workspace:*",
-        "@erpx/feature-projects": "workspace:*",
-        "@erpx/feature-records": "workspace:*",
-        "@erpx/feature-runtime": "workspace:*",
-        "@erpx/feature-shared": "workspace:*",
-        "@erpx/feature-work_projection": "workspace:*",
-        "@erpx/server-collaboration": "workspace:*",
-        "@erpx/server-files": "workspace:*",
-        "@erpx/server-identity_access": "workspace:*",
-        "@erpx/server-manage_erpx": "workspace:*",
-        "@erpx/server-operations": "workspace:*",
-        "@erpx/server-runtime": "workspace:*",
-        "@erpx/server-support": "workspace:*",
-        "@erpx/server-work_projection": "workspace:*",
-        "@erpx/workplace": "workspace:*",
-        "next": "16.4.3",
-        "zod": "4.6.7",
-      },
-    },
     "packages/feature-work_projection": {
       "name": "@erpx/feature-work_projection",
       "version": "0.0.0",
       "dependencies": {
         "@erpx/catalogue": "workspace:*",
+        "@erpx/contracts": "workspace:*",
         "@erpx/feature-collaboration": "workspace:*",
         "@erpx/feature-files": "workspace:*",
         "@erpx/feature-finance": "workspace:*",
@@ -3102,8 +3122,6 @@
 
     "@erpx/app-support": ["@erpx/app-support@workspace:apps/support"],
 
-    "@erpx/app-work": ["@erpx/app-work@workspace:apps/work"],
-
     "@erpx/catalogue": ["@erpx/catalogue@workspace:packages/catalogue"],
 
     "@erpx/contracts": ["@erpx/contracts@workspace:packages/contracts"],
@@ -3113,6 +3131,8 @@
     "@erpx/feature-admin": ["@erpx/feature-admin@workspace:packages/feature-admin"],
 
     "@erpx/feature-agent": ["@erpx/feature-agent@workspace:packages/feature-agent"],
+
+    "@erpx/feature-apps": ["@erpx/feature-apps@workspace:packages/feature-apps"],
 
     "@erpx/feature-assets": ["@erpx/feature-assets@workspace:packages/feature-assets"],
 
@@ -3205,8 +3225,6 @@
     "@erpx/feature-support": ["@erpx/feature-support@workspace:packages/feature-support"],
 
     "@erpx/feature-talent": ["@erpx/feature-talent@workspace:packages/feature-talent"],
-
-    "@erpx/feature-work": ["@erpx/feature-work@workspace:packages/feature-work"],
 
     "@erpx/feature-work_projection": ["@erpx/feature-work_projection@workspace:packages/feature-work_projection"],
 
