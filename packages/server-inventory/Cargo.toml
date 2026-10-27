@@ -1,0 +1,38 @@
+[package]
+name = "erpx-server-inventory"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+autotests = false
+
+[package.metadata.erpx]
+verification-roots = ["../../fixtures/inventory/rust-valuation", "../../scripts/testing/fixtures/generate-inventory-rust-oracle.ts"]
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+erpx-server-runtime.workspace = true
+erpx-server-commerce.workspace = true
+erpx-server-quality.workspace = true
+sqlx.workspace = true
+erpx-server-shared.workspace = true
+
+[dev-dependencies]
+uuid.workspace = true
+erpx-server-finance.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+
+[[test]]
+name = "valuation"
+path = "../../tests/unit/inventory/rust-valuation.test.rs"
+
+[lints]
+workspace = true
+
+[[test]]
+name = "consumption_postgres"
+path = "../../tests/integration/inventory/rust-consumption-planning-postgres.test.rs"

@@ -47,9 +47,12 @@ impl<C: Clock + Send + Sync + 'static> LegalQueueAdministration<C> {
         &self,
         host: &str,
         proof: DeviceProof,
-        workspace: HoldingWorkspaceRequest,
+        mut workspace: HoldingWorkspaceRequest,
         request: LegalQueueRequest,
     ) -> Result<LegalProcessingReceipt, Error> {
+        // Queue production is always a mutation, including an exact receipt
+        // replay. A caller cannot downgrade selected-grant CAS to a read.
+        workspace.mutation = true;
         let configuration = self.configuration.clone();
         let clock = self.clock.clone();
         self.authorizer

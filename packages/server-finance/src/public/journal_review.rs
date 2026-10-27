@@ -1,6 +1,7 @@
 pub use crate::adapters::postgres_journal_review::{
-    FinanceJournalAccessPurpose, PgFinanceJournalReviewPolicy, PgJournalReview,
-    PgJournalReviewMoney, PgJournalReviewSource,
+    CurrentJournalReviewScope, FinanceJournalAccessPurpose, JournalReviewRootKind,
+    PgFinanceJournalReviewPolicy, PgJournalReview, PgJournalReviewMoney, PgJournalReviewSource,
+    inspect_journal_review_source, lock_journal_review_sources,
 };
 pub use crate::application::journal_review::{
     JournalPostingFacts, JournalReversalSourceFacts, JournalReviewAction, JournalReviewCommand,

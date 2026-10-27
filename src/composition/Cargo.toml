@@ -24,6 +24,7 @@ erpx-server-shared.workspace = true
 erpx-server-identity-access.workspace = true
 erpx-server-legal.workspace = true
 erpx-server-files.workspace = true
+erpx-server-finance.workspace = true
 erpx-server-commercial.workspace = true
 erpx-server-platform-administration.workspace = true
 erpx-server-pms.workspace = true
@@ -62,3 +63,7 @@ required-features = ["legal-pdf-worker", "legal-document-worker", "legal-queue"]
 
 [lints]
 workspace = true
+
+[[test]]
+name = "finance_journal_review"
+path = "../../tests/integration/finance/rust-journal-review-composition.test.rs"

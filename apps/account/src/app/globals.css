@@ -49,6 +49,7 @@
 @source "../../../../packages/feature-finance/src/lib/finance-thai-document.ts";
 @source "../../../../packages/feature-finance/src/lib/thai-finance-tax-pack.ts";
 @source "../../../../packages/feature-identity_access/src/adapters/http/account-auth.ts";
+@source "../../../../packages/feature-identity_access/src/adapters/http/account-security.ts";
 @source "../../../../packages/feature-identity_access/src/components/account-home.tsx";
 @source "../../../../packages/feature-identity_access/src/components/account-preferences-context.tsx";
 @source "../../../../packages/feature-identity_access/src/components/account-preferences-provider.tsx";
@@ -74,6 +75,7 @@
 @source "../../../../packages/feature-identity_access/src/lib/user-management.ts";
 @source "../../../../packages/feature-identity_access/src/lib/verified-form-submit.ts";
 @source "../../../../packages/feature-identity_access/src/lib/work-role-display.ts";
+@source "../../../../packages/feature-identity_access/src/public/client.ts";
 @source "../../../../packages/feature-legal/src/components/legal-enrollment.tsx";
 @source "../../../../packages/feature-legal/src/lib/legal/features-domain.ts";
 @source "../../../../packages/feature-legal/src/lib/legal/features.ts";

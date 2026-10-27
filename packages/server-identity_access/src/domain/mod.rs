@@ -15,4 +15,7 @@ pub(crate) mod queued_authority;
 
 pub(crate) mod account_revocation;
 
+pub(crate) mod account_mfa;
+pub(crate) mod account_security;
+pub(crate) mod account_security_snapshot;
 pub(crate) mod command_metadata;

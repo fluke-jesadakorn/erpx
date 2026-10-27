@@ -73,7 +73,10 @@
     "./lib/organization-access-command": "./src/lib/organization-access-command.ts",
     "./lib/auth-client": "./src/lib/auth-client.ts",
     "./lib/account-security": "./src/lib/account-security.ts",
-    "./lib/verified-form-submit": "./src/lib/verified-form-submit.ts"
+    "./lib/verified-form-submit": "./src/lib/verified-form-submit.ts",
+    "./application/account-security-port": "./src/application/account-security-port.ts",
+    "./adapters/http/account-security": "./src/adapters/http/account-security.ts",
+    "./public/client": "./src/public/client.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

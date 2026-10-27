@@ -1,0 +1,27 @@
+[package]
+name = "erpx-server-commerce"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+autotests = false
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+erpx-server-shared.workspace = true
+erpx-server-runtime.workspace = true
+sqlx.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+uuid.workspace = true
+
+[lints]
+workspace = true
+
+[[test]]
+name = "consumption_postgres"
+path = "../../tests/integration/commerce/rust-consumption-commerce-postgres.test.rs"

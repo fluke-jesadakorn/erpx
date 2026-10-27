@@ -152,5 +152,78 @@
       "exit": 0,
       "checkedAt": "2026-10-26T17:56:04.119979+00:00"
     }
-  ]
+  ],
+  "recoveryFollowup": {
+    "checkedAt": "2026-10-27T00:54:45.368016+00:00",
+    "acceptance": false,
+    "recoveryComplete": false,
+    "stagingAccessed": false,
+    "restartAttempt": {
+      "service": "system/com.erpx.tunnel",
+      "exit": 1,
+      "reason": "Operation not permitted; sudo requires administrator authentication"
+    },
+    "browser": {
+      "url": "https://acme.jesadakorn.com/bangkok/pms",
+      "shellRendered": true,
+      "complete": false,
+      "observations": [
+        "PMS shell and example stays rendered during a successful interval",
+        "Calendar displayed an HTML-as-JSON error during intermittent upstream failures",
+        "Browser Network showed manifest/favicon/icon responses502",
+        "Legacy issued-document/detail links need follow-up once transport is stable"
+      ]
+    },
+    "healthSamples": {
+      "local": [
+        "200 0.067585",
+        "200 0.019312",
+        "200 0.021923",
+        "200 0.017870",
+        "200 0.023914",
+        "200 0.019757"
+      ],
+      "private": [
+        "000 6.005990",
+        "000 6.003500",
+        "200 0.892450",
+        "200 0.025218",
+        "200 2.672490",
+        "200 1.925965"
+      ],
+      "public": [
+        "000 6.007018",
+        "502 0.134783",
+        "530 0.090447",
+        "200 0.243689",
+        "200 1.727683",
+        "502 1.009276"
+      ],
+      "tunnel": [
+        "200 2.634625",
+        "200 2.877288",
+        "200 0.832706",
+        "200 0.000682",
+        "200 1.689900",
+        "200 1.805319"
+      ]
+    }
+  },
+  "authorizedRecoveryFollowup": {
+    "at": "2026-10-27T03:21:54.276437+00:00",
+    "actions": [
+      "User-authorized restart of existing com.erpx.tunnel and com.erpx.web; no release, configuration, ingress or DNS change.",
+      "Existing development-only FreshClam update and clamd reload; verified official database28165 loaded."
+    ],
+    "observedHealthy": {
+      "localHealth": 200,
+      "publicConsoleHealth": 200,
+      "privateHealth": 200,
+      "retiredConsole": 404
+    },
+    "repeatedCheck": "Later eight-second public/private probes still timed out; initial200 observations do not establish sustained availability.",
+    "browser": "Finance normal Account SSO rendered the canonical invoice page. Chrome security notice interrupted further interaction; user requested skipping that issue and continuing migration. Full browser acceptance remains incomplete.",
+    "productionRelease": false,
+    "stagingTouched": false
+  }
 }

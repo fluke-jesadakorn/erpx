@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "ERPX native Account authentication",
-    "description": "Native Account authentication and credential lifecycle. Unmounted during migration; worker/provider runtime assembly and live delivery acceptance, invitation administration/existing-account linking, directory/MFA and complete owner authorization remain pending. This document is not runtime or release acceptance.",
+    "description": "Native Account authentication, credential lifecycle, TOTP and personal session security. Unmounted during migration; runtime/provider assembly and live delivery acceptance, invitation administration/existing-account linking, Directory and complete owner authorization remain pending. This document is not runtime or release acceptance.",
     "license": {
       "name": "Apache-2.0",
       "identifier": "Apache-2.0"
@@ -961,6 +961,354 @@
         }
       }
     },
+    "/api/v1/account/iam/mfa/enroll": {
+      "post": {
+        "tags": [],
+        "operationId": "enroll",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountMfaEnrollInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountMfaEnrollmentResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountAuthErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountAuthErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountAuthErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountAuthErrorResponse"
+                }
+              }
+            }
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountAuthErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountAuthErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountAuthErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountAuthErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/account/iam/mfa/verify": {
+      "post": {
+        "tags": [],
+        "operationId": "verify",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountMfaVerifyInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountMfaVerifiedResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountAuthErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountAuthErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountAuthErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountAuthErrorResponse"
+                }
+              }
+            }
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountAuthErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountAuthErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountAuthErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountAuthErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/account/security": {
+      "get": {
+        "tags": [],
+        "operationId": "read",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountSecurityResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountAuthErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountAuthErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountAuthErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountAuthErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountAuthErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [],
+        "operationId": "revoke",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountSecurityInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountSecurityRevokeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountAuthErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountAuthErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountAuthErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountAuthErrorResponse"
+                }
+              }
+            }
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountAuthErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountAuthErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountAuthErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/sso/authorize": {
       "get": {
         "tags": [],
@@ -1194,6 +1542,70 @@
         },
         "additionalProperties": false
       },
+      "AccountMfaEnrollInput": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "AccountMfaEnrollment": {
+        "type": "object",
+        "required": [
+          "secret",
+          "uri"
+        ],
+        "properties": {
+          "secret": {
+            "type": "string"
+          },
+          "uri": {
+            "type": "string"
+          }
+        }
+      },
+      "AccountMfaEnrollmentResponse": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AccountMfaEnrollment"
+          }
+        }
+      },
+      "AccountMfaVerified": {
+        "type": "object",
+        "required": [
+          "verifiedUntil"
+        ],
+        "properties": {
+          "verifiedUntil": {
+            "$ref": "#/components/schemas/AccountRevision"
+          }
+        }
+      },
+      "AccountMfaVerifiedResponse": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AccountMfaVerified"
+          }
+        }
+      },
+      "AccountMfaVerifyInput": {
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
       "AccountOperationResponse": {
         "type": "object",
         "required": [
@@ -1224,6 +1636,160 @@
         "description": "A JSON revision is an exact JavaScript integer, never a lossy i64 conversion.",
         "maximum": 9007199254740991,
         "minimum": 0
+      },
+      "AccountSecurityFamily": {
+        "type": "object",
+        "required": [
+          "handle",
+          "current",
+          "createdAt",
+          "expiresAt",
+          "audiences"
+        ],
+        "properties": {
+          "audiences": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/AccountRevision"
+          },
+          "current": {
+            "type": "boolean"
+          },
+          "expiresAt": {
+            "$ref": "#/components/schemas/AccountRevision"
+          },
+          "handle": {
+            "type": "string"
+          },
+          "userAgent": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "AccountSecurityInput": {
+        "type": "object",
+        "required": [
+          "accountKey",
+          "expectedRevision",
+          "scope",
+          "reason"
+        ],
+        "properties": {
+          "accountKey": {
+            "type": "string"
+          },
+          "expectedRevision": {
+            "type": "string"
+          },
+          "family": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/AccountSecurityScope"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AccountSecurityResponse": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AccountSecuritySeed"
+          }
+        }
+      },
+      "AccountSecurityRevokeResponse": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AccountSecurityRevoked"
+          }
+        }
+      },
+      "AccountSecurityRevoked": {
+        "type": "object",
+        "required": [
+          "revoked",
+          "count",
+          "reauthenticate"
+        ],
+        "properties": {
+          "count": {
+            "$ref": "#/components/schemas/AccountRevision"
+          },
+          "reauthenticate": {
+            "type": "boolean"
+          },
+          "revoked": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AccountSecurityScope": {
+        "type": "string",
+        "enum": [
+          "family",
+          "all"
+        ]
+      },
+      "AccountSecuritySeed": {
+        "type": "object",
+        "required": [
+          "accountKey",
+          "revision",
+          "mfaEnabled",
+          "families",
+          "legacySessions"
+        ],
+        "properties": {
+          "accountKey": {
+            "type": "string"
+          },
+          "families": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccountSecurityFamily"
+            }
+          },
+          "legacySessions": {
+            "$ref": "#/components/schemas/AccountRevision"
+          },
+          "mfaEnabled": {
+            "type": "boolean"
+          },
+          "mfaFreshUntil": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AccountRevision"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "revision": {
+            "type": "string"
+          }
+        }
       },
       "AccountSessionDto": {
         "type": "object",

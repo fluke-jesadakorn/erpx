@@ -1,5 +1,6 @@
 use erpx_server_identity_access::public::account_contracts::*;
 use erpx_server_identity_access::public::account_device_http::DeviceAccountsResponse;
+use erpx_server_identity_access::public::account_security_http::*;
 use ts_rs::{Config, TS};
 
 fn main() {
@@ -9,8 +10,9 @@ fn main() {
         document.merge(erpx_server_identity_access::public::credentials_openapi());
         document.merge(erpx_server_identity_access::public::account_sso::sso_openapi());
         document.merge(erpx_server_identity_access::public::invitation_openapi());
+        document.merge(security_openapi());
         document.info.title = "ERPX native Account authentication".into();
-        document.info.description=Some("Native Account authentication and credential lifecycle. Unmounted during migration; worker/provider runtime assembly and live delivery acceptance, invitation administration/existing-account linking, directory/MFA and complete owner authorization remain pending. This document is not runtime or release acceptance.".into());
+        document.info.description=Some("Native Account authentication, credential lifecycle, TOTP and personal session security. Unmounted during migration; runtime/provider assembly and live delivery acceptance, invitation administration/existing-account linking, Directory and complete owner authorization remain pending. This document is not runtime or release acceptance.".into());
         println!(
             "{}",
             document
@@ -53,6 +55,19 @@ fn main() {
         DeviceAccountDto::decl(&configuration),
         DeviceAccountsDto::decl(&configuration),
         DeviceAccountsResponse::decl(&configuration),
+        AccountMfaEnrollInput::decl(&configuration),
+        AccountMfaVerifyInput::decl(&configuration),
+        AccountMfaEnrollment::decl(&configuration),
+        AccountMfaVerified::decl(&configuration),
+        AccountMfaEnrollmentResponse::decl(&configuration),
+        AccountMfaVerifiedResponse::decl(&configuration),
+        AccountSecurityFamily::decl(&configuration),
+        AccountSecuritySeed::decl(&configuration),
+        AccountSecurityInput::decl(&configuration),
+        AccountSecurityScope::decl(&configuration),
+        AccountSecurityResponse::decl(&configuration),
+        AccountSecurityRevoked::decl(&configuration),
+        AccountSecurityRevokeResponse::decl(&configuration),
         AccountAuthError::decl(&configuration),
         AccountAuthErrorResponse::decl(&configuration),
         EmailSignInResponse::decl(&configuration),

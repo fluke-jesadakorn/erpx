@@ -68,6 +68,56 @@ and deferred-constraint rollback, final source/authority rejection, a writer
 committing before snapshot acquisition, compressed source limits, unrelated
 configuration acceptance, date-effective books and earliest-opening denial.
 
+The public `lock_journal_review_sources` utility facade exposes the same Finance
+source/absence fences plus Workflow's receipt-origin utility lock. Composition
+must acquire these before its first Holding snapshot, alongside the real IAM,
+Commercial and release utility sources. Locking after authorization has already
+read a SERIALIZABLE snapshot cannot establish freshness for inserted denials.
+
+`inspect_journal_review_source` provides a closed, opaque same-transaction
+`CurrentJournalReviewScope`. The initial supported roots are genuine canonical
+`finance.journal.create` manual journals (`source_id IS NULL`, not opening) and
+opening imports (`source_id` is their actual chart and `is_opening=1`). Reversal
+ancestry must end at a manual root, and every reversal must have its own actual
+parent-bound `finance.journal.reverse` receipt. Every origin is positively read
+and retained through Workflow's public provenance API; Finance checks the
+canonical key-derived journal ID/number and exact create/reverse result fields.
+No Finance SQL reads Workflow tables. A manual/opening label alone never proves
+ownership. Actual secondary journal links and approved secondary-chart ownership
+are excluded independently of labels, and unsupported foreign-owner sources
+fail closed until their actual public ports are implemented.
+
+The provenance proves the creator/operation/record/Company and canonical saved
+result, not a reconstruction of an unavailable historical command input from
+its hash. It grants no current permission, purchase, release or source access.
+The first source proof binds current stable header content, real ancestry,
+Company/creator/chart identity, positive origins and backend/transaction.
+`require_current` permits canonical status/version and posting/reversal metadata
+transitions so final checks and exact History replay work after posting. The
+existing canonical writer's exact before/after-image validation remains
+mandatory; the scope proof alone does not validate amounts or authorize writes.
+The scope drops the captured line/configuration images after admission instead
+of retaining a duplicate complete source image during external policy checks.
+Positive origins share an additional 32 MiB retained-text budget across the
+entire chain, charged using Workflow's opaque proof-size getter before each
+proof is retained. Canonical Finance results are capped at 16 KiB before owner
+parsing. Workflow's per-row SQL caps still apply; at most one additional bounded
+row is temporarily read before an aggregate-budget rejection. These are native
+admission limits, not claims that B0 imposed the same historical receipt limits.
+
+The source integration suite creates origins through the real native Workflow
+ledger and Finance preparation/store, never a fabricated receipt INSERT. Its
+authority ports remain explicitly disposable fixtures. It covers canonical
+post/final source retention and History replay, opening chart identity, forged
+or absent provenance, creator/Company/source/number mismatches, every reversal's
+own receipt, actual secondary-chart exclusion, same-transaction source mutation,
+cross-transaction proof rejection, and a source withdrawal committed while the
+pre-snapshot utility fence waits. These are component proofs, not production
+Finance composition or acceptance.
+An actual seventeen-origin reversal chain additionally proves aggregate
+admission rejects individually bounded receipt bodies when their retained total
+exceeds the chain budget; an oversized canonical-result negative is separate.
+
 Regenerate/check only as a development tool:
 
 ```sh

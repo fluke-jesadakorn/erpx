@@ -12,7 +12,7 @@ use erpx_server_shared::public::{
     BusinessError, Clock, CompanyId, IdentifierSource, RecordId, TimestampMillis,
 };
 use erpx_server_workflow::public::commands::*;
-use sqlx::PgConnection;
+use sqlx::{Connection, PgConnection};
 type Error = PgTransactionError<BusinessError>;
 struct Time;
 impl Clock for Time {
@@ -453,4 +453,262 @@ async fn all_frozen_node_receipt_replays_preserve_results_conflicts_and_current_
         }
         assert_eq!(counts(&pool).await,(24,0,0,0),"historical replay must not run owner/audit/outbox effects");
     }).await;
+}
+
+use erpx_server_workflow::public::record_origin::*;
+fn origin_request() -> RecordOriginRequest {
+    RecordOriginRequest {
+        command_key: "workflow:test:command".into(),
+        operation: "workflow.synthetic.update".into(),
+        record_id: "record".into(),
+        creator_user_id: erpx_server_shared::public::UserId::new("user").unwrap(),
+        company_id: CompanyId::new("company").unwrap(),
+    }
+}
+async fn origin_transaction(pool: &DatabasePool) -> sqlx::Transaction<'static, sqlx::Postgres> {
+    let mut tx = pool.raw().begin().await.unwrap();
+    sqlx::raw_sql("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    lock_record_origin_sources(&mut tx).await.unwrap();
+    tx
+}
+
+#[tokio::test]
+async fn positive_origin_matches_actual_ledger_bytes_and_all_closed_identity_fields() {
+    fixture::with_database(3, |pool| async move {
+        setup(&pool).await;
+        execute(&pool, "{}", false, false).await.unwrap();
+        let mut tx = origin_transaction(&pool).await;
+        let proof = read_record_origin(&mut tx, origin_request())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            proof.result().as_str(),
+            r#"{"id":"record","state":"updated"}"#
+        );
+        assert!(proof.retained_text_bytes() > proof.result().as_str().len() * 2);
+        assert!(proof.retained_text_bytes() < 4096);
+
+        verify_record_origin(&mut tx, &proof).await.unwrap();
+        for field in ["key", "operation", "record", "creator", "company"] {
+            let mut request = origin_request();
+            match field {
+                "key" => request.command_key = "workflow:missing:command".into(),
+                "operation" => request.operation = "foreign.synthetic.update".into(),
+                "record" => request.record_id = "foreign-record".into(),
+                "creator" => {
+                    request.creator_user_id =
+                        erpx_server_shared::public::UserId::new("foreign-user").unwrap()
+                }
+                "company" => request.company_id = CompanyId::new("foreign-company").unwrap(),
+                _ => unreachable!(),
+            }
+            assert!(
+                read_record_origin(&mut tx, request)
+                    .await
+                    .unwrap()
+                    .is_none(),
+                "{field}"
+            );
+        }
+        tx.commit().await.unwrap();
+        assert_eq!(counts(&pool).await, (1, 1, 1, 1));
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn record_origin_requires_a_real_serializable_unit_and_bounded_request() {
+    fixture::with_database(3, |pool| async move {
+        setup(&pool).await;
+        let mut c=pool.raw().acquire().await.unwrap();
+        assert!(matches!(lock_record_origin_sources(&mut c).await,Err(Error::Persistence(ref e)) if e.code=="WORKFLOW_OWNER_TRANSACTION_REQUIRED"));
+        assert!(matches!(read_record_origin(&mut c,origin_request()).await,Err(Error::Persistence(ref e)) if e.code=="WORKFLOW_OWNER_TRANSACTION_REQUIRED"));
+        let mut tx=pool.raw().begin().await.unwrap();
+        assert!(matches!(read_record_origin(&mut tx,origin_request()).await,Err(Error::Persistence(ref e)) if e.code=="WORKFLOW_SERIALIZABLE_REQUIRED"));
+        tx.rollback().await.unwrap();
+        let mut tx=origin_transaction(&pool).await;
+        let mut request=origin_request();request.command_key="unbounded".repeat(1000);
+        assert!(matches!(read_record_origin(&mut tx,request).await,Err(Error::Business(ref e)) if e.code=="COMMAND_ORIGIN_REQUEST_INVALID"));
+        tx.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn corrupt_or_legacy_receipts_do_not_establish_positive_provenance() {
+    fixture::with_database(3, |pool| async move {
+        setup(&pool).await;
+        execute(&pool,"{}",false,false).await.unwrap();
+        let mut tx=origin_transaction(&pool).await;
+        let saved_hash:String=sqlx::query_scalar("SELECT request_hash FROM command_receipts").fetch_one(&mut *tx).await.unwrap();
+        let saved_authority:String=sqlx::query_scalar("SELECT authority_json FROM command_receipts").fetch_one(&mut *tx).await.unwrap();
+        for hash in ["", "123", "gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"] {
+            sqlx::query("UPDATE command_receipts SET request_hash=$1").bind(hash).execute(&mut *tx).await.unwrap();
+            assert!(matches!(read_record_origin(&mut tx,origin_request()).await,Err(Error::Business(ref e)) if e.code=="COMMAND_ORIGIN_INVALID"));
+        }
+        sqlx::query("UPDATE command_receipts SET request_hash=$1").bind(saved_hash).execute(&mut *tx).await.unwrap();
+        for authority in [None,Some(r#"{"unsupported":true}"#),Some("null"),Some("{}"),Some(r#"{"companyId":null}"#),Some(r#"{"companyId":"foreign"}"#)] {
+            sqlx::query("UPDATE command_receipts SET authority_json=$1").bind(authority).execute(&mut *tx).await.unwrap();
+            match read_record_origin(&mut tx,origin_request()).await {
+                Ok(value)=>assert!(value.is_none()),
+                Err(Error::Business(e))=>assert_eq!(e.code,"COMMAND_ORIGIN_INVALID"),
+                _=>panic!("unexpected provenance error"),
+            }
+        }
+        sqlx::query("UPDATE command_receipts SET authority_json=$1,result_json='null'")
+            .bind(saved_authority).execute(&mut *tx).await.unwrap();
+        // Generic provenance does not invent the owner's result shape.
+        let proof=read_record_origin(&mut tx,origin_request()).await.unwrap().unwrap();
+        assert_eq!(proof.result().as_str(),"null");
+        tx.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn every_persisted_origin_text_is_bounded_before_transfer() {
+    fixture::with_database(3, |pool| async move {
+        setup(&pool).await;execute(&pool,"{}",false,false).await.unwrap();
+        for field in ["operation","actor_id","record_id","request_hash","authority_json","result_json"] {
+            let mut tx=origin_transaction(&pool).await;
+            let query=match field {
+                "operation"=>"UPDATE command_receipts SET operation=repeat('x',201)",
+                "actor_id"=>"UPDATE command_receipts SET actor_id=repeat('x',201)",
+                "record_id"=>"UPDATE command_receipts SET record_id=repeat('x',201)",
+                "request_hash"=>"UPDATE command_receipts SET request_hash=repeat('a',65)",
+                "authority_json"=>"UPDATE command_receipts SET authority_json=json_build_object('synthetic',repeat('x',2097153))::text",
+                "result_json"=>"UPDATE command_receipts SET result_json=json_build_object('synthetic',repeat('x',2097153))::text",
+                _=>unreachable!(),
+            };
+            sqlx::query(query).execute(&mut *tx).await.unwrap();
+            assert!(matches!(read_record_origin(&mut tx,origin_request()).await,Err(Error::Business(ref e)) if e.code=="COMMAND_RECEIPT_TOO_LARGE"),"{field}");
+            tx.rollback().await.unwrap();
+        }
+    }).await;
+}
+
+#[tokio::test]
+async fn a_positive_origin_cannot_be_reused_in_another_transaction_or_backend() {
+    fixture::with_database(3, |pool| async move {
+        setup(&pool).await;execute(&pool,"{}",false,false).await.unwrap();
+        let mut original=origin_transaction(&pool).await;
+        let proof=read_record_origin(&mut original,origin_request()).await.unwrap().unwrap();
+        let mut other=origin_transaction(&pool).await;
+        assert!(matches!(verify_record_origin(&mut other,&proof).await,Err(Error::Business(ref e)) if e.code=="COMMAND_ORIGIN_UNIT_CHANGED"));
+        other.rollback().await.unwrap();
+        original.commit().await.unwrap();
+        // Begin again on the very same retained connection: backend equality is
+        // insufficient without the real transaction identity.
+        let mut c=pool.raw().acquire().await.unwrap();
+        let mut first=c.begin().await.unwrap();
+        sqlx::raw_sql("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *first).await.unwrap();
+        lock_record_origin_sources(&mut first).await.unwrap();
+        let second=read_record_origin(&mut first,origin_request()).await.unwrap().unwrap();
+        first.commit().await.unwrap();
+        let mut next=c.begin().await.unwrap();
+        sqlx::raw_sql("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *next).await.unwrap();
+        lock_record_origin_sources(&mut next).await.unwrap();
+        assert!(matches!(verify_record_origin(&mut next,&second).await,Err(Error::Business(ref e)) if e.code=="COMMAND_ORIGIN_UNIT_CHANGED"));
+        next.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn same_unit_origin_mutation_is_rejected_and_all_owner_effects_can_roll_back() {
+    fixture::with_database(3, |pool| async move {
+        setup(&pool).await;execute(&pool,"{}",false,false).await.unwrap();
+        let mut tx=origin_transaction(&pool).await;
+        let proof=read_record_origin(&mut tx,origin_request()).await.unwrap().unwrap();
+        sqlx::query("UPDATE command_receipts SET created_at=created_at+1").execute(&mut *tx).await.unwrap();
+        sqlx::query("INSERT INTO workflow_test_effects VALUES('later-owner-effect')").execute(&mut *tx).await.unwrap();
+        assert!(matches!(verify_record_origin(&mut tx,&proof).await,Err(Error::Business(ref e)) if e.code=="COMMAND_ORIGIN_CHANGED"));
+        tx.rollback().await.unwrap();
+        assert_eq!(counts(&pool).await,(1,1,1,1));
+    }).await;
+}
+
+#[tokio::test]
+async fn provenance_wait_after_old_snapshot_yields_real_40001_then_fresh_source() {
+    fixture::with_database(4, |pool| async move {
+        setup(&pool).await;execute(&pool,"{}",false,false).await.unwrap();
+        let mut writer=pool.raw().begin().await.unwrap();
+        sqlx::query("UPDATE command_receipts SET created_at=created_at+1").execute(&mut *writer).await.unwrap();
+        let writer_pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *writer).await.unwrap();
+        let other_pool=pool.clone();let (started,waiter)=tokio::sync::oneshot::channel();
+        let other=tokio::spawn(async move {
+            let mut tx=origin_transaction(&other_pool).await;
+            let _:i64=sqlx::query_scalar("SELECT count(*) FROM command_receipts").fetch_one(&mut *tx).await.unwrap();
+            let pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *tx).await.unwrap();
+            started.send(pid).unwrap();
+            let result=read_record_origin(&mut tx,origin_request()).await;
+            tx.rollback().await.unwrap();result
+        });
+        let pid=waiter.await.unwrap();let mut blocked=false;
+        for _ in 0..200 {
+            blocked=sqlx::query_scalar("SELECT $1=ANY(pg_blocking_pids($2))").bind(writer_pid).bind(pid).fetch_one(pool.raw()).await.unwrap();
+            if blocked { break; }tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        assert!(blocked,"observe a real conflicting source update before releasing it");
+        writer.commit().await.unwrap();
+        assert!(matches!(other.await.unwrap(),Err(Error::Persistence(ref e)) if e.sql_state()==Some("40001")));
+        let mut tx=origin_transaction(&pool).await;
+        let proof=read_record_origin(&mut tx,origin_request()).await.unwrap().unwrap();
+        verify_record_origin(&mut tx,&proof).await.unwrap();tx.commit().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn a_retained_positive_origin_holds_its_actual_row_until_the_owner_unit_ends() {
+    fixture::with_database(4, |pool| async move {
+        setup(&pool).await;
+        execute(&pool, "{}", false, false).await.unwrap();
+        let mut tx = origin_transaction(&pool).await;
+        let proof = read_record_origin(&mut tx, origin_request())
+            .await
+            .unwrap()
+            .unwrap();
+        let owner_pid: i32 = sqlx::query_scalar("SELECT pg_backend_pid()")
+            .fetch_one(&mut *tx)
+            .await
+            .unwrap();
+        let writer_pool = pool.clone();
+        let (started, waiter) = tokio::sync::oneshot::channel();
+        let writer = tokio::spawn(async move {
+            let mut c = writer_pool.raw().acquire().await.unwrap();
+            let pid: i32 = sqlx::query_scalar("SELECT pg_backend_pid()")
+                .fetch_one(&mut *c)
+                .await
+                .unwrap();
+            started.send(pid).unwrap();
+            sqlx::query("UPDATE command_receipts SET created_at=created_at+1")
+                .execute(&mut *c)
+                .await
+                .unwrap();
+        });
+        let writer_pid = waiter.await.unwrap();
+        let mut blocked = false;
+        for _ in 0..200 {
+            blocked = sqlx::query_scalar("SELECT $1=ANY(pg_blocking_pids($2))")
+                .bind(owner_pid)
+                .bind(writer_pid)
+                .fetch_one(pool.raw())
+                .await
+                .unwrap();
+            if blocked {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        assert!(
+            blocked,
+            "positive provenance must retain its real tuple against a concurrent writer"
+        );
+        verify_record_origin(&mut tx, &proof).await.unwrap();
+        tx.commit().await.unwrap();
+        writer.await.unwrap();
+        assert_eq!(counts(&pool).await, (1, 1, 1, 1));
+    })
+    .await;
 }

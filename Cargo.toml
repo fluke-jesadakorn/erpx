@@ -1,5 +1,5 @@
 [workspace]
-members = ["packages/server-shared", "packages/server-runtime", "packages/server-legal", "src/composition", "packages/server-finance", "packages/server-identity_access", "packages/server-organization", "packages/server-people_payroll", "packages/server-files", "packages/server-manage_erpx", "packages/server-commercial", "packages/server-platform_administration", "packages/server-pms", "packages/server-workflow"]
+members = ["packages/server-commerce", "packages/server-quality", "packages/server-inventory", "packages/server-shared", "packages/server-runtime", "packages/server-legal", "src/composition", "packages/server-finance", "packages/server-identity_access", "packages/server-organization", "packages/server-people_payroll", "packages/server-files", "packages/server-manage_erpx", "packages/server-commercial", "packages/server-platform_administration", "packages/server-pms", "packages/server-workflow"]
 resolver = "3"
 
 [workspace.package]
@@ -10,6 +10,9 @@ license = "Apache-2.0"
 publish = false
 
 [workspace.dependencies]
+erpx-server-commerce = { path = "packages/server-commerce" }
+erpx-server-quality = { path = "packages/server-quality" }
+erpx-server-inventory = { path = "packages/server-inventory" }
 erpx-server-shared = { path = "packages/server-shared" }
 erpx-server-runtime = { path = "packages/server-runtime" }
 erpx-server-finance = { path = "packages/server-finance" }

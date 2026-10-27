@@ -35,3 +35,7 @@ pub(crate) mod account_revocation_postgres;
 pub(crate) mod account_device_http;
 
 pub(crate) mod account_group_recovery;
+pub(crate) mod account_mfa_crypto;
+pub(crate) mod account_mfa_postgres;
+pub(crate) mod account_security_http;
+pub(crate) mod account_security_postgres;

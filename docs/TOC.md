@@ -11,6 +11,7 @@ Reviewed 2026-10-23. This is the single entry point. [Production plan](productio
 - [Native Commercial purchase migration contract](contracts/next/rust-commercial-migration.md).
 - [Native scheduled Legal release evidence](contracts/next/rust-release-readiness.md).
 - [Native Workflow command ledger and receipt compatibility](contracts/next/rust-workflow-migration.md).
+- [Native Inventory valuation and consumption planning](contracts/next/rust-inventory-migration.md).
 
 - [Open-source preparation and provenance](community/open-source.md), [contributing](../CONTRIBUTING.md), [governance](../GOVERNANCE.md), [security reporting](../SECURITY.md), [licensing scope](../LICENSING.md).
 

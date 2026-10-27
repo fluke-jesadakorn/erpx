@@ -1,10 +1,31 @@
 import { expect, it, vi } from "vitest";
 import { createAccountAuthHttpPort } from "@erpx/feature-identity_access/adapters/http/account-auth";
+import {createAccountSecurityHttpPort} from '@erpx/feature-identity_access/adapters/http/account-security';
 
 const user = { id: "synthetic-user", name: "Synthetic User", email: "synthetic@example.test", emailVerified: true, image: null };
 const handle = "00000000-0000-4000-8000-000000000001";
 const devices = { initialized: true, revision: 12, maximum: 5, accounts: [{ handle, name: user.name, email: user.email, image: null, current: true }] };
 const response = (value: unknown, status = 200) => Response.json(value, { status });
+
+it('binds MFA setup and exact-session verification to the existing typed same-origin transport without storing secrets',async()=>{
+ const secret='GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ',enrollment={secret,uri:`otpauth://totp/ERPX:synthetic-user?secret=${secret}&issuer=ERPX&algorithm=SHA1&digits=6&period=30`};
+ const fetcher=vi.fn<(input:string,init:RequestInit)=>Promise<Response>>(async()=>response({data:enrollment}));const client=createAccountSecurityHttpPort(fetcher);
+ expect(await client.enroll()).toEqual(enrollment);expect(fetcher.mock.calls[0]).toEqual(['/api/v1/account/iam/mfa/enroll',expect.objectContaining({method:'POST',credentials:'include',cache:'no-store',redirect:'error',body:'{}'})]);
+ fetcher.mockImplementation(async()=>response({data:{verifiedUntil:1800000300000}}));expect(await client.verify({code:'123456'})).toEqual({verifiedUntil:1800000300000});expect(fetcher.mock.calls[1][0]).toBe('/api/v1/account/iam/mfa/verify');expect(fetcher.mock.calls[1][1].body).toBe('{"code":"123456"}');
+});
+it('rejects MFA bearer extensions, unsafe deadlines and modified authenticator parameters',async()=>{
+ const secret='GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ',uri=`otpauth://totp/ERPX:synthetic-user?secret=${secret}&issuer=ERPX&algorithm=SHA1&digits=6&period=30`;
+ const fetcher=vi.fn<(input:string,init:RequestInit)=>Promise<Response>>();const client=createAccountSecurityHttpPort(fetcher);
+ for(const value of [{data:{secret,uri,token:'private'}},{data:{secret,uri:uri.replace('period=30','period=60')}},{data:{secret,uri},sessionToken:'private'},{data:{secret,uri:'https://foreign.example.test'}}]){fetcher.mockResolvedValueOnce(response(value));await expect(client.enroll()).rejects.toThrow('contract');}
+ for(const value of [{data:{verifiedUntil:Number.MAX_SAFE_INTEGER+1}},{data:{verifiedUntil:1800000300000,sessionId:'private'}}]){fetcher.mockResolvedValueOnce(response(value));await expect(client.verify({code:'123456'})).rejects.toThrow('contract');}
+});
+it('reads only closed personal inventory and preserves MFA/throttle failures without fabricating a successful result',async()=>{
+ const seed={accountKey:'a'.repeat(64),revision:'b'.repeat(64),mfaEnabled:true,mfaFreshUntil:null,families:[],legacySessions:0};
+ const fetcher=vi.fn<(input:string,init:RequestInit)=>Promise<Response>>(async()=>response({data:seed}));const client=createAccountSecurityHttpPort(fetcher);expect(await client.read()).toEqual(seed);expect(fetcher.mock.calls[0]).toEqual(['/api/v1/account/security',expect.objectContaining({method:'GET',cache:'no-store',credentials:'include'})]);expect(fetcher.mock.calls[0][1].body).toBeUndefined();
+ fetcher.mockResolvedValueOnce(response({data:{...seed,userId:'foreign'}}));await expect(client.read()).rejects.toThrow('contract');
+ fetcher.mockResolvedValueOnce(response({error:{code:'IAM_RATE_LIMIT',message:'Wait five minutes.'}},429));await expect(client.verify({code:'bad'})).rejects.toThrow('Wait five minutes.');
+ fetcher.mockRejectedValueOnce(Error('Offline'));await expect(client.enroll()).rejects.toThrow('Offline');
+});
 
 it("keeps invitation inspection and activation behind exact typed envelopes without accepting credential extensions", async () => {
   const fetcher = vi.fn<(input: string, init: RequestInit) => Promise<Response>>(async () => response({ data: { name: user.name, email: user.email, existingAccount: false } }));

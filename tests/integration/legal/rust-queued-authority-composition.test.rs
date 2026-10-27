@@ -690,6 +690,26 @@ mod actual_owners {
     }
     #[cfg(feature = "legal-queue")]
     #[tokio::test]
+    async fn interactive_queue_cannot_opt_out_of_selected_work_grant_cas_with_a_read_flag() {
+        use erpx_service::legal_queue_administration::LegalQueueAdministration;
+        fixture::with_database(2, |control| async move {
+            fixture::with_database(2, move |holding| async move {
+                let (authorizer, clock)=setup(&control,&holding).await;
+                seed(authorizer.as_ref(),&holding).await;
+                let service=LegalQueueAdministration::new(authorizer,configuration(),clock);
+                let mut unpinned=input();unpinned.mutation=false;unpinned.expected=None;
+                assert!(matches!(service.queue("acme.example.test",proof(),unpinned.clone(),queue_request("queue-unpinned")).await,Err(PgTransactionError::Business(ref e)) if e.code=="WORK_CONTEXT_CHANGED"));
+                assert_eq!(sqlx::query_scalar::<_,i64>("SELECT (SELECT count(*) FROM command_receipts WHERE command_id='queue-unpinned')+(SELECT count(*) FROM legal_processing_jobs WHERE id='queue-unpinned')").fetch_one(holding.raw()).await.unwrap(),0);
+                let mut pinned=input();pinned.mutation=false;
+                let first=service.queue("acme.example.test",proof(),pinned,queue_request("queue-pinned-read-flag")).await.unwrap();
+                assert_eq!(first.state,"queued");
+                assert!(matches!(service.queue("acme.example.test",proof(),unpinned,queue_request("queue-pinned-read-flag")).await,Err(PgTransactionError::Business(ref e)) if e.code=="WORK_CONTEXT_CHANGED"));
+                assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM legal_processing_jobs WHERE id='queue-pinned-read-flag'").fetch_one(holding.raw()).await.unwrap(),1);
+            }).await;
+        }).await;
+    }
+    #[cfg(feature = "legal-queue")]
+    #[tokio::test]
     async fn actual_interactive_queue_uses_workflow_before_one_canonical_owner_insert_and_history_replay()
      {
         use erpx_service::legal_queue_administration::LegalQueueAdministration;

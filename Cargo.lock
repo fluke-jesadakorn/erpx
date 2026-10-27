@@ -597,6 +597,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "00d174d5400e5e8fd687ad1049e2f578285fa914201b1af7e8b112a4546bd826"
 
 [[package]]
+name = "erpx-server-commerce"
+version = "0.1.0"
+dependencies = [
+ "erpx-server-runtime",
+ "erpx-server-shared",
+ "sqlx",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "erpx-server-commercial"
 version = "0.1.0"
 dependencies = [
@@ -646,6 +657,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlx",
+ "time",
  "tokio",
  "uuid",
 ]
@@ -662,6 +674,7 @@ dependencies = [
  "erpx-server-people-payroll",
  "erpx-server-runtime",
  "erpx-server-shared",
+ "futures-util",
  "getrandom 0.4.3",
  "hex",
  "lettre",
@@ -681,6 +694,21 @@ dependencies = [
  "utoipa",
  "uuid",
  "webpki-roots",
+]
+
+[[package]]
+name = "erpx-server-inventory"
+version = "0.1.0"
+dependencies = [
+ "erpx-server-commerce",
+ "erpx-server-finance",
+ "erpx-server-quality",
+ "erpx-server-runtime",
+ "erpx-server-shared",
+ "serde_json",
+ "sqlx",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]
@@ -785,6 +813,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "erpx-server-quality"
+version = "0.1.0"
+dependencies = [
+ "erpx-server-runtime",
+ "erpx-server-shared",
+ "sqlx",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "erpx-server-runtime"
 version = "0.1.0"
 dependencies = [
@@ -834,6 +873,7 @@ dependencies = [
  "axum",
  "erpx-server-commercial",
  "erpx-server-files",
+ "erpx-server-finance",
  "erpx-server-identity-access",
  "erpx-server-legal",
  "erpx-server-platform-administration",

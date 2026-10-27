@@ -176,11 +176,11 @@
     {
       "id": "inventory",
       "package": "erpx-server-inventory",
-      "phase": "pending",
+      "phase": "foundation",
       "businessMigrationComplete": false,
       "surfaces": {
-        "domain": "pending",
-        "application": "pending",
+        "domain": "foundation",
+        "application": "foundation",
         "http": "pending",
         "ssr": "pending",
         "jobs": "pending",
@@ -232,7 +232,7 @@
     {
       "id": "quality",
       "package": "erpx-server-quality",
-      "phase": "pending",
+      "phase": "foundation",
       "businessMigrationComplete": false,
       "surfaces": {
         "domain": "pending",
@@ -477,7 +477,7 @@
     {
       "id": "commerce",
       "package": "erpx-server-commerce",
-      "phase": "pending",
+      "phase": "foundation",
       "businessMigrationComplete": false,
       "surfaces": {
         "domain": "pending",

@@ -38,3 +38,5 @@ pub use crate::domain::journal::{
     functional_fx_micros, journal_minor, prepare_journal_amounts,
 };
 pub use crate::domain::money::{FinancePolicyError, decimal_to_units, half_away, units_to_decimal};
+
+pub mod inventory_consumption;

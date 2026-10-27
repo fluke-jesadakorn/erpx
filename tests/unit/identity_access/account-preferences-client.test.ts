@@ -178,7 +178,9 @@ import {accountSecurityInput,accountSecuritySeedSchema,type AccountSecuritySeed}
 import {AccountShell} from '@erpx/feature-identity_access/components/account-shell';
 import {AccountSessions} from '@erpx/feature-identity_access/components/account-sessions';
 import {accountSelfNavigation} from '@erpx/feature-identity_access/lib/account-self-navigation';
-import {createElement} from 'react';
+import {createElement,Fragment,isValidElement,type ReactNode} from 'react';
+import {AccountSecurity} from '@erpx/workplace/routes/security/security-form';
+import {createAccountSecurityHttpPort} from '@erpx/feature-identity_access/adapters/http/account-security';
 import {renderToStaticMarkup} from 'react-dom/server';
 vi.mock('next/navigation',()=>({useRouter:()=>({refresh:vi.fn(),push:vi.fn()})}));
 it('keeps the exact personal security body and key through lost or malformed acknowledgements and blocks a changed uncertain action',async()=>{
@@ -191,6 +193,28 @@ it('accepts only minimal parsed personal security outcomes and rejects caller-su
 it('renders personal Account routes and initial own security content without a mount read or any Company provider or raw-session snapshot',()=>{
  const seed:AccountSecuritySeed={accountKey:key,revision:other,mfaEnabled:true,mfaFreshUntil:null,families:[{handle:'c'.repeat(64),current:true,createdAt:1,expiresAt:2000000000000,userAgent:'Fictional native browser',audiences:['finance','people']}],legacySessions:0},fetcher=vi.spyOn(globalThis,'fetch');
  try{const html=renderToStaticMarkup(createElement(AccountShell,{current:'security'},createElement(AccountSessions,{initial:seed})));for(const href of ['/my-profile','/my-access','/security'])expect(html).toContain(`href="${href}"`);expect(html).toContain('This sign-in');expect(html).toContain('Fictional native browser');expect(html).toContain('Sign out all devices');for(const value of ['permissions_json','authority_json','session_token','company_package_grants','platform_assignments',key,other,'c'.repeat(64)])expect(html).not.toContain(value);expect(fetcher).not.toHaveBeenCalled();expect(accountSecuritySeedSchema.safeParse({...seed,sessionToken:'private'}).success).toBe(false);}finally{fetcher.mockRestore();}
+});
+it('keeps authenticator setup and the existing emergency seed server-rendered without secret storage or mount requests',()=>{
+ const transport=vi.spyOn(globalThis,'fetch');try{const html=renderToStaticMarkup(createElement(AccountSecurity,{initialEmergency:{access:[],unavailableScopes:[]}}));expect(html).toContain('Set up authenticator');expect(html).toContain('Six-digit code');expect(html).toContain('Temporary emergency access');expect(html).not.toContain('Setup key:');expect(transport).not.toHaveBeenCalled();}finally{transport.mockRestore();}
+});
+it('drops an actual typed MFA setup response after account change or unmount before exposing a key or dispatching freshness',async()=>{
+ for(const mode of ['change','unmount']){
+  const source=readFileSync(new URL('../../../packages/workplace/src/routes/security/security-form.tsx',import.meta.url),'utf8');
+  const browser=Object.assign(new EventTarget(),{location:new URL('https://account-dev-erpx.jesadakorn.com/security')}),documentPort={documentElement:{dataset:{erpxApp:'account'}}},late=deferred<Response>(),transport=vi.fn(()=>late.promise),updated=vi.fn();browser.addEventListener('erpx:account-security-updated',updated);
+  const values:unknown[]=[],cleanups:(()=>void)[]=[],effects=new Set<number>();let cursor=0;
+  const ports={jsx:createElement,Fragment,window:browser,CustomEvent,contextGeneration:()=>0,createAccountSecurityHttpPort,holdingFetch:actualHoldingFetch(browser,documentPort,transport),
+   useState:(initial:unknown)=>{const slot=cursor++;if(!(slot in values))values[slot]=initial;return [values[slot],(next:unknown)=>{values[slot]=typeof next==='function'?(next as (v:unknown)=>unknown)(values[slot]):next;}];},
+   useRef:(initial:unknown)=>{const slot=cursor++;if(!(slot in values))values[slot]={current:initial};return values[slot];},useCallback:(fn:unknown)=>fn,
+   useEffect:(effect:()=>undefined|(()=>void))=>{const slot=cursor++;if(!effects.has(slot)){effects.add(slot);const cleanup=effect();if(cleanup)cleanups.push(cleanup);}},
+   InlineNotice:'div',Button:'button',Field:'label',TextArea:'textarea',TextInput:'input',TimeText:'time',Card:'section',FormLayout:'form'};
+  const declaration=accountOwnerDeclaration(source,'AccountSecurity','function'),output=ts.transpileModule(declaration+'\nreturn AccountSecurity;', {compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.None,jsx:ts.JsxEmit.React,jsxFactory:'jsx',jsxFragmentFactory:'Fragment'}}).outputText;
+  const component=Function(...Object.keys(ports),output)(...Object.values(ports)) as (props:{initialEmergency:{access:never[];unavailableScopes:never[]}})=>ReactNode;
+  const render=()=>{cursor=0;return component({initialEmergency:{access:[],unavailableScopes:[]}});};
+  let start:(()=>Promise<void>)|undefined;function find(node:ReactNode){if(!isValidElement<{children?:ReactNode;onClick?:()=>Promise<void>}>(node))return;const children=node.props.children;if(node.type==='button'&&String(children).includes('Set up authenticator'))start=node.props.onClick;for(const child of Array.isArray(children)?children:[children])find(child);}find(render());expect(start).toBeDefined();const pending=start!();
+  if(mode==='change')browser.dispatchEvent(new Event('erpx:context-switch-started'));else for(const cleanup of cleanups)cleanup();
+  const secret='GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ';late.resolve(Response.json({data:{secret,uri:`otpauth://totp/ERPX:synthetic?secret=${secret}&issuer=ERPX&algorithm=SHA1&digits=6&period=30`}}));await pending;
+  expect(values).not.toContain(secret);expect(updated).not.toHaveBeenCalled();expect(transport).toHaveBeenCalledTimes(1);for(const cleanup of cleanups)cleanup();
+ }
 });
 it('keeps original Console self links when central Account routing is disabled and separates personal and Company profiles when enabled',()=>{
  expect(accountSelfNavigation('/holdings/acme','own-user')).toEqual({access:'/holdings/acme/iam/my-access',profile:'/holdings/acme/profiles/own-user',companyProfile:null});expect(accountSelfNavigation('/platform','own-user')).toEqual({access:'/platform/iam/my-access',profile:null,companyProfile:null});expect(accountSelfNavigation('/holdings/acme/branches/b1','own/user',true)).toEqual({access:'/my-access',profile:'/my-profile',companyProfile:'/holdings/acme/branches/b1/profiles/own%2Fuser'});expect(accountSelfNavigation('/platform','own-user',true)).toEqual({access:'/my-access',profile:'/my-profile',companyProfile:null});

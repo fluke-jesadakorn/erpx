@@ -854,6 +854,7 @@
 @source "../../../../packages/feature-iam/src/components/sections/roles.tsx";
 @source "../../../../packages/feature-iam/src/components/sections/users.tsx";
 @source "../../../../packages/feature-identity_access/src/adapters/http/account-auth.ts";
+@source "../../../../packages/feature-identity_access/src/adapters/http/account-security.ts";
 @source "../../../../packages/feature-identity_access/src/components/access-editor.tsx";
 @source "../../../../packages/feature-identity_access/src/components/account-home.tsx";
 @source "../../../../packages/feature-identity_access/src/components/account-invitation-actions.tsx";
@@ -904,6 +905,7 @@
 @source "../../../../packages/feature-identity_access/src/lib/user-management.ts";
 @source "../../../../packages/feature-identity_access/src/lib/verified-form-submit.ts";
 @source "../../../../packages/feature-identity_access/src/lib/work-role-display.ts";
+@source "../../../../packages/feature-identity_access/src/public/client.ts";
 @source "../../../../packages/feature-inventory/src/components/count-draft-boundary.tsx";
 @source "../../../../packages/feature-inventory/src/components/count-purchase-context.tsx";
 @source "../../../../packages/feature-inventory/src/components/initial-physical-stock-count.tsx";

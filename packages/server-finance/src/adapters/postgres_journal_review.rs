@@ -5,6 +5,12 @@ mod closure;
 mod image;
 mod money;
 mod retention;
+mod source;
+
+pub use source::{
+    CurrentJournalReviewScope, JournalReviewRootKind, inspect_journal_review_source,
+    lock_journal_review_sources,
+};
 
 use std::future::Future;
 

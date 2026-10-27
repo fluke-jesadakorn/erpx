@@ -61,3 +61,5 @@ pub mod account_revocation;
 pub mod command_metadata;
 
 pub mod account_device_http;
+pub mod account_security;
+pub mod account_security_http;

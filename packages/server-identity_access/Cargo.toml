@@ -8,7 +8,7 @@ publish.workspace = true
 autotests = false
 
 [package.metadata.erpx]
-verification-roots = ["resources", "../../fixtures/identity_access/permissions", "../../scripts/testing/fixtures/generate-work-admission-oracle.ts"]
+verification-roots = ["../../fixtures/identity_access/account-security", "../../scripts/testing/fixtures/generate-account-security-oracle.ts", "resources", "../../fixtures/identity_access/permissions", "../../scripts/testing/fixtures/generate-work-admission-oracle.ts"]
 
 [lib]
 path = "src/lib.rs"
@@ -20,6 +20,7 @@ mail-smtp = ["dep:lettre"]
 mail-providers = ["mail-resend", "mail-smtp"]
 
 [dependencies]
+futures-util.workspace = true
 reqwest = { workspace = true, optional = true }
 rustls = { workspace = true, optional = true }
 webpki-roots = { workspace = true, optional = true }
@@ -150,3 +151,15 @@ path = "../../tests/integration/identity_access/rust-release-reviewers-postgres.
 [[test]]
 name = "account_revocation_postgres"
 path = "../../tests/integration/identity_access/rust-account-revocation-postgres.test.rs"
+
+[[test]]
+name = "account_mfa"
+path = "../../tests/unit/identity_access/rust-account-mfa.test.rs"
+
+[[test]]
+name = "account_mfa_postgres"
+path = "../../tests/integration/identity_access/rust-account-mfa-postgres.test.rs"
+
+[[test]]
+name = "account_security_postgres"
+path = "../../tests/integration/identity_access/rust-account-security-postgres.test.rs"
