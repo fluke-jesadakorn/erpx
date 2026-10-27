@@ -1,6 +1,6 @@
 //! Original Maintenance notification data. None of these values is authority.
 use erpx_server_shared::public::{
-    BusinessError, CommandKey, CompanyId, HoldingId, RecordId, TimestampMillis, UserId,
+    BusinessError, CommandKey, CompanyId, HoldingId, RecordId, TimestampMillis,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -17,7 +17,7 @@ pub struct MaintenanceNotificationFacts {
     pub holding_id: HoldingId,
     pub company_id: CompanyId,
     pub work_id: RecordId,
-    pub owner_user_id: UserId,
+    pub owner_user_id: String,
     pub work_version_after: i64,
     pub updated_at_after: TimestampMillis,
 }

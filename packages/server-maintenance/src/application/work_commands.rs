@@ -2,7 +2,7 @@
 //! adapter must retain source, purchases, receipts and all effects in one unit.
 use crate::domain::{work::*, work_input::*};
 use erpx_server_shared::public::{
-    BusinessError, CommandKey, FailureKind, RecordId, TimestampMillis, UserId,
+    BusinessError, CommandKey, FailureKind, RecordId, TimestampMillis,
 };
 use std::future::Future;
 /// Portable immutable input representation. Only the owner adapter constructs
@@ -150,12 +150,12 @@ where
         )
     })?;
     let facts = repository.policy_facts(&source);
-    let mut transition = match &command.input().action {
+    let transition = match &command.input().action {
         MaintenanceChangeAction::Schedule {
-            owner_id: _,
+            owner_id,
             scheduled_at,
         } => MaintenanceTransition::Schedule {
-            owner_id: facts.owner_id.clone(),
+            owner_id: owner_id.clone(),
             scheduled_at: *scheduled_at,
         },
         MaintenanceChangeAction::Start => MaintenanceTransition::Start,
@@ -167,13 +167,6 @@ where
     };
     require_maintenance_transition(&access.actor(), &facts, &transition)?;
     let now = repository.now();
-    if let MaintenanceChangeAction::Schedule { owner_id, .. } = &command.input().action
-        && let MaintenanceTransition::Schedule {
-            owner_id: target, ..
-        } = &mut transition
-    {
-        *target = UserId::new(owner_id)?;
-    }
     let state = maintenance_state(&facts, &transition, now.get());
     let consumption = if matches!(transition, MaintenanceTransition::IssuePart) {
         Some(repository.prepare_consumption(&command, &source).await?)

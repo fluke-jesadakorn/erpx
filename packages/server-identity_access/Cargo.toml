@@ -14,7 +14,7 @@ verification-roots = ["../../scripts/testing/fixtures/generate-directory-source-
 path = "src/lib.rs"
 
 [features]
-directory-oidc = ["dep:ryu-js", "dep:p521", "dep:reqwest", "dep:rustls", "dep:webpki-roots"]
+directory-oidc = ["dep:ryu-js", "dep:ml-dsa", "dep:rsa", "sha2/oid", "dep:p521", "dep:reqwest", "dep:rustls", "dep:webpki-roots"]
 directory-ldaps = ["dep:ldap3_proto", "dep:bytes", "dep:tokio-util", "dep:tracing", "dep:tokio-rustls", "dep:rustls", "dep:webpki-roots"]
 contracts = ["dep:ts-rs", "dep:utoipa"]
 mail-resend = ["dep:reqwest", "dep:rustls", "dep:webpki-roots"]
@@ -22,6 +22,8 @@ mail-smtp = ["dep:lettre"]
 mail-providers = ["mail-resend", "mail-smtp"]
 
 [dependencies]
+ml-dsa = { workspace = true, optional = true }
+rsa = { workspace = true, optional = true }
 ryu-js = { workspace = true, optional = true }
 p521 = { workspace = true, optional = true }
 ldap3_proto = { workspace = true, optional = true }

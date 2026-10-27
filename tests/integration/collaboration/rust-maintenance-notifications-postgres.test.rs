@@ -9,7 +9,7 @@ use erpx_server_runtime::public::postgres::{
     load_migrations, migrate_database,
 };
 use erpx_server_shared::public::{
-    BusinessError, CommandKey, CompanyId, FailureKind, HoldingId, RecordId, TimestampMillis, UserId,
+    BusinessError, CommandKey, CompanyId, FailureKind, HoldingId, RecordId, TimestampMillis,
 };
 use serde_json::{Value, json};
 use sqlx::PgConnection;
@@ -27,7 +27,7 @@ impl SyntheticOwner {
                 holding_id: HoldingId::new("holding").unwrap(),
                 company_id: CompanyId::new("company").unwrap(),
                 work_id: RecordId::new("work").unwrap(),
-                owner_user_id: UserId::new("owner").unwrap(),
+                owner_user_id: "owner".into(),
                 work_version_after: 8,
                 updated_at_after: TimestampMillis::new(NOW),
             },
@@ -180,7 +180,7 @@ async fn original_owned_preparation_requires_exact_source_facts_and_the_same_man
                     source.write(c).await?;
                     let foreign = SyntheticOwner {
                         facts: MaintenanceNotificationFacts {
-                            owner_user_id: UserId::new("other")?,
+                            owner_user_id: "other".into(),
                             ..source.facts.clone()
                         },
                     };

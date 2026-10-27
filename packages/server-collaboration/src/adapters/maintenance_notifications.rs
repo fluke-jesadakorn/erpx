@@ -201,21 +201,13 @@ impl Images {
             .as_str()
             .ok_or_else(changed)?;
         let event_id = self.event["id"].as_str().ok_or_else(changed)?;
-        let n:Option<Option<String>>=sqlx::query_scalar("SELECT CASE WHEN octet_length(to_jsonb(n)::text)<=8192 THEN to_jsonb(n)::text END FROM staff_notifications n WHERE id=$1 AND company_id=$2 FOR SHARE OF n").bind(id).bind(company).fetch_optional(&mut *c).await?;
-        let e:Option<Option<String>>=sqlx::query_scalar("SELECT CASE WHEN octet_length(to_jsonb(e)::text)<=8192 THEN to_jsonb(e)::text END FROM inbox_events e WHERE id=$1 AND company_id=$2 FOR SHARE OF e").bind(event_id).bind(company).fetch_optional(&mut *c).await?;
-        let d:Option<Option<String>>=sqlx::query_scalar("SELECT CASE WHEN octet_length(to_jsonb(d)::text)<=8192 THEN to_jsonb(d)::text END FROM inbox_deliveries d WHERE id=$1 AND company_id=$2 FOR SHARE OF d").bind(id).bind(company).fetch_optional(&mut *c).await?;
-        for (actual, expected) in [
-            (n, &self.notification),
-            (e, &self.event),
-            (d, &self.delivery),
-        ] {
-            let actual = actual
-                .flatten()
-                .and_then(|raw| serde_json::from_str::<Value>(&raw).ok())
-                .ok_or_else(changed)?;
-            if &actual != expected {
-                return Err(changed());
-            }
+        // Compare complete after-images inside PostgreSQL; never transfer a bounded
+        // row image whose length could reject an otherwise valid owner reference.
+        let n: Option<bool> = sqlx::query_scalar("SELECT to_jsonb(n)=$3::jsonb FROM staff_notifications n WHERE id=$1 AND company_id=$2 FOR SHARE OF n").bind(id).bind(company).bind(self.notification.to_string()).fetch_optional(&mut *c).await?;
+        let e: Option<bool> = sqlx::query_scalar("SELECT to_jsonb(e)=$3::jsonb FROM inbox_events e WHERE id=$1 AND company_id=$2 FOR SHARE OF e").bind(event_id).bind(company).bind(self.event.to_string()).fetch_optional(&mut *c).await?;
+        let d: Option<bool> = sqlx::query_scalar("SELECT to_jsonb(d)=$3::jsonb FROM inbox_deliveries d WHERE id=$1 AND company_id=$2 FOR SHARE OF d").bind(id).bind(company).bind(self.delivery.to_string()).fetch_optional(&mut *c).await?;
+        if [n, e, d].iter().any(|value| *value != Some(true)) {
+            return Err(changed());
         }
         Ok(())
     }

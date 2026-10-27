@@ -1,0 +1,1339 @@
+{
+  "version": 1,
+  "acceptance": false,
+  "description": "Retained TypeScript application and schema with synthetic repository; no PostgreSQL, target eligibility, transaction or receipt fingerprint proof.",
+  "revision": "ee8700f28fb39aafc8a19a571b1e9b95e79cc7c2",
+  "node": "v26.11.1",
+  "zod": {
+    "version": "4.6.7",
+    "sources": [
+      {
+        "path": "package.json",
+        "sha256": "c2d190d9ee4e0bdb60332aaa2130a6a98d65ddb903fe1d29248b15de57832c45"
+      },
+      {
+        "path": "v4/core/checks.js",
+        "sha256": "bc42543274218aa7ef72192b3218d2a4a399e53df8de240a04d9ff275096f563"
+      },
+      {
+        "path": "v4/core/util.js",
+        "sha256": "bb08133b11b478c8e715038fff26ebea204d7fd5443fba31fe138b142d202efb"
+      },
+      {
+        "path": "v4/core/schemas.js",
+        "sha256": "0ee56e8afbae28eeb1060a162ad7e56f0675ee6fb83f0ae56bea2e088f6cdbc0"
+      }
+    ]
+  },
+  "sources": [
+    {
+      "path": "packages/server-maintenance/src/domain/work.ts",
+      "sha256": "8e3eec4cd4dcdd0899134c8e04d2f492f1c6fc23666d4ba0496c8d60a550c007"
+    },
+    {
+      "path": "packages/server-maintenance/src/application/work.ts",
+      "sha256": "4d448233f60d17448c43deb92c8c842d51387d89eb50eb7dbb4aa62f2334c0ab"
+    },
+    {
+      "path": "packages/server-maintenance/src/adapters/work.ts",
+      "sha256": "49362e8582cebacbc1be8b10de8008125c77668025867c26ec9d9fbfe85547f2"
+    },
+    {
+      "path": "packages/server-shared/src/domain/consumption-lot.ts",
+      "sha256": "dddcf06b3390953a58715a7c7888b888fa1069a9f82ae0cf675f8fc799aa543f"
+    }
+  ],
+  "rows": [
+    {
+      "id": "permission-before-parse",
+      "input": null,
+      "source": null,
+      "options": {
+        "write": false
+      },
+      "expected": {
+        "error": {
+          "name": "Error",
+          "status": 403,
+          "code": "PERMISSION_REQUIRED",
+          "issues": null
+        },
+        "calls": [
+          [
+            "authorize",
+            true
+          ]
+        ]
+      }
+    },
+    {
+      "id": "invalid-before-replay",
+      "input": {
+        "action": "schedule",
+        "expectedVersion": 7,
+        "ownerId": "",
+        "scheduledAt": 1800000000000,
+        "reason": "  Schedule work  ",
+        "unknown": "stripped"
+      },
+      "source": null,
+      "options": {
+        "replay": true
+      },
+      "expected": {
+        "error": {
+          "name": "ZodError",
+          "status": null,
+          "code": null,
+          "issues": [
+            {
+              "code": "too_small",
+              "path": [
+                "ownerId"
+              ]
+            }
+          ]
+        },
+        "calls": [
+          [
+            "authorize",
+            true
+          ]
+        ]
+      }
+    },
+    {
+      "id": "replay-before-missing",
+      "input": {
+        "action": "schedule",
+        "expectedVersion": 7,
+        "ownerId": "target",
+        "scheduledAt": 1800000000000,
+        "reason": "  Schedule work  ",
+        "unknown": "stripped"
+      },
+      "source": null,
+      "options": {
+        "replay": true
+      },
+      "expected": {
+        "result": {
+          "id": "work",
+          "version": 8,
+          "status": "scheduled"
+        },
+        "calls": [
+          [
+            "authorize",
+            true
+          ],
+          [
+            "repository"
+          ],
+          [
+            "replay",
+            {
+              "key": "schedule-key",
+              "operation": "maintenance.schedule",
+              "id": "work",
+              "input": {
+                "action": "schedule",
+                "expectedVersion": 7,
+                "ownerId": "target",
+                "scheduledAt": 1800000000000,
+                "reason": "Schedule work"
+              }
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "id": "replay-before-ineligible-owner-state",
+      "input": {
+        "action": "schedule",
+        "expectedVersion": 7,
+        "ownerId": "target",
+        "scheduledAt": 1800000000000,
+        "reason": "  Schedule work  ",
+        "unknown": "stripped"
+      },
+      "source": {
+        "id": "work",
+        "status": "completed",
+        "owner_id": "actor",
+        "owner_eligible": 0,
+        "can_review": 0,
+        "version": 7,
+        "scheduled_at": null,
+        "downtime_started_at": null
+      },
+      "options": {
+        "replay": true
+      },
+      "expected": {
+        "result": {
+          "id": "work",
+          "version": 8,
+          "status": "scheduled"
+        },
+        "calls": [
+          [
+            "authorize",
+            true
+          ],
+          [
+            "repository"
+          ],
+          [
+            "replay",
+            {
+              "key": "schedule-key",
+              "operation": "maintenance.schedule",
+              "id": "work",
+              "input": {
+                "action": "schedule",
+                "expectedVersion": 7,
+                "ownerId": "target",
+                "scheduledAt": 1800000000000,
+                "reason": "Schedule work"
+              }
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "id": "missing",
+      "input": {
+        "action": "schedule",
+        "expectedVersion": 7,
+        "ownerId": "target",
+        "scheduledAt": 1800000000000,
+        "reason": "  Schedule work  ",
+        "unknown": "stripped"
+      },
+      "source": null,
+      "options": {},
+      "expected": {
+        "error": {
+          "name": "Error",
+          "status": 404,
+          "code": "MAINTENANCE_WORK_NOT_FOUND",
+          "issues": null
+        },
+        "calls": [
+          [
+            "authorize",
+            true
+          ],
+          [
+            "repository"
+          ],
+          [
+            "replay",
+            {
+              "key": "schedule-key",
+              "operation": "maintenance.schedule",
+              "id": "work",
+              "input": {
+                "action": "schedule",
+                "expectedVersion": 7,
+                "ownerId": "target",
+                "scheduledAt": 1800000000000,
+                "reason": "Schedule work"
+              }
+            }
+          ],
+          [
+            "work",
+            "work"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "owner-before-state",
+      "input": {
+        "action": "schedule",
+        "expectedVersion": 7,
+        "ownerId": "target",
+        "scheduledAt": 1800000000000,
+        "reason": "  Schedule work  ",
+        "unknown": "stripped"
+      },
+      "source": {
+        "id": "work",
+        "status": "completed",
+        "owner_id": "actor",
+        "owner_eligible": 0,
+        "can_review": 0,
+        "version": 7,
+        "scheduled_at": null,
+        "downtime_started_at": null
+      },
+      "options": {},
+      "expected": {
+        "error": {
+          "name": "Error",
+          "status": 403,
+          "code": "MAINTENANCE_OWNER_REQUIRED",
+          "issues": null
+        },
+        "calls": [
+          [
+            "authorize",
+            true
+          ],
+          [
+            "repository"
+          ],
+          [
+            "replay",
+            {
+              "key": "schedule-key",
+              "operation": "maintenance.schedule",
+              "id": "work",
+              "input": {
+                "action": "schedule",
+                "expectedVersion": 7,
+                "ownerId": "target",
+                "scheduledAt": 1800000000000,
+                "reason": "Schedule work"
+              }
+            }
+          ],
+          [
+            "work",
+            "work"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "state-before-clock",
+      "input": {
+        "action": "schedule",
+        "expectedVersion": 7,
+        "ownerId": "target",
+        "scheduledAt": 1800000000000,
+        "reason": "  Schedule work  ",
+        "unknown": "stripped"
+      },
+      "source": {
+        "id": "work",
+        "status": "completed",
+        "owner_id": "actor",
+        "owner_eligible": 1,
+        "can_review": 0,
+        "version": 7,
+        "scheduled_at": null,
+        "downtime_started_at": null
+      },
+      "options": {},
+      "expected": {
+        "error": {
+          "name": "Error",
+          "status": 409,
+          "code": "MAINTENANCE_STATE_CHANGED",
+          "issues": null
+        },
+        "calls": [
+          [
+            "authorize",
+            true
+          ],
+          [
+            "repository"
+          ],
+          [
+            "replay",
+            {
+              "key": "schedule-key",
+              "operation": "maintenance.schedule",
+              "id": "work",
+              "input": {
+                "action": "schedule",
+                "expectedVersion": 7,
+                "ownerId": "target",
+                "scheduledAt": 1800000000000,
+                "reason": "Schedule work"
+              }
+            }
+          ],
+          [
+            "work",
+            "work"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "ineligible-owner",
+      "input": {
+        "action": "schedule",
+        "expectedVersion": 7,
+        "ownerId": "target",
+        "scheduledAt": 1800000000000,
+        "reason": "  Schedule work  ",
+        "unknown": "stripped"
+      },
+      "source": {
+        "id": "work",
+        "status": "open",
+        "owner_id": "actor",
+        "owner_eligible": 0,
+        "can_review": 0,
+        "version": 7,
+        "scheduled_at": null,
+        "downtime_started_at": null
+      },
+      "options": {},
+      "expected": {
+        "error": {
+          "name": "Error",
+          "status": 403,
+          "code": "MAINTENANCE_OWNER_REQUIRED",
+          "issues": null
+        },
+        "calls": [
+          [
+            "authorize",
+            true
+          ],
+          [
+            "repository"
+          ],
+          [
+            "replay",
+            {
+              "key": "schedule-key",
+              "operation": "maintenance.schedule",
+              "id": "work",
+              "input": {
+                "action": "schedule",
+                "expectedVersion": 7,
+                "ownerId": "target",
+                "scheduledAt": 1800000000000,
+                "reason": "Schedule work"
+              }
+            }
+          ],
+          [
+            "work",
+            "work"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "reviewer-not-eligible",
+      "input": {
+        "action": "schedule",
+        "expectedVersion": 7,
+        "ownerId": "target",
+        "scheduledAt": 1800000000000,
+        "reason": "  Schedule work  ",
+        "unknown": "stripped"
+      },
+      "source": {
+        "id": "work",
+        "status": "open",
+        "owner_id": "other",
+        "owner_eligible": 1,
+        "can_review": 0,
+        "version": 7,
+        "scheduled_at": null,
+        "downtime_started_at": null
+      },
+      "options": {
+        "review": true
+      },
+      "expected": {
+        "error": {
+          "name": "Error",
+          "status": 403,
+          "code": "MAINTENANCE_OWNER_REQUIRED",
+          "issues": null
+        },
+        "calls": [
+          [
+            "authorize",
+            true
+          ],
+          [
+            "repository"
+          ],
+          [
+            "replay",
+            {
+              "key": "schedule-key",
+              "operation": "maintenance.schedule",
+              "id": "work",
+              "input": {
+                "action": "schedule",
+                "expectedVersion": 7,
+                "ownerId": "target",
+                "scheduledAt": 1800000000000,
+                "reason": "Schedule work"
+              }
+            }
+          ],
+          [
+            "work",
+            "work"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "eligible-reviewer",
+      "input": {
+        "action": "schedule",
+        "expectedVersion": 7,
+        "ownerId": "target",
+        "scheduledAt": 1800000000000,
+        "reason": "  Schedule work  ",
+        "unknown": "stripped"
+      },
+      "source": {
+        "id": "work",
+        "status": "open",
+        "owner_id": "other",
+        "owner_eligible": 0,
+        "can_review": 1,
+        "version": 7,
+        "scheduled_at": null,
+        "downtime_started_at": null
+      },
+      "options": {
+        "review": true
+      },
+      "expected": {
+        "result": {
+          "id": "work",
+          "version": 8,
+          "status": "scheduled"
+        },
+        "calls": [
+          [
+            "authorize",
+            true
+          ],
+          [
+            "repository"
+          ],
+          [
+            "replay",
+            {
+              "key": "schedule-key",
+              "operation": "maintenance.schedule",
+              "id": "work",
+              "input": {
+                "action": "schedule",
+                "expectedVersion": 7,
+                "ownerId": "target",
+                "scheduledAt": 1800000000000,
+                "reason": "Schedule work"
+              }
+            }
+          ],
+          [
+            "work",
+            "work"
+          ],
+          [
+            "clock"
+          ],
+          [
+            "change",
+            {
+              "key": "schedule-key",
+              "operation": "maintenance.schedule",
+              "id": "work",
+              "input": {
+                "action": "schedule",
+                "expectedVersion": 7,
+                "ownerId": "target",
+                "scheduledAt": 1800000000000,
+                "reason": "Schedule work"
+              }
+            },
+            "work",
+            {
+              "status": "scheduled",
+              "owner": "target",
+              "scheduled": 1800000000000,
+              "downtimeStart": null,
+              "downtimeEnd": null
+            },
+            1800000000100
+          ]
+        ]
+      }
+    },
+    {
+      "id": "scheduled-source",
+      "input": {
+        "action": "schedule",
+        "expectedVersion": 7,
+        "ownerId": "target",
+        "scheduledAt": 1800000000000,
+        "reason": "  Schedule work  ",
+        "unknown": "stripped"
+      },
+      "source": {
+        "id": "work",
+        "status": "scheduled",
+        "owner_id": "actor",
+        "owner_eligible": 1,
+        "can_review": 0,
+        "version": 7,
+        "scheduled_at": null,
+        "downtime_started_at": null
+      },
+      "options": {},
+      "expected": {
+        "result": {
+          "id": "work",
+          "version": 8,
+          "status": "scheduled"
+        },
+        "calls": [
+          [
+            "authorize",
+            true
+          ],
+          [
+            "repository"
+          ],
+          [
+            "replay",
+            {
+              "key": "schedule-key",
+              "operation": "maintenance.schedule",
+              "id": "work",
+              "input": {
+                "action": "schedule",
+                "expectedVersion": 7,
+                "ownerId": "target",
+                "scheduledAt": 1800000000000,
+                "reason": "Schedule work"
+              }
+            }
+          ],
+          [
+            "work",
+            "work"
+          ],
+          [
+            "clock"
+          ],
+          [
+            "change",
+            {
+              "key": "schedule-key",
+              "operation": "maintenance.schedule",
+              "id": "work",
+              "input": {
+                "action": "schedule",
+                "expectedVersion": 7,
+                "ownerId": "target",
+                "scheduledAt": 1800000000000,
+                "reason": "Schedule work"
+              }
+            },
+            "work",
+            {
+              "status": "scheduled",
+              "owner": "target",
+              "scheduled": 1800000000000,
+              "downtimeStart": null,
+              "downtimeEnd": null
+            },
+            1800000000100
+          ]
+        ]
+      }
+    },
+    {
+      "id": "stale-version-reaches-change",
+      "input": {
+        "action": "schedule",
+        "expectedVersion": 6,
+        "ownerId": "target",
+        "scheduledAt": 1800000000000,
+        "reason": "  Schedule work  ",
+        "unknown": "stripped"
+      },
+      "source": {
+        "id": "work",
+        "status": "open",
+        "owner_id": "actor",
+        "owner_eligible": 1,
+        "can_review": 0,
+        "version": 7,
+        "scheduled_at": null,
+        "downtime_started_at": null
+      },
+      "options": {},
+      "expected": {
+        "result": {
+          "id": "work",
+          "version": 7,
+          "status": "scheduled"
+        },
+        "calls": [
+          [
+            "authorize",
+            true
+          ],
+          [
+            "repository"
+          ],
+          [
+            "replay",
+            {
+              "key": "schedule-key",
+              "operation": "maintenance.schedule",
+              "id": "work",
+              "input": {
+                "action": "schedule",
+                "expectedVersion": 6,
+                "ownerId": "target",
+                "scheduledAt": 1800000000000,
+                "reason": "Schedule work"
+              }
+            }
+          ],
+          [
+            "work",
+            "work"
+          ],
+          [
+            "clock"
+          ],
+          [
+            "change",
+            {
+              "key": "schedule-key",
+              "operation": "maintenance.schedule",
+              "id": "work",
+              "input": {
+                "action": "schedule",
+                "expectedVersion": 6,
+                "ownerId": "target",
+                "scheduledAt": 1800000000000,
+                "reason": "Schedule work"
+              }
+            },
+            "work",
+            {
+              "status": "scheduled",
+              "owner": "target",
+              "scheduled": 1800000000000,
+              "downtimeStart": null,
+              "downtimeEnd": null
+            },
+            1800000000100
+          ]
+        ]
+      }
+    },
+    {
+      "id": "stale-version-replay",
+      "input": {
+        "action": "schedule",
+        "expectedVersion": 6,
+        "ownerId": "target",
+        "scheduledAt": 1800000000000,
+        "reason": "  Schedule work  ",
+        "unknown": "stripped"
+      },
+      "source": null,
+      "options": {
+        "replay": true
+      },
+      "expected": {
+        "result": {
+          "id": "work",
+          "version": 8,
+          "status": "scheduled"
+        },
+        "calls": [
+          [
+            "authorize",
+            true
+          ],
+          [
+            "repository"
+          ],
+          [
+            "replay",
+            {
+              "key": "schedule-key",
+              "operation": "maintenance.schedule",
+              "id": "work",
+              "input": {
+                "action": "schedule",
+                "expectedVersion": 6,
+                "ownerId": "target",
+                "scheduledAt": 1800000000000,
+                "reason": "Schedule work"
+              }
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "id": "past-positive-time",
+      "input": {
+        "action": "schedule",
+        "expectedVersion": 7,
+        "ownerId": "target",
+        "scheduledAt": 1,
+        "reason": "  Schedule work  ",
+        "unknown": "stripped"
+      },
+      "source": {
+        "id": "work",
+        "status": "open",
+        "owner_id": "actor",
+        "owner_eligible": 1,
+        "can_review": 0,
+        "version": 7,
+        "scheduled_at": null,
+        "downtime_started_at": null
+      },
+      "options": {},
+      "expected": {
+        "result": {
+          "id": "work",
+          "version": 8,
+          "status": "scheduled"
+        },
+        "calls": [
+          [
+            "authorize",
+            true
+          ],
+          [
+            "repository"
+          ],
+          [
+            "replay",
+            {
+              "key": "schedule-key",
+              "operation": "maintenance.schedule",
+              "id": "work",
+              "input": {
+                "action": "schedule",
+                "expectedVersion": 7,
+                "ownerId": "target",
+                "scheduledAt": 1,
+                "reason": "Schedule work"
+              }
+            }
+          ],
+          [
+            "work",
+            "work"
+          ],
+          [
+            "clock"
+          ],
+          [
+            "change",
+            {
+              "key": "schedule-key",
+              "operation": "maintenance.schedule",
+              "id": "work",
+              "input": {
+                "action": "schedule",
+                "expectedVersion": 7,
+                "ownerId": "target",
+                "scheduledAt": 1,
+                "reason": "Schedule work"
+              }
+            },
+            "work",
+            {
+              "status": "scheduled",
+              "owner": "target",
+              "scheduled": 1,
+              "downtimeStart": null,
+              "downtimeEnd": null
+            },
+            1800000000100
+          ]
+        ]
+      }
+    },
+    {
+      "id": "zero-time",
+      "input": {
+        "action": "schedule",
+        "expectedVersion": 7,
+        "ownerId": "target",
+        "scheduledAt": 0,
+        "reason": "  Schedule work  ",
+        "unknown": "stripped"
+      },
+      "source": {
+        "id": "work",
+        "status": "open",
+        "owner_id": "actor",
+        "owner_eligible": 1,
+        "can_review": 0,
+        "version": 7,
+        "scheduled_at": null,
+        "downtime_started_at": null
+      },
+      "options": {},
+      "expected": {
+        "error": {
+          "name": "ZodError",
+          "status": null,
+          "code": null,
+          "issues": [
+            {
+              "code": "too_small",
+              "path": [
+                "scheduledAt"
+              ]
+            }
+          ]
+        },
+        "calls": [
+          [
+            "authorize",
+            true
+          ]
+        ]
+      }
+    },
+    {
+      "id": "owner-space",
+      "input": {
+        "action": "schedule",
+        "expectedVersion": 7,
+        "ownerId": " ",
+        "scheduledAt": 1800000000000,
+        "reason": "  Schedule work  ",
+        "unknown": "stripped"
+      },
+      "source": {
+        "id": "work",
+        "status": "open",
+        "owner_id": "actor",
+        "owner_eligible": 1,
+        "can_review": 0,
+        "version": 7,
+        "scheduled_at": null,
+        "downtime_started_at": null
+      },
+      "options": {},
+      "expected": {
+        "result": {
+          "id": "work",
+          "version": 8,
+          "status": "scheduled"
+        },
+        "calls": [
+          [
+            "authorize",
+            true
+          ],
+          [
+            "repository"
+          ],
+          [
+            "replay",
+            {
+              "key": "schedule-key",
+              "operation": "maintenance.schedule",
+              "id": "work",
+              "input": {
+                "action": "schedule",
+                "expectedVersion": 7,
+                "ownerId": " ",
+                "scheduledAt": 1800000000000,
+                "reason": "Schedule work"
+              }
+            }
+          ],
+          [
+            "work",
+            "work"
+          ],
+          [
+            "clock"
+          ],
+          [
+            "change",
+            {
+              "key": "schedule-key",
+              "operation": "maintenance.schedule",
+              "id": "work",
+              "input": {
+                "action": "schedule",
+                "expectedVersion": 7,
+                "ownerId": " ",
+                "scheduledAt": 1800000000000,
+                "reason": "Schedule work"
+              }
+            },
+            "work",
+            {
+              "status": "scheduled",
+              "owner": " ",
+              "scheduled": 1800000000000,
+              "downtimeStart": null,
+              "downtimeEnd": null
+            },
+            1800000000100
+          ]
+        ]
+      }
+    },
+    {
+      "id": "owner-long",
+      "input": {
+        "action": "schedule",
+        "expectedVersion": 7,
+        "ownerId": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "scheduledAt": 1800000000000,
+        "reason": "  Schedule work  ",
+        "unknown": "stripped"
+      },
+      "source": {
+        "id": "work",
+        "status": "open",
+        "owner_id": "actor",
+        "owner_eligible": 1,
+        "can_review": 0,
+        "version": 7,
+        "scheduled_at": null,
+        "downtime_started_at": null
+      },
+      "options": {},
+      "expected": {
+        "result": {
+          "id": "work",
+          "version": 8,
+          "status": "scheduled"
+        },
+        "calls": [
+          [
+            "authorize",
+            true
+          ],
+          [
+            "repository"
+          ],
+          [
+            "replay",
+            {
+              "key": "schedule-key",
+              "operation": "maintenance.schedule",
+              "id": "work",
+              "input": {
+                "action": "schedule",
+                "expectedVersion": 7,
+                "ownerId": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                "scheduledAt": 1800000000000,
+                "reason": "Schedule work"
+              }
+            }
+          ],
+          [
+            "work",
+            "work"
+          ],
+          [
+            "clock"
+          ],
+          [
+            "change",
+            {
+              "key": "schedule-key",
+              "operation": "maintenance.schedule",
+              "id": "work",
+              "input": {
+                "action": "schedule",
+                "expectedVersion": 7,
+                "ownerId": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                "scheduledAt": 1800000000000,
+                "reason": "Schedule work"
+              }
+            },
+            "work",
+            {
+              "status": "scheduled",
+              "owner": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "scheduled": 1800000000000,
+              "downtimeStart": null,
+              "downtimeEnd": null
+            },
+            1800000000100
+          ]
+        ]
+      }
+    },
+    {
+      "id": "owner-control",
+      "input": {
+        "action": "schedule",
+        "expectedVersion": 7,
+        "ownerId": "a\u0000\n\tb",
+        "scheduledAt": 1800000000000,
+        "reason": "  Schedule work  ",
+        "unknown": "stripped"
+      },
+      "source": {
+        "id": "work",
+        "status": "open",
+        "owner_id": "actor",
+        "owner_eligible": 1,
+        "can_review": 0,
+        "version": 7,
+        "scheduled_at": null,
+        "downtime_started_at": null
+      },
+      "options": {},
+      "expected": {
+        "result": {
+          "id": "work",
+          "version": 8,
+          "status": "scheduled"
+        },
+        "calls": [
+          [
+            "authorize",
+            true
+          ],
+          [
+            "repository"
+          ],
+          [
+            "replay",
+            {
+              "key": "schedule-key",
+              "operation": "maintenance.schedule",
+              "id": "work",
+              "input": {
+                "action": "schedule",
+                "expectedVersion": 7,
+                "ownerId": "a\u0000\n\tb",
+                "scheduledAt": 1800000000000,
+                "reason": "Schedule work"
+              }
+            }
+          ],
+          [
+            "work",
+            "work"
+          ],
+          [
+            "clock"
+          ],
+          [
+            "change",
+            {
+              "key": "schedule-key",
+              "operation": "maintenance.schedule",
+              "id": "work",
+              "input": {
+                "action": "schedule",
+                "expectedVersion": 7,
+                "ownerId": "a\u0000\n\tb",
+                "scheduledAt": 1800000000000,
+                "reason": "Schedule work"
+              }
+            },
+            "work",
+            {
+              "status": "scheduled",
+              "owner": "a\u0000\n\tb",
+              "scheduled": 1800000000000,
+              "downtimeStart": null,
+              "downtimeEnd": null
+            },
+            1800000000100
+          ]
+        ]
+      }
+    },
+    {
+      "id": "owner-non-bmp",
+      "input": {
+        "action": "schedule",
+        "expectedVersion": 7,
+        "ownerId": "owner-🙂",
+        "scheduledAt": 1800000000000,
+        "reason": "  Schedule work  ",
+        "unknown": "stripped"
+      },
+      "source": {
+        "id": "work",
+        "status": "open",
+        "owner_id": "actor",
+        "owner_eligible": 1,
+        "can_review": 0,
+        "version": 7,
+        "scheduled_at": null,
+        "downtime_started_at": null
+      },
+      "options": {},
+      "expected": {
+        "result": {
+          "id": "work",
+          "version": 8,
+          "status": "scheduled"
+        },
+        "calls": [
+          [
+            "authorize",
+            true
+          ],
+          [
+            "repository"
+          ],
+          [
+            "replay",
+            {
+              "key": "schedule-key",
+              "operation": "maintenance.schedule",
+              "id": "work",
+              "input": {
+                "action": "schedule",
+                "expectedVersion": 7,
+                "ownerId": "owner-🙂",
+                "scheduledAt": 1800000000000,
+                "reason": "Schedule work"
+              }
+            }
+          ],
+          [
+            "work",
+            "work"
+          ],
+          [
+            "clock"
+          ],
+          [
+            "change",
+            {
+              "key": "schedule-key",
+              "operation": "maintenance.schedule",
+              "id": "work",
+              "input": {
+                "action": "schedule",
+                "expectedVersion": 7,
+                "ownerId": "owner-🙂",
+                "scheduledAt": 1800000000000,
+                "reason": "Schedule work"
+              }
+            },
+            "work",
+            {
+              "status": "scheduled",
+              "owner": "owner-🙂",
+              "scheduled": 1800000000000,
+              "downtimeStart": null,
+              "downtimeEnd": null
+            },
+            1800000000100
+          ]
+        ]
+      }
+    },
+    {
+      "id": "owner-empty",
+      "input": {
+        "action": "schedule",
+        "expectedVersion": 7,
+        "ownerId": "",
+        "scheduledAt": 1800000000000,
+        "reason": "  Schedule work  ",
+        "unknown": "stripped"
+      },
+      "source": {
+        "id": "work",
+        "status": "open",
+        "owner_id": "actor",
+        "owner_eligible": 1,
+        "can_review": 0,
+        "version": 7,
+        "scheduled_at": null,
+        "downtime_started_at": null
+      },
+      "options": {},
+      "expected": {
+        "error": {
+          "name": "ZodError",
+          "status": null,
+          "code": null,
+          "issues": [
+            {
+              "code": "too_small",
+              "path": [
+                "ownerId"
+              ]
+            }
+          ]
+        },
+        "calls": [
+          [
+            "authorize",
+            true
+          ]
+        ]
+      }
+    },
+    {
+      "id": "version-zero",
+      "input": {
+        "action": "schedule",
+        "expectedVersion": 0,
+        "ownerId": "target",
+        "scheduledAt": 1800000000000,
+        "reason": "  Schedule work  ",
+        "unknown": "stripped"
+      },
+      "source": {
+        "id": "work",
+        "status": "open",
+        "owner_id": "actor",
+        "owner_eligible": 1,
+        "can_review": 0,
+        "version": 7,
+        "scheduled_at": null,
+        "downtime_started_at": null
+      },
+      "options": {},
+      "expected": {
+        "error": {
+          "name": "ZodError",
+          "status": null,
+          "code": null,
+          "issues": [
+            {
+              "code": "too_small",
+              "path": [
+                "expectedVersion"
+              ]
+            }
+          ]
+        },
+        "calls": [
+          [
+            "authorize",
+            true
+          ]
+        ]
+      }
+    }
+  ]
+}

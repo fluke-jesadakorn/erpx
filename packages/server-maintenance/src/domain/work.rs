@@ -4,7 +4,7 @@ use erpx_server_shared::public::{BusinessError, FailureKind, UserId};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MaintenanceWorkFacts {
-    pub owner_id: UserId,
+    pub owner_id: String,
     pub status: String,
     pub owner_eligible: bool,
     pub reviewer_eligible: bool,
@@ -18,7 +18,7 @@ pub struct MaintenanceActorFacts {
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum MaintenanceTransition {
-    Schedule { owner_id: UserId, scheduled_at: i64 },
+    Schedule { owner_id: String, scheduled_at: i64 },
     Start,
     Block,
     Resume,
@@ -50,7 +50,7 @@ impl MaintenanceTransition {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MaintenanceState {
     pub status: &'static str,
-    pub owner_id: UserId,
+    pub owner_id: String,
     pub scheduled_at: Option<i64>,
     pub downtime_started_at: Option<i64>,
     pub downtime_ended_at: Option<i64>,
@@ -63,7 +63,7 @@ pub fn require_maintenance_transition(
     source: &MaintenanceWorkFacts,
     transition: &MaintenanceTransition,
 ) -> Result<(), BusinessError> {
-    let own = source.owner_id == actor.user_id && source.owner_eligible;
+    let own = source.owner_id == actor.user_id.as_str() && source.owner_eligible;
     let review = actor.can_review && source.reviewer_eligible;
     if !own && !review {
         return Err(BusinessError::new(

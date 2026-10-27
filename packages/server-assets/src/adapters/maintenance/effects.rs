@@ -23,7 +23,6 @@ pub struct PreparedMaintenancePhysicalChange {
     state: MaintenanceAssetState,
     change: MaintenancePhysicalChange,
     expected_asset: String,
-    expected_event: Option<String>,
     event_id: String,
 }
 pub struct MaintenancePhysicalReceipt {
@@ -35,7 +34,7 @@ pub struct MaintenancePhysicalReceipt {
     event_id: String,
 }
 impl CurrentMaintenanceAsset {
-    /// Compute full expected images inside PostgreSQL before Work/Asset effects.
+    /// Retain the original full Asset image and expected after-image before effects.
     /// Start admission is deliberately deferred until `apply`, after Work CAS.
     pub async fn prepare_physical_change(
         &self,
@@ -75,21 +74,18 @@ impl CurrentMaintenanceAsset {
         };
         let next = maintenance_asset_after(&state, &change.action)?;
         let event_id = format!("asset-event-{}", change.command_key.as_str());
-        let (expected_asset, expected_event) = if let Some(ref next) = next {
+        let expected_asset = if let Some(ref next) = next {
             let asset:String = sqlx::query_scalar("SELECT encode(sha256(convert_to((to_jsonb(a)||jsonb_build_object('version',$3::bigint,'condition',$4::text,'lifecycle_status',$5::text,'updated_at',$6::bigint))::text,'UTF8')),'hex') FROM operational_assets a WHERE id=$1 AND company_id=$2")
                 .bind(self.facts.asset_id.as_str()).bind(self.facts.company_id.as_str()).bind(next.version).bind(next.condition.as_str()).bind(next.lifecycle.as_str()).bind(change.at).fetch_one(&mut *c).await?;
-            let event:String = sqlx::query_scalar("SELECT encode(sha256(convert_to(jsonb_build_object('id',$3::text,'asset_id',a.id,'version',$4::bigint,'action',$5::text,'actor_id',$6::text,'reason',$7::text,'condition',$8::text,'lifecycle_status',$9::text,'placement',a.placement,'custodian_id',a.custodian_id,'created_at',$10::bigint)::text,'UTF8')),'hex') FROM operational_assets a WHERE id=$1 AND company_id=$2")
-                .bind(self.facts.asset_id.as_str()).bind(self.facts.company_id.as_str()).bind(&event_id).bind(next.version).bind(change.action.event_action()).bind(change.actor_id.as_str()).bind(&change.reason).bind(next.condition.as_str()).bind(next.lifecycle.as_str()).bind(change.at).fetch_one(&mut *c).await?;
-            (asset, Some(event))
+            asset
         } else {
-            (before.digest.clone(), None)
+            before.digest.clone()
         };
         Ok(PreparedMaintenancePhysicalChange {
             before,
             state,
             change,
             expected_asset,
-            expected_event,
             event_id,
         })
     }
@@ -110,6 +106,14 @@ impl PreparedMaintenancePhysicalChange {
             require_maintenance_start_source(&self.state, self.change.expected_asset_version)?;
         }
         let next = maintenance_asset_after(&self.state, &self.change.action)?;
+        // Hash from the verified original Asset before any mutation or trigger can alter it.
+        let expected_event = if let Some(ref next) = next {
+            let event:String = sqlx::query_scalar("SELECT encode(sha256(convert_to(jsonb_build_object('id',$3::text,'asset_id',a.id,'version',$4::bigint,'action',$5::text,'actor_id',$6::text,'reason',$7::text,'condition',$8::text,'lifecycle_status',$9::text,'placement',a.placement,'custodian_id',a.custodian_id,'created_at',$10::bigint)::text,'UTF8')),'hex') FROM operational_assets a WHERE id=$1 AND company_id=$2")
+                .bind(self.before.facts.asset_id.as_str()).bind(self.before.facts.company_id.as_str()).bind(&self.event_id).bind(next.version).bind(self.change.action.event_action()).bind(self.change.actor_id.as_str()).bind(&self.change.reason).bind(next.condition.as_str()).bind(next.lifecycle.as_str()).bind(self.change.at).fetch_one(&mut *c).await?;
+            Some(event)
+        } else {
+            None
+        };
         let mut facts = self.before.facts;
         if let Some(next) = next {
             let changed_rows=sqlx::query("UPDATE operational_assets SET lifecycle_status=$3,condition=$4,version=version+1,updated_at=$5 WHERE id=$1 AND company_id=$2 AND version=$6")
@@ -126,7 +130,7 @@ impl PreparedMaintenancePhysicalChange {
             facts,
             transaction: self.before.transaction,
             expected_asset: self.expected_asset,
-            expected_event: self.expected_event,
+            expected_event,
             event_id: self.event_id,
         };
         receipt.require_current(c).await?;

@@ -77,7 +77,7 @@ async fn scan(
 ) -> Result<JournalSettlementImage, Error> {
     let mut image = JournalSettlementScan::begin(c).await?;
     let mut after = None;
-    while let Some(reference) = source.next(c, after.as_ref()).await? {
+    while let Some(reference) = source.next(c, after.as_deref()).await? {
         image.observe(c, &reference.journal_id).await?;
         after = Some(reference.consumption_id);
     }

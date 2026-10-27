@@ -65200,6 +65200,97 @@
       ]
     },
     {
+      "id": "maintenance.rust-schedule-commands.unit",
+      "lane": "unit",
+      "owner": "maintenance",
+      "modules": [
+        "maintenance"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-maintenance",
+        "targets": [
+          "schedule_commands"
+        ]
+      },
+      "files": [
+        "tests/unit/maintenance/rust-schedule-commands.test.rs"
+      ],
+      "verificationInputs": [
+        "packages/server-maintenance/Cargo.toml",
+        "fixtures/maintenance/rust-schedule/application.v1.json",
+        "scripts/testing/fixtures/generate-maintenance-schedule-oracle.mjs",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml"
+      ],
+      "apps": [
+        "assets"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-finance",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-legal",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow"
+      ]
+    },
+    {
       "id": "identity_access.rust-directory-refresh-policy.unit",
       "lane": "unit",
       "owner": "identity_access",
@@ -67396,6 +67487,139 @@
         "@erpx/server-workflow",
         "@erpx/workplace"
       ]
+    },
+    {
+      "id": "maintenance.rust-settlement-references-postgres.integration",
+      "lane": "integration",
+      "owner": "maintenance",
+      "modules": [
+        "assets",
+        "collaboration",
+        "commercial",
+        "finance",
+        "identity_access",
+        "inventory",
+        "maintenance",
+        "people_payroll",
+        "procurement",
+        "sales"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Preserve actual original Maintenance close SQL for raw historical consumption/journal references and late CAS, with real Workflow replay, same-unit source images and deferred rollback."
+      },
+      "files": [
+        "tests/integration/maintenance/rust-settlement-references-postgres.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-service",
+        "targets": [
+          "maintenance_settlement_references"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-maintenance/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "tests/support/rust-postgres.rs",
+        "tests/support/rust-effective-authority.rs",
+        "tests/support/maintenance/parts-facts.rs",
+        "src/composition/Cargo.toml",
+        "packages/server-assets/src/adapters/maintenance-transaction.ts",
+        "packages/server-maintenance/src/adapters/work.ts",
+        "packages/server-maintenance/src/application/work.ts",
+        "packages/server-maintenance/src/domain/work.ts",
+        "tests/support/finance/maintenance-parts.rs"
+      ],
+      "apps": [
+        "apps",
+        "finance",
+        "people",
+        "sales",
+        "supply",
+        "assets",
+        "account",
+        "admin"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-finance",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-legal",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow",
+        "@erpx/workplace"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      }
     },
     {
       "lane": "integration",

@@ -10,7 +10,7 @@ type Transaction = (String, i32, String, String);
 /// eligibility predicate is transferred; no contact, salary or profile data.
 pub struct CurrentWorkforceReference {
     company: CompanyId,
-    user: UserId,
+    user: String,
     eligible: bool,
     observed_at: i64,
     transaction: Transaction,
@@ -27,7 +27,7 @@ impl CurrentWorkforceReference {
         if now.get() < self.observed_at || transaction(c).await? != self.transaction {
             return Err(changed().into());
         }
-        let current = inspect_workforce_reference(c, &self.company, &self.user, now).await?;
+        let current = inspect_workforce_reference_raw(c, &self.company, &self.user, now).await?;
         if current.eligible != self.eligible {
             return Err(changed().into());
         }
@@ -44,16 +44,25 @@ pub async fn inspect_workforce_reference(
     user: &UserId,
     now: TimestampMillis,
 ) -> Result<CurrentWorkforceReference, Error> {
+    inspect_workforce_reference_raw(c, company, user.as_str(), now).await
+}
+
+pub async fn inspect_workforce_reference_raw(
+    c: &mut PgConnection,
+    company: &CompanyId,
+    user: &str,
+    now: TimestampMillis,
+) -> Result<CurrentWorkforceReference, Error> {
     let transaction = transaction(c).await?;
     // This exactly preserves Maintenance's current reference rule: an active,
     // unmerged linked person and any active engagement effective on the UTC day.
     // Engagement placement does not replace the separate assignment scope rule.
     // LIMIT and SELECT true keep client retention constant even with many rows.
     let eligible = sqlx::query_scalar::<_,bool>("SELECT true FROM hr_people p JOIN hr_engagements e ON e.person_id=p.id AND e.company_id=p.company_id WHERE p.company_id=$1 AND p.user_id=$2 AND p.status='active' AND p.merged_into_id IS NULL AND e.status='active' AND e.start_date<=to_char(to_timestamp($3::double precision/1000) AT TIME ZONE 'UTC','YYYY-MM-DD') AND (e.end_date IS NULL OR e.end_date>=to_char(to_timestamp($3::double precision/1000) AT TIME ZONE 'UTC','YYYY-MM-DD')) ORDER BY p.id,e.id LIMIT 1 FOR SHARE OF p,e")
-        .bind(company.as_str()).bind(user.as_str()).bind(now.get()).fetch_optional(c).await?.unwrap_or(false);
+        .bind(company.as_str()).bind(user).bind(now.get()).fetch_optional(c).await?.unwrap_or(false);
     Ok(CurrentWorkforceReference {
         company: company.clone(),
-        user: user.clone(),
+        user: user.to_owned(),
         eligible,
         observed_at: now.get(),
         transaction,

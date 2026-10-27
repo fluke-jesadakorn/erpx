@@ -31,10 +31,17 @@ async fn counts(pool: &DatabasePool) -> (i64, i64, i64, i64, i64, i64, i64, i64)
     sqlx::query_as("SELECT(SELECT count(*)FROM command_receipts),(SELECT count(*)FROM audit_events),(SELECT count(*)FROM outbox_events),(SELECT count(*)FROM finance_journals),(SELECT count(*)FROM operational_inventory_consumptions),(SELECT count(*)FROM staff_notifications),(SELECT count(*)FROM inbox_events),(SELECT count(*)FROM inbox_deliveries)").fetch_one(pool.raw()).await.unwrap()
 }
 fn denied<T>(result: Result<T, PgTransactionError<BusinessError>>, code: &str) {
-    assert!(
-        matches!(result,Err(PgTransactionError::Business(ref e))if e.code==code),
-        "expected {code}"
-    );
+    if code == "DATABASE_NUMBER_OUT_OF_RANGE" {
+        assert!(
+            matches!(result,Err(PgTransactionError::Persistence(ref e))if e.code==code),
+            "expected persistence {code}"
+        );
+    } else {
+        assert!(
+            matches!(result,Err(PgTransactionError::Business(ref e))if e.code==code),
+            "expected business {code}"
+        );
+    }
 }
 #[tokio::test]
 async fn real_native_workflow_posts_one_owner_receipt_and_draft_parts_with_notification_inbox_and_exact_replay()
@@ -58,18 +65,18 @@ async fn real_native_workflow_posts_one_owner_receipt_and_draft_parts_with_notif
     }).await;}).await;
 }
 #[tokio::test]
-async fn full_workflow_keeps_original_stock_quote_then_late_version_denial_for_maximum_safe_requested_version()
- {
+async fn full_workflow_keeps_stock_and_quote_refusals_before_maximum_successor_numeric_precompile()
+{
     use erpx_server_shared::public::CommandKey;
-    for kind in ["stock", "quote", "version"] {
+    for kind in ["stock", "quote", "version", "version-nul"] {
         fixture::with_database(2,move |control|async move {fixture::with_database(2,move |holding|async move {
             let(authorizer,_)=setup(&control,&holding).await;seed_work(&holding).await;seed_parts_with_rate(&holding,kind!="quote").await;
             let result=authorizer.execute_with_sources("acme.example.test",proof(),input(),maintenance_request(),MaintenancePartsSourcePreparation,move |c,current|Box::pin(async move {
-                let raw=format!(r#"{{"action":"issue-part","expectedVersion":9007199254740991,"reason":"Actual original maximum input","warehouseId":"warehouse","productId":"{}","quantityMilli":1000,"entryDate":"2026-01-10","allocations":[]}}"#,if kind=="stock"{"missing-product"}else{"product"});
+                let raw=format!(r#"{{"action":"issue-part","expectedVersion":9007199254740991,"reason":"Actual original maximum input{}","warehouseId":"warehouse","productId":"{}","quantityMilli":1000,"entryDate":"2026-01-10","allocations":[]}}"#,if kind=="version-nul" {"\\u0000"} else {""},if kind=="stock"{"missing-product"}else{"product"});
                 let command=erpx_server_maintenance::public::work_wire::normalize_maintenance_change(raw.as_bytes()).unwrap().into_command(CommandKey::new("synthetic-max-request")?,work_id());
                 execute_maintenance_issue_part(c,current,&command,PackageEnforcementMode::Enforced,&PartsWriteClock(std::sync::atomic::AtomicI64::new(NOW)),&PartsGuardClock,&mut Ids(0)).await
             })).await;
-            denied(result,match kind {"stock"=>"PART_STOCK_UNAVAILABLE","quote"=>"MANUAL_RATE_REQUIRED",_=>"MAINTENANCE_STATE_CHANGED"});
+            denied(result,match kind {"stock"=>"PART_STOCK_UNAVAILABLE","quote"=>"MANUAL_RATE_REQUIRED",_=>"DATABASE_NUMBER_OUT_OF_RANGE"});
             assert_eq!(counts(&holding).await,(0,0,0,0,0,0,0,0));
             assert_eq!(sqlx::query_scalar::<_,i64>("SELECT quantity_milli FROM commerce_stock").fetch_one(holding.raw()).await.unwrap(),5000);
         }).await;}).await;
@@ -87,4 +94,58 @@ async fn deferred_outbox_trigger_cannot_rewrite_work_after_all_native_effects_an
         denied(result,"MAINTENANCE_STATE_CHANGED");assert_eq!(counts(&holding).await,(0,0,0,0,0,0,0,0));
         let unchanged:(i64,i64,bool)=sqlx::query_as("SELECT s.quantity_milli,w.version,w.title=repeat('PRIVATE_TITLE',200000) FROM commerce_stock s CROSS JOIN maintenance_work_orders w").fetch_one(holding.raw()).await.unwrap();assert_eq!(unchanged,(5000,1,true));
     }).await;}).await;
+}
+
+#[tokio::test]
+async fn ordinary_stale_issue_part_against_synthetic_maximum_stored_version_refuses_at_work_cas() {
+    fixture::with_database(2, |control| async move {
+        fixture::with_database(2, move |holding| async move {
+            let (authorizer, _) = setup(&control, &holding).await;
+            seed_work(&holding).await;
+            seed_parts(&holding).await;
+            // Synthetic edge fixture, not evidence of a real Work history.
+            sqlx::query(
+                "UPDATE maintenance_work_orders SET version=9007199254740991 WHERE id='work'",
+            )
+            .execute(holding.raw())
+            .await
+            .unwrap();
+            let result = authorizer
+                .execute_with_sources(
+                    "acme.example.test",
+                    proof(),
+                    input(),
+                    maintenance_request(),
+                    MaintenancePartsSourcePreparation,
+                    |c, current| {
+                        Box::pin(async move {
+                            execute_maintenance_issue_part(
+                                c,
+                                current,
+                                &issue_command(),
+                                PackageEnforcementMode::Enforced,
+                                &PartsWriteClock(std::sync::atomic::AtomicI64::new(NOW)),
+                                &PartsGuardClock,
+                                &mut Ids(1900),
+                            )
+                            .await
+                        })
+                    },
+                )
+                .await;
+            denied(result, "CONFLICT");
+            assert_eq!(counts(&holding).await, (0, 0, 0, 0, 0, 0, 0, 0));
+            assert_eq!(
+                sqlx::query_scalar::<_, i64>(
+                    "SELECT version FROM maintenance_work_orders WHERE id='work'"
+                )
+                .fetch_one(holding.raw())
+                .await
+                .unwrap(),
+                9_007_199_254_740_991
+            );
+        })
+        .await;
+    })
+    .await;
 }

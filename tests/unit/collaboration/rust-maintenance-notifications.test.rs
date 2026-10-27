@@ -1,7 +1,5 @@
 use erpx_server_collaboration::public::maintenance_notifications::*;
-use erpx_server_shared::public::{
-    CommandKey, CompanyId, HoldingId, RecordId, TimestampMillis, UserId,
-};
+use erpx_server_shared::public::{CommandKey, CompanyId, HoldingId, RecordId, TimestampMillis};
 use serde_json::{Value, json};
 fn facts() -> MaintenanceNotificationFacts {
     MaintenanceNotificationFacts {
@@ -10,7 +8,7 @@ fn facts() -> MaintenanceNotificationFacts {
         holding_id: HoldingId::new("holding").unwrap(),
         company_id: CompanyId::new("company").unwrap(),
         work_id: RecordId::new("work").unwrap(),
-        owner_user_id: UserId::new("owner").unwrap(),
+        owner_user_id: "owner".into(),
         work_version_after: 8,
         updated_at_after: TimestampMillis::new(1800000000007),
     }
@@ -34,7 +32,7 @@ fn original_node_sql_rows_match_both_messages_full_outer_keys_unicode_and_versio
             },
             company_id: CompanyId::new(f["company_id"].as_str().unwrap()).unwrap(),
             work_id: RecordId::new(f["id"].as_str().unwrap()).unwrap(),
-            owner_user_id: UserId::new(f["owner_id"].as_str().unwrap()).unwrap(),
+            owner_user_id: f["owner_id"].as_str().unwrap().to_owned(),
             work_version_after: f["version"].as_i64().unwrap(),
             updated_at_after: TimestampMillis::new(f["updated_at"].as_i64().unwrap()),
             ..facts()

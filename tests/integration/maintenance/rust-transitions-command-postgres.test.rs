@@ -40,10 +40,17 @@ async fn counts(pool: &DatabasePool) -> (i64, i64, i64, i64, i64, i64, i64, i64,
     sqlx::query_as("SELECT(SELECT count(*)FROM command_receipts),(SELECT count(*)FROM audit_events),(SELECT count(*)FROM outbox_events),(SELECT count(*)FROM maintenance_work_events),(SELECT count(*)FROM operational_asset_events),(SELECT count(*)FROM staff_notifications),(SELECT count(*)FROM inbox_events),(SELECT count(*)FROM inbox_deliveries),(SELECT count(*)FROM finance_journals),(SELECT count(*)FROM operational_inventory_consumptions)").fetch_one(pool.raw()).await.unwrap()
 }
 fn denied<T>(result: Result<T, PgTransactionError<BusinessError>>, code: &str) {
-    assert!(
-        matches!(result,Err(PgTransactionError::Business(ref e))if e.code==code),
-        "expected {code}"
-    );
+    if code == "DATABASE_NUMBER_OUT_OF_RANGE" {
+        assert!(
+            matches!(result,Err(PgTransactionError::Persistence(ref e))if e.code==code),
+            "expected persistence {code}"
+        );
+    } else {
+        assert!(
+            matches!(result,Err(PgTransactionError::Business(ref e))if e.code==code),
+            "expected business {code}"
+        );
+    }
 }
 async fn seed(pool: &DatabasePool) {
     seed_work(pool).await;
@@ -76,7 +83,7 @@ async fn full_workflow_preserves_late_work_cas_before_asset_lifecycle_and_rolls_
     fixture::with_database(2,|control|async move{fixture::with_database(2,move|holding|async move{
   let(authorizer,_)=setup(&control,&holding).await;seed(&holding).await;
   sqlx::query("UPDATE operational_assets SET lifecycle_status='retirement_pending',retirement_reason='Synthetic retirement'WHERE id='asset'").execute(holding.raw()).await.unwrap();
-  for(version,code)in [(9_007_199_254_740_991,"MAINTENANCE_STATE_CHANGED"),(1,"CONFLICT")]{
+  for(version,code)in [(9_007_199_254_740_991,"DATABASE_NUMBER_OUT_OF_RANGE"),(1,"CONFLICT")]{
    denied(authorizer.execute_with_sources("acme.example.test",proof(),input(),maintenance_request(),MaintenanceTransitionsSourcePreparation,move|c,current|Box::pin(async move{
     execute_maintenance_transition(c,current,&command("start",version),PackageEnforcementMode::Enforced,&PartsWriteClock(std::sync::atomic::AtomicI64::new(NOW)),&PartsGuardClock,&mut Ids(0)).await
    })).await,code);
@@ -167,7 +174,7 @@ async fn actual_parts_draft_blocks_close_after_late_cas_then_independent_post_en
   // Retained original B0 `parts-gl-posted` assertion is one joined predicate;
   // the native implementation obtains these facts through two owner facades.
   let legacy:bool=sqlx::query_scalar("SELECT NOT EXISTS(SELECT 1 FROM operational_inventory_consumptions p JOIN finance_journals j ON j.id=p.journal_id WHERE p.source_kind='maintenance'AND p.source_id='work'AND j.status<>'posted')").fetch_one(p.pool().raw()).await.unwrap();assert!(!legacy);
-  for(version,code)in [(9_007_199_254_740_991,"MAINTENANCE_STATE_CHANGED"),(2,"CONFLICT")]{
+  for(version,code)in [(9_007_199_254_740_991,"DATABASE_NUMBER_OUT_OF_RANGE"),(2,"CONFLICT")]{
    let clock=p.reviewer.system.scenario.clock.clone();
    denied(p.reviewer.authorizer.execute_with_sources("acme.example.test",p.reviewer.maker.clone(),p.issuer_selection.clone(),settlement_facts::issue_request(),MaintenanceTransitionsSourcePreparation,move|c,current|{let clock=clock.clone();Box::pin(async move{
     execute_maintenance_transition(c,current,&close_command("complete",version,"good","close-parts-late-guard"),PackageEnforcementMode::Enforced,clock.as_ref(),clock.as_ref(),&mut Ids(600)).await
@@ -197,11 +204,11 @@ async fn factual_journal_scan_binds_actual_complete_images_missing_rows_and_orig
             .unwrap();
         lock_journal_settlement_sources(&mut tx).await.unwrap();
         let mut empty = JournalSettlementScan::begin(&mut tx).await.unwrap();
-        empty.observe(&mut tx, &absent).await.unwrap();
+        empty.observe(&mut tx, absent.as_str()).await.unwrap();
         let empty = empty.finish();
         assert!(!empty.blocks_source_closure());
         let mut scan = JournalSettlementScan::begin(&mut tx).await.unwrap();
-        scan.observe(&mut tx, &id).await.unwrap();
+        scan.observe(&mut tx, id.as_str()).await.unwrap();
         let before = scan.finish();
         assert!(before.blocks_source_closure());
         sqlx::query("UPDATE finance_journals SET memo='changed draft memo'WHERE id=$1")
@@ -210,7 +217,7 @@ async fn factual_journal_scan_binds_actual_complete_images_missing_rows_and_orig
             .await
             .unwrap();
         let mut scan = JournalSettlementScan::begin(&mut tx).await.unwrap();
-        scan.observe(&mut tx, &id).await.unwrap();
+        scan.observe(&mut tx, id.as_str()).await.unwrap();
         assert!(before.require_same(&mut tx, &scan.finish()).await.is_err());
         tx.rollback().await.unwrap();
         let mut tx = p.pool().raw().begin().await.unwrap();
@@ -219,9 +226,389 @@ async fn factual_journal_scan_binds_actual_complete_images_missing_rows_and_orig
             .await
             .unwrap();
         let mut scan = JournalSettlementScan::begin(&mut tx).await.unwrap();
-        scan.observe(&mut tx, &id).await.unwrap();
+        scan.observe(&mut tx, id.as_str()).await.unwrap();
         assert!(before.require_same(&mut tx, &scan.finish()).await.is_err());
         tx.rollback().await.unwrap();
     })
     .await;
+}
+
+fn schedule_command(version: i64, owner: &str, key: &str) -> MaintenanceWorkCommand {
+    let value = serde_json::json!({"action":"schedule","expectedVersion":version,"ownerId":owner,"scheduledAt":NOW-1,"reason":"Synthetic schedule"});
+    normalize_maintenance_change(&serde_json::to_vec(&value).unwrap())
+        .unwrap()
+        .into_command(CommandKey::new(key).unwrap(), work_id())
+}
+
+#[tokio::test]
+async fn schedule_retains_actual_owner_notification_and_replays_after_state_change_without_physical_asset_effect()
+ {
+    fixture::with_database(2, |control| async move { fixture::with_database(2, move |holding| async move {
+        let (authorizer, _) = setup(&control, &holding).await;
+        seed(&holding).await;
+        let command = schedule_command(1, "user", "schedule-real");
+        let replay_command = command.clone();
+        authorizer.execute_with_sources("acme.example.test", proof(), input(), maintenance_request(), MaintenanceTransitionsSourcePreparation, move |c,current| { let command=command.clone(); Box::pin(async move {
+            let result = execute_maintenance_transition(c,current,&command,PackageEnforcementMode::Enforced,&PartsWriteClock(std::sync::atomic::AtomicI64::new(NOW)),&PartsGuardClock,&mut Ids(800)).await?;
+            assert!(!result.replayed); Ok(())
+        })}).await.unwrap();
+        let state:(String,String,i64,i64,String) = sqlx::query_as("SELECT w.status,w.owner_id,w.scheduled_at,a.version,n.user_id FROM maintenance_work_orders w JOIN operational_assets a ON a.id=w.asset_id JOIN staff_notifications n ON n.record_id=w.id").fetch_one(holding.raw()).await.unwrap();
+        assert_eq!(state,("scheduled".into(),"user".into(),NOW-1,1,"user".into()));
+        assert_eq!(counts(&holding).await,(1,1,1,1,0,1,1,1,0,0));
+        sqlx::query("UPDATE maintenance_work_orders SET status='completed',owner_id='other',completion_evidence='Synthetic completed evidence',resulting_condition='good' WHERE id='work'").execute(holding.raw()).await.unwrap();
+        authorizer.execute_with_sources("acme.example.test", proof(), input(), maintenance_request(), MaintenanceTransitionsSourcePreparation, move |c,current| { let replay_command=replay_command.clone(); Box::pin(async move {
+            let result = execute_maintenance_transition(c,current,&replay_command,PackageEnforcementMode::Enforced,&PartsWriteClock(std::sync::atomic::AtomicI64::new(NOW)),&PartsGuardClock,&mut Ids(900)).await?;
+            assert!(result.replayed); Ok(())
+        })}).await.unwrap();
+        assert_eq!(counts(&holding).await,(1,1,1,1,0,1,1,1,0,0));
+    }).await; }).await;
+}
+
+#[tokio::test]
+async fn schedule_stale_version_and_ineligible_target_leave_no_effects() {
+    fixture::with_database(2, |control| async move {
+        fixture::with_database(2, move |holding| async move {
+            let (authorizer, _) = setup(&control, &holding).await;
+            seed(&holding).await;
+            for (version, owner, key, code) in [
+                (2, "missing", "schedule-stale", "CONFLICT"),
+                (2, "owner\0invalid", "schedule-stale-nul", "CONFLICT"),
+                (1, "missing", "schedule-ineligible", "CONFLICT"),
+            ] {
+                let command = schedule_command(version, owner, key);
+                denied(
+                    authorizer
+                        .execute_with_sources(
+                            "acme.example.test",
+                            proof(),
+                            input(),
+                            maintenance_request(),
+                            MaintenanceTransitionsSourcePreparation,
+                            move |c, current| {
+                                let command = command.clone();
+                                Box::pin(async move {
+                                    execute_maintenance_transition(
+                                        c,
+                                        current,
+                                        &command,
+                                        PackageEnforcementMode::Enforced,
+                                        &PartsWriteClock(std::sync::atomic::AtomicI64::new(NOW)),
+                                        &PartsGuardClock,
+                                        &mut Ids(1000),
+                                    )
+                                    .await
+                                })
+                            },
+                        )
+                        .await,
+                    code,
+                );
+                assert_eq!(counts(&holding).await, (0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
+            }
+        })
+        .await;
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn schedule_to_distinct_long_unicode_worker_notifies_intended_recipient() {
+    fixture::with_database(2, |control| async move { fixture::with_database(2, move |holding| async move {
+        let (authorizer, _) = setup(&control, &holding).await;
+        seed(&holding).await;
+        let owner = format!("target-{}-🙂", "x".repeat(220));
+        sqlx::query("INSERT INTO hr_people(id,user_id,company_id,legal_name,country_code,created_by,created_at,updated_at) VALUES('target-person',$1,'company','TARGET','TH','fixture',0,0)").bind(&owner).execute(holding.raw()).await.unwrap();
+        sqlx::query("INSERT INTO hr_engagements(id,person_id,company_id,worker_type,employment_type,status,start_date,job_title,currency,created_by,created_at,updated_at) VALUES('target-engagement','target-person','company','employee','salaried','active','2026-01-01','TARGET','THB','fixture',0,0)").execute(holding.raw()).await.unwrap();
+        sqlx::query("INSERT INTO iam_members(company_id,user_id,principal_id,person_id,status,login_policy) VALUES('company',$1,$2,'target-person','active','local')").bind(&owner).bind(format!("local:{owner}")).execute(holding.raw()).await.unwrap();
+        sqlx::query("INSERT INTO assignments(id,user_id,role,modules_json,company_id,valid_from,valid_until,version,scope_kind) VALUES('target-grant',$1,'custom_native_authority','[\"maintenance\"]','company',$2,$3,1,'holding')").bind(&owner).bind(NOW-1000).bind(NOW+3600000).execute(holding.raw()).await.unwrap();
+        let command=schedule_command(1,&owner,"schedule-long-target");
+        authorizer.execute_with_sources("acme.example.test",proof(),input(),maintenance_request(),MaintenanceTransitionsSourcePreparation,move |c,current| { let command=command.clone(); Box::pin(async move {
+            execute_maintenance_transition(c,current,&command,PackageEnforcementMode::Enforced,&PartsWriteClock(std::sync::atomic::AtomicI64::new(NOW)),&PartsGuardClock,&mut Ids(1100)).await?; Ok(())
+        })}).await.unwrap();
+        let actual:(String,String,String)=sqlx::query_as("SELECT w.owner_id,n.user_id,d.user_id FROM maintenance_work_orders w JOIN staff_notifications n ON n.record_id=w.id JOIN inbox_deliveries d ON d.id=n.id WHERE w.id='work'").fetch_one(holding.raw()).await.unwrap();
+        assert_eq!(actual,(owner.clone(),owner.clone(),owner));
+        assert_eq!(counts(&holding).await,(1,1,1,1,0,1,1,1,0,0));
+    }).await; }).await;
+}
+
+#[tokio::test]
+async fn schedule_deferred_target_revocation_rolls_back_work_and_every_receipt_effect() {
+    fixture::with_database(2,|control|async move { fixture::with_database(2,move|holding|async move {
+        let(authorizer,_)=setup(&control,&holding).await;
+        seed(&holding).await;
+        sqlx::raw_sql("INSERT INTO hr_people(id,user_id,company_id,legal_name,country_code,created_by,created_at,updated_at)VALUES('target-person','target','company','TARGET','TH','fixture',0,0);INSERT INTO hr_engagements(id,person_id,company_id,worker_type,employment_type,status,start_date,job_title,currency,created_by,created_at,updated_at)VALUES('target-engagement','target-person','company','employee','salaried','active','2026-01-01','TARGET','THB','fixture',0,0);INSERT INTO iam_members(company_id,user_id,principal_id,person_id,status,login_policy)VALUES('company','target','local:target','target-person','active','local')").execute(holding.raw()).await.unwrap();
+        sqlx::query("INSERT INTO assignments(id,user_id,role,modules_json,company_id,valid_from,valid_until,version,scope_kind)VALUES('target-grant','target','custom_native_authority','[\"maintenance\"]','company',$1,$2,1,'holding')").bind(NOW-1000).bind(NOW+3600000).execute(holding.raw()).await.unwrap();
+        sqlx::raw_sql("CREATE FUNCTION synthetic_revoke_target()RETURNS trigger LANGUAGE plpgsql AS $$BEGIN UPDATE hr_engagements SET status='suspended' WHERE id='target-engagement';RETURN NEW;END$$;CREATE CONSTRAINT TRIGGER synthetic_revoke_target AFTER INSERT ON outbox_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION synthetic_revoke_target()").execute(holding.raw()).await.unwrap();
+        denied(authorizer.execute_with_sources("acme.example.test",proof(),input(),maintenance_request(),MaintenanceTransitionsSourcePreparation,|c,current|Box::pin(async move {
+            execute_maintenance_transition(c,current,&schedule_command(1,"target","schedule-revoked"),PackageEnforcementMode::Enforced,&PartsWriteClock(std::sync::atomic::AtomicI64::new(NOW)),&PartsGuardClock,&mut Ids(1200)).await
+        })).await,"PEOPLE_WORKFORCE_REFERENCE_CHANGED");
+        assert_eq!(counts(&holding).await,(0,0,0,0,0,0,0,0,0,0));
+        let state:(String,String,i64,String)=sqlx::query_as("SELECT w.status,w.owner_id,w.version,e.status FROM maintenance_work_orders w CROSS JOIN hr_engagements e WHERE w.id='work' AND e.id='target-engagement'").fetch_one(holding.raw()).await.unwrap();
+        assert_eq!(state,("open".into(),"user".into(),1,"active".into()));
+    }).await; }).await;
+}
+
+#[tokio::test]
+async fn maximum_successor_precompile_precedes_nul_completion_evidence_and_observes_workflow_clock()
+{
+    fixture::with_database(2, |control| async move { fixture::with_database(2, move |holding| async move {
+        let (authorizer, _) = setup(&control, &holding).await;
+        seed(&holding).await;
+        sqlx::query("UPDATE maintenance_work_orders SET status='in_progress' WHERE id='work'").execute(holding.raw()).await.unwrap();
+        let clock=std::sync::Arc::new(PartsWriteClock(std::sync::atomic::AtomicI64::new(NOW)));
+        let guard=clock.clone();
+        let result=authorizer.execute_with_sources("acme.example.test",proof(),input(),maintenance_request(),MaintenanceTransitionsSourcePreparation,move |c,current| {
+            let clock=clock.clone();
+            Box::pin(async move {
+                let raw=serde_json::json!({"action":"complete","expectedVersion":9_007_199_254_740_991_i64,"reason":"Synthetic completion","resultingCondition":"good","evidence":"evidence\u{0000}tail"});
+                let command=normalize_maintenance_change(&serde_json::to_vec(&raw).unwrap()).unwrap().into_command(CommandKey::new("maximum-nul-evidence")?,work_id());
+                execute_maintenance_transition(c,current,&command,PackageEnforcementMode::Enforced,clock.as_ref(),&PartsGuardClock,&mut Ids(1500)).await
+            })
+        }).await;
+        denied(result,"DATABASE_NUMBER_OUT_OF_RANGE");
+        assert_eq!(guard.0.load(std::sync::atomic::Ordering::SeqCst),NOW+2);
+        assert_eq!(counts(&holding).await,(0,0,0,0,0,0,0,0,0,0));
+    }).await; }).await;
+}
+
+fn nul_reason_command(action: &str, version: i64) -> MaintenanceWorkCommand {
+    let mut value = serde_json::json!({"action":action,"expectedVersion":version,"reason":"Synthetic\u{0000}reason"});
+    if action == "complete" {
+        value["resultingCondition"] = "good".into();
+        value["evidence"] = "Synthetic completion evidence".into();
+    }
+    normalize_maintenance_change(&serde_json::to_vec(&value).unwrap())
+        .unwrap()
+        .into_command(
+            CommandKey::new(format!("nul-{action}-{version}")).unwrap(),
+            work_id(),
+        )
+}
+
+#[tokio::test]
+async fn stale_simple_transition_precedes_nul_reason_storage_for_every_physical_action() {
+    for action in ["start", "complete", "cancel"] {
+        fixture::with_database(2, move |control| async move {
+            fixture::with_database(2, move |holding| async move {
+                let (authorizer, _) = setup(&control, &holding).await;
+                seed(&holding).await;
+                if action == "complete" {
+                    sqlx::query(
+                        "UPDATE maintenance_work_orders SET status='in_progress' WHERE id='work'",
+                    )
+                    .execute(holding.raw())
+                    .await
+                    .unwrap();
+                }
+                let result = authorizer
+                    .execute_with_sources(
+                        "acme.example.test",
+                        proof(),
+                        input(),
+                        maintenance_request(),
+                        MaintenanceTransitionsSourcePreparation,
+                        move |c, current| {
+                            Box::pin(async move {
+                                execute_maintenance_transition(
+                                    c,
+                                    current,
+                                    &nul_reason_command(action, 2),
+                                    PackageEnforcementMode::Enforced,
+                                    &PartsWriteClock(std::sync::atomic::AtomicI64::new(NOW)),
+                                    &PartsGuardClock,
+                                    &mut Ids(1600),
+                                )
+                                .await
+                            })
+                        },
+                    )
+                    .await;
+                denied(result, "CONFLICT");
+                assert_eq!(counts(&holding).await, (0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
+            })
+            .await;
+        })
+        .await;
+    }
+}
+
+#[tokio::test]
+async fn start_asset_lifecycle_refusal_precedes_nul_reason_storage() {
+    fixture::with_database(2, |control| async move { fixture::with_database(2, move |holding| async move {
+        let(authorizer,_)=setup(&control,&holding).await; seed(&holding).await;
+        sqlx::query("UPDATE operational_assets SET lifecycle_status='retirement_pending',retirement_reason='Synthetic retirement' WHERE id='asset'").execute(holding.raw()).await.unwrap();
+        let result=authorizer.execute_with_sources("acme.example.test",proof(),input(),maintenance_request(),MaintenanceTransitionsSourcePreparation,|c,current|Box::pin(async move {
+            execute_maintenance_transition(c,current,&nul_reason_command("start",1),PackageEnforcementMode::Enforced,&PartsWriteClock(std::sync::atomic::AtomicI64::new(NOW)),&PartsGuardClock,&mut Ids(1700)).await
+        })).await;
+        denied(result,"CONFLICT");
+        assert_eq!(counts(&holding).await,(0,0,0,0,0,0,0,0,0,0));
+        let state:(String,i64,i64)=sqlx::query_as("SELECT w.status,w.version,a.version FROM maintenance_work_orders w JOIN operational_assets a ON a.id=w.asset_id").fetch_one(holding.raw()).await.unwrap();
+        assert_eq!(state,("open".into(),1,1));
+    }).await; }).await;
+}
+
+#[tokio::test]
+async fn current_start_nul_reason_storage_error_rolls_back_every_effect() {
+    fixture::with_database(2, |control| async move { fixture::with_database(2, move |holding| async move {
+        let(authorizer,_)=setup(&control,&holding).await; seed(&holding).await;
+        let result=authorizer.execute_with_sources("acme.example.test",proof(),input(),maintenance_request(),MaintenanceTransitionsSourcePreparation,|c,current|Box::pin(async move {
+            execute_maintenance_transition(c,current,&nul_reason_command("start",1),PackageEnforcementMode::Enforced,&PartsWriteClock(std::sync::atomic::AtomicI64::new(NOW)),&PartsGuardClock,&mut Ids(1800)).await
+        })).await;
+        assert!(matches!(result,Err(PgTransactionError::Persistence(ref e)) if e.code=="POSTGRES_OPERATION_FAILED"));
+        assert_eq!(counts(&holding).await,(0,0,0,0,0,0,0,0,0,0));
+        let state:(String,i64,i64)=sqlx::query_as("SELECT w.status,w.version,a.version FROM maintenance_work_orders w JOIN operational_assets a ON a.id=w.asset_id").fetch_one(holding.raw()).await.unwrap();
+        assert_eq!(state,("open".into(),1,1));
+    }).await; }).await;
+}
+
+#[tokio::test]
+async fn ordinary_stale_schedule_against_synthetic_maximum_stored_version_refuses_at_work_cas() {
+    fixture::with_database(2, |control| async move {
+        fixture::with_database(2, move |holding| async move {
+            let (authorizer, _) = setup(&control, &holding).await;
+            seed(&holding).await;
+            // Synthetic edge fixture, not evidence of a real Work history.
+            sqlx::query(
+                "UPDATE maintenance_work_orders SET version=9007199254740991 WHERE id='work'",
+            )
+            .execute(holding.raw())
+            .await
+            .unwrap();
+            let result = authorizer
+                .execute_with_sources(
+                    "acme.example.test",
+                    proof(),
+                    input(),
+                    maintenance_request(),
+                    MaintenanceTransitionsSourcePreparation,
+                    |c, current| {
+                        Box::pin(async move {
+                            execute_maintenance_transition(
+                                c,
+                                current,
+                                &schedule_command(1, "user", "schedule-max-stored"),
+                                PackageEnforcementMode::Enforced,
+                                &PartsWriteClock(std::sync::atomic::AtomicI64::new(NOW)),
+                                &PartsGuardClock,
+                                &mut Ids(1900),
+                            )
+                            .await
+                        })
+                    },
+                )
+                .await;
+            denied(result, "CONFLICT");
+            assert_eq!(counts(&holding).await, (0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
+            assert_eq!(
+                sqlx::query_scalar::<_, i64>(
+                    "SELECT version FROM maintenance_work_orders WHERE id='work'"
+                )
+                .fetch_one(holding.raw())
+                .await
+                .unwrap(),
+                9_007_199_254_740_991
+            );
+        })
+        .await;
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn concurrent_schedule_commands_share_one_version_and_exact_key_replays() {
+    for same_key in [false, true] {
+        fixture::with_database(2, move |control| async move {
+            fixture::with_database(2, move |holding| async move {
+                let (authorizer, _) = setup(&control, &holding).await;
+                seed(&holding).await;
+                let left = authorizer.clone();
+                let right = authorizer.clone();
+                let first = async move {
+                    left.execute_with_sources(
+                        "acme.example.test",
+                        proof(),
+                        input(),
+                        maintenance_request(),
+                        MaintenanceTransitionsSourcePreparation,
+                        |c, current| {
+                            Box::pin(async move {
+                                execute_maintenance_transition(
+                                    c,
+                                    current,
+                                    &schedule_command(1, "user", "concurrent-schedule-a"),
+                                    PackageEnforcementMode::Enforced,
+                                    &PartsWriteClock(std::sync::atomic::AtomicI64::new(NOW)),
+                                    &PartsGuardClock,
+                                    &mut Ids(2000),
+                                )
+                                .await
+                            })
+                        },
+                    )
+                    .await
+                };
+                let second = async move {
+                    right
+                        .execute_with_sources(
+                            "acme.example.test",
+                            proof(),
+                            input(),
+                            maintenance_request(),
+                            MaintenanceTransitionsSourcePreparation,
+                            move |c, current| {
+                                Box::pin(async move {
+                                    execute_maintenance_transition(
+                                        c,
+                                        current,
+                                        &schedule_command(
+                                            1,
+                                            "user",
+                                            if same_key {
+                                                "concurrent-schedule-a"
+                                            } else {
+                                                "concurrent-schedule-b"
+                                            },
+                                        ),
+                                        PackageEnforcementMode::Enforced,
+                                        &PartsWriteClock(std::sync::atomic::AtomicI64::new(NOW)),
+                                        &PartsGuardClock,
+                                        &mut Ids(3000),
+                                    )
+                                    .await
+                                })
+                            },
+                        )
+                        .await
+                };
+                let (a, b) = tokio::join!(first, second);
+                if same_key {
+                    let a = a.unwrap();
+                    let b = b.unwrap();
+                    assert_ne!(a.replayed, b.replayed);
+                    assert_eq!(a.result, b.result);
+                } else {
+                    match (a, b) {
+                        (Ok(winner), Err(PgTransactionError::Business(error)))
+                        | (Err(PgTransactionError::Business(error)), Ok(winner)) => {
+                            assert!(!winner.replayed);
+                            assert_eq!(error.code, "CONFLICT");
+                        }
+                        _ => panic!("expected one committed schedule and one Work CAS conflict"),
+                    }
+                }
+                assert_eq!(counts(&holding).await, (1, 1, 1, 1, 0, 1, 1, 1, 0, 0));
+                assert_eq!(
+                    sqlx::query_scalar::<_, i64>(
+                        "SELECT version FROM maintenance_work_orders WHERE id='work'"
+                    )
+                    .fetch_one(holding.raw())
+                    .await
+                    .unwrap(),
+                    2
+                );
+            })
+            .await;
+        })
+        .await;
+    }
 }

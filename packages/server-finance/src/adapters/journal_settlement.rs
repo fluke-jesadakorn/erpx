@@ -1,7 +1,7 @@
 //! Factual status snapshots for source-owner settlement. This never grants
 //! Finance read/write, posting, purchase or source-owner close authority.
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
-use erpx_server_shared::public::{BusinessError, FailureKind, RecordId};
+use erpx_server_shared::public::{BusinessError, FailureKind};
 use sha2::{Digest, Sha256};
 use sqlx::{Connection, PgConnection};
 type Error = PgTransactionError<BusinessError>;
@@ -40,14 +40,14 @@ impl JournalSettlementScan {
     }
     /// The Service feeds actual owner references. Memory is constant regardless
     /// of history length; private journal bodies are hashed inside PostgreSQL.
-    pub async fn observe(&mut self, c: &mut PgConnection, id: &RecordId) -> Result<(), Error> {
+    pub async fn observe(&mut self, c: &mut PgConnection, id: &str) -> Result<(), Error> {
         if unit(c).await? != self.unit {
             return Err(changed());
         }
-        let row:Option<(bool,Vec<u8>)>=sqlx::query_as("SELECT COALESCE(status<>'posted',false),sha256(convert_to(to_jsonb(j)::text,'UTF8')) FROM finance_journals j WHERE id=$1 FOR SHARE").bind(id.as_str()).fetch_optional(c).await?;
+        let row:Option<(bool,Vec<u8>)>=sqlx::query_as("SELECT COALESCE(status<>'posted',false),sha256(convert_to(to_jsonb(j)::text,'UTF8')) FROM finance_journals j WHERE id=$1 FOR SHARE").bind(id).fetch_optional(c).await?;
         self.count = self.count.checked_add(1).ok_or_else(invalid)?;
-        self.digest.update((id.as_str().len() as u64).to_be_bytes());
-        self.digest.update(id.as_str().as_bytes());
+        self.digest.update((id.len() as u64).to_be_bytes());
+        self.digest.update(id.as_bytes());
         // Exact B0 inner-join/SQL-null semantics: a missing or NULL-status journal
         // does not satisfy `status <> posted`. No new Company/type/cost admission.
         match row {

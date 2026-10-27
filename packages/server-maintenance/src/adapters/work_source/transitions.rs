@@ -28,6 +28,7 @@ pub struct PgMaintenanceTransitionPlan {
     event_id: String,
     asset: RetainedMaintenanceAssetImage,
     physical: Option<MaintenancePhysicalChange>,
+    target: Option<CurrentOperationalWorker>,
 }
 pub struct PgMaintenanceTransitionReceipt {
     facts: MaintenanceWorkSourceFacts,
@@ -38,9 +39,17 @@ pub struct PgMaintenanceTransitionReceipt {
     event_id: String,
     asset: RetainedMaintenanceAssetImage,
     physical: Option<MaintenancePhysicalChange>,
+    target: Option<CurrentOperationalWorker>,
 }
 fn transition(command: &MaintenanceWorkCommand) -> Result<MaintenanceTransition, BusinessError> {
-    Ok(match command.input().action {
+    Ok(match &command.input().action {
+        MaintenanceChangeAction::Schedule {
+            owner_id,
+            scheduled_at,
+        } => MaintenanceTransition::Schedule {
+            owner_id: owner_id.clone(),
+            scheduled_at: *scheduled_at,
+        },
         MaintenanceChangeAction::Start => MaintenanceTransition::Start,
         MaintenanceChangeAction::Block => MaintenanceTransition::Block,
         MaintenanceChangeAction::Resume => MaintenanceTransition::Resume,
@@ -89,16 +98,10 @@ impl CurrentMaintenanceWork<'_> {
             &transition,
             at.get(),
         );
-        let blocked = if matches!(transition, MaintenanceTransition::Block) {
-            Some(command.input().reason.as_str())
-        } else {
-            None
-        };
-        let(before_digest,after_digest):(String,String)=sqlx::query_as("SELECT encode(sha256(convert_to(to_jsonb(w)::text,'UTF8')),'hex'),encode(sha256(convert_to((to_jsonb(w)||jsonb_build_object('status',$2::text,'owner_id',$3::text,'scheduled_at',$4::bigint,'downtime_started_at',$5::bigint,'downtime_ended_at',$6::bigint,'blocked_reason',$7::text,'completion_evidence',$8::text,'resulting_condition',$9::text,'version',$10::bigint,'updated_at',$11::bigint))::text,'UTF8')),'hex') FROM maintenance_work_orders w WHERE id=$1")
-   .bind(self.facts.id.as_str()).bind(state.status).bind(state.owner_id.as_str()).bind(state.scheduled_at).bind(state.downtime_started_at).bind(state.downtime_ended_at).bind(blocked).bind(completion(command).0).bind(completion(command).1).bind(version).bind(at.get()).fetch_one(&mut*c).await?;
+        let before_digest = work_digest(c, &self.facts.id).await?.ok_or_else(changed)?;
+        let after_digest = String::new();
+        let event_digest = String::new();
         let event_id = format!("maintenance-event-{}", command.key().as_str());
-        let event_digest:String=sqlx::query_scalar("SELECT encode(sha256(convert_to(jsonb_build_object('id',$1::text,'work_order_id',$2::text,'version',$3::bigint,'action',$4::text,'actor_id',$5::text,'reason',$6::text,'status',$7::text,'owner_id',$8::text,'scheduled_at',$9::bigint,'downtime_started_at',$10::bigint,'downtime_ended_at',$11::bigint,'created_at',$12::bigint)::text,'UTF8')),'hex')")
-   .bind(&event_id).bind(self.facts.id.as_str()).bind(version).bind(transition.action()).bind(self.current.user_id().as_str()).bind(&command.input().reason).bind(state.status).bind(state.owner_id.as_str()).bind(state.scheduled_at).bind(state.downtime_started_at).bind(state.downtime_ended_at).bind(at.get()).fetch_one(&mut*c).await?;
         let asset = self.asset.retain_unchanged_image(c).await?;
         let physical = match &command.input().action {
             MaintenanceChangeAction::Start => Some(MaintenancePhysicalAction::Start),
@@ -140,6 +143,7 @@ impl CurrentMaintenanceWork<'_> {
             event_id,
             asset,
             physical,
+            target: None,
         })
     }
 }
@@ -157,6 +161,9 @@ impl PgMaintenanceTransitionPlan {
     }
     pub fn version_after(&self) -> i64 {
         self.version
+    }
+    pub fn owner_after(&self) -> &str {
+        &self.state.owner_id
     }
     pub fn status_after(&self) -> &'static str {
         self.state.status
@@ -190,17 +197,37 @@ impl PgMaintenanceTransitionPlan {
     }
     /// Work CAS/update precedes the original late start Asset lifecycle guard.
     pub async fn write_work(
-        &self,
+        &mut self,
         c: &mut PgConnection,
         source: &CurrentMaintenanceWork<'_>,
         now: TimestampMillis,
     ) -> Result<(), Error> {
         self.require_before(c, source, now).await?;
+        if let MaintenanceTransition::Schedule { owner_id, .. } = &self.transition {
+            let target = inspect_operational_worker_raw(
+                c,
+                RawOperationalWorkerRequest {
+                    company_id: self.facts.company_id.clone(),
+                    user_id: owner_id.clone(),
+                    branch_id: self.facts.branch_id.clone(),
+                    department_id: self.facts.department_id.clone(),
+                    permission: OperationalWorkerPermission::Write,
+                },
+                now,
+            )
+            .await?;
+            if !target.is_eligible() {
+                return Err(BusinessError::new(FailureKind::Conflict, "CONFLICT", "The record changed, a reference is unavailable, or this value already exists. Refresh and review again.").into());
+            }
+            self.target = Some(target);
+        }
         let blocked = if matches!(self.transition, MaintenanceTransition::Block) {
             Some(self.command.input().reason.as_str())
         } else {
             None
         };
+        self.after_digest = sqlx::query_scalar("SELECT encode(sha256(convert_to((to_jsonb(w)||jsonb_build_object('status',$2::text,'owner_id',$3::text,'scheduled_at',$4::bigint,'downtime_started_at',$5::bigint,'downtime_ended_at',$6::bigint,'blocked_reason',$7::text,'completion_evidence',$8::text,'resulting_condition',$9::text,'version',$10::bigint,'updated_at',$11::bigint))::text,'UTF8')),'hex') FROM maintenance_work_orders w WHERE id=$1")
+            .bind(self.facts.id.as_str()).bind(self.state.status).bind(&self.state.owner_id).bind(self.state.scheduled_at).bind(self.state.downtime_started_at).bind(self.state.downtime_ended_at).bind(blocked).bind(completion(&self.command).0).bind(completion(&self.command).1).bind(self.version).bind(self.at.get()).fetch_one(&mut *c).await?;
         let n=sqlx::query("UPDATE maintenance_work_orders SET status=$2,owner_id=$3,scheduled_at=$4,downtime_started_at=$5,downtime_ended_at=$6,blocked_reason=$7,completion_evidence=$8,resulting_condition=$9,version=$10,updated_at=$11 WHERE id=$1 AND version=$12")
    .bind(self.facts.id.as_str()).bind(self.state.status).bind(self.state.owner_id.as_str()).bind(self.state.scheduled_at).bind(self.state.downtime_started_at).bind(self.state.downtime_ended_at).bind(blocked).bind(completion(&self.command).0).bind(completion(&self.command).1).bind(self.version).bind(self.at.get()).bind(self.facts.version).execute(&mut*c).await?.rows_affected();
         if n != 1 {
@@ -211,13 +238,16 @@ impl PgMaintenanceTransitionPlan {
     /// Service applies the real Assets start effect after `write_work`, then
     /// supplies its original opaque receipt before the Work event is appended.
     pub async fn finish(
-        self,
+        mut self,
         c: &mut PgConnection,
         source: &CurrentMaintenanceWork<'_>,
         started_asset: Option<&MaintenancePhysicalReceipt>,
         now: TimestampMillis,
     ) -> Result<PgMaintenanceTransitionReceipt, Error> {
         require_external_after(c, source, &self.facts, &self.transaction, now).await?;
+        if let Some(target) = &self.target {
+            target.require_current(c, now).await?;
+        }
         require_asset_after(
             c,
             source,
@@ -230,6 +260,8 @@ impl PgMaintenanceTransitionPlan {
             return Err(changed().into());
         }
 
+        self.event_digest = sqlx::query_scalar("SELECT encode(sha256(convert_to(jsonb_build_object('id',$1::text,'work_order_id',$2::text,'version',$3::bigint,'action',$4::text,'actor_id',$5::text,'reason',$6::text,'status',$7::text,'owner_id',$8::text,'scheduled_at',$9::bigint,'downtime_started_at',$10::bigint,'downtime_ended_at',$11::bigint,'created_at',$12::bigint)::text,'UTF8')),'hex')")
+            .bind(&self.event_id).bind(self.facts.id.as_str()).bind(self.version).bind(self.transition.action()).bind(source.current.user_id().as_str()).bind(&self.command.input().reason).bind(self.state.status).bind(&self.state.owner_id).bind(self.state.scheduled_at).bind(self.state.downtime_started_at).bind(self.state.downtime_ended_at).bind(self.at.get()).fetch_one(&mut *c).await?;
         sqlx::query("INSERT INTO maintenance_work_events(id,work_order_id,version,action,actor_id,reason,status,owner_id,scheduled_at,downtime_started_at,downtime_ended_at,created_at)VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)")
    .bind(&self.event_id).bind(self.facts.id.as_str()).bind(self.version).bind(self.transition.action()).bind(source.current.user_id().as_str()).bind(&self.command.input().reason).bind(self.state.status).bind(self.state.owner_id.as_str()).bind(self.state.scheduled_at).bind(self.state.downtime_started_at).bind(self.state.downtime_ended_at).bind(self.at.get()).execute(&mut*c).await?;
         let receipt = PgMaintenanceTransitionReceipt {
@@ -241,6 +273,7 @@ impl PgMaintenanceTransitionPlan {
             event_id: self.event_id,
             asset: self.asset,
             physical: self.physical,
+            target: self.target,
         };
         receipt.require_after(c, source, started_asset, now).await?;
         Ok(receipt)
@@ -255,6 +288,9 @@ impl PgMaintenanceTransitionReceipt {
         now: TimestampMillis,
     ) -> Result<(), Error> {
         require_external_after(c, source, &self.facts, &self.transaction, now).await?;
+        if let Some(target) = &self.target {
+            target.require_current(c, now).await?;
+        }
         require_asset_after(
             c,
             source,

@@ -27,7 +27,7 @@ use erpx_server_maintenance::public::{
     },
     work_wire::MaintenanceChangeAction,
 };
-use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
+use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{
     BusinessError, Clock, FailureKind, IdentifierSource, TimestampMillis,
 };
@@ -72,7 +72,8 @@ impl<G: Clock + Sync> Authority<'_, G> {
             || self.clock.now().get() >= self.current.expires_at()
             || !matches!(
                 self.command.input().action,
-                MaintenanceChangeAction::Start
+                MaintenanceChangeAction::Schedule { .. }
+                    | MaintenanceChangeAction::Start
                     | MaintenanceChangeAction::Block
                     | MaintenanceChangeAction::Resume
                     | MaintenanceChangeAction::Complete { .. }
@@ -249,7 +250,14 @@ impl<W: Clock + Sync, G: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W, 
             )
         })?;
         // Owner/state refusal precedes the domain clock, as in the application.
-        let transition = match self.command.input().action {
+        let transition = match &self.command.input().action {
+            MaintenanceChangeAction::Schedule {
+                owner_id,
+                scheduled_at,
+            } => erpx_server_maintenance::public::MaintenanceTransition::Schedule {
+                owner_id: owner_id.clone(),
+                scheduled_at: *scheduled_at,
+            },
             MaintenanceChangeAction::Start => {
                 erpx_server_maintenance::public::MaintenanceTransition::Start
             }
@@ -269,6 +277,12 @@ impl<W: Clock + Sync, G: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W, 
         };
         source.require_action(&transition)?;
         let at = self.write_clock.now();
+        // B0 precompiles every batch argument before executing any statement.
+        // Workflow observes its clock before that compilation on this refusal.
+        if self.command.input().expected_version >= 9_007_199_254_740_991 {
+            let _ = self.write_clock.now();
+            return Err(PersistenceError::new("DATABASE_NUMBER_OUT_OF_RANGE").into());
+        }
         let work = source
             .retain_transition_effects(c, self.command, at, self.guard_clock.now())
             .await?;
@@ -296,7 +310,7 @@ impl<W: Clock + Sync, G: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W, 
                 holding_id: source.holding_id().clone(),
                 company_id: source.facts().company_id.clone(),
                 work_id: source.facts().id.clone(),
-                owner_user_id: source.facts().owner_id.clone(),
+                owner_user_id: work.owner_after().to_owned(),
                 work_version_after: work.version_after(),
                 updated_at_after: work.application_at(),
                 owner_key: self.command.key().clone(),
@@ -312,7 +326,7 @@ impl<W: Clock + Sync, G: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W, 
         )
         .await?
         .into_owned();
-        let version = source.facts().version.checked_add(1).ok_or_else(changed)?;
+        let version = work.version_after();
         let result = CommandJson::from_serializable(&WorkResult {
             id: self.command.work_id().as_str(),
             version,
@@ -339,7 +353,7 @@ impl<W: Clock + Sync, G: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W, 
     ) -> Result<(), Error> {
         let Prepared {
             source,
-            work,
+            mut work,
             physical,
             notification,
             settlement,

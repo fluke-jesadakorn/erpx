@@ -12,8 +12,8 @@ pub struct MaintenanceSettlementScope {
     pub work_id: RecordId,
 }
 pub struct MaintenanceSettlementReference {
-    pub consumption_id: RecordId,
-    pub journal_id: RecordId,
+    pub consumption_id: String,
+    pub journal_id: String,
 }
 pub struct CurrentMaintenanceSettlementReferences {
     scope: MaintenanceSettlementScope,
@@ -55,24 +55,19 @@ impl CurrentMaintenanceSettlementReferences {
     pub async fn next(
         &self,
         c: &mut PgConnection,
-        after: Option<&RecordId>,
+        after: Option<&str>,
     ) -> Result<Option<MaintenanceSettlementReference>, Error> {
         if unit(c).await? != self.unit {
             return Err(changed());
         }
         // B0 predicates use source_kind/source_id only. Do not silently remove a
         // blocking inconsistent row by adding a new Company/quantity/cost predicate.
-        let row=sqlx::query("SELECT CASE WHEN octet_length(id)<=200 THEN id END id,CASE WHEN octet_length(journal_id)<=200 THEN journal_id END journal_id FROM operational_inventory_consumptions WHERE source_kind='maintenance' AND source_id=$1 AND ($2::text IS NULL OR id COLLATE \"C\">$2 COLLATE \"C\") ORDER BY id COLLATE \"C\" LIMIT 1 FOR SHARE")
-   .bind(self.scope.work_id.as_str()).bind(after.map(RecordId::as_str)).fetch_optional(c).await?;
+        let row=sqlx::query("SELECT id,journal_id FROM operational_inventory_consumptions WHERE source_kind='maintenance' AND source_id=$1 AND ($2::text IS NULL OR id COLLATE \"C\">$2 COLLATE \"C\") ORDER BY id COLLATE \"C\" LIMIT 1 FOR SHARE")
+   .bind(self.scope.work_id.as_str()).bind(after).fetch_optional(c).await?;
         row.map(|r| {
             Ok(MaintenanceSettlementReference {
-                consumption_id: RecordId::new(
-                    r.try_get::<Option<String>, _>("id")?.ok_or_else(invalid)?,
-                )?,
-                journal_id: RecordId::new(
-                    r.try_get::<Option<String>, _>("journal_id")?
-                        .ok_or_else(invalid)?,
-                )?,
+                consumption_id: r.try_get("id")?,
+                journal_id: r.try_get("journal_id")?,
             })
         })
         .transpose()

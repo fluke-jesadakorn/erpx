@@ -84,6 +84,10 @@ name = "legal_worker_provider"
 path = "../../tests/provider/legal/rust-worker-bootstrap.test.rs"
 required-features = ["legal-pdf-worker", "legal-document-worker", "legal-queue"]
 
+[[test]]
+name = "maintenance_settlement_references"
+path = "../../tests/integration/maintenance/rust-settlement-references-postgres.test.rs"
+
 [lints]
 workspace = true
 

@@ -9,7 +9,7 @@ fn corpus() -> Value {
 }
 fn facts(row: &Value) -> MaintenanceWorkFacts {
     MaintenanceWorkFacts {
-        owner_id: UserId::new(row["owner_id"].as_str().unwrap()).unwrap(),
+        owner_id: row["owner_id"].as_str().unwrap().to_owned(),
         status: row["status"].as_str().unwrap().into(),
         owner_eligible: row["owner_eligible"].as_i64().unwrap() > 0,
         reviewer_eligible: row["can_review"].as_i64().unwrap() > 0,
@@ -23,7 +23,7 @@ fn view(s: MaintenanceState) -> Value {
 fn transition(action: &str) -> MaintenanceTransition {
     match action {
         "schedule" => MaintenanceTransition::Schedule {
-            owner_id: UserId::new("new-owner").unwrap(),
+            owner_id: "new-owner".into(),
             scheduled_at: 200,
         },
         "start" => MaintenanceTransition::Start,
@@ -101,7 +101,7 @@ fn all_original_work_state_transitions_preserve_nullable_and_epoch_zero_downtime
         let action = transition(row["action"].as_str().unwrap());
         assert_eq!(json!(action.allowed_states()), row["allowed"]);
         let source = MaintenanceWorkFacts {
-            owner_id: UserId::new("actor").unwrap(),
+            owner_id: "actor".into(),
             status: "in_progress".into(),
             owner_eligible: true,
             reviewer_eligible: false,

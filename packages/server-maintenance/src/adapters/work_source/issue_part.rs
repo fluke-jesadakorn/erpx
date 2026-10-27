@@ -19,7 +19,7 @@ pub struct PgMaintenanceIssuePartEffects<'source, 'authority> {
     event_id: String,
     before_digest: String,
     after_digest: String,
-    event_digest: String,
+    event_digest: Option<String>,
 }
 impl<'authority> CurrentMaintenanceWork<'authority> {
     /// Derive expected data before Finance preparation without asserting the
@@ -66,8 +66,7 @@ impl<'authority> CurrentMaintenanceWork<'authority> {
         let (before_digest, after_digest):(String,String)=sqlx::query_as("SELECT encode(sha256(convert_to(to_jsonb(w)::text,'UTF8')),'hex'),encode(sha256(convert_to((to_jsonb(w)||jsonb_build_object('status','in_progress','owner_id',$2::text,'scheduled_at',$3::bigint,'downtime_started_at',$4::bigint,'downtime_ended_at',NULL,'blocked_reason',NULL,'completion_evidence',NULL,'resulting_condition',NULL,'version',$5::bigint,'updated_at',$6::bigint))::text,'UTF8')),'hex') FROM maintenance_work_orders w WHERE id=$1")
             .bind(self.facts.id.as_str()).bind(state.owner_id.as_str()).bind(state.scheduled_at).bind(state.downtime_started_at).bind(version).bind(application_at.get()).fetch_one(&mut *c).await?;
         let event_id = format!("maintenance-event-{}", command.key().as_str());
-        let event_digest:String=sqlx::query_scalar("SELECT encode(sha256(convert_to(jsonb_build_object('id',$1::text,'work_order_id',$2::text,'version',$3::bigint,'action','issue-part','actor_id',$4::text,'reason',$5::text,'status','in_progress','owner_id',$6::text,'scheduled_at',$7::bigint,'downtime_started_at',$8::bigint,'downtime_ended_at',NULL,'created_at',$9::bigint)::text,'UTF8')),'hex')")
-            .bind(&event_id).bind(self.facts.id.as_str()).bind(version).bind(self.current.user_id().as_str()).bind(&command.input().reason).bind(state.owner_id.as_str()).bind(state.scheduled_at).bind(state.downtime_started_at).bind(application_at.get()).fetch_one(&mut *c).await?;
+        let event_digest = None;
         let asset_image = self.asset.retain_unchanged_image(c).await?;
         Ok(PgMaintenanceIssuePartEffects {
             source: self,
@@ -84,6 +83,29 @@ impl<'authority> CurrentMaintenanceWork<'authority> {
     }
 }
 impl PgMaintenanceIssuePartEffects<'_, '_> {
+    pub async fn finalize_event(
+        &mut self,
+        c: &mut PgConnection,
+        now: TimestampMillis,
+    ) -> Result<(), Error> {
+        self.require_current_source(c, now).await?;
+        if self.event_digest.is_some() {
+            return Err(changed().into());
+        }
+        self.event_digest = Some(
+            issue_event_digest(
+                c,
+                self.source,
+                self.command,
+                &self.state,
+                self.at,
+                self.version,
+                &self.event_id,
+            )
+            .await?,
+        );
+        Ok(())
+    }
     pub fn version_after(&self) -> i64 {
         self.version
     }
@@ -123,6 +145,9 @@ impl PgMaintenanceIssuePartEffects<'_, '_> {
     /// these predetermined full-row images are the final protocol instead.
     pub async fn write(&self, c: &mut PgConnection, now: TimestampMillis) -> Result<(), Error> {
         self.require_before(c, now).await?;
+        if self.event_digest.is_none() {
+            return Err(changed().into());
+        }
         let n=sqlx::query("UPDATE maintenance_work_orders SET status='in_progress',owner_id=$2,scheduled_at=$3,downtime_started_at=$4,downtime_ended_at=NULL,blocked_reason=NULL,completion_evidence=NULL,resulting_condition=NULL,version=$5,updated_at=$6 WHERE id=$1 AND version=$7")
             .bind(self.source.facts.id.as_str()).bind(self.state.owner_id.as_str()).bind(self.state.scheduled_at).bind(self.state.downtime_started_at).bind(self.version).bind(self.at.get()).bind(self.source.facts.version).execute(&mut *c).await?.rows_affected();
         if n != 1 {
@@ -164,11 +189,23 @@ impl PgMaintenanceIssuePartEffects<'_, '_> {
         }
         let event:Option<String>=sqlx::query_scalar("SELECT encode(sha256(convert_to(to_jsonb(e)::text,'UTF8')),'hex') FROM maintenance_work_events e WHERE work_order_id=$1 AND version=$2 AND id=$3")
             .bind(self.source.facts.id.as_str()).bind(self.version).bind(&self.event_id).fetch_optional(c).await?;
-        if event.as_deref() != Some(&self.event_digest) {
+        if event.as_deref() != self.event_digest.as_deref() || self.event_digest.is_none() {
             return Err(changed().into());
         }
         Ok(())
     }
+}
+async fn issue_event_digest(
+    c: &mut PgConnection,
+    source: &CurrentMaintenanceWork<'_>,
+    command: &MaintenanceWorkCommand,
+    state: &MaintenanceState,
+    at: TimestampMillis,
+    version: i64,
+    event_id: &str,
+) -> Result<String, Error> {
+    Ok(sqlx::query_scalar("SELECT encode(sha256(convert_to(jsonb_build_object('id',$1::text,'work_order_id',$2::text,'version',$3::bigint,'action','issue-part','actor_id',$4::text,'reason',$5::text,'status','in_progress','owner_id',$6::text,'scheduled_at',$7::bigint,'downtime_started_at',$8::bigint,'downtime_ended_at',NULL,'created_at',$9::bigint)::text,'UTF8')),'hex')")
+        .bind(event_id).bind(source.facts.id.as_str()).bind(version).bind(source.current.user_id().as_str()).bind(&command.input().reason).bind(&state.owner_id).bind(state.scheduled_at).bind(state.downtime_started_at).bind(at.get()).fetch_one(c).await?)
 }
 async fn work_digest(c: &mut PgConnection, id: &RecordId) -> Result<Option<String>, Error> {
     Ok(sqlx::query_scalar("SELECT encode(sha256(convert_to(to_jsonb(w)::text,'UTF8')),'hex') FROM maintenance_work_orders w WHERE id=$1").bind(id.as_str()).fetch_optional(c).await?)
@@ -180,7 +217,7 @@ pub struct PgMaintenanceIssuePartReceipt {
     transaction: Transaction,
     asset_image: RetainedMaintenanceAssetImage,
     after_digest: String,
-    event_digest: String,
+    event_digest: Option<String>,
     event_id: String,
     version: i64,
 }
@@ -201,7 +238,7 @@ impl PgMaintenanceIssuePartReceipt {
         }
         let event:Option<String>=sqlx::query_scalar("SELECT encode(sha256(convert_to(to_jsonb(e)::text,'UTF8')),'hex') FROM maintenance_work_events e WHERE work_order_id=$1 AND version=$2 AND id=$3")
             .bind(self.facts.id.as_str()).bind(self.version).bind(&self.event_id).fetch_optional(c).await?;
-        if event.as_deref() != Some(&self.event_digest) {
+        if event.as_deref() != self.event_digest.as_deref() || self.event_digest.is_none() {
             return Err(changed().into());
         }
         Ok(())
@@ -237,6 +274,31 @@ impl PgMaintenanceIssuePartEffects<'_, '_> {
     }
 }
 impl PgMaintenanceIssuePartPlan {
+    /// Finalize from immutable command data before any effect is inserted.
+    pub async fn finalize_event(
+        &mut self,
+        c: &mut PgConnection,
+        source: &CurrentMaintenanceWork<'_>,
+        now: TimestampMillis,
+    ) -> Result<(), Error> {
+        self.require_current_source(c, source, now).await?;
+        if self.expected.event_digest.is_some() {
+            return Err(changed().into());
+        }
+        self.expected.event_digest = Some(
+            issue_event_digest(
+                c,
+                source,
+                &self.command,
+                &self.state,
+                self.at,
+                self.expected.version,
+                &self.expected.event_id,
+            )
+            .await?,
+        );
+        Ok(())
+    }
     /// Immutable original normalized command data, not current authority.
     pub fn command(&self) -> &MaintenanceWorkCommand {
         &self.command
@@ -281,6 +343,9 @@ impl PgMaintenanceIssuePartPlan {
         now: TimestampMillis,
     ) -> Result<(), Error> {
         self.require_before(c, source, now).await?;
+        if self.expected.event_digest.is_none() {
+            return Err(changed().into());
+        }
         let n=sqlx::query("UPDATE maintenance_work_orders SET status='in_progress',owner_id=$2,scheduled_at=$3,downtime_started_at=$4,downtime_ended_at=NULL,blocked_reason=NULL,completion_evidence=NULL,resulting_condition=NULL,version=$5,updated_at=$6 WHERE id=$1 AND version=$7")
             .bind(source.facts.id.as_str()).bind(self.state.owner_id.as_str()).bind(self.state.scheduled_at).bind(self.state.downtime_started_at).bind(self.expected.version).bind(self.at.get()).bind(source.facts.version).execute(&mut *c).await?.rows_affected();
         if n != 1 {

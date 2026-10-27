@@ -203,3 +203,49 @@ async fn physical_preparation_cannot_escape_into_a_second_transaction() {
     })
     .await;
 }
+
+#[tokio::test]
+async fn nul_reason_waits_for_physical_apply_and_late_start_guard() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        for action in [
+            MaintenancePhysicalAction::Start,
+            MaintenancePhysicalAction::Complete { condition: MaintenanceAssetCondition::Good },
+            MaintenancePhysicalAction::Cancel { downtime_started_at: Some(100) },
+            MaintenancePhysicalAction::Cancel { downtime_started_at: None },
+            MaintenancePhysicalAction::Cancel { downtime_started_at: Some(0) },
+        ] {
+            let no_event = matches!(action, MaintenancePhysicalAction::Cancel { downtime_started_at: None | Some(0) });
+            let mut tx = pool.raw().begin().await.unwrap();
+            sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+            let (h, co, id) = scope();
+            let source = read_current_maintenance_asset(&mut tx, &h, &co, &id).await.unwrap().unwrap();
+            let mut change = physical_change(action);
+            change.reason = "reason\0fixture".into();
+            let prepared = source.prepare_physical_change(&mut tx, change).await.unwrap();
+            let result = prepared.apply(&mut tx, &source).await;
+            if no_event {
+                result.unwrap().require_current(&mut tx).await.unwrap();
+            } else {
+                assert!(matches!(result, Err(PgTransactionError::Persistence(_))));
+            }
+            tx.rollback().await.unwrap();
+            assert_eq!(sqlx::query_scalar::<_,i64>("SELECT version FROM operational_assets WHERE id='asset'").fetch_one(pool.raw()).await.unwrap(), 1);
+            assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM operational_asset_events").fetch_one(pool.raw()).await.unwrap(), 0);
+        }
+        for (stale, lifecycle) in [(true,"registered"), (false,"retirement_pending")] {
+            let mut tx = pool.raw().begin().await.unwrap();
+            sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+            sqlx::query("UPDATE operational_assets SET lifecycle_status=$1,retirement_reason='Synthetic retirement' WHERE id='asset'").bind(lifecycle).execute(&mut *tx).await.unwrap();
+            let (h, co, id) = scope();
+            let source = read_current_maintenance_asset(&mut tx, &h, &co, &id).await.unwrap().unwrap();
+            let mut change = physical_change(MaintenancePhysicalAction::Start);
+            change.reason = "reason\0fixture".into();
+            if stale { change.expected_asset_version = 2; }
+            let prepared = source.prepare_physical_change(&mut tx, change).await.unwrap();
+            assert!(matches!(prepared.apply(&mut tx, &source).await, Err(PgTransactionError::Business(ref e)) if e.code=="CONFLICT"));
+            assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM operational_asset_events").fetch_one(&mut *tx).await.unwrap(), 0);
+            tx.rollback().await.unwrap();
+        }
+    }).await;
+}

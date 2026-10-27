@@ -10,8 +10,8 @@ use erpx_server_assets::public::maintenance::{
 use erpx_server_identity_access::public::{
     effective_authority::{AuthorizedWorkContext, HoldingWorkSourcePreparation},
     operational_worker::{
-        CurrentOperationalWorker, OperationalWorkerPermission, OperationalWorkerRequest,
-        inspect_operational_worker, lock_operational_worker_sources,
+        CurrentOperationalWorker, OperationalWorkerPermission, RawOperationalWorkerRequest,
+        inspect_operational_worker_raw, lock_operational_worker_sources,
     },
 };
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError, PgWorkFuture};
@@ -35,7 +35,7 @@ pub struct MaintenanceWorkSourceFacts {
     pub branch_id: RecordId,
     pub department_id: Option<RecordId>,
     pub asset_id: RecordId,
-    pub owner_id: UserId,
+    pub owner_id: String,
     pub status: String,
     pub version: i64,
     pub scheduled_at: Option<i64>,
@@ -108,7 +108,12 @@ impl CurrentMaintenanceWork<'_> {
     /// failure order. It is not a stock write or an expected-version increment.
     pub fn require_expected_version(&self, expected: i64) -> Result<(), BusinessError> {
         if expected <= 0 || expected != self.facts.version {
-            Err(changed())
+            // B0 version assertion fails as a SQL constraint, mapped by Workflow commands.ts.
+            Err(BusinessError::new(
+                FailureKind::Conflict,
+                "CONFLICT",
+                "The record changed, a reference is unavailable, or this value already exists. Refresh and review again.",
+            ))
         } else {
             Ok(())
         }
@@ -188,23 +193,23 @@ pub async fn read_current_maintenance_work<'a>(
     if first != facts {
         return Err(changed().into());
     }
-    let request = |user, permission| OperationalWorkerRequest {
+    let request = |user, permission| RawOperationalWorkerRequest {
         company_id: facts.company_id.clone(),
         user_id: user,
         branch_id: facts.branch_id.clone(),
         department_id: facts.department_id.clone(),
         permission,
     };
-    let owner = inspect_operational_worker(
+    let owner = inspect_operational_worker_raw(
         c,
         request(facts.owner_id.clone(), OperationalWorkerPermission::Write),
         now,
     )
     .await?;
-    let reviewer = inspect_operational_worker(
+    let reviewer = inspect_operational_worker_raw(
         c,
         request(
-            current.user_id().clone(),
+            current.user_id().as_str().to_owned(),
             OperationalWorkerPermission::Review,
         ),
         now,
@@ -228,7 +233,7 @@ async fn row(
 ) -> Result<Option<MaintenanceWorkSourceFacts>, Error> {
     // Fixed selection from the owner's source; no title, evidence, reason, name,
     // cost or unrelated profile is transferred merely to inspect action policy.
-    const SELECT: &str = "SELECT CASE WHEN octet_length(id)<=200 THEN id END id,CASE WHEN octet_length(company_id)<=200 THEN company_id END company_id,CASE WHEN octet_length(branch_id)<=200 THEN branch_id END branch_id,CASE WHEN octet_length(department_id)<=200 THEN department_id END department_id,octet_length(department_id)::bigint department_bytes,CASE WHEN octet_length(asset_id)<=200 THEN asset_id END asset_id,CASE WHEN octet_length(owner_id)<=200 THEN owner_id END owner_id,CASE WHEN octet_length(status)<=32 THEN status END status,version,scheduled_at,downtime_started_at FROM maintenance_work_orders WHERE id=$1 AND company_id=$2 AND ($3::text IS NULL OR branch_id=$3) AND ($4::text IS NULL OR department_id=$4)";
+    const SELECT: &str = "SELECT CASE WHEN octet_length(id)<=200 THEN id END id,CASE WHEN octet_length(company_id)<=200 THEN company_id END company_id,CASE WHEN octet_length(branch_id)<=200 THEN branch_id END branch_id,CASE WHEN octet_length(department_id)<=200 THEN department_id END department_id,octet_length(department_id)::bigint department_bytes,CASE WHEN octet_length(asset_id)<=200 THEN asset_id END asset_id,owner_id,CASE WHEN octet_length(status)<=32 THEN status END status,version,scheduled_at,downtime_started_at FROM maintenance_work_orders WHERE id=$1 AND company_id=$2 AND ($3::text IS NULL OR branch_id=$3) AND ($4::text IS NULL OR department_id=$4)";
     let sql = if lock {
         format!("{SELECT} FOR UPDATE")
     } else {
@@ -263,7 +268,7 @@ async fn row(
             .map(RecordId::new)
             .transpose()?,
         asset_id: RecordId::new(text("asset_id")?)?,
-        owner_id: UserId::new(text("owner_id")?)?,
+        owner_id: text("owner_id")?,
         status: text("status")?,
         version: r.try_get("version")?,
         scheduled_at: r.try_get("scheduled_at")?,

@@ -53,10 +53,7 @@ async fn real_retained_work_reads_minimal_owner_source_and_preserves_policy_then
                             assert!(!format!("{:?}", s.facts()).contains("PRIVATE_"));
                             s.require_action(&MaintenanceTransition::IssuePart)?;
                             s.require_expected_version(1)?;
-                            assert_eq!(
-                                s.require_expected_version(2).unwrap_err().code,
-                                "MAINTENANCE_STATE_CHANGED"
-                            );
+                            assert_eq!(s.require_expected_version(2).unwrap_err().code, "CONFLICT");
                             s.require_current(c, TimestampMillis::new(NOW)).await?;
                             assert!(
                                 read_current_maintenance_work(
@@ -150,7 +147,9 @@ async fn actual_work_effects_retain_original_authority_and_exact_predetermined_w
         authorizer.execute_with_sources("acme.example.test",proof(),input(),maintenance(),MaintenanceWorkSourcePreparation,|c,current|Box::pin(async move {
             let source=read_current_maintenance_work(c,current,&id(),TimestampMillis::new(NOW)).await?.unwrap();
             let command=issue_command();
-            let effects=source.retain_issue_part_effects(c,&command,TimestampMillis::new(NOW),TimestampMillis::new(NOW)).await?;
+            let mut effects=source.retain_issue_part_effects(c,&command,TimestampMillis::new(NOW),TimestampMillis::new(NOW)).await?;
+            assert!(effects.write(c,TimestampMillis::new(NOW)).await.is_err());
+            effects.finalize_event(c,TimestampMillis::new(NOW)).await?;
             effects.require_before(c,TimestampMillis::new(NOW)).await?;
             effects.write(c,TimestampMillis::new(NOW)).await?;
             // Old Work reference deliberately remains stale, never rebaselined.
@@ -175,7 +174,8 @@ async fn work_after_image_refuses_immediate_and_deferred_unintended_title_rewrit
             sqlx::raw_sql(trigger).execute(holding.raw()).await.unwrap();
             let result=authorizer.execute_with_sources("acme.example.test",proof(),input(),maintenance(),MaintenanceWorkSourcePreparation,|c,current|Box::pin(async move {
                 let source=read_current_maintenance_work(c,current,&id(),TimestampMillis::new(NOW)).await?.unwrap();let command=issue_command();
-                let effects=source.retain_issue_part_effects(c,&command,TimestampMillis::new(NOW),TimestampMillis::new(NOW)).await?;
+                let mut effects=source.retain_issue_part_effects(c,&command,TimestampMillis::new(NOW),TimestampMillis::new(NOW)).await?;
+            effects.finalize_event(c,TimestampMillis::new(NOW)).await?;
                 effects.write(c,TimestampMillis::new(NOW)).await?;
                 sqlx::query("SET CONSTRAINTS ALL IMMEDIATE").execute(&mut *c).await?;
                 effects.require_after(c,TimestampMillis::new(NOW)).await
@@ -202,12 +202,16 @@ async fn actual_maintenance_inventory_finance_purchase_composition_keeps_draft_a
             source.require_action(&MaintenanceTransition::IssuePart)?;
             let application_at=write_clock.now();
             let inventory=prepare_issue_part_inventory(c, &source,&command,&write_clock,&guard_clock).await?;
-            let work=source.retain_issue_part_effects(c,&command,application_at,guard_clock.now()).await?.into_plan();
+            let mut work=source.retain_issue_part_effects(c,&command,application_at,guard_clock.now()).await?.into_plan();
             let owner=PgMaintenancePartsSource::retain(c,&source,&work,&inventory,PackageEnforcementMode::Enforced,guard_clock.now()).await?;
             let finance=prepare_owned_parts_draft(c,&owner,&write_clock,&guard_clock).await?;
             assert_eq!(finance.expected().consumption_created_at(),NOW+1);
             assert_eq!(finance.expected().journal_created_at(),NOW+2);
-            let finance=finance.persist_journal(c,&guard_clock).await?;
+            let finance=finance.into_owned();
+            drop(owner);
+            work.finalize_event(c,&source,guard_clock.now()).await?;
+            let owner=PgMaintenancePartsSource::retain(c,&source,&work,&inventory,PackageEnforcementMode::Enforced,guard_clock.now()).await?;
+            let finance=finance.persist_journal(c,&owner,&guard_clock).await?;
             inventory.write_consumption_and_lots(c).await?;
             let finance=finance.persist_stock_cost(c).await?;
             inventory.write_stock(c).await?;
@@ -264,7 +268,7 @@ async fn maximum_safe_requested_version_does_not_move_stock_or_quote_denial_befo
                 finance.persist_journal(c,&guard_clock).await?;
                 Ok(())
             })).await;
-            error(result,match kind {"stock"=>"PART_STOCK_UNAVAILABLE","quote"=>"MANUAL_RATE_REQUIRED",_=>"MAINTENANCE_STATE_CHANGED"});
+            error(result,match kind {"stock"=>"PART_STOCK_UNAVAILABLE","quote"=>"MANUAL_RATE_REQUIRED",_=>"CONFLICT"});
             let effects:(i64,i64,i64)=sqlx::query_as("SELECT(SELECT count(*)FROM finance_journals),(SELECT count(*)FROM operational_inventory_consumptions),(SELECT count(*)FROM maintenance_work_events)").fetch_one(holding.raw()).await.unwrap();assert_eq!(effects,(0,0,0));
         }).await;}).await;
     }
@@ -291,7 +295,7 @@ async fn actual_start_block_resume_effects_keep_work_and_physical_receipts_separ
   for(action,version,status)in [("start",1,"in_progress"),("block",2,"blocked"),("resume",3,"in_progress")]{
    authorizer.execute_with_sources("acme.example.test",proof(),input(),maintenance(),MaintenanceWorkSourcePreparation,move|c,current|Box::pin(async move{
     let source=read_current_maintenance_work(c,current,&id(),TimestampMillis::new(NOW)).await?.unwrap();let command=simple_command(action,version);let at=TimestampMillis::new(NOW+version);
-    let plan=source.retain_transition_effects(c,&command,at,at).await?;
+    let mut plan=source.retain_transition_effects(c,&command,at,at).await?;
     let physical=match plan.physical_change(){Some(change)=>Some(source.physical_asset_source().prepare_physical_change(c,change.clone()).await?),None=>None};
     plan.write_work(c,&source,at).await?;
     let physical=match physical{Some(prepared)=>Some(prepared.apply(c,source.physical_asset_source()).await?),None=>None};
@@ -312,10 +316,10 @@ async fn start_work_cas_precedes_original_late_asset_lifecycle_denial() {
     fixture::with_database(2,|control|async move{fixture::with_database(2,move|holding|async move{
   let(authorizer,_)=setup(&control,&holding).await;source(&holding).await;
   sqlx::raw_sql("UPDATE maintenance_work_orders SET status='open'WHERE id='work';UPDATE operational_assets SET lifecycle_status='retirement_pending',retirement_reason='Synthetic retirement'WHERE id='asset'").execute(holding.raw()).await.unwrap();
-  for(stale,code)in [(true,"MAINTENANCE_STATE_CHANGED"),(false,"CONFLICT")]{
+  for(stale,code)in [(true,"CONFLICT"),(false,"CONFLICT")]{
    error(authorizer.execute_with_sources("acme.example.test",proof(),input(),maintenance(),MaintenanceWorkSourcePreparation,move|c,current|Box::pin(async move{
     let source=read_current_maintenance_work(c,current,&id(),TimestampMillis::new(NOW)).await?.unwrap();let command=simple_command("start",if stale{2}else{1});let now=TimestampMillis::new(NOW);
-    let plan=source.retain_transition_effects(c,&command,now,now).await?;let physical=source.physical_asset_source().prepare_physical_change(c,plan.physical_change().unwrap().clone()).await?;
+    let mut plan=source.retain_transition_effects(c,&command,now,now).await?;let physical=source.physical_asset_source().prepare_physical_change(c,plan.physical_change().unwrap().clone()).await?;
     plan.write_work(c,&source,now).await?;let physical=physical.apply(c,source.physical_asset_source()).await?;let _=plan.finish(c,&source,Some(&physical),now).await?;Ok(())
    })).await,code);
    assert_eq!(sqlx::query_scalar::<_,i64>("SELECT version FROM maintenance_work_orders WHERE id='work'").fetch_one(holding.raw()).await.unwrap(),1);
@@ -357,7 +361,7 @@ async fn start_cannot_substitute_another_command_physical_receipt_or_skip_it() {
                                     .unwrap();
                                     let command = simple_command("start", 1);
                                     let now = TimestampMillis::new(NOW);
-                                    let plan = source
+                                    let mut plan = source
                                         .retain_transition_effects(c, &command, now, now)
                                         .await?;
                                     let mut change = plan.physical_change().unwrap().clone();
@@ -417,7 +421,7 @@ async fn final_transition_receipt_refuses_deferred_work_rewrite_and_rolls_back_a
   let(authorizer,_)=setup(&control,&holding).await;source(&holding).await;
   sqlx::raw_sql("UPDATE maintenance_work_orders SET status='open'WHERE id='work';CREATE FUNCTION synthetic_transition_rewrite()RETURNS trigger LANGUAGE plpgsql AS $$BEGIN UPDATE maintenance_work_orders SET title='deferred title'WHERE id=NEW.work_order_id;RETURN NEW;END$$;CREATE CONSTRAINT TRIGGER synthetic_transition_rewrite AFTER INSERT ON maintenance_work_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION synthetic_transition_rewrite()").execute(holding.raw()).await.unwrap();
   error(authorizer.execute_with_sources("acme.example.test",proof(),input(),maintenance(),MaintenanceWorkSourcePreparation,|c,current|Box::pin(async move{
-   let source=read_current_maintenance_work(c,current,&id(),TimestampMillis::new(NOW)).await?.unwrap();let command=simple_command("start",1);let now=TimestampMillis::new(NOW);let plan=source.retain_transition_effects(c,&command,now,now).await?;let physical=source.physical_asset_source().prepare_physical_change(c,plan.physical_change().unwrap().clone()).await?;
+   let source=read_current_maintenance_work(c,current,&id(),TimestampMillis::new(NOW)).await?.unwrap();let command=simple_command("start",1);let now=TimestampMillis::new(NOW);let mut plan=source.retain_transition_effects(c,&command,now,now).await?;let physical=source.physical_asset_source().prepare_physical_change(c,plan.physical_change().unwrap().clone()).await?;
    plan.write_work(c,&source,now).await?;let physical=physical.apply(c,source.physical_asset_source()).await?;let receipt=plan.finish(c,&source,Some(&physical),now).await?;sqlx::query("SET CONSTRAINTS ALL IMMEDIATE").execute(&mut*c).await?;receipt.require_after(c,&source,Some(&physical),now).await?;Ok(())
   })).await,"MAINTENANCE_STATE_CHANGED");
   assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*)FROM maintenance_work_events").fetch_one(holding.raw()).await.unwrap(),0);assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*)FROM operational_asset_events").fetch_one(holding.raw()).await.unwrap(),0);

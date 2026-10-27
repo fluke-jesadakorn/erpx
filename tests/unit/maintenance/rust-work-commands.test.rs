@@ -66,7 +66,7 @@ fn request(c: &MaintenanceWorkCommand) -> Value {
 }
 fn facts(s: &Value) -> MaintenanceWorkFacts {
     MaintenanceWorkFacts {
-        owner_id: UserId::new(s["owner_id"].as_str().unwrap()).unwrap(),
+        owner_id: s["owner_id"].as_str().unwrap().to_owned(),
         status: s["status"].as_str().unwrap().into(),
         owner_eligible: s["owner_eligible"].as_i64().unwrap() > 0,
         reviewer_eligible: s["can_review"].as_i64().unwrap() > 0,

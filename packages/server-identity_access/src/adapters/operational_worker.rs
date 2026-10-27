@@ -2,7 +2,7 @@
 //! and the original business owner's source/purchase/effects remain mandatory.
 use crate::adapters::postgres_effective_authority::lock_effective_authority_sources;
 use erpx_server_people_payroll::public::workforce_reference::{
-    CurrentWorkforceReference, inspect_workforce_reference, lock_people_authority_sources,
+    CurrentWorkforceReference, inspect_workforce_reference_raw, lock_people_authority_sources,
 };
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::{
@@ -33,8 +33,15 @@ pub struct OperationalWorkerRequest {
     pub department_id: Option<RecordId>,
     pub permission: OperationalWorkerPermission,
 }
+pub struct RawOperationalWorkerRequest {
+    pub company_id: CompanyId,
+    pub user_id: String,
+    pub branch_id: RecordId,
+    pub department_id: Option<RecordId>,
+    pub permission: OperationalWorkerPermission,
+}
 pub struct CurrentOperationalWorker {
-    request: OperationalWorkerRequest,
+    request: RawOperationalWorkerRequest,
     people: CurrentWorkforceReference,
     eligible: bool,
     transaction: Transaction,
@@ -70,8 +77,27 @@ pub async fn inspect_operational_worker(
     request: OperationalWorkerRequest,
     now: TimestampMillis,
 ) -> Result<CurrentOperationalWorker, Error> {
+    inspect_operational_worker_raw(
+        c,
+        RawOperationalWorkerRequest {
+            company_id: request.company_id,
+            user_id: request.user_id.as_str().to_owned(),
+            branch_id: request.branch_id,
+            department_id: request.department_id,
+            permission: request.permission,
+        },
+        now,
+    )
+    .await
+}
+pub async fn inspect_operational_worker_raw(
+    c: &mut PgConnection,
+    request: RawOperationalWorkerRequest,
+    now: TimestampMillis,
+) -> Result<CurrentOperationalWorker, Error> {
     let transaction = transaction(c).await?;
-    let people = inspect_workforce_reference(c, &request.company_id, &request.user_id, now).await?;
+    let people =
+        inspect_workforce_reference_raw(c, &request.company_id, &request.user_id, now).await?;
     let eligible = people.is_eligible() && assignment_eligible(c, &request, now).await?;
     Ok(CurrentOperationalWorker {
         request,
@@ -83,7 +109,7 @@ pub async fn inspect_operational_worker(
 }
 async fn assignment_eligible(
     c: &mut PgConnection,
-    r: &OperationalWorkerRequest,
+    r: &RawOperationalWorkerRequest,
     now: TimestampMillis,
 ) -> Result<bool, Error> {
     // The permission vocabulary is closed; actor role, assignment ID and

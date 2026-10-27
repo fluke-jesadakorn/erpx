@@ -11,7 +11,7 @@ use erpx_server_maintenance::public::{
         read_current_maintenance_work,
     },
 };
-use erpx_server_runtime::public::postgres::PgTransactionError;
+use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::{BusinessError, FailureKind, TimestampMillis};
 pub use source::{
     MaintenancePartsSourcePreparation, PgMaintenancePartsSource, prepare_issue_part_inventory,
@@ -291,7 +291,7 @@ impl<W: Clock + Sync, G: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W, 
             self.guard_clock,
         )
         .await?;
-        let work = source
+        let mut work = source
             .retain_issue_part_effects(c, self.command, at, self.guard_clock.now())
             .await?
             .into_plan();
@@ -307,6 +307,14 @@ impl<W: Clock + Sync, G: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W, 
         let finance = prepare_owned_parts_draft(c, &owner, self.write_clock, self.guard_clock)
             .await?
             .into_owned();
+        // The retained JS adapter compiles numeric arguments after Inventory and
+        // Finance preparation but before any command receipt or effect INSERT.
+        if self.command.input().expected_version >= 9_007_199_254_740_991 {
+            let _ = self.write_clock.now();
+            return Err(PersistenceError::new("DATABASE_NUMBER_OUT_OF_RANGE").into());
+        }
+        work.finalize_event(c, &source, self.guard_clock.now())
+            .await?;
         let notification_source = NotificationSource::new(&source, &work);
         let notification = prepare_maintenance_notification(
             c,
@@ -317,10 +325,8 @@ impl<W: Clock + Sync, G: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W, 
         )
         .await?
         .into_owned();
-        // A stale MAX_SAFE request may carry a provisional MAX_SAFE+1 into
-        // readonly preparation. Its late Work CAS must remain the refusal;
-        // only the actual current successor can ever become a committed result.
-        let version = source.facts().version.checked_add(1).ok_or_else(changed)?;
+        // Result version is derived from the retained Work after batch encoding.
+        let version = work.version_after();
         let result = CommandJson::from_serializable(&WorkResult {
             id: self.command.work_id().as_str(),
             version,

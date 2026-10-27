@@ -1,0 +1,7 @@
+# Optional OIDC verification dependencies
+
+The `directory-oidc` feature reserves the unmodified RustCrypto `ml-dsa` 0.1.1 and `rsa` 0.9.10 crates for native public-signature verification. Their exact upstream Apache-2.0 and MIT license texts are retained beside this notice. The registry archive checksums, immutable upstream source commits, complete added lock-package license inventory and source URLs are recorded in [oidc-crypto-provenance.json](oidc-crypto-provenance.json). ERPX does not replace those upstream licenses with its own Apache-2.0 grant.
+
+This metadata does not establish completed OIDC authentication, live-provider acceptance, public-release clearance or service activation. No upstream source is vendored or modified here. The intended ERPX adapter uses public verification only; it does not construct private signing/decryption keys or implement RSA padding itself. An optional dependency may still expose upstream APIs that ERPX does not use.
+
+The selected ML-DSA version is outside the affected range of the [repeated-hint-index advisory](https://github.com/RustCrypto/signatures/security/advisories/GHSA-5x2r-hc65-25f9); the upstream fix begins at 0.1.0-rc.4. This is a version-specific advisory review, not an independent audit. The upstream ML-DSA audit limitation remains applicable. The RSA upstream [security warning](https://github.com/RustCrypto/RSA#security-warning) describes private-key timing concerns. Public-only planned use is not a blanket advisory waiver or a security-audit claim.
