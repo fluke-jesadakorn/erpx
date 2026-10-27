@@ -5,3 +5,9 @@ pub use crate::application::consumption::{
 pub use crate::domain::consumption::{
     ConsumptionValuation, CostedLot, LotAllocation, LotValuation, StockValuation, TrackingMode,
 };
+
+pub use crate::application::field_service_consumption::{
+    FieldServiceConsumptionPlan, FieldServiceConsumptionPlanningPorts,
+    FieldServiceConsumptionSelection, prepare_field_service_consumption,
+    prepare_field_service_consumption_observed,
+};

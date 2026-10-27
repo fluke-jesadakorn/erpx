@@ -50,3 +50,5 @@ pub mod journal_workspace;
 pub mod parts_draft;
 
 pub mod journal_settlement;
+
+pub mod field_service_customer;

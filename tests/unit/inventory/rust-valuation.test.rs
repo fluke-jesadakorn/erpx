@@ -295,3 +295,123 @@ async fn invalid_dates_and_nonpositive_consumption_cannot_prepare_a_plan() {
         assert_eq!(ports.queries, vec!["stock"]);
     }
 }
+
+// Portable planner evidence only: it does not exercise PostgreSQL or authority.
+impl FieldServiceConsumptionPlanningPorts for Ports {
+    type Error = BusinessError;
+    async fn stock(
+        &mut self,
+        _: &FieldServiceConsumptionSelection,
+    ) -> Result<Option<StockValuation>, BusinessError> {
+        self.queries.push("stock".into());
+        Ok((!self.row["stock"].is_null()).then(|| stock(&self.row["stock"])))
+    }
+    async fn posting_config(
+        &mut self,
+        company: &CompanyId,
+    ) -> Result<Option<ConsumptionPostingConfig>, BusinessError> {
+        ConsumptionPlanningPorts::posting_config(self, company).await
+    }
+    async fn posting_periods(
+        &mut self,
+        company: &CompanyId,
+        date: &str,
+    ) -> Result<Vec<RecordId>, BusinessError> {
+        ConsumptionPlanningPorts::posting_periods(self, company, date).await
+    }
+    async fn lot(
+        &mut self,
+        _: &FieldServiceConsumptionSelection,
+        allocation: &LotAllocation,
+    ) -> Result<Option<LotValuation>, BusinessError> {
+        let row = self.row.clone();
+        ConsumptionPlanningPorts::lot(self, &selection(&row), allocation).await
+    }
+}
+
+#[tokio::test]
+async fn field_service_raw_lot_identity_preserves_planning_checks_and_legacy_bounds() {
+    let original = corpus()["consumption"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|v| v["id"] == "lot-partial")
+        .unwrap()
+        .clone();
+    for id in [
+        format!("raw-{}", "x".repeat(220)),
+        "raw-\u{1}-control".to_owned(),
+    ] {
+        let mut row = original.clone();
+        let lot = row["lots"]["lot-a"].clone();
+        row["lots"] = json!({id.clone():lot});
+        row["input"]["allocations"][0]["lotId"] = json!(id);
+        let typed = selection(&row);
+        let raw = FieldServiceConsumptionSelection {
+            company_id: typed.company_id.clone(),
+            branch_id: typed.branch_id.clone(),
+            warehouse_id: typed.warehouse_id.as_str().into(),
+            product_id: typed.product_id.as_str().into(),
+            entry_date: typed.entry_date.clone(),
+            quantity_milli: typed.quantity_milli,
+            allocations: typed.allocations.clone(),
+        };
+        let mut ports = Ports {
+            row: row.clone(),
+            queries: vec![],
+        };
+        let mut observed = false;
+        let result = prepare_field_service_consumption_observed(&mut ports, raw.clone(), || {
+            observed = true;
+        })
+        .await
+        .unwrap();
+        assert!(observed);
+        assert_eq!(result.0.valuation.value_minor, 31);
+        assert_eq!(
+            ports.queries,
+            vec!["stock", "config", "periods", &format!("lot:{id}")]
+        );
+        let mut legacy = Ports {
+            row: row.clone(),
+            queries: vec![],
+        };
+        assert_eq!(
+            prepare_consumption(&mut legacy, typed)
+                .await
+                .unwrap_err()
+                .code,
+            "PART_LOT_ALLOCATION_REQUIRED"
+        );
+        assert_eq!(legacy.queries, vec!["stock", "config", "periods"]);
+        for case in ["duplicate", "sum", "untracked"] {
+            let mut selection = raw.clone();
+            let mut fixture = row.clone();
+            match case {
+                "duplicate" => selection.allocations.push(selection.allocations[0].clone()),
+                "sum" => selection.allocations[0].quantity_milli -= 1,
+                _ => fixture["stock"]["tracking_mode"] = json!("none"),
+            };
+            let mut ports = Ports {
+                row: fixture,
+                queries: vec![],
+            };
+            let mut observed = false;
+            let err = prepare_field_service_consumption_observed(&mut ports, selection, || {
+                observed = true;
+            })
+            .await
+            .unwrap_err();
+            assert_eq!(
+                err.code,
+                if case == "untracked" {
+                    "PART_LOT_NOT_ALLOWED"
+                } else {
+                    "PART_LOT_ALLOCATION_REQUIRED"
+                }
+            );
+            assert!(observed);
+            assert_eq!(ports.queries, vec!["stock", "config", "periods"]);
+        }
+    }
+}

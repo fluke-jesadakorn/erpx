@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "revision": "10e85f0f7d5cc961c81542d96308fe9a7eced761",
+  "node": "v26.11.1",
+  "acceptance": false,
+  "description": "Retained Field Service source identities and actual PostgreSQL runtime precompiler with synthetic selected arguments; no adapter or database execution.",
+  "sources": [
+    {
+      "path": "packages/server-runtime/src/adapters/runtime/postgres.ts",
+      "sha256": "3f613b91e9251f4568d37e8e29a9aecd786b581dd624d9914edf1876d486b2ba"
+    },
+    {
+      "path": "packages/server-field_service/src/adapters/service.ts",
+      "sha256": "5276d8703ffd87144a9bec9a5fb4d7246e9a42411029dc2cf5e1362a57ce2b5e"
+    },
+    {
+      "path": "packages/server-field_service/src/application/service.ts",
+      "sha256": "95aa03b1a0662783476429056fb5f7c5e568b95747830f9a8ac934e7ba1429c7"
+    },
+    {
+      "path": "packages/server-workflow/src/application/commands.ts",
+      "sha256": "665c8e957951a7748c0211e58b2001a133d4479bf546fc986f61d1cc6920ea98"
+    }
+  ],
+  "observed": {
+    "safe": {
+      "ok": true,
+      "queries": 2
+    },
+    "maximum": {
+      "ok": false,
+      "name": "RangeError",
+      "message": "DATABASE_NUMBER_OUT_OF_RANGE",
+      "queries": 0
+    },
+    "maximumNul": {
+      "ok": false,
+      "name": "RangeError",
+      "message": "DATABASE_NUMBER_OUT_OF_RANGE",
+      "queries": 0
+    }
+  },
+  "inference": "Retained Field Service event, notification, Workflow output and issue consumption bind expectedVersion+1; runtime validates a batch before query dispatch."
+}

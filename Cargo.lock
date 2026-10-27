@@ -717,6 +717,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "erpx-server-field-service"
+version = "0.1.0"
+dependencies = [
+ "erpx-server-identity-access",
+ "erpx-server-runtime",
+ "erpx-server-shared",
+ "erpx-server-workflow",
+ "serde_json",
+ "sqlx",
+]
+
+[[package]]
 name = "erpx-server-files"
 version = "0.1.0"
 dependencies = [
@@ -977,6 +989,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "erpx-server-support"
+version = "0.1.0"
+dependencies = [
+ "erpx-server-runtime",
+ "erpx-server-shared",
+ "sqlx",
+]
+
+[[package]]
 name = "erpx-server-workflow"
 version = "0.1.0"
 dependencies = [
@@ -1002,6 +1023,7 @@ dependencies = [
  "erpx-server-collaboration",
  "erpx-server-commerce",
  "erpx-server-commercial",
+ "erpx-server-field-service",
  "erpx-server-files",
  "erpx-server-finance",
  "erpx-server-identity-access",
@@ -1011,8 +1033,10 @@ dependencies = [
  "erpx-server-people-payroll",
  "erpx-server-platform-administration",
  "erpx-server-pms",
+ "erpx-server-quality",
  "erpx-server-runtime",
  "erpx-server-shared",
+ "erpx-server-support",
  "erpx-server-workflow",
  "hex",
  "ldap3_proto",

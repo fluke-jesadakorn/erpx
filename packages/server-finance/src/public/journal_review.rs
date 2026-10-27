@@ -17,3 +17,8 @@ pub use crate::domain::journal_review::{
     inverse_journal_lines, journal_ledger_balanced, require_post_reviewer,
     require_reversal_reviewer, review_journal_reversal,
 };
+
+pub use crate::adapters::postgres_journal_review::{
+    CurrentFieldServicePartsJournalTarget, FieldServicePartsJournalFacts,
+    inspect_field_service_parts_journal_target,
+};

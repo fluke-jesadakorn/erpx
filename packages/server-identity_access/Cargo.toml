@@ -226,3 +226,7 @@ required-features = ["directory-ldaps"]
 name = "directory_provenance_postgres"
 path = "../../tests/integration/identity_access/rust-directory-provenance-postgres.test.rs"
 required-features = ["directory-ldaps"]
+
+[[test]]
+name = "oidc_url_values"
+path = "../../tests/unit/identity_access/rust-oidc-url-values.test.rs"

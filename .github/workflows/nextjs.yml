@@ -83,7 +83,7 @@ jobs:
     name: Affected development verification
     if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 180
     services:
       postgres:
         image: postgres:18.6

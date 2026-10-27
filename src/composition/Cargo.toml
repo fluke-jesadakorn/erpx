@@ -26,6 +26,9 @@ name = "erpx-server"
 path = "src/main.rs"
 
 [dependencies]
+erpx-server-quality.workspace=true
+erpx-server-field-service.workspace=true
+erpx-server-support.workspace=true
 erpx-server-assets.workspace = true
 erpx-server-collaboration.workspace = true
 erpx-server-commerce.workspace = true
@@ -179,3 +182,7 @@ required-features = ["contracts", "directory-ldaps"]
 name = "directory_source_http_postgres"
 path = "../../tests/integration/identity_access/rust-directory-source-http-postgres.test.rs"
 required-features = ["business-http", "directory-ldaps"]
+
+[[test]]
+name="field_service_parts_postgres"
+path="../../tests/integration/field_service/rust-parts-command-postgres.test.rs"

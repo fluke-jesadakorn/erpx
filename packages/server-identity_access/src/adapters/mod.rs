@@ -92,3 +92,7 @@ pub(crate) mod directory_source_admin;
 pub(crate) mod directory_admin_sources;
 #[cfg(feature = "directory-ldaps")]
 pub(crate) mod directory_source_review;
+
+pub(crate) mod oidc_url_values;
+
+pub(crate) mod field_service_assignment;

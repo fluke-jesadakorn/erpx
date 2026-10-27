@@ -59,3 +59,5 @@ pub mod directory_source_http;
 pub mod directory_source_wire;
 
 pub mod maintenance_settlement;
+
+pub mod field_service_parts;

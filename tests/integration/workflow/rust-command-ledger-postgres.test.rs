@@ -712,3 +712,39 @@ async fn a_retained_positive_origin_holds_its_actual_row_until_the_owner_unit_en
     })
     .await;
 }
+
+#[tokio::test]
+async fn raw_factual_origin_preserves_exact_historical_identity_and_detects_full_row_changes() {
+    fixture::with_database(3, |pool| async move {
+        setup(&pool).await; execute(&pool,"{}",false,false).await.unwrap();
+        let record=format!("historical-{}\n","r".repeat(220));let creator=format!("creator-{}\t","c".repeat(220));
+        sqlx::query("UPDATE command_receipts SET record_id=$1,actor_id=$2 WHERE command_id='workflow:test:command'").bind(&record).bind(&creator).execute(pool.raw()).await.unwrap();
+        let request=RawRecordOriginRequest{command_key:"workflow:test:command".into(),operation:"workflow.synthetic.update".into(),record_id:record,creator_user_id:creator,company_id:CompanyId::new("company").unwrap()};
+        let mut tx=origin_transaction(&pool).await;
+        let proof=read_raw_record_origin(&mut tx,request.clone()).await.unwrap().unwrap();
+        verify_raw_record_origin(&mut tx,&proof).await.unwrap();
+        for field in ["key","operation","record","creator","company"] {
+            let mut wrong=request.clone();match field {"key"=>wrong.command_key="missing".into(),"operation"=>wrong.operation="wrong".into(),"record"=>wrong.record_id="wrong".into(),"creator"=>wrong.creator_user_id="wrong".into(),"company"=>wrong.company_id=CompanyId::new("foreign").unwrap(),_=>unreachable!()};
+            assert!(read_raw_record_origin(&mut tx,wrong).await.unwrap().is_none(),"{field}");
+        }
+        let mut other=origin_transaction(&pool).await;
+        assert!(matches!(verify_raw_record_origin(&mut other,&proof).await,Err(Error::Business(ref e)) if e.code=="COMMAND_ORIGIN_UNIT_CHANGED"));
+        other.rollback().await.unwrap();
+        sqlx::query("UPDATE command_receipts SET result_json='{}' WHERE command_id=$1").bind(&request.command_key).execute(&mut *tx).await.unwrap();
+        assert!(matches!(verify_raw_record_origin(&mut tx,&proof).await,Err(Error::Business(ref e)) if e.code=="COMMAND_ORIGIN_CHANGED"));
+        tx.rollback().await.unwrap();
+        let mut malformed=origin_transaction(&pool).await;
+        let error=sqlx::query("UPDATE command_receipts SET authority_json='{' WHERE command_id=$1").bind(&request.command_key).execute(&mut *malformed).await.unwrap_err();
+        assert_eq!(error.as_database_error().and_then(|e|e.code()).as_deref(),Some("22P02"));
+        malformed.rollback().await.unwrap();
+        let mut fresh=origin_transaction(&pool).await;
+        let proof=read_raw_record_origin(&mut fresh,request.clone()).await.unwrap().unwrap();
+        verify_raw_record_origin(&mut fresh,&proof).await.unwrap();fresh.rollback().await.unwrap();
+        for authority in ["{}","[]","null"] {
+            let mut missing=origin_transaction(&pool).await;
+            sqlx::query("UPDATE command_receipts SET authority_json=$1 WHERE command_id=$2").bind(authority).bind(&request.command_key).execute(&mut *missing).await.unwrap();
+            assert!(read_raw_record_origin(&mut missing,request.clone()).await.unwrap().is_none());
+            missing.rollback().await.unwrap();
+        }
+    }).await;
+}

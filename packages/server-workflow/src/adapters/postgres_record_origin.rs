@@ -250,3 +250,63 @@ fn changed() -> BusinessError {
         "Record provenance changed during the command.",
     )
 }
+
+/// Historical owner data only. It neither constructs an Actor nor grants access.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RawRecordOriginRequest {
+    pub command_key: String,
+    pub operation: String,
+    pub record_id: String,
+    pub creator_user_id: String,
+    pub company_id: CompanyId,
+}
+/// Sealed full-row digest retained in one actual serializable unit.
+pub struct PgRawRecordOrigin {
+    request: RawRecordOriginRequest,
+    image: String,
+    backend_pid: i32,
+    transaction_id: String,
+    database_identity: String,
+}
+pub async fn read_raw_record_origin(
+    c: &mut PgConnection,
+    request: RawRecordOriginRequest,
+) -> Result<Option<PgRawRecordOrigin>, Error> {
+    require_unit(c).await?;
+    let row: Option<(String,i32,String,String)> = sqlx::query_as("SELECT encode(sha256(convert_to(to_jsonb(r)::text,'UTF8')),'hex'),pg_backend_pid(),pg_current_xact_id()::text,current_database()||'/'||pg_postmaster_start_time()::text FROM command_receipts r WHERE r.command_id=$1 AND r.operation=$2 AND r.record_id=$3 AND r.actor_id=$4 AND r.authority_json::jsonb->>'companyId'=$5 FOR SHARE OF r")
+        .bind(&request.command_key).bind(&request.operation).bind(&request.record_id).bind(&request.creator_user_id).bind(request.company_id.as_str()).fetch_optional(c).await?;
+    Ok(row.map(
+        |(image, backend_pid, transaction_id, database_identity)| PgRawRecordOrigin {
+            request,
+            image,
+            backend_pid,
+            transaction_id,
+            database_identity,
+        },
+    ))
+}
+pub async fn verify_raw_record_origin(
+    c: &mut PgConnection,
+    proof: &PgRawRecordOrigin,
+) -> Result<(), Error> {
+    require_unit(c).await?;
+    let row: Option<(String,i32,String,String)> = sqlx::query_as("SELECT encode(sha256(convert_to(to_jsonb(r)::text,'UTF8')),'hex'),pg_backend_pid(),pg_current_xact_id()::text,current_database()||'/'||pg_postmaster_start_time()::text FROM command_receipts r WHERE r.command_id=$1 FOR SHARE OF r").bind(&proof.request.command_key).fetch_optional(c).await?;
+    let Some((image, pid, xid, database)) = row else {
+        return Err(changed().into());
+    };
+    if pid != proof.backend_pid
+        || xid != proof.transaction_id
+        || database != proof.database_identity
+    {
+        return Err(BusinessError::new(
+            FailureKind::Conflict,
+            "COMMAND_ORIGIN_UNIT_CHANGED",
+            "Retain record provenance in its original transaction.",
+        )
+        .into());
+    }
+    if image != proof.image {
+        return Err(changed().into());
+    }
+    Ok(())
+}

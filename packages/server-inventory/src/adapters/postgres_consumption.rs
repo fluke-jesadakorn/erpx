@@ -447,3 +447,21 @@ fn changed() -> Error {
 fn guard_conflict() -> Error {
     BusinessError::new(FailureKind::Conflict,"CONFLICT","The record changed, a reference is unavailable, or this value already exists. Refresh and review again.").into()
 }
+
+mod reserved_effects;
+pub use reserved_effects::{
+    FieldServiceConsumptionIdentity, FieldServiceReservationBinding,
+    PgFieldServiceReservationSource, PgReservedConsumptionEffects,
+    lock_reserved_consumption_sources,
+};
+mod reserve_stock;
+pub use reserve_stock::{
+    FieldServiceNewReservationBinding, LockedFieldServiceStockReservation,
+    PgFieldServiceNewReservationSource, PreparedFieldServiceStockReservation,
+    prepare_field_service_stock_reservation,
+};
+
+mod field_service_raw;
+pub use field_service_raw::{
+    PgFieldServiceConsumptionPreparation, prepare_field_service_inventory_consumption_at,
+};

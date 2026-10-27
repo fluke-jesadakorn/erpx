@@ -2,8 +2,8 @@
   "version": 3,
   "environment": "development",
   "deliveryPlan": "docs/production-plan.md",
-  "sourceFingerprint": "985869982646886ff115e752e94ddd210803e6679e79c65e8f7f5a376840569e",
-  "verificationFingerprint": "89a9bd04503fc2cc7b7687ca6ce5b9026086527c1dffd3e4987bcf33ca3a338f",
+  "sourceFingerprint": "289481ef08c7691a2851fdca8a985c6ee8596e32988415878b44d565421d9107",
+  "verificationFingerprint": "71d132c2455a4c0e8154a245ed91fc86275ba7fafb29f259f8c6c0be8ec1ea46",
   "baseline": {
     "source": ".scratch/dev/product-migration-baseline-2026-10-14/",
     "privateAuthority": "read-only per-database snapshots; no secrets or personal authority rows in this register",
@@ -828,7 +828,8 @@
         "maintenance.rust-transitions-command-postgres.integration",
         "maintenance.rust-settlement-references-postgres.integration",
         "shared.testing.native-worker-toolchain.unit",
-        "shared.architecture.documentation-integrity.unit"
+        "shared.architecture.documentation-integrity.unit",
+        "field_service.rust-parts-command-postgres.integration"
       ]
     },
     {
@@ -1479,7 +1480,9 @@
         "identity_access.rust-directory-source-http-postgres.integration",
         "identity_access.directory-source-client.unit",
         "shared.testing.native-worker-toolchain.unit",
-        "shared.architecture.documentation-integrity.unit"
+        "shared.architecture.documentation-integrity.unit",
+        "identity_access.rust-oidc-url-values.unit",
+        "field_service.rust-parts-command-postgres.integration"
       ]
     },
     {
@@ -3860,7 +3863,8 @@
         "files.rust-system-scan.integration",
         "files.rust-system-scan.provider",
         "shared.testing.native-worker-toolchain.unit",
-        "shared.architecture.documentation-integrity.unit"
+        "shared.architecture.documentation-integrity.unit",
+        "field_service.rust-parts-command-postgres.integration"
       ]
     },
     {
@@ -4681,7 +4685,8 @@
         "maintenance.rust-transitions-command-postgres.integration",
         "maintenance.rust-settlement-references-postgres.integration",
         "shared.testing.native-worker-toolchain.unit",
-        "shared.architecture.documentation-integrity.unit"
+        "shared.architecture.documentation-integrity.unit",
+        "field_service.rust-parts-command-postgres.integration"
       ]
     },
     {
@@ -5608,7 +5613,8 @@
         "maintenance.rust-transitions-command-postgres.integration",
         "maintenance.rust-settlement-references-postgres.integration",
         "shared.testing.native-worker-toolchain.unit",
-        "shared.architecture.documentation-integrity.unit"
+        "shared.architecture.documentation-integrity.unit",
+        "field_service.rust-parts-command-postgres.integration"
       ]
     },
     {
@@ -6061,7 +6067,8 @@
         "maintenance.rust-transitions-command-postgres.integration",
         "maintenance.rust-settlement-references-postgres.integration",
         "shared.testing.native-worker-toolchain.unit",
-        "shared.architecture.documentation-integrity.unit"
+        "shared.architecture.documentation-integrity.unit",
+        "field_service.rust-parts-command-postgres.integration"
       ]
     },
     {
@@ -6595,7 +6602,8 @@
         "maintenance.rust-transitions-command-postgres.integration",
         "maintenance.rust-settlement-references-postgres.integration",
         "shared.testing.native-worker-toolchain.unit",
-        "shared.architecture.documentation-integrity.unit"
+        "shared.architecture.documentation-integrity.unit",
+        "field_service.rust-parts-command-postgres.integration"
       ]
     },
     {
@@ -7998,7 +8006,8 @@
         "maintenance.rust-transitions-command-postgres.integration",
         "maintenance.rust-settlement-references-postgres.integration",
         "shared.testing.native-worker-toolchain.unit",
-        "shared.architecture.documentation-integrity.unit"
+        "shared.architecture.documentation-integrity.unit",
+        "field_service.rust-parts-command-postgres.integration"
       ]
     },
     {
@@ -8398,7 +8407,8 @@
         "files.rust-system-scan.integration",
         "files.rust-system-scan.provider",
         "shared.testing.native-worker-toolchain.unit",
-        "shared.architecture.documentation-integrity.unit"
+        "shared.architecture.documentation-integrity.unit",
+        "field_service.rust-parts-command-postgres.integration"
       ]
     },
     {
@@ -9435,7 +9445,8 @@
         "maintenance.rust-transitions-command-postgres.integration",
         "maintenance.rust-settlement-references-postgres.integration",
         "shared.testing.native-worker-toolchain.unit",
-        "shared.architecture.documentation-integrity.unit"
+        "shared.architecture.documentation-integrity.unit",
+        "field_service.rust-parts-command-postgres.integration"
       ]
     },
     {
@@ -14103,7 +14114,9 @@
         "files.rust-system-scan.integration",
         "files.rust-system-scan.provider",
         "shared.testing.native-worker-toolchain.unit",
-        "shared.architecture.documentation-integrity.unit"
+        "shared.architecture.documentation-integrity.unit",
+        "field_service.rust-parts-policy.unit",
+        "field_service.rust-parts-command-postgres.integration"
       ]
     },
     {
@@ -15217,7 +15230,8 @@
         "maintenance.rust-transitions-command-postgres.integration",
         "maintenance.rust-settlement-references-postgres.integration",
         "shared.testing.native-worker-toolchain.unit",
-        "shared.architecture.documentation-integrity.unit"
+        "shared.architecture.documentation-integrity.unit",
+        "field_service.rust-parts-command-postgres.integration"
       ]
     },
     {

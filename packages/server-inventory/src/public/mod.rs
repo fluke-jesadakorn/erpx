@@ -7,3 +7,5 @@ pub mod consumption_finance;
 pub mod postgres_consumption;
 
 pub mod maintenance_settlement;
+
+pub mod field_service_consumption_finance;

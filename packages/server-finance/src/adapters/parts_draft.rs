@@ -259,7 +259,10 @@ pub async fn prepare_owned_parts_draft<
     write_clock: &C,
     guard_clock: &G,
 ) -> Result<PreparedPartsDraft<'a, S>, Error> {
-    if source.facts().kind != PartsOwnerKind::Maintenance {
+    if !matches!(
+        source.facts().kind,
+        PartsOwnerKind::Maintenance | PartsOwnerKind::FieldService
+    ) {
         return Err(BusinessError::new(
             FailureKind::Unavailable,
             "PARTS_OWNER_SOURCE_UNAVAILABLE",

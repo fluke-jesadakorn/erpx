@@ -1,5 +1,6 @@
 //! Development-only actual Finance/Identity/Commercial assembly. This library
 //! mounts no route and cannot substitute Legal acceptance for Finance release.
+mod field_service_parts;
 mod maintenance_parts;
 use erpx_server_commercial::public::purchases::{
     CapabilityPurpose, CommercialCatalogue, PackageEnforcementMode, PgCompanyPurchaseReader,
@@ -11,8 +12,8 @@ use erpx_server_finance::public::{
         CurrentJournalReviewScope, FinanceJournalAccessPurpose, JournalReviewCommand,
         JournalReviewInput, JournalReviewResult, JournalReviewerFacts,
         PgFinanceJournalReviewPolicy, PgJournalReview, ReviewJournal,
-        inspect_journal_review_source, inspect_maintenance_parts_journal_target,
-        lock_journal_review_sources, review_journal,
+        inspect_field_service_parts_journal_target, inspect_journal_review_source,
+        inspect_maintenance_parts_journal_target, lock_journal_review_sources, review_journal,
     },
     journal_review_wire::NormalizedJournalReviewCommand,
 };
@@ -33,6 +34,7 @@ use erpx_server_shared::public::{
 use erpx_server_workflow::public::commands::{
     CommandActor, CommandField, CommandJson, WorkAuthority,
 };
+use field_service_parts::FieldServicePartsSource;
 use maintenance_parts::MaintenancePartsSource;
 use sqlx::PgConnection;
 use std::sync::Arc;
@@ -80,7 +82,9 @@ impl FinanceJournalConfiguration {
         erpx_server_maintenance::public::finance_lineage::lock_maintenance_finance_lineage_sources(
             c,
         )
-        .await
+        .await?;
+        erpx_server_workflow::public::record_origin::lock_record_origin_sources(c).await?;
+        erpx_server_field_service::public::finance_lineage::lock_field_service_parts_finance_sources(c).await
     }
 }
 impl HoldingWorkSourcePreparation for FinanceJournalConfiguration {
@@ -301,12 +305,14 @@ struct CurrentFinancePolicy<'a> {
 enum CurrentFinanceSource {
     Owned(Box<CurrentJournalReviewScope>),
     MaintenanceParts(Box<MaintenancePartsSource>),
+    FieldServiceParts(Box<FieldServicePartsSource>),
 }
 impl CurrentFinanceSource {
     async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
         match self {
             Self::Owned(s) => s.require_current(c).await,
             Self::MaintenanceParts(s) => s.require_current(c).await,
+            Self::FieldServiceParts(s) => s.require_current(c).await,
         }
     }
 }
@@ -403,10 +409,25 @@ impl PgFinanceJournalReviewPolicy for CurrentFinancePolicy<'_> {
                         Some(target) => CurrentFinanceSource::MaintenanceParts(Box::new(
                             MaintenancePartsSource::retain(c, target).await?,
                         )),
-                        None => CurrentFinanceSource::Owned(Box::new(
-                            inspect_journal_review_source(c, &finance_actor(self.current), command)
+                        None => match inspect_field_service_parts_journal_target(
+                            c,
+                            &finance_actor(self.current),
+                            command,
+                        )
+                        .await?
+                        {
+                            Some(target) => CurrentFinanceSource::FieldServiceParts(Box::new(
+                                FieldServicePartsSource::retain(c, target).await?,
+                            )),
+                            None => CurrentFinanceSource::Owned(Box::new(
+                                inspect_journal_review_source(
+                                    c,
+                                    &finance_actor(self.current),
+                                    command,
+                                )
                                 .await?,
-                        )),
+                            )),
+                        },
                     },
                 );
             }
@@ -447,13 +468,22 @@ impl PgFinanceJournalReviewPolicy for CurrentFinancePolicy<'_> {
             let witness = match inspection.require_allowed() {
                 Ok(_) => inspection.witness,
                 Err(base_error) => {
-                    if matches!(self.source, Some(CurrentFinanceSource::MaintenanceParts(_)))
-                        && matches!(command.input, JournalReviewInput::Post { .. })
+                    let included_capability = match &self.source {
+                        Some(CurrentFinanceSource::MaintenanceParts(_)) => {
+                            Some("assets.parts-costs")
+                        }
+                        Some(CurrentFinanceSource::FieldServiceParts(_)) => {
+                            Some("finance.service-invoice")
+                        }
+                        _ => None,
+                    };
+                    if let Some(capability) = included_capability
+                        .filter(|_| matches!(command.input, JournalReviewInput::Post { .. }))
                     {
                         let included = purchases
                             .inspect(
                                 &PurchaseRequest {
-                                    capabilities: vec!["assets.parts-costs".into()],
+                                    capabilities: vec![capability.into()],
                                     purpose,
                                     mode: PackageEnforcementMode::Enforced,
                                 },
