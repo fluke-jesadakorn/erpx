@@ -7,6 +7,107 @@ use crate::domain::{
 use erpx_server_shared::public::BusinessError;
 use std::collections::BTreeSet;
 
+/// Evaluates current identity and selection without granting a module or permission.
+/// This is data for a borrowed ingress observation, never a Work actor.
+pub(crate) fn inspect_selected_work(
+    facts: &EffectiveAuthorityFacts,
+    access: &WorkAuthorizationRequest,
+    now: i64,
+) -> Result<i64, BusinessError> {
+    if facts.iam.role.id != facts.selection.assignment().role
+        || facts.iam.role.revision != facts.selection.role_revision()
+    {
+        return Err(authority_error(
+            "ROLE_UNAVAILABLE",
+            "This role is unavailable.",
+        ));
+    }
+    let evaluated = evaluate_current_iam_authority(&facts.iam, now)?;
+    if facts.beta && !beta_destination_allowed(&access.destination, access.api) {
+        return Err(authority_error(
+            "BETA_CAPABILITY_UNAVAILABLE",
+            "This capability is not part of the public beta.",
+        ));
+    }
+    let deadline = facts
+        .selection
+        .expires_at()
+        .min(evaluated.fresh_until.unwrap_or(i64::MAX));
+    if now >= deadline {
+        return Err(authority_error(
+            "WORK_AUTHORITY_EXPIRED",
+            "Your work authority expired. Review your current access.",
+        ));
+    }
+    Ok(deadline)
+}
+
+pub(crate) fn same_selected_work(a: &EffectiveAuthorityFacts, b: &EffectiveAuthorityFacts) -> bool {
+    let x = a.selection.workspace();
+    let y = b.selection.workspace();
+    let u = a.selection.assignment();
+    let v = b.selection.assignment();
+    let role_a = &a.iam.role;
+    let role_b = &b.iam.role;
+    let members = match (&a.iam.member, &b.iam.member) {
+        (None, None) => true,
+        (Some(x), Some(y)) => {
+            x.active == y.active
+                && x.login_policy == y.login_policy
+                && x.version == y.version
+                && x.principal_id == y.principal_id
+                && x.person_id == y.person_id
+                && x.directory_enabled == y.directory_enabled
+                && x.directory_provenance_current == y.directory_provenance_current
+                && x.directory_connection_active == y.directory_connection_active
+                && x.directory_observed_at == y.directory_observed_at
+        }
+        _ => false,
+    };
+    let appointments = match (&a.iam.hr, &b.iam.hr) {
+        (None, None) => true,
+        (Some(x), Some(y)) => {
+            x.version == y.version
+                && x.active_person == y.active_person
+                && x.unmerged_person == y.unmerged_person
+                && x.active_engagement == y.active_engagement
+                && x.person_user_id == y.person_user_id
+                && x.same_person_as_principal == y.same_person_as_principal
+        }
+        _ => false,
+    };
+    a.beta == b.beta
+        && x.company_id == y.company_id
+        && x.branch_id == y.branch_id
+        && x.department_id == y.department_id
+        && x.branch_slug == y.branch_slug
+        && x.department_slug == y.department_slug
+        && u.id == v.id
+        && u.user_id == v.user_id
+        && u.company_id == v.company_id
+        && u.role == v.role
+        && u.modules == v.modules
+        && u.scope_kind == v.scope_kind
+        && u.scope_node_id == v.scope_node_id
+        && u.version == v.version
+        && u.valid_from == v.valid_from
+        && u.valid_until == v.valid_until
+        && u.revoked == v.revoked
+        && a.selection.revision() == b.selection.revision()
+        && a.selection.role_revision() == b.selection.role_revision()
+        && a.selection.expires_at() == b.selection.expires_at()
+        && role_a.id == role_b.id
+        && role_a.revision == role_b.revision
+        && role_a.permissions == role_b.permissions
+        && role_a.grantable_permissions == role_b.grantable_permissions
+        && role_a.scopes == role_b.scopes
+        && members
+        && appointments
+        && a.iam.fallback_person_id == b.iam.fallback_person_id
+        && a.iam.aliases == b.iam.aliases
+        && a.iam.emergency_until == b.iam.emergency_until
+}
+
 pub(crate) fn authorize_effective_work(
     request: &WorkContextRequest,
     access: &WorkAuthorizationRequest,

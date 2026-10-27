@@ -1,4 +1,6 @@
-pub use crate::adapters::authorized_work::{HoldingWorkAuthorizer, HoldingWorkSourcePreparation};
+pub use crate::adapters::authorized_work::{
+    HoldingWorkAuthorizer, HoldingWorkSourcePreparation, SelectedWorkIngress,
+};
 pub use crate::adapters::queued_work::{PgQueuedWorkAuthorizer, PgQueuedWorkSourcePort};
 pub use crate::domain::effective_authority::{
     AuthorizedWorkContext, CommandIamMetadata, WorkAuthorizationRequest,

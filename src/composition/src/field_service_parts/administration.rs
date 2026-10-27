@@ -163,6 +163,89 @@ impl<W: Clock + Send + Sync + 'static, G: Clock + Send + Sync + 'static>
             .map_err(FieldServicePartsAdministrationError::Transaction)?;
         outcome.map_err(FieldServicePartsAdministrationError::Wire)
     }
+    /// Internal selected-context/schema phase for callers holding typed IDs.
+    pub async fn execute_schema_ingress<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        workspace: Input,
+        order: RecordId,
+        body: Vec<u8>,
+        key: CommandKey,
+    ) -> Result<CommandOutcome, FieldServicePartsAdministrationError>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let config = self.configuration.clone();
+        let expected_company = config.company_id.clone();
+        let workspace = move || {
+            let mut value = workspace()?;
+            value.mutation = true;
+            if value.company_id != expected_company {
+                return Err(scope());
+            }
+            Ok(value)
+        };
+        let ingress_config = config.clone();
+        let write = self.write.clone();
+        let guard = self.guard.clone();
+        self.authorizer
+            .execute_with_selected_ingress_deferred(
+                host,
+                proof,
+                workspace,
+                (
+                    WorkAuthorizationRequest {
+                        permission: "records.read".into(),
+                        module: Some("field_service".into()),
+                        destination: "service/orders".into(),
+                        api: true,
+                    },
+                    FieldServicePartsSourcePreparation,
+                ),
+                move |selected| {
+                    if selected.holding_id() != &ingress_config.holding_id
+                        || selected.company_id() != &ingress_config.company_id
+                    {
+                        return Err(FieldServicePartsAdministrationError::Transaction(
+                            scope().into(),
+                        ));
+                    }
+                    normalize_field_service_parts(&body)
+                        .map_err(FieldServicePartsAdministrationError::Wire)
+                },
+                move |c, current, normalized| {
+                    let config = config.clone();
+                    let write = write.clone();
+                    let guard = guard.clone();
+                    let order = order.clone();
+                    let key = key.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &config.holding_id
+                            || current.selection().workspace().company_id != config.company_id
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("records.read")?;
+                        current.require_permission("records.write")?;
+                        let command = normalized.into_command(key, order);
+                        let mut ids = Ids;
+                        execute_field_service_parts(
+                            c,
+                            current,
+                            &command,
+                            config.mode,
+                            write.as_ref(),
+                            guard.as_ref(),
+                            &mut ids,
+                        )
+                        .await
+                    })
+                },
+            )
+            .await
+            .map_err(FieldServicePartsAdministrationError::Transaction)?
+    }
 }
 fn scope() -> BusinessError {
     BusinessError::new(

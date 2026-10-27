@@ -7,7 +7,9 @@ use erpx_server_identity_access::public::work_context::{
     ExpectedWorkSelection, HoldingWorkspaceRequest,
 };
 use erpx_server_runtime::public::postgres::DatabasePool;
-use erpx_server_shared::public::{AssignmentId, Clock, CompanyId, HoldingId, TimestampMillis};
+use erpx_server_shared::public::{
+    AssignmentId, Clock, CommandKey, CompanyId, HoldingId, RecordId, TimestampMillis,
+};
 use erpx_server_workflow::public::commands::CommandOutcome;
 use erpx_service::field_service_parts::{
     FieldServicePartsAdministration, FieldServicePartsAdministrationError,
@@ -117,6 +119,39 @@ impl Parts {
                 panic!("synthetic fixture command invalid: {error:?}")
             }
         }
+    }
+    pub async fn execute_schema(
+        &self,
+        id: &str,
+        key: &str,
+        raw: &str,
+    ) -> Result<CommandOutcome, FieldServicePartsAdministrationError> {
+        let guard = self.review.system.scenario.clock.clone();
+        let write = std::sync::Arc::new(WriteClock(AtomicI64::new(guard.now().get())));
+        let config = FieldServicePartsConfiguration::new(
+            FieldServicePartsEnvironment::Development,
+            HoldingId::new("h001").unwrap(),
+            CompanyId::new("company").unwrap(),
+            PackageEnforcementMode::Enforced,
+        )
+        .unwrap();
+        let admin = FieldServicePartsAdministration::new(
+            self.review.authorizer.clone(),
+            config,
+            write,
+            guard,
+        );
+        let selection = self.selection.clone();
+        admin
+            .execute_schema_ingress(
+                "acme.example.test",
+                self.review.maker.clone(),
+                move || Ok(selection),
+                RecordId::new(id).unwrap(),
+                raw.as_bytes().to_vec(),
+                CommandKey::new(key).unwrap(),
+            )
+            .await
     }
     pub async fn issue(&self, key: &str) -> Result<CommandOutcome, Error> {
         self.execute("issue-order",key,r#"{"action":"issue-part","expectedVersion":3,"reservationId":"reserved-part","quantityMilli":1000,"entryDate":"2026-01-10","allocations":[],"reason":"Synthetic genuine Service issue"}"#).await

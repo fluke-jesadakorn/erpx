@@ -814,3 +814,63 @@ async fn retained_lot_guard_assertion_observes_first_write_and_rejects_original_
         sqlx::query("ROLLBACK TO SAVEPOINT second_guard").execute(&mut *tx).await.unwrap();tx.rollback().await.unwrap();
     }).await;
 }
+
+#[tokio::test]
+async fn selected_schema_ingress_preserves_local_wire_before_owner_permissions_and_old_path() {
+    use erpx_service::field_service_parts::FieldServicePartsAdministrationError as AdminError;
+    for missing in ["read", "write"] {
+        account::with_system(move |system| async move {
+            let p=setup(system).await;
+            let permissions=if missing=="read" {r#"["records.write","module.field_service.read"]"#}else{r#"["records.read","module.field_service.read"]"#};
+            sqlx::query("INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at)VALUES('*','custom_field_parts',2,$1::jsonb,'[]','[\"holding\",\"branch\",\"department\"]','synthetic',0)").bind(permissions).execute(p.pool().raw()).await.unwrap();
+            sqlx::query("UPDATE iam_roles SET published_revision=2 WHERE id='custom_field_parts'").execute(p.pool().raw()).await.unwrap();
+            business(p.execute("reserve-order","old-schema-permission","{").await,"PERMISSION_REQUIRED");
+            assert_eq!(p.counts("old-schema-permission").await,(0,0,0,0,0));
+            for body in ["{",r#"{"action":"issue-part"}"#] {
+                let result=p.execute_schema("reserve-order","schema-wire-error",body).await;
+                assert!(matches!(result,Err(AdminError::Wire(_))));assert_eq!(p.counts("schema-wire-error").await,(0,0,0,0,0));
+            }
+            let now=p.review.system.scenario.clock.now().get();let valid=serde_json::json!({"action":"reserve-part","expectedVersion":1,"warehouseId":"warehouse","productId":"product","quantityMilli":1000,"expiresAt":now+3600000,"reason":"Synthetic valid"}).to_string();
+            assert!(matches!(p.execute_schema("reserve-order","schema-permission",&valid).await,Err(AdminError::Transaction(erpx_server_runtime::public::postgres::PgTransactionError::Business(ref e))) if e.code=="PERMISSION_REQUIRED"));
+            assert_eq!(p.counts("schema-permission").await,(0,0,0,0,0));
+        }).await;
+    }
+    account::with_system(|system| async move {
+        let p=setup(system).await;assert!(matches!(p.execute_schema("missing-order","schema-missing-wire","{").await,Err(AdminError::Wire(_))));
+        let now=p.review.system.scenario.clock.now().get();let raw=serde_json::json!({"action":"reserve-part","expectedVersion":1,"warehouseId":"warehouse","productId":"product","quantityMilli":1000,"expiresAt":now+3600000,"reason":"Synthetic valid"}).to_string();
+        assert!(matches!(p.execute_schema("missing-order","schema-missing-source",&raw).await,Err(AdminError::Transaction(erpx_server_runtime::public::postgres::PgTransactionError::Business(ref e))) if e.code=="FIELD_SERVICE_ORDER_NOT_FOUND"));
+    }).await;
+}
+
+#[tokio::test]
+async fn selected_schema_ingress_executes_real_parts_replay_and_retains_late_failures() {
+    use erpx_service::field_service_parts::FieldServicePartsAdministrationError as AdminError;
+    for action in ["reserve", "issue"] {
+        account::with_system(move |system| async move {
+            let p=setup(system).await;let now=p.review.system.scenario.clock.now().get();
+            let (order,raw)=if action=="reserve" {("reserve-order",serde_json::json!({"action":"reserve-part","expectedVersion":1,"warehouseId":"warehouse","productId":"product","quantityMilli":1000,"expiresAt":now+3600000,"reason":"Synthetic schema"}).to_string())} else {("issue-order",r#"{"action":"issue-part","expectedVersion":3,"reservationId":"reserved-part","quantityMilli":1000,"entryDate":"2026-01-10","reason":"Synthetic schema"}"#.into())};
+            let key=format!("selected-schema-{action}");assert!(!p.execute_schema(order,&key,&raw).await.unwrap().replayed);assert!(p.execute_schema(order,&key,&raw).await.unwrap().replayed);
+            assert_eq!(p.counts(&key).await,if action=="issue" {(1,1,1,1,1)}else{(1,1,1,0,1)});
+        }).await;
+    }
+    for stale in [true, false] {
+        account::with_system(move |system| async move {
+            let p=setup(system).await;let body=serde_json::json!({"action":"issue-part","expectedVersion":if stale {4}else{3},"reservationId":"reserved-part","quantityMilli":1000,"entryDate":"2026-01-10","reason":"Synthetic\u{0}reason"}).to_string();
+            let result=p.execute_schema("issue-order","selected-schema-nul",&body).await;
+            if stale {assert!(matches!(result,Err(AdminError::Transaction(erpx_server_runtime::public::postgres::PgTransactionError::Business(ref e))) if e.code=="CONFLICT"));} else {assert!(matches!(result,Err(AdminError::Transaction(erpx_server_runtime::public::postgres::PgTransactionError::Persistence(_)))));}
+            assert_eq!(p.counts("selected-schema-nul").await,(0,0,0,0,0));
+        }).await;
+    }
+    account::with_system(|system| async move {
+        let p=setup(system).await;
+        sqlx::raw_sql("CREATE SEQUENCE selected_context_fault_seen;CREATE FUNCTION selected_context_fault() RETURNS trigger LANGUAGE plpgsql AS $$BEGIN PERFORM nextval('selected_context_fault_seen');UPDATE active_work_contexts SET revision=revision+1 WHERE session_id=NEW.command_id OR user_id='fixture-a';RETURN NEW;END$$;CREATE CONSTRAINT TRIGGER selected_context_fault AFTER INSERT ON outbox_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.command_id='selected-context-fault') EXECUTE FUNCTION selected_context_fault()").execute(p.pool().raw()).await.unwrap();
+        let raw=r#"{"action":"issue-part","expectedVersion":3,"reservationId":"reserved-part","quantityMilli":1000,"entryDate":"2026-01-10","reason":"Synthetic selected fault"}"#;
+        let result=p.execute_schema("issue-order","selected-context-fault",raw).await;
+        assert!(matches!(result,Err(AdminError::Transaction(erpx_server_runtime::public::postgres::PgTransactionError::Business(ref e))) if e.code=="WORK_CONTEXT_CHANGED"));
+        assert!(sqlx::query_scalar::<_,bool>("SELECT is_called FROM selected_context_fault_seen").fetch_one(p.pool().raw()).await.unwrap());assert_eq!(p.counts("selected-context-fault").await,(0,0,0,0,0));
+        let state:(i64,i64,i64,i64)=sqlx::query_as("SELECT (SELECT version FROM field_service_orders WHERE id='issue-order'),(SELECT consumed_milli FROM field_service_part_reservations WHERE id='reserved-part'),(SELECT quantity_milli FROM commerce_stock WHERE warehouse_id='warehouse' AND product_id='product'),(SELECT revision FROM active_work_contexts WHERE user_id='fixture-a')").fetch_one(p.pool().raw()).await.unwrap();assert_eq!(state,(3,0,5000,8));
+        let absent:(i64,i64,i64,i64,i64,i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM finance_journals),(SELECT count(*) FROM finance_journal_lines),(SELECT count(*) FROM money_transaction_snapshots),(SELECT count(*) FROM operational_inventory_consumption_lots),(SELECT count(*) FROM inventory_lot_moves),(SELECT count(*) FROM field_service_order_events WHERE id='service-order-event-selected-context-fault'),(SELECT count(*) FROM support_ticket_events WHERE id='ticket-service-event-service-order-event-selected-context-fault'),(SELECT count(*) FROM inbox_deliveries WHERE id='service-order-notice-selected-context-fault')").fetch_one(p.pool().raw()).await.unwrap();assert_eq!(absent,(0,0,0,0,0,0,0,0));
+        assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM inbox_events WHERE id='legacy:service-order-notice-selected-context-fault'").fetch_one(p.pool().raw()).await.unwrap(),0);
+        let support:(i64,i64)=sqlx::query_as("SELECT version,service_order_version FROM support_tickets WHERE id='ticket-issue-order'").fetch_one(p.pool().raw()).await.unwrap();assert_eq!(support,(1,3));
+    }).await;
+}

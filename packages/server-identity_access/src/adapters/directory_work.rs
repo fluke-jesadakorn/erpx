@@ -2,6 +2,7 @@
 use super::{
     authorized_work::{
         HoldingWorkAuthorizer, HoldingWorkSourcePreparation, IdentityWorkSourcePreparation,
+        SelectedWorkIngress,
     },
     directory_ldap::LdapDirectoryProvider,
     directory_postgres::{PostgresDirectory, finish, matches_descriptor, unavailable},
@@ -124,6 +125,61 @@ pub(crate) struct DirectoryRequestRefresh {
     persistence: Arc<DirectoryWorkPersistence>,
 }
 impl DirectoryRequestRefresh {
+    pub(crate) async fn execute_selected<T, I, E, F, Ingress, Input, Preparation>(
+        &self,
+        authorizer: &HoldingWorkAuthorizer,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        policy: (WorkAuthorizationRequest, Preparation),
+        callbacks: (Ingress, F),
+    ) -> Result<Result<T, E>, PgTransactionError<BusinessError>>
+    where
+        T: Send + 'static,
+        I: Send + 'static,
+        E: Send + 'static,
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+        Preparation: HoldingWorkSourcePreparation,
+        Ingress:
+            for<'c> Fn(&SelectedWorkIngress<'c>) -> Result<I, E> + Clone + Send + Sync + 'static,
+        F: for<'c> Fn(
+                &'c mut sqlx::PgConnection,
+                &'c AuthorizedWorkContext,
+                I,
+            ) -> PgWorkFuture<'c, T, BusinessError>
+            + Clone
+            + Send
+            + Sync
+            + 'static,
+    {
+        let (access, preparation) = policy;
+        let (ingress, action) = callbacks;
+        let prepared = self
+            .refresh
+            .prepare(host, proof.clone(), Box::new(input))
+            .await?;
+        if prepared.preflight.directory.is_none() {
+            return authorizer
+                .execute_selected_prepared(
+                    host,
+                    proof,
+                    prepared.preflight.workspace,
+                    (access, preparation, None),
+                    (ingress, action),
+                )
+                .await;
+        }
+        let hook = DirectoryControlSources::new(self.persistence.clone(), prepared)?;
+        authorizer
+            .execute_selected_prepared(
+                host,
+                proof,
+                hook.workspace().clone(),
+                (access, preparation, Some(Arc::new(hook))),
+                (ingress, action),
+            )
+            .await
+    }
     pub(crate) async fn execute<
         T: Send + 'static,
         F,

@@ -407,3 +407,142 @@ async fn operational_worker_reference_retains_current_role_and_refuses_a_differe
         let mut other=holding.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other).await.unwrap();assert!(source.require_current(&mut other,now).await.is_err());other.rollback().await.unwrap();
     }).await;}).await;
 }
+
+#[derive(Clone)]
+struct SelectedFixtureLocks;
+impl erpx_server_identity_access::public::effective_authority::HoldingWorkSourcePreparation
+    for SelectedFixtureLocks
+{
+    fn prepare<'c>(&'c self, _: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async { Ok(()) })
+    }
+}
+
+#[tokio::test]
+async fn selected_ingress_wire_precedes_permission_but_current_identity_precedes_wire() {
+    fixture::with_database(3,|control|async move {fixture::with_database(3,move|holding|async move {
+        let (authorizer,_) = setup(&control,&holding).await;let calls=Arc::new(AtomicUsize::new(0));let mut denied=access();denied.permission="finance.pay".into();
+        let action_calls=calls.clone();let local=authorizer.execute_with_selected_ingress_deferred("acme.example.test",proof(),||Ok(input()),(denied.clone(),SelectedFixtureLocks),|selected| {assert_eq!(selected.company_id().as_str(),"company");Err::<(),_>("wire")},move |_,_,_| {action_calls.fetch_add(1,Ordering::SeqCst);Box::pin(async {Ok(())})}).await.unwrap();assert_eq!(local,Err("wire"));assert_eq!(calls.load(Ordering::SeqCst),0);
+        let result=authorizer.execute_with_selected_ingress_deferred("acme.example.test",proof(),||Ok(input()),(denied,SelectedFixtureLocks),|_|Ok::<_,&'static str>(()),|_,_,_|Box::pin(async {Ok(())})).await;code(result,"PERMISSION_REQUIRED");
+        let seen=Arc::new(AtomicUsize::new(0));let observer=seen.clone();let result=authorizer.execute_with_selected_ingress_deferred("wrong.example.test",proof(),||Ok(input()),(access(),SelectedFixtureLocks),move |_| {observer.fetch_add(1,Ordering::SeqCst);Ok::<_,&'static str>(())},|_,_,_|Box::pin(async{Ok(())})).await;code(result,"WORKSPACE_NOT_FOUND");assert_eq!(seen.load(Ordering::SeqCst),0);
+        let observer=seen.clone();let mut stale=input();stale.expected.as_mut().unwrap().revision=6;let result=authorizer.execute_with_selected_ingress_deferred("acme.example.test",proof(),move||Ok(stale),(access(),SelectedFixtureLocks),move |_| {observer.fetch_add(1,Ordering::SeqCst);Ok::<_,&'static str>(())},|_,_,_|Box::pin(async{Ok(())})).await;code(result,"WORK_CONTEXT_CHANGED");assert_eq!(seen.load(Ordering::SeqCst),0);
+        let observer=seen.clone();let result=authorizer.execute_with_selected_ingress_deferred("acme.example.test",erpx_server_identity_access::public::DeviceProof::default(),||Ok(input()),(access(),SelectedFixtureLocks),move |_| {observer.fetch_add(1,Ordering::SeqCst);Ok::<_,&'static str>(())},|_,_,_|Box::pin(async{Ok(())})).await;code(result,"UNAUTHENTICATED");
+        sqlx::raw_sql("INSERT INTO iam_members(company_id,user_id,principal_id,status,login_policy) VALUES('company','user','local:user','active','emergency')").execute(holding.raw()).await.unwrap();
+        let observer=seen.clone();let result=authorizer.execute_with_selected_ingress_deferred("acme.example.test",proof(),||Ok(input()),(access(),SelectedFixtureLocks),move |_| {observer.fetch_add(1,Ordering::SeqCst);Ok::<_,&'static str>(())},|_,_,_|Box::pin(async{Ok(())})).await;code(result,"EMERGENCY_ACCESS_REQUIRED");assert_eq!(seen.load(Ordering::SeqCst),0);
+        assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM native_owner_effects").fetch_one(holding.raw()).await.unwrap(),0);
+    }).await;}).await;
+}
+
+#[tokio::test]
+async fn selected_ingress_local_error_yields_to_expiry_and_success_retains_selection() {
+    fixture::with_database(3,|control|async move {fixture::with_database(3,move|holding|async move {
+        let (authorizer,clock)=setup(&control,&holding).await;let advance=clock.clone();
+        let expired=authorizer.execute_with_selected_ingress_deferred("acme.example.test",proof(),||Ok(input()),(access(),SelectedFixtureLocks),move |_| {advance.0.store(NOW+3600000,Ordering::SeqCst);Err::<(),_>("wire")},|_,_,_|Box::pin(async{Ok(())})).await;code(expired,"WORK_AUTHORITY_EXPIRED");clock.0.store(NOW,Ordering::SeqCst);
+        let changed=authorizer.execute_with_selected_ingress_deferred("acme.example.test",proof(),||Ok(input()),(access(),SelectedFixtureLocks),|_|Ok::<_,&'static str>(()),|c,_,_|Box::pin(async move {sqlx::query("UPDATE active_work_contexts SET revision=8 WHERE session_id='session'").execute(&mut *c).await?;sqlx::query("INSERT INTO native_owner_effects VALUES('selected-changed')").execute(c).await?;Ok(())})).await;code(changed,"WORK_CONTEXT_CHANGED");
+        assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM native_owner_effects").fetch_one(holding.raw()).await.unwrap(),0);assert_eq!(sqlx::query_scalar::<_,i64>("SELECT revision FROM active_work_contexts WHERE session_id='session'").fetch_one(holding.raw()).await.unwrap(),7);
+    }).await;}).await;
+}
+
+#[tokio::test]
+async fn selected_ingress_repeats_immutable_normalization_after_synthetic_serialization_retry() {
+    fixture::with_database(3,|control|async move {fixture::with_database(3,move|holding|async move {
+        let (authorizer,_)=setup(&control,&holding).await;
+        sqlx::raw_sql("CREATE SEQUENCE selected_retry_seen;CREATE FUNCTION selected_retry_fault() RETURNS trigger LANGUAGE plpgsql AS $$BEGIN IF nextval('selected_retry_seen')=1 THEN RAISE EXCEPTION 'synthetic retry' USING ERRCODE='40001'; END IF;RETURN NEW;END$$;CREATE TRIGGER selected_retry_fault BEFORE INSERT ON native_owner_effects FOR EACH ROW EXECUTE FUNCTION selected_retry_fault()").execute(holding.raw()).await.unwrap();
+        let calls=Arc::new(AtomicUsize::new(0));let seen=calls.clone();
+        let result=authorizer.execute_with_selected_ingress_deferred("acme.example.test",proof(),||Ok(input()),(access(),SelectedFixtureLocks),move |_| {seen.fetch_add(1,Ordering::SeqCst);Ok::<_,&'static str>("immutable-body".to_owned())},|c,_,value|Box::pin(async move {assert_eq!(value,"immutable-body");sqlx::query("INSERT INTO native_owner_effects VALUES('retry')").execute(c).await?;Ok(())})).await.unwrap();assert_eq!(result,Ok(()));assert_eq!(calls.load(Ordering::SeqCst),2);assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM native_owner_effects").fetch_one(holding.raw()).await.unwrap(),1);
+    }).await;}).await;
+}
+
+#[tokio::test]
+async fn selected_ingress_never_invokes_schema_for_revoked_assignment_or_inactive_principal() {
+    for scenario in ["assignment", "principal", "revoked-session"] {
+        fixture::with_database(3,move |control|async move {fixture::with_database(3,move |holding|async move {
+            let(authorizer,_)=setup(&control,&holding).await;
+            match scenario {
+                "assignment"=>{sqlx::query("UPDATE assignments SET revoked_at=$1 WHERE id='grant'").bind(NOW).execute(holding.raw()).await.unwrap();},
+                "principal"=>{sqlx::raw_sql("INSERT INTO iam_members(company_id,user_id,principal_id,status,login_policy) VALUES('company','user','local:user','suspended','local')").execute(holding.raw()).await.unwrap();},
+                _=>{sqlx::raw_sql("DELETE FROM session WHERE id='session'").execute(control.raw()).await.unwrap();},
+            }
+            let seen=Arc::new(AtomicUsize::new(0));let observer=seen.clone();
+            let result=authorizer.execute_with_selected_ingress_deferred("acme.example.test",proof(),||Ok(input()),(access(),SelectedFixtureLocks),move |_|{observer.fetch_add(1,Ordering::SeqCst);Ok::<_,&'static str>(())},|_,_,_|Box::pin(async{Ok(())})).await;
+            code(result,if scenario=="revoked-session" {"UNAUTHENTICATED"}else{"WORK_ROLE_UNAVAILABLE"});assert_eq!(seen.load(Ordering::SeqCst),0);
+            assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM native_owner_effects").fetch_one(holding.raw()).await.unwrap(),0);
+        }).await;}).await;
+    }
+}
+
+#[tokio::test]
+async fn selected_ingress_holds_real_control_and_assignment_locks_until_owner_commit() {
+    fixture::with_database(3,|control|async move {fixture::with_database(3,move|holding|async move {
+        let (authorizer,_)=setup(&control,&holding).await;let entered=Arc::new(tokio::sync::Notify::new());let release=Arc::new(tokio::sync::Notify::new());
+        let owner={let authorizer=authorizer.clone();let entered=entered.clone();let release=release.clone();tokio::spawn(async move {authorizer.execute_with_selected_ingress_deferred("acme.example.test",proof(),||Ok(input()),(access(),SelectedFixtureLocks),|_|Ok::<_,&'static str>(()),move |connection,_,_| {let entered=entered.clone();let release=release.clone();Box::pin(async move {entered.notify_one();release.notified().await;sqlx::query("INSERT INTO native_owner_effects VALUES('selected-lock')").execute(connection).await?;Ok(())})}).await})};
+        tokio::time::timeout(Duration::from_secs(3),entered.notified()).await.unwrap();
+        let parent_change={let pool=control.clone();tokio::spawn(async move {sqlx::query("UPDATE account_device_browsers SET active_session_id=NULL WHERE id='browser'").execute(pool.raw()).await.unwrap();})};
+        let revoke={let pool=holding.clone();tokio::spawn(async move {sqlx::query("UPDATE assignments SET revoked_at=$1 WHERE id='grant'").bind(NOW).execute(pool.raw()).await.unwrap();})};
+        wait_for_lock(&control).await;wait_for_lock(&holding).await;assert!(!parent_change.is_finished());assert!(!revoke.is_finished());release.notify_one();assert_eq!(owner.await.unwrap().unwrap(),Ok(()));parent_change.await.unwrap();revoke.await.unwrap();
+        assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM native_owner_effects").fetch_one(holding.raw()).await.unwrap(),1);
+    }).await;}).await;
+}
+
+#[tokio::test]
+async fn selected_ingress_checks_time_again_after_fresh_final_identity_inspection() {
+    use erpx_server_identity_access::public::effective_authority::HoldingWorkAuthorizer;
+    use erpx_server_shared::public::{Clock, TimestampMillis};
+    use std::sync::atomic::AtomicBool;
+    struct SteppedClock {
+        armed: AtomicBool,
+        reads: AtomicUsize,
+    }
+    impl Clock for SteppedClock {
+        fn now(&self) -> TimestampMillis {
+            if self.armed.load(Ordering::SeqCst) && self.reads.fetch_add(1, Ordering::SeqCst) >= 3 {
+                TimestampMillis::new(NOW + 3600000)
+            } else {
+                TimestampMillis::new(NOW)
+            }
+        }
+    }
+    fixture::with_database(3, |control| async move {
+        fixture::with_database(3, move |holding| async move {
+            let _ = setup(&control, &holding).await;
+            let clock = Arc::new(SteppedClock {
+                armed: AtomicBool::new(false),
+                reads: AtomicUsize::new(0),
+            });
+            let authorizer = HoldingWorkAuthorizer::new(
+                control.clone(),
+                holding.clone(),
+                HoldingId::new("h001").unwrap(),
+                policy(),
+                clock.clone(),
+                holding_registry(),
+            )
+            .unwrap();
+            let armed = clock.clone();
+            let result = authorizer
+                .execute_with_selected_ingress_deferred(
+                    "acme.example.test",
+                    proof(),
+                    || Ok(input()),
+                    (access(), SelectedFixtureLocks),
+                    move |_| {
+                        armed.armed.store(true, Ordering::SeqCst);
+                        Err::<(), _>("wire")
+                    },
+                    |_, _, _| Box::pin(async { Ok(()) }),
+                )
+                .await;
+            code(result, "WORK_AUTHORITY_EXPIRED");
+            assert_eq!(clock.reads.load(Ordering::SeqCst), 4);
+            assert_eq!(
+                sqlx::query_scalar::<_, i64>("SELECT count(*) FROM native_owner_effects")
+                    .fetch_one(holding.raw())
+                    .await
+                    .unwrap(),
+                0
+            );
+        })
+        .await;
+    })
+    .await;
+}

@@ -183,3 +183,18 @@ async fn original_selected_grant_deadline_expiring_during_provider_io_cannot_be_
     })
     .await;
 }
+
+#[tokio::test]
+async fn selected_ingress_keeps_real_directory_refresh_and_returns_local_error_before_current_success()
+ {
+    account::with_system(|system|async move {
+        let prepared=fixture::prepare(system,ldap::Scenario::Complete,false,true).await;
+        let selection=prepared.authority.selection.clone();
+        let action_calls=Arc::new(std::sync::atomic::AtomicUsize::new(0));let seen=action_calls.clone();
+        let local=prepared.work.execute_with_selected_ingress_deferred("acme.example.test",prepared.authority.proof.clone(),move || Ok(selection),(prepared.authority.access.clone(),fixture::EffectSources),|_|Err::<(),_>("wire"),move |_,_,_|{seen.fetch_add(1,std::sync::atomic::Ordering::SeqCst);Box::pin(async {Ok(())})}).await.unwrap();
+        assert_eq!(local,Err("wire"));assert_eq!(action_calls.load(std::sync::atomic::Ordering::SeqCst),0);assert_eq!(fixture::effects(&prepared).await,0);assert_eq!(prepared.server.stats.lock().unwrap().service_binds,1);
+        let selection=prepared.authority.selection.clone();
+        let actual=prepared.work.execute_with_selected_ingress_deferred("acme.example.test",prepared.authority.proof.clone(),move || Ok(selection),(prepared.authority.access.clone(),fixture::EffectSources),|_|Ok::<_,&'static str>(()),|c,current,_|Box::pin(async move {sqlx::query("INSERT INTO synthetic_directory_work_effects(id) VALUES('selected-directory')").execute(c).await?;Ok(current.user_id().as_str().to_owned())})).await.unwrap().unwrap();
+        assert_eq!(actual,"fixture-a");assert_eq!(fixture::effects(&prepared).await,1);assert_eq!(prepared.server.stats.lock().unwrap().service_binds,1);prepared.server.finish().await;
+    }).await;
+}
