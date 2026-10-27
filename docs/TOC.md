@@ -14,6 +14,7 @@ Reviewed 2026-10-27. This is the single entry point. The [production plan](produ
 - [Native Maintenance Work component](contracts/next/rust-maintenance-migration.md).
 - [Native Field Service reserve/issue parts component](contracts/next/rust-field-service-migration.md).
 - [Native selected Identity ingress](contracts/next/rust-selected-ingress.md).
+- [Inactive native Payroll accounting projection](contracts/next/rust-payroll-projection.md).
 - [Native Maintenance notification and Inbox component](contracts/next/rust-maintenance-notifications.md).
 - [Native Finance owned parts Draft component](contracts/next/rust-finance-parts-draft.md).
 - [Native Directory scope and expiring credential decision](adr/ADR-055-native-directory-scope-and-credential-witness.md).

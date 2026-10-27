@@ -2,8 +2,8 @@
   "version": 3,
   "environment": "development",
   "deliveryPlan": "docs/production-plan.md",
-  "sourceFingerprint": "25c308e957898167427c263e42ea767bf1dcca098426802ee756c703f77536fa",
-  "verificationFingerprint": "c0dcb8f0b18e2f9031d1ce7d2f3984b0ee0a2af747514fe92c393a2f4759f43e",
+  "sourceFingerprint": "3f340051d2619a6e3b845c94bbd29c7d124c4d3ba854854e232088d340706d8c",
+  "verificationFingerprint": "1573cd4e264b909e9e7d0fe75e22e9fd7ca4c3106d32aab3c69f432a8db225cb",
   "baseline": {
     "source": ".scratch/dev/product-migration-baseline-2026-10-14/",
     "privateAuthority": "read-only per-database snapshots; no secrets or personal authority rows in this register",
@@ -9446,7 +9446,8 @@
         "maintenance.rust-settlement-references-postgres.integration",
         "shared.testing.native-worker-toolchain.unit",
         "shared.architecture.documentation-integrity.unit",
-        "field_service.rust-parts-command-postgres.integration"
+        "field_service.rust-parts-command-postgres.integration",
+        "people_payroll.rust-payroll-accounting.unit"
       ]
     },
     {

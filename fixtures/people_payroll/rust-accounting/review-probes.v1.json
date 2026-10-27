@@ -1,0 +1,267 @@
+{
+  "version": 1,
+  "acceptance": false,
+  "description": "Eight source-observed pure repros; no posting/DB/authority.",
+  "runtime": {
+    "node": "v26.11.1",
+    "v8": "14.6.202.34-node.37",
+    "icu": "78.3",
+    "locale": "en-US",
+    "timeZone": "Asia/Bangkok",
+    "typescriptWrapper": "6.0.2",
+    "typescriptEngine": "6.0.3"
+  },
+  "inputs": {
+    "packages/server-people_payroll/src/domain/payroll-accounting.ts": "0c3c3814af6a577ab7d4f9ea2c4eb829399a1cffbb88c8c16db25faf4d07b451",
+    "packages/feature-finance/src/lib/finance-money.ts": "c36415b741869d868e321634749ddd97854ccf81dfb32740a0c41789488651b8",
+    "packages/server-shared/src/domain/error.ts": "ff9c315f159f7adcff264d6637617b80760f758c7cb0b19e1896f85bb51b798c",
+    "package.json": "e158b60b978f47f7a718283bbaa23b8296b1d075f710ac9ef2e64d241320555a",
+    "bun.lock": "714d959fc1f827a8ebdfef2edf73a9f29c52c7c2bd9c0a3e5a613d844d03376a",
+    "node_modules/typescript/package.json": "d9b8fb53c67c947fece83bcb73fa8512227ea6a12b110e096fdab8ecdc02b655",
+    "node_modules/typescript/lib/typescript.js": "d3f3cd2b04b7f466f4484df921b744223f7bd1f3e353ec9110bdf52695b983d5",
+    "node_modules/@typescript/old/package.json": "9332e97c30d3e53ed54910b89207ed657fb444066484df6e5b6965bf130865e9",
+    "node_modules/@typescript/old/lib/typescript.js": "569177652966bd528c319171c7dd22860dbf72bde116cbc4f644f1d02bb12e39"
+  },
+  "cases": [
+    {
+      "id": "deductions-before-employer-invalid",
+      "itemsJson": "[{\"id\":\"item-1\",\"gross_minor\":0,\"deductions_minor\":0,\"employer_cost_minor\":0,\"net_minor\":0,\"input_snapshot_json\":\"{\\\"engagement\\\":{\\\"employment_type\\\":\\\"salaried\\\",\\\"start_date\\\":\\\"2026-09-01\\\",\\\"end_date\\\":null},\\\"period\\\":{\\\"start\\\":\\\"2026-09-01\\\",\\\"end\\\":\\\"2026-09-30\\\"},\\\"hours\\\":{\\\"entries\\\":[],\\\"handoffs\\\":[]},\\\"costAssignments\\\":[{\\\"id\\\":\\\"assignment-1\\\",\\\"effective_from\\\":\\\"2026-09-01\\\",\\\"effective_to\\\":null,\\\"branch_id\\\":\\\"branch-1\\\",\\\"department_id\\\":\\\"department-1\\\",\\\"evidence_status\\\":\\\"verified\\\"}]}\",\"result_json\":\"{\\\"explanation\\\":{\\\"components\\\":[{\\\"code\\\":\\\"OTHER\\\",\\\"kind\\\":\\\"employer\\\",\\\"amountMinor\\\":1},{\\\"code\\\":\\\"OTHER\\\",\\\"kind\\\":\\\"deduction\\\",\\\"amountMinor\\\":-1}]}}\"}]",
+      "accountsJson": "{\"expenseAccountId\":\"wages\",\"bonusExpenseAccountId\":\"bonus\",\"employerExpenseAccountId\":\"sso-expense\",\"netPayableAccountId\":\"net\",\"taxPayableAccountId\":\"tax\",\"socialSecurityPayableAccountId\":\"sso\",\"advanceReceivableAccountId\":\"advances\",\"benefitPayableAccountId\":\"benefits\",\"otherDeductionPayableAccountId\":\"other\",\"employerContributionAccountId\":\"employer\",\"serviceChargeExpenseAccountId\":\"service\",\"overtimeExpenseAccountId\":\"overtime\"}",
+      "accounting": {
+        "ok": false,
+        "error": {
+          "name": "Error",
+          "status": 409,
+          "code": "PAYROLL_COMPONENTS_INVALID",
+          "message": "Payroll item components do not agree with the approved totals."
+        }
+      },
+      "shares": [
+        {
+          "index": 0,
+          "ok": false,
+          "error": {
+            "name": "Error",
+            "status": 409,
+            "code": "PAYROLL_COST_ALLOCATION_INVALID",
+            "message": "Cost allocation amount is invalid."
+          }
+        }
+      ]
+    },
+    {
+      "id": "gross-bigint-is-not-eager",
+      "itemsJson": "[{\"id\":\"item-1\",\"gross_minor\":1000,\"deductions_minor\":0,\"employer_cost_minor\":0,\"net_minor\":1000,\"input_snapshot_json\":\"{\\\"engagement\\\":{\\\"employment_type\\\":\\\"salaried\\\",\\\"start_date\\\":\\\"2026-09-01\\\",\\\"end_date\\\":null},\\\"period\\\":{\\\"start\\\":\\\"2026-09-01\\\",\\\"end\\\":\\\"2026-09-03\\\"},\\\"hours\\\":{\\\"entries\\\":[{\\\"work_date\\\":\\\"2026-09-01\\\",\\\"regular_hours\\\":0,\\\"overtime_hours\\\":1e+300,\\\"cost_assignment_id\\\":\\\"A\\\",\\\"cost_branch_id\\\":\\\"A\\\",\\\"cost_department_id\\\":null},{\\\"work_date\\\":\\\"2026-09-02\\\",\\\"regular_hours\\\":0,\\\"overtime_hours\\\":-1e+300,\\\"cost_assignment_id\\\":\\\"B\\\",\\\"cost_branch_id\\\":\\\"B\\\",\\\"cost_department_id\\\":null},{\\\"work_date\\\":\\\"2026-09-03\\\",\\\"regular_hours\\\":0,\\\"overtime_hours\\\":1e-06,\\\"cost_assignment_id\\\":\\\"C\\\",\\\"cost_branch_id\\\":\\\"C\\\",\\\"cost_department_id\\\":null}],\\\"handoffs\\\":[]},\\\"costAssignments\\\":[{\\\"id\\\":\\\"A\\\",\\\"effective_from\\\":\\\"2026-09-01\\\",\\\"effective_to\\\":\\\"2026-09-01\\\",\\\"branch_id\\\":\\\"A\\\",\\\"department_id\\\":null,\\\"evidence_status\\\":\\\"verified\\\"},{\\\"id\\\":\\\"B\\\",\\\"effective_from\\\":\\\"2026-09-02\\\",\\\"effective_to\\\":\\\"2026-09-02\\\",\\\"branch_id\\\":\\\"B\\\",\\\"department_id\\\":null,\\\"evidence_status\\\":\\\"verified\\\"},{\\\"id\\\":\\\"C\\\",\\\"effective_from\\\":\\\"2026-09-03\\\",\\\"effective_to\\\":\\\"2026-09-03\\\",\\\"branch_id\\\":\\\"C\\\",\\\"department_id\\\":null,\\\"evidence_status\\\":\\\"verified\\\"}]}\",\"result_json\":\"{\\\"explanation\\\":{\\\"overtimeMinor\\\":1000,\\\"components\\\":[]}}\"}]",
+      "accountsJson": "{\"expenseAccountId\":\"wages\",\"bonusExpenseAccountId\":\"bonus\",\"employerExpenseAccountId\":\"sso-expense\",\"netPayableAccountId\":\"net\",\"taxPayableAccountId\":\"tax\",\"socialSecurityPayableAccountId\":\"sso\",\"advanceReceivableAccountId\":\"advances\",\"benefitPayableAccountId\":\"benefits\",\"otherDeductionPayableAccountId\":\"other\",\"employerContributionAccountId\":\"employer\",\"serviceChargeExpenseAccountId\":\"service\",\"overtimeExpenseAccountId\":\"overtime\"}",
+      "accounting": {
+        "ok": false,
+        "error": {
+          "name": "Error",
+          "status": 409,
+          "code": "PAYROLL_COST_ALLOCATION_INVALID",
+          "message": "Cost-unit payable amounts do not reconcile."
+        }
+      },
+      "shares": [
+        {
+          "index": 0,
+          "ok": false,
+          "error": {
+            "name": "Error",
+            "status": 409,
+            "code": "PAYROLL_COST_ALLOCATION_INVALID",
+            "message": "Cost-unit payable amounts do not reconcile."
+          }
+        }
+      ]
+    },
+    {
+      "id": "invalid-radix-multiplier-0x-1",
+      "itemsJson": "[{\"id\":\"item-1\",\"gross_minor\":100,\"deductions_minor\":0,\"employer_cost_minor\":0,\"net_minor\":100,\"input_snapshot_json\":\"{\\\"engagement\\\":{\\\"employment_type\\\":\\\"salaried\\\",\\\"start_date\\\":\\\"2026-09-01\\\",\\\"end_date\\\":null},\\\"period\\\":{\\\"start\\\":\\\"2026-09-01\\\",\\\"end\\\":\\\"2026-09-30\\\"},\\\"hours\\\":{\\\"entries\\\":[],\\\"handoffs\\\":[]},\\\"costAssignments\\\":[{\\\"id\\\":\\\"assignment-1\\\",\\\"effective_from\\\":\\\"2026-09-01\\\",\\\"effective_to\\\":null,\\\"branch_id\\\":\\\"branch-1\\\",\\\"department_id\\\":\\\"department-1\\\",\\\"evidence_status\\\":\\\"verified\\\"}]}\",\"result_json\":\"{\\\"explanation\\\":{\\\"overtimeMultiplierBps\\\":\\\"0x-1\\\",\\\"overtimeMinor\\\":0,\\\"components\\\":[]}}\"}]",
+      "accountsJson": "{\"expenseAccountId\":\"wages\",\"bonusExpenseAccountId\":\"bonus\",\"employerExpenseAccountId\":\"sso-expense\",\"netPayableAccountId\":\"net\",\"taxPayableAccountId\":\"tax\",\"socialSecurityPayableAccountId\":\"sso\",\"advanceReceivableAccountId\":\"advances\",\"benefitPayableAccountId\":\"benefits\",\"otherDeductionPayableAccountId\":\"other\",\"employerContributionAccountId\":\"employer\",\"serviceChargeExpenseAccountId\":\"service\",\"overtimeExpenseAccountId\":\"overtime\"}",
+      "accounting": {
+        "ok": false,
+        "error": {
+          "name": "RangeError",
+          "status": null,
+          "code": null,
+          "message": "The number NaN cannot be converted to a BigInt because it is not an integer"
+        }
+      },
+      "shares": [
+        {
+          "index": 0,
+          "ok": false,
+          "error": {
+            "name": "RangeError",
+            "status": null,
+            "code": null,
+            "message": "The number NaN cannot be converted to a BigInt because it is not an integer"
+          }
+        }
+      ]
+    },
+    {
+      "id": "invalid-radix-multiplier-0x1_0",
+      "itemsJson": "[{\"id\":\"item-1\",\"gross_minor\":100,\"deductions_minor\":0,\"employer_cost_minor\":0,\"net_minor\":100,\"input_snapshot_json\":\"{\\\"engagement\\\":{\\\"employment_type\\\":\\\"salaried\\\",\\\"start_date\\\":\\\"2026-09-01\\\",\\\"end_date\\\":null},\\\"period\\\":{\\\"start\\\":\\\"2026-09-01\\\",\\\"end\\\":\\\"2026-09-30\\\"},\\\"hours\\\":{\\\"entries\\\":[],\\\"handoffs\\\":[]},\\\"costAssignments\\\":[{\\\"id\\\":\\\"assignment-1\\\",\\\"effective_from\\\":\\\"2026-09-01\\\",\\\"effective_to\\\":null,\\\"branch_id\\\":\\\"branch-1\\\",\\\"department_id\\\":\\\"department-1\\\",\\\"evidence_status\\\":\\\"verified\\\"}]}\",\"result_json\":\"{\\\"explanation\\\":{\\\"overtimeMultiplierBps\\\":\\\"0x1_0\\\",\\\"overtimeMinor\\\":0,\\\"components\\\":[]}}\"}]",
+      "accountsJson": "{\"expenseAccountId\":\"wages\",\"bonusExpenseAccountId\":\"bonus\",\"employerExpenseAccountId\":\"sso-expense\",\"netPayableAccountId\":\"net\",\"taxPayableAccountId\":\"tax\",\"socialSecurityPayableAccountId\":\"sso\",\"advanceReceivableAccountId\":\"advances\",\"benefitPayableAccountId\":\"benefits\",\"otherDeductionPayableAccountId\":\"other\",\"employerContributionAccountId\":\"employer\",\"serviceChargeExpenseAccountId\":\"service\",\"overtimeExpenseAccountId\":\"overtime\"}",
+      "accounting": {
+        "ok": false,
+        "error": {
+          "name": "RangeError",
+          "status": null,
+          "code": null,
+          "message": "The number NaN cannot be converted to a BigInt because it is not an integer"
+        }
+      },
+      "shares": [
+        {
+          "index": 0,
+          "ok": false,
+          "error": {
+            "name": "RangeError",
+            "status": null,
+            "code": null,
+            "message": "The number NaN cannot be converted to a BigInt because it is not an integer"
+          }
+        }
+      ]
+    },
+    {
+      "id": "reached-noniterable-time-entries",
+      "itemsJson": "[{\"id\":\"item-1\",\"gross_minor\":100,\"deductions_minor\":0,\"employer_cost_minor\":0,\"net_minor\":100,\"input_snapshot_json\":\"{\\\"engagement\\\":{\\\"employment_type\\\":\\\"salaried\\\",\\\"start_date\\\":\\\"2026-09-01\\\",\\\"end_date\\\":null},\\\"period\\\":{\\\"start\\\":\\\"2026-09-01\\\",\\\"end\\\":\\\"2026-09-30\\\"},\\\"hours\\\":{\\\"entries\\\":{},\\\"handoffs\\\":[]},\\\"costAssignments\\\":[{\\\"id\\\":\\\"assignment-1\\\",\\\"effective_from\\\":\\\"2026-09-01\\\",\\\"effective_to\\\":null,\\\"branch_id\\\":\\\"branch-1\\\",\\\"department_id\\\":\\\"department-1\\\",\\\"evidence_status\\\":\\\"verified\\\"}]}\",\"result_json\":\"{\\\"explanation\\\":{\\\"components\\\":[]}}\"}]",
+      "accountsJson": "{\"expenseAccountId\":\"wages\",\"bonusExpenseAccountId\":\"bonus\",\"employerExpenseAccountId\":\"sso-expense\",\"netPayableAccountId\":\"net\",\"taxPayableAccountId\":\"tax\",\"socialSecurityPayableAccountId\":\"sso\",\"advanceReceivableAccountId\":\"advances\",\"benefitPayableAccountId\":\"benefits\",\"otherDeductionPayableAccountId\":\"other\",\"employerContributionAccountId\":\"employer\",\"serviceChargeExpenseAccountId\":\"service\",\"overtimeExpenseAccountId\":\"overtime\"}",
+      "accounting": {
+        "ok": false,
+        "error": {
+          "name": "TypeError",
+          "status": null,
+          "code": null,
+          "message": "object is not iterable (cannot read property Symbol(Symbol.iterator))"
+        }
+      },
+      "shares": [
+        {
+          "index": 0,
+          "ok": false,
+          "error": {
+            "name": "TypeError",
+            "status": null,
+            "code": null,
+            "message": "object is not iterable (cannot read property Symbol(Symbol.iterator))"
+          }
+        }
+      ]
+    },
+    {
+      "id": "strict-number-identity-different-lexeme",
+      "itemsJson": "[{\"id\":\"item-1\",\"gross_minor\":100,\"deductions_minor\":0,\"employer_cost_minor\":0,\"net_minor\":100,\"input_snapshot_json\":\"{\\\"engagement\\\":{\\\"employment_type\\\":\\\"salaried\\\",\\\"start_date\\\":\\\"2026-09-01\\\",\\\"end_date\\\":null},\\\"period\\\":{\\\"start\\\":\\\"2026-09-01\\\",\\\"end\\\":\\\"2026-09-30\\\"},\\\"hours\\\":{\\\"entries\\\":[{\\\"work_date\\\":\\\"2026-09-01\\\",\\\"regular_hours\\\":1,\\\"overtime_hours\\\":0,\\\"cost_assignment_id\\\":1.0,\\\"cost_branch_id\\\":\\\"branch-1\\\",\\\"cost_department_id\\\":\\\"department-1\\\"}],\\\"handoffs\\\":[]},\\\"costAssignments\\\":[{\\\"id\\\":1,\\\"effective_from\\\":\\\"2026-09-01\\\",\\\"effective_to\\\":null,\\\"branch_id\\\":\\\"branch-1\\\",\\\"department_id\\\":\\\"department-1\\\",\\\"evidence_status\\\":\\\"verified\\\"}]}\",\"result_json\":\"{\\\"explanation\\\":{\\\"components\\\":[]}}\"}]",
+      "accountsJson": "{\"expenseAccountId\":\"wages\",\"bonusExpenseAccountId\":\"bonus\",\"employerExpenseAccountId\":\"sso-expense\",\"netPayableAccountId\":\"net\",\"taxPayableAccountId\":\"tax\",\"socialSecurityPayableAccountId\":\"sso\",\"advanceReceivableAccountId\":\"advances\",\"benefitPayableAccountId\":\"benefits\",\"otherDeductionPayableAccountId\":\"other\",\"employerContributionAccountId\":\"employer\",\"serviceChargeExpenseAccountId\":\"service\",\"overtimeExpenseAccountId\":\"overtime\"}",
+      "accounting": {
+        "ok": true,
+        "value": {
+          "lines": [
+            {
+              "accountId": "wages",
+              "description": "Payroll wages",
+              "debit": "1.00",
+              "credit": "0.00",
+              "dimensions": {
+                "branchId": "branch-1",
+                "departmentId": "department-1"
+              }
+            },
+            {
+              "accountId": "net",
+              "description": "Net payroll payable",
+              "debit": "0.00",
+              "credit": "1.00",
+              "dimensions": {
+                "branchId": "branch-1",
+                "departmentId": "department-1"
+              }
+            }
+          ],
+          "totals": {
+            "grossMinor": 100,
+            "deductionsMinor": 0,
+            "employerMinor": 0,
+            "netMinor": 100,
+            "debitMinor": 100,
+            "creditMinor": 100
+          },
+          "categories": {}
+        },
+        "specialNumbers": []
+      },
+      "shares": [
+        {
+          "index": 0,
+          "ok": true,
+          "value": [
+            {
+              "amountMinor": 100,
+              "dimensions": {
+                "branchId": "branch-1",
+                "departmentId": "department-1"
+              }
+            }
+          ],
+          "specialNumbers": []
+        }
+      ]
+    },
+    {
+      "id": "null-code-native-receiver",
+      "itemsJson": "[{\"id\":\"item-1\",\"gross_minor\":100,\"deductions_minor\":0,\"employer_cost_minor\":0,\"net_minor\":100,\"input_snapshot_json\":\"{\\\"engagement\\\":{\\\"employment_type\\\":\\\"salaried\\\",\\\"start_date\\\":\\\"2026-09-01\\\",\\\"end_date\\\":null},\\\"period\\\":{\\\"start\\\":\\\"2026-09-01\\\",\\\"end\\\":\\\"2026-09-30\\\"},\\\"hours\\\":{\\\"entries\\\":[],\\\"handoffs\\\":[]},\\\"costAssignments\\\":[{\\\"id\\\":\\\"assignment-1\\\",\\\"effective_from\\\":\\\"2026-09-01\\\",\\\"effective_to\\\":null,\\\"branch_id\\\":\\\"branch-1\\\",\\\"department_id\\\":\\\"department-1\\\",\\\"evidence_status\\\":\\\"verified\\\"}]}\",\"result_json\":\"{\\\"explanation\\\":{\\\"components\\\":[{\\\"code\\\":null,\\\"kind\\\":\\\"earning\\\",\\\"amountMinor\\\":0}]}}\"}]",
+      "accountsJson": "{\"expenseAccountId\":\"wages\",\"bonusExpenseAccountId\":\"bonus\",\"employerExpenseAccountId\":\"sso-expense\",\"netPayableAccountId\":\"net\",\"taxPayableAccountId\":\"tax\",\"socialSecurityPayableAccountId\":\"sso\",\"advanceReceivableAccountId\":\"advances\",\"benefitPayableAccountId\":\"benefits\",\"otherDeductionPayableAccountId\":\"other\",\"employerContributionAccountId\":\"employer\",\"serviceChargeExpenseAccountId\":\"service\",\"overtimeExpenseAccountId\":\"overtime\"}",
+      "accounting": {
+        "ok": false,
+        "error": {
+          "name": "TypeError",
+          "status": null,
+          "code": null,
+          "message": "Cannot read properties of null (reading 'toUpperCase')"
+        }
+      },
+      "shares": [
+        {
+          "index": 0,
+          "ok": false,
+          "error": {
+            "name": "TypeError",
+            "status": null,
+            "code": null,
+            "message": "Cannot read properties of null (reading 'toUpperCase')"
+          }
+        }
+      ]
+    },
+    {
+      "id": "non-json-whitespace-before-object",
+      "itemsJson": "[{\"id\":\"item-1\",\"gross_minor\":100,\"deductions_minor\":0,\"employer_cost_minor\":0,\"net_minor\":100,\"input_snapshot_json\":\" {\",\"result_json\":\"{\\\"explanation\\\":{\\\"components\\\":[]}}\"}]",
+      "accountsJson": "{\"expenseAccountId\":\"wages\",\"bonusExpenseAccountId\":\"bonus\",\"employerExpenseAccountId\":\"sso-expense\",\"netPayableAccountId\":\"net\",\"taxPayableAccountId\":\"tax\",\"socialSecurityPayableAccountId\":\"sso\",\"advanceReceivableAccountId\":\"advances\",\"benefitPayableAccountId\":\"benefits\",\"otherDeductionPayableAccountId\":\"other\",\"employerContributionAccountId\":\"employer\",\"serviceChargeExpenseAccountId\":\"service\",\"overtimeExpenseAccountId\":\"overtime\"}",
+      "accounting": {
+        "ok": false,
+        "error": {
+          "name": "SyntaxError",
+          "status": null,
+          "code": null,
+          "message": "Unexpected token ' ', \" {\" is not valid JSON"
+        }
+      },
+      "shares": [
+        {
+          "index": 0,
+          "ok": false,
+          "error": {
+            "name": "SyntaxError",
+            "status": null,
+            "code": null,
+            "message": "Unexpected token ' ', \" {\" is not valid JSON"
+          }
+        }
+      ]
+    }
+  ]
+}

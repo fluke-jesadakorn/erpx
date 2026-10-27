@@ -74,7 +74,8 @@
       "id": "icu4x-compiled-collation",
       "paths": [
         "packages/server-commercial/src/domain/collation.rs",
-        "packages/server-finance/src/domain/company_money.rs"
+        "packages/server-finance/src/domain/company_money.rs",
+        "packages/server-people_payroll/src/domain/payroll_accounting_collation.rs"
       ],
       "noticeFiles": [
         "packages/server-commercial/licenses/ICU4X-Unicode-3.0.txt"
@@ -132,7 +133,8 @@
       "id": "ryu-js-number-formatting",
       "paths": [
         "packages/server-workflow/",
-        "Cargo.lock"
+        "Cargo.lock",
+        "packages/server-people_payroll/src/domain/payroll_accounting_operand.rs"
       ],
       "noticeFiles": [
         "packages/server-workflow/licenses/ryu-js-1.0.3-Apache-2.0.txt"
