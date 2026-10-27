@@ -243,7 +243,7 @@ impl<W: Clock + Sync, G: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W, 
         )
         .await?;
         let at = application.application_at();
-        let details = application.details().clone();
+        let details = field_service_parts_details_json(self.command, application.details())?;
         let purchases = FieldServicePurchases::retain(
             c,
             self.current,
@@ -563,7 +563,7 @@ pub(crate) async fn execute_field_service_parts<
         key: command.key().as_str().into(),
         operation: command.operation().into(),
         record_id: command.order_id().as_str().into(),
-        input: command.receipt_input().clone(),
+        input: field_service_parts_receipt_json(command.receipt_input())?,
     };
     let mut authority = Authority {
         current,

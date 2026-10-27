@@ -90,6 +90,7 @@ impl<'a, W: Clock + Sync, G: Clock + Sync> FieldServicePartsPreparationPorts
                 product_id: r.facts().product_id.clone(),
                 entry_date: date,
                 quantity_milli: *quantity_milli,
+                lot_identity_utf16: lot_identities(command)?,
                 allocations: allocations
                     .iter()
                     .map(|a| LotAllocation {
@@ -133,4 +134,23 @@ impl<'a, W: Clock + Sync, G: Clock + Sync> FieldServicePartsPreparationPorts
             value_minor: value.inventory.plan().valuation.value_minor,
         }
     }
+}
+
+// Extract original JavaScript string units from the normalized receipt input.
+pub(super) fn lot_identities(command: &FieldServicePartsCommand) -> Result<Vec<Vec<u16>>, Error> {
+    let array = field_service_parts_receipt_json(command.receipt_input())?
+        .property("allocations")?
+        .ok_or_else(changed)?;
+    array
+        .array_elements()?
+        .ok_or_else(changed)?
+        .into_iter()
+        .map(|entry| {
+            Ok(entry
+                .property("lotId")?
+                .ok_or_else(changed)?
+                .string_utf16_units()?
+                .ok_or_else(changed)?)
+        })
+        .collect()
 }

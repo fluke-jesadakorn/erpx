@@ -311,11 +311,34 @@ impl<S: Send + Sync> PgReservedConsumptionEffects<S> {
         sqlx::query("INSERT INTO operational_inventory_consumptions(id,company_id,branch_id,department_id,source_kind,source_id,source_version,warehouse_id,product_id,quantity_milli,value_minor,currency,movement_date,journal_id,reason,created_by,created_at) VALUES($1,$2,$3,$4,'field_service',$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)")
             .bind(&self.consumption_id).bind(p.selection.company_id.as_str()).bind(p.selection.branch_id.as_str()).bind(i.department_id.as_ref().map(RecordId::as_str)).bind(i.order_id.as_str()).bind(i.order_version_after).bind(p.selection.warehouse_id.as_str()).bind(p.selection.product_id.as_str()).bind(p.valuation.quantity_milli).bind(p.valuation.value_minor).bind(&p.config.currency).bind(&p.selection.entry_date).bind(i.journal_id.as_str()).bind(&i.reason).bind(i.actor_id.as_str()).bind(i.created_at.get()).execute(&mut *c).await?;
         for (index, cost) in p.valuation.lots.iter().enumerate() {
-            self.source.require_selected_lot_available(c, index).await?;
+            let previous = self.lots[..index]
+                .iter()
+                .position(|lot| lot.id == cost.allocation.lot_id);
+            if let Some(first) = previous {
+                let expected = &self.lots[first];
+                let first_cost = &p.valuation.lots[first];
+                let evidence: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM operational_inventory_consumption_lots WHERE id=$1 AND consumption_id=$2 AND lot_id=$3 AND quantity_milli=$4 AND value_minor=$5 AND source_balance_version=$6) AND EXISTS(SELECT 1 FROM inventory_lot_moves WHERE id=$7 AND lot_id=$3 AND warehouse_id=$8 AND source_type='field_service' AND source_id=$2 AND quantity_milli=-$4 AND value_minor=-$5 AND movement_date=$9 AND created_by=$10 AND created_at=$11)")
+                    .bind(format!("{}-lot-{first}",self.consumption_id)).bind(&self.consumption_id).bind(&first_cost.allocation.lot_id).bind(first_cost.allocation.quantity_milli).bind(first_cost.value_minor).bind(first_cost.allocation.balance_version).bind(format!("{}-lot-move-{first}",self.consumption_id)).bind(&p.selection.warehouse_id).bind(&p.selection.entry_date).bind(i.actor_id.as_str()).bind(i.created_at.get()).fetch_one(&mut *c).await?;
+                if !evidence {
+                    return Err(changed());
+                }
+                if other_balances(c, &expected.id, &p.selection).await? != expected.other_balances {
+                    return Err(changed());
+                }
+                self.source
+                    .require_selected_lot_image(c, index, Some(&expected.after))
+                    .await?;
+            } else {
+                self.source.require_selected_lot_available(c, index).await?;
+            }
             let n = sqlx::query("UPDATE inventory_lot_balances SET quantity_milli=quantity_milli-$1,value_minor=value_minor-$2,version=version+1 WHERE lot_id=$3 AND warehouse_id=$4 AND version=$5")
                 .bind(cost.allocation.quantity_milli).bind(cost.value_minor).bind(&cost.allocation.lot_id).bind(p.selection.warehouse_id.as_str()).bind(cost.allocation.balance_version).execute(&mut *c).await?.rows_affected();
             if n != 1 {
-                return Err(changed());
+                return Err(if previous.is_some() {
+                    guard_conflict()
+                } else {
+                    changed()
+                });
             }
             sqlx::query("UPDATE inventory_lots SET status=CASE WHEN NOT EXISTS(SELECT 1 FROM inventory_lot_balances WHERE lot_id=$1 AND quantity_milli>0) THEN 'depleted' ELSE status END WHERE id=$1")
                 .bind(&cost.allocation.lot_id).execute(&mut *c).await?;

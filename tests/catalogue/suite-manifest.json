@@ -68369,7 +68369,12 @@
         "tests/support/rust-postgres.rs",
         "packages/server-field_service/src/adapters/service.ts",
         "packages/server-field_service/src/application/service.ts",
-        "packages/server-field_service/src/adapters/finance-record-sources.ts"
+        "packages/server-field_service/src/adapters/finance-record-sources.ts",
+        "scripts/testing/fixtures/generate-field-service-lot-identity-oracle.mjs",
+        "fixtures/field_service/rust-parts/lot-identity.v1.json",
+        "packages/server-inventory/src/adapters/inventory-consumption.ts",
+        "packages/server-quality/src/adapters/inventory-hold-read-source.ts",
+        "packages/server-workflow/src/adapters/command-assertions.ts"
       ],
       "postgres": {
         "mode": "raw",

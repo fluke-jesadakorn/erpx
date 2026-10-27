@@ -56,6 +56,14 @@ impl<S: Send + Sync> PgFieldServiceConsumptionPreparation<S> {
         c: &mut PgConnection,
         index: usize,
     ) -> Result<(), Error> {
+        self.require_selected_lot_image(c, index, None).await
+    }
+    pub(super) async fn require_selected_lot_image(
+        &self,
+        c: &mut PgConnection,
+        index: usize,
+        expected: Option<&LotImage>,
+    ) -> Result<(), Error> {
         require_unit(c).await?;
         if transaction(c).await? != self.transaction {
             return Err(changed());
@@ -63,7 +71,9 @@ impl<S: Send + Sync> PgFieldServiceConsumptionPreparation<S> {
         let (id, before) = self.lots.get(index).ok_or_else(changed)?;
         self.commerce.require_current(c).await?;
         self.quality.require_current(c).await?;
-        if read_raw_lot(c, &self.plan.selection, id).await?.as_ref() != Some(before) {
+        if read_raw_lot(c, &self.plan.selection, id).await?.as_ref()
+            != Some(expected.unwrap_or(before))
+        {
             return Err(changed());
         }
         if self.quality.blocked_lots().iter().any(|lot| lot == id) {
@@ -121,17 +131,18 @@ where
         .finance_source
         .take()
         .ok_or_else(|| PersistenceError::new("INVENTORY_CONSUMPTION_FINANCE_REQUIRED"))?;
+    let mut physical_ids = Vec::new();
+    for allocation in &plan.selection.allocations {
+        if !physical_ids.contains(&allocation.lot_id) {
+            physical_ids.push(allocation.lot_id.clone());
+        }
+    }
     let request = RawConsumptionHoldRequest {
         company_id: plan.selection.company_id.clone(),
         branch_id: plan.selection.branch_id.clone(),
         warehouse_id: plan.selection.warehouse_id.clone(),
         product_id: plan.selection.product_id.clone(),
-        lot_ids: plan
-            .selection
-            .allocations
-            .iter()
-            .map(|a| a.lot_id.clone())
-            .collect(),
+        lot_ids: physical_ids,
     };
     let quality = quality::read_consumption_holds_raw(ports.c, &request).await?;
     let transaction = transaction(ports.c).await?;

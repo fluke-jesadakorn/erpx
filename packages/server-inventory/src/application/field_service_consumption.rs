@@ -20,6 +20,7 @@ pub struct FieldServiceConsumptionSelection {
     pub entry_date: String,
     pub quantity_milli: i64,
     pub allocations: Vec<LotAllocation>,
+    pub lot_identity_utf16: Vec<Vec<u16>>,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FieldServiceConsumptionPlan {
@@ -100,7 +101,12 @@ where
         .into());
     }
     let observation = observe();
-    require_raw_lot_allocations(&stock, selection.quantity_milli, &selection.allocations)?;
+    require_raw_lot_allocations(
+        &stock,
+        selection.quantity_milli,
+        &selection.allocations,
+        &selection.lot_identity_utf16,
+    )?;
     let mut lots = Vec::with_capacity(selection.allocations.len());
     for allocation in &selection.allocations {
         let lot = ports.lot(&selection, allocation).await?;
@@ -127,6 +133,7 @@ fn require_raw_lot_allocations(
     stock: &StockValuation,
     quantity: i64,
     allocations: &[LotAllocation],
+    identities: &[Vec<u16>],
 ) -> Result<(), BusinessError> {
     let required = || {
         BusinessError::invalid(
@@ -134,7 +141,7 @@ fn require_raw_lot_allocations(
             "Select the full spare quantity from distinct available lots or serials.",
         )
     };
-    if allocations.len() > 500 {
+    if allocations.len() > 500 || allocations.len() != identities.len() {
         return Err(required());
     }
     if stock.tracking_mode == TrackingMode::None {
@@ -148,13 +155,14 @@ fn require_raw_lot_allocations(
     }
     let mut ids = BTreeSet::new();
     let mut sum = 0_i64;
-    for lot in allocations {
+    for (lot, identity) in allocations.iter().zip(identities) {
         safe(lot.quantity_milli)?;
         safe(lot.balance_version)?;
-        if lot.lot_id.is_empty()
+        if String::from_utf16_lossy(identity) != lot.lot_id
+            || lot.lot_id.is_empty()
             || lot.quantity_milli <= 0
             || lot.balance_version <= 0
-            || !ids.insert(&lot.lot_id)
+            || !ids.insert(identity)
         {
             return Err(required());
         }

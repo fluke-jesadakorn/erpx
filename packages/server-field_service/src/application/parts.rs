@@ -5,7 +5,6 @@ use crate::domain::parts::{FieldServicePartsActionKind, require_future_reservati
 use erpx_server_shared::public::{
     BusinessError, CommandKey, FailureKind, RecordId, TimestampMillis,
 };
-use erpx_server_workflow::public::commands::CommandJson;
 use std::future::Future;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -56,18 +55,27 @@ impl FieldServicePartsInput {
         }
     }
 }
+/// Encoded normalized input, constructed only by the checked wire adapter.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EncodedFieldServiceInput(pub(crate) String);
+impl EncodedFieldServiceInput {
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
 /// Validated request data, no source/current-actor factory. Only this owner's
 /// schema adapter constructs the normalized receipt identity.
 #[derive(Clone)]
 pub struct NormalizedFieldServiceParts {
     pub(crate) input: FieldServicePartsInput,
-    pub(crate) receipt_input: CommandJson,
+    pub(crate) receipt_input: EncodedFieldServiceInput,
 }
 impl NormalizedFieldServiceParts {
     pub fn input(&self) -> &FieldServicePartsInput {
         &self.input
     }
-    pub fn receipt_input(&self) -> &CommandJson {
+    pub fn receipt_input(&self) -> &EncodedFieldServiceInput {
         &self.receipt_input
     }
     pub fn into_command(self, key: CommandKey, order_id: RecordId) -> FieldServicePartsCommand {
@@ -94,7 +102,7 @@ impl FieldServicePartsCommand {
     pub fn input(&self) -> &FieldServicePartsInput {
         &self.normalized.input
     }
-    pub fn receipt_input(&self) -> &CommandJson {
+    pub fn receipt_input(&self) -> &EncodedFieldServiceInput {
         &self.normalized.receipt_input
     }
     pub fn operation(&self) -> &'static str {
@@ -133,12 +141,21 @@ pub trait FieldServicePartsPreparationPorts: Send {
     ) -> impl Future<Output = Result<Self::Consumption, Self::Error>> + Send;
     fn consumption_facts(value: &Self::Consumption) -> FieldServicePreparedConsumptionFacts<'_>;
 }
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum FieldServicePartsDetails {
+    Reserve,
+    Issue {
+        consumption_id: String,
+        cost_minor: i64,
+        journal_id: String,
+    },
+}
 /// Owns only prepared data/effects. Persistence still requires the actual
 /// original owner source, same unit, late version CAS and after-image proof.
 pub struct PreparedFieldServiceParts<C> {
     command: FieldServicePartsCommand,
     at: TimestampMillis,
-    details: CommandJson,
+    details: FieldServicePartsDetails,
     consumption: Option<C>,
 }
 impl<C> PreparedFieldServiceParts<C> {
@@ -148,7 +165,7 @@ impl<C> PreparedFieldServiceParts<C> {
     pub fn application_at(&self) -> TimestampMillis {
         self.at
     }
-    pub fn details(&self) -> &CommandJson {
+    pub fn details(&self) -> &FieldServicePartsDetails {
         &self.details
     }
     pub fn consumption(&self) -> Option<&C> {
@@ -168,14 +185,7 @@ pub async fn prepare_new_field_service_parts<P: FieldServicePartsPreparationPort
     let (details, consumption) = match command.input() {
         FieldServicePartsInput::Reserve { expires_at, .. } => {
             require_future_reservation(*expires_at, now.get())?;
-            (
-                object(&[
-                    ("warehouseId", original(command, "warehouseId")?),
-                    ("productId", original(command, "productId")?),
-                    ("quantityMilli", original(command, "quantityMilli")?),
-                ])?,
-                None,
-            )
+            (FieldServicePartsDetails::Reserve, None)
         }
         FieldServicePartsInput::Issue { reservation_id, .. } => {
             let reservation = ports
@@ -192,22 +202,11 @@ pub async fn prepare_new_field_service_parts<P: FieldServicePartsPreparationPort
                 .prepare_consumption(source, &reservation, command, now)
                 .await?;
             let facts = P::consumption_facts(&consumption);
-            let details = object(&[
-                ("reservationId", original(command, "reservationId")?),
-                ("quantityMilli", original(command, "quantityMilli")?),
-                (
-                    "consumptionId",
-                    CommandJson::from_serializable(&facts.consumption_id)?,
-                ),
-                (
-                    "costMinor",
-                    CommandJson::from_serializable(&facts.value_minor)?,
-                ),
-                (
-                    "journalId",
-                    CommandJson::from_serializable(&facts.journal_id)?,
-                ),
-            ])?;
+            let details = FieldServicePartsDetails::Issue {
+                consumption_id: facts.consumption_id.to_owned(),
+                cost_minor: facts.value_minor,
+                journal_id: facts.journal_id.to_owned(),
+            };
             (details, Some(consumption))
         }
     };
@@ -217,25 +216,4 @@ pub async fn prepare_new_field_service_parts<P: FieldServicePartsPreparationPort
         details,
         consumption,
     })
-}
-fn original(command: &FieldServicePartsCommand, name: &str) -> Result<CommandJson, BusinessError> {
-    command.receipt_input().property(name)?.ok_or_else(|| {
-        BusinessError::invalid(
-            "FIELD_SERVICE_COMMAND_INPUT",
-            "Retain the normalized original Service command.",
-        )
-    })
-}
-fn object(fields: &[(&str, CommandJson)]) -> Result<CommandJson, BusinessError> {
-    let mut text = String::from("{");
-    for (index, (name, value)) in fields.iter().enumerate() {
-        if index > 0 {
-            text.push(',');
-        }
-        text.push_str(CommandJson::from_serializable(name)?.as_str());
-        text.push(':');
-        text.push_str(value.as_str());
-    }
-    text.push('}');
-    CommandJson::parse(&text)
 }

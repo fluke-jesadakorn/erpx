@@ -1,7 +1,9 @@
 //! Exact original Field Service parts schema normalization; command data only.
 use crate::application::parts::{
-    FieldServiceLotSelection, FieldServicePartsInput, NormalizedFieldServiceParts,
+    EncodedFieldServiceInput, FieldServiceLotSelection, FieldServicePartsCommand,
+    FieldServicePartsDetails, FieldServicePartsInput, NormalizedFieldServiceParts,
 };
+use erpx_server_shared::public::BusinessError;
 use erpx_server_workflow::public::commands::CommandJson;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum FieldServiceIssuePath {
@@ -357,6 +359,60 @@ pub fn normalize_field_service_parts(
     };
     Ok(NormalizedFieldServiceParts {
         input,
-        receipt_input: json,
+        receipt_input: EncodedFieldServiceInput(json.as_str().to_owned()),
     })
+}
+
+/// Reconstruct the validated original without changing its UTF-16 string units.
+pub fn field_service_parts_receipt_json(
+    input: &EncodedFieldServiceInput,
+) -> Result<CommandJson, BusinessError> {
+    CommandJson::parse(input.as_str())
+}
+/// Encode the semantic transition at the original application boundary.
+pub fn field_service_parts_details_json(
+    command: &FieldServicePartsCommand,
+    details: &FieldServicePartsDetails,
+) -> Result<CommandJson, BusinessError> {
+    let original = field_service_parts_receipt_json(command.receipt_input())?;
+    let field = |name: &str| {
+        original.property(name)?.ok_or_else(|| {
+            BusinessError::invalid(
+                "FIELD_SERVICE_COMMAND_INPUT",
+                "Retain the normalized original Service command.",
+            )
+        })
+    };
+    let fields: Vec<(&str, CommandJson)> = match details {
+        FieldServicePartsDetails::Reserve => vec![
+            ("warehouseId", field("warehouseId")?),
+            ("productId", field("productId")?),
+            ("quantityMilli", field("quantityMilli")?),
+        ],
+        FieldServicePartsDetails::Issue {
+            consumption_id,
+            cost_minor,
+            journal_id,
+        } => vec![
+            ("reservationId", field("reservationId")?),
+            ("quantityMilli", field("quantityMilli")?),
+            (
+                "consumptionId",
+                CommandJson::from_serializable(consumption_id)?,
+            ),
+            ("costMinor", CommandJson::from_serializable(cost_minor)?),
+            ("journalId", CommandJson::from_serializable(journal_id)?),
+        ],
+    };
+    let mut text = String::from("{");
+    for (index, (name, value)) in fields.iter().enumerate() {
+        if index > 0 {
+            text.push(',');
+        }
+        text.push_str(CommandJson::from_serializable(name)?.as_str());
+        text.push(':');
+        text.push_str(value.as_str());
+    }
+    text.push('}');
+    CommandJson::parse(&text)
 }

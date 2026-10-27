@@ -258,8 +258,8 @@ fn original_new_command_preparation_keeps_reservation_quote_and_late_version_ord
                 let transition =
                     CommandJson::parse(expected[final_call][5].as_str().unwrap()).unwrap();
                 assert_eq!(
-                    plan.details(),
-                    &transition.property("details").unwrap().unwrap(),
+                    field_service_parts_details_json(&command, plan.details()).unwrap(),
+                    transition.property("details").unwrap().unwrap(),
                     "{}",
                     case["id"]
                 );
@@ -275,4 +275,56 @@ fn original_new_command_preparation_keeps_reservation_quote_and_late_version_ord
         observed += 1;
     }
     assert_eq!(observed, 7);
+}
+
+#[test]
+fn boundary_preserves_original_utf16_and_ordered_semantic_event_details() {
+    use erpx_server_shared::public::{CommandKey, RecordId};
+    let reserve=normalize_field_service_parts(r#"{"action":"reserve-part","expectedVersion":1,"warehouseId":"\ud800","productId":"ไทย","quantityMilli":1000,"expiresAt":1800000000101,"reason":"Reserve"}"#.as_bytes()).unwrap().into_command(CommandKey::new("boundary-reserve").unwrap(),RecordId::new("order").unwrap());
+    let receipt = field_service_parts_receipt_json(reserve.receipt_input()).unwrap();
+    assert_eq!(
+        receipt
+            .property("warehouseId")
+            .unwrap()
+            .unwrap()
+            .string_utf16_units()
+            .unwrap()
+            .unwrap(),
+        vec![0xd800]
+    );
+    let details =
+        field_service_parts_details_json(&reserve, &FieldServicePartsDetails::Reserve).unwrap();
+    assert_eq!(
+        details.as_str(),
+        r#"{"warehouseId":"\ud800","productId":"ไทย","quantityMilli":1000}"#
+    );
+    let issue=normalize_field_service_parts(br#"{"action":"issue-part","expectedVersion":2,"reservationId":"r\u0000\ud801","quantityMilli":500,"allocations":[{"lotId":"\ud800","quantityMilli":500,"balanceVersion":1}],"reason":"Issue"}"#).unwrap().into_command(CommandKey::new("boundary-issue").unwrap(),RecordId::new("order").unwrap());
+    let original = field_service_parts_receipt_json(issue.receipt_input()).unwrap();
+    let units = original
+        .property("allocations")
+        .unwrap()
+        .unwrap()
+        .array_elements()
+        .unwrap()
+        .unwrap()[0]
+        .property("lotId")
+        .unwrap()
+        .unwrap()
+        .string_utf16_units()
+        .unwrap()
+        .unwrap();
+    assert_eq!(units, vec![0xd800]);
+    let detail = field_service_parts_details_json(
+        &issue,
+        &FieldServicePartsDetails::Issue {
+            consumption_id: "consume".into(),
+            cost_minor: 123,
+            journal_id: "journal".into(),
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        detail.as_str(),
+        r#"{"reservationId":"r\u0000\ud801","quantityMilli":500,"consumptionId":"consume","costMinor":123,"journalId":"journal"}"#
+    );
 }

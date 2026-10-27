@@ -687,3 +687,130 @@ async fn deferred_owner_finance_inbox_and_lot_faults_are_observed_and_atomically
         }).await;
     }
 }
+
+#[tokio::test]
+async fn malformed_lot_units_keep_early_duplicate_and_late_physical_alias_boundaries() {
+    for scenario in [
+        "single",
+        "duplicate",
+        "lexical",
+        "alias",
+        "replacement",
+        "quote",
+        "stale",
+        "lot-tamper",
+        "other-tamper",
+    ] {
+        account::with_system(move |system| async move {
+            let p=setup_tracking(system,"lot").await;
+            let mut fixture=p.pool().raw().begin().await.unwrap();
+            sqlx::query("INSERT INTO inventory_lots(id,company_id,product_id,tracking_mode,lot_code,created_by,created_at)VALUES('�','company','product','lot','RAW-REPLACEMENT','fixture-a',0)").execute(&mut *fixture).await.unwrap();
+            sqlx::query("UPDATE inventory_lot_balances SET quantity_milli=quantity_milli-1000,value_minor=value_minor-200 WHERE lot_id='lot-1' AND warehouse_id='warehouse'").execute(&mut *fixture).await.unwrap();
+            sqlx::query("INSERT INTO inventory_lot_balances(lot_id,warehouse_id,quantity_milli,value_minor)VALUES('�','warehouse',1000,200)").execute(&mut *fixture).await.unwrap();
+            sqlx::query("INSERT INTO commerce_warehouses(id,company_id,branch_id,code,name) VALUES('malformed-other','company','branch','MALFORMED-OTHER','Synthetic other')").execute(&mut *fixture).await.unwrap();
+            sqlx::query("INSERT INTO inventory_lot_balances(lot_id,warehouse_id,quantity_milli,value_minor)VALUES('�','malformed-other',0,0)").execute(&mut *fixture).await.unwrap();fixture.commit().await.unwrap();
+            if scenario=="quote" {sqlx::raw_sql("UPDATE finance_charts SET base_currency='EUR' WHERE id='chart';UPDATE finance_accounts SET currency='EUR' WHERE id IN ('inventory','expense')").execute(p.pool().raw()).await.unwrap();}
+            sqlx::raw_sql("CREATE SEQUENCE malformed_lot_seen;CREATE FUNCTION malformed_lot_mark() RETURNS trigger LANGUAGE plpgsql AS $$BEGIN IF NEW.lot_id='�' THEN PERFORM nextval('malformed_lot_seen'); END IF; RETURN NEW; END$$;CREATE TRIGGER malformed_lot_mark BEFORE UPDATE ON inventory_lot_balances FOR EACH ROW EXECUTE FUNCTION malformed_lot_mark()").execute(p.pool().raw()).await.unwrap();
+            if scenario=="lot-tamper" || scenario=="other-tamper" {
+                let body=if scenario=="lot-tamper" {"UPDATE inventory_lots SET lot_code='TAMPERED' WHERE id='�'"} else {"UPDATE inventory_lot_balances SET version=version+1 WHERE lot_id='�' AND warehouse_id='malformed-other'"};
+                let sql=format!("CREATE SEQUENCE malformed_tamper_seen;CREATE FUNCTION malformed_tamper() RETURNS trigger LANGUAGE plpgsql AS $$BEGIN PERFORM nextval('malformed_tamper_seen');{body};RETURN NEW;END$$;CREATE TRIGGER malformed_tamper AFTER INSERT ON inventory_lot_moves FOR EACH ROW WHEN(NEW.source_id='operational-part-malformed-lot-{scenario}') EXECUTE FUNCTION malformed_tamper()");
+                sqlx::raw_sql(sqlx::AssertSqlSafe(sql)).execute(p.pool().raw()).await.unwrap();
+            }
+            let before:serde_json::Value=sqlx::query_scalar("SELECT jsonb_build_array((SELECT to_jsonb(o) FROM field_service_orders o WHERE id='issue-order'),(SELECT to_jsonb(r) FROM field_service_part_reservations r WHERE id='reserved-part'),(SELECT to_jsonb(s) FROM commerce_stock s WHERE warehouse_id='warehouse' AND product_id='product'),(SELECT to_jsonb(t) FROM support_tickets t WHERE id='ticket-issue-order'),(SELECT to_jsonb(l) FROM inventory_lots l WHERE id='�'),(SELECT jsonb_agg(to_jsonb(b) ORDER BY warehouse_id) FROM inventory_lot_balances b WHERE lot_id='�'))").fetch_one(p.pool().raw()).await.unwrap();
+            let second=match scenario {"duplicate"=>r#"\ud800"#,"lexical"=>r#"\uD800"#,"replacement"=>"�",_=>r#"\ud801"#};
+            let allocations=if scenario=="single" {r#"[{"lotId":"\ud800","quantityMilli":1000,"balanceVersion":1}]"#.to_owned()} else {format!(r#"[{{"lotId":"\ud800","quantityMilli":500,"balanceVersion":1}},{{"lotId":"{second}","quantityMilli":500,"balanceVersion":1}}]"#)};
+            let version=if scenario=="stale" {4}else{3};let raw=format!(r#"{{"action":"issue-part","expectedVersion":{version},"reservationId":"reserved-part","quantityMilli":1000,"entryDate":"2026-01-10","allocations":{allocations},"reason":"Malformed lot probe"}}"#);
+            let key=format!("malformed-lot-{scenario}");let result=p.execute("issue-order",&key,&raw).await;
+            if scenario=="single" {
+                assert!(!result.unwrap().replayed);assert!(p.execute("issue-order",&key,&raw).await.unwrap().replayed);
+                let changed=raw.replace(r#"\ud800"#,r#"\ud801"#);business(p.execute("issue-order",&key,&changed).await,"IDEMPOTENCY_CONFLICT");
+                assert_eq!(p.counts(&key).await,(1,1,1,1,1));
+                let evidence:(String,i64,i64,i64)=sqlx::query_as("SELECT lot_id,quantity_milli,value_minor,source_balance_version FROM operational_inventory_consumption_lots WHERE consumption_id=$1").bind(format!("operational-part-{key}")).fetch_one(p.pool().raw()).await.unwrap();assert_eq!(evidence,("�".into(),1000,200,1));
+                let moved:(String,i64,i64)=sqlx::query_as("SELECT lot_id,quantity_milli,value_minor FROM inventory_lot_moves WHERE source_id=$1").bind(format!("operational-part-{key}")).fetch_one(p.pool().raw()).await.unwrap();assert_eq!(moved,("�".into(),-1000,-200));
+                let state:(String,i64,i64,i64,i64,i64,i64)=sqlx::query_as("SELECT l.status,b.quantity_milli,b.value_minor,s.quantity_milli,s.value_minor,s.version,r.consumed_milli FROM inventory_lots l JOIN inventory_lot_balances b ON b.lot_id=l.id AND b.warehouse_id='warehouse' JOIN commerce_stock s ON s.warehouse_id=b.warehouse_id AND s.product_id=l.product_id JOIN field_service_part_reservations r ON r.id='reserved-part' WHERE l.id='�'").fetch_one(p.pool().raw()).await.unwrap();assert_eq!(state,("depleted".into(),0,0,4000,800,4,1000));
+                let details:serde_json::Value=sqlx::query_scalar("SELECT details_json FROM field_service_order_events WHERE id=$1").bind(format!("service-order-event-{key}")).fetch_one(p.pool().raw()).await.unwrap();assert!(details.get("allocations").is_none());
+                let journal=p.journal(&key).await;let posted=p.review.review(&journal,"malformed-lot-finance",post()).await.unwrap();assert!(matches!(posted,erpx_server_finance::public::journal_review::JournalReviewResult::Posted{version:2,..}));
+            } else {
+                business(result,match scenario {"duplicate"|"lexical"=>"PART_LOT_ALLOCATION_REQUIRED","quote"=>"MANUAL_RATE_REQUIRED","lot-tamper"|"other-tamper"=>"INVENTORY_CONSUMPTION_SOURCE_CHANGED",_=>"CONFLICT"});
+                assert_eq!(p.counts(&key).await,(0,0,0,0,0));
+                let observed:bool=sqlx::query_scalar("SELECT is_called FROM malformed_lot_seen").fetch_one(p.pool().raw()).await.unwrap();assert_eq!(observed,matches!(scenario,"alias"|"replacement"|"lot-tamper"|"other-tamper"));
+                if matches!(scenario,"lot-tamper"|"other-tamper") {assert!(sqlx::query_scalar::<_,bool>("SELECT is_called FROM malformed_tamper_seen").fetch_one(p.pool().raw()).await.unwrap());}
+                let balance:(i64,i64,i64)=sqlx::query_as("SELECT quantity_milli,value_minor,version FROM inventory_lot_balances WHERE lot_id='�' AND warehouse_id='warehouse'").fetch_one(p.pool().raw()).await.unwrap();assert_eq!(balance,(1000,200,1));
+                let after:serde_json::Value=sqlx::query_scalar("SELECT jsonb_build_array((SELECT to_jsonb(o) FROM field_service_orders o WHERE id='issue-order'),(SELECT to_jsonb(r) FROM field_service_part_reservations r WHERE id='reserved-part'),(SELECT to_jsonb(s) FROM commerce_stock s WHERE warehouse_id='warehouse' AND product_id='product'),(SELECT to_jsonb(t) FROM support_tickets t WHERE id='ticket-issue-order'),(SELECT to_jsonb(l) FROM inventory_lots l WHERE id='�'),(SELECT jsonb_agg(to_jsonb(b) ORDER BY warehouse_id) FROM inventory_lot_balances b WHERE lot_id='�'))").fetch_one(p.pool().raw()).await.unwrap();assert_eq!(after,before);
+                let counts:(i64,i64,i64,i64,i64,i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM finance_journals),(SELECT count(*) FROM finance_journal_lines),(SELECT count(*) FROM money_transaction_snapshots),(SELECT count(*) FROM operational_inventory_consumption_lots),(SELECT count(*) FROM inventory_lot_moves),(SELECT count(*) FROM field_service_order_events WHERE id=$1),(SELECT count(*) FROM support_ticket_events WHERE id=$2),(SELECT count(*) FROM inbox_deliveries WHERE id=$3)").bind(format!("service-order-event-{key}")).bind(format!("ticket-service-event-service-order-event-{key}")).bind(format!("service-order-notice-{key}")).fetch_one(p.pool().raw()).await.unwrap();assert_eq!(counts,(0,0,0,0,0,0,0,0));
+                assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM inbox_events WHERE id=$1").bind(format!("legacy:service-order-notice-{key}")).fetch_one(p.pool().raw()).await.unwrap(),0);
+            }
+        }).await;
+    }
+}
+
+// Exact retained SQL guard and assertion wrapper, tested at their SQL boundary;
+// this does not execute the complete retained application or its transaction.
+#[tokio::test]
+async fn retained_lot_guard_assertion_observes_first_write_and_rejects_original_second_version() {
+    let source =
+        include_str!("../../../packages/server-inventory/src/adapters/inventory-consumption.ts");
+    let body=source.split("guardLotAvailability(key:string,value:string,lotId:string,warehouseId:string,balanceVersion:number,quantityMilli:number,entryDate:string){return assertion(db,key,value,`").nth(1).unwrap().split('`').next().unwrap();
+    assert_eq!(body,"EXISTS(SELECT 1 FROM inventory_lot_balances b JOIN inventory_lots l ON l.id=b.lot_id WHERE b.lot_id=? AND b.warehouse_id=? AND b.version=? AND b.quantity_milli>=?\n     AND l.status='active' AND (l.expiry_date IS NULL OR l.expiry_date>=?) AND NOT EXISTS(SELECT 1 ${inventoryQualityHoldReadSource()} WHERE h.lot_id=l.id AND h.warehouse_id=b.warehouse_id AND h.status NOT IN ('released','cancelled','disposed'))) ".trim_end());
+    let quality =
+        include_str!("../../../packages/server-quality/src/adapters/inventory-hold-read-source.ts");
+    let projection = quality
+        .split("return '")
+        .nth(1)
+        .unwrap()
+        .split('\'')
+        .next()
+        .unwrap();
+    assert_eq!(
+        projection,
+        "FROM (SELECT warehouse_id, product_id, lot_id, status FROM inventory_quality_holds) h"
+    );
+    let wrapper =
+        include_str!("../../../packages/server-workflow/src/adapters/command-assertions.ts")
+            .split("db.prepare(`")
+            .nth(1)
+            .unwrap()
+            .split('`')
+            .next()
+            .unwrap();
+    assert_eq!(
+        wrapper,
+        "INSERT INTO command_assertions(command_id,step,ok) VALUES(?,?,CASE WHEN (${query}) THEN 1 ELSE 0 END)"
+    );
+    let guard = body.replace("${inventoryQualityHoldReadSource()}", projection);
+    let combined = wrapper.replace("${query}", &guard);
+    let mut n = 0;
+    let sql = combined.chars().fold(String::new(), |mut out, c| {
+        if c == '?' {
+            n += 1;
+            out.push_str(&format!("${n}"));
+        } else {
+            out.push(c);
+        }
+        out
+    });
+    assert_eq!(n, 7);
+    let oracle: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../fixtures/field_service/rust-parts/lot-identity.v1.json"
+    ))
+    .unwrap();
+    assert!(
+        oracle["driverVectors"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|v| v["units"] == serde_json::json!([55296]) && v["utf8Hex"] == "efbfbd")
+    );
+    account::with_system(move|system|async move {
+        let p=setup_tracking(system,"lot").await;let mut tx=p.pool().raw().begin().await.unwrap();
+        sqlx::query("INSERT INTO inventory_lots(id,company_id,product_id,tracking_mode,lot_code,created_by,created_at)VALUES('�','company','product','lot','SQL-RAW','fixture-a',0)").execute(&mut *tx).await.unwrap();
+        sqlx::query("UPDATE inventory_lot_balances SET quantity_milli=quantity_milli-1000,value_minor=value_minor-200 WHERE lot_id='lot-1' AND warehouse_id='warehouse'").execute(&mut *tx).await.unwrap();
+        sqlx::query("INSERT INTO inventory_lot_balances(lot_id,warehouse_id,quantity_milli,value_minor)VALUES('�','warehouse',1000,200)").execute(&mut *tx).await.unwrap();
+        sqlx::query(sqlx::AssertSqlSafe(sql.as_str())).bind("sql-guard").bind("first").bind("�").bind("warehouse").bind(1_i64).bind(500_i64).bind("2026-01-10").execute(&mut *tx).await.unwrap();
+        sqlx::query("UPDATE inventory_lot_balances SET quantity_milli=quantity_milli-500,value_minor=value_minor-100,version=version+1 WHERE lot_id='�' AND warehouse_id='warehouse'").execute(&mut *tx).await.unwrap();
+        let balance:(i64,i64,i64)=sqlx::query_as("SELECT quantity_milli,value_minor,version FROM inventory_lot_balances WHERE lot_id='�' AND warehouse_id='warehouse'").fetch_one(&mut *tx).await.unwrap();assert_eq!(balance,(500,100,2));
+        sqlx::query("SAVEPOINT second_guard").execute(&mut *tx).await.unwrap();
+        let err=sqlx::query(sqlx::AssertSqlSafe(sql.as_str())).bind("sql-guard").bind("second").bind("�").bind("warehouse").bind(1_i64).bind(500_i64).bind("2026-01-10").execute(&mut *tx).await.unwrap_err();assert_eq!(err.as_database_error().and_then(|e|e.code()).as_deref(),Some("23514"));
+        sqlx::query("ROLLBACK TO SAVEPOINT second_guard").execute(&mut *tx).await.unwrap();tx.rollback().await.unwrap();
+    }).await;
+}

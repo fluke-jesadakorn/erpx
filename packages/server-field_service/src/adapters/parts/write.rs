@@ -2,6 +2,7 @@
 //! these immutable parameters at the original event INSERT position; returned
 //! or post-trigger rows never become the expected baseline.
 use super::{intent::*, source::*};
+use crate::adapters::parts_wire::field_service_parts_receipt_json;
 use crate::application::parts::{FieldServicePartsCommand, FieldServicePartsInput};
 use erpx_server_shared::public::{BusinessError, FailureKind, TimestampMillis, UserId};
 use erpx_server_workflow::public::commands::CommandJson;
@@ -31,8 +32,9 @@ impl FieldServiceOrderIntent {
             }
             FieldServicePartsInput::Issue { .. } => &["reservationId", "quantityMilli"][..],
         };
+        let original = field_service_parts_receipt_json(self.command.receipt_input())?;
         for name in names {
-            if details.property(name)? != self.command.receipt_input().property(name)? {
+            if details.property(name)? != original.property(name)? {
                 return Err(changed());
             }
         }

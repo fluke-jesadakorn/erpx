@@ -78,6 +78,7 @@ impl<'p, 'a> PreparedPartsSource<'p, 'a> {
             || entry_date
                 .as_ref()
                 .is_some_and(|date| date != &p.selection.entry_date)
+            || super::preparation::lot_identities(work.command())? != p.selection.lot_identity_utf16
             || allocations.len() != p.selection.allocations.len()
             || allocations
                 .iter()

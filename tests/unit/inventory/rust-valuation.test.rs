@@ -354,6 +354,11 @@ async fn field_service_raw_lot_identity_preserves_planning_checks_and_legacy_bou
             product_id: typed.product_id.as_str().into(),
             entry_date: typed.entry_date.clone(),
             quantity_milli: typed.quantity_milli,
+            lot_identity_utf16: typed
+                .allocations
+                .iter()
+                .map(|a| a.lot_id.encode_utf16().collect())
+                .collect(),
             allocations: typed.allocations.clone(),
         };
         let mut ports = Ports {
@@ -388,7 +393,12 @@ async fn field_service_raw_lot_identity_preserves_planning_checks_and_legacy_bou
             let mut selection = raw.clone();
             let mut fixture = row.clone();
             match case {
-                "duplicate" => selection.allocations.push(selection.allocations[0].clone()),
+                "duplicate" => {
+                    selection.allocations.push(selection.allocations[0].clone());
+                    selection
+                        .lot_identity_utf16
+                        .push(selection.lot_identity_utf16[0].clone());
+                }
                 "sum" => selection.allocations[0].quantity_milli -= 1,
                 _ => fixture["stock"]["tracking_mode"] = json!("none"),
             };
@@ -411,6 +421,65 @@ async fn field_service_raw_lot_identity_preserves_planning_checks_and_legacy_bou
                 }
             );
             assert!(observed);
+            assert_eq!(ports.queries, vec!["stock", "config", "periods"]);
+        }
+    }
+}
+
+#[tokio::test]
+async fn field_service_utf16_lot_slots_preserve_original_identity_and_storage_binding() {
+    let mut row = corpus()["consumption"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|v| v["id"] == "lot-partial")
+        .unwrap()
+        .clone();
+    let lot = row["lots"]["lot-a"].clone();
+    row["lots"] = json!({"�":lot});
+    let typed = selection(&row);
+    let allocation = LotAllocation {
+        lot_id: "�".into(),
+        quantity_milli: 1500,
+        balance_version: 3,
+    };
+    let raw = FieldServiceConsumptionSelection {
+        company_id: typed.company_id,
+        branch_id: typed.branch_id,
+        warehouse_id: "warehouse".into(),
+        product_id: "product".into(),
+        entry_date: typed.entry_date,
+        quantity_milli: 3000,
+        allocations: vec![allocation.clone(), allocation],
+        lot_identity_utf16: vec![vec![0xd800], vec![0xd801]],
+    };
+    for (ids, success) in [
+        (vec![vec![0xd800], vec![0xd801]], true),
+        (vec![vec![0xd800], vec![0xfffd]], true),
+        (vec![vec![0xd800], vec![0xd800]], false),
+        (vec![vec![0xd800]], false),
+        (vec![vec![0xd800], vec![0x61]], false),
+    ] {
+        let mut input = raw.clone();
+        input.lot_identity_utf16 = ids;
+        let mut ports = Ports {
+            row: row.clone(),
+            queries: vec![],
+        };
+        let mut observed = false;
+        let result = prepare_field_service_consumption_observed(&mut ports, input, || {
+            observed = true;
+        })
+        .await;
+        assert!(observed);
+        if success {
+            assert!(result.is_ok());
+            assert_eq!(
+                ports.queries,
+                vec!["stock", "config", "periods", "lot:�", "lot:�"]
+            );
+        } else {
+            assert_eq!(result.unwrap_err().code, "PART_LOT_ALLOCATION_REQUIRED");
             assert_eq!(ports.queries, vec!["stock", "config", "periods"]);
         }
     }
