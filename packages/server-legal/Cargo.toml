@@ -8,7 +8,7 @@ publish.workspace = true
 autotests = false
 
 [package.metadata.erpx]
-verification-roots = ["../../fixtures/legal/pdf-signatures", "../../fixtures/legal/documents", "../../tests/support/legal"]
+verification-roots = ["licenses", "../../fixtures/legal/pdf-signatures", "../../fixtures/legal/documents", "../../tests/support/legal"]
 
 [lib]
 path = "src/lib.rs"

@@ -2,10 +2,11 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import {execFileSync}from'node:child_process';
 import { cargoCaseResults, cargoChildEnvironment, cargoQualityFeatureArguments, cargoSuiteArguments, cargoTestTargets, validateCargoSuite } from '../../../scripts/testing/cargo';
 import { parseTestArguments } from '../../../scripts/testing/arguments';
 import type { Suite } from '../../../scripts/testing/catalogue';
-import { createWorkspaceGraph, dependencyClosure, selectCandidateSuites, selectWorkspaceSuites, workspaceFingerprint } from '../../../scripts/testing/workspace-graph';
+import { createWorkspaceGraph, dependencyClosure, selectCandidateSuites, selectWorkspaceSuites, workspaceFingerprint,loadWorkspaceGraph,loadRevisionWorkspaceGraph,changedWorkspaceFiles } from '../../../scripts/testing/workspace-graph';
 import { runtimeOwnerCycles } from '../../../scripts/architecture/owner-cycles';
 
 const shared = 'packages/server-shared/Cargo.toml', runtime = 'packages/server-runtime/Cargo.toml';
@@ -33,6 +34,38 @@ function fixtureRoot() {
 }
 
 describe('Rust catalogue and source selection', () => {
+  it('maps only manifest-declared owner licenses from exact Git revisions without ignoring unknown text changes',()=>{
+    const root=fixtureRoot(),commercial='packages/server-commercial/Cargo.toml',legal='packages/server-legal/Cargo.toml';
+    const commercialTest='tests/unit/commercial/rust-package-capabilities.test.rs',legalTest='tests/unit/legal/rust-record-policy.test.rs';
+    const licenses=['packages/server-commercial/licenses/ICU4X-Unicode-3.0.txt','packages/server-legal/licenses/dingbat-to-unicode-BSD-2-Clause.txt'];
+    const write=(file:string,value:string)=>{mkdirSync(dirname(join(root,file)),{recursive:true});writeFileSync(join(root,file),value);};
+    const git=(...args:string[])=>execFileSync('git',args,{cwd:root,encoding:'utf8'}).trim();
+    for(const[manifest,name,file,target]of[[commercial,'erpx-server-commercial',commercialTest,'package_capabilities'],[legal,'erpx-server-legal',legalTest,'record_policy']]){
+      write(manifest,`[package]\nname="${name}"\n[package.metadata.erpx]\nverification-roots=["licenses"${manifest===commercial?',"../../scripts/testing/declared-generator.mjs"':''}]\n[[test]]\nname="${target}"\npath="../../${file}"\n`);
+      write(manifest.replace('Cargo.toml','licenses/NOTICE.txt'),'retained owner notice');write(file,'#[test] fn real_policy_case() {}');
+    }
+    const generator='scripts/testing/declared-generator.mjs',transitive='packages/feature-fixture/src/public.ts';
+    write(generator,"import { value } from '../../packages/feature-fixture/src/public'; export const generated = value;");write(transitive,'export const value = 1;');
+    const privatePaths=['packages/server-commercial/licenses/.scratch/leaked.ts','packages/server-commercial/licenses/target/leaked.rs','packages/server-commercial/licenses/.env.local/leaked.ts'];
+    for(const file of privatePaths)write(file,'private fixture sentinel');
+    git('init','--quiet');git('add','.');git('-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','--quiet','-m','base');
+    const baseSha=git('rev-parse','HEAD'),base=loadRevisionWorkspaceGraph(baseSha,root);
+    for(const license of licenses)write(license,'new declared third-party license');
+    write('packages/server-shared/licenses/undeclared.txt','unknown input');write('packages/server-legal/licenses/.env.local','private fixture sentinel');
+    git('add','--',...licenses);git('-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','--quiet','-m','licenses');
+    const headSha=git('rev-parse','HEAD'),head=loadRevisionWorkspaceGraph(headSha,root),local=loadWorkspaceGraph(root);
+    const suites=[nativeSuite('erpx-server-commercial','package_capabilities',commercialTest,commercial),nativeSuite('erpx-server-legal','record_policy',legalTest,legal),nativeSuite()];
+    for(const license of licenses){expect(local.files.get(license)).toBe(head.files.get(license));expect(head.files.get(license)).toMatch(/^resource-sha256:[a-f0-9]{64}$/);}
+    expect(local.files.has('packages/server-shared/licenses/undeclared.txt')).toBe(false);expect(local.files.has('packages/server-legal/licenses/.env.local')).toBe(false);
+    expect(local.files.get(generator)).toBe(head.files.get(generator));expect(local.files.get(generator)).toContain('import { value }');
+    expect(dependencyClosure(local,[commercialTest])).toContain(transitive);expect(dependencyClosure(head,[commercialTest])).toContain(transitive);
+    expect(selectCandidateSuites(head,base,suites,[transitive]).suites).toEqual([suites[0]]);
+    for(const file of privatePaths){expect(local.files.has(file)).toBe(false);expect(head.files.has(file)).toBe(false);}
+    expect(selectCandidateSuites(head,base,suites,changedWorkspaceFiles(root,baseSha,headSha)).suites).toEqual(suites.slice(0,2));
+    expect(()=>selectCandidateSuites(local,base,suites,['packages/server-shared/licenses/undeclared.txt'])).toThrow('WORKSPACE_CHANGE_UNMAPPED');
+    expect(()=>selectCandidateSuites(local,base,suites,['packages/server-legal/licenses/.env.local'])).toThrow('WORKSPACE_CHANGE_UNMAPPED');
+    expect(workspaceFingerprint(head,[commercialTest])).not.toBe(workspaceFingerprint(base,[commercialTest]));expect(workspaceFingerprint(head,[sharedTest])).toBe(workspaceFingerprint(base,[sharedTest]));
+  });
   it('requires explicit native provider prerequisites and keeps them outside automatic candidate selection',()=>{
     const root=fixtureRoot(),provider:Suite={...nativeSuite(),id:'files.scanner.provider',lane:'provider',fixture:'provider',provider:{environment:{ERPX_SCANNER_TEST:'1'},required:['ERPX_CLAMD_SOCKET','ERPX_CLAMAV_DATABASE_DIR']}};
     expect(()=>validateCargoSuite(provider,root)).not.toThrow();

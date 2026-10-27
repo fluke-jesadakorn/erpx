@@ -9,6 +9,28 @@ export type CargoCaseObservation = { runner: 'cargo'; file: string; title: strin
 export const cargoRootInputs = ['Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml'] as const;
 export const isCargoInput = (file: string) => file.endsWith('.rs') || /(?:^|\/)Cargo\.(?:toml|lock)$/.test(file) || file === 'rust-toolchain.toml';
 
+/** Declared owner data is admitted by the same manifest at each Git revision.
+ * This does not admit arbitrary extensions or private environment/cache paths.
+ */
+export function cargoResourceRoots(files:ReadonlyMap<string,string>):Map<string,string[]> {
+  const result=new Map<string,string[]>();
+  for(const[manifest,text]of files){
+    if(manifest==='Cargo.toml'||!manifest.endsWith('/Cargo.toml')||!cargoPackageName(text))continue;
+    const metadata=/^\[package\.metadata\.erpx\]\s*\n([\s\S]*?)(?=^\[|$(?![\s\S]))/m.exec(text)?.[1];
+    const declared=metadata&&/^verification-roots\s*=\s*\[([\s\S]*?)\]\s*(?:#[^\n]*)?$/m.exec(metadata)?.[1];
+    if(metadata&&/verification-roots/.test(metadata)&&declared===undefined)throw new Error(`CARGO_RESOURCE_ROOT_INVALID:${manifest}`);
+    const roots:string[]=[];
+    for(const match of declared?.matchAll(/"([^"\n]+)"/g)??[]){
+      const root=posix.normalize(posix.join(posix.dirname(manifest),match[1]));
+      if(match[1].startsWith('/')||match[1].includes('\\')||root==='..'||root.startsWith('../')||!cargoResourcePath(root))throw new Error(`CARGO_RESOURCE_ROOT_INVALID:${manifest}`);
+      roots.push(root);
+    }
+    result.set(manifest,roots);
+  }
+  return result;
+}
+export function cargoResourcePath(file:string){return !file.split('/').some(part=>/^\.env(?:\.|$)/.test(part)||['.git','.scratch','.runtime','target','node_modules'].includes(part));}
+
 /** Native suites declare exact integration-test targets, never an entire workspace fallback. */
 export function cargoTestTargets(manifest: string): CargoTestTarget[] {
   return [...manifest.matchAll(/^\[\[test\]\]\s*\n([\s\S]*?)(?=^\[|$(?![\s\S]))/gm)].map(match => {
@@ -99,6 +121,7 @@ export function cargoVerificationEdges(files: ReadonlyMap<string, string>): Map<
   const result = new Map<string, Set<string>>();
   const rootManifest = files.get('Cargo.toml') ?? '';
   const workspacePaths = new Map([...rootManifest.matchAll(/^([A-Za-z0-9_-]+)\s*=\s*\{[^\n}]*\bpath\s*=\s*"([^"\n]+)"[^\n}]*\}\s*$/gm)].map(match => [match[1], posix.normalize(`${match[2]}/Cargo.toml`)]));
+  const declaredResources=cargoResourceRoots(files);
   const add = (source: string, dependency: string) => {
     if (!files.has(dependency)) return;
     const values = result.get(source) ?? new Set<string>(); values.add(dependency); result.set(source, values);
@@ -107,12 +130,7 @@ export function cargoVerificationEdges(files: ReadonlyMap<string, string>): Map<
     if (manifest === 'Cargo.toml' || !manifest.endsWith('/Cargo.toml') || !cargoPackageName(text)) continue;
     const directory = posix.dirname(manifest);
     for (const input of cargoRootInputs) add(manifest, input);
-    const resources = /^\[package\.metadata\.erpx\]\s*\n([\s\S]*?)(?=^\[|$(?![\s\S]))/m.exec(text)?.[1];
-    const roots = resources && /^verification-roots\s*=\s*\[([\s\S]*?)\]\s*(?:#[^\n]*)?$/m.exec(resources)?.[1];
-    if (resources && /verification-roots/.test(resources) && roots === undefined) throw new Error(`CARGO_RESOURCE_ROOT_INVALID:${manifest}`);
-    for (const match of roots?.matchAll(/"([^"\n]+)"/g) ?? []) {
-      const resource = posix.normalize(posix.join(directory, match[1]));
-      if (match[1].startsWith('/') || match[1].includes('\\') || resource === '..' || resource.startsWith('../') || resource.split('/').some(part => /^\.env(?:\.|$)/.test(part) || ['.git','.scratch','.runtime','target','node_modules'].includes(part))) throw new Error(`CARGO_RESOURCE_ROOT_INVALID:${manifest}`);
+    for (const resource of declaredResources.get(manifest)??[]) {
       const members = [...files.keys()].filter(file => file === resource || file.startsWith(`${resource}/`));
       if (!members.length) throw new Error(`CARGO_RESOURCE_ROOT_UNMAPPED:${manifest}:${resource}`);
       for (const file of members) add(manifest, file);

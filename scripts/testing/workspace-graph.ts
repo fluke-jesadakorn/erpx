@@ -6,7 +6,7 @@ import { parseWorkspaceSource, type WorkspaceSource } from "./workspace-imports"
 import { workspaceSourceCache } from "./workspace-source-cache";
 import { appDefinitions, appDefinition } from "@erpx/contracts/apps";
 import { verificationSources, resolveImport, type Suite, repositoryRoot } from "./catalogue";
-import { cargoRootInputs, cargoVerificationEdges, isCargoInput } from './cargo';
+import { cargoRootInputs, cargoVerificationEdges, cargoResourceRoots, cargoResourcePath, isCargoInput } from './cargo';
 
 export type WorkspaceGraph = { appDirectories?: Map<string,string>; sourceCache?: {hits:number;misses:number;persisted:boolean;loaded:boolean}; runtimeImports: Map<string, Set<string>>; files: Map<string, string>; imports: Map<string, Set<string>>; reverse: Map<string, Set<string>>; apps: Map<string, Set<string>> };
 const resourcePrefix = 'resource-input:';
@@ -17,31 +17,37 @@ const rootInputs = new Set(["next.config.ts", "tsconfig.base.json", "tsconfig.js
 // Next metadata and app public assets are inputs even when no JS imports them.
 // A public symlink is inventoried as its target text; never traverse its target.
 const appResource = /^apps\/[^/]+\/(?:public(?:\/|$)|src\/app\/(?:[^/]+\/)*(?:favicon\.ico|(?:icon|apple-icon|opengraph-image|twitter-image)\d*\.(?:ico|jpe?g|png|svg|gif)|robots\.txt|sitemap\.xml|manifest\.webmanifest)$)/;
-function workspacePath(file: string) {
-  return rootInputs.has(file) || workspaceDirectories.some(directory => file.startsWith(directory + '/')) &&
-    (sourceExtension.test(file) || isCargoInput(file) || file === '.github/CODEOWNERS' || /^(?:public|docs|fixtures)\//.test(file) || appResource.test(file));
+function declaredCargoResource(file:string,roots:readonly string[]){return cargoResourcePath(file)&&roots.some(root=>file===root||file.startsWith(root+'/'));}
+function workspacePath(file: string,roots:readonly string[]=[]) {
+  return rootInputs.has(file) || cargoResourcePath(file) && workspaceDirectories.some(directory => file.startsWith(directory + '/')) &&
+    (sourceExtension.test(file) || isCargoInput(file) || file === '.github/CODEOWNERS' || /^(?:public|docs|fixtures)\//.test(file) || appResource.test(file)||declaredCargoResource(file,roots));
 }
 function resourceInput(file: string) {
   return /^(?:public|docs|\.github|ops|migrations)\//.test(file) || appResource.test(file) ||
     file === '.env.example' || file === 'LICENSE' || file === 'NOTICE' || /^[A-Z][A-Z_.-]*\.md$/.test(file);
 }
-function graphContent(file: string, bytes: Buffer, symlink = false) {
-  return resourceInput(file) || symlink
+function graphContent(file: string, bytes: Buffer, symlink = false,declared=false) {
+  return resourceInput(file) || symlink || declared && !sourceExtension.test(file) && !isCargoInput(file)
     ? (symlink ? 'symlink-sha256:' : 'resource-sha256:') + createHash('sha256').update(bytes).digest('hex')
     : bytes.toString('utf8');
 }
 const ignored = new Set(["node_modules", ".next", ".build", ".cache", ".turbo"]);
-export function workspaceSourcePaths(root = repositoryRoot): string[] {
+function workspaceSourceInventory(root:string){
   function visit(directory: string): string[] {
     if (!existsSync(resolve(root, directory))) return [];
     return readdirSync(resolve(root, directory), { withFileTypes: true }).flatMap(entry => {
       const file = `${directory}/${entry.name}`;
+      if (!cargoResourcePath(file)) return [];
       return entry.isDirectory() && !ignored.has(entry.name) ? visit(file)
-        : (entry.isFile() || entry.isSymbolicLink() && appResource.test(file)) && workspacePath(file) && !["next-env.d.ts", "next.config.compiled.js"].includes(entry.name) ? [file] : [];
+        : (entry.isFile() || entry.isSymbolicLink()) && !["next-env.d.ts", "next.config.compiled.js"].includes(entry.name) ? [file] : [];
     });
   }
-  return [...workspaceDirectories.flatMap(visit), ...[...rootInputs].filter(file => existsSync(resolve(root, file)))].sort();
+  const candidates=[...workspaceDirectories.flatMap(visit), ...[...rootInputs].filter(file => existsSync(resolve(root, file)))];
+  const manifests=new Map(candidates.filter(file=>file.endsWith('/Cargo.toml')&&workspacePath(file)&&!lstatSync(resolve(root,file)).isSymbolicLink()).map(file=>[file,readFileSync(resolve(root,file),'utf8')]));
+  const roots=[...cargoResourceRoots(manifests).values()].flat();
+  return {roots,paths:candidates.filter(file=>workspacePath(file,roots)&&(!lstatSync(resolve(root,file)).isSymbolicLink()||appResource.test(file)||declaredCargoResource(file,roots))).sort()};
 }
+export function workspaceSourcePaths(root = repositoryRoot): string[] {return workspaceSourceInventory(root).paths;}
 export function createWorkspaceGraph(files: Map<string, string>, parseSource: (file:string,source:string)=>WorkspaceSource = parseWorkspaceSource, options:{excludeStyleSources?:boolean}={}): WorkspaceGraph {
   files = new Map(files);
   const names = new Set(files.keys()), imports = new Map<string, Set<string>>(), reverse = new Map<string, Set<string>>();
@@ -161,9 +167,10 @@ function graphWithSourceCache(files:Map<string,string>,root:string,cacheRoot=roo
   try{const graph=createWorkspaceGraph(files,cache.parse,{excludeStyleSources});cache.flush();graph.sourceCache={...cache.stats};return graph;}catch(error){cache.flush();throw error;}
 }
 export function loadWorkspaceGraph(root = repositoryRoot, options:{cacheRoot?:string;excludeStyleSources?:boolean}={}): WorkspaceGraph {
-  return graphWithSourceCache(new Map(workspaceSourcePaths(root).map(file => {
+  const inventory=workspaceSourceInventory(root);
+  return graphWithSourceCache(new Map(inventory.paths.map(file => {
     const path = resolve(root, file), symlink = lstatSync(path).isSymbolicLink();
-    return [file, graphContent(file, symlink ? Buffer.from(readlinkSync(path)) : readFileSync(path), symlink)];
+    return [file, graphContent(file, symlink ? Buffer.from(readlinkSync(path)) : readFileSync(path), symlink,!workspacePath(file)&&declaredCargoResource(file,inventory.roots))];
   })),root,options.cacheRoot,options.excludeStyleSources);
 }
 
@@ -229,19 +236,25 @@ if (import.meta.main) {
 /** Read both sides of a candidate without switching the shared checkout. */
 export function loadRevisionWorkspaceGraph(revision: string, root = repositoryRoot): WorkspaceGraph {
   const sha = execFileSync('git', ['rev-parse', '--verify', `${revision}^{commit}`], { cwd: root, encoding: 'utf8' }).trim();
-  const tree = execFileSync('git', ['ls-tree', '-rz', sha], { cwd: root, encoding: 'utf8', maxBuffer:64*1024*1024 }).split('\0').filter(Boolean).map(row => {
+  const entries = execFileSync('git', ['ls-tree', '-rz', sha], { cwd: root, encoding: 'utf8', maxBuffer:64*1024*1024 }).split('\0').filter(Boolean).map(row => {
     const separator = row.indexOf('\t');
     return { file: row.slice(separator + 1), symlink: row.startsWith('120000 ') };
-  }).filter(({file}) => workspacePath(file));
-  const paths = tree.map(({file}) => file);
-  if (paths.some(file => /[\r\n]/.test(file))) throw new Error('UNSUPPORTED_GIT_SOURCE_NAME');
-  const contents = execFileSync('git', ['cat-file', '--batch'], { cwd: root, input: paths.map(file => `${sha}:${file}\n`).join(''), maxBuffer: 512 * 1024 * 1024 });
-  const files = new Map<string,string>(); let offset = 0;
-  for (const {file, symlink} of tree) {
-    const end = contents.indexOf(10, offset), metadata = contents.subarray(offset, end).toString().split(' '), size = Number(metadata.at(-1));
-    if (metadata[1] !== 'blob' || !Number.isSafeInteger(size)) throw new Error(`GIT_SOURCE_UNREADABLE:${file}`);
-    offset = end + 1; files.set(file, graphContent(file, contents.subarray(offset, offset + size), symlink)); offset += size + 1;
+  });
+  function read(tree:typeof entries,roots:readonly string[]=[]) {
+    const paths=tree.map(({file})=>file);
+    if(paths.some(file=>/[\r\n]/.test(file)))throw new Error('UNSUPPORTED_GIT_SOURCE_NAME');
+    const contents=execFileSync('git',['cat-file','--batch'],{cwd:root,input:paths.map(file=>`${sha}:${file}\n`).join(''),maxBuffer:512*1024*1024});
+    const files=new Map<string,string>();let offset=0;
+    for(const {file,symlink}of tree){
+      const end=contents.indexOf(10,offset),metadata=contents.subarray(offset,end).toString().split(' '),size=Number(metadata.at(-1));
+      if(metadata[1]!=='blob'||!Number.isSafeInteger(size))throw new Error(`GIT_SOURCE_UNREADABLE:${file}`);
+      offset=end+1;files.set(file,graphContent(file,contents.subarray(offset,offset+size),symlink,!workspacePath(file)&&declaredCargoResource(file,roots)));offset+=size+1;
+    }
+    return files;
   }
+  const manifests=read(entries.filter(({file,symlink})=>!symlink&&file.endsWith('/Cargo.toml')&&workspacePath(file)));
+  const roots=[...cargoResourceRoots(manifests).values()].flat();
+  const files=read(entries.filter(({file})=>workspacePath(file,roots)),roots);
   return graphWithSourceCache(files,root);
 }
 function configuredAppChanges(head: WorkspaceGraph, base: WorkspaceGraph, changed: readonly string[]) {
