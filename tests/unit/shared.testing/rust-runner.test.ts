@@ -45,6 +45,7 @@ describe('Rust catalogue and source selection', () => {
       write(manifest.replace('Cargo.toml','licenses/NOTICE.txt'),'retained owner notice');write(file,'#[test] fn real_policy_case() {}');
     }
     const generator='scripts/testing/declared-generator.mjs',transitive='packages/feature-fixture/src/public.ts';
+    const businessTarget='packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/billing/target/route.ts';write(businessTarget,'export const GET = () => 1;');
     write(generator,"import { value } from '../../packages/feature-fixture/src/public'; export const generated = value;");write(transitive,'export const value = 1;');
     const privatePaths=['packages/server-commercial/licenses/.scratch/leaked.ts','packages/server-commercial/licenses/target/leaked.rs','packages/server-commercial/licenses/.env.local/leaked.ts'];
     for(const file of privatePaths)write(file,'private fixture sentinel');
@@ -60,6 +61,7 @@ describe('Rust catalogue and source selection', () => {
     expect(local.files.get(generator)).toBe(head.files.get(generator));expect(local.files.get(generator)).toContain('import { value }');
     expect(dependencyClosure(local,[commercialTest])).toContain(transitive);expect(dependencyClosure(head,[commercialTest])).toContain(transitive);
     expect(selectCandidateSuites(head,base,suites,[transitive]).suites).toEqual([suites[0]]);
+    expect(local.files.get(businessTarget)).toContain('export const GET');expect(head.files.get(businessTarget)).toContain('export const GET');
     for(const file of privatePaths){expect(local.files.has(file)).toBe(false);expect(head.files.has(file)).toBe(false);}
     expect(selectCandidateSuites(head,base,suites,changedWorkspaceFiles(root,baseSha,headSha)).suites).toEqual(suites.slice(0,2));
     expect(()=>selectCandidateSuites(local,base,suites,['packages/server-shared/licenses/undeclared.txt'])).toThrow('WORKSPACE_CHANGE_UNMAPPED');

@@ -17,9 +17,13 @@ const rootInputs = new Set(["next.config.ts", "tsconfig.base.json", "tsconfig.js
 // Next metadata and app public assets are inputs even when no JS imports them.
 // A public symlink is inventoried as its target text; never traverse its target.
 const appResource = /^apps\/[^/]+\/(?:public(?:\/|$)|src\/app\/(?:[^/]+\/)*(?:favicon\.ico|(?:icon|apple-icon|opengraph-image|twitter-image)\d*\.(?:ico|jpe?g|png|svg|gif)|robots\.txt|sitemap\.xml|manifest\.webmanifest)$)/;
-function declaredCargoResource(file:string,roots:readonly string[]){return cargoResourcePath(file)&&roots.some(root=>file===root||file.startsWith(root+'/'));}
+function resourceMember(file:string,roots:readonly string[]){return roots.some(root=>file===root||file.startsWith(root+'/'));}
+function declaredCargoResource(file:string,roots:readonly string[]){return cargoResourcePath(file)&&resourceMember(file,roots);}
+// `target` is also a real business route name. Only actual Cargo output trees
+// or private subtrees of newly admitted resources are excluded for that name.
+function privateWorkspacePath(file:string){return file.split('/').some(part=>/^\.env(?:\.|$)/.test(part)||['.git','.scratch','.runtime','node_modules','.next','.build','.cache','.turbo'].includes(part))||/^(?:packages\/server-[^/]+|src\/composition)\/target(?:\/|$)/.test(file);}
 function workspacePath(file: string,roots:readonly string[]=[]) {
-  return rootInputs.has(file) || cargoResourcePath(file) && workspaceDirectories.some(directory => file.startsWith(directory + '/')) &&
+  return rootInputs.has(file) || !privateWorkspacePath(file) && (!resourceMember(file,roots)||cargoResourcePath(file)) && workspaceDirectories.some(directory => file.startsWith(directory + '/')) &&
     (sourceExtension.test(file) || isCargoInput(file) || file === '.github/CODEOWNERS' || /^(?:public|docs|fixtures)\//.test(file) || appResource.test(file)||declaredCargoResource(file,roots));
 }
 function resourceInput(file: string) {
@@ -37,7 +41,7 @@ function workspaceSourceInventory(root:string){
     if (!existsSync(resolve(root, directory))) return [];
     return readdirSync(resolve(root, directory), { withFileTypes: true }).flatMap(entry => {
       const file = `${directory}/${entry.name}`;
-      if (!cargoResourcePath(file)) return [];
+      if (privateWorkspacePath(file) || entry.isDirectory() && entry.name === 'target' && existsSync(resolve(root,directory,'Cargo.toml'))) return [];
       return entry.isDirectory() && !ignored.has(entry.name) ? visit(file)
         : (entry.isFile() || entry.isSymbolicLink()) && !["next-env.d.ts", "next.config.compiled.js"].includes(entry.name) ? [file] : [];
     });
