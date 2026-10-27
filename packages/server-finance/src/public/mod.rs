@@ -48,3 +48,5 @@ pub mod journal_detail;
 pub mod journal_workspace;
 
 pub mod parts_draft;
+
+pub mod journal_settlement;

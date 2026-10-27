@@ -1,5 +1,8 @@
-//! Actual start/block/resume owner command composition, currently unmounted.
-//! The original Account/Holding coordinator owns authorization and commit.
+use crate::maintenance_settlement::CurrentMaintenancePartsSettlement;
+use erpx_server_finance::public::journal_settlement::lock_journal_settlement_sources;
+use erpx_server_inventory::public::maintenance_settlement::lock_maintenance_settlement_sources;
+// Actual Work transition owner command composition, currently unmounted.
+// The original Account/Holding coordinator owns authorization and commit.
 use erpx_server_assets::public::maintenance::{
     MaintenancePhysicalReceipt, PreparedMaintenancePhysicalChange,
 };
@@ -46,9 +49,11 @@ pub struct MaintenanceTransitionsSourcePreparation;
 impl HoldingWorkSourcePreparation for MaintenanceTransitionsSourcePreparation {
     fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
         Box::pin(async move {
+            lock_journal_settlement_sources(c).await?;
             lock_commercial_authority_sources(c).await?;
             lock_maintenance_notification_sources(c).await?;
-            MaintenanceWorkSourcePreparation.prepare(c).await
+            MaintenanceWorkSourcePreparation.prepare(c).await?;
+            lock_maintenance_settlement_sources(c).await
         })
     }
 }
@@ -70,6 +75,8 @@ impl<G: Clock + Sync> Authority<'_, G> {
                 MaintenanceChangeAction::Start
                     | MaintenanceChangeAction::Block
                     | MaintenanceChangeAction::Resume
+                    | MaintenanceChangeAction::Complete { .. }
+                    | MaintenanceChangeAction::Cancel
             )
             || r.key != self.command.key().as_str()
             || r.operation != self.command.operation()
@@ -190,12 +197,14 @@ struct Prepared<'a> {
     work: PgMaintenanceTransitionPlan,
     physical: Option<PreparedMaintenancePhysicalChange>,
     notification: OwnedPreparedMaintenanceNotification,
+    settlement: Option<CurrentMaintenancePartsSettlement>,
 }
 struct Written<'a> {
     source: CurrentMaintenanceWork<'a>,
     work: PgMaintenanceTransitionReceipt,
     physical: Option<MaintenancePhysicalReceipt>,
     notification: RetainedMaintenanceNotification,
+    settlement: Option<CurrentMaintenancePartsSettlement>,
 }
 struct Effects<'a, W, G> {
     current: &'a AuthorizedWorkContext,
@@ -250,12 +259,18 @@ impl<W: Clock + Sync, G: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W, 
             MaintenanceChangeAction::Resume => {
                 erpx_server_maintenance::public::MaintenanceTransition::Resume
             }
+            MaintenanceChangeAction::Complete { .. } => {
+                erpx_server_maintenance::public::MaintenanceTransition::Complete
+            }
+            MaintenanceChangeAction::Cancel => {
+                erpx_server_maintenance::public::MaintenanceTransition::Cancel
+            }
             _ => return Err(changed().into()),
         };
         source.require_action(&transition)?;
         let at = self.write_clock.now();
         let work = source
-            .retain_simple_transition(c, self.command, at, self.guard_clock.now())
+            .retain_transition_effects(c, self.command, at, self.guard_clock.now())
             .await?;
         let physical = match work.physical_change() {
             Some(change) => Some(
@@ -265,6 +280,14 @@ impl<W: Clock + Sync, G: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W, 
                     .await?,
             ),
             None => None,
+        };
+        let settlement = if matches!(
+            self.command.input().action,
+            MaintenanceChangeAction::Complete { .. } | MaintenanceChangeAction::Cancel
+        ) {
+            Some(CurrentMaintenancePartsSettlement::retain(c, &source).await?)
+        } else {
+            None
         };
         let notification_source = NotificationSource {
             source: &source,
@@ -300,6 +323,7 @@ impl<W: Clock + Sync, G: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W, 
             work,
             physical,
             notification,
+            settlement,
         });
         Ok(WorkflowOutput {
             version,
@@ -318,7 +342,14 @@ impl<W: Clock + Sync, G: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W, 
             work,
             physical,
             notification,
+            settlement,
         } = self.prepared.take().ok_or_else(changed)?;
+        work.require_before(c, &source, self.guard_clock.now())
+            .await?;
+        if let Some(ref settlement) = settlement {
+            settlement.require_current(c, &source).await?;
+            settlement.require_posted()?;
+        }
         work.write_work(c, &source, self.guard_clock.now()).await?;
         let physical = match physical {
             Some(plan) => Some(plan.apply(c, source.physical_asset_source()).await?),
@@ -341,6 +372,7 @@ impl<W: Clock + Sync, G: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W, 
             work,
             physical,
             notification,
+            settlement,
         });
         Ok(())
     }
@@ -363,6 +395,9 @@ impl<W: Clock + Sync, G: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W, 
                 self.guard_clock.now(),
             )
             .await?;
+        if let Some(ref settlement) = written.settlement {
+            settlement.require_current(c, &written.source).await?;
+        }
         written.notification.require_current(c).await
     }
 }

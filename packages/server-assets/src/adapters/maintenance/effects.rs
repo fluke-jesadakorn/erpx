@@ -142,10 +142,29 @@ impl MaintenancePhysicalReceipt {
         before: &CurrentMaintenanceAsset,
         expected_change: &MaintenancePhysicalChange,
     ) -> Result<(), Error> {
+        if !matches!(expected_change.action, MaintenancePhysicalAction::Start) {
+            return Err(changed().into());
+        }
+        self.require_applied_from(c, before, expected_change).await
+    }
+    /// Exact original action/actor/key/time/source binding; another command's
+    /// actual physical receipt cannot substitute for this expected action.
+    pub async fn require_applied_from(
+        &self,
+        c: &mut PgConnection,
+        before: &CurrentMaintenanceAsset,
+        expected_change: &MaintenancePhysicalChange,
+    ) -> Result<(), Error> {
         let mut expected = before.facts.clone();
-        expected.version = expected.version.checked_add(1).ok_or_else(changed)?;
-        if !matches!(self.change.action, MaintenancePhysicalAction::Start)
-            || &self.change != expected_change
+        if !matches!(
+            expected_change.action,
+            MaintenancePhysicalAction::Cancel {
+                downtime_started_at: None | Some(0)
+            }
+        ) {
+            expected.version = expected.version.checked_add(1).ok_or_else(changed)?;
+        }
+        if &self.change != expected_change
             || self.facts != expected
             || self.transaction != before.transaction
         {

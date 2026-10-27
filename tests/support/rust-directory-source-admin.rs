@@ -94,6 +94,7 @@ impl Prepared {
             connection_id: RecordId::new(ldap::CONNECTION).unwrap(),
             review_id: RecordId::new(&result.id).unwrap(),
             expected_version: result.version,
+            reason: "Independently reviewed exact current source and configuration.".into(),
             key: CommandKey::new(key).unwrap(),
         }
     }
@@ -133,6 +134,12 @@ pub fn rebuilt(p: &Prepared, profiles: Arc<DirectoryProfileStore>) -> Arc<Postgr
     )
 }
 pub async fn prepare(system: account::System, verify_reviewer: bool) -> Prepared {
+    prepare_inner(system, verify_reviewer, true).await
+}
+pub async fn prepare_for_http(system: account::System) -> Prepared {
+    prepare_inner(system, false, false).await
+}
+async fn prepare_inner(system: account::System, verify_reviewer: bool, enroll: bool) -> Prepared {
     let central_a = account::login(&system, "a@example.test", None).await;
     let central_b = account::login(&system, "b@example.test", None).await;
     let a = account::child(&system, &central_a, account::ACME).await;
@@ -155,6 +162,9 @@ pub async fn prepare(system: account::System, verify_reviewer: bool) -> Prepared
         ("fixture-a", &child_a, true),
         ("fixture-b", &child_b, verify_reviewer),
     ] {
+        if !enroll {
+            continue;
+        }
         services
             .service
             .enroll(

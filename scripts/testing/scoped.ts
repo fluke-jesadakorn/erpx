@@ -6,7 +6,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, watch } from 'node:
 import { resolve } from 'node:path';
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import { appDefinition } from '@erpx/contracts/apps';
-import { verificationSources, loadCatalogue, validateCatalogue, repositoryRoot as root } from './catalogue';
+import { verificationSources, loadCatalogue, validateCatalogue, repositoryRoot as root, type Suite } from './catalogue';
 import { dependencyClosure, workspaceInputFile, changedWorkspaceFiles, loadRevisionWorkspaceGraph, loadWorkspaceGraph, selectCandidateSuites, selectWorkspaceSuites, workspaceFingerprint } from './workspace-graph';
 import { pinnedNode } from '../local/app-task';
 import { refreshWorkspaceTaskInputs } from './workspace-tasks';
@@ -24,19 +24,30 @@ export function scopedArguments(input:string[]):Options {
  if(options.watch&&(mode!=='dev'||options.list||options.json))throw new Error('WATCH_REQUIRES_EXECUTING_DEVELOPMENT_PROFILE');
  return options;
 }
+export function requireCleanScopedCandidate(head:string,directory=root):string {
+ const sha=execFileSync('git',['rev-parse','--verify',`${head}^{commit}`],{cwd:directory,encoding:'utf8'}).trim();
+ const checked=execFileSync('git',['rev-parse','HEAD'],{cwd:directory,encoding:'utf8'}).trim();
+ if(sha!==checked||execFileSync('git',['status','--porcelain','--untracked-files=normal'],{cwd:directory,encoding:'utf8'}).trim())throw new Error('CI_REQUIRES_CLEAN_CHECKED_OUT_CANDIDATE');
+ return sha;
+}
 export function scopedPlan(options:Options){
  const catalogue=loadCatalogue();validateCatalogue(catalogue);
  for(const suite of catalogue.suites){if(!suite.apps || !suite.packages)throw new Error(`WORKSPACE_SUITE_OWNERSHIP_REQUIRED:${suite.id}`);if(suite.lane==='integration'&&!suite.postgres?.slots.length)throw new Error(`POSTGRES_SUITE_PROFILE_REQUIRED:${suite.id}`);}
  const current=loadWorkspaceGraph();
  for(const suite of catalogue.suites)for(const file of suite.verificationInputs??[])if(!current.files.has(file))throw new Error(`WORKSPACE_VERIFICATION_INPUT_UNMAPPED:${suite.id}:${file}`);
- if(options.head){const sha=execFileSync('git',['rev-parse','--verify',`${options.head}^{commit}`],{cwd:root,encoding:'utf8'}).trim();
-  if(!options.list&&!options.json){const checked=execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim();if(sha!==checked||execFileSync('git',['status','--porcelain','--untracked-files=normal'],{cwd:root,encoding:'utf8'}).trim())throw new Error('CI_REQUIRES_CLEAN_CHECKED_OUT_CANDIDATE');}}
+ if(options.head){if(!options.list&&!options.json)requireCleanScopedCandidate(options.head);else execFileSync('git',['rev-parse','--verify',`${options.head}^{commit}`],{cwd:root,encoding:'utf8'});}
  const graph=options.head?loadRevisionWorkspaceGraph(options.head):current;
  const changed=options.apps.length?[]:changedWorkspaceFiles(root,options.base??'HEAD',options.head);
  const selection=options.apps.length?{...selectWorkspaceSuites(graph,catalogue.suites,{apps:options.apps}),changed,removed:[]}:selectCandidateSuites(graph,loadRevisionWorkspaceGraph(options.base??'HEAD'),catalogue.suites,changed);
  const native=selection.suites.filter(suite=>suite.lane==='unit'||suite.lane==='integration');
  const browser=selection.suites.filter(suite=>suite.lane==='e2e'||suite.lane==='journeys');
  return {graph,plan:{version:1,...selection,scope:options.mode==='ci'?'candidate-verification':'development',acceptance:false as const,base:options.base??'HEAD',candidate:options.head??null,native,browser,requiredAcceptance:'bun run release:acceptance --candidate=<clean-sha>'}};
+}
+/** One actual command shared by execution and explicit prerequisite planning.
+ * Quality checks intentionally include the whole registered Cargo feature union. */
+export function scopedCargoQualityCommand(native:readonly Suite[],changed:readonly string[],files:ReadonlyMap<string,string>,suites:readonly Suite[]):string[]|null {
+ return native.some(suite=>suite.framework==='cargo') || changed.some(isCargoInput)
+  ? ['cargo','clippy','--workspace','--all-targets',...cargoQualityFeatureArguments(files,suites),'--locked','--','-D','warnings'] : null;
 }
 let active:ChildProcess|undefined,stopping=false;
 async function execute(args:string[]){
@@ -75,13 +86,15 @@ export async function runScoped(options:Options){
    refreshWorkspaceTaskInputs();
    if(plan.apps.length)await execute([process.execPath,resolve(root,'node_modules/turbo/bin/turbo'),'run','lint','typecheck',...plan.apps.map(id=>`--filter=@erpx/app-${id}`),'--cache=local:rw','--concurrency=2','--output-logs=errors-only']);
    const units=plan.native.filter(suite=>suite.lane==='unit'),integration=plan.native.filter(suite=>suite.lane==='integration');
-   if(plan.native.some(suite=>suite.framework==='cargo') || plan.changed.some(isCargoInput)){
+   const cargoQuality=scopedCargoQualityCommand(plan.native,plan.changed,graph.files,loadCatalogue().suites);
+   if(cargoQuality){
     await execute(['cargo','fmt','--all','--','--check']);
-    await execute(['cargo','clippy','--workspace','--all-targets',...cargoQualityFeatureArguments(graph.files,loadCatalogue().suites),'--locked','--','-D','warnings']);
+    await execute(cargoQuality);
    }
    if(plan.changed.some(file=>isCargoInput(file)||file.startsWith('scripts/docs/export-account-contracts')||file==='scripts/docs/generate-account-contracts.ts'||file==='packages/contracts/src/account-auth.generated.ts'||file==='docs/contracts/next/account-auth.openapi.generated.json'))await execute([process.execPath,'scripts/docs/generate-account-contracts.ts','--check']);
    if(plan.changed.some(file=>isCargoInput(file)||file.startsWith('packages/server-identity_access/resources/')||file==='scripts/docs/export-permission-contracts.rs'||file==='scripts/docs/generate-permission-contracts.ts'||file==='packages/contracts/src/permission-catalog.generated.json'))await execute([process.execPath,'scripts/docs/generate-permission-contracts.ts','--check']);
    if(plan.changed.some(file=>isCargoInput(file)||file.startsWith('packages/server-identity_access/resources/')||file==='scripts/docs/export-work-module-contracts.rs'||file==='scripts/docs/generate-work-module-contracts.ts'||file==='packages/contracts/src/business-role-modules.generated.ts'))await execute([process.execPath,'scripts/docs/generate-work-module-contracts.ts','--check']);
+   if(plan.changed.some(file=>isCargoInput(file)||file==='scripts/docs/export-directory-source-contracts.rs'||file==='scripts/docs/generate-directory-source-contracts.ts'||file==='packages/contracts/src/directory-source-admin.generated.ts'||file==='docs/contracts/next/directory-source-admin.openapi.generated.json'))await execute([process.execPath,'scripts/docs/generate-directory-source-contracts.ts','--check']);
    const testFiles=[...plan.native,...plan.browser].filter(suite=>suite.framework!=='cargo').flatMap(suite=>suite.files);
    if(testFiles.length){
     const key=workspaceFingerprint(graph,[...selectedTypecheckInputs(testFiles),...verificationSources(plan.native)],['scripts/testing/selected-typecheck.ts','tests/config/tsconfig.json','tsconfig.base.json']);

@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { posix, resolve } from 'node:path';
 import type { Suite } from './catalogue';
 import { vitestChildEnvironment } from './runner-environment';
+import { qualifiedNativeLinkEnvironment } from './native-worker-link-flags';
 
 export type CargoSuite = { framework: 'cargo'; cargo: { package: string; targets: string[]; features?: string[] } };
 export type CargoTestTarget = { name: string; path: string; requiredFeatures?: string[] };
@@ -106,8 +107,10 @@ export function cargoChildEnvironment(suite: Suite, environment: Record<string,s
     if(!suite.provider?.required.length)throw new Error(`CARGO_PROVIDER_PREREQUISITES_REQUIRED:${suite.id}`);
     const tools=new Set(['PATH','HOME','TMPDIR','TMP','TEMP','LANG','LC_ALL','LC_CTYPE','TZ','SYSTEMROOT','SystemRoot','WINDIR','USERPROFILE','XDG_CACHE_HOME','CARGO_HOME','RUSTUP_HOME','RUSTUP_TOOLCHAIN','RUSTC','RUSTDOC','CARGO_TARGET_DIR','CARGO_BUILD_TARGET','ERPX_CARGO_BIN','ERPX_NODE_BIN','ERPX_BUN_BIN']);
     selected=Object.fromEntries(Object.entries(environment).filter(([name])=>tools.has(name)));
+    Object.assign(selected,qualifiedNativeLinkEnvironment(environment));
     for(const variable of suite.provider.required)selected[variable]=environment[variable];
     Object.assign(selected,suite.provider.environment);
+    Object.assign(selected,qualifiedNativeLinkEnvironment(selected));
     for(const variable of suite.provider.required)if(!selected[variable]?.trim())throw new Error(`PROVIDER_PREREQUISITE_REQUIRED:${suite.id}:${variable}`);
     selected.ERPX_SELECTED_PROVIDER='1';
   }

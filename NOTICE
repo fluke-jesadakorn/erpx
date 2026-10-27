@@ -42,6 +42,13 @@ This source tree includes:
   ERPX-owned wrappers retain their project license; native binary/image and
   complete transitive runtime qualification remain pending.
 
+- Optional native Directory OIDC verification: RustCrypto p521 0.14.0 retains
+  Apache-2.0 OR MIT. ERPX uses its public-key verification API; this does not
+  imply that upstream exposes no signing API or has been independently audited.
+  Exact unmodified licenses, upstream/archive checksum and selected feature scope
+  are in packages/server-identity_access/licenses/p521-0.14.0-source.json.
+  Full transitive artifact notices and release qualification remain required.
+
 See LICENSING.md and docs/community/provenance.json for the scope of the
 current project grant and the incomplete historical and asset review.
 This notice is informational; it does not change any license terms.

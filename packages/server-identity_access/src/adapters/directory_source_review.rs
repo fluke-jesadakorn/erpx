@@ -50,6 +50,7 @@ pub struct StoredDirectorySourceReview {
     version: i64,
     created_by: String,
     created_person: String,
+    row_reason: String,
 }
 impl StoredDirectorySourceReview {
     pub fn require_pending(&self, version: i64, now: i64) -> Result<(), BusinessError> {
@@ -169,13 +170,14 @@ fn apply_digest(
     current: &AuthorizedWorkContext,
     id: &RecordId,
     version: i64,
+    reason: &str,
 ) -> Result<String, BusinessError> {
     digest(&Command {
         actor: current.user_id().as_str(),
         assignment: current.selection().assignment().id.as_str(),
         company: current.selection().workspace().company_id.as_str(),
         operation: "directory.source-review.apply",
-        payload: (id.as_str(), version),
+        payload: (id.as_str(), version, reason),
     })
 }
 fn proposal_digest(
@@ -276,7 +278,7 @@ impl DirectorySourceReviewStore {
             now,
         )
         .await?;
-        let row=sqlx::query("SELECT CASE WHEN octet_length(kind)<=80 THEN kind END kind,CASE WHEN octet_length(payload::text)<=16384 THEN payload END payload,CASE WHEN octet_length(created_by)<=200 THEN created_by END created_by,CASE WHEN octet_length(created_person)<=200 THEN created_person END created_person,CASE WHEN octet_length(reason)<=4096 THEN reason END reason,created_at,status,version::bigint version FROM iam_reviews WHERE id=$1 AND company_id=$2 FOR UPDATE").bind(id.as_str()).bind(current.selection().workspace().company_id.as_str()).fetch_optional(c).await?.ok_or_else(||review_error("REVIEW_NOT_FOUND"))?;
+        let row=sqlx::query("SELECT CASE WHEN octet_length(kind)<=80 THEN kind END kind,CASE WHEN octet_length(payload::text)<=16384 THEN payload END payload,CASE WHEN octet_length(created_by)<=200 THEN created_by END created_by,CASE WHEN octet_length(created_person)<=200 THEN created_person END created_person,CASE WHEN octet_length(reason)<=8192 THEN reason END reason,created_at,status,version::bigint version FROM iam_reviews WHERE id=$1 AND company_id=$2 FOR UPDATE").bind(id.as_str()).bind(current.selection().workspace().company_id.as_str()).fetch_optional(c).await?.ok_or_else(||review_error("REVIEW_NOT_FOUND"))?;
         if row.try_get::<String, _>("kind")? != DIRECTORY_SOURCE_REVIEW_KIND {
             return Err(review_error("REVIEW_UNSUPPORTED").into());
         }
@@ -304,15 +306,27 @@ impl DirectorySourceReviewStore {
                         .as_deref()
                         .unwrap_or(&payload.proposer.user_id),
                 )
-            || row.try_get::<Option<&str>, _>("reason")? != Some(payload.reason.as_str())
             || row.try_get::<i64, _>("created_at")? != payload.created_at
+        {
+            return Err(review_error("DIRECTORY_SOURCE_REVIEW_CHANGED").into());
+        }
+        let row_reason: String = row
+            .try_get::<Option<String>, _>("reason")?
+            .ok_or_else(|| review_error("DIRECTORY_SOURCE_REVIEW_UNAVAILABLE"))?;
+        let status: String = row.try_get("status")?;
+        if status == "pending" && row_reason != payload.reason
+            || status == "approved"
+                && !row_reason
+                    .strip_prefix(&format!("{}\nReview: ", payload.reason))
+                    .is_some_and(|r| normalize_directory_source_reason(r).is_ok_and(|n| n == r))
         {
             return Err(review_error("DIRECTORY_SOURCE_REVIEW_CHANGED").into());
         }
         Ok(StoredDirectorySourceReview {
             id: id.clone(),
             payload,
-            status: row.try_get("status")?,
+            status,
+            row_reason,
             version: row.try_get("version")?,
             created_by: row
                 .try_get::<Option<String>, _>("created_by")?
@@ -377,6 +391,7 @@ impl DirectorySourceReviewStore {
             status: "pending".into(),
             version: 1,
             source_revision: payload.binding.revision,
+            decision_reason: None,
         };
         let value = serde_json::to_value(&payload)
             .map_err(|_| review_error("DIRECTORY_SOURCE_REVIEW_UNAVAILABLE"))?;
@@ -433,11 +448,18 @@ impl DirectorySourceReviewStore {
         id: &RecordId,
         version: i64,
         key: &CommandKey,
+        reason: &str,
         now: i64,
     ) -> Result<Option<DirectorySourceReviewResult>, Error> {
         require_admin(c, current, "iam.review", now).await?;
-        let result =
-            existing_receipt(c, current, key, &apply_digest(current, id, version)?).await?;
+        let reason = normalize_directory_source_reason(reason)?;
+        let result = existing_receipt(
+            c,
+            current,
+            key,
+            &apply_digest(current, id, version, &reason)?,
+        )
+        .await?;
         if let Some(result) = &result {
             let review = Self::read(c, current, id, now).await?;
             if result.id != id.as_str()
@@ -449,12 +471,18 @@ impl DirectorySourceReviewStore {
                 || result.source_revision != review.payload.binding.revision
                 || review.status != "approved"
                 || review.version != result.version
+                || result.decision_reason.as_deref() != Some(reason.as_str())
+                || review.row_reason != format!("{}\nReview: {reason}", review.payload.reason)
             {
                 return Err(review_error("DIRECTORY_SOURCE_REVIEW_CHANGED").into());
             }
         }
         Ok(result)
     }
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "current retained proof, target CAS, idempotency, reviewer reason and clock are distinct approval inputs"
+    )]
     pub async fn retain_apply<'a>(
         c: &mut PgConnection,
         current: &'a AuthorizedWorkContext,
@@ -462,6 +490,7 @@ impl DirectorySourceReviewStore {
         id: &RecordId,
         version: i64,
         key: &CommandKey,
+        reason: &str,
         now: i64,
     ) -> Result<CurrentDirectorySourceApproval<'a>, Error> {
         require_admin(c, current, "iam.review", now).await?;
@@ -501,8 +530,14 @@ impl DirectorySourceReviewStore {
             review,
             unit: unit(c).await?,
             key: key.clone(),
-            hash: apply_digest(current, id, version)?,
+            hash: apply_digest(
+                current,
+                id,
+                version,
+                &normalize_directory_source_reason(reason)?,
+            )?,
             deadline: current.expires_at(),
+            decision_reason: normalize_directory_source_reason(reason)?,
         })
     }
 }
@@ -615,6 +650,7 @@ pub struct CurrentDirectorySourceApproval<'a> {
     key: CommandKey,
     hash: String,
     deadline: i64,
+    decision_reason: String,
 }
 impl CurrentDirectorySourceApproval<'_> {
     pub(super) fn deadline(&self) -> i64 {
@@ -626,6 +662,7 @@ impl CurrentDirectorySourceApproval<'_> {
             status: "approved".into(),
             version: self.review.version + 1,
             source_revision: self.review.payload.binding.revision,
+            decision_reason: Some(self.decision_reason.clone()),
         }
     }
     pub(super) fn require_candidate(
@@ -646,7 +683,7 @@ impl PgDirectorySourceHoldingPolicy for CurrentDirectorySourceApproval<'_> {
         self.current.selection().assignment().id.as_str()
     }
     fn audit_reason(&self) -> &str {
-        &self.review.payload.reason
+        &self.decision_reason
     }
     fn require_current<'c>(
         &'c self,
@@ -667,13 +704,13 @@ impl PgDirectorySourceHoldingPolicy for CurrentDirectorySourceApproval<'_> {
             {
                 return Err(review_error("DIRECTORY_SOURCE_REVIEW_CHANGED").into());
             }
-            let n=sqlx::query("UPDATE iam_reviews SET status='approved',version=version+1,reviewed_by=$1,reviewed_at=$2 WHERE id=$3 AND company_id=$4 AND status='pending' AND version=$5").bind(self.current.user_id().as_str()).bind(now).bind(self.review.id.as_str()).bind(&self.review.payload.binding.company_id).bind(self.review.version).execute(&mut*c).await?.rows_affected();
+            let n=sqlx::query("UPDATE iam_reviews SET status='approved',version=version+1,reviewed_by=$1,reviewed_at=$2,reason=$6 WHERE id=$3 AND company_id=$4 AND status='pending' AND version=$5").bind(self.current.user_id().as_str()).bind(now).bind(self.review.id.as_str()).bind(&self.review.payload.binding.company_id).bind(self.review.version).bind(format!("{}\nReview: {}",self.review.payload.reason,self.decision_reason)).execute(&mut*c).await?.rows_affected();
             if n != 1 {
                 return Err(review_error("DIRECTORY_SOURCE_REVIEW_CHANGED").into());
             }
             let result = self.result();
             record_receipt(c, self.current, &self.key, &self.hash, &result, now).await?;
-            let evidence = serde_json::json!({"binding":self.review.payload.binding,"proposedBy":self.review.created_by,"result":result});
+            let evidence = serde_json::json!({"binding":self.review.payload.binding,"proposedBy":self.review.created_by,"decisionReason":self.decision_reason,"result":result});
             audit(
                 c,
                 self.current,
@@ -692,6 +729,11 @@ impl PgDirectorySourceHoldingPolicy for CurrentDirectorySourceApproval<'_> {
             let approved:Option<(String,i64)>=sqlx::query_as("SELECT reviewed_by,reviewed_at FROM iam_reviews WHERE id=$1 AND company_id=$2 FOR SHARE").bind(self.review.id.as_str()).bind(&self.review.payload.binding.company_id).fetch_optional(&mut*c).await?;
             if after.status != "approved"
                 || after.version != self.review.version + 1
+                || after.row_reason
+                    != format!(
+                        "{}\nReview: {}",
+                        self.review.payload.reason, self.decision_reason
+                    )
                 || digest(&after.payload)? != digest(&self.review.payload)?
                 || approved != Some((self.current.user_id().as_str().into(), now))
                 || existing_receipt(c, self.current, &self.key, &self.hash).await?

@@ -101,7 +101,9 @@
     "contracts:work-modules": "bun scripts/docs/generate-work-module-contracts.ts",
     "contracts:work-modules:check": "bun scripts/docs/generate-work-module-contracts.ts --check",
     "contracts:finance-journal-read": "bun scripts/docs/generate-finance-journal-read-contracts.ts",
-    "contracts:finance-journal-read:check": "bun scripts/docs/generate-finance-journal-read-contracts.ts --check"
+    "contracts:finance-journal-read:check": "bun scripts/docs/generate-finance-journal-read-contracts.ts --check",
+    "contracts:directory-source": "bun scripts/docs/generate-directory-source-contracts.ts",
+    "contracts:directory-source:check": "bun scripts/docs/generate-directory-source-contracts.ts --check"
   },
   "packageManager": "bun@1.4.3",
   "dependencies": {

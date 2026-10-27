@@ -52,3 +52,10 @@ pub mod files_system_scan;
 pub mod files_scan_native;
 
 pub mod maintenance_transitions;
+
+#[cfg(all(feature = "directory-ldaps", feature = "business-http"))]
+pub mod directory_source_http;
+#[cfg(feature = "directory-ldaps")]
+pub mod directory_source_wire;
+
+pub mod maintenance_settlement;

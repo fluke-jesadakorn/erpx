@@ -11,3 +11,5 @@ pub(crate) mod postgres_journal_detail;
 pub(crate) mod postgres_journal_workspace;
 
 pub(crate) mod parts_draft;
+
+pub(crate) mod journal_settlement;

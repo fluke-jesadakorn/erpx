@@ -28,6 +28,17 @@ pub fn review_error(code: &'static str) -> BusinessError {
     )
 }
 
+pub fn normalize_directory_source_reason(reason: &str) -> Result<String, BusinessError> {
+    let reason = reason.trim_matches(super::directory_provider_values::js_space);
+    if !(3..=1000).contains(&reason.chars().count()) {
+        return Err(BusinessError::invalid(
+            "DIRECTORY_SOURCE_REASON_REQUIRED",
+            "Use a review reason from 3 through 1000 Unicode code points.",
+        ));
+    }
+    Ok(reason.into())
+}
+
 /// Exact nonplaintext proposal material. Decoding stored data never authorizes it.
 #[derive(Clone, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -125,4 +136,6 @@ pub struct DirectorySourceReviewResult {
     pub status: String,
     pub version: i64,
     pub source_revision: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub decision_reason: Option<String>,
 }

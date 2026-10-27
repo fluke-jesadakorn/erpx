@@ -5,3 +5,5 @@ pub use crate::domain::valuation::{
 pub mod consumption;
 pub mod consumption_finance;
 pub mod postgres_consumption;
+
+pub mod maintenance_settlement;

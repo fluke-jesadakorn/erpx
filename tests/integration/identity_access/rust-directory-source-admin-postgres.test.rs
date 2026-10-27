@@ -440,3 +440,30 @@ async fn replay_cannot_replace_the_original_review_connection_with_another_curre
     denied(p.service().approve_and_apply(HOST,p.proof(true),p.workspace(true),replaced).await,"DIRECTORY_SOURCE_ADMIN_SCOPE_REQUIRED");assert_eq!(counts(&p).await,(1,1,2,3));assert_eq!(p.server.stats.lock().unwrap().connections,0);p.server.finish().await;
  }).await;
 }
+
+#[test]
+fn source_review_reasons_match_the_unchanged_pinned_node_zod_schema() {
+    use erpx_server_identity_access::public::directory::normalize_directory_source_reason;
+    let fixture: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../fixtures/identity_access/directory/source-review-reasons.v1.json"
+    ))
+    .unwrap();
+    for case in fixture["cases"].as_array().unwrap() {
+        let input: String = serde_json::from_str(case["inputJson"].as_str().unwrap()).unwrap();
+        let actual = normalize_directory_source_reason(&input);
+        assert_eq!(
+            actual.is_ok(),
+            case["accepted"].as_bool().unwrap(),
+            "reason case {}",
+            case["id"]
+        );
+        if let Ok(value) = actual {
+            assert_eq!(
+                serde_json::to_string(&value).unwrap(),
+                case["normalizedJson"].as_str().unwrap(),
+                "reason case {}",
+                case["id"]
+            );
+        }
+    }
+}

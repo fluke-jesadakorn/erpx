@@ -42,7 +42,7 @@ impl DirectorySourceAdministrationAction {
 }
 struct AdminSources {
     directory: Arc<PostgresDirectory>,
-    connection: RecordId,
+    connection: String,
     proof: DeviceProof,
     keys: Arc<AccountMfaKeyring>,
 }
@@ -81,7 +81,8 @@ impl WorkControlSources for AdminSources {
         now: i64,
     ) -> PgWorkFuture<'c, Arc<dyn RetainedWorkControlSources>, BusinessError> {
         Box::pin(async move {
-            let route = self.directory.route(c, self.connection.as_str()).await?;
+            let connection = RecordId::new(&self.connection)?;
+            let route = self.directory.route(c, connection.as_str()).await?;
             let holding = route
                 .holding_id
                 .as_ref()
@@ -110,7 +111,7 @@ impl WorkControlSources for AdminSources {
                 mfa,
                 directory: self.directory.clone(),
                 route: Arc::new(route),
-                connection: self.connection.clone(),
+                connection,
             }) as Arc<dyn RetainedWorkControlSources>)
         })
     }
@@ -213,7 +214,7 @@ impl PostgresDirectory {
         authorizer: &HoldingWorkAuthorizer,
         host: &str,
         proof: DeviceProof,
-        mut workspace: HoldingWorkspaceRequest,
+        workspace: HoldingWorkspaceRequest,
         connection: RecordId,
         action: DirectorySourceAdministrationAction,
         keys: Arc<AccountMfaKeyring>,
@@ -229,7 +230,48 @@ impl PostgresDirectory {
             + Sync
             + 'static,
     {
-        workspace.mutation = true;
+        self.execute_source_administration_deferred(
+            authorizer,
+            host,
+            proof,
+            move || Ok(workspace),
+            connection.as_str().into(),
+            action,
+            keys,
+            run,
+        )
+        .await
+    }
+    /// Resolve HTTP selectors once, after live session verification. All MFA,
+    /// route and current IAM evidence remains on the same retained path.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn execute_source_administration_deferred<T: Send + 'static, F, Input>(
+        self: &Arc<Self>,
+        authorizer: &HoldingWorkAuthorizer,
+        host: &str,
+        proof: DeviceProof,
+        workspace: Input,
+        connection: String,
+        action: DirectorySourceAdministrationAction,
+        keys: Arc<AccountMfaKeyring>,
+        run: F,
+    ) -> Result<T, PgTransactionError<BusinessError>>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+        F: for<'c> Fn(
+                &'c mut PgConnection,
+                &'c AuthorizedWorkContext,
+            ) -> PgWorkFuture<'c, T, BusinessError>
+            + Clone
+            + Send
+            + Sync
+            + 'static,
+    {
+        let workspace = move || {
+            let mut workspace = workspace()?;
+            workspace.mutation = true;
+            Ok(workspace)
+        };
         let control = Arc::new(AdminSources {
             directory: self.clone(),
             connection,
@@ -237,7 +279,7 @@ impl PostgresDirectory {
             keys,
         });
         authorizer
-            .execute_with_control_sources(
+            .execute_with_control_sources_deferred(
                 host,
                 proof,
                 workspace,

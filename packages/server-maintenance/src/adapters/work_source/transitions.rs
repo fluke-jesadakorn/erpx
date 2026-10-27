@@ -1,5 +1,5 @@
-//! Actual start/block/resume effects. Other transitions require their separate
-//! real scheduling/settlement source protocols and fail closed here.
+//! Actual Work transition effects. Service retains scheduling/settlement
+//! sources separately; no foreign mutation or command grant belongs here.
 use super::*;
 use crate::{
     application::work_commands::MaintenanceWorkCommand,
@@ -9,8 +9,8 @@ use crate::{
     },
 };
 use erpx_server_assets::public::maintenance::{
-    MaintenancePhysicalAction, MaintenancePhysicalChange, MaintenancePhysicalReceipt,
-    RetainedMaintenanceAssetImage,
+    MaintenanceAssetCondition, MaintenancePhysicalAction, MaintenancePhysicalChange,
+    MaintenancePhysicalReceipt, RetainedMaintenanceAssetImage,
 };
 
 /// Owned intended rows, not a current Work/purchase/Workflow grant.
@@ -44,6 +44,8 @@ fn transition(command: &MaintenanceWorkCommand) -> Result<MaintenanceTransition,
         MaintenanceChangeAction::Start => MaintenanceTransition::Start,
         MaintenanceChangeAction::Block => MaintenanceTransition::Block,
         MaintenanceChangeAction::Resume => MaintenanceTransition::Resume,
+        MaintenanceChangeAction::Complete { .. } => MaintenanceTransition::Complete,
+        MaintenanceChangeAction::Cancel => MaintenanceTransition::Cancel,
         _ => {
             return Err(BusinessError::invalid(
                 "MAINTENANCE_EFFECT_ACTION_UNAVAILABLE",
@@ -53,7 +55,7 @@ fn transition(command: &MaintenanceWorkCommand) -> Result<MaintenanceTransition,
     })
 }
 impl CurrentMaintenanceWork<'_> {
-    pub async fn retain_simple_transition(
+    pub async fn retain_transition_effects(
         &self,
         c: &mut PgConnection,
         command: &MaintenanceWorkCommand,
@@ -92,21 +94,38 @@ impl CurrentMaintenanceWork<'_> {
         } else {
             None
         };
-        let(before_digest,after_digest):(String,String)=sqlx::query_as("SELECT encode(sha256(convert_to(to_jsonb(w)::text,'UTF8')),'hex'),encode(sha256(convert_to((to_jsonb(w)||jsonb_build_object('status',$2::text,'owner_id',$3::text,'scheduled_at',$4::bigint,'downtime_started_at',$5::bigint,'downtime_ended_at',NULL,'blocked_reason',$6::text,'completion_evidence',NULL,'resulting_condition',NULL,'version',$7::bigint,'updated_at',$8::bigint))::text,'UTF8')),'hex') FROM maintenance_work_orders w WHERE id=$1")
-   .bind(self.facts.id.as_str()).bind(state.status).bind(state.owner_id.as_str()).bind(state.scheduled_at).bind(state.downtime_started_at).bind(blocked).bind(version).bind(at.get()).fetch_one(&mut*c).await?;
+        let(before_digest,after_digest):(String,String)=sqlx::query_as("SELECT encode(sha256(convert_to(to_jsonb(w)::text,'UTF8')),'hex'),encode(sha256(convert_to((to_jsonb(w)||jsonb_build_object('status',$2::text,'owner_id',$3::text,'scheduled_at',$4::bigint,'downtime_started_at',$5::bigint,'downtime_ended_at',$6::bigint,'blocked_reason',$7::text,'completion_evidence',$8::text,'resulting_condition',$9::text,'version',$10::bigint,'updated_at',$11::bigint))::text,'UTF8')),'hex') FROM maintenance_work_orders w WHERE id=$1")
+   .bind(self.facts.id.as_str()).bind(state.status).bind(state.owner_id.as_str()).bind(state.scheduled_at).bind(state.downtime_started_at).bind(state.downtime_ended_at).bind(blocked).bind(completion(command).0).bind(completion(command).1).bind(version).bind(at.get()).fetch_one(&mut*c).await?;
         let event_id = format!("maintenance-event-{}", command.key().as_str());
-        let event_digest:String=sqlx::query_scalar("SELECT encode(sha256(convert_to(jsonb_build_object('id',$1::text,'work_order_id',$2::text,'version',$3::bigint,'action',$4::text,'actor_id',$5::text,'reason',$6::text,'status',$7::text,'owner_id',$8::text,'scheduled_at',$9::bigint,'downtime_started_at',$10::bigint,'downtime_ended_at',NULL,'created_at',$11::bigint)::text,'UTF8')),'hex')")
-   .bind(&event_id).bind(self.facts.id.as_str()).bind(version).bind(transition.action()).bind(self.current.user_id().as_str()).bind(&command.input().reason).bind(state.status).bind(state.owner_id.as_str()).bind(state.scheduled_at).bind(state.downtime_started_at).bind(at.get()).fetch_one(&mut*c).await?;
+        let event_digest:String=sqlx::query_scalar("SELECT encode(sha256(convert_to(jsonb_build_object('id',$1::text,'work_order_id',$2::text,'version',$3::bigint,'action',$4::text,'actor_id',$5::text,'reason',$6::text,'status',$7::text,'owner_id',$8::text,'scheduled_at',$9::bigint,'downtime_started_at',$10::bigint,'downtime_ended_at',$11::bigint,'created_at',$12::bigint)::text,'UTF8')),'hex')")
+   .bind(&event_id).bind(self.facts.id.as_str()).bind(version).bind(transition.action()).bind(self.current.user_id().as_str()).bind(&command.input().reason).bind(state.status).bind(state.owner_id.as_str()).bind(state.scheduled_at).bind(state.downtime_started_at).bind(state.downtime_ended_at).bind(at.get()).fetch_one(&mut*c).await?;
         let asset = self.asset.retain_unchanged_image(c).await?;
-        let physical =
-            matches!(transition, MaintenanceTransition::Start).then(|| MaintenancePhysicalChange {
-                action: MaintenancePhysicalAction::Start,
-                expected_asset_version: self.asset.facts().version,
-                actor_id: self.current.user_id().clone(),
-                command_key: command.key().clone(),
-                reason: command.input().reason.clone(),
-                at: at.get(),
-            });
+        let physical = match &command.input().action {
+            MaintenanceChangeAction::Start => Some(MaintenancePhysicalAction::Start),
+            MaintenanceChangeAction::Complete {
+                resulting_condition,
+                ..
+            } => Some(MaintenancePhysicalAction::Complete {
+                condition: match resulting_condition.as_str() {
+                    "good" => MaintenanceAssetCondition::Good,
+                    "degraded" => MaintenanceAssetCondition::Degraded,
+                    "unsafe" => MaintenanceAssetCondition::Unsafe,
+                    _ => return Err(changed().into()),
+                },
+            }),
+            MaintenanceChangeAction::Cancel => Some(MaintenancePhysicalAction::Cancel {
+                downtime_started_at: self.facts.downtime_started_at,
+            }),
+            _ => None,
+        }
+        .map(|action| MaintenancePhysicalChange {
+            action,
+            expected_asset_version: self.asset.facts().version,
+            actor_id: self.current.user_id().clone(),
+            command_key: command.key().clone(),
+            reason: command.input().reason.clone(),
+            at: at.get(),
+        });
         Ok(PgMaintenanceTransitionPlan {
             facts: self.facts.clone(),
             transaction: self.transaction.clone(),
@@ -182,8 +201,8 @@ impl PgMaintenanceTransitionPlan {
         } else {
             None
         };
-        let n=sqlx::query("UPDATE maintenance_work_orders SET status=$2,owner_id=$3,scheduled_at=$4,downtime_started_at=$5,downtime_ended_at=NULL,blocked_reason=$6,completion_evidence=NULL,resulting_condition=NULL,version=$7,updated_at=$8 WHERE id=$1 AND version=$9")
-   .bind(self.facts.id.as_str()).bind(self.state.status).bind(self.state.owner_id.as_str()).bind(self.state.scheduled_at).bind(self.state.downtime_started_at).bind(blocked).bind(self.version).bind(self.at.get()).bind(self.facts.version).execute(&mut*c).await?.rows_affected();
+        let n=sqlx::query("UPDATE maintenance_work_orders SET status=$2,owner_id=$3,scheduled_at=$4,downtime_started_at=$5,downtime_ended_at=$6,blocked_reason=$7,completion_evidence=$8,resulting_condition=$9,version=$10,updated_at=$11 WHERE id=$1 AND version=$12")
+   .bind(self.facts.id.as_str()).bind(self.state.status).bind(self.state.owner_id.as_str()).bind(self.state.scheduled_at).bind(self.state.downtime_started_at).bind(self.state.downtime_ended_at).bind(blocked).bind(completion(&self.command).0).bind(completion(&self.command).1).bind(self.version).bind(self.at.get()).bind(self.facts.version).execute(&mut*c).await?.rows_affected();
         if n != 1 {
             return Err(changed().into());
         }
@@ -211,8 +230,8 @@ impl PgMaintenanceTransitionPlan {
             return Err(changed().into());
         }
 
-        sqlx::query("INSERT INTO maintenance_work_events(id,work_order_id,version,action,actor_id,reason,status,owner_id,scheduled_at,downtime_started_at,downtime_ended_at,created_at)VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NULL,$11)")
-   .bind(&self.event_id).bind(self.facts.id.as_str()).bind(self.version).bind(self.transition.action()).bind(source.current.user_id().as_str()).bind(&self.command.input().reason).bind(self.state.status).bind(self.state.owner_id.as_str()).bind(self.state.scheduled_at).bind(self.state.downtime_started_at).bind(self.at.get()).execute(&mut*c).await?;
+        sqlx::query("INSERT INTO maintenance_work_events(id,work_order_id,version,action,actor_id,reason,status,owner_id,scheduled_at,downtime_started_at,downtime_ended_at,created_at)VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)")
+   .bind(&self.event_id).bind(self.facts.id.as_str()).bind(self.version).bind(self.transition.action()).bind(source.current.user_id().as_str()).bind(&self.command.input().reason).bind(self.state.status).bind(self.state.owner_id.as_str()).bind(self.state.scheduled_at).bind(self.state.downtime_started_at).bind(self.state.downtime_ended_at).bind(self.at.get()).execute(&mut*c).await?;
         let receipt = PgMaintenanceTransitionReceipt {
             facts: self.facts,
             transaction: self.transaction,
@@ -286,9 +305,19 @@ async fn require_asset_after(
 ) -> Result<(), Error> {
     match (physical, receipt) {
         (Some(change), Some(receipt)) => {
-            receipt.require_started_from(c, &source.asset, change).await
+            receipt.require_applied_from(c, &source.asset, change).await
         }
         (None, None) => unchanged.require_current(c).await,
         _ => Err(changed().into()),
+    }
+}
+
+fn completion(command: &MaintenanceWorkCommand) -> (Option<&str>, Option<&str>) {
+    match &command.input().action {
+        MaintenanceChangeAction::Complete {
+            evidence,
+            resulting_condition,
+        } => (Some(evidence), Some(resulting_condition)),
+        _ => (None, None),
     }
 }

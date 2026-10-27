@@ -90,5 +90,5 @@ pub use crate::adapters::directory_source_review::{
 };
 #[cfg(feature = "directory-ldaps")]
 pub use crate::domain::directory_source_review::{
-    DirectorySourceBinding, DirectorySourceReviewResult,
+    DirectorySourceBinding, DirectorySourceReviewResult, normalize_directory_source_reason,
 };

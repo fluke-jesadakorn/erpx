@@ -8,7 +8,7 @@ publish.workspace = true
 autotests = false
 
 [package.metadata.erpx]
-verification-roots = ["../../tests/support/files/system-scan-facts.rs", "../../tests/support/files/files-held-tool.rs", "../../scripts/docs/export-finance-journal-read-contracts.rs", "../../scripts/docs/generate-finance-journal-read-contracts.ts", "../../packages/contracts/src/finance-journal-read.generated.ts", "../../docs/contracts/next/finance-journal-read.openapi.generated.json", "../../tests/support/finance/native-journal-client.mjs"]
+verification-roots = ["../../scripts/docs/export-directory-source-contracts.rs", "../../scripts/docs/generate-directory-source-contracts.ts", "../../packages/contracts/src/directory-source-admin.generated.ts", "../../docs/contracts/next/directory-source-admin.openapi.generated.json", "../../scripts/testing/fixtures/generate-directory-review-reason-oracle.ts", "../../tests/support/files/system-scan-facts.rs", "../../tests/support/files/files-held-tool.rs", "../../scripts/docs/export-finance-journal-read-contracts.rs", "../../scripts/docs/generate-finance-journal-read-contracts.ts", "../../packages/contracts/src/finance-journal-read.generated.ts", "../../docs/contracts/next/finance-journal-read.openapi.generated.json", "../../tests/support/finance/native-journal-client.mjs"]
 
 [features]
 files-scan-worker = ["erpx-server-files/preview-provider"]
@@ -165,3 +165,13 @@ required-features = ["files-scan-worker", "contracts"]
 [[test]]
 name = "maintenance_transitions"
 path = "../../tests/integration/maintenance/rust-transitions-command-postgres.test.rs"
+
+[[example]]
+name = "export-directory-source-contracts"
+path = "../../scripts/docs/export-directory-source-contracts.rs"
+required-features = ["contracts", "directory-ldaps"]
+
+[[test]]
+name = "directory_source_http_postgres"
+path = "../../tests/integration/identity_access/rust-directory-source-http-postgres.test.rs"
+required-features = ["business-http", "directory-ldaps"]

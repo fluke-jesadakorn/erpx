@@ -313,10 +313,46 @@ impl HoldingWorkAuthorizer {
             + Sync
             + 'static,
     {
-        self.execute_internal(
+        self.execute_with_control_sources_deferred(
             host,
             proof,
             move || Ok(input),
+            access,
+            sources,
+            action,
+        )
+        .await
+    }
+    #[cfg(feature = "directory-ldaps")]
+    pub(crate) async fn execute_with_control_sources_deferred<
+        T: Send + 'static,
+        F,
+        Input,
+        Preparation: HoldingWorkSourcePreparation,
+    >(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        access: WorkAuthorizationRequest,
+        sources: IdentityWorkSourcePreparation<Preparation>,
+        action: F,
+    ) -> Result<T, PgTransactionError<BusinessError>>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+        F: for<'c> Fn(
+                &'c mut PgConnection,
+                &'c AuthorizedWorkContext,
+            ) -> PgWorkFuture<'c, T, BusinessError>
+            + Clone
+            + Send
+            + Sync
+            + 'static,
+    {
+        self.execute_internal(
+            host,
+            proof,
+            input,
             access,
             WorkSourceBundle {
                 holding: sources.holding,

@@ -10,8 +10,6 @@ mod auth;
 )]
 #[path = "../../support/maintenance/parts-facts.rs"]
 mod facts;
-#[path = "../../support/rust-postgres.rs"]
-mod fixture;
 use auth::*;
 use erpx_server_commercial::public::purchases::PackageEnforcementMode;
 use erpx_server_maintenance::public::{
@@ -23,6 +21,7 @@ use erpx_service::maintenance_transitions::{
     MaintenanceTransitionsSourcePreparation, execute_maintenance_transition,
 };
 use facts::*;
+use settlement_facts::account::database as fixture;
 struct Ids(u64);
 impl IdentifierSource for Ids {
     fn next(&mut self) -> RecordId {
@@ -109,4 +108,120 @@ async fn exact_command_history_still_requires_current_normal_iam_before_replay()
    execute_maintenance_transition(c,current,&command("start",1),PackageEnforcementMode::Enforced,&PartsWriteClock(std::sync::atomic::AtomicI64::new(NOW)),&PartsGuardClock,&mut Ids(100)).await
   })).await,"PERMISSION_REQUIRED");assert_eq!(counts(&holding).await,before);
  }).await;}).await;
+}
+
+#[allow(
+    dead_code,
+    reason = "Actual independent Finance fixture also serves foreign-parts review tests"
+)]
+#[path = "../../support/finance/maintenance-parts.rs"]
+mod settlement_facts;
+fn close_command(action: &str, version: i64, condition: &str, key: &str) -> MaintenanceWorkCommand {
+    let mut value = serde_json::json!({"action":action,"expectedVersion":version,"reason":"Synthetic close evidence"});
+    if action == "complete" {
+        value["resultingCondition"] = condition.into();
+        value["evidence"] = "Synthetic completed work evidence".into();
+    }
+    normalize_maintenance_change(&serde_json::to_vec(&value).unwrap())
+        .unwrap()
+        .into_command(CommandKey::new(key).unwrap(), work_id())
+}
+#[tokio::test]
+async fn actual_complete_without_parts_matches_safe_and_unsafe_physical_projection_and_full_receipt()
+ {
+    for condition in ["good", "degraded", "unsafe"] {
+        fixture::with_database(2,move|control|async move{fixture::with_database(2,move|holding|async move{
+   let(authorizer,_)=setup(&control,&holding).await;seed(&holding).await;
+   sqlx::query("UPDATE maintenance_work_orders SET status='in_progress',downtime_started_at=1000 WHERE id='work'").execute(holding.raw()).await.unwrap();
+   authorizer.execute_with_sources("acme.example.test",proof(),input(),maintenance_request(),MaintenanceTransitionsSourcePreparation,move|c,current|Box::pin(async move{
+    assert!(!current.has_permission("finance.write"));let result=execute_maintenance_transition(c,current,&close_command("complete",1,condition,"synthetic-complete-work"),PackageEnforcementMode::Enforced,&PartsWriteClock(std::sync::atomic::AtomicI64::new(NOW)),&PartsGuardClock,&mut Ids(400)).await?;
+    let value:serde_json::Value=serde_json::from_str(result.result.as_str()).unwrap();assert_eq!(value["status"],"completed");Ok(())
+   })).await.unwrap();
+   let actual:(String,i64,String,Option<i64>,i64,String)=sqlx::query_as("SELECT w.status,w.version,w.resulting_condition,w.downtime_ended_at,a.version,a.lifecycle_status FROM maintenance_work_orders w JOIN operational_assets a ON a.id=w.asset_id").fetch_one(holding.raw()).await.unwrap();assert_eq!(actual,("completed".into(),2,condition.into(),Some(NOW),2,if condition=="unsafe"{"maintenance"}else{"registered"}.into()));
+   assert_eq!(counts(&holding).await,(1,1,1,1,1,1,1,1,0,0));
+  }).await;}).await;
+    }
+}
+#[tokio::test]
+async fn actual_cancel_preserves_missing_epoch_zero_and_nonzero_downtime_without_inventing_physical_events()
+ {
+    for downtime in [None, Some(0), Some(1000), Some(-1000)] {
+        fixture::with_database(2,move|control|async move{fixture::with_database(2,move|holding|async move{
+   let(authorizer,_)=setup(&control,&holding).await;seed(&holding).await;
+   sqlx::query("UPDATE maintenance_work_orders SET status='in_progress',downtime_started_at=$1 WHERE id='work'").bind(downtime).execute(holding.raw()).await.unwrap();
+   authorizer.execute_with_sources("acme.example.test",proof(),input(),maintenance_request(),MaintenanceTransitionsSourcePreparation,|c,current|Box::pin(async move{
+    execute_maintenance_transition(c,current,&close_command("cancel",1,"good","synthetic-cancel-work"),PackageEnforcementMode::Enforced,&PartsWriteClock(std::sync::atomic::AtomicI64::new(NOW)),&PartsGuardClock,&mut Ids(500)).await?;Ok(())
+   })).await.unwrap();
+   let writes=downtime.is_some_and(|v|v!=0);let actual:(String,Option<i64>,i64)=sqlx::query_as("SELECT w.status,w.downtime_ended_at,a.version FROM maintenance_work_orders w JOIN operational_assets a ON a.id=w.asset_id").fetch_one(holding.raw()).await.unwrap();assert_eq!(actual,("cancelled".into(),writes.then_some(NOW),if writes{2}else{1}));
+   assert_eq!(counts(&holding).await,(1,1,1,1,i64::from(writes),1,1,1,0,0));
+  }).await;}).await;
+    }
+}
+#[tokio::test]
+async fn actual_parts_draft_blocks_close_after_late_cas_then_independent_post_enables_original_issuer_complete()
+ {
+    use erpx_server_shared::public::Clock;
+    settlement_facts::account::with_system(|system|async move{
+  let p=settlement_facts::setup_parts(system).await;let journal=p.issue("close-source-real-parts",1).await;
+  let before=counts(p.pool()).await;
+  // Retained original B0 `parts-gl-posted` assertion is one joined predicate;
+  // the native implementation obtains these facts through two owner facades.
+  let legacy:bool=sqlx::query_scalar("SELECT NOT EXISTS(SELECT 1 FROM operational_inventory_consumptions p JOIN finance_journals j ON j.id=p.journal_id WHERE p.source_kind='maintenance'AND p.source_id='work'AND j.status<>'posted')").fetch_one(p.pool().raw()).await.unwrap();assert!(!legacy);
+  for(version,code)in [(9_007_199_254_740_991,"MAINTENANCE_STATE_CHANGED"),(2,"CONFLICT")]{
+   let clock=p.reviewer.system.scenario.clock.clone();
+   denied(p.reviewer.authorizer.execute_with_sources("acme.example.test",p.reviewer.maker.clone(),p.issuer_selection.clone(),settlement_facts::issue_request(),MaintenanceTransitionsSourcePreparation,move|c,current|{let clock=clock.clone();Box::pin(async move{
+    execute_maintenance_transition(c,current,&close_command("complete",version,"good","close-parts-late-guard"),PackageEnforcementMode::Enforced,clock.as_ref(),clock.as_ref(),&mut Ids(600)).await
+   })}).await,code);assert_eq!(counts(p.pool()).await,before);
+  }
+  p.post(&journal,"independent-post-before-close").await.unwrap();
+  let legacy:bool=sqlx::query_scalar("SELECT NOT EXISTS(SELECT 1 FROM operational_inventory_consumptions p JOIN finance_journals j ON j.id=p.journal_id WHERE p.source_kind='maintenance'AND p.source_id='work'AND j.status<>'posted')").fetch_one(p.pool().raw()).await.unwrap();assert!(legacy);
+  let clock=p.reviewer.system.scenario.clock.clone();let at=clock.now().get();
+  p.reviewer.authorizer.execute_with_sources("acme.example.test",p.reviewer.maker.clone(),p.issuer_selection.clone(),settlement_facts::issue_request(),MaintenanceTransitionsSourcePreparation,move|c,current|{let clock=clock.clone();Box::pin(async move{
+   assert!(!current.has_permission("finance.write"));let result=execute_maintenance_transition(c,current,&close_command("complete",2,"good","close-posted-parts-real"),PackageEnforcementMode::Enforced,clock.as_ref(),clock.as_ref(),&mut Ids(700)).await?;assert!(!result.replayed);Ok(())
+  })}).await.unwrap();
+  let actual:(String,i64,String,i64)=sqlx::query_as("SELECT w.status,w.version,j.status,w.updated_at FROM maintenance_work_orders w CROSS JOIN finance_journals j WHERE w.id='work'AND j.id=$1").bind(&journal).fetch_one(p.pool().raw()).await.unwrap();assert_eq!(actual,("completed".into(),3,"posted".into(),at));
+ }).await;
+}
+#[tokio::test]
+async fn factual_journal_scan_binds_actual_complete_images_missing_rows_and_original_transaction() {
+    use erpx_server_finance::public::journal_settlement::*;
+    settlement_facts::account::with_system(|system| async move {
+        let p = settlement_facts::setup_parts(system).await;
+        let journal = p.issue("settlement-image-real-part", 1).await;
+        let id = RecordId::new(&journal).unwrap();
+        let absent = RecordId::new("synthetic-absent-journal").unwrap();
+        let mut tx = p.pool().raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        lock_journal_settlement_sources(&mut tx).await.unwrap();
+        let mut empty = JournalSettlementScan::begin(&mut tx).await.unwrap();
+        empty.observe(&mut tx, &absent).await.unwrap();
+        let empty = empty.finish();
+        assert!(!empty.blocks_source_closure());
+        let mut scan = JournalSettlementScan::begin(&mut tx).await.unwrap();
+        scan.observe(&mut tx, &id).await.unwrap();
+        let before = scan.finish();
+        assert!(before.blocks_source_closure());
+        sqlx::query("UPDATE finance_journals SET memo='changed draft memo'WHERE id=$1")
+            .bind(&journal)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        let mut scan = JournalSettlementScan::begin(&mut tx).await.unwrap();
+        scan.observe(&mut tx, &id).await.unwrap();
+        assert!(before.require_same(&mut tx, &scan.finish()).await.is_err());
+        tx.rollback().await.unwrap();
+        let mut tx = p.pool().raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        let mut scan = JournalSettlementScan::begin(&mut tx).await.unwrap();
+        scan.observe(&mut tx, &id).await.unwrap();
+        assert!(before.require_same(&mut tx, &scan.finish()).await.is_err());
+        tx.rollback().await.unwrap();
+    })
+    .await;
 }

@@ -291,7 +291,7 @@ async fn actual_start_block_resume_effects_keep_work_and_physical_receipts_separ
   for(action,version,status)in [("start",1,"in_progress"),("block",2,"blocked"),("resume",3,"in_progress")]{
    authorizer.execute_with_sources("acme.example.test",proof(),input(),maintenance(),MaintenanceWorkSourcePreparation,move|c,current|Box::pin(async move{
     let source=read_current_maintenance_work(c,current,&id(),TimestampMillis::new(NOW)).await?.unwrap();let command=simple_command(action,version);let at=TimestampMillis::new(NOW+version);
-    let plan=source.retain_simple_transition(c,&command,at,at).await?;
+    let plan=source.retain_transition_effects(c,&command,at,at).await?;
     let physical=match plan.physical_change(){Some(change)=>Some(source.physical_asset_source().prepare_physical_change(c,change.clone()).await?),None=>None};
     plan.write_work(c,&source,at).await?;
     let physical=match physical{Some(prepared)=>Some(prepared.apply(c,source.physical_asset_source()).await?),None=>None};
@@ -315,7 +315,7 @@ async fn start_work_cas_precedes_original_late_asset_lifecycle_denial() {
   for(stale,code)in [(true,"MAINTENANCE_STATE_CHANGED"),(false,"CONFLICT")]{
    error(authorizer.execute_with_sources("acme.example.test",proof(),input(),maintenance(),MaintenanceWorkSourcePreparation,move|c,current|Box::pin(async move{
     let source=read_current_maintenance_work(c,current,&id(),TimestampMillis::new(NOW)).await?.unwrap();let command=simple_command("start",if stale{2}else{1});let now=TimestampMillis::new(NOW);
-    let plan=source.retain_simple_transition(c,&command,now,now).await?;let physical=source.physical_asset_source().prepare_physical_change(c,plan.physical_change().unwrap().clone()).await?;
+    let plan=source.retain_transition_effects(c,&command,now,now).await?;let physical=source.physical_asset_source().prepare_physical_change(c,plan.physical_change().unwrap().clone()).await?;
     plan.write_work(c,&source,now).await?;let physical=physical.apply(c,source.physical_asset_source()).await?;let _=plan.finish(c,&source,Some(&physical),now).await?;Ok(())
    })).await,code);
    assert_eq!(sqlx::query_scalar::<_,i64>("SELECT version FROM maintenance_work_orders WHERE id='work'").fetch_one(holding.raw()).await.unwrap(),1);
@@ -358,7 +358,7 @@ async fn start_cannot_substitute_another_command_physical_receipt_or_skip_it() {
                                     let command = simple_command("start", 1);
                                     let now = TimestampMillis::new(NOW);
                                     let plan = source
-                                        .retain_simple_transition(c, &command, now, now)
+                                        .retain_transition_effects(c, &command, now, now)
                                         .await?;
                                     let mut change = plan.physical_change().unwrap().clone();
                                     change.command_key =
@@ -417,7 +417,7 @@ async fn final_transition_receipt_refuses_deferred_work_rewrite_and_rolls_back_a
   let(authorizer,_)=setup(&control,&holding).await;source(&holding).await;
   sqlx::raw_sql("UPDATE maintenance_work_orders SET status='open'WHERE id='work';CREATE FUNCTION synthetic_transition_rewrite()RETURNS trigger LANGUAGE plpgsql AS $$BEGIN UPDATE maintenance_work_orders SET title='deferred title'WHERE id=NEW.work_order_id;RETURN NEW;END$$;CREATE CONSTRAINT TRIGGER synthetic_transition_rewrite AFTER INSERT ON maintenance_work_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION synthetic_transition_rewrite()").execute(holding.raw()).await.unwrap();
   error(authorizer.execute_with_sources("acme.example.test",proof(),input(),maintenance(),MaintenanceWorkSourcePreparation,|c,current|Box::pin(async move{
-   let source=read_current_maintenance_work(c,current,&id(),TimestampMillis::new(NOW)).await?.unwrap();let command=simple_command("start",1);let now=TimestampMillis::new(NOW);let plan=source.retain_simple_transition(c,&command,now,now).await?;let physical=source.physical_asset_source().prepare_physical_change(c,plan.physical_change().unwrap().clone()).await?;
+   let source=read_current_maintenance_work(c,current,&id(),TimestampMillis::new(NOW)).await?.unwrap();let command=simple_command("start",1);let now=TimestampMillis::new(NOW);let plan=source.retain_transition_effects(c,&command,now,now).await?;let physical=source.physical_asset_source().prepare_physical_change(c,plan.physical_change().unwrap().clone()).await?;
    plan.write_work(c,&source,now).await?;let physical=physical.apply(c,source.physical_asset_source()).await?;let receipt=plan.finish(c,&source,Some(&physical),now).await?;sqlx::query("SET CONSTRAINTS ALL IMMEDIATE").execute(&mut*c).await?;receipt.require_after(c,&source,Some(&physical),now).await?;Ok(())
   })).await,"MAINTENANCE_STATE_CHANGED");
   assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*)FROM maintenance_work_events").fetch_one(holding.raw()).await.unwrap(),0);assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*)FROM operational_asset_events").fetch_one(holding.raw()).await.unwrap(),0);

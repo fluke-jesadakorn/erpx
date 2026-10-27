@@ -265,17 +265,55 @@ It returns historical result data without selecting or rotating a source again.
 Explicit initial insertion still requires expected absence and independent
 approval; startup never approves local configuration.
 
+The additive private Service router exposes only Holding-scoped POST source
+preview and independent approve-and-apply. Its [generated OpenAPI contract](directory-source-admin.openapi.generated.json)
+and `@erpx/contracts/directory-source-admin` types come from the Rust wire DTOs;
+`@erpx/contracts/directory-source-admin-client` provides an explicitly injected,
+framework-neutral transport. The router requires the exact registered Host/slug
+and Origin, opaque Holding child cookies, the complete original rendered
+Company/revision/assignment/version CAS, current IAM and that child's fresh MFA.
+It is not mounted by the existing private GET-session bootstrap or a shared service.
+
+HTTP selector/CAS failures are deferred until the canonical live Control session
+is verified; body/key/schema normalization is deferred until the same retained
+MFA/route and ordinary IAM hook succeeds. After private profile retention, the
+service re-enters that hook with the captured original selection as CAS input,
+never as authority. The request and response bodies are bounded to 16KiB, versions
+use positive JavaScript-safe integers, structural `1.0`/`1e0` inputs are accepted,
+and repeated JSON properties use the last value. This new additive endpoint rejects
+unknown properties rather than replacing the existing generic TypeScript IAM route;
+Actor, permission, grant and database fields cannot supply authority.
+
+Independent approval now requires a normalized reviewer reason. ECMAScript
+trimming and the actual pinned B0 Zod schema bound both reasons to 3..1000 Unicode
+code points. A frozen 19-vector oracle imports the unchanged B0 `reviewInput` under
+Node26.11.1/Zod4.6.7, including astral and whitespace boundaries; no validator was
+copied. The normalized decision reason belongs to the idempotency fingerprint,
+approved receipt and audit. The original proposal remains immutable while the
+review row retains its original reason followed by `\nReview: ` and the independent
+reason. Deferred changes to those predetermined images roll back the whole source
+command. Pending responses omit `decisionReason`; approved responses include it.
+
 The registered `identity_access.rust-directory-source-admin-postgres.integration`
-target passes 12 actual two-account sign-in/SSO/MFA/PostgreSQL cases. They cover
-self-review refusal, parent/child proof separation, revoked proposer authority,
-stale role/profile rejection, retained Control revocation and Holding expiry
-waits, missing admin witness, wrong replay target, explicit key rotation/restart,
-and deferred review-payload tampering. The existing provenance14 and ordinary
-current-authority10 targets also pass after the shared borrowed-writer change.
-These are component verification; all owner completion flags remain false.
+target passes all 12 existing two-account sign-in/SSO/MFA/PostgreSQL cases plus the
+19-vector reason-oracle case. They cover self-review refusal, parent/child proof
+separation, revoked proposer authority, stale role/profile rejection, retained
+Control revocation and Holding expiry waits, missing admin witness, wrong replay
+target, explicit key rotation/restart and deferred review-payload tampering. The
+new `identity_access.rust-directory-source-http-postgres.integration` passes all
+eight actual Axum/login/SSO/MFA/PostgreSQL cases, including exact Origin/Host,
+authentication-before-body failures, safe numbers, 600-astral-character reasons,
+duplicate/closed fields, independent review/replay, parent MFA refusal and deferred
+reason-tamper rollback. The eight SDK unit cases, existing provenance14 and ordinary
+current-authority10 also pass on this source. These are component verification;
+all owner completion flags remain false.
+
+Regenerate the source-admin TypeScript/OpenAPI pair with
+`bun run contracts:directory-source`; add `:check` to verify drift. Keep this pair
+separate from the general Account contract generator.
 
 Native SSR connection lookup, administrative listing/rejection, trust editing and
-activation, full reconciliation jobs, operator seed/HTTP/UI composition, OIDC/Graph,
+activation, full reconciliation jobs, operator seed/UI composition, OIDC/Graph,
 actual route/composition rollout, real browser and live provider acceptance, and
 runtime activation remain pending.
 The new provider/router are unmounted and grant no Work permission from a copied
