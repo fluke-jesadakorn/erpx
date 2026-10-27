@@ -125,16 +125,56 @@ tracing are never emitted by this adapter.
 The retained unchanged-Node oracle covers hierarchy traversal order, AD/UCS
 account control coercion, binary GUID order, contextual Unicode lowercase and
 immutable-ID aliases. These are finite rule/codec checks, not enterprise-provider
-acceptance. Loopback TLS and paging/referral/unsolicited-stream regression
-suites are still pending. Private profile bytes are loaded explicitly outside database leases;
+acceptance. The canonical provider suite exercises twelve actual owned loopback TLS
+scenarios, including private CA/SNI, service and user binds, paging/ranges, referrals,
+malformed/unsolicited streams and retained profile generations. Private profile bytes are loaded explicitly outside database leases;
 an explicit validated reload waits for retained profile-generation guards. The
-current provider retains its generation during observation; integration with the
-final database proof remains pending.
+provider retains its generation during observation, and the final Account command
+retains that exact generation through Control commit.
 
-Transactional reconciliation, current reviewed mapping grants, final retained
-Directory eligibility through ordinary Account issuance, stale-Directory refresh
-and current business reauthorization, actual Directory HTTP/frontend wiring,
-OIDC/Graph, live provider acceptance and runtime activation remain pending. The
-new provider is unmounted and grants no permission from a copied snapshot. The
-legacy Directory runtime remains in place during migration. No enterprise
-credentials or external enterprise Directory calls were used for this foundation.
+The native PostgreSQL adapter resolves only explicit configured Control/Holding
+bindings. It stores complete identity/group/hierarchy observations, removes missing
+memberships, evaluates current standing reviewed mappings, and appends immutable
+audit in one Holding unit. Intended revocations are checked against bounded locked
+pre-images, then upstream mapping/parent/role evidence is captured before new
+grant insertion. Exact intended grant/revocation after-images and that original
+source are checked after final effects, so immediate and deferred triggers cannot
+replace the source baseline, suppress a revocation or rewrite the recipient.
+Existing reviewed user/Person links remain unchanged;
+imports do not create accounts. An older observation or failure cannot replace a
+newer complete observation. Policy reads are bounded before transfer, and current
+Organization lineage and People source locks use their owners' borrowed public
+ports. Revoked mapping grants are never recreated automatically. The unchanged
+B0 mapping oracle preserves ordinary outcomes and records the two reviewed native
+scope rejections in [ADR-055](../../adr/ADR-055-native-directory-scope-and-credential-witness.md).
+
+A successful real provider bind produces expiring, non-serializable evidence. The
+session-first, non-retrying Control command retains exact Directory configuration,
+approved membership, current mapping/parent/role read sets and profile generation
+through normal opaque Account issuance. It uses the existing browser revision and
+nonce guards and mandatory cross-Holding retirement; no local password or dummy
+credential is inserted. Time and source evidence are rechecked after waits and
+before acknowledgement. A second Holding failure leaves earlier tombstones in
+place, rolls back Control acknowledgement, and permits a normal credential retry.
+The real disposable Control/two-Holding suite proves these boundaries, final audit
+and parent-version rollback, credential expiry during a real lock wait, and durable
+failed-attempt throttling.
+
+The unmounted native POST `/api/auth/directory/sign-in` keeps the existing
+`{connectionId, username, password}` intent and `{success:true}` response; an
+optional captured native device revision adds no bearer authority. It requires
+exact Account Host/Origin, bounded JSON and normal secure host-only opaque
+cookies. Like B0 `Request.json()` and its Zod object schema, duplicate properties
+keep their final value and harmless unknown properties are discarded. Extra
+actor, grant and session fields never become authority; only the typed credential
+intent is consumed. Holding Origins cannot submit Directory credentials to it. A typed
+frontend port consumes the generated Rust DTO and rejects credential-shaped
+response extensions. The existing Directory login form uses that port for LDAPS;
+OIDC retains its existing implementation while its native migration is pending.
+
+Stale-Directory refresh and current business reauthorization, native SSR connection
+lookup, full Directory administration/review/reconciliation jobs, OIDC/Graph,
+real browser and live provider acceptance, and runtime activation remain pending.
+The new provider/router are unmounted and grant no Work permission from a copied
+snapshot. The legacy Directory runtime remains in place during migration. No
+enterprise credentials or external enterprise Directory calls were used.

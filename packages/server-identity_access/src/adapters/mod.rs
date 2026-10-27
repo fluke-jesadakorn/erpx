@@ -57,3 +57,16 @@ pub(crate) mod directory_profiles;
 pub(crate) mod directory_ldap;
 #[cfg(feature = "directory-ldaps")]
 pub(crate) mod directory_ldap_snapshot;
+pub(crate) mod operational_worker;
+
+#[cfg(feature = "directory-ldaps")]
+pub(crate) mod directory_mapping_postgres;
+#[cfg(feature = "directory-ldaps")]
+pub(crate) mod directory_postgres;
+#[cfg(feature = "directory-ldaps")]
+pub(crate) mod directory_snapshot_postgres;
+
+#[cfg(feature = "directory-ldaps")]
+pub(crate) mod directory_issuance_postgres;
+
+pub(crate) mod directory_http;

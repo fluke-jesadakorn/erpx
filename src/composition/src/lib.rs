@@ -33,3 +33,11 @@ pub mod legal_processing_status;
 
 #[cfg(feature = "business-http")]
 pub mod business_http;
+
+#[cfg(feature = "private-development-api")]
+pub mod private_development_api;
+
+pub mod finance_journal_detail;
+
+#[cfg(feature = "business-http")]
+pub mod finance_journal_detail_http;

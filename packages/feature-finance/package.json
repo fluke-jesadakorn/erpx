@@ -357,7 +357,8 @@
     "./routes/holdings/[holdingSlug]/@record/finance/reports/statement-packages/[id]/page": "./src/routes/holdings/[holdingSlug]/@record/finance/reports/statement-packages/[id]/page.tsx",
     "./routes/api/v1/holdings/[holdingSlug]/finance/route": "./src/routes/api/v1/holdings/[holdingSlug]/finance/route.ts",
     "./public/client": "./src/public/client.ts",
-    "./public/contracts": "./src/public/contracts.ts"
+    "./public/contracts": "./src/public/contracts.ts",
+    "./public/server": "./src/public/server.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

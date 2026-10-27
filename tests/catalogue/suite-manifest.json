@@ -55964,7 +55964,9 @@
         "packages/contracts/src/account-auth.generated.ts",
         "docs/contracts/next/account-auth.openapi.generated.json",
         "scripts/docs/export-account-contracts.rs",
-        "scripts/docs/generate-account-contracts.ts"
+        "scripts/docs/generate-account-contracts.ts",
+        "packages/feature-identity_access/src/adapters/http/account-directory.ts",
+        "packages/feature-identity_access/src/public/client.ts"
       ]
     },
     {
@@ -62917,6 +62919,1625 @@
         "scripts/testing/fixtures/finance-node-oracle.ts",
         "scripts/testing/fixtures/generate-finance-rust-goldens.ts"
       ]
+    },
+    {
+      "id": "identity_access.rust-directory-ldaps.provider",
+      "lane": "provider",
+      "owner": "identity_access",
+      "modules": [
+        "identity_access"
+      ],
+      "fixture": "provider",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "files": [
+        "tests/provider/identity_access/rust-directory-ldaps.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-identity-access",
+        "targets": [
+          "directory_ldaps"
+        ],
+        "features": [
+          "directory-ldaps"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-identity_access/Cargo.toml",
+        "tests/support/rust-directory-ldaps.rs",
+        "fixtures/identity_access/directory/conformance.v1.json",
+        "scripts/testing/fixtures/generate-directory-rust-oracle.ts"
+      ],
+      "apps": [
+        "account",
+        "admin"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-finance",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-legal",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow"
+      ],
+      "provider": {
+        "required": [
+          "PATH"
+        ],
+        "environment": {}
+      }
+    },
+    {
+      "id": "identity_access.rust-private-development-api.unit",
+      "lane": "unit",
+      "owner": "identity_access",
+      "modules": [
+        "identity_access"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native session bootstrap requires exact leased schemas and live bindings; typed SSR cannot cache, redirect, proxy or manufacture authority."
+      },
+      "files": [
+        "tests/unit/identity_access/rust-private-development-api.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-service",
+        "targets": [
+          "private_development_api"
+        ],
+        "features": [
+          "private-development-api"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-identity_access/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "tests/support/rust-account.rs",
+        "src/composition/Cargo.toml"
+      ],
+      "apps": [
+        "account",
+        "admin"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-finance",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-legal",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow",
+        "@erpx/workplace"
+      ]
+    },
+    {
+      "lane": "integration",
+      "owner": "identity_access",
+      "modules": [
+        "identity_access"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "apps": [
+        "account",
+        "admin"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-finance",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-legal",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow",
+        "@erpx/workplace"
+      ],
+      "ci": {
+        "critical": true,
+        "reason": "Native session bootstrap requires exact leased schemas and live bindings; typed SSR cannot cache, redirect, proxy or manufacture authority."
+      },
+      "id": "identity_access.rust-private-session-api-postgres.integration",
+      "files": [
+        "tests/integration/identity_access/rust-private-session-api-postgres.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-service",
+        "targets": [
+          "private_session_api_postgres"
+        ],
+        "features": [
+          "private-development-api"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-identity_access/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "tests/support/rust-account.rs",
+        "scripts/docs/export-account-contracts.rs",
+        "scripts/docs/generate-account-contracts.ts",
+        "packages/contracts/src/account-auth.generated.ts",
+        "tests/support/rust-postgres.rs",
+        "docs/contracts/next/account-auth.openapi.generated.json",
+        "tests/support/rust-account-credentials.rs",
+        "tests/support/rust-account-queued-authority.rs",
+        "src/composition/Cargo.toml",
+        "tests/support/rust-account-revocation.rs",
+        "tests/support/runtime/private-session-api.rs"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      }
+    },
+    {
+      "lane": "integration",
+      "owner": "shared.persistence",
+      "modules": [
+        "agent",
+        "assets",
+        "benefits",
+        "brand",
+        "collaboration",
+        "commercial",
+        "crm",
+        "customer_360",
+        "customer_authority",
+        "ecommerce",
+        "field_service",
+        "finance",
+        "identity_access",
+        "inventory",
+        "learning",
+        "legal",
+        "maintenance",
+        "manage_erpx",
+        "manufacturing",
+        "marketing",
+        "operations",
+        "organization",
+        "people_payroll",
+        "planning",
+        "platform_administration",
+        "pms",
+        "pos",
+        "procurement",
+        "projects",
+        "quality",
+        "sales",
+        "support",
+        "talent"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "apps": [
+        "apps",
+        "pos",
+        "pms",
+        "finance",
+        "people",
+        "sales",
+        "supply",
+        "assets",
+        "projects",
+        "recruit",
+        "learn",
+        "support",
+        "service",
+        "legal",
+        "manufacturing",
+        "account",
+        "admin",
+        "booking",
+        "portal",
+        "legal-portal",
+        "forms"
+      ],
+      "packages": [
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ],
+      "ci": {
+        "critical": true,
+        "reason": "Native session bootstrap requires exact leased schemas and live bindings; typed SSR cannot cache, redirect, proxy or manufacture authority."
+      },
+      "id": "shared.persistence.rust-migration-inventory-postgres.integration",
+      "files": [
+        "tests/integration/shared.persistence/rust-migration-inventory-postgres.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-runtime",
+        "targets": [
+          "migration_inventory_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-runtime/Cargo.toml",
+        "tests/support/rust-postgres.rs",
+        "migrations/postgres/control/0042_native_account_mail_delivery.sql",
+        "migrations/postgres/control/0024_billing_usage_evidence_projection.sql",
+        "migrations/postgres/control/0030_account_time_preferences.sql",
+        "migrations/postgres/control/0014_account_recovery_delivery.sql",
+        "migrations/postgres/control/0039_auth_provider_account_identity.sql",
+        "migrations/postgres/control/0010_pos_stripe.sql",
+        "migrations/postgres/control/0017_sandbox_email_deliveries.sql",
+        "migrations/postgres/control/0040_device_accounts.sql",
+        "migrations/postgres/control/0041_native_account_auth.sql",
+        "migrations/postgres/control/0006_iam.sql",
+        "migrations/postgres/control/0029_active_seat_snapshot.sql",
+        "migrations/postgres/control/0023_target_usage_billing.sql",
+        "migrations/postgres/control/0038_sandbox_email_body_encryption.sql",
+        "migrations/postgres/control/0011_page_layouts.sql",
+        "migrations/postgres/control/0015_platform_migration_runs.sql",
+        "migrations/postgres/control/0037_migration_receipts.sql",
+        "migrations/postgres/control/0016_platform_holding_provisioning.sql",
+        "migrations/postgres/control/0008_directory_hierarchy.sql",
+        "migrations/postgres/control/0009_billing.sql",
+        "migrations/postgres/control/0001_baseline.sql",
+        "migrations/postgres/control/0010_billing_setup_state.sql",
+        "migrations/postgres/control/0004_hr_invitations.sql",
+        "migrations/postgres/control/0018_platform_executive.sql",
+        "migrations/postgres/control/0026_target_seat_gate.sql",
+        "migrations/postgres/control/0007_iam_catalog.sql",
+        "migrations/postgres/control/0033_product_sso.sql",
+        "migrations/postgres/control/0022_usage_meter_projection.sql",
+        "migrations/postgres/control/0043_native_device_group_keys.sql",
+        "migrations/postgres/control/0013_account_invitation_delivery_backfill.sql",
+        "migrations/postgres/control/0012_account_invitation_delivery.sql",
+        "migrations/postgres/control/0025_billing_test_finance_projection.sql",
+        "migrations/postgres/control/0032_executive_external_connections.sql",
+        "migrations/postgres/control/0035_account_preferences.sql",
+        "migrations/postgres/control/0005_workspace_preferences.sql",
+        "migrations/postgres/control/0036_admin_provider_contexts.sql",
+        "migrations/postgres/control/0031_account_time_preference_runtime_grants.sql",
+        "migrations/postgres/control/0034_platform_commercial.sql",
+        "migrations/postgres/control/0027_target_multicurrency_statements.sql",
+        "migrations/postgres/control/0020_billing_attachment_lifecycle.sql",
+        "migrations/postgres/control/0019_quick_access_preferences.sql",
+        "migrations/postgres/control/0028_target_runtime_grants.sql",
+        "migrations/postgres/control/0021_billing_attachment_reconciliation.sql"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      }
+    },
+    {
+      "lane": "unit",
+      "owner": "identity_access",
+      "modules": [
+        "identity_access"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "apps": [
+        "account",
+        "admin"
+      ],
+      "packages": [
+        "@erpx/contracts",
+        "@erpx/feature-runtime"
+      ],
+      "ci": {
+        "critical": true,
+        "reason": "Native session bootstrap requires exact leased schemas and live bindings; typed SSR cannot cache, redirect, proxy or manufacture authority."
+      },
+      "id": "identity_access.native-session-server.unit",
+      "files": [
+        "tests/unit/identity_access/native-session-server.test.ts"
+      ],
+      "verificationInputs": [
+        "packages/contracts/src/account-auth.generated.ts",
+        "docs/contracts/next/account-auth.openapi.generated.json",
+        "scripts/docs/export-account-contracts.rs",
+        "scripts/docs/generate-account-contracts.ts",
+        "packages/feature-runtime/src/adapters/server/native-session-http.ts",
+        "packages/feature-runtime/src/adapters/server/next-native-session.ts",
+        "packages/feature-runtime/src/public/server.ts"
+      ]
+    },
+    {
+      "id": "identity_access.rust-directory-mappings.unit",
+      "lane": "unit",
+      "owner": "identity_access",
+      "modules": [
+        "identity_access"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Directory mapping policy must preserve actual B0 grant admission and reject unsupported native scope without fabricating authority."
+      },
+      "files": [
+        "tests/unit/identity_access/rust-directory-mappings.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-identity-access",
+        "targets": [
+          "directory_mappings"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-identity_access/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "tests/support/rust-account.rs",
+        "fixtures/identity_access/directory/conformance.v1.json",
+        "scripts/testing/fixtures/generate-directory-rust-oracle.ts",
+        "packages/feature-organization/src/lib/hierarchy.ts",
+        "packages/server-identity_access/src/domain/providers.ts",
+        "fixtures/identity_access/directory/mappings.v1.json",
+        "scripts/testing/fixtures/generate-directory-mapping-oracle.ts",
+        "packages/server-identity_access/src/application/iam-grants.ts"
+      ],
+      "apps": [
+        "account",
+        "admin"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-finance",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-legal",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow"
+      ]
+    },
+    {
+      "lane": "provider",
+      "owner": "identity_access",
+      "modules": [
+        "identity_access"
+      ],
+      "fixture": "provider",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "apps": [
+        "account",
+        "admin"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-finance",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-legal",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow",
+        "@erpx/workplace"
+      ],
+      "id": "identity_access.rust-native-session-http.provider",
+      "files": [
+        "tests/provider/identity_access/rust-native-session-http.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-service",
+        "targets": [
+          "private_session_http_provider"
+        ],
+        "features": [
+          "private-development-api"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-identity_access/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "tests/support/rust-account.rs",
+        "scripts/docs/export-account-contracts.rs",
+        "scripts/docs/generate-account-contracts.ts",
+        "packages/contracts/src/account-auth.generated.ts",
+        "tests/support/rust-postgres.rs",
+        "docs/contracts/next/account-auth.openapi.generated.json",
+        "tests/support/rust-account-credentials.rs",
+        "tests/support/rust-account-queued-authority.rs",
+        "src/composition/Cargo.toml",
+        "tests/support/rust-account-revocation.rs",
+        "tests/support/runtime/private-session-api.rs",
+        "tests/support/runtime/native-session-client.mjs",
+        "packages/feature-runtime/src/adapters/server/native-session-http.ts"
+      ],
+      "provider": {
+        "required": [
+          "PATH",
+          "ERPX_NODE_BIN",
+          "ERPX_TEST_ADMIN_URL"
+        ],
+        "environment": {}
+      }
+    },
+    {
+      "lane": "integration",
+      "owner": "identity_access",
+      "modules": [
+        "identity_access"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "apps": [
+        "account",
+        "admin"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-finance",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-legal",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow"
+      ],
+      "ci": {
+        "critical": true,
+        "reason": "Native Directory snapshots, mapping, actual credential issuance and cross-Holding revocation require real transactional and LDAPS integration."
+      },
+      "id": "identity_access.rust-directory-postgres.integration",
+      "files": [
+        "tests/integration/identity_access/rust-directory-postgres.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-identity-access",
+        "targets": [
+          "directory_postgres"
+        ],
+        "features": [
+          "directory-ldaps"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-identity_access/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "tests/support/rust-account.rs",
+        "scripts/docs/export-account-contracts.rs",
+        "scripts/docs/generate-account-contracts.ts",
+        "packages/contracts/src/account-auth.generated.ts",
+        "tests/support/rust-postgres.rs",
+        "docs/contracts/next/account-auth.openapi.generated.json",
+        "tests/support/rust-account-credentials.rs",
+        "tests/support/rust-account-queued-authority.rs",
+        "tests/support/rust-directory-ldaps.rs",
+        "fixtures/identity_access/directory/mappings.v1.json",
+        "scripts/testing/fixtures/generate-directory-mapping-oracle.ts"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      }
+    },
+    {
+      "lane": "unit",
+      "owner": "shared.architecture",
+      "modules": [
+        "agent",
+        "assets",
+        "benefits",
+        "brand",
+        "collaboration",
+        "commercial",
+        "crm",
+        "customer_360",
+        "customer_authority",
+        "ecommerce",
+        "field_service",
+        "finance",
+        "identity_access",
+        "inventory",
+        "learning",
+        "legal",
+        "maintenance",
+        "manage_erpx",
+        "manufacturing",
+        "marketing",
+        "operations",
+        "organization",
+        "people_payroll",
+        "planning",
+        "platform_administration",
+        "pms",
+        "pos",
+        "procurement",
+        "projects",
+        "quality",
+        "sales",
+        "support",
+        "talent"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "apps": [
+        "apps",
+        "pos",
+        "pms",
+        "finance",
+        "people",
+        "sales",
+        "supply",
+        "assets",
+        "projects",
+        "recruit",
+        "learn",
+        "support",
+        "service",
+        "legal",
+        "manufacturing",
+        "account",
+        "admin",
+        "booking",
+        "portal",
+        "legal-portal",
+        "forms"
+      ],
+      "packages": [
+        "@erpx/contracts",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ],
+      "ci": {
+        "critical": true,
+        "reason": "Native worker ownership must retain its process group, private files and bounded resources through deadline, cancellation and cleanup."
+      },
+      "id": "shared.architecture.rust-owned-process.unit",
+      "files": [
+        "tests/unit/shared.architecture/rust-owned-process.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-runtime",
+        "targets": [
+          "owned_process"
+        ],
+        "features": [
+          "owned-process"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-runtime/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "docs/status/rust-backend-migration.json",
+        "packages/contracts/src/ownership.json"
+      ]
+    },
+    {
+      "id": "maintenance.rust-work-policy.unit",
+      "lane": "unit",
+      "owner": "maintenance",
+      "modules": [
+        "maintenance"
+      ],
+      "files": [
+        "tests/unit/maintenance/rust-work-policy.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-maintenance",
+        "targets": [
+          "work_policy"
+        ]
+      },
+      "apps": [
+        "assets"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-finance",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-legal",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow"
+      ],
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-maintenance/Cargo.toml",
+        "fixtures/maintenance/rust-work",
+        "scripts/testing/fixtures/generate-maintenance-rust-oracle.mjs"
+      ],
+      "ci": {
+        "critical": true,
+        "reason": "Maintenance current owner/reviewer and state policy must preserve retained source outcomes without fabricating stock or worker authority."
+      }
+    },
+    {
+      "id": "files.rust-preview.unit",
+      "lane": "unit",
+      "owner": "files",
+      "modules": [
+        "agent",
+        "assets",
+        "benefits",
+        "brand",
+        "collaboration",
+        "commercial",
+        "crm",
+        "customer_360",
+        "customer_authority",
+        "ecommerce",
+        "field_service",
+        "finance",
+        "identity_access",
+        "inventory",
+        "learning",
+        "legal",
+        "maintenance",
+        "manage_erpx",
+        "manufacturing",
+        "marketing",
+        "operations",
+        "organization",
+        "people_payroll",
+        "planning",
+        "platform_administration",
+        "pms",
+        "pos",
+        "procurement",
+        "projects",
+        "quality",
+        "sales",
+        "support",
+        "talent"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native preview source and output admission must preserve retained owner behavior without claiming tool readiness or authorization."
+      },
+      "files": [
+        "tests/unit/files/rust-preview.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-files",
+        "targets": [
+          "preview"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-files/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml"
+      ],
+      "apps": [
+        "apps",
+        "pos",
+        "pms",
+        "finance",
+        "people",
+        "sales",
+        "supply",
+        "assets",
+        "projects",
+        "recruit",
+        "learn",
+        "support",
+        "service",
+        "legal",
+        "manufacturing",
+        "account",
+        "admin",
+        "booking",
+        "portal",
+        "legal-portal",
+        "forms"
+      ],
+      "packages": [
+        "@erpx/server-files",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ]
+    },
+    {
+      "id": "files.rust-preview.provider",
+      "lane": "provider",
+      "owner": "files",
+      "modules": [
+        "legal"
+      ],
+      "fixture": "provider",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "files": [
+        "tests/provider/files/rust-preview-provider.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-files",
+        "targets": [
+          "preview_provider"
+        ],
+        "features": [
+          "preview-provider"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-files/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml"
+      ],
+      "apps": [
+        "legal",
+        "legal-portal"
+      ],
+      "packages": [
+        "@erpx/server-files",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ],
+      "provider": {
+        "required": [
+          "PKG_CONFIG_PATH",
+          "ERPX_HEIF_CONVERT",
+          "ERPX_PDFTOPPM_BIN"
+        ],
+        "environment": {}
+      }
+    },
+    {
+      "id": "finance.rust-journal-detail-postgres.integration",
+      "lane": "integration",
+      "owner": "finance",
+      "modules": [
+        "finance",
+        "legal",
+        "identity_access"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Actual inbound business HTTP must preserve current Account/Holding binding, normalized wire, exact CAS/replay, owner policy and transactional rollback."
+      },
+      "files": [
+        "tests/integration/finance/rust-journal-detail-postgres.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-service",
+        "targets": [
+          "finance_journal_detail_postgres"
+        ],
+        "features": [
+          "business-http"
+        ]
+      },
+      "verificationInputs": [
+        "src/composition/Cargo.toml",
+        "packages/server-finance/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "tests/support/finance/review-composition.rs",
+        "tests/support/rust-account-revocation.rs",
+        "tests/support/rust-account-credentials.rs",
+        "tests/support/rust-account.rs",
+        "tests/support/rust-postgres.rs"
+      ],
+      "apps": [
+        "finance",
+        "legal",
+        "account",
+        "admin",
+        "legal-portal"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-finance",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-legal",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow",
+        "@erpx/workplace"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      }
+    },
+    {
+      "lane": "unit",
+      "owner": "finance",
+      "modules": [
+        "identity_access"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "apps": [
+        "account",
+        "admin"
+      ],
+      "packages": [
+        "@erpx/contracts",
+        "@erpx/feature-finance"
+      ],
+      "ci": {
+        "critical": true,
+        "reason": "Native session bootstrap requires exact leased schemas and live bindings; typed SSR cannot cache, redirect, proxy or manufacture authority."
+      },
+      "id": "finance.native-journal-detail.unit",
+      "files": [
+        "tests/unit/finance/native-journal-detail.test.ts"
+      ],
+      "verificationInputs": [
+        "packages/contracts/src/finance-journal-read.generated.ts",
+        "packages/feature-finance/src/adapters/server/native-journal-detail.ts",
+        "packages/feature-finance/src/adapters/server/next-native-journal-detail.ts",
+        "packages/feature-finance/src/public/server.ts"
+      ]
+    },
+    {
+      "id": "assets.rust-maintenance-source-postgres.integration",
+      "lane": "integration",
+      "owner": "assets",
+      "modules": [
+        "assets",
+        "maintenance"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Actual physical Asset source must remain Company-scoped and locked to its owner transaction without transferring private fields or fabricating action authority."
+      },
+      "files": [
+        "tests/integration/assets/rust-maintenance-source.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-assets",
+        "targets": [
+          "maintenance_source"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-assets/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "tests/support/rust-postgres.rs"
+      ],
+      "apps": [
+        "assets"
+      ],
+      "packages": [
+        "@erpx/server-assets",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      }
+    },
+    {
+      "lane": "provider",
+      "owner": "finance",
+      "modules": [
+        "identity_access"
+      ],
+      "fixture": "provider",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "apps": [
+        "account",
+        "admin"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-finance",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-legal",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow",
+        "@erpx/workplace"
+      ],
+      "id": "finance.rust-journal-detail-http.provider",
+      "files": [
+        "tests/provider/finance/rust-journal-detail-http.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-service",
+        "targets": [
+          "finance_journal_detail_http_provider"
+        ],
+        "features": [
+          "business-http"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "src/composition/Cargo.toml",
+        "tests/support/finance/native-journal-client.mjs",
+        "packages/feature-finance/src/adapters/server/native-journal-detail.ts",
+        "packages/contracts/src/finance-journal-read.generated.ts"
+      ],
+      "provider": {
+        "required": [
+          "PATH",
+          "ERPX_NODE_BIN",
+          "ERPX_TEST_ADMIN_URL"
+        ],
+        "environment": {}
+      }
+    },
+    {
+      "id": "maintenance.rust-work-source-postgres.integration",
+      "lane": "integration",
+      "owner": "maintenance",
+      "modules": [
+        "maintenance",
+        "assets",
+        "identity_access",
+        "people_payroll"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Maintenance action policy must use retained Account/Holding authority and actual Work, Asset and scoped current worker sources before any separate commercial or Inventory effects."
+      },
+      "files": [
+        "tests/integration/maintenance/rust-work-source-postgres.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-maintenance",
+        "targets": [
+          "work_source"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-maintenance/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "tests/support/rust-postgres.rs",
+        "tests/support/rust-effective-authority.rs"
+      ],
+      "apps": [
+        "people",
+        "assets",
+        "account",
+        "admin"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-finance",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-legal",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      }
     }
   ]
 }

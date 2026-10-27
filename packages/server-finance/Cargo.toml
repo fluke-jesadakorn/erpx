@@ -13,7 +13,12 @@ verification-roots = ["../../fixtures/finance/rust-journal-wire", "../../scripts
 [lib]
 path = "src/lib.rs"
 
+[features]
+contracts = ["dep:ts-rs", "dep:utoipa"]
+
 [dependencies]
+ts-rs = { workspace = true, optional = true }
+utoipa = { workspace = true, optional = true }
 time.workspace = true
 futures-util.workspace = true
 erpx-server-workflow.workspace = true

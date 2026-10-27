@@ -32,11 +32,14 @@
 @source "../../../../packages/feature-finance/src/lib/finance-money.ts";
 @source "../../../../packages/feature-finance/src/lib/finance-navigation.ts";
 @source "../../../../packages/feature-identity_access/src/adapters/http/account-auth.ts";
+@source "../../../../packages/feature-identity_access/src/adapters/http/account-directory.ts";
+@source "../../../../packages/feature-identity_access/src/adapters/http/account-security.ts";
 @source "../../../../packages/feature-identity_access/src/components/account-preferences-context.tsx";
 @source "../../../../packages/feature-identity_access/src/components/account-preferences-provider.tsx";
 @source "../../../../packages/feature-identity_access/src/components/device-account-login-choices.tsx";
 @source "../../../../packages/feature-identity_access/src/lib/account-preference-refresh.ts";
 @source "../../../../packages/feature-identity_access/src/lib/account-preferences-client.ts";
+@source "../../../../packages/feature-identity_access/src/lib/account-security.ts";
 @source "../../../../packages/feature-identity_access/src/lib/account-self-navigation.ts";
 @source "../../../../packages/feature-identity_access/src/lib/auth-client.ts";
 @source "../../../../packages/feature-identity_access/src/lib/business-roles.ts";
@@ -46,6 +49,7 @@
 @source "../../../../packages/feature-identity_access/src/lib/technology-navigation.ts";
 @source "../../../../packages/feature-identity_access/src/lib/verified-form-submit.ts";
 @source "../../../../packages/feature-identity_access/src/lib/work-role-display.ts";
+@source "../../../../packages/feature-identity_access/src/public/client.ts";
 @source "../../../../packages/feature-legal/src/lib/legal/features-domain.ts";
 @source "../../../../packages/feature-legal/src/lib/legal/features.ts";
 @source "../../../../packages/feature-legal/src/lib/workspace-snapshot.ts";

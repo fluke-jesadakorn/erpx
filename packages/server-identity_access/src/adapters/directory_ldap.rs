@@ -210,9 +210,11 @@ impl DirectoryProviderRead for LdapDirectoryProvider {
                 wire.bind(rows[0].dn.clone(), password.expose().to_owned())
                     .await
                     .map_err(error)?;
-                Ok(VerifiedDirectorySubject::from_verified_bind(
-                    connection, external,
-                ))
+                VerifiedDirectorySubject::from_verified_bind(
+                    connection,
+                    external,
+                    self.clock.now().get(),
+                )
             }
             .await;
             wire.close().await;

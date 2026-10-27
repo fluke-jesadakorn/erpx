@@ -35,20 +35,47 @@ pub struct VerifiedDirectorySubject {
     config_fingerprint: String,
     profile_fingerprint: String,
     connection_version: i64,
+    company_id: String,
+    holding_id: Option<String>,
+    provider: crate::domain::directory::DirectoryProvider,
+    mode: DirectoryMode,
+    verified_at: i64,
+    expires_at: i64,
 }
 impl VerifiedDirectorySubject {
     #[cfg(feature = "directory-ldaps")]
     pub(crate) fn from_verified_bind(
         connection: &DirectoryConnectionDescriptor,
         external_id: String,
-    ) -> Self {
-        Self {
+        verified_at: i64,
+    ) -> Result<Self, BusinessError> {
+        let expires_at = verified_at
+            .checked_add(crate::domain::account_auth::SIGN_IN_RESERVATION_MS)
+            .filter(|_| verified_at >= 0)
+            .ok_or_else(login_failed)?;
+        Ok(Self {
             connection_id: connection.connection_id.clone(),
             external_id,
             config_fingerprint: connection.config_fingerprint.clone(),
             profile_fingerprint: connection.profile_fingerprint.clone(),
             connection_version: connection.version,
+            company_id: connection.company_id.clone(),
+            holding_id: connection.holding_id.clone(),
+            provider: connection.provider,
+            mode: connection.mode,
+            verified_at,
+            expires_at,
+        })
+    }
+    pub(crate) fn require_current_credential(&self, now: i64) -> Result<(), BusinessError> {
+        if now < self.verified_at || now >= self.expires_at {
+            return Err(login_failed());
         }
+        Ok(())
+    }
+    #[cfg(feature = "directory-ldaps")]
+    pub(crate) fn expires_at(&self) -> i64 {
+        self.expires_at
     }
     pub fn connection_id(&self) -> &str {
         &self.connection_id
@@ -61,6 +88,10 @@ impl VerifiedDirectorySubject {
             && self.config_fingerprint == connection.config_fingerprint
             && self.profile_fingerprint == connection.profile_fingerprint
             && self.connection_version == connection.version
+            && self.company_id == connection.company_id
+            && self.holding_id == connection.holding_id
+            && self.provider == connection.provider
+            && self.mode == connection.mode
     }
 }
 
@@ -214,6 +245,7 @@ impl DirectoryAuthentication {
                 "The Directory source changed.",
             ));
         }
+        subject.require_current_credential(self.clock.now().get())?;
         let observed_at = self.clock.now().get();
         let synchronized = async {
             let snapshot = self.provider.observe(&connection, observed_at).await?;
@@ -229,6 +261,7 @@ impl DirectoryAuthentication {
         }
         // Neither an applied snapshot nor a discarded older observation grants
         // access: issuance retains actual current eligibility through commit.
+        subject.require_current_credential(self.clock.now().get())?;
         Ok((subject, connection))
     }
 }

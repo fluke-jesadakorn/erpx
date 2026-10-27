@@ -34,6 +34,14 @@ This source tree includes:
   hashes are recorded in packages/server-identity_access/licenses/directory-ldap-provenance.json.
   See the accompanying MPL-2.0 and MIT license texts in that directory.
 
+
+- Optional Files preview renderer: libvips Rust bindings 2.3.0 retain MIT;
+  native libvips 8.18.7 retains LGPL-2.1-or-later. Synthetic preview fixtures
+  embed Compact ICC Profiles under CC0-1.0 and a public-domain CMYK profile
+  by Graeme W. Gill. See fixtures/files/preview/provenance.json and its licenses/.
+  ERPX-owned wrappers retain their project license; native binary/image and
+  complete transitive runtime qualification remain pending.
+
 See LICENSING.md and docs/community/provenance.json for the scope of the
 current project grant and the incomplete historical and asset review.
 This notice is informational; it does not change any license terms.

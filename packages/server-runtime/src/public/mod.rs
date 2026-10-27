@@ -7,4 +7,6 @@ pub use crate::application::inspection::{
     MigrationInventory, MigrationInventoryReader, MigrationPhase, MigrationSurface, OwnerMigration,
 };
 pub use crate::domain::migration::MigrationReadiness;
+#[cfg(feature = "owned-process")]
+pub mod owned_process;
 pub mod postgres;

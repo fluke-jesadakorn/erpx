@@ -1,5 +1,5 @@
 [workspace]
-members = ["packages/server-commerce", "packages/server-quality", "packages/server-inventory", "packages/server-shared", "packages/server-runtime", "packages/server-legal", "src/composition", "packages/server-finance", "packages/server-identity_access", "packages/server-organization", "packages/server-people_payroll", "packages/server-files", "packages/server-manage_erpx", "packages/server-commercial", "packages/server-platform_administration", "packages/server-pms", "packages/server-workflow"]
+members = ["packages/server-assets", "packages/server-maintenance", "packages/server-commerce", "packages/server-quality", "packages/server-inventory", "packages/server-shared", "packages/server-runtime", "packages/server-legal", "src/composition", "packages/server-finance", "packages/server-identity_access", "packages/server-organization", "packages/server-people_payroll", "packages/server-files", "packages/server-manage_erpx", "packages/server-commercial", "packages/server-platform_administration", "packages/server-pms", "packages/server-workflow"]
 resolver = "3"
 
 [workspace.package]
@@ -10,6 +10,10 @@ license = "Apache-2.0"
 publish = false
 
 [workspace.dependencies]
+erpx-server-assets = { path = "packages/server-assets" }
+erpx-server-maintenance = { path = "packages/server-maintenance" }
+libvips = "=2.3.0"
+pkg-config = "=0.3.34"
 ldap3_proto = "=0.8.1"
 bytes = "=1.12.1"
 tracing = "=0.1.44"

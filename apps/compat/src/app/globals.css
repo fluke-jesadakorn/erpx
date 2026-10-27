@@ -854,6 +854,7 @@
 @source "../../../../packages/feature-iam/src/components/sections/roles.tsx";
 @source "../../../../packages/feature-iam/src/components/sections/users.tsx";
 @source "../../../../packages/feature-identity_access/src/adapters/http/account-auth.ts";
+@source "../../../../packages/feature-identity_access/src/adapters/http/account-directory.ts";
 @source "../../../../packages/feature-identity_access/src/adapters/http/account-security.ts";
 @source "../../../../packages/feature-identity_access/src/components/access-editor.tsx";
 @source "../../../../packages/feature-identity_access/src/components/account-home.tsx";

@@ -1,0 +1,9 @@
+{
+  "case": "jpeg-p3-orientation-eight",
+  "inputSha256": "91a0fa273416a7298a60bebd28dadde097ace1d690726014556ce52ad43f2a80",
+  "oldThumbnailPath": {
+    "maxChannelError": 36,
+    "meanChannelError": 3.448421052631579
+  },
+  "qualification": "A failure of color-order parity; never an accepted tolerance"
+}

@@ -11,6 +11,7 @@ fn main() {
         document.merge(erpx_server_identity_access::public::account_sso::sso_openapi());
         document.merge(erpx_server_identity_access::public::invitation_openapi());
         document.merge(security_openapi());
+        document.merge(erpx_server_identity_access::public::directory::directory_openapi());
         document.info.title = "ERPX native Account authentication".into();
         document.info.description=Some("Native Account authentication, credential lifecycle, TOTP and personal session security. Unmounted during migration; runtime/provider assembly and live delivery acceptance, invitation administration/existing-account linking, Directory and complete owner authorization remain pending. This document is not runtime or release acceptance.".into());
         println!(
@@ -31,6 +32,8 @@ fn main() {
     for declaration in [
         AccountRevision::decl(&configuration),
         EmailSignInInput::decl(&configuration),
+        DirectorySignInInput::decl(&configuration),
+        DirectorySignInResponse::decl(&configuration),
         EmailSignUpInput::decl(&configuration),
         EmailVerificationInput::decl(&configuration),
         PasswordChangeInput::decl(&configuration),

@@ -109,6 +109,33 @@ impl CapturedHoldingMutation {
             department_slug,
         }
     }
+    /// Read selectors may be omitted for the first SSR read. If any CAS header
+    /// is supplied, require the complete same captured selection; never combine
+    /// half of a rendered snapshot with a later freshly selected account.
+    pub fn resolve_read(
+        self,
+        company: CompanyId,
+    ) -> Result<HoldingWorkspaceRequest, BusinessError> {
+        if self.invalid {
+            return Err(changed());
+        }
+        if self.headers.is_empty() {
+            return Ok(HoldingWorkspaceRequest {
+                company_id: company,
+                branch_slug: self.branch_slug,
+                department_slug: self.department_slug,
+                expected: None,
+                mutation: false,
+            });
+        }
+        let mut request =
+            holding_mutation_request(&self.headers, self.branch_slug, self.department_slug)?;
+        if request.company_id != company {
+            return Err(changed());
+        }
+        request.mutation = false;
+        Ok(request)
+    }
     pub fn resolve(self) -> Result<HoldingWorkspaceRequest, BusinessError> {
         if self.invalid {
             return Err(changed());

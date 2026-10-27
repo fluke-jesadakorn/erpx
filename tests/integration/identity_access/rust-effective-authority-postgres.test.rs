@@ -342,3 +342,63 @@ async fn directory_freshness_emergency_expiry_scope_and_exact_host_are_mandatory
     code(authorizer.execute("acme.example.test",proof(),branch,scoped,|_,_|Box::pin(async{Ok(())})).await,"PERMISSION_REQUIRED");
  }).await;}).await;
 }
+
+async fn seed_operational_worker_reference(pool: &DatabasePool) {
+    sqlx::raw_sql("INSERT INTO hr_people(id,user_id,company_id,legal_name,country_code,created_by,created_at,updated_at)VALUES('worker','user','company','PRIVATE_WORKER_NAME','TH','fixture',0,0);INSERT INTO hr_engagements(id,person_id,company_id,worker_type,employment_type,status,start_date,job_title,currency,created_by,created_at,updated_at)VALUES('worker-engagement','worker','company','employee','salaried','active','2026-01-01','PRIVATE_JOB_TITLE','THB','fixture',0,0);INSERT INTO iam_members(company_id,user_id,principal_id,person_id,status,login_policy)VALUES('company','user','local:user','worker','active','local');INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at)VALUES('*','custom_native_authority',2,'[\"finance.read\",\"finance.write\",\"module.finance.read\",\"records.write\",\"records.review\"]','[]','[\"holding\",\"branch\",\"department\"]','fixture',0);UPDATE iam_roles SET published_revision=2 WHERE id='custom_native_authority';INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status)VALUES('worker-dept','department','workshop','Workshop','branch','company','branch','active')").execute(pool.raw()).await.unwrap();
+}
+fn operational_worker_request(
+    permission:erpx_server_identity_access::public::operational_worker::OperationalWorkerPermission,
+    branch: &str,
+    department: Option<&str>,
+) -> erpx_server_identity_access::public::operational_worker::OperationalWorkerRequest {
+    erpx_server_identity_access::public::operational_worker::OperationalWorkerRequest {
+        company_id: erpx_server_shared::public::CompanyId::new("company").unwrap(),
+        user_id: UserId::new("user").unwrap(),
+        branch_id: erpx_server_shared::public::RecordId::new(branch).unwrap(),
+        department_id: department.map(|s| erpx_server_shared::public::RecordId::new(s).unwrap()),
+        permission,
+    }
+}
+#[tokio::test]
+async fn operational_worker_reference_requires_actual_people_current_permission_and_exact_record_scope()
+ {
+    use erpx_server_identity_access::public::operational_worker::*;
+    use erpx_server_runtime::public::postgres::{PgUnitOfWork, TransactionOptions};
+    use erpx_server_shared::public::TimestampMillis;
+    fixture::with_database(2,|control|async move{fixture::with_database(2,move|holding|async move{
+        setup(&control,&holding).await;seed_operational_worker_reference(&holding).await;
+        PgUnitOfWork::new(holding.clone()).run::<(),BusinessError,_>(TransactionOptions::default(),|c|Box::pin(async move{
+            lock_operational_worker_sources(c).await?;let now=TimestampMillis::new(NOW);
+            let write=inspect_operational_worker(c,operational_worker_request(OperationalWorkerPermission::Write,"branch",None),now).await?;assert!(write.is_eligible());write.require_current(c,now).await?;
+            assert!(inspect_operational_worker(c,operational_worker_request(OperationalWorkerPermission::Review,"branch",None),now).await?.is_eligible());
+            sqlx::query("UPDATE assignments SET scope_kind='branch',scope_node_id='branch',version=version+1 WHERE id='grant'").execute(&mut *c).await?;
+            assert!(inspect_operational_worker(c,operational_worker_request(OperationalWorkerPermission::Write,"branch",None),now).await?.is_eligible());
+            assert!(!inspect_operational_worker(c,operational_worker_request(OperationalWorkerPermission::Write,"other-branch",None),now).await?.is_eligible());
+            sqlx::query("UPDATE assignments SET scope_kind='department',scope_node_id='worker-dept',version=version+1 WHERE id='grant'").execute(&mut *c).await?;
+            assert!(inspect_operational_worker(c,operational_worker_request(OperationalWorkerPermission::Write,"branch",Some("worker-dept")),now).await?.is_eligible());
+            assert!(!inspect_operational_worker(c,operational_worker_request(OperationalWorkerPermission::Write,"branch",None),now).await?.is_eligible());
+            sqlx::query("UPDATE assignments SET scope_kind='holding',scope_node_id='branch',version=version+1 WHERE id='grant'").execute(&mut *c).await?;
+            // Explicit ADR-055 difference: no ignored node can participate in
+            // a broader native Holding grant/reference.
+            assert!(!inspect_operational_worker(c,operational_worker_request(OperationalWorkerPermission::Write,"branch",None),now).await?.is_eligible());
+            sqlx::query("UPDATE assignments SET scope_node_id=NULL,version=version+1 WHERE id='grant'").execute(&mut *c).await?;
+            sqlx::query("UPDATE hr_engagements SET start_date='2030-01-01',version=version+1 WHERE id='worker-engagement'").execute(&mut *c).await?;
+            assert!(!inspect_operational_worker(c,operational_worker_request(OperationalWorkerPermission::Write,"branch",None),now).await?.is_eligible());assert!(write.require_current(c,now).await.is_err());
+            Ok(())
+        })).await.unwrap();
+        assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*)FROM native_owner_effects").fetch_one(holding.raw()).await.unwrap(),0);
+    }).await;}).await;
+}
+#[tokio::test]
+async fn operational_worker_reference_retains_current_role_and_refuses_a_different_transaction() {
+    use erpx_server_identity_access::public::operational_worker::*;
+    use erpx_server_shared::public::TimestampMillis;
+    fixture::with_database(2,|control|async move{fixture::with_database(2,move|holding|async move{
+        setup(&control,&holding).await;seed_operational_worker_reference(&holding).await;
+        let now=TimestampMillis::new(NOW);let mut tx=holding.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();lock_operational_worker_sources(&mut tx).await.unwrap();
+        let source=inspect_operational_worker(&mut tx,operational_worker_request(OperationalWorkerPermission::Review,"branch",None),now).await.unwrap();assert!(source.is_eligible());
+        sqlx::raw_sql("INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at)VALUES('*','custom_native_authority',3,'[\"records.write\"]','[]','[\"holding\",\"branch\",\"department\"]','fixture',0);UPDATE iam_roles SET published_revision=3 WHERE id='custom_native_authority'").execute(&mut *tx).await.unwrap();assert!(source.require_current(&mut tx,now).await.is_err());tx.rollback().await.unwrap();
+        let mut tx=holding.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();lock_operational_worker_sources(&mut tx).await.unwrap();let source=inspect_operational_worker(&mut tx,operational_worker_request(OperationalWorkerPermission::Write,"branch",None),now).await.unwrap();assert!(source.is_eligible());tx.commit().await.unwrap();
+        let mut other=holding.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other).await.unwrap();assert!(source.require_current(&mut other,now).await.is_err());other.rollback().await.unwrap();
+    }).await;}).await;
+}

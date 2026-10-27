@@ -7,6 +7,8 @@ use sha2::{Digest, Sha256};
 use sqlx::{AssertSqlSafe, Connection};
 use std::{collections::BTreeSet, path::Path};
 
+pub(crate) const MIGRATION_LOCK_KEY: i64 = 714928001;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum MigrationTrack {
@@ -141,7 +143,8 @@ pub async fn migrate_database(
         return Err(PersistenceError::new("DUPLICATE_MIGRATION_NAME"));
     }
     let mut lease = SessionLease::acquire(pool).await?;
-    sqlx::query("SELECT pg_advisory_lock(714928001)")
+    sqlx::query("SELECT pg_advisory_lock($1::bigint)")
+        .bind(MIGRATION_LOCK_KEY)
         .execute(lease.connection())
         .await?;
     let result=async {
@@ -166,7 +169,8 @@ pub async fn migrate_database(
         }
         Ok(run)
     }.await;
-    match sqlx::query_scalar::<_, bool>("SELECT pg_advisory_unlock(714928001)")
+    match sqlx::query_scalar::<_, bool>("SELECT pg_advisory_unlock($1::bigint)")
+        .bind(MIGRATION_LOCK_KEY)
         .fetch_one(lease.connection())
         .await
     {

@@ -49,6 +49,7 @@
 @source "../../../../packages/feature-finance/src/lib/finance-thai-document.ts";
 @source "../../../../packages/feature-finance/src/lib/thai-finance-tax-pack.ts";
 @source "../../../../packages/feature-identity_access/src/adapters/http/account-auth.ts";
+@source "../../../../packages/feature-identity_access/src/adapters/http/account-directory.ts";
 @source "../../../../packages/feature-identity_access/src/adapters/http/account-security.ts";
 @source "../../../../packages/feature-identity_access/src/components/account-home.tsx";
 @source "../../../../packages/feature-identity_access/src/components/account-preferences-context.tsx";

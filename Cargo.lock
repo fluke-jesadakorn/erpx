@@ -597,6 +597,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "00d174d5400e5e8fd687ad1049e2f578285fa914201b1af7e8b112a4546bd826"
 
 [[package]]
+name = "erpx-server-assets"
+version = "0.1.0"
+dependencies = [
+ "erpx-server-runtime",
+ "erpx-server-shared",
+ "sqlx",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "erpx-server-commerce"
 version = "0.1.0"
 dependencies = [
@@ -632,7 +643,9 @@ dependencies = [
  "erpx-server-runtime",
  "erpx-server-shared",
  "hex",
+ "libvips",
  "nix",
+ "pkg-config",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -660,6 +673,8 @@ dependencies = [
  "sqlx",
  "time",
  "tokio",
+ "ts-rs",
+ "utoipa",
  "uuid",
 ]
 
@@ -689,6 +704,7 @@ dependencies = [
  "sha2 0.10.9",
  "sqlx",
  "subtle",
+ "tempfile",
  "time",
  "tokio",
  "tokio-rustls",
@@ -748,6 +764,20 @@ dependencies = [
  "x509-ocsp",
  "x509-tsp",
  "zip",
+]
+
+[[package]]
+name = "erpx-server-maintenance"
+version = "0.1.0"
+dependencies = [
+ "erpx-server-assets",
+ "erpx-server-identity-access",
+ "erpx-server-runtime",
+ "erpx-server-shared",
+ "serde_json",
+ "sqlx",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]
@@ -836,11 +866,14 @@ dependencies = [
  "axum",
  "erpx-server-shared",
  "hex",
+ "nix",
+ "rustix",
  "serde",
  "serde_json",
  "sha2 0.10.9",
  "sqlx",
  "syn 2.0.119",
+ "sysinfo",
  "tempfile",
  "tokio",
  "tower",
@@ -882,6 +915,7 @@ dependencies = [
  "erpx-server-finance",
  "erpx-server-identity-access",
  "erpx-server-legal",
+ "erpx-server-people-payroll",
  "erpx-server-platform-administration",
  "erpx-server-pms",
  "erpx-server-runtime",
@@ -897,6 +931,8 @@ dependencies = [
  "time",
  "tokio",
  "tower",
+ "ts-rs",
+ "utoipa",
  "uuid",
 ]
 
@@ -1592,6 +1628,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "libvips"
+version = "2.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "29c2daabf7114fd6e626fef46e3ba187d204554cf94d31312424300bd8160d9b"
+dependencies = [
+ "num-derive",
+ "num-traits",
+]
+
+[[package]]
 name = "linux-raw-sys"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1761,6 +1807,17 @@ name = "num-conv"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "521739c6d2bac4aa25192232afe6841231376b2b26d4d9fae5ecf8ca5772e441"
+
+[[package]]
+name = "num-derive"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ed3955f1a9c7c0c15e092f9c887db08b1fc683305fdf6eb6684f22555355e202"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+]
 
 [[package]]
 name = "num-integer"

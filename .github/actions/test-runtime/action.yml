@@ -28,12 +28,17 @@ runs:
         sudo apt-get update
         sudo apt-get install -y postgresql-common
         sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
-        sudo apt-get install -y postgresql-client-18 clamav clamav-daemon libheif-examples poppler-utils lsof age
+        sudo apt-get install -y postgresql-client-18 clamav clamav-daemon libheif-examples libheif-plugin-libde265 poppler-utils lsof age
     - name: Provision the guarded disposable database administrator
       shell: bash
       env:
         PGPASSWORD: erpx-ci-only
       run: psql -h 127.0.0.1 -p 5432 -U postgres -d postgres -v ON_ERROR_STOP=1 -c "CREATE ROLE erpx_test_admin LOGIN PASSWORD 'erpx-ci-only' CREATEDB NOSUPERUSER NOCREATEROLE NOREPLICATION;"
+    - name: Prove the isolated PostgreSQL startup configuration
+      shell: bash
+      env:
+        ERPX_CI_POSTGRES_MONITOR_URL: postgresql://postgres:erpx-ci-only@127.0.0.1:5432/postgres
+      run: bun scripts/testing/ci-postgres-resource.ts --probe-only
     - name: Start the isolated attachment scanner
       shell: bash
       run: |

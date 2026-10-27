@@ -28,6 +28,15 @@ pub async fn run_cli(arguments: impl IntoIterator<Item = String>) -> Result<(), 
             println!("{}", outcome);
             Ok(())
         }
+        #[cfg(feature = "private-development-api")]
+        [command, option, path] if command == "private-api" && option == "--development-config" => {
+            erpx_service::private_development_api::run_development_api_file(
+                std::path::Path::new(path),
+                shutdown(),
+            )
+            .await
+            .map_err(str::to_owned)
+        }
         [command] if command == "owners" => {
             let (inventory, readiness) = inspect_migration(&EmbeddedMigrationInventory)?;
             println!(
@@ -50,11 +59,20 @@ pub async fn run_cli(arguments: impl IntoIterator<Item = String>) -> Result<(), 
                 .await
                 .map_err(|_| "RUST_FOUNDATION_HTTP_FAILED".to_owned())
         }
-        _ => Err(if cfg!(feature="legal-document-worker"){
-            "Usage: erpx-server owners | erpx-server api --listen 127.0.0.1:<disposable-port> | erpx-server legal-worker --once --development-config /absolute/private.json"
-        }else{
-            "Usage: erpx-server owners | erpx-server api --listen 127.0.0.1:<disposable-port>"
-        }.to_owned()),
+        _ => {
+            let mut usage = String::from(
+                "Usage: erpx-server owners | erpx-server api --listen 127.0.0.1:<disposable-port>",
+            );
+            if cfg!(feature = "legal-document-worker") {
+                usage.push_str(" | erpx-server legal-worker --once --development-config /absolute/private.json");
+            }
+            if cfg!(feature = "private-development-api") {
+                usage.push_str(
+                    " | erpx-server private-api --development-config /absolute/private.json",
+                );
+            }
+            Err(usage)
+        }
     }
 }
 

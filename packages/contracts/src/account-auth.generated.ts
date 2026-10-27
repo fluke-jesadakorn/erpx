@@ -2,6 +2,8 @@
 // Regenerate: bun scripts/docs/generate-account-contracts.ts
 export type AccountRevision = number;
 export type EmailSignInInput = { email: string, password: string, revision?: AccountRevision, callbackURL?: string, rememberMe?: boolean, };
+export type DirectorySignInInput = { connectionId: string, username: string, password: string, revision?: AccountRevision, };
+export type DirectorySignInResponse = { success: boolean, };
 export type EmailSignUpInput = { name: string, email: string, password: string, callbackURL?: string, invitationToken?: string, };
 export type EmailVerificationInput = { token: string, callbackURL?: string, revision?: AccountRevision, };
 export type PasswordChangeInput = { currentPassword: string, newPassword: string, };

@@ -44,6 +44,23 @@ impl<'de> Deserialize<'de> for AccountRevision {
 
 #[derive(Deserialize)]
 #[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct DirectorySignInInput {
+    pub connection_id: String,
+    pub username: String,
+    pub password: String,
+    #[cfg_attr(feature = "contracts", ts(optional))]
+    pub revision: Option<AccountRevision>,
+}
+#[derive(Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(deny_unknown_fields)]
+pub struct DirectorySignInResponse {
+    pub success: bool,
+}
+
+#[derive(Deserialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct EmailSignInInput {
     pub email: String,

@@ -8,9 +8,13 @@ publish.workspace = true
 autotests = false
 
 [package.metadata.erpx]
-verification-roots = ["../../fixtures/files/rust-media", "../../scripts/testing/fixtures/generate-files-media-goldens.ts"]
+verification-roots = ["../../fixtures/files/rust-media", "../../scripts/testing/fixtures/generate-files-media-goldens.ts", "../../fixtures/files/preview", "../../scripts/testing/fixtures/generate-files-preview-goldens.ts"]
+
+[features]
+preview-provider = ["dep:libvips", "dep:pkg-config", "erpx-server-runtime/owned-process"]
 
 [dependencies]
+libvips = { workspace = true, optional = true }
 erpx-server-shared.workspace = true
 erpx-server-runtime.workspace = true
 sqlx.workspace = true
@@ -47,3 +51,20 @@ path = "../../tests/provider/files/rust-clamav.test.rs"
 
 [lints]
 workspace = true
+
+[build-dependencies]
+pkg-config = { workspace = true, optional = true }
+
+[[bin]]
+name = "erpx-render-preview"
+path = "src/adapters/preview_cli.rs"
+required-features = ["preview-provider"]
+
+[[test]]
+name = "preview"
+path = "../../tests/unit/files/rust-preview.test.rs"
+
+[[test]]
+name = "preview_provider"
+path = "../../tests/provider/files/rust-preview-provider.test.rs"
+required-features = ["preview-provider"]

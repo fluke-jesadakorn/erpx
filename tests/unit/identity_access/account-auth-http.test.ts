@@ -154,3 +154,12 @@ it("carries the read-only lost-group revision into initialization without accept
   fetcher.mockImplementation(async () => response({ data: { ...devices, rawGroup: "synthetic-private-proof" } }));
   expect((await client.multiSession.initialize({ revision: 13 })).error?.code).toBe("ACCOUNT_RESPONSE_INVALID");
 });
+
+it('uses the typed Directory wire without adopting response credentials or hiding native throttle and CAS failures',async()=>{
+ const {createAccountDirectoryHttpPort}=await import('@erpx/feature-identity_access/public/client');
+ const fetcher=vi.fn<(input:string,init:RequestInit)=>Promise<Response>>(async()=>response({success:true}));const directory=createAccountDirectoryHttpPort(fetcher);
+ const input={connectionId:'11111111-1111-4111-8111-111111111111',username:'alice',password:'synthetic-directory-only',revision:12};expect(await directory.signIn(input)).toEqual({data:{success:true},error:null});expect(fetcher.mock.calls[0]).toEqual(['/api/auth/directory/sign-in',expect.objectContaining({method:'POST',credentials:'include',cache:'no-store',redirect:'error',body:JSON.stringify(input)})]);
+ for(const value of [{success:true,token:'untrusted'},{success:false},{data:{success:true}},null]){fetcher.mockResolvedValueOnce(response(value));expect((await directory.signIn(input)).error?.code).toBe('ACCOUNT_RESPONSE_INVALID');}
+ for(const [status,code]of [[429,'IAM_RATE_LIMIT'],[409,'DEVICE_ACCOUNTS_CHANGED']]as const){fetcher.mockResolvedValueOnce(response({error:{code,message:'Actual current denial'}},status));expect((await directory.signIn(input)).error).toEqual({code,message:'Actual current denial'});}
+ const calls=fetcher.mock.calls.length;expect((await directory.signIn({...input,revision:Number.MAX_SAFE_INTEGER+1})).error?.code).toBe('INVALID_DEVICE_REVISION');expect(fetcher.mock.calls).toHaveLength(calls);
+});

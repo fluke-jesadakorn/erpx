@@ -1,0 +1,5 @@
+Exact cprt text embedded in upstream libvips8.18.7 libvips/colour/profiles/cmyk.icm:
+
+Created by Graeme W. Gill. Released into the public domain. No Warranty, Use at your own risk.
+
+Profile SHA256: 156e7c14f244cfc4ed83a755ca4803d80e15dd249b40fae82cb127d3902e15c7

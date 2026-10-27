@@ -20,7 +20,8 @@
     "./command-flow": "./src/command-flow.ts",
     "./ownership": "./src/ownership.ts",
     "./development-module-admission": "./src/development-module-admission.ts",
-    "./legal-portal-upload": "./src/legal-portal-upload.ts"
+    "./legal-portal-upload": "./src/legal-portal-upload.ts",
+    "./finance-journal-read": "./src/finance-journal-read.generated.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

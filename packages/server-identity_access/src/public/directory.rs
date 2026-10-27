@@ -27,3 +27,20 @@ pub use crate::adapters::directory_profiles::DirectoryProfileStore;
 
 #[cfg(feature = "directory-ldaps")]
 pub use crate::adapters::directory_ldap::LdapDirectoryProvider;
+
+/// Standing mapping policy facts; validation alone creates no Assignment.
+pub mod grants {
+    pub use crate::domain::directory_grants::{
+        DirectoryGrantFacts, DirectoryMemberFact, DirectoryParentFact, DirectoryRoleFact,
+        DirectoryScopeFact, validate_mapping_grant,
+    };
+}
+
+#[cfg(feature = "directory-ldaps")]
+pub use crate::adapters::directory_postgres::{
+    DirectoryDatabaseBindings, DirectoryHoldingDatabase, PostgresDirectory,
+};
+
+pub use crate::adapters::directory_http::directory_account_router;
+#[cfg(feature = "contracts")]
+pub use crate::adapters::directory_http::directory_openapi;

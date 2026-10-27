@@ -52,3 +52,5 @@ impl From<sqlx::Error> for PersistenceError {
         }
     }
 }
+
+pub(crate) mod development_schema;

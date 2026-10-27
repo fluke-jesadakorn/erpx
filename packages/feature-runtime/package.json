@@ -29,7 +29,8 @@
     "./lib/engineering-inventory-report": "./src/lib/engineering-inventory-report.ts",
     "./lib/database-pool-policy": "./src/lib/database-pool-policy.ts",
     "./lib/executive/canvas-domain": "./src/lib/executive/canvas-domain.ts",
-    "./lib/holding-paths": "./src/lib/holding-paths.ts"
+    "./lib/holding-paths": "./src/lib/holding-paths.ts",
+    "./public/server": "./src/public/server.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
@@ -53,6 +54,7 @@
     "lucide-react": "1.61.0",
     "next": "16.4.3",
     "react": "19.3.1",
-    "zod": "4.6.7"
+    "zod": "4.6.7",
+    "server-only": "0.0.1"
   }
 }

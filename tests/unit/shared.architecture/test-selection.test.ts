@@ -1,6 +1,7 @@
 import {inferPostgresProfile} from '../../../scripts/testing/workspace-catalogue';
 import {executeOwnedProcess} from '../../support/owned-process';
-import {ciVerificationArgv} from '../../../scripts/testing/ci-postgres-contract';
+import {ciPostgresInvocation,ciVerificationArgv} from '../../../scripts/testing/ci-postgres-contract';
+import {ciHeifDecoderInventory} from '../../../scripts/testing/ci-attachment-contract';
 import { afterEach, describe, expect, it } from "vitest";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { availableParallelism, tmpdir } from "node:os";
@@ -538,6 +539,28 @@ describe("conservative base and head impact selection", () => {
     for (const command of ['scripts/architecture/check.ts', 'scripts/testing/layout.ts', 'scripts/docs/check-documentation.ts']) expect(regressionRunner).toContain(command);
     expect(regressionRunner).not.toContain('scripts/testing/full.ts');
 
+  });
+  it("keeps startup observation separate from verification and proves a real HEVC decoder prerequisite", () => {
+    expect(ciPostgresInvocation(['--probe-only'])).toEqual({kind:'startup'});
+    expect(ciPostgresInvocation(['--','bun','run','test:ci','--base=original','--head=exact']))
+      .toEqual({kind:'verification',argv:['run','test:ci','--base=original','--head=exact']});
+    for(const args of [['--probe-only','--base=x'],['--probe-only','bun','run','test:ci'],['--probe']])
+      expect(()=>ciPostgresInvocation(args)).toThrow('EXPLICIT_CI_VERIFICATION_COMMAND_REQUIRED');
+    const action=readFileSync(join(process.cwd(),'.github/actions/test-runtime/action.yml'),'utf8');
+    expect(action).toContain('libheif-examples libheif-plugin-libde265');
+    expect(action.indexOf('ci-postgres-resource.ts --probe-only')).toBeGreaterThan(action.indexOf('Provision the guarded disposable database administrator'));
+    expect(action.indexOf('ci-postgres-resource.ts --probe-only')).toBeLessThan(action.indexOf('Prove the real scanner and decoder prerequisites'));
+    const inventory=['libheif1\t1.17.6-1ubuntu4.9','libheif-examples\t1.17.6-1ubuntu4.9',
+      'libheif-plugin-libde265\t1.17.6-1ubuntu4.9','libde265-0\t1.0.15-1build3'].join('\n')+'\n';
+    expect(ciHeifDecoderInventory(inventory)).toHaveLength(4);
+    expect(ciHeifDecoderInventory(inventory)).toContainEqual({name:'libheif-plugin-libde265',version:'1.17.6-1ubuntu4.9'});
+    for(const invalid of [inventory.replace('libheif-plugin-libde265','libheif-plugin-x265'),
+      inventory.replace('libheif-plugin-libde265','libheif1'),inventory.replace('1.0.15-1build3','1.0;echo bad'),
+      inventory+'libheif1\t1.17.6\n','x'.repeat(4097)])expect(()=>ciHeifDecoderInventory(invalid)).toThrow();
+    const probe=readFileSync(join(process.cwd(),'scripts/testing/ci-attachment-prerequisites.ts'),'utf8');
+    expect(probe).toContain("sanitizedAttachmentPreview(source, 'image/heic')");
+    expect(probe).toContain('metadata.width !== 40 || metadata.height !== 80');
+    expect(probe).toContain('clean.clean || detected.clean');
   });
   it("starts CI for operational runners, nested fixtures and workspace rules that force full impact", () => {
     const workflow=readFileSync(join(process.cwd(),".github/workflows/nextjs.yml"),"utf8");

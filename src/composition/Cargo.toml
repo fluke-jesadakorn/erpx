@@ -7,7 +7,12 @@ license.workspace = true
 publish.workspace = true
 autotests = false
 
+[package.metadata.erpx]
+verification-roots = ["../../scripts/docs/export-finance-journal-read-contracts.rs", "../../scripts/docs/generate-finance-journal-read-contracts.ts", "../../packages/contracts/src/finance-journal-read.generated.ts", "../../docs/contracts/next/finance-journal-read.openapi.generated.json", "../../tests/support/finance/native-journal-client.mjs"]
+
 [features]
+contracts = ["dep:ts-rs", "dep:utoipa", "erpx-server-finance/contracts"]
+private-development-api = []
 business-http = ["legal-queue"]
 legal-queue = []
 legal-pdf-worker = ["erpx-server-legal/pdf-verifier"]
@@ -19,6 +24,9 @@ name = "erpx-server"
 path = "src/main.rs"
 
 [dependencies]
+ts-rs = { workspace = true, optional = true }
+utoipa = { workspace = true, optional = true }
+erpx-server-people-payroll.workspace = true
 erpx-server-runtime.workspace = true
 erpx-server-workflow.workspace = true
 erpx-server-shared.workspace = true
@@ -73,4 +81,34 @@ path = "../../tests/integration/finance/rust-journal-review-composition.test.rs"
 [[test]]
 name = "business_http_postgres"
 path = "../../tests/integration/finance/rust-business-http-postgres.test.rs"
+required-features = ["business-http"]
+
+[[test]]
+name = "private_development_api"
+path = "../../tests/unit/identity_access/rust-private-development-api.test.rs"
+required-features = ["private-development-api"]
+
+[[test]]
+name = "private_session_api_postgres"
+path = "../../tests/integration/identity_access/rust-private-session-api-postgres.test.rs"
+required-features = ["private-development-api"]
+
+[[test]]
+name = "private_session_http_provider"
+path = "../../tests/provider/identity_access/rust-native-session-http.test.rs"
+required-features = ["private-development-api"]
+
+[[example]]
+name = "export-finance-journal-read-contracts"
+path = "../../scripts/docs/export-finance-journal-read-contracts.rs"
+required-features = ["contracts"]
+
+[[test]]
+name = "finance_journal_detail_postgres"
+path = "../../tests/integration/finance/rust-journal-detail-postgres.test.rs"
+required-features = ["business-http"]
+
+[[test]]
+name = "finance_journal_detail_http_provider"
+path = "../../tests/provider/finance/rust-journal-detail-http.test.rs"
 required-features = ["business-http"]

@@ -12,3 +12,7 @@ pub use crate::adapters::postgres::unit_of_work::{
 };
 
 pub use crate::adapters::postgres::development_lease::LeasedDevelopmentDatabase;
+
+pub use crate::adapters::postgres::development_schema::{
+    StartupMigrationInventory, verify_current_migration_inventory,
+};

@@ -22,3 +22,5 @@ pub(crate) mod command_metadata;
 
 pub(crate) mod directory;
 pub(crate) mod directory_provider_values;
+
+pub(crate) mod directory_grants;

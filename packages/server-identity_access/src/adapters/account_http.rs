@@ -22,6 +22,13 @@ const PRODUCT_COOKIE: &str = "__Host-erpx-product";
 const BODY_LIMIT: usize = 8192;
 
 /// Inbound HTTP only: policy/ports are assembled by the composition crate.
+/// Narrow read-only assembly reuses the same canonical handler and proof parser.
+pub fn account_session_router(service: Arc<AccountAuthentication>) -> Router {
+    Router::new()
+        .route("/api/auth/get-session", get(get_session))
+        .with_state(service)
+}
+
 pub fn account_auth_router(service: Arc<AccountAuthentication>) -> Router {
     Router::new()
         .route("/api/auth/sign-in/email", post(sign_in))

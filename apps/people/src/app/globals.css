@@ -97,6 +97,8 @@
 @source "../../../../packages/feature-finance/src/lib/thai-finance-tax-pack.ts";
 @source "../../../../packages/feature-finance/src/public/client.ts";
 @source "../../../../packages/feature-identity_access/src/adapters/http/account-auth.ts";
+@source "../../../../packages/feature-identity_access/src/adapters/http/account-directory.ts";
+@source "../../../../packages/feature-identity_access/src/adapters/http/account-security.ts";
 @source "../../../../packages/feature-identity_access/src/components/access-editor.tsx";
 @source "../../../../packages/feature-identity_access/src/components/account-preferences-context.tsx";
 @source "../../../../packages/feature-identity_access/src/components/account-preferences-provider.tsx";
@@ -106,6 +108,7 @@
 @source "../../../../packages/feature-identity_access/src/components/revoke-company-access.tsx";
 @source "../../../../packages/feature-identity_access/src/lib/account-preference-refresh.ts";
 @source "../../../../packages/feature-identity_access/src/lib/account-preferences-client.ts";
+@source "../../../../packages/feature-identity_access/src/lib/account-security.ts";
 @source "../../../../packages/feature-identity_access/src/lib/account-self-navigation.ts";
 @source "../../../../packages/feature-identity_access/src/lib/auth-client.ts";
 @source "../../../../packages/feature-identity_access/src/lib/business-roles.ts";
@@ -119,6 +122,7 @@
 @source "../../../../packages/feature-identity_access/src/lib/user-management.ts";
 @source "../../../../packages/feature-identity_access/src/lib/verified-form-submit.ts";
 @source "../../../../packages/feature-identity_access/src/lib/work-role-display.ts";
+@source "../../../../packages/feature-identity_access/src/public/client.ts";
 @source "../../../../packages/feature-inventory/src/components/inventory-reorder-console.tsx";
 @source "../../../../packages/feature-learning/src/components/learning-console.tsx";
 @source "../../../../packages/feature-learning/src/components/use-learning-command.ts";

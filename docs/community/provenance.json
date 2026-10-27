@@ -173,6 +173,36 @@
       "declaredLicense": "MPL-2.0 AND MIT",
       "reviewStatus": "notice-reviewed",
       "basis": "Optional unmodified ldap3_proto 0.8.1 and ldap3_lber 0.8.1 registry dependencies retain their upstream licenses. Pinned source commit, archive hashes and corresponding source URLs are recorded in the local dependency provenance; this entry does not relicense them or declare Directory production readiness. ERPX-owned adapter wrappers retain the current project Apache-2.0 grant; dependency license obligations are recorded separately."
+    },
+    {
+      "id": "native-files-preview-dependencies",
+      "paths": [
+        "fixtures/files/preview/licenses/libvips-rust-MIT.txt",
+        "fixtures/files/preview/licenses/libvips-LGPL-2.1.txt"
+      ],
+      "noticeFiles": [
+        "fixtures/files/preview/licenses/libvips-rust-MIT.txt",
+        "fixtures/files/preview/licenses/libvips-LGPL-2.1.txt",
+        "fixtures/files/preview/provenance.json",
+        "fixtures/files/preview/darwin-qualification-profile.json"
+      ],
+      "declaredLicense": "MIT AND LGPL-2.1-or-later",
+      "reviewStatus": "notice-reviewed",
+      "basis": "Optional unmodified libvips 2.3.0 Rust binding and dynamically linked native libvips 8.18.7 retain upstream licenses. ERPX-owned wrappers remain Apache-2.0. The recorded Darwin ARM64 qualification is not Linux, production-image, complete transitive-license or release acceptance."
+    },
+    {
+      "id": "synthetic-preview-icc-profiles",
+      "paths": [
+        "fixtures/files/preview/profiles/"
+      ],
+      "noticeFiles": [
+        "fixtures/files/preview/licenses/compact-icc-CC0-1.0.txt",
+        "fixtures/files/preview/licenses/cmyk-profile-public-domain.txt",
+        "fixtures/files/preview/provenance.json"
+      ],
+      "declaredLicense": "CC0-1.0 AND LicenseRef-Public-Domain",
+      "reviewStatus": "notice-reviewed",
+      "basis": "Compact ICC Profiles are pinned to bdd84663061bc4ae95ca70decff54f581e27f702 and match the recorded libvips P3/sRGB profile bytes. The CMYK profile retains its embedded Graeme W. Gill public-domain statement and hash. Fixture images are synthetic; no proprietary macOS/Adobe profile grant is inferred."
     }
   ]
 }

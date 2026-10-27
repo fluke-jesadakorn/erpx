@@ -73,6 +73,87 @@
         }
       }
     },
+    "/api/auth/directory/sign-in": {
+      "post": {
+        "tags": [],
+        "operationId": "sign_in",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DirectorySignInInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySignInResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountAuthErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountAuthErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountAuthErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountAuthErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountAuthErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountAuthErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/auth/get-session": {
       "get": {
         "tags": [],
@@ -2012,6 +2093,47 @@
           },
           "revision": {
             "$ref": "#/components/schemas/AccountRevision"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DirectorySignInInput": {
+        "type": "object",
+        "required": [
+          "connectionId",
+          "username",
+          "password"
+        ],
+        "properties": {
+          "connectionId": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          },
+          "revision": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AccountRevision"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "username": {
+            "type": "string"
+          }
+        }
+      },
+      "DirectorySignInResponse": {
+        "type": "object",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
           }
         },
         "additionalProperties": false

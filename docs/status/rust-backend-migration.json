@@ -162,10 +162,10 @@
     {
       "id": "assets",
       "package": "erpx-server-assets",
-      "phase": "pending",
+      "phase": "foundation",
       "businessMigrationComplete": false,
       "surfaces": {
-        "domain": "pending",
+        "domain": "foundation",
         "application": "pending",
         "http": "pending",
         "ssr": "pending",
@@ -190,10 +190,10 @@
     {
       "id": "maintenance",
       "package": "erpx-server-maintenance",
-      "phase": "pending",
+      "phase": "foundation",
       "businessMigrationComplete": false,
       "surfaces": {
-        "domain": "pending",
+        "domain": "foundation",
         "application": "pending",
         "http": "pending",
         "ssr": "pending",

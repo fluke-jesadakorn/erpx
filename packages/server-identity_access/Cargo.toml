@@ -8,7 +8,7 @@ publish.workspace = true
 autotests = false
 
 [package.metadata.erpx]
-verification-roots = ["licenses", "../../fixtures/identity_access/directory", "../../scripts/testing/fixtures/generate-directory-rust-oracle.ts", "../../fixtures/identity_access/account-security", "../../scripts/testing/fixtures/generate-account-security-oracle.ts", "resources", "../../fixtures/identity_access/permissions", "../../scripts/testing/fixtures/generate-work-admission-oracle.ts"]
+verification-roots = ["../../scripts/testing/fixtures/generate-directory-mapping-oracle.ts", "licenses", "../../fixtures/identity_access/directory", "../../scripts/testing/fixtures/generate-directory-rust-oracle.ts", "../../fixtures/identity_access/account-security", "../../scripts/testing/fixtures/generate-account-security-oracle.ts", "resources", "../../fixtures/identity_access/permissions", "../../scripts/testing/fixtures/generate-work-admission-oracle.ts"]
 
 [lib]
 path = "src/lib.rs"
@@ -54,6 +54,7 @@ ts-rs = { workspace = true, optional = true }
 utoipa = { workspace = true, optional = true }
 
 [dev-dependencies]
+tempfile.workspace = true
 uuid.workspace = true
 tower.workspace = true
 
@@ -186,3 +187,17 @@ path = "../../tests/integration/identity_access/rust-holding-bindings-postgres.t
 [[test]]
 name = "account_inbound"
 path = "../../tests/unit/identity_access/rust-account-inbound.test.rs"
+
+[[test]]
+name = "directory_ldaps"
+path = "../../tests/provider/identity_access/rust-directory-ldaps.test.rs"
+required-features = ["directory-ldaps"]
+
+[[test]]
+name = "directory_mappings"
+path = "../../tests/unit/identity_access/rust-directory-mappings.test.rs"
+
+[[test]]
+name = "directory_postgres"
+path = "../../tests/integration/identity_access/rust-directory-postgres.test.rs"
+required-features = ["directory-ldaps"]

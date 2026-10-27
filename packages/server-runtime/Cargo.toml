@@ -13,7 +13,11 @@ verification-roots = ["../../migrations/postgres"]
 [lib]
 path = "src/lib.rs"
 
+[features]
+owned-process = ["dep:nix", "dep:rustix", "dep:tempfile", "dep:sysinfo"]
+
 [dependencies]
+tempfile = { workspace = true, optional = true }
 erpx-server-shared.workspace = true
 axum.workspace = true
 serde.workspace = true
@@ -52,3 +56,19 @@ path = "../../tests/integration/shared.persistence/rust-migrations.test.rs"
 
 [lints]
 workspace = true
+
+[[test]]
+name = "migration_inventory_postgres"
+path = "../../tests/integration/shared.persistence/rust-migration-inventory-postgres.test.rs"
+
+[target.'cfg(unix)'.dependencies]
+nix = { workspace = true, optional = true }
+rustix = { workspace = true, optional = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+sysinfo = { workspace = true, optional = true }
+
+[[test]]
+name = "owned_process"
+path = "../../tests/unit/shared.architecture/rust-owned-process.test.rs"
+required-features = ["owned-process"]
