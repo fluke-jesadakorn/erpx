@@ -8,4 +8,5 @@ pub mod work_source;
 
 pub mod work_wire;
 
+pub mod finance_lineage;
 pub mod work_commands;

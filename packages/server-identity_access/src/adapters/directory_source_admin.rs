@@ -264,6 +264,67 @@ impl PostgresDirectory {
         let retained = proof
             .authorize_holding(c, change, self.clock.now().get())
             .await?;
+        self.write_source_change(c, &actual, change, retained.as_ref(), proof.deadline())
+            .await
+    }
+    /// Borrowed production administration seam. The sealed review is retained
+    /// from the existing normal IAM coordinator; it cannot be deserialized from
+    /// stored review data. No transaction, Control checkout or retry starts here.
+    pub async fn apply_reviewed_source(
+        &self,
+        c: &mut PgConnection,
+        change: &PreparedDirectorySourceChange,
+        approval: &super::directory_source_review::CurrentDirectorySourceApproval<'_>,
+    ) -> Tx<SourceRevision> {
+        approval.require_candidate(change)?;
+        let actual = self.require_source_candidate(c, change).await?;
+        self.write_source_change(c, &actual, change, approval, approval.deadline())
+            .await
+    }
+    pub async fn require_source_candidate(
+        &self,
+        c: &mut PgConnection,
+        change: &PreparedDirectorySourceChange,
+    ) -> Tx<DirectoryConnectionDescriptor> {
+        let holding = erpx_server_shared::public::HoldingId::new(
+            change
+                .holding_id()
+                .ok_or_else(|| Denial::SourceNotApproved.business())?,
+        )?;
+        let configured = self
+            .holdings
+            .get(&holding)
+            .ok_or_else(|| Denial::SourceNotApproved.business())?;
+        let route = DirectoryRoute {
+            company_id: change.company_id().into(),
+            holding_id: Some(holding),
+            binding: None,
+            pool: configured.pool.clone(),
+        };
+        let actual = connection_without_source(c, change.connection_id(), &route).await?;
+        matches_descriptor(&actual, &change.descriptor)?;
+        if sources::existing_selection(c, &actual.connection_id, &actual.company_id).await?
+            != change.previous
+        {
+            return Err(Denial::RevisionConflict.business().into());
+        }
+        if self
+            .profiles
+            .selected_tag(&actual, &change.next.key_id, &change.profile)?
+            != change.next.profile_tag
+        {
+            return Err(Denial::LocalSourceMismatch.business().into());
+        }
+        Ok(actual)
+    }
+    async fn write_source_change(
+        &self,
+        c: &mut PgConnection,
+        actual: &DirectoryConnectionDescriptor,
+        change: &PreparedDirectorySourceChange,
+        retained: &dyn PgDirectorySourceHoldingPolicy,
+        deadline: i64,
+    ) -> Tx<SourceRevision> {
         let now = self.clock.now().get();
         let next = &change.next;
         let count = if let Some(previous) = &change.previous {
@@ -296,7 +357,7 @@ impl PostgresDirectory {
             .await?;
         retained.require_current(c, self.clock.now().get()).await?;
         let final_now = self.clock.now().get();
-        if final_now >= proof.deadline() {
+        if final_now >= deadline {
             return Err(Denial::RevisionConflict.business().into());
         }
         if sources::current_selection(c, &actual.connection_id, &actual.company_id).await?

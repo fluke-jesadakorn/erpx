@@ -107,6 +107,8 @@ pub(crate) fn authorize_effective_work(
     let mut person_user_ids: BTreeSet<_> = facts.iam.aliases.into_iter().collect();
     person_user_ids.insert(request.user_id.clone());
     let context = AuthorizedWorkContext {
+        #[cfg(feature = "directory-ldaps")]
+        directory_administration: None,
         holding_id: request.holding_id.clone(),
         user_id: request.user_id.clone(),
         session_id: request.session_id.clone(),

@@ -240,8 +240,42 @@ provenance schema is mirrored. See [ADR-056](../../adr/ADR-056-durable-directory
 
 The registered provenance suites have 17 pure cases and 14 actual PostgreSQL/owned-loopback cases. The concurrent revision-CAS regression forces two first policy reads and observes three Holding policy attempts in total: two original attempts and one native bounded retry, with exactly one committed source/audit change. Retry limits, deadlines and production lock order are unchanged. Future Directory observations deny before owner effects: the ordinary authorizer's SQL principal guard returns `WORK_ROLE_UNAVAILABLE`, while the configured refresh preflight returns `DIRECTORY_SOURCE_CONFIGURATION` before provider I/O. All 39 affected current-authority, Directory, configured-refresh and command-metadata regression cases pass. These are development component results, not full owner or whole-candidate acceptance.
 
-Native SSR connection lookup, full Directory administration/review/reconciliation
-jobs, actual human admin/independent-review/MFA and seed composition, OIDC/Graph,
+The service-owned `DirectorySourceAdministration` implements source preview and
+atomic independent `approve_and_apply`. Normal sign-in and SSO produce the actual
+Holding child; its own MFA freshness is required, with no inherited parent proof.
+The existing authorizer verifies the exact session, configured Holding binding,
+selected grant/CAS, full IAM/HR and Company scope. Its Identity-private admin hook
+retains MFA and the target route on that same Control lease and binds its witness
+to the actual Holding database/backend/transaction. A generic authorized context
+cannot substitute for this witness. Profile retention happens only after every
+database lease has ended, followed by fresh verification before durable preview
+or application. No provider request is made by source administration.
+
+Proposals require `iam.directory.manage`; a different current person with
+`iam.review` approves. A proposal expires within five minutes and retains its
+original selected assignment, role publication, identity version and session/CAS
+pins. New application rechecks the proposer's actual current authority and the
+exact proposed key/tag/configuration, Connection version and original source
+revision. Existing `iam_reviews`, `iam_receipts` and `iam_audit` storage records
+the review and command. Source mutation, approval and sanitized audit/receipt
+effects share the same Holding unit; predetermined images are checked after
+deferred effects. Receipt replay performs current session/IAM/MFA checks first
+and cannot replace the review's Connection with another same-Company target.
+It returns historical result data without selecting or rotating a source again.
+Explicit initial insertion still requires expected absence and independent
+approval; startup never approves local configuration.
+
+The registered `identity_access.rust-directory-source-admin-postgres.integration`
+target passes 12 actual two-account sign-in/SSO/MFA/PostgreSQL cases. They cover
+self-review refusal, parent/child proof separation, revoked proposer authority,
+stale role/profile rejection, retained Control revocation and Holding expiry
+waits, missing admin witness, wrong replay target, explicit key rotation/restart,
+and deferred review-payload tampering. The existing provenance14 and ordinary
+current-authority10 targets also pass after the shared borrowed-writer change.
+These are component verification; all owner completion flags remain false.
+
+Native SSR connection lookup, administrative listing/rejection, trust editing and
+activation, full reconciliation jobs, operator seed/HTTP/UI composition, OIDC/Graph,
 actual route/composition rollout, real browser and live provider acceptance, and
 runtime activation remain pending.
 The new provider/router are unmounted and grant no Work permission from a copied

@@ -87,3 +87,8 @@ pub(crate) mod directory_source_postgres;
 
 #[cfg(feature = "directory-ldaps")]
 pub(crate) mod directory_source_admin;
+
+#[cfg(feature = "directory-ldaps")]
+pub(crate) mod directory_admin_sources;
+#[cfg(feature = "directory-ldaps")]
+pub(crate) mod directory_source_review;

@@ -162,7 +162,7 @@ describe('workspace impact boundaries',()=>{
   const git=(...args:string[])=>execFileSync('git',args,{cwd:root,encoding:'utf8'}).trim();
   const assets=['apps/work/public','apps/work/src/app/apple-icon.png','apps/work/src/app/favicon.ico','apps/work/src/app/icon.svg'];
   const tracked=new Map<string,string|Buffer>([
-   ['.env.example','ERPX_ENVIRONMENT=development\n'],['bun.lock','lock-v1'],
+   ['.env.example','ERPX_ENVIRONMENT=development\n'],['bun.lock','lock-v1'],['.gitattributes','licenses/*.txt -text\n'],
    ['scripts/local/workspace-settings.json',JSON.stringify({version:1,bundlers:{work:'turbopack',finance:'webpack'},activeApps:['work','finance']})],
    ['apps/work/package.json','{"name":"@erpx/app-work"}'],['apps/work/src/app/page.tsx','export default function Page(){return "Legacy";}'],
    ['apps/work/src/app/apple-icon.png',Buffer.from([0,255,1,254])],['apps/work/src/app/favicon.ico',Buffer.from([0,0,1,0])],['apps/work/src/app/icon.svg','<svg/>'],
@@ -177,7 +177,7 @@ describe('workspace impact boundaries',()=>{
    await writeFile(join(root,'.env.local'),'private');await writeFile(join(root,'apps/finance/src/unknown.bin'),'unknown');
    git('add','--',...tracked.keys(),'apps/work/public');git('-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','--quiet','-m','base');
    const baseSha=git('rev-parse','HEAD'),base=loadRevisionWorkspaceGraph(baseSha,root),local=loadWorkspaceGraph(root);
-   for(const file of ['.env.example','bun.lock',...assets,'apps/finance/public/owner.bin'])expect(local.files.get(file)).toBe(base.files.get(file));
+   for(const file of ['.env.example','bun.lock','.gitattributes',...assets,'apps/finance/public/owner.bin'])expect(local.files.get(file)).toBe(base.files.get(file));
    expect(base.files.get(assets[1])).toMatch(/^resource-sha256:[a-f0-9]{64}$/);
    expect(base.files.get(assets[0])).toMatch(/^symlink-sha256:[a-f0-9]{64}$/);
    expect([...local.files.keys()]).not.toContain('apps/work/public/private.ts');expect(local.files.has('.env.local')).toBe(false);
@@ -187,10 +187,11 @@ describe('workspace impact boundaries',()=>{
    expect(loadWorkspaceGraph(root).files.get(assets[0])).toBe(local.files.get(assets[0]));
    await writeFile(join(root,'apps/finance/public/owner.bin'),Buffer.from([253,3,0]));
    expect(appRuntimeFingerprint(loadWorkspaceGraph(root),'finance')).not.toBe(before);
-   await rm(join(root,'apps/work'),{recursive:true});await writeFile(join(root,'.env.example'),'ERPX_ENVIRONMENT=test\n');await writeFile(join(root,'bun.lock'),'lock-v2');
+   await rm(join(root,'apps/work'),{recursive:true});await writeFile(join(root,'.env.example'),'ERPX_ENVIRONMENT=test\n');await writeFile(join(root,'bun.lock'),'lock-v2');await writeFile(join(root,'.gitattributes'),'licenses/*.txt -text -diff\n');
    await writeFile(join(root,'scripts/local/workspace-settings.json'),JSON.stringify({version:1,bundlers:{finance:'webpack'},activeApps:['finance']}));
    git('add','--update');git('-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','--quiet','-m','head');
    const headSha=git('rev-parse','HEAD'),head=loadRevisionWorkspaceGraph(headSha,root),changed=changedWorkspaceFiles(root,baseSha,headSha);
+   expect(changed).toContain('.gitattributes');expect(head.files.get('.gitattributes')).not.toBe(base.files.get('.gitattributes'));
    const selected=selectCandidateSuites(head,base,suites,changed);
    expect(selected.suites.map(item=>item.id)).toEqual(['finance','people']);
    for(const asset of assets)expect(selected.removed).toContain(asset);

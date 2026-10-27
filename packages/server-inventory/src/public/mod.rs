@@ -3,4 +3,5 @@ pub use crate::domain::valuation::{
     require_dispatch_date, scaled_inventory_value, transit_quantity_value,
 };
 pub mod consumption;
+pub mod consumption_finance;
 pub mod postgres_consumption;

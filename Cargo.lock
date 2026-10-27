@@ -602,6 +602,7 @@ version = "0.1.0"
 dependencies = [
  "erpx-server-runtime",
  "erpx-server-shared",
+ "serde_json",
  "sqlx",
  "tokio",
  "uuid",
@@ -925,6 +926,7 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "bytes",
+ "erpx-server-assets",
  "erpx-server-collaboration",
  "erpx-server-commerce",
  "erpx-server-commercial",

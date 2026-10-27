@@ -80,3 +80,15 @@ pub use crate::adapters::directory_source_admin::{
 pub use crate::application::directory_source_admin::{
     DirectorySourceChangeKind, DirectorySourceChangeRequest,
 };
+
+#[cfg(feature = "directory-ldaps")]
+pub use crate::adapters::directory_admin_sources::DirectorySourceAdministrationAction;
+#[cfg(feature = "directory-ldaps")]
+pub use crate::adapters::directory_source_review::{
+    CurrentDirectorySourceApproval, DirectorySourceReviewPreparation, DirectorySourceReviewStore,
+    StoredDirectorySourceReview,
+};
+#[cfg(feature = "directory-ldaps")]
+pub use crate::domain::directory_source_review::{
+    DirectorySourceBinding, DirectorySourceReviewResult,
+};

@@ -71,6 +71,12 @@ pub(crate) trait RetainedWorkControlSources: Send + Sync {
     ) -> PgWorkFuture<'c, (), BusinessError>;
 }
 pub(crate) trait RetainedWorkHoldingSources: Send + Sync {
+    #[cfg(feature = "directory-ldaps")]
+    fn directory_administration(
+        &self,
+    ) -> Option<crate::domain::directory_source_review::DirectoryAdministrationProof> {
+        None
+    }
     fn deadline(&self) -> i64;
     fn require_current<'c>(
         &'c self,
@@ -475,6 +481,11 @@ impl HoldingWorkAuthorizer {
                                         clock.now().get(),
                                     )?;
                                     if let Some(source) = &retained_holding {
+                                        #[cfg(feature = "directory-ldaps")]
+                                        {
+                                            context.directory_administration =
+                                                source.directory_administration();
+                                        }
                                         context.expires_at =
                                             context.expires_at.min(source.deadline());
                                         context.require_current_time(clock.now().get())?;

@@ -21,6 +21,10 @@ pub struct AttachmentScanClaim {
     pub(crate) claim_until: i64,
 }
 impl AttachmentScanClaim {
+    /// Historical configured scope data, never an actor or current binding.
+    pub fn scope(&self) -> &AttachmentScanScope {
+        &self.scope
+    }
     pub(crate) fn copy_binding_data(&self) -> Self {
         Self {
             scope: self.scope.clone(),

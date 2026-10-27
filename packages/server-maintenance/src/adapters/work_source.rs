@@ -21,9 +21,11 @@ use erpx_server_shared::public::{
 };
 use sqlx::{Connection, PgConnection, Row};
 mod issue_part;
+mod transitions;
 pub use issue_part::{
     PgMaintenanceIssuePartEffects, PgMaintenanceIssuePartPlan, PgMaintenanceIssuePartReceipt,
 };
+pub use transitions::{PgMaintenanceTransitionPlan, PgMaintenanceTransitionReceipt};
 type Error = PgTransactionError<BusinessError>;
 type Transaction = (String, i32, String, String);
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -66,6 +68,11 @@ pub struct CurrentMaintenanceWork<'a> {
     observed_at: i64,
 }
 impl CurrentMaintenanceWork<'_> {
+    /// Borrow the actual original physical reference for Service composition.
+    /// This creates no Actor/Context, purchase or independent action authority.
+    pub fn physical_asset_source(&self) -> &CurrentMaintenanceAsset {
+        &self.asset
+    }
     pub fn facts(&self) -> &MaintenanceWorkSourceFacts {
         &self.facts
     }

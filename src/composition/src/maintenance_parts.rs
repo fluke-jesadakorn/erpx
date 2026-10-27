@@ -145,7 +145,9 @@ impl<G: Clock + Sync> PgCommandAuthority for Authority<'_, G> {
         Ok(())
     }
 }
-fn command_actor(current: &AuthorizedWorkContext) -> Result<CommandActor, BusinessError> {
+pub(crate) fn command_actor(
+    current: &AuthorizedWorkContext,
+) -> Result<CommandActor, BusinessError> {
     let selection = current.selection();
     let workspace = selection.workspace();
     let assignment = selection.assignment();

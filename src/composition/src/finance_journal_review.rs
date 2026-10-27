@@ -1,5 +1,6 @@
 //! Development-only actual Finance/Identity/Commercial assembly. This library
 //! mounts no route and cannot substitute Legal acceptance for Finance release.
+mod maintenance_parts;
 use erpx_server_commercial::public::purchases::{
     CapabilityPurpose, CommercialCatalogue, PackageEnforcementMode, PgCompanyPurchaseReader,
     PurchaseRequest, PurchaseWitness, lock_commercial_authority_sources,
@@ -8,8 +9,10 @@ use erpx_server_finance::public::{
     FinanceActor, JournalError,
     journal_review::{
         CurrentJournalReviewScope, FinanceJournalAccessPurpose, JournalReviewCommand,
-        JournalReviewResult, JournalReviewerFacts, PgFinanceJournalReviewPolicy, PgJournalReview,
-        ReviewJournal, inspect_journal_review_source, lock_journal_review_sources, review_journal,
+        JournalReviewInput, JournalReviewResult, JournalReviewerFacts,
+        PgFinanceJournalReviewPolicy, PgJournalReview, ReviewJournal,
+        inspect_journal_review_source, inspect_maintenance_parts_journal_target,
+        lock_journal_review_sources, review_journal,
     },
     journal_review_wire::NormalizedJournalReviewCommand,
 };
@@ -30,6 +33,7 @@ use erpx_server_shared::public::{
 use erpx_server_workflow::public::commands::{
     CommandActor, CommandField, CommandJson, WorkAuthority,
 };
+use maintenance_parts::MaintenancePartsSource;
 use sqlx::PgConnection;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -70,7 +74,13 @@ impl FinanceJournalConfiguration {
     }
     async fn lock_sources(&self, c: &mut PgConnection) -> Result<(), Error> {
         lock_commercial_authority_sources(c).await?;
-        lock_journal_review_sources(c).await
+        lock_journal_review_sources(c).await?;
+        erpx_server_inventory::public::consumption_finance::lock_consumption_finance_sources(c)
+            .await?;
+        erpx_server_maintenance::public::finance_lineage::lock_maintenance_finance_lineage_sources(
+            c,
+        )
+        .await
     }
 }
 impl HoldingWorkSourcePreparation for FinanceJournalConfiguration {
@@ -285,8 +295,20 @@ fn command_actor(current: &AuthorizedWorkContext) -> Result<CommandActor, Busine
 struct CurrentFinancePolicy<'a> {
     current: &'a AuthorizedWorkContext,
     configuration: &'a FinanceJournalConfiguration,
-    source: Option<CurrentJournalReviewScope>,
+    source: Option<CurrentFinanceSource>,
     purchase: Option<(CapabilityPurpose, PurchaseWitness)>,
+}
+enum CurrentFinanceSource {
+    Owned(Box<CurrentJournalReviewScope>),
+    MaintenanceParts(Box<MaintenancePartsSource>),
+}
+impl CurrentFinanceSource {
+    async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
+        match self {
+            Self::Owned(s) => s.require_current(c).await,
+            Self::MaintenanceParts(s) => s.require_current(c).await,
+        }
+    }
 }
 impl CurrentFinancePolicy<'_> {
     fn current(&self, actor: &FinanceActor, now: i64) -> Result<CommandActor, BusinessError> {
@@ -371,8 +393,22 @@ impl PgFinanceJournalReviewPolicy for CurrentFinancePolicy<'_> {
             Some(source) => source.require_current(c).await?,
             None => {
                 self.source = Some(
-                    inspect_journal_review_source(c, &finance_actor(self.current), command).await?,
-                )
+                    match inspect_maintenance_parts_journal_target(
+                        c,
+                        &finance_actor(self.current),
+                        command,
+                    )
+                    .await?
+                    {
+                        Some(target) => CurrentFinanceSource::MaintenanceParts(Box::new(
+                            MaintenancePartsSource::retain(c, target).await?,
+                        )),
+                        None => CurrentFinanceSource::Owned(Box::new(
+                            inspect_journal_review_source(c, &finance_actor(self.current), command)
+                                .await?,
+                        )),
+                    },
+                );
             }
         }
         if purpose == FinanceJournalAccessPurpose::BaselineRead {
@@ -408,8 +444,30 @@ impl PgFinanceJournalReviewPolicy for CurrentFinancePolicy<'_> {
                     TimestampMillis::new(now),
                 )
                 .await?;
-            inspection.require_allowed()?;
-            self.purchase = Some((purpose, inspection.witness));
+            let witness = match inspection.require_allowed() {
+                Ok(_) => inspection.witness,
+                Err(base_error) => {
+                    if matches!(self.source, Some(CurrentFinanceSource::MaintenanceParts(_)))
+                        && matches!(command.input, JournalReviewInput::Post { .. })
+                    {
+                        let included = purchases
+                            .inspect(
+                                &PurchaseRequest {
+                                    capabilities: vec!["assets.parts-costs".into()],
+                                    purpose,
+                                    mode: PackageEnforcementMode::Enforced,
+                                },
+                                TimestampMillis::new(now),
+                            )
+                            .await?;
+                        included.require_allowed().map_err(|_| base_error)?;
+                        included.witness
+                    } else {
+                        return Err(base_error.into());
+                    }
+                }
+            };
+            self.purchase = Some((purpose, witness));
         }
         Ok(())
     }

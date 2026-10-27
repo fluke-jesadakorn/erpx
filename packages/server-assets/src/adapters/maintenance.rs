@@ -4,6 +4,10 @@ use erpx_server_shared::public::{BusinessError, CompanyId, FailureKind, HoldingI
 use sqlx::{Connection, PgConnection, Row};
 type Error = PgTransactionError<BusinessError>;
 type Transaction = (String, i32, String, String);
+mod effects;
+pub use effects::{
+    MaintenancePhysicalChange, MaintenancePhysicalReceipt, PreparedMaintenancePhysicalChange,
+};
 /// Same-unit physical-source descriptor; never a Person/Work/purchase grant.
 pub struct CurrentMaintenanceAsset {
     facts: MaintenanceAssetFacts,

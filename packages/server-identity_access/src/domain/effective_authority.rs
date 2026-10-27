@@ -111,6 +111,9 @@ pub struct AuthorizedWorkContext {
     pub(crate) emergency_until: Option<i64>,
     pub(crate) expires_at: i64,
     pub(crate) command_iam: CommandIamMetadata,
+    #[cfg(feature = "directory-ldaps")]
+    pub(crate) directory_administration:
+        Option<super::directory_source_review::DirectoryAdministrationProof>,
 }
 impl AuthorizedWorkContext {
     pub fn command_iam_metadata(&self) -> &CommandIamMetadata {

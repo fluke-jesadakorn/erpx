@@ -3,5 +3,5 @@
 pub use crate::adapters::work_source::{
     CurrentMaintenanceWork, MaintenanceWorkSourceFacts, MaintenanceWorkSourcePreparation,
     PgMaintenanceIssuePartEffects, PgMaintenanceIssuePartPlan, PgMaintenanceIssuePartReceipt,
-    read_current_maintenance_work,
+    PgMaintenanceTransitionPlan, PgMaintenanceTransitionReceipt, read_current_maintenance_work,
 };

@@ -3,9 +3,14 @@
 //! mandatory ports; this module provides no production authority implementation.
 mod closure;
 mod image;
+mod maintenance_parts;
 mod money;
 mod retention;
 mod source;
+pub use maintenance_parts::{
+    CurrentMaintenancePartsJournalTarget, MaintenancePartsJournalFacts,
+    inspect_maintenance_parts_journal_target,
+};
 
 pub use source::{
     CurrentJournalReviewScope, JournalReviewRootKind, inspect_journal_review_source,

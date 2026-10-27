@@ -8,9 +8,10 @@ publish.workspace = true
 autotests = false
 
 [package.metadata.erpx]
-verification-roots = ["../../scripts/docs/export-finance-journal-read-contracts.rs", "../../scripts/docs/generate-finance-journal-read-contracts.ts", "../../packages/contracts/src/finance-journal-read.generated.ts", "../../docs/contracts/next/finance-journal-read.openapi.generated.json", "../../tests/support/finance/native-journal-client.mjs"]
+verification-roots = ["../../tests/support/files/system-scan-facts.rs", "../../tests/support/files/files-held-tool.rs", "../../scripts/docs/export-finance-journal-read-contracts.rs", "../../scripts/docs/generate-finance-journal-read-contracts.ts", "../../packages/contracts/src/finance-journal-read.generated.ts", "../../docs/contracts/next/finance-journal-read.openapi.generated.json", "../../tests/support/finance/native-journal-client.mjs"]
 
 [features]
+files-scan-worker = ["erpx-server-files/preview-provider"]
 directory-ldaps = ["erpx-server-identity-access/directory-ldaps"]
 contracts = ["dep:ts-rs", "dep:utoipa", "erpx-server-finance/contracts"]
 private-development-api = []
@@ -25,6 +26,7 @@ name = "erpx-server"
 path = "src/main.rs"
 
 [dependencies]
+erpx-server-assets.workspace = true
 erpx-server-collaboration.workspace = true
 erpx-server-commerce.workspace = true
 erpx-server-inventory.workspace = true
@@ -136,3 +138,30 @@ path = "../../tests/integration/maintenance/rust-work-source-postgres.test.rs"
 [[test]]
 name = "issue_part_command"
 path = "../../tests/integration/maintenance/rust-issue-part-command-postgres.test.rs"
+
+[[test]]
+name = "directory_source_admin_postgres"
+path = "../../tests/integration/identity_access/rust-directory-source-admin-postgres.test.rs"
+required-features = ["directory-ldaps"]
+
+[[test]]
+name = "finance_maintenance_parts_postgres"
+path = "../../tests/integration/finance/rust-maintenance-parts-postgres.test.rs"
+
+[[test]]
+name = "files_system_scan_postgres"
+path = "../../tests/integration/files/rust-system-scan-postgres.test.rs"
+
+[[test]]
+name = "files_system_scan_provider"
+path = "../../tests/provider/files/rust-system-scan-provider.test.rs"
+required-features = ["files-scan-worker", "contracts"]
+
+[[bin]]
+name = "erpx-files-scan-held-tool"
+path = "../../tests/support/files/files-held-tool.rs"
+required-features = ["files-scan-worker", "contracts"]
+
+[[test]]
+name = "maintenance_transitions"
+path = "../../tests/integration/maintenance/rust-transitions-command-postgres.test.rs"

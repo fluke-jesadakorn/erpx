@@ -7,6 +7,7 @@ pub enum DirectorySourceChangeKind {
     InitialSeed,
     Rotation,
 }
+#[derive(Clone)]
 pub struct DirectorySourceChangeRequest {
     pub(crate) connection_id: RecordId,
     pub(crate) key_id: String,

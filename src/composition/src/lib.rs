@@ -43,3 +43,12 @@ pub mod finance_journal_detail;
 pub mod finance_journal_detail_http;
 
 pub mod maintenance_parts;
+
+#[cfg(feature = "directory-ldaps")]
+pub mod directory_source_administration;
+pub mod files_system_scan;
+
+#[cfg(feature = "files-scan-worker")]
+pub mod files_scan_native;
+
+pub mod maintenance_transitions;
