@@ -31,6 +31,10 @@ export function createFinanceSubmission<Completion, Result>(
   };
 
   return async (input: FinanceSubmittedInput, purpose: FinanceSubmissionPurpose): Promise<Result | null> => {
+    const assertCurrent = ports.captureContext();
+    const contextStillCurrent = () => {
+      try { assertCurrent(); return true; } catch { return false; }
+    };
     const identity = financeSubmissionIdentity(input);
     if ([...attempts.keys()].some(previous => previous !== identity)) {
       ports.setError("Retry the original Finance action before submitting a different action. Your newer draft is retained.");
@@ -49,9 +53,12 @@ export function createFinanceSubmission<Completion, Result>(
     ports.setError("");
     ports.setHasAttempt(true);
     ports.trackPending(attempt.token, attempt.completion, true);
-    const assertCurrent = ports.captureContext();
     try {
+      assertCurrent();
       const reply = await ports.submit(input);
+      // Rejections and transport errors can also arrive after an account/role
+      // change. They cannot release the old attempt or alter the new view.
+      assertCurrent();
       if (reply.kind === "rejected") {
         if (!attempt.uncertain && reply.definitive) resolveAttempt(identity, attempt);
         throw new Error(reply.message);
@@ -74,10 +81,11 @@ export function createFinanceSubmission<Completion, Result>(
       return reply.data;
     } catch (cause) {
       if (attempts.get(identity) === attempt) attempt.uncertain = true;
+      if (!contextStillCurrent()) return null;
       ports.setError(cause instanceof Error ? cause.message : "Connection interrupted. Retry the same action safely.");
       return null;
     } finally {
-      ports.setPending(false);
+      if (contextStillCurrent()) ports.setPending(false);
     }
   };
 }

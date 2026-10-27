@@ -1,3 +1,4 @@
+pub mod journal_review;
 pub use crate::adapters::postgres_journal::PgJournalStore;
 pub use crate::adapters::postgres_journal_facts::{PgJournalPreparation, embedded_currency_rules};
 pub use crate::application::journal::JournalAuthority;

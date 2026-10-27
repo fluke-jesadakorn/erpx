@@ -95,29 +95,14 @@ impl<C: Clock + Send + Sync + 'static> LegalQueueAdministration<C> {
                             document_id: &'a str,
                             kind: LegalProcessingKind,
                         }
-                        #[derive(serde::Serialize)]
-                        #[serde(rename_all = "camelCase")]
-                        struct ResultDto<'a> {
-                            id: &'a str,
-                            job_id: &'a str,
-                            state: &'a str,
-                        }
-                        let command = WorkflowCommand {
+                        let command = WorkflowRequest {
                             key: request.key.as_str().into(),
                             operation: request.kind.operation().into(),
                             record_id: plan.document().item_id.as_str().into(),
-                            version: i64::try_from(plan.document().item_version)
-                                .map_err(|_| scope_error())?,
                             input: CommandJson::from_serializable(&Input {
                                 document_id: request.document_id.as_str(),
                                 kind: request.kind,
                             })?,
-                            result: CommandJson::from_serializable(&ResultDto {
-                                id: receipt.id.as_str(),
-                                job_id: receipt.job_id.as_str(),
-                                state: &receipt.state,
-                            })?,
-                            event_scope: None,
                         };
                         let mut authority = QueueAuthority {
                             current,
@@ -170,13 +155,12 @@ fn processing_actor(
 fn require_plan(
     current: &AuthorizedWorkContext,
     plan: &StagedLegalProcessingQueue,
-    command: &WorkflowCommand,
+    command: &WorkflowRequest,
 ) -> Result<(), BusinessError> {
     if plan.actor() != &processing_actor(current)?
         || command.key != plan.key().as_str()
         || command.record_id != plan.document().item_id.as_str()
         || command.operation != plan.kind().operation()
-        || command.version != plan.document().item_version as i64
     {
         return Err(scope_error());
     }
@@ -273,14 +257,14 @@ impl<C: Clock + Sync> PgCommandAuthority for QueueAuthority<'_, C> {
     async fn lock_sources(
         &mut self,
         c: &mut PgConnection,
-        _: &WorkflowCommand,
+        _: &WorkflowRequest,
     ) -> Result<(), Error> {
         self.configuration.lock_sources(c).await
     }
     async fn authorize(
         &mut self,
         c: &mut PgConnection,
-        command: &WorkflowCommand,
+        command: &WorkflowRequest,
     ) -> Result<CommandActor, Error> {
         require_plan(self.current, self.plan, command)?;
         self.plan.require_current(c).await?;
@@ -299,7 +283,7 @@ impl<C: Clock + Sync> PgCommandAuthority for QueueAuthority<'_, C> {
         &mut self,
         c: &mut PgConnection,
         actor: &CommandActor,
-        command: &WorkflowCommand,
+        command: &WorkflowRequest,
         disposition: CommandDisposition,
     ) -> Result<(), Error> {
         require_plan(self.current, self.plan, command)?;
@@ -329,10 +313,27 @@ struct QueueEffects<'a, C> {
     applied: bool,
 }
 impl<C: Clock + Sync> PgOwnerCommandEffects for QueueEffects<'_, C> {
+    async fn prepare(
+        &mut self,
+        c: &mut PgConnection,
+        actor: &CommandActor,
+        command: &WorkflowRequest,
+    ) -> Result<WorkflowOutput, Error> {
+        require_plan(self.current, self.plan, command)?;
+        self.plan.require_current(c).await?;
+        if actor != &command_actor(self.current)? || self.applied {
+            return Err(scope_error().into());
+        }
+        Ok(WorkflowOutput {
+            version: i64::try_from(self.plan.document().item_version).map_err(|_| scope_error())?,
+            result: CommandJson::from_serializable(&self.plan.receipt()?)?,
+            event_scope: None,
+        })
+    }
     async fn lock_sources(
         &mut self,
         c: &mut PgConnection,
-        _: &WorkflowCommand,
+        _: &WorkflowRequest,
     ) -> Result<(), Error> {
         self.configuration.lock_sources(c).await
     }
@@ -340,7 +341,7 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for QueueEffects<'_, C> {
         &mut self,
         c: &mut PgConnection,
         actor: &CommandActor,
-        command: &WorkflowCommand,
+        command: &WorkflowRequest,
     ) -> Result<(), Error> {
         require_plan(self.current, self.plan, command)?;
         if actor != &command_actor(self.current)? || self.applied {
@@ -373,7 +374,7 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for QueueEffects<'_, C> {
         &mut self,
         c: &mut PgConnection,
         _: &CommandActor,
-        command: &WorkflowCommand,
+        command: &WorkflowRequest,
     ) -> Result<(), Error> {
         require_plan(self.current, self.plan, command)?;
         if !self.applied {

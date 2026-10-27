@@ -111,7 +111,8 @@ export function cargoChildEnvironment(suite: Suite, environment: Record<string,s
     for(const variable of suite.provider.required)if(!selected[variable]?.trim())throw new Error(`PROVIDER_PREREQUISITE_REQUIRED:${suite.id}:${variable}`);
     selected.ERPX_SELECTED_PROVIDER='1';
   }
-  return vitestChildEnvironment(selected,suite.lane==='integration');
+  const explicitLeasedProvider=suite.lane==='provider'&&suite.provider?.required.includes('ERPX_TEST_ADMIN_URL')===true;
+  return vitestChildEnvironment(selected,suite.lane==='integration'||explicitLeasedProvider);
 }
 
 /** Cargo manifests bind every source in a crate and local workspace dependencies.

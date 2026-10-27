@@ -147,7 +147,9 @@ impl AccountAuthentication {
                 .await?;
             Ok(SignedIn {
                 result: completed,
-                browser_secret: reservation.created_browser.then_some(browser),
+                browser_secret: (reservation.created_browser
+                    || reservation.recovery_expires_at.is_some())
+                .then_some(browser),
                 session_secret,
                 handle,
             })
@@ -161,6 +163,7 @@ impl AccountAuthentication {
     pub async fn initialize(
         &self,
         presented: &PresentedSecrets,
+        expected_revision: Option<i64>,
     ) -> Result<InitializedDevice, BusinessError> {
         let browser = self.secrets.issue()?;
         let (devices, created) = self
@@ -168,6 +171,7 @@ impl AccountAuthentication {
             .initialize_device(
                 presented.proof(self.secrets.as_ref()),
                 self.secrets.digest(SecretPurpose::DeviceBrowser, &browser),
+                expected_revision,
                 self.clock.now().get(),
             )
             .await?;

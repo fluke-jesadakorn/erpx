@@ -10,6 +10,8 @@ The [capability report](../status/capability-delivery-matrix.md) projects this d
 
 Use pinned Node 26.11.1 and Bun 1.4.3. `bun run test -- <test-files>` runs the selected native lane according to the strict catalogue. `bun run completion:inventory` inspects the scenario register; the completion integration/verification commands perform the actual engineering work. See [E2E cases](e2e-specification.md), [isolated browser setup](isolated-browser-simulation.md), [working demo](working-demo-company.md) and [source-route inventory](uat-route-inventory.md) for their separate boundaries. Reuse development on 3100; isolate fixtures and avoid reserved 3000/3001/8080. Builds use `bun run deploy:build` rather than dev's output directory.
 
+Unit forks are capped at `min(8, os.availableParallelism())`, so child CLI validators and receipt checks share the actual CPU budget of a development machine or hosted runner. Each case retains its 30-second deadline and zero retries. Integration retains its separate two-worker limit and the explicit one-worker legacy benchmark mode; database admission and fixture leases remain independently enforced.
+
 ## Evidence retention
 
 Files in `evidence/` and the [checksum ledger](../status/business-acceptance-evidence.json) are retained at their original paths/bytes. Original observations and supersession chains remain intact. The [explicit review source](../status/capability-gate-reviews.json) alone governs inventory gate attestations; generating or observing evidence never grants Company release approval.

@@ -23,6 +23,11 @@ This source tree includes:
   Apache-2.0 OR BSL-1.0). See
   packages/server-workflow/licenses/ryu-js-1.0.3-Apache-2.0.txt and Cargo.lock.
 
+- Development OCR models: tesseract-ocr/tessdata_fast, Apache-2.0.
+  Models are fetched explicitly into ignored development fixtures; their
+  pinned origin and hashes are in fixtures/legal/documents/worker-bootstrap-provider.v1.json.
+  See packages/server-legal/licenses/tesseract-tessdata-fast-Apache-2.0.txt.
+
 See LICENSING.md and docs/community/provenance.json for the scope of the
 current project grant and the incomplete historical and asset review.
 This notice is informational; it does not change any license terms.

@@ -1,4 +1,7 @@
 import type { ReactElement } from "react";
+import {holdingFetch} from '@erpx/contracts/holding-fetch';
+import {canonicalUiHref} from '@erpx/feature-work_projection/lib/destination-registry';
+import {isProductHandoffHref} from '@erpx/feature-work_projection/lib/product-navigation';
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Drive the real provider's state and request callbacks without a DOM or server.
@@ -169,12 +172,14 @@ function boundarySnapshot(extra:Partial<InitialWorkContextSnapshot>={}):InitialW
 function boundaryData(extra:Record<string,unknown>={}){return {valid:true,...boundaryIdentity,...extra};}
 function boundaryEventPort(){
  const handlers=new Map<string,Set<EventListenerOrEventListenerObject>>();
- return {addEventListener(name:string,handler:EventListenerOrEventListenerObject){const selected=handlers.get(name)??new Set();selected.add(handler);handlers.set(name,selected);},removeEventListener(name:string,handler:EventListenerOrEventListenerObject){handlers.get(name)?.delete(handler);},async emit(name:string){for(const handler of handlers.get(name)??[])await (typeof handler==='function'?handler(new Event(name)):handler.handleEvent(new Event(name)));},count(name:string){return handlers.get(name)?.size??0;}};
+ return {addEventListener(name:string,handler:EventListenerOrEventListenerObject){const selected=handlers.get(name)??new Set();selected.add(handler);handlers.set(name,selected);},removeEventListener(name:string,handler:EventListenerOrEventListenerObject){handlers.get(name)?.delete(handler);},dispatchEvent(event:Event){for(const handler of handlers.get(event.type)??[]){if(typeof handler==='function')handler(event);else handler.handleEvent(event);}return true;},async emit(name:string){for(const handler of handlers.get(name)??[])await (typeof handler==='function'?handler(new Event(name)):handler.handleEvent(new Event(name)));},count(name:string){return handlers.get(name)?.size??0;}};
 }
-function mountedWorkBoundary(input:Partial<BoundaryProps>={},response:()=>Promise<Response>=async()=>Response.json({data:boundaryData()})){
+function mountedWorkBoundary(input:Partial<BoundaryProps>={},response:()=>Promise<Response>=async()=>Response.json({data:boundaryData()}),options:{deviceAccounts?:boolean;holding?:boolean}={}){
  vi.useFakeTimers({toFake:['Date']});vi.setSystemTime(1_000_100);
- const browser={...boundaryEventPort(),location:{pathname:'/holdings/acme/work',search:'?view=actions',hash:'#current',replace:vi.fn()}},channels:Array<ReturnType<typeof boundaryEventPort>&{closed:boolean}>=[];
- vi.stubGlobal('window',browser);vi.stubGlobal('BroadcastChannel',class{private readonly port=boundaryEventPort();closed=false;constructor(){channels.push(this);}addEventListener=this.port.addEventListener;removeEventListener=this.port.removeEventListener;emit=this.port.emit;count=this.port.count;close(){this.closed=true;}});
+ const url=new URL('/holdings/acme/work?view=actions#current',options.holding?'https://acme.jesadakorn.com':'https://console-dev-erpx.jesadakorn.com');
+ const browser={...boundaryEventPort(),location:{host:url.host,href:url.href,origin:url.origin,pathname:url.pathname,search:url.search,hash:url.hash,replace:vi.fn()}},channels:Array<ReturnType<typeof boundaryEventPort>&{closed:boolean}>=[];
+ vi.stubGlobal('document',{documentElement:{dataset:{deviceAccounts:String(options.deviceAccounts??false),erpxApp:options.holding?'finance':'apps'}}});
+ vi.stubGlobal('window',browser);vi.stubGlobal('BroadcastChannel',class{private readonly port=boundaryEventPort();closed=false;constructor(){channels.push(this);}addEventListener=this.port.addEventListener;removeEventListener=this.port.removeEventListener;dispatchEvent=this.port.dispatchEvent;emit=this.port.emit;count=this.port.count;close(){this.closed=true;}});
  vi.stubGlobal('MutationObserver',class{observe(){}disconnect(){}});const fetcher=vi.fn<(...args:Parameters<typeof fetch>)=>ReturnType<typeof fetch>>(response);vi.stubGlobal('fetch',fetcher);
  let props:BoundaryProps={...boundaryIdentity,children:null,...input},cleanup:(()=>void)|undefined;
  const node={setAttribute:vi.fn(),removeAttribute:vi.fn(),contains:()=>false,addEventListener:vi.fn(),removeEventListener:vi.fn()};
@@ -276,7 +281,7 @@ it('keeps an actual Work purchase request title when product navigation is held 
   if(name.endsWith("@erpx/feature-work_projection/lib/request-draft-create"))return{createRequestDraftOnce:()=>createAttempt,createRequestUploader:()=>upload};
   if(name.endsWith("@erpx/workplace/components/review-decision"))return{ReviewDecisionForm:()=>null};
   if(name.endsWith("@erpx/workplace/components/request-experience"))return{RequestSteps:()=>null,RoutePreview:()=>null};
-  if(name.endsWith("@erpx/feature-work_projection/lib/destination-registry"))return{canonicalUiHref:(href:string)=>href};
+  if(name.endsWith("@erpx/feature-work_projection/lib/destination-registry"))return{canonicalUiHref};
   if(name.endsWith("@erpx/feature-work_projection/lib/work-fetch"))return{workFetch};
   if(name.endsWith("@erpx/workplace/components/workspace-link"))return{default:newWorkLink};
   if(name.endsWith("@erpx/feature-shared/lib/destination-router"))return{useRouter:()=>router};
@@ -301,16 +306,17 @@ it('keeps an actual Work purchase request title when product navigation is held 
   if(name.endsWith("@erpx/ui/components/use-hydrated"))return{useHydrated:()=>true};
   if(name.endsWith("@erpx/ui/components/draft-form-drawer"))return{DraftFormDrawer:drawer};
   if(name.endsWith('.module.css'))return{default:{}};
-  if(name.endsWith("@erpx/feature-work_projection/lib/destination-registry"))return{canonicalUiHref:(href:string)=>href};
+  if(name.endsWith("@erpx/feature-work_projection/lib/destination-registry"))return{canonicalUiHref};
   throw Error('Unexpected actual NewWork import '+name);
  });
  const WorkBoundary=await compile('packages/workplace/src/components/work-context-boundary.tsx','WorkContextBoundary',name=>{
+  if(name==='@erpx/contracts/holding-fetch')return{holdingFetch};
   if(name.endsWith("@erpx/ui/components/foundation"))return controls;
   if(name.endsWith("@erpx/workplace/components/context-switch-provider"))return{useContextSwitch:()=>contextPort};
   throw Error('Unexpected actual WorkContextBoundary import '+name);
  });
  const ProductBoundary=await compile('packages/workplace/src/components/product-navigation-boundary.tsx','ProductNavigationBoundary',name=>{
-  if(name.endsWith("@erpx/feature-work_projection/lib/product-navigation"))return{isProductHandoffHref:()=>true};
+  if(name.endsWith("@erpx/feature-work_projection/lib/product-navigation"))return{isProductHandoffHref};
   if(name==='next/navigation')return{useRouter:()=>router};
   if(name.endsWith("@erpx/feature-work_projection/lib/context-switch"))return contextSwitch;
   if(name.endsWith("@erpx/ui/components/dialog"))return{Dialog:newWorkDialog};
@@ -343,4 +349,14 @@ it('keeps an actual Work purchase request title when product navigation is held 
   (find(nodes,node=>node.type==='button'&&node.props.children==='Keep editing').props.onClick as()=>void)();nodes=render();expect(find(nodes,node=>node.type==='input'&&node.props.placeholder==='Uses the first item').props.value).toBe('Unsaved purchase request');expect(find(nodes,node=>node.type==='aside'&&node.props.title==='Leave unsaved work?').props.open).toBe(false);
   expect(calls).toHaveLength(1);expect(send).not.toHaveBeenCalled();expect(createAttempt).not.toHaveBeenCalled();expect(upload).not.toHaveBeenCalled();expect(router.push).not.toHaveBeenCalled();expect(router.replace).not.toHaveBeenCalled();expect(router.refresh).not.toHaveBeenCalled();expect(location.assign).not.toHaveBeenCalled();expect(formNode.type).toBe('form');
  }finally{for(const selected of allStores)for(const effect of selected.effects.values())effect.cleanup?.();vi.unstubAllGlobals();}
+});
+
+it('keeps Account-aware401 recovery separate and gives every mounted boundary its own browser metadata',async()=>{
+ const account=mountedWorkBoundary({initialCurrent:boundarySnapshot()},async()=>new Response(null,{status:401}),{deviceAccounts:true});
+ const stale=vi.fn();account.browser.addEventListener('erpx:device-account-stale',stale);await account.browser.emit('focus');expect(stale).toHaveBeenCalledOnce();expect(account.browser.location.replace).not.toHaveBeenCalled();account.unmount();
+ const ordinary=mountedWorkBoundary({initialCurrent:boundarySnapshot()},async()=>new Response(null,{status:401}));await ordinary.browser.emit('focus');expect(ordinary.browser.location.replace).toHaveBeenCalledExactlyOnceWith('/login?reason=expired&next='+encodeURIComponent('/holdings/acme/work?view=actions#current'));expect(stale).toHaveBeenCalledTimes(1);ordinary.unmount();
+});
+it('uses the real registered Holding transport while retaining Company headers and current-authority denial',async()=>{
+ const view=mountedWorkBoundary({initialCurrent:boundarySnapshot()},async()=>new Response(null,{status:403}),{holding:true});expect(view.fetcher).not.toHaveBeenCalled();await view.browser.emit('focus');
+ expect(view.fetcher).toHaveBeenCalledExactlyOnceWith(new URL('https://acme.jesadakorn.com/__erpx/finance/api/v1/holdings/acme/assignments/active'),{cache:'no-store',headers:{'x-erpx-context-company':'current-company'}});expect(view.stale()).toBe('true');expect(view.browser.location.replace).not.toHaveBeenCalled();view.unmount();
 });

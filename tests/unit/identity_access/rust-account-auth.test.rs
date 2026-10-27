@@ -34,7 +34,10 @@ impl AccountRepository for ProbeRepository {
         self.reservations.fetch_add(1, Ordering::SeqCst);
         Box::pin(async move {
             Ok(SignInReservation {
+                cookie: input.candidate_browser.clone(),
                 browser: input.candidate_browser,
+                recovery_expires_at: None,
+                original_revision: 0,
                 created_browser: true,
                 nonce: input.nonce,
                 credential: None,
@@ -63,6 +66,7 @@ impl AccountRepository for ProbeRepository {
         &self,
         _: DeviceProof,
         _: SecretDigest,
+        _: Option<i64>,
         _: i64,
     ) -> AccountFuture<'_, (DeviceAccounts, bool)> {
         Box::pin(async { panic!("initialization was not expected") })

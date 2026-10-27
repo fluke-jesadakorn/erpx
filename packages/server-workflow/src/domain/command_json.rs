@@ -4,7 +4,7 @@
 use erpx_server_shared::public::BusinessError;
 use serde::Serialize;
 use std::collections::HashMap;
-const LIMIT: usize = 2 * 1024 * 1024;
+pub(crate) const LIMIT: usize = 2 * 1024 * 1024;
 const DEPTH: usize = 128;
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum JsonString {

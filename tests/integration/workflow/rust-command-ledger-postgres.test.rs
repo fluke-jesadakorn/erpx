@@ -38,14 +38,14 @@ impl PgCommandAuthority for Authority {
     async fn lock_sources(
         &mut self,
         _: &mut PgConnection,
-        _: &WorkflowCommand,
+        _: &WorkflowRequest,
     ) -> Result<(), Error> {
         Ok(())
     }
     async fn authorize(
         &mut self,
         _: &mut PgConnection,
-        _: &WorkflowCommand,
+        _: &WorkflowRequest,
     ) -> Result<CommandActor, Error> {
         if self.deny {
             return Err(BusinessError::invalid(
@@ -60,7 +60,7 @@ impl PgCommandAuthority for Authority {
         &mut self,
         _: &mut PgConnection,
         _: &CommandActor,
-        _: &WorkflowCommand,
+        _: &WorkflowRequest,
         _: CommandDisposition,
     ) -> Result<(), Error> {
         Ok(())
@@ -73,15 +73,27 @@ impl PgOwnerCommandEffects for Effects {
     async fn lock_sources(
         &mut self,
         _: &mut PgConnection,
-        _: &WorkflowCommand,
+        _: &WorkflowRequest,
     ) -> Result<(), Error> {
         Ok(())
+    }
+    async fn prepare(
+        &mut self,
+        _: &mut PgConnection,
+        _: &CommandActor,
+        _: &WorkflowRequest,
+    ) -> Result<WorkflowOutput, Error> {
+        Ok(WorkflowOutput {
+            version: 2,
+            result: CommandJson::parse(r#"{"id":"record","state":"updated"}"#).unwrap(),
+            event_scope: None,
+        })
     }
     async fn apply(
         &mut self,
         c: &mut PgConnection,
         _: &CommandActor,
-        command: &WorkflowCommand,
+        command: &WorkflowRequest,
     ) -> Result<(), Error> {
         // The canonical receipt must already exist on this exact transaction.
         let exists: bool =
@@ -100,7 +112,7 @@ impl PgOwnerCommandEffects for Effects {
         &mut self,
         _: &mut PgConnection,
         _: &CommandActor,
-        _: &WorkflowCommand,
+        _: &WorkflowRequest,
     ) -> Result<(), Error> {
         if self.fail_retain {
             return Err(BusinessError::invalid(
@@ -112,15 +124,12 @@ impl PgOwnerCommandEffects for Effects {
         Ok(())
     }
 }
-fn command(input: &str) -> WorkflowCommand {
-    WorkflowCommand {
+fn command(input: &str) -> WorkflowRequest {
+    WorkflowRequest {
         key: "workflow:test:command".into(),
         operation: "workflow.synthetic.update".into(),
         record_id: "record".into(),
-        version: 2,
         input: CommandJson::parse(input).unwrap(),
-        result: CommandJson::parse(r#"{"id":"record","state":"updated"}"#).unwrap(),
-        event_scope: None,
     }
 }
 async fn setup(pool: &DatabasePool) {
@@ -280,6 +289,93 @@ async fn concurrent_old_snapshot_gets_real_40001_then_whole_unit_replays_without
     }).await;
 }
 
+/// Models a record whose current state no longer permits preparing the command
+/// anew. A valid committed receipt must still replay after current authorization.
+struct Unpreparable;
+impl PgOwnerCommandEffects for Unpreparable {
+    async fn lock_sources(
+        &mut self,
+        _: &mut PgConnection,
+        _: &WorkflowRequest,
+    ) -> Result<(), Error> {
+        Ok(())
+    }
+    async fn prepare(
+        &mut self,
+        _: &mut PgConnection,
+        _: &CommandActor,
+        _: &WorkflowRequest,
+    ) -> Result<WorkflowOutput, Error> {
+        Err(BusinessError::invalid(
+            "TEST_OWNER_PREPARATION_DENIED",
+            "Synthetic current record cannot prepare again.",
+        )
+        .into())
+    }
+    async fn apply(
+        &mut self,
+        _: &mut PgConnection,
+        _: &CommandActor,
+        _: &WorkflowRequest,
+    ) -> Result<(), Error> {
+        panic!("unprepared effects must never execute")
+    }
+    async fn retain(
+        &mut self,
+        _: &mut PgConnection,
+        _: &CommandActor,
+        _: &WorkflowRequest,
+    ) -> Result<(), Error> {
+        panic!("unprepared effects must never retain")
+    }
+}
+#[tokio::test]
+async fn exact_replay_and_missing_receipt_inspection_never_prepare_a_new_owner_command() {
+    fixture::with_database(3, |pool| async move {
+        setup(&pool).await;
+        let missing=PgUnitOfWork::new(pool.clone()).run(TransactionOptions::default(), |c| Box::pin(async move {
+            PgCommandLedger::new(CompanyId::new("company").unwrap(),c,&mut Authority{deny:false},&Time,&mut Ids).replay(&command("{}"),&mut Unpreparable).await
+        })).await.unwrap();
+        assert!(missing.is_none());assert_eq!(counts(&pool).await,(0,0,0,0));
+        let rejected=PgUnitOfWork::new(pool.clone()).run(TransactionOptions::default(), |c| Box::pin(async move {
+            PgCommandLedger::new(CompanyId::new("company").unwrap(),c,&mut Authority{deny:false},&Time,&mut Ids).execute(&command("{}"),&mut Unpreparable).await
+        })).await;
+        assert!(matches!(rejected,Err(Error::Business(ref e)) if e.code=="TEST_OWNER_PREPARATION_DENIED"));
+        assert_eq!(counts(&pool).await,(0,0,0,0));
+        execute(&pool,"{}",false,false).await.unwrap();
+        for explicit_inspection in [true,false] {
+            let result=PgUnitOfWork::new(pool.clone()).run(TransactionOptions::default(), move |c| Box::pin(async move {
+                let mut authority=Authority{deny:false};let mut ids=Ids;
+                let mut ledger=PgCommandLedger::new(CompanyId::new("company").unwrap(),c,&mut authority,&Time,&mut ids);
+                if explicit_inspection { Ok(ledger.replay(&command("{}"),&mut Unpreparable).await?.unwrap()) }
+                else { ledger.execute(&command("{}"),&mut Unpreparable).await }
+            })).await.unwrap();
+            assert!(result.replayed);
+        }
+        assert_eq!(counts(&pool).await,(1,1,1,1));
+    }).await;
+}
+
+#[tokio::test]
+async fn oversized_persisted_receipt_data_is_rejected_before_result_or_authority_transfer() {
+    fixture::with_database(3, |pool| async move {
+        setup(&pool).await;
+        let large=serde_json::json!({"synthetic":"x".repeat(2*1024*1024)}).to_string();
+        for field in ["result","authority"] {
+            let mut request=command("{}");request.key=format!("workflow:oversized:{field}");
+            let digest=command_fingerprint(&actor(),&request.operation,&request.record_id,&request.input).unwrap();
+            sqlx::query("INSERT INTO command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,created_at,authority_json)VALUES($1,$2,'user',$3,'record',$4,0,$5)")
+                .bind(&request.key).bind(&request.operation).bind(digest).bind(if field=="result"{large.as_str()}else{"{}"}).bind(if field=="authority"{Some(large.as_str())}else{None}).execute(pool.raw()).await.unwrap();
+            let result=PgUnitOfWork::new(pool.clone()).run(TransactionOptions::default(),move |c| {
+                let request=WorkflowRequest{key:request.key.clone(),operation:request.operation.clone(),record_id:request.record_id.clone(),input:request.input.clone()};
+                Box::pin(async move {PgCommandLedger::new(CompanyId::new("company").unwrap(),c,&mut Authority{deny:false},&Time,&mut Ids).execute(&request,&mut Unpreparable).await})
+            }).await;
+            assert!(matches!(result,Err(Error::Business(ref e)) if e.code=="COMMAND_RECEIPT_TOO_LARGE"));
+        }
+        assert_eq!(counts(&pool).await,(2,0,0,0));
+    }).await;
+}
+
 struct ReplayAuthority {
     actor: CommandActor,
     guard: Option<String>,
@@ -288,14 +384,14 @@ impl PgCommandAuthority for ReplayAuthority {
     async fn lock_sources(
         &mut self,
         _: &mut PgConnection,
-        _: &WorkflowCommand,
+        _: &WorkflowRequest,
     ) -> Result<(), Error> {
         Ok(())
     }
     async fn authorize(
         &mut self,
         _: &mut PgConnection,
-        _: &WorkflowCommand,
+        _: &WorkflowRequest,
     ) -> Result<CommandActor, Error> {
         Ok(self.actor.clone())
     }
@@ -303,7 +399,7 @@ impl PgCommandAuthority for ReplayAuthority {
         &mut self,
         c: &mut PgConnection,
         current: &CommandActor,
-        _: &WorkflowCommand,
+        _: &WorkflowRequest,
         disposition: CommandDisposition,
     ) -> Result<(), Error> {
         assert_eq!(disposition, CommandDisposition::Replay);
@@ -343,7 +439,7 @@ async fn all_frozen_node_receipt_replays_preserve_results_conflicts_and_current_
             let actor=actor_fixture::parse_frozen_actor(case["actorJson"].as_str().unwrap());
             let company=actor.company_id.clone();
             let mut policy=ReplayAuthority{actor,guard:case["guardState"].as_str().map(String::from)};
-            let command=WorkflowCommand {key,operation:case["operation"].as_str().unwrap().into(),record_id:case["recordId"].as_str().unwrap().into(),version:1,input:CommandJson::parse(case["inputJson"].as_str().unwrap()).unwrap(),result:CommandJson::parse("{}").unwrap(),event_scope:None};
+            let command=WorkflowRequest {key,operation:case["operation"].as_str().unwrap().into(),record_id:case["recordId"].as_str().unwrap().into(),input:CommandJson::parse(case["inputJson"].as_str().unwrap()).unwrap()};
             let actual=PgCommandLedger::new(company,&mut tx,&mut policy,&Time,&mut Ids).execute(&command,&mut Effects{fail_retain:true}).await;
             if case["expectedError"].is_null() {
                 let actual=actual.unwrap_or_else(|e|panic!("{}: {e:?}",case["id"]));

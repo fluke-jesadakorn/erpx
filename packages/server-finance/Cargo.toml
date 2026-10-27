@@ -8,12 +8,15 @@ publish.workspace = true
 autotests = false
 
 [package.metadata.erpx]
-verification-roots = ["../catalogue/src/iso-4217-current.json", "../../fixtures/finance/rust-instruments", "../../tests/support/finance", "../../scripts/testing/fixtures/generate-finance-rust-goldens.ts", "../../scripts/testing/fixtures/finance-node-oracle.ts"]
+verification-roots = ["../../fixtures/finance/rust-journal-review", "../../scripts/testing/fixtures/generate-finance-journal-review-oracle.ts", "../catalogue/src/iso-4217-current.json", "../../fixtures/finance/rust-instruments", "../../tests/support/finance", "../../scripts/testing/fixtures/generate-finance-rust-goldens.ts", "../../scripts/testing/fixtures/finance-node-oracle.ts"]
 
 [lib]
 path = "src/lib.rs"
 
 [dependencies]
+futures-util.workspace = true
+erpx-server-workflow.workspace = true
+tokio.workspace = true
 erpx-server-shared.workspace = true
 erpx-server-runtime.workspace = true
 sqlx.workspace = true
@@ -35,6 +38,14 @@ path = "../../tests/unit/finance/rust-instrument-policies.test.rs"
 [[test]]
 name = "journal_postgres"
 path = "../../tests/integration/finance/rust-journal-postgres.test.rs"
+
+[[test]]
+name = "journal_review"
+path = "../../tests/unit/finance/rust-journal-review.test.rs"
+
+[[test]]
+name = "journal_review_postgres"
+path = "../../tests/integration/finance/rust-journal-review-postgres.test.rs"
 
 [lints]
 workspace = true

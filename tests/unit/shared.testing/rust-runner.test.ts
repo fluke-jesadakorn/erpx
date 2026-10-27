@@ -83,6 +83,14 @@ describe('Rust catalogue and source selection', () => {
     const graph=createWorkspaceGraph(nativeSources());expect(selectCandidateSuites(graph,graph,[provider],['Cargo.lock']).suites).toEqual([]);
     expect(cargoChildEnvironment(nativeSuite(),{ERPX_TEST_ADMIN_URL:'private-admin'}).ERPX_TEST_ADMIN_URL).toBeUndefined();
   });
+  it('passes only the explicitly required isolated administrator to a native database provider',()=>{
+    const provider:Suite={...nativeSuite(),id:'legal.worker.provider',lane:'provider',fixture:'provider',provider:{environment:{},required:['ERPX_TEST_ADMIN_URL','ERPX_LEGAL_TEST_TESSDATA']}};
+    const selected=cargoChildEnvironment(provider,{PATH:'/owned/tools',ERPX_TEST_ADMIN_URL:'synthetic-isolated-admin',ERPX_LEGAL_TEST_TESSDATA:'/owned/models',PGHOST:'private-host',PGPASSWORD:'private-password',DATABASE_URL:'private-runtime',BETTER_AUTH_SECRET:'private-auth',STRIPE_SECRET_KEY:'private-payment'});
+    expect(selected).toMatchObject({ERPX_TEST_ADMIN_URL:'synthetic-isolated-admin',ERPX_LEGAL_TEST_TESSDATA:'/owned/models',ERPX_SELECTED_PROVIDER:'1'});
+    for(const key of ['PGHOST','PGPASSWORD','DATABASE_URL','BETTER_AUTH_SECRET','STRIPE_SECRET_KEY'])expect(selected[key],key).toBeUndefined();
+    expect(()=>cargoChildEnvironment(provider,{ERPX_LEGAL_TEST_TESSDATA:'/owned/models'})).toThrow('PROVIDER_PREREQUISITE_REQUIRED:legal.worker.provider:ERPX_TEST_ADMIN_URL');
+    const graph=createWorkspaceGraph(nativeSources());expect(selectCandidateSuites(graph,graph,[provider],['Cargo.lock']).suites).toEqual([]);
+  });
   it('refuses exit-zero Cargo summaries with ignored, filtered, missing or empty cases', () => {
     const green = 'running 1 test\ntest money_is_exact ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s\n';
     expect(cargoCaseResults(green, sharedTest)).toMatchObject({ passed: true, acceptance: false, cases: [{ runner: 'cargo', file: sharedTest, title: 'money_is_exact', status: 'passed' }] });

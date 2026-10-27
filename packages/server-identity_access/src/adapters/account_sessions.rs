@@ -1,3 +1,4 @@
+use super::account_group_recovery::browser_key;
 use crate::{
     application::account_ports::DeviceProof,
     domain::account_auth::{
@@ -21,7 +22,7 @@ pub(crate) async fn lock_session_reads(connection: &mut PgConnection) -> Result<
     sqlx::query("LOCK TABLE session IN SHARE MODE")
         .execute(&mut *connection)
         .await?;
-    sqlx::query("LOCK TABLE account_device_browsers,account_device_accounts,sso_session_bindings,\"user\",principals IN SHARE MODE").execute(connection).await?;
+    sqlx::query("LOCK TABLE account_device_browsers,account_device_accounts,native_account_device_group_keys,sso_session_bindings,\"user\",principals IN SHARE MODE").execute(connection).await?;
     Ok(())
 }
 
@@ -30,7 +31,7 @@ pub(crate) async fn lock_session_writes(connection: &mut PgConnection) -> Result
         .execute(&mut *connection)
         .await?;
     sqlx::query(
-        "LOCK TABLE account_device_browsers,account_device_accounts IN SHARE ROW EXCLUSIVE MODE",
+        "LOCK TABLE account_device_browsers,account_device_accounts,native_account_device_group_keys IN SHARE ROW EXCLUSIVE MODE",
     )
     .execute(&mut *connection)
     .await?;
@@ -61,18 +62,17 @@ pub(crate) struct LiveAccount {
     pub session: AccountSession,
     pub digest: String,
     pub handle: String,
+    pub browser_id: String,
+    pub selected: bool,
 }
 
 /// A browser grouping cookie is not proof of any saved account. Each row also needs its own secret.
-pub(crate) async fn live_accounts(
+pub(crate) async fn proven_accounts(
     connection: &mut PgConnection,
     proof: &DeviceProof,
     environment: &str,
     now: i64,
 ) -> Result<Vec<LiveAccount>, sqlx::Error> {
-    let Some(browser) = &proof.browser else {
-        return Ok(Vec::new());
-    };
     let tokens = proof
         .active
         .iter()
@@ -88,13 +88,15 @@ pub(crate) async fn live_accounts(
         return Ok(Vec::new());
     }
     let rows = sqlx::query(r#"SELECT s.id session_id,s."userId" user_id,s.token,a.handle,a.browser_id,u.name,u.email,u."emailVerified" email_verified,u.image,
-      b.authenticated_at,LEAST(b.absolute_expires_at,(EXTRACT(EPOCH FROM s."expiresAt"::timestamptz)*1000)::bigint) expires_at
+      COALESCE(device.active_session_id=s.id,false) selected,b.authenticated_at,LEAST(b.absolute_expires_at,(EXTRACT(EPOCH FROM s."expiresAt"::timestamptz)*1000)::bigint) expires_at
       FROM session s JOIN "user" u ON u.id=s."userId" JOIN sso_session_bindings b ON b.session_id=s.id
-      JOIN account_device_accounts a ON a.session_id=s.id LEFT JOIN principals p ON p.user_id=u.id
-      WHERE a.browser_id=$1 AND s.token=ANY($2::text[]) AND b.audience='account' AND b.environment=$3 AND b.parent_session_id IS NULL
-      AND b.authenticated_at<=$4 AND b.absolute_expires_at>$4 AND b.absolute_expires_at<=b.authenticated_at+43200000
-      AND s."expiresAt"::timestamptz>to_timestamp($4::double precision/1000) AND COALESCE(p.status,'active')='active'
-      ORDER BY u.name,a.handle"#).bind(browser.as_str()).bind(tokens).bind(environment).bind(now).fetch_all(connection).await?;
+      JOIN account_device_accounts a ON a.session_id=s.id JOIN account_device_browsers device ON device.id=a.browser_id
+      JOIN native_account_device_group_keys keys ON keys.browser_id=a.browser_id AND keys.revoked_at IS NULL
+      LEFT JOIN principals p ON p.user_id=u.id
+      WHERE s.token=ANY($1::text[]) AND b.audience='account' AND b.environment=$2 AND b.parent_session_id IS NULL
+      AND b.authenticated_at<=$3 AND b.absolute_expires_at>$3 AND b.absolute_expires_at<=b.authenticated_at+43200000
+      AND s."expiresAt"::timestamptz>to_timestamp($3::double precision/1000) AND COALESCE(p.status,'active')='active'
+      ORDER BY u.name,a.handle"#).bind(tokens).bind(environment).bind(now).fetch_all(connection).await?;
     let mut accounts = Vec::new();
     for row in rows {
         let digest: String = row.try_get("token")?;
@@ -113,9 +115,27 @@ pub(crate) async fn live_accounts(
             session: session_row(&row)?,
             digest,
             handle,
+            browser_id: row.try_get("browser_id")?,
+            selected: row.try_get("selected")?,
         });
     }
     Ok(accounts)
+}
+
+pub(crate) async fn live_accounts(
+    connection: &mut PgConnection,
+    proof: &DeviceProof,
+    environment: &str,
+    now: i64,
+) -> Result<Vec<LiveAccount>, sqlx::Error> {
+    let Some(id) = browser_key(connection, proof.browser.as_ref()).await? else {
+        return Ok(Vec::new());
+    };
+    Ok(proven_accounts(connection, proof, environment, now)
+        .await?
+        .into_iter()
+        .filter(|account| account.browser_id == id.as_str())
+        .collect())
 }
 
 pub(crate) async fn device_snapshot(
@@ -124,7 +144,7 @@ pub(crate) async fn device_snapshot(
     environment: &str,
     now: i64,
 ) -> Result<DeviceAccounts, sqlx::Error> {
-    let Some(browser) = &proof.browser else {
+    let Some(browser) = browser_key(connection, proof.browser.as_ref()).await? else {
         return Ok(DeviceAccounts::empty());
     };
     let row =
@@ -166,7 +186,7 @@ pub(crate) async fn read_session(
     };
     match audience {
         RequestAudience::Account => {
-            let Some(browser) = &proof.browser else {
+            let Some(browser) = browser_key(connection, proof.browser.as_ref()).await? else {
                 return Ok(None);
             };
             let selected: Option<String> = sqlx::query_scalar(

@@ -11,6 +11,7 @@
 @source "../../../../packages/contracts/src/development-module-admission.ts";
 @source "../../../../packages/contracts/src/holding-fetch.ts";
 @source "../../../../packages/contracts/src/holding-hosts.ts";
+@source "../../../../packages/contracts/src/legal-portal-upload.ts";
 @source "../../../../packages/contracts/src/product-registry.ts";
 @source "../../../../packages/contracts/src/social-post-entry.ts";
 @source "../../../../packages/contracts/src/work-social-api.ts";
@@ -4669,7 +4670,6 @@
 @source "../../../../packages/server-legal/src/domain/model.ts";
 @source "../../../../packages/server-legal/src/domain/operations.ts";
 @source "../../../../packages/server-legal/src/domain/people.ts";
-@source "../../../../packages/server-legal/src/domain/portal-upload-recovery.ts";
 @source "../../../../packages/server-legal/src/domain/portal.ts";
 @source "../../../../packages/server-legal/src/domain/purchases.ts";
 @source "../../../../packages/server-legal/src/domain/references.ts";
@@ -4731,7 +4731,6 @@
 @source "../../../../packages/server-legal/src/public/rules/deadlines.ts";
 @source "../../../../packages/server-legal/src/public/rules/features.ts";
 @source "../../../../packages/server-legal/src/public/rules/model.ts";
-@source "../../../../packages/server-legal/src/public/rules/portal-upload-recovery.ts";
 @source "../../../../packages/server-legal/src/public/rules/purchases.ts";
 @source "../../../../packages/server-legal/src/public/rules/thailand.ts";
 @source "../../../../packages/server-legal/src/public/runtime-minio-mutation-authority.ts";

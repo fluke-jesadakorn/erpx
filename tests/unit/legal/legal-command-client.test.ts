@@ -117,7 +117,7 @@ it('retains exact Legal hold and existing retention duties after inactive withou
 });
 
 import {createLegalPortalCommandClient} from '@erpx/feature-legal/lib/portal-command-client';
-import {legalPortalUploadFingerprintInput} from '@erpx/server-legal/public/rules/portal-upload-recovery';
+import {legalPortalUploadFingerprintInput} from '@erpx/contracts/legal-portal-upload';
 const portalBase='/api/legal-portal/h001',portalSource={shareId:'actual-share',version:3,checksum:'immutable-shared-revision'},portalInput={action:'comment',shareId:'actual-share',body:'Original submitted discussion'};
 function portalTransport(){const transport=vi.fn();vi.stubGlobal('fetch',transport);return transport;}
 it('recovers a lost public Portal response after refresh with the exact saved body and key under its original account session',async()=>{

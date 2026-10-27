@@ -12,14 +12,17 @@ use erpx_server_shared::public::{BusinessError, Clock, CompanyId, FailureKind, I
 use sqlx::{Connection, PgConnection, Row};
 use std::future::Future;
 type Error = PgTransactionError<BusinessError>;
-/// Trusted application descriptor. Input/result are normalized typed-owner data,
-/// not inbound actor, permission, SQL or transaction instructions.
-pub struct WorkflowCommand {
+/// Trusted request identity. No result preparation or current business state is
+/// required to inspect an exact receipt; this data supplies no authority.
+pub struct WorkflowRequest {
     pub key: String,
     pub operation: String,
     pub record_id: String,
-    pub version: i64,
     pub input: CommandJson,
+}
+/// Prepared only for a new command after current policy and exact replay lookup.
+pub struct WorkflowOutput {
+    pub version: i64,
     pub result: CommandJson,
     pub event_scope: Option<CommandEventScope>,
 }
@@ -38,12 +41,12 @@ pub trait PgCommandAuthority: Send {
     fn lock_sources(
         &mut self,
         connection: &mut PgConnection,
-        command: &WorkflowCommand,
+        command: &WorkflowRequest,
     ) -> impl Future<Output = Result<(), Error>> + Send;
     fn authorize(
         &mut self,
         connection: &mut PgConnection,
-        command: &WorkflowCommand,
+        command: &WorkflowRequest,
     ) -> impl Future<Output = Result<CommandActor, Error>> + Send;
     /// Replay is supplied only after this exact historical request has matched.
     /// Owners retain their real History/NewWork/settlement purchase purpose.
@@ -51,7 +54,7 @@ pub trait PgCommandAuthority: Send {
         &mut self,
         connection: &mut PgConnection,
         actor: &CommandActor,
-        command: &WorkflowCommand,
+        command: &WorkflowRequest,
         disposition: CommandDisposition,
     ) -> impl Future<Output = Result<(), Error>> + Send;
 }
@@ -62,19 +65,28 @@ pub trait PgOwnerCommandEffects: Send {
     fn lock_sources(
         &mut self,
         connection: &mut PgConnection,
-        command: &WorkflowCommand,
+        command: &WorkflowRequest,
     ) -> impl Future<Output = Result<(), Error>> + Send;
+    /// Read-only canonical owner preparation. Never call providers or mutate
+    /// canonical business rows here; staged guard data remains in this unit.
+    /// Exact replay never calls this method.
+    fn prepare(
+        &mut self,
+        connection: &mut PgConnection,
+        actor: &CommandActor,
+        command: &WorkflowRequest,
+    ) -> impl Future<Output = Result<WorkflowOutput, Error>> + Send;
     fn apply(
         &mut self,
         connection: &mut PgConnection,
         actor: &CommandActor,
-        command: &WorkflowCommand,
+        command: &WorkflowRequest,
     ) -> impl Future<Output = Result<(), Error>> + Send;
     fn retain(
         &mut self,
         connection: &mut PgConnection,
         actor: &CommandActor,
-        command: &WorkflowCommand,
+        command: &WorkflowRequest,
     ) -> impl Future<Output = Result<(), Error>> + Send;
 }
 /// Caller owns the Holding transaction/Control lease and propagates any error
@@ -104,11 +116,119 @@ impl<'c, A: PgCommandAuthority, C: Clock + Sync, Ids: IdentifierSource>
             identifiers,
         }
     }
+    /// A missing receipt never prepares effects or grants History/NewWork.
+    /// Caller must retain this enclosing transaction and source fences.
+    pub async fn replay<E: PgOwnerCommandEffects>(
+        &mut self,
+        command: &WorkflowRequest,
+        effects: &mut E,
+    ) -> Result<Option<CommandOutcome>, Error> {
+        let actor = self.lock_and_current(command, effects).await?;
+        self.read_receipt(command, &actor).await
+    }
     pub async fn execute<E: PgOwnerCommandEffects>(
         &mut self,
-        command: &WorkflowCommand,
+        command: &WorkflowRequest,
         effects: &mut E,
     ) -> Result<CommandOutcome, Error> {
+        let actor = self.lock_and_current(command, effects).await?;
+        if let Some(outcome) = self.read_receipt(command, &actor).await? {
+            return Ok(outcome);
+        }
+        self.authority
+            .verify_command(
+                self.connection,
+                &actor,
+                command,
+                CommandDisposition::Execute,
+            )
+            .await?;
+        self.require_same(command, &actor).await?;
+        let output = effects.prepare(self.connection, &actor, command).await?;
+        if !(0..=9_007_199_254_740_991).contains(&output.version) {
+            return Err(BusinessError::invalid(
+                "COMMAND_OUTPUT_INVALID",
+                "Provide a valid owner result version.",
+            )
+            .into());
+        }
+        self.authority
+            .verify_command(
+                self.connection,
+                &actor,
+                command,
+                CommandDisposition::Execute,
+            )
+            .await?;
+        self.require_same(command, &actor).await?;
+        let digest = command_fingerprint(
+            &actor,
+            &command.operation,
+            &command.record_id,
+            &command.input,
+        )?;
+        let now = self.clock.now().get();
+        let authority = actor.receipt_authority()?;
+        // A conflicting row committed after an earlier SERIALIZABLE snapshot
+        // raises real40001 before this no-op UPDATE can modify that receipt.
+        // There is no provisional result: the owner prepared its typed output.
+        let inserted:String=sqlx::query_scalar("INSERT INTO command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,created_at,authority_json) VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(command_id) DO UPDATE SET command_id=excluded.command_id RETURNING request_hash")
+            .bind(&command.key).bind(&command.operation).bind(actor.user_id.as_str()).bind(&digest).bind(&command.record_id).bind(output.result.as_str()).bind(now).bind(authority.as_str()).fetch_one(&mut *self.connection).await?;
+        if inserted != digest {
+            return Err(conflict(
+                "IDEMPOTENCY_CONFLICT",
+                "This command key belongs to another request.",
+            )
+            .into());
+        }
+        effects.apply(self.connection, &actor, command).await?;
+        let audit_id = self.identifiers.next();
+        let event_id = self.identifiers.next();
+        let aggregate = command
+            .operation
+            .split('.')
+            .take(2)
+            .collect::<Vec<_>>()
+            .join("_");
+        sqlx::query("INSERT INTO audit_events(id,command_id,actor_id,assignment_id,action,record_type,record_id,record_version,purpose,created_at,authority_json) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$5,$9,(SELECT authority_json FROM command_receipts WHERE command_id=$2))")
+            .bind(audit_id.as_str()).bind(&command.key).bind(actor.user_id.as_str()).bind(actor.assignment_id.as_str()).bind(&command.operation).bind(&aggregate).bind(&command.record_id).bind(output.version).bind(now).execute(&mut *self.connection).await?;
+        let value = output.result.value()?;
+        let state = match value.get("state") {
+            None | Some(OrderedJson::Null) => value.get("status"),
+            other => other,
+        }
+        .and_then(OrderedJson::string);
+        let scope = output
+            .event_scope
+            .clone()
+            .unwrap_or_else(|| CommandEventScope::from(&actor));
+        let payload = actor.outbox_payload(&command.record_id, output.version, state, &scope)?;
+        sqlx::query("INSERT INTO outbox_events(id,command_id,event_type,aggregate_type,aggregate_id,aggregate_version,payload_json,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8)")
+            .bind(event_id.as_str()).bind(&command.key).bind(&command.operation).bind(&aggregate).bind(&command.record_id).bind(output.version).bind(payload.as_str()).bind(now).execute(&mut *self.connection).await?;
+        effects.retain(self.connection, &actor, command).await?;
+        self.authority
+            .verify_command(
+                self.connection,
+                &actor,
+                command,
+                CommandDisposition::Execute,
+            )
+            .await?;
+        sqlx::query("DELETE FROM command_assertions WHERE command_id=$1")
+            .bind(&command.key)
+            .execute(&mut *self.connection)
+            .await?;
+        self.require_same(command, &actor).await?;
+        Ok(CommandOutcome {
+            result: output.result,
+            replayed: false,
+        })
+    }
+    async fn lock_and_current<E: PgOwnerCommandEffects>(
+        &mut self,
+        command: &WorkflowRequest,
+        effects: &mut E,
+    ) -> Result<CommandActor, Error> {
         validate(command)?;
         if !self.connection.is_in_transaction() {
             return Err(PersistenceError::new("WORKFLOW_OWNER_TRANSACTION_REQUIRED").into());
@@ -127,22 +247,50 @@ impl<'c, A: PgCommandAuthority, C: Clock + Sync, Ids: IdentifierSource>
             .bind(format!("workflow.command:{}", command.key))
             .execute(&mut *self.connection)
             .await?;
-        let actor = self.current(command).await?;
+        self.current(command).await
+    }
+    async fn read_receipt(
+        &mut self,
+        command: &WorkflowRequest,
+        actor: &CommandActor,
+    ) -> Result<Option<CommandOutcome>, Error> {
         let digest = command_fingerprint(
-            &actor,
+            actor,
             &command.operation,
             &command.record_id,
             &command.input,
         )?;
-        let row=sqlx::query("SELECT request_hash,result_json,operation,actor_id,record_id,authority_json FROM command_receipts WHERE command_id=$1 FOR SHARE").bind(&command.key).fetch_optional(&mut *self.connection).await?;
+        // Bound persisted legacy data before transferring it into this process.
+        // A parser limit after fetching an arbitrary TEXT value is too late.
+        let row = sqlx::query("SELECT
+            CASE WHEN octet_length(request_hash)<=$2 THEN request_hash END request_hash,
+            CASE WHEN octet_length(result_json)<=$2 THEN result_json END result_json,
+            CASE WHEN octet_length(operation)<=$2 THEN operation END operation,
+            CASE WHEN octet_length(actor_id)<=$2 THEN actor_id END actor_id,
+            CASE WHEN octet_length(record_id)<=$2 THEN record_id END record_id,
+            CASE WHEN octet_length(authority_json)<=$2 THEN authority_json END authority_json,
+            (COALESCE(octet_length(request_hash),0)>$2 OR COALESCE(octet_length(result_json),0)>$2
+             OR COALESCE(octet_length(operation),0)>$2 OR COALESCE(octet_length(actor_id),0)>$2
+             OR COALESCE(octet_length(record_id),0)>$2 OR COALESCE(octet_length(authority_json),0)>$2) oversized
+            FROM command_receipts WHERE command_id=$1 FOR SHARE")
+            .bind(&command.key).bind(crate::domain::command_json::LIMIT as i32)
+            .fetch_optional(&mut *self.connection).await?;
         if let Some(row) = row {
+            if row.try_get::<bool, _>("oversized")? {
+                return Err(BusinessError::new(
+                    FailureKind::Unavailable,
+                    "COMMAND_RECEIPT_TOO_LARGE",
+                    "The retained command exceeds the bounded receipt reader.",
+                )
+                .into());
+            }
             let old_hash: String = row.try_get("request_hash")?;
             let historical_operation = legacy_guest_account_operation(&command.operation);
             let historical_input = legacy_guest_account_json(&command.input)?;
             let mut matches = old_hash == digest
                 || old_hash
                     == command_fingerprint(
-                        &actor,
+                        actor,
                         &historical_operation,
                         &command.record_id,
                         &historical_input,
@@ -154,7 +302,7 @@ impl<'c, A: PgCommandAuthority, C: Clock + Sync, Ids: IdentifierSource>
                 && row.try_get::<String, _>("record_id")? == command.record_id
                 && let Some(saved) = row.try_get::<Option<String>, _>("authority_json")?
                 && let Some(historical) = crate::application::commands::historical_actor(
-                    &actor,
+                    actor,
                     &CommandJson::parse(&saved)?,
                 )
             {
@@ -174,84 +322,20 @@ impl<'c, A: PgCommandAuthority, C: Clock + Sync, Ids: IdentifierSource>
                 .into());
             }
             self.authority
-                .verify_command(self.connection, &actor, command, CommandDisposition::Replay)
+                .verify_command(self.connection, actor, command, CommandDisposition::Replay)
                 .await?;
-            self.require_same(command, &actor).await?;
+            self.require_same(command, actor).await?;
             let result = canonical_guest_account_json(&CommandJson::parse(
                 &row.try_get::<String, _>("result_json")?,
             )?)?;
-            return Ok(CommandOutcome {
+            return Ok(Some(CommandOutcome {
                 result,
                 replayed: true,
-            });
+            }));
         }
-        self.authority
-            .verify_command(
-                self.connection,
-                &actor,
-                command,
-                CommandDisposition::Execute,
-            )
-            .await?;
-        self.require_same(command, &actor).await?;
-        let now = self.clock.now().get();
-        let authority = actor.receipt_authority()?;
-        // A conflicting row committed after an earlier SERIALIZABLE snapshot
-        // raises real40001 before this no-op UPDATE can modify that receipt.
-        // There is no provisional result: the typed owner predeclares its output.
-        let inserted:String=sqlx::query_scalar("INSERT INTO command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,created_at,authority_json) VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(command_id) DO UPDATE SET command_id=excluded.command_id RETURNING request_hash")
-            .bind(&command.key).bind(&command.operation).bind(actor.user_id.as_str()).bind(&digest).bind(&command.record_id).bind(command.result.as_str()).bind(now).bind(authority.as_str()).fetch_one(&mut *self.connection).await?;
-        if inserted != digest {
-            return Err(conflict(
-                "IDEMPOTENCY_CONFLICT",
-                "This command key belongs to another request.",
-            )
-            .into());
-        }
-        effects.apply(self.connection, &actor, command).await?;
-        let audit_id = self.identifiers.next();
-        let event_id = self.identifiers.next();
-        let aggregate = command
-            .operation
-            .split('.')
-            .take(2)
-            .collect::<Vec<_>>()
-            .join("_");
-        sqlx::query("INSERT INTO audit_events(id,command_id,actor_id,assignment_id,action,record_type,record_id,record_version,purpose,created_at,authority_json) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$5,$9,(SELECT authority_json FROM command_receipts WHERE command_id=$2))")
-            .bind(audit_id.as_str()).bind(&command.key).bind(actor.user_id.as_str()).bind(actor.assignment_id.as_str()).bind(&command.operation).bind(&aggregate).bind(&command.record_id).bind(command.version).bind(now).execute(&mut *self.connection).await?;
-        let value = command.result.value()?;
-        let state = match value.get("state") {
-            None | Some(OrderedJson::Null) => value.get("status"),
-            other => other,
-        }
-        .and_then(OrderedJson::string);
-        let scope = command
-            .event_scope
-            .clone()
-            .unwrap_or_else(|| CommandEventScope::from(&actor));
-        let payload = actor.outbox_payload(&command.record_id, command.version, state, &scope)?;
-        sqlx::query("INSERT INTO outbox_events(id,command_id,event_type,aggregate_type,aggregate_id,aggregate_version,payload_json,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8)")
-            .bind(event_id.as_str()).bind(&command.key).bind(&command.operation).bind(&aggregate).bind(&command.record_id).bind(command.version).bind(payload.as_str()).bind(now).execute(&mut *self.connection).await?;
-        effects.retain(self.connection, &actor, command).await?;
-        self.authority
-            .verify_command(
-                self.connection,
-                &actor,
-                command,
-                CommandDisposition::Execute,
-            )
-            .await?;
-        sqlx::query("DELETE FROM command_assertions WHERE command_id=$1")
-            .bind(&command.key)
-            .execute(&mut *self.connection)
-            .await?;
-        self.require_same(command, &actor).await?;
-        Ok(CommandOutcome {
-            result: command.result.clone(),
-            replayed: false,
-        })
+        Ok(None)
     }
-    async fn current(&mut self, command: &WorkflowCommand) -> Result<CommandActor, Error> {
+    async fn current(&mut self, command: &WorkflowRequest) -> Result<CommandActor, Error> {
         let actor = self.authority.authorize(self.connection, command).await?;
         actor.validate()?;
         if actor.company_id != self.company {
@@ -265,7 +349,7 @@ impl<'c, A: PgCommandAuthority, C: Clock + Sync, Ids: IdentifierSource>
     }
     async fn require_same(
         &mut self,
-        command: &WorkflowCommand,
+        command: &WorkflowRequest,
         actor: &CommandActor,
     ) -> Result<(), Error> {
         if self.current(command).await? != *actor {
@@ -278,7 +362,7 @@ impl<'c, A: PgCommandAuthority, C: Clock + Sync, Ids: IdentifierSource>
         Ok(())
     }
 }
-fn validate(command: &WorkflowCommand) -> Result<(), BusinessError> {
+fn validate(command: &WorkflowRequest) -> Result<(), BusinessError> {
     if !(8..=180).contains(&command.key.len())
         || !command
             .key
@@ -290,11 +374,7 @@ fn validate(command: &WorkflowCommand) -> Result<(), BusinessError> {
             "Use a valid Idempotency-Key for this action.",
         ));
     }
-    if command.operation.is_empty()
-        || command.record_id.is_empty()
-        || command.version < 0
-        || command.version > 9_007_199_254_740_991
-    {
+    if command.operation.is_empty() || command.record_id.is_empty() {
         return Err(BusinessError::invalid(
             "COMMAND_DESCRIPTOR_INVALID",
             "Provide the typed owner command identity.",

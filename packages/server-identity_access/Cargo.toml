@@ -91,6 +91,14 @@ path = "../../tests/unit/identity_access/rust-permission-catalog.test.rs"
 name = "command_metadata_postgres"
 path = "../../tests/integration/identity_access/rust-command-metadata-postgres.test.rs"
 
+[[test]]
+name = "account_device_http_postgres"
+path = "../../tests/integration/identity_access/rust-account-device-http-postgres.test.rs"
+
+[[test]]
+name = "account_group_recovery_postgres"
+path = "../../tests/integration/identity_access/rust-account-group-recovery-postgres.test.rs"
+
 [lints]
 workspace = true
 

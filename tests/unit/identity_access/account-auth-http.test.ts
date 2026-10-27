@@ -43,7 +43,7 @@ it("accepts the Rust sign-in user contract and rejects credential-shaped respons
 });
 
 it("selects only opaque saved handles with the captured revision and keeps stale-selection errors", async () => {
-  const fetcher = vi.fn<(input: string, init: RequestInit) => Promise<Response>>(async () => response(devices));
+  const fetcher = vi.fn<(input: string, init: RequestInit) => Promise<Response>>(async () => response({ data: devices }));
   const client = createAccountAuthHttpPort(fetcher);
   expect((await client.multiSession.listDeviceSessions()).data).toEqual(devices);
   expect((await client.multiSession.setActive({ handle, revision: 12 })).data).toEqual(devices);
@@ -54,22 +54,22 @@ it("selects only opaque saved handles with the captured revision and keeps stale
 });
 
 it("rejects lossy revisions before sending commands and rejects unsafe revisions from the server", async () => {
-  const fetcher = vi.fn<(input: string, init: RequestInit) => Promise<Response>>(async () => response(devices));
+  const fetcher = vi.fn<(input: string, init: RequestInit) => Promise<Response>>(async () => response({ data: devices }));
   const client = createAccountAuthHttpPort(fetcher);
   for (const revision of [-1, 1.5, Number.MAX_SAFE_INTEGER + 1, Number.POSITIVE_INFINITY]) {
     expect((await client.multiSession.setActive({ handle, revision })).error?.code).toBe("INVALID_DEVICE_SELECTION");
     expect((await client.signIn.email({ email: user.email, password: "synthetic-password", revision })).error?.code).toBe("INVALID_DEVICE_REVISION");
   }
   expect(fetcher).not.toHaveBeenCalled();
-  fetcher.mockImplementation(async () => response({ ...devices, revision: Number.MAX_SAFE_INTEGER + 1 }));
+  fetcher.mockImplementation(async () => response({ data: { ...devices, revision: Number.MAX_SAFE_INTEGER + 1 } }));
   expect((await client.multiSession.listDeviceSessions()).error?.code).toBe("ACCOUNT_RESPONSE_INVALID");
 });
 
 it("rejects raw-token device rows, duplicate handles and multiple active accounts", async () => {
-  const fetcher = vi.fn<(input: string, init: RequestInit) => Promise<Response>>(async () => response({ ...devices, accounts: [{ ...devices.accounts[0], token: "synthetic-private-proof" }] }));
+  const fetcher = vi.fn<(input: string, init: RequestInit) => Promise<Response>>(async () => response({ data: { ...devices, accounts: [{ ...devices.accounts[0], token: "synthetic-private-proof" }] } }));
   const client = createAccountAuthHttpPort(fetcher);
   expect((await client.multiSession.listDeviceSessions()).error?.code).toBe("ACCOUNT_RESPONSE_INVALID");
-  fetcher.mockImplementation(async () => response({ ...devices, accounts: [devices.accounts[0], devices.accounts[0]] }));
+  fetcher.mockImplementation(async () => response({ data: { ...devices, accounts: [devices.accounts[0], devices.accounts[0]] } }));
   expect((await client.multiSession.listDeviceSessions()).error?.code).toBe("ACCOUNT_RESPONSE_INVALID");
 });
 
@@ -104,4 +104,32 @@ it("uses typed verification and password-change contracts without a client autho
   expect((await client.changePassword({ currentPassword: "current-synthetic-password", newPassword: "new-synthetic-password" })).error).toBeNull();
   expect(fetcher.mock.calls[1][0]).toBe("/api/auth/change-password");
   expect(JSON.parse(String(fetcher.mock.calls[1][1].body))).toEqual({ currentPassword: "current-synthetic-password", newPassword: "new-synthetic-password" });
+});
+
+it("requires the existing device facade envelope and unwraps only its validated display data", async () => {
+  const fetcher = vi.fn<(input: string, init: RequestInit) => Promise<Response>>(async () => response(devices));
+  const client = createAccountAuthHttpPort(fetcher);
+  expect((await client.multiSession.listDeviceSessions()).error?.code).toBe("ACCOUNT_RESPONSE_INVALID");
+  for (const value of [{ data: devices, token: "synthetic-private-proof" }, { data: { ...devices, token: "synthetic-private-proof" } }, { data: null }]) {
+    fetcher.mockImplementation(async () => response(value));
+    expect((await client.multiSession.listDeviceSessions()).error?.code).toBe("ACCOUNT_RESPONSE_INVALID");
+  }
+  fetcher.mockImplementation(async () => response({ data: devices }));
+  expect(await client.multiSession.listDeviceSessions()).toEqual({ data: devices, error: null });
+});
+
+it("carries the read-only lost-group revision into initialization without accepting bearer or authority metadata", async () => {
+  const recovery = { ...devices, initialized: false, revision: 13 };
+  const fetcher = vi.fn<(input: string, init: RequestInit) => Promise<Response>>(async () => response({ data: recovery }));
+  const client = createAccountAuthHttpPort(fetcher);
+  expect((await client.multiSession.listDeviceSessions()).data).toEqual(recovery);
+  fetcher.mockImplementation(async () => response({ data: { ...recovery, initialized: true, revision: 14 } }));
+  expect((await client.multiSession.initialize({ revision: recovery.revision })).data?.revision).toBe(14);
+  expect(fetcher.mock.calls[1][0]).toBe("/api/v1/account/device-accounts/initialize");
+  expect(fetcher.mock.calls[1][1]).toMatchObject({ method: "POST", credentials: "include", cache: "no-store", redirect: "error" });
+  expect(JSON.parse(String(fetcher.mock.calls[1][1].body))).toEqual({ revision: 13 });
+  for (const revision of [-1, 1.5, Number.MAX_SAFE_INTEGER + 1, Number.POSITIVE_INFINITY]) expect((await client.multiSession.initialize({ revision })).error?.code).toBe("INVALID_DEVICE_REVISION");
+  expect(fetcher).toHaveBeenCalledTimes(2);
+  fetcher.mockImplementation(async () => response({ data: { ...devices, rawGroup: "synthetic-private-proof" } }));
+  expect((await client.multiSession.initialize({ revision: 13 })).error?.code).toBe("ACCOUNT_RESPONSE_INVALID");
 });

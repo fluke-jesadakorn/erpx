@@ -637,6 +637,8 @@ version = "0.1.0"
 dependencies = [
  "erpx-server-runtime",
  "erpx-server-shared",
+ "erpx-server-workflow",
+ "futures-util",
  "icu_collator",
  "icu_locale",
  "num-bigint",

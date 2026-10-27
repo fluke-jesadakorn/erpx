@@ -15,9 +15,9 @@ use erpx_server_shared::public::{BusinessError, FailureKind};
 use serde::de::DeserializeOwned;
 use std::{collections::BTreeSet, sync::Arc};
 
-const ACCOUNT_COOKIE: &str = "__Secure-erpx-account.session_token";
-const DEVICE_COOKIE: &str = "__Host-erpx-device";
-const SAVED_PREFIX: &str = "__Secure-erpx-account.session_token_multi-";
+pub(crate) const ACCOUNT_COOKIE: &str = "__Secure-erpx-account.session_token";
+pub(crate) const DEVICE_COOKIE: &str = "__Host-erpx-device";
+pub(crate) const SAVED_PREFIX: &str = "__Secure-erpx-account.session_token_multi-";
 const PRODUCT_COOKIE: &str = "__Host-erpx-product";
 const BODY_LIMIT: usize = 8192;
 
@@ -27,30 +27,15 @@ pub fn account_auth_router(service: Arc<AccountAuthentication>) -> Router {
         .route("/api/auth/sign-in/email", post(sign_in))
         .route("/api/auth/get-session", get(get_session))
         .route("/api/auth/sign-out", post(sign_out))
-        .route(
-            "/api/v1/account/device-accounts",
-            get(devices).delete(remove).options(preflight),
-        )
-        .route(
-            "/api/v1/account/device-accounts/initialize",
-            post(initialize).options(preflight),
-        )
-        .route(
-            "/api/v1/account/device-accounts/active",
-            post(select).options(preflight),
-        )
-        .route(
-            "/api/v1/account/device-accounts/sign-in",
-            post(sign_in).options(preflight),
-        )
         .layer(axum::middleware::from_fn_with_state(
             service.clone(),
             cors_response,
         ))
-        .with_state(service)
+        .with_state(service.clone())
+        .merge(super::account_device_http::device_accounts_router(service))
 }
 
-async fn cors_response(
+pub(crate) async fn cors_response(
     State(service): State<Arc<AccountAuthentication>>,
     request: Request,
     next: axum::middleware::Next,
@@ -70,7 +55,7 @@ async fn cors_response(
     private(response, origin.as_deref())
 }
 
-fn invalid(code: &'static str) -> BusinessError {
+pub(crate) fn invalid(code: &'static str) -> BusinessError {
     BusinessError::invalid(code, "The Account request is invalid.")
 }
 pub(crate) fn one_header<'a>(
@@ -307,11 +292,30 @@ fn response_session(
 
 #[cfg_attr(feature="contracts",utoipa::path(post,path="/api/auth/sign-in/email",request_body=EmailSignInInput,responses((status=200,body=EmailSignInResponse),(status=400,body=AccountAuthErrorResponse),(status=401,body=AccountAuthErrorResponse),(status=403,body=AccountAuthErrorResponse),(status=409,body=AccountAuthErrorResponse),(status=503,body=AccountAuthErrorResponse))))]
 async fn sign_in(State(service): State<Arc<AccountAuthentication>>, request: Request) -> Response {
+    sign_in_response(service, request, SignInSurface::Account).await
+}
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SignInSurface {
+    Account,
+    Device,
+}
+pub(crate) async fn sign_in_response(
+    service: Arc<AccountAuthentication>,
+    request: Request,
+    surface: SignInSurface,
+) -> Response {
     let result = async {
-        let origin = central(&service, request.headers(), true, true)?;
+        let origin = central(
+            &service,
+            request.headers(),
+            true,
+            surface == SignInSurface::Account,
+        )?;
         let proof = presented(request.headers(), &RequestAudience::Account)?;
         let input: EmailSignInInput = json(request).await?;
-        checked_return(input.callback_url.as_deref())?;
+        if surface == SignInSurface::Account {
+            checked_return(input.callback_url.as_deref())?;
+        }
         let signed = service
             .sign_in(
                 &input.email,
@@ -333,10 +337,18 @@ async fn sign_in(State(service): State<Arc<AccountAuthentication>>, request: Req
             .filter(|(handle, _)| !retained.contains(handle.as_str()))
             .map(|(handle, _)| format!("{SAVED_PREFIX}{handle}"))
             .collect::<Vec<_>>();
-        let mut response = Json(EmailSignInResponse {
-            user: signed.result.session.user.into(),
-        })
-        .into_response();
+        let mut response = match surface {
+            SignInSurface::Account => Json(EmailSignInResponse {
+                user: signed.result.session.user.into(),
+            })
+            .into_response(),
+            SignInSurface::Device => {
+                Json(crate::public::account_device_http::DeviceAccountsResponse {
+                    data: DeviceAccountsDto::try_from(signed.result.devices)?,
+                })
+                .into_response()
+            }
+        };
         for name in removed {
             clear_cookie(&mut response, &name);
         }
@@ -358,7 +370,17 @@ async fn sign_in(State(service): State<Arc<AccountAuthentication>>, request: Req
         Ok::<_, BusinessError>(private(response, origin.as_deref()))
     }
     .await;
-    result.unwrap_or_else(failure)
+    result.unwrap_or_else(|error| {
+        if surface == SignInSurface::Device && error.code == "INVALID_EMAIL_OR_PASSWORD" {
+            failure(BusinessError::new(
+                error.kind,
+                "SIGN_IN_FAILED",
+                "Sign-in failed. Check your email, password or approved Directory sign-in.",
+            ))
+        } else {
+            failure(error)
+        }
+    })
 }
 #[cfg_attr(feature="contracts",utoipa::path(get,path="/api/auth/get-session",responses((status=200,body=Option<AccountSessionResponse>),(status=400,body=AccountAuthErrorResponse))))]
 async fn get_session(
@@ -421,124 +443,12 @@ async fn sign_out(State(service): State<Arc<AccountAuthentication>>, request: Re
     .await;
     result.unwrap_or_else(failure)
 }
-#[cfg_attr(feature="contracts",utoipa::path(get,path="/api/v1/account/device-accounts",responses((status=200,body=DeviceAccountsDto),(status=403,body=AccountAuthErrorResponse))))]
-async fn devices(State(service): State<Arc<AccountAuthentication>>, request: Request) -> Response {
-    let headers = request.into_parts().0.headers;
-    let result = async {
-        let origin = central(&service, &headers, false, false)?;
-        let proof = presented(&headers, &RequestAudience::Account)?;
-        let devices = DeviceAccountsDto::try_from(service.devices(&proof).await?)?;
-        Ok::<_, BusinessError>(private(Json(devices).into_response(), origin.as_deref()))
-    }
-    .await;
-    result.unwrap_or_else(failure)
-}
-#[cfg_attr(feature="contracts",utoipa::path(post,path="/api/v1/account/device-accounts/initialize",responses((status=200,body=DeviceAccountsDto),(status=403,body=AccountAuthErrorResponse))))]
-async fn initialize(
-    State(service): State<Arc<AccountAuthentication>>,
-    request: Request,
-) -> Response {
-    let headers = request.into_parts().0.headers;
-    let result = async {
-        let origin = central(&service, &headers, true, false)?;
-        let proof = presented(&headers, &RequestAudience::Account)?;
-        let initialized = service.initialize(&proof).await?;
-        let mut response = Json(DeviceAccountsDto::try_from(initialized.devices)?).into_response();
-        if let Some(secret) = initialized.browser_secret {
-            cookie(&mut response, DEVICE_COOKIE, secret.expose(), true);
-        }
-        Ok::<_, BusinessError>(private(response, origin.as_deref()))
-    }
-    .await;
-    result.unwrap_or_else(failure)
-}
-#[cfg_attr(feature="contracts",utoipa::path(post,path="/api/v1/account/device-accounts/active",request_body=DeviceSelectionInput,responses((status=200,body=DeviceAccountsDto),(status=403,body=AccountAuthErrorResponse),(status=409,body=AccountAuthErrorResponse))))]
-async fn select(State(service): State<Arc<AccountAuthentication>>, request: Request) -> Response {
-    let result = async {
-        let origin = central(&service, request.headers(), true, false)?;
-        let proof = presented(request.headers(), &RequestAudience::Account)?;
-        let input: DeviceSelectionInput = json(request).await?;
-        let selected = service
-            .select(&proof, input.handle, input.revision.get())
-            .await?;
-        let mut response = Json(DeviceAccountsDto::try_from(selected.devices)?).into_response();
-        cookie(
-            &mut response,
-            ACCOUNT_COOKIE,
-            selected.session_secret.expose(),
-            true,
-        );
-        Ok::<_, BusinessError>(private(response, origin.as_deref()))
-    }
-    .await;
-    result.unwrap_or_else(failure)
-}
-#[cfg_attr(feature="contracts",utoipa::path(delete,path="/api/v1/account/device-accounts",request_body=DeviceSelectionInput,responses((status=200,body=DeviceAccountsDto),(status=403,body=AccountAuthErrorResponse),(status=409,body=AccountAuthErrorResponse))))]
-async fn remove(State(service): State<Arc<AccountAuthentication>>, request: Request) -> Response {
-    let result = async {
-        let origin = central(&service, request.headers(), true, false)?;
-        let proof = presented(request.headers(), &RequestAudience::Account)?;
-        let input: DeviceSelectionInput = json(request).await?;
-        let handle = input.handle.clone();
-        let was_active = proof.active.as_ref().is_some_and(|active| {
-            proof.saved.iter().any(|(candidate, secret)| {
-                candidate == &handle && active.expose() == secret.expose()
-            })
-        });
-        let removed = service
-            .remove(&proof, input.handle, input.revision.get())
-            .await?;
-        let mut response = Json(DeviceAccountsDto::try_from(removed)?).into_response();
-        clear_cookie(&mut response, &format!("{SAVED_PREFIX}{handle}"));
-        if was_active {
-            clear_cookie(&mut response, ACCOUNT_COOKIE);
-        }
-        Ok::<_, BusinessError>(private(response, origin.as_deref()))
-    }
-    .await;
-    result.unwrap_or_else(failure)
-}
-async fn preflight(
-    State(service): State<Arc<AccountAuthentication>>,
-    request: Request,
-) -> Response {
-    let headers = request.into_parts().0.headers;
-    let result = async {
-        let origin = central(&service, &headers, true, false)?;
-        let method = one_header(&headers, "access-control-request-method")?
-            .ok_or_else(|| invalid("INVALID_PREFLIGHT"))?;
-        if !["GET", "POST", "DELETE"].contains(&method) {
-            return Err(invalid("INVALID_PREFLIGHT"));
-        }
-        if one_header(&headers, "access-control-request-headers")?.is_some_and(|headers| {
-            headers
-                .split(',')
-                .map(str::trim)
-                .any(|name| !name.eq_ignore_ascii_case("content-type"))
-        }) {
-            return Err(invalid("INVALID_PREFLIGHT"));
-        }
-        let mut response = private(StatusCode::NO_CONTENT.into_response(), origin.as_deref());
-        response.headers_mut().insert(
-            header::ACCESS_CONTROL_ALLOW_METHODS,
-            HeaderValue::from_static("GET, POST, DELETE"),
-        );
-        response.headers_mut().insert(
-            header::ACCESS_CONTROL_ALLOW_HEADERS,
-            HeaderValue::from_static("Content-Type"),
-        );
-        Ok::<_, BusinessError>(response)
-    }
-    .await;
-    result.unwrap_or_else(failure)
-}
-
 #[cfg(feature = "contracts")]
 pub fn account_openapi() -> utoipa::openapi::OpenApi {
     use utoipa::OpenApi;
     #[derive(OpenApi)]
     #[openapi(
-        paths(sign_in, get_session, sign_out, devices, initialize, select, remove),
+        paths(sign_in, get_session, sign_out),
         components(schemas(
             AccountRevision,
             EmailSignInInput,
@@ -555,5 +465,7 @@ pub fn account_openapi() -> utoipa::openapi::OpenApi {
         ))
     )]
     struct AccountApi;
-    AccountApi::openapi()
+    let mut api = AccountApi::openapi();
+    api.merge(super::account_device_http::device_openapi());
+    api
 }

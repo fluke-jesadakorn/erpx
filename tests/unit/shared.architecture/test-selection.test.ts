@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { availableParallelism, tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { parseTestArguments } from "../../../scripts/testing/arguments";
@@ -18,6 +18,7 @@ import { assertAcmeBrowserSeedTarget } from "../../../fixtures/shared/builders/a
 import { assertLocalBrowserRealmTarget } from "../../../fixtures/shared/builders/local-browser-erpx-realm";
 import { pinnedBunBinary } from "../../../scripts/testing/runtime-tooling";
 import { assertTestPlacement } from "../../../scripts/testing/layout";
+import { unitWorkerLimit, vitestConfiguration } from "../../../scripts/testing/vitest-config";
 
 const suite = (id: string, modules: string[], lane: Suite["lane"] = "unit"): Suite => ({ id, lane, owner: modules[0], modules, files: [`tests/${id}.test.ts`], fixture: "none", requires: { jobs: false, scanner: false }, ...(["unit", "integration"].includes(lane) ? { ci: { critical: true, reason: "Test fixture covers a protected business invariant." } } : {}) });
 const catalogue: Catalogue = { version: 1, modules: ["sales", "finance", "people_payroll"], suites: [suite("sales.rules", ["sales"]), suite("finance.rules", ["finance"]), suite("people_payroll.expense", ["people_payroll"]), suite("sales.collection", ["sales", "finance"], "journeys")] };
@@ -102,6 +103,18 @@ describe("test selection contracts", () => {
     const conflicting = spawnSync(pinnedBunBinary(repositoryRoot), ["--env-file=/dev/null", "scripts/testing/browser-runner.ts", "e2e", `--case=${title}`, "--project=mobile", "--grep=booking", "--list"], { cwd: repositoryRoot, env: process.env, maxBuffer: 16 * 1024 * 1024 });
     expect(conflicting.status).not.toBe(0);
     expect(`${conflicting.stdout.toString()}${conflicting.stderr.toString()}`).toContain("EXACT_BROWSER_CASE_PATTERN_CONFLICT");
+  });
+  it("bounds unit forks by actual available CPUs without weakening case deadlines or integration admission", () => {
+    expect(unitWorkerLimit(1)).toBe(1);
+    expect(unitWorkerLimit(2)).toBe(2);
+    expect(unitWorkerLimit(8)).toBe(8);
+    expect(unitWorkerLimit(128)).toBe(8);
+    expect(vitestConfiguration("unit").test).toMatchObject({
+      maxWorkers: unitWorkerLimit(availableParallelism()), testTimeout: 30_000, retry: 0,
+    });
+    expect(vitestConfiguration("all").test?.maxWorkers).toBe(2);
+    for (const invalid of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY])
+      expect(() => unitWorkerLimit(invalid)).toThrow("POSITIVE_AVAILABLE_PARALLELISM_REQUIRED");
   });
   it("defaults development commands to unit while preserving explicit native selections and lane errors", () => {
     const native: Catalogue = { ...catalogue, suites: [...catalogue.suites, suite("finance.adapter", ["finance"], "integration")] };
@@ -216,7 +229,7 @@ describe("test selection contracts", () => {
         title,
         project,
       }))),
-      ...(["apps", "pos", "pms", "finance", "people", "sales", "supply", "assets", "projects", "recruit", "learn", "support", "service", "legal", "manufacturing"] as const).flatMap(product => (["desktop", "mobile"] as const).map(project => ({
+      ...(["work", "pos", "pms", "finance", "people", "sales", "supply", "assets", "projects", "recruit", "learn", "support", "service", "legal", "manufacturing"] as const).flatMap(product => (["desktop", "mobile"] as const).map(project => ({
         runner: "playwright" as const,
         file: "tests/e2e/identity_access/product-hosts.spec.ts",
         title: `isolated ${product} Account Apps SSO reaches its actual owner landing and API`,
@@ -276,7 +289,7 @@ describe("test selection contracts", () => {
         project,
       }))),
     ];
-    for (const test of reviewedSupplemental) expect(registered.some(candidate => requiredCaseKey(candidate) === requiredCaseKey(test))).toBe(true);
+    for (const test of reviewedSupplemental) expect(registered.some(candidate => requiredCaseKey(candidate) === requiredCaseKey(test)), requiredCaseKey(test)).toBe(true);
     const reviewed = [...new Map([...baseline.cases, ...reviewedSupplemental, ...registered.filter(test=>test.runner==="playwright"&&files.includes(test.file))].map(test=>[requiredCaseKey(test),test] as const)).values()];
     const observed = [...reviewed.map(test => ({ ...test, required: true })), ...baseline.excludedCases.map(test => ({ ...test, required: false }))];
     expect(() => assertRequiredCaseInventory(registered, observed, { runner: "playwright", files })).not.toThrow();
@@ -803,6 +816,10 @@ describe("database-free unit fixture imports", () => {
     writeFileSync(join(root, "tests/pure.test.ts"), "export const number = 1;");
     expect(reachesDatabaseFixture("tests/case.test.ts", root)).toBe(true);
     expect(reachesDatabaseFixture("tests/pure.test.ts", root)).toBe(false);
+    writeFileSync(join(root, "tests/support/helpers/a.ts"), "export const pure = 1;");
+    expect(reachesDatabaseFixture("tests/case.test.ts", root)).toBe(false);
+    writeFileSync(join(root, "tests/support/helpers/a.ts"), "export { env } from '../runtime-env';");
+    expect(reachesDatabaseFixture("tests/case.test.ts", root)).toBe(true);
   });
   it("detects actual PostgreSQL value imports without interpreting source-text fixtures or type imports as connections", () => {
     const root = mkdtempSync(join(tmpdir(), "erpx-postgres-import-")); directories.push(root);

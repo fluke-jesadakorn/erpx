@@ -5,14 +5,14 @@ import{runtimeOwnerCycles}from '../../../scripts/architecture/owner-cycles';
 import { mkdtemp, mkdir, writeFile, rm, realpath } from 'node:fs/promises';
 import {readFileSync} from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { runtimeSourceFingerprint } from '../../../scripts/local/source-fingerprint';
 import { describe, expect, it, vi } from 'vitest';
 import { createWorkspaceGraph, loadWorkspaceGraph, loadRevisionWorkspaceGraph, changedWorkspaceFiles, selectWorkspaceSuites, selectCandidateSuites, appRuntimeFingerprint, workspaceFingerprint } from '../../../scripts/testing/workspace-graph';
 import type { Suite } from '../../../scripts/testing/catalogue';
 import { workspaceStyleSheet } from '../../../scripts/assets/workspace-styles';
 import { Scanner } from '@tailwindcss/oxide';
-import {watchWorkspaceStyleSources,workspaceStyleGraphChanged,workspaceStyleWatchInput} from '../../../scripts/local/workspace-style-watcher';
+import {subscribeWorkspaceStyleSources,watchWorkspaceStyleSources,workspaceStyleGraphChanged,workspaceStyleWatchInput,type WorkspaceStyleSubscription} from '../../../scripts/local/workspace-style-watcher';
 const suite=(id:string,app:string,file:string):Suite=>({id,lane:'unit',owner:'shared.testing',modules:['finance'],files:[file],fixture:'none',requires:{jobs:false,scanner:false},apps:[app],packages:['@erpx/contracts']});
 it('passes pinned toolchain paths through actual Turbo strict mode and binds their cache identity without admitting unrelated environment',()=>{
  const root=join(import.meta.dirname,'../../..');
@@ -99,24 +99,61 @@ it('regenerates style inputs after a rename without weakening normal missing-sou
  expect(()=>createWorkspaceGraph(files)).not.toThrow();
 });
 
+it('reconciles sparse directory and nullable watch events against observed and newly added source paths',async()=>{
+ const root=await realpath(await mkdtemp(join(tmpdir(),'erpx-sparse-style-watch-'))),file='apps/account/src/panel.tsx',initial='export const Panel=()=> <div className="p-4"/>;';
+ const changed=new Map<string,(name:string|null)=>void>(),errors=new Map<string,()=>void>(),closed=vi.fn(),refresh=vi.fn(),report=vi.fn();
+ const subscribe:WorkspaceStyleSubscription=(directory,callback,failed)=>{changed.set(basename(directory),callback);errors.set(basename(directory),failed);return{close:closed};};
+ await mkdir(join(root,'apps/account/src'),{recursive:true});await mkdir(join(root,'packages'),{recursive:true});await writeFile(join(root,file),initial);
+ const watcher=watchWorkspaceStyleSources(root,new Map([[file,initial]]),{refresh,report,subscribe,delayMs:1});
+ try{
+  await watcher.whenSettled();expect(refresh).not.toHaveBeenCalled();
+  await writeFile(join(root,file),initial.replace('p-4','p-8'));changed.get('apps')!('account/src');await watcher.whenSettled();expect(refresh).not.toHaveBeenCalled();
+  await writeFile(join(root,file),'import "@erpx/ui/new";'+initial);changed.get('apps')!(null);await watcher.whenSettled();expect(refresh).toHaveBeenCalledTimes(1);
+  const added='packages/ui/src/nested/new.tsx';await mkdir(dirname(join(root,added)),{recursive:true});await writeFile(join(root,added),'export const New=()=>null;');changed.get('packages')!('ui/src/nested');await watcher.whenSettled();expect(refresh).toHaveBeenCalledTimes(2);
+  await writeFile(join(root,added),'import "./other";');changed.get('packages')!('packages');await watcher.whenSettled();expect(refresh).toHaveBeenCalledTimes(3);
+  await rm(join(root,'packages/ui/src/nested'),{recursive:true});changed.get('packages')!('ui/src/nested');await watcher.whenSettled();expect(refresh).toHaveBeenCalledTimes(4);
+  // Ambiguous paths can trigger reconciliation, but never read outside/root
+  // private/generated directories or follow a source-directory symlink.
+  const outside=await realpath(await mkdtemp(join(tmpdir(),'erpx-style-watch-outside-')));
+  try{
+   await writeFile(join(outside,'secret.ts'),'export const secret=1;');await symlink(outside,join(root,'apps/account/src/external'));
+   for(const path of ['apps/account/node_modules/owned/src/secret.ts','apps/account/src/.scratch/secret.ts','packages/.env.local/src/secret.ts']){await mkdir(dirname(join(root,path)),{recursive:true});await writeFile(join(root,path),'private');}
+   changed.get('apps')!('../outside');changed.get('packages')!(null);await watcher.whenSettled();expect(refresh).toHaveBeenCalledTimes(4);expect(report).not.toHaveBeenCalled();
+  }finally{await rm(outside,{recursive:true,force:true});}
+  watcher.close();expect(closed).toHaveBeenCalledTimes(2);changed.get('apps')!(null);errors.get('apps')!();await watcher.whenSettled();expect(refresh).toHaveBeenCalledTimes(4);expect(report).not.toHaveBeenCalled();
+ }finally{watcher.close();await rm(root,{recursive:true,force:true});}
+});
+it('closes a successful source subscription when the next native subscription cannot start',async()=>{
+ const root=await realpath(await mkdtemp(join(tmpdir(),'erpx-style-watch-start-failure-'))),close=vi.fn();
+ try{
+  await mkdir(join(root,'apps'));await mkdir(join(root,'packages'));
+  const subscribe:WorkspaceStyleSubscription=directory=>{if(basename(directory)==='packages')throw new Error('synthetic native subscription failure');return{close};};
+  expect(()=>watchWorkspaceStyleSources(root,new Map(),{subscribe})).toThrow('synthetic native subscription failure');expect(close).toHaveBeenCalledOnce();
+ }finally{await rm(root,{recursive:true,force:true});}
+});
 it('updates newly imported sources during a live watch and closes its owned watchers',async()=>{
- const root=await mkdtemp(join(tmpdir(),'erpx-style-watch-')),file='apps/account/src/panel.tsx',initial='export const Panel=()=> <div className="p-4"/>;',report=vi.fn();
+ const root=await realpath(await mkdtemp(join(tmpdir(),'erpx-style-watch-'))),file='apps/account/src/panel.tsx',initial='export const Panel=()=> <div className="p-4"/>;',report=vi.fn();
  const inputs=sources();inputs.set(file,initial);inputs.set('packages/ui/src/new.tsx','export const New=()=> <div className="p-7"/>;');
  let css=workspaceStyleSheet(createWorkspaceGraph(inputs),'apps/account');
  const refresh=vi.fn(()=>{const current=new Map(inputs);current.set(file,readFileSync(join(root,file),'utf8'));css=workspaceStyleSheet(createWorkspaceGraph(current),'apps/account');});
  expect(css).not.toContain('packages/ui/src/new.tsx');
  await mkdir(join(root,'apps/account/src'),{recursive:true});await mkdir(join(root,'packages'),{recursive:true});await writeFile(join(root,file),initial);
- const watcher=watchWorkspaceStyleSources(root,new Map([[file,initial]]),{refresh,report,delayMs:20});
+ let nativeEvents=0;
+ const subscribe:WorkspaceStyleSubscription=(directory,changed,failed)=>subscribeWorkspaceStyleSources(directory,name=>{changed(name);nativeEvents++;},failed);
+ const watcher=watchWorkspaceStyleSources(root,new Map([[file,initial]]),{refresh,report,subscribe,delayMs:20});
  try{
-  await writeFile(join(root,file),initial.replace('p-4','p-8'));
-  await new Promise(done=>setTimeout(done,80));expect(refresh).not.toHaveBeenCalled();
+  await watcher.whenSettled();
+  // fs.watch has no ready event. Bounded harmless text probes establish real
+  // OS delivery before the one import mutation; they never poll source trees
+  // or change imports. A lost startup write cannot masquerade as readiness.
+  let probe=0;
+  await vi.waitFor(async()=>{if(nativeEvents===0)await writeFile(join(root,file),initial.replace('p-4','p-8')+`// native readiness ${++probe}\n`);expect(nativeEvents).toBeGreaterThan(0);},{timeout:10_000,interval:50});
+  await watcher.whenSettled();expect(refresh).not.toHaveBeenCalled();
   await writeFile(join(root,file),'import "@erpx/ui/new";'+initial);
-  // Recursive macOS filesystem notifications coalesce the initial subtree
-  // events. Wait for the real delivery without assuming a 3s scheduling bound.
   await vi.waitFor(()=>expect(refresh).toHaveBeenCalledTimes(1),{timeout:10_000});
   expect(css).toContain('packages/ui/src/new.tsx');
-  watcher.close();await writeFile(join(root,file),'import "./other";'+initial);
-  await new Promise(done=>setTimeout(done,80));expect(refresh).toHaveBeenCalledTimes(1);expect(report).not.toHaveBeenCalled();
+  const delivered=nativeEvents;watcher.close();await writeFile(join(root,file),'import "./other";'+initial);
+  await new Promise(done=>setTimeout(done,80));expect(nativeEvents).toBe(delivered);expect(refresh).toHaveBeenCalledTimes(1);expect(report).not.toHaveBeenCalled();
  }finally{watcher.close();await rm(root,{recursive:true,force:true});}
 });
 describe('workspace impact boundaries',()=>{

@@ -8,6 +8,7 @@
 @source "../../../../packages/contracts/src/console-retirement.ts";
 @source "../../../../packages/contracts/src/holding-fetch.ts";
 @source "../../../../packages/contracts/src/holding-hosts.ts";
+@source "../../../../packages/contracts/src/legal-portal-upload.ts";
 @source "../../../../packages/contracts/src/product-registry.ts";
 @source "../../../../packages/contracts/src/social-post-entry.ts";
 @source "../../../../packages/contracts/src/work-social-api.ts";
@@ -870,7 +871,6 @@
 @source "../../../../packages/server-legal/src/application/service.ts";
 @source "../../../../packages/server-legal/src/domain/model.ts";
 @source "../../../../packages/server-legal/src/domain/people.ts";
-@source "../../../../packages/server-legal/src/domain/portal-upload-recovery.ts";
 @source "../../../../packages/server-legal/src/domain/portal.ts";
 @source "../../../../packages/server-legal/src/domain/purchases.ts";
 @source "../../../../packages/server-legal/src/domain/signing.ts";
@@ -893,7 +893,6 @@
 @source "../../../../packages/server-legal/src/public/portal-upload-request.ts";
 @source "../../../../packages/server-legal/src/public/presentation-context-queries.ts";
 @source "../../../../packages/server-legal/src/public/rules/model.ts";
-@source "../../../../packages/server-legal/src/public/rules/portal-upload-recovery.ts";
 @source "../../../../packages/server-legal/src/public/runtime-minio-mutation-authority.ts";
 @source "../../../../packages/server-legal/src/public/runtime-mutation-authority.ts";
 @source "../../../../packages/server-maintenance/src/adapters/attachment-read-sources.ts";

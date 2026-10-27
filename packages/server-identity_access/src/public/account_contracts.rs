@@ -188,6 +188,16 @@ pub struct EmailVerificationRequestInput {
     pub callback_url: Option<String>,
 }
 
+/// Recovery requires the revision observed by the read-only device snapshot.
+/// Anonymous initialization may omit it; a live native-parent recovery may not.
+#[derive(Deserialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(deny_unknown_fields)]
+pub struct DeviceInitializeInput {
+    #[cfg_attr(feature = "contracts", ts(optional))]
+    pub revision: Option<AccountRevision>,
+}
+
 #[derive(Deserialize)]
 #[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(deny_unknown_fields)]

@@ -13,6 +13,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import WorkspaceLink from "@erpx/workplace/components/workspace-link";
 import { ProductLinkEnvironment, ProductWorkLinks } from "@erpx/workplace/components/product-link-context";
 import { DestinationIndexView } from "@erpx/workplace/components/destination-index-view";
+import { TopicDirectory } from "@erpx/workplace/components/topic-navigation";
 import { scopeFor } from "../../../scripts/ui/standard-scope.mjs";
 import { Table } from "@erpx/ui/components/table";
 import { ListFilters } from "@erpx/ui/components/list-filters";
@@ -178,7 +179,8 @@ it.each(["legacy", "standard"] as const)("renders the %s index with the same lin
   expect(html).toContain('aria-label="Available pages"'); expect(html.match(/<a\b/g)).toHaveLength(2);
   expect(html).toContain('href="/holdings/acme/pms/rooms?property=hotel-1#selected"');
   expect(html).toContain('href="/holdings/acme/pms/reports?property=hotel-1"');
-  if (appearance === "standard") { expect(html).toContain("ui-page-header"); expect(html).toContain("ui-record-item"); }
+  expect(html).toContain('type="search"'); expect(html).toContain('aria-label="Search topics"'); expect(html.match(/data-product-switch="true"/g)).toHaveLength(2);
+  if (appearance === "standard") { expect(html).toContain("ui-page-header"); expect(html).not.toContain("ui-record-item"); }
   else { expect(html).not.toMatch(/ui-page-header|ui-record-item|class="ui-stack"/); expect(html).toContain('class="content-stack"'); }
 });
 
@@ -270,7 +272,7 @@ it("keeps specialized Calendar server content and the original legacy confirmati
 it('the actual canonical POS parent selects the standard index without replacing its native scoped reader or link values',async()=>{
  const {createRequire}=await import('node:module'),require=createRequire(import.meta.url),ts=require('typescript') as typeof import('typescript'),source=readFileSync(resolve("packages/feature-pos/src/routes/holdings/[holdingSlug]/pos/page.tsx"),'utf8'),compiled=ts.transpileModule(source,{compilerOptions:{esModuleInterop: false, jsx:ts.JsxEmit.ReactJSX,module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,loaded={exports:{} as Record<string,unknown>},nativeLinks=[{label:'Register settings',href:'/holdings/acme/pos/settings?register=original#readiness'},{label:'Receipts',href:'/holdings/acme/pos/history?q=Original&status=paid'}],native=vi.fn(async(props:{appearance:'standard'|'legacy';holdingSlug:string;path:string})=>createElement(DestinationIndexView,{appearance:props.appearance,title:'POS',links:nativeLinks}));
  new Function('require','module','exports',compiled)((name:string):unknown=>{if(name==='react/jsx-runtime')return require(name);if(name.endsWith('/destination-index'))return {DestinationIndex:native};throw Error('Unexpected actual POS parent import '+name);},loaded,loaded.exports);
- const Page=loaded.exports.default as(props:{params:Promise<{holdingSlug:string}>})=>Promise<import('react').ReactElement<{appearance:'standard'|'legacy';holdingSlug:string;path:string}>>,tree=await Page({params:Promise.resolve({holdingSlug:'acme'})});expect(tree.type).toBe(native);expect(tree.props).toEqual({appearance:'standard',holdingSlug:'acme',path:'pos'});expect(native).not.toHaveBeenCalled();const html=renderToStaticMarkup(await native(tree.props));expect(native).toHaveBeenCalledExactlyOnceWith(tree.props);expect(html).toContain('data-appearance="standard"');expect(html).toContain('ui-record-item');expect(html).toContain('href="/holdings/acme/pos/settings?register=original#readiness"');expect(html).toContain('href="/holdings/acme/pos/history?q=Original&amp;status=paid"');
+ const searchParams=Promise.resolve({property:'hotel-1',tag:['one','two'],returnTo:'/retained?query=exact#fragment'}),Page=loaded.exports.default as(props:{params:Promise<{holdingSlug:string}>;searchParams:Promise<Record<string,string|string[]|undefined>>})=>Promise<import('react').ReactElement<{appearance:'standard'|'legacy';holdingSlug:string;path:string;openWork:boolean;searchParams:typeof searchParams}>>,tree=await Page({params:Promise.resolve({holdingSlug:'acme'}),searchParams});expect(tree.type).toBe(native);expect(tree.props).toEqual({appearance:'standard',holdingSlug:'acme',path:'pos',openWork:true,searchParams});expect(tree.props.searchParams).toBe(searchParams);expect(native).not.toHaveBeenCalled();const html=renderToStaticMarkup(await native(tree.props));expect(native).toHaveBeenCalledExactlyOnceWith(tree.props);expect(html).toContain('data-appearance="standard"');expect(html).toContain('aria-label="Search topics"');expect(html).toContain('href="/holdings/acme/pos/settings?register=original#readiness"');expect(html).toContain('href="/holdings/acme/pos/history?q=Original&amp;status=paid"');
 });
 
 // Actual shared confirmation preserves the specialized default while the real
@@ -543,4 +545,11 @@ it("resolves the actual public runtime.ts owner ahead of a same-name directory i
     expect(closure).not.toContain("packages/server-runtime/src/public/runtime");
     expect(closure).not.toContain("packages/server-runtime/src/adapters/runtime");
   }
+});
+
+it('searches actual topic titles and descriptions while retaining selected owner links and refusing invented empty results',()=>{
+ const items=[{id:'rooms',title:'Rooms',description:'Current availability',href:'/holdings/acme/pms/rooms?property=hotel-1#selected'},{id:'reports',title:'Reports',description:'Accounting evidence',href:'/holdings/acme/pms/reports?property=hotel-1'}];
+ const filtered=renderToStaticMarkup(createElement(TopicDirectory,{label:'Available pages',items,search:'  aVAILability ',selected:'rooms'}));
+ expect(filtered.match(/<a\b/g)).toHaveLength(1);expect(filtered).toContain('href="/holdings/acme/pms/rooms?property=hotel-1#selected"');expect(filtered).toContain('aria-current="page"');expect(filtered).not.toContain('Reports');
+ const empty=renderToStaticMarkup(createElement(TopicDirectory,{label:'Available pages',items,search:'unregistered topic'}));expect(empty).toContain('role="status">No matching topics.');expect(empty).not.toContain('<a');
 });

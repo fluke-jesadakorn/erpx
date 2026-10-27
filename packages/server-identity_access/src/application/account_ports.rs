@@ -17,6 +17,9 @@ pub struct DeviceProof {
 pub struct SignInReservation {
     pub browser: SecretDigest,
     pub created_browser: bool,
+    pub cookie: SecretDigest,
+    pub recovery_expires_at: Option<i64>,
+    pub original_revision: i64,
     pub nonce: SecretDigest,
     pub credential: Option<CredentialSnapshot>,
 }
@@ -73,6 +76,7 @@ pub trait AccountRepository: Send + Sync {
         &self,
         proof: DeviceProof,
         candidate: SecretDigest,
+        expected_revision: Option<i64>,
         now: i64,
     ) -> AccountFuture<'_, (DeviceAccounts, bool)>;
     fn select_device(&self, input: DeviceSelection) -> AccountFuture<'_, SelectedDevice>;

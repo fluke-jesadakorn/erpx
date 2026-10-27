@@ -11,6 +11,35 @@ vi.mock("@erpx/feature-shared/lib/destination-router",()=>({useRouter:()=>router
 import {contextSwitchBlockReason,registerContextSwitchBlocker} from '@erpx/feature-work_projection/lib/context-switch';
 import {useFinanceCommand} from '@erpx/feature-finance/components/use-finance-command';
 import {useRefundCommand} from '@erpx/feature-finance/components/use-refund-command';
+import {createFinanceSubmission,type FinanceSubmissionReply} from '../../../packages/feature-finance/src/application/submit-command';
+import type {PendingFinanceSubmission} from '../../../packages/feature-finance/src/domain/submission';
+
+function scopedSubmission(){
+ type Completion={edit:number};type Result={id:string};
+ let current=true,reply!:(value:FinanceSubmissionReply<Result>)=>void,fail!:(error:Error)=>void;
+ const response=new Promise<FinanceSubmissionReply<Result>>((resolve,reject)=>{reply=resolve;fail=reject;});
+ const completion={edit:1},attempts=new Map<string,PendingFinanceSubmission<Completion>>(),effects:string[]=[],acknowledge=vi.fn(()=>true);
+ const submit=createFinanceSubmission(attempts,{
+  hasAttempt:()=>false,retainedCompletion:()=>undefined,captureCompletion:()=>completion,canBegin:()=>true,
+  trackPending:(_token,_completion,pending)=>{effects.push(`track:${pending}`);},
+  captureContext:()=>()=>{if(!current)throw Error('Synthetic account/Company/role context changed.');},
+  submit:()=>response,completionUnchanged:()=>true,refresh:()=>{effects.push('refresh');},
+  setPending:pending=>{effects.push(`pending:${pending}`);},setHasAttempt:pending=>{effects.push(`attempt:${pending}`);},setError:message=>{effects.push(`error:${message}`);},
+ });
+ return {send:()=>submit({target:'/original/finance/post',body:'{"expectedVersion":1}'},'settle-existing'),reply,fail,effects,attempts,acknowledge,switchContext(){current=false;}};
+}
+it.each(['acknowledged','rejected','network'] as const)('retains the original attempt without changing the new view after a late %s response from another context',async kind=>{
+ const h=scopedSubmission(),pending=h.send(),before=[...h.effects];h.switchContext();
+ if(kind==='network')h.fail(Error('Synthetic late network failure.'));
+ else if(kind==='rejected')h.reply({kind:'rejected',definitive:true,message:'Synthetic old-account rejection.'});
+ else h.reply({kind:'acknowledged',data:{id:'original'},acknowledge:h.acknowledge});
+ expect(await pending).toBeNull();expect(h.effects).toEqual(before);expect(h.acknowledge).not.toHaveBeenCalled();
+ expect(h.attempts.size).toBe(1);expect([...h.attempts.values()][0].uncertain).toBe(true);
+});
+it('still releases a definitively rejected first attempt and updates its original view',async()=>{
+ const h=scopedSubmission(),pending=h.send();h.reply({kind:'rejected',definitive:true,message:'Synthetic current rejection.'});
+ expect(await pending).toBeNull();expect(h.attempts.size).toBe(0);expect(h.effects).toContain('track:false');expect(h.effects).toContain('error:Synthetic current rejection.');expect(h.effects.at(-1)).toBe('pending:false');
+});
 
 const pendingBlockers:(()=>void)[]=[];
 afterEach(()=>{for(const unregister of pendingBlockers.splice(0))unregister();pendingTracker.track=()=>{};vi.unstubAllGlobals();router.refresh.mockReset();});

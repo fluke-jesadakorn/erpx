@@ -19,7 +19,8 @@
     "./social-post-entry": "./src/social-post-entry.ts",
     "./command-flow": "./src/command-flow.ts",
     "./ownership": "./src/ownership.ts",
-    "./development-module-admission": "./src/development-module-admission.ts"
+    "./development-module-admission": "./src/development-module-admission.ts",
+    "./legal-portal-upload": "./src/legal-portal-upload.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

@@ -1,5 +1,5 @@
 import type {
-  AccountAuthError, AccountOperationResponse, AccountSessionResponse, DeviceAccountsDto, DeviceSelectionInput, AccountInvitationAcceptInput, AccountInvitationAcceptResponse, AccountInvitationInspectResponse,
+  AccountAuthError, AccountOperationResponse, AccountSessionResponse, DeviceAccountsDto, DeviceSelectionInput, DeviceInitializeInput, AccountInvitationAcceptInput, AccountInvitationAcceptResponse, AccountInvitationInspectResponse,
   EmailSignInInput, EmailSignInResponse, EmailSignUpInput, EmailVerificationInput, EmailVerificationRequestInput, PasswordChangeInput, PasswordResetInput, PasswordResetRequestInput,
 } from "@erpx/contracts/account-auth";
 
@@ -21,6 +21,7 @@ export interface AccountAuthPort {
     accept(input: AccountInvitationAcceptInput): Promise<AccountAuthResult<AccountInvitationAcceptResponse>>;
   };
   multiSession: {
+    initialize(input: DeviceInitializeInput): Promise<AccountAuthResult<DeviceAccountsDto>>;
     listDeviceSessions(): Promise<AccountAuthResult<DeviceAccountsDto>>;
     setActive(input: DeviceSelectionInput): Promise<AccountAuthResult<DeviceAccountsDto>>;
   };

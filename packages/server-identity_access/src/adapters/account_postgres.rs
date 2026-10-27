@@ -1,3 +1,7 @@
+use super::account_group_recovery::{
+    BrowserDiscovery, browser_discovery, browser_key, create_key, recoverable_browser,
+    recovery_snapshot, rotate_key,
+};
 use super::account_revocation_postgres::invalidate_children;
 use crate::application::account_revocation::AccountWorkContextInvalidation;
 use crate::{
@@ -91,23 +95,74 @@ pub(crate) async fn browser(
     })
     .transpose()
 }
+pub(crate) struct PreparedBrowser {
+    pub id: SecretDigest,
+    pub cookie: SecretDigest,
+    pub created: bool,
+    pub recovery_expires_at: Option<i64>,
+}
+/// Chosen by the trusted operation, never deserialized from browser intent.
+/// A fresh candidate grants nothing until credential/proof completion succeeds.
+#[derive(Clone, Copy)]
+pub(crate) enum BrowserEnrollment {
+    RecoverExisting,
+    FreshAuthenticated,
+}
 pub(crate) async fn ensure_browser(
     connection: &mut PgConnection,
     proof: &DeviceProof,
     candidate: &SecretDigest,
+    environment: &str,
+    expected_revision: Option<i64>,
     now: i64,
-) -> TxResult<(SecretDigest, bool)> {
-    if let Some(id) = &proof.browser
-        && browser(connection, id).await?.is_some()
-    {
-        return Ok((id.clone(), false));
+    enrollment: BrowserEnrollment,
+) -> TxResult<PreparedBrowser> {
+    if let Some(id) = browser_key(connection, proof.browser.as_ref()).await? {
+        return Ok(PreparedBrowser {
+            id,
+            cookie: proof.browser.clone().ok_or_else(denied)?,
+            created: false,
+            recovery_expires_at: None,
+        });
+    }
+    let discovered = browser_discovery(connection, proof, environment, now).await?;
+    let group = match discovered {
+        BrowserDiscovery::Recoverable(group) => Some(group),
+        BrowserDiscovery::None => None,
+        BrowserDiscovery::Ambiguous => match enrollment {
+            BrowserEnrollment::RecoverExisting => return Err(stale_device().into()),
+            // Credential-only isolation cannot adopt, select or retire an old group.
+            BrowserEnrollment::FreshAuthenticated => None,
+        },
+    };
+    if let Some(group) = group {
+        let row = browser(connection, &group.id)
+            .await?
+            .ok_or_else(stale_device)?;
+        let expected = expected_revision.ok_or_else(stale_device)?;
+        revision(&row, Some(expected), now)?;
+        return Ok(PreparedBrowser {
+            id: group.id,
+            cookie: candidate.clone(),
+            created: false,
+            recovery_expires_at: Some(group.proof_expires_at),
+        });
+    }
+    if expected_revision.is_some_and(|value| value != 0) {
+        return Err(stale_device().into());
     }
     sqlx::query("INSERT INTO account_device_browsers(id,revision,updated_at) VALUES($1,0,$2)")
         .bind(candidate.as_str())
         .bind(now)
-        .execute(connection)
+        .execute(&mut *connection)
         .await?;
-    Ok((candidate.clone(), true))
+    create_key(connection, candidate, candidate, now).await?;
+    Ok(PreparedBrowser {
+        id: candidate.clone(),
+        cookie: candidate.clone(),
+        created: true,
+        recovery_expires_at: None,
+    })
 }
 pub(crate) fn revision(row: &Browser, expected: Option<i64>, now: i64) -> TxResult<()> {
     if !(0..MAX_DEVICE_REVISION).contains(&row.revision)
@@ -166,7 +221,7 @@ async fn throttle(connection: &mut PgConnection, email: &EmailAddress, now: i64)
     }
     Ok(())
 }
-async fn revoke_children(
+pub(crate) async fn revoke_children(
     connection: &mut PgConnection,
     browser_id: &SecretDigest,
     environment: &str,
@@ -228,16 +283,17 @@ impl AccountRepository for PostgresAccountRepository {
             finish(self.unit.run(options(), |connection| { let input=input.clone(); let environment=self.environment.clone(); Box::pin(async move {
             lock_session_writes(connection).await?;
             throttle(connection, &input.email, input.now).await?;
-            let (id, created) = ensure_browser(connection, &input.proof, &input.candidate_browser, input.now).await?;
+            let prepared = ensure_browser(connection, &input.proof, &input.candidate_browser, &environment, input.expected_revision, input.now, BrowserEnrollment::FreshAuthenticated).await?;
+            let id=prepared.id;
             let row = browser(connection, &id).await?.ok_or_else(denied)?;
             revision(&row, input.expected_revision, input.now)?;
             let credential = credential(connection, &input.email).await?;
             // Capacity is a browser invariant, including sessions whose saved proof was not supplied.
             let accounts=sqlx::query_scalar::<_,String>("SELECT s.\"userId\" FROM account_device_accounts a JOIN session s ON s.id=a.session_id JOIN sso_session_bindings b ON b.session_id=s.id WHERE a.browser_id=$1 AND b.audience='account' AND b.environment=$2 AND b.parent_session_id IS NULL AND b.absolute_expires_at>$3 AND s.\"expiresAt\"::timestamptz>to_timestamp($3::double precision/1000)").bind(id.as_str()).bind(&environment).bind(input.now).fetch_all(&mut *connection).await?;
             if accounts.len() >= MAXIMUM_SAVED_ACCOUNTS && !credential.as_ref().is_some_and(|credential| accounts.contains(&credential.user_id)) { return Err(BusinessError::new(FailureKind::Conflict,"DEVICE_ACCOUNT_LIMIT","Remove a saved account before adding another.").into()); }
-            let until = input.now.checked_add(SIGN_IN_RESERVATION_MS).ok_or_else(denied)?;
+            let until = input.now.checked_add(SIGN_IN_RESERVATION_MS).ok_or_else(denied)?.min(prepared.recovery_expires_at.unwrap_or(i64::MAX));
             sqlx::query("UPDATE account_device_browsers SET pending_nonce=$2,pending_until=$3,updated_at=$4 WHERE id=$1").bind(id.as_str()).bind(input.nonce.as_str()).bind(until).bind(input.now).execute(connection).await?;
-            Ok(SignInReservation { browser:id,created_browser:created,nonce:input.nonce,credential })
+            Ok(SignInReservation { browser:id,cookie:prepared.cookie,created_browser:prepared.created,recovery_expires_at:prepared.recovery_expires_at,original_revision:row.revision,nonce:input.nonce,credential })
         }) }).await)
         })
     }
@@ -257,7 +313,8 @@ impl AccountRepository for PostgresAccountRepository {
                             let row = browser(connection, &input.reservation.browser)
                                 .await?
                                 .ok_or_else(denied)?;
-                            if row.pending.as_deref() != Some(input.reservation.nonce.as_str())
+                            if row.revision != input.reservation.original_revision
+                                || row.pending.as_deref() != Some(input.reservation.nonce.as_str())
                                 || !row.until.is_some_and(|until| until > now)
                             {
                                 return Err(stale_device().into());
@@ -271,11 +328,32 @@ impl AccountRepository for PostgresAccountRepository {
                                         && value.can_authenticate(require_verification)
                                 })
                                 .ok_or_else(denied)?;
+                            if input.reservation.recovery_expires_at.is_some() {
+                                let group = recoverable_browser(
+                                    connection,
+                                    &input.proof,
+                                    &environment,
+                                    now,
+                                )
+                                .await?
+                                .ok_or_else(stale_device)?;
+                                if group.id != input.reservation.browser {
+                                    return Err(stale_device().into());
+                                }
+                                rotate_key(
+                                    connection,
+                                    &input.reservation.browser,
+                                    &input.reservation.cookie,
+                                    now,
+                                )
+                                .await?;
+                            }
                             let completed = issue_account_session(
                                 connection,
                                 IssuedAccountSession {
                                     proof: input.proof,
                                     browser: input.reservation.browser,
+                                    cookie_digest: input.reservation.cookie,
                                     session_id: input.session_id,
                                     session_digest: input.session_digest,
                                     handle: input.handle,
@@ -287,7 +365,11 @@ impl AccountRepository for PostgresAccountRepository {
                                 clock.as_ref(),
                             )
                             .await?;
-                            if !row.until.is_some_and(|until| until > clock.now().get())
+                            if input
+                                .reservation
+                                .recovery_expires_at
+                                .is_some_and(|expiry| expiry <= clock.now().get())
+                                || !row.until.is_some_and(|until| until > clock.now().get())
                                 || completed.session.expires_at <= clock.now().get()
                             {
                                 return Err(stale_device().into());
@@ -343,7 +425,7 @@ impl AccountRepository for PostgresAccountRepository {
                         let environment = self.environment.clone();
                         Box::pin(async move {
                             lock_session_reads(connection).await?;
-                            Ok(device_snapshot(connection, &proof, &environment, now).await?)
+                            recovery_snapshot(connection, &proof, &environment, now).await
                         })
                     })
                     .await,
@@ -354,28 +436,34 @@ impl AccountRepository for PostgresAccountRepository {
         &self,
         proof: DeviceProof,
         candidate: SecretDigest,
-        now: i64,
+        expected_revision: Option<i64>,
+        _now: i64,
     ) -> AccountFuture<'_, (DeviceAccounts, bool)> {
         Box::pin(async move {
-            finish(
-                self.unit
-                    .run(options(), |connection| {
-                        let mut proof = proof.clone();
-                        let candidate = candidate.clone();
-                        let environment = self.environment.clone();
-                        Box::pin(async move {
-                            lock_session_writes(connection).await?;
-                            let (id, created) =
-                                ensure_browser(connection, &proof, &candidate, now).await?;
-                            proof.browser = Some(id);
-                            Ok((
-                                device_snapshot(connection, &proof, &environment, now).await?,
-                                created,
-                            ))
-                        })
-                    })
-                    .await,
-            )
+            finish(self.unit.run_once(options(), |connection| {
+                let mut proof=proof.clone(); let candidate=candidate.clone();
+                let environment=self.environment.clone();let invalidation=self.invalidation.clone();let clock=self.clock.clone();
+                Box::pin(async move {
+                    lock_session_writes(connection).await?;
+                    let now=clock.now().get();
+                    let prepared=ensure_browser(connection,&proof,&candidate,&environment,expected_revision,now,BrowserEnrollment::RecoverExisting).await?;
+                    let row=browser(connection,&prepared.id).await?.ok_or_else(stale_device)?;
+                    revision(&row,expected_revision,now)?;
+                    if let Some(expiry)=prepared.recovery_expires_at {
+                        revoke_children(connection,&prepared.id,&environment,invalidation.as_ref()).await?;
+                        if expiry<=clock.now().get(){return Err(stale_device().into());}
+                        let changed=sqlx::query("UPDATE account_device_browsers SET revision=revision+1,pending_nonce=NULL,pending_until=NULL,updated_at=$3 WHERE id=$1 AND revision=$2 AND revision<$4").bind(prepared.id.as_str()).bind(row.revision).bind(clock.now().get()).bind(MAX_DEVICE_REVISION).execute(&mut *connection).await?.rows_affected();
+                        if changed!=1{return Err(stale_device().into());}
+                        rotate_key(connection,&prepared.id,&prepared.cookie,clock.now().get()).await?;
+                        sqlx::query("SET CONSTRAINTS ALL IMMEDIATE").execute(&mut *connection).await?;
+                        // Resample after every Holding wait and the final Control constraint boundary.
+                        let current=recoverable_browser(connection,&proof,&environment,clock.now().get()).await?.ok_or_else(stale_device)?;
+                        if current.id!=prepared.id || expiry<=clock.now().get(){return Err(stale_device().into());}
+                    }
+                    proof.browser=Some(prepared.cookie);
+                    Ok((device_snapshot(connection,&proof,&environment,clock.now().get()).await?,prepared.created||prepared.recovery_expires_at.is_some()))
+                })
+            }).await)
         })
     }
     fn select_device(&self, input: DeviceSelection) -> AccountFuture<'_, SelectedDevice> {
@@ -390,8 +478,10 @@ impl AccountRepository for PostgresAccountRepository {
                         Box::pin(async move {
                             lock_session_writes(connection).await?;
                             let now = clock.now().get();
-                            let id = input.proof.browser.as_ref().ok_or_else(denied)?;
-                            let row = browser(connection, id).await?.ok_or_else(denied)?;
+                            let id = browser_key(connection, input.proof.browser.as_ref())
+                                .await?
+                                .ok_or_else(denied)?;
+                            let row = browser(connection, &id).await?.ok_or_else(denied)?;
                             revision(&row, Some(input.expected_revision), now)?;
                             let selected =
                                 live_accounts(connection, &input.proof, &environment, now)
@@ -413,7 +503,7 @@ impl AccountRepository for PostgresAccountRepository {
                             }
                             select_browser(
                                 connection,
-                                id,
+                                &id,
                                 Some(&selected.session.id),
                                 now,
                                 &environment,
@@ -423,7 +513,7 @@ impl AccountRepository for PostgresAccountRepository {
                             sqlx::query("SET CONSTRAINTS ALL IMMEDIATE")
                                 .execute(&mut *connection)
                                 .await?;
-                            let state = browser(connection, id).await?.ok_or_else(stale_device)?;
+                            let state = browser(connection, &id).await?.ok_or_else(stale_device)?;
                             if state.active.as_deref() != Some(selected.session.id.as_str())
                                 || state.revision != row.revision + 1
                                 || state.pending.is_some()
@@ -466,8 +556,8 @@ impl AccountRepository for PostgresAccountRepository {
                         Box::pin(async move {
                             lock_session_writes(connection).await?;
                             let now=clock.now().get();
-                            let id = input.proof.browser.as_ref().ok_or_else(denied)?;
-                            let row = browser(connection, id).await?.ok_or_else(denied)?;
+                            let id = browser_key(connection,input.proof.browser.as_ref()).await?.ok_or_else(denied)?;
+                            let row = browser(connection, &id).await?.ok_or_else(denied)?;
                             revision(&row, Some(input.expected_revision), now)?;
                             let target =
                                 live_accounts(connection, &input.proof, &environment, now)
@@ -477,7 +567,7 @@ impl AccountRepository for PostgresAccountRepository {
                                     .ok_or_else(denied)?;
                             expire_family(connection, &target.session.id, &environment, invalidation.as_ref()).await?;
                             if row.active.as_deref() == Some(target.session.id.as_str()) {
-                                select_browser(connection, id, None, now, &environment, invalidation.as_ref()).await?;
+                                select_browser(connection, &id, None, now, &environment, invalidation.as_ref()).await?;
                             } else {
                                 // Removing an inactive family does not select another account.
                                 // Retain the current parent's children and advance only the CAS revision.
@@ -518,9 +608,9 @@ impl AccountRepository for PostgresAccountRepository {
                             {
                                 match audience {
                                     RequestAudience::Account => {
-                                        let id = proof.browser.as_ref().ok_or_else(denied)?;
+                                        let id = browser_key(connection,proof.browser.as_ref()).await?.ok_or_else(denied)?;
                                         expire_family(connection, &session.id, &environment, invalidation.as_ref()).await?;
-                                        select_browser(connection, id, None, now, &environment, invalidation.as_ref()).await?;
+                                        select_browser(connection, &id, None, now, &environment, invalidation.as_ref()).await?;
                                     }
                                     RequestAudience::Holding { .. } => {
                                         let parent:String=sqlx::query_scalar("SELECT parent_session_id FROM sso_session_bindings WHERE session_id=$1 AND environment=$2").bind(&session.id).bind(&environment).fetch_one(&mut *connection).await?;
@@ -542,6 +632,7 @@ impl AccountRepository for PostgresAccountRepository {
 pub(crate) struct IssuedAccountSession {
     pub proof: DeviceProof,
     pub browser: SecretDigest,
+    pub cookie_digest: SecretDigest,
     pub session_id: String,
     pub session_digest: SecretDigest,
     pub handle: String,
@@ -596,7 +687,7 @@ pub(crate) async fn issue_account_session(
         .await?;
     let now = clock.now().get();
     let mut proof = input.proof;
-    proof.browser = Some(input.browser);
+    proof.browser = Some(input.cookie_digest);
     proof.active = Some(input.session_digest.clone());
     proof.saved.push((input.handle, input.session_digest));
     let devices = device_snapshot(connection, &proof, environment, now).await?;

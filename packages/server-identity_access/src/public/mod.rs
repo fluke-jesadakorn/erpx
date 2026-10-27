@@ -59,3 +59,5 @@ pub mod release_reviewers;
 pub mod account_revocation;
 
 pub mod command_metadata;
+
+pub mod account_device_http;

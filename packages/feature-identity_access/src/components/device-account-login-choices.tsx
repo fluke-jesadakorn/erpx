@@ -6,7 +6,7 @@ import type {DeviceAccounts} from '@erpx/feature-identity_access/lib/device-acco
 async function load(){
  let response=await holdingFetch('/api/v1/account/device-accounts',{cache:'no-store'}),body=await response.json();
  if(!response.ok||!body.data)throw Error('Could not verify saved accounts.');
- if(!body.data.initialized){response=await holdingFetch('/api/v1/account/device-accounts/initialize',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});body=await response.json();if(!response.ok||!body.data)throw Error('Could not verify saved accounts.');}
+ if(!body.data.initialized){response=await holdingFetch('/api/v1/account/device-accounts/initialize',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({revision:body.data.revision})});body=await response.json();if(!response.ok||!body.data)throw Error('Could not verify saved accounts.');}
  return body.data as DeviceAccounts;
 }
 /** An expired active Account cookie must not hide other proven device sessions.

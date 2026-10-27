@@ -1,5 +1,5 @@
 import type { AccountAuthPort, AccountAuthResult } from "../../application/account-auth-port";
-import type { AccountAuthError, AccountOperationResponse, AccountSessionResponse, AccountUserDto, DeviceAccountsDto, EmailSignInResponse, AccountInvitationInspectResponse, AccountInvitationAcceptResponse } from "@erpx/contracts/account-auth";
+import type { AccountAuthError, AccountOperationResponse, AccountSessionResponse, AccountUserDto, DeviceAccountsDto, DeviceAccountsResponse, EmailSignInResponse, AccountInvitationInspectResponse, AccountInvitationAcceptResponse } from "@erpx/contracts/account-auth";
 
 type FetchPort = (input: string, init: RequestInit) => Promise<Response>;
 type Validator<T> = (input: unknown) => input is T;
@@ -17,6 +17,7 @@ const invitationAccepted: Validator<AccountInvitationAcceptResponse> = (value): 
 const date = (value: unknown): value is string => typeof value === "string" && /^\d{4}-\d{2}-\d{2}T/.test(value) && Number.isFinite(Date.parse(value));
 const session: Validator<AccountSessionResponse> = (value): value is AccountSessionResponse => record(value) && keys(value, ["user", "session"]) && user(value.user) && record(value.session) && keys(value.session, ["id", "userId", "expiresAt", "createdAt", "updatedAt"]) && text(value.session.id) && value.session.userId === value.user.id && date(value.session.expiresAt) && date(value.session.createdAt) && date(value.session.updatedAt);
 const devices: Validator<DeviceAccountsDto> = (value): value is DeviceAccountsDto => record(value) && keys(value, ["initialized", "revision", "maximum", "accounts"]) && typeof value.initialized === "boolean" && safeRevision(value.revision) && value.maximum === 5 && Array.isArray(value.accounts) && value.accounts.length <= 5 && value.accounts.every(account => record(account) && keys(account, ["handle", "name", "email", "image", "current"]) && handle(account.handle) && text(account.name) && text(account.email) && nullableText(account.image) && typeof account.current === "boolean") && new Set(value.accounts.map(account => account.handle)).size === value.accounts.length && value.accounts.filter(account => account.current).length <= 1;
+const deviceEnvelope: Validator<DeviceAccountsResponse> = (value): value is DeviceAccountsResponse => record(value) && keys(value, ["data"]) && devices(value.data);
 const authError = (value: unknown): AccountAuthError | null => record(value) && keys(value, ["error"]) && record(value.error) && keys(value.error, ["code", "message"]) && text(value.error.code) && text(value.error.message) ? { code: value.error.code, message: value.error.message } : null;
 const failed = <T>(code: string, message: string): AccountAuthResult<T> => ({ data: null, error: { code, message } });
 
@@ -30,6 +31,10 @@ export function createAccountAuthHttpPort(fetcher: FetchPort = (input, init) => 
       if (value === null && nullable) return { data: null, error: null };
       return validate(value) ? { data: value, error: null } : failed("ACCOUNT_RESPONSE_INVALID", "The Account response did not match its contract.");
     } catch { return failed("ACCOUNT_NETWORK_UNAVAILABLE", "Could not connect to Account. Please try again."); }
+  }
+  async function deviceRequest(path: string, method: "GET" | "POST", body?: object): Promise<AccountAuthResult<DeviceAccountsDto>> {
+    const result = await request(path, method, deviceEnvelope, body);
+    return { data: result.data?.data ?? null, error: result.error };
   }
   return {
     signIn: { email: input => input.revision !== undefined && !safeRevision(input.revision) ? Promise.resolve(failed("INVALID_DEVICE_REVISION", "Review your current saved accounts.")) : request("/api/auth/sign-in/email", "POST", signedIn, input) },
@@ -46,8 +51,9 @@ export function createAccountAuthHttpPort(fetcher: FetchPort = (input, init) => 
       accept: input => request("/api/v1/account-invitations", "POST", invitationAccepted, input),
     },
     multiSession: {
-      listDeviceSessions: () => request("/api/v1/account/device-accounts", "GET", devices),
-      setActive: input => !safeRevision(input.revision) || !handle(input.handle) ? Promise.resolve(failed("INVALID_DEVICE_SELECTION", "Review your current saved accounts.")) : request("/api/v1/account/device-accounts/active", "POST", devices, input),
+      initialize: input => input.revision !== undefined && !safeRevision(input.revision) ? Promise.resolve(failed("INVALID_DEVICE_REVISION", "Review your current saved accounts.")) : deviceRequest("/api/v1/account/device-accounts/initialize", "POST", input),
+      listDeviceSessions: () => deviceRequest("/api/v1/account/device-accounts", "GET"),
+      setActive: input => !safeRevision(input.revision) || !handle(input.handle) ? Promise.resolve(failed("INVALID_DEVICE_SELECTION", "Review your current saved accounts.")) : deviceRequest("/api/v1/account/device-accounts/active", "POST", input),
     },
   };
 }

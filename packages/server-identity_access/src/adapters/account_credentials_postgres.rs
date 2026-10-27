@@ -1,10 +1,11 @@
+use super::account_group_recovery::rotate_key;
 use super::account_revocation_postgres::invalidate_children;
 use crate::application::account_revocation::AccountWorkContextInvalidation;
 use crate::{
     adapters::{
         account_postgres::{
-            IssuedAccountSession, TxResult, browser, credential, ensure_browser, expire_family,
-            finish, issue_account_session, options, revision,
+            BrowserEnrollment, IssuedAccountSession, TxResult, browser, credential, ensure_browser,
+            expire_family, finish, issue_account_session, options, revision,
         },
         account_sessions::{lock_session_reads, lock_session_writes, read_session},
     },
@@ -301,10 +302,10 @@ impl AccountCredentialRepository for PostgresAccountCredentials {
             finish(self.unit.run_once(options(),|connection|{let input=input.clone();let environment=self.environment.clone();let clock=self.clock.clone();let invalidation=self.invalidation.clone();Box::pin(async move{
   locks(connection).await?;
                             let now=clock.now().get();let(id,current,expires)=proof(connection,CredentialProofKind::EmailVerification,&input.token_digest,now).await?;
-  let(browser_id,created_browser)=ensure_browser(connection,&input.proof,&input.candidate_browser,now).await?;let state=browser(connection,&browser_id).await?.ok_or_else(invalid_proof)?;revision(&state,input.expected_revision,now)?;
+  let prepared=ensure_browser(connection,&input.proof,&input.candidate_browser,&environment,input.expected_revision,now,BrowserEnrollment::FreshAuthenticated).await?;let state=browser(connection,&prepared.id).await?.ok_or_else(invalid_proof)?;revision(&state,input.expected_revision,now)?;let created_browser=prepared.created||prepared.recovery_expires_at.is_some();if prepared.recovery_expires_at.is_some(){rotate_key(connection,&prepared.id,&prepared.cookie,now).await?;}
   sqlx::query("UPDATE \"user\" SET \"emailVerified\"=1,\"updatedAt\"=$2 WHERE id=$1").bind(&current.user_id).bind(now).execute(&mut *connection).await?;cancel_proofs(connection,&current.user_id,Some(CredentialProofKind::EmailVerification.as_str()),now).await?;
-  let completed=issue_account_session(connection,IssuedAccountSession{proof:input.proof,browser:browser_id,session_id:input.session_id,session_digest:input.session_digest,handle:input.handle,user_id:current.user_id.clone(),now},&environment,invalidation.as_ref(),clock.as_ref()).await?;
-  audit(connection,&input.event_id,&current.user_id,"email_verified",Some(&id),now).await?;sqlx::query("SET CONSTRAINTS ALL IMMEDIATE").execute(&mut *connection).await?;if clock.now().get()>=expires{return Err(invalid_proof().into());}Ok(VerifiedCredential{completed,created_browser})
+  let completed=issue_account_session(connection,IssuedAccountSession{proof:input.proof,browser:prepared.id,cookie_digest:prepared.cookie,session_id:input.session_id,session_digest:input.session_digest,handle:input.handle,user_id:current.user_id.clone(),now},&environment,invalidation.as_ref(),clock.as_ref()).await?;
+  audit(connection,&input.event_id,&current.user_id,"email_verified",Some(&id),now).await?;sqlx::query("SET CONSTRAINTS ALL IMMEDIATE").execute(&mut *connection).await?;if clock.now().get()>=expires||prepared.recovery_expires_at.is_some_and(|expiry|expiry<=clock.now().get()){return Err(invalid_proof().into());}Ok(VerifiedCredential{completed,created_browser})
  })}).await)
         })
     }

@@ -31,3 +31,7 @@ pub(crate) mod queued_work;
 pub(crate) mod release_reviewers;
 
 pub(crate) mod account_revocation_postgres;
+
+pub(crate) mod account_device_http;
+
+pub(crate) mod account_group_recovery;

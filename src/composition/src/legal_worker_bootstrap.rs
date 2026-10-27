@@ -205,16 +205,19 @@ pub async fn run_once_file(path: &Path) -> Result<serde_json::Value, &'static st
         },
     };
     #[cfg(feature = "legal-pdf-worker")]
-    let result = run_once(
+    let running = run_once(
         &pool,
         config.owner,
         &config.files_root,
         &extractor,
         verifier.as_ref(),
-    )
-    .await;
+    );
     #[cfg(not(feature = "legal-pdf-worker"))]
-    let result = run_once(&pool, config.owner, &config.files_root, &extractor).await;
+    let running = run_once(&pool, config.owner, &config.files_root, &extractor);
+    // Startup probes own the same bounded children as computation. Cancellation
+    // must cover both, then await cleanup before the Tokio runtime can exit.
+    let result =
+        tokio::select! {result=running=>result,_=stop_requested()=>Err("LEGAL_WORKER_CANCELLED")};
     #[cfg(feature = "legal-pdf-worker")]
     if let Some(verifier) = verifier {
         verifier.shutdown_and_drain().await;
@@ -333,11 +336,7 @@ async fn run_once(
             }
         }
     };
-    let outcome = tokio::select! {outcome=running=>outcome,_=stop_requested()=>{
-        extractor.shutdown_and_drain().await;
-        #[cfg(feature="legal-pdf-worker")]if let Some(verifier)=verifier{verifier.shutdown_and_drain().await;}
-        return Err("LEGAL_WORKER_CANCELLED");
-    }};
+    let outcome = running.await;
     match outcome {
         Ok(Retained::Completed) => Ok(
             serde_json::json!({"acceptance":false,"mode":"leased-development","claimed":true,"recovered":recovered,"state":"completed"}),

@@ -1,5 +1,5 @@
 import {holdingFetch} from '@erpx/contracts/holding-fetch';
-import {legalPortalUploadFingerprintInput} from '@erpx/server-legal/public/rules/portal-upload-recovery';
+import {legalPortalUploadFingerprintInput} from '@erpx/contracts/legal-portal-upload';
 export type PortalCommandSource={shareId:string;version:number;checksum:string};
 type Command={kind:'command';path:string;key:string;source:PortalCommandSource;body:string;uncertain:boolean};
 type Upload={kind:'upload';path:string;key:string;source:PortalCommandSource;name:string;mediaType:string;size:number;checksum:string;uncertain:boolean};

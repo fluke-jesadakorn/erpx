@@ -142,6 +142,21 @@
       "upstreamVersion": "1.0.3",
       "upstreamLicenseSha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
       "basis": "The pinned published ryu-js crate declares Apache-2.0 OR BSL-1.0. ERPX selects Apache-2.0 and retains its published LICENSE-APACHE byte-for-byte. Cargo.lock records the registry archive checksum. This is a notice review for this direct dependency, not a complete transitive release clearance."
+    },
+    {
+      "id": "development-tesseract-models",
+      "paths": [
+        "fixtures/legal/documents/worker-bootstrap-provider.v1.json",
+        "scripts/testing/fixtures/fetch-legal-worker-models.ts"
+      ],
+      "noticeFiles": [
+        "packages/server-legal/licenses/tesseract-tessdata-fast-Apache-2.0.txt"
+      ],
+      "reviewStatus": "notice-reviewed",
+      "declaredLicense": "Apache-2.0",
+      "upstreamCommit": "87416418657359cb625c412a48b6e1d6d41c29bd",
+      "upstreamLicenseSha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "basis": "The explicit development worker provider smoke fetches eng/tha traineddata only from the pinned official tessdata_fast revision, checks the recorded byte counts and SHA-256 values, and retains its Apache-2.0 license. Model bytes are ignored and not shipped in this source checkpoint. Operational eng+tha probes do not establish Thai OCR accuracy, complete transitive notices or production release acceptance."
     }
   ]
 }

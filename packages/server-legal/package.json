@@ -103,7 +103,6 @@
     "./public/portal-attachment-contracts": "./src/public/portal-attachment-contracts.ts",
     "./public/runtime-minio-mutation-authority": "./src/public/runtime-minio-mutation-authority.ts",
     "./public/purchases": "./src/public/purchases.ts",
-    "./public/rules/portal-upload-recovery": "./src/public/rules/portal-upload-recovery.ts",
     "./public/rules/model": "./src/public/rules/model.ts",
     "./public/rules/thailand": "./src/public/rules/thailand.ts",
     "./public/rules/features": "./src/public/rules/features.ts",
@@ -190,7 +189,6 @@
     "./domain/knowledge": "./src/domain/knowledge.ts",
     "./domain/executed-copies": "./src/domain/executed-copies.ts",
     "./domain/enrollment": "./src/domain/enrollment.ts",
-    "./domain/portal-upload-recovery": "./src/domain/portal-upload-recovery.ts",
     "./domain/destruction-sources": "./src/domain/destruction-sources.ts",
     "./domain/law-corpus": "./src/domain/law-corpus.ts",
     "./domain/sources": "./src/domain/sources.ts",
@@ -210,6 +208,7 @@
     "lint": "eslint src"
   },
   "dependencies": {
+    "@erpx/contracts": "workspace:*",
     "@erpx/catalogue": "workspace:*",
     "@erpx/feature-identity_access": "workspace:*",
     "@erpx/feature-legal": "workspace:*",

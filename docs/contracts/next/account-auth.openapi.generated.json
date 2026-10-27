@@ -748,7 +748,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DeviceAccountsDto"
+                  "$ref": "#/components/schemas/DeviceAccountsResponse"
                 }
               }
             }
@@ -782,7 +782,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DeviceAccountsDto"
+                  "$ref": "#/components/schemas/DeviceAccountsResponse"
                 }
               }
             }
@@ -827,7 +827,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DeviceAccountsDto"
+                  "$ref": "#/components/schemas/DeviceAccountsResponse"
                 }
               }
             }
@@ -857,12 +857,22 @@
       "post": {
         "tags": [],
         "operationId": "initialize",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeviceInitializeInput"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DeviceAccountsDto"
+                  "$ref": "#/components/schemas/DeviceAccountsResponse"
                 }
               }
             }
@@ -882,7 +892,7 @@
     "/api/v1/account/device-accounts/sign-in": {
       "post": {
         "tags": [],
-        "operationId": "sign_in",
+        "operationId": "device_sign_in",
         "requestBody": {
           "content": {
             "application/json": {
@@ -898,7 +908,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/EmailSignInResponse"
+                  "$ref": "#/components/schemas/DeviceAccountsResponse"
                 }
               }
             }
@@ -1391,6 +1401,35 @@
           },
           "revision": {
             "$ref": "#/components/schemas/AccountRevision"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeviceAccountsResponse": {
+        "type": "object",
+        "description": "The existing Account device facade's exact display-only envelope.",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DeviceAccountsDto"
+          }
+        }
+      },
+      "DeviceInitializeInput": {
+        "type": "object",
+        "description": "Recovery requires the revision observed by the read-only device snapshot.\nAnonymous initialization may omit it; a live native-parent recovery may not.",
+        "properties": {
+          "revision": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AccountRevision"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false

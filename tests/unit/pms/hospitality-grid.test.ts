@@ -209,10 +209,16 @@ vi.mock('react',async importOriginal=>{
  };
 });
 afterEach(()=>{bookingReturnObserver.active=false;if(vi.isFakeTimers()){vi.clearAllTimers();vi.useRealTimers();}});
-const bookingReturnIdentity={slug:'original-holding',propertyId:'original-property',attempt:'original-payment.original-signature'};
+const bookingReturnIdentity={slug:'acme',propertyId:'original-property',attempt:'original-payment.original-signature'};
 const bookingReturnStatus=(state:BookingPaymentReturnStatus['state'],refundState:string|null=null):BookingPaymentReturnStatus=>({number:'ORIGINAL-BOOKING-1',state,paymentState:state==='confirmed'?'received':'pay_at_hotel',checkoutUrl:state==='payment_pending'?'https://checkout.stripe.com/c/pay/original':null,managementToken:undefined,refundState});
 function bookingReturnResponse(status:BookingPaymentReturnStatus,identity:Partial<typeof bookingReturnIdentity>={}){return Response.json({data:{...status,attemptToken:identity.attempt??bookingReturnIdentity.attempt,hotel:{id:identity.propertyId??bookingReturnIdentity.propertyId}}});}
-function bookingReturnTimers(){vi.useFakeTimers();vi.stubGlobal('window',{setInterval,clearInterval});}
+function bookingReturnTimers(){
+ vi.useFakeTimers();
+ // The actual Holding transport reads these browser ports. Only native fetch
+ // IO is substituted; namespace selection and receipt validation stay real.
+ vi.stubGlobal('window',{setInterval,clearInterval,location:new URL('https://acme.jesadakorn.com/book/original-property')});
+ vi.stubGlobal('document',{documentElement:{dataset:{erpxApp:'booking'}}});
+}
 /** Actual React supplies both state/effect hooks and renders the original
  * component/widgets. Transparent observers record its real closure and state
  * publications; tests explicitly drive effect setup/cleanup, timers and native
@@ -230,7 +236,7 @@ it('actual Booking return keeps expired receipts observable through late refund 
   expect(mounted.html).toContain('Payment period expired');expect(fetcher).not.toHaveBeenCalled();await vi.advanceTimersByTimeAsync(4999);expect(fetcher).not.toHaveBeenCalled();await vi.advanceTimersByTimeAsync(1);expect(fetcher).toHaveBeenCalledOnce();expect(mounted.updates).toEqual([bookingReturnStatus('refund_review','requested')]);
   mounted.cleanup();mounted=observeBookingReturn(bookingReturnStatus('refund_review','requested'));expect(mounted.html).toContain('Payment needs review');expect(fetcher).toHaveBeenCalledTimes(1);await vi.advanceTimersByTimeAsync(5000);expect(fetcher).toHaveBeenCalledTimes(2);expect(mounted.updates).toEqual([bookingReturnStatus('refund_review','succeeded')]);
   const pendingDependencies=mounted.dependencies;mounted.cleanup();mounted=observeBookingReturn(bookingReturnStatus('refund_review','succeeded'));expect(mounted.dependencies).not.toEqual(pendingDependencies);expect(mounted.html).toContain('Refund: succeeded');await vi.advanceTimersByTimeAsync(20000);expect(fetcher).toHaveBeenCalledTimes(2);expect(mounted.updates).toEqual([]);
-  for(const [url,init] of fetcher.mock.calls){expect(String(url)).toBe('/api/public/booking/original-holding/reservations?attempt=original-payment.original-signature');expect(init?.cache).toBe('no-store');expect(init?.method).toBeUndefined();}
+  for(const [url,init] of fetcher.mock.calls){expect(String(url)).toBe('https://acme.jesadakorn.com/__erpx/booking/api/public/booking/acme/reservations?attempt=original-payment.original-signature');expect(init?.cache).toBe('no-store');expect(init?.method).toBeUndefined();expect(init?.signal).toBeInstanceOf(AbortSignal);}
  }finally{mounted.cleanup();}
 });
 it('actual Booking return follows pending then expired to a late confirmed receipt without duplicate mount GETs',async()=>{
