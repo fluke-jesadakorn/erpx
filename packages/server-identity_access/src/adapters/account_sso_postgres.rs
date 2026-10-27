@@ -1,3 +1,4 @@
+use super::account_holding_bindings::ConfiguredHoldingRegistry;
 use crate::{
     adapters::{
         account_postgres::{TxResult, finish, options},
@@ -18,6 +19,7 @@ use subtle::ConstantTimeEq;
 pub struct PostgresAccountSso {
     unit: PgUnitOfWork,
     policy: SsoPolicy,
+    holdings: Arc<ConfiguredHoldingRegistry>,
     clock: Arc<dyn Clock + Send + Sync>,
 }
 impl PostgresAccountSso {
@@ -25,10 +27,12 @@ impl PostgresAccountSso {
         pool: DatabasePool,
         policy: SsoPolicy,
         clock: Arc<dyn Clock + Send + Sync>,
+        holdings: Arc<ConfiguredHoldingRegistry>,
     ) -> Self {
         Self {
             unit: PgUnitOfWork::new(pool),
             policy,
+            holdings,
             clock,
         }
     }
@@ -107,6 +111,7 @@ async fn authorize(
     input: AuthorizeSso,
     policy: &SsoPolicy,
     clock: &(dyn Clock + Send + Sync),
+    holdings: &ConfiguredHoldingRegistry,
 ) -> TxResult<Option<String>> {
     lock_session_reads(connection).await?;
     lock_sso(connection).await?;
@@ -116,6 +121,14 @@ async fn authorize(
     }
     let transaction = browser(connection, &input.transaction_id).await?;
     transaction.require_current(policy, instant)?;
+    let binding = holdings
+        .read_current(
+            connection,
+            &RequestAudience::Holding {
+                audience: transaction.audience.clone(),
+            },
+        )
+        .await?;
     if !equal(&transaction.state_hash, &input.state_hash)
         || !equal(&transaction.challenge, &input.challenge)
     {
@@ -127,13 +140,18 @@ async fn authorize(
         &RequestAudience::Account,
         &policy.account().environment,
         instant,
+        holdings,
     )
     .await?
     else {
         return Ok(None);
     };
     let expires = grant_expiry(instant, &transaction, &parent)?;
-    sqlx::query("INSERT INTO sso_authorization_grants(code_hash,transaction_id,parent_session_id,audience,environment,callback,state_hash,challenge,created_at,expires_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)").bind(input.code_hash.as_str()).bind(transaction.id.as_str()).bind(parent.id).bind(&transaction.audience).bind(&transaction.environment).bind(&transaction.callback).bind(transaction.state_hash.as_str()).bind(transaction.challenge.as_str()).bind(instant).bind(expires).execute(connection).await?;
+    sqlx::query("INSERT INTO sso_authorization_grants(code_hash,transaction_id,parent_session_id,audience,environment,callback,state_hash,challenge,created_at,expires_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)").bind(input.code_hash.as_str()).bind(transaction.id.as_str()).bind(parent.id).bind(&transaction.audience).bind(&transaction.environment).bind(&transaction.callback).bind(transaction.state_hash.as_str()).bind(transaction.challenge.as_str()).bind(instant).bind(expires).execute(&mut *connection).await?;
+    sqlx::query("SET CONSTRAINTS ALL IMMEDIATE")
+        .execute(&mut *connection)
+        .await?;
+    binding.require_current(connection).await?;
     transaction.require_current(policy, clock.now().get())?;
     if clock.now().get() >= expires {
         return Err(rejected_sso().into());
@@ -145,6 +163,7 @@ async fn consume(
     input: ConsumeSso,
     policy: &SsoPolicy,
     clock: &(dyn Clock + Send + Sync),
+    holdings: &ConfiguredHoldingRegistry,
 ) -> TxResult<SsoConsumption> {
     lock_session_writes(connection).await?;
     lock_sso(connection).await?;
@@ -161,6 +180,14 @@ async fn consume(
             .ok_or_else(rejected_sso)?,
     )?;
     grant.require_current(&browser, policy, instant)?;
+    let binding = holdings
+        .read_current(
+            connection,
+            &RequestAudience::Holding {
+                audience: browser.audience.clone(),
+            },
+        )
+        .await?;
     if browser.audience != input.audience
         || !equal(&grant.code_hash, &input.code_hash)
         || !equal(&browser.browser_hash, &input.browser_hash)
@@ -192,10 +219,14 @@ async fn consume(
     .execute(&mut *connection)
     .await?
     .rows_affected();
-    let grant_count=sqlx::query("UPDATE sso_authorization_grants SET consumed_at=$2 WHERE code_hash=$1 AND consumed_at IS NULL").bind(grant.code_hash.as_str()).bind(instant).execute(connection).await?.rows_affected();
+    let grant_count=sqlx::query("UPDATE sso_authorization_grants SET consumed_at=$2 WHERE code_hash=$1 AND consumed_at IS NULL").bind(grant.code_hash.as_str()).bind(instant).execute(&mut *connection).await?.rows_affected();
     if browser_count != 1 || grant_count != 1 {
         return Err(rejected_sso().into());
     }
+    sqlx::query("SET CONSTRAINTS ALL IMMEDIATE")
+        .execute(&mut *connection)
+        .await?;
+    binding.require_current(connection).await?;
     let final_now = clock.now().get();
     grant.require_current(&browser, policy, final_now)?;
     if parent.authenticated_at > final_now || parent.expires_at <= final_now {
@@ -210,7 +241,21 @@ async fn consume(
 impl AccountSsoRepository for PostgresAccountSso {
     fn start(&self, input: BrowserSsoTransaction) -> AccountFuture<'_, ()> {
         Box::pin(async move {
-            finish(self.unit.run(options(),|connection|{let input=input.clone();let policy=self.policy.clone();let clock=self.clock.clone();Box::pin(async move{lock_sso(connection).await?;input.require_current(&policy,clock.now().get())?;let created=input.created_at;let expires=input.expires_at;sqlx::query("INSERT INTO sso_browser_transactions(id,browser_hash,state_hash,challenge,audience,environment,callback,return_path,created_at,expires_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)").bind(input.id.as_str()).bind(input.browser_hash.as_str()).bind(input.state_hash.as_str()).bind(input.challenge.as_str()).bind(input.audience).bind(input.environment).bind(input.callback).bind(input.return_path.as_str()).bind(input.created_at).bind(input.expires_at).execute(connection).await?;if !(created..expires).contains(&clock.now().get()){return Err(rejected_sso().into());}Ok(())})}).await)
+            finish(self.unit.run(options(),|connection|{
+                let input=input.clone();let policy=self.policy.clone();let clock=self.clock.clone();let holdings=self.holdings.clone();
+                Box::pin(async move{
+                    lock_session_reads(connection).await?;
+                    lock_sso(connection).await?;
+                    input.require_current(&policy,clock.now().get())?;
+                    let binding=holdings.read_current(connection,&RequestAudience::Holding{audience:input.audience.clone()}).await?;
+                    let created=input.created_at;let expires=input.expires_at;
+                    sqlx::query("INSERT INTO sso_browser_transactions(id,browser_hash,state_hash,challenge,audience,environment,callback,return_path,created_at,expires_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)")
+                        .bind(input.id.as_str()).bind(input.browser_hash.as_str()).bind(input.state_hash.as_str()).bind(input.challenge.as_str()).bind(input.audience).bind(input.environment).bind(input.callback).bind(input.return_path.as_str()).bind(input.created_at).bind(input.expires_at).execute(&mut *connection).await?;
+                    sqlx::query("SET CONSTRAINTS ALL IMMEDIATE").execute(&mut *connection).await?;
+                    binding.require_current(connection).await?;
+                    if !(created..expires).contains(&clock.now().get()){return Err(rejected_sso().into());}Ok(())
+                })
+            }).await)
         })
     }
     fn authorize(&self, input: AuthorizeSso) -> AccountFuture<'_, Option<String>> {
@@ -221,8 +266,9 @@ impl AccountSsoRepository for PostgresAccountSso {
                         let input = input.clone();
                         let policy = self.policy.clone();
                         let clock = self.clock.clone();
+                        let holdings = self.holdings.clone();
                         Box::pin(async move {
-                            authorize(connection, input, &policy, clock.as_ref()).await
+                            authorize(connection, input, &policy, clock.as_ref(), &holdings).await
                         })
                     })
                     .await,
@@ -237,8 +283,9 @@ impl AccountSsoRepository for PostgresAccountSso {
                         let input = input.clone();
                         let policy = self.policy.clone();
                         let clock = self.clock.clone();
+                        let holdings = self.holdings.clone();
                         Box::pin(async move {
-                            consume(connection, input, &policy, clock.as_ref()).await
+                            consume(connection, input, &policy, clock.as_ref(), &holdings).await
                         })
                     })
                     .await,

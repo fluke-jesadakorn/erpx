@@ -278,7 +278,7 @@ export default async function WorkplaceLayout({
             base={base}
             companyId={context.companyId}
             assignmentId={context.assignmentId}
-            revision={context.authority!.revision}
+            revision={context.authority!.revision} assignmentVersion={context.authority!.assignmentVersion}
           />
           <a href="#workspace-content" className="skip-link">
             Skip to content
@@ -393,8 +393,8 @@ export default async function WorkplaceLayout({
                 userId={context.userId}
                 companyId={context.companyId}
                 assignmentId={context.assignmentId}
-                revision={context.authority!.revision}
-                initialCurrent={{version:1,base,userId:context.userId,companyId:context.companyId,assignmentId:context.assignmentId,revision:context.authority!.revision,checkedAt:workContextCheckedAt}}
+                revision={context.authority!.revision} assignmentVersion={context.authority!.assignmentVersion}
+                initialCurrent={{version:2,base,userId:context.userId,companyId:context.companyId,assignmentId:context.assignmentId,revision:context.authority!.revision,assignmentVersion:context.authority!.assignmentVersion,checkedAt:workContextCheckedAt}}
               >
                 {!sourceRecord&&<Suspense>
                   <WorkspaceAssistant

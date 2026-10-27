@@ -82,9 +82,11 @@ async fn concrete_legal_owner_source_and_current_identity_are_both_required() {
             let (authorizer, clock) = setup(&control, &holding).await;
             seed_native_legal_job(authorizer.as_ref(), &holding).await;
             let queued = PgQueuedWorkAuthorizer::new(
+                control.clone(),
                 holding.clone(),
                 HoldingId::new("h001").unwrap(),
                 clock,
+                holding_registry(),
             );
             queued
                 .execute(source(), legal_access(), |connection, current, owned| {
@@ -150,7 +152,7 @@ async fn concrete_legal_owner_source_and_current_identity_are_both_required() {
 async fn concrete_source_expiry_and_unstamped_completed_state_roll_back_cross_owner_effects() {
     fixture::with_database(2,|control|async move{fixture::with_database(2,move|holding|async move{
     let(authorizer,clock)=setup(&control,&holding).await;seed_native_legal_job(authorizer.as_ref(),&holding).await;
-    let queued=PgQueuedWorkAuthorizer::new(holding.clone(),HoldingId::new("h001").unwrap(),clock.clone());
+    let queued=PgQueuedWorkAuthorizer::new(control.clone(),holding.clone(),HoldingId::new("h001").unwrap(),clock.clone(),holding_registry());
     let advancing=clock.clone();let expired=queued.execute(source(),legal_access(),move|connection,_,_|{let clock=advancing.clone();Box::pin(async move{sqlx::query("INSERT INTO native_owner_effects VALUES('expired')").execute(connection).await?;clock.0.store(NOW+600_001,Ordering::SeqCst);Ok(())})}).await;assert!(matches!(expired,Err(PgTransactionError::Business(_))));clock.0.store(NOW,Ordering::SeqCst);
     let unstamped=queued.execute(source(),legal_access(),|connection,_,_|Box::pin(async move{sqlx::query("INSERT INTO native_owner_effects VALUES('unstamped')").execute(&mut *connection).await?;sqlx::query("UPDATE legal_processing_jobs SET state='completed',lease_token=NULL,lease_until=NULL WHERE id='legal-job'").execute(connection).await?;Ok(())})).await;assert!(matches!(unstamped,Err(PgTransactionError::Business(_))));
     assert_eq!(sqlx::query_scalar::<_,String>("SELECT state FROM legal_processing_jobs WHERE id='legal-job'").fetch_one(holding.raw()).await.unwrap(),"running");
@@ -159,13 +161,14 @@ async fn concrete_source_expiry_and_unstamped_completed_state_roll_back_cross_ow
 }
 
 #[tokio::test]
-async fn compute_between_short_transactions_retains_no_authority_leases_and_rejects_a_changed_role()
-{
+async fn compute_between_short_transactions_retains_no_leases_and_rejects_current_role_or_control_binding_withdrawal()
+ {
     use std::sync::Arc;
     use std::time::Duration;
-    fixture::with_database(2,|control|async move{fixture::with_database(2,move|holding|async move{
+    for withdrawal in ["role", "binding"] {
+        fixture::with_database(2,move|control|async move{fixture::with_database(2,move|holding|async move{
         let(authorizer,clock)=setup(&control,&holding).await;seed_native_legal_job(authorizer.as_ref(),&holding).await;
-        let queued=PgQueuedWorkAuthorizer::new(holding.clone(),HoldingId::new("h001").unwrap(),clock);
+        let queued=PgQueuedWorkAuthorizer::new(control.clone(),holding.clone(),HoldingId::new("h001").unwrap(),clock,holding_registry());
         // Prepared data is deliberately a job/input descriptor, not an opaque
         // owner witness, connection, authority context or previous file witness.
         let prepared=queued.execute(source(),legal_access(),|_,_,owned|Box::pin(async move{Ok((owned.job().id.clone(),owned.job().document.checksum_sha256.clone()))})).await.unwrap();
@@ -173,7 +176,9 @@ async fn compute_between_short_transactions_retains_no_authority_leases_and_reje
         let compute={let entered=entered.clone();let release=release.clone();tokio::spawn(async move{entered.notify_one();release.notified().await;prepared})};
         tokio::time::timeout(Duration::from_secs(3),entered.notified()).await.unwrap();
         let writes=async {
+            if withdrawal=="role" {
             sqlx::raw_sql("INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) VALUES('*','custom_native_authority',3,'[\"legal.read\",\"module.legal.read\"]','[]','[\"holding\"]','fixture',0);UPDATE iam_roles SET published_revision=3 WHERE id='custom_native_authority'").execute(holding.raw()).await.unwrap();
+            } else {sqlx::query("UPDATE holding_bindings SET status='suspended'WHERE holding_id='h001'").execute(control.raw()).await.unwrap();}
             sqlx::query("UPDATE account_device_browsers SET revision=revision+1 WHERE id='browser'").execute(control.raw()).await.unwrap();
         };
         assert!(tokio::time::timeout(Duration::from_secs(3),writes).await.is_ok(),"a compute phase retained IAM or Control source locks");
@@ -183,6 +188,7 @@ async fn compute_between_short_transactions_retains_no_authority_leases_and_reje
         assert!(matches!(finalization,Err(PgTransactionError::Business(_))),"a computed input descriptor became current authority");
         assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM native_owner_effects").fetch_one(holding.raw()).await.unwrap(),0);
     }).await;}).await;
+    }
 }
 
 #[cfg(feature = "legal-pdf-worker")]
@@ -393,9 +399,11 @@ mod split_worker {
                 let (authorizer, clock) = setup(&control, &holding).await;
                 seed_native_legal_job(authorizer.as_ref(), &holding).await;
                 let queued = PgQueuedWorkAuthorizer::new(
+                    control.clone(),
                     holding.clone(),
                     HoldingId::new("h001").unwrap(),
                     clock.clone(),
+                    holding_registry(),
                 );
                 let result = run_legal_pdf_short_transactions(
                     &queued,
@@ -441,9 +449,11 @@ mod split_worker {
                 let (authorizer, clock) = setup(&control, &holding).await;
                 seed_native_legal_job(authorizer.as_ref(), &holding).await;
                 let queued = PgQueuedWorkAuthorizer::new(
+                    control.clone(),
                     holding.clone(),
                     HoldingId::new("h001").unwrap(),
                     clock.clone(),
+                    holding_registry(),
                 );
                 let result = run_legal_pdf_short_transactions(
                     &queued,
@@ -586,9 +596,11 @@ mod actual_owners {
                 let (authorizer, clock) = setup(&control, &holding).await;
                 seed(authorizer.as_ref(), &holding).await;
                 let queued = PgQueuedWorkAuthorizer::new(
+                    control.clone(),
                     holding.clone(),
                     HoldingId::new("h001").unwrap(),
                     clock.clone(),
+                    holding_registry(),
                 );
                 let (_root, store) = store();
                 let calls = Arc::new(AtomicUsize::new(0));
@@ -636,9 +648,11 @@ mod actual_owners {
                     let (authorizer, clock) = setup(&control, &holding).await;
                     seed(authorizer.as_ref(), &holding).await;
                     let queued = PgQueuedWorkAuthorizer::new(
+                        control.clone(),
                         holding.clone(),
                         HoldingId::new("h001").unwrap(),
                         clock.clone(),
+                        holding_registry(),
                     );
                     let (_root, store) = store();
                     let calls = Arc::new(AtomicUsize::new(0));
@@ -792,7 +806,7 @@ mod actual_owners {
             // Claim creates no personal authority: an actual role withdrawal
             // denies content work, while only this exact claim may close failed.
             sqlx::query("UPDATE iam_roles SET status='archived' WHERE id='custom_native_authority'").execute(holding.raw()).await.unwrap();
-            let queued=PgQueuedWorkAuthorizer::new(holding.clone(),HoldingId::new("h001").unwrap(),clock.clone());
+            let queued=PgQueuedWorkAuthorizer::new(control.clone(),holding.clone(),HoldingId::new("h001").unwrap(),clock.clone(),holding_registry());
             let source=LegalQueuedSource::new(HoldingId::new("h001").unwrap(),CompanyId::new("company").unwrap(),claim.lease().job.id.clone(),claim.lease().token.clone());
             let(_root,store)=store();let calls=Arc::new(AtomicUsize::new(0));
             assert!(run_current_legal_pdf(&queued,source,configuration(),store,&ToolFailure{holding:holding.clone(),control,change:"",calls:calls.clone()},clock).await.is_err());
@@ -869,9 +883,11 @@ mod actual_owners {
                         .await
                         .unwrap();
                     let queued = PgQueuedWorkAuthorizer::new(
+                        control.clone(),
                         holding.clone(),
                         HoldingId::new("h001").unwrap(),
                         clock.clone(),
+                        holding_registry(),
                     );
                     let (_root, store) = store();
                     let result = erpx_service::legal_document_bridge::run_current_legal_extraction(
@@ -939,9 +955,11 @@ mod actual_owners {
                     .await
                     .unwrap();
                 let queued = PgQueuedWorkAuthorizer::new(
+                    control.clone(),
                     holding.clone(),
                     HoldingId::new("h001").unwrap(),
                     clock.clone(),
+                    holding_registry(),
                 );
                 let (_root, store) = store();
                 let denied = erpx_service::legal_document_bridge::run_current_legal_extraction(
@@ -985,9 +1003,11 @@ mod actual_owners {
                 let (authorizer, clock) = setup(&control, &holding).await;
                 seed(authorizer.as_ref(), &holding).await;
                 let queued = PgQueuedWorkAuthorizer::new(
+                    control.clone(),
                     holding.clone(),
                     HoldingId::new("h001").unwrap(),
                     clock.clone(),
+                    holding_registry(),
                 );
                 let (_root, store) = store();
                 let calls = Arc::new(AtomicUsize::new(0));
@@ -1016,6 +1036,100 @@ mod actual_owners {
                         .unwrap(),
                     0
                 );
+            })
+            .await;
+        })
+        .await;
+    }
+
+    #[cfg(feature = "legal-queue")]
+    #[tokio::test]
+    async fn actual_processing_polling_uses_current_item_history_and_exact_public_wire() {
+        use erpx_service::legal_processing_status::LegalProcessingStatusService;
+        fixture::with_database(2,|control|async move{fixture::with_database(2,move|holding|async move{
+            let(authorizer,clock)=setup(&control,&holding).await;seed(authorizer.as_ref(),&holding).await;
+            sqlx::query("UPDATE legal_processing_jobs SET state='completed',result_json=$1,error=NULL,actor_json='not-an-authority-snapshot' WHERE id='legal-job'").bind(r#"{"status":"indeterminate","warnings":["Synthetic preserved result"]}"#).execute(holding.raw()).await.unwrap();
+            let service=LegalProcessingStatusService::new(authorizer,configuration(),clock);
+            let mut selected=input();selected.expected=None;
+            let read=||service.read("acme.example.test",proof(),selected.clone(),RecordId::new("legal-job").unwrap());
+            let value=serde_json::to_value(read().await.unwrap()).unwrap();
+            assert_eq!(value,serde_json::json!({"id":"legal-job","item_id":"legal-item","document_id":"legal-document","state":"completed","error":null,"attempts":1,"jobId":"legal-job","result":{"status":"indeterminate","warnings":["Synthetic preserved result"]}}));
+            assert!(value.get("actor_json").is_none());assert!(value.get("result_json").is_none());
+            let mut tx=holding.raw().begin().await.unwrap();let before=grant_image(&mut tx).await;
+            sqlx::query("UPDATE company_package_grants SET state='inactive',version=version+1").execute(&mut *tx).await.unwrap();grant_event(&mut tx,Some(before)).await;tx.commit().await.unwrap();
+            // Retained History survives a removed NewWork grant. Polling is an
+            // item read and never requires new document/processing purchases.
+            assert_eq!(serde_json::to_value(read().await.unwrap()).unwrap(),value);
+            sqlx::query("UPDATE legal_settings SET enabled=false").execute(holding.raw()).await.unwrap();
+            assert_eq!(serde_json::to_value(read().await.unwrap()).unwrap(),value);
+            sqlx::query("DELETE FROM legal_members WHERE item_id='legal-item'").execute(holding.raw()).await.unwrap();
+            assert!(read().await.is_err());
+            sqlx::query("UPDATE legal_processing_jobs SET result_json='not-json' WHERE id='legal-job'").execute(holding.raw()).await.unwrap();
+            assert!(matches!(read().await,Err(PgTransactionError::Business(error)) if error.code=="LEGAL_NOT_FOUND"));
+            sqlx::query("UPDATE legal_processing_jobs SET result_json=repeat('x',3145729),error=repeat('x',65537) WHERE id='legal-job'").execute(holding.raw()).await.unwrap();
+            assert!(matches!(read().await,Err(PgTransactionError::Business(error)) if error.code=="LEGAL_NOT_FOUND"));
+            assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*)FROM attachment_access_events").fetch_one(holding.raw()).await.unwrap(),0);
+        }).await;}).await;
+    }
+    #[cfg(feature = "legal-queue")]
+    #[tokio::test]
+    async fn actual_processing_polling_denies_revocation_and_invalid_bounded_sources() {
+        use erpx_service::legal_processing_status::LegalProcessingStatusService;
+        fixture::with_database(2,|control|async move{fixture::with_database(2,move|holding|async move{
+            let(authorizer,clock)=setup(&control,&holding).await;seed(authorizer.as_ref(),&holding).await;
+            let service=LegalProcessingStatusService::new(authorizer,configuration(),clock);
+            let read=||service.read("acme.example.test",proof(),input(),RecordId::new("legal-job").unwrap());
+            assert!(read().await.unwrap().result.is_none());
+            for value in ["not-json".to_owned(),"x".repeat(3*1024*1024+1)] {
+                sqlx::query("UPDATE legal_processing_jobs SET result_json=$1").bind(value).execute(holding.raw()).await.unwrap();assert!(read().await.is_err());
+            }
+            sqlx::query("UPDATE legal_processing_jobs SET result_json=NULL,error=repeat('x',65537)").execute(holding.raw()).await.unwrap();assert!(read().await.is_err());
+            sqlx::raw_sql("UPDATE legal_processing_jobs SET error=NULL;UPDATE assignments SET valid_until=valid_from+1 WHERE id='grant'").execute(holding.raw()).await.unwrap();
+            assert!(read().await.is_err());
+        }).await;}).await;
+    }
+    #[cfg(feature = "legal-queue")]
+    #[tokio::test]
+    async fn processing_status_witness_cannot_cross_transaction_or_hide_local_row_rewrites() {
+        use erpx_server_legal::public::processing_status::load_legal_processing_status;
+        fixture::with_database(2, |control| async move {
+            fixture::with_database(2, move |holding| async move {
+                let (authorizer, _) = setup(&control, &holding).await;
+                seed(authorizer.as_ref(), &holding).await;
+                let company = CompanyId::new("company").unwrap();
+                let id = RecordId::new("legal-job").unwrap();
+                let mut tx = holding.raw().begin().await.unwrap();
+                sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
+                    .execute(&mut *tx)
+                    .await
+                    .unwrap();
+                let source = load_legal_processing_status(&mut tx, &company, &id)
+                    .await
+                    .unwrap();
+                sqlx::query(
+                    "UPDATE legal_processing_jobs SET error='changed' WHERE id='legal-job'",
+                )
+                .execute(&mut *tx)
+                .await
+                .unwrap();
+                assert!(source.require_current(&mut tx).await.is_err());
+                tx.rollback().await.unwrap();
+                let mut tx = holding.raw().begin().await.unwrap();
+                sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
+                    .execute(&mut *tx)
+                    .await
+                    .unwrap();
+                let source = load_legal_processing_status(&mut tx, &company, &id)
+                    .await
+                    .unwrap();
+                tx.commit().await.unwrap();
+                let mut other = holding.raw().begin().await.unwrap();
+                sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
+                    .execute(&mut *other)
+                    .await
+                    .unwrap();
+                assert!(source.require_current(&mut other).await.is_err());
+                other.rollback().await.unwrap();
             })
             .await;
         })

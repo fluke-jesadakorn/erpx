@@ -10,7 +10,7 @@ function scope(source: PmsHomeSource | null) {
   if (!source) return "disposed";
   const work = typeof document === "undefined" ? null : document.querySelector<HTMLElement>("[data-work-revision]");
   const front = typeof document === "undefined" ? null : document.querySelector<HTMLElement>("[data-front-app]");
-  return JSON.stringify([source, work && [work.dataset.workUser, work.dataset.workRevision, work.dataset.workCompany, work.dataset.workAssignment], front && [front.dataset.frontApp, front.dataset.frontLocation]]);
+  return JSON.stringify([source, work && [work.dataset.workUser, work.dataset.workRevision, work.dataset.workCompany, work.dataset.workAssignment,work.dataset.workAssignmentVersion], front && [front.dataset.frontApp, front.dataset.frontLocation]]);
 }
 export function capturePmsHomeContext(source: () => PmsHomeSource | null) {
   if (!source()) throw Error("The original hotel view is no longer available. Return before retrying.");

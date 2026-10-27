@@ -8,18 +8,24 @@ publish.workspace = true
 autotests = false
 
 [package.metadata.erpx]
-verification-roots = ["../../fixtures/identity_access/account-security", "../../scripts/testing/fixtures/generate-account-security-oracle.ts", "resources", "../../fixtures/identity_access/permissions", "../../scripts/testing/fixtures/generate-work-admission-oracle.ts"]
+verification-roots = ["licenses", "../../fixtures/identity_access/directory", "../../scripts/testing/fixtures/generate-directory-rust-oracle.ts", "../../fixtures/identity_access/account-security", "../../scripts/testing/fixtures/generate-account-security-oracle.ts", "resources", "../../fixtures/identity_access/permissions", "../../scripts/testing/fixtures/generate-work-admission-oracle.ts"]
 
 [lib]
 path = "src/lib.rs"
 
 [features]
+directory-ldaps = ["dep:ldap3_proto", "dep:bytes", "dep:tokio-util", "dep:tracing", "dep:tokio-rustls", "dep:rustls", "dep:webpki-roots"]
 contracts = ["dep:ts-rs", "dep:utoipa"]
 mail-resend = ["dep:reqwest", "dep:rustls", "dep:webpki-roots"]
 mail-smtp = ["dep:lettre"]
 mail-providers = ["mail-resend", "mail-smtp"]
 
 [dependencies]
+ldap3_proto = { workspace = true, optional = true }
+bytes = { workspace = true, optional = true }
+tokio-util = { workspace = true, optional = true }
+tracing = { workspace = true, optional = true }
+tokio-rustls = { workspace = true, optional = true }
 futures-util.workspace = true
 reqwest = { workspace = true, optional = true }
 rustls = { workspace = true, optional = true }
@@ -163,3 +169,20 @@ path = "../../tests/integration/identity_access/rust-account-mfa-postgres.test.r
 [[test]]
 name = "account_security_postgres"
 path = "../../tests/integration/identity_access/rust-account-security-postgres.test.rs"
+
+[[test]]
+name = "directory_policy"
+path = "../../tests/unit/identity_access/rust-directory-policy.test.rs"
+
+[[test]]
+name = "directory_ber"
+path = "../../tests/unit/identity_access/rust-directory-ber.test.rs"
+required-features = ["directory-ldaps"]
+
+[[test]]
+name = "holding_bindings_postgres"
+path = "../../tests/integration/identity_access/rust-holding-bindings-postgres.test.rs"
+
+[[test]]
+name = "account_inbound"
+path = "../../tests/unit/identity_access/rust-account-inbound.test.rs"

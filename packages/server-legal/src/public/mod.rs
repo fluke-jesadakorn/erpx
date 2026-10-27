@@ -96,3 +96,5 @@ pub mod processing_maintenance;
 pub mod record_policy;
 
 pub use crate::adapters::postgres_processing_queue::StagedLegalProcessingQueue;
+
+pub mod processing_status;

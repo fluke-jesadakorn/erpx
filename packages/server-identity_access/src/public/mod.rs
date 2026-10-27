@@ -63,3 +63,8 @@ pub mod command_metadata;
 pub mod account_device_http;
 pub mod account_security;
 pub mod account_security_http;
+
+pub mod account_holding_bindings;
+pub mod account_inbound_http;
+
+pub mod directory;

@@ -8,6 +8,7 @@ publish.workspace = true
 autotests = false
 
 [features]
+business-http = ["legal-queue"]
 legal-queue = []
 legal-pdf-worker = ["erpx-server-legal/pdf-verifier"]
 legal-document-worker = ["erpx-server-legal/document-provider"]
@@ -39,6 +40,7 @@ serde.workspace = true
 nix.workspace = true
 
 [dev-dependencies]
+tower.workspace = true
 time.workspace = true
 tempfile.workspace = true
 
@@ -67,3 +69,8 @@ workspace = true
 [[test]]
 name = "finance_journal_review"
 path = "../../tests/integration/finance/rust-journal-review-composition.test.rs"
+
+[[test]]
+name = "business_http_postgres"
+path = "../../tests/integration/finance/rust-business-http-postgres.test.rs"
+required-features = ["business-http"]

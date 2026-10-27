@@ -192,7 +192,7 @@ export default async function FrontAppPage({ params, searchParams, }: {
             revision: actor.authority!.revision,
             options: frontRoles.options.map(option => ({ id: option.id, label: option.label ?? option.role.replaceAll("_", " ") })),
         }}>
-    <WorkContextBoundary base={workspace} companyId={actor.companyId} assignmentId={actor.assignmentId} revision={actor.authority!.revision} frontApp={app} frontLocation={selectedLocation} frontRoleEndpoint={"/api/v1/front/" + encodeURIComponent(holdingSlug) + "/" + encodeURIComponent(companySlug) + "/" + app}>
+    <WorkContextBoundary base={workspace} userId={actor.userId} companyId={actor.companyId} assignmentId={actor.assignmentId} revision={actor.authority!.revision} assignmentVersion={actor.authority!.assignmentVersion} frontApp={app} frontLocation={selectedLocation} frontRoleEndpoint={"/api/v1/front/" + encodeURIComponent(holdingSlug) + "/" + encodeURIComponent(companySlug) + "/" + app}>
       {content}
     </WorkContextBoundary>
   </FrontAppShell>;

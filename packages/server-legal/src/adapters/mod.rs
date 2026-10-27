@@ -30,3 +30,5 @@ pub(crate) mod processing_maintenance;
 pub(crate) mod trust_material_inspector;
 
 pub(crate) mod postgres_processing_queue;
+
+pub(crate) mod postgres_processing_status;

@@ -75,6 +75,7 @@ pub async fn prepare(system: System) -> PreparedAccountQueuedAuthority {
             HoldingId::new("h001").unwrap(),
             account::fixture::account::policy(),
             system.scenario.clock.clone(),
+            account::fixture::account::holding_registry(),
         )
         .unwrap(),
     );
@@ -93,9 +94,11 @@ pub async fn prepare(system: System) -> PreparedAccountQueuedAuthority {
     assert_eq!(binding.session_id.as_str(), issued.result.session_id);
     assert_eq!(binding.user_id.as_str(), "fixture-a");
     let queued = Arc::new(PgQueuedWorkAuthorizer::new(
+        system.control.clone(),
         holding.clone(),
         HoldingId::new("h001").unwrap(),
         system.scenario.clock.clone(),
+        account::fixture::account::holding_registry(),
     ));
     PreparedAccountQueuedAuthority {
         account_auth: system.scenario.auth.clone(),

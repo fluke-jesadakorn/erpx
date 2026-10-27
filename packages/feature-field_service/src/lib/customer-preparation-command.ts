@@ -5,7 +5,7 @@ import type {ServiceCustomerInput,ServiceCustomerResult,ServiceCustomerConfirmat
 import {decimalToMinor} from '@erpx/feature-finance/lib/finance-money';
 
 export type ServiceCustomerSource={base:string;companyId:string;workspaceKey:string;contextKey:string|null};
-const work=()=>{const node=typeof document==='undefined'?null:document.querySelector<HTMLElement>('[data-work-revision]');return node?[node.dataset.workUser,node.dataset.workRevision,node.dataset.workCompany,node.dataset.workAssignment].join(':'):'server';};
+const work=()=>{const node=typeof document==='undefined'?null:document.querySelector<HTMLElement>('[data-work-revision]');return node?JSON.stringify([node.dataset.workUser,node.dataset.workRevision,node.dataset.workCompany,node.dataset.workAssignment,node.dataset.workAssignmentVersion]):'server';};
 const owner=(source:ServiceCustomerSource)=>JSON.stringify([source.base,source.companyId,source.workspaceKey]);
 const route=()=>typeof window==='undefined'?'server':window.location.pathname+window.location.search;
 const record=(value:unknown):value is Record<string,unknown>=>!!value&&typeof value==='object'&&!Array.isArray(value);

@@ -28,6 +28,7 @@ pub fn services_with_keys(system: &fixture::System, keys: Arc<AccountMfaKeyring>
         environment.clone(),
         keys.clone(),
         system.scenario.clock.clone(),
+        fixture::fixture::account::holding_registry(),
     )
     .unwrap();
     let security = PostgresAccountSecurity::new(
@@ -36,6 +37,7 @@ pub fn services_with_keys(system: &fixture::System, keys: Arc<AccountMfaKeyring>
         system.scenario.clock.clone(),
         fixture::invalidator(&system.holdings, system.scenario.clock.clone()),
         keys.clone(),
+        fixture::fixture::account::holding_registry(),
     )
     .unwrap();
     Services {

@@ -23,7 +23,7 @@ const object=(value:unknown):value is Record<string,unknown>=>!!value&&typeof va
 const positive=(value:unknown):value is number=>typeof value==='number'&&Number.isSafeInteger(value)&&value>0;
 export const positionBindingCanPrepare=(data:PeopleLifecycleData)=>data.canPrepare&&(data.purchases?.identity.newWork??true);
 export const positionBindingCanPreview=(data:PeopleLifecycleData)=>data.canPrepare&&(data.purchases?.identity.history??true);
-function workOwner(){const node=typeof document==='undefined'?null:document.querySelector<HTMLElement>('[data-work-revision]');return node?JSON.stringify([node.dataset.workUser,node.dataset.workCompany,node.dataset.workAssignment]):'server';}
+function workOwner(){const node=typeof document==='undefined'?null:document.querySelector<HTMLElement>('[data-work-revision]');return node?JSON.stringify([node.dataset.workUser,node.dataset.workCompany,node.dataset.workAssignment,node.dataset.workAssignmentVersion]):'server';}
 function changed(){return Object.assign(Error('Your position source, account or work role changed. Review the current owner before recovering the original request; your newer draft is retained.'),{code:'WORK_CONTEXT_CHANGED'});}
 function completionUnchanged(completion?:WorkCommandCompletion){return !completion||completion.form.isConnected&&completion.form.getAttribute('data-erpx-edit-version')===completion.formEditVersion;}
 const nullableString=(value:unknown)=>value===null||typeof value==='string';

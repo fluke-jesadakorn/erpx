@@ -333,29 +333,17 @@ impl<
         id: &RecordId,
     ) -> Result<LegalProcessingStatus, Error> {
         self.actor_scope(actor).await?;
-        let row=sqlx::query("SELECT id,item_id,document_id,state,attempts::bigint AS attempts,error,octet_length(result_json)::bigint AS result_bytes,CASE WHEN octet_length(result_json)<=$3 THEN result_json END AS result_json FROM legal_processing_jobs WHERE id=$1 AND company_id=$2 FOR SHARE")
-            .bind(id.as_str()).bind(self.company_id.as_str()).bind(PROCESSING_RESULT_LIMIT as i64).fetch_optional(&mut *self.connection).await?.ok_or_else(not_found)?;
-        let item_id = RecordId::new(row.try_get::<String, _>("item_id")?)?;
+        let source = super::postgres_processing_status::load_legal_processing_status(
+            self.connection,
+            &self.company_id,
+            id,
+        )
+        .await?;
         self.bridge
-            .authorize_status(self.connection, actor, &item_id)
+            .authorize_status(self.connection, actor, source.item_id())
             .await?;
-        let length: Option<i64> = row.try_get("result_bytes")?;
-        if length.is_some_and(|length| length > PROCESSING_RESULT_LIMIT as i64) {
-            return Err(corrupt().into());
-        }
-        let result = row
-            .try_get::<Option<String>, _>("result_json")?
-            .map(|json| serde_json::from_str(&json).map_err(|_| corrupt()))
-            .transpose()?;
-        Ok(LegalProcessingStatus {
-            id: id.clone(),
-            item_id,
-            document_id: RecordId::new(row.try_get::<String, _>("document_id")?)?,
-            state: row.try_get("state")?,
-            attempts: u32::try_from(row.try_get::<i64, _>("attempts")?).map_err(|_| corrupt())?,
-            result,
-            error: row.try_get("error")?,
-        })
+        source.require_current(self.connection).await?;
+        source.into_status()
     }
 
     async fn retain_lease(&mut self, lease: &LegalProcessingLease) -> Result<(), Error> {

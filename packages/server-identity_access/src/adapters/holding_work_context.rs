@@ -1,4 +1,5 @@
 //! Lifecycle assembly for selected-grant inspection. It does not authorize an owner mutation.
+use super::account_holding_bindings::ConfiguredHoldingRegistry;
 use crate::{
     adapters::{
         account_sessions::verify_session_in_transaction, postgres_work_context::PgWorkContextReader,
@@ -21,6 +22,7 @@ pub struct HoldingWorkContextInspector {
     holding: PgUnitOfWork,
     holding_id: HoldingId,
     policy: AccountPolicy,
+    holdings: Arc<ConfiguredHoldingRegistry>,
     clock: Arc<dyn Clock + Send + Sync>,
 }
 impl HoldingWorkContextInspector {
@@ -30,6 +32,7 @@ impl HoldingWorkContextInspector {
         holding_id: HoldingId,
         policy: AccountPolicy,
         clock: Arc<dyn Clock + Send + Sync>,
+        holdings: Arc<ConfiguredHoldingRegistry>,
     ) -> Result<Self, BusinessError> {
         policy.validate()?;
         Ok(Self {
@@ -37,6 +40,7 @@ impl HoldingWorkContextInspector {
             holding: PgUnitOfWork::new(holding),
             holding_id,
             policy,
+            holdings,
             clock,
         })
     }
@@ -65,6 +69,7 @@ impl HoldingWorkContextInspector {
         let holding = self.holding.clone();
         let holding_id = self.holding_id.clone();
         let clock = self.clock.clone();
+        let holdings = self.holdings.clone();
         self.control
             .run(move |connection| {
                 Box::pin(async move {
@@ -74,6 +79,7 @@ impl HoldingWorkContextInspector {
                         &audience,
                         &environment,
                         clock.now().get(),
+                        &holdings,
                     )
                     .await?
                     .ok_or_else(|| {
@@ -83,6 +89,7 @@ impl HoldingWorkContextInspector {
                             "Sign in to continue.",
                         )
                     })?;
+                    let binding = holdings.read_current(connection, &audience).await?;
                     let request = WorkContextRequest {
                         holding_id: holding_id.clone(),
                         company_id: input.company_id,
@@ -110,7 +117,7 @@ impl HoldingWorkContextInspector {
                         }),
                         prefer_indexed_reads: false,
                     };
-                    holding
+                    let result = holding
                         .run(options, move |connection| {
                             let request = request.clone();
                             let clock = clock.clone();
@@ -121,7 +128,9 @@ impl HoldingWorkContextInspector {
                                     .await
                             })
                         })
-                        .await
+                        .await?;
+                    binding.require_current(connection).await?;
+                    Ok(result)
                 })
             })
             .await

@@ -1,3 +1,5 @@
+import {assertCurrentFixtureDatabase} from '../../support/runtime-env';
+import {postgresBackupTools} from '../../support/postgres-tools';
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
 import {
@@ -1159,9 +1161,9 @@ it('1059 preserves actual named Count reciprocity against precise source and rec
 // CURRENT-schema recovery only. Source is the real disposable native H001 DB,
 // never an installed database and never described as a pre1059 upgrade.
 it('restores populated current1059 Manufacturing Count provenance into a fresh owned native database without altering its source',async()=>{
- const {execFile}=await import('node:child_process'),{promisify}=await import('node:util'),{mkdtemp,chmod,rm}=await import('node:fs/promises'),{resolve,join}=await import('node:path'),{Pool}=await import('pg'),{PostgresDatabase}=await import('@erpx/server-runtime/adapters/runtime/postgres'),run=promisify(execFile),pgDump='/opt/homebrew/opt/postgresql@18/bin/pg_dump',pgRestore='/opt/homebrew/opt/postgresql@18/bin/pg_restore';
+ const {execFile}=await import('node:child_process'),{promisify}=await import('node:util'),{mkdtemp,chmod,rm}=await import('node:fs/promises'),{resolve,join}=await import('node:path'),{Pool}=await import('pg'),{PostgresDatabase}=await import('@erpx/server-runtime/adapters/runtime/postgres'),run=promisify(execFile),{pgDump,pgRestore}=await postgresBackupTools();
  const adminUrl=new URL(process.env.ERPX_TEST_ADMIN_URL??'postgresql://erpx_test_admin@127.0.0.1:5432/postgres');if(!['postgresql:','postgres:'].includes(adminUrl.protocol)||adminUrl.search||adminUrl.hash||adminUrl.hostname!=='127.0.0.1'||adminUrl.port!=='5432'||adminUrl.username!=='erpx_test_admin'||adminUrl.pathname!=='/postgres')throw Error('LOCAL_TEST_ADMIN_REQUIRED');
- const sourceIdentity=await db.prepare("SELECT current_database() name,current_user actor,pg_get_userbyid(datdba) owner,host(inet_server_addr()) host,inet_server_port() port FROM pg_database WHERE datname=current_database()").first<{name:string;actor:string;owner:string;host:string;port:number}>();if(!sourceIdentity||!/^erpx_test_[a-f0-9]{10}_h001_db$/.test(sourceIdentity.name)||sourceIdentity.actor!=='erpx_test_admin'||sourceIdentity.owner!=='erpx_test_admin'||sourceIdentity.host!=='127.0.0.1'||sourceIdentity.port!==5432)throw Error('EXACT_NATIVE_SOURCE_DATABASE_REQUIRED');
+ const sourceIdentity=await assertCurrentFixtureDatabase(db,'H001_DB');
  const databaseName=`erpx_test_mfg1059_restore_${key().replaceAll('-','')}`;if(!/^erpx_test_mfg1059_restore_[a-f0-9]{32}$/.test(databaseName))throw Error('ISOLATED_DATABASE_REQUIRED');const directory=await mkdtemp(resolve('.runtime/tests/manufacturing1059-current-')),archive=join(directory,'current1059.dump'),admin=new Pool({connectionString:adminUrl.href,max:1});let restored:InstanceType<typeof PostgresDatabase>|undefined,created=false;
  type Database=import("@erpx/server-runtime/public/runtime/types").SqlDatabase;
  async function image(database:Database){

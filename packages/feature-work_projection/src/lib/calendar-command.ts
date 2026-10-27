@@ -3,7 +3,7 @@ import {captureWorkCommandContext} from '@erpx/feature-work_projection/lib/comma
 import {calendarFirstRollback} from '@erpx/feature-work_projection/lib/calendar-command-rejections';
 export type CalendarCommandReceipt={id:string;version:number;status?:string;warnings:string[]};
 export type CalendarCommandAttempt={readonly body:string;readonly key:string;readonly context:string;readonly completion?:WorkCommandCompletion};
-export function calendarCommandContext(){const node=typeof document==='undefined'?null:document.querySelector<HTMLElement>('[data-work-revision]');return node?[node.dataset.workUser,node.dataset.workRevision,node.dataset.workCompany,node.dataset.workAssignment].join(':'):'server';}
+export function calendarCommandContext(){const node=typeof document==='undefined'?null:document.querySelector<HTMLElement>('[data-work-revision]');return node?JSON.stringify([node.dataset.workUser,node.dataset.workRevision,node.dataset.workCompany,node.dataset.workAssignment,node.dataset.workAssignmentVersion]):'server';}
 export function calendarFormUnchanged(completion?:WorkCommandCompletion){return !completion||completion.form.isConnected&&completion.form.getAttribute('data-erpx-edit-version')===completion.formEditVersion;}
 export function validCalendarReceipt(attempt:CalendarCommandAttempt,value:unknown):value is CalendarCommandReceipt{
  if(!value||typeof value!=='object'||!('id'in value)||typeof value.id!=='string'||!('version'in value)||!Number.isSafeInteger(value.version)||Number(value.version)<1||!('warnings'in value)||!Array.isArray(value.warnings)||!value.warnings.every(message=>typeof message==='string'))return false;

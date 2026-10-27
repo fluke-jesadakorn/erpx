@@ -126,8 +126,10 @@ async fn purchase_revocation_after_iam_snapshot_retries_the_whole_unit_and_denie
 }
 
 #[tokio::test]
-async fn actual_account_retirement_waits_for_the_owning_financial_commit_then_denies_more_work() {
-    account::with_system(|system|async move {
+async fn actual_account_retirement_and_binding_withdrawal_wait_for_financial_commit_then_deny_exact_replay()
+ {
+    for withdrawal in ["account", "binding"] {
+        account::with_system(move|system|async move {
         let p=setup(system).await;p.create("retained-control",false).await.unwrap();
         let pool=&p.system.holdings[0];
         sqlx::raw_sql("CREATE FUNCTION hold_actual_finance_audit()RETURNS trigger LANGUAGE plpgsql AS $$BEGIN IF NEW.action='finance.journal.post'THEN PERFORM pg_advisory_xact_lock(703391);END IF;RETURN NEW;END$$;CREATE TRIGGER hold_actual_finance_audit BEFORE INSERT ON audit_events FOR EACH ROW EXECUTE FUNCTION hold_actual_finance_audit()")
@@ -142,7 +144,8 @@ async fn actual_account_retirement_waits_for_the_owning_financial_commit_then_de
             let auth=p.system.scenario.auth.clone();let central=erpx_server_identity_access::public::PresentedSecrets {
                 browser:p.reviewer_central.browser.clone(),active:p.reviewer_central.active.clone(),saved:p.reviewer_central.saved.clone(),
             };
-            let retire=tokio::spawn(async move{auth.sign_out(&central,RequestAudience::Account).await});
+            let control=p.system.control.clone();
+            let retire=tokio::spawn(async move{if withdrawal=="account"{auth.sign_out(&central,RequestAudience::Account).await}else{sqlx::query("UPDATE holding_bindings SET status='suspended'WHERE holding_id='h001'").execute(control.raw()).await.unwrap();Ok(())}});
             // The session-first Control SHARE lease is retained through the
             // blocked audit. Observe the real Control command lock wait.
             let control_db:String=sqlx::query_scalar("SELECT current_database()").fetch_one(p.system.control.raw()).await.unwrap();
@@ -160,6 +163,7 @@ async fn actual_account_retirement_waits_for_the_owning_financial_commit_then_de
         }
         waiting.expect("actual audit wait was not observed");
     }).await;
+    }
 }
 #[tokio::test]
 async fn actual_account_authority_purchase_and_workflow_post_reverse_and_replay_one_manual_origin()

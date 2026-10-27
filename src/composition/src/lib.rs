@@ -27,3 +27,9 @@ pub mod legal_worker_bootstrap;
 pub mod legal_queue_administration;
 
 pub mod finance_journal_review;
+
+#[cfg(feature = "legal-queue")]
+pub mod legal_processing_status;
+
+#[cfg(feature = "business-http")]
+pub mod business_http;

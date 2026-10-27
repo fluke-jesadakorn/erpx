@@ -10,6 +10,11 @@ license = "Apache-2.0"
 publish = false
 
 [workspace.dependencies]
+ldap3_proto = "=0.8.1"
+bytes = "=1.12.1"
+tracing = "=0.1.44"
+tokio-util = { version = "=0.7.20", default-features = false, features = ["codec"] }
+tokio-rustls = { version = "=0.26.6", default-features = false, features = ["ring", "tls12"] }
 erpx-server-commerce = { path = "packages/server-commerce" }
 erpx-server-quality = { path = "packages/server-quality" }
 erpx-server-inventory = { path = "packages/server-inventory" }

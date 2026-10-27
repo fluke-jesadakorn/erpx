@@ -458,6 +458,7 @@ async fn parent_expiry_after_real_holding_commits_denies_recovery_and_keeps_old_
                         true,
                         invalidation,
                         system.scenario.clock.clone(),
+                        fixture::fixture::account::holding_registry(),
                     )
                     .unwrap(),
                 ),
@@ -626,6 +627,7 @@ async fn expired_recovery_reservation_cannot_complete_or_release_a_newer_origina
             true,
             fixture::invalidator(&system.holdings, system.scenario.clock.clone()),
             system.scenario.clock.clone(),
+            fixture::fixture::account::holding_registry(),
         )
         .unwrap();
         let make = |nonce: OpaqueSecret, browser: OpaqueSecret, now: i64| ReserveSignIn {

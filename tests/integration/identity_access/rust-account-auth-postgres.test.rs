@@ -46,6 +46,7 @@ async fn setup(pool: &DatabasePool) -> Arc<AccountAuthentication> {
                     true,
                     Arc::new(fixture::RecordedFixtureRevocations::default()),
                     Arc::new(fixture::FixedClock),
+                    fixture::holding_registry(),
                 )
                 .unwrap(),
             ),
@@ -496,6 +497,7 @@ async fn removing_an_inactive_account_preserves_the_active_holding_child_and_rev
             true,
             Arc::new(fixture::RecordedFixtureRevocations::default()),
             Arc::new(fixture::FixedClock),
+            fixture::holding_registry(),
         )
         .unwrap();
         let nonce = SystemAuthenticationSecrets.issue().unwrap();

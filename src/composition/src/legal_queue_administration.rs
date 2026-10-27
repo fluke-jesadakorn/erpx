@@ -47,16 +47,31 @@ impl<C: Clock + Send + Sync + 'static> LegalQueueAdministration<C> {
         &self,
         host: &str,
         proof: DeviceProof,
-        mut workspace: HoldingWorkspaceRequest,
+        workspace: HoldingWorkspaceRequest,
         request: LegalQueueRequest,
     ) -> Result<LegalProcessingReceipt, Error> {
-        // Queue production is always a mutation, including an exact receipt
-        // replay. A caller cannot downgrade selected-grant CAS to a read.
-        workspace.mutation = true;
+        self.queue_transport(host, proof, move || Ok(workspace), request)
+            .await
+    }
+    pub async fn queue_transport<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        workspace: Input,
+        request: LegalQueueRequest,
+    ) -> Result<LegalProcessingReceipt, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let workspace = move || {
+            let mut workspace = workspace()?;
+            workspace.mutation = true;
+            Ok(workspace)
+        };
         let configuration = self.configuration.clone();
         let clock = self.clock.clone();
         self.authorizer
-            .execute_with_sources(
+            .execute_with_sources_deferred(
                 host,
                 proof,
                 workspace,

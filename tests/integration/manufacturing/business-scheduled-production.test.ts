@@ -1,3 +1,4 @@
+import {attachmentToolEnvironment} from '../../../scripts/testing/runtime-tooling';
 import {afterAll,afterEach,beforeAll,beforeEach,expect,it,vi} from 'vitest';
 import {mkdir,rm,writeFile} from 'node:fs/promises';
 import {createHash,randomBytes} from 'node:crypto';
@@ -50,6 +51,7 @@ async function stockAndDeliveryJournal(s:typeof enabled){return {
  movements:(await db.prepare('SELECT id,source_type,source_id,quantity_milli,value_minor,movement_date,created_at FROM inventory_ledger WHERE warehouse_id=? ORDER BY id').bind(s.warehouse).all()).results,
 };}
 
+const configuredAttachmentTools=attachmentToolEnvironment(process.cwd());
 it('blocks nonattested production alert creation and mail claims without consuming native sources',async()=>{
  vi.stubEnv('ERPX_ENGINEERING_VERIFICATION_RUN','');
  expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:0,overdue:0});expect(await escalateInventoryReservations(db,now)).toEqual({expiring:0,expired:0});
@@ -127,7 +129,7 @@ it('rechecks live Quality recipients and cached authority after revocation and r
 });
 it('prepares worker sources through native counted inventory and actual ClamAV-bound delivery evidence',async()=>{
  vi.stubEnv('NODE_ENV','development');vi.stubEnv('ERPX_ATTACHMENTS_V2','true');vi.stubEnv('ERPX_ATTACHMENT_UPLOAD_FREEZE','false');
- vi.stubEnv('ERPX_CLAMD_SOCKET',resolve('.scratch/dev/clamav/clamd.sock'));vi.stubEnv('ERPX_CLAMAV_DATABASE_DIR',resolve('.scratch/dev/clamav/db'));
+ vi.stubEnv('ERPX_CLAMD_SOCKET',configuredAttachmentTools.ERPX_CLAMD_SOCKET);vi.stubEnv('ERPX_CLAMAV_DATABASE_DIR',configuredAttachmentTools.ERPX_CLAMAV_DATABASE_DIR);
  const s=await seedBusinessWorkerSources(db,files,{now,label:'Actual scanned isolated worker source',proof:'clamav',nativeOpening:true});
  expect(s.openingCounts).toHaveLength(2);expect(s.evidence?.engine).toContain('ClamAV');
  expect(await db.prepare("SELECT a.source_state,a.checksum_sha256,l.state,l.binding_type,l.binding_id FROM attachments a JOIN attachment_links l ON l.attachment_id=a.id WHERE a.id=?").bind(s.evidence!.sourceId).first()).toEqual({source_state:'available',checksum_sha256:s.evidence!.sha256,state:'bound',binding_type:'commerce_fulfillment',binding_id:s.fulfillmentId});

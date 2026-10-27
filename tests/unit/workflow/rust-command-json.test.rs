@@ -130,3 +130,43 @@ fn malformed_and_oversized_json_never_become_a_receipt_identity() {
     assert!(CommandJson::parse(&format!("{}null{}", "[".repeat(130), "]".repeat(130))).is_err());
     assert!(CommandJson::parse(&format!("\"{}\"", "x".repeat(2 * 1024 * 1024))).is_err());
 }
+
+#[test]
+fn utf8_storage_text_never_replaces_exact_utf16_receipt_identity() {
+    for (input, expected) in [
+        (r#""plain ไทย""#, "plain ไทย"),
+        (r#""\ud83d\ude00""#, "😀"),
+        (r#""a\ud800b""#, "a�b"),
+        (r#""\udc00\ud800""#, "��"),
+    ] {
+        let value = CommandJson::parse(input).unwrap();
+        let before = value.as_str().to_owned();
+        assert_eq!(
+            value.string_utf8_storage().unwrap().as_deref(),
+            Some(expected)
+        );
+        assert_eq!(value.as_str(), before);
+    }
+    for input in ["null", "true", "12", "[]", r#"{"memo":"text"}"#] {
+        assert!(
+            CommandJson::parse(input)
+                .unwrap()
+                .string_utf8_storage()
+                .unwrap()
+                .is_none()
+        );
+    }
+    let source = corpus();
+    let row = &source["fingerprints"][0];
+    let current = actor(row["actorJson"].as_str().unwrap());
+    let high = CommandJson::parse(r#""\ud800""#).unwrap();
+    let low = CommandJson::parse(r#""\udc00""#).unwrap();
+    assert_eq!(
+        high.string_utf8_storage().unwrap(),
+        low.string_utf8_storage().unwrap()
+    );
+    assert_ne!(
+        command_fingerprint(&current, "finance.journal.reverse", "journal", &high).unwrap(),
+        command_fingerprint(&current, "finance.journal.reverse", "journal", &low).unwrap()
+    );
+}

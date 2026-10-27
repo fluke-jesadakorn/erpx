@@ -1,3 +1,4 @@
+use super::account_holding_bindings::ConfiguredHoldingRegistry;
 use crate::{
     adapters::{
         account_sessions::verify_session_in_transaction,
@@ -44,6 +45,7 @@ pub struct HoldingWorkAuthorizer {
     holding: PgUnitOfWork,
     holding_id: HoldingId,
     policy: AccountPolicy,
+    holdings: Arc<ConfiguredHoldingRegistry>,
     clock: Arc<dyn Clock + Send + Sync>,
 }
 impl HoldingWorkAuthorizer {
@@ -53,6 +55,7 @@ impl HoldingWorkAuthorizer {
         holding_id: HoldingId,
         policy: AccountPolicy,
         clock: Arc<dyn Clock + Send + Sync>,
+        holdings: Arc<ConfiguredHoldingRegistry>,
     ) -> Result<Self, BusinessError> {
         policy.validate()?;
         Ok(Self {
@@ -60,6 +63,7 @@ impl HoldingWorkAuthorizer {
             holding: PgUnitOfWork::new(holding),
             holding_id,
             policy,
+            holdings,
             clock,
         })
     }
@@ -113,6 +117,44 @@ impl HoldingWorkAuthorizer {
             + Sync
             + 'static,
     {
+        self.execute_with_sources_deferred(
+            host,
+            proof,
+            move || Ok(input),
+            access,
+            preparation,
+            action,
+        )
+        .await
+    }
+    /// Resolve only transport selectors after the actual Account/Holding session
+    /// is verified on the retained Control lease. No input can mint an Actor;
+    /// all current IAM/owner policy checks and final retention remain canonical.
+    pub async fn execute_with_sources_deferred<
+        T: Send + 'static,
+        F,
+        Input,
+        Preparation: HoldingWorkSourcePreparation,
+    >(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        access: WorkAuthorizationRequest,
+        preparation: Preparation,
+        action: F,
+    ) -> Result<T, PgTransactionError<BusinessError>>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+        F: for<'c> Fn(
+                &'c mut PgConnection,
+                &'c AuthorizedWorkContext,
+            ) -> PgWorkFuture<'c, T, BusinessError>
+            + Clone
+            + Send
+            + Sync
+            + 'static,
+    {
         let Some(RequestAudience::Holding { audience }) = self.policy.audience(host) else {
             return Err(missing().into());
         };
@@ -130,6 +172,7 @@ impl HoldingWorkAuthorizer {
         let holding = self.holding.clone();
         let holding_id = self.holding_id.clone();
         let clock = self.clock.clone();
+        let holdings = self.holdings.clone();
         self.control
             .run(move |connection| {
                 Box::pin(async move {
@@ -139,6 +182,7 @@ impl HoldingWorkAuthorizer {
                         &audience,
                         &environment,
                         clock.now().get(),
+                        &holdings,
                     )
                     .await?
                     .ok_or_else(|| {
@@ -148,6 +192,8 @@ impl HoldingWorkAuthorizer {
                             "Sign in to continue.",
                         )
                     })?;
+                    let binding = holdings.read_current(connection, &audience).await?;
+                    let input = input()?;
                     let request = WorkContextRequest {
                         holding_id: holding_id.clone(),
                         company_id: input.company_id,
@@ -169,7 +215,7 @@ impl HoldingWorkAuthorizer {
                         )
                         .as_bytes(),
                     ));
-                    holding
+                    let result = holding
                         .run(
                             TransactionOptions {
                                 session_lock: Some(SessionLock {
@@ -231,7 +277,9 @@ impl HoldingWorkAuthorizer {
                                 })
                             },
                         )
-                        .await
+                        .await?;
+                    binding.require_current(connection).await?;
+                    Ok(result)
                 })
             })
             .await

@@ -1,3 +1,4 @@
+use super::account_holding_bindings::ConfiguredHoldingRegistry;
 use super::{
     account_mfa_crypto::AccountMfaKeyring,
     account_postgres::{TxResult, finish, options},
@@ -33,6 +34,7 @@ pub(crate) async fn current(
     audience: &RequestAudience,
     environment: &str,
     now: i64,
+    holdings: &ConfiguredHoldingRegistry,
 ) -> TxResult<AccountSession> {
     lock_session_reads(connection).await?;
     if proof.saved.len() > 5 {
@@ -55,12 +57,15 @@ pub(crate) async fn current(
         )
         .into());
     }
-    Ok(read_session(connection, proof, audience, environment, now)
-        .await?
-        .ok_or_else(signed_out)?)
+    Ok(
+        read_session(connection, proof, audience, environment, now, holdings)
+            .await?
+            .ok_or_else(signed_out)?,
+    )
 }
 pub struct PostgresAccountMfa {
     unit: PgUnitOfWork,
+    holdings: Arc<ConfiguredHoldingRegistry>,
     environment: String,
     keys: Arc<AccountMfaKeyring>,
     clock: Arc<dyn Clock + Send + Sync>,
@@ -71,6 +76,7 @@ impl PostgresAccountMfa {
         environment: String,
         keys: Arc<AccountMfaKeyring>,
         clock: Arc<dyn Clock + Send + Sync>,
+        holdings: Arc<ConfiguredHoldingRegistry>,
     ) -> Result<Self, BusinessError> {
         if environment != "development" {
             return Err(BusinessError::invalid(
@@ -80,6 +86,7 @@ impl PostgresAccountMfa {
         }
         Ok(Self {
             unit: PgUnitOfWork::new(pool),
+            holdings,
             environment,
             keys,
             clock,
@@ -95,8 +102,9 @@ impl PostgresAccountMfa {
     ) -> Result<(), BusinessError> {
         let environment = self.environment.clone();
         let clock = self.clock.clone();
+        let holdings = self.holdings.clone();
         let count=finish(self.unit.run_once(options(),move|connection|Box::pin(async move{
-            let actor=current(connection,&proof,&audience,&environment,clock.now().get()).await?;
+            let actor=current(connection,&proof,&audience,&environment,clock.now().get(),&holdings).await?;
             let category=if enroll{"mfa-enroll"}else{"mfa"};
             let key=hex::encode(Sha256::digest(format!("{category}:{}",actor.user.id.to_lowercase())));
             let now=clock.now().get();
@@ -123,9 +131,10 @@ impl AccountMfaRepository for PostgresAccountMfa {
             self.attempt(proof.clone(), audience.clone(), true).await?;
             let environment = self.environment.clone();
             let clock = self.clock.clone();
+            let holdings = self.holdings.clone();
             let keys = self.keys.clone();
             finish(self.unit.run_once(options(),move|connection|Box::pin(async move{
-            let actor=current(connection,&proof,&audience,&environment,clock.now().get()).await?;
+            let actor=current(connection,&proof,&audience,&environment,clock.now().get(),&holdings).await?;
             sqlx::query("LOCK TABLE iam_mfa,iam_mfa_sessions IN SHARE ROW EXCLUSIVE MODE").execute(&mut *connection).await?;
             let enabled:Option<bool>=sqlx::query_scalar("SELECT enabled FROM iam_mfa WHERE user_id=$1").bind(&actor.user.id).fetch_optional(&mut *connection).await?;
             if enabled==Some(true){return Err(BusinessError::new(FailureKind::Conflict,"MFA_ALREADY_ENABLED","Your authenticator is already configured.").into());}
@@ -133,7 +142,7 @@ impl AccountMfaRepository for PostgresAccountMfa {
             let secret=keys.generate()?;let envelope=keys.seal(&actor.user.id,&secret)?;
             sqlx::query("INSERT INTO iam_mfa(user_id,secret) VALUES($1,$2) ON CONFLICT(user_id) DO UPDATE SET secret=excluded.secret WHERE iam_mfa.enabled=false").bind(&actor.user.id).bind(&envelope).execute(&mut *connection).await?;
             sqlx::query("SET CONSTRAINTS ALL IMMEDIATE").execute(&mut *connection).await?;
-            let final_actor=current(connection,&proof,&audience,&environment,clock.now().get()).await?;
+            let final_actor=current(connection,&proof,&audience,&environment,clock.now().get(),&holdings).await?;
             recent_authentication(final_actor.authenticated_at,clock.now().get())?;
             let stable:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM iam_mfa WHERE user_id=$1 AND secret=$2 AND enabled=false)").bind(&actor.user.id).bind(envelope).fetch_one(connection).await?;
             if !stable||final_actor.id!=actor.id||final_actor.user.id!=actor.user.id{return Err(signed_out().into());}
@@ -158,9 +167,10 @@ impl AccountMfaRepository for PostgresAccountMfa {
             }
             let environment = self.environment.clone();
             let clock = self.clock.clone();
+            let holdings = self.holdings.clone();
             let keys = self.keys.clone();
             finish(self.unit.run_once(options(),move|connection|Box::pin(async move{
-            let actor=current(connection,&proof,&audience,&environment,clock.now().get()).await?;
+            let actor=current(connection,&proof,&audience,&environment,clock.now().get(),&holdings).await?;
             sqlx::query("LOCK TABLE iam_mfa,iam_mfa_sessions IN SHARE ROW EXCLUSIVE MODE").execute(&mut *connection).await?;
             let row=sqlx::query("SELECT CASE WHEN octet_length(secret)<=256 THEN secret END secret,last_counter FROM iam_mfa WHERE user_id=$1 FOR UPDATE").bind(&actor.user.id).fetch_optional(&mut *connection).await?.ok_or_else(||BusinessError::new(FailureKind::Conflict,"MFA_NOT_ENROLLED","Set up your authenticator first."))?;
             let envelope:String=row.try_get("secret")?;let previous:i64=row.try_get("last_counter")?;
@@ -174,7 +184,7 @@ impl AccountMfaRepository for PostgresAccountMfa {
             if updated!=1{return Err(mfa_error("MFA_REPLAY","This code was already used.").into());}
             sqlx::query("INSERT INTO iam_mfa_sessions(session_id,user_id,verified_at) VALUES($1,$2,$3) ON CONFLICT(session_id) DO UPDATE SET verified_at=excluded.verified_at WHERE iam_mfa_sessions.user_id=excluded.user_id").bind(&actor.id).bind(&actor.user.id).bind(now).execute(&mut *connection).await?;
             sqlx::query("SET CONSTRAINTS ALL IMMEDIATE").execute(&mut *connection).await?;
-            let final_now=clock.now().get();let final_actor=current(connection,&proof,&audience,&environment,final_now).await?;
+            let final_now=clock.now().get();let final_actor=current(connection,&proof,&audience,&environment,final_now,&holdings).await?;
             let stable:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM iam_mfa m JOIN iam_mfa_sessions f ON f.user_id=m.user_id WHERE m.user_id=$1 AND m.enabled=true AND m.secret=$2 AND m.last_counter=$3 AND f.session_id=$4 AND f.verified_at=$5)").bind(&actor.user.id).bind(rotated).bind(counter).bind(&actor.id).bind(now).fetch_one(connection).await?;
             fresh_until(true,now,final_now,final_actor.expires_at)?;
             if !stable||final_actor.id!=actor.id||final_actor.user.id!=actor.user.id{return Err(signed_out().into());}
@@ -198,6 +208,7 @@ pub struct FreshMfaProof {
     expires_at: i64,
     source: String,
     keys: Arc<AccountMfaKeyring>,
+    holdings: ConfiguredHoldingRegistry,
 }
 impl FreshMfaProof {
     pub fn user_id(&self) -> &str {
@@ -232,6 +243,7 @@ impl FreshMfaProof {
             &self.environment,
             self.keys.clone(),
             now,
+            &self.holdings,
         )
         .await?;
         if proof.session.id != self.session.id
@@ -262,19 +274,20 @@ pub async fn require_fresh_mfa_in_transaction(
     environment: &str,
     keys: Arc<AccountMfaKeyring>,
     now: i64,
+    holdings: &ConfiguredHoldingRegistry,
 ) -> TxResult<FreshMfaProof> {
     if environment != "development" {
         return Err(signed_out().into());
     }
     let result:TxResult<_>=async{
-        let actor=current(connection,proof,audience,environment,now).await?;
+        let actor=current(connection,proof,audience,environment,now,holdings).await?;
         sqlx::query("LOCK TABLE iam_mfa,iam_mfa_sessions IN SHARE MODE").execute(&mut *connection).await?;
         let row=sqlx::query("SELECT m.enabled,CASE WHEN octet_length(m.secret)<=256 THEN m.secret END secret,f.verified_at,CASE WHEN octet_length(jsonb_build_object('mfa',to_jsonb(m),'verification',to_jsonb(f))::text)<=4096 THEN jsonb_build_object('mfa',to_jsonb(m),'verification',to_jsonb(f))::text END source FROM iam_mfa m JOIN iam_mfa_sessions f ON f.user_id=m.user_id WHERE m.user_id=$1 AND f.session_id=$2 FOR SHARE OF m,f").bind(&actor.user.id).bind(&actor.id).fetch_optional(&mut *connection).await?.ok_or_else(||mfa_error("FRESH_MFA_REQUIRED","Verify your authenticator before this sensitive change."))?;
         let secret:String=row.try_get("secret")?;
         keys.open(&actor.user.id,&secret)?;
         let expires_at=fresh_until(row.try_get("enabled")?,row.try_get("verified_at")?,now,actor.expires_at)?;
         let (backend,transaction,database)=transaction_identity(connection).await?;
-        Ok(FreshMfaProof{session:actor,proof:proof.clone(),audience:audience.clone(),environment:environment.into(),backend,transaction,database,expires_at,source:row.try_get("source")?,keys})
+        Ok(FreshMfaProof{session:actor,proof:proof.clone(),audience:audience.clone(),environment:environment.into(),backend,transaction,database,expires_at,source:row.try_get("source")?,keys,holdings:holdings.clone()})
     }.await;
     result
 }

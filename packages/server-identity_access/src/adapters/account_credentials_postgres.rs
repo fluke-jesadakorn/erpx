@@ -1,4 +1,5 @@
 use super::account_group_recovery::rotate_key;
+use super::account_holding_bindings::ConfiguredHoldingRegistry;
 use super::account_revocation_postgres::invalidate_children;
 use crate::application::account_revocation::AccountWorkContextInvalidation;
 use crate::{
@@ -20,6 +21,7 @@ use std::sync::Arc;
 
 pub struct PostgresAccountCredentials {
     unit: PgUnitOfWork,
+    holdings: Arc<ConfiguredHoldingRegistry>,
     invalidation: Arc<dyn AccountWorkContextInvalidation>,
     environment: String,
     invitations: Arc<dyn InvitationCredentialAuthority>,
@@ -32,6 +34,7 @@ impl PostgresAccountCredentials {
         invitations: Arc<dyn InvitationCredentialAuthority>,
         invalidation: Arc<dyn AccountWorkContextInvalidation>,
         clock: Arc<dyn Clock + Send + Sync>,
+        holdings: Arc<ConfiguredHoldingRegistry>,
     ) -> Result<Self, BusinessError> {
         if environment != "development" {
             return Err(BusinessError::invalid(
@@ -41,6 +44,7 @@ impl PostgresAccountCredentials {
         }
         Ok(Self {
             unit: PgUnitOfWork::new(pool),
+            holdings,
             environment,
             invitations,
             invalidation,
@@ -186,6 +190,7 @@ async fn authenticated_credential(
     proof: &DeviceProof,
     environment: &str,
     now: i64,
+    holdings: &ConfiguredHoldingRegistry,
 ) -> TxResult<CredentialSnapshot> {
     let session = read_session(
         connection,
@@ -193,6 +198,7 @@ async fn authenticated_credential(
         &RequestAudience::Account,
         environment,
         now,
+        holdings,
     )
     .await?
     .ok_or_else(denied)?;
@@ -299,12 +305,12 @@ impl AccountCredentialRepository for PostgresAccountCredentials {
     }
     fn verify_email(&self, input: VerifyCredential) -> AccountFuture<'_, VerifiedCredential> {
         Box::pin(async move {
-            finish(self.unit.run_once(options(),|connection|{let input=input.clone();let environment=self.environment.clone();let clock=self.clock.clone();let invalidation=self.invalidation.clone();Box::pin(async move{
+            finish(self.unit.run_once(options(),|connection|{let input=input.clone();let environment=self.environment.clone();let clock=self.clock.clone();let invalidation=self.invalidation.clone();let holdings=self.holdings.clone();Box::pin(async move{
   locks(connection).await?;
                             let now=clock.now().get();let(id,current,expires)=proof(connection,CredentialProofKind::EmailVerification,&input.token_digest,now).await?;
   let prepared=ensure_browser(connection,&input.proof,&input.candidate_browser,&environment,input.expected_revision,now,BrowserEnrollment::FreshAuthenticated).await?;let state=browser(connection,&prepared.id).await?.ok_or_else(invalid_proof)?;revision(&state,input.expected_revision,now)?;let created_browser=prepared.created||prepared.recovery_expires_at.is_some();if prepared.recovery_expires_at.is_some(){rotate_key(connection,&prepared.id,&prepared.cookie,now).await?;}
   sqlx::query("UPDATE \"user\" SET \"emailVerified\"=1,\"updatedAt\"=$2 WHERE id=$1").bind(&current.user_id).bind(now).execute(&mut *connection).await?;cancel_proofs(connection,&current.user_id,Some(CredentialProofKind::EmailVerification.as_str()),now).await?;
-  let completed=issue_account_session(connection,IssuedAccountSession{proof:input.proof,browser:prepared.id,cookie_digest:prepared.cookie,session_id:input.session_id,session_digest:input.session_digest,handle:input.handle,user_id:current.user_id.clone(),now},&environment,invalidation.as_ref(),clock.as_ref()).await?;
+  let completed=issue_account_session(connection,IssuedAccountSession{proof:input.proof,browser:prepared.id,cookie_digest:prepared.cookie,session_id:input.session_id,session_digest:input.session_digest,handle:input.handle,user_id:current.user_id.clone(),now},&environment,invalidation.as_ref(),clock.as_ref(),&holdings).await?;
   audit(connection,&input.event_id,&current.user_id,"email_verified",Some(&id),now).await?;sqlx::query("SET CONSTRAINTS ALL IMMEDIATE").execute(&mut *connection).await?;if clock.now().get()>=expires||prepared.recovery_expires_at.is_some_and(|expiry|expiry<=clock.now().get()){return Err(invalid_proof().into());}Ok(VerifiedCredential{completed,created_browser})
  })}).await)
         })
@@ -321,6 +327,7 @@ impl AccountCredentialRepository for PostgresAccountCredentials {
                         let proof = proof.clone();
                         let clock = self.clock.clone();
                         let environment = self.environment.clone();
+                        let holdings = self.holdings.clone();
                         Box::pin(async move {
                             lock_session_reads(connection).await?;
                             sqlx::query("LOCK TABLE account IN SHARE MODE")
@@ -331,6 +338,7 @@ impl AccountCredentialRepository for PostgresAccountCredentials {
                                 &proof,
                                 &environment,
                                 clock.now().get(),
+                                &holdings,
                             )
                             .await
                         })
@@ -348,6 +356,7 @@ impl AccountCredentialRepository for PostgresAccountCredentials {
                         let clock = self.clock.clone();
                         let invalidation = self.invalidation.clone();
                         let environment = self.environment.clone();
+                        let holdings = self.holdings.clone();
                         Box::pin(async move {
                             locks(connection).await?;
                             let now = clock.now().get();
@@ -357,6 +366,7 @@ impl AccountCredentialRepository for PostgresAccountCredentials {
                                 &RequestAudience::Account,
                                 &environment,
                                 now,
+                                &holdings,
                             )
                             .await?
                             .ok_or_else(denied)?;
@@ -365,6 +375,7 @@ impl AccountCredentialRepository for PostgresAccountCredentials {
                                 &input.proof,
                                 &environment,
                                 now,
+                                &holdings,
                             )
                             .await?;
                             if current.password_hash != input.previous {

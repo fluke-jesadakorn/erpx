@@ -1,7 +1,8 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 use erpx_server_organization::public::{
-    PgOrganizationReader, WorkspaceRouteQuery, read_company_context, resolve_workspace,
+    NodeKind, PgOrganizationReader, WorkspaceRouteQuery, lock_hierarchy_sources,
+    read_company_context, resolve_workspace,
 };
 use erpx_server_runtime::public::postgres::{
     MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions, load_migrations,
@@ -49,6 +50,15 @@ async fn structural_routes_use_current_active_company_lineage_on_the_callers_tra
             let second:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(connection).await?;assert_eq!(pid,second);Ok(context)
         })).await.unwrap();
         assert_eq!(context.holding_id().as_str(),"h001");assert_eq!(context.company().id.as_str(),"company");assert_eq!(context.branch().unwrap().id.as_str(),"branch");
+        for (kind,id,expected_branch,valid) in [(NodeKind::Branch,"branch",Some("branch"),true),(NodeKind::Department,"department",Some("branch"),true),(NodeKind::Department,"company-department",None,true),(NodeKind::Department,"foreign-dept",None,false),(NodeKind::Branch,"department",None,false),(NodeKind::Company,"company",None,false)] {
+            PgUnitOfWork::new(pool.clone()).run::<_,BusinessError,_>(TransactionOptions::default(),move|connection|Box::pin(async move {
+                lock_hierarchy_sources(connection).await?;
+                let result=PgOrganizationReader::new(HoldingId::new("h001").unwrap(),connection).scope_node_context(&CompanyId::new("company").unwrap(),kind,&RecordId::new(id).unwrap()).await;
+                assert_eq!(result.is_ok(),valid,"scope node {id}");
+                if let Ok(context)=result {assert_eq!(context.branch().map(|b|b.id.as_str()),expected_branch);assert_eq!(context.department().is_some(),kind==NodeKind::Department)}
+                Ok(())
+            })).await.unwrap();
+        }
         for (branch,department,valid) in [(None,None,true),(Some("branch"),None,true),(Some("branch"),Some("department"),true),(None,Some("company-department"),true),(None,Some("department"),false),(Some("branch"),Some("company-department"),false),(Some("branch"),Some("foreign-dept"),false),(Some("missing"),None,false)] {
             uow.run::<_,BusinessError,_>(TransactionOptions::default(),move|connection|Box::pin(async move {
                 let before:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *connection).await?;

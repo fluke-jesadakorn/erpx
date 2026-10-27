@@ -6,7 +6,7 @@
 mod support;
 use erpx_server_identity_access::public::{account_security::*, *};
 use erpx_server_shared::public::Clock;
-use sqlx::Row;
+use sqlx::{Connection, Row};
 use std::sync::Arc;
 
 #[tokio::test]
@@ -22,7 +22,9 @@ async fn an_older_serializable_snapshot_cannot_keep_mfa_fresh_after_a_concurrent
         if disable{sqlx::query("UPDATE iam_mfa SET enabled=false WHERE user_id='fixture-a'").execute(&mut *writer).await.unwrap();}
         else{let envelope:String=sqlx::query_scalar("SELECT secret FROM iam_mfa WHERE user_id='fixture-a'").fetch_one(&mut *writer).await.unwrap();let rotated=s.keys.seal("fixture-a",&s.keys.open("fixture-a",&envelope).unwrap()).unwrap();sqlx::query("UPDATE iam_mfa SET secret=$1 WHERE user_id='fixture-a'").bind(rotated).execute(&mut *writer).await.unwrap();}
         let raw=proof.proof(&SystemAuthenticationSecrets);let keys=s.keys.clone();let now=system.scenario.clock.now().get();
-        let task=tokio::spawn(async move{let result=require_fresh_mfa_in_transaction(&mut reader,&raw,&RequestAudience::Account,"development",keys,now).await;sqlx::query("ROLLBACK").execute(&mut *reader).await.unwrap();match result{Err(PgTransactionError::Persistence(error))=>error.sql_state().map(str::to_owned),_=>None}});
+        let task=tokio::spawn(async move{let result=require_fresh_mfa_in_transaction(&mut reader,&raw,&RequestAudience::Account,"development",keys,now,
+&fixture::fixture::account::holding_registry(),
+).await;sqlx::query("ROLLBACK").execute(&mut *reader).await.unwrap();match result{Err(PgTransactionError::Persistence(error))=>error.sql_state().map(str::to_owned),_=>None}});
         tokio::time::timeout(std::time::Duration::from_secs(5),async{loop{let waiting:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_locks WHERE pid=$1 AND relation='iam_mfa'::regclass AND NOT granted)").bind(pid).fetch_one(system.control.raw()).await.unwrap();if waiting{break;}tokio::time::sleep(std::time::Duration::from_millis(10)).await;}}).await.expect("actual second backend blocks on the retained MFA source lock");
         sqlx::query("COMMIT").execute(&mut *writer).await.unwrap();drop(writer);assert_eq!(task.await.unwrap().as_deref(),Some("40001"));
     }
@@ -124,8 +126,8 @@ async fn one_global_counter_winner_and_exact_child_freshness_never_inherit_to_ac
             rows[0].get::<String, _>("session_id"),
             child.result.session_id
         );
-        let mut conn = system.control.raw().acquire().await.unwrap();
-        sqlx::query("BEGIN").execute(&mut *conn).await.unwrap();
+        let mut leased = system.control.raw().acquire().await.unwrap();
+        let mut conn = leased.begin().await.unwrap();
         let raw = child_proof.proof(&SystemAuthenticationSecrets);
         let fresh = require_fresh_mfa_in_transaction(
             &mut conn,
@@ -134,6 +136,7 @@ async fn one_global_counter_winner_and_exact_child_freshness_never_inherit_to_ac
             "development",
             s.keys.clone(),
             system.scenario.clock.now().get(),
+            &fixture::fixture::account::holding_registry(),
         )
         .await
         .unwrap();
@@ -145,7 +148,8 @@ async fn one_global_counter_winner_and_exact_child_freshness_never_inherit_to_ac
                 &RequestAudience::Account,
                 "development",
                 s.keys.clone(),
-                system.scenario.clock.now().get()
+                system.scenario.clock.now().get(),
+                &fixture::fixture::account::holding_registry(),
             )
             .await
             .is_err()
@@ -154,15 +158,15 @@ async fn one_global_counter_winner_and_exact_child_freshness_never_inherit_to_ac
             .require_current(&mut conn, system.scenario.clock.now().get())
             .await
             .unwrap();
-        sqlx::query("COMMIT").execute(&mut *conn).await.unwrap();
-        sqlx::query("BEGIN").execute(&mut *conn).await.unwrap();
+        conn.commit().await.unwrap();
+        let mut conn = leased.begin().await.unwrap();
         assert!(
             fresh
                 .require_current(&mut conn, system.scenario.clock.now().get())
                 .await
                 .is_err()
         );
-        sqlx::query("ROLLBACK").execute(&mut *conn).await.unwrap();
+        conn.rollback().await.unwrap();
     })
     .await;
 }
@@ -208,7 +212,8 @@ async fn enrollment_throttle_and_unsupported_legacy_or_future_freshness_never_gr
                 &RequestAudience::Account,
                 "development",
                 s.keys.clone(),
-                system.scenario.clock.now().get()
+                system.scenario.clock.now().get(),
+                &fixture::fixture::account::holding_registry(),
             )
             .await
             .is_err()

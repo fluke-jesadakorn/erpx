@@ -23,6 +23,7 @@ use serde_json::Value;
 use sqlx::{Connection, PgConnection};
 use tokio::sync::Mutex;
 
+use super::journal_review_wire::NormalizedJournalReviewCommand;
 use super::postgres_journal_facts::current_transaction_witness;
 use crate::application::{
     journal::{FinanceActor, JournalTransactionWitness},
@@ -126,9 +127,22 @@ pub struct PgJournalReview<'c, 'p, Policy, ClockSource, Ids> {
     identifiers: &'p mut Ids,
     bound_actor: Option<FinanceActor>,
     replayed: bool,
+    normalized: Option<NormalizedJournalReviewCommand>,
     retained: Option<(Vec<String>, Image)>,
 }
 impl<'c, 'p, P, C, I> PgJournalReview<'c, 'p, P, C, I> {
+    /// Accept only the Finance normalizer's sealed identity, never caller raw
+    /// JSON/hash. Every actual replay/apply verifies its exact command binding.
+    pub fn with_normalized_command(
+        mut self,
+        input: NormalizedJournalReviewCommand,
+    ) -> Result<Self, Error> {
+        if self.bound_actor.is_some() || self.replayed || self.retained.is_some() {
+            return Err(changed());
+        }
+        self.normalized = Some(input);
+        Ok(self)
+    }
     pub fn new(
         holding: HoldingId,
         company: CompanyId,
@@ -149,6 +163,7 @@ impl<'c, 'p, P, C, I> PgJournalReview<'c, 'p, P, C, I> {
             identifiers,
             bound_actor: None,
             replayed: false,
+            normalized: None,
             retained: None,
         })
     }
@@ -159,6 +174,7 @@ struct Authority<'a, P, C> {
     clock: &'a C,
     actor: FinanceActor,
     command: &'a JournalReviewCommand,
+    normalized: Option<&'a NormalizedJournalReviewCommand>,
 }
 impl<P: PgFinanceJournalReviewPolicy, C: Clock + Sync> PgCommandAuthority for Authority<'_, P, C> {
     async fn lock_sources(
@@ -173,7 +189,7 @@ impl<P: PgFinanceJournalReviewPolicy, C: Clock + Sync> PgCommandAuthority for Au
         c: &mut PgConnection,
         request: &WorkflowRequest,
     ) -> Result<CommandActor, WorkflowError> {
-        require_request(request, self.command).map_err(to_workflow)?;
+        require_request(request, self.command, self.normalized).map_err(to_workflow)?;
         let actor = self
             .policy
             .lock()
@@ -190,7 +206,7 @@ impl<P: PgFinanceJournalReviewPolicy, C: Clock + Sync> PgCommandAuthority for Au
         request: &WorkflowRequest,
         disposition: CommandDisposition,
     ) -> Result<(), WorkflowError> {
-        require_request(request, self.command).map_err(to_workflow)?;
+        require_request(request, self.command, self.normalized).map_err(to_workflow)?;
         self.policy
             .lock()
             .await
@@ -246,6 +262,7 @@ struct Effects<'a> {
     source: &'a PgJournalReviewSource,
     plan: &'a JournalReviewPlan,
     money: &'a PgJournalReviewMoney,
+    normalized: Option<&'a NormalizedJournalReviewCommand>,
 }
 impl PgOwnerCommandEffects for Effects<'_> {
     async fn lock_sources(
@@ -261,7 +278,7 @@ impl PgOwnerCommandEffects for Effects<'_> {
         actor: &CommandActor,
         request: &WorkflowRequest,
     ) -> Result<WorkflowOutput, WorkflowError> {
-        require_request(request, &self.source.command).map_err(to_workflow)?;
+        require_request(request, &self.source.command, self.normalized).map_err(to_workflow)?;
         require_actor(&self.source.actor, actor).map_err(to_workflow)?;
         self.source.require_before(c).await.map_err(to_workflow)?;
         if self.money.witness != self.source.witness {
@@ -415,6 +432,7 @@ impl<P: PgFinanceJournalReviewPolicy, C: Clock + Sync, I: IdentifierSource + Sen
             clock: self.clock,
             actor: bound,
             command,
+            normalized: self.normalized.as_ref(),
         };
         let outcome = PgCommandLedger::new(
             self.company.clone(),
@@ -423,7 +441,10 @@ impl<P: PgFinanceJournalReviewPolicy, C: Clock + Sync, I: IdentifierSource + Sen
             self.clock,
             self.identifiers,
         )
-        .replay(&request(command)?, &mut ReplayOnly)
+        .replay(
+            &request(command, self.normalized.as_ref())?,
+            &mut ReplayOnly,
+        )
         .await
         .map_err(from_workflow)?;
         self.replayed = outcome.is_some();
@@ -532,11 +553,13 @@ impl<P: PgFinanceJournalReviewPolicy, C: Clock + Sync, I: IdentifierSource + Sen
             clock: self.clock,
             actor: source.actor.clone(),
             command,
+            normalized: self.normalized.as_ref(),
         };
         let mut effects = Effects {
             source,
             plan,
             money,
+            normalized: self.normalized.as_ref(),
         };
         let outcome = PgCommandLedger::new(
             self.company.clone(),
@@ -545,7 +568,7 @@ impl<P: PgFinanceJournalReviewPolicy, C: Clock + Sync, I: IdentifierSource + Sen
             self.clock,
             self.identifiers,
         )
-        .execute(&request(command)?, &mut effects)
+        .execute(&request(command, self.normalized.as_ref())?, &mut effects)
         .await
         .map_err(from_workflow)?;
         if outcome.replayed || decode_result(&outcome.result)? != *plan.result() {
@@ -632,17 +655,27 @@ impl<P: PgFinanceJournalReviewPolicy, C: Clock + Sync, I: IdentifierSource + Sen
     }
 }
 
-fn request(command: &JournalReviewCommand) -> Result<WorkflowRequest, Error> {
+fn request(
+    command: &JournalReviewCommand,
+    normalized: Option<&NormalizedJournalReviewCommand>,
+) -> Result<WorkflowRequest, Error> {
     Ok(WorkflowRequest {
         key: command.key.as_str().into(),
         operation: command.operation().into(),
         record_id: command.journal_id.as_str().into(),
-        input: CommandJson::from_serializable(&command.input)
-            .map_err(|e| from_workflow(e.into()))?,
+        input: match normalized {
+            Some(input) => input.input_for(command),
+            None => CommandJson::from_serializable(&command.input),
+        }
+        .map_err(|e| from_workflow(e.into()))?,
     })
 }
-fn require_request(request: &WorkflowRequest, command: &JournalReviewCommand) -> Result<(), Error> {
-    let expected = self::request(command)?;
+fn require_request(
+    request: &WorkflowRequest,
+    command: &JournalReviewCommand,
+    normalized: Option<&NormalizedJournalReviewCommand>,
+) -> Result<(), Error> {
+    let expected = self::request(command, normalized)?;
     if request.key != expected.key
         || request.operation != expected.operation
         || request.record_id != expected.record_id

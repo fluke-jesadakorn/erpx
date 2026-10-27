@@ -185,6 +185,7 @@ fn auth_with(
                 true,
                 invalidation,
                 system.scenario.clock.clone(),
+                fixture::account::holding_registry(),
             )
             .unwrap(),
         ),
@@ -385,7 +386,9 @@ async fn reset_proof_expiry_after_real_holding_commits_rolls_back_control_withou
         system.scenario.credentials.request(CredentialProofKind::PasswordReset,"a@example.test",None).await.unwrap();
         let mail=fixture::mail(&system.control,&system.scenario,CredentialProofKind::PasswordReset,"a@example.test").await;
         let delayed=Arc::new(AdvanceAfterInvalidation{inner:invalidator(&system.holdings,system.scenario.clock.clone()),clock:system.scenario.clock.clone(),millis:CREDENTIAL_PROOF_LIFETIME_MS+1});
-        let credentials=AccountCredentials::new(fixture::account::policy(),Arc::new(PostgresAccountCredentials::from_control_database(system.control.clone(),"development".into(),Arc::new(UnavailableInvitationCredentialAuthority),delayed,system.scenario.clock.clone()).unwrap()),Arc::new(Argon2Passwords::new(2).unwrap()),Arc::new(SystemAuthenticationSecrets),system.scenario.keyring.clone(),system.scenario.clock.clone()).unwrap();
+        let credentials=AccountCredentials::new(fixture::account::policy(),Arc::new(PostgresAccountCredentials::from_control_database(system.control.clone(),"development".into(),Arc::new(UnavailableInvitationCredentialAuthority),delayed,system.scenario.clock.clone(),
+fixture::account::holding_registry(),
+).unwrap()),Arc::new(Argon2Passwords::new(2).unwrap()),Arc::new(SystemAuthenticationSecrets),system.scenario.keyring.clone(),system.scenario.clock.clone()).unwrap();
         fixture::account::assert_error(credentials.reset_password(mail.token.expose().into(),fixture::NEW_PASSWORD.into()).await,"ACCOUNT_PROOF_UNAVAILABLE");
         assert_fenced(&system,&retired,"fixture-a").await;
         assert_eq!(system.scenario.auth.devices(&a).await.unwrap().revision,1);

@@ -28,6 +28,12 @@ This source tree includes:
   pinned origin and hashes are in fixtures/legal/documents/worker-bootstrap-provider.v1.json.
   See packages/server-legal/licenses/tesseract-tessdata-fast-Apache-2.0.txt.
 
+- Directory LDAP protocol dependencies from kanidm/ldap3:
+  ldap3_proto 0.8.1 retains MPL-2.0 and ldap3_lber 0.8.1 retains MIT.
+  The dependencies are unmodified; corresponding source locations and archive
+  hashes are recorded in packages/server-identity_access/licenses/directory-ldap-provenance.json.
+  See the accompanying MPL-2.0 and MIT license texts in that directory.
+
 See LICENSING.md and docs/community/provenance.json for the scope of the
 current project grant and the incomplete historical and asset review.
 This notice is informational; it does not change any license terms.

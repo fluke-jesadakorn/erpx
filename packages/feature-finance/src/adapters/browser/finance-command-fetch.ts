@@ -13,7 +13,7 @@ export function createFinanceCommandFetch(send: typeof workFetch = workFetch) {
   });
   function attemptSignature(input:RequestInfo|URL,method:string,body:string) {
     const context = typeof document === "undefined" ? null : document.querySelector<HTMLElement>("[data-work-revision]");
-    const stamp = context ? [context.dataset.workUser, context.dataset.workRevision, context.dataset.workCompany, context.dataset.workAssignment] : [];
+    const stamp = context ? [context.dataset.workUser, context.dataset.workRevision, context.dataset.workCompany, context.dataset.workAssignment,context.dataset.workAssignmentVersion] : [];
     return financeCommandSignature({ target: input instanceof Request ? input.url : String(input), method, scope: stamp, body });
   }
   // Callers that decode the original response defer local completion until

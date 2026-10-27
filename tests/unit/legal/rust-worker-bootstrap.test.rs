@@ -1,6 +1,11 @@
 use erpx_service::legal_worker_bootstrap::DevelopmentLegalWorkerConfiguration;
 fn document() -> serde_json::Value {
-    serde_json::json!({"mode":"development","commercialMode":"enforced","holdingId":"h001","companyId":"company","databaseUrl":"postgres://erpx_test_admin:private@127.0.0.1:5432/erpx_dev_rust_00000000000000000000000000000000","leaseToken":"00000000000000000000000000000000","filesRoot":"/owned/files","temporaryRoot":"/owned/temp","documentBinary":"/owned/document","tools":{"pdftotext":"/owned/pdftotext","pdfinfo":"/owned/pdfinfo","pdftoppm":"/owned/pdftoppm","tesseract":"/owned/tesseract","tessdata":"/owned/tessdata","languages":"eng+tha"}})
+    let mut doc = serde_json::json!({"mode":"development","commercialMode":"enforced","holdingId":"h001","companyId":"company","databaseUrl":"postgres://erpx_test_admin:private@127.0.0.1:5432/erpx_dev_rust_00000000000000000000000000000000","leaseToken":"00000000000000000000000000000000","filesRoot":"/owned/files","temporaryRoot":"/owned/temp","documentBinary":"/owned/document","tools":{"pdftotext":"/owned/pdftotext","pdfinfo":"/owned/pdfinfo","pdftoppm":"/owned/pdftoppm","tesseract":"/owned/tesseract","tessdata":"/owned/tessdata","languages":"eng+tha"}});
+    doc["controlDatabaseUrl"]="postgres://erpx_test_admin:private@127.0.0.1:5432/erpx_dev_rust_11111111111111111111111111111111".into();
+    doc["controlLeaseToken"] = "11111111111111111111111111111111".into();
+    doc["accountHost"] = "account.example.test".into();
+    doc["holdingBindings"] = serde_json::json!([{"holdingId":"h001","slug":"acme","host":"acme.example.test","writeBinding":"HOLDING_H001_DB","readBinding":"HOLDING_H001_READ_DB","filesBinding":"HOLDING_H001_FILES"}]);
+    doc
 }
 #[test]
 fn bootstrap_has_no_production_remote_or_implicit_enforcement_mode() {

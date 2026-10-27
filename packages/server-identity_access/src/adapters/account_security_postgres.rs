@@ -1,3 +1,4 @@
+use super::account_holding_bindings::ConfiguredHoldingRegistry;
 use super::account_mfa_crypto::AccountMfaKeyring;
 use super::{
     account_mfa_postgres::{current, require_fresh_mfa_in_transaction},
@@ -113,6 +114,7 @@ async fn source(
 }
 pub struct PostgresAccountSecurity {
     unit: PgUnitOfWork,
+    holdings: Arc<ConfiguredHoldingRegistry>,
     environment: String,
     clock: Arc<dyn Clock + Send + Sync>,
     invalidation: Arc<dyn AccountWorkContextInvalidation>,
@@ -125,6 +127,7 @@ impl PostgresAccountSecurity {
         clock: Arc<dyn Clock + Send + Sync>,
         invalidation: Arc<dyn AccountWorkContextInvalidation>,
         keys: Arc<AccountMfaKeyring>,
+        holdings: Arc<ConfiguredHoldingRegistry>,
     ) -> Result<Self, BusinessError> {
         if environment != "development" {
             return Err(BusinessError::invalid(
@@ -134,6 +137,7 @@ impl PostgresAccountSecurity {
         }
         Ok(Self {
             unit: PgUnitOfWork::new(pool),
+            holdings,
             environment,
             clock,
             invalidation,
@@ -201,6 +205,7 @@ impl AccountSecurityRepository for PostgresAccountSecurity {
     fn read<'a>(&'a self, proof: DeviceProof) -> AccountFuture<'a, SecuritySeed> {
         let environment = self.environment.clone();
         let clock = self.clock.clone();
+        let holdings = self.holdings.clone();
         Box::pin(async move {
             finish(
                 self.unit
@@ -213,6 +218,7 @@ impl AccountSecurityRepository for PostgresAccountSecurity {
                                 &RequestAudience::Account,
                                 &environment,
                                 clock.now().get(),
+                                &holdings,
                             )
                             .await?;
                             let actor = Actor {
@@ -235,12 +241,13 @@ impl AccountSecurityRepository for PostgresAccountSecurity {
     ) -> AccountFuture<'a, RevokedSecurity> {
         let environment = self.environment.clone();
         let clock = self.clock.clone();
+        let holdings = self.holdings.clone();
         let invalidation = self.invalidation.clone();
         let keys = self.keys.clone();
         Box::pin(async move {
             finish(self.unit.run_once(options(),move|connection|Box::pin(async move{
         leases(connection).await?;
-        let fresh=require_fresh_mfa_in_transaction(connection,&proof,&RequestAudience::Account,&environment,keys,clock.now().get()).await?;
+        let fresh=require_fresh_mfa_in_transaction(connection,&proof,&RequestAudience::Account,&environment,keys,clock.now().get(),&holdings).await?;
         let actor=Actor{user_id:fresh.user_id().into(),session_id:fresh.session_id().into()};
         let before=source(connection,&actor,&[]).await?;let initial=seed(&before,&actor,clock.now().get())?;
         if input.account_key!=initial.account_key{return Err(changed().into());}

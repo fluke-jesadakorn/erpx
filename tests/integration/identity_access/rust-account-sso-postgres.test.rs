@@ -15,6 +15,14 @@ use tower::ServiceExt;
 use url::Url;
 const ACME: &str = "holding:development:h001:acme.example.test";
 const NORTHSTAR: &str = "holding:development:h002:northstar.example.test";
+async fn setup(
+    pool: &DatabasePool,
+    authority: Arc<dyn InvitationCredentialAuthority>,
+) -> fixture::Scenario {
+    let scenario = fixture::setup(pool, authority).await;
+    sqlx::query("INSERT INTO holding_bindings(holding_id,slug,display_name,write_binding,read_binding,files_binding) VALUES('h002','northstar','Synthetic Northstar','HOLDING_H002_DB','HOLDING_H002_READ_DB','HOLDING_H002_FILES')").execute(pool.raw()).await.unwrap();
+    scenario
+}
 fn sso(pool: &DatabasePool, scenario: &fixture::Scenario) -> Arc<AccountSso> {
     let policy = SsoPolicy::new(fixture::account::policy()).unwrap();
     Arc::new(AccountSso::new(
@@ -23,6 +31,7 @@ fn sso(pool: &DatabasePool, scenario: &fixture::Scenario) -> Arc<AccountSso> {
             pool.clone(),
             policy,
             scenario.clock.clone(),
+            fixture::account::holding_registry(),
         )),
         Arc::new(SystemSsoCryptography),
         Arc::new(SystemAuthenticationSecrets),
@@ -98,8 +107,7 @@ fn holding(audience: &str) -> RequestAudience {
 #[tokio::test]
 async fn real_cross_holding_children_preserve_parent_time_expiry_hashing_and_exact_audience() {
     database::with_database(2, |pool| async move {
-        let scenario =
-            fixture::setup(&pool, Arc::new(UnavailableInvitationCredentialAuthority)).await;
+        let scenario = setup(&pool, Arc::new(UnavailableInvitationCredentialAuthority)).await;
         let service = sso(&pool, &scenario);
         let (parent, account) = login(&scenario, "a@example.test").await;
         let issued = consume(&service, &flow(&service, &account, ACME).await, ACME).await;
@@ -166,8 +174,7 @@ async fn real_cross_holding_children_preserve_parent_time_expiry_hashing_and_exa
 #[tokio::test]
 async fn malformed_state_browser_pkce_and_foreign_grant_leave_the_valid_exchange_unconsumed() {
     database::with_database(2, |pool| async move {
-        let scenario =
-            fixture::setup(&pool, Arc::new(UnavailableInvitationCredentialAuthority)).await;
+        let scenario = setup(&pool, Arc::new(UnavailableInvitationCredentialAuthority)).await;
         let service = sso(&pool, &scenario);
         let (_, account) = login(&scenario, "a@example.test").await;
         let f = flow(&service, &account, ACME).await;
@@ -233,8 +240,7 @@ async fn malformed_state_browser_pkce_and_foreign_grant_leave_the_valid_exchange
 async fn concurrent_callbacks_commit_one_child_and_one_pair_of_consumption_marks_on_one_connection()
 {
     database::with_database(1, |pool| async move {
-        let scenario =
-            fixture::setup(&pool, Arc::new(UnavailableInvitationCredentialAuthority)).await;
+        let scenario = setup(&pool, Arc::new(UnavailableInvitationCredentialAuthority)).await;
         let service = sso(&pool, &scenario);
         let (parent, account) = login(&scenario, "a@example.test").await;
         let f = flow(&service, &account, ACME).await;
@@ -283,8 +289,7 @@ async fn concurrent_callbacks_commit_one_child_and_one_pair_of_consumption_marks
 async fn exact_grant_and_browser_expiry_boundaries_reject_without_refreshing_parent_authentication()
 {
     database::with_database(2, |pool| async move {
-        let scenario =
-            fixture::setup(&pool, Arc::new(UnavailableInvitationCredentialAuthority)).await;
+        let scenario = setup(&pool, Arc::new(UnavailableInvitationCredentialAuthority)).await;
         let service = sso(&pool, &scenario);
         let (_, account) = login(&scenario, "a@example.test").await;
         let f = flow(&service, &account, ACME).await;
@@ -324,7 +329,7 @@ async fn exact_grant_and_browser_expiry_boundaries_reject_without_refreshing_par
 #[tokio::test]
 async fn binding_failure_rolls_back_the_child_and_both_one_time_marks_then_allows_a_real_retry() {
     database::with_database(2,|pool|async move{
- let scenario=fixture::setup(&pool,Arc::new(UnavailableInvitationCredentialAuthority)).await;let service=sso(&pool,&scenario);let(_,account)=login(&scenario,"a@example.test").await;let f=flow(&service,&account,ACME).await;
+ let scenario=setup(&pool,Arc::new(UnavailableInvitationCredentialAuthority)).await;let service=sso(&pool,&scenario);let(_,account)=login(&scenario,"a@example.test").await;let f=flow(&service,&account,ACME).await;
  sqlx::raw_sql("CREATE FUNCTION reject_child_binding() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.parent_session_id IS NOT NULL THEN RAISE EXCEPTION 'synthetic SSO binding failure'; END IF; RETURN NEW; END $$; CREATE TRIGGER reject_child_binding BEFORE INSERT ON sso_session_bindings FOR EACH ROW EXECUTE FUNCTION reject_child_binding();").execute(pool.raw()).await.unwrap();assert!(service.consume(ACME,&f.1.code,&f.0.state,f.0.browser_cookie.clone()).await.is_err());assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM session").fetch_one(pool.raw()).await.unwrap(),1);assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM sso_browser_transactions WHERE consumed_at IS NOT NULL").fetch_one(pool.raw()).await.unwrap(),0);sqlx::raw_sql("DROP TRIGGER reject_child_binding ON sso_session_bindings").execute(pool.raw()).await.unwrap();let issued=consume(&service,&f,ACME).await;assert!(scenario.auth.session(&proof(issued.token),holding(ACME)).await.unwrap().is_some());
 }).await;
 }
@@ -332,7 +337,7 @@ async fn binding_failure_rolls_back_the_child_and_both_one_time_marks_then_allow
 #[tokio::test]
 async fn serialization_retry_replays_only_the_rolled_back_control_unit_and_mints_one_child() {
     database::with_database(2,|pool|async move{
- let scenario=fixture::setup(&pool,Arc::new(UnavailableInvitationCredentialAuthority)).await;let service=sso(&pool,&scenario);let(_,account)=login(&scenario,"a@example.test").await;let f=flow(&service,&account,ACME).await;
+ let scenario=setup(&pool,Arc::new(UnavailableInvitationCredentialAuthority)).await;let service=sso(&pool,&scenario);let(_,account)=login(&scenario,"a@example.test").await;let f=flow(&service,&account,ACME).await;
  sqlx::raw_sql("CREATE SEQUENCE sso_attempts; CREATE FUNCTION retry_child_binding() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.parent_session_id IS NOT NULL AND nextval('sso_attempts')=1 THEN RAISE EXCEPTION 'synthetic serialization retry' USING ERRCODE='40001'; END IF; RETURN NEW; END $$; CREATE TRIGGER retry_child_binding BEFORE INSERT ON sso_session_bindings FOR EACH ROW EXECUTE FUNCTION retry_child_binding();").execute(pool.raw()).await.unwrap();let issued=consume(&service,&f,ACME).await;assert!(scenario.auth.session(&proof(issued.token),holding(ACME)).await.unwrap().is_some());assert_eq!(sqlx::query_scalar::<_,i64>("SELECT last_value FROM sso_attempts").fetch_one(pool.raw()).await.unwrap(),2);assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM sso_session_bindings WHERE parent_session_id IS NOT NULL").fetch_one(pool.raw()).await.unwrap(),1);
 }).await;
 }
@@ -340,7 +345,7 @@ async fn serialization_retry_replays_only_the_rolled_back_control_unit_and_mints
 #[tokio::test]
 async fn parent_expiry_reduction_is_reflected_and_a_child_cannot_refresh_authentication_time() {
     database::with_database(2,|pool|async move{
- let scenario=fixture::setup(&pool,Arc::new(UnavailableInvitationCredentialAuthority)).await;let service=sso(&pool,&scenario);let(parent,account)=login(&scenario,"a@example.test").await;let issued=consume(&service,&flow(&service,&account,ACME).await,ACME).await;let id=issued.result.session_id.clone();let child=proof(issued.token);
+ let scenario=setup(&pool,Arc::new(UnavailableInvitationCredentialAuthority)).await;let service=sso(&pool,&scenario);let(parent,account)=login(&scenario,"a@example.test").await;let issued=consume(&service,&flow(&service,&account,ACME).await,ACME).await;let id=issued.result.session_id.clone();let child=proof(issued.token);
  sqlx::query("UPDATE session SET \"expiresAt\"='2027-01-15T08:00:01Z' WHERE id=$1").bind(&parent.id).execute(pool.raw()).await.unwrap();assert_eq!(scenario.auth.session(&child,holding(ACME)).await.unwrap().unwrap().expires_at,fixture::account::NOW+1000);
  sqlx::query("UPDATE sso_session_bindings SET authenticated_at=authenticated_at+1 WHERE session_id=$1").bind(&id).execute(pool.raw()).await.unwrap();assert!(scenario.auth.session(&child,holding(ACME)).await.unwrap().is_none());
 }).await;
@@ -349,7 +354,7 @@ async fn parent_expiry_reduction_is_reflected_and_a_child_cannot_refresh_authent
 #[tokio::test]
 async fn a_pending_grant_cannot_escape_account_switch_or_current_principal_suspension() {
     database::with_database(2,|pool|async move{
- let scenario=fixture::setup(&pool,Arc::new(UnavailableInvitationCredentialAuthority)).await;let service=sso(&pool,&scenario);let(_,account)=login(&scenario,"a@example.test").await;let f=flow(&service,&account,ACME).await;
+ let scenario=setup(&pool,Arc::new(UnavailableInvitationCredentialAuthority)).await;let service=sso(&pool,&scenario);let(_,account)=login(&scenario,"a@example.test").await;let f=flow(&service,&account,ACME).await;
  let b=scenario.auth.sign_in("b@example.test",fixture::PASSWORD.into(),&account,Some(1)).await.unwrap();assert!(service.consume(ACME,&f.1.code,&f.0.state,f.0.browser_cookie.clone()).await.is_err());
  let mut current=account;current.saved.push((b.handle,b.session_secret.clone()));current.active=Some(b.session_secret);let f=flow(&service,&current,ACME).await;sqlx::query("INSERT INTO principals(id,user_id,display_name,status,created_at) VALUES('sso-suspended','fixture-b','Synthetic B','suspended',$1)").bind(fixture::account::NOW).execute(pool.raw()).await.unwrap();assert!(service.consume(ACME,&f.1.code,&f.0.state,f.0.browser_cookie).await.is_err());assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM sso_authorization_grants WHERE consumed_at IS NOT NULL").fetch_one(pool.raw()).await.unwrap(),0);
 }).await;
@@ -358,8 +363,7 @@ async fn a_pending_grant_cannot_escape_account_switch_or_current_principal_suspe
 #[tokio::test]
 async fn whole_family_holding_signout_preserves_an_independent_device_and_other_saved_account() {
     database::with_database(2, |pool| async move {
-        let scenario =
-            fixture::setup(&pool, Arc::new(UnavailableInvitationCredentialAuthority)).await;
+        let scenario = setup(&pool, Arc::new(UnavailableInvitationCredentialAuthority)).await;
         let service = sso(&pool, &scenario);
         let (_, first) = login(&scenario, "b@example.test").await;
         let a = scenario
@@ -454,7 +458,7 @@ async fn whole_family_holding_signout_preserves_an_independent_device_and_other_
 #[tokio::test]
 async fn password_reset_and_callback_races_cannot_retain_a_revoked_parent_child() {
     database::with_database(1,|pool|async move{
- let scenario=fixture::setup(&pool,Arc::new(UnavailableInvitationCredentialAuthority)).await;let service=sso(&pool,&scenario);let(parent,account)=login(&scenario,"a@example.test").await;let f=flow(&service,&account,ACME).await;let(consumed,signed_out)=tokio::join!(service.consume(ACME,&f.1.code,&f.0.state,f.0.browser_cookie.clone()),scenario.auth.sign_out(&account,RequestAudience::Account));signed_out.unwrap();if let Ok(issued)=consumed{assert!(scenario.auth.session(&proof(issued.token),holding(ACME)).await.unwrap().is_none());}assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM session WHERE id=$1 OR id IN(SELECT session_id FROM sso_session_bindings WHERE parent_session_id=$1)").bind(parent.id).fetch_one(pool.raw()).await.unwrap(),0);
+ let scenario=setup(&pool,Arc::new(UnavailableInvitationCredentialAuthority)).await;let service=sso(&pool,&scenario);let(parent,account)=login(&scenario,"a@example.test").await;let f=flow(&service,&account,ACME).await;let(consumed,signed_out)=tokio::join!(service.consume(ACME,&f.1.code,&f.0.state,f.0.browser_cookie.clone()),scenario.auth.sign_out(&account,RequestAudience::Account));signed_out.unwrap();if let Ok(issued)=consumed{assert!(scenario.auth.session(&proof(issued.token),holding(ACME)).await.unwrap().is_none());}assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM session WHERE id=$1 OR id IN(SELECT session_id FROM sso_session_bindings WHERE parent_session_id=$1)").bind(parent.id).fetch_one(pool.raw()).await.unwrap(),0);
  let(_,account)=login(&scenario,"a@example.test").await;let f=flow(&service,&account,ACME).await;scenario.credentials.request(CredentialProofKind::PasswordReset,"a@example.test",None).await.unwrap();let reset=fixture::mail(&pool,&scenario,CredentialProofKind::PasswordReset,"a@example.test").await;scenario.credentials.reset_password(reset.token.expose().into(),fixture::NEW_PASSWORD.into()).await.unwrap();assert!(service.consume(ACME,&f.1.code,&f.0.state,f.0.browser_cookie).await.is_err());
 }).await;
 }
@@ -473,8 +477,7 @@ type Response = axum::response::Response;
 #[tokio::test]
 async fn full_http_sso_preserves_login_continuation_and_never_forwards_an_account_token() {
     database::with_database(2, |pool| async move {
-        let scenario =
-            fixture::setup(&pool, Arc::new(UnavailableInvitationCredentialAuthority)).await;
+        let scenario = setup(&pool, Arc::new(UnavailableInvitationCredentialAuthority)).await;
         let service = sso(&pool, &scenario);
         let router = account_auth_router(scenario.auth.clone()).merge(account_sso_router(service));
         let (_, account) = login(&scenario, "a@example.test").await;
@@ -598,8 +601,7 @@ async fn full_http_sso_preserves_login_continuation_and_never_forwards_an_accoun
 async fn unregistered_or_incorrect_endpoint_hosts_and_tampered_callbacks_cannot_mint_a_holding_session()
  {
     database::with_database(2, |pool| async move {
-        let scenario =
-            fixture::setup(&pool, Arc::new(UnavailableInvitationCredentialAuthority)).await;
+        let scenario = setup(&pool, Arc::new(UnavailableInvitationCredentialAuthority)).await;
         let service = sso(&pool, &scenario);
         let router = account_sso_router(service.clone());
         for (host, path) in [
@@ -643,8 +645,7 @@ async fn unregistered_or_incorrect_endpoint_hosts_and_tampered_callbacks_cannot_
 #[tokio::test]
 async fn observing_a_legacy_unbound_parent_never_upgrades_it_into_an_issuer_session() {
     database::with_database(2, |pool| async move {
-        let scenario =
-            fixture::setup(&pool, Arc::new(UnavailableInvitationCredentialAuthority)).await;
+        let scenario = setup(&pool, Arc::new(UnavailableInvitationCredentialAuthority)).await;
         let service = sso(&pool, &scenario);
         let (parent, account) = login(&scenario, "a@example.test").await;
         sqlx::query("DELETE FROM sso_session_bindings WHERE session_id=$1")
@@ -689,7 +690,7 @@ async fn observing_a_legacy_unbound_parent_never_upgrades_it_into_an_issuer_sess
 #[tokio::test]
 async fn grant_expiry_during_a_real_session_lock_wait_rejects_the_callback_before_snapshot() {
     database::with_database(2, |pool| async move {
-        let scenario = fixture::setup(&pool, Arc::new(UnavailableInvitationCredentialAuthority)).await;
+        let scenario = setup(&pool, Arc::new(UnavailableInvitationCredentialAuthority)).await;
         let service = sso(&pool, &scenario);
         let (_, account) = login(&scenario, "a@example.test").await;
         let f = flow(&service, &account, ACME).await;
@@ -715,7 +716,7 @@ async fn grant_expiry_during_a_real_session_lock_wait_rejects_the_callback_befor
 #[tokio::test]
 async fn grant_expiry_during_child_binding_rolls_back_before_the_control_commit() {
     database::with_database(2, |pool| async move {
-        let scenario = fixture::setup(&pool, Arc::new(UnavailableInvitationCredentialAuthority)).await;
+        let scenario = setup(&pool, Arc::new(UnavailableInvitationCredentialAuthority)).await;
         let service = sso(&pool, &scenario);
         let (_, account) = login(&scenario, "a@example.test").await;
         let f = flow(&service, &account, ACME).await;

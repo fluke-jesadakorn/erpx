@@ -4,7 +4,7 @@ import {announceWorkChange} from "@erpx/feature-work_projection/lib/work-refresh
 export type PerformancePurchase = {newWork: boolean; settleExisting: boolean; history: boolean; revision: string};
 export function performanceCommandContext() {
   const node = typeof document === "undefined" ? null : document.querySelector<HTMLElement>("[data-work-revision]");
-  return node ? [node.dataset.workUser, node.dataset.workRevision, node.dataset.workCompany, node.dataset.workAssignment].join(":") : "server";
+  return node ? JSON.stringify([node.dataset.workUser, node.dataset.workRevision, node.dataset.workCompany, node.dataset.workAssignment,node.dataset.workAssignmentVersion]) : "server";
 }
 export function capturePerformanceForm(form?: HTMLFormElement): WorkCommandCompletion | undefined {
   const selected = form ?? (typeof document === "undefined" ? null : document.activeElement?.closest<HTMLFormElement>("form[data-performance-draft]"));

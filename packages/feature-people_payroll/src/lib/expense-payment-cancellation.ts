@@ -5,7 +5,7 @@ import {announceWorkChange} from '@erpx/feature-work_projection/lib/work-refresh
 import type {ExpensePaymentCancellationInput,ExpensePaymentCancellationResult} from '@erpx/server-people_payroll/public/expense-payments';
 export type ExpensePaymentCancellationSource={base:string;companyId:string;expenseId:string;draftId:string;expenseVersion:number;draftVersion:number;canCancel:boolean;history:boolean;contextKey:string};
 export const expensePaymentCancellationOwner=(source:ExpensePaymentCancellationSource)=>JSON.stringify([source.base,source.companyId,source.expenseId,source.draftId,source.contextKey]);
-const work=()=>{const node=typeof document==='undefined'?null:document.querySelector<HTMLElement>('[data-work-revision]');return node?[node.dataset.workUser,node.dataset.workRevision,node.dataset.workCompany,node.dataset.workAssignment].join(':'):'server';};
+const work=()=>{const node=typeof document==='undefined'?null:document.querySelector<HTMLElement>('[data-work-revision]');return node?JSON.stringify([node.dataset.workUser,node.dataset.workRevision,node.dataset.workCompany,node.dataset.workAssignment,node.dataset.workAssignmentVersion]):'server';};
 const witness=(source:ExpensePaymentCancellationSource)=>JSON.stringify([expensePaymentCancellationOwner(source),source.expenseVersion,source.draftVersion,source.canCancel,source.history]);
 export function validExpensePaymentCancellationReceipt(value:unknown,id:string,expenseId:string,input:ExpensePaymentCancellationInput):value is ExpensePaymentCancellationResult{
  if(!value||typeof value!=='object'||Array.isArray(value))return false;const row=value as Record<string,unknown>;

@@ -216,7 +216,10 @@ def restore(home,snapshot,offline=False):
 def activate(home,target):
     if target.parent!=home/'releases' or not (target/'server.js').exists(): raise ValueError('Invalid release')
     link=home/'current.new';link.unlink(missing_ok=True);link.symlink_to(target)
-    os.chmod(link,0o755,follow_symlinks=False)
+    # Linux symlink modes are kernel-managed; never follow the link to chmod
+    # its release target. macOS supports the original no-follow operation.
+    if os.chmod in os.supports_follow_symlinks:
+        os.chmod(link,0o755,follow_symlinks=False)
     link.replace(home/'current')
 
 def main():

@@ -87,7 +87,10 @@ async fn retained_control_proof_fences_parent_switch_until_the_holding_snapshot_
     fixture::with_database(2,move|holding|async move{
        seed_selection(&holding,now).await;
        let policy=AccountPolicy{account_origin:"https://account.example.test".into(),account_host:"account.example.test".into(),environment:"development".into(),require_email_verification:true,holdings:vec![HoldingOrigin{origin:"https://acme.example.test".into(),host:"acme.example.test".into(),audience:"holding:development:h001:acme.example.test".into()}]};
-       let inspector=Arc::new(HoldingWorkContextInspector::new(control.clone(),holding.clone(),HoldingId::new("h001").unwrap(),policy,Arc::new(FixedClock(now))).unwrap());
+       use erpx_server_identity_access::public::account_holding_bindings::{ConfiguredAccountHolding,ConfiguredHoldingRegistry};
+       let registry=Arc::new(ConfiguredHoldingRegistry::new(&policy,vec![ConfiguredAccountHolding{holding_id:HoldingId::new("h001").unwrap(),slug:"acme".into(),write_binding:"HOLDING_H001_DB".into(),read_binding:"HOLDING_H001_READ_DB".into(),files_binding:"HOLDING_H001_FILES".into()}]).unwrap());
+       sqlx::query("INSERT INTO holding_bindings(holding_id,slug,display_name,write_binding,read_binding,files_binding,status) VALUES('h001','acme','Synthetic','HOLDING_H001_DB','HOLDING_H001_READ_DB','HOLDING_H001_FILES','active')").execute(control.raw()).await.unwrap();
+       let inspector=Arc::new(HoldingWorkContextInspector::new(control.clone(),holding.clone(),HoldingId::new("h001").unwrap(),policy,Arc::new(FixedClock(now)),registry).unwrap());
        let proof=DeviceProof{active:Some(SecretDigest::new("a".repeat(64)).unwrap()),..Default::default()};
        let input=HoldingWorkspaceRequest{company_id:CompanyId::new("company").unwrap(),branch_slug:Some("north".into()),department_slug:Some("engineering".into()),expected:request(now).expected,mutation:true};
        let mut blocker=holding.raw().acquire().await.unwrap();sqlx::raw_sql("BEGIN; LOCK TABLE assignments IN EXCLUSIVE MODE").execute(&mut *blocker).await.unwrap();

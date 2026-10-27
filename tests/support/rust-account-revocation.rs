@@ -102,6 +102,7 @@ pub async fn child(system: &System, proof: &PresentedSecrets, audience: &str) ->
             system.control.clone(),
             policy,
             system.scenario.clock.clone(),
+            fixture::account::holding_registry(),
         )),
         Arc::new(SystemSsoCryptography),
         Arc::new(SystemAuthenticationSecrets),

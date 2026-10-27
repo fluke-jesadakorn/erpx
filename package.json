@@ -94,10 +94,10 @@
     "workspaces:tasks": "bun scripts/testing/workspace-tasks.ts",
     "workspaces:styles": "bun scripts/assets/workspace-styles.ts",
     "console:retirement:dev:check": "bun scripts/local/check-console-retirement.ts --development-workspaces",
-    "rust:check": "cargo check --workspace --all-targets --features erpx-server-legal/pdf-verifier,erpx-server-identity-access/contracts,erpx-service/legal-pdf-worker,erpx-service/legal-document-worker,erpx-service/legal-queue,erpx-server-legal/document-provider,erpx-server-identity-access/mail-providers --locked",
+    "rust:check": "cargo check --workspace --all-targets --features erpx-server-legal/pdf-verifier,erpx-server-identity-access/contracts,erpx-service/legal-pdf-worker,erpx-service/legal-document-worker,erpx-service/legal-queue,erpx-server-legal/document-provider,erpx-server-identity-access/mail-providers,erpx-server-identity-access/directory-ldaps,erpx-service/business-http --locked",
     "rust:test": "bun scripts/testing/rust-unit.ts",
     "rust:fmt": "cargo fmt --all -- --check",
-    "rust:clippy": "cargo clippy --workspace --all-targets --features erpx-server-legal/pdf-verifier,erpx-server-identity-access/contracts,erpx-service/legal-pdf-worker,erpx-service/legal-document-worker,erpx-service/legal-queue,erpx-server-legal/document-provider,erpx-server-identity-access/mail-providers --locked -- -D warnings",
+    "rust:clippy": "cargo clippy --workspace --all-targets --features erpx-server-legal/pdf-verifier,erpx-server-identity-access/contracts,erpx-service/legal-pdf-worker,erpx-service/legal-document-worker,erpx-service/legal-queue,erpx-server-legal/document-provider,erpx-server-identity-access/mail-providers,erpx-server-identity-access/directory-ldaps,erpx-service/business-http --locked -- -D warnings",
     "contracts:work-modules": "bun scripts/docs/generate-work-module-contracts.ts",
     "contracts:work-modules:check": "bun scripts/docs/generate-work-module-contracts.ts --check"
   },

@@ -37,6 +37,8 @@ jobs:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: erpx-ci-only
           POSTGRES_DB: postgres
+          # CI-only predicate capacity; keep the existing 32/page-2 promotion thresholds.
+          POSTGRES_INITDB_ARGS: "--set=max_pred_locks_per_transaction=256 --set=max_pred_locks_per_relation=32 --set=max_pred_locks_per_page=2"
         ports: ['5432:5432']
         options: >-
           --health-cmd "pg_isready -U postgres -d postgres"
@@ -76,7 +78,9 @@ jobs:
           echo "ERPX_CI_HEAD=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
       - name: Run affected checks and development smoke
         shell: bash
-        run: bun run test:ci --base="$ERPX_CI_BASE" --head="$ERPX_CI_HEAD"
+        env:
+          ERPX_CI_POSTGRES_MONITOR_URL: postgresql://postgres:erpx-ci-only@127.0.0.1:5432/postgres
+        run: bun scripts/testing/ci-postgres-resource.ts -- bun run test:ci --base="$ERPX_CI_BASE" --head="$ERPX_CI_HEAD"
       - name: Retain development-only receipts
         if: always()
         uses: actions/upload-artifact@v4
@@ -86,6 +90,8 @@ jobs:
             .scratch/dev/test-suites/workspaces/
             .scratch/dev/test-suites/cargo/
             .scratch/dev/test-suites/browser/
+            .scratch/dev/test-suites/ci-postgres/
+            .scratch/dev/test-suites/ci-prerequisites.json
           if-no-files-found: warn
   acceptance:
     name: Explicit production candidate acceptance
@@ -99,6 +105,8 @@ jobs:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: erpx-ci-only
           POSTGRES_DB: postgres
+          # Fresh isolated acceptance service; no shared/local PostgreSQL configuration.
+          POSTGRES_INITDB_ARGS: "--set=max_pred_locks_per_transaction=256 --set=max_pred_locks_per_relation=32 --set=max_pred_locks_per_page=2"
         ports: ['5432:5432']
         options: >-
           --health-cmd "pg_isready -U postgres -d postgres"
@@ -119,5 +127,15 @@ jobs:
       - name: Accept the explicitly selected clean candidate
         env:
           CANDIDATE: ${{ inputs.candidate }}
+          ERPX_CI_POSTGRES_MONITOR_URL: postgresql://postgres:erpx-ci-only@127.0.0.1:5432/postgres
         shell: bash
-        run: bun run release:acceptance --candidate="$CANDIDATE"
+        run: bun scripts/testing/ci-postgres-resource.ts -- bun run release:acceptance --candidate="$CANDIDATE"
+      - name: Retain isolated PostgreSQL and prerequisite diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: isolated-runtime-diagnostics-${{ github.sha }}
+          path: |
+            .scratch/dev/test-suites/ci-postgres/
+            .scratch/dev/test-suites/ci-prerequisites.json
+          if-no-files-found: warn

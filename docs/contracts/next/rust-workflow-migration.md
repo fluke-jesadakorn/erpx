@@ -29,3 +29,8 @@ Fingerprints preserve the original literal actor field order and omitted-versus-
 The narrow Guest Account compatibility bridge retains old persisted spellings and the captured JavaScript property-lookup quirks as data only. It creates no prototypes, functions or legacy routes. Exact oracle files are explicitly excluded from the terminology guard so they can prove historical compatibility; new business vocabulary remains subject to that guard.
 
 The source-bound development oracle imports unchanged B0 TypeScript on pinned Node 26.11.1. Its corpus contains 47 JSON normalization cases, 227 fingerprints, 54 bidirectional data conversions, 15 operation mappings and 24 historical replay cases. Generation supports `--check`; it is development verification, not a Node dependency of the native runtime. Synthetic test authority ports are labelled explicitly. Actual Legal/Identity composition has separate PostgreSQL integration tests and remains unmounted pending full migration.
+
+
+## UTF-16 receipt identity and UTF-8 storage
+
+`CommandJson::string_utf8_storage` exposes only a string's PostgreSQL UTF-8 representation. A valid surrogate pair remains its Unicode scalar; an isolated UTF-16 unit becomes replacement text in storage, matching the pinned Node UTF-8 conversion. The original normalized `CommandJson` remains unchanged for receipt hashing. Distinct lone units can have the same storage text and must still have different command fingerprints. Non-string values return no string view. The Finance normalizer owns the sealed connection between its exact command JSON and typed storage input; this helper does not accept a caller-provided hash override.

@@ -183,6 +183,7 @@ fn disk(root: &Path, bytes: &[u8]) {
     fs::write(directory.join("current.json"),serde_json::to_vec(&serde_json::json!({"key":key,"version":version,"size":bytes.len(),"etag":hex::encode(Sha256::digest(bytes))})).unwrap()).unwrap();
 }
 async fn config(
+    control: &DatabasePool,
     pool: &DatabasePool,
     tools: &DocumentToolConfiguration,
     files: &Path,
@@ -199,7 +200,18 @@ async fn config(
         .database(&name)
         .to_url_lossy();
     url.set_query(None);
-    let value = serde_json::json!({"mode":"development","commercialMode":"enforced","holdingId":"h001","companyId":"company","databaseUrl":url.as_str(),"leaseToken":token,"filesRoot":files,"temporaryRoot":temporary,"documentBinary":selected("ERPX_DOCUMENT_WORKER_BIN"),"pdfBinary":selected("ERPX_PDF_WORKER_BIN"),"tools":tools});
+    let control_name: String = sqlx::query_scalar("SELECT current_database()")
+        .fetch_one(control.raw())
+        .await
+        .unwrap();
+    let control_token = control_name.strip_prefix("erpx_dev_rust_").unwrap();
+    let mut control_url =
+        PgConnectOptions::from_str(&std::env::var("ERPX_TEST_ADMIN_URL").unwrap())
+            .unwrap()
+            .database(&control_name)
+            .to_url_lossy();
+    control_url.set_query(None);
+    let value = serde_json::json!({"controlDatabaseUrl":control_url.as_str(),"controlLeaseToken":control_token,"accountHost":"account.example.test","holdingBindings":[{"holdingId":"h001","slug":"acme","host":"acme.example.test","writeBinding":"HOLDING_H001_DB","readBinding":"HOLDING_H001_READ_DB","filesBinding":"HOLDING_H001_FILES"},{"holdingId":"h002","slug":"northstar","host":"northstar.example.test","writeBinding":"HOLDING_H002_DB","readBinding":"HOLDING_H002_READ_DB","filesBinding":"HOLDING_H002_FILES"}],"mode":"development","commercialMode":"enforced","holdingId":"h001","companyId":"company","databaseUrl":url.as_str(),"leaseToken":token,"filesRoot":files,"temporaryRoot":temporary,"documentBinary":selected("ERPX_DOCUMENT_WORKER_BIN"),"pdfBinary":selected("ERPX_PDF_WORKER_BIN"),"tools":tools});
     fs::write(path, serde_json::to_vec(&value).unwrap()).unwrap();
     #[cfg(unix)]
     {
@@ -241,7 +253,7 @@ async fn real_once_cli_claims_scanned_original_computes_without_database_leases_
         let tools = tools.clone();
         account_queue::account::with_system(move|system|async move{
             system.scenario.clock.0.store(now(),Ordering::SeqCst);let prepared=account_queue::prepare(system).await;let pool=&prepared.system.holdings[0];seed(pool,&prepared.binding.to_json().unwrap(),kind,media,&bytes,definition).await;
-            let files=private_directory();disk(files.path(),&bytes);let temporary=private_directory();let configuration=private_directory();let path=configuration.path().join("worker.json");config(pool,&tools,files.path(),temporary.path(),&path).await;
+            let files=private_directory();disk(files.path(),&bytes);let temporary=private_directory();let configuration=private_directory();let path=configuration.path().join("worker.json");config(&prepared.system.control,pool,&tools,files.path(),temporary.path(),&path).await;
             match scenario{
                 "authority-denied"=>{sqlx::query("UPDATE iam_roles SET status='archived'WHERE id='custom_queued_legal'").execute(pool.raw()).await.unwrap();},
                 "source-revoked"=>{sqlx::query("UPDATE attachments SET revoked_at=$1 WHERE id='cli-source'").bind(now()).execute(pool.raw()).await.unwrap();},

@@ -1,3 +1,4 @@
+export const postgresFixtureSlots=["CONTROL_DB","CONTROL_READ_DB","H001_DB","H001_READ_DB","H002_DB","H002_READ_DB","H003_DB","H003_READ_DB"] as const;
 import { it,expect } from 'vitest';
 import { env } from "../../support/runtime-env";
 import { mkdtemp,mkdir,writeFile,symlink,readFile,rm } from 'node:fs/promises';

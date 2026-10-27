@@ -157,6 +157,22 @@
       "upstreamCommit": "87416418657359cb625c412a48b6e1d6d41c29bd",
       "upstreamLicenseSha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
       "basis": "The explicit development worker provider smoke fetches eng/tha traineddata only from the pinned official tessdata_fast revision, checks the recorded byte counts and SHA-256 values, and retains its Apache-2.0 license. Model bytes are ignored and not shipped in this source checkpoint. Operational eng+tha probes do not establish Thai OCR accuracy, complete transitive notices or production release acceptance."
+    },
+    {
+      "id": "directory-ldap-protocol",
+      "paths": [
+        "packages/server-identity_access/licenses/ldap3_proto-0.8.1-MPL-2.0.txt",
+        "packages/server-identity_access/licenses/ldap3_lber-0.8.1-MIT.txt"
+      ],
+      "noticeFiles": [
+        "packages/server-identity_access/licenses/DIRECTORY-LDAP-NOTICE.md",
+        "packages/server-identity_access/licenses/directory-ldap-provenance.json",
+        "packages/server-identity_access/licenses/ldap3_proto-0.8.1-MPL-2.0.txt",
+        "packages/server-identity_access/licenses/ldap3_lber-0.8.1-MIT.txt"
+      ],
+      "declaredLicense": "MPL-2.0 AND MIT",
+      "reviewStatus": "notice-reviewed",
+      "basis": "Optional unmodified ldap3_proto 0.8.1 and ldap3_lber 0.8.1 registry dependencies retain their upstream licenses. Pinned source commit, archive hashes and corresponding source URLs are recorded in the local dependency provenance; this entry does not relicense them or declare Directory production readiness. ERPX-owned adapter wrappers retain the current project Apache-2.0 grant; dependency license obligations are recorded separately."
     }
   ]
 }

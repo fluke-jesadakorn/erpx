@@ -98,3 +98,43 @@ The generated HTTP description includes implemented signup, reset, password-chan
 The canonical suites are `identity_access.rust-account-auth.unit`, `identity_access.rust-account-auth-postgres.integration`, `identity_access.rust-account-recovery.unit`, `identity_access.rust-account-recovery-postgres.integration`, `identity_access.rust-account-sso.unit`, `identity_access.rust-account-mail.unit`, `identity_access.rust-account-mail-postgres.integration`, `identity_access.rust-account-mail-transport.provider`, `identity_access.rust-account-sso-postgres.integration`, `identity_access.rust-account-revocation-postgres.integration`, `identity_access.rust-account-device-http-postgres.integration`, `identity_access.rust-account-group-recovery-postgres.integration`, `identity_access.rust-account-mfa.unit`, `identity_access.rust-account-mfa-postgres.integration`, `identity_access.rust-account-security-postgres.integration`, `identity_access.rust-invitation-authority-postgres.integration`, `identity_access.rust-account-invitation-activation-postgres.integration`, `people_payroll.rust-invitation-person-link.unit`, `people_payroll.rust-invitation-person-link-postgres.integration` and `identity_access.account-auth-http.unit`. PostgreSQL tests use the guarded disposable `erpx_dev_rust_*` fixture and immutable Control migrations, never production or staging databases. Cases cover credential proof, closed JSON/cookies, exact authority and CORS, saved-proof isolation, stale parallel selection, principal/parent/audience bounds, nonce cleanup, sign-out scope, single-use/superseded mail proofs and failed-audit rollback. SSO cases add two registered Holdings, a one-connection callback race, real serialization retry, failed-binding rollback, inherited expiry/authentication time, scope-preserving family revocation, no legacy-session upgrade and full in-process HTTP redirects/cookies. Repository-only signup tests explicitly inject a reviewed test authority. Separate real two-database suites exercise the actual IAM/Organization/People adapter and ordered activation, including immutable role revisions, scoped denial cases, source-lock expiry, exact Origin/Host envelopes, true Control and Holding serialization retries, retained Control proof, failed audit rollback, password-bound resume, failed finalization recovery, and no revoked-grant resurrection. The People suite independently proves enclosing rollback, competing-account exclusion and an earlier engagement snapshot raising `40001` before a fresh denial. Mail cases also prove single-connection worker exclusion, retained recipient/credential locks, lease recovery before/after durable intent, post-send ACK rollback, SMTP uncertainty without replay, Resend idempotent recovery, retained-key rotation, stale ACK rejection and end-to-end reset-link redirects. Separate provider-lane cases use the actual Rust HTTP/SMTP adapters against owned loopback servers, including rejected TLS downgrade and unfollowed redirects. These results are development verification, not full owner, browser, live provider or production acceptance.
 
 Regenerate both contracts with `bun scripts/docs/generate-account-contracts.ts`; verify with the same command plus `--check`. The exporter uses the pinned Rust workspace and locked dependencies. Do not edit generated TypeScript or OpenAPI output by hand.
+
+## Native Directory observation foundation
+
+The optional `directory-ldaps` feature now contains a native LDAPS provider and
+validated private-profile generations. It uses the unmodified, strict
+`ldap3_proto 0.8.1` codec over explicit Ring/Rustls, with certificate and server
+name verification, optional private CA roots, and no plaintext, proxy or referral
+following. Package-local license/source notices preserve MPL-2.0 for the codec
+and MIT for `ldap3_lber`; this does not complete the release dependency inventory.
+
+The transport checks definite BER lengths before allocating a body and rejects
+nested indefinite encodings, depth over 32, more than 8,192 elements per frame,
+frames over 1 MiB, over 64 MiB total wire traffic, or over 32 MiB retained decoded rows.
+Requests are sequential, with positive matching message IDs, a 15 second operation
+deadline and 60 second total stream deadline. Search observation requires every
+page/range to terminate successfully; repeated/missing page cookies, unsolicited
+messages, truncated results, exceeded budgets and unsupported critical/operation controls never
+produce a complete snapshot. User/group searches cap each at 10,000 rows; each
+container search does too, with at most 20,000 combined containers when separate
+group roots are required. AD partition referrals are ignored only on the same
+main observations as B0 and are never followed; UCS and range-search referrals
+fail the observation. Raw LDAP request/response values and upstream decoder
+tracing are never emitted by this adapter.
+
+The retained unchanged-Node oracle covers hierarchy traversal order, AD/UCS
+account control coercion, binary GUID order, contextual Unicode lowercase and
+immutable-ID aliases. These are finite rule/codec checks, not enterprise-provider
+acceptance. Loopback TLS and paging/referral/unsolicited-stream regression
+suites are still pending. Private profile bytes are loaded explicitly outside database leases;
+an explicit validated reload waits for retained profile-generation guards. The
+current provider retains its generation during observation; integration with the
+final database proof remains pending.
+
+Transactional reconciliation, current reviewed mapping grants, final retained
+Directory eligibility through ordinary Account issuance, stale-Directory refresh
+and current business reauthorization, actual Directory HTTP/frontend wiring,
+OIDC/Graph, live provider acceptance and runtime activation remain pending. The
+new provider is unmounted and grants no permission from a copied snapshot. The
+legacy Directory runtime remains in place during migration. No enterprise
+credentials or external enterprise Directory calls were used for this foundation.

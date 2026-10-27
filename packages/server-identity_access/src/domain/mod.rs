@@ -19,3 +19,6 @@ pub(crate) mod account_mfa;
 pub(crate) mod account_security;
 pub(crate) mod account_security_snapshot;
 pub(crate) mod command_metadata;
+
+pub(crate) mod directory;
+pub(crate) mod directory_provider_values;

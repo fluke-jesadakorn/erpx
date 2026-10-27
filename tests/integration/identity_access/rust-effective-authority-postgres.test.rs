@@ -105,9 +105,11 @@ async fn queued_authority_uses_actual_owner_source_and_current_native_witnesses(
             let (authorizer, clock) = setup(&control, &holding).await;
             queue_from_current(authorizer.as_ref()).await;
             let queued = PgQueuedWorkAuthorizer::new(
+                control.clone(),
                 holding.clone(),
                 HoldingId::new("h001").unwrap(),
                 clock,
+                holding_registry(),
             );
             queued
                 .execute(FixtureQueuedSource, access(), |connection, current, _| {
@@ -211,9 +213,11 @@ async fn queued_owner_expiry_after_action_rolls_back_the_complete_holding_attemp
             let (authorizer, clock) = setup(&control, &holding).await;
             queue_from_current(authorizer.as_ref()).await;
             let queued = PgQueuedWorkAuthorizer::new(
+                control.clone(),
                 holding.clone(),
                 HoldingId::new("h001").unwrap(),
                 clock.clone(),
+                holding_registry(),
             );
             let advancing = clock.clone();
             let result = queued

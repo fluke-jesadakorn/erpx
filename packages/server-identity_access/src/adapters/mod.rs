@@ -39,3 +39,21 @@ pub(crate) mod account_mfa_crypto;
 pub(crate) mod account_mfa_postgres;
 pub(crate) mod account_security_http;
 pub(crate) mod account_security_postgres;
+
+pub(crate) mod account_holding_bindings;
+pub(crate) mod account_inbound_http;
+
+#[cfg(feature = "directory-ldaps")]
+pub(crate) mod directory_ber;
+#[cfg(feature = "directory-ldaps")]
+pub(crate) mod directory_ldap_tls;
+#[cfg(feature = "directory-ldaps")]
+pub(crate) mod directory_ldap_wire;
+
+#[cfg(feature = "directory-ldaps")]
+pub(crate) mod directory_profiles;
+
+#[cfg(feature = "directory-ldaps")]
+pub(crate) mod directory_ldap;
+#[cfg(feature = "directory-ldaps")]
+pub(crate) mod directory_ldap_snapshot;

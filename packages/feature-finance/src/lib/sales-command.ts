@@ -8,9 +8,9 @@ import {paymentReversalAcknowledged} from '@erpx/feature-finance/lib/service-pay
 type Source={base:string;paymentId?:string};
 export type FinanceInvoiceInput={partyId:string;invoiceDate:string;dueDate:string;currency:string;completionConfirmed:true;completionNote:string;lines:{description:string;quantity:string;unitPrice:string;taxBps:number}[]};
 export type FinanceInvoiceDraft={partyId:string;invoiceDate:string;dueDate:string;currency:string;completionNote:string;completionConfirmed:boolean;lines:{description:string;quantity:string;unitPrice:string;taxBps:number}[]};
-type InvoiceOwner={base:string;origin:string;userId:string;companyId:string;assignmentId:string;revision:string};
-type StoredInvoiceCommand={version:1;owner:InvoiceOwner;path:'invoices';input:FinanceInvoiceInput;body:string;key:string;uncertain:boolean};
-type StoredInvoiceDraft={version:1;owner:InvoiceOwner;draft:FinanceInvoiceDraft};
+type InvoiceOwner={base:string;origin:string;userId:string;companyId:string;assignmentId:string;revision:string;assignmentVersion:string};
+type StoredInvoiceCommand={version:2;owner:InvoiceOwner;path:'invoices';input:FinanceInvoiceInput;body:string;key:string;uncertain:boolean};
+type StoredInvoiceDraft={version:2;owner:InvoiceOwner;draft:FinanceInvoiceDraft};
 type Attempt={source:Source;path:string;input:unknown;body:string;key:string;context:string;uncertain:boolean;hadCompletion:boolean;completion:ReturnType<typeof retainWorkCommandCompletion>;restored:boolean;invoiceOwner?:InvoiceOwner};
 type Store=Pick<Storage,'getItem'|'setItem'|'removeItem'>;
 export type FinanceInvoiceRecovery={pending:boolean;input?:FinanceInvoiceInput;draft?:FinanceInvoiceDraft};
@@ -31,12 +31,12 @@ const quarantined=()=>Error('A retained invoice request is not bound to this ori
 const exact=(value:Record<string,unknown>,keys:string[])=>Object.keys(value).sort().join(',')===keys.slice().sort().join(',');
 function invoiceOwner(source:Source|null):InvoiceOwner{
  const node=typeof document==='undefined'?null:document.querySelector<HTMLElement>('[data-work-revision]');
- if(!source||!node?.isConnected||node.dataset.workStale==='true'||!id(node.dataset.workUser)||!id(node.dataset.workCompany)||!id(node.dataset.workAssignment)||!id(node.dataset.workRevision)||typeof window==='undefined')throw changed();
- return{base:source.base,origin:window.location.origin,userId:node.dataset.workUser,companyId:node.dataset.workCompany,assignmentId:node.dataset.workAssignment,revision:node.dataset.workRevision};
+ if(!source||!node?.isConnected||node.dataset.workStale==='true'||!id(node.dataset.workUser)||!id(node.dataset.workCompany)||!id(node.dataset.workAssignment)||!id(node.dataset.workRevision)||!id(node.dataset.workAssignmentVersion)||typeof window==='undefined')throw changed();
+ return{base:source.base,origin:window.location.origin,userId:node.dataset.workUser,companyId:node.dataset.workCompany,assignmentId:node.dataset.workAssignment,revision:node.dataset.workRevision,assignmentVersion:node.dataset.workAssignmentVersion};
 }
 function validInvoiceOwner(value:unknown):value is InvoiceOwner{
- if(!record(value)||!exact(value,['base','origin','userId','companyId','assignmentId','revision']))return false;
- return id(value.base)&&value.base.startsWith('/holdings/')&&id(value.origin)&&value.origin.startsWith('http')&&id(value.userId)&&id(value.companyId)&&id(value.assignmentId)&&id(value.revision);
+ if(!record(value)||!exact(value,['base','origin','userId','companyId','assignmentId','revision','assignmentVersion']))return false;
+ return id(value.base)&&value.base.startsWith('/holdings/')&&id(value.origin)&&value.origin.startsWith('http')&&id(value.userId)&&id(value.companyId)&&id(value.assignmentId)&&id(value.revision)&&id(value.assignmentVersion);
 }
 function validInvoiceInput(value:unknown):value is FinanceInvoiceInput{
  if(!record(value)||!exact(value,['partyId','invoiceDate','dueDate','currency','completionConfirmed','completionNote','lines'])||!id(value.partyId)||value.partyId.length>200||typeof value.invoiceDate!=='string'||value.invoiceDate.length>20||typeof value.dueDate!=='string'||value.dueDate.length>20||typeof value.currency!=='string'||value.currency.length!==3||value.completionConfirmed!==true||typeof value.completionNote!=='string'||value.completionNote.length>2000||!Array.isArray(value.lines)||value.lines.length<1||value.lines.length>100)return false;
@@ -48,13 +48,13 @@ function validInvoiceDraft(value:unknown):value is FinanceInvoiceDraft{
 }
 function decodeInvoiceCommand(raw:string):StoredInvoiceCommand{
  let value:unknown;try{value=JSON.parse(raw);}catch{throw quarantined();}
- if(!record(value)||!exact(value,['version','owner','path','input','body','key','uncertain'])||value.version!==1||!validInvoiceOwner(value.owner)||value.path!=='invoices'||!validInvoiceInput(value.input)||!id(value.body)||value.body.length>100000||!id(value.key)||value.key.length>200||typeof value.uncertain!=='boolean')throw quarantined();
+ if(!record(value)||!exact(value,['version','owner','path','input','body','key','uncertain'])||value.version!==2||!validInvoiceOwner(value.owner)||value.path!=='invoices'||!validInvoiceInput(value.input)||!id(value.body)||value.body.length>100000||!id(value.key)||value.key.length>200||typeof value.uncertain!=='boolean')throw quarantined();
  try{if(!same(JSON.parse(value.body),value.input))throw quarantined();}catch{throw quarantined();}
  return value as StoredInvoiceCommand;
 }
 function decodeInvoiceDraft(raw:string):StoredInvoiceDraft{
  let value:unknown;try{if(raw.length>128000)throw quarantined();value=JSON.parse(raw);}catch{throw quarantined();}
- if(!record(value)||!exact(value,['version','owner','draft'])||value.version!==1||!validInvoiceOwner(value.owner)||!validInvoiceDraft(value.draft))throw quarantined();
+ if(!record(value)||!exact(value,['version','owner','draft'])||value.version!==2||!validInvoiceOwner(value.owner)||!validInvoiceDraft(value.draft))throw quarantined();
  return value as StoredInvoiceDraft;
 }
 function invoiceCommandKey(owner:InvoiceOwner){
@@ -91,7 +91,7 @@ function commands(current:()=>Source|null,correction:boolean,send:typeof workFet
   const saved=readStoredInvoice();
   if(!saved){if(attempt?.path==='invoices')throw quarantined();return attempt;}
   if(attempt)return attempt;
-  attempt={source:{base:saved.owner.base},path:saved.path,input:saved.input,body:saved.body,key:saved.key,context:[saved.owner.userId,saved.owner.revision,saved.owner.companyId,saved.owner.assignmentId].join(':'),uncertain:saved.uncertain,hadCompletion:true,completion:()=>undefined,restored:true,invoiceOwner:saved.owner};
+  attempt={source:{base:saved.owner.base},path:saved.path,input:saved.input,body:saved.body,key:saved.key,context:JSON.stringify([saved.owner.userId,saved.owner.revision,saved.owner.companyId,saved.owner.assignmentId,saved.owner.assignmentVersion]),uncertain:saved.uncertain,hadCompletion:true,completion:()=>undefined,restored:true,invoiceOwner:saved.owner};
   return attempt;
  }
  function readInvoiceDraft():FinanceInvoiceDraft|null{
@@ -102,7 +102,7 @@ function commands(current:()=>Source|null,correction:boolean,send:typeof workFet
  function writeInvoiceCommand(selected:Attempt){
   if(!invoiceRecovery||selected.path!=='invoices')return;
   const owner=invoiceOwner(current());if(!selected.invoiceOwner||!same(owner,selected.invoiceOwner))throw changed();
-  const saved:StoredInvoiceCommand={version:1,owner, path:'invoices',input:selected.input as FinanceInvoiceInput,body:selected.body,key:selected.key,uncertain:selected.uncertain};
+  const saved:StoredInvoiceCommand={version:2,owner, path:'invoices',input:selected.input as FinanceInvoiceInput,body:selected.body,key:selected.key,uncertain:selected.uncertain};
   const raw=JSON.stringify(saved);if(raw.length>128000)throw Error('The original invoice request is too large to retain safely.');
   storage().setItem(invoiceCommandKey(owner),raw);
  }
@@ -111,7 +111,7 @@ function commands(current:()=>Source|null,correction:boolean,send:typeof workFet
   const owner=invoiceOwner(current()),selected=loadInvoiceAttempt();
   if(selected?.path==='invoices'&&(!selected.invoiceOwner||!same(selected.invoiceOwner,owner)))throw changed();
   if(!selected&&!readInvoiceDraft())throw Error('A newer invoice draft can be retained only beside its original uncertain request.');
-  const raw=JSON.stringify({version:1,owner,draft} satisfies StoredInvoiceDraft);if(raw.length>128000)throw Error('The newer invoice draft is too large to retain safely.');
+  const raw=JSON.stringify({version:2,owner,draft} satisfies StoredInvoiceDraft);if(raw.length>128000)throw Error('The newer invoice draft is too large to retain safely.');
   storage().setItem(invoiceDraftKey(owner),raw);
  }
  function clearInvoiceDraft():void{

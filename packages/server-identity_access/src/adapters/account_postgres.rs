@@ -2,6 +2,7 @@ use super::account_group_recovery::{
     BrowserDiscovery, browser_discovery, browser_key, create_key, recoverable_browser,
     recovery_snapshot, rotate_key,
 };
+use super::account_holding_bindings::ConfiguredHoldingRegistry;
 use super::account_revocation_postgres::invalidate_children;
 use crate::application::account_revocation::AccountWorkContextInvalidation;
 use crate::{
@@ -30,6 +31,7 @@ pub(crate) type TxResult<T> = Result<T, PgTransactionError<BusinessError>>;
 /// through monotonic Holding fences; a later Control failure never undoes them.
 pub struct PostgresAccountRepository {
     unit: PgUnitOfWork,
+    holdings: Arc<ConfiguredHoldingRegistry>,
     environment: String,
     require_verification: bool,
     invalidation: Arc<dyn AccountWorkContextInvalidation>,
@@ -42,6 +44,7 @@ impl PostgresAccountRepository {
         require_verification: bool,
         invalidation: Arc<dyn AccountWorkContextInvalidation>,
         clock: Arc<dyn Clock + Send + Sync>,
+        holdings: Arc<ConfiguredHoldingRegistry>,
     ) -> Result<Self, BusinessError> {
         if environment != "development" {
             return Err(BusinessError::invalid(
@@ -51,6 +54,7 @@ impl PostgresAccountRepository {
         }
         Ok(Self {
             unit: PgUnitOfWork::new(pool),
+            holdings,
             environment,
             require_verification,
             invalidation,
@@ -307,6 +311,7 @@ impl AccountRepository for PostgresAccountRepository {
                         let require_verification = self.require_verification;
                         let invalidation = self.invalidation.clone();
                         let clock = self.clock.clone();
+                        let holdings = self.holdings.clone();
                         Box::pin(async move {
                             lock_session_writes(connection).await?;
                             let now = clock.now().get();
@@ -363,6 +368,7 @@ impl AccountRepository for PostgresAccountRepository {
                                 &environment,
                                 invalidation.as_ref(),
                                 clock.as_ref(),
+                                &holdings,
                             )
                             .await?;
                             if input
@@ -403,13 +409,19 @@ impl AccountRepository for PostgresAccountRepository {
                     .run(options(), |connection| {
                         let proof = proof.clone();
                         let audience = audience.clone();
+                        let holdings = self.holdings.clone();
                         let environment = self.environment.clone();
                         Box::pin(async move {
                             lock_session_reads(connection).await?;
-                            Ok(
-                                read_session(connection, &proof, &audience, &environment, now)
-                                    .await?,
+                            read_session(
+                                connection,
+                                &proof,
+                                &audience,
+                                &environment,
+                                now,
+                                &holdings,
                             )
+                            .await
                         })
                     })
                     .await,
@@ -596,6 +608,7 @@ impl AccountRepository for PostgresAccountRepository {
                     .run_once(options(), |connection| {
                         let proof = proof.clone();
                         let audience = audience.clone();
+                        let holdings = self.holdings.clone();
                         let environment = self.environment.clone();
                         let invalidation=self.invalidation.clone();
                         let clock=self.clock.clone();
@@ -603,7 +616,7 @@ impl AccountRepository for PostgresAccountRepository {
                             lock_session_writes(connection).await?;
                             let now=clock.now().get().max(now);
                             if let Some(session) =
-                                read_session(connection, &proof, &audience, &environment, now)
+                                read_session(connection, &proof, &audience, &environment, now, &holdings)
                                     .await?
                             {
                                 match audience {
@@ -645,6 +658,7 @@ pub(crate) async fn issue_account_session(
     environment: &str,
     invalidation: &dyn AccountWorkContextInvalidation,
     clock: &(dyn Clock + Send + Sync),
+    holdings: &ConfiguredHoldingRegistry,
 ) -> TxResult<CompletedSignIn> {
     let accounts=sqlx::query_scalar::<_,String>("SELECT s.\"userId\" FROM account_device_accounts a JOIN session s ON s.id=a.session_id JOIN sso_session_bindings b ON b.session_id=s.id WHERE a.browser_id=$1 AND b.audience='account' AND b.environment=$2 AND b.parent_session_id IS NULL AND b.absolute_expires_at>$3 AND s.\"expiresAt\"::timestamptz>to_timestamp($3::double precision/1000)").bind(input.browser.as_str()).bind(environment).bind(input.now).fetch_all(&mut *connection).await?;
     if accounts.len() >= MAXIMUM_SAVED_ACCOUNTS && !accounts.contains(&input.user_id) {
@@ -697,6 +711,7 @@ pub(crate) async fn issue_account_session(
         &RequestAudience::Account,
         environment,
         now,
+        holdings,
     )
     .await?
     .ok_or_else(denied)?;

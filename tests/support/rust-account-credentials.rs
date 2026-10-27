@@ -101,6 +101,7 @@ pub async fn setup_with_clock_and_invalidation(
                     true,
                     invalidation.clone(),
                     clock.clone(),
+                    account::holding_registry(),
                 )
                 .unwrap(),
             ),
@@ -120,6 +121,7 @@ pub async fn setup_with_clock_and_invalidation(
                     invitations,
                     invalidation.clone(),
                     clock.clone(),
+                    account::holding_registry(),
                 )
                 .unwrap(),
             ),

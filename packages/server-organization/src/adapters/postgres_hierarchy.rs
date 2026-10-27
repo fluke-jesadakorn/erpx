@@ -1,8 +1,8 @@
 use crate::{
     application::hierarchy::{OrganizationReadFuture, OrganizationReadPort},
     domain::hierarchy::{
-        CompanyContext, HierarchyLineage, OrganizationNode, WorkspaceRouteQuery, company_context,
-        workspace_missing,
+        CompanyContext, HierarchyLineage, NodeKind, OrganizationNode, WorkspaceRouteQuery,
+        company_context, workspace_missing,
     },
 };
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
@@ -18,6 +18,47 @@ impl<'c> PgOrganizationReader<'c> {
         Self {
             holding_id,
             connection,
+        }
+    }
+    /// Resolve a current owner-supplied scope ID without trusting an invented
+    /// branch ID. This is structural evidence only. The caller must acquire
+    /// lock_hierarchy_sources before its first policy snapshot.
+    pub async fn scope_node_context(
+        &mut self,
+        company: &CompanyId,
+        kind: NodeKind,
+        id: &RecordId,
+    ) -> Result<CompanyContext, PgTransactionError<BusinessError>> {
+        if !self.connection.is_in_transaction() {
+            return Err(PersistenceError::new("ORGANIZATION_TRANSACTION_REQUIRED").into());
+        }
+        let expected = match kind {
+            NodeKind::Branch => "branch",
+            NodeKind::Department => "department",
+            _ => return Err(workspace_missing().into()),
+        };
+        // Read the known tuple without active-state filters. A concurrent change
+        // after an older snapshot must reach this positive fence and raise40001.
+        let row=sqlx::query("SELECT kind,status,company_id,CASE WHEN branch_id IS NULL OR octet_length(branch_id)<=200 THEN branch_id END branch_id,branch_id IS NULL branch_absent FROM organization_nodes WHERE id=$1 FOR SHARE")
+            .bind(id.as_str()).fetch_optional(&mut *self.connection).await?.ok_or_else(workspace_missing)?;
+        if row.try_get::<&str, _>("kind")? != expected
+            || row.try_get::<&str, _>("status")? != "active"
+            || row.try_get::<&str, _>("company_id")? != company.as_str()
+        {
+            return Err(workspace_missing().into());
+        }
+        let branch: Option<String> = row.try_get("branch_id")?;
+        if branch.is_none() && !row.try_get::<bool, _>("branch_absent")? {
+            return Err(workspace_missing().into());
+        }
+        let branch = branch
+            .map(RecordId::new)
+            .transpose()
+            .map_err(|_| workspace_missing())?;
+        match kind {
+            NodeKind::Branch => self.scope_context(company, Some(id), None).await,
+            NodeKind::Department => self.scope_context(company, branch.as_ref(), Some(id)).await,
+            _ => unreachable!(),
         }
     }
     /// Original owner sources carry node IDs rather than browser path slugs.

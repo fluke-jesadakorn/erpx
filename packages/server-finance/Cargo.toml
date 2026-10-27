@@ -8,7 +8,7 @@ publish.workspace = true
 autotests = false
 
 [package.metadata.erpx]
-verification-roots = ["../../fixtures/finance/rust-journal-review", "../../scripts/testing/fixtures/generate-finance-journal-review-oracle.ts", "../catalogue/src/iso-4217-current.json", "../../fixtures/finance/rust-instruments", "../../tests/support/finance", "../../scripts/testing/fixtures/generate-finance-rust-goldens.ts", "../../scripts/testing/fixtures/finance-node-oracle.ts"]
+verification-roots = ["../../fixtures/finance/rust-journal-wire", "../../scripts/testing/fixtures/generate-business-http-wire-oracle.ts", "../../fixtures/finance/rust-journal-review", "../../scripts/testing/fixtures/generate-finance-journal-review-oracle.ts", "../catalogue/src/iso-4217-current.json", "../../fixtures/finance/rust-instruments", "../../tests/support/finance", "../../scripts/testing/fixtures/generate-finance-rust-goldens.ts", "../../scripts/testing/fixtures/finance-node-oracle.ts"]
 
 [lib]
 path = "src/lib.rs"
@@ -29,6 +29,7 @@ serde.workspace = true
 serde_json.workspace = true
 
 [dev-dependencies]
+base64.workspace = true
 tokio.workspace = true
 uuid.workspace = true
 
@@ -58,3 +59,7 @@ path = "../../tests/integration/finance/rust-journal-source-postgres.test.rs"
 [[test]]
 name = "inventory_consumption_postgres"
 path = "../../tests/integration/finance/rust-inventory-consumption-postgres.test.rs"
+
+[[test]]
+name = "journal_wire"
+path = "../../tests/unit/finance/rust-journal-wire.test.rs"

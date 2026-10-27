@@ -5,7 +5,7 @@ import {announceWorkChange} from '@erpx/feature-work_projection/lib/work-refresh
 export type FieldServiceSource={base:string;workspaceKey:string;recordId:string|null;targets:Record<string,{version:number;status:string}>};
 export type FieldServiceReceipt={id:string;status:string;version:number;ticketId?:string};
 export const fieldServiceOwner=(source:FieldServiceSource)=>JSON.stringify([source.base,source.workspaceKey,source.recordId]);
-const work=()=>{const node=typeof document==='undefined'?null:document.querySelector<HTMLElement>('[data-work-revision]');return node?[node.dataset.workUser,node.dataset.workRevision,node.dataset.workCompany,node.dataset.workAssignment].join(':'):'server';};
+const work=()=>{const node=typeof document==='undefined'?null:document.querySelector<HTMLElement>('[data-work-revision]');return node?JSON.stringify([node.dataset.workUser,node.dataset.workRevision,node.dataset.workCompany,node.dataset.workAssignment,node.dataset.workAssignmentVersion]):'server';};
 const record=(value:unknown):value is Record<string,unknown>=>!!value&&typeof value==='object'&&!Array.isArray(value);
 function witness(source:FieldServiceSource,input:Record<string,unknown>){const refs=[input.entity==='agreement'?['agreement',input.id]:['order',input.id],['agreement',input.agreementId],['ticket',input.ticketId]];return JSON.stringify([fieldServiceOwner(source),refs.filter((ref):ref is [string,string]=>typeof ref[1]==='string').map(([kind,id])=>[kind,id,source.targets[`${kind}:${id}`]??null])]);}
 function expected(input:Record<string,unknown>,source:FieldServiceSource,key:string):FieldServiceReceipt{

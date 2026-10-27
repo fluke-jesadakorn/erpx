@@ -1,6 +1,6 @@
 import {workFetch,type WorkCommandCompletion} from "@erpx/feature-work_projection/lib/work-fetch";
 export type ProcurementReceipt={id:string;version:number;promiseId?:string};
-export function procurementCommandContext(){const node=typeof document==="undefined"?null:document.querySelector<HTMLElement>("[data-work-revision]");return node?[node.dataset.workUser,node.dataset.workRevision,node.dataset.workCompany,node.dataset.workAssignment].join(":"):"server";}
+export function procurementCommandContext(){const node=typeof document==="undefined"?null:document.querySelector<HTMLElement>("[data-work-revision]");return node?JSON.stringify([node.dataset.workUser,node.dataset.workRevision,node.dataset.workCompany,node.dataset.workAssignment,node.dataset.workAssignmentVersion]):"server";}
 export function procurementFormUnchanged(completion:WorkCommandCompletion|undefined){return !completion||completion.form.isConnected&&completion.form.getAttribute("data-erpx-edit-version")===completion.formEditVersion;}
 export function validProcurementReceipt(path:string,value:unknown,key?:string,expectedVersion?:number):value is ProcurementReceipt{
  if(!value||typeof value!=="object"||Array.isArray(value)||!("id" in value)||typeof value.id!=="string"||!value.id||!("version" in value)||!Number.isSafeInteger(value.version)||Number(value.version)<1)return false;

@@ -382,6 +382,14 @@ impl CommandJson {
             .map(Self::from_value)
             .transpose()
     }
+    /// PostgreSQL UTF-8 storage representation only. Keep this CommandJson for
+    /// receipt identity: distinct lone UTF-16 units may share replacement text.
+    pub fn string_utf8_storage(&self) -> Result<Option<String>, BusinessError> {
+        Ok(match self.value()? {
+            OrderedJson::String(value) => Some(String::from_utf16_lossy(&value.units())),
+            _ => None,
+        })
+    }
     pub(crate) fn value(&self) -> Result<OrderedJson, BusinessError> {
         OrderedJson::parse(&self.0)
     }

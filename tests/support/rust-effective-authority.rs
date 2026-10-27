@@ -15,6 +15,38 @@ use std::sync::{
     Arc,
     atomic::{AtomicI64, Ordering},
 };
+pub fn holding_registry()
+-> Arc<erpx_server_identity_access::public::account_holding_bindings::ConfiguredHoldingRegistry> {
+    use erpx_server_identity_access::public::account_holding_bindings::{
+        ConfiguredAccountHolding, ConfiguredHoldingRegistry,
+    };
+    Arc::new(
+        ConfiguredHoldingRegistry::new(
+            &policy(),
+            vec![ConfiguredAccountHolding {
+                holding_id: HoldingId::new("h001").unwrap(),
+                slug: "acme".into(),
+                write_binding: "HOLDING_H001_DB".into(),
+                read_binding: "HOLDING_H001_READ_DB".into(),
+                files_binding: "HOLDING_H001_FILES".into(),
+            }],
+        )
+        .unwrap(),
+    )
+}
+pub fn policy() -> AccountPolicy {
+    AccountPolicy {
+        account_origin: "https://account.example.test".into(),
+        account_host: "account.example.test".into(),
+        environment: "development".into(),
+        require_email_verification: true,
+        holdings: vec![HoldingOrigin {
+            origin: "https://acme.example.test".into(),
+            host: "acme.example.test".into(),
+            audience: "holding:development:h001:acme.example.test".into(),
+        }],
+    }
+}
 pub const NOW: i64 = 1800000000000;
 pub struct MutableClock(pub AtomicI64);
 impl Clock for MutableClock {
@@ -72,17 +104,8 @@ pub async fn setup(
     sqlx::query("INSERT INTO assignments(id,user_id,role,modules_json,company_id,valid_from,valid_until,version,scope_kind) VALUES('grant','user','custom_native_authority','[\"finance\"]','company',$1,$2,3,'holding')").bind(NOW-1000).bind(NOW+3600000).execute(holding.raw()).await.unwrap();
     sqlx::query("INSERT INTO active_work_contexts(session_id,user_id,company_id,assignment_id,assignment_version,revision,expires_at,updated_at) VALUES('session','user','company','grant',3,7,$1,$2)").bind(NOW+3600000).bind(NOW).execute(holding.raw()).await.unwrap();
     let clock = Arc::new(MutableClock(AtomicI64::new(NOW)));
-    let policy = AccountPolicy {
-        account_origin: "https://account.example.test".into(),
-        account_host: "account.example.test".into(),
-        environment: "development".into(),
-        require_email_verification: true,
-        holdings: vec![HoldingOrigin {
-            origin: "https://acme.example.test".into(),
-            host: "acme.example.test".into(),
-            audience: "holding:development:h001:acme.example.test".into(),
-        }],
-    };
+    let policy = policy();
+    sqlx::query("INSERT INTO holding_bindings(holding_id,slug,display_name,write_binding,read_binding,files_binding,status) VALUES('h001','acme','Synthetic','HOLDING_H001_DB','HOLDING_H001_READ_DB','HOLDING_H001_FILES','active')").execute(control.raw()).await.unwrap();
     (
         Arc::new(
             HoldingWorkAuthorizer::new(
@@ -91,6 +114,7 @@ pub async fn setup(
                 HoldingId::new("h001").unwrap(),
                 policy,
                 clock.clone(),
+                holding_registry(),
             )
             .unwrap(),
         ),

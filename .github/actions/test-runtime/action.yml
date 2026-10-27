@@ -48,6 +48,11 @@ runs:
         ERPX_CI_CLAMAV_VERSION=$(clamd --version | sed -E 's/^ClamAV ([0-9]+\.[0-9]+\.[0-9]+).*/\1/')
         [[ "$ERPX_CI_CLAMAV_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
         echo "ERPX_CLAMAV_VERSION=$ERPX_CI_CLAMAV_VERSION" >> "$GITHUB_ENV"
+    - name: Prove the real scanner and decoder prerequisites
+      shell: bash
+      run: |
+        bun scripts/testing/fixtures/generate-attachment-heic.ts --check
+        bun --conditions=react-server scripts/testing/ci-attachment-prerequisites.ts
     - name: Install the browser runtime
       if: inputs.browser == 'true'
       shell: bash

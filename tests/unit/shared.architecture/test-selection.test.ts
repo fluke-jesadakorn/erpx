@@ -1,3 +1,6 @@
+import {inferPostgresProfile} from '../../../scripts/testing/workspace-catalogue';
+import {executeOwnedProcess} from '../../support/owned-process';
+import {ciVerificationArgv} from '../../../scripts/testing/ci-postgres-contract';
 import { afterEach, describe, expect, it } from "vitest";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { availableParallelism, tmpdir } from "node:os";
@@ -46,6 +49,31 @@ function ciCatalogues() {
   return { baseCatalogue, headCatalogue, baseCritical, headCritical, nativeLow, nativeIntegration };
 }
 const ciImpact = (mode: ImpactResult["mode"], suites: Suite[] = [], changed: ImpactResult["changed"] = []): ImpactResult => ({ mode, suites, changed, modules: [], reasons: [mode === "full" ? "GLOBAL_DEPENDENCY" : mode === "affected" ? "OWNED_CHANGE" : "DOCUMENTATION_ONLY"] });
+
+it("retains the declared complete recovery fixture through catalogue regeneration without widening ordinary suites",()=>{
+  const slots=['CONTROL_DB','CONTROL_READ_DB','H001_DB','H001_READ_DB','H002_DB','H002_READ_DB','H003_DB','H003_READ_DB'];
+  const source=`export const postgresFixtureSlots=${JSON.stringify(slots)} as const; const db=env.H001_DB; Object.entries(env);`;
+  expect(inferPostgresProfile(['tests/integration/shared.evidence/engineering-recovery.test.ts'],[source]))
+    .toEqual({mode:'raw',slots,migratedSlots:[]});
+  expect(inferPostgresProfile(['tests/integration/ordinary.test.ts'],['env.H001_DB; STAFF_TEST_MIGRATIONS']))
+    .toEqual({mode:'template',slots:['CONTROL_DB','H001_DB','H001_READ_DB'],migratedSlots:['H001_DB']});
+  for(const declared of [['CONTROL_DB','LIVE_DB'],['H001_DB','H001_DB'],[]])
+    expect(()=>inferPostgresProfile(['recovery.test.ts'],[`export const postgresFixtureSlots=${JSON.stringify(declared)} as const;`]))
+      .toThrow('INVALID_DECLARED_POSTGRES_FIXTURE_SLOTS');
+  expect(()=>inferPostgresProfile(['recovery.test.ts'],['export const postgresFixtureSlots=unknownRuntimeSlots(); env.H001_DB;']))
+    .toThrow('INVALID_DECLARED_POSTGRES_FIXTURE_SLOTS');
+});
+
+it("kills and reaps an owned timed-out operator group including its real descendant",async()=>{
+  const code=`const {spawn}=require('node:child_process');const child=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'inherit'});console.log(child.pid);process.on('SIGTERM',()=>child.once('exit',()=>process.exit(0)));setInterval(()=>{},1000);`;
+  let failure:unknown;
+  try{await executeOwnedProcess(process.execPath,['-e',code],{timeout:1_000});}catch(error){failure=error;}
+  expect(failure).toMatchObject({code:'OWNED_PROCESS_TIMEOUT',killed:true,signal:'SIGKILL'});
+  const pid=Number((failure as {stdout:string}).stdout.trim());expect(Number.isSafeInteger(pid)&&pid>1).toBe(true);
+  expect(()=>process.kill(pid,0)).toThrow();
+  await expect(executeOwnedProcess(process.execPath,['-e','process.stdout.write(process.argv[1])','literal $(echo untouched)'],{timeout:1_000}))
+    .resolves.toMatchObject({stdout:'literal $(echo untouched)'});
+});
 
 describe("test selection contracts", () => {
   it("resolves unique exact case titles and file identities and rejects unknown or ambiguous selectors", () => {
@@ -499,7 +527,11 @@ describe("conservative base and head impact selection", () => {
   it("requires complete semantic ownership in impact CI even after import boundaries pass", () => {
     const workflow = readFileSync(join(process.cwd(), ".github/workflows/nextjs.yml"), "utf8");
     const impactJob = workflow.match(/^  verification:\n([\s\S]*?)(?=^  acceptance:)/m)?.[1];
-    expect(impactJob).toContain('run: bun run test:ci');
+    expect(impactJob).toContain('run: bun scripts/testing/ci-postgres-resource.ts -- bun run test:ci --base="$ERPX_CI_BASE" --head="$ERPX_CI_HEAD"');
+    expect(ciVerificationArgv(['--','bun','run','test:ci','--base=original-base','--head=exact-head']))
+      .toEqual(['run','test:ci','--base=original-base','--head=exact-head']);
+    for(const argv of [[],['bun','run','test:ci'],['--','sh','-c','test:ci'],['--','bun','run','deploy:build']])
+      expect(()=>ciVerificationArgv(argv)).toThrow('EXPLICIT_CI_VERIFICATION_COMMAND_REQUIRED');
     expect(impactJob).not.toContain('release:acceptance');
     expect(impactJob).not.toContain('deploy:build');
     const regressionRunner = readFileSync(join(process.cwd(), "scripts/testing/scoped.ts"), "utf8");
@@ -540,7 +572,12 @@ describe("conservative base and head impact selection", () => {
     expect(workflow).toContain("if: github.event_name == 'workflow_dispatch'");
     expect(workflow).not.toContain('schedule:');
     expect(workflow).toContain('name: Affected development verification');
-    expect(workflow).toContain('run: bun run release:acceptance --candidate="$CANDIDATE"');
+    const acceptanceJob=workflow.match(/^  acceptance:\n([\s\S]*)$/m)?.[1];
+    expect(acceptanceJob).toContain("if: github.event_name == 'workflow_dispatch'");
+    expect(acceptanceJob).toContain('run: bun scripts/testing/ci-postgres-resource.ts -- bun run release:acceptance --candidate="$CANDIDATE"');
+    expect(ciVerificationArgv(['--','bun','run','release:acceptance','--candidate=original exact candidate']))
+      .toEqual(['run','release:acceptance','--candidate=original exact candidate']);
+    expect(workflow.match(/^  verification:\n([\s\S]*?)(?=^  acceptance:)/m)?.[1]).not.toContain('release:acceptance');
     expect(workflow).not.toContain('deploy:build');
     expect(workflow).not.toContain('ci-regression.ts browser');
 

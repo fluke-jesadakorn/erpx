@@ -68,3 +68,31 @@ impl account_revocation::AccountWorkContextInvalidation for RecordedFixtureRevoc
         })
     }
 }
+
+/// Exact synthetic configuration; current Control rows still need verification.
+#[allow(dead_code)]
+pub fn holding_registry() -> std::sync::Arc<account_holding_bindings::ConfiguredHoldingRegistry> {
+    use account_holding_bindings::{ConfiguredAccountHolding, ConfiguredHoldingRegistry};
+    std::sync::Arc::new(
+        ConfiguredHoldingRegistry::new(
+            &policy(),
+            vec![
+                ConfiguredAccountHolding {
+                    holding_id: erpx_server_shared::public::HoldingId::new("h001").unwrap(),
+                    slug: "acme".into(),
+                    write_binding: "HOLDING_H001_DB".into(),
+                    read_binding: "HOLDING_H001_READ_DB".into(),
+                    files_binding: "HOLDING_H001_FILES".into(),
+                },
+                ConfiguredAccountHolding {
+                    holding_id: erpx_server_shared::public::HoldingId::new("h002").unwrap(),
+                    slug: "northstar".into(),
+                    write_binding: "HOLDING_H002_DB".into(),
+                    read_binding: "HOLDING_H002_READ_DB".into(),
+                    files_binding: "HOLDING_H002_FILES".into(),
+                },
+            ],
+        )
+        .unwrap(),
+    )
+}

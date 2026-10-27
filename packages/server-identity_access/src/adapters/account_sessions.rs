@@ -1,4 +1,5 @@
 use super::account_group_recovery::browser_key;
+use super::account_holding_bindings::ConfiguredHoldingRegistry;
 use crate::{
     application::account_ports::DeviceProof,
     domain::account_auth::{
@@ -6,6 +7,7 @@ use crate::{
         RequestAudience,
     },
 };
+use erpx_server_runtime::public::postgres::PgTransactionError;
 use erpx_server_shared::public::{BusinessError, FailureKind};
 use sqlx::{PgConnection, Row, postgres::PgRow};
 
@@ -22,7 +24,7 @@ pub(crate) async fn lock_session_reads(connection: &mut PgConnection) -> Result<
     sqlx::query("LOCK TABLE session IN SHARE MODE")
         .execute(&mut *connection)
         .await?;
-    sqlx::query("LOCK TABLE account_device_browsers,account_device_accounts,native_account_device_group_keys,sso_session_bindings,\"user\",principals IN SHARE MODE").execute(connection).await?;
+    sqlx::query("LOCK TABLE account_device_browsers,account_device_accounts,native_account_device_group_keys,sso_session_bindings,\"user\",principals,holding_bindings IN SHARE MODE").execute(connection).await?;
     Ok(())
 }
 
@@ -180,11 +182,17 @@ pub(crate) async fn read_session(
     audience: &RequestAudience,
     environment: &str,
     now: i64,
-) -> Result<Option<AccountSession>, sqlx::Error> {
+    holdings: &ConfiguredHoldingRegistry,
+) -> Result<Option<AccountSession>, PgTransactionError<BusinessError>> {
     let Some(active) = &proof.active else {
         return Ok(None);
     };
-    match audience {
+    let binding = if matches!(audience, RequestAudience::Holding { .. }) {
+        Some(holdings.read_current(connection, audience).await?)
+    } else {
+        None
+    };
+    let result: Result<Option<AccountSession>, PgTransactionError<BusinessError>> = match audience {
         RequestAudience::Account => {
             let Some(browser) = browser_key(connection, proof.browser.as_ref()).await? else {
                 return Ok(None);
@@ -220,10 +228,18 @@ pub(crate) async fn read_session(
               AND pb.authenticated_at<=$4 AND pb.absolute_expires_at>$4 AND pb.absolute_expires_at<=pb.authenticated_at+43200000
               AND cb.authenticated_at<=$4 AND cb.authenticated_at=pb.authenticated_at AND cb.absolute_expires_at>$4
               AND cb.absolute_expires_at<=cb.authenticated_at+43200000 AND cb.absolute_expires_at<=pb.absolute_expires_at"#)
-                .bind(active.as_str()).bind(audience).bind(environment).bind(now).fetch_optional(connection).await?;
-            row.as_ref().map(session_row).transpose()
+                .bind(active.as_str()).bind(audience).bind(environment).bind(now).fetch_optional(&mut *connection).await?;
+            row.as_ref()
+                .map(session_row)
+                .transpose()
+                .map_err(Into::into)
         }
+    };
+    let result = result?;
+    if let Some(binding) = binding {
+        binding.require_current(connection).await?;
     }
+    Ok(result)
 }
 
 /// Session proof only. The caller must still resolve current assignments and original owner policies.
@@ -234,17 +250,15 @@ pub async fn verify_session_in_transaction(
     audience: &RequestAudience,
     environment: &str,
     now: i64,
-) -> Result<Option<AccountSession>, BusinessError> {
+    holdings: &ConfiguredHoldingRegistry,
+) -> Result<Option<AccountSession>, PgTransactionError<BusinessError>> {
     if environment != "development" {
         return Err(BusinessError::invalid(
             "ACCOUNT_ENVIRONMENT_UNAVAILABLE",
             "This Account binding environment is not enabled.",
-        ));
+        )
+        .into());
     }
-    lock_session_reads(connection)
-        .await
-        .map_err(|_| persistence())?;
-    read_session(connection, proof, audience, environment, now)
-        .await
-        .map_err(|_| persistence())
+    lock_session_reads(connection).await?;
+    read_session(connection, proof, audience, environment, now, holdings).await
 }

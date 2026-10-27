@@ -28,6 +28,7 @@ pub struct Prepared {
     pub system: System,
     pub maker: DeviceProof,
     pub reviewer: DeviceProof,
+    pub reviewer_token: erpx_server_identity_access::public::OpaqueSecret,
     pub reviewer_central: PresentedSecrets,
     pub reviewer_selection: HoldingWorkspaceRequest,
     pub maker_selection: HoldingWorkspaceRequest,
@@ -122,6 +123,7 @@ pub async fn setup(system: System) -> Prepared {
             HoldingId::new("h001").unwrap(),
             account::fixture::account::policy(),
             system.scenario.clock.clone(),
+            account::fixture::account::holding_registry(),
         )
         .unwrap(),
     );
@@ -135,6 +137,7 @@ pub async fn setup(system: System) -> Prepared {
     Prepared {
         maker: proof(&maker.token),
         reviewer: proof(&reviewer.token),
+        reviewer_token: reviewer.token,
         maker_selection: selection("fixture-a"),
         reviewer_selection: selection("fixture-b"),
         reviewer_central,

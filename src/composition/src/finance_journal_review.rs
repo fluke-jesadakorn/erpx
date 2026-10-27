@@ -11,6 +11,7 @@ use erpx_server_finance::public::{
         JournalReviewResult, JournalReviewerFacts, PgFinanceJournalReviewPolicy, PgJournalReview,
         ReviewJournal, inspect_journal_review_source, lock_journal_review_sources, review_journal,
     },
+    journal_review_wire::NormalizedJournalReviewCommand,
 };
 use erpx_server_identity_access::public::{
     DeviceProof,
@@ -101,23 +102,73 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalReviewAdministration<C> {
         &self,
         host: &str,
         proof: DeviceProof,
-        mut workspace: HoldingWorkspaceRequest,
+        workspace: HoldingWorkspaceRequest,
         command: JournalReviewCommand,
     ) -> Result<JournalReviewResult, Error> {
-        if workspace.company_id != self.configuration.company_id {
-            return Err(scope_error().into());
-        }
-        // A read selector cannot opt a financial mutation out of selected CAS.
-        workspace.mutation = true;
+        self.review_prepared(
+            host,
+            proof,
+            move || Ok(workspace),
+            move || NormalizedJournalReviewCommand::from_typed(command.clone()),
+            "finance.write",
+        )
+        .await
+    }
+    /// Transport parsing is pure and deferred until retained authentication and
+    /// the same current Finance read context. It cannot substitute an actor or
+    /// bypass the canonical write/review/source/purchase policy.
+    pub async fn review_transport<Input, Prepare>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        workspace: Input,
+        prepare: Prepare,
+    ) -> Result<JournalReviewResult, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+        Prepare: Fn() -> Result<NormalizedJournalReviewCommand, BusinessError>
+            + Clone
+            + Send
+            + Sync
+            + 'static,
+    {
+        self.review_prepared(host, proof, workspace, prepare, "finance.read")
+            .await
+    }
+    async fn review_prepared<Input, Prepare>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        workspace: Input,
+        prepare: Prepare,
+        permission: &'static str,
+    ) -> Result<JournalReviewResult, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+        Prepare: Fn() -> Result<NormalizedJournalReviewCommand, BusinessError>
+            + Clone
+            + Send
+            + Sync
+            + 'static,
+    {
+        let company = self.configuration.company_id.clone();
+        let workspace = move || {
+            let mut workspace = workspace()?;
+            if workspace.company_id != company {
+                return Err(scope_error());
+            }
+            workspace.mutation = true;
+            Ok(workspace)
+        };
         let configuration = self.configuration.clone();
         let clock = self.clock.clone();
         self.authorizer
-            .execute_with_sources(
+            .execute_with_sources_deferred(
                 host,
                 proof,
                 workspace,
                 WorkAuthorizationRequest {
-                    permission: "finance.write".into(),
+                    permission: permission.into(),
                     module: Some("finance".into()),
                     destination: "finance/journals".into(),
                     api: true,
@@ -126,8 +177,10 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalReviewAdministration<C> {
                 move |c, current| {
                     let configuration = configuration.clone();
                     let clock = clock.clone();
-                    let command = command.clone();
+                    let prepare = prepare.clone();
                     Box::pin(async move {
+                        let normalized = prepare()?;
+                        let command = normalized.command().clone();
                         let actor = finance_actor(current);
                         let policy = Mutex::new(CurrentFinancePolicy {
                             current,
@@ -144,6 +197,8 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalReviewAdministration<C> {
                             clock.as_ref(),
                             &mut ids,
                         )
+                        .map_err(finance_error)?
+                        .with_normalized_command(normalized)
                         .map_err(finance_error)?;
                         review_journal(&mut ports, &actor, &command)
                             .await

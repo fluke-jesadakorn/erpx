@@ -9,7 +9,13 @@ use crate::{
 };
 use erpx_server_commercial::public::purchases::current_package_catalogue;
 use erpx_server_files::public::canonical_original::LocalOriginalStore;
-use erpx_server_identity_access::public::effective_authority::PgQueuedWorkAuthorizer;
+use erpx_server_identity_access::public::{
+    AccountPolicy, HoldingOrigin,
+    account_holding_bindings::{
+        ConfiguredAccountHolding, ConfiguredHoldingRegistry, lock_holding_binding_sources,
+    },
+    effective_authority::PgQueuedWorkAuthorizer,
+};
 use erpx_server_legal::public::{
     BoundedDocumentExtractor, DocumentProcessLimits, DocumentToolConfiguration,
     LegalProcessingKind, document_processing::LegalExtractionRetention,
@@ -18,7 +24,8 @@ use erpx_server_legal::public::{
 use erpx_server_platform_administration::public::legal_release::current_legal_release_catalogue;
 use erpx_server_pms::public::scheduled_legal::ScheduledReleaseMode;
 use erpx_server_runtime::public::postgres::{
-    LeasedDevelopmentDatabase, PgTransactionError, PoolLimits,
+    LeasedDevelopmentDatabase, MigrationTrack, PgRequestLease, PgTransactionError, PoolLimits,
+    inspect_migrations, load_migrations,
 };
 use erpx_server_shared::public::{Clock, CompanyId, HoldingId, TimestampMillis};
 use serde::Deserialize;
@@ -39,16 +46,32 @@ struct ConfigurationDocument {
     company_id: String,
     database_url: String,
     lease_token: String,
+    control_database_url: String,
+    control_lease_token: String,
+    account_host: String,
+    holding_bindings: Vec<BindingDocument>,
     files_root: PathBuf,
     temporary_root: PathBuf,
     document_binary: PathBuf,
     pdf_binary: Option<PathBuf>,
     tools: DocumentToolConfiguration,
 }
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct BindingDocument {
+    holding_id: String,
+    slug: String,
+    host: String,
+    write_binding: String,
+    read_binding: String,
+    files_binding: String,
+}
 /// No Deserialize or public fields: only the bounded, explicit Development
 /// parser can produce a bootstrap configuration. Debug never prints secrets.
 pub struct DevelopmentLegalWorkerConfiguration {
     database: LeasedDevelopmentDatabase,
+    control: LeasedDevelopmentDatabase,
+    holdings: Arc<ConfiguredHoldingRegistry>,
     owner: LegalOwnerConfiguration,
     files_root: PathBuf,
     temporary_root: PathBuf,
@@ -91,6 +114,51 @@ impl DevelopmentLegalWorkerConfiguration {
         }
         let database = LeasedDevelopmentDatabase::parse(&doc.database_url, &doc.lease_token)
             .map_err(|_| "EXACT_LEASED_DEVELOPMENT_DATABASE_REQUIRED")?;
+        let control =
+            LeasedDevelopmentDatabase::parse(&doc.control_database_url, &doc.control_lease_token)
+                .map_err(|_| "EXACT_LEASED_DEVELOPMENT_DATABASE_REQUIRED")?;
+        if doc.control_lease_token == doc.lease_token {
+            return Err("DISTINCT_CONTROL_AND_HOLDING_DATABASES_REQUIRED");
+        }
+        let policy = AccountPolicy {
+            account_origin: format!("https://{}", doc.account_host),
+            account_host: doc.account_host,
+            environment: "development".into(),
+            require_email_verification: true,
+            holdings: doc
+                .holding_bindings
+                .iter()
+                .map(|b| HoldingOrigin {
+                    origin: format!("https://{}", b.host),
+                    host: b.host.clone(),
+                    audience: format!("holding:development:{}:{}", b.holding_id, b.host),
+                })
+                .collect(),
+        };
+        let configured = doc
+            .holding_bindings
+            .into_iter()
+            .map(|b| {
+                Ok(ConfiguredAccountHolding {
+                    holding_id: HoldingId::new(b.holding_id)
+                        .map_err(|_| "LEGAL_BINDING_CONFIGURATION_INVALID")?,
+                    slug: b.slug,
+                    write_binding: b.write_binding,
+                    read_binding: b.read_binding,
+                    files_binding: b.files_binding,
+                })
+            })
+            .collect::<Result<Vec<_>, &'static str>>()?;
+        let holdings = Arc::new(
+            ConfiguredHoldingRegistry::new(&policy, configured)
+                .map_err(|_| "LEGAL_BINDING_CONFIGURATION_INVALID")?,
+        );
+        holdings
+            .audience_for_holding(
+                &HoldingId::new(doc.holding_id.clone())
+                    .map_err(|_| "LEGAL_BINDING_CONFIGURATION_INVALID")?,
+            )
+            .map_err(|_| "LEGAL_BINDING_CONFIGURATION_INVALID")?;
         let owner = LegalOwnerConfiguration {
             holding_id: HoldingId::new(doc.holding_id)
                 .map_err(|_| "LEGAL_DEVELOPMENT_CONFIGURATION_INVALID")?,
@@ -109,6 +177,8 @@ impl DevelopmentLegalWorkerConfiguration {
         };
         Ok(Self {
             database,
+            control,
+            holdings,
             owner,
             files_root: doc.files_root,
             temporary_root: doc.temporary_root,
@@ -176,6 +246,56 @@ pub async fn run_once_file(path: &Path) -> Result<serde_json::Value, &'static st
         })
         .await
         .map_err(|_| "LEGAL_DEVELOPMENT_DATABASE_LEASE_UNAVAILABLE")?;
+    let control = match config
+        .control
+        .connect(PoolLimits {
+            max_connections: 2,
+            acquire_timeout: Duration::from_secs(5),
+        })
+        .await
+    {
+        Ok(pool) => pool,
+        Err(_) => {
+            pool.close().await;
+            return Err("LEGAL_DEVELOPMENT_CONTROL_LEASE_UNAVAILABLE");
+        }
+    };
+    // Trusted source configuration is validated on the actual leased Control DB.
+    // This startup read is never reused as a phase authority or detached proof.
+    let startup = async {
+        let migration_root =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+        for (database, track) in [
+            (&control, MigrationTrack::Control),
+            (&pool, MigrationTrack::HoldingWrite),
+        ] {
+            let files = load_migrations(&migration_root, track)
+                .await
+                .map_err(|_| "LEGAL_WORKER_SCHEMA_UNAVAILABLE")?;
+            let status = inspect_migrations(database, track, &files)
+                .await
+                .map_err(|_| "LEGAL_WORKER_SCHEMA_UNAVAILABLE")?;
+            if !status.pending.is_empty() {
+                return Err("LEGAL_WORKER_SCHEMA_UNAVAILABLE");
+            }
+        }
+        let registry = config.holdings.clone();
+        PgRequestLease::new(control.clone())
+            .run(move |c| {
+                Box::pin(async move {
+                    lock_holding_binding_sources(c).await?;
+                    registry.verify_startup(c).await
+                })
+            })
+            .await
+            .map_err(|_| "LEGAL_CURRENT_HOLDING_BINDINGS_UNAVAILABLE")
+    }
+    .await;
+    if let Err(error) = startup {
+        control.close().await;
+        pool.close().await;
+        return Err(error);
+    }
     let extractor = match BoundedDocumentExtractor::new(
         &config.document_binary,
         &config.temporary_root,
@@ -184,6 +304,7 @@ pub async fn run_once_file(path: &Path) -> Result<serde_json::Value, &'static st
     ) {
         Ok(v) => v,
         Err(_) => {
+            control.close().await;
             pool.close().await;
             return Err("LEGAL_DOCUMENT_PROVIDER_UNAVAILABLE");
         }
@@ -199,6 +320,7 @@ pub async fn run_once_file(path: &Path) -> Result<serde_json::Value, &'static st
             Ok(verifier) => Some(verifier),
             Err(_) => {
                 extractor.shutdown_and_drain().await;
+                control.close().await;
                 pool.close().await;
                 return Err("LEGAL_PDF_PROVIDER_UNAVAILABLE");
             }
@@ -206,6 +328,8 @@ pub async fn run_once_file(path: &Path) -> Result<serde_json::Value, &'static st
     };
     #[cfg(feature = "legal-pdf-worker")]
     let running = run_once(
+        &control,
+        config.holdings,
         &pool,
         config.owner,
         &config.files_root,
@@ -213,7 +337,14 @@ pub async fn run_once_file(path: &Path) -> Result<serde_json::Value, &'static st
         verifier.as_ref(),
     );
     #[cfg(not(feature = "legal-pdf-worker"))]
-    let running = run_once(&pool, config.owner, &config.files_root, &extractor);
+    let running = run_once(
+        &control,
+        config.holdings,
+        &pool,
+        config.owner,
+        &config.files_root,
+        &extractor,
+    );
     // Startup probes own the same bounded children as computation. Cancellation
     // must cover both, then await cleanup before the Tokio runtime can exit.
     let result =
@@ -223,10 +354,13 @@ pub async fn run_once_file(path: &Path) -> Result<serde_json::Value, &'static st
         verifier.shutdown_and_drain().await;
     }
     extractor.shutdown_and_drain().await;
+    control.close().await;
     pool.close().await;
     result
 }
 async fn run_once(
+    control: &erpx_server_runtime::public::postgres::DatabasePool,
+    holdings: Arc<ConfiguredHoldingRegistry>,
     pool: &erpx_server_runtime::public::postgres::DatabasePool,
     owner: LegalOwnerConfiguration,
     files_root: &Path,
@@ -291,7 +425,13 @@ async fn run_once(
         claim.lease().job.id.clone(),
         claim.lease().token.clone(),
     );
-    let queued = PgQueuedWorkAuthorizer::new(pool.clone(), owner.holding_id.clone(), clock.clone());
+    let queued = PgQueuedWorkAuthorizer::new(
+        control.clone(),
+        pool.clone(),
+        owner.holding_id.clone(),
+        clock.clone(),
+        holdings,
+    );
     enum Retained {
         Completed,
         Failed(String),

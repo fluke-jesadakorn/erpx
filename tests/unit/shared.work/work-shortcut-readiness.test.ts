@@ -167,8 +167,8 @@ vi.mock("@erpx/workplace/components/context-switch-provider",()=>({useContextSwi
 import {WorkContextBoundary,type InitialWorkContextSnapshot} from '@erpx/workplace/components/work-context-boundary';
 import type {ComponentProps} from 'react';
 type BoundaryProps=ComponentProps<typeof WorkContextBoundary>;
-const boundaryIdentity={base:'/holdings/acme',userId:'current-user',companyId:'current-company',assignmentId:'current-role',revision:7};
-function boundarySnapshot(extra:Partial<InitialWorkContextSnapshot>={}):InitialWorkContextSnapshot{return {version:1,...boundaryIdentity,checkedAt:1_000_000,...extra};}
+const boundaryIdentity={base:'/holdings/acme',userId:'current-user',companyId:'current-company',assignmentId:'current-role',revision:7,assignmentVersion:3};
+function boundarySnapshot(extra:Partial<InitialWorkContextSnapshot>={}):InitialWorkContextSnapshot{return {version:2,...boundaryIdentity,checkedAt:1_000_000,...extra};}
 function boundaryData(extra:Record<string,unknown>={}){return {valid:true,...boundaryIdentity,...extra};}
 function boundaryEventPort(){
  const handlers=new Map<string,Set<EventListenerOrEventListenerObject>>();
@@ -198,6 +198,7 @@ it.each([
  {name:'different Company',snapshot:boundarySnapshot({companyId:'other-company'})},
  {name:'different assignment',snapshot:boundarySnapshot({assignmentId:'other-role'})},
  {name:'different revision',snapshot:boundarySnapshot({revision:8})},
+ {name:'different assignment version',snapshot:boundarySnapshot({assignmentVersion:4})},
  {name:'expired',snapshot:boundarySnapshot({checkedAt:969_999})},
  {name:'future clock',snapshot:boundarySnapshot({checkedAt:1_000_101})},
  {name:'wrong Front endpoint',snapshot:boundarySnapshot({frontRoleEndpoint:'/api/v1/front/acme/other/pos'})},
@@ -331,7 +332,7 @@ it('keeps an actual Work purchase request title when product navigation is held 
   location={origin:'https://work.example.test',pathname:'/holdings/acme/work',search:'',hash:'',assign:vi.fn(),replace:vi.fn()},browser=new EventTarget();Object.assign(browser,{location});
  vi.stubGlobal('window',browser);vi.stubGlobal('HTMLElement',class{});vi.stubGlobal('document',{visibilityState:'visible',documentElement:{dataset:{}},activeElement:null,querySelector:(selector:string)=>selector==='[data-work-dirty="true"]'&&attributes.get('data-work-dirty')==='true'?root:null});
  vi.stubGlobal('sessionStorage',{getItem:()=>null,setItem:vi.fn(),removeItem:vi.fn()});vi.stubGlobal('MutationObserver',class{observe(){}disconnect(){}});vi.stubGlobal('BroadcastChannel',class{addEventListener(){}close(){}});
- const creation=[{kind:'purchase_request',label:'Purchase request',href:'/holdings/acme/requests/new?kind=purchase'}],workOptions={base:'/holdings/acme',userId:'current-user',companyId:'current-company',assignmentId:'current-role',revision:7,initialCurrent:{version:1,base:'/holdings/acme',userId:'current-user',companyId:'current-company',assignmentId:'current-role',revision:7,checkedAt:Date.now()}},
+ const creation=[{kind:'purchase_request',label:'Purchase request',href:'/holdings/acme/requests/new?kind=purchase'}],workOptions={base:'/holdings/acme',userId:'current-user',companyId:'current-company',assignmentId:'current-role',revision:7,assignmentVersion:3,initialCurrent:{version:2,base:'/holdings/acme',userId:'current-user',companyId:'current-company',assignmentId:'current-role',revision:7,assignmentVersion:3,checkedAt:Date.now()}},
   children=React.createElement(React.Fragment,null,React.createElement(NewWork,{base:'/holdings/acme',creation,current:'/holdings/acme/work'}),React.createElement('a',{href:'https://finance-dev-erpx.jesadakorn.com/sso/start','data-product-switch':true},'Finance')),
   page=React.createElement(WorkBoundary,workOptions,children),tree=React.createElement(ProductBoundary,null,page);
  type TestNode=React.ReactElement<Record<string,unknown>>;
@@ -359,4 +360,9 @@ it('keeps Account-aware401 recovery separate and gives every mounted boundary it
 it('uses the real registered Holding transport while retaining Company headers and current-authority denial',async()=>{
  const view=mountedWorkBoundary({initialCurrent:boundarySnapshot()},async()=>new Response(null,{status:403}),{holding:true});expect(view.fetcher).not.toHaveBeenCalled();await view.browser.emit('focus');
  expect(view.fetcher).toHaveBeenCalledExactlyOnceWith(new URL('https://acme.jesadakorn.com/__erpx/finance/api/v1/holdings/acme/assignments/active'),{cache:'no-store',headers:{'x-erpx-context-company':'current-company'}});expect(view.stale()).toBe('true');expect(view.browser.location.replace).not.toHaveBeenCalled();view.unmount();
+});
+
+it('marks the rendered role stale when only its assignment version changes',async()=>{
+ const view=mountedWorkBoundary({initialCurrent:boundarySnapshot()},async()=>Response.json({data:boundaryData({assignmentVersion:4})}));
+ expect(view.fetcher).not.toHaveBeenCalled();await view.browser.emit('focus');expect(view.stale()).toBe('true');view.unmount();
 });
