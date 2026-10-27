@@ -1,9 +1,17 @@
 /** A telemetry boundary delegates only the existing explicit CI commands, byte-for-byte. */
 export function ciVerificationArgv(arguments_: readonly string[]): string[] {
-  const [separator, command, run, task] = arguments_;
-  if (separator !== '--' || command !== 'bun' || run !== 'run' || !['test:ci', 'release:acceptance'].includes(task))
+  // Bun1.4.3 consumes the script separator; Node retains it. Normalize only
+  // that observed boundary, never a second separator or any child argument.
+  const normalized=arguments_[0]==='--'?arguments_.slice(1):arguments_;
+  const [command, run, task,...flags] = normalized;
+  if (command !== 'bun' || run !== 'run' || !['test:ci', 'release:acceptance'].includes(task))
     throw new Error('EXPLICIT_CI_VERIFICATION_COMMAND_REQUIRED');
-  return ['run', ...arguments_.slice(3)];
+  const required=task==='test:ci'?['--base','--head']:['--candidate'];
+  const names=flags.map(flag=>flag.slice(0,flag.indexOf('=')));
+  if(flags.length!==required.length||required.some(name=>names.filter(value=>value===name).length!==1)
+    ||flags.some(flag=>!flag.includes('=')||flag.endsWith('=')))
+    throw new Error('EXPLICIT_CI_VERIFICATION_COMMAND_REQUIRED');
+  return ['run', ...normalized.slice(2)];
 }
 
 export function ciPostgresInvocation(arguments_: readonly string[]):

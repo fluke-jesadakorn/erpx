@@ -24,3 +24,6 @@ pub(crate) mod directory;
 pub(crate) mod directory_provider_values;
 
 pub(crate) mod directory_grants;
+
+#[cfg(feature = "directory-ldaps")]
+pub(crate) mod directory_refresh;

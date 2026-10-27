@@ -201,3 +201,13 @@ path = "../../tests/unit/identity_access/rust-directory-mappings.test.rs"
 name = "directory_postgres"
 path = "../../tests/integration/identity_access/rust-directory-postgres.test.rs"
 required-features = ["directory-ldaps"]
+
+[[test]]
+name = "directory_refresh_policy"
+path = "../../tests/unit/identity_access/rust-directory-refresh-policy.test.rs"
+required-features = ["directory-ldaps"]
+
+[[test]]
+name = "directory_work_postgres"
+path = "../../tests/integration/identity_access/rust-directory-work-postgres.test.rs"
+required-features = ["directory-ldaps"]

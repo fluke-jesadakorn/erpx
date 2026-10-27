@@ -69,6 +69,76 @@ impl<S: Send + Sync> PgConsumptionPreparation<S> {
     pub fn plan(&self) -> &ConsumptionPlan {
         &self.plan
     }
+    /// Borrow the actual Finance proof retained by this preparation. This is
+    /// factual provenance, not a posting permission or a replacement source.
+    pub fn finance_source(&self) -> &S {
+        &self.finance
+    }
+    /// Additional original effect-position guards for an unreserved consumer
+    /// (Maintenance). No caller-supplied own-reservation allowance is accepted.
+    /// The coordinator must acquire lock_unreserved_consumption_sources before
+    /// IAM or any other Holding SELECT. This does not grant a stock mutation.
+    pub async fn require_unreserved_stock_and_movement_date<
+        F: PgConsumptionFinancePort<Source = S>,
+    >(
+        &self,
+        c: &mut PgConnection,
+        finance: &mut F,
+    ) -> Result<(), Error> {
+        self.require_current(c, finance).await?;
+        let selection = &self.plan.selection;
+        let quantity = self.plan.valuation.before.quantity_milli;
+        let quarantined = if self.quality.whole_quantity_hold() {
+            quantity
+        } else {
+            self.quality.partial_held_milli().min(quantity)
+        };
+        // NUMERIC arithmetic preserves the original predicate without SUM or
+        // subtraction overflow; neither reservation bodies nor source labels
+        // are transferred. The actual scoped Commerce source is retained.
+        let row=sqlx::query("SELECT s.quantity_milli::numeric-COALESCE((SELECT SUM(r.quantity_milli)FROM inventory_active_reservations r WHERE r.warehouse_id=s.warehouse_id AND r.product_id=s.product_id),0)-$3::numeric >= $4::numeric available,NOT EXISTS(SELECT 1 FROM inventory_ledger m WHERE m.warehouse_id=s.warehouse_id AND m.product_id=s.product_id AND m.movement_date>$5) date_current FROM commerce_stock s WHERE s.warehouse_id=$1 AND s.product_id=$2 FOR UPDATE OF s")
+            .bind(selection.warehouse_id.as_str()).bind(selection.product_id.as_str()).bind(quarantined).bind(selection.quantity_milli).bind(&selection.entry_date).fetch_optional(c).await?.ok_or_else(guard_conflict)?;
+        if !row.try_get::<bool, _>("available")? {
+            return Err(guard_conflict());
+        }
+        if !row.try_get::<bool, _>("date_current")? {
+            return Err(guard_conflict());
+        }
+        Ok(())
+    }
+    /// Check each actual selected lot immediately before its own effect. The
+    /// unchanged-plan check must not be reused after earlier legitimate lot
+    /// changes. This method accepts only an index into the retained selection.
+    pub async fn require_selected_lot_available(
+        &self,
+        c: &mut PgConnection,
+        index: usize,
+    ) -> Result<(), Error> {
+        require_unit(c).await?;
+        if transaction(c).await? != self.transaction {
+            return Err(changed());
+        }
+        let (id, before) = self.lots.get(index).ok_or_else(|| {
+            BusinessError::invalid(
+                "INVENTORY_CONSUMPTION_LOT_INDEX",
+                "Use an actual retained consumption lot.",
+            )
+        })?;
+        self.commerce.require_current(c).await?;
+        self.quality.require_current(c).await?;
+        if read_lot(c, &self.plan.selection, id).await?.as_ref() != Some(before) {
+            return Err(changed());
+        }
+        if self
+            .quality
+            .blocked_lots()
+            .iter()
+            .any(|lot| lot.as_str() == id)
+        {
+            return Err(guard_conflict());
+        }
+        Ok(())
+    }
     pub fn commerce(&self) -> &CurrentConsumptionCommerce {
         &self.commerce
     }
@@ -106,6 +176,21 @@ impl<S: Send + Sync> PgConsumptionPreparation<S> {
 /// Compose with IAM, source-owner, reservation, Finance/Money and Workflow
 /// utility fences before ANY Holding SELECT. This function reads no data and
 /// provides no permission; no transaction or retry is started internally.
+/// Utility-only exact Inventory view fences. PostgreSQL recursively locks the
+/// declared view relations. These writer-side fences must precede the first
+/// SERIALIZABLE snapshot, in the owning coordinator's fixed source-lock order.
+/// Existing read-only planning does not acquire or imply these extra guards.
+pub async fn lock_unreserved_consumption_sources(c: &mut PgConnection) -> Result<(), Error> {
+    if !c.is_in_transaction() {
+        return Err(PersistenceError::new("INVENTORY_CONSUMPTION_TRANSACTION_REQUIRED").into());
+    }
+    sqlx::query(
+        "LOCK TABLE inventory_active_reservations,inventory_ledger IN SHARE ROW EXCLUSIVE MODE",
+    )
+    .execute(c)
+    .await?;
+    Ok(())
+}
 pub async fn lock_inventory_consumption_sources<F: PgConsumptionFinancePort>(
     c: &mut PgConnection,
     finance: &mut F,
@@ -314,4 +399,8 @@ fn changed() -> Error {
         "The retained Inventory consumption planning source changed.",
     )
     .into()
+}
+
+fn guard_conflict() -> Error {
+    BusinessError::new(FailureKind::Conflict,"CONFLICT","The record changed, a reference is unavailable, or this value already exists. Refresh and review again.").into()
 }

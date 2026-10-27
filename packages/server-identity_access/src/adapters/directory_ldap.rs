@@ -4,12 +4,15 @@ use super::{
     directory_ldap_snapshot as row,
     directory_ldap_tls::LdapsTransportPolicy,
     directory_ldap_wire::{LdapFailure, ReferralPolicy, SequentialLdap},
-    directory_profiles::{DirectoryProfileStore, DirectorySecretProfile},
+    directory_profiles::{DirectoryProfileLease, DirectoryProfileStore, DirectorySecretProfile},
 };
 use crate::{
     application::{
         account_ports::AccountFuture,
         directory::{DirectoryPassword, DirectoryProviderRead, VerifiedDirectorySubject},
+        directory_refresh::{
+            BoundDirectoryObservation, DirectoryObservationRetention, DirectoryRefreshProvider,
+        },
     },
     domain::directory::*,
 };
@@ -235,152 +238,8 @@ impl DirectoryProviderRead for LdapDirectoryProvider {
                     Some(&connection.profile_fingerprint),
                 )
                 .await?;
-            let profile = lease.profile();
-            let ad = connection.provider == DirectoryProvider::ActiveDirectory;
-            let mut wire = transport(connection, profile)?
-                .connect()
+            self.observe_with_generation(connection, observed_at, &lease)
                 .await
-                .map_err(error)?;
-            let result = async {
-                bind(&mut wire, profile).await?;
-                let referrals = if ad {
-                    ReferralPolicy::IgnoreActiveDirectoryPartition
-                } else {
-                    ReferralPolicy::Reject
-                };
-                let base = connection.config.base_dn.as_deref().unwrap_or("");
-                let group_base = connection.config.group_base_dn.as_deref().unwrap_or(base);
-                let users = wire
-                    .search(
-                        request(
-                            base,
-                            LdapSearchScope::Subtree,
-                            user_filter(ad, connection.config.user_filter.as_deref())?,
-                            &[
-                                "objectGUID",
-                                "entryUUID",
-                                "uid",
-                                "sAMAccountName",
-                                "userPrincipalName",
-                                "displayName",
-                                "cn",
-                                "mail",
-                                "mailPrimaryAddress",
-                                "userAccountControl",
-                                "accountExpires",
-                                "pwdAccountLockedTime",
-                                "shadowExpire",
-                                "sambaAcctFlags",
-                            ],
-                            10001,
-                        ),
-                        true,
-                        referrals,
-                        10000,
-                    )
-                    .await
-                    .map_err(error)?;
-                let filter = if ad {
-                    LdapFilter::Equality("objectClass".into(), "group".into())
-                } else {
-                    LdapFilter::Or(
-                        ["posixGroup", "univentionGroup", "groupOfUniqueNames"]
-                            .map(|value| LdapFilter::Equality("objectClass".into(), value.into()))
-                            .to_vec(),
-                    )
-                };
-                let mut groups = wire
-                    .search(
-                        request(
-                            group_base,
-                            LdapSearchScope::Subtree,
-                            filter,
-                            &[
-                                "objectGUID",
-                                "entryUUID",
-                                "cn",
-                                "member",
-                                "uniqueMember",
-                                "memberUid",
-                            ],
-                            10001,
-                        ),
-                        true,
-                        referrals,
-                        10000,
-                    )
-                    .await
-                    .map_err(error)?;
-                for group in &mut groups {
-                    complete_ranges(&mut wire, group).await?;
-                }
-                let container_filter = || {
-                    LdapFilter::Or(
-                        ["organizationalUnit", "container"]
-                            .map(|value| LdapFilter::Equality("objectClass".into(), value.into()))
-                            .to_vec(),
-                    )
-                };
-                let attributes = ["objectGUID", "entryUUID", "ou", "cn", "objectClass"];
-                let mut containers = wire
-                    .search(
-                        request(
-                            base,
-                            LdapSearchScope::Subtree,
-                            container_filter(),
-                            &attributes,
-                            10001,
-                        ),
-                        true,
-                        referrals,
-                        10000,
-                    )
-                    .await
-                    .map_err(error)?;
-                let group_lower = group_base.to_lowercase();
-                let base_lower = base.to_lowercase();
-                if !group_base.is_empty()
-                    && group_lower != base_lower
-                    && !group_lower.ends_with(&format!(",{base_lower}"))
-                {
-                    let other = wire
-                        .search(
-                            request(
-                                group_base,
-                                LdapSearchScope::Subtree,
-                                container_filter(),
-                                &attributes,
-                                10001,
-                            ),
-                            true,
-                            referrals,
-                            10000,
-                        )
-                        .await
-                        .map_err(error)?;
-                    let mut known = containers
-                        .iter()
-                        .map(|row| row.dn.to_lowercase())
-                        .collect::<BTreeSet<_>>();
-                    for row in other {
-                        if known.insert(row.dn.to_lowercase()) {
-                            containers.push(row);
-                        }
-                    }
-                }
-                row::snapshot(
-                    users,
-                    groups,
-                    containers,
-                    ad,
-                    &profile.identity_aliases,
-                    observed_at,
-                    self.clock.now().get(),
-                )
-            }
-            .await;
-            wire.close().await;
-            result
         })
     }
 }
@@ -471,4 +330,206 @@ async fn complete_ranges<S: AsyncRead + AsyncWrite + Unpin>(
         page = rows.pop();
     }
     Err(incomplete())
+}
+
+impl LdapDirectoryProvider {
+    async fn observe_with_generation(
+        &self,
+        connection: &DirectoryConnectionDescriptor,
+        observed_at: i64,
+        lease: &DirectoryProfileLease,
+    ) -> Result<CompleteDirectorySnapshot, BusinessError> {
+        let profile = lease.profile();
+        let ad = connection.provider == DirectoryProvider::ActiveDirectory;
+        let mut wire = transport(connection, profile)?
+            .connect()
+            .await
+            .map_err(error)?;
+        let result = async {
+            bind(&mut wire, profile).await?;
+            let referrals = if ad {
+                ReferralPolicy::IgnoreActiveDirectoryPartition
+            } else {
+                ReferralPolicy::Reject
+            };
+            let base = connection.config.base_dn.as_deref().unwrap_or("");
+            let group_base = connection.config.group_base_dn.as_deref().unwrap_or(base);
+            let users = wire
+                .search(
+                    request(
+                        base,
+                        LdapSearchScope::Subtree,
+                        user_filter(ad, connection.config.user_filter.as_deref())?,
+                        &[
+                            "objectGUID",
+                            "entryUUID",
+                            "uid",
+                            "sAMAccountName",
+                            "userPrincipalName",
+                            "displayName",
+                            "cn",
+                            "mail",
+                            "mailPrimaryAddress",
+                            "userAccountControl",
+                            "accountExpires",
+                            "pwdAccountLockedTime",
+                            "shadowExpire",
+                            "sambaAcctFlags",
+                        ],
+                        10001,
+                    ),
+                    true,
+                    referrals,
+                    10000,
+                )
+                .await
+                .map_err(error)?;
+            let filter = if ad {
+                LdapFilter::Equality("objectClass".into(), "group".into())
+            } else {
+                LdapFilter::Or(
+                    ["posixGroup", "univentionGroup", "groupOfUniqueNames"]
+                        .map(|value| LdapFilter::Equality("objectClass".into(), value.into()))
+                        .to_vec(),
+                )
+            };
+            let mut groups = wire
+                .search(
+                    request(
+                        group_base,
+                        LdapSearchScope::Subtree,
+                        filter,
+                        &[
+                            "objectGUID",
+                            "entryUUID",
+                            "cn",
+                            "member",
+                            "uniqueMember",
+                            "memberUid",
+                        ],
+                        10001,
+                    ),
+                    true,
+                    referrals,
+                    10000,
+                )
+                .await
+                .map_err(error)?;
+            for group in &mut groups {
+                complete_ranges(&mut wire, group).await?;
+            }
+            let container_filter = || {
+                LdapFilter::Or(
+                    ["organizationalUnit", "container"]
+                        .map(|value| LdapFilter::Equality("objectClass".into(), value.into()))
+                        .to_vec(),
+                )
+            };
+            let attributes = ["objectGUID", "entryUUID", "ou", "cn", "objectClass"];
+            let mut containers = wire
+                .search(
+                    request(
+                        base,
+                        LdapSearchScope::Subtree,
+                        container_filter(),
+                        &attributes,
+                        10001,
+                    ),
+                    true,
+                    referrals,
+                    10000,
+                )
+                .await
+                .map_err(error)?;
+            let group_lower = group_base.to_lowercase();
+            let base_lower = base.to_lowercase();
+            if !group_base.is_empty()
+                && group_lower != base_lower
+                && !group_lower.ends_with(&format!(",{base_lower}"))
+            {
+                let other = wire
+                    .search(
+                        request(
+                            group_base,
+                            LdapSearchScope::Subtree,
+                            container_filter(),
+                            &attributes,
+                            10001,
+                        ),
+                        true,
+                        referrals,
+                        10000,
+                    )
+                    .await
+                    .map_err(error)?;
+                let mut known = containers
+                    .iter()
+                    .map(|row| row.dn.to_lowercase())
+                    .collect::<BTreeSet<_>>();
+                for row in other {
+                    if known.insert(row.dn.to_lowercase()) {
+                        containers.push(row);
+                    }
+                }
+            }
+            row::snapshot(
+                users,
+                groups,
+                containers,
+                ad,
+                &profile.identity_aliases,
+                observed_at,
+                self.clock.now().get(),
+            )
+        }
+        .await;
+        wire.close().await;
+        result
+    }
+}
+impl DirectoryObservationRetention for DirectoryProfileLease {
+    fn fingerprint(&self) -> &str {
+        DirectoryProfileLease::fingerprint(self)
+    }
+}
+impl DirectoryRefreshProvider for LdapDirectoryProvider {
+    fn retain<'a>(
+        &'a self,
+        connection: &'a DirectoryConnectionDescriptor,
+    ) -> AccountFuture<'a, Arc<dyn DirectoryObservationRetention>> {
+        Box::pin(async move {
+            let lease = self
+                .profiles
+                .retain(
+                    &connection.config.secret_profile,
+                    &connection.connection_id,
+                    Some(&connection.profile_fingerprint),
+                )
+                .await?;
+            Ok(Arc::new(lease) as Arc<dyn DirectoryObservationRetention>)
+        })
+    }
+    fn observe_bound<'a>(
+        &'a self,
+        connection: &'a DirectoryConnectionDescriptor,
+        observed_at: i64,
+    ) -> AccountFuture<'a, BoundDirectoryObservation> {
+        Box::pin(async move {
+            let lease = self
+                .profiles
+                .retain(
+                    &connection.config.secret_profile,
+                    &connection.connection_id,
+                    Some(&connection.profile_fingerprint),
+                )
+                .await?;
+            let snapshot = self
+                .observe_with_generation(connection, observed_at, &lease)
+                .await?;
+            Ok(BoundDirectoryObservation {
+                snapshot,
+                retention: Arc::new(lease),
+            })
+        })
+    }
 }

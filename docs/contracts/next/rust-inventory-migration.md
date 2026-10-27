@@ -17,3 +17,15 @@ The eventual native adapter must keep actual Company/Branch/warehouse/product/so
 ## Verification
 
 The [B0 oracle](../../../fixtures/inventory/rust-valuation/README.md) executes exact retained functions on pinned Node26.11.1, recording seven complete source hashes and356 outcomes. Native tests compare values, ordered lot costs, business error codes/messages and actual query/failure traces. Separate conservation/boundary tests cover the safe-admission guards. The development generator is not imported by Rust production code, and Node is not a backend calculation dependency.
+
+## Unreserved consumption guards
+
+The native preparation now exposes a borrowed `finance_source()` reference to the actual retained Finance proof. It does not reconstruct a proof from the plain plan or grant posting permission.
+
+A separate writer-side utility fence locks Inventory's existing `inventory_active_reservations` and `inventory_ledger` views before the first Holding snapshot. PostgreSQL18 recursively locks relations named by a locked view; the owner coordinator must use its fixed lock order and acquire the strongest needed writer intent before reads. The eventual parts writer takes Finance journal/line/Money intent first, then these Inventory utilities and the remaining factual sources. Existing write-role privileges are unchanged. See the primary [PostgreSQL LOCK contract](https://www.postgresql.org/docs/18/sql-lock.html).
+
+`require_unreserved_stock_and_movement_date` uses zero own-reservation allowance, the actual active-reservation view and the retained Quality whole/partial quantity facts. Numeric SQL arithmetic avoids aggregate overflow. Availability refusal precedes future-ledger-date refusal. `require_selected_lot_available` rechecks each selected lot's original identity/balance/status/expiry and actual current hold facts before that lot's effect. This is a guard, not stock authorization or a mutation capability, and it does not add Field Service's separately owned reservation allowance.
+
+The full12-case actual PostgreSQL target passes, including active/expired reservations, whole/partial/selected-lot holds, backdating versus equal movement date, a real reservation writer waiting ahead of the view fence, and same-unit source/version changes. No journal, Money or consumption effect is inferred from those reads.
+
+The current factual method first revalidates the broad planning proof. Combined same-unit Finance/other-lot changes plus an availability/date denial can therefore produce a source-change error earlier than the original effect-specific assertion. Exact combined-denial precedence remains a gate for the actual owner apply assembly; this component does not claim complete command parity. Maintenance's actual source/purchase/receipt and intended stock/lot/Finance/Money/event after-images remain required, as do the separate Field Service reservation/event policies.

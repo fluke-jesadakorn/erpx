@@ -5,7 +5,7 @@ use erpx_server_commercial::public::purchases::{
     CapabilityPurpose, CommercialCatalogue, PackageEnforcementMode, PgCompanyPurchaseReader,
     PurchaseRequest, lock_commercial_authority_sources,
 };
-use erpx_server_finance::public::{FinanceActor, journal_detail::*};
+use erpx_server_finance::public::{FinanceActor, journal_detail::*, journal_workspace::*};
 use erpx_server_identity_access::public::{
     DeviceProof,
     effective_authority::{
@@ -90,6 +90,86 @@ pub struct FinanceJournalReadResponse {
     pub data: FinanceJournalDetail,
     pub context: FinanceRenderedWorkContext,
 }
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+pub struct FinanceJournalWorkspaceReadResponse {
+    pub data: FinanceJournalRecordWorkspace,
+    pub context: FinanceRenderedWorkContext,
+}
+#[derive(Clone, Copy)]
+enum ReadKind {
+    Detail,
+    Workspace,
+}
+#[derive(Clone)]
+struct ReadPreparation {
+    kind: ReadKind,
+}
+impl HoldingWorkSourcePreparation for ReadPreparation {
+    fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async move {
+            lock_commercial_authority_sources(c).await?;
+            match self.kind {
+                ReadKind::Detail => lock_journal_detail_sources(c).await?,
+                ReadKind::Workspace => lock_journal_workspace_sources(c).await?,
+            }
+            lock_finance_journal_name_sources(c).await
+        })
+    }
+}
+enum ReadSource {
+    Detail(Box<CurrentJournalDetail>),
+    Workspace(Box<CurrentJournalRecordWorkspace>),
+}
+impl ReadSource {
+    fn journal(&self) -> &FinanceLedgerRow {
+        match self {
+            Self::Detail(s) => &s.detail().journal,
+            Self::Workspace(s) => &s.data().journal,
+        }
+    }
+    async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
+        match self {
+            Self::Detail(s) => s.require_current(c).await,
+            Self::Workspace(s) => s.require_current(c).await,
+        }
+    }
+    fn response(
+        &self,
+        context: FinanceRenderedWorkContext,
+        creator: &str,
+        poster: &str,
+    ) -> ReadResponse {
+        let names = |row: &mut FinanceLedgerRow| {
+            row.insert(
+                "created_by_name".into(),
+                FinanceLedgerValue::Text(creator.into()),
+            );
+            row.insert(
+                "posted_by_name".into(),
+                FinanceLedgerValue::Text(poster.into()),
+            );
+        };
+        match self {
+            Self::Detail(s) => {
+                let mut data = s.detail().clone();
+                names(&mut data.journal);
+                ReadResponse::Detail(FinanceJournalReadResponse { data, context })
+            }
+            Self::Workspace(s) => {
+                let mut data = s.data().clone();
+                names(&mut data.journal);
+                ReadResponse::Workspace(FinanceJournalWorkspaceReadResponse { data, context })
+            }
+        }
+    }
+}
+#[derive(Serialize)]
+#[serde(untagged)]
+enum ReadResponse {
+    Detail(FinanceJournalReadResponse),
+    Workspace(FinanceJournalWorkspaceReadResponse),
+}
 fn rendered(current: &AuthorizedWorkContext) -> Result<FinanceRenderedWorkContext, BusinessError> {
     let selection = current.selection();
     let workspace = selection.workspace();
@@ -131,7 +211,7 @@ impl std::io::Write for ReplyBudget {
         Ok(())
     }
 }
-fn admit_reply(reply: &FinanceJournalReadResponse) -> Result<(), BusinessError> {
+fn admit_reply(reply: &ReadResponse) -> Result<(), BusinessError> {
     serde_json::to_writer(ReplyBudget(0), reply).map_err(|_| {
         BusinessError::new(
             FailureKind::Unavailable,
@@ -177,6 +257,43 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
     where
         Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
     {
+        match self
+            .read_kind(host, proof, input, id, ReadKind::Detail)
+            .await?
+        {
+            ReadResponse::Detail(reply) => Ok(reply),
+            _ => Err(scope().into()),
+        }
+    }
+    pub async fn read_workspace<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        id: RecordId,
+    ) -> Result<FinanceJournalWorkspaceReadResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        match self
+            .read_kind(host, proof, input, id, ReadKind::Workspace)
+            .await?
+        {
+            ReadResponse::Workspace(reply) => Ok(reply),
+            _ => Err(scope().into()),
+        }
+    }
+    async fn read_kind<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        id: RecordId,
+        kind: ReadKind,
+    ) -> Result<ReadResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
         let company = self.configuration.company.clone();
         let input = move || {
             let mut request = input()?;
@@ -188,6 +305,7 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
         };
         let configuration = self.configuration.clone();
         let clock = self.clock.clone();
+        let preparation = ReadPreparation { kind };
         self.authorizer
             .execute_with_sources_deferred(
                 host,
@@ -199,7 +317,7 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
                     destination: "finance/journals".into(),
                     api: true,
                 },
-                configuration.clone(),
+                preparation,
                 move |c, current| {
                     let configuration = configuration.clone();
                     let clock = clock.clone();
@@ -212,8 +330,6 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
                         }
                         current.require_permission("finance.read")?;
                         current.require_permission("module.finance.read")?;
-                        // Detail reads always use actual History, never post/reviewer
-                        // policy or a receipt-existence shortcut for another purpose.
                         let inspection = PgCompanyPurchaseReader::new(
                             configuration.holding.clone(),
                             configuration.company.clone(),
@@ -237,13 +353,19 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
                             user_id: current.user_id().clone(),
                             assignment_id: current.selection().assignment().id.clone(),
                         };
-                        let source = read_journal_detail(c, &actor, &id).await?;
-                        let mut data = source.detail().clone();
-                        let creator = match data.journal.get("created_by") {
+                        let source = match kind {
+                            ReadKind::Detail => ReadSource::Detail(Box::new(
+                                read_journal_detail(c, &actor, &id).await?,
+                            )),
+                            ReadKind::Workspace => ReadSource::Workspace(Box::new(
+                                read_journal_record_workspace(c, &actor, &id).await?,
+                            )),
+                        };
+                        let creator = match source.journal().get("created_by") {
                             Some(FinanceLedgerValue::Text(v)) => UserId::new(v)?,
                             _ => return Err(scope().into()),
                         };
-                        let poster = match data.journal.get("posted_by") {
+                        let poster = match source.journal().get("posted_by") {
                             Some(FinanceLedgerValue::Text(v)) => Some(UserId::new(v)?),
                             Some(FinanceLedgerValue::Null) => None,
                             _ => return Err(scope().into()),
@@ -254,22 +376,14 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
                         }
                         let names =
                             read_finance_journal_names(c, &configuration.company, &users).await?;
-                        data.journal.insert(
-                            "created_by_name".into(),
-                            FinanceLedgerValue::Text(names.name(&creator)?.into()),
+                        let response = source.response(
+                            rendered(current)?,
+                            names.name(&creator)?,
+                            match &poster {
+                                Some(p) => names.name(p)?,
+                                None => "Unlinked account",
+                            },
                         );
-                        data.journal.insert(
-                            "posted_by_name".into(),
-                            FinanceLedgerValue::Text(
-                                match &poster {
-                                    Some(p) => names.name(p)?,
-                                    None => "Unlinked account",
-                                }
-                                .into(),
-                            ),
-                        );
-                        let context = rendered(current)?;
-                        let response = FinanceJournalReadResponse { data, context };
                         admit_reply(&response)?;
                         source.require_current(c).await?;
                         names.require_current(c).await?;

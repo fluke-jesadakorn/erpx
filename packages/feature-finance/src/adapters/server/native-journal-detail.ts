@@ -1,12 +1,14 @@
 import 'server-only';
 import { Agent, request } from 'node:http';
 import { Readable } from 'node:stream';
-import type { FinanceJournalReadResponse, FinanceLedgerValue } from '@erpx/contracts/finance-journal-read';
+import type { FinanceJournalReadResponse, FinanceJournalWorkspaceReadResponse, FinanceLedgerValue } from '@erpx/contracts/finance-journal-read';
 
 export type NativeFinanceReadConfiguration=Readonly<{privateBaseUrl:string;holdings:readonly Readonly<{origin:string;holdingSlug:string;holdingId:string}>[];timeoutMs:number}>;
 export type NativeJournalReadInput=Readonly<{holdingSlug:string;journalId:string;branchSlug?:string;departmentSlug?:string;expected?:Readonly<{companyId:string;assignmentId:string;revision:number;assignmentVersion:number}>}>;
 export type NativeFinanceReadTransport=(url:URL,headers:Headers,signal:AbortSignal)=>Promise<Response>;
-export type NativeJournalDetailRead=(incoming:Pick<Headers,'get'>,input:NativeJournalReadInput,signal?:AbortSignal)=>Promise<FinanceJournalReadResponse>;
+type NativeJournalRead<T>=(incoming:Pick<Headers,'get'>,input:NativeJournalReadInput,signal?:AbortSignal)=>Promise<T>;
+export type NativeJournalDetailRead=NativeJournalRead<FinanceJournalReadResponse>;
+export type NativeJournalWorkspaceRead=NativeJournalRead<FinanceJournalWorkspaceReadResponse>;
 export class NativeFinanceReadError extends Error{
  readonly code:string;readonly status?:number;
  constructor(code:string,status?:number){super('The native Finance detail read could not be completed.');this.name='NativeFinanceReadError';this.code=code;this.status=status;}
@@ -31,8 +33,28 @@ function response(value:unknown,holding:{holdingId:string},input:NativeJournalRe
  if(input.expected&&(c.companyId!==input.expected.companyId||c.assignmentId!==input.expected.assignmentId||c.revision!==input.expected.revision||c.assignmentVersion!==input.expected.assignmentVersion))return failure('NATIVE_FINANCE_CONTEXT_CHANGED');
  return value as unknown as FinanceJournalReadResponse;
 }
+function workspaceResponse(value:unknown,holding:{holdingId:string},input:NativeJournalReadInput):FinanceJournalWorkspaceReadResponse {
+ if(!exact(value,['data','context'])||!exact(value.data,['journal','lines','history','chart','accounts','periods','dimensions','dimensionValues']))return failure('NATIVE_FINANCE_RESPONSE_INVALID');
+ const d=value.data;
+ const chart=d.chart;
+ const common=response({data:{journal:d.journal,lines:d.lines,history:d.history},context:value.context},holding,input);
+ if(!ledger(chart)||chart.id!==common.data.journal.chart_id||chart.company_id!==common.context.companyId||typeof chart.name!=='string'||typeof chart.base_currency!=='string'
+  ||!Array.isArray(d.accounts)||!d.accounts.every(ledger)||!Array.isArray(d.periods)||!d.periods.every(ledger)||!Array.isArray(d.dimensions)||!d.dimensions.every(ledger)||!Array.isArray(d.dimensionValues)||!d.dimensionValues.every(ledger)
+  ||1+common.data.lines.length+common.data.history.length+1+d.accounts.length+d.periods.length+d.dimensions.length+d.dimensionValues.length>10000
+  ||d.accounts.some(a=>!validText(a.id)||a.company_id!==common.context.companyId||a.chart_id!==chart.id||typeof a.code!=='string'||typeof a.name!=='string'||!['active','inactive'].includes(String(a.status)))
+  ||d.periods.some(p=>!validText(p.id)||p.company_id!==common.context.companyId||typeof p.start_date!=='string'||typeof p.end_date!=='string'||!['open','closing','closed'].includes(String(p.state)))
+  ||d.dimensions.some(v=>!exact(v,['id','code','name','required'])||!validText(v.id)||typeof v.code!=='string'||typeof v.name!=='string'||!integer(v.required)||![0,1].includes(v.required))
+  ||d.dimensionValues.some(v=>!exact(v,['id','dimension_id','code','name'])||!validText(v.id)||!validText(v.dimension_id)||typeof v.code!=='string'||typeof v.name!=='string'))return failure('NATIVE_FINANCE_RESPONSE_INVALID');
+ return value as unknown as FinanceJournalWorkspaceReadResponse;
+}
 const reserved=new Set([3000,3001,3100,3101,3103,5432,5433,5435,8080]);
-export function createNativeJournalDetailClient(configuration:NativeFinanceReadConfiguration,transport:NativeFinanceReadTransport=directHttp):NativeJournalDetailRead{
+export function createNativeJournalDetailClient(configuration:NativeFinanceReadConfiguration,transport:NativeFinanceReadTransport=directHttp):NativeJournalDetailRead {
+ return createRead(configuration,transport,response,'');
+}
+export function createNativeJournalWorkspaceClient(configuration:NativeFinanceReadConfiguration,transport:NativeFinanceReadTransport=directHttp):NativeJournalWorkspaceRead {
+ return createRead(configuration,transport,workspaceResponse,'/workspace');
+}
+function createRead<T>(configuration:NativeFinanceReadConfiguration,transport:NativeFinanceReadTransport,validate:(value:unknown,holding:{holdingId:string},input:NativeJournalReadInput)=>T,suffix:''|'/workspace'):NativeJournalRead<T>{
  let base:URL;try{base=new URL(configuration.privateBaseUrl);}catch{return failure('NATIVE_FINANCE_CONFIGURATION_INVALID');}
  const port=Number(base.port);
  if(base.protocol!=='http:'||!['127.0.0.1','[::1]'].includes(base.hostname)||!base.port||reserved.has(port)||port>=3200&&port<=3299||base.username||base.password||configuration.privateBaseUrl!==base.origin||!integer(configuration.timeoutMs,250)||configuration.timeoutMs>30000||configuration.holdings.length<1||configuration.holdings.length>64)return failure('NATIVE_FINANCE_CONFIGURATION_INVALID');
@@ -51,7 +73,7 @@ export function createNativeJournalDetailClient(configuration:NativeFinanceReadC
   if(cookie){if(new TextEncoder().encode(cookie).length>8192)return failure('NATIVE_FINANCE_COOKIE_LIMIT');headers.set('cookie',cookie);}
   for(const [key,slug]of [['x-erpx-workspace-branch',input.branchSlug],['x-erpx-workspace-department',input.departmentSlug]] as const){if(slug!==undefined){if(!validText(slug,128)||!/^[a-z0-9_-]+$/.test(slug))return failure('NATIVE_FINANCE_REQUEST_INVALID');headers.set(key,slug);}}
   if(input.expected){const e=input.expected;if(!validText(e.companyId)||!validText(e.assignmentId)||!integer(e.revision)||!integer(e.assignmentVersion,1))return failure('NATIVE_FINANCE_REQUEST_INVALID');headers.set('x-erpx-context-company',e.companyId);headers.set('x-erpx-context-assignment',e.assignmentId);headers.set('x-erpx-context-revision',String(e.revision));headers.set('x-erpx-context-assignment-version',String(e.assignmentVersion));}
-  const url=new URL(`/api/v1/holdings/${encodeURIComponent(input.holdingSlug)}/finance/journals/${encodeURIComponent(input.journalId)}`,base);
+  const url=new URL(`/api/v1/holdings/${encodeURIComponent(input.holdingSlug)}/finance/journals/${encodeURIComponent(input.journalId)}${suffix}`,base);
   const controller=new AbortController();const cancel=()=>controller.abort();signal?.addEventListener('abort',cancel,{once:true});if(signal?.aborted)controller.abort();const timer=setTimeout(cancel,timeout);
   try{
    const result=await transport(url,headers,controller.signal);
@@ -62,7 +84,7 @@ export function createNativeJournalDetailClient(configuration:NativeFinanceReadC
    finally{controller.signal.removeEventListener('abort',abortBody);reader.releaseLock();}
    const data=new Uint8Array(bytes);let offset=0;for(const chunk of chunks){data.set(chunk,offset);offset+=chunk.length;}
    let parsed:unknown;try{parsed=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(data));}catch{return failure('NATIVE_FINANCE_RESPONSE_INVALID');}
-   return response(parsed,holding,input);
+   return validate(parsed,holding,input);
   }catch(error){const aborted=controller.signal.aborted;controller.abort();if(error instanceof NativeFinanceReadError)throw error;return failure(aborted?'NATIVE_FINANCE_ABORTED':'NATIVE_FINANCE_UNAVAILABLE');}
   finally{clearTimeout(timer);signal?.removeEventListener('abort',cancel);}
  };

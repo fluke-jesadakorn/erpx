@@ -382,6 +382,32 @@ impl CommandJson {
             .map(Self::from_value)
             .transpose()
     }
+    /// Ordered transport strings retain lone UTF-16 units. Owner adapters use
+    /// these units for source-compatible normalization before UTF-8 storage.
+    pub fn string_utf16_units(&self) -> Result<Option<Vec<u16>>, BusinessError> {
+        Ok(match self.value()? {
+            OrderedJson::String(value) => Some(value.units()),
+            _ => None,
+        })
+    }
+    pub fn from_utf16_string(units: &[u16]) -> Result<Self, BusinessError> {
+        if units.len() > LIMIT {
+            return Err(invalid());
+        }
+        Self::from_value(OrderedJson::String(JsonString::from_units(units.to_vec())))
+    }
+    /// Preserve individual ordered values without losing lone UTF-16 units to
+    /// an intermediate JSON map or UTF-8 decoder.
+    pub fn array_elements(&self) -> Result<Option<Vec<Self>>, BusinessError> {
+        match self.value()? {
+            OrderedJson::Array(values) => values
+                .into_iter()
+                .map(Self::from_value)
+                .collect::<Result<Vec<_>, _>>()
+                .map(Some),
+            _ => Ok(None),
+        }
+    }
     /// PostgreSQL UTF-8 storage representation only. Keep this CommandJson for
     /// receipt identity: distinct lone UTF-16 units may share replacement text.
     pub fn string_utf8_storage(&self) -> Result<Option<String>, BusinessError> {

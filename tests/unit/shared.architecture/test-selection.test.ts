@@ -531,7 +531,12 @@ describe("conservative base and head impact selection", () => {
     expect(impactJob).toContain('run: bun scripts/testing/ci-postgres-resource.ts -- bun run test:ci --base="$ERPX_CI_BASE" --head="$ERPX_CI_HEAD"');
     expect(ciVerificationArgv(['--','bun','run','test:ci','--base=original-base','--head=exact-head']))
       .toEqual(['run','test:ci','--base=original-base','--head=exact-head']);
-    for(const argv of [[],['bun','run','test:ci'],['--','sh','-c','test:ci'],['--','bun','run','deploy:build']])
+    expect(ciVerificationArgv(['bun','run','test:ci','--base=original-base','--head=exact-head']))
+      .toEqual(['run','test:ci','--base=original-base','--head=exact-head']);
+    for(const argv of [[],['bun','run','test:ci'],['--','sh','-c','test:ci'],['--','bun','run','deploy:build'],
+      ['--','--','bun','run','test:ci','--base=x','--head=y'],['bun','run','test:ci','--base=x','--skip=y'],
+      ['bun','run','test:ci','--base=x','--base=y'],['bun','run','test:ci','--base=','--head=y'],
+      ['bun','run','release:acceptance','--candidate=x','--unknown=y']])
       expect(()=>ciVerificationArgv(argv)).toThrow('EXPLICIT_CI_VERIFICATION_COMMAND_REQUIRED');
     expect(impactJob).not.toContain('release:acceptance');
     expect(impactJob).not.toContain('deploy:build');
@@ -561,6 +566,26 @@ describe("conservative base and head impact selection", () => {
     expect(probe).toContain("sanitizedAttachmentPreview(source, 'image/heic')");
     expect(probe).toContain('metadata.width !== 40 || metadata.height !== 80');
     expect(probe).toContain('clean.clean || detected.clean');
+  });
+  it("delegates byte-exact CI arguments observed from the actual pinned Bun script boundary", () => {
+    const bun=process.env.ERPX_BUN_BIN??'bun';
+    const version=spawnSync(bun,['--version'],{encoding:'utf8',timeout:5_000});
+    expect(version.status).toBe(0);expect(version.stdout.trim()).toBe('1.4.3');
+    const directory=mkdtempSync(join(tmpdir(),'erpx-ci-argv-'));
+    const probe=join(directory,'probe.ts');
+    try{
+      writeFileSync(probe,`import {ciPostgresInvocation} from ${JSON.stringify(join(process.cwd(),'scripts/testing/ci-postgres-contract.ts'))};\nprocess.stdout.write(JSON.stringify(ciPostgresInvocation(process.argv.slice(2))));\n`,{mode:0o600});
+      for(const invocation of [
+        {args:['--','bun','run','test:ci','--base=source ref with space','--head=literal $(never_execute)'],argv:['run','test:ci','--base=source ref with space','--head=literal $(never_execute)']},
+        {args:['--','bun','run','release:acceptance','--candidate=original exact candidate'],argv:['run','release:acceptance','--candidate=original exact candidate']},
+      ]){
+        // This executes only the pure argument observer, never test:ci,
+        // acceptance, database setup or a shell interpreting those values.
+        const result=spawnSync(bun,[probe,...invocation.args],{encoding:'utf8',timeout:5_000});
+        expect(result.status,result.stderr).toBe(0);
+        expect(JSON.parse(result.stdout)).toEqual({kind:'verification',argv:invocation.argv});
+      }
+    }finally{rmSync(directory,{recursive:true,force:true});}
   });
   it("starts CI for operational runners, nested fixtures and workspace rules that force full impact", () => {
     const workflow=readFileSync(join(process.cwd(),".github/workflows/nextjs.yml"),"utf8");

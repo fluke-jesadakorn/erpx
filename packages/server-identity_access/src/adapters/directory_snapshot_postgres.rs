@@ -17,6 +17,39 @@ struct SnapshotWork {
     audit_id: String,
 }
 impl PostgresDirectory {
+    pub(super) async fn apply_with_retained_generation(
+        &self,
+        control: &mut PgConnection,
+        descriptor: &DirectoryConnectionDescriptor,
+        snapshot: CompleteDirectorySnapshot,
+        retention: &dyn crate::application::directory_refresh::DirectoryObservationRetention,
+    ) -> Tx<SynchronizationOutcome> {
+        if retention.fingerprint() != descriptor.profile_fingerprint {
+            return Err(unavailable().into());
+        }
+        snapshot.require_fresh(self.clock.now().get())?;
+        Self::lock_routes(control).await?;
+        let route = Arc::new(self.route(control, &descriptor.connection_id).await?);
+        route.matches(descriptor)?;
+        let work = Arc::new(SnapshotWork {
+            descriptor: descriptor.clone(),
+            snapshot,
+            identifiers: (0..10000)
+                .map(|_| self.secrets.identifier())
+                .collect::<Result<Vec<_>, _>>()?,
+            audit_id: self.secrets.identifier()?,
+        });
+        let outcome = PgUnitOfWork::new(route.pool.clone())
+            .run(TransactionOptions::default(), |source| {
+                let this = self.clone();
+                let route = route.clone();
+                let work = work.clone();
+                Box::pin(async move { this.apply_snapshot_unit(source, &route, &work).await })
+            })
+            .await?;
+        route.require_current(control).await?;
+        Ok(outcome)
+    }
     async fn apply_snapshot_unit(
         &self,
         source: &mut PgConnection,

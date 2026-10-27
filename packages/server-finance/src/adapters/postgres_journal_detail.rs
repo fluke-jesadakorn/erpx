@@ -69,11 +69,11 @@ pub async fn lock_journal_detail_sources(c: &mut PgConnection) -> Result<(), Err
     sqlx::query("LOCK TABLE finance_journals,finance_journal_lines,finance_manual_draft_editions,finance_accounts,finance_charts,finance_book_postings,finance_book_rules IN SHARE MODE").execute(c).await?;
     Ok(())
 }
-struct Budget {
-    bytes: usize,
-    rows: usize,
+pub(super) struct Budget {
+    pub(super) bytes: usize,
+    pub(super) rows: usize,
 }
-async fn rows(
+pub(super) async fn rows(
     c: &mut PgConnection,
     sql: &str,
     company: &str,

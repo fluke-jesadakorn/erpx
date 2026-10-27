@@ -70,3 +70,12 @@ pub(crate) mod directory_snapshot_postgres;
 pub(crate) mod directory_issuance_postgres;
 
 pub(crate) mod directory_http;
+
+#[cfg(feature = "directory-ldaps")]
+pub(crate) mod directory_work;
+
+#[cfg(feature = "directory-ldaps")]
+pub(crate) mod directory_work_preflight;
+
+#[cfg(feature = "directory-ldaps")]
+pub(crate) mod directory_work_sources;

@@ -194,7 +194,7 @@
       "businessMigrationComplete": false,
       "surfaces": {
         "domain": "foundation",
-        "application": "pending",
+        "application": "foundation",
         "http": "pending",
         "ssr": "pending",
         "jobs": "pending",

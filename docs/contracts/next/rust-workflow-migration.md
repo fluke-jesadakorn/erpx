@@ -34,3 +34,5 @@ The source-bound development oracle imports unchanged B0 TypeScript on pinned No
 ## UTF-16 receipt identity and UTF-8 storage
 
 `CommandJson::string_utf8_storage` exposes only a string's PostgreSQL UTF-8 representation. A valid surrogate pair remains its Unicode scalar; an isolated UTF-16 unit becomes replacement text in storage, matching the pinned Node UTF-8 conversion. The original normalized `CommandJson` remains unchanged for receipt hashing. Distinct lone units can have the same storage text and must still have different command fingerprints. Non-string values return no string view. The Finance normalizer owns the sealed connection between its exact command JSON and typed storage input; this helper does not accept a caller-provided hash override.
+
+Owner wire adapters can inspect UTF-16 string units and ordered array elements and rebuild a bounded normalized string through the same codec. This preserves lone-unit distinctions while implementing the original owner's trim/schema rules. The UTF-8 storage view remains separate; neither these data helpers nor a normalized body can construct current authority or bypass the command ledger.

@@ -11,6 +11,7 @@ autotests = false
 verification-roots = ["../../scripts/docs/export-finance-journal-read-contracts.rs", "../../scripts/docs/generate-finance-journal-read-contracts.ts", "../../packages/contracts/src/finance-journal-read.generated.ts", "../../docs/contracts/next/finance-journal-read.openapi.generated.json", "../../tests/support/finance/native-journal-client.mjs"]
 
 [features]
+directory-ldaps = ["erpx-server-identity-access/directory-ldaps"]
 contracts = ["dep:ts-rs", "dep:utoipa", "erpx-server-finance/contracts"]
 private-development-api = []
 business-http = ["legal-queue"]
@@ -48,6 +49,12 @@ serde.workspace = true
 nix.workspace = true
 
 [dev-dependencies]
+tracing.workspace = true
+bytes.workspace = true
+ldap3_proto.workspace = true
+rustls.workspace = true
+tokio-rustls.workspace = true
+tokio-util.workspace = true
 tower.workspace = true
 time.workspace = true
 tempfile.workspace = true
@@ -112,3 +119,8 @@ required-features = ["business-http"]
 name = "finance_journal_detail_http_provider"
 path = "../../tests/provider/finance/rust-journal-detail-http.test.rs"
 required-features = ["business-http"]
+
+[[test]]
+name = "finance_directory_composition"
+path = "../../tests/integration/finance/rust-directory-journal-composition.test.rs"
+required-features = ["business-http", "directory-ldaps"]

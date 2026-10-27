@@ -44,3 +44,16 @@ pub use crate::adapters::directory_postgres::{
 pub use crate::adapters::directory_http::directory_account_router;
 #[cfg(feature = "contracts")]
 pub use crate::adapters::directory_http::directory_openapi;
+
+#[cfg(feature = "directory-ldaps")]
+pub use crate::adapters::directory_work::DirectoryRefreshRuntime;
+
+/// Preflight denial/observation rules only. These facts never create an Actor or
+/// AuthorizedWorkContext; actual session/selection/IAM reads remain mandatory.
+#[cfg(feature = "directory-ldaps")]
+pub mod refresh_rules {
+    pub use crate::domain::directory_refresh::{
+        DirectoryRefreshDisposition, DirectoryRefreshMemberFacts, DirectoryRefreshSelectionFacts,
+        classify_member, selection_fence,
+    };
+}

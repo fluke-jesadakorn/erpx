@@ -172,8 +172,41 @@ frontend port consumes the generated Rust DTO and rejects credential-shaped
 response extensions. The existing Directory login form uses that port for LDAPS;
 OIDC retains its existing implementation while its native migration is pending.
 
-Stale-Directory refresh and current business reauthorization, native SSR connection
-lookup, full Directory administration/review/reconciliation jobs, OIDC/Graph,
+Stale business requests now have a native current-source preparation path. A short
+session-first Control/Holding preflight checks the actual device-bound child,
+configured Holding, scoped tombstone, selected grant and original CAS, plus current
+Directory membership/configuration. Explicit suspension, revoked sessions, stale
+selection or an invalid link deny before provider work. An old disabled observation
+may be refreshed to discover re-enablement; a current disabled identity is denied.
+Every database lease ends before service-only LDAPS observation. No password bind,
+login credential, session or Actor DTO is minted by refresh.
+
+The actual provider transfers its retained private generation with the completed
+observation. Reconciliation reuses that retention and rechecks the original request
+on a fresh same-Control lease; it never nests a second fair generation read behind
+a queued reload writer. Final business execution uses the ordinary
+`HoldingWorkAuthorizer`, configured by `DirectoryRefreshRuntime::holding`, with the
+same concrete owner-facing API. Its ordinary `new` path remains unchanged. The
+configured path consumes deferred selectors once after session verification, then
+enters only the existing internal coordinator with actual current IAM/owner facts.
+Current route/configuration and profile retention share that coordinator's
+session-first Control transaction through Holding commit. Relevant Directory
+mapping ancestry, immutable identity link, source generation and original deadline
+are checked before effects and after deferred effects. Extra sources can only
+narrow the normal context's deadline. They cannot construct permission authority.
+The runtime bounds concurrent full provider observations to two without an
+unbounded waiting queue.
+
+Current observations retain B0's five-minute `observed_at` behavior. Retaining a
+current profile during a request does **not** prove that an earlier observation
+was produced under that generation: the existing schema does not persist that
+provenance. Before activation, native Directory administration/profile rotation
+must invalidate affected observations or persist and verify their source version
+and generation. No cache-derived permission or legacy provenance exception fills
+that gap.
+
+Native SSR connection lookup, full Directory administration/review/reconciliation
+jobs and rotation provenance, OIDC/Graph, actual route/composition rollout,
 real browser and live provider acceptance, and runtime activation remain pending.
 The new provider/router are unmounted and grant no Work permission from a copied
 snapshot. The legacy Directory runtime remains in place during migration. No

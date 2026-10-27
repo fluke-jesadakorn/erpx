@@ -11,6 +11,7 @@ autotests = false
 verification-roots = ["../../fixtures/files/rust-media", "../../scripts/testing/fixtures/generate-files-media-goldens.ts", "../../fixtures/files/preview", "../../scripts/testing/fixtures/generate-files-preview-goldens.ts"]
 
 [features]
+contracts = []
 preview-provider = ["dep:libvips", "dep:pkg-config", "erpx-server-runtime/owned-process"]
 
 [dependencies]
@@ -68,3 +69,13 @@ path = "../../tests/unit/files/rust-preview.test.rs"
 name = "preview_provider"
 path = "../../tests/provider/files/rust-preview-provider.test.rs"
 required-features = ["preview-provider"]
+
+[[bin]]
+name = "erpx-preview-tool-fixture"
+path = "../../tests/support/files/preview-tool-fixture.rs"
+required-features = ["preview-provider", "contracts"]
+
+[[test]]
+name = "preview_process"
+path = "../../tests/provider/files/rust-preview-process.test.rs"
+required-features = ["preview-provider", "contracts"]

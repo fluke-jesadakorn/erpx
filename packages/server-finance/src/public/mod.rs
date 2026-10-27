@@ -44,3 +44,5 @@ pub mod inventory_consumption;
 pub mod journal_review_wire;
 
 pub mod journal_detail;
+
+pub mod journal_workspace;

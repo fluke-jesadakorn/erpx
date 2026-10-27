@@ -7,3 +7,5 @@ pub(crate) mod postgres_inventory_consumption;
 pub(crate) mod journal_review_wire;
 
 pub(crate) mod postgres_journal_detail;
+
+pub(crate) mod postgres_journal_workspace;

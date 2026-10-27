@@ -231,3 +231,51 @@ async fn people_name_tuple_fence_preserves_actual_40001_after_an_older_snapshot(
         assert!(matches!(result,Err(erpx_server_runtime::public::postgres::PgTransactionError::Persistence(ref e))if e.sql_state()==Some("40001")));old.rollback().await.unwrap();
     }).await;
 }
+
+fn workspace_request(p: &Prepared, id: &str) -> Request<Body> {
+    let mut r = request(p, id);
+    *r.uri_mut() = format!("/api/v1/holdings/acme/finance/journals/{id}/workspace")
+        .parse()
+        .unwrap();
+    r
+}
+#[tokio::test]
+async fn full_record_workspace_preserves_b0_reference_scope_order_and_read_only_states() {
+    account::with_system(|system|async move{
+  let p=setup(system).await;p.create("workspace-original",false).await.unwrap();let pool=&p.system.holdings[0];
+  // Historical reference fixtures are valid retained rows, not a claim that a
+  // native period-close or chart-archive command has already been migrated.
+  sqlx::raw_sql("UPDATE finance_accounts SET status='inactive'WHERE id='cash';UPDATE finance_charts SET status='archived'WHERE id='chart';INSERT INTO finance_periods(id,company_id,name,start_date,end_date,state,created_at)VALUES('older-closed','company','Retained closed period','2025-01-01','2025-01-31','closed',0),('later-open','company','Later period','2027-01-01','2027-01-31','open',0);INSERT INTO finance_dimension_definitions(id,company_id,code,name,required,status,created_by,created_at)VALUES('a-dimension','company','a_region','Region',0,'active','fixture-a',0),('b-dimension','company','b_project','Project',1,'active','fixture-a',0),('inactive-dimension','company','old','Old',0,'inactive','fixture-a',0);INSERT INTO finance_dimension_values(id,dimension_id,company_id,code,name,status,created_at)VALUES('active-value','b-dimension','company','a','Active value','active',0),('active-old-parent','inactive-dimension','company','b','Active value for inactive parent','active',0),('inactive-value','a-dimension','company','c','Inactive value','inactive',0)").execute(pool.raw()).await.unwrap();
+  read_only(&p).await;let(status,value)=invoke(&router(&p),workspace_request(&p,"journal-workspace-original")).await;assert_eq!(status,StatusCode::OK,"{value}");
+  assert_eq!(value["context"]["userId"],"fixture-b");assert_eq!(value["context"]["assignmentVersion"],3);assert_eq!(value["context"]["permissions"],serde_json::json!(["finance.read","module.finance.read"]));
+  let d=&value["data"];assert_eq!(d.as_object().unwrap().len(),8);assert_eq!(d["chart"]["id"],"chart");assert_eq!(d["chart"]["status"],"archived");assert_eq!(d["accounts"].as_array().unwrap().iter().map(|r|r["id"].as_str().unwrap()).collect::<Vec<_>>(),vec!["cash","sales"]);assert_eq!(d["accounts"][0]["status"],"inactive");
+  assert_eq!(d["periods"].as_array().unwrap().iter().map(|r|r["id"].as_str().unwrap()).collect::<Vec<_>>(),vec!["later-open","period","older-closed"]);assert_eq!(d["periods"][2]["state"],"closed");
+  assert_eq!(d["dimensions"].as_array().unwrap().iter().map(|r|r["code"].as_str().unwrap()).collect::<Vec<_>>(),vec!["a_region","b_project"]);assert_eq!(d["dimensions"][1]["required"],1);
+  assert_eq!(d["dimensionValues"].as_array().unwrap().iter().map(|r|r["id"].as_str().unwrap()).collect::<Vec<_>>(),vec!["active-value","active-old-parent"]);assert_eq!(d["dimensionValues"][1]["dimension_id"],"inactive-dimension");
+ }).await;
+}
+#[tokio::test]
+async fn new_reference_writer_must_finish_before_iam_snapshot_and_its_rows_are_current() {
+    account::with_system(|system|async move{
+  let p=setup(system).await;p.create("workspace-writer",false).await.unwrap();let mut writer=p.system.holdings[0].raw().begin().await.unwrap();let(database,pid):(String,i32)=sqlx::query_as("SELECT current_database(),pg_backend_pid()").fetch_one(&mut*writer).await.unwrap();
+  sqlx::query("INSERT INTO finance_dimension_definitions(id,company_id,code,name,required,status,created_by,created_at)VALUES('committing-dimension','company','current','Committed current dimension',0,'active','fixture-a',0)").execute(&mut*writer).await.unwrap();let app=router(&p);let r=workspace_request(&p,"journal-workspace-writer");let task=tokio::spawn(async move{invoke(&app,r).await});waiting(&p.system.control,&database,pid).await;assert!(!task.is_finished());writer.commit().await.unwrap();let(status,data)=task.await.unwrap();assert_eq!(status,StatusCode::OK,"{data}");assert_eq!(data["data"]["dimensions"][0]["id"],"committing-dimension");assert_eq!(data["context"]["userId"],"fixture-b");
+ }).await;
+}
+#[tokio::test]
+async fn full_workspace_reference_proof_rejects_local_mutation_detachment_and_real_old_snapshot_40001()
+ {
+    account::with_system(|system|async move{
+  use erpx_server_finance::public::journal_workspace::*;use sqlx::Connection;
+  let p=setup(system).await;p.create("workspace-witness",false).await.unwrap();let pool=&p.system.holdings[0];let actor=FinanceActor{holding_id:HoldingId::new("h001").unwrap(),company_id:CompanyId::new("company").unwrap(),user_id:UserId::new("fixture-b").unwrap(),assignment_id:p.reviewer_selection.expected.as_ref().unwrap().assignment_id.clone()};let id=RecordId::new("journal-workspace-witness").unwrap();
+  let mut connection=pool.raw().acquire().await.unwrap();let mut tx=connection.begin_with("BEGIN ISOLATION LEVEL SERIALIZABLE").await.unwrap();lock_journal_workspace_sources(&mut tx).await.unwrap();let source=read_journal_record_workspace(&mut tx,&actor,&id).await.unwrap();source.require_current(&mut tx).await.unwrap();sqlx::query("UPDATE finance_periods SET name='Changed only in caller unit'WHERE id='period'").execute(&mut*tx).await.unwrap();assert!(source.require_current(&mut tx).await.is_err());tx.rollback().await.unwrap();let mut tx=connection.begin_with("BEGIN ISOLATION LEVEL SERIALIZABLE").await.unwrap();assert!(source.require_current(&mut tx).await.is_err());tx.rollback().await.unwrap();
+  let mut old=connection.begin_with("BEGIN ISOLATION LEVEL SERIALIZABLE").await.unwrap();sqlx::query("SELECT id FROM finance_periods WHERE id='period'").fetch_one(&mut*old).await.unwrap();sqlx::query("UPDATE finance_periods SET name='Committed after old snapshot'WHERE id='period'").execute(pool.raw()).await.unwrap();lock_journal_workspace_sources(&mut old).await.unwrap();let result=read_journal_record_workspace(&mut old,&actor,&id).await;assert!(matches!(result,Err(erpx_server_runtime::public::postgres::PgTransactionError::Persistence(ref e))if e.sql_state()==Some("40001")));old.rollback().await.unwrap();
+ }).await;
+}
+#[tokio::test]
+async fn unrelated_reference_bodies_are_excluded_and_one_aggregate_budget_precedes_collection() {
+    account::with_system(|system|async move{
+  let p=setup(system).await;p.create("workspace-budget",false).await.unwrap();let pool=&p.system.holdings[0];
+  sqlx::query("UPDATE finance_accounts SET name=repeat('unrelated-private-book-',1500000)WHERE id='book-cash'").execute(pool.raw()).await.unwrap();let app=router(&p);let(status,value)=invoke(&app,workspace_request(&p,"journal-workspace-budget")).await;assert_eq!(status,StatusCode::OK,"{value}");assert_eq!(value["data"]["accounts"].as_array().unwrap().len(),2);assert!(value.to_string().len()<20000);
+  sqlx::query("INSERT INTO finance_accounts(id,company_id,chart_id,code,name,category,created_at,updated_at)SELECT 'workspace-big-'||n,'company','chart','big-'||n,repeat('x',250000),'asset',0,0 FROM generate_series(1,9)n").execute(pool.raw()).await.unwrap();let(status,value)=invoke(&app,workspace_request(&p,"journal-workspace-budget")).await;assert_eq!(status,StatusCode::SERVICE_UNAVAILABLE,"{value}");assert!(value.get("data").is_none());
+ }).await;
+}

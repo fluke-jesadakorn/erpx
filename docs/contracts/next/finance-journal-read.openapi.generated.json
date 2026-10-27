@@ -1,8 +1,8 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "ERPX native Finance journal detail",
-    "description": "Development-only unmounted detail component. Current finance.read/module and actual Commercial History remain required; no post/reviewer grant. First source scope admits proved Finance manual/opening/manual-root reversal records; missing foreign-owner/secondary-book facts deny. Render context is output data from the same retained authorization unit, never an input authority. No installed route/current page or release acceptance.",
+    "title": "ERPX native Finance journal reads",
+    "description": "Development-only unmounted detail and record-workspace component. Current finance.read/module and actual Commercial History remain required; no post/reviewer grant. First source scope admits proved Finance manual/opening/manual-root reversal records; missing foreign-owner/secondary-book facts deny. Render context is output data from the same retained authorization unit, never an input authority. No installed route/current page or release acceptance.",
     "license": {
       "name": "Apache-2.0",
       "identifier": "Apache-2.0"
@@ -50,6 +50,54 @@
           },
           "403": {
             "description": "Finance read/purchase history denied"
+          },
+          "404": {
+            "description": "Unavailable or unsupported source"
+          },
+          "409": {
+            "description": "Supplied rendered context is stale"
+          }
+        }
+      }
+    },
+    "/api/v1/holdings/{holding_slug}/finance/journals/{id}/workspace": {
+      "get": {
+        "tags": [],
+        "operationId": "get_workspace",
+        "parameters": [
+          {
+            "name": "holding_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Exact record workspace references and original render context from one retained unit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FinanceJournalWorkspaceReadResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Current session required"
+          },
+          "403": {
+            "description": "Finance read/purchase History denied"
           },
           "404": {
             "description": "Unavailable or unsupported source"
@@ -120,6 +168,78 @@
           },
           "data": {
             "$ref": "#/components/schemas/FinanceJournalDetail"
+          }
+        }
+      },
+      "FinanceJournalRecordWorkspace": {
+        "type": "object",
+        "required": [
+          "journal",
+          "lines",
+          "history",
+          "chart",
+          "accounts",
+          "periods",
+          "dimensions",
+          "dimensionValues"
+        ],
+        "properties": {
+          "accounts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BTreeMap"
+            }
+          },
+          "chart": {
+            "$ref": "#/components/schemas/BTreeMap"
+          },
+          "dimensionValues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BTreeMap"
+            }
+          },
+          "dimensions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BTreeMap"
+            }
+          },
+          "history": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BTreeMap"
+            }
+          },
+          "journal": {
+            "$ref": "#/components/schemas/BTreeMap"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BTreeMap"
+            }
+          },
+          "periods": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BTreeMap"
+            }
+          }
+        }
+      },
+      "FinanceJournalWorkspaceReadResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "context"
+        ],
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/FinanceRenderedWorkContext"
+          },
+          "data": {
+            "$ref": "#/components/schemas/FinanceJournalRecordWorkspace"
           }
         }
       },

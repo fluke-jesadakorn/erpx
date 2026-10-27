@@ -318,7 +318,7 @@ pub(super) fn matches_descriptor(
     }
     Ok(())
 }
-async fn identity(
+pub(super) async fn identity(
     source: &mut PgConnection,
     descriptor: &DirectoryConnectionDescriptor,
     external_id: &str,

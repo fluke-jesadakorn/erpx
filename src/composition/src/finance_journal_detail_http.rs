@@ -90,6 +90,10 @@ pub fn finance_journal_read_router<C: Clock + Send + Sync + 'static>(
             "/api/v1/holdings/{holding_slug}/finance/journals/{id}",
             get(detail::<C>),
         )
+        .route(
+            "/api/v1/holdings/{holding_slug}/finance/journals/{id}/workspace",
+            get(workspace::<C>),
+        )
         .with_state(Arc::new(ReadState {
             policy,
             scopes,
@@ -100,6 +104,22 @@ async fn detail<C: Clock + Send + Sync + 'static>(
     State(state): State<Arc<ReadState<C>>>,
     Path((slug, id)): Path<(String, String)>,
     headers: HeaderMap,
+) -> Response {
+    read(state, slug, id, headers, false).await
+}
+async fn workspace<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path((slug, id)): Path<(String, String)>,
+    headers: HeaderMap,
+) -> Response {
+    read(state, slug, id, headers, true).await
+}
+async fn read<C: Clock + Send + Sync + 'static>(
+    state: Arc<ReadState<C>>,
+    slug: String,
+    id: String,
+    headers: HeaderMap,
+    workspace: bool,
 ) -> Response {
     let result = async {
         let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
@@ -126,18 +146,24 @@ async fn detail<C: Clock + Send + Sync + 'static>(
         let captured = CapturedHoldingMutation::capture(&headers, branch, department);
         let company = target.service.company_id().clone();
         let id = RecordId::new(id).map_err(|_| missing())?;
-        target
-            .service
-            .read(
-                host,
-                inbound.into_proof(),
-                move || {
-                    scope?;
-                    captured.resolve_read(company)
-                },
-                id,
-            )
-            .await
+        let proof = inbound.into_proof();
+        let input = move || {
+            scope?;
+            captured.resolve_read(company)
+        };
+        if workspace {
+            target
+                .service
+                .read_workspace(host, proof, input, id)
+                .await
+                .and_then(|reply| serde_json::to_value(reply).map_err(|_| serialization()))
+        } else {
+            target
+                .service
+                .read(host, proof, input, id)
+                .await
+                .and_then(|reply| serde_json::to_value(reply).map_err(|_| serialization()))
+        }
     }
     .await;
     let mut response=match result{Ok(data)=>Json(data).into_response(),Err(PgTransactionError::Business(e))=>{let status=match e.kind{FailureKind::InvalidInput=>StatusCode::UNPROCESSABLE_ENTITY,FailureKind::Unauthenticated=>StatusCode::UNAUTHORIZED,FailureKind::Forbidden=>StatusCode::FORBIDDEN,FailureKind::NotFound=>StatusCode::NOT_FOUND,FailureKind::Conflict=>StatusCode::CONFLICT,FailureKind::Unavailable=>StatusCode::SERVICE_UNAVAILABLE};(status,Json(serde_json::json!({"error":{"code":e.code,"message":e.message}}))).into_response()},Err(PgTransactionError::Persistence(_))=>(StatusCode::INTERNAL_SERVER_ERROR,Json(serde_json::json!({"error":{"code":"FINANCE_READ_UNAVAILABLE","message":"The journal could not be read."}}))).into_response()};
@@ -157,4 +183,13 @@ async fn detail<C: Clock + Send + Sync + 'static>(
 }
 fn missing() -> BusinessError {
     BusinessError::new(FailureKind::NotFound, "NOT_FOUND", "Not found.")
+}
+
+fn serialization() -> PgTransactionError<BusinessError> {
+    BusinessError::new(
+        FailureKind::Unavailable,
+        "FINANCE_READ_UNAVAILABLE",
+        "The journal could not be encoded.",
+    )
+    .into()
 }

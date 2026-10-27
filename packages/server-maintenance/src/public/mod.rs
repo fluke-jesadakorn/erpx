@@ -5,3 +5,7 @@ pub use crate::domain::work::{
 };
 
 pub mod work_source;
+
+pub mod work_wire;
+
+pub mod work_commands;

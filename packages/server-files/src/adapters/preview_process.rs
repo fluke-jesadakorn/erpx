@@ -168,48 +168,53 @@ impl PreviewRenderer for BoundedPreviewRenderer {
             .run(request, limits)
             .await
             .map_err(map_process_error)?;
-        let response: PreviewChildResponse =
-            serde_json::from_slice(&output.stdout).map_err(|_| Failure::WorkerProtocol)?;
-        let result = match response {
-            PreviewChildResponse::Failed { failure } => return Err(failure),
-            PreviewChildResponse::NoPreview { .. } => return Err(Failure::WorkerProtocol),
-            PreviewChildResponse::Rendered {
-                source_checksum_sha256,
-                checksum_sha256,
-                media,
-                width,
-                height,
-                libvips,
-            } => {
-                if source_checksum_sha256 != input.checksum_sha256() || libvips != "8.18.7" {
-                    return Err(Failure::WorkerProtocol);
+        // A failed decode is still provider evidence. Retain its outcome until
+        // the same post-run artifact/deadline gate has checked every response.
+        let result = (|| {
+            let response: PreviewChildResponse =
+                serde_json::from_slice(&output.stdout).map_err(|_| Failure::WorkerProtocol)?;
+            let result = match response {
+                PreviewChildResponse::Failed { failure } => return Err(failure),
+                PreviewChildResponse::NoPreview { .. } => return Err(Failure::WorkerProtocol),
+                PreviewChildResponse::Rendered {
+                    source_checksum_sha256,
+                    checksum_sha256,
+                    media,
+                    width,
+                    height,
+                    libvips,
+                } => {
+                    if source_checksum_sha256 != input.checksum_sha256() || libvips != "8.18.7" {
+                        return Err(Failure::WorkerProtocol);
+                    }
+                    let name = match media {
+                        crate::domain::preview::PreviewMedia::Webp => "preview.webp",
+                        crate::domain::preview::PreviewMedia::Jpeg => "preview.jpg",
+                    };
+                    let bytes = output
+                        .directory
+                        .read_bounded(name, PREVIEW_OUTPUT_LIMIT)
+                        .map_err(map_process_error)?;
+                    let artifact = PreviewArtifact::from_rendered(bytes, media)?;
+                    if artifact.width() != width
+                        || artifact.height() != height
+                        || artifact.checksum_sha256() != checksum_sha256
+                    {
+                        return Err(Failure::WorkerProtocol);
+                    }
+                    PreviewResult::Rendered(artifact)
                 }
-                let name = match media {
-                    crate::domain::preview::PreviewMedia::Webp => "preview.webp",
-                    crate::domain::preview::PreviewMedia::Jpeg => "preview.jpg",
-                };
-                let bytes = output
-                    .directory
-                    .read_bounded(name, PREVIEW_OUTPUT_LIMIT)
-                    .map_err(map_process_error)?;
-                let artifact = PreviewArtifact::from_rendered(bytes, media)?;
-                if artifact.width() != width
-                    || artifact.height() != height
-                    || artifact.checksum_sha256() != checksum_sha256
-                {
-                    return Err(Failure::WorkerProtocol);
-                }
-                PreviewResult::Rendered(artifact)
-            }
-        };
-        result.require_source_kind(input.media())?;
+            };
+            result.require_source_kind(input.media())?;
+            Ok(result)
+        })();
         if self.current_provider_profile().await? != profile {
             return Err(Failure::ToolConfiguration);
         }
         if start.elapsed() > deadline {
             return Err(Failure::Deadline);
         }
-        Ok(result)
+        result
     }
 }
 fn file_hash(path: &Path) -> Result<[u8; 32], Failure> {

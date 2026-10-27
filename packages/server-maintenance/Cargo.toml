@@ -8,7 +8,7 @@ publish.workspace = true
 autotests = false
 
 [package.metadata.erpx]
-verification-roots = ["../../fixtures/maintenance/rust-work", "../../scripts/testing/fixtures/generate-maintenance-rust-oracle.mjs"]
+verification-roots = ["../../fixtures/maintenance/rust-work", "../../scripts/testing/fixtures/generate-maintenance-rust-oracle.mjs", "../../scripts/testing/fixtures/generate-maintenance-wire-oracle.mjs"]
 
 [lib]
 path = "src/lib.rs"
@@ -18,6 +18,7 @@ erpx-server-shared.workspace = true
 erpx-server-assets.workspace = true
 erpx-server-identity-access.workspace = true
 erpx-server-runtime.workspace = true
+erpx-server-workflow.workspace = true
 sqlx.workspace = true
 
 [dev-dependencies]
@@ -32,6 +33,14 @@ path = "../../tests/unit/maintenance/rust-work-policy.test.rs"
 [[test]]
 name = "work_source"
 path = "../../tests/integration/maintenance/rust-work-source-postgres.test.rs"
+
+[[test]]
+name = "work_wire"
+path = "../../tests/unit/maintenance/rust-work-wire.test.rs"
+
+[[test]]
+name = "work_commands"
+path = "../../tests/unit/maintenance/rust-work-commands.test.rs"
 
 [lints]
 workspace = true
