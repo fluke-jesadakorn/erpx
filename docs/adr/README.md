@@ -1,5 +1,7 @@
 # Architecture decisions
 
+Current development reading order: [ADR-051 Holding addresses](ADR-051-holding-addresses-and-workspace-paths.md), [ADR-050 Apps/Work](ADR-050-apps-feed-and-work-retirement.md), then [ADR-049 independent apps](ADR-049-product-app-workspaces-and-development-verification.md). There are21 active apps plus retained non-product compatibility source, and three Holding hosts plus Account. Historical decisions retain their original text; supersession notices identify the parts that no longer govern development. [README recovery](../../README.md#recovery) replaces the removed standalone cutover document.
+
 Reviewed 2026-10-03. Decisions retain their identifiers and original rationale; implementation acceptance is recorded separately. Current stack: ADR-020/024/032; configured file storage: ADR-035/036; Sandbox pricing: ADR-037; manual currencies and immutable money snapshots: ADR-038.
 
 | Decision | Current disposition |

@@ -8,7 +8,20 @@ import { appDefinitions, appDefinition } from "@erpx/contracts/apps";
 import { verificationSources, resolveImport, type Suite, repositoryRoot } from "./catalogue";
 import { cargoRootInputs, cargoVerificationEdges, cargoResourceRoots, cargoResourcePath, isCargoInput } from './cargo';
 
-export type WorkspaceGraph = { appDirectories?: Map<string,string>; sourceCache?: {hits:number;misses:number;persisted:boolean;loaded:boolean}; runtimeImports: Map<string, Set<string>>; files: Map<string, string>; imports: Map<string, Set<string>>; reverse: Map<string, Set<string>>; apps: Map<string, Set<string>> };
+export type WorkspaceGraph = { retirementPresence?: ReadonlySet<string>; appDirectories?: Map<string,string>; sourceCache?: {hits:number;misses:number;persisted:boolean;loaded:boolean}; runtimeImports: Map<string, Set<string>>; files: Map<string, string>; imports: Map<string, Set<string>>; reverse: Map<string, Set<string>>; apps: Map<string, Set<string>> };
+// Exact filenames of the reviewed historical documentation cleanup. Only their
+// presence is observed; private contents never enter the graph or source cache.
+const retiredDocumentationPaths = new Set([
+  ...Array.from({length:10}, (_, index) => `.scratch/docs-seamless/issues/${String(index+1).padStart(2,"0")}-${["inventory-contradiction-matrix","canonical-glossary-home","adr-authority-nextjs-era","plan-lineage-normalization","audits-prune-policy","docs-contracts-schema-role","top-level-entry-coherence","seamless-navigation-prototype","designed-skills-dedup","nextjs-ci-traceability"][index]}.md`),
+  ".scratch/docs-seamless/map.md", ".scratch/docs-seamless/prototype/TOC-seamless.md", "audits/.gitkeep",
+]);
+function workingRetirementPresence(root:string):Set<string>{
+  const present=new Set<string>();
+  for(const file of retiredDocumentationPaths){
+    try{lstatSync(resolve(root,file));present.add(file);}catch(error){if((error as NodeJS.ErrnoException).code!=="ENOENT")throw error;}
+  }
+  return present;
+}
 const resourcePrefix = 'resource-input:';
 export function workspaceInputFile(file: string) { return file.startsWith(resourcePrefix) ? file.slice(resourcePrefix.length) : file; }
 const sourceExtension = /\.(?:[cm]?[jt]sx?|rs|json|css|mjs|md|mdx|yml|yaml|py|sh|plist|toml|html|sql)$/;
@@ -172,10 +185,12 @@ function graphWithSourceCache(files:Map<string,string>,root:string,cacheRoot=roo
 }
 export function loadWorkspaceGraph(root = repositoryRoot, options:{cacheRoot?:string;excludeStyleSources?:boolean}={}): WorkspaceGraph {
   const inventory=workspaceSourceInventory(root);
-  return graphWithSourceCache(new Map(inventory.paths.map(file => {
+  const graph = graphWithSourceCache(new Map(inventory.paths.map(file => {
     const path = resolve(root, file), symlink = lstatSync(path).isSymbolicLink();
     return [file, graphContent(file, symlink ? Buffer.from(readlinkSync(path)) : readFileSync(path), symlink,!workspacePath(file)&&declaredCargoResource(file,inventory.roots))];
   })),root,options.cacheRoot,options.excludeStyleSources);
+  graph.retirementPresence=workingRetirementPresence(root);
+  return graph;
 }
 
 export function dependencyClosure(graph: Pick<WorkspaceGraph, "imports">, entries: Iterable<string>): Set<string> {
@@ -259,7 +274,9 @@ export function loadRevisionWorkspaceGraph(revision: string, root = repositoryRo
   const manifests=read(entries.filter(({file,symlink})=>!symlink&&file.endsWith('/Cargo.toml')&&workspacePath(file)));
   const roots=[...cargoResourceRoots(manifests).values()].flat();
   const files=read(entries.filter(({file})=>workspacePath(file,roots)),roots);
-  return graphWithSourceCache(files,root);
+  const graph=graphWithSourceCache(files,root);
+  graph.retirementPresence=new Set(entries.map(({file})=>file).filter(file=>retiredDocumentationPaths.has(file)));
+  return graph;
 }
 function configuredAppChanges(head: WorkspaceGraph, base: WorkspaceGraph, changed: readonly string[]) {
   const file='scripts/local/workspace-settings.json';
@@ -287,7 +304,8 @@ function configuredAppChanges(head: WorkspaceGraph, base: WorkspaceGraph, change
 }
 export function selectCandidateSuites(head: WorkspaceGraph, base: WorkspaceGraph, suites: readonly Suite[], changed: string[], apps: string[] = []) {
   const known = changed.filter(file => head.files.has(file) || base.files.has(file));
-  const missing = changed.filter(file => !head.files.has(file) && !base.files.has(file) && !/^(?:docs|public|migrations|ops|\.github)\//.test(file) && !/^(?:[A-Z][A-Z_.-]*\.md|\.gitignore|\.bun-version|\.node-version|bunfig\.toml|turbo\.json|tsconfig(?:\.[\w-]+)?\.json)$/.test(file));
+  const retiredDeletion = (file:string) => retiredDocumentationPaths.has(file) && base.retirementPresence?.has(file) === true && head.retirementPresence !== undefined && !head.retirementPresence.has(file);
+  const missing = changed.filter(file => !retiredDeletion(file) && !head.files.has(file) && !base.files.has(file) && !/^(?:docs|public|migrations|ops|\.github)\//.test(file) && !/^(?:[A-Z][A-Z_.-]*\.md|\.gitignore|\.bun-version|\.node-version|bunfig\.toml|turbo\.json|tsconfig(?:\.[\w-]+)?\.json)$/.test(file));
   if (missing.length) throw new Error(`WORKSPACE_CHANGE_UNMAPPED:${missing.join(',')}`);
   const a = selectWorkspaceSuites(head, suites, { apps, changed: known });
   const b = selectWorkspaceSuites(base, suites, { changed: known });
@@ -310,5 +328,5 @@ export function selectCandidateSuites(head: WorkspaceGraph, base: WorkspaceGraph
   for (const graph of [head,base]) for (const suite of suites) for (const file of dependencyClosure(graph,verificationSources([suite]))) covered.add(file);
   const unmapped = known.filter(file => /^(?:packages|src|apps|tests\/(?:unit|integration))\//.test(file) && !covered.has(file) && !affectedApps.length && head.files.has(file));
   if (unmapped.length) throw new Error(`WORKSPACE_TEST_MAPPING_REQUIRED:${unmapped.join(',')}`);
-  return { scope: 'development' as const, acceptance: false as const, apps: affectedApps, changed, suites: suites.filter(suite => selected.has(suite.id)), removed: changed.filter(file => base.files.has(file) && !head.files.has(file)) };
+  return { scope: 'development' as const, acceptance: false as const, apps: affectedApps, changed, suites: suites.filter(suite => selected.has(suite.id)), removed: changed.filter(file => base.files.has(file) && !head.files.has(file) || retiredDeletion(file)) };
 }

@@ -1,6 +1,6 @@
 # Business readiness and release acceptance
 
-Delivery scope is governed by [the production plan](../../production-plan.md), with Company release criteria in `src/data/production-scope.ts` and full-catalogue engineering scenarios tracked separately. The 187-capability catalog is reference inventory, not the Company release acceptance set.
+Delivery scope is governed by [the production plan](../../production-plan.md), with Company release criteria in [packages/catalogue/src/production-scope.ts](../../../packages/catalogue/src/production-scope.ts) and full-catalogue engineering scenarios tracked separately. The 187-capability catalog is reference inventory, not the Company release acceptance set.
 
 ## Independent meanings
 

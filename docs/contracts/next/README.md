@@ -1,9 +1,10 @@
 # Current Next.js contracts
 
-[Production plan](../../production-plan.md) owns scope and priorities. Contracts describe current Next.js/Node.js/PostgreSQL behavior and explicit limitations; they do not certify production readiness.
+[Production plan](../../production-plan.md) owns scope and priorities. Contracts describe current Next.js/Node.js/PostgreSQL behavior and explicitly scoped native migration work and limitations; they do not certify production readiness.
 
 - [All 33 modules: workflow/ownership/control catalogue](catalogue.md)
-- [Product separation, packages and host-bound SSO (foundation; cutover not accepted)](product-separation.md)
+- [Holding addresses and explicit workspace selection](holding-addresses.md)
+- [Independent applications, packages and SSO (development cutover active; full acceptance deferred)](product-separation.md)
 - [Service boundaries, shared transactions and isolated verification](service-boundaries.md)
 - [Business readiness and release acceptance](business-readiness.md)
 - [PMS](pms.md), [POS](pos.md), [Finance](finance.md)
@@ -15,7 +16,7 @@
 - [Attachments and record documents](attachments.md), [Web Push](web-push.md)
 - [Employee/source Support reporting](support-general.md), [Marketing public intake](marketing-public-intake.md)
 - [Sandbox billing pricing and feasibility](billing-pricing-hypothesis.md), [UCS lab boundary](ucs-lab.md)
-- [Route table](route-table.md) is the route reference; handlers live under `src/app/api/`.
+- [Route table](route-table.md) is the route reference; app-owned API entrypoints live under `apps/<id>/src/app/api/`, composed from owner route packages.
 
 Follow [CONTRACT_POLICY.md](../../../CONTRACT_POLICY.md): update the affected contract and compatibility checks. Add migrations only when storage changes; no unrelated policy/schema/traceability edits. Preserve command idempotency and authoritative Company scope. Do not reuse fields or routes with different meanings. Breaking changes require an ADR and cutover entry.
 

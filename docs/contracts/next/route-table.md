@@ -1,8 +1,10 @@
 # docs/contracts/next — Route Table (Living, Next.js)
 
-Apps `/` is the Feed entry; Apps `/applications` is the Company → Workspace → App selector. Feed continues through the existing authorized `/launch` flow to `/holdings/…/home`. Work has no registered host or redirect.
+Browser development addresses follow the [Holding address contract](holding-addresses.md). Paths in this table identify app-internal owner routes unless explicitly presented as public Holding paths; the gateway translates them without changing record or permission ownership.
 
-> Current versioned REST route reference. Handlers in `src/app/api/` and the owner contracts are authoritative; archived Rust RPCs are recoverable through [CUTOVER](../../../README.md#recovery).
+Apps owns Feed. Holding root/unscoped app entry requires explicit current scope selection; `/applications` redirects to Apps with `launcher=open` for the hierarchy/app modal. Selected Feed continues through the authorized owner launch to the app-internal `/holdings/…/home`. Work has no registered app or redirect.
+
+> Current versioned REST route reference. Handlers in `apps/<id>/src/app/api/` and the owner contracts are authoritative; archived Rust RPCs are recoverable through [Git recovery](../../../README.md#recovery).
 
 ## Implemented foundation routes
 
@@ -10,7 +12,7 @@ Directory & access at scoped /people/access owns the People, Groups, Access poli
 
 | Route | Method | Context | Contract | Status |
 |---|---|---|---|---|
-| `/` on Apps | GET | Authenticated Apps identity | Company → Workspace → App in one page; exact authorized scope links, six initial apps, account-separated optional browser memory; see [Apps selection](identity-access.md#apps-company-first-selection) | Development |
+| `/` on Apps | GET | Authenticated Apps identity | Explicit Holding scope selection and the Navbar hierarchy/app modal; all eligible apps, exact authorized links and account-separated optional recency; see [Apps selection](identity-access.md#holding-entry-and-appsworkspace-picker) | Development |
 | `/api/mcp/executive` | POST | Executive | Token-authenticated Streamable HTTP for five read-only dashboard/KPI tools | Development; production rollout separate |
 | `/api/v1/holdings/{holdingSlug}/executive/connections` | GET/POST | Executive | Own connection metadata, one-time token issuance and revocation via browser work context | Implemented |
 | `/api/auth/[...all]` | GET/POST | identity | Better Auth handler with device multi-session account switching | Implemented |
@@ -181,7 +183,7 @@ navigation contract.
 
 ## Links
 
-- Current workflow ownership: [catalogue](catalogue.md); Rust recovery: [CUTOVER](../../../README.md#recovery)
+- Current workflow ownership: [catalogue](catalogue.md); Rust recovery: [Git recovery](../../../README.md#recovery)
 - Spec hub: `docs/TOC.md` → `docs/production-plan.md` (current scope) → affected owner contract.
 - Policy: `CONTRACT_POLICY.md` + `docs/adr/ADR-020-nextjs-stack.md` + `docs/adr/ADR-024-local-postgresql-runtime.md` + `docs/adr/ADR-023-three-level-workspace-routing.md`
 

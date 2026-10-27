@@ -36,7 +36,8 @@ use erpx_server_commercial::public::purchases::{
 };
 use erpx_server_finance::public::inventory_consumption::CurrentConsumptionFinance;
 use erpx_server_finance::public::parts_draft::{
-    OwnedPreparedPartsDraft, PartsDraftFinanceReceipt, prepare_owned_parts_draft,
+    OwnedPreparedPartsDraft, PartsDraftFinanceReceipt, PgPartsDraftOwnerSource,
+    prepare_owned_parts_draft,
 };
 use erpx_server_identity_access::public::{
     command_metadata::project_command_iam, work_context::WorkScopeKind,
@@ -291,7 +292,7 @@ impl<W: Clock + Sync, G: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W, 
             self.guard_clock,
         )
         .await?;
-        let mut work = source
+        let work = source
             .retain_issue_part_effects(c, self.command, at, self.guard_clock.now())
             .await?
             .into_plan();
@@ -313,8 +314,6 @@ impl<W: Clock + Sync, G: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W, 
             let _ = self.write_clock.now();
             return Err(PersistenceError::new("DATABASE_NUMBER_OUT_OF_RANGE").into());
         }
-        work.finalize_event(c, &source, self.guard_clock.now())
-            .await?;
         let notification_source = NotificationSource::new(&source, &work);
         let notification = prepare_maintenance_notification(
             c,
@@ -353,11 +352,27 @@ impl<W: Clock + Sync, G: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W, 
     ) -> Result<(), Error> {
         let Prepared {
             source,
-            work,
+            mut work,
             inventory,
             finance,
             notification,
         } = self.prepared.take().ok_or_else(changed)?;
+        {
+            let owner = PgMaintenancePartsSource::retain(
+                c,
+                &source,
+                &work,
+                &inventory,
+                self.mode,
+                self.guard_clock.now(),
+            )
+            .await?;
+            owner
+                .require_apply(c, finance.expected(), self.guard_clock.now())
+                .await?;
+        }
+        work.finalize_event(c, &source, self.guard_clock.now())
+            .await?;
         let owner = PgMaintenancePartsSource::retain(
             c,
             &source,

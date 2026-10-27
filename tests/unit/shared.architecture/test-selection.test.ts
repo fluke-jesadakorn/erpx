@@ -1,10 +1,12 @@
+import { documentationChecksRequired } from "../../../scripts/testing/scoped";
+import { loadRevisionWorkspaceGraph, loadWorkspaceGraph, selectCandidateSuites } from "../../../scripts/testing/workspace-graph";
 import {inferPostgresProfile} from '../../../scripts/testing/workspace-catalogue';
 import {executeOwnedProcess} from '../../support/owned-process';
 import {ciPostgresInvocation,ciVerificationArgv} from '../../../scripts/testing/ci-postgres-contract';
 import {ciHeifDecoderInventory} from '../../../scripts/testing/ci-attachment-contract';
 import {cargoVerificationEdges} from '../../../scripts/testing/cargo';
 import { afterEach, describe, expect, it } from "vitest";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { availableParallelism, tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -965,4 +967,43 @@ it("isolates the Service enforcement flag while retaining only explicit browser 
   expect(browserChildEnvironment(ambient)).not.toHaveProperty("ERPX_SERVICE_PACKAGE_ENFORCEMENT");
   expect(browserChildEnvironment(ambient,{ERPX_SERVICE_PACKAGE_ENFORCEMENT:"shadow"})).toHaveProperty("ERPX_SERVICE_PACKAGE_ENFORCEMENT","shadow");
   expect(ambient.ERPX_SERVICE_PACKAGE_ENFORCEMENT).toBe("enforced");
+});
+
+it("admits only proven deletion of the exact retired documentation paths", () => {
+  const root=mkdtempSync(join(tmpdir(),"erpx-retired-docs-"));
+  const retired=[
+    ...["inventory-contradiction-matrix","canonical-glossary-home","adr-authority-nextjs-era","plan-lineage-normalization","audits-prune-policy","docs-contracts-schema-role","top-level-entry-coherence","seamless-navigation-prototype","designed-skills-dedup","nextjs-ci-traceability"].map((name,i)=>`.scratch/docs-seamless/issues/${String(i+1).padStart(2,"0")}-${name}.md`),
+    ".scratch/docs-seamless/map.md", ".scratch/docs-seamless/prototype/TOC-seamless.md", "audits/.gitkeep",
+  ];
+  const git=(...args:string[])=>{const result=spawnSync("git",args,{cwd:root,encoding:"utf8"});if(result.status!==0)throw new Error(result.stderr);return result.stdout.trim();};
+  const put=(file:string,text="original")=>{mkdirSync(join(root,file,".."),{recursive:true});writeFileSync(join(root,file),text);};
+  try{
+    git("init","-q");git("config","user.email","test@example.invalid");git("config","user.name","Test");
+    for(const file of retired)put(file);
+    put(".scratch/unrelated.md");git("add","-f",".");git("commit","-qm","base");const base=git("rev-parse","HEAD");
+    for(const file of retired)rmSync(join(root,file));rmSync(join(root,".scratch/unrelated.md"));
+    git("add","-u");git("commit","-qm","remove");const head=git("rev-parse","HEAD");
+    const before=loadRevisionWorkspaceGraph(base,root),after=loadRevisionWorkspaceGraph(head,root);
+    for(const file of retired)expect(()=>selectCandidateSuites(after,before,[],[file])).not.toThrow();
+    const auditPlan=selectCandidateSuites(after,before,[],["audits/.gitkeep"]);
+    expect(auditPlan.removed).toEqual(["audits/.gitkeep"]);
+    expect(documentationChecksRequired(auditPlan.changed,auditPlan.removed)).toBe(true);
+    expect(documentationChecksRequired(["scripts/testing/example.ts"],[])).toBe(false);
+    expect(documentationChecksRequired([".scratch/unknown"],[])).toBe(false);
+    expect(documentationChecksRequired(["README.md"],[])).toBe(true);
+    expect(()=>selectCandidateSuites(after,before,[],[".scratch/unrelated.md"])).toThrow("WORKSPACE_CHANGE_UNMAPPED");
+    expect(()=>selectCandidateSuites(after,before,[],[".scratch/unknown.md"])).toThrow("WORKSPACE_CHANGE_UNMAPPED");
+    expect(()=>selectCandidateSuites({...after,retirementPresence:undefined},before,[],[retired[0]])).toThrow("WORKSPACE_CHANGE_UNMAPPED");
+    expect(()=>selectCandidateSuites(after,{...before,retirementPresence:undefined},[],[retired[0]])).toThrow("WORKSPACE_CHANGE_UNMAPPED");
+    put(retired[0],"readded");
+    expect(()=>selectCandidateSuites(loadWorkspaceGraph(root),before,[],[retired[0]])).toThrow("WORKSPACE_CHANGE_UNMAPPED");
+    git("add","-f",retired[0]);git("commit","-qm","readd");const added=loadRevisionWorkspaceGraph("HEAD",root);
+    expect(()=>selectCandidateSuites(added,after,[],[retired[0]])).toThrow("WORKSPACE_CHANGE_UNMAPPED");
+    put(retired[0],"modified");
+    expect(()=>selectCandidateSuites(loadWorkspaceGraph(root),added,[],[retired[0]])).toThrow("WORKSPACE_CHANGE_UNMAPPED");
+    git("add","-f",retired[0]);git("commit","-qm","modify");
+    expect(()=>selectCandidateSuites(loadRevisionWorkspaceGraph("HEAD",root),added,[],[retired[0]])).toThrow("WORKSPACE_CHANGE_UNMAPPED");
+    rmSync(join(root,retired[0]));symlinkSync("missing-target",join(root,retired[0]));
+    expect(()=>selectCandidateSuites(loadWorkspaceGraph(root),before,[],[retired[0]])).toThrow("WORKSPACE_CHANGE_UNMAPPED");
+  }finally{rmSync(root,{recursive:true,force:true});}
 });

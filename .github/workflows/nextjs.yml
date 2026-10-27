@@ -31,6 +31,10 @@ jobs:
     timeout-minutes: 30
     env:
       CARGO_BUILD_JOBS: '2'
+      ERPX_CI_CARGO_PROFILE: compact-v1
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      CARGO_PROFILE_TEST_DEBUG: '0'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -71,6 +75,11 @@ jobs:
           path: .scratch/dev/test-suites/native-worker/
           if-no-files-found: warn
   verification:
+    env:
+      ERPX_CI_CARGO_PROFILE: compact-v1
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      CARGO_PROFILE_TEST_DEBUG: '0'
     name: Affected development verification
     if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-24.04

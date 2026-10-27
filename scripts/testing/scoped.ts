@@ -11,6 +11,7 @@ import { dependencyClosure, workspaceInputFile, changedWorkspaceFiles, loadRevis
 import { pinnedNode } from '../local/app-task';
 import { refreshWorkspaceTaskInputs } from './workspace-tasks';
 import { cargoRootInputs, isCargoInput, cargoQualityFeatureArguments } from './cargo';
+import { qualifiedCargoBuildProfile } from './cargo-build-profile';
 
 type Options={mode:'dev'|'ci'|'build';apps:string[];base?:string;head?:string;list:boolean;json:boolean;watch:boolean};
 export function scopedArguments(input:string[]):Options {
@@ -50,9 +51,13 @@ export function scopedCargoQualityCommand(native:readonly Suite[],changed:readon
   ? ['cargo','clippy','--workspace','--all-targets',...cargoQualityFeatureArguments(files,suites),'--locked','--','-D','warnings'] : null;
 }
 let active:ChildProcess|undefined,stopping=false;
+export function documentationChecksRequired(changed:readonly string[],removed:readonly string[]):boolean {
+ return removed.includes('audits/.gitkeep')||changed.some(file=>file.startsWith('docs/')||file.endsWith('.md')||['LICENSE','NOTICE','.github/CODEOWNERS'].includes(file)||file.startsWith('.github/ISSUE_TEMPLATE/'));
+}
 async function execute(args:string[]){
  if(stopping)throw new Error('DEVELOPMENT_VERIFICATION_CANCELLED');
- const child=spawn(args[0],args.slice(1),{cwd:root,env:process.env,stdio:'inherit',detached:process.platform!=='win32'});active=child;
+ const environment={...process.env,...qualifiedCargoBuildProfile(process.env)};
+ const child=spawn(args[0],args.slice(1),{cwd:root,env:environment,stdio:'inherit',detached:process.platform!=='win32'});active=child;
  try{const code=await new Promise<number|null>((done,reject)=>{child.once('error',reject);child.once('exit',done);});if(code!==0)throw new Error(`SCOPED_VERIFICATION_FAILED:${args[1]}:${code}`);}finally{if(active===child)active=undefined;}
 }
 function cancel(){stopping=true;if(active?.pid){try{process.kill(process.platform==='win32'?active.pid:-active.pid,'SIGTERM');}catch{/* already exited */}}}
@@ -82,7 +87,7 @@ export async function runScoped(options:Options){
     await execute([pinnedNode(),'node_modules/eslint/bin/eslint.js',...tools]);
    }
    if(plan.apps.length || plan.changed.some(file=>/^(?:packages|src|apps|scripts\/architecture)\//.test(file)))await execute([process.execPath,'scripts/architecture/check.ts']);
-   if(plan.changed.some(file=>file.startsWith('docs/')||file.endsWith('.md')||['LICENSE','NOTICE','.github/CODEOWNERS'].includes(file)||file.startsWith('.github/ISSUE_TEMPLATE/')))await execute([process.execPath,'scripts/docs/check-documentation.ts']);
+   if(documentationChecksRequired(plan.changed,plan.removed))await execute([process.execPath,'scripts/docs/check-documentation.ts']);
    refreshWorkspaceTaskInputs();
    if(plan.apps.length)await execute([process.execPath,resolve(root,'node_modules/turbo/bin/turbo'),'run','lint','typecheck',...plan.apps.map(id=>`--filter=@erpx/app-${id}`),'--cache=local:rw','--concurrency=2','--output-logs=errors-only']);
    const units=plan.native.filter(suite=>suite.lane==='unit'),integration=plan.native.filter(suite=>suite.lane==='integration');

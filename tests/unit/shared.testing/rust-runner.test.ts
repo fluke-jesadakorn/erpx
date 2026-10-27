@@ -34,6 +34,25 @@ function fixtureRoot() {
 }
 
 describe('Rust catalogue and source selection', () => {
+  it('preserves the fixed CI build profile through actual unit, integration and filtered provider children',()=>{
+    const compact={ERPX_CI_CARGO_PROFILE:'compact-v1',CARGO_INCREMENTAL:'0',CARGO_PROFILE_DEV_DEBUG:'0',CARGO_PROFILE_TEST_DEBUG:'0'};
+    const provider:Suite={...nativeSuite(),id:'files.profile.provider',lane:'provider',fixture:'provider',provider:{environment:{},required:['ERPX_PROFILE_FIXTURE']}};
+    for(const suite of [nativeSuite(),{...nativeSuite(),lane:'integration' as const},provider]){
+      const selected=cargoChildEnvironment(suite,{...compact,ERPX_PROFILE_FIXTURE:'owned',CARGO_REGISTRIES_PRIVATE_TOKEN:'private',STRIPE_SECRET_KEY:'private'});
+      expect(selected).toMatchObject(compact);
+      const actual=execFileSync(process.execPath,['-e',`process.stdout.write(JSON.stringify(Object.fromEntries(${JSON.stringify(Object.keys(compact))}.map(key=>[key,process.env[key]]))))`],{env:{...selected,NODE_ENV:'test'},encoding:'utf8'});
+      expect(JSON.parse(actual)).toEqual(compact);
+      expect(()=>cargoChildEnvironment(suite,{...compact,ERPX_PROFILE_FIXTURE:'owned',CARGO_PROFILE_TEST_DEBUG:undefined})).toThrow('CI_CARGO_PROFILE_MISMATCH:CARGO_PROFILE_TEST_DEBUG');
+      if(suite.lane==='provider'){expect(selected.CARGO_REGISTRIES_PRIVATE_TOKEN).toBeUndefined();expect(selected.STRIPE_SECRET_KEY).toBeUndefined();}
+    }
+    const original={...compact,ERPX_PROFILE_FIXTURE:'owned'};
+    const overrides:Record<string,string>[]=[{CARGO_INCREMENTAL:'1'},{CARGO_PROFILE_DEV_DEBUG:'2'},{CARGO_PROFILE_TEST_DEBUG:''},{ERPX_CI_CARGO_PROFILE:'unknown'}];
+    for(const environment of overrides){
+      expect(()=>cargoChildEnvironment({...provider,provider:{...provider.provider!,environment}},original)).toThrow('CI_CARGO_PROFILE');
+    }
+    expect(cargoChildEnvironment(nativeSuite(),{CARGO_INCREMENTAL:'1',CARGO_PROFILE_DEV_DEBUG:'2'})).toMatchObject({CARGO_INCREMENTAL:'1',CARGO_PROFILE_DEV_DEBUG:'2'});
+    expect(cargoChildEnvironment(provider,{ERPX_PROFILE_FIXTURE:'owned',CARGO_INCREMENTAL:'1'}).CARGO_INCREMENTAL).toBeUndefined();
+  });
   it('maps only manifest-declared owner licenses from exact Git revisions without ignoring unknown text changes',()=>{
     const root=fixtureRoot(),commercial='packages/server-commercial/Cargo.toml',legal='packages/server-legal/Cargo.toml';
     const commercialTest='tests/unit/commercial/rust-package-capabilities.test.rs',legalTest='tests/unit/legal/rust-record-policy.test.rs';

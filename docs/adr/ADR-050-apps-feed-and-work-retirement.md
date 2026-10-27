@@ -1,5 +1,7 @@
 # Apps owns Feed and replaces the Work product
 
+> Partially superseded by [ADR-051](ADR-051-holding-addresses-and-workspace-paths.md): current development addresses belong to Holdings and root/unscoped entry requires explicit scope selection. The original automatic-last-workspace and separate Apps-host instructions below are historical. Apps owns Feed, Work remains retired, original business/package identities are preserved, and retired hosts remain generic404 tombstones under the current Holding contract.
+
 Accepted 2026-10-26 for development. ERPX Apps is the main workplace: its root restores the current account's last authorized Company and Workspace and opens Feed; `/applications` retains Company → Workspace → App discovery. The separate Work application, host and SSO audience are retired without a redirect. Apps remains in `apps/launcher` at port3216, while explicit port assignments preserve the other applications and leave3201 unused.
 
 This intentionally makes Apps a product rather than a shared discovery host. Feed and its existing pages/APIs are composed from `feature-apps` and the unchanged business owner packages. Keeping Work as a second application would leave competing home identities and a second SSO audience. Existing Work cookies are not migrated; Account and the other products retain normal SSO.

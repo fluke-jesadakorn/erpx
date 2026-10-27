@@ -13,6 +13,9 @@ import { cargoChildEnvironment } from '../../../scripts/testing/cargo';
 import type { Suite } from '../../../scripts/testing/catalogue';
 import { pinnedBunBinary } from '../../../scripts/testing/runtime-tooling';
 import { nativeElfRunpath, nativeWorkerLinkFlags, qualifiedNativeLinkEnvironment } from '../../../scripts/testing/native-worker-link-flags';
+import { qualifiedCargoBuildProfile } from '../../../scripts/testing/cargo-build-profile';
+
+const compactProfile={ERPX_CI_CARGO_PROFILE:'compact-v1',CARGO_INCREMENTAL:'0',CARGO_PROFILE_DEV_DEBUG:'0',CARGO_PROFILE_TEST_DEBUG:'0'};
 
 const temporary: string[] = [];
 afterEach(() => { for (const path of temporary.splice(0)) rmSync(path, { recursive: true, force: true }); });
@@ -32,6 +35,39 @@ function fixture() {
  return {root,prefix,pc,library,tool,cargo,pkg,pkgBody,environment,argvFile};
 }
 describe('explicit native worker compiler lane',()=>{
+ it('requires a complete fixed CI build profile while preserving absent-marker developer behavior',()=>{
+  expect(qualifiedCargoBuildProfile({CARGO_INCREMENTAL:'1',CARGO_PROFILE_DEV_DEBUG:'2'})).toEqual({});
+  expect(qualifiedCargoBuildProfile({...compactProfile,CARGO_REGISTRIES_PRIVATE_TOKEN:'private'})).toEqual(compactProfile);
+  for(const ERPX_CI_CARGO_PROFILE of ['', 'unknown'])expect(()=>qualifiedCargoBuildProfile({...compactProfile,ERPX_CI_CARGO_PROFILE})).toThrow('CI_CARGO_PROFILE_UNKNOWN');
+  for(const key of Object.keys(compactProfile).filter(key=>key!=='ERPX_CI_CARGO_PROFILE')){
+   for(const value of [undefined,'1','false',''])expect(()=>qualifiedCargoBuildProfile({...compactProfile,[key]:value})).toThrow(`CI_CARGO_PROFILE_MISMATCH:${key}`);
+  }
+  const native=nativeBuildEnvironment({NODE_ENV:'test',...compactProfile,CARGO_PROFILE_DEV_DEBUG_ASSERTIONS:'false',CARGO_REGISTRIES_PRIVATE_TOKEN:'private'},'/opt/vips');
+  expect(native).toMatchObject({...compactProfile,CARGO_BUILD_JOBS:'2'});expect(native.CARGO_PROFILE_DEV_DEBUG_ASSERTIONS).toBeUndefined();expect(native.CARGO_REGISTRIES_PRIVATE_TOKEN).toBeUndefined();
+  expect(nativeBuildEnvironment({NODE_ENV:'test',CARGO_INCREMENTAL:'1',CARGO_PROFILE_DEV_DEBUG:'2'},'/opt/vips').CARGO_INCREMENTAL).toBeUndefined();
+ });
+ it('passes the selected profile to actual child tools and binds native before/after receipts and exports',async()=>{
+  const f=fixture(),keys=Object.keys(compactProfile);
+  writeFileSync(f.cargo,`#!${process.execPath}\nif(process.argv[2]==='--version')console.log('cargo 1.99.1 (fixture)');else require('node:fs').writeFileSync(${JSON.stringify(f.argvFile)},JSON.stringify(Object.fromEntries(${JSON.stringify(keys)}.map(key=>[key,process.env[key]]))));\n`);
+  expect(await runNativeWorker(['check'],{...f.environment,...compactProfile},f.root)).toBe(0);
+  expect(JSON.parse(readFileSync(f.argvFile,'utf8'))).toEqual(compactProfile);
+  const receipt=JSON.parse(readFileSync(join(f.root,'.scratch/dev/test-suites/native-worker/check.json'),'utf8'));
+  expect(receipt).toMatchObject({cargoBuildProfile:compactProfile,status:'succeeded',exitCode:0});
+  const exported=join(f.root,'github-env');
+  expect(await runNativeWorker(['export-env'],{...f.environment,...compactProfile,CI:'true',GITHUB_ACTIONS:'true',GITHUB_ENV:exported},f.root)).toBe(0);
+  for(const[key,value]of Object.entries(compactProfile))expect(readFileSync(exported,'utf8')).toContain(`${key}=${value}\n`);
+  rmSync(f.argvFile);
+  await expect(runNativeWorker(['check'],{...f.environment,...compactProfile,CARGO_INCREMENTAL:'1'},f.root)).rejects.toThrow('CI_CARGO_PROFILE_MISMATCH:CARGO_INCREMENTAL');
+  expect(existsSync(f.argvFile)).toBe(false);
+ });
+ it('opts in only the native-worker and affected verification CI jobs',()=>{
+  const workflow=readFileSync('.github/workflows/nextjs.yml','utf8');
+  for(const job of [workflow.split('  native-worker:')[1].split('  verification:')[0],workflow.split('  verification:')[1].split('  acceptance:')[0]]){
+   const environment=job.split('    steps:')[0];
+   for(const[key,value]of Object.entries(compactProfile))expect(environment).toContain(`${key}: ${key==='ERPX_CI_CARGO_PROFILE'?value:`'${value}'`}`);
+  }
+  expect(workflow.split('  acceptance:')[1]).not.toContain('ERPX_CI_CARGO_PROFILE');
+ });
  it('requires exactly one approved mode and never forwards arbitrary Cargo flags',()=>{
   for(const mode of ['probe','check','clippy','build','export-env','inspect-linked']){expect(nativeWorkerMode([mode])).toBe(mode);expect(nativeWorkerMode(['--',mode])).toBe(mode);}
   for(const args of [[],['--'],['--','--','clippy'],['clippy','--all-features'],['check','--no-default-features'],['test'],['install'],['build','--release']])expect(()=>nativeWorkerMode(args)).toThrow('EXACT_MODE_REQUIRED');

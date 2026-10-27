@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { relative, resolve } from "node:path";
+import { documentationFiles, immutableDocument, trackedTemporaryFiles } from "./documentation-integrity";
 import { resolveDocumentationReference, type HistoricalSourceSnapshot, type PrivateArtifactReference } from "./documentation-references";
 
 const root = resolve(import.meta.dir, "../..");
@@ -19,18 +20,8 @@ for (const row of ledger.records) for (const evidence of row.evidence) {
   if (!existsSync(path) || hash(path) !== evidence.sha256) errors.push(`Missing/changed evidence: ${evidence.path}`);
 }
 
-const documents: string[] = [];
-function walk(directory: string) {
-  if (!existsSync(directory)) return;
-  for (const entry of readdirSync(directory, { withFileTypes: true })) {
-    const path = resolve(directory, entry.name);
-    if (entry.isDirectory()) walk(path);
-    else if (/\.mdx?$/.test(path)) documents.push(path);
-  }
-}
-for (const directory of ["docs", "ops", "Designed", "fixtures", ".agents", ".github", ".claude"]) walk(resolve(root, directory));
-for (const name of ["README.md", "AGENTS.md", "CLAUDE.md", "CONTEXT.md", "CONTRACT_POLICY.md", "CUTOVER.md", "LICENSING.md", "CONTRIBUTING.md", "SECURITY.md", "CODE_OF_CONDUCT.md", "GOVERNANCE.md"])
-  if (existsSync(resolve(root, name))) documents.push(resolve(root, name));
+const documents = documentationFiles(root);
+for (const file of trackedTemporaryFiles(root)) errors.push(`Tracked temporary file: ${file}. Keep private working files outside Git.`);
 
 // Community metadata is a preparation contract, not a public-release receipt.
 for (const name of ["LICENSE", "NOTICE", "LICENSING.md", "CONTRIBUTING.md", "SECURITY.md", "CODE_OF_CONDUCT.md", "GOVERNANCE.md", ".github/CODEOWNERS", ".github/PULL_REQUEST_TEMPLATE.md", ".github/ISSUE_TEMPLATE/bug_report.yml", ".github/ISSUE_TEMPLATE/proposal.yml", ".github/ISSUE_TEMPLATE/config.yml", "docs/community/open-source.md", "docs/community/provenance.json"])
@@ -89,7 +80,7 @@ for (const path of documents) {
   const name = relative(root, path);
   // Immutable historical evidence retains its original link topology. It is
   // checksum-checked above, not rewritten to today's routes or files.
-  if (protectedPaths.has(name) || name.startsWith("docs/testing/evidence/") || name.startsWith("docs/archive/")) continue;
+  if (immutableDocument(name, protectedPaths)) continue;
   const text = withoutCode(read(path));
   const targets = [
     ...text.matchAll(/!?\[[^\]]*\]\((<[^>]+>|[^\s)]+)(?:\s+["'][^"']*["'])?\)/g),

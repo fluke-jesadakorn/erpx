@@ -6,6 +6,7 @@ import { delimiter, dirname, isAbsolute, join, relative, resolve } from 'node:pa
 import { fileURLToPath } from 'node:url';
 import sources from '../../fixtures/files/native-toolchain/sources.json';
 import { nativeElfRunpath, nativeWorkerLinkFlags, qualifiedNativeLinkEnvironment } from './native-worker-link-flags';
+import { qualifiedCargoBuildProfile } from './cargo-build-profile';
 
 export type NativeWorkerMode = 'probe' | 'check' | 'clippy' | 'build' | 'export-env' | 'inspect-linked';
 export function nativeWorkerMode(input: readonly string[]): NativeWorkerMode {
@@ -20,11 +21,12 @@ export function nativeWorkerArguments(mode: NativeWorkerMode): string[] {
 }
 const childVariables = new Set(['PATH', 'HOME', 'USERPROFILE', 'TMPDIR', 'TMP', 'TEMP', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TZ', 'CARGO_HOME', 'RUSTUP_HOME', 'RUSTUP_TOOLCHAIN', 'CARGO_TARGET_DIR', 'CARGO_BUILD_TARGET', 'CC', 'CXX', 'AR', 'CFLAGS', 'CXXFLAGS', 'LDFLAGS', 'HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY', 'http_proxy', 'https_proxy', 'all_proxy', 'no_proxy', 'SSL_CERT_FILE', 'SSL_CERT_DIR', 'CURL_CA_BUNDLE']);
 export function nativeBuildEnvironment(environment: NodeJS.ProcessEnv, prefix: string): NodeJS.ProcessEnv {
+  const buildProfile = qualifiedCargoBuildProfile(environment);
   const selected = Object.fromEntries(Object.entries(environment).filter(([key]) => childVariables.has(key)));
   const extra = environment.PKG_CONFIG_PATH ? environment.PKG_CONFIG_PATH.split(delimiter) : [];
   if (extra.some(value => !value || !isAbsolute(value) || /[\x00-\x1f\x7f]/.test(value) || value.length > 4096)) throw Error('NATIVE_WORKER_ABSOLUTE_PKG_CONFIG_PATH_REQUIRED');
   if (environment.PKG_CONFIG_SYSROOT_DIR || environment.PKG_CONFIG_ALLOW_CROSS || environment.PKG_CONFIG_LIBDIR) throw Error('NATIVE_WORKER_CROSS_OR_OVERRIDE_PKG_CONFIG_UNSUPPORTED');
-  return { ...selected, NODE_ENV: environment.NODE_ENV ?? 'test', PKG_CONFIG_PATH: [...new Set([join(prefix, 'lib/pkgconfig'), ...extra])].join(delimiter), CARGO_BUILD_JOBS: String(sources.buildJobs) };
+  return { ...selected, ...buildProfile, NODE_ENV: environment.NODE_ENV ?? 'test', PKG_CONFIG_PATH: [...new Set([join(prefix, 'lib/pkgconfig'), ...extra])].join(delimiter), CARGO_BUILD_JOBS: String(sources.buildJobs) };
 }
 function absolute(value: string | undefined): string {
   if (!value || !isAbsolute(value) || value.length > 4096 || /[\x00-\x1f\x7f]/.test(value)) throw Error('NATIVE_WORKER_ABSOLUTE_PATH_REQUIRED');
@@ -85,7 +87,7 @@ export function inspectNativeWorkerPrerequisites(environment: NodeJS.ProcessEnv 
   const encoded=nativeWorkerLinkFlags(process.platform,lib);
   if(environment.CARGO_ENCODED_RUSTFLAGS!==undefined&&environment.CARGO_ENCODED_RUSTFLAGS!==encoded)throw Error('NATIVE_WORKER_LINK_FLAGS_MISMATCH');
   Object.assign(childEnvironment,qualifiedNativeLinkEnvironment({ERPX_NATIVE_VIPS_PREFIX:prefix,ERPX_NATIVE_VIPS_LIBDIR:lib,CARGO_ENCODED_RUSTFLAGS:encoded}));
-  const observation = { version: 1, platform: process.platform, architecture: process.arch, host, rustVersion: release, cargoVersion, vipsVersion: sources.vipsVersion, prefix, libdir:lib, pkgConfig, compilerLinkFlags:encoded?encoded.split('\u001f'):[], expectedSourceArchiveSha256: sources.vips.sha256, sourceArchiveVerifiedByThisProbe: false, runtimeCodecQualified: false, files: files.map(({ path, bytes, sha256 }) => ({ path, bytes, sha256 })) };
+  const observation = { version: 1, cargoBuildProfile: qualifiedCargoBuildProfile(childEnvironment), platform: process.platform, architecture: process.arch, host, rustVersion: release, cargoVersion, vipsVersion: sources.vipsVersion, prefix, libdir:lib, pkgConfig, compilerLinkFlags:encoded?encoded.split('\u001f'):[], expectedSourceArchiveSha256: sources.vips.sha256, sourceArchiveVerifiedByThisProbe: false, runtimeCodecQualified: false, files: files.map(({ path, bytes, sha256 }) => ({ path, bytes, sha256 })) };
   return { observation, childEnvironment, cargo };
 }
 export async function runNativeBuildChild(command: string, argv: readonly string[], environment: NodeJS.ProcessEnv, root: string): Promise<number> {
@@ -111,7 +113,7 @@ export async function runNativeWorker(input: readonly string[], environment = pr
   const output = join(directory, `${mode}.json`); writeFileSync(output, JSON.stringify(receipt, null, 2) + '\n', { mode: 0o600 });
   if(mode==='export-env'){
     if(environment.CI!=='true'||environment.GITHUB_ACTIONS!=='true'||!environment.GITHUB_ENV)throw Error('NATIVE_WORKER_EXPLICIT_GITHUB_ENV_REQUIRED');
-    const exported={...qualifiedNativeLinkEnvironment(current.childEnvironment),PKG_CONFIG_PATH:current.childEnvironment.PKG_CONFIG_PATH!};
+    const exported={...qualifiedNativeLinkEnvironment(current.childEnvironment),...qualifiedCargoBuildProfile(current.childEnvironment),PKG_CONFIG_PATH:current.childEnvironment.PKG_CONFIG_PATH!};
     appendFileSync(environment.GITHUB_ENV,Object.entries(exported).map(([key,value])=>`${key}=${value}\n`).join(''));
   }
   if(mode==='inspect-linked')inspectLinkedNativeWorker(current,environment,root);

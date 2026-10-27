@@ -1,17 +1,20 @@
 # PMS Front and POS Front rollout
 
-Both Front applications run in the existing Next.js web process. Host and API
-allowlists in `src/proxy.ts` keep their pages, authentication cookies and daily
-commands apart. Front sessions use separate Better Auth cookie prefixes and
-host-only cookies. A remembered location/register is only a device preference;
-the server checks the employee's current assignment on every request.
+## Current development
+
+PMS and POS are independent owned applications behind gateway3100. Staff/public browser addresses use the exact registered Holding host and app paths, for example `https://acme.jesadakorn.com/pms?company=acme-co` and `https://acme.jesadakorn.com/pos?company=acme-co`. Account remains central. Former `dev-pms.jesadakorn.com`, `dev-pos.jesadakorn.com` and product development hosts return generic404; they are not aliases. See the [Holding address contract](../../docs/contracts/next/holding-addresses.md) and [development runbook](holding-development.md).
+
+App-owned Proxy/route composition and original owner policies separate staff, public and daily-command access. Child sessions bind to the exact Holding/environment; Company/location/register selection is checked against current authority. Device preferences do not grant access. Native Front navigation remains specialized, and normal Account SSO is required. Gateway3100 owns app processes within3200–3299; do not start a second shared web process.
+
+## Installed topology reference
+
+The following pre-Holding installed topology is retained deployment metadata, not authorization to publish or inspect it:
 
 | Environment | PMS origin | POS origin | Loopback service |
 | --- | --- | --- | --- |
-| Development | `https://dev-pms.jesadakorn.com` | `https://dev-pos.jesadakorn.com` | `127.0.0.1:3100` |
-| Staging | `https://stage-pms.jesadakorn.com` | `https://stage-pos.jesadakorn.com` | `127.0.0.1:3103` |
-| Production, after acceptance | `https://pms.jesadakorn.com` | `https://pos.jesadakorn.com` | private `127.0.0.1:3101` |
+| Staging, explicit request only | `https://stage-pms.jesadakorn.com` | `https://stage-pos.jesadakorn.com` | `127.0.0.1:3103` |
+| Production, after separate acceptance | `https://pms.jesadakorn.com` | `https://pos.jesadakorn.com` | private `127.0.0.1:3101` |
 
 ## Verification and activation
 
-Development verification uses the authorized development hosts above. Current employee assignment and app origin are rechecked on every request; Front cookies do not grant Console or other-Front access. Schema and code rollout follow the matching immutable release and owner contracts. Staging activation, health checks and route changes require an explicit staging request and use [the staging runbook](staging.md#front-application-activation-explicit-staging-request-only). Private production publication requires separate acceptance.
+Development verification uses current Holding paths and normal authentication. Verify actual Front commands, drafts, receipts and provider callback authority on the relevant candidate; health200 or an old host receipt is insufficient. Schema/code rollout follows the matching immutable release and owner contracts. Staging activation, health checks and route changes require an explicit staging request and its [runbook](staging.md#front-application-activation-explicit-staging-request-only). Private production publication and live payments require separate acceptance.

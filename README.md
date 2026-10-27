@@ -18,6 +18,8 @@ git show cc0887d --stat                    # baseline
 # Historical protobuf/SQLx contracts are archived; active REST contracts and PostgreSQL migrations live on this branch.
 ```
 
+Removed superseded plans, the obsolete root project review and completed documentation-triage files remain recoverable from commit `9b9349b59673beaa4f24c09f5ac11f98be70291f` with `git show <commit>:<path>`. The2026-10-27 cleanup also retained a private snapshot of the complete pre-cleanup tracked/untracked working tree and patches under ignored `.scratch/dev/repository-cleanup/`; uncommitted revisions must be recovered from that snapshot rather than inferred from a commit.
+
 ## Stack
 
 Next.js 16.4.3 App Router + React 19.3.1 + TypeScript 7 + Tailwind 4, built as a standalone Node.js 26.11.1 release. Bun 1.4.3 manages the frontend toolchain; Rust 1.99.1 and locked Cargo dependencies provide the new backend implementation. PostgreSQL 18.6 stores relational data and durable jobs, and private filesystem adapters store evidence. The installed private production service remains on Node.js 24.20.0 until a reviewed release is deployed. Cloudflare Tunnel provides the existing installation's HTTPS ingress.
@@ -61,7 +63,7 @@ The native unit command uses catalogue targets and case receipts without databas
 
 ## Structure
 
-- `apps/<id>/`: app-owned routes, layouts, handlers, config, route types and build output; no imports from another app. `apps/compat` retains non-product compatibility source. The authorized development Console cutover is active; its pages/APIs return404 and health/ready reads use Account. Product hosts use their own applications. Apps keeps the stable `apps` app/CLI identity in `apps/launcher/`.
+- `apps/<id>/`: app-owned routes, layouts, handlers, config, route types and build output; no imports from another app. `apps/compat` retains non-product compatibility source. The authorized development Console cutover is active; its pages/APIs return404 and health/ready reads use Account. Holding paths dispatch to their owning applications. Apps keeps the stable `apps` app/CLI identity in `apps/launcher/`.
 - `packages/server-<owner>/src/{domain,application,adapters,public}/`: in-process business owners; consumers use named public exports and typed ports.
 - `packages/feature-<owner>/`, `packages/ui/`, `packages/workplace/`, `packages/front/`: owner presentation, primitives and shells with explicit subpath exports. `packages/contracts/` owns pure host/product metadata and shared contracts.
 - `tests/{unit,integration,e2e,journeys,uat,provider}/<owner>/`: executable suites, assigned from the catalogue rather than filenames. `tests/support/` holds helpers/setup; `tests/catalogue/` holds required-case registers; `tests/config/` holds runner/typecheck configuration.
@@ -80,7 +82,7 @@ Register every test in `tests/catalogue/suite-manifest.json`, place it under its
 
 Daily verification uses affected suites and registered desktop browser smoke with `acceptance:false`. Unit/typecheck/lint/build tasks may use complete-input caches; selected integration and browser cases execute against isolated fictional fixtures. Missing dependency/suite mappings fail selection. Migration tests retain real migrations against empty databases.
 
-Use `bun run structure:check`, `bun run test:catalogue`, and `bun run architecture:check` for structural checks. The per-app development profile runs lint/typecheck, related unit/integration and registered browser smoke. [E2E specification](docs/testing/e2e-specification.md) records case identities and remaining gaps.
+Use `bun run docs:check`, `bun run products:check`, `bun run structure:check`, `bun run test:catalogue`, and `bun run architecture:check` for repository checks. Documentation checks include root Markdown and the archive index while preserving immutable evidence; tracked temporary files are rejected. The per-app development profile runs lint/typecheck, related unit/integration and registered browser smoke. [E2E specification](docs/testing/e2e-specification.md) records case identities and remaining gaps.
 
 `bun run release:acceptance --candidate=<sha>` is reserved for intentional production preparation. It refuses an unfrozen candidate or a missing combined app/gateway/jobs release; the workspace-v2 acceptance adapter remains an explicit delivery blocker. It must not run during this migration. Existing dated receipts and specialized UI gates remain unchanged, and development observations never promote them.
 

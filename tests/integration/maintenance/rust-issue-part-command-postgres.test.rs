@@ -149,3 +149,38 @@ async fn ordinary_stale_issue_part_against_synthetic_maximum_stored_version_refu
     })
     .await;
 }
+
+#[tokio::test]
+async fn issue_part_nul_reason_preserves_apply_guards_and_rolls_back_storage_failure() {
+    use erpx_server_maintenance::public::work_wire::normalize_maintenance_change;
+    use erpx_server_shared::public::CommandKey;
+    for scenario in [
+        "stale",
+        "current",
+        "future-movement",
+        "missing-stock",
+        "missing-quote",
+    ] {
+        fixture::with_database(2,move |control| async move { fixture::with_database(2,move |holding| async move {
+            let(authorizer,_)=setup(&control,&holding).await; seed_work(&holding).await;
+            seed_parts_with_rate(&holding,scenario!="missing-quote").await;
+            if scenario=="future-movement" {
+                // Same actual parent/movement pair as Inventory's planning regression.
+                sqlx::raw_sql("INSERT INTO inventory_counts(id,company_id,branch_id,warehouse_id,number,count_date,reason,created_by,prepared_by,created_at,updated_at)VALUES('future-count','company','branch','warehouse','SYNTHETIC-FUTURE','2026-01-11','Synthetic date source','maker','maker',0,0);INSERT INTO inventory_adjustment_moves(id,count_id,warehouse_id,product_id,quantity_milli,value_minor,movement_date,created_at)VALUES('future-move','future-count','warehouse','product',0,0,'2026-01-11',0)").execute(holding.raw()).await.unwrap();
+            }
+            let result=authorizer.execute_with_sources("acme.example.test",proof(),input(),maintenance_request(),MaintenancePartsSourcePreparation,move|c,current|Box::pin(async move {
+                let value=serde_json::json!({"action":"issue-part","expectedVersion":if scenario=="stale"{2}else{1},"reason":"Synthetic\u{0000}reason","warehouseId":"warehouse","productId":if scenario=="missing-stock"{"missing-product"}else{"product"},"quantityMilli":1000,"entryDate":"2026-01-10","allocations":[]});
+                let command=normalize_maintenance_change(&serde_json::to_vec(&value).unwrap()).unwrap().into_command(CommandKey::new(format!("issue-nul-{scenario}"))?,work_id());
+                execute_maintenance_issue_part(c,current,&command,PackageEnforcementMode::Enforced,&PartsWriteClock(std::sync::atomic::AtomicI64::new(NOW)),&PartsGuardClock,&mut Ids(2100)).await
+            })).await;
+            if scenario=="current" {
+                assert!(matches!(result,Err(PgTransactionError::Persistence(ref e)) if e.code=="POSTGRES_OPERATION_FAILED"));
+            } else {
+                denied(result,match scenario {"missing-stock"=>"PART_STOCK_UNAVAILABLE","missing-quote"=>"MANUAL_RATE_REQUIRED",_=>"CONFLICT"});
+            }
+            assert_eq!(counts(&holding).await,(0,0,0,0,0,0,0,0));
+            let retained:(i64,i64,i64,i64,i64)=sqlx::query_as("SELECT w.version,s.quantity_milli,s.value_minor,(SELECT count(*) FROM maintenance_work_events),(SELECT count(*) FROM money_transaction_snapshots) FROM maintenance_work_orders w CROSS JOIN commerce_stock s WHERE w.id='work'").fetch_one(holding.raw()).await.unwrap();
+            assert_eq!(retained,(1,5000,1000,0,0));
+        }).await; }).await;
+    }
+}

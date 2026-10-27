@@ -88,7 +88,7 @@ impl PgMaintenanceIssuePartEffects<'_, '_> {
         c: &mut PgConnection,
         now: TimestampMillis,
     ) -> Result<(), Error> {
-        self.require_current_source(c, now).await?;
+        self.require_before(c, now).await?;
         if self.event_digest.is_some() {
             return Err(changed().into());
         }
@@ -274,14 +274,15 @@ impl PgMaintenanceIssuePartEffects<'_, '_> {
     }
 }
 impl PgMaintenanceIssuePartPlan {
-    /// Finalize from immutable command data before any effect is inserted.
+    /// Finalize immutable event data after the original apply admission and
+    /// before any business effect is inserted.
     pub async fn finalize_event(
         &mut self,
         c: &mut PgConnection,
         source: &CurrentMaintenanceWork<'_>,
         now: TimestampMillis,
     ) -> Result<(), Error> {
-        self.require_current_source(c, source, now).await?;
+        self.require_before(c, source, now).await?;
         if self.expected.event_digest.is_some() {
             return Err(changed().into());
         }
