@@ -16,6 +16,11 @@ use erpx_server_shared::public::{Clock, CompanyId, HoldingId, RecordId, Timestam
 use sha2::{Digest, Sha256};
 use tempfile::TempDir;
 
+// Exact same-owner private decision source; no runtime testing/authority export.
+#[cfg(target_os = "macos")]
+#[path = "../../../packages/server-legal/src/adapters/pdf_process/memory_observation.rs"]
+mod memory_observation;
+
 fn record(value: &str) -> RecordId {
     RecordId::new(value).unwrap()
 }
@@ -364,6 +369,63 @@ async fn stdout_and_stderr_are_bounded_and_child_failure_never_passes() {
                 .await
                 .unwrap_err(),
             expected
+        );
+        assert_clean(root.path());
+    }
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn macos_exited_memory_observations_do_not_override_child_status_or_relax_live_limits() {
+    use memory_observation::{MemoryObservation as Observation, classify};
+    use sysinfo::ProcessStatus;
+    const CEILING: u64 = 16 * 1024 * 1024;
+    // An exited zombie is not an unavailable live worker. The owned child wait
+    // must still decide its nonzero exit; zero live RSS remains unavailable.
+    assert_eq!(
+        classify(ProcessStatus::Zombie, 0, CEILING),
+        Observation::Continue
+    );
+    assert_eq!(
+        classify(ProcessStatus::Zombie, CEILING, CEILING),
+        Observation::Continue
+    );
+    assert_eq!(
+        classify(ProcessStatus::Zombie, CEILING + 1, CEILING),
+        Observation::MemoryLimit
+    );
+    for status in [
+        ProcessStatus::Run,
+        ProcessStatus::Sleep,
+        ProcessStatus::Unknown(0),
+    ] {
+        assert_eq!(classify(status, 0, CEILING), Observation::Unavailable);
+        assert_eq!(classify(status, CEILING, CEILING), Observation::Continue);
+        assert_eq!(
+            classify(status, CEILING + 1, CEILING),
+            Observation::MemoryLimit
+        );
+    }
+    // Exercise the real fresh-process sampler as well as the deterministic
+    // status/RSS contract, with no child or authority manufactured by a DTO.
+    assert_eq!(
+        memory_observation::sample(std::process::id(), u64::MAX),
+        Observation::Continue
+    );
+}
+
+#[tokio::test]
+async fn repeated_actual_fast_exit_keeps_nonzero_child_failure_and_owned_cleanup() {
+    for attempt in 0..32 {
+        let root = private_tempdir();
+        let worker = verifier(helper(), root.path(), 5_000, 2048);
+        assert_eq!(
+            worker
+                .verify(snapshot(b"exit"), FixedClock.now())
+                .await
+                .unwrap_err(),
+            PdfVerificationFailure::WorkerFailed,
+            "fast-exit attempt {attempt}"
         );
         assert_clean(root.path());
     }

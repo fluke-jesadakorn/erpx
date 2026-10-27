@@ -8,13 +8,15 @@ publish.workspace = true
 autotests = false
 
 [package.metadata.erpx]
-verification-roots = ["../../fixtures/files/rust-media", "../../scripts/testing/fixtures/generate-files-media-goldens.ts", "../../fixtures/files/preview", "../../scripts/testing/fixtures/generate-files-preview-goldens.ts"]
+verification-roots = ["../../fixtures/files/rust-media", "../../scripts/testing/fixtures/generate-files-media-goldens.ts", "../../fixtures/files/preview", "../../scripts/testing/fixtures/generate-files-preview-goldens.ts", "../../fixtures/files/scan-lifecycle", "../../scripts/testing/fixtures/generate-files-scan-intents.mjs", "../../tests/support/files/scan-facts.rs"]
 
 [features]
 contracts = []
 preview-provider = ["dep:libvips", "dep:pkg-config", "erpx-server-runtime/owned-process"]
 
 [dependencies]
+time.workspace = true
+uuid.workspace = true
 libvips = { workspace = true, optional = true }
 erpx-server-shared.workspace = true
 erpx-server-runtime.workspace = true
@@ -28,7 +30,6 @@ nix.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
-uuid.workspace = true
 
 [[test]]
 name = "canonical_original"
@@ -79,3 +80,15 @@ required-features = ["preview-provider", "contracts"]
 name = "preview_process"
 path = "../../tests/provider/files/rust-preview-process.test.rs"
 required-features = ["preview-provider", "contracts"]
+
+[[test]]
+name = "attachment_scan_policy"
+path = "../../tests/unit/files/rust-attachment-scan-policy.test.rs"
+
+[[test]]
+name = "sanitization_io"
+path = "../../tests/unit/files/rust-sanitization-io.test.rs"
+
+[[test]]
+name = "attachment_scan_postgres"
+path = "../../tests/integration/files/rust-attachment-scan-postgres.test.rs"

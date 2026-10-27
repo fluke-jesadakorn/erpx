@@ -27,6 +27,7 @@ pub(crate) async fn lock_effective_authority_sources(
     connection: &mut PgConnection,
 ) -> Result<(), PgTransactionError<BusinessError>> {
     sqlx::query("LOCK TABLE assignments,iam_roles,iam_role_revisions,iam_members,iam_identities,iam_connections,iam_revoked_sessions,iam_emergency_sessions,active_work_contexts,iam_access_subjects,iam_access_invitations,um_attributes,um_values,um_groups,um_memberships,um_policies,um_attachments,um_candidates IN SHARE MODE").execute(&mut *connection).await?;
+    super::directory_source_postgres::lock_sources(connection).await?;
     lock_organization_authority_sources(&mut *connection).await?;
     lock_people_authority_sources(&mut *connection).await?;
     lock_beta_policy_sources(connection).await?;
@@ -102,8 +103,29 @@ pub(crate) async fn current_iam_authority_facts(
             .map_err(|_| unavailable())?,
         scopes: serde_json::from_value(role.try_get("scopes_json")?).map_err(|_| unavailable())?,
     };
-    let member=sqlx::query("SELECT m.status,m.login_policy,m.version::bigint version,m.principal_id,m.person_id,COALESCE(i.enabled,false) enabled,COALESCE(i.observed_at,0)::bigint observed_at,COALESCE(c.status='active',false) connection_active FROM iam_members m LEFT JOIN iam_identities i ON i.id=m.identity_id AND i.company_id=m.company_id LEFT JOIN iam_connections c ON c.id=m.connection_id AND c.company_id=m.company_id WHERE m.company_id=$1 AND m.user_id=$2")
+    let member=sqlx::query("SELECT m.connection_id,m.status,m.login_policy,m.version::bigint version,m.principal_id,m.person_id,COALESCE(i.enabled,false) enabled,COALESCE(i.observed_at,0)::bigint observed_at,COALESCE(c.status='active',false) connection_active FROM iam_members m LEFT JOIN iam_identities i ON i.id=m.identity_id AND i.company_id=m.company_id AND i.user_id=m.user_id AND i.connection_id=m.connection_id LEFT JOIN iam_connections c ON c.id=m.connection_id AND c.company_id=m.company_id WHERE m.company_id=$1 AND m.user_id=$2")
         .bind(request.company_id.as_str()).bind(request.user_id.as_str()).fetch_optional(&mut *connection).await?;
+    let source_current = if let Some(m) = member.as_ref() {
+        if m.try_get::<&str, _>("login_policy")? == "directory" {
+            let id = m
+                .try_get::<Option<String>, _>("connection_id")?
+                .ok_or_else(unavailable)?;
+            Some(
+                super::directory_source_postgres::require_member_observation(
+                    connection,
+                    &id,
+                    request.company_id.as_str(),
+                    m.try_get("observed_at")?,
+                    now,
+                )
+                .await?,
+            )
+        } else {
+            None
+        }
+    } else {
+        None
+    };
     let member = member
         .map(|m| -> Result<_, PgTransactionError<BusinessError>> {
             Ok(EffectiveMemberFact {
@@ -121,6 +143,7 @@ pub(crate) async fn current_iam_authority_facts(
                     .map(RecordId::new)
                     .transpose()?,
                 directory_enabled: m.try_get("enabled")?,
+                directory_provenance_current: source_current,
                 directory_connection_active: m.try_get("connection_active")?,
                 directory_observed_at: m.try_get("observed_at")?,
             })

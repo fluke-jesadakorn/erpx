@@ -608,6 +608,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "erpx-server-collaboration"
+version = "0.1.0"
+dependencies = [
+ "erpx-server-runtime",
+ "erpx-server-shared",
+ "serde_json",
+ "sqlx",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "erpx-server-commerce"
 version = "0.1.0"
 dependencies = [
@@ -651,6 +663,7 @@ dependencies = [
  "sha2 0.10.9",
  "sqlx",
  "tempfile",
+ "time",
  "tokio",
  "uuid",
 ]
@@ -912,11 +925,15 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "bytes",
+ "erpx-server-collaboration",
+ "erpx-server-commerce",
  "erpx-server-commercial",
  "erpx-server-files",
  "erpx-server-finance",
  "erpx-server-identity-access",
+ "erpx-server-inventory",
  "erpx-server-legal",
+ "erpx-server-maintenance",
  "erpx-server-people-payroll",
  "erpx-server-platform-administration",
  "erpx-server-pms",

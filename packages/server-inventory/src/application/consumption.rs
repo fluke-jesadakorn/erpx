@@ -61,6 +61,23 @@ pub async fn prepare_consumption<P: ConsumptionPlanningPorts>(
     ports: &mut P,
     selection: ConsumptionSelection,
 ) -> Result<ConsumptionPlan, P::Error> {
+    Ok(prepare_consumption_observed(ports, selection, || ())
+        .await?
+        .0)
+}
+/// Observe the original consumption clock position after the unique period
+/// check and before allocation validation/lot reads. An observation is data,
+/// not a grant or effect. Read-only callers need no clock or runtime adapter.
+pub async fn prepare_consumption_observed<P, O, Observe>(
+    ports: &mut P,
+    selection: ConsumptionSelection,
+    observe: Observe,
+) -> Result<(ConsumptionPlan, O), P::Error>
+where
+    P: ConsumptionPlanningPorts,
+    O: Send,
+    Observe: FnOnce() -> O + Send,
+{
     if !iso_date(&selection.entry_date) {
         return Err(BusinessError::invalid(
             "INVALID_CONSUMPTION_DATE",
@@ -85,6 +102,7 @@ pub async fn prepare_consumption<P: ConsumptionPlanningPorts>(
         )
         .into());
     }
+    let observation = observe();
     require_lot_allocations(&stock, selection.quantity_milli, &selection.allocations)?;
     let mut lots = Vec::with_capacity(selection.allocations.len());
     for allocation in &selection.allocations {
@@ -92,15 +110,18 @@ pub async fn prepare_consumption<P: ConsumptionPlanningPorts>(
         lots.push(cost_lot(allocation, lot, &selection.entry_date)?);
     }
     let valuation = finish_consumption(stock, selection.quantity_milli, lots)?;
-    Ok(ConsumptionPlan {
-        selection,
-        config,
-        period_id: periods
-            .into_iter()
-            .next()
-            .expect("exactly one checked period"),
-        valuation,
-    })
+    Ok((
+        ConsumptionPlan {
+            selection,
+            config,
+            period_id: periods
+                .into_iter()
+                .next()
+                .expect("exactly one checked period"),
+            valuation,
+        },
+        observation,
+    ))
 }
 
 fn iso_date(date: &str) -> bool {

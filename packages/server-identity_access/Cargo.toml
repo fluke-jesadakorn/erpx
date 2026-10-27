@@ -8,7 +8,7 @@ publish.workspace = true
 autotests = false
 
 [package.metadata.erpx]
-verification-roots = ["../../scripts/testing/fixtures/generate-directory-mapping-oracle.ts", "licenses", "../../fixtures/identity_access/directory", "../../scripts/testing/fixtures/generate-directory-rust-oracle.ts", "../../fixtures/identity_access/account-security", "../../scripts/testing/fixtures/generate-account-security-oracle.ts", "resources", "../../fixtures/identity_access/permissions", "../../scripts/testing/fixtures/generate-work-admission-oracle.ts"]
+verification-roots = ["../../scripts/testing/fixtures/generate-directory-source-oracle.ts", "../../scripts/testing/fixtures/generate-directory-mapping-oracle.ts", "licenses", "../../fixtures/identity_access/directory", "../../scripts/testing/fixtures/generate-directory-rust-oracle.ts", "../../fixtures/identity_access/account-security", "../../scripts/testing/fixtures/generate-account-security-oracle.ts", "resources", "../../fixtures/identity_access/permissions", "../../scripts/testing/fixtures/generate-work-admission-oracle.ts"]
 
 [lib]
 path = "src/lib.rs"
@@ -210,4 +210,14 @@ required-features = ["directory-ldaps"]
 [[test]]
 name = "directory_work_postgres"
 path = "../../tests/integration/identity_access/rust-directory-work-postgres.test.rs"
+required-features = ["directory-ldaps"]
+
+[[test]]
+name = "directory_provenance"
+path = "../../tests/unit/identity_access/rust-directory-provenance.test.rs"
+required-features = ["directory-ldaps"]
+
+[[test]]
+name = "directory_provenance_postgres"
+path = "../../tests/integration/identity_access/rust-directory-provenance-postgres.test.rs"
 required-features = ["directory-ldaps"]

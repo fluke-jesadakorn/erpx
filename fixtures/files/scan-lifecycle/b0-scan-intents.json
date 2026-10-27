@@ -1,0 +1,4613 @@
+{
+  "baseline": "a5ed8737a2f05eff1ee9841fda4a094b3926d732",
+  "source": {
+    "path": "packages/server-files/src/application/attachments/service.ts",
+    "sha256": "f96d38f7b3ad9b852890e07607bdabeff0bd30d7d7d32bcebbe7ac76d5de3da1"
+  },
+  "legacySource": {
+    "path": "packages/server-files/src/domain/attachments/legacy-policy.ts",
+    "sha256": "5b62afc7ed709aa3c75a9991cee291b335fc6f500192f41f0f380d077c7a7926"
+  },
+  "oracle": {
+    "runtime": "v26.11.1",
+    "typescript": "6.0.3",
+    "generatorSha256": "d8064ab8e5e855e8c3247464ded611bc34dd8327e65ea9052e208300f8604af7",
+    "disclaimer": "Effect-intent/source algorithm evidence only; no SQL/lease safety, decoder or authority acceptance is implied."
+  },
+  "cases": [
+    {
+      "name": "no-job-readiness-before-claim",
+      "input": {
+        "noJob": true
+      },
+      "result": {
+        "value": false
+      },
+      "events": [
+        [
+          "scannerReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "previewReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "claim",
+          {
+            "now": 1800000000000,
+            "arg2": 1800000060000,
+            "lease": "attachment-scan-lease-id-1",
+            "arg4": null,
+            "arg5": null
+          }
+        ]
+      ]
+    },
+    {
+      "name": "source-missing-is-not-settled",
+      "input": {
+        "sourceMissing": true
+      },
+      "result": {
+        "error": "ATTACHMENT_SCAN_SOURCE_MISSING"
+      },
+      "events": [
+        [
+          "scannerReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "previewReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "claim",
+          {
+            "now": 1800000000000,
+            "arg2": 1800000060000,
+            "lease": "attachment-scan-lease-id-1",
+            "arg4": null,
+            "arg5": null
+          }
+        ],
+        [
+          "source",
+          {
+            "attachment_id": "attachment-owned"
+          }
+        ]
+      ]
+    },
+    {
+      "name": "clean-without-preview",
+      "input": {},
+      "result": {
+        "value": true
+      },
+      "events": [
+        [
+          "scannerReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "previewReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "claim",
+          {
+            "now": 1800000000000,
+            "arg2": 1800000060000,
+            "lease": "attachment-scan-lease-id-1",
+            "arg4": null,
+            "arg5": null
+          }
+        ],
+        [
+          "source",
+          {
+            "attachment_id": "attachment-owned"
+          }
+        ],
+        [
+          "markScanning",
+          {
+            "id": "attachment-owned"
+          }
+        ],
+        [
+          "getOriginal",
+          "quarantine/owned/original"
+        ],
+        [
+          "detect",
+          {
+            "size": 32,
+            "declared": "text/csv"
+          }
+        ],
+        [
+          "scan",
+          {
+            "size": 32,
+            "environment": {
+              "ERPX_ATTACHMENTS_V2": "true",
+              "marker": "owned"
+            }
+          }
+        ],
+        [
+          "preview",
+          {
+            "size": 32,
+            "media": "text/csv"
+          }
+        ],
+        [
+          "atomicEffects",
+          [
+            [
+              "stepAttachmentScanAttempts112",
+              {
+                "engine": "ClamAV captured",
+                "definitionUpdatedAt": 1799999999000,
+                "completed": 1800000000000,
+                "id": "scan-owned",
+                "lease": "attachment-scan-lease-id-1"
+              }
+            ],
+            [
+              "stepAttachments113",
+              {
+                "detected": "text/csv",
+                "completed": 1800000000000,
+                "definitionUpdatedAt": 1799999999000,
+                "previewKey": null,
+                "arg5": null,
+                "previewChecksum": null,
+                "arg7": null,
+                "id": "attachment-owned"
+              }
+            ],
+            [
+              "stepUploadIntents114",
+              {
+                "completed": 1800000000000,
+                "upload_id": "upload-owned"
+              }
+            ],
+            [
+              "stepAttachmentLinks115",
+              {
+                "arg1": 1800604800000,
+                "upload_id": "upload-owned"
+              }
+            ],
+            [
+              "stepAttachmentEvents116",
+              {
+                "arg1": "attachment-event-id-2",
+                "company_id": "company-owned",
+                "id": "attachment-owned",
+                "arg4": "system:jobs",
+                "arg5": "scan.available",
+                "arg6": "{\"engine\":\"ClamAV captured\",\"definitionUpdatedAt\":1799999999000,\"preview\":false}",
+                "completed": 1800000000000
+              }
+            ]
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "clean-webp-content-addressed-preview",
+      "input": {
+        "preview": "image/webp"
+      },
+      "result": {
+        "value": true
+      },
+      "events": [
+        [
+          "scannerReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "previewReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "claim",
+          {
+            "now": 1800000000000,
+            "arg2": 1800000060000,
+            "lease": "attachment-scan-lease-id-1",
+            "arg4": null,
+            "arg5": null
+          }
+        ],
+        [
+          "source",
+          {
+            "attachment_id": "attachment-owned"
+          }
+        ],
+        [
+          "markScanning",
+          {
+            "id": "attachment-owned"
+          }
+        ],
+        [
+          "getOriginal",
+          "quarantine/owned/original"
+        ],
+        [
+          "detect",
+          {
+            "size": 32,
+            "declared": "text/csv"
+          }
+        ],
+        [
+          "scan",
+          {
+            "size": 32,
+            "environment": {
+              "ERPX_ATTACHMENTS_V2": "true",
+              "marker": "owned"
+            }
+          }
+        ],
+        [
+          "preview",
+          {
+            "size": 32,
+            "media": "text/csv"
+          }
+        ],
+        [
+          "putImmutable",
+          {
+            "key": "quarantine/owned/preview-e6e8cb429864b8e8d7fe95e53360dbd00756316813fb1e4a03a778d4632dbde6.webp",
+            "bytes": {
+              "bytes": 4,
+              "sha256": "e6e8cb429864b8e8d7fe95e53360dbd00756316813fb1e4a03a778d4632dbde6"
+            },
+            "options": {
+              "onlyIf": {
+                "etagDoesNotMatch": "*"
+              },
+              "httpMetadata": {
+                "contentType": "image/webp",
+                "cacheControl": "private, no-store"
+              },
+              "customMetadata": {
+                "sourceSha256": "2b3e0730c1b3d59e76b1d7b6cea310bde5c10d2d3b67749aa8159983b81acf3a",
+                "sanitized": "true"
+              }
+            }
+          }
+        ],
+        [
+          "atomicEffects",
+          [
+            [
+              "stepAttachmentScanAttempts112",
+              {
+                "engine": "ClamAV captured",
+                "definitionUpdatedAt": 1799999999000,
+                "completed": 1800000000000,
+                "id": "scan-owned",
+                "lease": "attachment-scan-lease-id-1"
+              }
+            ],
+            [
+              "stepAttachments113",
+              {
+                "detected": "text/csv",
+                "completed": 1800000000000,
+                "definitionUpdatedAt": 1799999999000,
+                "previewKey": "quarantine/owned/preview-e6e8cb429864b8e8d7fe95e53360dbd00756316813fb1e4a03a778d4632dbde6.webp",
+                "arg5": "image/webp",
+                "previewChecksum": "e6e8cb429864b8e8d7fe95e53360dbd00756316813fb1e4a03a778d4632dbde6",
+                "arg7": 4,
+                "id": "attachment-owned"
+              }
+            ],
+            [
+              "stepUploadIntents114",
+              {
+                "completed": 1800000000000,
+                "upload_id": "upload-owned"
+              }
+            ],
+            [
+              "stepAttachmentLinks115",
+              {
+                "arg1": 1800604800000,
+                "upload_id": "upload-owned"
+              }
+            ],
+            [
+              "stepAttachmentEvents116",
+              {
+                "arg1": "attachment-event-id-2",
+                "company_id": "company-owned",
+                "id": "attachment-owned",
+                "arg4": "system:jobs",
+                "arg5": "scan.available",
+                "arg6": "{\"engine\":\"ClamAV captured\",\"definitionUpdatedAt\":1799999999000,\"preview\":true}",
+                "completed": 1800000000000
+              }
+            ],
+            [
+              "stepAttachmentStorageLedger117",
+              {
+                "arg1": "attachment-storage-id-3",
+                "company_id": "company-owned",
+                "id": "attachment-owned",
+                "previewKey": "quarantine/owned/preview-e6e8cb429864b8e8d7fe95e53360dbd00756316813fb1e4a03a778d4632dbde6.webp",
+                "byteLength": 4,
+                "completed": 1800000000000
+              }
+            ]
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "clean-jpeg-key-without-original-suffix",
+      "input": {
+        "preview": "image/jpeg",
+        "objectKey": "legacy/storage/owned"
+      },
+      "result": {
+        "value": true
+      },
+      "events": [
+        [
+          "scannerReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "previewReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "claim",
+          {
+            "now": 1800000000000,
+            "arg2": 1800000060000,
+            "lease": "attachment-scan-lease-id-1",
+            "arg4": null,
+            "arg5": null
+          }
+        ],
+        [
+          "source",
+          {
+            "attachment_id": "attachment-owned"
+          }
+        ],
+        [
+          "markScanning",
+          {
+            "id": "attachment-owned"
+          }
+        ],
+        [
+          "getOriginal",
+          "legacy/storage/owned"
+        ],
+        [
+          "detect",
+          {
+            "size": 32,
+            "declared": "text/csv"
+          }
+        ],
+        [
+          "scan",
+          {
+            "size": 32,
+            "environment": {
+              "ERPX_ATTACHMENTS_V2": "true",
+              "marker": "owned"
+            }
+          }
+        ],
+        [
+          "preview",
+          {
+            "size": 32,
+            "media": "text/csv"
+          }
+        ],
+        [
+          "putImmutable",
+          {
+            "key": "legacy/storage/owned/preview-e6e8cb429864b8e8d7fe95e53360dbd00756316813fb1e4a03a778d4632dbde6.jpg",
+            "bytes": {
+              "bytes": 4,
+              "sha256": "e6e8cb429864b8e8d7fe95e53360dbd00756316813fb1e4a03a778d4632dbde6"
+            },
+            "options": {
+              "onlyIf": {
+                "etagDoesNotMatch": "*"
+              },
+              "httpMetadata": {
+                "contentType": "image/jpeg",
+                "cacheControl": "private, no-store"
+              },
+              "customMetadata": {
+                "sourceSha256": "2b3e0730c1b3d59e76b1d7b6cea310bde5c10d2d3b67749aa8159983b81acf3a",
+                "sanitized": "true"
+              }
+            }
+          }
+        ],
+        [
+          "atomicEffects",
+          [
+            [
+              "stepAttachmentScanAttempts112",
+              {
+                "engine": "ClamAV captured",
+                "definitionUpdatedAt": 1799999999000,
+                "completed": 1800000000000,
+                "id": "scan-owned",
+                "lease": "attachment-scan-lease-id-1"
+              }
+            ],
+            [
+              "stepAttachments113",
+              {
+                "detected": "text/csv",
+                "completed": 1800000000000,
+                "definitionUpdatedAt": 1799999999000,
+                "previewKey": "legacy/storage/owned/preview-e6e8cb429864b8e8d7fe95e53360dbd00756316813fb1e4a03a778d4632dbde6.jpg",
+                "arg5": "image/jpeg",
+                "previewChecksum": "e6e8cb429864b8e8d7fe95e53360dbd00756316813fb1e4a03a778d4632dbde6",
+                "arg7": 4,
+                "id": "attachment-owned"
+              }
+            ],
+            [
+              "stepUploadIntents114",
+              {
+                "completed": 1800000000000,
+                "upload_id": "upload-owned"
+              }
+            ],
+            [
+              "stepAttachmentLinks115",
+              {
+                "arg1": 1800604800000,
+                "upload_id": "upload-owned"
+              }
+            ],
+            [
+              "stepAttachmentEvents116",
+              {
+                "arg1": "attachment-event-id-2",
+                "company_id": "company-owned",
+                "id": "attachment-owned",
+                "arg4": "system:jobs",
+                "arg5": "scan.available",
+                "arg6": "{\"engine\":\"ClamAV captured\",\"definitionUpdatedAt\":1799999999000,\"preview\":true}",
+                "completed": 1800000000000
+              }
+            ],
+            [
+              "stepAttachmentStorageLedger117",
+              {
+                "arg1": "attachment-storage-id-3",
+                "company_id": "company-owned",
+                "id": "attachment-owned",
+                "previewKey": "legacy/storage/owned/preview-e6e8cb429864b8e8d7fe95e53360dbd00756316813fb1e4a03a778d4632dbde6.jpg",
+                "byteLength": 4,
+                "completed": 1800000000000
+              }
+            ]
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "infected-no-preview",
+      "input": {
+        "infected": true,
+        "preview": "image/webp"
+      },
+      "result": {
+        "value": true
+      },
+      "events": [
+        [
+          "scannerReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "previewReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "claim",
+          {
+            "now": 1800000000000,
+            "arg2": 1800000060000,
+            "lease": "attachment-scan-lease-id-1",
+            "arg4": null,
+            "arg5": null
+          }
+        ],
+        [
+          "source",
+          {
+            "attachment_id": "attachment-owned"
+          }
+        ],
+        [
+          "markScanning",
+          {
+            "id": "attachment-owned"
+          }
+        ],
+        [
+          "getOriginal",
+          "quarantine/owned/original"
+        ],
+        [
+          "detect",
+          {
+            "size": 32,
+            "declared": "text/csv"
+          }
+        ],
+        [
+          "scan",
+          {
+            "size": 32,
+            "environment": {
+              "ERPX_ATTACHMENTS_V2": "true",
+              "marker": "owned"
+            }
+          }
+        ],
+        [
+          "atomicEffects",
+          [
+            [
+              "stepAttachmentScanAttempts109",
+              {
+                "engine": "ClamAV captured",
+                "signature": "Owned.Test.Signature",
+                "definitionUpdatedAt": 1799999999000,
+                "arg4": 1800000000000,
+                "id": "scan-owned",
+                "lease": "attachment-scan-lease-id-1"
+              }
+            ],
+            [
+              "stepAttachments110",
+              {
+                "detected": "text/csv",
+                "arg2": 1800000000000,
+                "definitionUpdatedAt": 1799999999000,
+                "id": "attachment-owned"
+              }
+            ],
+            [
+              "stepAttachmentEvents111",
+              {
+                "arg1": "attachment-event-id-2",
+                "company_id": "company-owned",
+                "id": "attachment-owned",
+                "arg4": "system:jobs",
+                "arg5": "scan.malware_rejected",
+                "arg6": "{\"signature\":\"Owned.Test.Signature\",\"engine\":\"ClamAV captured\"}",
+                "arg7": 1800000000000
+              }
+            ]
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "missing-original",
+      "input": {
+        "objectMissing": true
+      },
+      "result": {
+        "value": true
+      },
+      "events": [
+        [
+          "scannerReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "previewReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "claim",
+          {
+            "now": 1800000000000,
+            "arg2": 1800000060000,
+            "lease": "attachment-scan-lease-id-1",
+            "arg4": null,
+            "arg5": null
+          }
+        ],
+        [
+          "source",
+          {
+            "attachment_id": "attachment-owned"
+          }
+        ],
+        [
+          "markScanning",
+          {
+            "id": "attachment-owned"
+          }
+        ],
+        [
+          "getOriginal",
+          "quarantine/owned/original"
+        ],
+        [
+          "atomicEffects",
+          [
+            [
+              "stepAttachmentScanAttempts118",
+              {
+                "code": "ATTACHMENT_OBJECT_MISSING",
+                "completed": 1800000000000,
+                "id": "scan-owned",
+                "lease": "attachment-scan-lease-id-1"
+              }
+            ],
+            [
+              "stepAttachments119",
+              {
+                "id": "attachment-owned"
+              }
+            ],
+            [
+              "stepAttachmentEvents120",
+              {
+                "arg1": "attachment-event-id-2",
+                "company_id": "company-owned",
+                "id": "attachment-owned",
+                "arg4": "system:jobs",
+                "arg5": "scan.error",
+                "arg6": "{\"attempt\":1,\"code\":\"ATTACHMENT_OBJECT_MISSING\"}",
+                "completed": 1800000000000
+              }
+            ],
+            [
+              "stepAttachmentScanAttempts121",
+              {
+                "arg1": "attachment-scan-id-3",
+                "id": "attachment-owned",
+                "arg3": 2,
+                "arg4": 1800000002000
+              }
+            ]
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "oversize-before-hash",
+      "input": {
+        "oversize": true
+      },
+      "result": {
+        "value": true
+      },
+      "events": [
+        [
+          "scannerReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "previewReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "claim",
+          {
+            "now": 1800000000000,
+            "arg2": 1800000060000,
+            "lease": "attachment-scan-lease-id-1",
+            "arg4": null,
+            "arg5": null
+          }
+        ],
+        [
+          "source",
+          {
+            "attachment_id": "attachment-owned"
+          }
+        ],
+        [
+          "markScanning",
+          {
+            "id": "attachment-owned"
+          }
+        ],
+        [
+          "getOriginal",
+          "quarantine/owned/original"
+        ],
+        [
+          "atomicEffects",
+          [
+            [
+              "stepAttachmentScanAttempts118",
+              {
+                "code": "ATTACHMENT_SCAN_OVERSIZE",
+                "completed": 1800000000000,
+                "id": "scan-owned",
+                "lease": "attachment-scan-lease-id-1"
+              }
+            ],
+            [
+              "stepAttachments119",
+              {
+                "id": "attachment-owned"
+              }
+            ],
+            [
+              "stepAttachmentEvents120",
+              {
+                "arg1": "attachment-event-id-2",
+                "company_id": "company-owned",
+                "id": "attachment-owned",
+                "arg4": "system:jobs",
+                "arg5": "scan.error",
+                "arg6": "{\"attempt\":1,\"code\":\"ATTACHMENT_SCAN_OVERSIZE\"}",
+                "completed": 1800000000000
+              }
+            ],
+            [
+              "stepAttachmentScanAttempts121",
+              {
+                "arg1": "attachment-scan-id-3",
+                "id": "attachment-owned",
+                "arg3": 2,
+                "arg4": 1800000002000
+              }
+            ]
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "checksum-mismatch-before-media",
+      "input": {
+        "source": {
+          "checksum_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+        }
+      },
+      "result": {
+        "value": true
+      },
+      "events": [
+        [
+          "scannerReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "previewReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "claim",
+          {
+            "now": 1800000000000,
+            "arg2": 1800000060000,
+            "lease": "attachment-scan-lease-id-1",
+            "arg4": null,
+            "arg5": null
+          }
+        ],
+        [
+          "source",
+          {
+            "attachment_id": "attachment-owned"
+          }
+        ],
+        [
+          "markScanning",
+          {
+            "id": "attachment-owned"
+          }
+        ],
+        [
+          "getOriginal",
+          "quarantine/owned/original"
+        ],
+        [
+          "atomicEffects",
+          [
+            [
+              "stepAttachmentScanAttempts118",
+              {
+                "code": "ATTACHMENT_CHECKSUM_MISMATCH",
+                "completed": 1800000000000,
+                "id": "scan-owned",
+                "lease": "attachment-scan-lease-id-1"
+              }
+            ],
+            [
+              "stepAttachments119",
+              {
+                "id": "attachment-owned"
+              }
+            ],
+            [
+              "stepAttachmentEvents120",
+              {
+                "arg1": "attachment-event-id-2",
+                "company_id": "company-owned",
+                "id": "attachment-owned",
+                "arg4": "system:jobs",
+                "arg5": "scan.error",
+                "arg6": "{\"attempt\":1,\"code\":\"ATTACHMENT_CHECKSUM_MISMATCH\"}",
+                "completed": 1800000000000
+              }
+            ],
+            [
+              "stepAttachmentScanAttempts121",
+              {
+                "arg1": "attachment-scan-id-3",
+                "id": "attachment-owned",
+                "arg3": 2,
+                "arg4": 1800000002000
+              }
+            ]
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "media-mismatch-before-scanner",
+      "input": {
+        "mediaMismatch": true
+      },
+      "result": {
+        "value": true
+      },
+      "events": [
+        [
+          "scannerReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "previewReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "claim",
+          {
+            "now": 1800000000000,
+            "arg2": 1800000060000,
+            "lease": "attachment-scan-lease-id-1",
+            "arg4": null,
+            "arg5": null
+          }
+        ],
+        [
+          "source",
+          {
+            "attachment_id": "attachment-owned"
+          }
+        ],
+        [
+          "markScanning",
+          {
+            "id": "attachment-owned"
+          }
+        ],
+        [
+          "getOriginal",
+          "quarantine/owned/original"
+        ],
+        [
+          "detect",
+          {
+            "size": 32,
+            "declared": "text/csv"
+          }
+        ],
+        [
+          "atomicEffects",
+          [
+            [
+              "stepAttachmentScanAttempts118",
+              {
+                "code": "ATTACHMENT_MEDIA_MISMATCH",
+                "completed": 1800000000000,
+                "id": "scan-owned",
+                "lease": "attachment-scan-lease-id-1"
+              }
+            ],
+            [
+              "stepAttachments119",
+              {
+                "id": "attachment-owned"
+              }
+            ],
+            [
+              "stepAttachmentEvents120",
+              {
+                "arg1": "attachment-event-id-2",
+                "company_id": "company-owned",
+                "id": "attachment-owned",
+                "arg4": "system:jobs",
+                "arg5": "scan.error",
+                "arg6": "{\"attempt\":1,\"code\":\"ATTACHMENT_MEDIA_MISMATCH\"}",
+                "completed": 1800000000000
+              }
+            ],
+            [
+              "stepAttachmentScanAttempts121",
+              {
+                "arg1": "attachment-scan-id-3",
+                "id": "attachment-owned",
+                "arg3": 2,
+                "arg4": 1800000002000
+              }
+            ]
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "error-code-truncated-to-160-utf16-units",
+      "input": {
+        "scanFailure": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      },
+      "result": {
+        "value": true
+      },
+      "events": [
+        [
+          "scannerReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "previewReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "claim",
+          {
+            "now": 1800000000000,
+            "arg2": 1800000060000,
+            "lease": "attachment-scan-lease-id-1",
+            "arg4": null,
+            "arg5": null
+          }
+        ],
+        [
+          "source",
+          {
+            "attachment_id": "attachment-owned"
+          }
+        ],
+        [
+          "markScanning",
+          {
+            "id": "attachment-owned"
+          }
+        ],
+        [
+          "getOriginal",
+          "quarantine/owned/original"
+        ],
+        [
+          "detect",
+          {
+            "size": 32,
+            "declared": "text/csv"
+          }
+        ],
+        [
+          "scan",
+          {
+            "size": 32,
+            "environment": {
+              "ERPX_ATTACHMENTS_V2": "true",
+              "marker": "owned"
+            }
+          }
+        ],
+        [
+          "atomicEffects",
+          [
+            [
+              "stepAttachmentScanAttempts118",
+              {
+                "code": "SCAN_ERROR",
+                "completed": 1800000000000,
+                "id": "scan-owned",
+                "lease": "attachment-scan-lease-id-1"
+              }
+            ],
+            [
+              "stepAttachments119",
+              {
+                "id": "attachment-owned"
+              }
+            ],
+            [
+              "stepAttachmentEvents120",
+              {
+                "arg1": "attachment-event-id-2",
+                "company_id": "company-owned",
+                "id": "attachment-owned",
+                "arg4": "system:jobs",
+                "arg5": "scan.error",
+                "arg6": "{\"attempt\":1,\"code\":\"SCAN_ERROR\"}",
+                "completed": 1800000000000
+              }
+            ],
+            [
+              "stepAttachmentScanAttempts121",
+              {
+                "arg1": "attachment-scan-id-3",
+                "id": "attachment-owned",
+                "arg3": 2,
+                "arg4": 1800000002000
+              }
+            ]
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "expired-upload-intent-is-not-loaded",
+      "input": {
+        "filter": "attachment-owned"
+      },
+      "result": {
+        "value": true
+      },
+      "events": [
+        [
+          "scannerReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "previewReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "claim",
+          {
+            "now": 1800000000000,
+            "arg2": 1800000060000,
+            "lease": "attachment-scan-lease-id-1",
+            "arg4": "attachment-owned",
+            "arg5": "attachment-owned"
+          }
+        ],
+        [
+          "source",
+          {
+            "attachment_id": "attachment-owned"
+          }
+        ],
+        [
+          "markScanning",
+          {
+            "id": "attachment-owned"
+          }
+        ],
+        [
+          "getOriginal",
+          "quarantine/owned/original"
+        ],
+        [
+          "detect",
+          {
+            "size": 32,
+            "declared": "text/csv"
+          }
+        ],
+        [
+          "scan",
+          {
+            "size": 32,
+            "environment": {
+              "ERPX_ATTACHMENTS_V2": "true",
+              "marker": "owned"
+            }
+          }
+        ],
+        [
+          "preview",
+          {
+            "size": 32,
+            "media": "text/csv"
+          }
+        ],
+        [
+          "atomicEffects",
+          [
+            [
+              "stepAttachmentScanAttempts112",
+              {
+                "engine": "ClamAV captured",
+                "definitionUpdatedAt": 1799999999000,
+                "completed": 1800000000000,
+                "id": "scan-owned",
+                "lease": "attachment-scan-lease-id-1"
+              }
+            ],
+            [
+              "stepAttachments113",
+              {
+                "detected": "text/csv",
+                "completed": 1800000000000,
+                "definitionUpdatedAt": 1799999999000,
+                "previewKey": null,
+                "arg5": null,
+                "previewChecksum": null,
+                "arg7": null,
+                "id": "attachment-owned"
+              }
+            ],
+            [
+              "stepUploadIntents114",
+              {
+                "completed": 1800000000000,
+                "upload_id": "upload-owned"
+              }
+            ],
+            [
+              "stepAttachmentLinks115",
+              {
+                "arg1": 1800604800000,
+                "upload_id": "upload-owned"
+              }
+            ],
+            [
+              "stepAttachmentEvents116",
+              {
+                "arg1": "attachment-event-id-2",
+                "company_id": "company-owned",
+                "id": "attachment-owned",
+                "arg4": "system:jobs",
+                "arg5": "scan.available",
+                "arg6": "{\"engine\":\"ClamAV captured\",\"definitionUpdatedAt\":1799999999000,\"preview\":false}",
+                "completed": 1800000000000
+              }
+            ]
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "ordinary-worker-forces-v2-scanner-environment",
+      "input": {
+        "enabled": false
+      },
+      "result": {
+        "value": true
+      },
+      "events": [
+        [
+          "scannerReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "previewReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "claim",
+          {
+            "now": 1800000000000,
+            "arg2": 1800000060000,
+            "lease": "attachment-scan-lease-id-1",
+            "arg4": null,
+            "arg5": null
+          }
+        ],
+        [
+          "source",
+          {
+            "attachment_id": "attachment-owned"
+          }
+        ],
+        [
+          "markScanning",
+          {
+            "id": "attachment-owned"
+          }
+        ],
+        [
+          "getOriginal",
+          "quarantine/owned/original"
+        ],
+        [
+          "detect",
+          {
+            "size": 32,
+            "declared": "text/csv"
+          }
+        ],
+        [
+          "scan",
+          {
+            "size": 32,
+            "environment": {
+              "ERPX_ATTACHMENTS_V2": "true",
+              "marker": "owned"
+            }
+          }
+        ],
+        [
+          "preview",
+          {
+            "size": 32,
+            "media": "text/csv"
+          }
+        ],
+        [
+          "atomicEffects",
+          [
+            [
+              "stepAttachmentScanAttempts112",
+              {
+                "engine": "ClamAV captured",
+                "definitionUpdatedAt": 1799999999000,
+                "completed": 1800000000000,
+                "id": "scan-owned",
+                "lease": "attachment-scan-lease-id-1"
+              }
+            ],
+            [
+              "stepAttachments113",
+              {
+                "detected": "text/csv",
+                "completed": 1800000000000,
+                "definitionUpdatedAt": 1799999999000,
+                "previewKey": null,
+                "arg5": null,
+                "previewChecksum": null,
+                "arg7": null,
+                "id": "attachment-owned"
+              }
+            ],
+            [
+              "stepUploadIntents114",
+              {
+                "completed": 1800000000000,
+                "upload_id": "upload-owned"
+              }
+            ],
+            [
+              "stepAttachmentLinks115",
+              {
+                "arg1": 1800604800000,
+                "upload_id": "upload-owned"
+              }
+            ],
+            [
+              "stepAttachmentEvents116",
+              {
+                "arg1": "attachment-event-id-2",
+                "company_id": "company-owned",
+                "id": "attachment-owned",
+                "arg4": "system:jobs",
+                "arg5": "scan.available",
+                "arg6": "{\"engine\":\"ClamAV captured\",\"definitionUpdatedAt\":1799999999000,\"preview\":false}",
+                "completed": 1800000000000
+              }
+            ]
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "offline-migration-requires-freeze",
+      "input": {
+        "offlineMigration": true
+      },
+      "result": {
+        "error": "OFFLINE_ATTACHMENT_SCAN_REQUIRES_UPLOAD_FREEZE"
+      },
+      "events": []
+    },
+    {
+      "name": "offline-migration-with-freeze",
+      "input": {
+        "offlineMigration": true,
+        "uploadsFrozen": true
+      },
+      "result": {
+        "value": true
+      },
+      "events": [
+        [
+          "scannerReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "previewReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "claim",
+          {
+            "now": 1800000000000,
+            "arg2": 1800000060000,
+            "lease": "attachment-scan-lease-id-1",
+            "arg4": null,
+            "arg5": null
+          }
+        ],
+        [
+          "source",
+          {
+            "attachment_id": "attachment-owned"
+          }
+        ],
+        [
+          "markScanning",
+          {
+            "id": "attachment-owned"
+          }
+        ],
+        [
+          "getOriginal",
+          "quarantine/owned/original"
+        ],
+        [
+          "detect",
+          {
+            "size": 32,
+            "declared": "text/csv"
+          }
+        ],
+        [
+          "scan",
+          {
+            "size": 32,
+            "environment": {
+              "ERPX_ATTACHMENTS_V2": "true",
+              "marker": "owned"
+            }
+          }
+        ],
+        [
+          "preview",
+          {
+            "size": 32,
+            "media": "text/csv"
+          }
+        ],
+        [
+          "atomicEffects",
+          [
+            [
+              "stepAttachmentScanAttempts112",
+              {
+                "engine": "ClamAV captured",
+                "definitionUpdatedAt": 1799999999000,
+                "completed": 1800000000000,
+                "id": "scan-owned",
+                "lease": "attachment-scan-lease-id-1"
+              }
+            ],
+            [
+              "stepAttachments113",
+              {
+                "detected": "text/csv",
+                "completed": 1800000000000,
+                "definitionUpdatedAt": 1799999999000,
+                "previewKey": null,
+                "arg5": null,
+                "previewChecksum": null,
+                "arg7": null,
+                "id": "attachment-owned"
+              }
+            ],
+            [
+              "stepUploadIntents114",
+              {
+                "completed": 1800000000000,
+                "upload_id": "upload-owned"
+              }
+            ],
+            [
+              "stepAttachmentLinks115",
+              {
+                "arg1": 1800604800000,
+                "upload_id": "upload-owned"
+              }
+            ],
+            [
+              "stepAttachmentEvents116",
+              {
+                "arg1": "attachment-event-id-2",
+                "company_id": "company-owned",
+                "id": "attachment-owned",
+                "arg4": "system:jobs",
+                "arg5": "scan.available",
+                "arg6": "{\"engine\":\"ClamAV captured\",\"definitionUpdatedAt\":1799999999000,\"preview\":false}",
+                "completed": 1800000000000
+              }
+            ]
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "scanner-unavailable-before-claim",
+      "input": {
+        "scannerUnavailable": true
+      },
+      "result": {
+        "error": "ATTACHMENT_SCANNER_UNAVAILABLE"
+      },
+      "events": [
+        [
+          "scannerReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "previewReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ]
+      ]
+    },
+    {
+      "name": "scanner-disabled-before-claim",
+      "input": {
+        "scannerDisabled": true
+      },
+      "result": {
+        "error": "ATTACHMENT_SCANNER_UNAVAILABLE"
+      },
+      "events": [
+        [
+          "scannerReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "previewReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ]
+      ]
+    },
+    {
+      "name": "preview-unavailable-before-claim",
+      "input": {
+        "previewUnavailable": true
+      },
+      "result": {
+        "error": "ATTACHMENT_SCANNER_UNAVAILABLE"
+      },
+      "events": [
+        [
+          "scannerReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "previewReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ]
+      ]
+    },
+    {
+      "name": "error-retry-attempt-1",
+      "input": {
+        "attempt": 1,
+        "scanFailure": "OWNED_SCANNER_ERROR"
+      },
+      "result": {
+        "value": true
+      },
+      "events": [
+        [
+          "scannerReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "previewReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "claim",
+          {
+            "now": 1800000000000,
+            "arg2": 1800000060000,
+            "lease": "attachment-scan-lease-id-1",
+            "arg4": null,
+            "arg5": null
+          }
+        ],
+        [
+          "source",
+          {
+            "attachment_id": "attachment-owned"
+          }
+        ],
+        [
+          "markScanning",
+          {
+            "id": "attachment-owned"
+          }
+        ],
+        [
+          "getOriginal",
+          "quarantine/owned/original"
+        ],
+        [
+          "detect",
+          {
+            "size": 32,
+            "declared": "text/csv"
+          }
+        ],
+        [
+          "scan",
+          {
+            "size": 32,
+            "environment": {
+              "ERPX_ATTACHMENTS_V2": "true",
+              "marker": "owned"
+            }
+          }
+        ],
+        [
+          "atomicEffects",
+          [
+            [
+              "stepAttachmentScanAttempts118",
+              {
+                "code": "SCAN_ERROR",
+                "completed": 1800000000000,
+                "id": "scan-owned",
+                "lease": "attachment-scan-lease-id-1"
+              }
+            ],
+            [
+              "stepAttachments119",
+              {
+                "id": "attachment-owned"
+              }
+            ],
+            [
+              "stepAttachmentEvents120",
+              {
+                "arg1": "attachment-event-id-2",
+                "company_id": "company-owned",
+                "id": "attachment-owned",
+                "arg4": "system:jobs",
+                "arg5": "scan.error",
+                "arg6": "{\"attempt\":1,\"code\":\"SCAN_ERROR\"}",
+                "completed": 1800000000000
+              }
+            ],
+            [
+              "stepAttachmentScanAttempts121",
+              {
+                "arg1": "attachment-scan-id-3",
+                "id": "attachment-owned",
+                "arg3": 2,
+                "arg4": 1800000002000
+              }
+            ]
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "error-retry-attempt-2",
+      "input": {
+        "attempt": 2,
+        "scanFailure": "OWNED_SCANNER_ERROR"
+      },
+      "result": {
+        "value": true
+      },
+      "events": [
+        [
+          "scannerReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "previewReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "claim",
+          {
+            "now": 1800000000000,
+            "arg2": 1800000060000,
+            "lease": "attachment-scan-lease-id-1",
+            "arg4": null,
+            "arg5": null
+          }
+        ],
+        [
+          "source",
+          {
+            "attachment_id": "attachment-owned"
+          }
+        ],
+        [
+          "markScanning",
+          {
+            "id": "attachment-owned"
+          }
+        ],
+        [
+          "getOriginal",
+          "quarantine/owned/original"
+        ],
+        [
+          "detect",
+          {
+            "size": 32,
+            "declared": "text/csv"
+          }
+        ],
+        [
+          "scan",
+          {
+            "size": 32,
+            "environment": {
+              "ERPX_ATTACHMENTS_V2": "true",
+              "marker": "owned"
+            }
+          }
+        ],
+        [
+          "atomicEffects",
+          [
+            [
+              "stepAttachmentScanAttempts118",
+              {
+                "code": "SCAN_ERROR",
+                "completed": 1800000000000,
+                "id": "scan-owned",
+                "lease": "attachment-scan-lease-id-1"
+              }
+            ],
+            [
+              "stepAttachments119",
+              {
+                "id": "attachment-owned"
+              }
+            ],
+            [
+              "stepAttachmentEvents120",
+              {
+                "arg1": "attachment-event-id-2",
+                "company_id": "company-owned",
+                "id": "attachment-owned",
+                "arg4": "system:jobs",
+                "arg5": "scan.error",
+                "arg6": "{\"attempt\":2,\"code\":\"SCAN_ERROR\"}",
+                "completed": 1800000000000
+              }
+            ],
+            [
+              "stepAttachmentScanAttempts121",
+              {
+                "arg1": "attachment-scan-id-3",
+                "id": "attachment-owned",
+                "arg3": 3,
+                "arg4": 1800000004000
+              }
+            ]
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "error-retry-attempt-3",
+      "input": {
+        "attempt": 3,
+        "scanFailure": "OWNED_SCANNER_ERROR"
+      },
+      "result": {
+        "value": true
+      },
+      "events": [
+        [
+          "scannerReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "previewReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "claim",
+          {
+            "now": 1800000000000,
+            "arg2": 1800000060000,
+            "lease": "attachment-scan-lease-id-1",
+            "arg4": null,
+            "arg5": null
+          }
+        ],
+        [
+          "source",
+          {
+            "attachment_id": "attachment-owned"
+          }
+        ],
+        [
+          "markScanning",
+          {
+            "id": "attachment-owned"
+          }
+        ],
+        [
+          "getOriginal",
+          "quarantine/owned/original"
+        ],
+        [
+          "detect",
+          {
+            "size": 32,
+            "declared": "text/csv"
+          }
+        ],
+        [
+          "scan",
+          {
+            "size": 32,
+            "environment": {
+              "ERPX_ATTACHMENTS_V2": "true",
+              "marker": "owned"
+            }
+          }
+        ],
+        [
+          "atomicEffects",
+          [
+            [
+              "stepAttachmentScanAttempts118",
+              {
+                "code": "SCAN_ERROR",
+                "completed": 1800000000000,
+                "id": "scan-owned",
+                "lease": "attachment-scan-lease-id-1"
+              }
+            ],
+            [
+              "stepAttachments119",
+              {
+                "id": "attachment-owned"
+              }
+            ],
+            [
+              "stepAttachmentEvents120",
+              {
+                "arg1": "attachment-event-id-2",
+                "company_id": "company-owned",
+                "id": "attachment-owned",
+                "arg4": "system:jobs",
+                "arg5": "scan.error",
+                "arg6": "{\"attempt\":3,\"code\":\"SCAN_ERROR\"}",
+                "completed": 1800000000000
+              }
+            ],
+            [
+              "stepAttachmentScanAttempts121",
+              {
+                "arg1": "attachment-scan-id-3",
+                "id": "attachment-owned",
+                "arg3": 4,
+                "arg4": 1800000008000
+              }
+            ]
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "error-retry-attempt-4",
+      "input": {
+        "attempt": 4,
+        "scanFailure": "OWNED_SCANNER_ERROR"
+      },
+      "result": {
+        "value": true
+      },
+      "events": [
+        [
+          "scannerReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "previewReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "claim",
+          {
+            "now": 1800000000000,
+            "arg2": 1800000060000,
+            "lease": "attachment-scan-lease-id-1",
+            "arg4": null,
+            "arg5": null
+          }
+        ],
+        [
+          "source",
+          {
+            "attachment_id": "attachment-owned"
+          }
+        ],
+        [
+          "markScanning",
+          {
+            "id": "attachment-owned"
+          }
+        ],
+        [
+          "getOriginal",
+          "quarantine/owned/original"
+        ],
+        [
+          "detect",
+          {
+            "size": 32,
+            "declared": "text/csv"
+          }
+        ],
+        [
+          "scan",
+          {
+            "size": 32,
+            "environment": {
+              "ERPX_ATTACHMENTS_V2": "true",
+              "marker": "owned"
+            }
+          }
+        ],
+        [
+          "atomicEffects",
+          [
+            [
+              "stepAttachmentScanAttempts118",
+              {
+                "code": "SCAN_ERROR",
+                "completed": 1800000000000,
+                "id": "scan-owned",
+                "lease": "attachment-scan-lease-id-1"
+              }
+            ],
+            [
+              "stepAttachments119",
+              {
+                "id": "attachment-owned"
+              }
+            ],
+            [
+              "stepAttachmentEvents120",
+              {
+                "arg1": "attachment-event-id-2",
+                "company_id": "company-owned",
+                "id": "attachment-owned",
+                "arg4": "system:jobs",
+                "arg5": "scan.error",
+                "arg6": "{\"attempt\":4,\"code\":\"SCAN_ERROR\"}",
+                "completed": 1800000000000
+              }
+            ],
+            [
+              "stepAttachmentScanAttempts121",
+              {
+                "arg1": "attachment-scan-id-3",
+                "id": "attachment-owned",
+                "arg3": 5,
+                "arg4": 1800000016000
+              }
+            ]
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "error-retry-attempt-5",
+      "input": {
+        "attempt": 5,
+        "scanFailure": "OWNED_SCANNER_ERROR"
+      },
+      "result": {
+        "value": true
+      },
+      "events": [
+        [
+          "scannerReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "previewReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "claim",
+          {
+            "now": 1800000000000,
+            "arg2": 1800000060000,
+            "lease": "attachment-scan-lease-id-1",
+            "arg4": null,
+            "arg5": null
+          }
+        ],
+        [
+          "source",
+          {
+            "attachment_id": "attachment-owned"
+          }
+        ],
+        [
+          "markScanning",
+          {
+            "id": "attachment-owned"
+          }
+        ],
+        [
+          "getOriginal",
+          "quarantine/owned/original"
+        ],
+        [
+          "detect",
+          {
+            "size": 32,
+            "declared": "text/csv"
+          }
+        ],
+        [
+          "scan",
+          {
+            "size": 32,
+            "environment": {
+              "ERPX_ATTACHMENTS_V2": "true",
+              "marker": "owned"
+            }
+          }
+        ],
+        [
+          "atomicEffects",
+          [
+            [
+              "stepAttachmentScanAttempts118",
+              {
+                "code": "SCAN_ERROR",
+                "completed": 1800000000000,
+                "id": "scan-owned",
+                "lease": "attachment-scan-lease-id-1"
+              }
+            ],
+            [
+              "stepAttachments119",
+              {
+                "id": "attachment-owned"
+              }
+            ],
+            [
+              "stepAttachmentEvents120",
+              {
+                "arg1": "attachment-event-id-2",
+                "company_id": "company-owned",
+                "id": "attachment-owned",
+                "arg4": "system:jobs",
+                "arg5": "scan.error",
+                "arg6": "{\"attempt\":5,\"code\":\"SCAN_ERROR\"}",
+                "completed": 1800000000000
+              }
+            ],
+            [
+              "stepAttachmentScanAttempts121",
+              {
+                "arg1": "attachment-scan-id-3",
+                "id": "attachment-owned",
+                "arg3": 6,
+                "arg4": 1800000032000
+              }
+            ]
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "error-retry-attempt-6",
+      "input": {
+        "attempt": 6,
+        "scanFailure": "OWNED_SCANNER_ERROR"
+      },
+      "result": {
+        "value": true
+      },
+      "events": [
+        [
+          "scannerReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "previewReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "claim",
+          {
+            "now": 1800000000000,
+            "arg2": 1800000060000,
+            "lease": "attachment-scan-lease-id-1",
+            "arg4": null,
+            "arg5": null
+          }
+        ],
+        [
+          "source",
+          {
+            "attachment_id": "attachment-owned"
+          }
+        ],
+        [
+          "markScanning",
+          {
+            "id": "attachment-owned"
+          }
+        ],
+        [
+          "getOriginal",
+          "quarantine/owned/original"
+        ],
+        [
+          "detect",
+          {
+            "size": 32,
+            "declared": "text/csv"
+          }
+        ],
+        [
+          "scan",
+          {
+            "size": 32,
+            "environment": {
+              "ERPX_ATTACHMENTS_V2": "true",
+              "marker": "owned"
+            }
+          }
+        ],
+        [
+          "atomicEffects",
+          [
+            [
+              "stepAttachmentScanAttempts118",
+              {
+                "code": "SCAN_ERROR",
+                "completed": 1800000000000,
+                "id": "scan-owned",
+                "lease": "attachment-scan-lease-id-1"
+              }
+            ],
+            [
+              "stepAttachments119",
+              {
+                "id": "attachment-owned"
+              }
+            ],
+            [
+              "stepAttachmentEvents120",
+              {
+                "arg1": "attachment-event-id-2",
+                "company_id": "company-owned",
+                "id": "attachment-owned",
+                "arg4": "system:jobs",
+                "arg5": "scan.error",
+                "arg6": "{\"attempt\":6,\"code\":\"SCAN_ERROR\"}",
+                "completed": 1800000000000
+              }
+            ]
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "error-retry-attempt-7",
+      "input": {
+        "attempt": 7,
+        "scanFailure": "OWNED_SCANNER_ERROR"
+      },
+      "result": {
+        "value": true
+      },
+      "events": [
+        [
+          "scannerReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "previewReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "claim",
+          {
+            "now": 1800000000000,
+            "arg2": 1800000060000,
+            "lease": "attachment-scan-lease-id-1",
+            "arg4": null,
+            "arg5": null
+          }
+        ],
+        [
+          "source",
+          {
+            "attachment_id": "attachment-owned"
+          }
+        ],
+        [
+          "markScanning",
+          {
+            "id": "attachment-owned"
+          }
+        ],
+        [
+          "getOriginal",
+          "quarantine/owned/original"
+        ],
+        [
+          "detect",
+          {
+            "size": 32,
+            "declared": "text/csv"
+          }
+        ],
+        [
+          "scan",
+          {
+            "size": 32,
+            "environment": {
+              "ERPX_ATTACHMENTS_V2": "true",
+              "marker": "owned"
+            }
+          }
+        ],
+        [
+          "atomicEffects",
+          [
+            [
+              "stepAttachmentScanAttempts118",
+              {
+                "code": "SCAN_ERROR",
+                "completed": 1800000000000,
+                "id": "scan-owned",
+                "lease": "attachment-scan-lease-id-1"
+              }
+            ],
+            [
+              "stepAttachments119",
+              {
+                "id": "attachment-owned"
+              }
+            ],
+            [
+              "stepAttachmentEvents120",
+              {
+                "arg1": "attachment-event-id-2",
+                "company_id": "company-owned",
+                "id": "attachment-owned",
+                "arg4": "system:jobs",
+                "arg5": "scan.error",
+                "arg6": "{\"attempt\":7,\"code\":\"SCAN_ERROR\"}",
+                "completed": 1800000000000
+              }
+            ]
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "error-retry-attempt-8",
+      "input": {
+        "attempt": 8,
+        "scanFailure": "OWNED_SCANNER_ERROR"
+      },
+      "result": {
+        "value": true
+      },
+      "events": [
+        [
+          "scannerReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "previewReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "claim",
+          {
+            "now": 1800000000000,
+            "arg2": 1800000060000,
+            "lease": "attachment-scan-lease-id-1",
+            "arg4": null,
+            "arg5": null
+          }
+        ],
+        [
+          "source",
+          {
+            "attachment_id": "attachment-owned"
+          }
+        ],
+        [
+          "markScanning",
+          {
+            "id": "attachment-owned"
+          }
+        ],
+        [
+          "getOriginal",
+          "quarantine/owned/original"
+        ],
+        [
+          "detect",
+          {
+            "size": 32,
+            "declared": "text/csv"
+          }
+        ],
+        [
+          "scan",
+          {
+            "size": 32,
+            "environment": {
+              "ERPX_ATTACHMENTS_V2": "true",
+              "marker": "owned"
+            }
+          }
+        ],
+        [
+          "atomicEffects",
+          [
+            [
+              "stepAttachmentScanAttempts118",
+              {
+                "code": "SCAN_ERROR",
+                "completed": 1800000000000,
+                "id": "scan-owned",
+                "lease": "attachment-scan-lease-id-1"
+              }
+            ],
+            [
+              "stepAttachments119",
+              {
+                "id": "attachment-owned"
+              }
+            ],
+            [
+              "stepAttachmentEvents120",
+              {
+                "arg1": "attachment-event-id-2",
+                "company_id": "company-owned",
+                "id": "attachment-owned",
+                "arg4": "system:jobs",
+                "arg5": "scan.error",
+                "arg6": "{\"attempt\":8,\"code\":\"SCAN_ERROR\"}",
+                "completed": 1800000000000
+              }
+            ]
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "error-retry-attempt-9",
+      "input": {
+        "attempt": 9,
+        "scanFailure": "OWNED_SCANNER_ERROR"
+      },
+      "result": {
+        "value": true
+      },
+      "events": [
+        [
+          "scannerReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "previewReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "claim",
+          {
+            "now": 1800000000000,
+            "arg2": 1800000060000,
+            "lease": "attachment-scan-lease-id-1",
+            "arg4": null,
+            "arg5": null
+          }
+        ],
+        [
+          "source",
+          {
+            "attachment_id": "attachment-owned"
+          }
+        ],
+        [
+          "markScanning",
+          {
+            "id": "attachment-owned"
+          }
+        ],
+        [
+          "getOriginal",
+          "quarantine/owned/original"
+        ],
+        [
+          "detect",
+          {
+            "size": 32,
+            "declared": "text/csv"
+          }
+        ],
+        [
+          "scan",
+          {
+            "size": 32,
+            "environment": {
+              "ERPX_ATTACHMENTS_V2": "true",
+              "marker": "owned"
+            }
+          }
+        ],
+        [
+          "atomicEffects",
+          [
+            [
+              "stepAttachmentScanAttempts118",
+              {
+                "code": "SCAN_ERROR",
+                "completed": 1800000000000,
+                "id": "scan-owned",
+                "lease": "attachment-scan-lease-id-1"
+              }
+            ],
+            [
+              "stepAttachments119",
+              {
+                "id": "attachment-owned"
+              }
+            ],
+            [
+              "stepAttachmentEvents120",
+              {
+                "arg1": "attachment-event-id-2",
+                "company_id": "company-owned",
+                "id": "attachment-owned",
+                "arg4": "system:jobs",
+                "arg5": "scan.error",
+                "arg6": "{\"attempt\":9,\"code\":\"SCAN_ERROR\"}",
+                "completed": 1800000000000
+              }
+            ]
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "error-retry-attempt-10",
+      "input": {
+        "attempt": 10,
+        "scanFailure": "OWNED_SCANNER_ERROR"
+      },
+      "result": {
+        "value": true
+      },
+      "events": [
+        [
+          "scannerReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "previewReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "claim",
+          {
+            "now": 1800000000000,
+            "arg2": 1800000060000,
+            "lease": "attachment-scan-lease-id-1",
+            "arg4": null,
+            "arg5": null
+          }
+        ],
+        [
+          "source",
+          {
+            "attachment_id": "attachment-owned"
+          }
+        ],
+        [
+          "markScanning",
+          {
+            "id": "attachment-owned"
+          }
+        ],
+        [
+          "getOriginal",
+          "quarantine/owned/original"
+        ],
+        [
+          "detect",
+          {
+            "size": 32,
+            "declared": "text/csv"
+          }
+        ],
+        [
+          "scan",
+          {
+            "size": 32,
+            "environment": {
+              "ERPX_ATTACHMENTS_V2": "true",
+              "marker": "owned"
+            }
+          }
+        ],
+        [
+          "atomicEffects",
+          [
+            [
+              "stepAttachmentScanAttempts118",
+              {
+                "code": "SCAN_ERROR",
+                "completed": 1800000000000,
+                "id": "scan-owned",
+                "lease": "attachment-scan-lease-id-1"
+              }
+            ],
+            [
+              "stepAttachments119",
+              {
+                "id": "attachment-owned"
+              }
+            ],
+            [
+              "stepAttachmentEvents120",
+              {
+                "arg1": "attachment-event-id-2",
+                "company_id": "company-owned",
+                "id": "attachment-owned",
+                "arg4": "system:jobs",
+                "arg5": "scan.error",
+                "arg6": "{\"attempt\":10,\"code\":\"SCAN_ERROR\"}",
+                "completed": 1800000000000
+              }
+            ]
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "error-retry-attempt-11",
+      "input": {
+        "attempt": 11,
+        "scanFailure": "OWNED_SCANNER_ERROR"
+      },
+      "result": {
+        "value": true
+      },
+      "events": [
+        [
+          "scannerReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "previewReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "claim",
+          {
+            "now": 1800000000000,
+            "arg2": 1800000060000,
+            "lease": "attachment-scan-lease-id-1",
+            "arg4": null,
+            "arg5": null
+          }
+        ],
+        [
+          "source",
+          {
+            "attachment_id": "attachment-owned"
+          }
+        ],
+        [
+          "markScanning",
+          {
+            "id": "attachment-owned"
+          }
+        ],
+        [
+          "getOriginal",
+          "quarantine/owned/original"
+        ],
+        [
+          "detect",
+          {
+            "size": 32,
+            "declared": "text/csv"
+          }
+        ],
+        [
+          "scan",
+          {
+            "size": 32,
+            "environment": {
+              "ERPX_ATTACHMENTS_V2": "true",
+              "marker": "owned"
+            }
+          }
+        ],
+        [
+          "atomicEffects",
+          [
+            [
+              "stepAttachmentScanAttempts118",
+              {
+                "code": "SCAN_ERROR",
+                "completed": 1800000000000,
+                "id": "scan-owned",
+                "lease": "attachment-scan-lease-id-1"
+              }
+            ],
+            [
+              "stepAttachments119",
+              {
+                "id": "attachment-owned"
+              }
+            ],
+            [
+              "stepAttachmentEvents120",
+              {
+                "arg1": "attachment-event-id-2",
+                "company_id": "company-owned",
+                "id": "attachment-owned",
+                "arg4": "system:jobs",
+                "arg5": "scan.error",
+                "arg6": "{\"attempt\":11,\"code\":\"SCAN_ERROR\"}",
+                "completed": 1800000000000
+              }
+            ]
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "error-retry-attempt-12",
+      "input": {
+        "attempt": 12,
+        "scanFailure": "OWNED_SCANNER_ERROR"
+      },
+      "result": {
+        "value": true
+      },
+      "events": [
+        [
+          "scannerReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "previewReadiness",
+          {
+            "ERPX_ATTACHMENTS_V2": "true",
+            "marker": "owned"
+          }
+        ],
+        [
+          "claim",
+          {
+            "now": 1800000000000,
+            "arg2": 1800000060000,
+            "lease": "attachment-scan-lease-id-1",
+            "arg4": null,
+            "arg5": null
+          }
+        ],
+        [
+          "source",
+          {
+            "attachment_id": "attachment-owned"
+          }
+        ],
+        [
+          "markScanning",
+          {
+            "id": "attachment-owned"
+          }
+        ],
+        [
+          "getOriginal",
+          "quarantine/owned/original"
+        ],
+        [
+          "detect",
+          {
+            "size": 32,
+            "declared": "text/csv"
+          }
+        ],
+        [
+          "scan",
+          {
+            "size": 32,
+            "environment": {
+              "ERPX_ATTACHMENTS_V2": "true",
+              "marker": "owned"
+            }
+          }
+        ],
+        [
+          "atomicEffects",
+          [
+            [
+              "stepAttachmentScanAttempts118",
+              {
+                "code": "SCAN_ERROR",
+                "completed": 1800000000000,
+                "id": "scan-owned",
+                "lease": "attachment-scan-lease-id-1"
+              }
+            ],
+            [
+              "stepAttachments119",
+              {
+                "id": "attachment-owned"
+              }
+            ],
+            [
+              "stepAttachmentEvents120",
+              {
+                "arg1": "attachment-event-id-2",
+                "company_id": "company-owned",
+                "id": "attachment-owned",
+                "arg4": "system:jobs",
+                "arg5": "scan.error",
+                "arg6": "{\"attempt\":12,\"code\":\"SCAN_ERROR\"}",
+                "completed": 1800000000000
+              }
+            ]
+          ]
+        ]
+      ]
+    }
+  ],
+  "legacy": [
+    {
+      "owner": "support_ticket",
+      "purpose": "support_evidence",
+      "result": {
+        "purposeKey": "internal_evidence",
+        "componentKind": "action",
+        "componentRef": "support-evidence:internal_evidence",
+        "completion": "bind_immediately"
+      }
+    },
+    {
+      "owner": "support_ticket",
+      "purpose": "internal_evidence",
+      "result": {
+        "purposeKey": "internal_evidence",
+        "componentKind": "action",
+        "componentRef": "support-evidence:internal_evidence",
+        "completion": "bind_immediately"
+      }
+    },
+    {
+      "owner": "support_ticket",
+      "purpose": "customer_shareable",
+      "result": {
+        "purposeKey": "customer_shareable",
+        "componentKind": "action",
+        "componentRef": "support-evidence:customer_shareable",
+        "completion": "bind_immediately"
+      }
+    },
+    {
+      "owner": "support_ticket",
+      "purpose": "request_evidence",
+      "result": null
+    },
+    {
+      "owner": "support_ticket",
+      "purpose": "it_request_evidence",
+      "result": null
+    },
+    {
+      "owner": "support_ticket",
+      "purpose": "fulfillment",
+      "result": null
+    },
+    {
+      "owner": "support_ticket",
+      "purpose": "medical_certificate",
+      "result": null
+    },
+    {
+      "owner": "support_ticket",
+      "purpose": "leave_supporting_photo",
+      "result": null
+    },
+    {
+      "owner": "support_ticket",
+      "purpose": "evidence",
+      "result": null
+    },
+    {
+      "owner": "support_ticket",
+      "purpose": "receipt",
+      "result": null
+    },
+    {
+      "owner": "support_ticket",
+      "purpose": "merchant_receipt",
+      "result": null
+    },
+    {
+      "owner": "support_ticket",
+      "purpose": "supporting_document",
+      "result": null
+    },
+    {
+      "owner": "support_ticket",
+      "purpose": "payment_slip",
+      "result": null
+    },
+    {
+      "owner": "support_ticket",
+      "purpose": "bank_payment_slip",
+      "result": null
+    },
+    {
+      "owner": "support_ticket",
+      "purpose": "task_evidence",
+      "result": null
+    },
+    {
+      "owner": "support_ticket",
+      "purpose": "post_image",
+      "result": null
+    },
+    {
+      "owner": "support_ticket",
+      "purpose": "post-image",
+      "result": null
+    },
+    {
+      "owner": "support_ticket",
+      "purpose": "quality_inspection_evidence",
+      "result": null
+    },
+    {
+      "owner": "support_ticket",
+      "purpose": "proof_of_delivery",
+      "result": null
+    },
+    {
+      "owner": "support_ticket",
+      "purpose": "primary",
+      "result": null
+    },
+    {
+      "owner": "support_ticket",
+      "purpose": "inverse",
+      "result": null
+    },
+    {
+      "owner": "support_ticket",
+      "purpose": "logo",
+      "result": null
+    },
+    {
+      "owner": "support_ticket",
+      "purpose": "unknown",
+      "result": null
+    },
+    {
+      "owner": "employee_request",
+      "purpose": "support_evidence",
+      "result": null
+    },
+    {
+      "owner": "employee_request",
+      "purpose": "internal_evidence",
+      "result": null
+    },
+    {
+      "owner": "employee_request",
+      "purpose": "customer_shareable",
+      "result": null
+    },
+    {
+      "owner": "employee_request",
+      "purpose": "request_evidence",
+      "result": {
+        "purposeKey": "request_evidence",
+        "componentKind": "action",
+        "componentRef": "legacy-upload-adapter",
+        "completion": "bind_immediately"
+      }
+    },
+    {
+      "owner": "employee_request",
+      "purpose": "it_request_evidence",
+      "result": {
+        "purposeKey": "it_request_evidence",
+        "componentKind": "action",
+        "componentRef": "legacy-upload-adapter",
+        "completion": "bind_immediately"
+      }
+    },
+    {
+      "owner": "employee_request",
+      "purpose": "fulfillment",
+      "result": {
+        "purposeKey": "fulfillment",
+        "componentKind": "action",
+        "componentRef": "legacy-upload-adapter",
+        "completion": "bind_immediately"
+      }
+    },
+    {
+      "owner": "employee_request",
+      "purpose": "medical_certificate",
+      "result": null
+    },
+    {
+      "owner": "employee_request",
+      "purpose": "leave_supporting_photo",
+      "result": null
+    },
+    {
+      "owner": "employee_request",
+      "purpose": "evidence",
+      "result": null
+    },
+    {
+      "owner": "employee_request",
+      "purpose": "receipt",
+      "result": null
+    },
+    {
+      "owner": "employee_request",
+      "purpose": "merchant_receipt",
+      "result": null
+    },
+    {
+      "owner": "employee_request",
+      "purpose": "supporting_document",
+      "result": null
+    },
+    {
+      "owner": "employee_request",
+      "purpose": "payment_slip",
+      "result": null
+    },
+    {
+      "owner": "employee_request",
+      "purpose": "bank_payment_slip",
+      "result": null
+    },
+    {
+      "owner": "employee_request",
+      "purpose": "task_evidence",
+      "result": null
+    },
+    {
+      "owner": "employee_request",
+      "purpose": "post_image",
+      "result": null
+    },
+    {
+      "owner": "employee_request",
+      "purpose": "post-image",
+      "result": null
+    },
+    {
+      "owner": "employee_request",
+      "purpose": "quality_inspection_evidence",
+      "result": null
+    },
+    {
+      "owner": "employee_request",
+      "purpose": "proof_of_delivery",
+      "result": null
+    },
+    {
+      "owner": "employee_request",
+      "purpose": "primary",
+      "result": null
+    },
+    {
+      "owner": "employee_request",
+      "purpose": "inverse",
+      "result": null
+    },
+    {
+      "owner": "employee_request",
+      "purpose": "logo",
+      "result": null
+    },
+    {
+      "owner": "employee_request",
+      "purpose": "unknown",
+      "result": null
+    },
+    {
+      "owner": "leave_request",
+      "purpose": "support_evidence",
+      "result": null
+    },
+    {
+      "owner": "leave_request",
+      "purpose": "internal_evidence",
+      "result": null
+    },
+    {
+      "owner": "leave_request",
+      "purpose": "customer_shareable",
+      "result": null
+    },
+    {
+      "owner": "leave_request",
+      "purpose": "request_evidence",
+      "result": null
+    },
+    {
+      "owner": "leave_request",
+      "purpose": "it_request_evidence",
+      "result": null
+    },
+    {
+      "owner": "leave_request",
+      "purpose": "fulfillment",
+      "result": null
+    },
+    {
+      "owner": "leave_request",
+      "purpose": "medical_certificate",
+      "result": {
+        "purposeKey": "medical_certificate",
+        "componentKind": "record",
+        "componentRef": "leave-evidence:medical_certificate",
+        "completion": "stage_for_domain"
+      }
+    },
+    {
+      "owner": "leave_request",
+      "purpose": "leave_supporting_photo",
+      "result": {
+        "purposeKey": "leave_supporting_photo",
+        "componentKind": "record",
+        "componentRef": "leave-evidence:leave_supporting_photo",
+        "completion": "stage_for_domain"
+      }
+    },
+    {
+      "owner": "leave_request",
+      "purpose": "evidence",
+      "result": {
+        "purposeKey": "leave_supporting_photo",
+        "componentKind": "record",
+        "componentRef": "leave-evidence:leave_supporting_photo",
+        "completion": "stage_for_domain"
+      }
+    },
+    {
+      "owner": "leave_request",
+      "purpose": "receipt",
+      "result": null
+    },
+    {
+      "owner": "leave_request",
+      "purpose": "merchant_receipt",
+      "result": null
+    },
+    {
+      "owner": "leave_request",
+      "purpose": "supporting_document",
+      "result": null
+    },
+    {
+      "owner": "leave_request",
+      "purpose": "payment_slip",
+      "result": null
+    },
+    {
+      "owner": "leave_request",
+      "purpose": "bank_payment_slip",
+      "result": null
+    },
+    {
+      "owner": "leave_request",
+      "purpose": "task_evidence",
+      "result": null
+    },
+    {
+      "owner": "leave_request",
+      "purpose": "post_image",
+      "result": null
+    },
+    {
+      "owner": "leave_request",
+      "purpose": "post-image",
+      "result": null
+    },
+    {
+      "owner": "leave_request",
+      "purpose": "quality_inspection_evidence",
+      "result": null
+    },
+    {
+      "owner": "leave_request",
+      "purpose": "proof_of_delivery",
+      "result": null
+    },
+    {
+      "owner": "leave_request",
+      "purpose": "primary",
+      "result": null
+    },
+    {
+      "owner": "leave_request",
+      "purpose": "inverse",
+      "result": null
+    },
+    {
+      "owner": "leave_request",
+      "purpose": "logo",
+      "result": null
+    },
+    {
+      "owner": "leave_request",
+      "purpose": "unknown",
+      "result": null
+    },
+    {
+      "owner": "expense_claim",
+      "purpose": "support_evidence",
+      "result": null
+    },
+    {
+      "owner": "expense_claim",
+      "purpose": "internal_evidence",
+      "result": null
+    },
+    {
+      "owner": "expense_claim",
+      "purpose": "customer_shareable",
+      "result": null
+    },
+    {
+      "owner": "expense_claim",
+      "purpose": "request_evidence",
+      "result": null
+    },
+    {
+      "owner": "expense_claim",
+      "purpose": "it_request_evidence",
+      "result": null
+    },
+    {
+      "owner": "expense_claim",
+      "purpose": "fulfillment",
+      "result": null
+    },
+    {
+      "owner": "expense_claim",
+      "purpose": "medical_certificate",
+      "result": null
+    },
+    {
+      "owner": "expense_claim",
+      "purpose": "leave_supporting_photo",
+      "result": null
+    },
+    {
+      "owner": "expense_claim",
+      "purpose": "evidence",
+      "result": null
+    },
+    {
+      "owner": "expense_claim",
+      "purpose": "receipt",
+      "result": {
+        "purposeKey": "receipt",
+        "componentKind": "record",
+        "componentRef": "legacy-upload-adapter",
+        "completion": "stage_for_domain"
+      }
+    },
+    {
+      "owner": "expense_claim",
+      "purpose": "merchant_receipt",
+      "result": {
+        "purposeKey": "merchant_receipt",
+        "componentKind": "record",
+        "componentRef": "legacy-upload-adapter",
+        "completion": "stage_for_domain"
+      }
+    },
+    {
+      "owner": "expense_claim",
+      "purpose": "supporting_document",
+      "result": {
+        "purposeKey": "supporting_document",
+        "componentKind": "record",
+        "componentRef": "legacy-upload-adapter",
+        "completion": "stage_for_domain"
+      }
+    },
+    {
+      "owner": "expense_claim",
+      "purpose": "payment_slip",
+      "result": null
+    },
+    {
+      "owner": "expense_claim",
+      "purpose": "bank_payment_slip",
+      "result": null
+    },
+    {
+      "owner": "expense_claim",
+      "purpose": "task_evidence",
+      "result": null
+    },
+    {
+      "owner": "expense_claim",
+      "purpose": "post_image",
+      "result": null
+    },
+    {
+      "owner": "expense_claim",
+      "purpose": "post-image",
+      "result": null
+    },
+    {
+      "owner": "expense_claim",
+      "purpose": "quality_inspection_evidence",
+      "result": null
+    },
+    {
+      "owner": "expense_claim",
+      "purpose": "proof_of_delivery",
+      "result": null
+    },
+    {
+      "owner": "expense_claim",
+      "purpose": "primary",
+      "result": null
+    },
+    {
+      "owner": "expense_claim",
+      "purpose": "inverse",
+      "result": null
+    },
+    {
+      "owner": "expense_claim",
+      "purpose": "logo",
+      "result": null
+    },
+    {
+      "owner": "expense_claim",
+      "purpose": "unknown",
+      "result": null
+    },
+    {
+      "owner": "expense_payment",
+      "purpose": "support_evidence",
+      "result": null
+    },
+    {
+      "owner": "expense_payment",
+      "purpose": "internal_evidence",
+      "result": null
+    },
+    {
+      "owner": "expense_payment",
+      "purpose": "customer_shareable",
+      "result": null
+    },
+    {
+      "owner": "expense_payment",
+      "purpose": "request_evidence",
+      "result": null
+    },
+    {
+      "owner": "expense_payment",
+      "purpose": "it_request_evidence",
+      "result": null
+    },
+    {
+      "owner": "expense_payment",
+      "purpose": "fulfillment",
+      "result": null
+    },
+    {
+      "owner": "expense_payment",
+      "purpose": "medical_certificate",
+      "result": null
+    },
+    {
+      "owner": "expense_payment",
+      "purpose": "leave_supporting_photo",
+      "result": null
+    },
+    {
+      "owner": "expense_payment",
+      "purpose": "evidence",
+      "result": null
+    },
+    {
+      "owner": "expense_payment",
+      "purpose": "receipt",
+      "result": null
+    },
+    {
+      "owner": "expense_payment",
+      "purpose": "merchant_receipt",
+      "result": null
+    },
+    {
+      "owner": "expense_payment",
+      "purpose": "supporting_document",
+      "result": null
+    },
+    {
+      "owner": "expense_payment",
+      "purpose": "payment_slip",
+      "result": {
+        "purposeKey": "payment_slip",
+        "componentKind": "action",
+        "componentRef": "legacy-upload-adapter",
+        "completion": "stage_for_domain"
+      }
+    },
+    {
+      "owner": "expense_payment",
+      "purpose": "bank_payment_slip",
+      "result": null
+    },
+    {
+      "owner": "expense_payment",
+      "purpose": "task_evidence",
+      "result": null
+    },
+    {
+      "owner": "expense_payment",
+      "purpose": "post_image",
+      "result": null
+    },
+    {
+      "owner": "expense_payment",
+      "purpose": "post-image",
+      "result": null
+    },
+    {
+      "owner": "expense_payment",
+      "purpose": "quality_inspection_evidence",
+      "result": null
+    },
+    {
+      "owner": "expense_payment",
+      "purpose": "proof_of_delivery",
+      "result": null
+    },
+    {
+      "owner": "expense_payment",
+      "purpose": "primary",
+      "result": null
+    },
+    {
+      "owner": "expense_payment",
+      "purpose": "inverse",
+      "result": null
+    },
+    {
+      "owner": "expense_payment",
+      "purpose": "logo",
+      "result": null
+    },
+    {
+      "owner": "expense_payment",
+      "purpose": "unknown",
+      "result": null
+    },
+    {
+      "owner": "invoice_payment",
+      "purpose": "support_evidence",
+      "result": null
+    },
+    {
+      "owner": "invoice_payment",
+      "purpose": "internal_evidence",
+      "result": null
+    },
+    {
+      "owner": "invoice_payment",
+      "purpose": "customer_shareable",
+      "result": null
+    },
+    {
+      "owner": "invoice_payment",
+      "purpose": "request_evidence",
+      "result": null
+    },
+    {
+      "owner": "invoice_payment",
+      "purpose": "it_request_evidence",
+      "result": null
+    },
+    {
+      "owner": "invoice_payment",
+      "purpose": "fulfillment",
+      "result": null
+    },
+    {
+      "owner": "invoice_payment",
+      "purpose": "medical_certificate",
+      "result": null
+    },
+    {
+      "owner": "invoice_payment",
+      "purpose": "leave_supporting_photo",
+      "result": null
+    },
+    {
+      "owner": "invoice_payment",
+      "purpose": "evidence",
+      "result": null
+    },
+    {
+      "owner": "invoice_payment",
+      "purpose": "receipt",
+      "result": null
+    },
+    {
+      "owner": "invoice_payment",
+      "purpose": "merchant_receipt",
+      "result": null
+    },
+    {
+      "owner": "invoice_payment",
+      "purpose": "supporting_document",
+      "result": null
+    },
+    {
+      "owner": "invoice_payment",
+      "purpose": "payment_slip",
+      "result": {
+        "purposeKey": "payment_slip",
+        "componentKind": "action",
+        "componentRef": "legacy-upload-adapter",
+        "completion": "stage_for_domain"
+      }
+    },
+    {
+      "owner": "invoice_payment",
+      "purpose": "bank_payment_slip",
+      "result": {
+        "purposeKey": "payment_slip",
+        "componentKind": "action",
+        "componentRef": "legacy-upload-adapter",
+        "completion": "stage_for_domain"
+      }
+    },
+    {
+      "owner": "invoice_payment",
+      "purpose": "task_evidence",
+      "result": null
+    },
+    {
+      "owner": "invoice_payment",
+      "purpose": "post_image",
+      "result": null
+    },
+    {
+      "owner": "invoice_payment",
+      "purpose": "post-image",
+      "result": null
+    },
+    {
+      "owner": "invoice_payment",
+      "purpose": "quality_inspection_evidence",
+      "result": null
+    },
+    {
+      "owner": "invoice_payment",
+      "purpose": "proof_of_delivery",
+      "result": null
+    },
+    {
+      "owner": "invoice_payment",
+      "purpose": "primary",
+      "result": null
+    },
+    {
+      "owner": "invoice_payment",
+      "purpose": "inverse",
+      "result": null
+    },
+    {
+      "owner": "invoice_payment",
+      "purpose": "logo",
+      "result": null
+    },
+    {
+      "owner": "invoice_payment",
+      "purpose": "unknown",
+      "result": null
+    },
+    {
+      "owner": "staff_task",
+      "purpose": "support_evidence",
+      "result": null
+    },
+    {
+      "owner": "staff_task",
+      "purpose": "internal_evidence",
+      "result": null
+    },
+    {
+      "owner": "staff_task",
+      "purpose": "customer_shareable",
+      "result": null
+    },
+    {
+      "owner": "staff_task",
+      "purpose": "request_evidence",
+      "result": null
+    },
+    {
+      "owner": "staff_task",
+      "purpose": "it_request_evidence",
+      "result": null
+    },
+    {
+      "owner": "staff_task",
+      "purpose": "fulfillment",
+      "result": null
+    },
+    {
+      "owner": "staff_task",
+      "purpose": "medical_certificate",
+      "result": null
+    },
+    {
+      "owner": "staff_task",
+      "purpose": "leave_supporting_photo",
+      "result": null
+    },
+    {
+      "owner": "staff_task",
+      "purpose": "evidence",
+      "result": {
+        "purposeKey": "task_evidence",
+        "componentKind": "action",
+        "componentRef": null,
+        "completion": "stage_for_domain"
+      }
+    },
+    {
+      "owner": "staff_task",
+      "purpose": "receipt",
+      "result": null
+    },
+    {
+      "owner": "staff_task",
+      "purpose": "merchant_receipt",
+      "result": null
+    },
+    {
+      "owner": "staff_task",
+      "purpose": "supporting_document",
+      "result": null
+    },
+    {
+      "owner": "staff_task",
+      "purpose": "payment_slip",
+      "result": null
+    },
+    {
+      "owner": "staff_task",
+      "purpose": "bank_payment_slip",
+      "result": null
+    },
+    {
+      "owner": "staff_task",
+      "purpose": "task_evidence",
+      "result": {
+        "purposeKey": "task_evidence",
+        "componentKind": "action",
+        "componentRef": null,
+        "completion": "stage_for_domain"
+      }
+    },
+    {
+      "owner": "staff_task",
+      "purpose": "post_image",
+      "result": null
+    },
+    {
+      "owner": "staff_task",
+      "purpose": "post-image",
+      "result": null
+    },
+    {
+      "owner": "staff_task",
+      "purpose": "quality_inspection_evidence",
+      "result": null
+    },
+    {
+      "owner": "staff_task",
+      "purpose": "proof_of_delivery",
+      "result": null
+    },
+    {
+      "owner": "staff_task",
+      "purpose": "primary",
+      "result": null
+    },
+    {
+      "owner": "staff_task",
+      "purpose": "inverse",
+      "result": null
+    },
+    {
+      "owner": "staff_task",
+      "purpose": "logo",
+      "result": null
+    },
+    {
+      "owner": "staff_task",
+      "purpose": "unknown",
+      "result": null
+    },
+    {
+      "owner": "social_draft",
+      "purpose": "support_evidence",
+      "result": null
+    },
+    {
+      "owner": "social_draft",
+      "purpose": "internal_evidence",
+      "result": null
+    },
+    {
+      "owner": "social_draft",
+      "purpose": "customer_shareable",
+      "result": null
+    },
+    {
+      "owner": "social_draft",
+      "purpose": "request_evidence",
+      "result": null
+    },
+    {
+      "owner": "social_draft",
+      "purpose": "it_request_evidence",
+      "result": null
+    },
+    {
+      "owner": "social_draft",
+      "purpose": "fulfillment",
+      "result": null
+    },
+    {
+      "owner": "social_draft",
+      "purpose": "medical_certificate",
+      "result": null
+    },
+    {
+      "owner": "social_draft",
+      "purpose": "leave_supporting_photo",
+      "result": null
+    },
+    {
+      "owner": "social_draft",
+      "purpose": "evidence",
+      "result": null
+    },
+    {
+      "owner": "social_draft",
+      "purpose": "receipt",
+      "result": null
+    },
+    {
+      "owner": "social_draft",
+      "purpose": "merchant_receipt",
+      "result": null
+    },
+    {
+      "owner": "social_draft",
+      "purpose": "supporting_document",
+      "result": null
+    },
+    {
+      "owner": "social_draft",
+      "purpose": "payment_slip",
+      "result": null
+    },
+    {
+      "owner": "social_draft",
+      "purpose": "bank_payment_slip",
+      "result": null
+    },
+    {
+      "owner": "social_draft",
+      "purpose": "task_evidence",
+      "result": null
+    },
+    {
+      "owner": "social_draft",
+      "purpose": "post_image",
+      "result": {
+        "purposeKey": "post_image",
+        "componentKind": "record",
+        "componentRef": "legacy-upload-adapter",
+        "completion": "bind_immediately"
+      }
+    },
+    {
+      "owner": "social_draft",
+      "purpose": "post-image",
+      "result": {
+        "purposeKey": "post_image",
+        "componentKind": "record",
+        "componentRef": "legacy-upload-adapter",
+        "completion": "bind_immediately"
+      }
+    },
+    {
+      "owner": "social_draft",
+      "purpose": "quality_inspection_evidence",
+      "result": null
+    },
+    {
+      "owner": "social_draft",
+      "purpose": "proof_of_delivery",
+      "result": null
+    },
+    {
+      "owner": "social_draft",
+      "purpose": "primary",
+      "result": null
+    },
+    {
+      "owner": "social_draft",
+      "purpose": "inverse",
+      "result": null
+    },
+    {
+      "owner": "social_draft",
+      "purpose": "logo",
+      "result": null
+    },
+    {
+      "owner": "social_draft",
+      "purpose": "unknown",
+      "result": null
+    },
+    {
+      "owner": "quality_hold",
+      "purpose": "support_evidence",
+      "result": null
+    },
+    {
+      "owner": "quality_hold",
+      "purpose": "internal_evidence",
+      "result": null
+    },
+    {
+      "owner": "quality_hold",
+      "purpose": "customer_shareable",
+      "result": null
+    },
+    {
+      "owner": "quality_hold",
+      "purpose": "request_evidence",
+      "result": null
+    },
+    {
+      "owner": "quality_hold",
+      "purpose": "it_request_evidence",
+      "result": null
+    },
+    {
+      "owner": "quality_hold",
+      "purpose": "fulfillment",
+      "result": null
+    },
+    {
+      "owner": "quality_hold",
+      "purpose": "medical_certificate",
+      "result": null
+    },
+    {
+      "owner": "quality_hold",
+      "purpose": "leave_supporting_photo",
+      "result": null
+    },
+    {
+      "owner": "quality_hold",
+      "purpose": "evidence",
+      "result": null
+    },
+    {
+      "owner": "quality_hold",
+      "purpose": "receipt",
+      "result": null
+    },
+    {
+      "owner": "quality_hold",
+      "purpose": "merchant_receipt",
+      "result": null
+    },
+    {
+      "owner": "quality_hold",
+      "purpose": "supporting_document",
+      "result": null
+    },
+    {
+      "owner": "quality_hold",
+      "purpose": "payment_slip",
+      "result": null
+    },
+    {
+      "owner": "quality_hold",
+      "purpose": "bank_payment_slip",
+      "result": null
+    },
+    {
+      "owner": "quality_hold",
+      "purpose": "task_evidence",
+      "result": null
+    },
+    {
+      "owner": "quality_hold",
+      "purpose": "post_image",
+      "result": null
+    },
+    {
+      "owner": "quality_hold",
+      "purpose": "post-image",
+      "result": null
+    },
+    {
+      "owner": "quality_hold",
+      "purpose": "quality_inspection_evidence",
+      "result": {
+        "purposeKey": "quality_inspection_evidence",
+        "componentKind": "action",
+        "componentRef": "inspection",
+        "completion": "stage_for_domain"
+      }
+    },
+    {
+      "owner": "quality_hold",
+      "purpose": "proof_of_delivery",
+      "result": null
+    },
+    {
+      "owner": "quality_hold",
+      "purpose": "primary",
+      "result": null
+    },
+    {
+      "owner": "quality_hold",
+      "purpose": "inverse",
+      "result": null
+    },
+    {
+      "owner": "quality_hold",
+      "purpose": "logo",
+      "result": null
+    },
+    {
+      "owner": "quality_hold",
+      "purpose": "unknown",
+      "result": null
+    },
+    {
+      "owner": "commerce_order_delivery",
+      "purpose": "support_evidence",
+      "result": null
+    },
+    {
+      "owner": "commerce_order_delivery",
+      "purpose": "internal_evidence",
+      "result": null
+    },
+    {
+      "owner": "commerce_order_delivery",
+      "purpose": "customer_shareable",
+      "result": null
+    },
+    {
+      "owner": "commerce_order_delivery",
+      "purpose": "request_evidence",
+      "result": null
+    },
+    {
+      "owner": "commerce_order_delivery",
+      "purpose": "it_request_evidence",
+      "result": null
+    },
+    {
+      "owner": "commerce_order_delivery",
+      "purpose": "fulfillment",
+      "result": null
+    },
+    {
+      "owner": "commerce_order_delivery",
+      "purpose": "medical_certificate",
+      "result": null
+    },
+    {
+      "owner": "commerce_order_delivery",
+      "purpose": "leave_supporting_photo",
+      "result": null
+    },
+    {
+      "owner": "commerce_order_delivery",
+      "purpose": "evidence",
+      "result": null
+    },
+    {
+      "owner": "commerce_order_delivery",
+      "purpose": "receipt",
+      "result": null
+    },
+    {
+      "owner": "commerce_order_delivery",
+      "purpose": "merchant_receipt",
+      "result": null
+    },
+    {
+      "owner": "commerce_order_delivery",
+      "purpose": "supporting_document",
+      "result": null
+    },
+    {
+      "owner": "commerce_order_delivery",
+      "purpose": "payment_slip",
+      "result": null
+    },
+    {
+      "owner": "commerce_order_delivery",
+      "purpose": "bank_payment_slip",
+      "result": null
+    },
+    {
+      "owner": "commerce_order_delivery",
+      "purpose": "task_evidence",
+      "result": null
+    },
+    {
+      "owner": "commerce_order_delivery",
+      "purpose": "post_image",
+      "result": null
+    },
+    {
+      "owner": "commerce_order_delivery",
+      "purpose": "post-image",
+      "result": null
+    },
+    {
+      "owner": "commerce_order_delivery",
+      "purpose": "quality_inspection_evidence",
+      "result": null
+    },
+    {
+      "owner": "commerce_order_delivery",
+      "purpose": "proof_of_delivery",
+      "result": {
+        "purposeKey": "proof_of_delivery",
+        "componentKind": "action",
+        "componentRef": "delivery",
+        "completion": "stage_for_domain"
+      }
+    },
+    {
+      "owner": "commerce_order_delivery",
+      "purpose": "primary",
+      "result": null
+    },
+    {
+      "owner": "commerce_order_delivery",
+      "purpose": "inverse",
+      "result": null
+    },
+    {
+      "owner": "commerce_order_delivery",
+      "purpose": "logo",
+      "result": null
+    },
+    {
+      "owner": "commerce_order_delivery",
+      "purpose": "unknown",
+      "result": null
+    },
+    {
+      "owner": "holding_brand",
+      "purpose": "support_evidence",
+      "result": null
+    },
+    {
+      "owner": "holding_brand",
+      "purpose": "internal_evidence",
+      "result": null
+    },
+    {
+      "owner": "holding_brand",
+      "purpose": "customer_shareable",
+      "result": null
+    },
+    {
+      "owner": "holding_brand",
+      "purpose": "request_evidence",
+      "result": null
+    },
+    {
+      "owner": "holding_brand",
+      "purpose": "it_request_evidence",
+      "result": null
+    },
+    {
+      "owner": "holding_brand",
+      "purpose": "fulfillment",
+      "result": null
+    },
+    {
+      "owner": "holding_brand",
+      "purpose": "medical_certificate",
+      "result": null
+    },
+    {
+      "owner": "holding_brand",
+      "purpose": "leave_supporting_photo",
+      "result": null
+    },
+    {
+      "owner": "holding_brand",
+      "purpose": "evidence",
+      "result": null
+    },
+    {
+      "owner": "holding_brand",
+      "purpose": "receipt",
+      "result": null
+    },
+    {
+      "owner": "holding_brand",
+      "purpose": "merchant_receipt",
+      "result": null
+    },
+    {
+      "owner": "holding_brand",
+      "purpose": "supporting_document",
+      "result": null
+    },
+    {
+      "owner": "holding_brand",
+      "purpose": "payment_slip",
+      "result": null
+    },
+    {
+      "owner": "holding_brand",
+      "purpose": "bank_payment_slip",
+      "result": null
+    },
+    {
+      "owner": "holding_brand",
+      "purpose": "task_evidence",
+      "result": null
+    },
+    {
+      "owner": "holding_brand",
+      "purpose": "post_image",
+      "result": null
+    },
+    {
+      "owner": "holding_brand",
+      "purpose": "post-image",
+      "result": null
+    },
+    {
+      "owner": "holding_brand",
+      "purpose": "quality_inspection_evidence",
+      "result": null
+    },
+    {
+      "owner": "holding_brand",
+      "purpose": "proof_of_delivery",
+      "result": null
+    },
+    {
+      "owner": "holding_brand",
+      "purpose": "primary",
+      "result": {
+        "purposeKey": "primary",
+        "componentKind": "publication",
+        "componentRef": "legacy-upload-adapter",
+        "completion": "bind_immediately"
+      }
+    },
+    {
+      "owner": "holding_brand",
+      "purpose": "inverse",
+      "result": {
+        "purposeKey": "inverse",
+        "componentKind": "publication",
+        "componentRef": "legacy-upload-adapter",
+        "completion": "bind_immediately"
+      }
+    },
+    {
+      "owner": "holding_brand",
+      "purpose": "logo",
+      "result": null
+    },
+    {
+      "owner": "holding_brand",
+      "purpose": "unknown",
+      "result": null
+    },
+    {
+      "owner": "branch_brand",
+      "purpose": "support_evidence",
+      "result": null
+    },
+    {
+      "owner": "branch_brand",
+      "purpose": "internal_evidence",
+      "result": null
+    },
+    {
+      "owner": "branch_brand",
+      "purpose": "customer_shareable",
+      "result": null
+    },
+    {
+      "owner": "branch_brand",
+      "purpose": "request_evidence",
+      "result": null
+    },
+    {
+      "owner": "branch_brand",
+      "purpose": "it_request_evidence",
+      "result": null
+    },
+    {
+      "owner": "branch_brand",
+      "purpose": "fulfillment",
+      "result": null
+    },
+    {
+      "owner": "branch_brand",
+      "purpose": "medical_certificate",
+      "result": null
+    },
+    {
+      "owner": "branch_brand",
+      "purpose": "leave_supporting_photo",
+      "result": null
+    },
+    {
+      "owner": "branch_brand",
+      "purpose": "evidence",
+      "result": null
+    },
+    {
+      "owner": "branch_brand",
+      "purpose": "receipt",
+      "result": null
+    },
+    {
+      "owner": "branch_brand",
+      "purpose": "merchant_receipt",
+      "result": null
+    },
+    {
+      "owner": "branch_brand",
+      "purpose": "supporting_document",
+      "result": null
+    },
+    {
+      "owner": "branch_brand",
+      "purpose": "payment_slip",
+      "result": null
+    },
+    {
+      "owner": "branch_brand",
+      "purpose": "bank_payment_slip",
+      "result": null
+    },
+    {
+      "owner": "branch_brand",
+      "purpose": "task_evidence",
+      "result": null
+    },
+    {
+      "owner": "branch_brand",
+      "purpose": "post_image",
+      "result": null
+    },
+    {
+      "owner": "branch_brand",
+      "purpose": "post-image",
+      "result": null
+    },
+    {
+      "owner": "branch_brand",
+      "purpose": "quality_inspection_evidence",
+      "result": null
+    },
+    {
+      "owner": "branch_brand",
+      "purpose": "proof_of_delivery",
+      "result": null
+    },
+    {
+      "owner": "branch_brand",
+      "purpose": "primary",
+      "result": {
+        "purposeKey": "primary",
+        "componentKind": "publication",
+        "componentRef": "legacy-upload-adapter",
+        "completion": "bind_immediately"
+      }
+    },
+    {
+      "owner": "branch_brand",
+      "purpose": "inverse",
+      "result": {
+        "purposeKey": "inverse",
+        "componentKind": "publication",
+        "componentRef": "legacy-upload-adapter",
+        "completion": "bind_immediately"
+      }
+    },
+    {
+      "owner": "branch_brand",
+      "purpose": "logo",
+      "result": null
+    },
+    {
+      "owner": "branch_brand",
+      "purpose": "unknown",
+      "result": null
+    },
+    {
+      "owner": "company_storefront_brand",
+      "purpose": "support_evidence",
+      "result": null
+    },
+    {
+      "owner": "company_storefront_brand",
+      "purpose": "internal_evidence",
+      "result": null
+    },
+    {
+      "owner": "company_storefront_brand",
+      "purpose": "customer_shareable",
+      "result": null
+    },
+    {
+      "owner": "company_storefront_brand",
+      "purpose": "request_evidence",
+      "result": null
+    },
+    {
+      "owner": "company_storefront_brand",
+      "purpose": "it_request_evidence",
+      "result": null
+    },
+    {
+      "owner": "company_storefront_brand",
+      "purpose": "fulfillment",
+      "result": null
+    },
+    {
+      "owner": "company_storefront_brand",
+      "purpose": "medical_certificate",
+      "result": null
+    },
+    {
+      "owner": "company_storefront_brand",
+      "purpose": "leave_supporting_photo",
+      "result": null
+    },
+    {
+      "owner": "company_storefront_brand",
+      "purpose": "evidence",
+      "result": null
+    },
+    {
+      "owner": "company_storefront_brand",
+      "purpose": "receipt",
+      "result": null
+    },
+    {
+      "owner": "company_storefront_brand",
+      "purpose": "merchant_receipt",
+      "result": null
+    },
+    {
+      "owner": "company_storefront_brand",
+      "purpose": "supporting_document",
+      "result": null
+    },
+    {
+      "owner": "company_storefront_brand",
+      "purpose": "payment_slip",
+      "result": null
+    },
+    {
+      "owner": "company_storefront_brand",
+      "purpose": "bank_payment_slip",
+      "result": null
+    },
+    {
+      "owner": "company_storefront_brand",
+      "purpose": "task_evidence",
+      "result": null
+    },
+    {
+      "owner": "company_storefront_brand",
+      "purpose": "post_image",
+      "result": null
+    },
+    {
+      "owner": "company_storefront_brand",
+      "purpose": "post-image",
+      "result": null
+    },
+    {
+      "owner": "company_storefront_brand",
+      "purpose": "quality_inspection_evidence",
+      "result": null
+    },
+    {
+      "owner": "company_storefront_brand",
+      "purpose": "proof_of_delivery",
+      "result": null
+    },
+    {
+      "owner": "company_storefront_brand",
+      "purpose": "primary",
+      "result": null
+    },
+    {
+      "owner": "company_storefront_brand",
+      "purpose": "inverse",
+      "result": null
+    },
+    {
+      "owner": "company_storefront_brand",
+      "purpose": "logo",
+      "result": {
+        "purposeKey": "logo",
+        "componentKind": "publication",
+        "componentRef": "legacy-upload-adapter",
+        "completion": "bind_immediately"
+      }
+    },
+    {
+      "owner": "company_storefront_brand",
+      "purpose": "unknown",
+      "result": null
+    },
+    {
+      "owner": "unknown",
+      "purpose": "support_evidence",
+      "result": null
+    },
+    {
+      "owner": "unknown",
+      "purpose": "internal_evidence",
+      "result": null
+    },
+    {
+      "owner": "unknown",
+      "purpose": "customer_shareable",
+      "result": null
+    },
+    {
+      "owner": "unknown",
+      "purpose": "request_evidence",
+      "result": null
+    },
+    {
+      "owner": "unknown",
+      "purpose": "it_request_evidence",
+      "result": null
+    },
+    {
+      "owner": "unknown",
+      "purpose": "fulfillment",
+      "result": null
+    },
+    {
+      "owner": "unknown",
+      "purpose": "medical_certificate",
+      "result": null
+    },
+    {
+      "owner": "unknown",
+      "purpose": "leave_supporting_photo",
+      "result": null
+    },
+    {
+      "owner": "unknown",
+      "purpose": "evidence",
+      "result": null
+    },
+    {
+      "owner": "unknown",
+      "purpose": "receipt",
+      "result": null
+    },
+    {
+      "owner": "unknown",
+      "purpose": "merchant_receipt",
+      "result": null
+    },
+    {
+      "owner": "unknown",
+      "purpose": "supporting_document",
+      "result": null
+    },
+    {
+      "owner": "unknown",
+      "purpose": "payment_slip",
+      "result": null
+    },
+    {
+      "owner": "unknown",
+      "purpose": "bank_payment_slip",
+      "result": null
+    },
+    {
+      "owner": "unknown",
+      "purpose": "task_evidence",
+      "result": null
+    },
+    {
+      "owner": "unknown",
+      "purpose": "post_image",
+      "result": null
+    },
+    {
+      "owner": "unknown",
+      "purpose": "post-image",
+      "result": null
+    },
+    {
+      "owner": "unknown",
+      "purpose": "quality_inspection_evidence",
+      "result": null
+    },
+    {
+      "owner": "unknown",
+      "purpose": "proof_of_delivery",
+      "result": null
+    },
+    {
+      "owner": "unknown",
+      "purpose": "primary",
+      "result": null
+    },
+    {
+      "owner": "unknown",
+      "purpose": "inverse",
+      "result": null
+    },
+    {
+      "owner": "unknown",
+      "purpose": "logo",
+      "result": null
+    },
+    {
+      "owner": "unknown",
+      "purpose": "unknown",
+      "result": null
+    }
+  ]
+}

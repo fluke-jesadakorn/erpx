@@ -51,6 +51,8 @@ pub struct DirectoryConnectionConfig {
 }
 #[derive(Clone)]
 pub struct DirectoryConnectionDescriptor {
+    /// None is permitted only for standalone provider facts; native DB commands require an approved source.
+    pub source: Option<super::directory_provenance::SelectedSource>,
     pub connection_id: String,
     pub holding_id: Option<String>,
     pub company_id: String,

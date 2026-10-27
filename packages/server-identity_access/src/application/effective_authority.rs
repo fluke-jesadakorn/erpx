@@ -175,7 +175,12 @@ pub(crate) fn evaluate_current_iam_authority(
                         "Your directory access needs a successful refresh.",
                     )
                 })?;
-            if !member.directory_enabled || !member.directory_connection_active || deadline <= now {
+            if !member.directory_enabled
+                || !member.directory_connection_active
+                || member.directory_provenance_current != Some(true)
+                || member.directory_observed_at > now
+                || deadline <= now
+            {
                 return Err(authority_error(
                     "DIRECTORY_ACCESS_UNAVAILABLE",
                     "Your directory access needs a successful refresh.",

@@ -25,6 +25,10 @@ name = "erpx-server"
 path = "src/main.rs"
 
 [dependencies]
+erpx-server-collaboration.workspace = true
+erpx-server-commerce.workspace = true
+erpx-server-inventory.workspace = true
+erpx-server-maintenance.workspace = true
 ts-rs = { workspace = true, optional = true }
 utoipa = { workspace = true, optional = true }
 erpx-server-people-payroll.workspace = true
@@ -124,3 +128,11 @@ required-features = ["business-http"]
 name = "finance_directory_composition"
 path = "../../tests/integration/finance/rust-directory-journal-composition.test.rs"
 required-features = ["business-http", "directory-ldaps"]
+
+[[test]]
+name = "work_source"
+path = "../../tests/integration/maintenance/rust-work-source-postgres.test.rs"
+
+[[test]]
+name = "issue_part_command"
+path = "../../tests/integration/maintenance/rust-issue-part-command-postgres.test.rs"

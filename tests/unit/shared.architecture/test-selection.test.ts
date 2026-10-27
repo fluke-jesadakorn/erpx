@@ -2,6 +2,7 @@ import {inferPostgresProfile} from '../../../scripts/testing/workspace-catalogue
 import {executeOwnedProcess} from '../../support/owned-process';
 import {ciPostgresInvocation,ciVerificationArgv} from '../../../scripts/testing/ci-postgres-contract';
 import {ciHeifDecoderInventory} from '../../../scripts/testing/ci-attachment-contract';
+import {cargoVerificationEdges} from '../../../scripts/testing/cargo';
 import { afterEach, describe, expect, it } from "vitest";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { availableParallelism, tmpdir } from "node:os";
@@ -448,6 +449,27 @@ describe("test selection contracts", () => {
     const malformed = {...actual,suites:[{...actual.suites[0],files:undefined}]} as unknown as Catalogue;
     expect(() => validateCatalogue(malformed)).toThrow(`INVALID_TEST_SUITE:${actual.suites[0].id}`);
     expect(actual.suites.filter(suite => suite.lane === "provider").every(suite => !!suite.provider?.required.length)).toBe(true);
+  });
+  it("rejects directory verification inputs immediately while retaining declared native resource members",()=>{
+    const actual=loadCatalogue(),id='maintenance.rust-work-policy.unit';
+    const target=actual.suites.find(suite=>suite.id===id)!;
+    for(const file of ['fixtures/maintenance/rust-work','fixtures/maintenance/rust-work/missing.v1.json']){
+      const changed={...actual,suites:[{...target,verificationInputs:[...(target.verificationInputs??[]).filter(value=>!value.startsWith('fixtures/maintenance/rust-work')),file]}]};
+      expect(()=>validateCatalogue(changed)).toThrow(`INVALID_SUITE_VERIFICATION_INPUT:${id}`);
+    }
+    const manifest='packages/server-maintenance/Cargo.toml',test='tests/unit/maintenance/resource.test.rs';
+    const files=new Map([
+      ['Cargo.toml','[workspace]'],['Cargo.lock','version = 4'],['rust-toolchain.toml','[toolchain]'],
+      [manifest,'[package]\nname = "erpx-server-maintenance"\n[package.metadata.erpx]\nverification-roots = ["../../fixtures/maintenance/rust-work"]\n[[test]]\nname = "resource"\npath = "../../tests/unit/maintenance/resource.test.rs"\n'],
+      [test,'#[test] fn source_bound_case() {}'],
+      ['fixtures/maintenance/rust-work/conformance.v1.json','{}'],
+      ['fixtures/maintenance/rust-work/wire.v1.json','{}'],
+      ['fixtures/maintenance/rust-work/future-case.json','{}'],
+    ]);
+    const edges=cargoVerificationEdges(files);
+    expect([...edges.get(manifest)!]).toEqual(expect.arrayContaining(['fixtures/maintenance/rust-work/conformance.v1.json','fixtures/maintenance/rust-work/wire.v1.json','fixtures/maintenance/rust-work/future-case.json']));
+    expect(edges.get(test)?.has(manifest)).toBe(true);
+    expect(edges.get(manifest)?.has('fixtures/maintenance/rust-work')).toBe(false);
   });
   it("confines fictional PMS provider recovery to booking E2E with real jobs and scanner", () => {
     const actual = loadCatalogue(), id = 'pms.booking-payment-recovery.e2e';

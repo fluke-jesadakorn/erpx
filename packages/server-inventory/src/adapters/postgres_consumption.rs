@@ -2,7 +2,7 @@
 //! a reservation allowance, a Money/journal effect, or a write capability.
 use crate::application::consumption::{
     ConsumptionPlan, ConsumptionPlanningPorts, ConsumptionPostingConfig, ConsumptionSelection,
-    prepare_consumption,
+    prepare_consumption_observed,
 };
 use crate::domain::consumption::{LotAllocation, LotValuation, StockValuation, TrackingMode};
 use erpx_server_commerce::public::inventory_consumption::{
@@ -16,6 +16,8 @@ use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError
 use erpx_server_shared::public::{BusinessError, CompanyId, FailureKind, RecordId};
 use sqlx::{Connection, PgConnection, Row};
 use std::future::Future;
+mod effects;
+pub use effects::{MaintenanceConsumptionIdentity, PgUnreservedConsumptionEffects};
 type Error = PgTransactionError<BusinessError>;
 
 /// Mandatory composition bridge to Finance's actual public current-facts
@@ -54,6 +56,8 @@ struct LotImage {
     lot_code: Option<String>,
     serial_number: Option<String>,
     manufactured_date: Option<String>,
+    status: String,
+    full_digest: String,
 }
 /// Opaque source preparation in this exact transaction. Plain `ConsumptionPlan`
 /// remains cloneable data; only this object retains the actual source witnesses.
@@ -208,6 +212,40 @@ pub async fn prepare_inventory_consumption<F: PgConsumptionFinancePort>(
     finance: &mut F,
     selection: ConsumptionSelection,
 ) -> Result<PgConsumptionPreparation<F::Source>, Error> {
+    Ok(
+        prepare_inventory_consumption_observed(c, finance, selection, || ())
+            .await?
+            .0,
+    )
+}
+pub async fn prepare_inventory_consumption_at<
+    F: PgConsumptionFinancePort,
+    C: erpx_server_shared::public::Clock + Sync,
+>(
+    c: &mut PgConnection,
+    finance: &mut F,
+    selection: ConsumptionSelection,
+    clock: &C,
+) -> Result<
+    (
+        PgConsumptionPreparation<F::Source>,
+        erpx_server_shared::public::TimestampMillis,
+    ),
+    Error,
+> {
+    prepare_inventory_consumption_observed(c, finance, selection, || clock.now()).await
+}
+async fn prepare_inventory_consumption_observed<F, O, Observe>(
+    c: &mut PgConnection,
+    finance: &mut F,
+    selection: ConsumptionSelection,
+    observe: Observe,
+) -> Result<(PgConsumptionPreparation<F::Source>, O), Error>
+where
+    F: PgConsumptionFinancePort,
+    O: Send,
+    Observe: FnOnce() -> O + Send,
+{
     require_unit(c).await?;
     let mut ports = Planning {
         c,
@@ -218,7 +256,7 @@ pub async fn prepare_inventory_consumption<F: PgConsumptionFinancePort>(
         date: selection.entry_date.clone(),
     };
     // Preserve the canonical portable plan's date/stock/config/period/lot order.
-    let plan = prepare_consumption(&mut ports, selection).await?;
+    let (plan, observation) = prepare_consumption_observed(&mut ports, selection, observe).await?;
     let commerce = ports
         .commerce
         .take()
@@ -241,14 +279,17 @@ pub async fn prepare_inventory_consumption<F: PgConsumptionFinancePort>(
     };
     let quality = quality::read_consumption_holds(ports.c, &request).await?;
     let transaction = transaction(ports.c).await?;
-    Ok(PgConsumptionPreparation {
-        plan,
-        commerce,
-        quality,
-        finance: finance_source,
-        lots: ports.lots,
-        transaction,
-    })
+    Ok((
+        PgConsumptionPreparation {
+            plan,
+            commerce,
+            quality,
+            finance: finance_source,
+            lots: ports.lots,
+            transaction,
+        },
+        observation,
+    ))
 }
 struct Planning<'c, 'f, F: PgConsumptionFinancePort> {
     c: &'c mut PgConnection,
@@ -339,7 +380,7 @@ async fn read_lot(
     s: &ConsumptionSelection,
     id: &str,
 ) -> Result<Option<LotImage>, Error> {
-    let row=sqlx::query("SELECT b.quantity_milli,b.value_minor,b.version balance_version,l.version lot_version,l.tracking_mode,l.status,(COALESCE(octet_length(l.lot_code)>200,false) OR COALESCE(octet_length(l.serial_number)>200,false) OR COALESCE(octet_length(l.expiry_date)>10,false) OR COALESCE(octet_length(l.manufactured_date)>10,false)) invalid,CASE WHEN octet_length(l.lot_code)<=200 THEN l.lot_code END lot_code,CASE WHEN octet_length(l.serial_number)<=200 THEN l.serial_number END serial_number,CASE WHEN octet_length(l.expiry_date)<=10 THEN l.expiry_date END expiry_date,CASE WHEN octet_length(l.manufactured_date)<=10 THEN l.manufactured_date END manufactured_date FROM inventory_lot_balances b JOIN inventory_lots l ON l.id=b.lot_id WHERE b.lot_id=$1 AND b.warehouse_id=$2 AND l.product_id=$3 AND l.company_id=$4 FOR SHARE OF b,l")
+    let row=sqlx::query("SELECT b.quantity_milli,b.value_minor,b.version balance_version,l.version lot_version,l.tracking_mode,l.status,encode(sha256(convert_to(to_jsonb(l)::text,'UTF8')),'hex') full_digest,(COALESCE(octet_length(l.lot_code)>200,false) OR COALESCE(octet_length(l.serial_number)>200,false) OR COALESCE(octet_length(l.expiry_date)>10,false) OR COALESCE(octet_length(l.manufactured_date)>10,false)) invalid,CASE WHEN octet_length(l.lot_code)<=200 THEN l.lot_code END lot_code,CASE WHEN octet_length(l.serial_number)<=200 THEN l.serial_number END serial_number,CASE WHEN octet_length(l.expiry_date)<=10 THEN l.expiry_date END expiry_date,CASE WHEN octet_length(l.manufactured_date)<=10 THEN l.manufactured_date END manufactured_date FROM inventory_lot_balances b JOIN inventory_lots l ON l.id=b.lot_id WHERE b.lot_id=$1 AND b.warehouse_id=$2 AND l.product_id=$3 AND l.company_id=$4 FOR SHARE OF b,l")
         .bind(id).bind(s.warehouse_id.as_str()).bind(s.product_id.as_str()).bind(s.company_id.as_str()).fetch_optional(c).await?;
     row.map(|r| -> Result<LotImage, Error> {
         if r.try_get::<bool, _>("invalid")? {
@@ -367,6 +408,8 @@ async fn read_lot(
             lot_code: r.try_get("lot_code")?,
             serial_number: r.try_get("serial_number")?,
             manufactured_date: r.try_get("manufactured_date")?,
+            status: r.try_get("status")?,
+            full_digest: r.try_get("full_digest")?,
         })
     })
     .transpose()

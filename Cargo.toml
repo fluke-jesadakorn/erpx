@@ -1,5 +1,5 @@
 [workspace]
-members = ["packages/server-assets", "packages/server-maintenance", "packages/server-commerce", "packages/server-quality", "packages/server-inventory", "packages/server-shared", "packages/server-runtime", "packages/server-legal", "src/composition", "packages/server-finance", "packages/server-identity_access", "packages/server-organization", "packages/server-people_payroll", "packages/server-files", "packages/server-manage_erpx", "packages/server-commercial", "packages/server-platform_administration", "packages/server-pms", "packages/server-workflow"]
+members = ["packages/server-collaboration", "packages/server-assets", "packages/server-maintenance", "packages/server-commerce", "packages/server-quality", "packages/server-inventory", "packages/server-shared", "packages/server-runtime", "packages/server-legal", "src/composition", "packages/server-finance", "packages/server-identity_access", "packages/server-organization", "packages/server-people_payroll", "packages/server-files", "packages/server-manage_erpx", "packages/server-commercial", "packages/server-platform_administration", "packages/server-pms", "packages/server-workflow"]
 resolver = "3"
 
 [workspace.package]
@@ -10,6 +10,7 @@ license = "Apache-2.0"
 publish = false
 
 [workspace.dependencies]
+erpx-server-collaboration = { path = "packages/server-collaboration" }
 erpx-server-assets = { path = "packages/server-assets" }
 erpx-server-maintenance = { path = "packages/server-maintenance" }
 libvips = "=2.3.0"
@@ -78,7 +79,7 @@ icu_locale = { version = "=2.1.1", default-features = false }
 num-bigint = { version = "=0.5.1", default-features = false }
 num-traits = { version = "=0.2.19", default-features = false }
 ryu-js = "=1.0.3"
-nix = { version = "=0.31.3", default-features = false, features = ["resource", "fs", "signal", "process"] }
+nix = { version = "=0.31.3", default-features = false, features = ["resource", "fs", "signal", "process", "user"] }
 rustix = { version = "=1.1.5", default-features = false, features = ["std", "process"] }
 
 [workspace.lints.rust]

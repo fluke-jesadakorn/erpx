@@ -4,6 +4,8 @@
 )]
 #[path = "../../support/rust-account-queued-authority.rs"]
 mod fixture;
+#[path = "../../support/rust-directory-provenance-facts.rs"]
+mod source_facts;
 use erpx_server_identity_access::public::{
     command_metadata::{project_command_iam, project_queued_command_iam},
     effective_authority::AuthorizedWorkContext,
@@ -49,8 +51,22 @@ async fn projection(
 }
 async fn directory(prepared: &fixture::PreparedAccountQueuedAuthority) {
     let pool = &prepared.system.holdings[0];
-    sqlx::raw_sql("INSERT INTO hr_people(id,user_id,company_id,legal_name,country_code,created_by,created_at,updated_at) VALUES('person','fixture-a','company','Synthetic Person','TH','fixture',0,0);INSERT INTO iam_connections(id,company_id,name,provider,config,status,created_by,created_at) VALUES('metadata-connection','company','Synthetic Directory','entra_id','{}','active','fixture',0); INSERT INTO iam_members(company_id,user_id,principal_id,person_id,status,login_policy,connection_id,identity_id,version) VALUES('company','fixture-a','directory:fixture-a','person','active','directory','metadata-connection','metadata-identity',7),('company','alias-a','local:alias-a','person','active','local',NULL,NULL,1),('company','fixture-b','local:fixture-b','person','active','local',NULL,NULL,1)").execute(pool.raw()).await.unwrap();
+    sqlx::raw_sql("INSERT INTO hr_people(id,user_id,company_id,legal_name,country_code,created_by,created_at,updated_at) VALUES('person','fixture-a','company','Synthetic Person','TH','fixture',0,0);INSERT INTO iam_connections(id,company_id,name,provider,config,status,created_by,created_at) VALUES('metadata-connection','company','Synthetic Directory','univention','{\"mode\":\"ldaps\",\"secretProfile\":\"synthetic\",\"authority\":\"synthetic approved source facts\"}','active','fixture',0); INSERT INTO iam_members(company_id,user_id,principal_id,person_id,status,login_policy,connection_id,identity_id,version) VALUES('company','fixture-a','directory:fixture-a','person','active','directory','metadata-connection','metadata-identity',7),('company','alias-a','local:alias-a','person','active','local',NULL,NULL,1),('company','fixture-b','local:fixture-b','person','active','local',NULL,NULL,1)").execute(pool.raw()).await.unwrap();
     sqlx::query("INSERT INTO iam_identities(id,company_id,connection_id,external_id,username,name,enabled,observed_at,user_id,person_id) VALUES('metadata-identity','company','metadata-connection','synthetic-external','synthetic','Synthetic Directory User',true,$1,'fixture-a','person')").bind(fixture::account::fixture::account::NOW-1000).execute(pool.raw()).await.unwrap();
+    source_facts::approve_synthetic_source(
+        pool,
+        "metadata-connection",
+        "company",
+        fixture::account::fixture::account::NOW,
+    )
+    .await;
+    source_facts::stamp_synthetic_observation(
+        pool,
+        "metadata-connection",
+        "company",
+        fixture::account::fixture::account::NOW - 1000,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -127,9 +143,37 @@ async fn current_hr_appointment_changes_the_real_permissions_and_only_then_emits
 #[tokio::test]
 async fn unsafe_javascript_metadata_numbers_are_rejected_instead_of_rounded_or_defaulted() {
     fixture::account::with_system(|system|async move{
+        let prepared=fixture::prepare(system).await;let pool=&prepared.system.holdings[0];
+        let unsafe_until=9_007_199_254_740_992_i64;
+        // Keep real session/selection/source admission valid so this case
+        // reaches the independent metadata wire-number guard.
+        sqlx::query("INSERT INTO iam_members(company_id,user_id,principal_id,status,login_policy,version) VALUES('company','fixture-a','local:fixture-a','active','emergency',2)").execute(pool.raw()).await.unwrap();
+        sqlx::query("INSERT INTO iam_emergency_sessions(session_id,company_id,user_id,expires_at,reason) VALUES($1,'company','fixture-a',$2,'Synthetic unsafe metadata boundary')").bind(&prepared.child_id).bind(unsafe_until).execute(pool.raw()).await.unwrap();
+        let reached=std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));let actual=reached.clone();
+        let outcome=prepared.authorizer.execute("acme.example.test",prepared.proof.clone(),prepared.selection.clone(),prepared.access.clone(),move|_,context|{
+            actual.store(true,std::sync::atomic::Ordering::SeqCst);assert_eq!(context.emergency_until(),Some(unsafe_until));assert!(context.expires_at()<unsafe_until);
+            Box::pin(async move {encode(context,false).map(|_|())})
+        }).await;
+        let code=match &outcome {Err(PgTransactionError::Business(error))=>error.code,Err(PgTransactionError::Persistence(_))=>"PERSISTENCE_ERROR",Ok(_)=>"UNEXPECTED_ADMISSION"};
+        assert!(reached.load(std::sync::atomic::Ordering::SeqCst),"actual live context must reach the metadata projector");
+        assert!(matches!(&outcome,Err(PgTransactionError::Business(error)) if error.code=="COMMAND_IAM_METADATA_UNAVAILABLE"),"actual sanitized denial: {code}");
+    }).await;
+}
+
+#[tokio::test]
+async fn future_directory_observation_denies_before_any_command_metadata_projection() {
+    fixture::account::with_system(|system|async move{
         let prepared=fixture::prepare(system).await;directory(&prepared).await;
         sqlx::query("UPDATE iam_identities SET observed_at=$1 WHERE id='metadata-identity'").bind(9_007_199_254_740_992_i64).execute(prepared.system.holdings[0].raw()).await.unwrap();
-        assert!(matches!(projection(&prepared,false).await,Err(PgTransactionError::Business(ref error)) if error.code=="COMMAND_IAM_METADATA_UNAVAILABLE"));
+        let reached=std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));let actual=reached.clone();
+        let outcome=prepared.authorizer.execute("acme.example.test",prepared.proof.clone(),prepared.selection.clone(),prepared.access.clone(),move|_,context|{
+            actual.store(true,std::sync::atomic::Ordering::SeqCst);Box::pin(async move {encode(context,false).map(|_|())})
+        }).await;
+        let code=match &outcome {Err(PgTransactionError::Business(error))=>error.code,Err(PgTransactionError::Persistence(_))=>"PERSISTENCE_ERROR",Ok(_)=>"UNEXPECTED_ADMISSION"};
+        // The ordinary coordinator's SQL principal check rejects the selected
+        // grant before the later typed Directory source reader is reached.
+        assert!(!reached.load(std::sync::atomic::Ordering::SeqCst),"invalid Directory observation must not reach projection");
+        assert!(matches!(&outcome,Err(PgTransactionError::Business(error)) if error.code=="WORK_ROLE_UNAVAILABLE"),"actual sanitized denial: {code}");
     }).await;
 }
 

@@ -14,7 +14,10 @@ Reviewed 2026-10-23. This is the single entry point. [Production plan](productio
 - [Native private business HTTP component contract](contracts/next/rust-business-http.md) and [development session/SSR boundary](contracts/next/rust-private-session-api.md).
 - [Native Finance journal detail component contract](contracts/next/rust-finance-journal-detail.md).
 - [Native Maintenance Work component](contracts/next/rust-maintenance-migration.md).
+- [Native Maintenance notification and Inbox component](contracts/next/rust-maintenance-notifications.md).
+- [Native Finance owned parts Draft component](contracts/next/rust-finance-parts-draft.md).
 - [Native Directory scope and expiring credential decision](adr/ADR-055-native-directory-scope-and-credential-witness.md).
+- [Durable Directory observation provenance](adr/ADR-056-durable-directory-observation-provenance.md).
 - [Native Inventory valuation and consumption planning](contracts/next/rust-inventory-migration.md).
 
 - [Open-source preparation and provenance](community/open-source.md), [contributing](../CONTRIBUTING.md), [governance](../GOVERNANCE.md), [security reporting](../SECURITY.md), [licensing scope](../LICENSING.md).

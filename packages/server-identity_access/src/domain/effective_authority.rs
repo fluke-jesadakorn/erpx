@@ -34,6 +34,7 @@ pub(crate) struct EffectiveMemberFact {
     pub principal_id: String,
     pub person_id: Option<RecordId>,
     pub directory_enabled: bool,
+    pub directory_provenance_current: Option<bool>,
     pub directory_connection_active: bool,
     pub directory_observed_at: i64,
 }

@@ -204,7 +204,7 @@ impl Fixture {
         let directory = tempfile::tempdir().unwrap();
         write_profile(directory.path(), ca, name, false);
         let profiles = Arc::new(
-            DirectoryProfileStore::load(directory.path().join("profiles.json"))
+            DirectoryProfileStore::load(directory.path().join("profiles.json"),Arc::new(erpx_server_identity_access::public::directory::provenance::ProvenanceKeyRing::from_keys("development".into(),vec![("synthetic_provenance_v1".into(),[0x31;32])]).unwrap()))
                 .await
                 .unwrap(),
         );
@@ -214,6 +214,7 @@ impl Fixture {
             Arc::new(FixedClock),
         ));
         let descriptor = DirectoryConnectionDescriptor {
+            source: None,
             connection_id: CONNECTION.into(),
             holding_id: Some("h001".into()),
             company_id: "c001".into(),

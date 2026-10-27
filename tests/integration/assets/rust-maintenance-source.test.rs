@@ -31,7 +31,10 @@ async fn physical_asset_reference_is_minimal_company_scoped_and_not_lifecycle_ad
         PgUnitOfWork::new(pool).run::<(),BusinessError,_>(TransactionOptions::default(),|c|Box::pin(async move{
             lock_maintenance_asset_sources(c).await?;let(holding,company,id)=scope();let source=read_current_maintenance_asset(c,&holding,&company,&id).await?.unwrap();let f=source.facts();assert_eq!(f.asset_id,id);assert_eq!(f.company_id,company);assert_eq!(f.holding_id,holding);assert_eq!(f.branch_id.as_str(),"branch");assert_eq!(f.department_id.as_ref().unwrap().as_str(),"department");assert_eq!(f.version,1);let debug=format!("{f:?}");assert!(!debug.contains("PRIVATE_NAME"));assert!(!debug.contains("987654321123"));
             assert!(read_current_maintenance_asset(c,&holding,&CompanyId::new("foreign").unwrap(),&id).await?.is_none());assert!(read_current_maintenance_asset(c,&holding,&company,&RecordId::new("missing").unwrap()).await?.is_none());
+            let full_source=source.retain_unchanged_image(c).await?;
+            full_source.require_current(c).await?;
             sqlx::query("UPDATE operational_assets SET name='changed display',lifecycle_status='retirement_pending',retirement_reason='Synthetic retirement' WHERE id='asset'").execute(&mut *c).await?;source.require_current(c).await?;
+            assert!(matches!(full_source.require_current(c).await,Err(PgTransactionError::Business(ref error))if error.code=="ASSET_MAINTENANCE_SOURCE_CHANGED"));
             // Presence/relationship is not permission to act on a retirement-pending
             // Asset. The owning action must apply its separate actual policy.
             Ok(())

@@ -27,3 +27,5 @@ pub(crate) mod directory_grants;
 
 #[cfg(feature = "directory-ldaps")]
 pub(crate) mod directory_refresh;
+
+pub(crate) mod directory_provenance;

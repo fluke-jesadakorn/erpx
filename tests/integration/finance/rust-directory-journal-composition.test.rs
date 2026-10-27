@@ -1,4 +1,4 @@
-//! Candidate canonical target: tests/integration/finance/rust-directory-journal-composition.test.rs.
+//! Actual configured Directory and Finance composition on disposable owner databases.
 //! One actual Account/SSO fixture module; the LDAPS helper has no Account module.
 #[allow(dead_code, reason = "shared real Finance/Auth command scenarios")]
 #[path = "../../support/finance/review-composition.rs"]
@@ -6,6 +6,12 @@ mod facts;
 #[allow(dead_code, reason = "shared real bounded loopback protocol scenarios")]
 #[path = "../../support/rust-directory-ldaps.rs"]
 mod ldap;
+#[allow(
+    dead_code,
+    reason = "explicit disposable source selection policy; not admin acceptance"
+)]
+#[path = "../../support/rust-directory-source-change.rs"]
+mod source_selection;
 use erpx_server_commercial::public::purchases::current_package_catalogue;
 use erpx_server_identity_access::public::{
     SystemAuthenticationSecrets, directory::*, effective_authority::HoldingWorkAuthorizer,
@@ -73,6 +79,17 @@ async fn directory(p: &Prepared, user: &str, pause: bool) -> DirectoryFinance {
         )
         .unwrap(),
     );
+    // Actual durable source selection adapter with a labelled, DB/XID-guarded
+    // test policy. This does not stand in for reviewed admin/MFA admission.
+    source_selection::select(
+        &directory,
+        ldap::CONNECTION,
+        1,
+        None,
+        "synthetic_provenance_v1",
+    )
+    .await
+    .unwrap();
     let runtime = DirectoryRefreshRuntime::new(directory);
     // This must be the exact concrete type accepted by the ACTUAL service.
     let work: HoldingWorkAuthorizer = runtime

@@ -16,9 +16,14 @@ use erpx_server_identity_access::public::{
 };
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{
-    BusinessError, CompanyId, FailureKind, RecordId, TimestampMillis, UserId,
+    AssignmentId, BusinessError, CompanyId, FailureKind, HoldingId, RecordId, TimestampMillis,
+    UserId,
 };
 use sqlx::{Connection, PgConnection, Row};
+mod issue_part;
+pub use issue_part::{
+    PgMaintenanceIssuePartEffects, PgMaintenanceIssuePartPlan, PgMaintenanceIssuePartReceipt,
+};
 type Error = PgTransactionError<BusinessError>;
 type Transaction = (String, i32, String, String);
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -64,6 +69,17 @@ impl CurrentMaintenanceWork<'_> {
     pub fn facts(&self) -> &MaintenanceWorkSourceFacts {
         &self.facts
     }
+    /// Original selected-context data only. These identifiers never mint or
+    /// replace the retained owner/Identity proof.
+    pub fn holding_id(&self) -> &HoldingId {
+        self.current.holding_id()
+    }
+    pub fn actor_user_id(&self) -> &UserId {
+        self.current.user_id()
+    }
+    pub fn actor_assignment_id(&self) -> &AssignmentId {
+        &self.current.selection().assignment().id
+    }
     pub fn require_action(&self, action: &MaintenanceTransition) -> Result<(), BusinessError> {
         require_maintenance_transition(
             &MaintenanceActorFacts {
@@ -90,7 +106,9 @@ impl CurrentMaintenanceWork<'_> {
             Ok(())
         }
     }
-    pub async fn require_current(
+    /// Retain external authority/factual witnesses after an intentional Work
+    /// mutation. Only the opaque effect adapter may replace the Work image.
+    async fn require_external(
         &self,
         c: &mut PgConnection,
         now: TimestampMillis,
@@ -103,7 +121,20 @@ impl CurrentMaintenanceWork<'_> {
         }
         self.asset.require_current(c).await?;
         self.owner.require_current(c, now).await?;
-        self.reviewer.require_current(c, now).await?;
+        self.reviewer.require_current(c, now).await
+    }
+    pub async fn require_current(
+        &self,
+        c: &mut PgConnection,
+        now: TimestampMillis,
+    ) -> Result<(), Error> {
+        if now.get() < self.observed_at
+            || now.get() >= self.current.expires_at()
+            || transaction(c).await? != self.transaction
+        {
+            return Err(changed().into());
+        }
+        self.require_external(c, now).await?;
         if row(c, self.current, &self.facts.id, true).await?.as_ref() != Some(&self.facts) {
             return Err(changed().into());
         }

@@ -13,6 +13,20 @@ impl CurrentMaintenanceAsset {
     pub fn facts(&self) -> &MaintenanceAssetFacts {
         &self.facts
     }
+    /// Full owned source retention for an enclosing Maintenance purchase/write
+    /// boundary. The ordinary minimal relationship reader keeps its semantics.
+    pub async fn retain_unchanged_image(
+        &self,
+        c: &mut PgConnection,
+    ) -> Result<RetainedMaintenanceAssetImage, Error> {
+        self.require_current(c).await?;
+        let digest = image_digest(c, &self.facts).await?.ok_or_else(changed)?;
+        Ok(RetainedMaintenanceAssetImage {
+            facts: self.facts.clone(),
+            transaction: self.transaction.clone(),
+            digest,
+        })
+    }
     pub async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
         if transaction(c).await? != self.transaction {
             return Err(changed().into());
@@ -106,4 +120,40 @@ fn changed() -> BusinessError {
 }
 fn invalid() -> PersistenceError {
     PersistenceError::new("ASSET_MAINTENANCE_SOURCE_INVALID")
+}
+
+/// Full owned Asset image, not a commercial grant or an intentional mutation
+/// protocol. Hashing stays inside PostgreSQL; names/costs never leave this port.
+pub struct RetainedMaintenanceAssetImage {
+    facts: MaintenanceAssetFacts,
+    transaction: Transaction,
+    digest: String,
+}
+impl RetainedMaintenanceAssetImage {
+    pub async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
+        if transaction(c).await? != self.transaction {
+            return Err(changed().into());
+        }
+        let current = read_current_maintenance_asset(
+            c,
+            &self.facts.holding_id,
+            &self.facts.company_id,
+            &self.facts.asset_id,
+        )
+        .await?
+        .ok_or_else(changed)?;
+        if current.facts != self.facts
+            || image_digest(c, &self.facts).await?.as_deref() != Some(&self.digest)
+        {
+            return Err(changed().into());
+        }
+        Ok(())
+    }
+}
+async fn image_digest(
+    c: &mut PgConnection,
+    f: &MaintenanceAssetFacts,
+) -> Result<Option<String>, Error> {
+    Ok(sqlx::query_scalar("SELECT encode(sha256(convert_to(to_jsonb(a)::text,'UTF8')),'hex') FROM operational_assets a WHERE id=$1 AND company_id=$2")
+        .bind(f.asset_id.as_str()).bind(f.company_id.as_str()).fetch_optional(c).await?)
 }

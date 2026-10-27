@@ -262,3 +262,138 @@ async fn reservation_mutation_after_preparation_cannot_reuse_the_original_stock_
   assert_eq!(sqlx::query_scalar::<_,i64>("SELECT quantity_milli FROM inventory_order_reservations WHERE id='reservation'").fetch_one(pool.raw()).await.unwrap(),4000);
  }).await;
 }
+
+// These exercise the actual Inventory effect adapter and deferred constraints.
+// Journal/Work rows are explicit synthetic fixture effects, not native owner
+// authorization, Finance composition, a command receipt or cutover acceptance.
+struct EffectClock;
+impl erpx_server_shared::public::Clock for EffectClock {
+    fn now(&self) -> erpx_server_shared::public::TimestampMillis {
+        erpx_server_shared::public::TimestampMillis::new(1_800_000_000_003)
+    }
+}
+async fn effect_work(pool: &DatabasePool) {
+    sqlx::raw_sql("INSERT INTO operational_assets(id,company_id,branch_id,code,name,category,currency,created_by,created_at,updated_at)VALUES('asset','company','branch','SYNTHETIC','Synthetic part source','synthetic','THB','maker',0,0);INSERT INTO maintenance_work_orders(id,company_id,branch_id,asset_id,title,priority,status,owner_id,created_by,created_at,updated_at)VALUES('work','company','branch','asset','Synthetic work','normal','in_progress','maker','maker',0,0)").execute(pool.raw()).await.unwrap();
+}
+async fn apply_component(
+    pool: &DatabasePool,
+    input: ConsumptionSelection,
+    tamper: Option<&'static str>,
+) -> Result<(), Error> {
+    PgUnitOfWork::new(pool.clone()).run::<_,BusinessError,_>(TransactionOptions::default(),move |c| {
+        let input=input.clone();
+        Box::pin(async move {
+            use erpx_server_shared::public::{CommandKey,TimestampMillis,UserId};
+            let mut finance=FinanceFacts;
+            // Match the actual writer's strongest intent order before first SELECT.
+            sqlx::query("LOCK TABLE finance_journals,finance_journal_lines,money_transaction_snapshots IN SHARE ROW EXCLUSIVE MODE").execute(&mut *c).await?;
+            lock_unreserved_consumption_sources(c).await?;
+            lock_inventory_consumption_sources(c,&mut finance).await?;
+            let prepared=prepare_inventory_consumption(c,&mut finance,input).await?;
+            let effects=prepared.retain_unreserved_effects(c,MaintenanceConsumptionIdentity {
+                owner_key:CommandKey::new("synthetic-effects")?,work_id:id("work"),work_version_after:2,
+                department_id:None,actor_id:UserId::new("maker")?,reason:"Synthetic part issue".into(),
+                created_at:TimestampMillis::new(1_800_000_000_001),journal_id:id("parts-journal"),
+            }).await?;
+            let money=erpx_server_finance::public::inventory_consumption::prepare_consumption_stock_cost_money(c,effects.finance_source(),id(effects.consumption_id()),effects.plan().valuation.value_minor,&EffectClock).await?;
+            effects.require_before(c,&mut finance).await?;
+            // A fixture DRAFT with the exact source and totals. Production must
+            // use the mandatory current-owner Finance bridge instead.
+            sqlx::query("INSERT INTO finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,source_type,source_id,memo,status,created_by,created_at,updated_at)VALUES('parts-journal','company','chart','period','SYNTHETIC-PARTS','2026-01-10','THB','maintenance_parts',$1,'Synthetic parts','draft','maker',0,0)").bind(effects.consumption_id()).execute(&mut *c).await?;
+            sqlx::query("INSERT INTO finance_journal_lines(id,journal_id,account_id,debit_minor,credit_minor,ordinal)VALUES('parts-expense','parts-journal','expense',$1,0,0),('parts-inventory','parts-journal','inventory',0,$1,1)").bind(effects.plan().valuation.value_minor).execute(&mut *c).await?;
+            effects.write_consumption_and_lots(c).await?;
+            let money=money.persist(c).await?;
+            effects.write_stock(c).await?;
+            sqlx::raw_sql("UPDATE maintenance_work_orders SET version=2 WHERE id='work';INSERT INTO maintenance_work_events(id,work_order_id,version,action,actor_id,reason,status,owner_id,created_at)VALUES('synthetic-event','work',2,'issue-part','maker','Synthetic part issue','in_progress','maker',1800000000000)").execute(&mut *c).await?;
+            if let Some(sql)=tamper {sqlx::query(sql).execute(&mut *c).await?;}
+            sqlx::query("SET CONSTRAINTS ALL IMMEDIATE").execute(&mut *c).await?;
+            money.require_current(c).await?;
+            effects.require_inventory_after(c).await
+        })
+    }).await
+}
+#[tokio::test]
+async fn actual_unreserved_effects_commit_exact_untracked_lot_and_serial_rows_with_deferred_guards()
+{
+    for (tracking, quantity, allocations, status_after) in [
+        ("none", 1000, vec![], "active"),
+        ("lot", 1000, vec![lot("lot-1", 1000)], "active"),
+        ("lot", 3000, vec![lot("lot-1", 3000)], "depleted"),
+        (
+            "lot",
+            4000,
+            vec![lot("lot-1", 3000), lot("lot-2", 1000)],
+            "depleted",
+        ),
+        ("serial", 1000, vec![lot("serial-0", 1000)], "depleted"),
+    ] {
+        fixture::with_database(2,move |pool|async move {
+            setup(&pool,tracking).await;effect_work(&pool).await;
+            let mut input=selection(quantity);input.allocations=allocations;
+            apply_component(&pool,input,None).await.unwrap();
+            let stock:(i64,i64,i64)=sqlx::query_as("SELECT quantity_milli,value_minor,version FROM commerce_stock WHERE warehouse_id='warehouse'AND product_id='product'").fetch_one(pool.raw()).await.unwrap();
+            assert_eq!(stock,(5000-quantity,1000-quantity/5,2));
+            if tracking!="none" {
+                let status:String=sqlx::query_scalar("SELECT status FROM inventory_lots WHERE id=$1").bind(if tracking=="lot"{"lot-1"}else{"serial-0"}).fetch_one(pool.raw()).await.unwrap();
+                assert_eq!(status,status_after);
+            }
+        }).await;
+    }
+}
+#[tokio::test]
+async fn after_images_reject_stock_trigger_rewrite_and_rollback_every_prior_effect() {
+    fixture::with_database(2,|pool|async move {
+        setup(&pool,"none").await;effect_work(&pool).await;
+        sqlx::raw_sql("CREATE FUNCTION synthetic_stock_rewrite()RETURNS trigger LANGUAGE plpgsql AS $$BEGIN NEW.version:=NEW.version+7;RETURN NEW;END$$;CREATE TRIGGER synthetic_stock_rewrite BEFORE UPDATE ON commerce_stock FOR EACH ROW EXECUTE FUNCTION synthetic_stock_rewrite()").execute(pool.raw()).await.unwrap();
+        denied(apply_component(&pool,selection(1000),None).await,"INVENTORY_CONSUMPTION_SOURCE_CHANGED");
+        let counts:(i64,i64,i64)=sqlx::query_as("SELECT(SELECT count(*)FROM operational_inventory_consumptions),(SELECT count(*)FROM finance_journals),(SELECT count(*)FROM money_transaction_snapshots)").fetch_one(pool.raw()).await.unwrap();assert_eq!(counts,(0,0,0));
+        let stock:(i64,i64,i64)=sqlx::query_as("SELECT quantity_milli,value_minor,version FROM commerce_stock WHERE warehouse_id='warehouse'AND product_id='product'").fetch_one(pool.raw()).await.unwrap();assert_eq!(stock,(5000,1000,1));
+    }).await;
+}
+#[tokio::test]
+async fn final_lot_identity_rewrite_is_not_adopted_as_the_expected_after_image() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool, "lot").await;
+        effect_work(&pool).await;
+        let mut input = selection(1000);
+        input.allocations = vec![lot("lot-1", 1000)];
+        denied(
+            apply_component(
+                &pool,
+                input,
+                Some(
+                    "UPDATE inventory_lots SET lot_code='rewritten-after-effect' WHERE id='lot-1'",
+                ),
+            )
+            .await,
+            "INVENTORY_CONSUMPTION_SOURCE_CHANGED",
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT count(*)FROM operational_inventory_consumptions")
+                .fetch_one(pool.raw())
+                .await
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, String>("SELECT lot_code FROM inventory_lots WHERE id='lot-1'")
+                .fetch_one(pool.raw())
+                .await
+                .unwrap(),
+            "L1"
+        );
+    })
+    .await;
+}
+#[tokio::test]
+async fn depletion_retains_other_warehouse_balances_and_keeps_the_shared_lot_active() {
+    fixture::with_database(2,|pool|async move {
+        setup(&pool,"lot").await;effect_work(&pool).await;
+        let mut tx=pool.raw().begin().await.unwrap();
+        sqlx::raw_sql("INSERT INTO commerce_warehouses(id,company_id,branch_id,code,name)VALUES('other-warehouse','company','branch','SYNTHETIC-OTHER','Synthetic other warehouse');INSERT INTO commerce_stock(warehouse_id,product_id,quantity_milli,value_minor)VALUES('other-warehouse','product',1000,200);INSERT INTO inventory_lot_balances(lot_id,warehouse_id,quantity_milli,value_minor)VALUES('lot-1','other-warehouse',1000,200)").execute(&mut *tx).await.unwrap();tx.commit().await.unwrap();
+        let mut input=selection(3000);input.allocations=vec![lot("lot-1",3000)];
+        apply_component(&pool,input,None).await.unwrap();
+        let lot:(String,i64)=sqlx::query_as("SELECT status,version FROM inventory_lots WHERE id='lot-1'").fetch_one(pool.raw()).await.unwrap();assert_eq!(lot,("active".into(),1));
+        let untouched:(i64,i64,i64)=sqlx::query_as("SELECT quantity_milli,value_minor,version FROM inventory_lot_balances WHERE lot_id='lot-1'AND warehouse_id='other-warehouse'").fetch_one(pool.raw()).await.unwrap();assert_eq!(untouched,(1000,200,1));
+    }).await;
+}

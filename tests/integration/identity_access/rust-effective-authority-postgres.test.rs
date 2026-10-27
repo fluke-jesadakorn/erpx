@@ -2,6 +2,8 @@
 mod auth;
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
+#[path = "../../support/rust-directory-provenance-facts.rs"]
+mod source_facts;
 use auth::*;
 use erpx_server_identity_access::public::effective_authority::{
     PgQueuedWorkAuthorizer, PgQueuedWorkSourcePort, QueuedWorkBinding,
@@ -331,10 +333,13 @@ async fn directory_freshness_emergency_expiry_scope_and_exact_host_are_mandatory
     code(authorizer.execute("acme.example.test",proof(),input(),access(),|_,_|Box::pin(async{Ok(())})).await,"EMERGENCY_ACCESS_REQUIRED");
     sqlx::query("INSERT INTO iam_emergency_sessions(session_id,company_id,user_id,expires_at,reason) VALUES('session','company','user',$1,'Synthetic reviewed elevation')").bind(NOW+1000).execute(holding.raw()).await.unwrap();
     let expired_clock=clock.clone();code(authorizer.execute("acme.example.test",proof(),input(),access(),move|_,context|{assert_eq!(context.emergency_until(),Some(NOW+1000));let clock=expired_clock.clone();Box::pin(async move{clock.0.store(NOW+1000,Ordering::SeqCst);Ok(())})}).await,"WORK_AUTHORITY_EXPIRED");clock.0.store(NOW,Ordering::SeqCst);
-    sqlx::raw_sql("INSERT INTO iam_connections(id,company_id,name,provider,config,status,created_by,created_at) VALUES('connection','company','Synthetic','entra_id','{}','active','fixture',0);UPDATE iam_members SET login_policy='directory',identity_id='identity',connection_id='connection' WHERE user_id='user'").execute(holding.raw()).await.unwrap();
-    sqlx::query("INSERT INTO iam_identities(id,company_id,connection_id,external_id,username,name,enabled,observed_at) VALUES('identity','company','connection','external','synthetic','Synthetic',true,$1)").bind(NOW-300000).execute(holding.raw()).await.unwrap();
+    sqlx::raw_sql("INSERT INTO iam_connections(id,company_id,name,provider,config,status,created_by,created_at) VALUES('connection','company','Synthetic','univention','{\"mode\":\"ldaps\",\"secretProfile\":\"synthetic\",\"authority\":\"synthetic approved source facts\"}','active','fixture',0);UPDATE iam_members SET login_policy='directory',identity_id='identity',connection_id='connection' WHERE user_id='user'").execute(holding.raw()).await.unwrap();
+    sqlx::query("INSERT INTO iam_identities(id,company_id,connection_id,external_id,username,name,enabled,observed_at,user_id) VALUES('identity','company','connection','external','synthetic','Synthetic',true,$1,'user')").bind(NOW-300000).execute(holding.raw()).await.unwrap();
+    source_facts::approve_synthetic_source(&holding,"connection","company",NOW).await;
+    source_facts::stamp_synthetic_observation(&holding,"connection","company",NOW-300000).await;
     code(authorizer.execute("acme.example.test",proof(),input(),access(),|_,_|Box::pin(async{Ok(())})).await,"DIRECTORY_ACCESS_UNAVAILABLE");
     sqlx::query("UPDATE iam_identities SET observed_at=$1 WHERE id='identity'").bind(NOW).execute(holding.raw()).await.unwrap();
+    source_facts::stamp_synthetic_observation(&holding,"connection","company",NOW).await;
     authorizer.execute("acme.example.test",proof(),input(),access(),|_,context|Box::pin(async move{assert_eq!(context.expires_at(),NOW+300000);Ok(())})).await.unwrap();
     // Permission is published but unavailable at the concrete Branch workspace.
     sqlx::raw_sql("INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) VALUES('*','custom_native_authority',2,'[\"iam.roles.manage\",\"module.finance.read\"]','[]','[\"holding\"]','fixture',0);UPDATE iam_roles SET published_revision=2 WHERE id='custom_native_authority'").execute(holding.raw()).await.unwrap();

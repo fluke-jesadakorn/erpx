@@ -1,6 +1,7 @@
-//! Bounded current Work reference. Commercial, receipts and Inventory effects
-//! are separate owner policies; no public constructor can mint this reference.
+//! Bounded current Work reference and owned Work plans. Cross-owner command
+//! assembly belongs to the Rust service composition root.
 pub use crate::adapters::work_source::{
     CurrentMaintenanceWork, MaintenanceWorkSourceFacts, MaintenanceWorkSourcePreparation,
+    PgMaintenanceIssuePartEffects, PgMaintenanceIssuePartPlan, PgMaintenanceIssuePartReceipt,
     read_current_maintenance_work,
 };

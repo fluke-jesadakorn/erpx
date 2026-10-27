@@ -418,6 +418,31 @@ pub async fn prepare_consumption_stock_cost_money(
     clock: &impl Clock,
 ) -> Result<PreparedConsumptionMoney, Error> {
     source.require_posting_mapping(c).await?;
+    prepare_stock_cost_money_from_current(c, source, source_id, amount_units, clock).await
+}
+
+/// Only the exact Finance-owned parts draft bridge uses this internal phase.
+/// B0 selects/validates the Money quote during preparation BEFORE executing the
+/// mapping assertion. The resulting proof still requires that mapping on its
+/// normal require_current/persist path, at the owner's effect position.
+pub(crate) async fn prepare_owned_parts_stock_cost_money(
+    c: &mut PgConnection,
+    source: &CurrentConsumptionFinance,
+    source_id: RecordId,
+    amount_units: i64,
+    clock: &impl Clock,
+) -> Result<PreparedConsumptionMoney, Error> {
+    source.require_current(c).await?;
+    prepare_stock_cost_money_from_current(c, source, source_id, amount_units, clock).await
+}
+
+async fn prepare_stock_cost_money_from_current(
+    c: &mut PgConnection,
+    source: &CurrentConsumptionFinance,
+    source_id: RecordId,
+    amount_units: i64,
+    clock: &impl Clock,
+) -> Result<PreparedConsumptionMoney, Error> {
     if source.periods.len() != 1 {
         return Err(BusinessError::new(
             FailureKind::Conflict,

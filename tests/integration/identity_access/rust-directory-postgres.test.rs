@@ -4,6 +4,8 @@ mod account;
 #[allow(dead_code, reason = "shared owned loopback protocol scenarios")]
 #[path = "../../support/rust-directory-ldaps.rs"]
 mod ldap;
+#[path = "../../support/rust-directory-source-change.rs"]
+mod source_change;
 use erpx_server_identity_access::public::{directory::*, *};
 use erpx_server_shared::public::{Clock, HoldingId};
 use sqlx::Row;
@@ -56,6 +58,15 @@ async fn setup(system: &account::System, port: u16) -> Setup {
         )
         .unwrap(),
     );
+    source_change::select(
+        &directory,
+        ldap::CONNECTION,
+        1,
+        None,
+        "synthetic_provenance_v1",
+    )
+    .await
+    .unwrap();
     Setup { fixture, directory }
 }
 fn snapshot(now: i64, enabled: bool, member: bool) -> CompleteDirectorySnapshot {

@@ -173,11 +173,45 @@ pub trait JournalPreparationPorts {
     fn now(&mut self) -> TimestampMillis;
 }
 
+/// Internal journal identity only: it is never a Workflow command key/receipt.
+/// The owned parts caller must independently retain its exact source binding.
+pub(crate) struct JournalIdentitySeed(String);
+impl JournalIdentitySeed {
+    pub(crate) fn owner_parts(key: &CommandKey) -> Self {
+        // A valid original owner key is at most180 bytes. The exact suffix makes
+        // a186-byte seed, and its194-byte journal ID remains a valid RecordId.
+        Self(format!("{}:parts", key.as_str()))
+    }
+    pub(crate) fn journal_id(&self) -> String {
+        format!("journal-{}", self.0)
+    }
+    pub(crate) fn journal_number(&self) -> String {
+        format!("J-{}", self.0)
+    }
+}
+
 pub async fn prepare_journal<P: JournalPreparationPorts>(
     ports: &mut P,
     actor: &FinanceActor,
     input: &JournalDraft,
     key: &CommandKey,
+    status: JournalStatus,
+) -> Result<JournalPreparation, P::Error> {
+    prepare_journal_with_seed(
+        ports,
+        actor,
+        input,
+        &JournalIdentitySeed(key.as_str().into()),
+        status,
+    )
+    .await
+}
+
+pub(crate) async fn prepare_journal_with_seed<P: JournalPreparationPorts>(
+    ports: &mut P,
+    actor: &FinanceActor,
+    input: &JournalDraft,
+    seed: &JournalIdentitySeed,
     status: JournalStatus,
 ) -> Result<JournalPreparation, P::Error> {
     ports.authorize(actor, input).await?;
@@ -251,8 +285,8 @@ pub async fn prepare_journal<P: JournalPreparationPorts>(
         )
         .into());
     }
-    let journal_id = format!("journal-{}", key.as_str());
-    let number = format!("J-{}", key.as_str());
+    let journal_id = seed.journal_id();
+    let number = seed.journal_number();
     let now = ports.now();
     if input.is_opening
         && ports

@@ -79,3 +79,11 @@ pub(crate) mod directory_work_preflight;
 
 #[cfg(feature = "directory-ldaps")]
 pub(crate) mod directory_work_sources;
+
+#[cfg(feature = "directory-ldaps")]
+pub(crate) mod directory_profile_tag;
+
+pub(crate) mod directory_source_postgres;
+
+#[cfg(feature = "directory-ldaps")]
+pub(crate) mod directory_source_admin;

@@ -31,10 +31,6 @@ name = "work_policy"
 path = "../../tests/unit/maintenance/rust-work-policy.test.rs"
 
 [[test]]
-name = "work_source"
-path = "../../tests/integration/maintenance/rust-work-source-postgres.test.rs"
-
-[[test]]
 name = "work_wire"
 path = "../../tests/unit/maintenance/rust-work-wire.test.rs"
 

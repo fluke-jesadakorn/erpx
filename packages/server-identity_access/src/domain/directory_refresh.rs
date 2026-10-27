@@ -31,6 +31,13 @@ pub fn classify_member(
     member: &DirectoryRefreshMemberFacts,
     now: i64,
 ) -> Result<DirectoryRefreshDisposition, BusinessError> {
+    classify_member_with_source(member, false, now)
+}
+pub fn classify_member_with_source(
+    member: &DirectoryRefreshMemberFacts,
+    source_refresh_required: bool,
+    now: i64,
+) -> Result<DirectoryRefreshDisposition, BusinessError> {
     if !member.active
         || member.version < 1
         || !member.connection_active
@@ -43,7 +50,7 @@ pub fn classify_member(
         .observed_at
         .checked_add(300000)
         .ok_or_else(directory_denied)?;
-    if deadline <= now {
+    if source_refresh_required || deadline <= now {
         // B0 permits a complete new observation to discover re-enabled users;
         // an old disabled observation is not the same as an explicit tombstone.
         return Ok(DirectoryRefreshDisposition::Observe);

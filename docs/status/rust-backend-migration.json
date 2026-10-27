@@ -435,10 +435,10 @@
     {
       "id": "collaboration",
       "package": "erpx-server-collaboration",
-      "phase": "pending",
+      "phase": "foundation",
       "businessMigrationComplete": false,
       "surfaces": {
-        "domain": "pending",
+        "domain": "foundation",
         "application": "pending",
         "http": "pending",
         "ssr": "pending",

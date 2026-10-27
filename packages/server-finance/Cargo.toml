@@ -8,7 +8,7 @@ publish.workspace = true
 autotests = false
 
 [package.metadata.erpx]
-verification-roots = ["../../fixtures/finance/rust-journal-wire", "../../scripts/testing/fixtures/generate-business-http-wire-oracle.ts", "../../fixtures/finance/rust-journal-review", "../../scripts/testing/fixtures/generate-finance-journal-review-oracle.ts", "../catalogue/src/iso-4217-current.json", "../../fixtures/finance/rust-instruments", "../../tests/support/finance", "../../scripts/testing/fixtures/generate-finance-rust-goldens.ts", "../../scripts/testing/fixtures/finance-node-oracle.ts"]
+verification-roots = ["../../fixtures/finance/rust-parts-draft", "../../scripts/testing/fixtures/generate-finance-parts-draft-oracle.ts", "../../fixtures/finance/rust-journal-wire", "../../scripts/testing/fixtures/generate-business-http-wire-oracle.ts", "../../fixtures/finance/rust-journal-review", "../../scripts/testing/fixtures/generate-finance-journal-review-oracle.ts", "../catalogue/src/iso-4217-current.json", "../../fixtures/finance/rust-instruments", "../../tests/support/finance", "../../scripts/testing/fixtures/generate-finance-rust-goldens.ts", "../../scripts/testing/fixtures/finance-node-oracle.ts"]
 
 [lib]
 path = "src/lib.rs"
@@ -68,3 +68,7 @@ path = "../../tests/integration/finance/rust-inventory-consumption-postgres.test
 [[test]]
 name = "journal_wire"
 path = "../../tests/unit/finance/rust-journal-wire.test.rs"
+
+[[test]]
+name = "parts_draft"
+path = "../../tests/unit/finance/rust-parts-draft.test.rs"

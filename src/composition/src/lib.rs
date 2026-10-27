@@ -41,3 +41,5 @@ pub mod finance_journal_detail;
 
 #[cfg(feature = "business-http")]
 pub mod finance_journal_detail_http;
+
+pub mod maintenance_parts;

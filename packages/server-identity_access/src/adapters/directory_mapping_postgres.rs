@@ -18,6 +18,7 @@ pub(super) async fn lock_sources(c: &mut PgConnection, platform: bool) -> Tx<()>
             .execute(c)
             .await?;
     } else {
+        super::directory_source_postgres::lock_sources(c).await?;
         sqlx::query("LOCK TABLE assignments IN SHARE MODE")
             .execute(&mut *c)
             .await?;

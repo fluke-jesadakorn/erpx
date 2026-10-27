@@ -158,6 +158,9 @@ impl DirectoryProviderRead for LdapDirectoryProvider {
                     Some(&connection.profile_fingerprint),
                 )
                 .await?;
+            if connection.source.is_some() {
+                self.profiles.require_selected(connection, &lease)?;
+            }
             let profile = lease.profile();
             let ad = connection.provider == DirectoryProvider::ActiveDirectory;
             let mut wire = transport(connection, profile)?
@@ -238,6 +241,9 @@ impl DirectoryProviderRead for LdapDirectoryProvider {
                     Some(&connection.profile_fingerprint),
                 )
                 .await?;
+            if connection.source.is_some() {
+                self.profiles.require_selected(connection, &lease)?;
+            }
             self.observe_with_generation(connection, observed_at, &lease)
                 .await
         })
@@ -506,6 +512,7 @@ impl DirectoryRefreshProvider for LdapDirectoryProvider {
                     Some(&connection.profile_fingerprint),
                 )
                 .await?;
+            self.profiles.require_selected(connection, &lease)?;
             Ok(Arc::new(lease) as Arc<dyn DirectoryObservationRetention>)
         })
     }
@@ -523,6 +530,7 @@ impl DirectoryRefreshProvider for LdapDirectoryProvider {
                     Some(&connection.profile_fingerprint),
                 )
                 .await?;
+            self.profiles.require_selected(connection, &lease)?;
             let snapshot = self
                 .observe_with_generation(connection, observed_at, &lease)
                 .await?;

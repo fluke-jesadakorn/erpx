@@ -14,7 +14,7 @@ use std::{
 use erpx_server_shared::public::TimestampMillis;
 use sha2::{Digest, Sha256};
 #[cfg(target_os = "macos")]
-use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, RefreshKind, System};
+mod memory_observation;
 use tempfile::TempDir;
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use tokio::{
@@ -474,24 +474,15 @@ async fn run_child(
 
 #[cfg(target_os = "macos")]
 async fn monitor_owned_child_memory(pid: u32, ceiling: u64) -> PdfVerificationFailure {
-    let pid = Pid::from_u32(pid);
-    let mut system = System::new_with_specifics(RefreshKind::nothing());
     let mut interval = tokio::time::interval(Duration::from_millis(25));
     loop {
         interval.tick().await;
-        system.refresh_processes_specifics(
-            ProcessesToUpdate::Some(&[pid]),
-            true,
-            ProcessRefreshKind::nothing().with_memory(),
-        );
-        // An exited child can disappear before its pipes/exit status are read.
-        // Only the owned Tokio Child is ever killed, never a PID obtained here.
-        if let Some(process) = system.process(pid) {
-            let memory = process.memory();
-            if memory == 0 {
+        match memory_observation::sample(pid, ceiling) {
+            memory_observation::MemoryObservation::Continue => {}
+            memory_observation::MemoryObservation::Unavailable => {
                 return PdfVerificationFailure::WorkerUnavailable;
             }
-            if memory > ceiling {
+            memory_observation::MemoryObservation::MemoryLimit => {
                 return PdfVerificationFailure::WorkerMemoryLimit;
             }
         }

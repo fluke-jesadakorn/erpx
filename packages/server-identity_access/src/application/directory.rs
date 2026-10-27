@@ -34,6 +34,7 @@ pub struct VerifiedDirectorySubject {
     external_id: String,
     config_fingerprint: String,
     profile_fingerprint: String,
+    source: Option<crate::domain::directory_provenance::SelectedSource>,
     connection_version: i64,
     company_id: String,
     holding_id: Option<String>,
@@ -58,6 +59,7 @@ impl VerifiedDirectorySubject {
             external_id,
             config_fingerprint: connection.config_fingerprint.clone(),
             profile_fingerprint: connection.profile_fingerprint.clone(),
+            source: connection.source.clone(),
             connection_version: connection.version,
             company_id: connection.company_id.clone(),
             holding_id: connection.holding_id.clone(),
@@ -87,6 +89,7 @@ impl VerifiedDirectorySubject {
         self.connection_id == connection.connection_id
             && self.config_fingerprint == connection.config_fingerprint
             && self.profile_fingerprint == connection.profile_fingerprint
+            && self.source == connection.source
             && self.connection_version == connection.version
             && self.company_id == connection.company_id
             && self.holding_id == connection.holding_id
@@ -254,6 +257,12 @@ impl DirectoryAuthentication {
         }
         .await;
         if let Err(error) = synchronized {
+            if matches!(
+                error.code,
+                "DIRECTORY_SOURCE_CONFIGURATION" | "DIRECTORY_SECRET_UNAVAILABLE"
+            ) {
+                return Err(error);
+            }
             self.synchronization
                 .failed(&connection, observed_at, error.code)
                 .await?;

@@ -57,3 +57,26 @@ pub mod refresh_rules {
         classify_member, selection_fence,
     };
 }
+
+/// Source data and pure current-observation rules grant no membership/permission.
+pub mod provenance {
+    #[cfg(feature = "directory-ldaps")]
+    pub use crate::adapters::directory_profile_tag::{
+        ProvenanceKeyRing, SelectedProfile, SourceNamespace, selected_profile_tag,
+    };
+    pub use crate::adapters::directory_source_postgres::read_current_directory_source;
+    pub use crate::domain::directory_provenance::{
+        CurrentLocalSource, Denial, ObservationProvenance, ObservationUse, ProfileTag,
+        SelectedSource, SnapshotOrder, SourceRevision, classify, observation_status, rotate,
+        snapshot_order,
+    };
+}
+
+#[cfg(feature = "directory-ldaps")]
+pub use crate::adapters::directory_source_admin::{
+    PgDirectorySourceChangePolicy, PgDirectorySourceControlPolicy, PgDirectorySourceHoldingPolicy,
+    PreparedDirectorySourceChange,
+};
+pub use crate::application::directory_source_admin::{
+    DirectorySourceChangeKind, DirectorySourceChangeRequest,
+};

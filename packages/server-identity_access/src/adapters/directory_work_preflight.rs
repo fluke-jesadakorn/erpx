@@ -15,7 +15,7 @@ use crate::{
         account_auth::RequestAudience,
         directory_refresh::{
             DirectoryRefreshDisposition, DirectoryRefreshMemberFacts,
-            DirectoryRefreshSelectionFacts, classify_member, selection_fence,
+            DirectoryRefreshSelectionFacts, classify_member_with_source, selection_fence,
         },
         work_context::*,
     },
@@ -128,6 +128,7 @@ impl DirectoryWorkPersistence {
             .await?;
         limits(&mut holding).await?;
         sqlx::query("LOCK TABLE assignments,iam_roles,iam_role_revisions,iam_members,iam_identities,iam_connections,iam_mappings,iam_revoked_sessions,active_work_contexts IN SHARE MODE").execute(&mut *holding).await?;
+        super::directory_source_postgres::lock_sources(&mut holding).await?;
         lock_hierarchy_sources(&mut holding).await?;
         let user = UserId::new(session.user.id)?;
         let session_id = RecordId::new(session.id)?;
@@ -288,7 +289,14 @@ impl DirectoryWorkPersistence {
                         identity_enabled: identity.enabled,
                         observed_at: identity.observed_at,
                     };
-                    stale = classify_member(&current, this.directory.clock.now().get())?
+                    let provenance = super::directory_source_postgres::require_current_observation(
+                        &mut holding,
+                        &descriptor,
+                        identity.observed_at,
+                        this.directory.clock.now().get(),
+                    )
+                    .await?;
+                    stale = classify_member_with_source(&current,provenance==crate::domain::directory_provenance::ObservationUse::CompleteRefreshRequired,this.directory.clock.now().get())?
                         == DirectoryRefreshDisposition::Observe;
                     source = Some(DirectoryRefreshSource {
                         descriptor,
@@ -346,6 +354,18 @@ impl DirectoryWorkPersistence {
                     &source.descriptor.connection_id,
                 )
                 .await?;
+            let lease = self
+                .directory
+                .profiles
+                .retain(
+                    &source.descriptor.config.secret_profile,
+                    &source.descriptor.connection_id,
+                    Some(&source.descriptor.profile_fingerprint),
+                )
+                .await?;
+            self.directory
+                .profiles
+                .require_selected(&source.descriptor, &lease)?;
         }
         Ok(preflight)
     }

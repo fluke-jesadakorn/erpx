@@ -17,3 +17,5 @@ pub(crate) mod directory;
 
 #[cfg(feature = "directory-ldaps")]
 pub(crate) mod directory_refresh;
+
+pub(crate) mod directory_source_admin;

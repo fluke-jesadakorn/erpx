@@ -5,6 +5,11 @@ pub mod account_queue;
 #[allow(dead_code, reason = "shared bounded loopback protocol scenario")]
 #[path = "rust-directory-ldaps.rs"]
 pub mod ldap;
+#[path = "rust-directory-source-change.rs"]
+pub mod source_change;
+#[allow(dead_code, reason = "shared explicit source fact scenarios")]
+#[path = "rust-directory-provenance-facts.rs"]
+pub mod source_facts;
 pub use account_queue::account;
 use erpx_server_identity_access::public::{directory::*, *};
 use erpx_server_shared::public::{Clock, HoldingId};
@@ -75,6 +80,24 @@ pub async fn prepare(
         )
         .unwrap(),
     );
+    source_change::select(
+        &directory,
+        ldap::CONNECTION,
+        1,
+        None,
+        "synthetic_provenance_v1",
+    )
+    .await
+    .unwrap();
+    if !stale {
+        source_facts::stamp_synthetic_observation(
+            &authority.system.holdings[0],
+            ldap::CONNECTION,
+            "company",
+            now,
+        )
+        .await;
+    }
     let runtime = DirectoryRefreshRuntime::new(directory.clone());
     let work = Arc::new(
         runtime

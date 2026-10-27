@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
@@ -203,7 +203,7 @@ export function validateCatalogue(catalogue: Catalogue, root = repositoryRoot): 
     if (!testLanes.includes(suite.lane) || !suite.owner || !Array.isArray(suite.modules) || !suite.modules.length || !Array.isArray(suite.files) || !suite.files.length || !fixtureProfiles.has(suite.fixture) || typeof suite.requires?.jobs !== "boolean" || typeof suite.requires?.scanner !== "boolean") throw new Error(`INVALID_TEST_SUITE:${suite.id}`);
     if (suite.serial !== undefined && (typeof suite.serial?.reason !== "string" || !suite.serial.reason.trim())) throw new Error(`SERIAL_SUITE_REASON_REQUIRED:${suite.id}`);
     if (suite.verificationInputs !== undefined && (!Array.isArray(suite.verificationInputs) || new Set(suite.verificationInputs).size !== suite.verificationInputs.length || suite.verificationInputs.some(file =>
-      typeof file !== "string" || isAbsolute(file) || file.includes("\\") || file.split("/").some(part => !part || part === "." || part === ".." || ["node_modules", ".next", ".build", ".cache", ".turbo", ".scratch", ".runtime", ".git"].includes(part)) || !existsSync(resolve(root,file))))) throw new Error(`INVALID_SUITE_VERIFICATION_INPUT:${suite.id}`);
+      typeof file !== "string" || isAbsolute(file) || file.includes("\\") || file.split("/").some(part => !part || part === "." || part === ".." || ["node_modules", ".next", ".build", ".cache", ".turbo", ".scratch", ".runtime", ".git"].includes(part)) || !existsSync(resolve(root,file)) || !statSync(resolve(root,file)).isFile()))) throw new Error(`INVALID_SUITE_VERIFICATION_INPUT:${suite.id}`);
     validateCargoSuite(suite, root);
     if (!suite.modules.every(module => catalogue.modules.includes(module))) throw new Error(`UNKNOWN_SUITE_MODULE:${suite.id}`);
     if (suite.lane === "unit" || suite.lane === "integration") {

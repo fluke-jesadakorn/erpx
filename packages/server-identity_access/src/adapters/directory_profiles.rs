@@ -1,6 +1,12 @@
 //! Explicit private credential profiles. No ambient environment lookup, Debug,
 //! provider request or permissive default is performed by this owner adapter.
-use crate::domain::directory::incomplete;
+use super::directory_profile_tag::{
+    ProvenanceKeyRing, SelectedProfile, SourceNamespace, selected_profile_tag,
+};
+use crate::domain::{
+    directory::{DirectoryConnectionDescriptor, incomplete},
+    directory_provenance::{Denial, ProfileTag},
+};
 use erpx_server_shared::public::BusinessError;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
@@ -34,6 +40,7 @@ struct Generation {
 /// Private generation data remains read-locked through a final Account commit.
 /// Reload parses outside the lock, then waits for all retained source proofs.
 pub struct DirectoryProfileStore {
+    pub(super) provenance_keys: Arc<ProvenanceKeyRing>,
     file: PathBuf,
     generation: Arc<RwLock<Generation>>,
 }
@@ -50,13 +57,17 @@ impl DirectoryProfileLease {
     }
 }
 impl DirectoryProfileStore {
-    pub async fn load(file: impl AsRef<Path>) -> Result<Self, BusinessError> {
+    pub async fn load(
+        file: impl AsRef<Path>,
+        provenance_keys: Arc<ProvenanceKeyRing>,
+    ) -> Result<Self, BusinessError> {
         let file = file.as_ref();
         if !file.is_absolute() {
             return Err(unavailable());
         }
         let generation = load(file).await?;
         Ok(Self {
+            provenance_keys,
             file: file.to_owned(),
             generation: Arc::new(RwLock::new(generation)),
         })
@@ -165,4 +176,52 @@ fn unavailable() -> BusinessError {
         "DIRECTORY_SECRET_UNAVAILABLE",
         "The selected approved Directory credential profile is unavailable.",
     )
+}
+
+impl DirectoryProfileStore {
+    pub(super) fn selected_tag(
+        &self,
+        descriptor: &DirectoryConnectionDescriptor,
+        key_id: &str,
+        lease: &DirectoryProfileLease,
+    ) -> Result<ProfileTag, BusinessError> {
+        let profile = lease.profile();
+        selected_profile_tag(
+            &self.provenance_keys,
+            key_id,
+            &SourceNamespace {
+                environment: self.provenance_keys.environment(),
+                holding_id: descriptor.holding_id.as_deref(),
+                company_id: &descriptor.company_id,
+                connection_id: &descriptor.connection_id,
+                profile_name: &descriptor.config.secret_profile,
+            },
+            &SelectedProfile {
+                allowed_hosts: &profile.allowed_hosts,
+                bind_dn: profile.bind_dn.as_deref(),
+                bind_password: profile.bind_password.as_deref(),
+                ca_pem: profile.ca_pem.as_deref(),
+                tls_server_name: profile.tls_server_name.as_deref(),
+                identity_aliases: &profile.identity_aliases,
+                allows_selected_connection: profile
+                    .connection_ids
+                    .contains(&descriptor.connection_id),
+            },
+        )
+        .map_err(Denial::business)
+    }
+    pub(super) fn require_selected(
+        &self,
+        descriptor: &DirectoryConnectionDescriptor,
+        lease: &DirectoryProfileLease,
+    ) -> Result<(), BusinessError> {
+        let selected = descriptor
+            .source
+            .as_ref()
+            .ok_or_else(|| Denial::SourceNotApproved.business())?;
+        if self.selected_tag(descriptor, &selected.key_id, lease)? != selected.profile_tag {
+            return Err(Denial::LocalSourceMismatch.business());
+        }
+        Ok(())
+    }
 }

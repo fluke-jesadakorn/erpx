@@ -186,7 +186,7 @@ observation. Reconciliation reuses that retention and rechecks the original requ
 on a fresh same-Control lease; it never nests a second fair generation read behind
 a queued reload writer. Final business execution uses the ordinary
 `HoldingWorkAuthorizer`, configured by `DirectoryRefreshRuntime::holding`, with the
-same concrete owner-facing API. Its ordinary `new` path remains unchanged. The
+same concrete owner-facing API and stable constructor. The
 configured path consumes deferred selectors once after session verification, then
 enters only the existing internal coordinator with actual current IAM/owner facts.
 Current route/configuration and profile retention share that coordinator's
@@ -197,17 +197,53 @@ narrow the normal context's deadline. They cannot construct permission authority
 The runtime bounds concurrent full provider observations to two without an
 unbounded waiting queue.
 
-Current observations retain B0's five-minute `observed_at` behavior. Retaining a
-current profile during a request does **not** prove that an earlier observation
-was produced under that generation: the existing schema does not persist that
-provenance. Before activation, native Directory administration/profile rotation
-must invalidate affected observations or persist and verify their source version
-and generation. No cache-derived permission or legacy provenance exception fills
-that gap.
+Holding migration `1074_native_directory_observation_provenance.sql` records an
+explicit approved source revision and complete-observation provenance beside the
+actual Directory Connection. A selected canonical profile uses a purpose-separated
+HMAC-SHA256 tag and a named shared private key. The unkeyed whole-file generation
+fingerprint remains local. File formatting and unrelated profiles do not alter the
+selected source; changed selected credentials, TLS/CA policy, aliases or Connection
+configuration require explicit approval and a new revision. Reusing earlier
+material also advances the revision. Restarts preserve the source identity when
+material and keys match. An incompatible API/worker fails configuration without
+rewriting the approved source, provider health or another instance's observation.
+
+`DirectoryProfileStore` requires an explicit `provenance::ProvenanceKeyRing`.
+The bounded private keyring file declares format version 1, environment and up to
+eight uniquely named 32-byte keys. It has no ambient credential or generated-key
+fallback. `prepare_source_change` captures an actual sealed candidate;
+`proposed_source()` exposes only its exact key/tag/configuration binding for a
+retained native review. `change_source` requires current Control/Holding policy
+ports and their final checks. Initial seed proves expected absence, while rotation
+proves the original source revision and Connection CAS. There is no production
+default policy or startup approval. Component seed policies are explicitly guarded
+to disposable databases and do not establish real admin/review/MFA acceptance.
+
+Complete synchronization stamps the exact source with identity/group/hierarchy,
+reviewed mapping effects and audit in one Holding unit. Five-minute freshness now
+also requires matching durable source and identity timestamps; future observations
+are rejected. Missing observation provenance under an approved matching source
+requires a complete refresh. Missing or mismatched source approval is a configuration
+failure before provider work. `1075_native_directory_principal_provenance.sql`
+preserves the complete existing People, external relationship, invitation and
+legacy principal predicates and adds the same durable source check to SQL grant
+ancestry. The ordinary authorizer, configured refresh and queued/offline current-IAM
+paths retain source checks through owner commit. A newer timestamp from an older
+source cannot skip required current-source reconciliation.
+
+Add a new key to intended instances before selecting it, advance affected source
+revisions and obtain complete observations before retiring the previous key.
+Missing selected keys and provider outages after rotation admit no previous-source
+fallback. Source tags are factual data; current session, IAM/HR/scope, MFA and owner
+policy remain required. Native Control-platform Directory fails closed until its
+provenance schema is mirrored. See [ADR-056](../../adr/ADR-056-durable-directory-observation-provenance.md).
+
+The registered provenance suites have 17 pure cases and 14 actual PostgreSQL/owned-loopback cases. The concurrent revision-CAS regression forces two first policy reads and observes three Holding policy attempts in total: two original attempts and one native bounded retry, with exactly one committed source/audit change. Retry limits, deadlines and production lock order are unchanged. Future Directory observations deny before owner effects: the ordinary authorizer's SQL principal guard returns `WORK_ROLE_UNAVAILABLE`, while the configured refresh preflight returns `DIRECTORY_SOURCE_CONFIGURATION` before provider I/O. All 39 affected current-authority, Directory, configured-refresh and command-metadata regression cases pass. These are development component results, not full owner or whole-candidate acceptance.
 
 Native SSR connection lookup, full Directory administration/review/reconciliation
-jobs and rotation provenance, OIDC/Graph, actual route/composition rollout,
-real browser and live provider acceptance, and runtime activation remain pending.
+jobs, actual human admin/independent-review/MFA and seed composition, OIDC/Graph,
+actual route/composition rollout, real browser and live provider acceptance, and
+runtime activation remain pending.
 The new provider/router are unmounted and grant no Work permission from a copied
 snapshot. The legacy Directory runtime remains in place during migration. No
 enterprise credentials or external enterprise Directory calls were used.

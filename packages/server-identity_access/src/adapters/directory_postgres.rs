@@ -54,7 +54,7 @@ impl PostgresDirectory {
             registry,
             environment,
         } = bindings;
-        if environment != "development" {
+        if environment != "development" || profiles.provenance_keys.environment() != environment {
             return Err(unavailable());
         }
         if holdings.len() != registry.configured().count() {
@@ -120,12 +120,12 @@ impl PostgresDirectory {
                 pool: configured.pool.clone(),
             })
         } else if company == "platform" {
-            Ok(DirectoryRoute {
-                company_id: company,
-                holding_id: None,
-                binding: None,
-                pool: self.control.clone(),
-            })
+            // Control has no mirrored provenance migration yet; never admit an unversioned platform source.
+            Err(
+                crate::domain::directory_provenance::Denial::SourceNotApproved
+                    .business()
+                    .into(),
+            )
         } else {
             Err(unavailable().into())
         }
@@ -147,6 +147,7 @@ impl PostgresDirectory {
                 Some(&descriptor.profile_fingerprint),
             )
             .await?;
+        self.profiles.require_selected(descriptor, &profile)?;
         let route = self.route(control, &descriptor.connection_id).await?;
         route.matches(descriptor)?;
         let mut holding = if route.holding_id.is_some() {
@@ -251,12 +252,12 @@ pub(super) async fn limits(connection: &mut PgConnection) -> Result<(), sqlx::Er
 pub(super) async fn lock_identity_sources(
     connection: &mut PgConnection,
 ) -> Result<(), sqlx::Error> {
-    sqlx::query("LOCK TABLE iam_members,iam_identities,iam_connections IN SHARE MODE")
+    sqlx::query("LOCK TABLE iam_members,iam_identities,iam_connections,iam_directory_source_selections,iam_directory_observation_sources IN SHARE MODE")
         .execute(connection)
         .await?;
     Ok(())
 }
-pub(super) async fn connection(
+pub(super) async fn connection_without_source(
     source: &mut PgConnection,
     id: &str,
     route: &DirectoryRoute,
@@ -285,6 +286,7 @@ pub(super) async fn connection(
         return Err(unavailable().into());
     }
     Ok(DirectoryConnectionDescriptor {
+        source: None,
         connection_id: id.to_owned(),
         holding_id: route.holding_id.as_ref().map(|id| id.as_str().to_owned()),
         company_id: company,
@@ -302,10 +304,25 @@ pub(super) async fn connection(
         config: config_value,
     })
 }
+pub(super) async fn connection(
+    source: &mut PgConnection,
+    id: &str,
+    route: &DirectoryRoute,
+) -> Tx<DirectoryConnectionDescriptor> {
+    let mut descriptor = connection_without_source(source, id, route).await?;
+    descriptor.source =
+        Some(super::directory_source_postgres::selected_for_descriptor(source, &descriptor).await?);
+    Ok(descriptor)
+}
 pub(super) fn matches_descriptor(
     actual: &DirectoryConnectionDescriptor,
     expected: &DirectoryConnectionDescriptor,
 ) -> Result<(), BusinessError> {
+    if actual.source != expected.source {
+        return Err(
+            crate::domain::directory_provenance::Denial::ConfigurationNotSelected.business(),
+        );
+    }
     if actual.connection_id != expected.connection_id
         || actual.company_id != expected.company_id
         || actual.holding_id != expected.holding_id
@@ -324,7 +341,7 @@ pub(super) async fn identity(
     external_id: &str,
     now: i64,
 ) -> Tx<ApprovedDirectoryIdentity> {
-    let row=sqlx::query("SELECT CASE WHEN octet_length(i.id)<=200 THEN i.id END identity_id,CASE WHEN octet_length(i.user_id)<=200 THEN i.user_id END identity_user_id,CASE WHEN octet_length(i.company_id)<=200 THEN i.company_id END identity_company_id,CASE WHEN octet_length(i.connection_id)<=200 THEN i.connection_id END identity_connection_id,i.enabled,i.observed_at,CASE WHEN octet_length(m.user_id)<=200 THEN m.user_id END user_id,CASE WHEN octet_length(m.company_id)<=200 THEN m.company_id END member_company_id,CASE WHEN octet_length(m.principal_id)<=200 THEN m.principal_id END principal_id,m.person_id IS NOT NULL person_present,CASE WHEN octet_length(m.person_id)<=200 THEN m.person_id END person_id,m.status,m.login_policy,m.version::bigint member_version FROM iam_identities i JOIN iam_members m ON m.identity_id=i.id AND m.company_id=i.company_id AND m.user_id=i.user_id AND m.connection_id=i.connection_id WHERE i.connection_id=$1 AND i.external_id=$2 FOR SHARE OF i,m").bind(&descriptor.connection_id).bind(external_id).fetch_optional(source).await?.ok_or_else(unavailable)?;
+    let row=sqlx::query("SELECT CASE WHEN octet_length(i.id)<=200 THEN i.id END identity_id,CASE WHEN octet_length(i.user_id)<=200 THEN i.user_id END identity_user_id,CASE WHEN octet_length(i.company_id)<=200 THEN i.company_id END identity_company_id,CASE WHEN octet_length(i.connection_id)<=200 THEN i.connection_id END identity_connection_id,i.enabled,i.observed_at,CASE WHEN octet_length(m.user_id)<=200 THEN m.user_id END user_id,CASE WHEN octet_length(m.company_id)<=200 THEN m.company_id END member_company_id,CASE WHEN octet_length(m.principal_id)<=200 THEN m.principal_id END principal_id,m.person_id IS NOT NULL person_present,CASE WHEN octet_length(m.person_id)<=200 THEN m.person_id END person_id,m.status,m.login_policy,m.version::bigint member_version FROM iam_identities i JOIN iam_members m ON m.identity_id=i.id AND m.company_id=i.company_id AND m.user_id=i.user_id AND m.connection_id=i.connection_id WHERE i.connection_id=$1 AND i.external_id=$2 FOR SHARE OF i,m").bind(&descriptor.connection_id).bind(external_id).fetch_optional(&mut *source).await?.ok_or_else(unavailable)?;
     let text = |name| -> Tx<String> {
         row.try_get::<Option<String>, _>(name)?
             .ok_or_else(|| unavailable().into())
@@ -350,6 +367,17 @@ pub(super) async fn identity(
         identity_connection_id: text("identity_connection_id")?,
     };
     facts.require_fresh(descriptor, now)?;
+    if super::directory_source_postgres::require_current_observation(
+        source,
+        descriptor,
+        facts.observed_at,
+        now,
+    )
+    .await?
+        != crate::domain::directory_provenance::ObservationUse::Fresh
+    {
+        return Err(unavailable().into());
+    }
     Ok(facts)
 }
 pub(super) struct RetainedDirectoryIdentity {
@@ -428,6 +456,15 @@ impl DirectoryRoutes for PostgresDirectory {
                 .profiles
                 .fingerprint(&result.config.secret_profile, &result.connection_id)
                 .await?;
+            let lease = self
+                .profiles
+                .retain(
+                    &result.config.secret_profile,
+                    &result.connection_id,
+                    Some(&result.profile_fingerprint),
+                )
+                .await?;
+            self.profiles.require_selected(&result, &lease)?;
             Ok(result)
         })
     }

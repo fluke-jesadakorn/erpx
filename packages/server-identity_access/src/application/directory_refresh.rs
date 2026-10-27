@@ -124,7 +124,12 @@ impl DirectoryBusinessRefresh {
             let observed = match self.provider.observe_bound(descriptor, started).await {
                 Ok(observed) => observed,
                 Err(error) => {
-                    if error.code == "DIRECTORY_REFRESH_BUSY" {
+                    if matches!(
+                        error.code,
+                        "DIRECTORY_REFRESH_BUSY"
+                            | "DIRECTORY_SOURCE_CONFIGURATION"
+                            | "DIRECTORY_SECRET_UNAVAILABLE"
+                    ) {
                         return Err(error);
                     }
                     self.persistence

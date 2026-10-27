@@ -70,7 +70,27 @@ impl PostgresDirectory {
                 .fetch_one(&mut *source)
                 .await?;
         let observed = snapshot.observed_at();
-        if last.is_some_and(|time| time > observed) {
+        let selected = descriptor.source.as_ref().ok_or_else(|| {
+            crate::domain::directory_provenance::Denial::SourceNotApproved.business()
+        })?;
+        let previous = super::directory_source_postgres::observation(
+            source,
+            &descriptor.connection_id,
+            &descriptor.company_id,
+        )
+        .await?;
+        if crate::domain::directory_provenance::snapshot_order(
+            selected,
+            previous.as_ref(),
+            observed,
+            self.clock.now().get(),
+        )
+        .map_err(crate::domain::directory_provenance::Denial::business)?
+            == crate::domain::directory_provenance::SnapshotOrder::RetainNewerFromSameSource
+        {
+            if last != previous.as_ref().map(|p| p.observed_at) {
+                return Err(unavailable().into());
+            }
             return Ok(SynchronizationOutcome::NewerCompleteObservationRetained);
         }
         snapshot.require_fresh(self.clock.now().get())?;
@@ -132,6 +152,13 @@ impl PostgresDirectory {
             .bind(&group_ids)
             .execute(&mut *source)
             .await?;
+        super::directory_source_postgres::stamp_complete(
+            source,
+            descriptor,
+            &work.audit_id,
+            observed,
+        )
+        .await?;
         let now = self.clock.now().get();
         let retained =
             mappings::reconcile(source, descriptor, route, now, &work.identifiers).await?;
@@ -157,6 +184,13 @@ impl PostgresDirectory {
         retained
             .require_current(source, descriptor, final_now)
             .await?;
+        super::directory_source_postgres::require_stamp(
+            source,
+            descriptor,
+            &work.audit_id,
+            observed,
+        )
+        .await?;
         Ok(SynchronizationOutcome::Applied)
     }
     async fn failed_snapshot_unit(
