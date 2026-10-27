@@ -52,6 +52,37 @@ impl PgUnitOfWork {
     pub async fn run<T: Send + 'static, E: Send + 'static, F>(
         &self,
         options: TransactionOptions,
+        action: F,
+    ) -> Result<T, PgTransactionError<E>>
+    where
+        F: for<'c> FnMut(&'c mut PgConnection) -> PgWorkFuture<'c, T, E> + Send,
+    {
+        self.execute(options, 4, action).await
+    }
+    /// A Control write surrounding committed Holding effects must never replay
+    /// its callback or commit attempt. Serialization/deadlock errors are returned
+    /// unchanged for the caller's explicit resumable protocol.
+    pub async fn run_once<T: Send + 'static, E: Send + 'static, F>(
+        &self,
+        options: TransactionOptions,
+        action: F,
+    ) -> Result<T, PgTransactionError<E>>
+    where
+        F: for<'c> FnOnce(&'c mut PgConnection) -> PgWorkFuture<'c, T, E> + Send,
+    {
+        let mut action = Some(action);
+        self.execute(options, 1, move |connection| match action.take() {
+            Some(action) => action(connection),
+            None => Box::pin(async {
+                Err(PersistenceError::new("TRANSACTION_CALLBACK_REPLAY_REFUSED").into())
+            }),
+        })
+        .await
+    }
+    async fn execute<T: Send + 'static, E: Send + 'static, F>(
+        &self,
+        options: TransactionOptions,
+        attempts: usize,
         mut action: F,
     ) -> Result<T, PgTransactionError<E>>
     where
@@ -65,7 +96,7 @@ impl PgUnitOfWork {
         }) {
             return Err(PersistenceError::new("INVALID_TRANSACTION_SESSION_LOCK").into());
         }
-        for attempt in 0..4 {
+        for attempt in 0..attempts {
             let _turn = match &options.session_lock {
                 Some(lock) => Some(self.pool.turn(&lock.namespace, &lock.key).await?),
                 None => None,
@@ -117,7 +148,7 @@ impl PgUnitOfWork {
                 _ => return Err(PersistenceError::new("TRANSACTION_SESSION_UNLOCK_FAILED").into()),
             }
             let retry = matches!(&result,Err(PgTransactionError::Persistence(e)) if e.retryable())
-                && attempt < 3;
+                && attempt + 1 < attempts;
             drop(lease);
             drop(_turn);
             if !retry {

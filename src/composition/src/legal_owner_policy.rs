@@ -215,3 +215,11 @@ impl PgLegalRecordExternalPolicy for ActualExternalPolicy {
         })
     }
 }
+
+impl erpx_server_identity_access::public::effective_authority::HoldingWorkSourcePreparation
+    for LegalOwnerConfiguration
+{
+    fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async move { self.lock_sources(c).await })
+    }
+}

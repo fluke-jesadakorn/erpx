@@ -15,6 +15,19 @@ async fn main() -> std::process::ExitCode {
 pub async fn run_cli(arguments: impl IntoIterator<Item = String>) -> Result<(), String> {
     let arguments: Vec<_> = arguments.into_iter().collect();
     match arguments.as_slice() {
+        #[cfg(feature = "legal-document-worker")]
+        [command, once, option, path]
+            if command == "legal-worker"
+                && once == "--once"
+                && option == "--development-config" =>
+        {
+            let outcome =
+                erpx_service::legal_worker_bootstrap::run_once_file(std::path::Path::new(path))
+                    .await
+                    .map_err(str::to_owned)?;
+            println!("{}", outcome);
+            Ok(())
+        }
         [command] if command == "owners" => {
             let (inventory, readiness) = inspect_migration(&EmbeddedMigrationInventory)?;
             println!(
@@ -37,10 +50,11 @@ pub async fn run_cli(arguments: impl IntoIterator<Item = String>) -> Result<(), 
                 .await
                 .map_err(|_| "RUST_FOUNDATION_HTTP_FAILED".to_owned())
         }
-        _ => Err(
+        _ => Err(if cfg!(feature="legal-document-worker"){
+            "Usage: erpx-server owners | erpx-server api --listen 127.0.0.1:<disposable-port> | erpx-server legal-worker --once --development-config /absolute/private.json"
+        }else{
             "Usage: erpx-server owners | erpx-server api --listen 127.0.0.1:<disposable-port>"
-                .to_owned(),
-        ),
+        }.to_owned()),
     }
 }
 

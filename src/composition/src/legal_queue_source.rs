@@ -79,6 +79,6 @@ impl PgQueuedWorkSourcePort for LegalQueuedSource {
         source: &'c Self::Source,
         now: i64,
     ) -> PgWorkFuture<'c, (), BusinessError> {
-        Box::pin(async move { source.require_current_or_completed(connection, now).await })
+        Box::pin(async move { source.require_current_or_settled(connection, now).await })
     }
 }

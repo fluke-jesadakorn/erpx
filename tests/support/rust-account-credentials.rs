@@ -46,6 +46,20 @@ pub async fn setup_with_clock(
     invitations: Arc<dyn InvitationCredentialAuthority>,
     clock: Arc<MutableClock>,
 ) -> Scenario {
+    setup_with_clock_and_invalidation(
+        pool,
+        invitations,
+        clock,
+        Arc::new(account::RecordedFixtureRevocations::default()),
+    )
+    .await
+}
+pub async fn setup_with_clock_and_invalidation(
+    pool: &DatabasePool,
+    invitations: Arc<dyn InvitationCredentialAuthority>,
+    clock: Arc<MutableClock>,
+    invalidation: Arc<dyn account_revocation::AccountWorkContextInvalidation>,
+) -> Scenario {
     let files = load_migrations(
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"),
         MigrationTrack::Control,
@@ -85,6 +99,8 @@ pub async fn setup_with_clock(
                     pool.clone(),
                     "development".into(),
                     true,
+                    invalidation.clone(),
+                    clock.clone(),
                 )
                 .unwrap(),
             ),
@@ -102,6 +118,7 @@ pub async fn setup_with_clock(
                     pool.clone(),
                     "development".into(),
                     invitations,
+                    invalidation.clone(),
                     clock.clone(),
                 )
                 .unwrap(),

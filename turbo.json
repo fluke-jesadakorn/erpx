@@ -1,5 +1,9 @@
 {
   "$schema": "https://turborepo.com/schema.json",
+  "globalEnv": [
+    "ERPX_NODE_BIN",
+    "ERPX_BUN_BIN"
+  ],
   "tasks": {
     "typecheck": {
       "outputs": [

@@ -34,9 +34,11 @@ pub(crate) async fn lock_session_writes(connection: &mut PgConnection) -> Result
     )
     .execute(&mut *connection)
     .await?;
-    sqlx::query("LOCK TABLE sso_session_bindings,\"user\",principals IN SHARE MODE")
-        .execute(connection)
-        .await?;
+    sqlx::query(
+        "LOCK TABLE sso_session_bindings,\"user\",principals,holding_bindings IN SHARE MODE",
+    )
+    .execute(connection)
+    .await?;
     Ok(())
 }
 

@@ -41,3 +41,30 @@ pub fn assert_error<T>(value: Result<T, BusinessError>, code: &str) {
         Ok(_) => panic!("expected {code}"),
     }
 }
+
+/// Explicit recording double for Control-only adapter cases. It is never a
+/// production constructor/default and does not prove real Holding persistence;
+/// the separate revocation PostgreSQL suite supplies the actual native adapter.
+#[allow(dead_code)]
+#[derive(Default)]
+pub struct RecordedFixtureRevocations(
+    std::sync::Mutex<Vec<account_revocation::RetiredAccountChild>>,
+);
+impl account_revocation::AccountWorkContextInvalidation for RecordedFixtureRevocations {
+    fn invalidate<'a>(
+        &'a self,
+        _targets: &'a [account_revocation::AccountRevocationTarget],
+        children: &'a [account_revocation::RetiredAccountChild],
+    ) -> AccountFuture<'a, ()> {
+        Box::pin(async move {
+            assert!(!children.is_empty());
+            assert!(
+                children
+                    .iter()
+                    .all(|child| child.environment == "development")
+            );
+            self.0.lock().unwrap().extend_from_slice(children);
+            Ok(())
+        })
+    }
+}

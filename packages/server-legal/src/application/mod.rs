@@ -1,4 +1,5 @@
 pub(crate) mod document_extraction;
+pub(crate) mod document_processing;
 #[cfg(feature = "pdf-verifier")]
 pub(crate) mod pdf_validation;
 pub(crate) mod pdf_verification;

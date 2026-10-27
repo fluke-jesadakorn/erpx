@@ -14,6 +14,25 @@ use std::{
 };
 
 #[tokio::test]
+async fn one_attempt_write_never_replays_callback_or_commit_after_an_external_commit() {
+    with_database(2,|pool|async move {
+        sqlx::raw_sql("CREATE TABLE control_write(id text);CREATE TABLE committed_effect(id text);CREATE FUNCTION deferred_conflict() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'synthetic commit conflict' USING ERRCODE='40001'; END $$;CREATE CONSTRAINT TRIGGER defer_conflict AFTER INSERT ON control_write DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION deferred_conflict();CREATE FUNCTION callback_conflict(code text) RETURNS void LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'synthetic callback conflict' USING ERRCODE=code; END $$").execute(pool.raw()).await.unwrap();
+        let uow=PgUnitOfWork::new(pool.clone());let options=TransactionOptions{session_lock:Some(SessionLock{namespace:"once".into(),key:"control-family".into()}),prefer_indexed_reads:false};
+        for code in ["40001","40P01"] {
+            let observed=Arc::new(AtomicUsize::new(0));let calls=observed.clone();let captured=String::from("this closure consumes its owned value");
+            let result=uow.run_once::<(),Infallible,_>(options.clone(),move|c|Box::pin(async move{assert!(!captured.is_empty());calls.fetch_add(1,Ordering::SeqCst);sqlx::query("SELECT callback_conflict($1)").bind(code).execute(c).await?;Ok(())})).await;
+            assert!(matches!(result,Err(PgTransactionError::Persistence(ref e))if e.sql_state()==Some(code)));assert_eq!(observed.load(Ordering::SeqCst),1);
+        }
+        let observed=Arc::new(AtomicUsize::new(0));let calls=observed.clone();let external=pool.clone();
+        let result=uow.run_once::<(),Infallible,_>(options.clone(),move|c|Box::pin(async move{calls.fetch_add(1,Ordering::SeqCst);sqlx::query("INSERT INTO committed_effect VALUES('durable-holding-effect')").execute(external.raw()).await?;sqlx::query("INSERT INTO control_write VALUES('control-finalization')").execute(c).await?;Ok(())})).await;
+        assert!(matches!(result,Err(PgTransactionError::Persistence(ref e))if e.sql_state()==Some("40001")));assert_eq!(observed.load(Ordering::SeqCst),1);
+        assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*)FROM committed_effect").fetch_one(pool.raw()).await.unwrap(),1);assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*)FROM control_write").fetch_one(pool.raw()).await.unwrap(),0);
+        let count=uow.run_once::<_,Infallible,_>(options,|c|Box::pin(async move{Ok(sqlx::query_scalar::<_,i64>("SELECT count(*)FROM pg_locks WHERE locktype='advisory'AND pid=pg_backend_pid()").fetch_one(c).await?)})).await.unwrap();assert_eq!(count,1,"only the current explicit session lock may remain");
+        assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*)FROM pg_locks WHERE locktype='advisory'AND pid=pg_backend_pid()").fetch_one(pool.raw()).await.unwrap(),0);
+    }).await;
+}
+
+#[tokio::test]
 async fn serializable_unit_of_work_rolls_back_receipt_audit_outbox_and_owner_write() {
     with_database(2,|pool|async move {
         sqlx::raw_sql("CREATE TABLE owner_write(id int PRIMARY KEY); CREATE TABLE receipt(id int); CREATE TABLE audit(id int); CREATE TABLE outbox(id int)").execute(pool.raw()).await.unwrap();
@@ -215,4 +234,57 @@ async fn request_authorization_lease_never_replays_a_callback_after_a_holding_co
             assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM durable_owner_write").fetch_one(holding.raw()).await.unwrap(),1);
         }).await;
     }).await;
+}
+
+#[tokio::test]
+async fn development_worker_pool_requires_the_current_exact_server_side_database_lease() {
+    use erpx_server_runtime::public::postgres::{LeasedDevelopmentDatabase, PoolLimits};
+    use sqlx::{ConnectOptions, postgres::PgConnectOptions};
+    use std::str::FromStr;
+    with_database(2, |pool| async move {
+        let name: String = sqlx::query_scalar("SELECT current_database()")
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+        let token = name.strip_prefix("erpx_dev_rust_").unwrap();
+        let options = PgConnectOptions::from_str(&std::env::var("ERPX_TEST_ADMIN_URL").unwrap())
+            .unwrap()
+            .database(&name);
+        let mut url = options.to_url_lossy();
+        url.set_query(None);
+        let config = LeasedDevelopmentDatabase::parse(url.as_str(), token).unwrap();
+        let connected = config
+            .connect(PoolLimits {
+                max_connections: 1,
+                acquire_timeout: Duration::from_secs(3),
+            })
+            .await
+            .unwrap();
+        connected.close().await;
+        assert!(
+            config
+                .connect(PoolLimits {
+                    max_connections: 4,
+                    acquire_timeout: Duration::from_secs(3)
+                })
+                .await
+                .is_err()
+        );
+        let changed = sqlx::AssertSqlSafe(format!(
+            "COMMENT ON DATABASE \"{name}\" IS 'synthetic-wrong-lease'"
+        ));
+        sqlx::raw_sql(changed).execute(pool.raw()).await.unwrap();
+        let denied = config
+            .connect(PoolLimits {
+                max_connections: 1,
+                acquire_timeout: Duration::from_secs(3),
+            })
+            .await;
+        assert!(matches!(denied,Err(ref e)if e.code=="DEVELOPMENT_DATABASE_LEASE_NOT_CURRENT"));
+        let restored = sqlx::AssertSqlSafe(format!(
+            "COMMENT ON DATABASE \"{name}\" IS 'erpx-rust-test:{token}'"
+        ));
+        sqlx::raw_sql(restored).execute(pool.raw()).await.unwrap();
+    })
+    .await;
 }

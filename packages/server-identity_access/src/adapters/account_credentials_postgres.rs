@@ -1,3 +1,5 @@
+use super::account_revocation_postgres::invalidate_children;
+use crate::application::account_revocation::AccountWorkContextInvalidation;
 use crate::{
     adapters::{
         account_postgres::{
@@ -17,6 +19,7 @@ use std::sync::Arc;
 
 pub struct PostgresAccountCredentials {
     unit: PgUnitOfWork,
+    invalidation: Arc<dyn AccountWorkContextInvalidation>,
     environment: String,
     invitations: Arc<dyn InvitationCredentialAuthority>,
     clock: Arc<dyn Clock + Send + Sync>,
@@ -26,6 +29,7 @@ impl PostgresAccountCredentials {
         pool: DatabasePool,
         environment: String,
         invitations: Arc<dyn InvitationCredentialAuthority>,
+        invalidation: Arc<dyn AccountWorkContextInvalidation>,
         clock: Arc<dyn Clock + Send + Sync>,
     ) -> Result<Self, BusinessError> {
         if environment != "development" {
@@ -38,6 +42,7 @@ impl PostgresAccountCredentials {
             unit: PgUnitOfWork::new(pool),
             environment,
             invitations,
+            invalidation,
             clock,
         })
     }
@@ -131,11 +136,18 @@ async fn proof(
     }
     Ok((row.try_get("id")?, current, row.try_get("expires_at")?))
 }
-async fn revoke_all(connection: &mut PgConnection, user_id: &str, now: i64) -> TxResult<()> {
+async fn revoke_all(
+    connection: &mut PgConnection,
+    user_id: &str,
+    now: i64,
+    environment: &str,
+    invalidation: &dyn AccountWorkContextInvalidation,
+) -> TxResult<()> {
     let sessions = sqlx::query_scalar::<_, String>("SELECT id FROM session WHERE \"userId\"=$1")
         .bind(user_id)
         .fetch_all(&mut *connection)
         .await?;
+    invalidate_children(connection, &sessions, environment, invalidation).await?;
     let browsers: Vec<String> = sqlx::query_scalar(
         "SELECT id FROM account_device_browsers WHERE active_session_id=ANY($1::text[])",
     )
@@ -149,7 +161,7 @@ async fn revoke_all(connection: &mut PgConnection, user_id: &str, now: i64) -> T
         }
     }
     for session in sessions {
-        expire_family(connection, &session).await?;
+        expire_family(connection, &session, environment, invalidation).await?;
     }
     Ok(())
 }
@@ -158,12 +170,14 @@ async fn replace_password(
     current: &CredentialSnapshot,
     new: &PasswordHash,
     now: i64,
+    environment: &str,
+    invalidation: &dyn AccountWorkContextInvalidation,
 ) -> TxResult<()> {
     let changed=sqlx::query("UPDATE account SET password=$3,\"updatedAt\"=$4 WHERE \"userId\"=$1 AND \"accountId\"=$1 AND \"providerId\"='credential' AND issuer='local:credential' AND password=$2").bind(&current.user_id).bind(current.password_hash.as_str()).bind(new.as_str()).bind(now).execute(&mut *connection).await?.rows_affected();
     if changed != 1 {
         return Err(invalid_proof().into());
     }
-    revoke_all(connection, &current.user_id, now).await?;
+    revoke_all(connection, &current.user_id, now, environment, invalidation).await?;
     cancel_proofs(connection, &current.user_id, None, now).await
 }
 async fn authenticated_credential(
@@ -236,9 +250,11 @@ impl AccountCredentialRepository for PostgresAccountCredentials {
         Box::pin(async move {
             finish(
                 self.unit
-                    .run(options(), |connection| {
+                    .run_once(options(), |connection| {
                         let input = input.clone();
+                        let environment = self.environment.clone();
                         let clock = self.clock.clone();
+                        let invalidation = self.invalidation.clone();
                         Box::pin(async move {
                             locks(connection).await?;
                             let now = clock.now().get();
@@ -249,8 +265,15 @@ impl AccountCredentialRepository for PostgresAccountCredentials {
                                 now,
                             )
                             .await?;
-                            replace_password(connection, &current, &input.password_hash, now)
-                                .await?;
+                            replace_password(
+                                connection,
+                                &current,
+                                &input.password_hash,
+                                now,
+                                &environment,
+                                invalidation.as_ref(),
+                            )
+                            .await?;
                             audit(
                                 connection,
                                 &input.event_id,
@@ -260,6 +283,9 @@ impl AccountCredentialRepository for PostgresAccountCredentials {
                                 now,
                             )
                             .await?;
+                            sqlx::query("SET CONSTRAINTS ALL IMMEDIATE")
+                                .execute(&mut *connection)
+                                .await?;
                             if clock.now().get() >= expires {
                                 return Err(invalid_proof().into());
                             }
@@ -272,13 +298,13 @@ impl AccountCredentialRepository for PostgresAccountCredentials {
     }
     fn verify_email(&self, input: VerifyCredential) -> AccountFuture<'_, VerifiedCredential> {
         Box::pin(async move {
-            finish(self.unit.run(options(),|connection|{let input=input.clone();let environment=self.environment.clone();let clock=self.clock.clone();Box::pin(async move{
+            finish(self.unit.run_once(options(),|connection|{let input=input.clone();let environment=self.environment.clone();let clock=self.clock.clone();let invalidation=self.invalidation.clone();Box::pin(async move{
   locks(connection).await?;
                             let now=clock.now().get();let(id,current,expires)=proof(connection,CredentialProofKind::EmailVerification,&input.token_digest,now).await?;
   let(browser_id,created_browser)=ensure_browser(connection,&input.proof,&input.candidate_browser,now).await?;let state=browser(connection,&browser_id).await?.ok_or_else(invalid_proof)?;revision(&state,input.expected_revision,now)?;
   sqlx::query("UPDATE \"user\" SET \"emailVerified\"=1,\"updatedAt\"=$2 WHERE id=$1").bind(&current.user_id).bind(now).execute(&mut *connection).await?;cancel_proofs(connection,&current.user_id,Some(CredentialProofKind::EmailVerification.as_str()),now).await?;
-  let completed=issue_account_session(connection,IssuedAccountSession{proof:input.proof,browser:browser_id,session_id:input.session_id,session_digest:input.session_digest,handle:input.handle,user_id:current.user_id.clone(),now},&environment).await?;
-  audit(connection,&input.event_id,&current.user_id,"email_verified",Some(&id),now).await?;if clock.now().get()>=expires{return Err(invalid_proof().into());}Ok(VerifiedCredential{completed,created_browser})
+  let completed=issue_account_session(connection,IssuedAccountSession{proof:input.proof,browser:browser_id,session_id:input.session_id,session_digest:input.session_digest,handle:input.handle,user_id:current.user_id.clone(),now},&environment,invalidation.as_ref(),clock.as_ref()).await?;
+  audit(connection,&input.event_id,&current.user_id,"email_verified",Some(&id),now).await?;sqlx::query("SET CONSTRAINTS ALL IMMEDIATE").execute(&mut *connection).await?;if clock.now().get()>=expires{return Err(invalid_proof().into());}Ok(VerifiedCredential{completed,created_browser})
  })}).await)
         })
     }
@@ -316,13 +342,23 @@ impl AccountCredentialRepository for PostgresAccountCredentials {
         Box::pin(async move {
             finish(
                 self.unit
-                    .run(options(), |connection| {
+                    .run_once(options(), |connection| {
                         let input = input.clone();
                         let clock = self.clock.clone();
+                        let invalidation = self.invalidation.clone();
                         let environment = self.environment.clone();
                         Box::pin(async move {
                             locks(connection).await?;
                             let now = clock.now().get();
+                            let original = read_session(
+                                connection,
+                                &input.proof,
+                                &RequestAudience::Account,
+                                &environment,
+                                now,
+                            )
+                            .await?
+                            .ok_or_else(denied)?;
                             let current = authenticated_credential(
                                 connection,
                                 &input.proof,
@@ -333,8 +369,15 @@ impl AccountCredentialRepository for PostgresAccountCredentials {
                             if current.password_hash != input.previous {
                                 return Err(denied().into());
                             }
-                            replace_password(connection, &current, &input.password_hash, now)
-                                .await?;
+                            replace_password(
+                                connection,
+                                &current,
+                                &input.password_hash,
+                                now,
+                                &environment,
+                                invalidation.as_ref(),
+                            )
+                            .await?;
                             audit(
                                 connection,
                                 &input.event_id,
@@ -343,7 +386,14 @@ impl AccountCredentialRepository for PostgresAccountCredentials {
                                 None,
                                 now,
                             )
-                            .await
+                            .await?;
+                            sqlx::query("SET CONSTRAINTS ALL IMMEDIATE")
+                                .execute(&mut *connection)
+                                .await?;
+                            if clock.now().get() >= original.expires_at {
+                                return Err(denied().into());
+                            }
+                            Ok(())
                         })
                     })
                     .await,

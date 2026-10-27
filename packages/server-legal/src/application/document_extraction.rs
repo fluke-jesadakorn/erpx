@@ -1,16 +1,54 @@
 use crate::domain::document_extraction::{
-    DocumentExtractionFailure, DocumentExtractionInput, DocumentExtractionKind,
-    DocumentExtractionReport, EXTRACTION_PAGE_MAP_LIMIT, EXTRACTION_TEXT_LIMIT, ExtractedDocument,
-    ExtractedPage, ExtractionMethod, ExtractionStatus, LegalDocumentMediaType,
-    SCANNED_PDF_PAGE_LIMIT,
+    DocumentComputeBudget, DocumentExtractionFailure, DocumentExtractionInput,
+    DocumentExtractionKind, DocumentExtractionReport, EXTRACTION_PAGE_MAP_LIMIT,
+    EXTRACTION_TEXT_LIMIT, ExtractedDocument, ExtractedPage, ExtractionMethod, ExtractionStatus,
+    LegalDocumentMediaType, SCANNED_PDF_PAGE_LIMIT,
 };
 use std::future::Future;
 
-pub trait DocumentExtractor {
+pub trait DocumentExtractor: Sync {
     fn extract(
         &self,
         input: DocumentExtractionInput,
+    ) -> impl Future<Output = Result<DocumentExtractionReport, DocumentExtractionFailure>> + Send
+    {
+        self.extract_with_budget(input, DocumentComputeBudget::maximum())
+    }
+    fn extract_with_budget(
+        &self,
+        input: DocumentExtractionInput,
+        budget: DocumentComputeBudget,
     ) -> impl Future<Output = Result<DocumentExtractionReport, DocumentExtractionFailure>> + Send;
+}
+
+pub(crate) fn require_extraction_report(
+    checksum: &str,
+    kind: DocumentExtractionKind,
+    report: &DocumentExtractionReport,
+) -> Result<(), DocumentExtractionFailure> {
+    let expected = finish_document_extraction(
+        checksum,
+        kind,
+        ExtractedDocument {
+            method: report
+                .method
+                .ok_or(DocumentExtractionFailure::WorkerProtocol)?,
+            text: report.text.clone(),
+            pages: report.pages.clone(),
+        },
+    )?;
+    if report.status != expected.status
+        || report.checksum != expected.checksum
+        || !report.requires_review
+        || report.retryable
+        || !report.reasons.is_empty()
+        || report.page_mapping != expected.page_mapping
+        || report.text != expected.text
+        || report.pages != expected.pages
+    {
+        return Err(DocumentExtractionFailure::WorkerProtocol);
+    }
+    Ok(())
 }
 
 /// OCR remains draft evidence requiring human review. The business text budget

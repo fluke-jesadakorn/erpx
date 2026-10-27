@@ -19,6 +19,10 @@ This source tree includes:
   Copyright 2020-2024 Unicode, Inc.; adapted ICU portions retain their notices.
   See packages/server-commercial/licenses/ICU4X-Unicode-3.0.txt and Cargo.lock.
 
+- ryu-js 1.0.3 floating-point formatter: Apache-2.0 (selected from
+  Apache-2.0 OR BSL-1.0). See
+  packages/server-workflow/licenses/ryu-js-1.0.3-Apache-2.0.txt and Cargo.lock.
+
 See LICENSING.md and docs/community/provenance.json for the scope of the
 current project grant and the incomplete historical and asset review.
 This notice is informational; it does not change any license terms.

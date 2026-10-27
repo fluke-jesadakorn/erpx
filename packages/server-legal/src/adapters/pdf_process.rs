@@ -6,7 +6,7 @@ use std::{
     process::Stdio,
     sync::{
         Arc,
-        atomic::{AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
     },
     time::Duration,
 };
@@ -29,10 +29,10 @@ use crate::{
     domain::{
         pdf_validation::{PdfValidationReport, ValidationState, aggregate},
         pdf_verification::{
-            AuthorizedPdfSnapshot, PdfVerificationEvidence, PdfVerificationFailure,
-            PdfVerificationSnapshotStamp, TRUST_ITEM_BYTES_LIMIT, TrustMaterialKind,
-            TrustMaterialReceipt, VERIFICATION_ADMISSION_LIMIT, VERIFICATION_DEADLINE_SECONDS,
-            VERIFICATION_OUTPUT_LIMIT,
+            AuthorizedPdfSnapshot, PdfComputeBudget, PdfVerificationEvidence,
+            PdfVerificationFailure, PdfVerificationSnapshotStamp, TRUST_ITEM_BYTES_LIMIT,
+            TrustMaterialKind, TrustMaterialReceipt, VERIFICATION_ADMISSION_LIMIT,
+            VERIFICATION_DEADLINE_SECONDS, VERIFICATION_OUTPUT_LIMIT,
         },
     },
 };
@@ -90,6 +90,7 @@ pub struct BoundedPdfVerifier {
     limits: PdfProcessLimits,
     permit: Arc<Semaphore>,
     shutdown: watch::Sender<bool>,
+    healthy: Arc<AtomicBool>,
 }
 
 impl BoundedPdfVerifier {
@@ -131,6 +132,7 @@ impl BoundedPdfVerifier {
             limits,
             permit: Arc::new(Semaphore::new(1)),
             shutdown,
+            healthy: Arc::new(AtomicBool::new(true)),
         })
     }
 
@@ -142,6 +144,58 @@ impl BoundedPdfVerifier {
             drop(permit);
         }
     }
+    pub fn is_healthy(&self) -> bool {
+        self.healthy.load(Ordering::Acquire)
+    }
+    pub fn can_accept_work(&self) -> bool {
+        self.is_healthy() && !*self.shutdown.borrow() && self.permit.available_permits() > 0
+    }
+    pub async fn current_provider_profile(
+        &self,
+    ) -> Result<super::pdf_readiness::PdfProviderProfile, PdfVerificationFailure> {
+        if !self.is_healthy() || *self.shutdown.borrow() {
+            return Err(PdfVerificationFailure::WorkerUnavailable);
+        }
+        super::pdf_readiness::inspect_profile(
+            self.binary.clone(),
+            self.private_root.clone(),
+            super::pdf_readiness::PdfProviderLimits {
+                deadline_millis: self.limits.deadline.as_millis() as u64,
+                output_bytes: self.limits.output_bytes,
+                memory_bytes: self.limits.memory_bytes,
+            },
+        )
+        .await
+    }
+    pub async fn probe_readiness(
+        &self,
+        clock: &(impl erpx_server_shared::public::Clock + Sync),
+    ) -> Result<super::pdf_readiness::PdfProviderReadiness, PdfVerificationFailure> {
+        if !self.can_accept_work() {
+            return Err(PdfVerificationFailure::WorkerUnavailable);
+        }
+        let profile = self.current_provider_profile().await?;
+        let snapshot = super::pdf_readiness::snapshot()?;
+        if snapshot.document_checksum_sha256 != profile.probe_sha256() {
+            return Err(PdfVerificationFailure::WorkerProtocol);
+        }
+        let evidence = self
+            .verify_with_budget(snapshot, clock.now(), PdfComputeBudget::new(5_000)?)
+            .await?;
+        if evidence.report.status != ValidationState::Indeterminate
+            || !evidence.report.signatures.is_empty()
+            || evidence.report.reasons != ["NO_EMBEDDED_SIGNATURES"]
+            || !evidence.snapshot.trust.is_empty()
+            || evidence.inspection_id.is_some()
+            || evidence.computation.is_some()
+        {
+            return Err(PdfVerificationFailure::WorkerProtocol);
+        }
+        if !self.can_accept_work() || self.current_provider_profile().await? != profile {
+            return Err(PdfVerificationFailure::WorkerUnavailable);
+        }
+        Ok(super::pdf_readiness::ready(profile, clock.now().get()))
+    }
 }
 
 impl PdfVerifierProcess for BoundedPdfVerifier {
@@ -150,17 +204,28 @@ impl PdfVerifierProcess for BoundedPdfVerifier {
         snapshot: AuthorizedPdfSnapshot,
         validation_time: TimestampMillis,
     ) -> Result<PdfVerificationEvidence, PdfVerificationFailure> {
+        self.verify_with_budget(snapshot, validation_time, PdfComputeBudget::maximum())
+            .await
+    }
+    async fn verify_with_budget(
+        &self,
+        snapshot: AuthorizedPdfSnapshot,
+        validation_time: TimestampMillis,
+        budget: PdfComputeBudget,
+    ) -> Result<PdfVerificationEvidence, PdfVerificationFailure> {
         validate_admission(&snapshot)?;
         let permit = self
             .permit
             .clone()
             .try_acquire_owned()
             .map_err(|_| PdfVerificationFailure::WorkerUnavailable)?;
-        if *self.shutdown.borrow() {
+        if *self.shutdown.borrow() || !self.is_healthy() {
             return Err(PdfVerificationFailure::WorkerUnavailable);
         }
         let (mut sender, receiver) = oneshot::channel();
         let verifier = self.clone();
+        let deadline = tokio::time::Instant::now()
+            + Duration::from_millis(budget.millis()).min(self.limits.deadline);
         // This task owns the child and temporary files even if the requesting
         // future is dropped. Receiver cancellation requests kill + reap.
         tokio::spawn(async move {
@@ -172,7 +237,7 @@ impl PdfVerifierProcess for BoundedPdfVerifier {
             .unwrap_or(Err(PdfVerificationFailure::WorkerFailed));
             let result = match prepared {
                 Ok(prepared) if !sender.is_closed() && !*verifier.shutdown.borrow() => {
-                    run_child(&verifier, prepared, &mut sender).await
+                    run_child(&verifier, prepared, &mut sender, deadline).await
                 }
                 Ok(_) => Err(PdfVerificationFailure::WorkerCancelled),
                 Err(error) => Err(error),
@@ -321,7 +386,11 @@ async fn run_child(
     verifier: &BoundedPdfVerifier,
     prepared: PreparedVerification,
     sender: &mut oneshot::Sender<Result<PdfVerificationEvidence, PdfVerificationFailure>>,
+    deadline: tokio::time::Instant,
 ) -> Result<PdfVerificationEvidence, PdfVerificationFailure> {
+    if tokio::time::Instant::now() >= deadline {
+        return Err(PdfVerificationFailure::WorkerTimeout);
+    }
     let mut command = Command::new(&verifier.binary);
     command
         .arg(prepared.directory.path().join("document.pdf"))
@@ -370,7 +439,7 @@ async fn run_child(
             biased;
             _ = sender.closed() => Err(PdfVerificationFailure::WorkerCancelled),
             _ = shutdown.wait_for(|stopping| *stopping) => Err(PdfVerificationFailure::WorkerCancelled),
-            _ = tokio::time::sleep(verifier.limits.deadline) => Err(PdfVerificationFailure::WorkerTimeout),
+            _ = tokio::time::sleep_until(deadline) => Err(PdfVerificationFailure::WorkerTimeout),
             result = work => result,
             error = monitor_owned_child_memory(pid, verifier.limits.memory_bytes) => Err(error),
         }
@@ -380,7 +449,15 @@ async fn run_child(
         Err(error) => {
             // Only this Tokio Child is signalled. No process-name or port kill.
             let _ = child.start_kill();
-            let _ = child.wait().await;
+            // Keep owning the handle/permit/tempfiles if the OS cannot yet
+            // confirm reaping. Shutdown must never abandon an unknown child.
+            loop {
+                tokio::select! {
+                    result=child.wait()=>match result{Ok(_)=>break,Err(_)=>{verifier.healthy.store(false,Ordering::Release);}},
+                    _=tokio::time::sleep(Duration::from_secs(60))=>{verifier.healthy.store(false,Ordering::Release);},
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
             return Err(error);
         }
     };

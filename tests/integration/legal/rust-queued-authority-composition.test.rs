@@ -1,7 +1,12 @@
+#[allow(
+    dead_code,
+    reason = "the actual Account/SSO fixture also serves account-owned lifecycle suites"
+)]
+#[path = "../../support/rust-account-queued-authority.rs"]
+mod account_queue;
 #[path = "../../support/rust-effective-authority.rs"]
 mod auth;
-#[path = "../../support/rust-postgres.rs"]
-mod fixture;
+use account_queue::account::database as fixture;
 use auth::*;
 use erpx_server_identity_access::public::effective_authority::{
     HoldingWorkAuthorizer, PgQueuedWorkAuthorizer, QueuedWorkBinding, WorkAuthorizationRequest,
@@ -18,6 +23,40 @@ fn source() -> LegalQueuedSource {
         RecordId::new("lease").unwrap(),
     )
 }
+
+#[tokio::test]
+async fn native_account_family_signout_fences_both_holdings_during_compute_before_queued_retention()
+{
+    use erpx_server_shared::public::Clock;
+    use std::time::Duration;
+    account_queue::account::with_system(|system|async move {
+        let prepared=account_queue::prepare(system).await;
+        let clock=prepared.system.scenario.clock.clone();let now=clock.now().get();
+        let (holding,company)=prepared.authorizer.execute("acme.example.test",prepared.proof.clone(),prepared.selection.clone(),prepared.access.clone(),move|c,current|Box::pin(async move{
+            sqlx::query("INSERT INTO legal_settings(company_id,enabled)VALUES($1,true)").bind(current.selection().workspace().company_id.as_str()).execute(&mut *c).await?;
+            sqlx::query("INSERT INTO legal_items(id,company_id,kind,title,classification,country,jurisdiction,language,currency,timezone,priority,owner_id,created_by,created_at,updated_at)VALUES('retirement-item',$1,'contract','Synthetic','internal','TH','TH','en','THB','Asia/Bangkok','normal',$2,$2,0,0)").bind(current.selection().workspace().company_id.as_str()).bind(current.user_id().as_str()).execute(&mut *c).await?;
+            sqlx::query("INSERT INTO legal_documents(id,item_id,version,name,media_type,checksum,bytes,body,created_by,created_at)VALUES('retirement-document','retirement-item',1,'synthetic.pdf','application/pdf',repeat('a',64),1,'x',$1,0)").bind(current.user_id().as_str()).execute(&mut *c).await?;
+            sqlx::query("INSERT INTO legal_processing_jobs(id,company_id,item_id,document_id,checksum,kind,state,attempts,lease_token,lease_until,actor_json,created_by,created_at)VALUES('retirement-job',$1,'retirement-item','retirement-document',repeat('a',64),'verify','running',1,'retirement-lease',$2,$3,$4,0)").bind(current.selection().workspace().company_id.as_str()).bind(now+600_000).bind(QueuedWorkBinding::from_current(current).to_json()?).bind(current.user_id().as_str()).execute(c).await?;
+            Ok((current.holding_id().clone(),current.selection().workspace().company_id.clone()))
+        })).await.unwrap();
+        let source=LegalQueuedSource::new(holding,company,RecordId::new("retirement-job").unwrap(),RecordId::new("retirement-lease").unwrap());
+        // Prepared descriptors are data only. The original current transaction
+        // has committed before the normal Account retirement command runs.
+        let input=prepared.queued.execute(source.clone(),prepared.access.clone(),|_,_,owned|Box::pin(async move{Ok((owned.job().id.clone(),owned.job().document.checksum_sha256.clone()))})).await.unwrap();
+        assert_eq!(input.0.as_str(),"retirement-job");
+        tokio::time::timeout(Duration::from_secs(5),prepared.sign_out()).await.expect("compute retained an authority source lease").unwrap();
+        for (pool,session) in prepared.system.holdings.iter().zip([&prepared.child_id,&prepared.second_holding_child_id]) {
+            assert!(sqlx::query_scalar::<_,bool>("SELECT EXISTS(SELECT 1 FROM iam_revoked_sessions WHERE session_id=$1 AND user_id='fixture-a')").bind(session).fetch_one(pool.raw()).await.unwrap());
+            assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*)FROM active_work_contexts WHERE session_id=$1").bind(session).fetch_one(pool.raw()).await.unwrap(),0);
+        }
+        let finalization=prepared.queued.execute(source,prepared.access.clone(),|_,_,_|Box::pin(async{
+            panic!("retired native Account family reached a current retention callback");
+            #[allow(unreachable_code)]Ok(())
+        })).await;
+        assert!(matches!(finalization,Err(PgTransactionError::Business(_))));
+        assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*)FROM legal_document_inspections").fetch_one(prepared.system.holdings[0].raw()).await.unwrap(),0);
+    }).await;
+}
 fn legal_access() -> WorkAuthorizationRequest {
     let mut request = auth::access();
     request.permission = "legal.read".into();
@@ -33,7 +72,7 @@ async fn seed_native_legal_job(authorizer: &HoldingWorkAuthorizer, pool: &Databa
         let checksum=format!("{:x}",Sha256::digest(b"x"));
         sqlx::query("INSERT INTO legal_documents(id,item_id,version,name,media_type,checksum,bytes,body,created_by,created_at) VALUES('legal-document','legal-item',1,'synthetic.pdf','application/pdf',$1,1,'x','user',0)").bind(&checksum).execute(&mut *connection).await?;
         let snapshot=QueuedWorkBinding::from_current(current).to_json()?;
-        sqlx::query("INSERT INTO legal_processing_jobs(id,company_id,item_id,document_id,checksum,kind,state,attempts,lease_token,lease_until,actor_json,created_by,created_at) VALUES('legal-job','company','legal-item','legal-document',$1,'verify','running',1,'lease',$2,$3,'user',0)").bind(checksum).bind(NOW+10000).bind(snapshot).execute(connection).await?;Ok(())
+        sqlx::query("INSERT INTO legal_processing_jobs(id,company_id,item_id,document_id,checksum,kind,state,attempts,lease_token,lease_until,actor_json,created_by,created_at) VALUES('legal-job','company','legal-item','legal-document',$1,'verify','running',1,'lease',$2,$3,'user',0)").bind(checksum).bind(NOW+600_000).bind(snapshot).execute(connection).await?;Ok(())
     })).await.unwrap();
 }
 #[tokio::test]
@@ -112,7 +151,7 @@ async fn concrete_source_expiry_and_unstamped_completed_state_roll_back_cross_ow
     fixture::with_database(2,|control|async move{fixture::with_database(2,move|holding|async move{
     let(authorizer,clock)=setup(&control,&holding).await;seed_native_legal_job(authorizer.as_ref(),&holding).await;
     let queued=PgQueuedWorkAuthorizer::new(holding.clone(),HoldingId::new("h001").unwrap(),clock.clone());
-    let advancing=clock.clone();let expired=queued.execute(source(),legal_access(),move|connection,_,_|{let clock=advancing.clone();Box::pin(async move{sqlx::query("INSERT INTO native_owner_effects VALUES('expired')").execute(connection).await?;clock.0.store(NOW+10001,Ordering::SeqCst);Ok(())})}).await;assert!(matches!(expired,Err(PgTransactionError::Business(_))));clock.0.store(NOW,Ordering::SeqCst);
+    let advancing=clock.clone();let expired=queued.execute(source(),legal_access(),move|connection,_,_|{let clock=advancing.clone();Box::pin(async move{sqlx::query("INSERT INTO native_owner_effects VALUES('expired')").execute(connection).await?;clock.0.store(NOW+600_001,Ordering::SeqCst);Ok(())})}).await;assert!(matches!(expired,Err(PgTransactionError::Business(_))));clock.0.store(NOW,Ordering::SeqCst);
     let unstamped=queued.execute(source(),legal_access(),|connection,_,_|Box::pin(async move{sqlx::query("INSERT INTO native_owner_effects VALUES('unstamped')").execute(&mut *connection).await?;sqlx::query("UPDATE legal_processing_jobs SET state='completed',lease_token=NULL,lease_until=NULL WHERE id='legal-job'").execute(connection).await?;Ok(())})).await;assert!(matches!(unstamped,Err(PgTransactionError::Business(_))));
     assert_eq!(sqlx::query_scalar::<_,String>("SELECT state FROM legal_processing_jobs WHERE id='legal-job'").fetch_one(holding.raw()).await.unwrap(),"running");
     assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM native_owner_effects").fetch_one(holding.raw()).await.unwrap(),0);
@@ -476,7 +515,7 @@ mod actual_owners {
             sqlx::query("INSERT INTO attachments(id,upload_id,owner_type,owner_id,purpose,object_key,revision,original_name,media_type,bytes,checksum_sha256,created_by,created_at,company_id,source_state)VALUES('source','upload','legal_item','legal-item','legal_document',$1,1,'synthetic.pdf','application/pdf',$2,$3,'user',0,'company','quarantined')").bind(KEY).bind(BODY.len()as i64).bind(&hash).execute(&mut *c).await?;
             sqlx::raw_sql("UPDATE attachments SET source_state='scanning' WHERE id='source';UPDATE attachments SET source_state='available',detected_media_type='application/pdf',scanned_at=10,scanner_definition_at=9 WHERE id='source';INSERT INTO attachment_sets(id,company_id,target_type,target_id,component_kind,component_ref,purpose_key,expected_target_version,policy_version,classification,audience_json,retention_policy_key,state,created_by,created_at,updated_at,bound_at,bound_command_id)VALUES('set','company','legal_item','legal-item','record','command','legal_document',1,1,'restricted','{}','legal-managed','bound','user',0,0,1,'command');INSERT INTO attachment_links(id,set_id,attachment_id,upload_intent_id,state,created_by,created_at,expires_at,bound_at,binding_type,binding_id)VALUES('link','set','source','upload','bound','user',0,8000000000000000,1,'legal_document','legal-document');INSERT INTO attachment_scan_attempts(id,attachment_id,attempt,state,scanner_definition_at,created_at,completed_at)VALUES('scan','source',1,'clean',9,0,10)").execute(&mut *c).await?;
             sqlx::query("INSERT INTO legal_documents(id,item_id,version,name,media_type,checksum,bytes,object_key,created_by,created_at,attachment_link_id,attachment_source_id)VALUES('legal-document','legal-item',1,'synthetic.pdf','application/pdf',$1,$2,$3,'user',0,'link','source')").bind(&hash).bind(BODY.len()as i64).bind(KEY).execute(&mut *c).await?;
-            sqlx::query("INSERT INTO legal_processing_jobs(id,company_id,item_id,document_id,checksum,kind,state,attempts,lease_token,lease_until,actor_json,created_by,created_at)VALUES('legal-job','company','legal-item','legal-document',$1,'verify','running',1,'lease',$2,$3,'user',0)").bind(hash).bind(NOW+10000).bind(QueuedWorkBinding::from_current(current).to_json()?).execute(c).await?;Ok(())
+            sqlx::query("INSERT INTO legal_processing_jobs(id,company_id,item_id,document_id,checksum,kind,state,attempts,lease_token,lease_until,actor_json,created_by,created_at)VALUES('legal-job','company','legal-item','legal-document',$1,'verify','running',1,'lease',$2,$3,'user',0)").bind(hash).bind(NOW+600_000).bind(QueuedWorkBinding::from_current(current).to_json()?).execute(c).await?;Ok(())
         })).await.unwrap();
         let mut tx = pool.raw().begin().await.unwrap();
         sqlx::query("INSERT INTO company_package_grants(company_id,package_id,package_version,state,starts_at,ends_at,version,reason,evidence,updated_at)VALUES('company','legal',1,'active',0,$1,1,'Synthetic reviewed purchase','public-synthetic-evidence',0)").bind(NOW+3600000).execute(&mut *tx).await.unwrap();
@@ -640,6 +679,284 @@ mod actual_owners {
             })
             .await;
         }
+    }
+    #[cfg(feature = "legal-queue")]
+    fn queue_request(key: &str) -> erpx_service::legal_queue_administration::LegalQueueRequest {
+        erpx_service::legal_queue_administration::LegalQueueRequest {
+            key: erpx_server_shared::public::CommandKey::new(key).unwrap(),
+            document_id: RecordId::new("legal-document").unwrap(),
+            kind: erpx_server_legal::public::LegalProcessingKind::Ocr,
+        }
+    }
+    #[cfg(feature = "legal-queue")]
+    #[tokio::test]
+    async fn actual_interactive_queue_uses_workflow_before_one_canonical_owner_insert_and_history_replay()
+     {
+        use erpx_service::legal_queue_administration::LegalQueueAdministration;
+        fixture::with_database(2,|control|async move{fixture::with_database(2,move|holding|async move{
+            let(authorizer,clock)=setup(&control,&holding).await;seed(authorizer.as_ref(),&holding).await;
+            sqlx::raw_sql("CREATE FUNCTION require_real_receipt_first() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NOT EXISTS(SELECT 1 FROM command_receipts WHERE command_id=NEW.id AND record_id=NEW.item_id AND operation='legal.processing.ocr') THEN RAISE EXCEPTION 'receipt missing before Legal effect' USING ERRCODE='23514';END IF;RETURN NEW;END $$;CREATE TRIGGER require_legal_receipt BEFORE INSERT ON legal_processing_jobs FOR EACH ROW EXECUTE FUNCTION require_real_receipt_first()").execute(holding.raw()).await.unwrap();
+            sqlx::query("UPDATE legal_items SET branch_id='branch' WHERE id='legal-item'").execute(holding.raw()).await.unwrap();
+            let mut selected=input();selected.branch_slug=Some("north".into());
+            let service=LegalQueueAdministration::new(authorizer,configuration(),clock);
+            let first=service.queue("acme.example.test",proof(),selected.clone(),queue_request("actual-queue")).await.unwrap();assert_eq!(first.state,"queued");
+            let counts:(i64,i64,i64)=sqlx::query_as("SELECT(SELECT count(*)FROM command_receipts WHERE command_id='actual-queue'),(SELECT count(*)FROM audit_events WHERE command_id='actual-queue'),(SELECT count(*)FROM outbox_events WHERE command_id='actual-queue')").fetch_one(holding.raw()).await.unwrap();assert_eq!(counts,(1,1,1));
+            let saved:String=sqlx::query_scalar("SELECT actor_json FROM legal_processing_jobs WHERE id='actual-queue'").fetch_one(holding.raw()).await.unwrap();QueuedWorkBinding::parse(&saved).unwrap();
+            let metadata:String=sqlx::query_scalar("SELECT authority_json FROM command_receipts WHERE command_id='actual-queue'").fetch_one(holding.raw()).await.unwrap();let metadata:serde_json::Value=serde_json::from_str(&metadata).unwrap();assert_eq!(metadata["scopeKind"],"holding");assert!(metadata["scopeNodeId"].is_null());assert_eq!(metadata["branchId"],"branch");assert!(metadata["departmentId"].is_null());assert_eq!(metadata["assignmentVersion"],3);assert_eq!(metadata["iam"]["personUserIds"][0],"user");assert!(metadata["iam"].get("hrAppointmentVersion").is_none());
+            let mut tx=holding.raw().begin().await.unwrap();let before=grant_image(&mut tx).await;sqlx::query("UPDATE company_package_grants SET state='inactive',version=version+1").execute(&mut *tx).await.unwrap();grant_event(&mut tx,Some(before)).await;tx.commit().await.unwrap();
+            assert_eq!(service.queue("acme.example.test",proof(),selected.clone(),queue_request("actual-queue")).await.unwrap(),first);
+            assert!(service.queue("acme.example.test",proof(),selected.clone(),queue_request("new-unpurchased")).await.is_err());
+            sqlx::query("DELETE FROM legal_members WHERE item_id='legal-item'").execute(holding.raw()).await.unwrap();
+            assert!(service.queue("acme.example.test",proof(),selected.clone(),queue_request("actual-queue")).await.is_err());
+            assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*)FROM audit_events WHERE command_id='actual-queue'").fetch_one(holding.raw()).await.unwrap(),1);
+        }).await;}).await;
+    }
+    #[cfg(feature = "legal-queue")]
+    #[tokio::test]
+    async fn actual_queue_audit_failure_and_rate_denial_roll_back_workflow_and_owner_effects() {
+        use erpx_service::legal_queue_administration::LegalQueueAdministration;
+        fixture::with_database(2,|control|async move{fixture::with_database(2,move|holding|async move{
+            let(authorizer,clock)=setup(&control,&holding).await;seed(authorizer.as_ref(),&holding).await;
+            sqlx::raw_sql("CREATE FUNCTION deny_queue_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.command_id='queue-failed-audit' THEN RAISE EXCEPTION 'synthetic audit denial' USING ERRCODE='23514';END IF;RETURN NEW;END $$;CREATE TRIGGER deny_legal_audit BEFORE INSERT ON audit_events FOR EACH ROW EXECUTE FUNCTION deny_queue_audit()").execute(holding.raw()).await.unwrap();
+            let service=LegalQueueAdministration::new(authorizer,configuration(),clock);
+            assert!(matches!(service.queue("acme.example.test",proof(),input(),queue_request("queue-failed-audit")).await,Err(PgTransactionError::Persistence(ref e))if e.sql_state()==Some("23514")));
+            assert_eq!(sqlx::query_scalar::<_,i64>("SELECT(SELECT count(*)FROM command_receipts WHERE command_id='queue-failed-audit')+(SELECT count(*)FROM legal_processing_jobs WHERE id='queue-failed-audit')+(SELECT count(*)FROM audit_events WHERE command_id='queue-failed-audit')+(SELECT count(*)FROM outbox_events WHERE command_id='queue-failed-audit')").fetch_one(holding.raw()).await.unwrap(),0);
+            sqlx::query("INSERT INTO legal_processing_jobs(id,company_id,item_id,document_id,checksum,kind,state,actor_json,created_by,created_at)SELECT 'rate-'||n,'company','legal-item','legal-document',repeat('a',64),'ocr','queued','{}','user',$1 FROM generate_series(1,20)n").bind(NOW).execute(holding.raw()).await.unwrap();
+            assert!(matches!(service.queue("acme.example.test",proof(),input(),queue_request("queue-rate-denied")).await,Err(PgTransactionError::Business(ref e))if e.code=="LEGAL_PROCESSING_RATE_LIMIT"));
+            assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*)FROM command_receipts WHERE command_id='queue-rate-denied'").fetch_one(holding.raw()).await.unwrap(),0);
+        }).await;}).await;
+    }
+    #[cfg(feature = "legal-queue")]
+    #[tokio::test]
+    async fn interactive_queue_observes_inserted_owner_denial_after_pre_snapshot_lock_wait() {
+        use erpx_service::legal_queue_administration::LegalQueueAdministration;
+        fixture::with_database(2,|control|async move{fixture::with_database(3,move|holding|async move{
+            let(authorizer,clock)=setup(&control,&holding).await;seed(authorizer.as_ref(),&holding).await;
+            let mut writer=holding.raw().begin().await.unwrap();sqlx::query("INSERT INTO legal_destructions(id,item_id,policy_id,policy_version,requested_by,state,reason,manifest,created_at)VALUES('new-denial','legal-item','synthetic-policy',1,'user','executing','Synthetic denial','[]',0)").execute(&mut *writer).await.unwrap();
+            let service=LegalQueueAdministration::new(authorizer,configuration(),clock);
+            let reader=tokio::spawn(async move{service.queue("acme.example.test",proof(),input(),queue_request("denied-after-wait")).await});
+            tokio::time::timeout(Duration::from_secs(4),async{loop{let waits:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_locks WHERE relation='legal_destructions'::regclass AND mode='ShareRowExclusiveLock'AND NOT granted)").fetch_one(holding.raw()).await.unwrap();if waits{break;}tokio::time::sleep(Duration::from_millis(10)).await;}}).await.expect("reader must wait for actual owner source lock");
+            writer.commit().await.unwrap();assert!(matches!(reader.await.unwrap(),Err(PgTransactionError::Business(_))));
+            assert_eq!(sqlx::query_scalar::<_,i64>("SELECT(SELECT count(*)FROM command_receipts WHERE command_id='denied-after-wait')+(SELECT count(*)FROM legal_processing_jobs WHERE id='denied-after-wait')").fetch_one(holding.raw()).await.unwrap(),0);
+        }).await;}).await;
+    }
+    #[derive(Clone)]
+    struct SyntheticOperationalAdmission(bool);
+    impl erpx_service::legal_system_worker::LegalOperationalAdmission
+        for SyntheticOperationalAdmission
+    {
+        fn permits(&self, _: erpx_server_legal::public::LegalProcessingKind, _: i64) -> bool {
+            self.0
+        }
+    }
+    #[tokio::test]
+    async fn actual_company_claim_policy_needs_current_release_purchase_and_operational_admission()
+    {
+        use erpx_service::legal_system_worker::LegalSystemWorker;
+        fixture::with_database(2,|control|async move{fixture::with_database(2,move|holding|async move{
+            let(authorizer,clock)=setup(&control,&holding).await;seed(authorizer.as_ref(),&holding).await;
+            sqlx::query("UPDATE legal_processing_jobs SET state='queued',lease_token=NULL,lease_until=NULL,attempts=0").execute(holding.raw()).await.unwrap();
+            let unready=LegalSystemWorker::new(holding.clone(),configuration(),SyntheticOperationalAdmission(false),clock.clone());
+            assert!(unready.claim(None).await.unwrap().claim.is_none());
+            let mut production=configuration();production.release_mode=ScheduledReleaseMode::Production;
+            let unreleased=LegalSystemWorker::new(holding.clone(),production,SyntheticOperationalAdmission(true),clock.clone());
+            assert!(unreleased.claim(None).await.unwrap().claim.is_none());
+            let mut tx=holding.raw().begin().await.unwrap();let before=grant_image(&mut tx).await;
+            sqlx::query("UPDATE company_package_grants SET state='inactive',version=version+1").execute(&mut *tx).await.unwrap();grant_event(&mut tx,Some(before)).await;tx.commit().await.unwrap();
+            let ready=LegalSystemWorker::new(holding.clone(),configuration(),SyntheticOperationalAdmission(true),clock.clone());
+            assert!(ready.claim(None).await.unwrap().claim.is_none());
+            let mut tx=holding.raw().begin().await.unwrap();let before=grant_image(&mut tx).await;
+            sqlx::query("UPDATE company_package_grants SET state='active',version=version+1").execute(&mut *tx).await.unwrap();grant_event(&mut tx,Some(before)).await;tx.commit().await.unwrap();
+            let claim=ready.claim(None).await.unwrap().claim.expect("current owners should permit the trusted system claim");
+            assert_eq!(claim.lease().attempts,1);
+            // Claim creates no personal authority: an actual role withdrawal
+            // denies content work, while only this exact claim may close failed.
+            sqlx::query("UPDATE iam_roles SET status='archived' WHERE id='custom_native_authority'").execute(holding.raw()).await.unwrap();
+            let queued=PgQueuedWorkAuthorizer::new(holding.clone(),HoldingId::new("h001").unwrap(),clock.clone());
+            let source=LegalQueuedSource::new(HoldingId::new("h001").unwrap(),CompanyId::new("company").unwrap(),claim.lease().job.id.clone(),claim.lease().token.clone());
+            let(_root,store)=store();let calls=Arc::new(AtomicUsize::new(0));
+            assert!(run_current_legal_pdf(&queued,source,configuration(),store,&ToolFailure{holding:holding.clone(),control,change:"",calls:calls.clone()},clock).await.is_err());
+            assert_eq!(calls.load(Ordering::SeqCst),0);
+            ready.fail_claim(claim,"LEGAL_CURRENT_AUTHORITY_OR_SOURCE_CHANGED").await.unwrap();
+            assert_eq!(sqlx::query_scalar::<_,String>("SELECT state FROM legal_processing_jobs").fetch_one(holding.raw()).await.unwrap(),"failed");
+            assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*)FROM legal_document_inspections").fetch_one(holding.raw()).await.unwrap(),0);
+            assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*)FROM attachment_access_events").fetch_one(holding.raw()).await.unwrap(),0);
+        }).await;}).await;
+    }
+    #[cfg(feature = "legal-document-worker")]
+    struct ExtractionPort {
+        holding: DatabasePool,
+        control: DatabasePool,
+        change: bool,
+        fail: bool,
+    }
+    #[cfg(feature = "legal-document-worker")]
+    impl erpx_server_legal::public::DocumentExtractor for ExtractionPort {
+        async fn extract_with_budget(
+            &self,
+            input: erpx_server_legal::public::DocumentExtractionInput,
+            budget: erpx_server_legal::public::DocumentComputeBudget,
+        ) -> Result<
+            erpx_server_legal::public::DocumentExtractionReport,
+            erpx_server_legal::public::DocumentExtractionFailure,
+        > {
+            use erpx_server_legal::public::*;
+            assert_eq!(input.bytes(), BODY);
+            assert_eq!(budget.millis(), 540_000);
+            for pool in [&self.holding, &self.control] {
+                assert!(!sqlx::query_scalar::<_,bool>("SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE datname=current_database()AND pid<>pg_backend_pid()AND xact_start IS NOT NULL)").fetch_one(pool.raw()).await.unwrap());
+            }
+            if self.change {
+                tokio::time::timeout(
+                    Duration::from_secs(3),
+                    sqlx::query("UPDATE attachments SET revoked_at=$1 WHERE id='source'")
+                        .bind(NOW)
+                        .execute(self.holding.raw()),
+                )
+                .await
+                .expect("OCR retained owner locks during computation")
+                .unwrap();
+            }
+            if self.fail {
+                return Err(DocumentExtractionFailure::ToolFailed);
+            }
+            finish_document_extraction(
+                &input.checksum_sha256,
+                DocumentExtractionKind::Original(LegalDocumentMediaType::Pdf),
+                ExtractedDocument {
+                    method: ExtractionMethod::PdfText,
+                    text: "Synthetic drafted text".into(),
+                    pages: vec![ExtractedPage {
+                        page: 1,
+                        text: "Synthetic drafted text".into(),
+                    }],
+                },
+            )
+        }
+    }
+    #[cfg(feature = "legal-document-worker")]
+    #[tokio::test]
+    async fn actual_ocr_owner_ports_split_compute_and_atomically_retain_success_or_terminal_failure()
+     {
+        use erpx_server_legal::public::document_processing::LegalExtractionRetention;
+        for fail in [false, true] {
+            fixture::with_database(2, move |control| async move {
+                fixture::with_database(2, move |holding| async move {
+                    let (authorizer, clock) = setup(&control, &holding).await;
+                    seed(authorizer.as_ref(), &holding).await;
+                    sqlx::query("UPDATE legal_processing_jobs SET kind='ocr'")
+                        .execute(holding.raw())
+                        .await
+                        .unwrap();
+                    let queued = PgQueuedWorkAuthorizer::new(
+                        holding.clone(),
+                        HoldingId::new("h001").unwrap(),
+                        clock.clone(),
+                    );
+                    let (_root, store) = store();
+                    let result = erpx_service::legal_document_bridge::run_current_legal_extraction(
+                        &queued,
+                        source(),
+                        configuration(),
+                        store,
+                        &ExtractionPort {
+                            holding: holding.clone(),
+                            control,
+                            change: false,
+                            fail,
+                        },
+                        clock,
+                    )
+                    .await
+                    .unwrap();
+                    let (state, result_json, error): (String, Option<String>, Option<String>) =
+                        sqlx::query_as("SELECT state,result_json,error FROM legal_processing_jobs")
+                            .fetch_one(holding.raw())
+                            .await
+                            .unwrap();
+                    let inspections: i64 =
+                        sqlx::query_scalar("SELECT count(*)FROM legal_document_inspections")
+                            .fetch_one(holding.raw())
+                            .await
+                            .unwrap();
+                    let audits: i64 = sqlx::query_scalar(
+                        "SELECT count(*)FROM legal_access_events WHERE action='document.ocr'",
+                    )
+                    .fetch_one(holding.raw())
+                    .await
+                    .unwrap();
+                    if fail {
+                        assert!(matches!(result, LegalExtractionRetention::Failed { .. }));
+                        assert_eq!(state, "failed");
+                        assert!(result_json.is_none());
+                        assert_eq!(error.as_deref(), Some("DOCUMENT_EXTRACT_TOOL_FAILED"));
+                        assert_eq!((inspections, audits), (0, 0));
+                    } else {
+                        let LegalExtractionRetention::Completed(value) = result else {
+                            panic!("expected successful retained extraction")
+                        };
+                        assert_eq!(value["text"], "Synthetic drafted text");
+                        assert_eq!(state, "completed");
+                        assert!(result_json.is_some());
+                        assert!(error.is_none());
+                        assert_eq!((inspections, audits), (1, 1));
+                    }
+                })
+                .await;
+            })
+            .await;
+        }
+    }
+    #[cfg(feature = "legal-document-worker")]
+    #[tokio::test]
+    async fn actual_ocr_original_revocation_during_compute_blocks_fresh_retention() {
+        fixture::with_database(2, |control| async move {
+            fixture::with_database(2, move |holding| async move {
+                let (authorizer, clock) = setup(&control, &holding).await;
+                seed(authorizer.as_ref(), &holding).await;
+                sqlx::query("UPDATE legal_processing_jobs SET kind='ocr'")
+                    .execute(holding.raw())
+                    .await
+                    .unwrap();
+                let queued = PgQueuedWorkAuthorizer::new(
+                    holding.clone(),
+                    HoldingId::new("h001").unwrap(),
+                    clock.clone(),
+                );
+                let (_root, store) = store();
+                let denied = erpx_service::legal_document_bridge::run_current_legal_extraction(
+                    &queued,
+                    source(),
+                    configuration(),
+                    store,
+                    &ExtractionPort {
+                        holding: holding.clone(),
+                        control,
+                        change: true,
+                        fail: false,
+                    },
+                    clock,
+                )
+                .await;
+                assert!(denied.is_err());
+                assert_eq!(
+                    sqlx::query_scalar::<_, i64>("SELECT count(*)FROM legal_document_inspections")
+                        .fetch_one(holding.raw())
+                        .await
+                        .unwrap(),
+                    0
+                );
+                assert_eq!(
+                    sqlx::query_scalar::<_, String>("SELECT state FROM legal_processing_jobs")
+                        .fetch_one(holding.raw())
+                        .await
+                        .unwrap(),
+                    "running"
+                );
+            })
+            .await;
+        })
+        .await;
     }
     #[tokio::test]
     async fn actual_unbuilt_production_release_denies_before_any_compute_or_file_audit() {

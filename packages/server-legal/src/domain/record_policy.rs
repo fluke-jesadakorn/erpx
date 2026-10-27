@@ -23,6 +23,7 @@ pub enum LegalRecordOperation {
     Export,
     Edit,
     QueueProcessing,
+    ProcessingReplay,
     Processing,
 }
 impl LegalRecordOperation {
@@ -37,7 +38,10 @@ impl LegalRecordOperation {
         !matches!(self, Self::Metadata | Self::Edit)
     }
     pub fn processing(self) -> bool {
-        matches!(self, Self::QueueProcessing | Self::Processing)
+        matches!(
+            self,
+            Self::QueueProcessing | Self::Processing | Self::ProcessingReplay
+        )
     }
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

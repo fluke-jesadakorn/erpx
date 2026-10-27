@@ -99,7 +99,8 @@ pub fn authorize_legal_record(
             purpose: LegalPurchasePurpose::History,
         });
     }
-    if request.operation.processing() {
+    if request.operation.processing() && request.operation != LegalRecordOperation::ProcessingReplay
+    {
         let purpose = if request.operation == LegalRecordOperation::QueueProcessing {
             LegalPurchasePurpose::NewWork
         } else {

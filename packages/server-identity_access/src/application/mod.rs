@@ -7,3 +7,7 @@ pub(crate) mod account_sso;
 pub(crate) mod work_context;
 
 pub(crate) mod effective_authority;
+
+pub(crate) mod account_revocation;
+
+pub(crate) mod command_metadata;

@@ -102,3 +102,40 @@ fn validated_manifest_cannot_deserialize_around_its_constructor_checks() {
         "INVALID_DATABASE_MANIFEST"
     );
 }
+
+#[test]
+fn disposable_worker_endpoint_requires_exact_local_token_and_rejects_ambient_production_shapes() {
+    use erpx_server_runtime::public::postgres::LeasedDevelopmentDatabase;
+    let token = "00000000000000000000000000000000";
+    let allowed =
+        format!("postgres://erpx_test_admin:private@127.0.0.1:5432/erpx_dev_rust_{token}");
+    assert!(LeasedDevelopmentDatabase::parse(&allowed, token).is_ok());
+    for invalid in [
+        allowed.replace("127.0.0.1", "localhost"),
+        allowed.replace("127.0.0.1", "example.invalid"),
+        allowed.replace(":5432/", ":3101/"),
+        allowed.replace("erpx_test_admin:", "postgres:"),
+        allowed.replace("erpx_dev_rust_", "erpx_"),
+        allowed.replace(token, "ffffffffffffffffffffffffffffffff"),
+    ] {
+        assert!(LeasedDevelopmentDatabase::parse(&invalid, token).is_err());
+    }
+    for invalid in ["", "0123456789ABCDEF0123456789ABCDEF", "../../private"] {
+        assert!(LeasedDevelopmentDatabase::parse(&allowed, invalid).is_err());
+    }
+    for suffix in [
+        "?host=/tmp",
+        "?hostaddr=192.0.2.1",
+        "?options=-crole=postgres",
+        "#ignored",
+    ] {
+        assert!(LeasedDevelopmentDatabase::parse(&format!("{allowed}{suffix}"), token).is_err());
+    }
+    assert!(
+        !format!(
+            "{:?}",
+            LeasedDevelopmentDatabase::parse(&allowed, token).unwrap()
+        )
+        .contains("private")
+    );
+}

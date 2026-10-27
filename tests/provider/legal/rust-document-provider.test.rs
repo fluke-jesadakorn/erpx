@@ -84,3 +84,53 @@ async fn real_native_provider_matches_frozen_b0_text_pages_and_refusal() {
     worker.shutdown_and_drain().await;
     assert!(fs::read_dir(root.path()).unwrap().next().is_none());
 }
+#[tokio::test]
+async fn explicit_english_profile_proves_bounded_functional_probes_without_claiming_thai_readiness()
+{
+    use erpx_server_shared::public::{Clock, TimestampMillis};
+    struct Fixed;
+    impl Clock for Fixed {
+        fn now(&self) -> TimestampMillis {
+            TimestampMillis::new(123_000)
+        }
+    }
+    let corpus: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../fixtures/legal/documents/native-conformance.v1.json"
+    ))
+    .unwrap();
+    let tools: DocumentToolConfiguration =
+        serde_json::from_value(corpus["oracle"]["tools"].clone()).unwrap();
+    let mut builder = tempfile::Builder::new();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        builder.permissions(fs::Permissions::from_mode(0o700));
+    }
+    let root = builder.tempdir().unwrap();
+    let worker = BoundedDocumentExtractor::new(
+        Path::new(env!("CARGO_BIN_EXE_erpx-extract-document")),
+        root.path(),
+        tools,
+        DocumentProcessLimits::default(),
+    )
+    .unwrap();
+    let proof = worker.probe_readiness(&Fixed).await.unwrap();
+    assert_eq!(proof.checked_at(), 123_000);
+    assert_eq!(proof.probes().len(), 5);
+    assert_eq!(proof.profile().sha256().len(), 64);
+    assert_eq!(
+        worker.current_provider_profile().await.unwrap().sha256(),
+        proof.profile().sha256()
+    );
+    let json = serde_json::to_value(&proof).unwrap();
+    assert_eq!(json["profile"]["languages"], "eng");
+    assert!(
+        !serde_json::to_string(&proof)
+            .unwrap()
+            .contains("/opt/homebrew")
+    );
+    worker.shutdown_and_drain().await;
+    assert!(!worker.can_accept_work());
+    assert!(worker.probe_readiness(&Fixed).await.is_err());
+    assert!(fs::read_dir(root.path()).unwrap().next().is_none());
+}

@@ -12,3 +12,7 @@ pub mod work_admission;
 pub(crate) mod effective_authority;
 
 pub(crate) mod queued_authority;
+
+pub(crate) mod account_revocation;
+
+pub(crate) mod command_metadata;

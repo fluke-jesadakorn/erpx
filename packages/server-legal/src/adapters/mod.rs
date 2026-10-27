@@ -4,12 +4,18 @@ pub(crate) mod document_docx;
 pub(crate) mod document_engine;
 #[cfg(feature = "document-provider")]
 pub(crate) mod document_process;
+#[cfg(feature = "document-provider")]
+pub(crate) mod document_readiness;
 #[cfg(feature = "pdf-verifier")]
 pub(crate) mod pdf_process;
+#[cfg(feature = "pdf-verifier")]
+pub(crate) mod pdf_readiness;
 #[cfg(feature = "pdf-verifier")]
 pub(crate) mod pdf_resource_limits;
 #[cfg(feature = "pdf-verifier")]
 pub(crate) mod pdf_validation;
+#[cfg(feature = "document-provider")]
+pub(crate) mod postgres_document_processing;
 #[cfg(feature = "pdf-verifier")]
 pub(crate) mod postgres_pdf_processing;
 #[cfg(feature = "pdf-verifier")]
@@ -19,5 +25,8 @@ pub(crate) mod postgres_processing_source;
 pub(crate) mod postgres_record_policy;
 pub(crate) mod postgres_trust;
 pub(crate) mod postgres_trust_commands;
+pub(crate) mod processing_maintenance;
 #[cfg(feature = "trust-materials")]
 pub(crate) mod trust_material_inspector;
+
+pub(crate) mod postgres_processing_queue;

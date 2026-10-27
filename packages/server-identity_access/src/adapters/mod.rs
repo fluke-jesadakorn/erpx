@@ -29,3 +29,5 @@ pub(crate) mod authorized_work;
 
 pub(crate) mod queued_work;
 pub(crate) mod release_reviewers;
+
+pub(crate) mod account_revocation_postgres;

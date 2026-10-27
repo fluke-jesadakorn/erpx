@@ -128,3 +128,16 @@ path = "../../tests/unit/legal/rust-record-policy.test.rs"
 [[test]]
 name = "record_policy_postgres"
 path = "../../tests/integration/legal/rust-record-policy-postgres.test.rs"
+
+[[test]]
+name = "document_processing"
+path = "../../tests/unit/legal/rust-document-processing.test.rs"
+
+[[test]]
+name = "document_processing_postgres"
+path = "../../tests/integration/legal/rust-document-processing-postgres.test.rs"
+required-features = ["document-provider"]
+
+[[test]]
+name = "processing_maintenance_postgres"
+path = "../../tests/integration/legal/rust-processing-maintenance-postgres.test.rs"

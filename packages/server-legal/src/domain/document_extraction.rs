@@ -4,8 +4,28 @@ pub const DOCUMENT_INPUT_LIMIT: usize = 10 * 1024 * 1024;
 pub const EXTRACTION_TEXT_LIMIT: usize = 200_000;
 pub const EXTRACTION_OUTPUT_LIMIT: usize = 2 * 1024 * 1024;
 pub const EXTRACTION_DEADLINE_SECONDS: u64 = 540;
+pub const EXTRACTION_RETENTION_HEADROOM_MILLIS: i64 = 60_000;
 pub const SCANNED_PDF_PAGE_LIMIT: usize = 25;
 pub const EXTRACTION_PAGE_MAP_LIMIT: usize = 10_000;
+
+/// A caller may reduce the compute ceiling to fit the remaining owned lease.
+/// This data value cannot extend the worker's independent resource limits.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct DocumentComputeBudget(u64);
+impl DocumentComputeBudget {
+    pub fn new(millis: u64) -> Result<Self, DocumentExtractionFailure> {
+        if millis == 0 || millis > EXTRACTION_DEADLINE_SECONDS * 1000 {
+            return Err(DocumentExtractionFailure::InvalidToolConfiguration);
+        }
+        Ok(Self(millis))
+    }
+    pub const fn maximum() -> Self {
+        Self(EXTRACTION_DEADLINE_SECONDS * 1000)
+    }
+    pub const fn millis(self) -> u64 {
+        self.0
+    }
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub enum LegalDocumentMediaType {

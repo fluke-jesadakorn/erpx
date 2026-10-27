@@ -7,9 +7,10 @@ use erpx_server_shared::public::{Clock, TimestampMillis};
 use crate::domain::{
     pdf_validation::{PdfValidationReport, ValidationState},
     pdf_verification::{
-        AuthorizedPdfSnapshot, PDF_BUSINESS_LIMIT, PdfVerificationEvidence, PdfVerificationFailure,
-        PdfVerificationJob, PdfVerificationSnapshotStamp, TRUST_ITEM_BYTES_LIMIT, TRUST_ITEM_LIMIT,
-        TrustMaterialReceipt, TrustMaterialState, VERIFICATION_ADMISSION_LIMIT,
+        AuthorizedPdfSnapshot, PDF_BUSINESS_LIMIT, PdfComputeBudget, PdfVerificationEvidence,
+        PdfVerificationFailure, PdfVerificationJob, PdfVerificationSnapshotStamp,
+        TRUST_ITEM_BYTES_LIMIT, TRUST_ITEM_LIMIT, TrustMaterialReceipt, TrustMaterialState,
+        VERIFICATION_ADMISSION_LIMIT,
     },
 };
 
@@ -38,6 +39,23 @@ pub trait PdfVerifierProcess {
         snapshot: AuthorizedPdfSnapshot,
         validation_time: TimestampMillis,
     ) -> impl Future<Output = Result<PdfVerificationEvidence, PdfVerificationFailure>> + Send;
+    /// Existing adapters may use their full 90s contract. They must refuse a
+    /// shorter budget unless they can actually supervise and drain within it.
+    fn verify_with_budget(
+        &self,
+        snapshot: AuthorizedPdfSnapshot,
+        validation_time: TimestampMillis,
+        budget: PdfComputeBudget,
+    ) -> impl Future<Output = Result<PdfVerificationEvidence, PdfVerificationFailure>> + Send {
+        let work =
+            (budget == PdfComputeBudget::maximum()).then(|| self.verify(snapshot, validation_time));
+        async move {
+            match work {
+                Some(work) => work.await,
+                None => Err(PdfVerificationFailure::WorkerTimeout),
+            }
+        }
+    }
 }
 
 /// No transaction, connection, current source or authority is borrowed here.
@@ -55,7 +73,16 @@ pub async fn compute_prepared_legal_pdf(
             clock.now().get(),
         )
         .map_err(|_| PdfVerificationFailure::SnapshotChanged)?;
-    let evidence = compute_pdf_snapshot(prepared.snapshot, verifier, clock.now(), true).await?;
+    let now = clock.now();
+    let remaining = crate::domain::document_processing::extraction_compute_budget(
+        prepared.lease.until,
+        now.get(),
+    )
+    .ok_or(PdfVerificationFailure::WorkerTimeout)?;
+    let budget =
+        PdfComputeBudget::new(remaining.millis().min(PdfComputeBudget::maximum().millis()))?;
+    let evidence =
+        compute_pdf_snapshot(prepared.snapshot, verifier, now, true, Some(budget)).await?;
     Ok(ComputedLegalPdf {
         lease: prepared.lease,
         document: prepared.document,
@@ -103,7 +130,7 @@ async fn verify_with_failure_policy<Repository: PdfVerificationRepository>(
         return Err(PdfVerificationFailure::InvalidScope.into());
     }
     validate_admission(&snapshot).map_err(Repository::Error::from)?;
-    let evidence = compute_pdf_snapshot(snapshot, verifier, clock.now(), retain_tool_failure)
+    let evidence = compute_pdf_snapshot(snapshot, verifier, clock.now(), retain_tool_failure, None)
         .await
         .map_err(Repository::Error::from)?;
     let retained = repository.retain_if_current(job, evidence).await?;
@@ -120,6 +147,7 @@ pub(crate) async fn compute_pdf_snapshot(
     verifier: &impl PdfVerifierProcess,
     moment: TimestampMillis,
     retain_tool_failure: bool,
+    budget: Option<PdfComputeBudget>,
 ) -> Result<PdfVerificationEvidence, PdfVerificationFailure> {
     validate_admission(&snapshot)?;
     let mut trust: Vec<_> = snapshot
@@ -139,7 +167,11 @@ pub(crate) async fn compute_pdf_snapshot(
         trust_revision: snapshot.trust_revision.clone(),
         trust,
     };
-    let evidence = match verifier.verify(snapshot, moment).await {
+    let output = match budget {
+        Some(budget) => verifier.verify_with_budget(snapshot, moment, budget).await,
+        None => verifier.verify(snapshot, moment).await,
+    };
+    let evidence = match output {
         Ok(evidence) => evidence,
         Err(failure)
             if retain_tool_failure

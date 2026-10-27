@@ -1,3 +1,5 @@
+use super::account_revocation_postgres::invalidate_children;
+use crate::application::account_revocation::AccountWorkContextInvalidation;
 use crate::{
     adapters::account_sessions::{
         device_snapshot, live_accounts, lock_session_reads, lock_session_writes, persistence,
@@ -13,23 +15,29 @@ use crate::{
 use erpx_server_runtime::public::postgres::{
     DatabasePool, PgTransactionError, PgUnitOfWork, SessionLock, TransactionOptions,
 };
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_server_shared::public::{BusinessError, Clock, FailureKind};
 use sha2::{Digest, Sha256};
 use sqlx::{PgConnection, Row};
+use std::sync::Arc;
 
 pub(crate) type TxResult<T> = Result<T, PgTransactionError<BusinessError>>;
 
-/// Control-only persistence. Every write rechecks current proof and revision in one UoW.
+/// Account persistence. Child retirement retains a non-retrying Control writer
+/// through monotonic Holding fences; a later Control failure never undoes them.
 pub struct PostgresAccountRepository {
     unit: PgUnitOfWork,
     environment: String,
     require_verification: bool,
+    invalidation: Arc<dyn AccountWorkContextInvalidation>,
+    clock: Arc<dyn Clock + Send + Sync>,
 }
 impl PostgresAccountRepository {
     pub fn from_control_database(
         pool: DatabasePool,
         environment: String,
         require_verification: bool,
+        invalidation: Arc<dyn AccountWorkContextInvalidation>,
+        clock: Arc<dyn Clock + Send + Sync>,
     ) -> Result<Self, BusinessError> {
         if environment != "development" {
             return Err(BusinessError::invalid(
@@ -41,6 +49,8 @@ impl PostgresAccountRepository {
             unit: PgUnitOfWork::new(pool),
             environment,
             require_verification,
+            invalidation,
+            clock,
         })
     }
 }
@@ -156,7 +166,19 @@ async fn throttle(connection: &mut PgConnection, email: &EmailAddress, now: i64)
     }
     Ok(())
 }
-async fn revoke_children(connection: &mut PgConnection, browser_id: &SecretDigest) -> TxResult<()> {
+async fn revoke_children(
+    connection: &mut PgConnection,
+    browser_id: &SecretDigest,
+    environment: &str,
+    invalidation: &dyn AccountWorkContextInvalidation,
+) -> TxResult<()> {
+    let parents = sqlx::query_scalar::<_, String>(
+        "SELECT session_id FROM account_device_accounts WHERE browser_id=$1",
+    )
+    .bind(browser_id.as_str())
+    .fetch_all(&mut *connection)
+    .await?;
+    invalidate_children(connection, &parents, environment, invalidation).await?;
     sqlx::query("DELETE FROM session WHERE id IN (SELECT b.session_id FROM sso_session_bindings b JOIN account_device_accounts a ON a.session_id=b.parent_session_id WHERE a.browser_id=$1)").bind(browser_id.as_str()).execute(connection).await?;
     Ok(())
 }
@@ -165,15 +187,29 @@ pub(crate) async fn select_browser(
     id: &SecretDigest,
     active: Option<&str>,
     now: i64,
+    environment: &str,
+    invalidation: &dyn AccountWorkContextInvalidation,
 ) -> TxResult<()> {
-    revoke_children(connection, id).await?;
+    revoke_children(connection, id, environment, invalidation).await?;
     let count = sqlx::query("UPDATE account_device_browsers SET active_session_id=$2,revision=revision+1,pending_nonce=NULL,pending_until=NULL,updated_at=$3 WHERE id=$1 AND revision<$4").bind(id.as_str()).bind(active).bind(now).bind(MAX_DEVICE_REVISION).execute(connection).await?.rows_affected();
     if count != 1 {
         return Err(stale_device().into());
     }
     Ok(())
 }
-pub(crate) async fn expire_family(connection: &mut PgConnection, session_id: &str) -> TxResult<()> {
+pub(crate) async fn expire_family(
+    connection: &mut PgConnection,
+    session_id: &str,
+    environment: &str,
+    invalidation: &dyn AccountWorkContextInvalidation,
+) -> TxResult<()> {
+    invalidate_children(
+        connection,
+        &[session_id.to_owned()],
+        environment,
+        invalidation,
+    )
+    .await?;
     sqlx::query("DELETE FROM session WHERE id IN (SELECT session_id FROM sso_session_bindings WHERE parent_session_id=$1) OR id=$1").bind(session_id).execute(&mut *connection).await?;
     sqlx::query("DELETE FROM account_device_accounts WHERE session_id=$1")
         .bind(session_id)
@@ -209,17 +245,20 @@ impl AccountRepository for PostgresAccountRepository {
         Box::pin(async move {
             finish(
                 self.unit
-                    .run(options(), |connection| {
+                    .run_once(options(), |connection| {
                         let input = input.clone();
                         let environment = self.environment.clone();
                         let require_verification = self.require_verification;
+                        let invalidation = self.invalidation.clone();
+                        let clock = self.clock.clone();
                         Box::pin(async move {
                             lock_session_writes(connection).await?;
+                            let now = clock.now().get();
                             let row = browser(connection, &input.reservation.browser)
                                 .await?
                                 .ok_or_else(denied)?;
                             if row.pending.as_deref() != Some(input.reservation.nonce.as_str())
-                                || !row.until.is_some_and(|until| until > input.now)
+                                || !row.until.is_some_and(|until| until > now)
                             {
                                 return Err(stale_device().into());
                             }
@@ -232,7 +271,7 @@ impl AccountRepository for PostgresAccountRepository {
                                         && value.can_authenticate(require_verification)
                                 })
                                 .ok_or_else(denied)?;
-                            issue_account_session(
+                            let completed = issue_account_session(
                                 connection,
                                 IssuedAccountSession {
                                     proof: input.proof,
@@ -241,11 +280,19 @@ impl AccountRepository for PostgresAccountRepository {
                                     session_digest: input.session_digest,
                                     handle: input.handle,
                                     user_id: current.user_id,
-                                    now: input.now,
+                                    now,
                                 },
                                 &environment,
+                                invalidation.as_ref(),
+                                clock.as_ref(),
                             )
-                            .await
+                            .await?;
+                            if !row.until.is_some_and(|until| until > clock.now().get())
+                                || completed.session.expires_at <= clock.now().get()
+                            {
+                                return Err(stale_device().into());
+                            }
+                            Ok(completed)
                         })
                     })
                     .await,
@@ -335,28 +382,68 @@ impl AccountRepository for PostgresAccountRepository {
         Box::pin(async move {
             finish(
                 self.unit
-                    .run(options(), |connection| {
+                    .run_once(options(), |connection| {
                         let input = input.clone();
                         let environment = self.environment.clone();
+                        let invalidation = self.invalidation.clone();
+                        let clock = self.clock.clone();
                         Box::pin(async move {
                             lock_session_writes(connection).await?;
+                            let now = clock.now().get();
                             let id = input.proof.browser.as_ref().ok_or_else(denied)?;
                             let row = browser(connection, id).await?.ok_or_else(denied)?;
-                            revision(&row, Some(input.expected_revision), input.now)?;
+                            revision(&row, Some(input.expected_revision), now)?;
                             let selected =
-                                live_accounts(connection, &input.proof, &environment, input.now)
+                                live_accounts(connection, &input.proof, &environment, now)
                                     .await?
                                     .into_iter()
                                     .find(|account| account.handle == input.handle)
                                     .ok_or_else(denied)?;
-                            select_browser(connection, id, Some(&selected.session.id), input.now)
+                            if row.active.as_deref() == Some(selected.session.id.as_str()) {
+                                return Ok(SelectedDevice {
+                                    devices: device_snapshot(
+                                        connection,
+                                        &input.proof,
+                                        &environment,
+                                        now,
+                                    )
+                                    .await?,
+                                    session_digest: SecretDigest::new(selected.digest)?,
+                                });
+                            }
+                            select_browser(
+                                connection,
+                                id,
+                                Some(&selected.session.id),
+                                now,
+                                &environment,
+                                invalidation.as_ref(),
+                            )
+                            .await?;
+                            sqlx::query("SET CONSTRAINTS ALL IMMEDIATE")
+                                .execute(&mut *connection)
                                 .await?;
+                            let state = browser(connection, id).await?.ok_or_else(stale_device)?;
+                            if state.active.as_deref() != Some(selected.session.id.as_str())
+                                || state.revision != row.revision + 1
+                                || state.pending.is_some()
+                            {
+                                return Err(stale_device().into());
+                            }
+                            let now = clock.now().get();
+                            if !live_accounts(connection, &input.proof, &environment, now)
+                                .await?
+                                .iter()
+                                .any(|account| account.session.id == selected.session.id)
+                            {
+                                return Err(stale_device().into());
+                            }
                             Ok(SelectedDevice {
                                 devices: device_snapshot(
                                     connection,
                                     &input.proof,
                                     &environment,
-                                    input.now,
+                                    now,
                                 )
                                 .await?,
                                 session_digest: SecretDigest::new(selected.digest)?,
@@ -371,31 +458,34 @@ impl AccountRepository for PostgresAccountRepository {
         Box::pin(async move {
             finish(
                 self.unit
-                    .run(options(), |connection| {
+                    .run_once(options(), |connection| {
                         let input = input.clone();
                         let environment = self.environment.clone();
+                        let invalidation=self.invalidation.clone();
+                        let clock=self.clock.clone();
                         Box::pin(async move {
                             lock_session_writes(connection).await?;
+                            let now=clock.now().get();
                             let id = input.proof.browser.as_ref().ok_or_else(denied)?;
                             let row = browser(connection, id).await?.ok_or_else(denied)?;
-                            revision(&row, Some(input.expected_revision), input.now)?;
+                            revision(&row, Some(input.expected_revision), now)?;
                             let target =
-                                live_accounts(connection, &input.proof, &environment, input.now)
+                                live_accounts(connection, &input.proof, &environment, now)
                                     .await?
                                     .into_iter()
                                     .find(|account| account.handle == input.handle)
                                     .ok_or_else(denied)?;
-                            expire_family(connection, &target.session.id).await?;
+                            expire_family(connection, &target.session.id, &environment, invalidation.as_ref()).await?;
                             if row.active.as_deref() == Some(target.session.id.as_str()) {
-                                select_browser(connection, id, None, input.now).await?;
+                                select_browser(connection, id, None, now, &environment, invalidation.as_ref()).await?;
                             } else {
                                 // Removing an inactive family does not select another account.
                                 // Retain the current parent's children and advance only the CAS revision.
-                                let changed=sqlx::query("UPDATE account_device_browsers SET revision=revision+1,updated_at=$2 WHERE id=$1 AND revision=$3 AND revision<$4").bind(id.as_str()).bind(input.now).bind(input.expected_revision).bind(MAX_DEVICE_REVISION).execute(&mut *connection).await?.rows_affected();
+                                let changed=sqlx::query("UPDATE account_device_browsers SET revision=revision+1,updated_at=$2 WHERE id=$1 AND revision=$3 AND revision<$4").bind(id.as_str()).bind(now).bind(input.expected_revision).bind(MAX_DEVICE_REVISION).execute(&mut *connection).await?.rows_affected();
                                 if changed != 1 {return Err(stale_device().into());}
                             }
                             Ok(
-                                device_snapshot(connection, &input.proof, &environment, input.now)
+                                device_snapshot(connection, &input.proof, &environment, clock.now().get())
                                     .await?,
                             )
                         })
@@ -413,12 +503,15 @@ impl AccountRepository for PostgresAccountRepository {
         Box::pin(async move {
             finish(
                 self.unit
-                    .run(options(), |connection| {
+                    .run_once(options(), |connection| {
                         let proof = proof.clone();
                         let audience = audience.clone();
                         let environment = self.environment.clone();
+                        let invalidation=self.invalidation.clone();
+                        let clock=self.clock.clone();
                         Box::pin(async move {
                             lock_session_writes(connection).await?;
+                            let now=clock.now().get().max(now);
                             if let Some(session) =
                                 read_session(connection, &proof, &audience, &environment, now)
                                     .await?
@@ -426,14 +519,14 @@ impl AccountRepository for PostgresAccountRepository {
                                 match audience {
                                     RequestAudience::Account => {
                                         let id = proof.browser.as_ref().ok_or_else(denied)?;
-                                        expire_family(connection, &session.id).await?;
-                                        select_browser(connection, id, None, now).await?;
+                                        expire_family(connection, &session.id, &environment, invalidation.as_ref()).await?;
+                                        select_browser(connection, id, None, now, &environment, invalidation.as_ref()).await?;
                                     }
                                     RequestAudience::Holding { .. } => {
                                         let parent:String=sqlx::query_scalar("SELECT parent_session_id FROM sso_session_bindings WHERE session_id=$1 AND environment=$2").bind(&session.id).bind(&environment).fetch_one(&mut *connection).await?;
                                         let browser:String=sqlx::query_scalar("SELECT browser_id FROM account_device_accounts WHERE session_id=$1").bind(&parent).fetch_one(&mut *connection).await?;
-                                        expire_family(connection,&parent).await?;
-                                        select_browser(connection,&SecretDigest::new(browser)?,None,now).await?;
+                                        expire_family(connection,&parent,&environment,invalidation.as_ref()).await?;
+                                        select_browser(connection,&SecretDigest::new(browser)?,None,now,&environment,invalidation.as_ref()).await?;
                                     }
                                 }
                             }
@@ -459,6 +552,8 @@ pub(crate) async fn issue_account_session(
     connection: &mut PgConnection,
     input: IssuedAccountSession,
     environment: &str,
+    invalidation: &dyn AccountWorkContextInvalidation,
+    clock: &(dyn Clock + Send + Sync),
 ) -> TxResult<CompletedSignIn> {
     let accounts=sqlx::query_scalar::<_,String>("SELECT s.\"userId\" FROM account_device_accounts a JOIN session s ON s.id=a.session_id JOIN sso_session_bindings b ON b.session_id=s.id WHERE a.browser_id=$1 AND b.audience='account' AND b.environment=$2 AND b.parent_session_id IS NULL AND b.absolute_expires_at>$3 AND s.\"expiresAt\"::timestamptz>to_timestamp($3::double precision/1000)").bind(input.browser.as_str()).bind(environment).bind(input.now).fetch_all(&mut *connection).await?;
     if accounts.len() >= MAXIMUM_SAVED_ACCOUNTS && !accounts.contains(&input.user_id) {
@@ -471,7 +566,7 @@ pub(crate) async fn issue_account_session(
     }
     let old=sqlx::query_scalar::<_,String>("SELECT a.session_id FROM account_device_accounts a JOIN session s ON s.id=a.session_id WHERE a.browser_id=$1 AND s.\"userId\"=$2").bind(input.browser.as_str()).bind(&input.user_id).fetch_all(&mut *connection).await?;
     for id in old {
-        expire_family(connection, &id).await?;
+        expire_family(connection, &id, environment, invalidation).await?;
     }
     let expires = input
         .now
@@ -492,19 +587,25 @@ pub(crate) async fn issue_account_session(
         &input.browser,
         Some(&input.session_id),
         input.now,
+        environment,
+        invalidation,
     )
     .await?;
+    sqlx::query("SET CONSTRAINTS ALL IMMEDIATE")
+        .execute(&mut *connection)
+        .await?;
+    let now = clock.now().get();
     let mut proof = input.proof;
     proof.browser = Some(input.browser);
     proof.active = Some(input.session_digest.clone());
     proof.saved.push((input.handle, input.session_digest));
-    let devices = device_snapshot(connection, &proof, environment, input.now).await?;
+    let devices = device_snapshot(connection, &proof, environment, now).await?;
     let session = read_session(
         connection,
         &proof,
         &RequestAudience::Account,
         environment,
-        input.now,
+        now,
     )
     .await?
     .ok_or_else(denied)?;

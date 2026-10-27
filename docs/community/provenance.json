@@ -127,6 +127,21 @@
       ],
       "reviewStatus": "pending",
       "basis": "Complete the transitive JavaScript, Rust, native-tool and eventual image dependency/license inventory for the actual release. No complete SBOM or compliance clearance is claimed here."
+    },
+    {
+      "id": "ryu-js-number-formatting",
+      "paths": [
+        "packages/server-workflow/",
+        "Cargo.lock"
+      ],
+      "noticeFiles": [
+        "packages/server-workflow/licenses/ryu-js-1.0.3-Apache-2.0.txt"
+      ],
+      "reviewStatus": "notice-reviewed",
+      "declaredLicense": "Apache-2.0",
+      "upstreamVersion": "1.0.3",
+      "upstreamLicenseSha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+      "basis": "The pinned published ryu-js crate declares Apache-2.0 OR BSL-1.0. ERPX selects Apache-2.0 and retains its published LICENSE-APACHE byte-for-byte. Cargo.lock records the registry archive checksum. This is a notice review for this direct dependency, not a complete transitive release clearance."
     }
   ]
 }

@@ -21,6 +21,22 @@ use sha2::{Digest, Sha256};
 use sqlx::PgConnection;
 use std::sync::Arc;
 
+/// Owner-provided utility source fences run before the first Holding snapshot.
+/// Implementations acquire locks only; they do not query facts or grant access.
+pub trait HoldingWorkSourcePreparation: Clone + Send + Sync + 'static {
+    fn prepare<'c>(
+        &'c self,
+        connection: &'c mut PgConnection,
+    ) -> PgWorkFuture<'c, (), BusinessError>;
+}
+#[derive(Clone)]
+struct IamSourcesOnly;
+impl HoldingWorkSourcePreparation for IamSourcesOnly {
+    fn prepare<'c>(&'c self, _: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async { Ok(()) })
+    }
+}
+
 /// Owns transaction freshness, retries only the Holding operation, and retains
 /// Control parent/device proof through its commit. This is not an HTTP router.
 pub struct HoldingWorkAuthorizer {
@@ -57,6 +73,34 @@ impl HoldingWorkAuthorizer {
         proof: DeviceProof,
         input: HoldingWorkspaceRequest,
         access: WorkAuthorizationRequest,
+        action: F,
+    ) -> Result<T, PgTransactionError<BusinessError>>
+    where
+        F: for<'c> Fn(
+                &'c mut PgConnection,
+                &'c AuthorizedWorkContext,
+            ) -> PgWorkFuture<'c, T, BusinessError>
+            + Clone
+            + Send
+            + Sync
+            + 'static,
+    {
+        self.execute_with_sources(host, proof, input, access, IamSourcesOnly, action)
+            .await
+    }
+    /// Participating owners must use this form to fence denial/phantom sources
+    /// before IAM facts establish the transaction snapshot.
+    pub async fn execute_with_sources<
+        T: Send + 'static,
+        F,
+        Preparation: HoldingWorkSourcePreparation,
+    >(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: HoldingWorkspaceRequest,
+        access: WorkAuthorizationRequest,
+        preparation: Preparation,
         action: F,
     ) -> Result<T, PgTransactionError<BusinessError>>
     where
@@ -139,9 +183,11 @@ impl HoldingWorkAuthorizer {
                                 let access = access.clone();
                                 let clock = clock.clone();
                                 let action = action.clone();
+                                let preparation = preparation.clone();
                                 Box::pin(async move {
                                     // Nothing may query this Holding transaction before all source locks.
                                     lock_effective_authority_sources(&mut *connection).await?;
+                                    preparation.prepare(&mut *connection).await?;
                                     let facts = current_authority_facts(
                                         &mut *connection,
                                         &request,

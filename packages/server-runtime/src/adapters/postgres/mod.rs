@@ -1,4 +1,5 @@
 pub(crate) mod config;
+pub(crate) mod development_lease;
 pub(crate) mod migrations;
 pub(crate) mod pool;
 pub(crate) mod request_lease;

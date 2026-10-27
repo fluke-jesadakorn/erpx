@@ -673,3 +673,127 @@ fn operator_configuration_cannot_raise_ceilings_or_use_a_public_temp_root() {
         .is_err()
     );
 }
+#[tokio::test]
+async fn a_reduced_pdf_lease_budget_kills_and_reaps_before_returning() {
+    let root = private_tempdir();
+    let worker = verifier(helper(), root.path(), 5000, 2 * 1024 * 1024);
+    assert!(erpx_server_legal::public::PdfComputeBudget::new(90_001).is_err());
+    let result = worker
+        .verify_with_budget(
+            snapshot(b"sleep"),
+            FixedClock.now(),
+            erpx_server_legal::public::PdfComputeBudget::new(300).unwrap(),
+        )
+        .await;
+    assert!(matches!(result, Err(PdfVerificationFailure::WorkerTimeout)));
+    assert_clean(root.path());
+}
+#[tokio::test]
+async fn an_adapter_without_reduced_deadline_support_refuses_instead_of_ignoring_it() {
+    struct Legacy(std::sync::atomic::AtomicUsize);
+    impl PdfVerifierProcess for Legacy {
+        async fn verify(
+            &self,
+            _: AuthorizedPdfSnapshot,
+            _: TimestampMillis,
+        ) -> Result<PdfVerificationEvidence, PdfVerificationFailure> {
+            self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Err(PdfVerificationFailure::WorkerUnavailable)
+        }
+    }
+    let legacy = Legacy(std::sync::atomic::AtomicUsize::new(0));
+    assert!(matches!(
+        legacy
+            .verify_with_budget(
+                snapshot(b"data"),
+                FixedClock.now(),
+                erpx_server_legal::public::PdfComputeBudget::new(300).unwrap()
+            )
+            .await,
+        Err(PdfVerificationFailure::WorkerTimeout)
+    ));
+    assert_eq!(legacy.0.load(std::sync::atomic::Ordering::SeqCst), 0);
+    assert!(matches!(
+        legacy
+            .verify_with_budget(
+                snapshot(b"data"),
+                FixedClock.now(),
+                erpx_server_legal::public::PdfComputeBudget::maximum()
+            )
+            .await,
+        Err(PdfVerificationFailure::WorkerUnavailable)
+    ));
+    assert_eq!(legacy.0.load(std::sync::atomic::Ordering::SeqCst), 1);
+}
+#[tokio::test]
+async fn actual_pdf_operational_probe_is_unsigned_indeterminate_and_grants_no_company_trust() {
+    let root = private_tempdir();
+    let binary = Path::new(env!("CARGO_BIN_EXE_erpx-validate-pdf"));
+    let worker = verifier(binary, root.path(), 5000, 2 * 1024 * 1024);
+    let proof = worker.probe_readiness(&FixedClock).await.unwrap();
+    assert_eq!(proof.checked_at(), FixedClock.now().get());
+    assert_eq!(proof.probe_outcome(), "unsigned-indeterminate");
+    assert_eq!(proof.profile().sha256().len(), 64);
+    assert_eq!(proof.profile().probe_sha256().len(), 64);
+    assert_eq!(
+        proof.profile().binary_sha256(),
+        hex::encode(Sha256::digest(fs::read(binary).unwrap()))
+    );
+    assert_eq!(
+        worker.current_provider_profile().await.unwrap().sha256(),
+        proof.profile().sha256()
+    );
+    let json = serde_json::to_string(&proof).unwrap();
+    assert!(!json.contains(root.path().to_str().unwrap()));
+    assert!(!json.contains("companyId"));
+    assert!(!json.contains("trustMaterials"));
+    assert!(worker.can_accept_work());
+    assert_clean(root.path());
+    worker.shutdown_and_drain().await;
+    assert!(!worker.can_accept_work());
+    assert!(worker.probe_readiness(&FixedClock).await.is_err());
+    assert!(worker.current_provider_profile().await.is_err());
+}
+#[tokio::test]
+async fn pdf_operational_probe_requires_real_child_protocol_and_respects_busy_ownership() {
+    let invalid_root = private_tempdir();
+    let invalid = verifier(helper(), invalid_root.path(), 5000, 2 * 1024 * 1024);
+    assert!(matches!(
+        invalid.probe_readiness(&FixedClock).await,
+        Err(PdfVerificationFailure::WorkerProtocol)
+    ));
+    assert_clean(invalid_root.path());
+    let root = private_tempdir();
+    let worker = verifier(helper(), root.path(), 5000, 2 * 1024 * 1024);
+    let active = worker.clone();
+    let request =
+        tokio::spawn(async move { active.verify(snapshot(b"sleep"), FixedClock.now()).await });
+    await_child(root.path()).await;
+    assert!(!worker.can_accept_work());
+    assert!(matches!(
+        worker.probe_readiness(&FixedClock).await,
+        Err(PdfVerificationFailure::WorkerUnavailable)
+    ));
+    request.abort();
+    let _ = request.await;
+    worker.shutdown_and_drain().await;
+    assert_clean(root.path());
+}
+#[tokio::test]
+async fn pdf_operational_profile_binds_limits_and_refuses_unsafe_resource_roots() {
+    let root = private_tempdir();
+    let one = verifier(helper(), root.path(), 5000, 2048);
+    let two = verifier(helper(), root.path(), 1000, 2048);
+    assert_ne!(
+        one.current_provider_profile().await.unwrap().sha256(),
+        two.current_provider_profile().await.unwrap().sha256()
+    );
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(root.path(), fs::Permissions::from_mode(0o755)).unwrap();
+        assert!(one.current_provider_profile().await.is_err());
+        fs::set_permissions(root.path(), fs::Permissions::from_mode(0o700)).unwrap();
+    }
+    assert_clean(root.path());
+}

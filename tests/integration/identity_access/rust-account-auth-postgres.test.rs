@@ -44,6 +44,8 @@ async fn setup(pool: &DatabasePool) -> Arc<AccountAuthentication> {
                     pool.clone(),
                     "development".into(),
                     true,
+                    Arc::new(fixture::RecordedFixtureRevocations::default()),
+                    Arc::new(fixture::FixedClock),
                 )
                 .unwrap(),
             ),
@@ -234,10 +236,20 @@ async fn stale_parallel_device_commands_have_one_winner_on_a_single_connection_p
             .unwrap();
         let handle = first.handle.clone();
         let proof = remember(None, first);
+        let second = service
+            .sign_in(
+                "b@example.test",
+                "synthetic-fixture-password".into(),
+                &proof,
+                Some(1),
+            )
+            .await
+            .unwrap();
+        let proof = remember(Some(proof), second);
         let (left, right) = tokio::time::timeout(std::time::Duration::from_secs(10), async {
             tokio::join!(
-                service.select(&proof, handle.clone(), 1),
-                service.select(&proof, handle.clone(), 1)
+                service.select(&proof, handle.clone(), 2),
+                service.select(&proof, handle.clone(), 2)
             )
         })
         .await
@@ -245,7 +257,7 @@ async fn stale_parallel_device_commands_have_one_winner_on_a_single_connection_p
         assert_eq!(usize::from(left.is_ok()) + usize::from(right.is_ok()), 1);
         let error = left.err().or_else(|| right.err()).unwrap();
         assert_eq!(error.code, "DEVICE_ACCOUNTS_CHANGED");
-        assert_eq!(service.devices(&proof).await.unwrap().revision, 2);
+        assert_eq!(service.devices(&proof).await.unwrap().revision, 3);
     })
     .await;
 }
@@ -386,13 +398,15 @@ async fn failed_selection_rolls_back_family_deletion_and_the_browser_revision() 
     database::with_database(2, |pool| async move {
         let service = setup(&pool).await;
         let signed = service.sign_in("a@example.test", "synthetic-fixture-password".into(), &fixture::empty(), None).await.unwrap();
-        let parent = signed.result.session.clone();
         let handle = signed.handle.clone();
         let proof = remember(None, signed);
+        let second=service.sign_in("b@example.test","synthetic-fixture-password".into(),&proof,Some(1)).await.unwrap();
+        let parent=second.result.session.clone();
+        let proof=remember(Some(proof),second);
         let child = holding_proof(child(&pool, &parent, "rollback").await);
         sqlx::raw_sql("CREATE FUNCTION reject_device_selection() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'synthetic device update failure'; END $$; CREATE TRIGGER reject_device_selection BEFORE UPDATE ON account_device_browsers FOR EACH ROW EXECUTE FUNCTION reject_device_selection();").execute(pool.raw()).await.unwrap();
-        fixture::assert_error(service.select(&proof, handle, 1).await, "ACCOUNT_PERSISTENCE_UNAVAILABLE");
-        assert_eq!(service.devices(&proof).await.unwrap().revision, 1);
+        fixture::assert_error(service.select(&proof, handle, 2).await, "ACCOUNT_PERSISTENCE_UNAVAILABLE");
+        assert_eq!(service.devices(&proof).await.unwrap().revision, 2);
         assert!(service.session(&child, holding()).await.unwrap().is_some());
         assert_eq!(service.session(&proof, RequestAudience::Account).await.unwrap().unwrap().id, parent.id);
     }).await;
@@ -480,6 +494,8 @@ async fn removing_an_inactive_account_preserves_the_active_holding_child_and_rev
             pool.clone(),
             "development".into(),
             true,
+            Arc::new(fixture::RecordedFixtureRevocations::default()),
+            Arc::new(fixture::FixedClock),
         )
         .unwrap();
         let nonce = SystemAuthenticationSecrets.issue().unwrap();

@@ -182,6 +182,80 @@ async fn deadline_kills_and_reaps_entire_nested_group() {
     assert_clean(root.path()).await;
 }
 #[tokio::test]
+async fn reduced_lease_budget_is_owned_by_the_supervisor_until_nested_cleanup_finishes() {
+    let root = private_tempdir();
+    let worker = worker(root.path(), 5000, 2 * 1024 * 1024, 512 * 1024 * 1024);
+    assert_eq!(
+        worker
+            .extract_with_budget(
+                input(b"nested"),
+                erpx_server_legal::public::DocumentComputeBudget::new(500).unwrap()
+            )
+            .await
+            .unwrap_err(),
+        Failure::DeadlineExceeded
+    );
+    assert!(pid_paths(root.path()).len() >= 3);
+    assert_clean(root.path()).await;
+}
+#[tokio::test]
+async fn a_missing_thai_model_is_unready_and_never_silently_probes_english_instead() {
+    let root = private_tempdir();
+    let mut config = tools();
+    config.tessdata = root.path().into();
+    config.languages = "eng+tha".into();
+    std::fs::write(
+        root.path().join("eng.traineddata"),
+        b"synthetic English resource",
+    )
+    .unwrap();
+    let worker = BoundedDocumentExtractor::new(
+        helper(),
+        root.path(),
+        config,
+        DocumentProcessLimits::default(),
+    )
+    .unwrap();
+    assert!(matches!(
+        worker.current_provider_profile().await,
+        Err(Failure::InvalidToolConfiguration)
+    ));
+    assert!(pid_paths(root.path()).is_empty());
+}
+#[tokio::test]
+async fn observed_provider_profile_binds_model_bytes_and_rejects_oversized_resources() {
+    let root = private_tempdir();
+    let mut config = tools();
+    config.tessdata = root.path().into();
+    config.languages = "eng".into();
+    let path = root.path().join("eng.traineddata");
+    std::fs::write(&path, b"synthetic model one").unwrap();
+    let worker = BoundedDocumentExtractor::new(
+        helper(),
+        root.path(),
+        config,
+        DocumentProcessLimits::default(),
+    )
+    .unwrap();
+    let before = worker.current_provider_profile().await.unwrap();
+    std::fs::write(&path, b"synthetic model two").unwrap();
+    assert_ne!(
+        before.sha256(),
+        worker.current_provider_profile().await.unwrap().sha256()
+    );
+    std::fs::OpenOptions::new()
+        .write(true)
+        .open(&path)
+        .unwrap()
+        .set_len(256 * 1024 * 1024 + 1)
+        .unwrap();
+    assert!(matches!(
+        worker.current_provider_profile().await,
+        Err(Failure::InvalidToolConfiguration)
+    ));
+    assert!(pid_paths(root.path()).is_empty());
+}
+#[tokio::test]
 async fn exited_group_leader_with_descendants_holding_pipes_is_still_owned() {
     let root = private_tempdir();
     let worker = worker(root.path(), 800, 2 * 1024 * 1024, 512 * 1024 * 1024);

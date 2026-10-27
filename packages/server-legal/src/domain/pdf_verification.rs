@@ -8,6 +8,22 @@ pub const PDF_BUSINESS_LIMIT: usize = 10 * 1024 * 1024;
 pub const VERIFICATION_ADMISSION_LIMIT: usize = 32 * 1024 * 1024;
 pub const VERIFICATION_OUTPUT_LIMIT: usize = 2 * 1024 * 1024;
 pub const VERIFICATION_DEADLINE_SECONDS: u64 = 90;
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct PdfComputeBudget(u64);
+impl PdfComputeBudget {
+    pub fn new(millis: u64) -> Result<Self, PdfVerificationFailure> {
+        if millis == 0 || millis > VERIFICATION_DEADLINE_SECONDS * 1000 {
+            return Err(PdfVerificationFailure::InvalidSnapshot);
+        }
+        Ok(Self(millis))
+    }
+    pub const fn maximum() -> Self {
+        Self(VERIFICATION_DEADLINE_SECONDS * 1000)
+    }
+    pub const fn millis(self) -> u64 {
+        self.0
+    }
+}
 pub const TRUST_ITEM_LIMIT: usize = 100;
 pub const TRUST_ITEM_BYTES_LIMIT: usize = 4 * 1024 * 1024;
 

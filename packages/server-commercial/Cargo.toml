@@ -8,7 +8,7 @@ publish.workspace = true
 autotests = false
 
 [package.metadata.erpx]
-verification-roots = ["licenses", "resources", "../../fixtures/commercial/rust-packages", "../../scripts/testing/fixtures/generate-commercial-rust-goldens.ts"]
+verification-roots = ["resources", "licenses", "../../fixtures/commercial/rust-packages", "../../scripts/testing/fixtures/generate-commercial-rust-goldens.ts"]
 
 [dependencies]
 icu_collator.workspace = true

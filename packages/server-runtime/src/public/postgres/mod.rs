@@ -10,3 +10,5 @@ pub use crate::adapters::postgres::request_lease::PgRequestLease;
 pub use crate::adapters::postgres::unit_of_work::{
     PgTransactionError, PgUnitOfWork, PgWorkFuture, SessionLock, TransactionOptions,
 };
+
+pub use crate::adapters::postgres::development_lease::LeasedDevelopmentDatabase;

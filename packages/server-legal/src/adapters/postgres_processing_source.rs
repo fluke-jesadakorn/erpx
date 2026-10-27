@@ -24,6 +24,7 @@ pub struct CurrentLegalProcessingSource {
     lease: LegalProcessingLease,
     transaction: (String, i32, String),
     completed: std::sync::Mutex<Option<CompletedInspection>>,
+    failed: std::sync::Mutex<Option<String>>,
 }
 #[derive(Clone)]
 struct CompletedInspection {
@@ -95,12 +96,83 @@ impl CurrentLegalProcessingSource {
             Some(completed) => self.require_completed(connection, now, &completed).await,
         }
     }
+    /// A failure is accepted only after this exact transaction-bound source
+    /// received a private stamp from the authorized owner failure transition.
+    pub async fn require_current_or_settled(
+        &self,
+        connection: &mut PgConnection,
+        now: i64,
+    ) -> Result<(), Error> {
+        let failure = self
+            .failed
+            .lock()
+            .map_err(|_| PersistenceError::new("LEGAL_PROCESSING_WITNESS_UNAVAILABLE"))?
+            .clone();
+        match failure {
+            Some(code) => self.require_failed(connection, now, &code).await,
+            None => self.require_current_or_completed(connection, now).await,
+        }
+    }
+    pub(super) async fn record_failed(
+        &self,
+        connection: &mut PgConnection,
+        now: i64,
+        code: &str,
+    ) -> Result<(), Error> {
+        if self
+            .completed
+            .lock()
+            .map_err(|_| PersistenceError::new("LEGAL_PROCESSING_WITNESS_UNAVAILABLE"))?
+            .is_some()
+        {
+            return Err(lease_changed().into());
+        }
+        self.require_failed(connection, now, code).await?;
+        let mut guard = self
+            .failed
+            .lock()
+            .map_err(|_| PersistenceError::new("LEGAL_PROCESSING_WITNESS_UNAVAILABLE"))?;
+        if guard.is_some() {
+            return Err(lease_changed().into());
+        }
+        *guard = Some(code.to_owned());
+        Ok(())
+    }
+    async fn require_failed(
+        &self,
+        connection: &mut PgConnection,
+        now: i64,
+        code: &str,
+    ) -> Result<(), Error> {
+        require_transaction(connection).await?;
+        self.lease
+            .require_live(self.holding_id(), self.company_id(), now)?;
+        if self.transaction != transaction(connection).await? {
+            return Err(lease_changed().into());
+        }
+        let row=sqlx::query("SELECT j.id,j.item_id,j.document_id,j.checksum,j.kind,j.attempts::bigint AS attempts,j.created_by,j.created_at,CASE WHEN octet_length(j.actor_json)<=$4 THEN j.actor_json END AS actor_json,i.version::bigint AS item_version FROM legal_processing_jobs j JOIN legal_items i ON i.id=j.item_id AND i.company_id=j.company_id JOIN legal_documents d ON d.id=j.document_id AND d.item_id=i.id WHERE j.id=$1 AND j.company_id=$2 AND j.state='failed' AND j.error=$3 AND j.result_json IS NULL AND j.lease_token IS NULL AND j.lease_until IS NULL AND d.checksum=j.checksum AND NOT EXISTS(SELECT 1 FROM legal_disposals x WHERE x.document_id=d.id) AND NOT EXISTS(SELECT 1 FROM legal_destructions x WHERE x.item_id=i.id AND x.state IN ('executing','completed')) FOR UPDATE OF j FOR SHARE OF i,d")
+            .bind(self.job().id.as_str()).bind(self.company_id().as_str()).bind(code).bind(PROCESSING_ACTOR_LIMIT as i64).fetch_optional(&mut *connection).await?.ok_or_else(lease_changed)?;
+        if parse_processing_job(&row, self.holding_id(), self.company_id())? != self.lease.job
+            || row.try_get::<i64, _>("attempts")? != i64::from(self.lease.attempts)
+        {
+            return Err(lease_changed().into());
+        }
+        Ok(())
+    }
     pub(super) async fn record_completed(
         &self,
         connection: &mut PgConnection,
         now: i64,
         result: &serde_json::Value,
     ) -> Result<(), Error> {
+        if self
+            .failed
+            .lock()
+            .map_err(|_| PersistenceError::new("LEGAL_PROCESSING_WITNESS_UNAVAILABLE"))?
+            .is_some()
+        {
+            return Err(lease_changed().into());
+        }
         let inspection_id =
             RecordId::new(result["inspectionId"].as_str().ok_or_else(lease_changed)?)?;
         let completed = CompletedInspection {
@@ -190,6 +262,7 @@ pub async fn load_current_legal_processing_source(
         lease,
         transaction: transaction(connection).await?,
         completed: std::sync::Mutex::new(None),
+        failed: std::sync::Mutex::new(None),
     })
 }
 async fn require_transaction(connection: &mut PgConnection) -> Result<(), Error> {

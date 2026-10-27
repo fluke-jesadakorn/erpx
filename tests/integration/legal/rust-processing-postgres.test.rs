@@ -511,3 +511,20 @@ async fn denial_committed_while_owner_lock_waits_is_seen_before_the_first_snapsh
         assert!(matches!(result,Err(PgTransactionError::Business(ref error)) if error.code=="LEGAL_PROCESSING_LEASE_CHANGED"),"the new destruction must be seen after lock acquisition");
     }).await;
 }
+
+#[tokio::test]
+async fn staged_queue_plan_rejects_same_backend_next_transaction_and_uses_the_canonical_application()
+ {
+    fixture::with_database(1,|pool|async move{
+        setup(&pool).await;let mut bridge=Bridge::default();let mut ids=Ids::default();
+        let mut first=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *first).await.unwrap();
+        let plan=repository(&mut first,&mut bridge,&mut ids).stage_queue(&actor(),&key("staged-command"),&id("document-a"),LegalProcessingKind::Ocr).await.unwrap();
+        first.commit().await.unwrap();
+        let mut second=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *second).await.unwrap();
+        assert!(matches!(repository(&mut second,&mut bridge,&mut ids).apply_staged_queue(&plan).await,Err(PgTransactionError::Business(_))));second.rollback().await.unwrap();
+        let mut current=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *current).await.unwrap();
+        let actual=repository(&mut current,&mut bridge,&mut ids).stage_queue(&actor(),&key("staged-command"),&id("document-a"),LegalProcessingKind::Ocr).await.unwrap();
+        let receipt=repository(&mut current,&mut bridge,&mut ids).apply_staged_queue(&actual).await.unwrap();assert_eq!(receipt,actual.receipt().unwrap());actual.require_queued(&mut current).await.unwrap();current.rollback().await.unwrap();
+        assert_eq!(sqlx::query_scalar::<_,i64>("SELECT(SELECT count(*)FROM legal_processing_jobs)+(SELECT count(*)FROM receipt_probe)").fetch_one(pool.raw()).await.unwrap(),0);
+    }).await;
+}

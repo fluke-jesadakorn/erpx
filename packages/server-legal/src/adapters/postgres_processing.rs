@@ -103,6 +103,43 @@ impl<
         }
     }
 
+    /// Stage only actual owner data. The outer coordinator must have fenced
+    /// all participating owner sources before its first Holding snapshot.
+    pub async fn stage_queue(
+        &mut self,
+        actor: &LegalProcessingActor,
+        key: &CommandKey,
+        document_id: &RecordId,
+        kind: LegalProcessingKind,
+    ) -> Result<super::postgres_processing_queue::StagedLegalProcessingQueue, Error> {
+        let prepared =
+            <Self as LegalProcessingCommandPorts>::prepare(self, actor, key, document_id, kind)
+                .await?;
+        super::postgres_processing_queue::StagedLegalProcessingQueue::mint(
+            self.connection,
+            actor.clone(),
+            key.clone(),
+            kind,
+            prepared,
+        )
+        .await
+    }
+    /// Workflow's actual apply callback delegates this same canonical use case;
+    /// the owner descriptor itself grants no personal or purchase authority.
+    pub async fn apply_staged_queue(
+        &mut self,
+        plan: &super::postgres_processing_queue::StagedLegalProcessingQueue,
+    ) -> Result<LegalProcessingReceipt, Error> {
+        plan.require_current(self.connection).await?;
+        self.queue(
+            plan.actor(),
+            plan.key(),
+            &plan.document().document_id,
+            plan.kind(),
+        )
+        .await
+    }
+
     pub async fn queue(
         &mut self,
         actor: &LegalProcessingActor,
@@ -268,9 +305,26 @@ impl<
             )
             .into());
         }
-        sqlx::query("UPDATE legal_processing_jobs SET state='failed',error=$1,lease_token=NULL,lease_until=NULL WHERE id=$2 AND company_id=$3 AND state='running' AND lease_token=$4")
+        let changed=sqlx::query("UPDATE legal_processing_jobs SET state='failed',error=$1,result_json=NULL,lease_token=NULL,lease_until=NULL WHERE id=$2 AND company_id=$3 AND state='running' AND lease_token=$4")
             .bind(code).bind(lease.job.id.as_str()).bind(self.company_id.as_str()).bind(lease.token.as_str()).execute(&mut *self.connection).await?;
+        if changed.rows_affected() != 1 {
+            return Err(lease_changed().into());
+        }
         Ok(())
+    }
+    pub async fn fail_current_source(
+        &mut self,
+        source: &CurrentLegalProcessingSource,
+        code: &str,
+    ) -> Result<(), Error> {
+        source
+            .require_current(self.connection, self.clock.now().get())
+            .await?;
+        self.authorize_work(source.lease()).await?;
+        self.fail(source.lease(), code).await?;
+        source
+            .record_failed(self.connection, self.clock.now().get(), code)
+            .await
     }
 
     pub async fn status(

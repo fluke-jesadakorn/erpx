@@ -8,7 +8,10 @@ publish.workspace = true
 autotests = false
 
 [features]
+legal-queue = []
 legal-pdf-worker = ["erpx-server-legal/pdf-verifier"]
+legal-document-worker = ["erpx-server-legal/document-provider"]
+legal-processing-worker = ["legal-pdf-worker","legal-document-worker"]
 
 [[bin]]
 name = "erpx-server"
@@ -16,6 +19,7 @@ path = "src/main.rs"
 
 [dependencies]
 erpx-server-runtime.workspace = true
+erpx-server-workflow.workspace = true
 erpx-server-shared.workspace = true
 erpx-server-identity-access.workspace = true
 erpx-server-legal.workspace = true
@@ -30,6 +34,8 @@ sqlx.workspace = true
 axum.workspace = true
 tokio.workspace = true
 serde_json.workspace = true
+serde.workspace = true
+nix.workspace = true
 
 [dev-dependencies]
 time.workspace = true
@@ -42,7 +48,12 @@ path = "../../tests/unit/shared.architecture/rust-composition.test.rs"
 [[test]]
 name = "legal_queued_authority"
 path = "../../tests/integration/legal/rust-queued-authority-composition.test.rs"
-required-features = ["legal-pdf-worker"]
+required-features = ["legal-pdf-worker", "legal-document-worker", "legal-queue"]
+
+[[test]]
+name = "legal_worker_bootstrap"
+path = "../../tests/unit/legal/rust-worker-bootstrap.test.rs"
+required-features = ["legal-document-worker"]
 
 [lints]
 workspace = true

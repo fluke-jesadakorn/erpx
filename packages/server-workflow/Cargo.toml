@@ -1,0 +1,36 @@
+[package]
+name = "erpx-server-workflow"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+autotests = false
+
+[package.metadata.erpx]
+verification-roots = ["licenses", "../../fixtures/workflow/rust-commands", "../../scripts/testing/fixtures/generate-workflow-rust-oracle.ts"]
+
+[dependencies]
+erpx-server-shared.workspace = true
+erpx-server-runtime.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+sha2.workspace = true
+hex.workspace = true
+ryu-js.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+uuid.workspace = true
+
+[[test]]
+name = "command_json"
+path = "../../tests/unit/workflow/rust-command-json.test.rs"
+
+[[test]]
+name = "command_ledger_postgres"
+path = "../../tests/integration/workflow/rust-command-ledger-postgres.test.rs"
+
+[lints]
+workspace = true

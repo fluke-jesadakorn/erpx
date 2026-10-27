@@ -5,11 +5,14 @@ use crate::{
     adapters::document_engine::{
         DocumentChildRequest, DocumentChildResponse, DocumentToolConfiguration,
     },
-    application::document_extraction::{DocumentExtractor, finish_document_extraction},
+    application::document_extraction::{
+        DocumentExtractor, finish_document_extraction, require_extraction_report,
+    },
     domain::document_extraction::{
-        DOCUMENT_INPUT_LIMIT, DocumentExtractionFailure as Failure, DocumentExtractionInput,
-        DocumentExtractionKind, DocumentExtractionReport, DocumentExtractionSource,
-        EXTRACTION_DEADLINE_SECONDS, EXTRACTION_OUTPUT_LIMIT, ExtractedDocument, ExtractionMethod,
+        DOCUMENT_INPUT_LIMIT, DocumentComputeBudget, DocumentExtractionFailure as Failure,
+        DocumentExtractionInput, DocumentExtractionKind, DocumentExtractionReport,
+        DocumentExtractionSource, EXTRACTION_DEADLINE_SECONDS, EXTRACTION_OUTPUT_LIMIT,
+        ExtractedDocument, ExtractionMethod,
     },
 };
 use sha2::{Digest, Sha256};
@@ -127,6 +130,46 @@ impl BoundedDocumentExtractor {
     pub fn is_healthy(&self) -> bool {
         self.healthy.load(Ordering::Acquire)
     }
+    /// Capacity/cleanup status only, not a substitute for provider probe proof
+    /// or current Company, release, purchase, Files and IAM authority.
+    pub fn can_accept_work(&self) -> bool {
+        self.is_healthy() && !*self.shutdown.borrow() && self.permit.available_permits() > 0
+    }
+    pub async fn current_provider_profile(
+        &self,
+    ) -> Result<super::document_readiness::DocumentProviderProfile, Failure> {
+        if !self.is_healthy() || *self.shutdown.borrow() {
+            return Err(Failure::WorkerUnavailable);
+        }
+        super::document_readiness::inspect_profile(self.binary.clone(), self.tools.clone()).await
+    }
+    /// Bootstrap outside every database lease. A profile is observations of
+    /// configured executable/model bytes, not an authorization/accuracy claim.
+    pub async fn probe_readiness(
+        &self,
+        clock: &(impl erpx_server_shared::public::Clock + Sync),
+    ) -> Result<super::document_readiness::DocumentProviderReadiness, Failure> {
+        if !self.can_accept_work() {
+            return Err(Failure::WorkerUnavailable);
+        }
+        let profile = self.current_provider_profile().await?;
+        let mut probes = Vec::new();
+        for (name, input) in super::document_readiness::inputs()? {
+            let report = self
+                .extract_with_budget(input, DocumentComputeBudget::new(15_000)?)
+                .await?;
+            super::document_readiness::require_probe(name, &report)?;
+            probes.push(name.to_owned());
+        }
+        if !self.can_accept_work() || self.current_provider_profile().await? != profile {
+            return Err(Failure::InvalidToolConfiguration);
+        }
+        Ok(super::document_readiness::ready(
+            profile,
+            clock.now().get(),
+            probes,
+        ))
+    }
     pub async fn shutdown_and_drain(&self) {
         self.shutdown.send_replace(true);
         if let Ok(permit) = self.permit.acquire().await {
@@ -135,9 +178,10 @@ impl BoundedDocumentExtractor {
     }
 }
 impl DocumentExtractor for BoundedDocumentExtractor {
-    async fn extract(
+    async fn extract_with_budget(
         &self,
         input: DocumentExtractionInput,
+        budget: DocumentComputeBudget,
     ) -> Result<DocumentExtractionReport, Failure> {
         if *self.shutdown.borrow() || !self.is_healthy() {
             return Err(Failure::WorkerUnavailable);
@@ -169,11 +213,13 @@ impl DocumentExtractor for BoundedDocumentExtractor {
             return Err(Failure::WorkerUnavailable);
         }
         let adapter = self.clone();
+        let deadline = tokio::time::Instant::now()
+            + Duration::from_millis(budget.millis()).min(self.limits.deadline);
         let (mut sender, receiver) = oneshot::channel();
         tokio::spawn(async move {
             let result = match prepare(&adapter, input) {
                 Ok(prepared) if !sender.is_closed() && !*adapter.shutdown.borrow() => {
-                    run(&adapter, prepared, &mut sender).await
+                    run(&adapter, prepared, &mut sender, deadline).await
                 }
                 Ok(_) => Err(Failure::WorkerCancelled),
                 Err(error) => Err(error),
@@ -236,7 +282,11 @@ async fn run(
     adapter: &BoundedDocumentExtractor,
     prepared: Prepared,
     sender: &mut oneshot::Sender<Result<DocumentExtractionReport, Failure>>,
+    deadline: tokio::time::Instant,
 ) -> Result<DocumentExtractionReport, Failure> {
+    if tokio::time::Instant::now() >= deadline {
+        return Err(Failure::DeadlineExceeded);
+    }
     let mut command = Command::new(&adapter.binary);
     command
         .arg(prepared.directory.path().join("input"))
@@ -275,15 +325,15 @@ async fn run(
     let deadline = if prepared.request.media_type
         == crate::domain::document_extraction::LegalDocumentMediaType::Docx
     {
-        adapter.limits.deadline.min(Duration::from_secs(30))
+        deadline.min(tokio::time::Instant::now() + Duration::from_secs(30))
     } else {
-        adapter.limits.deadline
+        deadline
     };
     let result = tokio::select! {
         biased;
         _=sender.closed()=>Err(Failure::WorkerCancelled),
         _=shutdown.wait_for(|stop|*stop)=>Err(Failure::WorkerCancelled),
-        _=tokio::time::sleep(deadline)=>Err(Failure::DeadlineExceeded),
+        _=tokio::time::sleep_until(deadline)=>Err(Failure::DeadlineExceeded),
         result=work=>result,
         error=monitor_group(pid,adapter.limits.memory_bytes)=>Err(error),
     };
@@ -301,26 +351,11 @@ async fn run(
     match response {
         DocumentChildResponse::Failed { failure } => Err(failure),
         DocumentChildResponse::Extracted { report } => {
-            let expected = finish_document_extraction(
+            require_extraction_report(
                 &prepared.request.checksum_sha256,
                 DocumentExtractionKind::Original(prepared.request.media_type),
-                ExtractedDocument {
-                    method: report.method.ok_or(Failure::WorkerProtocol)?,
-                    text: report.text.clone(),
-                    pages: report.pages.clone(),
-                },
+                &report,
             )?;
-            if report.status != expected.status
-                || report.checksum != expected.checksum
-                || !report.requires_review
-                || report.retryable
-                || !report.reasons.is_empty()
-                || report.page_mapping != expected.page_mapping
-                || report.text != expected.text
-                || report.pages != expected.pages
-            {
-                return Err(Failure::WorkerProtocol);
-            }
             Ok(report)
         }
     }

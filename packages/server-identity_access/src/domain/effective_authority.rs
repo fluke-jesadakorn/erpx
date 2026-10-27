@@ -74,6 +74,21 @@ pub(crate) struct EffectiveAuthorityFacts {
     pub iam: CurrentIamAuthorityFacts,
     pub beta: bool,
 }
+/// Current audit/receipt metadata only. A copied snapshot is never a permission
+/// proof and cannot reconstruct a sealed AuthorizedWorkContext.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CommandIamMetadata {
+    pub person_user_ids: Vec<UserId>,
+    pub emergency_until: Option<i64>,
+    pub role_revision: i64,
+    pub identity_version: i64,
+    pub permissions: Vec<String>,
+    pub hr_appointment_version: Option<i64>,
+    pub grantable_permissions: Vec<String>,
+    pub principal_id: String,
+    pub person_id: Option<RecordId>,
+    pub fresh_until: Option<i64>,
+}
 /// Only the owning PostgreSQL coordinator can construct this context. It lends
 /// a reference during the retained Control/Holding transaction; no constructor,
 /// serialization, deserialization or cloning can move it into a queued command.
@@ -94,8 +109,12 @@ pub struct AuthorizedWorkContext {
     pub(crate) hr_appointment_version: Option<i64>,
     pub(crate) emergency_until: Option<i64>,
     pub(crate) expires_at: i64,
+    pub(crate) command_iam: CommandIamMetadata,
 }
 impl AuthorizedWorkContext {
+    pub fn command_iam_metadata(&self) -> &CommandIamMetadata {
+        &self.command_iam
+    }
     pub fn holding_id(&self) -> &HoldingId {
         &self.holding_id
     }

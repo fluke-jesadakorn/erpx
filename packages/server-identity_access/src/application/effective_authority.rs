@@ -28,6 +28,39 @@ pub(crate) fn authorize_effective_work(
         .selection
         .expires_at()
         .min(evaluated.fresh_until.unwrap_or(i64::MAX));
+    let mut person_aliases = vec![request.user_id.clone()];
+    for alias in &facts.iam.aliases {
+        if !person_aliases.contains(alias) {
+            person_aliases.push(alias.clone());
+        }
+    }
+    let command_iam = CommandIamMetadata {
+        person_user_ids: person_aliases,
+        emergency_until: evaluated.emergency_until,
+        role_revision: facts.iam.role.revision,
+        identity_version: facts.iam.member.as_ref().map_or(0, |m| m.version),
+        permissions: evaluated.permissions.clone(),
+        hr_appointment_version: evaluated.hr_appointment_version,
+        grantable_permissions: facts.iam.role.grantable_permissions.clone(),
+        principal_id: facts
+            .iam
+            .member
+            .as_ref()
+            .map(|m| m.principal_id.clone())
+            .unwrap_or_else(|| format!("local:{}", request.user_id.as_str())),
+        person_id: facts
+            .iam
+            .member
+            .as_ref()
+            .and_then(|m| m.person_id.clone())
+            .or(facts.iam.fallback_person_id.clone()),
+        fresh_until: facts
+            .iam
+            .member
+            .as_ref()
+            .filter(|member| member.login_policy == LoginPolicy::Directory)
+            .and(evaluated.fresh_until),
+    };
     let permissions = evaluated.permissions;
     let effective_modules = modules.effective_modules(
         &facts.iam.role.id,
@@ -98,6 +131,7 @@ pub(crate) fn authorize_effective_work(
         modules: effective_modules,
         person_user_ids,
         expires_at,
+        command_iam,
     };
     context.require_current_time(now)?;
     Ok(context)

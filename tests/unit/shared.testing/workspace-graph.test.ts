@@ -14,6 +14,19 @@ import { workspaceStyleSheet } from '../../../scripts/assets/workspace-styles';
 import { Scanner } from '@tailwindcss/oxide';
 import {watchWorkspaceStyleSources,workspaceStyleGraphChanged,workspaceStyleWatchInput} from '../../../scripts/local/workspace-style-watcher';
 const suite=(id:string,app:string,file:string):Suite=>({id,lane:'unit',owner:'shared.testing',modules:['finance'],files:[file],fixture:'none',requires:{jobs:false,scanner:false},apps:[app],packages:['@erpx/contracts']});
+it('passes pinned toolchain paths through actual Turbo strict mode and binds their cache identity without admitting unrelated environment',()=>{
+ const root=join(import.meta.dirname,'../../..');
+ const run=(node:string,sensitive:string)=>JSON.parse(execFileSync(process.execPath,[join(root,'node_modules/turbo/bin/turbo'),'run','typecheck','--filter=@erpx/app-legal-portal','--dry=json'],{
+  cwd:root,env:{NODE_ENV:'test',PATH:process.env.PATH,HOME:process.env.HOME,TMPDIR:process.env.TMPDIR,TURBO_TELEMETRY_DISABLED:'1',ERPX_NODE_BIN:node,ERPX_BUN_BIN:'/synthetic/pinned/bun',ERPX_UNDECLARED_SECRET:sensitive},encoding:'utf8',stdio:['ignore','pipe','ignore'],maxBuffer:8*1024*1024,
+ }));
+ const first=run('/synthetic/pinned/node','first-synthetic-value'),otherSecret=run('/synthetic/pinned/node','different-synthetic-value'),otherNode=run('/synthetic/other/node','first-synthetic-value');
+ expect(first.tasks[0].envMode).toBe('strict');
+ expect(first.globalCacheInputs.environmentVariables.specified.env).toEqual(['ERPX_BUN_BIN','ERPX_NODE_BIN']);
+ expect(first.globalCacheInputs.environmentVariables.specified.passThroughEnv).toBeNull();
+ expect(first.tasks[0].hash).toBe(otherSecret.tasks[0].hash);
+ expect(first.tasks[0].hash).not.toBe(otherNode.tasks[0].hash);
+ expect(JSON.stringify(first.globalCacheInputs.environmentVariables)).not.toContain('ERPX_UNDECLARED_SECRET');
+});
 function sources(){return new Map([
  ['apps/finance/src/app/page.tsx','import "@erpx/contracts/finance";'],
  ['apps/people/src/app/page.tsx','import "@erpx/contracts/people";'],
