@@ -17,6 +17,55 @@ pub(super) struct FieldServicePurchases {
     witnesses: Vec<PurchaseWitness>,
 }
 impl FieldServicePurchases {
+    #[cfg(feature = "business-http")]
+    pub(super) async fn retain_visit(
+        c: &mut PgConnection,
+        current: &AuthorizedWorkContext,
+        asset: bool,
+        disposition: CommandDisposition,
+        now: TimestampMillis,
+    ) -> Result<Self, Error> {
+        let holding = current.holding_id().clone();
+        let company = current.selection().workspace().company_id.clone();
+        let catalogue = current_package_catalogue()?;
+        let mut reader =
+            PgCompanyPurchaseReader::new(holding.clone(), company.clone(), c, &catalogue);
+        let mut capabilities = vec!["service.orders".into()];
+        if asset {
+            capabilities.push("service.parts-assets".into());
+        }
+        let mut witnesses = Vec::new();
+        for purpose in [
+            CapabilityPurpose::History,
+            CapabilityPurpose::SettleExisting,
+        ] {
+            if purpose == CapabilityPurpose::SettleExisting
+                && disposition == CommandDisposition::Replay
+            {
+                continue;
+            }
+            witnesses.push(
+                reader
+                    .inspect(
+                        &PurchaseRequest {
+                            capabilities: capabilities.clone(),
+                            purpose,
+                            mode: PackageEnforcementMode::Enforced,
+                        },
+                        now,
+                    )
+                    .await?
+                    .require_allowed()?
+                    .clone(),
+            );
+        }
+        Ok(Self {
+            holding,
+            company,
+            catalogue,
+            witnesses,
+        })
+    }
     pub(super) async fn retain(
         c: &mut PgConnection,
         current: &AuthorizedWorkContext,

@@ -128,6 +128,8 @@ struct ConfigurationDocument {
     #[serde(default)]
     field_service_order_creates: Vec<String>,
     #[serde(default)]
+    field_service_visits: Vec<String>,
+    #[serde(default)]
     account_bootstrap: bool,
 }
 struct HoldingConfiguration {
@@ -157,6 +159,7 @@ pub struct DevelopmentApiConfiguration {
     field_service_issues: BTreeSet<HoldingId>,
     field_service_requests: BTreeSet<HoldingId>,
     field_service_order_creates: BTreeSet<HoldingId>,
+    field_service_visits: BTreeSet<HoldingId>,
     account_bootstrap: bool,
 }
 impl fmt::Debug for DevelopmentApiConfiguration {
@@ -345,6 +348,15 @@ impl DevelopmentApiConfiguration {
                 return Err("PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID");
             }
         }
+        let mut field_service_visits = BTreeSet::new();
+        for id in doc.field_service_visits {
+            let holding = HoldingId::new(id)
+                .map_err(|_| "PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID")?;
+            if !field_service_reads.contains_key(&holding) || !field_service_visits.insert(holding)
+            {
+                return Err("PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID");
+            }
+        }
         let mut finance_field_service_journal_posts = BTreeSet::new();
         for id in doc.finance_field_service_journal_posts {
             let holding =
@@ -399,6 +411,7 @@ impl DevelopmentApiConfiguration {
             field_service_issues,
             field_service_requests,
             field_service_order_creates,
+            field_service_visits,
             account_bootstrap: doc.account_bootstrap,
         })
     }
@@ -607,6 +620,7 @@ async fn assemble_checked(
     let mut service_issue_targets = BTreeSet::new();
     let mut service_request_targets = BTreeSet::new();
     let mut service_order_create_targets = BTreeSet::new();
+    let mut service_visit_targets = BTreeSet::new();
     if !config.finance_journal_reads.is_empty() {
         let catalogue = Arc::new(
             current_package_catalogue().map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
@@ -868,6 +882,17 @@ async fn assemble_checked(
             } else {
                 read_configuration
             };
+            let visit_enabled = config
+                .field_service_visits
+                .contains(&holding.registration.holding_id);
+            if visit_enabled {
+                service_visit_targets.insert(target.clone());
+            }
+            let read_configuration = if visit_enabled {
+                read_configuration.with_visits()
+            } else {
+                read_configuration
+            };
             reads.push(FieldServiceReservationReadTarget {
                 host: target.0.clone(),
                 holding_slug: target.1.clone(),
@@ -886,7 +911,7 @@ async fn assemble_checked(
             let order_create_enabled = config
                 .field_service_order_creates
                 .contains(&holding.registration.holding_id);
-            if reserve_enabled || request_enabled || order_create_enabled {
+            if reserve_enabled || request_enabled || order_create_enabled || visit_enabled {
                 service_reservation_targets.insert(target.clone());
                 let action = FieldServicePartsConfiguration::new(
                     FieldServicePartsEnvironment::Development,
@@ -904,31 +929,38 @@ async fn assemble_checked(
                 let issue_enabled = config
                     .field_service_issues
                     .contains(&holding.registration.holding_id);
-                reserves.push(if request_enabled || order_create_enabled {
-                    FieldServiceHttpTarget::new_private_creates(
-                        target.0,
-                        target.1,
-                        service,
-                        request_enabled.then(|| {
-                            Arc::new(RequestDispatcher {
-                                clock: Arc::new(SharedClock(clock.clone())),
-                            })
-                                as Arc<dyn crate::field_service_parts::OtherPost>
-                        }),
-                        order_create_enabled.then(|| {
-                            Arc::new(OrderCreateDispatcher {
-                                clock: Arc::new(SharedClock(clock.clone())),
-                            })
-                                as Arc<dyn crate::field_service_parts::OtherPost>
-                        }),
-                        reserve_enabled,
-                        issue_enabled,
-                    )
-                } else if issue_enabled {
-                    FieldServiceHttpTarget::new_private_parts(target.0, target.1, service)
-                } else {
-                    FieldServiceHttpTarget::new_private_reserve(target.0, target.1, service)
-                });
+                reserves.push(
+                    if request_enabled || order_create_enabled || visit_enabled {
+                        FieldServiceHttpTarget::new_private_creates(
+                            target.0,
+                            target.1,
+                            service,
+                            request_enabled.then(|| {
+                                Arc::new(RequestDispatcher {
+                                    clock: Arc::new(SharedClock(clock.clone())),
+                                })
+                                    as Arc<dyn crate::field_service_parts::OtherPost>
+                            }),
+                            order_create_enabled.then(|| {
+                                Arc::new(OrderCreateDispatcher {
+                                    clock: Arc::new(SharedClock(clock.clone())),
+                                })
+                                    as Arc<dyn crate::field_service_parts::OtherPost>
+                            }),
+                            visit_enabled.then(|| {
+                                Arc::new(crate::field_service_parts::VisitDispatcher {
+                                    clock: Arc::new(SharedClock(clock.clone())),
+                                })
+                                    as Arc<dyn crate::field_service_parts::OtherPost>
+                            }),
+                            (reserve_enabled, issue_enabled),
+                        )
+                    } else if issue_enabled {
+                        FieldServiceHttpTarget::new_private_parts(target.0, target.1, service)
+                    } else {
+                        FieldServiceHttpTarget::new_private_reserve(target.0, target.1, service)
+                    },
+                );
             }
         }
         router = router.merge(
@@ -967,6 +999,7 @@ async fn assemble_checked(
         service_issue_targets,
         service_request_targets,
         service_order_create_targets,
+        service_visit_targets,
         account_bootstrap: config.account_bootstrap,
     });
     Ok(router.layer(middleware::from_fn_with_state(state, boundary)))
@@ -992,6 +1025,7 @@ struct Boundary {
     service_issue_targets: BTreeSet<(String, String)>,
     service_request_targets: BTreeSet<(String, String)>,
     service_order_create_targets: BTreeSet<(String, String)>,
+    service_visit_targets: BTreeSet<(String, String)>,
     account_bootstrap: bool,
 }
 enum BoundaryDenial {
@@ -1180,6 +1214,18 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
                 .service_read_targets
                 .contains(&(host.to_owned(), (*slug).to_owned()))
         }
+        [
+            "",
+            "api",
+            "v1",
+            "holdings",
+            slug,
+            "field-service",
+            "visits",
+            key,
+        ] if !key.is_empty() => state
+            .service_visit_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
         [
             "",
             "api",

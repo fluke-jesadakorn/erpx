@@ -63901,7 +63901,11 @@
         "src/composition/src/field_service_parts/request.rs",
         "packages/server-support/src/adapters/field_service_existing_ticket.rs",
         "packages/server-support/src/public/field_service_existing_ticket.rs",
-        "src/composition/src/field_service_parts/create_order.rs"
+        "src/composition/src/field_service_parts/create_order.rs",
+        "packages/server-field_service/src/adapters/parts/visit.rs",
+        "packages/server-field_service/src/domain/visit.rs",
+        "packages/server-field_service/src/public/visit.rs",
+        "src/composition/src/field_service_parts/visit.rs"
       ],
       "apps": [
         "account",
@@ -69636,7 +69640,11 @@
         "src/composition/src/field_service_parts/request.rs",
         "packages/server-support/src/adapters/field_service_existing_ticket.rs",
         "packages/server-support/src/public/field_service_existing_ticket.rs",
-        "src/composition/src/field_service_parts/create_order.rs"
+        "src/composition/src/field_service_parts/create_order.rs",
+        "packages/server-field_service/src/adapters/parts/visit.rs",
+        "packages/server-field_service/src/domain/visit.rs",
+        "packages/server-field_service/src/public/visit.rs",
+        "src/composition/src/field_service_parts/visit.rs"
       ],
       "postgres": {
         "mode": "raw",

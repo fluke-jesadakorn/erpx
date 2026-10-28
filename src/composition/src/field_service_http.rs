@@ -98,8 +98,8 @@ impl FieldServiceHttpTarget {
         service: Arc<FieldServicePartsAdministration<W, G>>,
         request: Option<Arc<dyn OtherPost>>,
         order_create: Option<Arc<dyn OtherPost>>,
-        allow_reserve: bool,
-        allow_issue: bool,
+        visit: Option<Arc<dyn OtherPost>>,
+        allow_parts: (bool, bool),
     ) -> Self {
         Self {
             host,
@@ -108,8 +108,9 @@ impl FieldServiceHttpTarget {
             dispatch: HttpDispatch::PrivateCreates(
                 request,
                 order_create,
-                allow_reserve,
-                allow_issue,
+                visit,
+                allow_parts.0,
+                allow_parts.1,
             ),
         }
     }
@@ -149,7 +150,7 @@ pub fn field_service_http_router(
                 target.dispatch,
                 HttpDispatch::ReserveOnly
                     | HttpDispatch::PrivateParts
-                    | HttpDispatch::PrivateCreates(_, _, _, _)
+                    | HttpDispatch::PrivateCreates(_, _, _, _, _)
             )
         });
     let mut registered = BTreeMap::new();
@@ -268,19 +269,24 @@ impl PostExecutor for SealedNativeExecutor {
                         HttpDispatch::Shared(other) => {
                             PostResponse::business(other.admission_error(branch, error))
                         }
-                        HttpDispatch::PrivateCreates(Some(other), _, _, _)
+                        HttpDispatch::PrivateCreates(Some(other), _, _, _, _)
                             if branch == OtherPostBranch::Request =>
                         {
                             PostResponse::business(other.admission_error(branch, error))
                         }
-                        HttpDispatch::PrivateCreates(_, Some(other), _, _)
+                        HttpDispatch::PrivateCreates(_, Some(other), _, _, _)
                             if branch == OtherPostBranch::OrderCreate =>
+                        {
+                            PostResponse::business(other.admission_error(branch, error))
+                        }
+                        HttpDispatch::PrivateCreates(_, _, Some(other), _, _)
+                            if branch == OtherPostBranch::OrderChange =>
                         {
                             PostResponse::business(other.admission_error(branch, error))
                         }
                         HttpDispatch::ReserveOnly
                         | HttpDispatch::PrivateParts
-                        | HttpDispatch::PrivateCreates(_, _, _, _) => PostResponse::error(
+                        | HttpDispatch::PrivateCreates(_, _, _, _, _) => PostResponse::error(
                             axum::http::StatusCode::NOT_FOUND,
                             "NOT_FOUND",
                             "Not found.",

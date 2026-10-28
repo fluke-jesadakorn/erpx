@@ -31,7 +31,7 @@ use erpx_server_workflow::public::commands::*;
 use sqlx::PgConnection;
 use std::sync::Arc;
 
-async fn load_order<'a>(
+pub(super) async fn load_order<'a>(
     c: &mut PgConnection,
     current: &'a AuthorizedWorkContext,
     id: &FieldServicePhysicalOrderId,

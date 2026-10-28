@@ -4,11 +4,13 @@ pub use crate::application::reservation_read::{
     FieldServiceRequestEntity, FieldServiceRequestEvent, FieldServiceRequestInput,
     FieldServiceRequestOrderRead, FieldServiceRequestResult, FieldServiceRequestTicketRead,
     FieldServiceReservationRead, FieldServiceReserveAction, FieldServiceReserveEvent,
-    FieldServiceReserveInput, FieldServiceReserveResult, FieldServiceStockSnapshot,
+    FieldServiceReserveInput, FieldServiceReserveResult, FieldServiceScheduleAction,
+    FieldServiceScheduleInput, FieldServiceStockSnapshot, FieldServiceVisitEvent,
+    FieldServiceVisitStepAction, FieldServiceVisitStepInput,
 };
 
 pub use crate::adapters::reservation_read::{
-    CurrentFieldServiceIssueRead, CurrentFieldServiceReservationRead,
+    CurrentFieldServiceIssueRead, CurrentFieldServiceReservationRead, CurrentFieldServiceVisitRead,
     lock_field_service_reservation_read_sources, read_field_service_issue,
-    read_field_service_reservation,
+    read_field_service_reservation, read_field_service_visit, read_field_service_visit_by_key,
 };

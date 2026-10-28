@@ -1,5 +1,5 @@
 import { afterEach, expect, it } from 'vitest';
-import { access, mkdtemp, readFile, writeFile, rm, mkdir, cp, realpath } from 'node:fs/promises';
+import { access, mkdtemp, readFile, writeFile, rename, rm, mkdir, cp, realpath } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
@@ -64,8 +64,17 @@ it('holds concurrent reads of the same accepted payment until the response fault
   const second = fetch('https://api.stripe.com/v1/payment_intents/pi_fictional', request).then((response: Response) => { secondFinished = true; return response; });
   await expect.poll(async () => JSON.parse(await readFile(join(home, 'provider-fixture.json'), 'utf8')).requests.length).toBe(2);
   expect(secondFinished).toBe(false);
-  const state = JSON.parse(await readFile(join(home, 'provider-fixture.json'), 'utf8')); state.held = null;
-  await writeFile(join(home, 'provider-fixture.json'), JSON.stringify(state));
+  const path = join(home, 'provider-fixture.json'), lock = join(home, 'provider-fixture.lock');
+  await expect.poll(async () => {
+    try { await mkdir(lock); return true; }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error; return false; }
+  }).toBe(true);
+  try {
+    const state = JSON.parse(await readFile(path, 'utf8')); state.held = null;
+    const temporary = `${path}.release.tmp`;
+    await writeFile(temporary, JSON.stringify(state) + '\n', { mode: 0o600 });
+    await rename(temporary, path);
+  } finally { await rm(lock, { recursive: true }); }
   for (const response of await Promise.all([first, second])) expect(await response.json()).toMatchObject({ id: 'pi_fictional', status: 'succeeded' });
 });
 

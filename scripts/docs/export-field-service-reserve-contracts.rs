@@ -4,12 +4,14 @@ use erpx_server_field_service::public::reservation_read::{
     FieldServiceRequestEntity, FieldServiceRequestEvent, FieldServiceRequestInput,
     FieldServiceRequestOrderRead, FieldServiceRequestResult, FieldServiceRequestTicketRead,
     FieldServiceReservationRead, FieldServiceReserveAction, FieldServiceReserveEvent,
-    FieldServiceReserveInput, FieldServiceReserveResult, FieldServiceStockSnapshot,
+    FieldServiceReserveInput, FieldServiceReserveResult, FieldServiceScheduleAction,
+    FieldServiceScheduleInput, FieldServiceStockSnapshot, FieldServiceVisitEvent,
+    FieldServiceVisitStepAction, FieldServiceVisitStepInput,
 };
 use erpx_service::field_service_reservation_read::{
     FieldServiceIssueReadResponse, FieldServiceOrderCreateReadResponse,
     FieldServiceRenderedContext, FieldServiceRequestReadResponse,
-    FieldServiceReservationReadResponse,
+    FieldServiceReservationReadResponse, FieldServiceVisitReadResponse,
 };
 use ts_rs::{Config, TS};
 #[derive(utoipa::ToSchema)]
@@ -29,13 +31,22 @@ const _: fn() = request_read;
 #[utoipa::path(get,path="/api/v1/holdings/{holding_slug}/field-service/orders/{key}",params(("holding_slug"=String,Path),("key"=String,Path)),responses((status=200,body=FieldServiceOrderCreateReadResponse,description="Current scoped created order evidence")))]
 fn order_create_read() {}
 const _: fn() = order_create_read;
+#[utoipa::path(get,path="/api/v1/holdings/{holding_slug}/field-service/visits/{key}",params(("holding_slug"=String,Path),("key"=String,Path)),responses((status=200,body=FieldServiceVisitReadResponse,description="Current scoped visit evidence")))]
+fn visit_read() {}
+const _: fn() = visit_read;
 const _: fn() = issue_read;
 const _: fn() = reserve;
 const _: fn() = read;
 #[derive(utoipa::OpenApi)]
 #[openapi(
-    paths(reserve, read, issue_read, request_read, order_create_read),
+    paths(reserve, read, issue_read, request_read, order_create_read, visit_read),
     components(schemas(
+        FieldServiceScheduleAction,
+        FieldServiceVisitStepAction,
+        FieldServiceScheduleInput,
+        FieldServiceVisitStepInput,
+        FieldServiceVisitEvent,
+        FieldServiceVisitReadResponse,
         FieldServiceOrderCreateInput,
         FieldServiceCreatedOrderRead,
         FieldServiceOrderCreateReadResponse,
@@ -77,7 +88,7 @@ fn main() {
         value["components"]["schemas"]["FieldServiceIssueInput"]["properties"]["action"] =
             serde_json::json!({"type":"string","const":"issue-part"});
         value["paths"]["/api/v1/holdings/{holding_slug}/field-service"]["post"]["requestBody"]["content"]
-            ["application/json"]["schema"] = serde_json::json!({"oneOf":[{"$ref":"#/components/schemas/FieldServiceReserveInput"},{"$ref":"#/components/schemas/FieldServiceIssueInput"},{"$ref":"#/components/schemas/FieldServiceRequestInput"},{"$ref":"#/components/schemas/FieldServiceOrderCreateInput"}]});
+            ["application/json"]["schema"] = serde_json::json!({"oneOf":[{"$ref":"#/components/schemas/FieldServiceReserveInput"},{"$ref":"#/components/schemas/FieldServiceIssueInput"},{"$ref":"#/components/schemas/FieldServiceRequestInput"},{"$ref":"#/components/schemas/FieldServiceOrderCreateInput"},{"$ref":"#/components/schemas/FieldServiceScheduleInput"},{"$ref":"#/components/schemas/FieldServiceVisitStepInput"}]});
         println!("{}", serde_json::to_string_pretty(&value).unwrap());
         return;
     }
@@ -87,6 +98,12 @@ fn main() {
         "// Generated from the Rust Field Service reservation contracts. Do not edit by hand.\n// Regenerate: bun scripts/docs/generate-field-service-reserve-contracts.ts"
     );
     for declaration in [
+        FieldServiceScheduleAction::decl(&config),
+        FieldServiceVisitStepAction::decl(&config),
+        FieldServiceScheduleInput::decl(&config),
+        FieldServiceVisitStepInput::decl(&config),
+        FieldServiceVisitEvent::decl(&config),
+        FieldServiceVisitReadResponse::decl(&config),
         FieldServiceOrderCreateInput::decl(&config),
         FieldServiceCreatedOrderRead::decl(&config),
         FieldServiceOrderCreateReadResponse::decl(&config),

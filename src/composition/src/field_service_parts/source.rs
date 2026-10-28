@@ -172,6 +172,30 @@ impl FieldServiceReferences {
     }
 }
 impl PgFieldServiceOrderReferences for FieldServiceReferences {
+    async fn require_visit_action(
+        &self,
+        c: &mut PgConnection,
+        current: &AuthorizedWorkContext,
+        order: &FieldServiceOrderFacts,
+        action: erpx_server_field_service::public::visit::VisitAction,
+        now: TimestampMillis,
+    ) -> Result<(), Error> {
+        self.require_current(c, current, order, now).await?;
+        erpx_server_field_service::public::visit::require_visit_authority(
+            &erpx_server_field_service::public::visit::VisitAuthorityFacts {
+                technician_user_id: &order.technician_id,
+                actor_user_id: current.user_id().as_str(),
+                technician_eligible: self.technician_assignment.is_eligible()
+                    && self.technician_person.is_eligible(),
+                reviewer_eligible: self.reviewer_assignment.is_eligible()
+                    && self.reviewer_person.is_eligible(),
+                selected_can_review: current.has_permission("records.review"),
+                state: &order.state,
+            },
+            action,
+        )?;
+        Ok(())
+    }
     async fn require_current(
         &self,
         c: &mut PgConnection,

@@ -33,6 +33,7 @@ pub(crate) enum HttpDispatch {
     PrivateCreates(
         Option<Arc<dyn OtherPost>>,
         Option<Arc<dyn OtherPost>>,
+        Option<Arc<dyn OtherPost>>,
         bool,
         bool,
     ),

@@ -793,6 +793,49 @@
         ],
         "type": "object"
       },
+      "FieldServiceScheduleAction": {
+        "enum": [
+          "schedule"
+        ],
+        "type": "string"
+      },
+      "FieldServiceScheduleInput": {
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/FieldServiceScheduleAction"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "scheduledAt": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "technicianId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "action",
+          "expectedVersion",
+          "technicianId",
+          "scheduledAt",
+          "reason"
+        ],
+        "type": "object"
+      },
       "FieldServiceStockSnapshot": {
         "properties": {
           "productId": {
@@ -819,6 +862,105 @@
           "productId",
           "quantityMilli",
           "version"
+        ],
+        "type": "object"
+      },
+      "FieldServiceVisitEvent": {
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "actorId": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "scheduledAt": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "technicianId": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "action",
+          "actorId",
+          "reason",
+          "status",
+          "technicianId"
+        ],
+        "type": "object"
+      },
+      "FieldServiceVisitReadResponse": {
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/FieldServiceRenderedContext"
+          },
+          "event": {
+            "$ref": "#/components/schemas/FieldServiceVisitEvent"
+          },
+          "order": {
+            "$ref": "#/components/schemas/FieldServiceReserveResult"
+          },
+          "receipt": {
+            "$ref": "#/components/schemas/FieldServiceReserveResult"
+          }
+        },
+        "required": [
+          "context",
+          "order",
+          "receipt",
+          "event"
+        ],
+        "type": "object"
+      },
+      "FieldServiceVisitStepAction": {
+        "enum": [
+          "dispatch",
+          "start"
+        ],
+        "type": "string"
+      },
+      "FieldServiceVisitStepInput": {
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/FieldServiceVisitStepAction"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "action",
+          "expectedVersion",
+          "reason"
         ],
         "type": "object"
       },
@@ -875,6 +1017,12 @@
                   },
                   {
                     "$ref": "#/components/schemas/FieldServiceOrderCreateInput"
+                  },
+                  {
+                    "$ref": "#/components/schemas/FieldServiceScheduleInput"
+                  },
+                  {
+                    "$ref": "#/components/schemas/FieldServiceVisitStepInput"
                   }
                 ]
               }
@@ -964,6 +1112,42 @@
               }
             },
             "description": "Current scoped request evidence"
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/v1/holdings/{holding_slug}/field-service/visits/{key}": {
+      "get": {
+        "operationId": "visit_read",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "holding_slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FieldServiceVisitReadResponse"
+                }
+              }
+            },
+            "description": "Current scoped visit evidence"
           }
         },
         "tags": []

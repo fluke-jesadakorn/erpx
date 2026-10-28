@@ -406,3 +406,164 @@ pub async fn read_field_service_issue(
         key: key.into(),
     })
 }
+
+#[derive(PartialEq, Eq)]
+struct VisitImage {
+    has_asset: bool,
+    order: FieldServiceReserveResult,
+    event: crate::application::reservation_read::FieldServiceVisitEvent,
+    digest: String,
+}
+async fn visit_image(
+    c: &mut PgConnection,
+    current: &AuthorizedWorkContext,
+    order: &str,
+    key: &str,
+) -> Result<VisitImage, Error> {
+    let scope = current.selection().workspace();
+    let row=sqlx::query("SELECT b.bounded,coalesce(o.asset_id<>'',false) has_asset,CASE WHEN b.bounded THEN o.id END order_id,CASE WHEN b.bounded THEN o.status END order_status,o.version::bigint order_version,CASE WHEN b.bounded THEN e.action END action,CASE WHEN b.bounded THEN e.actor_id END actor_id,CASE WHEN b.bounded THEN e.reason END reason,CASE WHEN b.bounded THEN e.status END event_status,CASE WHEN b.bounded THEN e.technician_id END technician_id,e.scheduled_at::bigint scheduled_at,e.version::bigint event_version,encode(sha256(convert_to(jsonb_build_array(to_jsonb(o),to_jsonb(e))::text,'UTF8')),'hex') digest FROM field_service_orders o JOIN field_service_order_events e ON e.order_id=o.id CROSS JOIN LATERAL (SELECT octet_length(o.id)::bigint+octet_length(o.status)::bigint+octet_length(e.action)::bigint+octet_length(e.actor_id)::bigint+octet_length(e.reason)::bigint+octet_length(e.status)::bigint+octet_length(e.technician_id)::bigint<=2097152 AS bounded) b WHERE o.id=$1 AND o.company_id=$2 AND ($3::text IS NULL OR o.branch_id=$3) AND ($4::text IS NULL OR o.department_id=$4) AND e.id=$5 AND e.action IN ('schedule','dispatch','start') FOR SHARE OF o,e").bind(order).bind(scope.company_id.as_str()).bind(scope.branch_id.as_ref().map(|v|v.as_str())).bind(scope.department_id.as_ref().map(|v|v.as_str())).bind(format!("service-order-event-{key}")).fetch_optional(c).await?.ok_or_else(denied)?;
+    if !row.try_get::<bool, _>("bounded")? {
+        return Err(invalid());
+    }
+    let text =
+        |n| -> Result<String, Error> { row.try_get::<Option<String>, _>(n)?.ok_or_else(invalid) };
+    let order = FieldServiceReserveResult {
+        id: text("order_id")?,
+        status: text("order_status")?,
+        version: row.try_get("order_version")?,
+    };
+    let event = crate::application::reservation_read::FieldServiceVisitEvent {
+        version: row.try_get("event_version")?,
+        action: text("action")?,
+        actor_id: text("actor_id")?,
+        reason: text("reason")?,
+        status: text("event_status")?,
+        technician_id: text("technician_id")?,
+        scheduled_at: row.try_get("scheduled_at")?,
+    };
+    if !(1..=9_007_199_254_740_991).contains(&order.version)
+        || !(1..=order.version).contains(&event.version)
+        || event
+            .scheduled_at
+            .is_some_and(|n| !(1..=9_007_199_254_740_991).contains(&n))
+        || event.status
+            != match event.action.as_str() {
+                "schedule" => "scheduled",
+                "dispatch" => "dispatched",
+                "start" => "in_visit",
+                _ => return Err(invalid()),
+            }
+    {
+        return Err(invalid());
+    }
+    Ok(VisitImage {
+        has_asset: row.try_get("has_asset")?,
+        order,
+        event,
+        digest: row.try_get("digest")?,
+    })
+}
+pub struct CurrentFieldServiceVisitRead {
+    unit: (String, i32, String, String),
+    image: VisitImage,
+    origin: PgRawRecordOrigin,
+    receipt: FieldServiceReserveResult,
+    key: String,
+}
+impl CurrentFieldServiceVisitRead {
+    pub fn has_asset(&self) -> bool {
+        self.image.has_asset
+    }
+    pub fn order(&self) -> &FieldServiceReserveResult {
+        &self.image.order
+    }
+    pub fn receipt(&self) -> &FieldServiceReserveResult {
+        &self.receipt
+    }
+    pub fn event(&self) -> &crate::application::reservation_read::FieldServiceVisitEvent {
+        &self.image.event
+    }
+    pub async fn require_current(
+        &self,
+        c: &mut PgConnection,
+        current: &AuthorizedWorkContext,
+    ) -> Result<(), Error> {
+        if unit(c).await? != self.unit
+            || visit_image(c, current, &self.image.order.id, &self.key).await? != self.image
+        {
+            return Err(invalid());
+        }
+        verify_raw_record_origin(c, &self.origin).await
+    }
+}
+pub async fn read_field_service_visit(
+    c: &mut PgConnection,
+    current: &AuthorizedWorkContext,
+    order: &str,
+    key: &str,
+) -> Result<CurrentFieldServiceVisitRead, Error> {
+    current.require_permission("records.read")?;
+    if !current.modules().iter().any(|m| m == "field_service") {
+        return Err(denied());
+    }
+    erpx_server_shared::public::CommandKey::new(key.to_owned())?;
+    let unit = unit(c).await?;
+    let image = visit_image(c, current, order, key).await?;
+    let (origin, result) = read_raw_record_origin_result_with_limit(
+        c,
+        RawRecordOriginRequest {
+            command_key: key.into(),
+            operation: format!("field.order.{}", image.event.action),
+            record_id: order.into(),
+            creator_user_id: image.event.actor_id.clone(),
+            company_id: current.selection().workspace().company_id.clone(),
+        },
+        2 * 1024 * 1024,
+    )
+    .await?
+    .ok_or_else(denied)?;
+    let id = result
+        .property("id")?
+        .and_then(|v| v.string_utf16_units().ok().flatten())
+        .ok_or_else(invalid)?;
+    let status = result
+        .property("status")?
+        .and_then(|v| v.string_utf8_storage().ok().flatten())
+        .ok_or_else(invalid)?;
+    let version = result
+        .property("version")?
+        .and_then(|v| v.as_str().parse::<i64>().ok())
+        .ok_or_else(invalid)?;
+    if id != order.encode_utf16().collect::<Vec<_>>()
+        || version != image.event.version
+        || status != image.event.status
+    {
+        return Err(invalid());
+    }
+    Ok(CurrentFieldServiceVisitRead {
+        unit,
+        image,
+        origin,
+        receipt: FieldServiceReserveResult {
+            id: order.into(),
+            status,
+            version,
+        },
+        key: key.into(),
+    })
+}
+
+/// Resolve the physical order only from its actual scoped immutable event; the
+/// subsequent read verifies the matching Workflow origin and full images.
+pub async fn read_field_service_visit_by_key(
+    c: &mut PgConnection,
+    current: &AuthorizedWorkContext,
+    key: &str,
+) -> Result<CurrentFieldServiceVisitRead, Error> {
+    current.require_permission("records.read")?;
+    erpx_server_shared::public::CommandKey::new(key.to_owned())?;
+    let scope = current.selection().workspace();
+    let row:Option<Option<String>>=sqlx::query_scalar("SELECT CASE WHEN octet_length(o.id)<=2097152 THEN o.id END FROM field_service_orders o JOIN field_service_order_events e ON e.order_id=o.id WHERE e.id=$1 AND e.action IN ('schedule','dispatch','start') AND o.company_id=$2 AND ($3::text IS NULL OR o.branch_id=$3) AND ($4::text IS NULL OR o.department_id=$4) FOR SHARE OF o,e").bind(format!("service-order-event-{key}")).bind(scope.company_id.as_str()).bind(scope.branch_id.as_ref().map(|v|v.as_str())).bind(scope.department_id.as_ref().map(|v|v.as_str())).fetch_optional(&mut *c).await?;
+    let order = row.ok_or_else(denied)?.ok_or_else(invalid)?;
+    read_field_service_visit(c, current, &order, key).await
+}

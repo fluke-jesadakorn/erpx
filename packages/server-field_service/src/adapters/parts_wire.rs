@@ -717,3 +717,88 @@ pub fn normalize_service_order_create(
         receipt_input: json,
     })
 }
+
+#[derive(Clone)]
+pub struct NormalizedFieldServiceVisit {
+    pub action: crate::domain::visit::VisitAction,
+    pub expected_version: i64,
+    pub technician_id: Option<String>,
+    pub scheduled_at: Option<i64>,
+    pub reason: String,
+    pub receipt_input: CommandJson,
+}
+pub fn normalize_field_service_visit(
+    bytes: &[u8],
+) -> Result<NormalizedFieldServiceVisit, FieldServiceWireFailure> {
+    use crate::domain::visit::VisitAction;
+    let body = document(bytes)?;
+    let action_json = property(&body, "action").ok_or_else(|| {
+        FieldServiceWireFailure::validation(
+            "invalid_union",
+            field("action"),
+            "Invalid input".into(),
+        )
+    })?;
+    let action = match action_json.string_utf8_storage().ok().flatten().as_deref() {
+        Some("schedule") => VisitAction::Schedule,
+        Some("dispatch") => VisitAction::Dispatch,
+        Some("start") => VisitAction::Start,
+        _ => {
+            return Err(FieldServiceWireFailure::validation(
+                "invalid_union",
+                field("action"),
+                "Invalid input".into(),
+            ));
+        }
+    };
+    let mut check = Validation::default();
+    let mut fields = vec![("action", action_json)];
+    if let Some(v) = check.integer(
+        property(&body, "expectedVersion"),
+        &field("expectedVersion"),
+        false,
+    ) {
+        fields.push(("expectedVersion", v));
+    }
+    if action == VisitAction::Schedule {
+        if let Some(v) = check.string(
+            property(&body, "technicianId"),
+            &field("technicianId"),
+            1,
+            None,
+            false,
+        ) {
+            fields.push(("technicianId", v));
+        }
+        if let Some(v) = check.integer(property(&body, "scheduledAt"), &field("scheduledAt"), false)
+        {
+            fields.push(("scheduledAt", v));
+        }
+    }
+    if let Some(v) = check.string(
+        property(&body, "reason"),
+        &field("reason"),
+        3,
+        Some(3000),
+        true,
+    ) {
+        fields.push(("reason", v));
+    }
+    let json = check.finish(&fields)?;
+    Ok(NormalizedFieldServiceVisit {
+        action,
+        expected_version: int(&json, "expectedVersion")?,
+        technician_id: if action == VisitAction::Schedule {
+            Some(text(&json, "technicianId")?)
+        } else {
+            None
+        },
+        scheduled_at: if action == VisitAction::Schedule {
+            Some(int(&json, "scheduledAt")?)
+        } else {
+            None
+        },
+        reason: text(&json, "reason")?,
+        receipt_input: json,
+    })
+}

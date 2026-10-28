@@ -1,4 +1,4 @@
-import { nativeReservePost, nativeReserveReadback, nativeIssueReadback, nativeRequestReadback, nativeOrderCreateReadback, isOrderCreateCommand, isReserveOrderCommand, isIssueOrderCommand, isRequestCommand } from "./native-reserve";
+import { nativeReservePost, nativeReserveReadback, nativeIssueReadback, nativeRequestReadback, nativeOrderCreateReadback, nativeVisitReadback, isVisitOrderCommand, isOrderCreateCommand, isReserveOrderCommand, isIssueOrderCommand, isRequestCommand } from "./native-reserve";
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import { requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
@@ -17,6 +17,13 @@ const headers = { "Cache-Control": "private, no-store" };
 export async function GET(r: Request, c: C) {
   try {
     const slug=(await c.params).holdingSlug, query=new URL(r.url).searchParams;
+    const visitKey=query.get("nativeVisitKey");
+    if(visitKey!==null) {
+      if(!visitKey||[...query.keys()].length!==1) throw new ApiError(404,"NOT_FOUND","Service order not found.");
+      const native=await nativeVisitReadback(r,slug,visitKey);
+      if(native)return native;
+      throw new ApiError(404,"NOT_FOUND","Service order not found.");
+    }
     const orderCreateKey=query.get("nativeOrderCreateKey");
     if(orderCreateKey!==null) {
       if(!orderCreateKey||[...query.keys()].length!==1) throw new ApiError(404,"NOT_FOUND","Service order not found.");
@@ -78,10 +85,10 @@ export async function POST(r: Request, c: C) {
       );
     const holdingSlug=(await c.params).holdingSlug;
     const a = await requireWorkContext(holdingSlug);
-    const original=process.env.ERPX_NATIVE_FIELD_SERVICE_RESERVE_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_ISSUE_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_REQUEST_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_ORDER_CREATE_CONFIG === undefined ? undefined : r.clone();
+    const original=process.env.ERPX_NATIVE_FIELD_SERVICE_RESERVE_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_ISSUE_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_REQUEST_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_ORDER_CREATE_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_VISIT_CONFIG === undefined ? undefined : r.clone();
     let input: Awaited<ReturnType<Request["json"]>>;
     try { input=await r.json(); } catch(error) { void original?.body?.cancel().catch(()=>undefined); throw error; }
-    if(original && (isRequestCommand(input) && process.env.ERPX_NATIVE_FIELD_SERVICE_REQUEST_CONFIG !== undefined || isOrderCreateCommand(input) && process.env.ERPX_NATIVE_FIELD_SERVICE_ORDER_CREATE_CONFIG !== undefined || isReserveOrderCommand(input) && process.env.ERPX_NATIVE_FIELD_SERVICE_RESERVE_CONFIG !== undefined || isIssueOrderCommand(input) && process.env.ERPX_NATIVE_FIELD_SERVICE_ISSUE_CONFIG !== undefined)) {
+    if(original && (isRequestCommand(input) && process.env.ERPX_NATIVE_FIELD_SERVICE_REQUEST_CONFIG !== undefined || isOrderCreateCommand(input) && process.env.ERPX_NATIVE_FIELD_SERVICE_ORDER_CREATE_CONFIG !== undefined || isVisitOrderCommand(input) && process.env.ERPX_NATIVE_FIELD_SERVICE_VISIT_CONFIG !== undefined || isReserveOrderCommand(input) && process.env.ERPX_NATIVE_FIELD_SERVICE_RESERVE_CONFIG !== undefined || isIssueOrderCommand(input) && process.env.ERPX_NATIVE_FIELD_SERVICE_ISSUE_CONFIG !== undefined)) {
       const native=await nativeReservePost(original,holdingSlug,input);
       if(native)return native;
       throw new ApiError(503,"NATIVE_SERVICE_UNAVAILABLE","Unable to confirm the Service command.");

@@ -97,6 +97,14 @@ pub trait PgFieldServiceOrderReferences: Send + Sync {
         action: FieldServicePartsActionKind,
         now: TimestampMillis,
     ) -> impl Future<Output = Result<(), Error>> + Send;
+    fn require_visit_action(
+        &self,
+        c: &mut PgConnection,
+        current: &AuthorizedWorkContext,
+        order: &FieldServiceOrderFacts,
+        action: crate::domain::visit::VisitAction,
+        now: TimestampMillis,
+    ) -> impl Future<Output = Result<(), Error>> + Send;
 }
 pub struct CurrentFieldServiceOrder<'a, R: PgFieldServiceOrderReferences> {
     pub(super) base: FieldServiceOrderBase<'a>,
@@ -111,6 +119,17 @@ impl<R: PgFieldServiceOrderReferences> CurrentFieldServiceOrder<'_, R> {
     }
     pub fn actor_user_id(&self) -> &UserId {
         self.base.current.user_id()
+    }
+    pub async fn require_visit_action(
+        &self,
+        c: &mut PgConnection,
+        action: crate::domain::visit::VisitAction,
+        now: TimestampMillis,
+    ) -> Result<(), Error> {
+        self.require_current(c, now).await?;
+        self.references
+            .require_visit_action(c, self.base.current, self.facts(), action, now)
+            .await
     }
     pub fn actor_assignment_id(&self) -> &erpx_server_shared::public::AssignmentId {
         &self.base.current.selection().assignment().id

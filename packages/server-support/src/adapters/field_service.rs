@@ -85,12 +85,18 @@ impl CurrentSupportServiceTicket {
 pub enum SupportServicePartsAction {
     Reserve,
     Issue,
+    Schedule,
+    Dispatch,
+    Start,
 }
 impl SupportServicePartsAction {
     fn as_str(self) -> &'static str {
         match self {
             Self::Reserve => "reserve-part",
             Self::Issue => "issue-part",
+            Self::Schedule => "schedule",
+            Self::Dispatch => "dispatch",
+            Self::Start => "start",
         }
     }
 }

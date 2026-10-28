@@ -50,7 +50,7 @@ async fn main() {
     let args: Vec<_> = std::env::args().collect();
     assert!(
         (3..=4).contains(&args.len()),
-        "usage: native-field-service-development ABSOLUTE_PRIVATE_CASE_DIR LOOPBACK_LISTEN [post|request|order-create]"
+        "usage: native-field-service-development ABSOLUTE_PRIVATE_CASE_DIR LOOPBACK_LISTEN [post|request|order-create|visit]"
     );
     let dir = PathBuf::from(&args[1]);
     assert!(
@@ -66,9 +66,10 @@ async fn main() {
     let listen = args[2].clone();
     let scenario = args.get(3).map(String::as_str).unwrap_or("issue");
     assert!(
-        ["issue", "post", "request", "order-create"].contains(&scenario),
+        ["issue", "post", "request", "order-create", "visit"].contains(&scenario),
         "invalid private fixture scenario"
     );
+    let visit_scenario = scenario == "visit";
     let post_scenario = scenario == "post";
     let request_scenario = scenario == "request";
     let order_create_scenario = scenario == "order-create";
@@ -80,12 +81,14 @@ async fn main() {
         sqlx::raw_sql("UPDATE hr_engagements SET start_date='2020-01-01' WHERE id='field-engagement'").execute(system.holdings[0].raw()).await.expect("synthetic field service source unavailable");
         // A genuine reserve command creates the immutable Service/Workflow provenance.
         // The visit is synthetic historical data, not an implemented transition.
+        if !visit_scenario {
         let reserve = format!(r#"{{"action":"reserve-part","expectedVersion":1,"warehouseId":"warehouse","productId":"product","quantityMilli":1000,"expiresAt":{},"reason":"Synthetic issue reservation"}}"#, now + 3_600_000);
         prepared.execute("reserve-order", "browser-issue-reserve", &reserve).await.expect("synthetic reserve command failed");
         let mut historical = system.holdings[0].raw().begin().await.expect("historical visit transaction unavailable");
         sqlx::query("UPDATE field_service_orders SET status='in_visit',version=3 WHERE id='reserve-order'").execute(&mut *historical).await.expect("synthetic historical visit unavailable");
         sqlx::query("INSERT INTO field_service_order_events(id,order_id,version,action,actor_id,reason,status,technician_id,scheduled_at,details_json,created_at) VALUES('synthetic-start-issue','reserve-order',3,'start','fixture-a','Synthetic historical visit','in_visit','fixture-a',$1+60000,'{}',$1)").bind(now).execute(&mut *historical).await.expect("synthetic historical event unavailable");
         historical.commit().await.expect("synthetic historical visit commit failed");
+        }
         let journal_id = if post_scenario {
             let issue = r#"{"action":"issue-part","expectedVersion":3,"reservationId":"field-part-browser-issue-reserve","quantityMilli":1000,"entryDate":"2026-01-10","allocations":[],"reason":"Synthetic post source"}"#;
             prepared.execute("reserve-order", "browser-post-issue", issue).await.expect("synthetic issue command failed");
@@ -112,6 +115,7 @@ async fn main() {
                 {"holdingId":"h002","slug":"northstar","host":"northstar.jesadakorn.com","writeBinding":"HOLDING_H002_DB","readBinding":"HOLDING_H002_READ_DB","filesBinding":"HOLDING_H002_FILES","database":h002}
             ],"financeJournalReads":[{"holdingId":"h001","companyId":"company"}],"fieldServiceReads":[{"holdingId":"h001","companyId":"company"}],"fieldServiceReservations":["h001"],"fieldServiceIssues":["h001"],"accountBootstrap":true
         });
+        if visit_scenario { doc["fieldServiceVisits"] = serde_json::json!(["h001"]); }
         if order_create_scenario { doc["fieldServiceOrderCreates"] = serde_json::json!(["h001"]); }
         if request_scenario { doc["fieldServiceRequests"] = serde_json::json!(["h001"]); }
         if post_scenario {
@@ -130,7 +134,7 @@ async fn main() {
         let mut files = CaseFiles(Vec::new());
         files.0.push(write_private(&dir, "native-api.json", &doc));
         files.0.push(write_private(&dir, "databases.json", &manifest));
-        files.0.push(write_private(&dir, "credentials.json", &serde_json::json!({"email":"a@example.test","password":field_service::account::fixture::PASSWORD,"orderId":"reserve-order","reservationId":"field-part-browser-issue-reserve","expectedVersion":3,"entryDate":"2026-01-10","financeEmail":"b@example.test","financePassword":field_service::account::fixture::PASSWORD,"journalId":journal_id,"journalVersion":1,"agreementId":"agreement","agreementVersion":2,"technicianId":"fixture-a","assignmentId":"field-fixture-a","assignmentVersion":3,"ticketId":"existing-ticket","ticketVersion":3})));
+        files.0.push(write_private(&dir, "credentials.json", &serde_json::json!({"email":"a@example.test","password":field_service::account::fixture::PASSWORD,"orderId":"reserve-order","reservationId":"field-part-browser-issue-reserve","expectedVersion":if visit_scenario {1} else {3},"initialStatus":if visit_scenario {"scheduled"} else {"in_visit"},"entryDate":"2026-01-10","financeEmail":"b@example.test","financePassword":field_service::account::fixture::PASSWORD,"journalId":journal_id,"journalVersion":1,"agreementId":"agreement","agreementVersion":2,"technicianId":"fixture-a","assignmentId":"field-fixture-a","assignmentVersion":3,"ticketId":"existing-ticket","ticketVersion":3})));
         let runtime = assemble_development_api(configuration, Arc::new(SystemAccountClock), Arc::new(SystemAuthenticationSecrets)).await.expect("native case assembly failed");
         let listener = tokio::net::TcpListener::bind(runtime.listen_address()).await.expect("private case listener unavailable");
         println!("{}", dir.join("databases.json").display());

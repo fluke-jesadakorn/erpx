@@ -10,9 +10,9 @@ use erpx_server_commercial::public::purchases::{
 };
 use erpx_server_field_service::public::reservation_read::{
     FieldServiceIssueEvent, FieldServiceReservationRead, FieldServiceReserveEvent,
-    FieldServiceReserveResult, FieldServiceStockSnapshot,
+    FieldServiceReserveResult, FieldServiceStockSnapshot, FieldServiceVisitEvent,
     lock_field_service_reservation_read_sources, read_field_service_issue,
-    read_field_service_reservation,
+    read_field_service_reservation, read_field_service_visit_by_key,
 };
 use erpx_server_identity_access::public::{
     DeviceProof,
@@ -51,7 +51,7 @@ fn safe(value: i64) -> Result<i64, BusinessError> {
     }
     Ok(value)
 }
-struct ReplyBudget(usize);
+pub(crate) struct ReplyBudget(pub(crate) usize);
 impl std::io::Write for ReplyBudget {
     fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
         self.0 = self
@@ -113,6 +113,15 @@ pub struct FieldServiceIssueReadResponse {
     pub reservation: FieldServiceReservationRead,
     pub stock: FieldServiceStockSnapshot,
 }
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct FieldServiceVisitReadResponse {
+    pub context: FieldServiceRenderedContext,
+    pub order: FieldServiceReserveResult,
+    pub receipt: FieldServiceReserveResult,
+    pub event: FieldServiceVisitEvent,
+}
 /// Request verification separates immutable create evidence from current state.
 #[derive(Clone, Debug, Serialize)]
 #[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
@@ -134,7 +143,9 @@ pub struct FieldServiceOrderCreateReadResponse {
     pub ticket: erpx_server_field_service::public::reservation_read::FieldServiceRequestTicketRead,
     pub event: erpx_server_field_service::public::reservation_read::FieldServiceRequestEvent,
 }
-fn context(current: &AuthorizedWorkContext) -> Result<FieldServiceRenderedContext, BusinessError> {
+pub(crate) fn context(
+    current: &AuthorizedWorkContext,
+) -> Result<FieldServiceRenderedContext, BusinessError> {
     let selected = current.selection();
     let scope = selected.workspace();
     let grant = selected.assignment();
@@ -188,6 +199,7 @@ pub struct FieldServiceReservationReadConfiguration {
     issues: bool,
     requests: bool,
     order_creates: bool,
+    visits: bool,
 }
 impl FieldServiceReservationReadConfiguration {
     pub fn new(
@@ -210,7 +222,12 @@ impl FieldServiceReservationReadConfiguration {
             issues: false,
             requests: false,
             order_creates: false,
+            visits: false,
         })
+    }
+    pub fn with_visits(mut self) -> Self {
+        self.visits = true;
+        self
     }
     pub fn with_order_creates(mut self) -> Self {
         self.order_creates = true;
@@ -367,6 +384,108 @@ impl<C: Clock + Send + Sync + 'static> FieldServiceReservationReadService<C> {
                             .await?;
                         stock_scope.require_current(c).await?;
                         stock.require_current(c).await?;
+                        PgCompanyPurchaseReader::new(
+                            config.holding.clone(),
+                            config.company.clone(),
+                            c,
+                            &config.catalogue,
+                        )
+                        .revalidate(&purchase.witness, clock.now())
+                        .await?
+                        .require_allowed()?;
+                        if clock.now().get() >= current.expires_at() {
+                            return Err(denied().into());
+                        }
+                        Ok(reply)
+                    })
+                },
+            )
+            .await
+    }
+    pub async fn read_visit<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        key: String,
+    ) -> Result<FieldServiceVisitReadResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        if !self.config.visits {
+            return Err(
+                BusinessError::new(FailureKind::NotFound, "NOT_FOUND", "Not found.").into(),
+            );
+        }
+        let company = self.config.company.clone();
+        let input = move || {
+            let mut v = input()?;
+            if v.company_id != company {
+                return Err(denied());
+            }
+            v.mutation = false;
+            Ok(v)
+        };
+        let config = self.config.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                input,
+                WorkAuthorizationRequest {
+                    permission: "records.read".into(),
+                    module: Some("field_service".into()),
+                    destination: "service/orders".into(),
+                    api: true,
+                },
+                ReadSources { issues: false },
+                move |c, current| {
+                    let config = config.clone();
+                    let clock = clock.clone();
+                    let key = key.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &config.holding
+                            || current.selection().workspace().company_id != config.company
+                        {
+                            return Err(denied().into());
+                        }
+                        let source = read_field_service_visit_by_key(c, current, &key).await?;
+                        let mut caps = vec!["service.orders".into()];
+                        if source.has_asset() {
+                            caps.push("service.parts-assets".into());
+                        }
+                        let purchase = PgCompanyPurchaseReader::new(
+                            config.holding.clone(),
+                            config.company.clone(),
+                            c,
+                            &config.catalogue,
+                        )
+                        .inspect(
+                            &PurchaseRequest {
+                                capabilities: caps,
+                                purpose: CapabilityPurpose::History,
+                                mode: PackageEnforcementMode::Enforced,
+                            },
+                            clock.now(),
+                        )
+                        .await?;
+                        purchase.require_allowed()?;
+                        let reply = FieldServiceVisitReadResponse {
+                            context: context(current)?,
+                            order: source.order().clone(),
+                            receipt: source.receipt().clone(),
+                            event: source.event().clone(),
+                        };
+                        let mut budget = ReplyBudget(0);
+                        serde_json::to_writer(&mut budget, &reply).map_err(|_| {
+                            BusinessError::new(
+                                FailureKind::Unavailable,
+                                "FIELD_SERVICE_READ_LIMIT",
+                                "The Service source exceeds this bounded read.",
+                            )
+                        })?;
+                        source.require_current(c, current).await?;
                         PgCompanyPurchaseReader::new(
                             config.holding.clone(),
                             config.company.clone(),

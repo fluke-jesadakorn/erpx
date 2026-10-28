@@ -263,3 +263,61 @@ pub struct FieldServiceCreatedOrderRead {
     #[cfg_attr(feature="contracts",schema(value_type=i64,minimum=1,maximum=9_007_199_254_740_991_i64))]
     pub version: i64,
 }
+
+#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct FieldServiceVisitEvent {
+    #[cfg_attr(feature = "contracts", ts(type = "number"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = i64, minimum = 1, maximum = 9_007_199_254_740_991_i64))]
+    pub version: i64,
+    pub action: String,
+    pub actor_id: String,
+    pub reason: String,
+    pub status: String,
+    pub technician_id: String,
+    #[cfg_attr(feature = "contracts", ts(type = "number | null"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = Option<i64>, minimum = 1, maximum = 9_007_199_254_740_991_i64))]
+    pub scheduled_at: Option<i64>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+pub enum FieldServiceScheduleAction {
+    #[serde(rename = "schedule")]
+    Schedule,
+}
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+pub enum FieldServiceVisitStepAction {
+    #[serde(rename = "dispatch")]
+    Dispatch,
+    #[serde(rename = "start")]
+    Start,
+}
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct FieldServiceScheduleInput {
+    pub id: String,
+    pub action: FieldServiceScheduleAction,
+    #[cfg_attr(feature = "contracts", ts(type = "number"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = i64, minimum = 1, maximum = 9_007_199_254_740_991_i64))]
+    pub expected_version: i64,
+    pub technician_id: String,
+    #[cfg_attr(feature = "contracts", ts(type = "number"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = i64, minimum = 1, maximum = 9_007_199_254_740_991_i64))]
+    pub scheduled_at: i64,
+    pub reason: String,
+}
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct FieldServiceVisitStepInput {
+    pub id: String,
+    pub action: FieldServiceVisitStepAction,
+    #[cfg_attr(feature = "contracts", ts(type = "number"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = i64, minimum = 1, maximum = 9_007_199_254_740_991_i64))]
+    pub expected_version: i64,
+    pub reason: String,
+}
