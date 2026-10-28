@@ -492,7 +492,12 @@
 @source "../../../../packages/feature-files/src/lib/attachment-state.ts";
 @source "../../../../packages/feature-files/src/lib/document-pages.ts";
 @source "../../../../packages/feature-finance/src/adapters/browser/finance-command-fetch.ts";
+@source "../../../../packages/feature-finance/src/adapters/server/native-journal-detail.ts";
+@source "../../../../packages/feature-finance/src/adapters/server/native-journal-page.ts";
+@source "../../../../packages/feature-finance/src/adapters/server/native-journal-post.ts";
+@source "../../../../packages/feature-finance/src/adapters/server/next-native-journal-detail.ts";
 @source "../../../../packages/feature-finance/src/application/command-attempts.ts";
+@source "../../../../packages/feature-finance/src/application/native-journal-post.ts";
 @source "../../../../packages/feature-finance/src/application/submit-command.ts";
 @source "../../../../packages/feature-finance/src/components/accounting-profile-controls.tsx";
 @source "../../../../packages/feature-finance/src/components/bank-controls.tsx";
@@ -537,6 +542,7 @@
 @source "../../../../packages/feature-finance/src/components/lazy-invoice-editor.tsx";
 @source "../../../../packages/feature-finance/src/components/ledger-controls.tsx";
 @source "../../../../packages/feature-finance/src/components/money/currency-provider.tsx";
+@source "../../../../packages/feature-finance/src/components/native-journal-post.tsx";
 @source "../../../../packages/feature-finance/src/components/payment-correction.tsx";
 @source "../../../../packages/feature-finance/src/components/payment-lifecycle.tsx";
 @source "../../../../packages/feature-finance/src/components/purchase-context.tsx";
@@ -577,6 +583,7 @@
 @source "../../../../packages/feature-finance/src/lib/supplier-payment-correction.ts";
 @source "../../../../packages/feature-finance/src/lib/thai-finance-tax-pack.ts";
 @source "../../../../packages/feature-finance/src/public/client.ts";
+@source "../../../../packages/feature-finance/src/public/server.ts";
 @source "../../../../packages/feature-finance/src/routes/api/v1/holdings/[holdingSlug]/finance/route.ts";
 @source "../../../../packages/feature-finance/src/routes/holdings/[holdingSlug]/@record/finance/accounting/assets/[id]/[recordSection]/page.tsx";
 @source "../../../../packages/feature-finance/src/routes/holdings/[holdingSlug]/@record/finance/accounting/assets/[id]/page.tsx";
@@ -2232,6 +2239,7 @@
 @source "../../../../packages/front/src/components/front-sign-in-handoff.tsx";
 @source "../../../../packages/front/src/components/standard-front-access.tsx";
 @source "../../../../packages/front/src/components/standard-front-app-shell.tsx";
+@source "../../../../packages/native-sdk/src/session.ts";
 @source "../../../../packages/server-agent/src/adapters/agent-governance.ts";
 @source "../../../../packages/server-agent/src/adapters/ai-gateway.ts";
 @source "../../../../packages/server-agent/src/adapters/ai-providers.ts";
@@ -4022,6 +4030,7 @@
 @source "../../../../packages/server-identity_access/src/adapters/legal-people-source.ts";
 @source "../../../../packages/server-identity_access/src/adapters/legal-processing-authority.ts";
 @source "../../../../packages/server-identity_access/src/adapters/member-directory.ts";
+@source "../../../../packages/server-identity_access/src/adapters/native-session.ts";
 @source "../../../../packages/server-identity_access/src/adapters/notification-recipient-projections.ts";
 @source "../../../../packages/server-identity_access/src/adapters/operations-operations-exceptions-facts.ts";
 @source "../../../../packages/server-identity_access/src/adapters/operations-routines-facts.ts";

@@ -94,7 +94,7 @@ describe('native journal post edge',()=>{
  it('forwards the original bounded body and context without fallback and rejects an invalid configuration',async()=>{
   const {createServer}=await import('node:http');
   const {nativeJournalPost}=await import('@erpx/feature-finance/public/server');
-  let seen:{body:string;key?:string;company?:string;origin?:string}|undefined; let missing=false;
+  let seen:{body:string;key?:string|string[];company?:string|string[];origin?:string}|undefined; let missing=false;
   const server=createServer((req,res)=>{let body='';req.setEncoding('utf8');req.on('data',chunk=>body+=chunk);req.on('end',()=>{seen={body,key:req.headers['idempotency-key'],company:req.headers['x-erpx-context-company'],origin:req.headers.origin};if(missing){res.writeHead(404,{'content-type':'text/plain'});res.end('Not Found');return;}res.writeHead(200,{'content-type':'application/json'});res.end(JSON.stringify({data:{id:'journal-one',status:'posted',version:2}}));});});
   await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
   const old=process.env.ERPX_NATIVE_FINANCE_JOURNAL_POST_CONFIG;

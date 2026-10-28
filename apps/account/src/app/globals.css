@@ -195,6 +195,7 @@
 @source "../../../../packages/feature-work_projection/src/lib/workspace.ts";
 @source "../../../../packages/front/src/components/front-error.tsx";
 @source "../../../../packages/front/src/components/front-language.tsx";
+@source "../../../../packages/native-sdk/src/session.ts";
 @source "../../../../packages/server-agent/src/adapters/ai-gateway.ts";
 @source "../../../../packages/server-agent/src/adapters/ai-providers.ts";
 @source "../../../../packages/server-agent/src/adapters/ai-quota.ts";
@@ -1214,6 +1215,7 @@
 @source "../../../../packages/server-identity_access/src/adapters/inventory-authority-projections.ts";
 @source "../../../../packages/server-identity_access/src/adapters/learning-talent-snapshot-sources.ts";
 @source "../../../../packages/server-identity_access/src/adapters/legal-people-source.ts";
+@source "../../../../packages/server-identity_access/src/adapters/native-session.ts";
 @source "../../../../packages/server-identity_access/src/adapters/notification-recipient-projections.ts";
 @source "../../../../packages/server-identity_access/src/adapters/operations-operations-exceptions-facts.ts";
 @source "../../../../packages/server-identity_access/src/adapters/operations-staff-policy-facts.ts";

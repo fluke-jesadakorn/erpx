@@ -154,6 +154,7 @@
 @source "../../../../packages/feature-work_projection/src/lib/workspace.ts";
 @source "../../../../packages/front/src/components/front-error.tsx";
 @source "../../../../packages/front/src/components/front-language.tsx";
+@source "../../../../packages/native-sdk/src/session.ts";
 @source "../../../../packages/server-agent/src/adapters/ai-gateway.ts";
 @source "../../../../packages/server-agent/src/adapters/ai-providers.ts";
 @source "../../../../packages/server-agent/src/adapters/ai-transport.ts";
@@ -711,6 +712,7 @@
 @source "../../../../packages/server-identity_access/src/adapters/iam-read-snapshot.ts";
 @source "../../../../packages/server-identity_access/src/adapters/iam-store.ts";
 @source "../../../../packages/server-identity_access/src/adapters/learning-talent-snapshot-sources.ts";
+@source "../../../../packages/server-identity_access/src/adapters/native-session.ts";
 @source "../../../../packages/server-identity_access/src/adapters/operations-staff-policy-facts.ts";
 @source "../../../../packages/server-identity_access/src/adapters/organization-channel-assignment-projection.ts";
 @source "../../../../packages/server-identity_access/src/adapters/platform-owner-projection-sources.ts";
