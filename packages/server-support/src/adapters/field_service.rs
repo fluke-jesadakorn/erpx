@@ -12,7 +12,7 @@ type Unit = (String, i32, String, String);
 pub struct SupportServiceTicketRequest {
     pub holding_id: HoldingId,
     pub company_id: CompanyId,
-    pub ticket_id: RecordId,
+    pub ticket_id: String,
     pub branch_id: RecordId,
     pub department_id: Option<RecordId>,
     pub customer_id: RecordId,
@@ -21,8 +21,8 @@ pub struct SupportServiceTicketRequest {
 pub struct SupportServiceTicketFacts {
     pub request: SupportServiceTicketRequest,
     pub source_kind: String,
-    pub sales_order_id: Option<RecordId>,
-    pub service_agreement_id: Option<RecordId>,
+    pub sales_order_id: Option<String>,
+    pub service_agreement_id: Option<String>,
     pub service_order_id: Option<String>,
 }
 pub struct CurrentSupportServiceTicket {
@@ -195,30 +195,19 @@ async fn read_facts(
 ) -> Result<Option<SupportServiceTicketFacts>, Error> {
     // This is the original closed lineage projection. Bodies, issue, names,
     // status/version and evidence never leave Support through this source API.
-    let row=sqlx::query("SELECT CASE WHEN octet_length(source_kind)<=32 THEN source_kind END source_kind,CASE WHEN octet_length(order_id)<=200 THEN order_id END order_id,octet_length(order_id)::bigint order_bytes,CASE WHEN octet_length(service_agreement_id)<=200 THEN service_agreement_id END service_agreement_id,octet_length(service_agreement_id)::bigint agreement_bytes,service_order_id FROM support_tickets WHERE id=$1 AND company_id=$2 AND branch_id=$3 AND department_id IS NOT DISTINCT FROM $4 AND customer_id=$5 FOR SHARE")
+    let row=sqlx::query("SELECT b.bounded,CASE WHEN b.bounded THEN source_kind END source_kind,CASE WHEN b.bounded THEN order_id END order_id,CASE WHEN b.bounded THEN service_agreement_id END service_agreement_id,CASE WHEN b.bounded THEN service_order_id END service_order_id FROM support_tickets CROSS JOIN LATERAL (SELECT octet_length(source_kind)<=32 AND coalesce(octet_length(order_id),0)::bigint+coalesce(octet_length(service_agreement_id),0)::bigint+coalesce(octet_length(service_order_id),0)::bigint<=2097152 AS bounded) b WHERE id=$1 AND company_id=$2 AND branch_id=$3 AND department_id IS NOT DISTINCT FROM $4 AND customer_id=$5 FOR SHARE OF support_tickets")
         .bind(r.ticket_id.as_str()).bind(r.company_id.as_str()).bind(r.branch_id.as_str()).bind(r.department_id.as_ref().map(RecordId::as_str)).bind(r.customer_id.as_str()).fetch_optional(c).await?;
     let Some(row) = row else { return Ok(None) };
-    for field in ["order_bytes", "agreement_bytes"] {
-        if row
-            .try_get::<Option<i64>, _>(field)?
-            .is_some_and(|n| n > 200)
-        {
-            return Err(invalid());
-        }
+    if !row.try_get::<bool, _>("bounded")? {
+        return Err(invalid());
     }
     Ok(Some(SupportServiceTicketFacts {
         request: r.clone(),
         source_kind: row
             .try_get::<Option<String>, _>("source_kind")?
             .ok_or_else(invalid)?,
-        sales_order_id: row
-            .try_get::<Option<String>, _>("order_id")?
-            .map(RecordId::new)
-            .transpose()?,
-        service_agreement_id: row
-            .try_get::<Option<String>, _>("service_agreement_id")?
-            .map(RecordId::new)
-            .transpose()?,
+        sales_order_id: row.try_get("order_id")?,
+        service_agreement_id: row.try_get("service_agreement_id")?,
         service_order_id: row.try_get::<Option<String>, _>("service_order_id")?,
     }))
 }

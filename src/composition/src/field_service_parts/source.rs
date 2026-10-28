@@ -1,7 +1,7 @@
 //! Real typed foreign references for existing Field Service parts jobs. Current
 //! IAM still comes only from the normal retained HoldingWorkAuthorizer unit.
 use erpx_server_assets::public::field_service_reference::{
-    CurrentFieldServiceAssetReference, read_current_field_service_asset,
+    CurrentFieldServicePhysicalAsset, read_current_field_service_physical_asset,
 };
 use erpx_server_field_service::public::{
     parts::{
@@ -73,7 +73,7 @@ pub(super) struct FieldServiceReferences {
     actor: ActorBinding,
     pub(super) support: CurrentSupportServiceTicket,
     customer: CurrentFieldServiceCustomer,
-    asset: Option<CurrentFieldServiceAssetReference>,
+    asset: Option<CurrentFieldServicePhysicalAsset>,
     technician_assignment: CurrentFieldServiceAssignment,
     technician_person: CurrentFieldServicePeopleReference,
     reviewer_assignment: CurrentFieldServiceAssignment,
@@ -111,10 +111,14 @@ impl FieldServiceReferences {
         let asset = match &order.asset_id {
             None => None,
             Some(id) => {
-                let proof =
-                    read_current_field_service_asset(c, &order.holding_id, &order.company_id, id)
-                        .await?
-                        .ok_or_else(unavailable)?;
+                let proof = read_current_field_service_physical_asset(
+                    c,
+                    &order.holding_id,
+                    &order.company_id,
+                    id,
+                )
+                .await?
+                .ok_or_else(unavailable)?;
                 if proof.facts().branch_id != order.branch_id {
                     return Err(unavailable());
                 }
