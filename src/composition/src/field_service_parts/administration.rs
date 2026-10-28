@@ -272,7 +272,7 @@ impl<W: Clock + Send + Sync + 'static, G: Clock + Send + Sync + 'static>
         workspace: Input,
         ingress_body: Arc<crate::field_service_http_core::PendingIngress>,
         key: String,
-        other: Arc<dyn super::http_transport::OtherPost>,
+        dispatch: super::http_transport::HttpDispatch,
     ) -> Result<
         Result<erpx_server_workflow::public::commands::CommandJson, HttpIngressError>,
         PgTransactionError<BusinessError>,
@@ -280,7 +280,7 @@ impl<W: Clock + Send + Sync + 'static, G: Clock + Send + Sync + 'static>
     where
         Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
     {
-        use super::http_transport::OtherPostInput;
+        use super::http_transport::{HttpDispatch, OtherPostInput};
         use crate::field_service_http_core::WireError;
         use crate::field_service_http_wire::SharedPostWire;
         use erpx_server_field_service::public::parts::PendingFieldServiceParts;
@@ -295,7 +295,7 @@ impl<W: Clock + Send + Sync + 'static, G: Clock + Send + Sync + 'static>
             Ok(value)
         };
         let ingress_config = config.clone();
-        let other_ingress = other.clone();
+        let ingress_dispatch = dispatch.clone();
         let write = self.write.clone();
         let guard = self.guard.clone();
         self.authorizer
@@ -317,18 +317,23 @@ impl<W: Clock + Send + Sync + 'static, G: Clock + Send + Sync + 'static>
                     let valid = selected.holding_id() == &ingress_config.holding_id
                         && selected.company_id() == &ingress_config.company_id;
                     let ingress_body = ingress_body.clone();
-                    let other = other_ingress.clone();
+                    let dispatch = ingress_dispatch.clone();
                     let key = key.clone();
                     Box::pin(async move {
                         if !valid {
                             return Err(HttpIngressError::Scope);
                         }
-                        let (bytes, wire) = ingress_body.decode().await.map_err(|e| match e {
+                        let reserve_only = matches!(dispatch, HttpDispatch::ReserveOnly);
+                        let (bytes, wire) = ingress_body.decode_selected(reserve_only).await.map_err(|e| match e {
                             WireError::InvalidJson => HttpIngressError::InvalidJson,
                             WireError::Validation(message) => HttpIngressError::Validation(message),
+                            WireError::UnavailableBranch => HttpIngressError::UnavailableBranch,
                         })?;
                         match wire {
                             SharedPostWire::Parts { target, normalized } => {
+                                if reserve_only && !matches!(normalized.input(), erpx_server_field_service::public::parts::FieldServicePartsInput::Reserve { .. }) {
+                                    return Err(HttpIngressError::UnavailableBranch);
+                                }
                                 Ok(HttpPrepared::Parts(PendingFieldServiceParts {
                                     target,
                                     normalized,
@@ -336,6 +341,7 @@ impl<W: Clock + Send + Sync + 'static, G: Clock + Send + Sync + 'static>
                                 }))
                             }
                             SharedPostWire::Other { branch, id_utf16 } => {
+                                let HttpDispatch::Shared(other) = dispatch else { return Err(HttpIngressError::UnavailableBranch); };
                                 let input = OtherPostInput {
                                     branch,
                                     id_utf16,
@@ -360,7 +366,7 @@ impl<W: Clock + Send + Sync + 'static, G: Clock + Send + Sync + 'static>
                     let config = config.clone();
                     let write = write.clone();
                     let guard = guard.clone();
-                    let other = other.clone();
+                    let dispatch = dispatch.clone();
                     Box::pin(async move {
                         if current.holding_id() != &config.holding_id
                             || current.selection().workspace().company_id != config.company_id
@@ -369,6 +375,7 @@ impl<W: Clock + Send + Sync + 'static, G: Clock + Send + Sync + 'static>
                         }
                         match prepared {
                             HttpPrepared::Other(input) => {
+                                let HttpDispatch::Shared(other) = dispatch else { return Ok(Err(HttpIngressError::UnavailableBranch)); };
                                 other.execute(c, current, input).await.map(Ok)
                             }
                             HttpPrepared::Parts(pending) => {
@@ -413,6 +420,7 @@ pub enum HttpIngressError {
         crate::field_service_http_wire::OtherPostBranch,
         BusinessError,
     ),
+    UnavailableBranch,
 }
 #[cfg(feature = "business-http")]
 enum HttpPrepared {

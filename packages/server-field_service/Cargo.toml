@@ -6,7 +6,12 @@ rust-version.workspace=true
 license.workspace=true
 publish.workspace=true
 autotests=false
+[features]
+contracts=["dep:ts-rs","dep:utoipa"]
 [dependencies]
+serde.workspace=true
+ts-rs={workspace=true,optional=true}
+utoipa={workspace=true,optional=true}
 erpx-server-shared.workspace=true
 erpx-server-runtime.workspace=true
 sqlx.workspace=true

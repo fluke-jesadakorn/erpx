@@ -13,7 +13,7 @@ verification-roots = ["../../scripts/docs/export-directory-source-contracts.rs",
 [features]
 files-scan-worker = ["erpx-server-files/preview-provider"]
 directory-ldaps = ["erpx-server-identity-access/directory-ldaps"]
-contracts = ["dep:ts-rs", "dep:utoipa", "erpx-server-finance/contracts"]
+contracts = ["dep:ts-rs", "dep:utoipa", "erpx-server-finance/contracts", "erpx-server-field-service/contracts"]
 private-development-api = ["business-http"]
 business-http = ["legal-queue"]
 legal-queue = []
@@ -217,3 +217,13 @@ required-features = ["contracts"]
 name = "export-finance-journal-edit-contracts"
 path = "../../scripts/docs/export-finance-journal-edit-contracts.rs"
 required-features = ["contracts"]
+
+[[example]]
+name = "export-field-service-reserve-contracts"
+path = "../../scripts/docs/export-field-service-reserve-contracts.rs"
+required-features = ["contracts"]
+
+[[example]]
+name = "native-field-service-development"
+path = "../../scripts/seed/native-field-service-development.rs"
+required-features = ["private-development-api"]

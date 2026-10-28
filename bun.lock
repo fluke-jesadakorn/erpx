@@ -695,6 +695,7 @@
       "name": "@erpx/feature-field_service",
       "version": "0.0.0",
       "dependencies": {
+        "@erpx/contracts": "workspace:*",
         "@erpx/feature-commerce": "workspace:*",
         "@erpx/feature-files": "workspace:*",
         "@erpx/feature-finance": "workspace:*",
@@ -1337,6 +1338,7 @@
       "name": "@erpx/feature-service",
       "version": "0.0.0",
       "dependencies": {
+        "@erpx/contracts": "workspace:*",
         "@erpx/feature-field_service": "workspace:*",
         "@erpx/feature-records": "workspace:*",
         "@erpx/feature-work_projection": "workspace:*",

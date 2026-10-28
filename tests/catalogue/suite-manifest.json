@@ -39118,7 +39118,8 @@
         "collaboration"
       ],
       "files": [
-        "tests/unit/field_service/field-service-application.test.ts"
+        "tests/unit/field_service/field-service-application.test.ts",
+        "tests/unit/field_service/native-reserve.test.ts"
       ],
       "fixture": "none",
       "requires": {
@@ -39198,6 +39199,14 @@
         "@erpx/server-workflow",
         "@erpx/ui",
         "@erpx/workplace"
+      ],
+      "verificationInputs": [
+        "packages/feature-field_service/src/lib/native-reserve-command.ts",
+        "packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/native-reserve.ts",
+        "packages/contracts/src/field-service-reserve.generated.ts",
+        "scripts/docs/export-field-service-reserve-contracts.rs",
+        "scripts/docs/generate-field-service-reserve-contracts.ts",
+        "docs/contracts/next/field-service-reserve.openapi.generated.json"
       ]
     },
     {
@@ -47790,7 +47799,8 @@
       ],
       "files": [
         "tests/unit/identity_access/product-sso.test.ts",
-        "tests/unit/identity_access/holding-routing.test.ts"
+        "tests/unit/identity_access/holding-routing.test.ts",
+        "tests/unit/identity_access/holding-role-launch.test.ts"
       ],
       "fixture": "none",
       "requires": {
@@ -47809,6 +47819,7 @@
         "@erpx/catalogue",
         "@erpx/contracts",
         "@erpx/feature-billing",
+        "@erpx/feature-brand",
         "@erpx/feature-collaboration",
         "@erpx/feature-commerce",
         "@erpx/feature-customer_authority",
@@ -47869,6 +47880,10 @@
         "@erpx/server-workflow",
         "@erpx/ui",
         "@erpx/workplace"
+      ],
+      "verificationInputs": [
+        "packages/workplace/src/routes/choose-work-role/page.tsx",
+        "scripts/local/holding-gateway.ts"
       ]
     },
     {
@@ -63865,7 +63880,13 @@
         "src/composition/src/finance_journal_create.rs",
         "src/composition/src/finance_journal_create_http.rs",
         "src/composition/src/finance_journal_edit.rs",
-        "src/composition/src/finance_journal_edit_http.rs"
+        "src/composition/src/finance_journal_edit_http.rs",
+        "src/composition/src/field_service_reservation_read.rs",
+        "src/composition/src/field_service_reservation_read_http.rs",
+        "packages/server-field_service/src/adapters/reservation_read.rs",
+        "packages/server-inventory/src/adapters/field_service_stock_read.rs",
+        "packages/server-workflow/src/adapters/postgres_record_origin.rs",
+        "scripts/seed/native-field-service-development.rs"
       ],
       "apps": [
         "account",
@@ -64054,7 +64075,13 @@
         "src/composition/src/finance_journal_edit_http.rs",
         "packages/server-finance/src/adapters/postgres_manual_draft_provenance.rs",
         "packages/server-finance/src/adapters/postgres_manual_draft_edit.rs",
-        "migrations/postgres/holding-write/1076_finance_manual_draft_receipt_links.sql"
+        "migrations/postgres/holding-write/1076_finance_manual_draft_receipt_links.sql",
+        "src/composition/src/field_service_reservation_read.rs",
+        "src/composition/src/field_service_reservation_read_http.rs",
+        "packages/server-field_service/src/adapters/reservation_read.rs",
+        "packages/server-inventory/src/adapters/field_service_stock_read.rs",
+        "packages/server-workflow/src/adapters/postgres_record_origin.rs",
+        "scripts/seed/native-field-service-development.rs"
       ],
       "postgres": {
         "mode": "raw",

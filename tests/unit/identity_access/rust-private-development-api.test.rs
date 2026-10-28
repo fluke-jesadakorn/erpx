@@ -155,6 +155,14 @@ fn finance_read_requires_distinct_registered_holdings_and_valid_companies() {
     d["financeJournalReversals"] = serde_json::json!(["h001", "h001"]);
     assert!(!parses(&d));
     d["financeJournalReversals"] = serde_json::json!([]);
+    d["fieldServiceReads"] = serde_json::json!([{ "holdingId": "h001", "companyId": "company" }]);
+    d["fieldServiceReservations"] = serde_json::json!(["h001"]);
+    assert!(parses(&d));
+    d["fieldServiceReservations"] = serde_json::json!(["h002"]);
+    assert!(!parses(&d));
+    d["fieldServiceReservations"] = serde_json::json!(["h001", "h001"]);
+    assert!(!parses(&d));
+    d["fieldServiceReservations"] = serde_json::json!([]);
     let mut no_finance = document();
     no_finance["accountBootstrap"] = true.into();
     assert!(!parses(&no_finance));
@@ -180,6 +188,25 @@ fn manual_create_configuration_never_admits_production() {
     assert!(
         FinanceJournalCreateConfiguration::new(
             FinanceJournalEnvironment::Production,
+            HoldingId::new("h001").unwrap(),
+            CompanyId::new("company").unwrap(),
+            std::sync::Arc::new(current_package_catalogue().unwrap())
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn service_reservation_read_never_admits_production() {
+    use erpx_server_commercial::public::purchases::current_package_catalogue;
+    use erpx_server_shared::public::{CompanyId, HoldingId};
+    use erpx_service::{
+        field_service_parts::FieldServicePartsEnvironment,
+        field_service_reservation_read::FieldServiceReservationReadConfiguration,
+    };
+    assert!(
+        FieldServiceReservationReadConfiguration::new(
+            FieldServicePartsEnvironment::Production,
             HoldingId::new("h001").unwrap(),
             CompanyId::new("company").unwrap(),
             std::sync::Arc::new(current_package_catalogue().unwrap())

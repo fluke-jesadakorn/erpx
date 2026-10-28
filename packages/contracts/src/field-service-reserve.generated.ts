@@ -1,0 +1,10 @@
+// Generated from the Rust Field Service reservation contracts. Do not edit by hand.
+// Regenerate: bun scripts/docs/generate-field-service-reserve-contracts.ts
+export type FieldServiceReserveAction = "reserve-part";
+export type FieldServiceReserveInput = { id: string, action: FieldServiceReserveAction, expectedVersion: number, warehouseId: string, productId: string, quantityMilli: number, expiresAt: number, reason: string, };
+export type FieldServiceReserveResult = { id: string, status: string, version: number, };
+export type FieldServiceReservationRead = { id: string, orderId: string, warehouseId: string, productId: string, quantityMilli: number, consumedMilli: number, releasedMilli: number, expiresAt: number, };
+export type FieldServiceReserveEvent = { version: number, actorId: string, reason: string, status: string, };
+export type FieldServiceStockSnapshot = { warehouseId: string, productId: string, quantityMilli: number, version: number, };
+export type FieldServiceRenderedContext = { userId: string, holdingId: string, companyId: string, branchId: string | null, departmentId: string | null, branchSlug: string | null, departmentSlug: string | null, assignmentId: string, assignmentVersion: number, revision: number, role: string, assignmentScopeKind: string, modules: Array<string>, permissions: Array<string>, expiresAt: number, };
+export type FieldServiceReservationReadResponse = { context: FieldServiceRenderedContext, order: FieldServiceReserveResult, receipt: FieldServiceReserveResult, event: FieldServiceReserveEvent, reservation: FieldServiceReservationRead, stock: FieldServiceStockSnapshot, };

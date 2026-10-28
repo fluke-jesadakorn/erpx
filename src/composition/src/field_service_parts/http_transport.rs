@@ -25,3 +25,8 @@ pub trait OtherPost: Send + Sync + 'static {
         input: OtherPostInput,
     ) -> PgWorkFuture<'a, CommandJson, BusinessError>;
 }
+#[derive(Clone)]
+pub(crate) enum HttpDispatch {
+    Shared(Arc<dyn OtherPost>),
+    ReserveOnly,
+}

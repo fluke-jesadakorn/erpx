@@ -1,3 +1,4 @@
+import { holdingRoutingEnabled } from "@erpx/contracts/holding-hosts";
 import {AppsHomeLink} from "@erpx/workplace/components/product-link-context";
 import {productAccessLabel} from '@erpx/feature-work_projection/lib/product-access-label';
 import { preferredAccountLanguage } from "@erpx/server-identity_access/public/account-preference-snapshot";
@@ -22,6 +23,7 @@ export default async function ProductWorkRolePage({ searchParams }: {
   const input = audience && productWorkspaceTarget(audience, typeof query.companyId === "string" ? query.companyId : null,
     typeof query.next === "string" ? query.next : null);
   if (!audience || !definition || !input) notFound();
+  const launchAction = holdingRoutingEnabled(process.env) ? `/launch?${new URLSearchParams({app:audience})}` : "/launch";
   const language = await preferredAccountLanguage((await cookies()).get("erpx_language")?.value === "th" ? "th" : "en"), th = language === "th";
   let data: Awaited<ReturnType<typeof productWorkRoleChoices>> | undefined;
   try { data = await productWorkRoleChoices(audience, input); }
@@ -44,7 +46,7 @@ export default async function ProductWorkRolePage({ searchParams }: {
         <p>{th ? "เลือกบทบาทที่จะใช้ในพื้นที่ทำงานนี้" : "Choose the role to use in this workspace."}</p>
         {query.notice === "access-changed" && <InlineNotice tone="warning">{th ? "สิทธิ์หรือบทบาทเปลี่ยนไป โปรดตรวจรายการล่าสุดและเลือกอีกครั้ง" : "Your access or selected role changed. Review the current choices and choose again."}</InlineNotice>}
         <div className={styles.grid}>{data.options.map(option => <Card appearance="standard" key={option.assignmentId}>
-          <form method="post" action="/launch"><Stack>
+          <form method="post" action={launchAction}><Stack>
             <input type="hidden" name="companyId" value={input.companyId} />
             <input type="hidden" name="next" value={input.target} />
             <input type="hidden" name="assignmentId" value={option.assignmentId} />

@@ -1,3 +1,4 @@
+import { nativeReservePost, nativeReserveReadback, isReserveOrderCommand } from "./native-reserve";
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import { requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
@@ -15,8 +16,15 @@ type C = { params: Promise<{ holdingSlug: string }> };
 const headers = { "Cache-Control": "private, no-store" };
 export async function GET(r: Request, c: C) {
   try {
-    const a = await requireWorkContext((await c.params).holdingSlug),
-      id = new URL(r.url).searchParams.get("id");
+    const slug=(await c.params).holdingSlug, query=new URL(r.url).searchParams;
+    const order=query.get("nativeReserveOrder"), reservation=query.get("nativeReserveId");
+    if(order!==null || reservation!==null) {
+      if(!order||!reservation||[...query.keys()].length!==2) throw new ApiError(404,"NOT_FOUND","Service order not found.");
+      const native=await nativeReserveReadback(r,slug,order,reservation);
+      if(native)return native;
+      throw new ApiError(404,"NOT_FOUND","Service order not found.");
+    }
+    const a = await requireWorkContext(slug), id = query.get("id");
     return Response.json(
       canonicalDestinationLinks({
         data: id
@@ -47,8 +55,16 @@ export async function POST(r: Request, c: C) {
         "COMMAND_KEY_REQUIRED",
         "Idempotency-Key is required.",
       );
-    const a = await requireWorkContext((await c.params).holdingSlug),
-      input = await r.json();
+    const holdingSlug=(await c.params).holdingSlug;
+    const a = await requireWorkContext(holdingSlug);
+    const original=process.env.ERPX_NATIVE_FIELD_SERVICE_RESERVE_CONFIG === undefined ? undefined : r.clone();
+    let input: Awaited<ReturnType<Request["json"]>>;
+    try { input=await r.json(); } catch(error) { void original?.body?.cancel().catch(()=>undefined); throw error; }
+    if(original && isReserveOrderCommand(input)) {
+      const native=await nativeReservePost(original,holdingSlug,input);
+      if(native)return native;
+      throw new ApiError(503,"NATIVE_SERVICE_UNAVAILABLE","Unable to confirm the reservation.");
+    } else { void original?.body?.cancel().catch(()=>undefined); }
     const data =
       input.entity === "request" ? await createServiceRequest(a,input,key) :
       input.entity === "agreement"

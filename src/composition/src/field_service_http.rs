@@ -6,8 +6,11 @@ use crate::{
     business_http::BusinessScopeSlugs,
     field_service_http_core::{
         PendingIngress, PostExecutor, PostResponse, TrustedTarget, WireError, router_for_executor,
+        router_for_executor_with_limit,
     },
-    field_service_parts::{FieldServicePartsAdministration, HttpIngressError, OtherPost},
+    field_service_parts::{
+        FieldServicePartsAdministration, HttpDispatch, HttpIngressError, OtherPost,
+    },
 };
 use axum::{Router, http::HeaderMap};
 use erpx_server_identity_access::public::{
@@ -31,7 +34,7 @@ trait NativeAdministration: Send + Sync {
         workspace: WorkspaceInput,
         ingress: Arc<PendingIngress>,
         key: String,
-        other: Arc<dyn OtherPost>,
+        dispatch: HttpDispatch,
     ) -> Pin<Box<dyn Future<Output = NativeResult> + Send + 'a>>;
 }
 impl<W: Clock + Send + Sync + 'static, G: Clock + Send + Sync + 'static> NativeAdministration
@@ -44,10 +47,10 @@ impl<W: Clock + Send + Sync + 'static, G: Clock + Send + Sync + 'static> NativeA
         workspace: WorkspaceInput,
         ingress: Arc<PendingIngress>,
         key: String,
-        other: Arc<dyn OtherPost>,
+        dispatch: HttpDispatch,
     ) -> Pin<Box<dyn Future<Output = NativeResult> + Send + 'a>> {
         Box::pin(async move {
-            self.execute_http(&host, proof, workspace, ingress, key, other)
+            self.execute_http(&host, proof, workspace, ingress, key, dispatch)
                 .await
         })
     }
@@ -57,7 +60,7 @@ pub struct FieldServiceHttpTarget {
     host: String,
     holding_slug: String,
     service: Arc<dyn NativeAdministration>,
-    other: Arc<dyn OtherPost>,
+    dispatch: HttpDispatch,
 }
 impl FieldServiceHttpTarget {
     pub fn new<W: Clock + Send + Sync + 'static, G: Clock + Send + Sync + 'static>(
@@ -70,7 +73,23 @@ impl FieldServiceHttpTarget {
             host,
             holding_slug,
             service,
-            other,
+            dispatch: HttpDispatch::Shared(other),
+        }
+    }
+    /// Private development target admits the existing reserve branch only.
+    pub fn new_private_reserve<
+        W: Clock + Send + Sync + 'static,
+        G: Clock + Send + Sync + 'static,
+    >(
+        host: String,
+        holding_slug: String,
+        service: Arc<FieldServicePartsAdministration<W, G>>,
+    ) -> Self {
+        Self {
+            host,
+            holding_slug,
+            service,
+            dispatch: HttpDispatch::ReserveOnly,
         }
     }
 }
@@ -87,6 +106,10 @@ pub fn field_service_http_router(
     targets: Vec<FieldServiceHttpTarget>,
 ) -> Result<Router, BusinessError> {
     policy.validate()?;
+    let private_only = !targets.is_empty()
+        && targets
+            .iter()
+            .all(|target| matches!(target.dispatch, HttpDispatch::ReserveOnly));
     let mut registered = BTreeMap::new();
     let mut trusted = Vec::new();
     for target in targets {
@@ -118,14 +141,16 @@ pub fn field_service_http_router(
             origin,
         });
     }
-    Ok(router_for_executor(
-        trusted,
-        SealedNativeExecutor {
-            policy,
-            scopes,
-            targets: registered,
-        },
-    ))
+    let executor = SealedNativeExecutor {
+        policy,
+        scopes,
+        targets: registered,
+    };
+    Ok(if private_only {
+        router_for_executor_with_limit(trusted, executor, 2 * 1024 * 1024)
+    } else {
+        router_for_executor(trusted, executor)
+    })
 }
 impl PostExecutor for SealedNativeExecutor {
     fn execute<'a>(
@@ -170,7 +195,7 @@ impl PostExecutor for SealedNativeExecutor {
                     input,
                     ingress,
                     key,
-                    target.other.clone(),
+                    target.dispatch.clone(),
                 )
                 .await
             {
@@ -197,8 +222,22 @@ impl PostExecutor for SealedNativeExecutor {
                     "The current assignment no longer selects Field Service.",
                 ),
                 Ok(Err(HttpIngressError::OtherAdmissionDenied(branch, error))) => {
-                    PostResponse::business(target.other.admission_error(branch, error))
+                    match &target.dispatch {
+                        HttpDispatch::Shared(other) => {
+                            PostResponse::business(other.admission_error(branch, error))
+                        }
+                        HttpDispatch::ReserveOnly => PostResponse::error(
+                            axum::http::StatusCode::NOT_FOUND,
+                            "NOT_FOUND",
+                            "Not found.",
+                        ),
+                    }
                 }
+                Ok(Err(HttpIngressError::UnavailableBranch)) => PostResponse::error(
+                    axum::http::StatusCode::NOT_FOUND,
+                    "NOT_FOUND",
+                    "Not found.",
+                ),
                 Ok(Err(HttpIngressError::InvalidJson)) => {
                     PostResponse::wire(WireError::InvalidJson)
                 }

@@ -33,6 +33,7 @@
 @source "../../../../packages/feature-field_service/src/lib/command.ts";
 @source "../../../../packages/feature-field_service/src/lib/customer-preparation-command.ts";
 @source "../../../../packages/feature-field_service/src/lib/initial-physical-stock-count-command.ts";
+@source "../../../../packages/feature-field_service/src/lib/native-reserve-command.ts";
 @source "../../../../packages/feature-field_service/src/lib/parts-setup-command.ts";
 @source "../../../../packages/feature-files/src/components/attachment-feature-context.tsx";
 @source "../../../../packages/feature-files/src/components/attachment-panel.tsx";
@@ -147,6 +148,7 @@
 @source "../../../../packages/feature-runtime/src/lib/product-route-policy.ts";
 @source "../../../../packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/customer-preparation/[[...path]]/route.ts";
 @source "../../../../packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/initial-physical-stock/[[...path]]/route.ts";
+@source "../../../../packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/native-reserve.ts";
 @source "../../../../packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/parts-setup/[[...path]]/route.ts";
 @source "../../../../packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/route.ts";
 @source "../../../../packages/feature-service/src/routes/holdings/[holdingSlug]/@record/services/field-service/[id]/[recordSection]/page.tsx";

@@ -11,10 +11,16 @@ use axum::{
     http::{HeaderMap, Request, StatusCode},
 };
 use erpx_server_commercial::public::purchases::PackageEnforcementMode;
+#[cfg(feature = "private-development-api")]
+use erpx_server_identity_access::public::SystemAuthenticationSecrets;
 use erpx_server_identity_access::public::effective_authority::AuthorizedWorkContext;
 use erpx_server_runtime::public::postgres::{PersistenceError, PgWorkFuture};
 use erpx_server_shared::public::{BusinessError, Clock, CompanyId, FailureKind, HoldingId};
 use erpx_server_workflow::public::commands::CommandJson;
+#[cfg(feature = "private-development-api")]
+use erpx_service::private_development_api::{
+    DevelopmentApiConfiguration, assemble_development_api,
+};
 use erpx_service::{
     business_http::BusinessScopeSlugs, field_service_http::*, field_service_parts::*,
 };
@@ -337,5 +343,103 @@ async fn existing_receipt_collision_does_not_mask_missing_purchase_history() {
         assert_eq!(result.1["error"]["code"],"PACKAGE_REQUIRED");
         assert_ne!(result.1["error"]["code"],"IDEMPOTENCY_CONFLICT");
         assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM outbox_events WHERE command_id='history-collision'").fetch_one(p.pool().raw()).await.unwrap(),0);
+    }).await;
+}
+
+#[path = "../../support/runtime/private-session-config.rs"]
+#[cfg(feature = "private-development-api")]
+mod private_configuration;
+
+#[tokio::test]
+#[cfg(feature = "private-development-api")]
+async fn private_reserve_readback_is_explicit_scoped_and_receipt_bound() {
+    account::with_system(|system| async move {
+        let p=setup(system).await;
+        let system=&p.review.system;let now=system.scenario.clock.now().get();
+        let central=account::login(system,"a@example.test",None).await;
+        assert!(private_configuration::cookie(&central).contains("__Secure-erpx-account.session_token="));
+        let child=account::child(system,&central,account::ACME).await;
+        sqlx::query("INSERT INTO active_work_contexts(session_id,user_id,company_id,assignment_id,assignment_version,revision,expires_at,updated_at)VALUES($1,'fixture-a','company','field-fixture-a',3,8,$2,$3)").bind(&child.result.session_id).bind(now+3_600_000).bind(now).execute(p.pool().raw()).await.unwrap();
+        let mut config=private_configuration::document(&system.control,&system.holdings).await;
+        config["fieldServiceReads"]=serde_json::json!([{"holdingId":"h001","companyId":"company"}]);
+        let body=format!(r#"{{"id":"reserve-order","action":"reserve-part","expectedVersion":1,"warehouseId":"warehouse","productId":"product","quantityMilli":1000,"expiresAt":{},"reason":"Synthetic actual reserve"}}"#,now+3_600_000);
+        let request=|key:&str,value:&str,revision:&str|Request::builder().method("POST").uri("/api/v1/holdings/acme/field-service").header("host","acme.example.test").header("cookie",format!("__Host-erpx-product={}",child.token.expose())).header("idempotency-key",key).header("x-erpx-context-company","company").header("x-erpx-context-assignment","field-fixture-a").header("x-erpx-context-assignment-version","3").header("x-erpx-context-revision",revision).body(Body::from(value.to_owned())).unwrap();
+        let build=|doc:&serde_json::Value|DevelopmentApiConfiguration::parse(&doc.to_string()).unwrap();
+        let runtime=assemble_development_api(build(&config),system.scenario.clock.clone(),Arc::new(SystemAuthenticationSecrets)).await.unwrap();
+        assert_eq!(runtime.router().oneshot(request("off-reserve",&body,"8")).await.unwrap().status(),StatusCode::NOT_FOUND);runtime.close().await;
+        config["fieldServiceReservations"]=serde_json::json!(["h001"]);
+        let runtime=assemble_development_api(build(&config),system.scenario.clock.clone(),Arc::new(SystemAuthenticationSecrets)).await.unwrap();
+        assert_eq!(runtime.router().oneshot(request("stale-context",&body,"9")).await.unwrap().status(),StatusCode::CONFLICT);
+        assert_eq!(runtime.router().oneshot(request("unrelated-action",&body.replace("reserve-part","issue-part"),"8")).await.unwrap().status(),StatusCode::NOT_FOUND);
+        let too_much=body.replace("1000","999999");assert_ne!(runtime.router().oneshot(request("not-enough",&too_much,"8")).await.unwrap().status(),StatusCode::OK);
+        sqlx::query("ALTER TABLE audit_events ADD CONSTRAINT fixture_field_audit CHECK(command_id<>'field-rollback')").execute(p.pool().raw()).await.unwrap();
+        assert_eq!(runtime.router().oneshot(request("field-rollback",&body,"8")).await.unwrap().status(),StatusCode::INTERNAL_SERVER_ERROR);
+        let rollback:(i64,i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM field_service_part_reservations WHERE id='field-part-field-rollback'),(SELECT count(*) FROM command_receipts WHERE command_id='field-rollback'),(SELECT count(*) FROM audit_events WHERE command_id='field-rollback'),(SELECT count(*) FROM outbox_events WHERE command_id='field-rollback')").fetch_one(p.pool().raw()).await.unwrap();assert_eq!(rollback,(0,0,0,0));
+        sqlx::query("ALTER TABLE audit_events DROP CONSTRAINT fixture_field_audit").execute(p.pool().raw()).await.unwrap();
+        let response=runtime.router().oneshot(request("reserve-native",&body,"8")).await.unwrap();let status=response.status();let bytes=to_bytes(response.into_body(),65536).await.unwrap();assert_eq!(status,StatusCode::OK,"{}",String::from_utf8_lossy(&bytes));let receipt:serde_json::Value=serde_json::from_slice(&bytes).unwrap();assert_eq!(receipt["data"]["id"],"reserve-order");assert_eq!(receipt["data"]["version"],2);
+        assert_eq!(runtime.router().oneshot(request("reserve-native",&body,"8")).await.unwrap().status(),StatusCode::OK);
+        assert_eq!(runtime.router().oneshot(request("stale-order",&body,"8")).await.unwrap().status(),StatusCode::CONFLICT);
+        let get=Request::builder().uri("/api/v1/holdings/acme/field-service/reserve-order/reservations/field-part-reserve-native").header("host","acme.example.test").header("cookie",format!("__Host-erpx-product={}",child.token.expose())).body(Body::empty()).unwrap();
+        let response=runtime.router().oneshot(get).await.unwrap();let status=response.status();let bytes=to_bytes(response.into_body(),65536).await.unwrap();assert_eq!(status,StatusCode::OK,"{}",String::from_utf8_lossy(&bytes));let read:serde_json::Value=serde_json::from_slice(&bytes).unwrap();assert_eq!(read["reservation"]["quantityMilli"],1000);assert_eq!(read["event"]["reason"],"Synthetic actual reserve");assert_eq!(read["receipt"]["version"],2);assert_eq!(read["context"]["userId"],"fixture-a");assert_eq!(read["stock"]["quantityMilli"],5000);
+        let foreign=Request::builder().uri("/api/v1/holdings/acme/field-service/reserve-order/reservations/field-part-reserve-native").header("host","acme.example.test").header("cookie",format!("__Host-erpx-product={}",child.token.expose())).header("x-erpx-context-company","foreign").header("x-erpx-context-assignment","field-fixture-a").header("x-erpx-context-assignment-version","3").header("x-erpx-context-revision","8").body(Body::empty()).unwrap();assert_ne!(runtime.router().oneshot(foreign).await.unwrap().status(),StatusCode::OK);
+        let missing=Request::builder().uri("/api/v1/holdings/acme/field-service/reserve-order/reservations/field-part-never-created").header("host","acme.example.test").header("cookie",format!("__Host-erpx-product={}",child.token.expose())).body(Body::empty()).unwrap();assert_eq!(runtime.router().oneshot(missing).await.unwrap().status(),StatusCode::NOT_FOUND);
+        let count:(i64,i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM field_service_part_reservations WHERE id='field-part-reserve-native'),(SELECT count(*) FROM command_receipts WHERE command_id='reserve-native'),(SELECT count(*) FROM audit_events WHERE command_id='reserve-native'),(SELECT count(*) FROM outbox_events WHERE command_id='reserve-native')").fetch_one(p.pool().raw()).await.unwrap();assert_eq!(count,(1,1,1,1));
+        let long_id="x".repeat(220);seed_order(&p,&long_id,"ticket-private-long","event-private-long",now).await;
+        let long_body=body.replace("reserve-order",&long_id).replace("\"quantityMilli\":1000","\"quantityMilli\":500");
+        let response=runtime.router().oneshot(request("reserve-long",&long_body,"8")).await.unwrap();let status=response.status();let bytes=to_bytes(response.into_body(),65536).await.unwrap();assert_eq!(status,StatusCode::OK,"{}",String::from_utf8_lossy(&bytes));
+        let get_long=||Request::builder().uri(format!("/api/v1/holdings/acme/field-service/{long_id}/reservations/field-part-reserve-long")).header("host","acme.example.test").header("cookie",format!("__Host-erpx-product={}",child.token.expose())).body(Body::empty()).unwrap();
+        let response=runtime.router().oneshot(get_long()).await.unwrap();let status=response.status();let bytes=to_bytes(response.into_body(),65536).await.unwrap();assert_eq!(status,StatusCode::OK,"{}",String::from_utf8_lossy(&bytes));let read:serde_json::Value=serde_json::from_slice(&bytes).unwrap();assert_eq!(read["receipt"]["id"],long_id);assert_eq!(read["reservation"]["quantityMilli"],500);
+        let cjk_id="界".repeat(220);seed_order(&p,&cjk_id,"ticket-private-cjk","event-private-cjk",now).await;
+        let cjk_body=body.replace("reserve-order",&cjk_id).replace("\"quantityMilli\":1000","\"quantityMilli\":200");
+        let response=runtime.router().oneshot(request("reserve-cjk",&cjk_body,"8")).await.unwrap();let status=response.status();let bytes=to_bytes(response.into_body(),65536).await.unwrap();assert_eq!(status,StatusCode::OK,"{}",String::from_utf8_lossy(&bytes));
+        let encoded=cjk_id.as_bytes().iter().map(|b|format!("%{b:02X}")).collect::<String>();
+        let cjk_get=Request::builder().uri(format!("/api/v1/holdings/acme/field-service/{encoded}/reservations/field-part-reserve-cjk")).header("host","acme.example.test").header("cookie",format!("__Host-erpx-product={}",child.token.expose())).body(Body::empty()).unwrap();
+        let response=runtime.router().oneshot(cjk_get).await.unwrap();let status=response.status();let bytes=to_bytes(response.into_body(),65536).await.unwrap();assert_eq!(status,StatusCode::OK,"{}",String::from_utf8_lossy(&bytes));let read:serde_json::Value=serde_json::from_slice(&bytes).unwrap();assert_eq!(read["receipt"]["id"],cjk_id);assert_eq!(read["reservation"]["quantityMilli"],200);
+        publish_http_fixture_permissions(&p,1,2,serde_json::json!(["records.read","module.field_service.read"]),now).await;
+        assert_eq!(runtime.router().oneshot(get_long()).await.unwrap().status(),StatusCode::OK);
+        assert_eq!(runtime.router().oneshot(request("reserve-long",&long_body,"8")).await.unwrap().status(),StatusCode::FORBIDDEN);
+        publish_http_fixture_permissions(&p,2,3,serde_json::json!(["records.read","records.write","module.field_service.read"]),now).await;
+        seed_order(&p,"race-order","ticket-race","event-race",now).await;
+        let mut writer=p.pool().raw().begin().await.unwrap();sqlx::query("UPDATE commerce_stock SET quantity_milli=4700,version=version+1 WHERE warehouse_id='warehouse' AND product_id='product'").execute(&mut *writer).await.unwrap();
+        let race_request=request("stock-race",&body.replace("reserve-order","race-order"),"8");let race_router=runtime.router();let task=tokio::spawn(async move {race_router.oneshot(race_request).await.unwrap()});
+        let waiting=tokio::time::timeout(std::time::Duration::from_secs(3),async {loop {let pending:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_locks WHERE NOT granted AND mode='ShareRowExclusiveLock' AND relation='commerce_stock'::regclass AND database=(SELECT oid FROM pg_database WHERE datname=current_database()))").fetch_one(p.pool().raw()).await.unwrap();if pending {break;}tokio::time::sleep(std::time::Duration::from_millis(10)).await;}}).await.is_ok();
+        writer.commit().await.unwrap();let response=task.await.unwrap();assert!(waiting,"the real stock source fence must wait");assert_eq!(response.status(),StatusCode::CONFLICT);assert_eq!(p.counts("stock-race").await,(0,0,0,0,0));
+        withdraw(&p,"service-parts-assets").await;
+        assert_eq!(runtime.router().oneshot(request("reserve-native",&body,"8")).await.unwrap().status(),StatusCode::OK);
+        assert_eq!(runtime.router().oneshot(get_long()).await.unwrap().status(),StatusCode::OK);
+        assert_ne!(runtime.router().oneshot(request("new-after-withdrawal",&body,"8")).await.unwrap().status(),StatusCode::OK);
+        runtime.close().await;
+    }).await;
+}
+
+#[tokio::test]
+async fn advancing_clock_retains_early_order_witness_across_real_retry() {
+    use erpx_server_shared::public::TimestampMillis;
+    use std::sync::atomic::AtomicI64;
+    struct AdvancingClock(AtomicI64);
+    impl Clock for AdvancingClock {
+        fn now(&self) -> TimestampMillis {
+            TimestampMillis::new(self.0.fetch_add(1, Ordering::SeqCst))
+        }
+    }
+    account::with_system(|system| async move {
+        let p=setup(system).await;let system=&p.review.system;let now=system.scenario.clock.now().get();
+        let central=account::login(system,"a@example.test",None).await;let child=account::child(system,&central,account::ACME).await;
+        sqlx::query("INSERT INTO active_work_contexts(session_id,user_id,company_id,assignment_id,assignment_version,revision,expires_at,updated_at)VALUES($1,'fixture-a','company','field-fixture-a',3,8,$2,$3)").bind(&child.result.session_id).bind(now+3_600_000).bind(now).execute(p.pool().raw()).await.unwrap();
+        let clock=Arc::new(AdvancingClock(AtomicI64::new(now)));
+        let config=FieldServicePartsConfiguration::new(FieldServicePartsEnvironment::Development,HoldingId::new("h001").unwrap(),CompanyId::new("company").unwrap(),PackageEnforcementMode::Enforced).unwrap();
+        let service=Arc::new(FieldServicePartsAdministration::new(p.review.authorizer.clone(),config,clock.clone(),clock.clone()));
+        let router=field_service_http_router(Arc::new(account::fixture::account::policy()),account::fixture::account::holding_registry(),Arc::new(Scope),vec![FieldServiceHttpTarget::new_private_reserve("acme.example.test".into(),"acme".into(),service)]).unwrap();
+        sqlx::raw_sql("CREATE SEQUENCE advancing_http_attempt;CREATE FUNCTION advancing_retry_once() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF nextval('advancing_http_attempt')=1 THEN RAISE EXCEPTION 'synthetic serialization retry' USING ERRCODE='40001'; END IF;RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER advancing_retry_once AFTER INSERT ON outbox_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.command_id='advancing-reserve') EXECUTE FUNCTION advancing_retry_once()").execute(p.pool().raw()).await.unwrap();
+        let body=format!(r#"{{"id":"reserve-order","action":"reserve-part","expectedVersion":1,"warehouseId":"warehouse","productId":"product","quantityMilli":1000,"expiresAt":{},"reason":"Advancing clock reserve"}}"#,now+3_600_000);
+        let reads=Arc::new(AtomicUsize::new(0));let stream=tokio_util::codec::FramedRead::new(CountingBody{reads:reads.clone(),data:Some(body.as_bytes().to_vec())},tokio_util::codec::BytesCodec::new());
+        let req=Request::builder().method("POST").uri("/api/v1/holdings/acme/field-service").header("host","acme.example.test").header("cookie",format!("__Host-erpx-product={}",child.token.expose())).header("idempotency-key","advancing-reserve").header("x-erpx-context-company","company").header("x-erpx-context-revision","8").header("x-erpx-context-assignment","field-fixture-a").header("x-erpx-context-assignment-version","3").body(Body::from_stream(stream)).unwrap();
+        let response=router.clone().oneshot(req).await.unwrap();let status=response.status();let bytes=to_bytes(response.into_body(),65536).await.unwrap();assert_eq!(status,StatusCode::OK,"{}",String::from_utf8_lossy(&bytes));assert_eq!(reads.load(Ordering::SeqCst),1);
+        assert_eq!(sqlx::query_scalar::<_,i64>("SELECT last_value FROM advancing_http_attempt").fetch_one(p.pool().raw()).await.unwrap(),2);
+        let cookie=format!("__Host-erpx-product={}",child.token.expose());let replay=send(&router,&cookie,"advancing-reserve",&body).await;assert_eq!(replay.0,StatusCode::OK);assert_eq!(replay.1["data"]["version"],2);assert_eq!(p.counts("advancing-reserve").await,(1,1,1,0,1));
+        let count:i64=sqlx::query_scalar("SELECT count(*) FROM field_service_part_reservations WHERE id='field-part-advancing-reserve'").fetch_one(p.pool().raw()).await.unwrap();assert_eq!(count,1);
+        sqlx::raw_sql("CREATE FUNCTION advancing_source_drift() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.command_id='advancing-drift' THEN UPDATE field_service_agreements SET title='changed after source' WHERE id='agreement'; END IF; RETURN NEW; END $$; CREATE TRIGGER advancing_source_drift AFTER INSERT ON command_receipts FOR EACH ROW EXECUTE FUNCTION advancing_source_drift()").execute(p.pool().raw()).await.unwrap();
+        let drift=send(&router,&cookie,"advancing-drift",&body.replace("\"expectedVersion\":1","\"expectedVersion\":2")).await;assert_eq!(drift.0,StatusCode::CONFLICT);assert_eq!(p.counts("advancing-drift").await,(0,0,0,0,0));
+        let title:String=sqlx::query_scalar("SELECT title FROM field_service_agreements WHERE id='agreement'").fetch_one(p.pool().raw()).await.unwrap();assert_eq!(title,"Synthetic retained agreement");
     }).await;
 }

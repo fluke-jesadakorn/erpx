@@ -17,6 +17,7 @@
     "./lib/customer-preparation-command": "./src/lib/customer-preparation-command.ts",
     "./lib/initial-physical-stock-count-command": "./src/lib/initial-physical-stock-count-command.ts",
     "./lib/command": "./src/lib/command.ts",
+    "./lib/native-reserve-command": "./src/lib/native-reserve-command.ts",
     "./lib/parts-setup-command": "./src/lib/parts-setup-command.ts"
   },
   "scripts": {
@@ -24,6 +25,7 @@
     "lint": "eslint src"
   },
   "dependencies": {
+    "@erpx/contracts": "workspace:*",
     "@erpx/feature-commerce": "workspace:*",
     "@erpx/feature-files": "workspace:*",
     "@erpx/feature-finance": "workspace:*",

@@ -724,8 +724,11 @@ dependencies = [
  "erpx-server-runtime",
  "erpx-server-shared",
  "erpx-server-workflow",
+ "serde",
  "serde_json",
  "sqlx",
+ "ts-rs",
+ "utoipa",
 ]
 
 [[package]]

@@ -277,7 +277,7 @@ impl PostExecutor for FakeExecutor {
                     "Sign in to continue.",
                 );
             }
-            let (_, wire) = match ingress.decode().await {
+            let (_, wire) = match ingress.decode_selected(false).await {
                 Ok(value) => value,
                 Err(error) => return PostResponse::wire(error),
             };

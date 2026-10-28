@@ -221,6 +221,7 @@ struct Effects<'a, W, G> {
     quote: Option<PendingIssueQuote>,
     logical: Option<WorkflowRecordIdentity>,
     pending_at: Option<TimestampMillis>,
+    pending_source: Option<CurrentFieldServiceOrder<'a, FieldServiceReferences>>,
 }
 
 #[derive(serde::Serialize)]
@@ -243,7 +244,10 @@ impl<W: Clock + Sync, G: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W, 
         _: &CommandActor,
         _: &WorkflowRequest,
     ) -> Result<WorkflowOutput, Error> {
-        let source = load_order(c, self.current, self.command.order_id(), self.guard.now()).await?;
+        let source = match self.pending_source.take() {
+            Some(source) => source,
+            None => load_order(c, self.current, self.command.order_id(), self.guard.now()).await?,
+        };
         let application = prepare_new_field_service_parts(
             &mut PreparationPorts {
                 c,
@@ -608,6 +612,7 @@ pub(crate) async fn execute_field_service_parts<
         quote: None,
         logical: None,
         pending_at: None,
+        pending_source: None,
     };
     PgCommandLedger::new(
         current.selection().workspace().company_id.clone(),
@@ -746,6 +751,7 @@ pub(super) async fn execute_pending_field_service_parts<
         quote,
         logical: Some(logical),
         pending_at: Some(at),
+        pending_source: Some(source),
     };
     PgCommandLedger::new(
         current.selection().workspace().company_id.clone(),

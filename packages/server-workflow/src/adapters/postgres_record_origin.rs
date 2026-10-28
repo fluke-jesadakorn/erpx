@@ -318,6 +318,58 @@ pub async fn read_raw_record_origin(
         },
     ))
 }
+/// Read the actual bounded result and sealed full receipt row together. This
+/// carries historical evidence only and never constructs current authority.
+pub async fn read_raw_record_origin_result_with_limit(
+    c: &mut PgConnection,
+    request: RawRecordOriginRequest,
+    limit_bytes: usize,
+) -> Result<Option<(PgRawRecordOrigin, CommandJson)>, Error> {
+    require_unit(c).await?;
+    let overhead = request
+        .command_key
+        .len()
+        .saturating_add(request.operation.len())
+        .saturating_add(request.record_id.len())
+        .saturating_add(request.creator_user_id.len())
+        .saturating_add(request.company_id.as_str().len())
+        .saturating_add(1024);
+    let limit_bytes = (limit_bytes.saturating_sub(overhead) / 2).min(LIMIT);
+    if limit_bytes == 0 {
+        return Err(BusinessError::new(
+            FailureKind::Unavailable,
+            "COMMAND_RECEIPT_TOO_LARGE",
+            "The retained command exceeds the bounded receipt reader.",
+        )
+        .into());
+    }
+    let row:Option<(String,Option<String>,bool,i32,String,String)>=sqlx::query_as("SELECT encode(sha256(convert_to(to_jsonb(r)::text,'UTF8')),'hex'),CASE WHEN octet_length(result_json)<=$6 THEN result_json END,COALESCE(octet_length(result_json),0)>$6,pg_backend_pid(),pg_current_xact_id()::text,current_database()||'/'||pg_postmaster_start_time()::text FROM command_receipts r WHERE r.command_id=$1 AND r.operation=$2 AND r.record_id=$3 AND r.actor_id=$4 AND r.authority_json::jsonb->>'companyId'=$5 AND r.request_hash~'^[0-9a-f]{64}$' FOR SHARE OF r")
+        .bind(&request.command_key).bind(&request.operation).bind(&request.record_id).bind(&request.creator_user_id).bind(request.company_id.as_str()).bind(i64::try_from(limit_bytes).unwrap_or(i64::MAX)).fetch_optional(c).await?;
+    let Some((image, result, oversized, backend_pid, transaction_id, database_identity)) = row
+    else {
+        return Ok(None);
+    };
+    if oversized {
+        return Err(BusinessError::new(
+            FailureKind::Unavailable,
+            "COMMAND_RECEIPT_TOO_LARGE",
+            "The retained command exceeds the bounded receipt reader.",
+        )
+        .into());
+    }
+    let result =
+        CommandJson::parse(&result.ok_or_else(invalid_origin)?).map_err(|_| invalid_origin())?;
+    Ok(Some((
+        PgRawRecordOrigin {
+            request,
+            image,
+            backend_pid,
+            transaction_id,
+            database_identity,
+        },
+        result,
+    )))
+}
 pub async fn verify_raw_record_origin(
     c: &mut PgConnection,
     proof: &PgRawRecordOrigin,

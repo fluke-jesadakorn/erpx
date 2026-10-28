@@ -23,25 +23,31 @@ pub(crate) struct TrustedTarget {
 pub(crate) struct PendingIngress {
     slot: Mutex<Option<Body>>,
     cache: OnceCell<Result<Arc<[u8]>, ()>>,
+    limit: usize,
 }
 pub(crate) enum WireError {
     InvalidJson,
     Validation(String),
+    UnavailableBranch,
 }
 impl PendingIngress {
-    fn new(body: Body) -> Self {
+    fn new(body: Body, limit: usize) -> Self {
         Self {
             slot: Mutex::new(Some(body)),
             cache: OnceCell::new(),
+            limit,
         }
     }
     /// The executor invokes this only after its own admission; bytes/fault are reused on retry.
-    pub(crate) async fn decode(&self) -> Result<(Arc<[u8]>, SharedPostWire), WireError> {
+    pub(crate) async fn decode_selected(
+        &self,
+        reserve_only: bool,
+    ) -> Result<(Arc<[u8]>, SharedPostWire), WireError> {
         let bytes = self
             .cache
             .get_or_init(|| async {
                 let body = self.slot.lock().await.take().ok_or(())?;
-                to_bytes(body, usize::MAX)
+                to_bytes(body, self.limit)
                     .await
                     .map(|v| Arc::<[u8]>::from(v.to_vec()))
                     .map_err(|_| ())
@@ -50,6 +56,18 @@ impl PendingIngress {
             .as_ref()
             .map_err(|_| WireError::InvalidJson)?
             .clone();
+        if reserve_only {
+            let text = String::from_utf8_lossy(&bytes);
+            let doc = CommandJson::parse(text.strip_prefix('\u{feff}').unwrap_or(&text))
+                .map_err(|_| WireError::InvalidJson)?;
+            let action = doc
+                .property("action")
+                .map_err(|_| WireError::InvalidJson)?
+                .and_then(|v| v.string_utf8_storage().ok().flatten());
+            if action.as_deref() != Some("reserve-part") {
+                return Err(WireError::UnavailableBranch);
+            }
+        }
         let wire = match classify_shared_post(&bytes) {
             Ok(wire) => wire,
             Err(SharedPostWireFailure::InvalidJson) => return Err(WireError::InvalidJson),
@@ -109,6 +127,9 @@ impl PostResponse {
                 "VALIDATION_FAILED",
                 message,
             ),
+            WireError::UnavailableBranch => {
+                Self::error(StatusCode::NOT_FOUND, "NOT_FOUND", "Not found.")
+            }
         }
     }
     fn response(self) -> Response {
@@ -152,10 +173,18 @@ pub(crate) trait PostExecutor: Send + Sync + 'static {
 struct CoreState<E> {
     targets: BTreeMap<(String, String), String>,
     executor: E,
+    body_limit: usize,
 }
 pub(crate) fn router_for_executor<E: PostExecutor>(
     targets: Vec<TrustedTarget>,
     executor: E,
+) -> Router {
+    router_for_executor_with_limit(targets, executor, usize::MAX)
+}
+pub(crate) fn router_for_executor_with_limit<E: PostExecutor>(
+    targets: Vec<TrustedTarget>,
+    executor: E,
+    body_limit: usize,
 ) -> Router {
     let targets = targets
         .into_iter()
@@ -166,7 +195,11 @@ pub(crate) fn router_for_executor<E: PostExecutor>(
             "/api/v1/holdings/{holding_slug}/field-service",
             post(handler::<E>),
         )
-        .with_state(Arc::new(CoreState { targets, executor }))
+        .with_state(Arc::new(CoreState {
+            targets,
+            executor,
+            body_limit,
+        }))
 }
 pub(crate) fn joined(headers: &HeaderMap, name: &'static str) -> Option<String> {
     let values = headers
@@ -245,7 +278,7 @@ async fn handler<E: PostExecutor>(
             slug,
             headers,
             key,
-            Arc::new(PendingIngress::new(body)),
+            Arc::new(PendingIngress::new(body, state.body_limit)),
         )
         .await
         .response()

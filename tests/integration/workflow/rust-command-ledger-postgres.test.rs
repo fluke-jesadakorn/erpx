@@ -606,6 +606,23 @@ async fn positive_origin_respects_the_callers_remaining_budget_before_transfer()
 }
 
 #[tokio::test]
+async fn raw_result_is_bounded_and_scoped_to_the_same_full_receipt() {
+    fixture::with_database(3, |pool| async move {
+        setup(&pool).await;
+        execute(&pool,"{}",false,false).await.unwrap();
+        let mut tx=origin_transaction(&pool).await;
+        let long="x".repeat(220);
+        let result=serde_json::json!({"id":long,"status":"scheduled","version":2}).to_string();
+        sqlx::query("UPDATE command_receipts SET record_id=$1,result_json=$2").bind(&long).bind(&result).execute(&mut *tx).await.unwrap();
+        let request=RawRecordOriginRequest{command_key:"workflow:test:command".into(),operation:"workflow.synthetic.update".into(),record_id:long.clone(),creator_user_id:"user".into(),company_id:CompanyId::new("company").unwrap()};
+        let (proof,actual)=read_raw_record_origin_result_with_limit(&mut tx,request.clone(),65536).await.unwrap().unwrap();assert_eq!(actual.property("id").unwrap().unwrap().string_utf8_storage().unwrap().unwrap(),long);verify_raw_record_origin(&mut tx,&proof).await.unwrap();
+        assert!(matches!(read_raw_record_origin_result_with_limit(&mut tx,request.clone(),100).await,Err(Error::Business(ref e)) if e.code=="COMMAND_RECEIPT_TOO_LARGE"));
+        for field in ["actor","operation","company"] {let mut other=request.clone();match field {"actor"=>other.creator_user_id="foreign".into(),"operation"=>other.operation="foreign.operation".into(),_=>other.company_id=CompanyId::new("foreign").unwrap()};assert!(read_raw_record_origin_result_with_limit(&mut tx,other,65536).await.unwrap().is_none());}
+        tx.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
 async fn a_positive_origin_cannot_be_reused_in_another_transaction_or_backend() {
     fixture::with_database(3, |pool| async move {
         setup(&pool).await;execute(&pool,"{}",false,false).await.unwrap();

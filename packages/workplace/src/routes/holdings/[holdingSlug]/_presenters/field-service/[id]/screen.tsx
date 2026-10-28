@@ -30,7 +30,12 @@ export default async function Page({
         {String(x.customer_name)} · {String(x.site)} · {String(x.status)} ·
         technician {String(x.technician_name ?? x.technician_id)}
       </p>
-      <FieldServiceConsole base={base} detail={data} />
+      <FieldServiceConsole base={base} detail={data} nativeReserve={process.env.ERPX_NATIVE_FIELD_SERVICE_RESERVE_CONFIG === undefined ? undefined : {context:a.authority && a.iam ? {
+        userId:a.userId,holdingId:a.holdingId,companyId:a.companyId,branchId:a.branchId,departmentId:a.departmentId,
+        branchSlug:a.scope.kind==='holding'?null:a.scope.branchSlug??null,departmentSlug:a.scope.kind==='department'?a.scope.departmentSlug:null,
+        assignmentId:a.assignmentId,assignmentVersion:a.authority.assignmentVersion,revision:a.authority.revision,
+        role:a.role,assignmentScopeKind:a.assignmentScope,modules:[...a.modules],permissions:[...a.iam.permissions],
+      }:undefined}} />
       <RecordDocumentPanel appearance="standard"
         base={base}
         targetType="field_service_visit"
