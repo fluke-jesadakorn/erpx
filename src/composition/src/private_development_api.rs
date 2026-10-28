@@ -1,11 +1,14 @@
 //! Explicit private development assembly. No environment discovery, migrations,
 //! public listener, installed service, business readiness or legacy backend proxy.
 use crate::{
+    business_http::{BusinessHttpTarget, business_router},
     finance_journal_detail::{FinanceJournalDetailService, FinanceJournalReadConfiguration},
     finance_journal_detail_http::{
         FinanceJournalReadScopeHeaders, FinanceJournalReadTarget, finance_journal_read_router,
     },
-    finance_journal_review::FinanceJournalEnvironment,
+    finance_journal_review::{
+        FinanceJournalConfiguration, FinanceJournalEnvironment, FinanceJournalReviewAdministration,
+    },
 };
 use axum::{
     Router,
@@ -90,6 +93,8 @@ struct ConfigurationDocument {
     #[serde(default)]
     finance_journal_reads: Vec<FinanceReadDocument>,
     #[serde(default)]
+    finance_journal_posts: Vec<String>,
+    #[serde(default)]
     account_bootstrap: bool,
 }
 struct HoldingConfiguration {
@@ -109,6 +114,7 @@ pub struct DevelopmentApiConfiguration {
     control: LeasedDevelopmentDatabase,
     holdings: Vec<HoldingConfiguration>,
     finance_journal_reads: BTreeMap<HoldingId, CompanyId>,
+    finance_journal_posts: BTreeSet<HoldingId>,
     account_bootstrap: bool,
 }
 impl fmt::Debug for DevelopmentApiConfiguration {
@@ -203,6 +209,16 @@ impl DevelopmentApiConfiguration {
                 return Err("PRIVATE_API_FINANCE_CONFIGURATION_INVALID");
             }
         }
+        let mut finance_journal_posts = BTreeSet::new();
+        for id in doc.finance_journal_posts {
+            let holding =
+                HoldingId::new(id).map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?;
+            if !finance_journal_reads.contains_key(&holding)
+                || !finance_journal_posts.insert(holding)
+            {
+                return Err("PRIVATE_API_FINANCE_CONFIGURATION_INVALID");
+            }
+        }
         if doc.account_bootstrap && finance_journal_reads.is_empty() {
             return Err("PRIVATE_API_FINANCE_CONFIGURATION_INVALID");
         }
@@ -233,6 +249,7 @@ impl DevelopmentApiConfiguration {
             control,
             holdings,
             finance_journal_reads,
+            finance_journal_posts,
             account_bootstrap: doc.account_bootstrap,
         })
     }
@@ -432,11 +449,13 @@ async fn assemble_checked(
         router = router.merge(account_session_router(auth));
     }
     let mut finance_targets = BTreeSet::new();
+    let mut finance_post_targets = BTreeSet::new();
     if !config.finance_journal_reads.is_empty() {
         let catalogue = Arc::new(
             current_package_catalogue().map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
         );
         let mut targets = Vec::new();
+        let mut post_targets = Vec::new();
         for (i, holding) in config.holdings.iter().enumerate() {
             let Some(company) = config
                 .finance_journal_reads
@@ -463,6 +482,30 @@ async fn assemble_checked(
             )
             .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?;
             finance_targets.insert((holding.host.clone(), holding.registration.slug.clone()));
+            if config
+                .finance_journal_posts
+                .contains(&holding.registration.holding_id)
+            {
+                let post_config = FinanceJournalConfiguration::new_enforced_post(
+                    FinanceJournalEnvironment::Development,
+                    holding.registration.holding_id.clone(),
+                    company.clone(),
+                    catalogue.clone(),
+                )
+                .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?;
+                finance_post_targets
+                    .insert((holding.host.clone(), holding.registration.slug.clone()));
+                post_targets.push(BusinessHttpTarget {
+                    host: holding.host.clone(),
+                    holding_slug: holding.registration.slug.clone(),
+                    legal: None,
+                    finance: Some(Arc::new(FinanceJournalReviewAdministration::new(
+                        authorizer.clone(),
+                        post_config,
+                        Arc::new(SharedClock(clock.clone())),
+                    ))),
+                });
+            }
             targets.push(FinanceJournalReadTarget {
                 host: holding.host.clone(),
                 holding_slug: holding.registration.slug.clone(),
@@ -472,6 +515,17 @@ async fn assemble_checked(
                     Arc::new(SharedClock(clock.clone())),
                 )),
             });
+        }
+        if !post_targets.is_empty() {
+            router = router.merge(
+                business_router(
+                    config.policy.clone(),
+                    config.holdings_registry.clone(),
+                    Arc::new(FinanceJournalReadScopeHeaders),
+                    post_targets,
+                )
+                .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
+            );
         }
         router = router.merge(
             finance_journal_read_router(
@@ -489,6 +543,7 @@ async fn assemble_checked(
         permits: Arc::new(Semaphore::new(config.maximum_requests)),
         timeout: config.request_timeout,
         finance_targets,
+        finance_post_targets,
         account_bootstrap: config.account_bootstrap,
     });
     Ok(router.layer(middleware::from_fn_with_state(state, boundary)))
@@ -505,6 +560,7 @@ struct Boundary {
     permits: Arc<Semaphore>,
     timeout: Duration,
     finance_targets: BTreeSet<(String, String)>,
+    finance_post_targets: BTreeSet<(String, String)>,
     account_bootstrap: bool,
 }
 enum BoundaryDenial {
@@ -575,6 +631,29 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             .contains(&(host.to_owned(), (*slug).to_owned())),
         _ => false,
     };
+    let finance_post = request.method() == axum::http::Method::POST
+        && match request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice()
+        {
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "finance",
+                "journals",
+                id,
+                "post",
+            ] if !id.is_empty() => state
+                .finance_post_targets
+                .contains(&(host.to_owned(), (*slug).to_owned())),
+            _ => false,
+        };
     let bootstrap = state.account_bootstrap
         && match (request.method(), request.uri().path()) {
             (&axum::http::Method::POST, "/api/auth/sign-in/email") => {
@@ -591,8 +670,10 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         request.uri().path(),
         "/api/auth/get-session" | "/api/health" | "/api/ready"
     ) || finance_workspace
+        || finance_post
         || bootstrap)
         || !(bootstrap
+            || finance_post
             || matches!(
                 *request.method(),
                 axum::http::Method::GET | axum::http::Method::HEAD

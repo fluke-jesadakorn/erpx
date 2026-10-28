@@ -64625,7 +64625,8 @@
       },
       "id": "finance.native-journal-detail.unit",
       "files": [
-        "tests/unit/finance/native-journal-detail.test.ts"
+        "tests/unit/finance/native-journal-detail.test.ts",
+        "tests/unit/finance/native-journal-post-action.test.ts"
       ],
       "verificationInputs": [
         "packages/contracts/src/finance-journal-read.generated.ts",
@@ -64633,7 +64634,15 @@
         "packages/feature-finance/src/adapters/server/native-journal-page.ts",
         "packages/feature-finance/src/adapters/server/next-native-journal-detail.ts",
         "packages/feature-finance/src/public/server.ts",
-        "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/finance/journals/[id]/screen.tsx"
+        "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/finance/journals/[id]/screen.tsx",
+        "packages/feature-finance/src/adapters/server/native-journal-post.ts",
+        "packages/feature-finance/src/application/native-journal-post.ts",
+        "packages/feature-finance/src/components/native-journal-post.tsx",
+        "scripts/docs/export-finance-journal-post-contracts.rs",
+        "scripts/docs/generate-finance-journal-post-contracts.ts",
+        "packages/contracts/src/finance-journal-post.generated.ts",
+        "docs/contracts/next/finance-journal-post.openapi.generated.json",
+        "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts"
       ]
     },
     {

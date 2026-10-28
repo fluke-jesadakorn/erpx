@@ -72,3 +72,41 @@ describe('native journal page error policy',()=>{
   for(const error of [new NativeFinanceReadError('NATIVE_FINANCE_UNAVAILABLE',503),new NativeFinanceReadError('NATIVE_FINANCE_CONFIGURATION_INVALID'),new NativeFinanceReadError('NATIVE_FINANCE_RESPONSE_INVALID'),new Error('unexpected')])expect(nativeJournalPageFailure(error)).toBeUndefined();
  });
 });
+
+describe('native journal posting confirmation',()=>{
+ it('accepts only the exact retained journal receipt and matching native readback',async()=>{
+  const {postedReceipt,confirmedReadback}=await import('../../../packages/feature-finance/src/application/native-journal-post');
+  const original=workspaceData(); const context=original.context;
+  const {expiresAt: _expiresAt,...snapshot}=context; void _expiresAt;
+  const attempt={id:'journal-one',input:{expectedVersion:1},body:'{"expectedVersion":1}',key:'original-key',context:snapshot};
+  expect(postedReceipt(attempt,{id:'journal-one',status:'posted',version:2})).toEqual({id:'journal-one',status:'posted',version:2});
+  for(const bad of [{id:'other',status:'posted',version:2},{id:'journal-one',status:'draft',version:2},{id:'journal-one',status:'posted',version:3},{id:'journal-one',status:'posted',version:2,extra:true}])expect(postedReceipt(attempt,bad)).toBeUndefined();
+  const saved={...attempt,receipt:{id:'journal-one',status:'posted',version:2}};
+  const readback={...original,data:{...original.data,journal:{...original.data.journal,status:'posted',version:2}}};
+  expect(confirmedReadback(saved,readback)).toBe(true);
+  expect(confirmedReadback(saved,{...readback,context:{...readback.context,userId:'other'}})).toBe(false);
+  expect(confirmedReadback(saved,{...readback,context:{...readback.context,assignmentVersion:4}})).toBe(false);
+  expect(confirmedReadback(saved,{...readback,data:{...readback.data,journal:{...readback.data.journal,version:3}}})).toBe(false);
+ });
+});
+
+describe('native journal post edge',()=>{
+ it('forwards the original bounded body and context without fallback and rejects an invalid configuration',async()=>{
+  const {createServer}=await import('node:http');
+  const {nativeJournalPost}=await import('@erpx/feature-finance/public/server');
+  let seen:{body:string;key?:string;company?:string;origin?:string}|undefined; let missing=false;
+  const server=createServer((req,res)=>{let body='';req.setEncoding('utf8');req.on('data',chunk=>body+=chunk);req.on('end',()=>{seen={body,key:req.headers['idempotency-key'],company:req.headers['x-erpx-context-company'],origin:req.headers.origin};if(missing){res.writeHead(404,{'content-type':'text/plain'});res.end('Not Found');return;}res.writeHead(200,{'content-type':'application/json'});res.end(JSON.stringify({data:{id:'journal-one',status:'posted',version:2}}));});});
+  await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
+  const old=process.env.ERPX_NATIVE_FINANCE_JOURNAL_POST_CONFIG;
+  try{
+   const address=server.address();if(!address||typeof address==='string')throw new Error('missing port');
+   process.env.ERPX_NATIVE_FINANCE_JOURNAL_POST_CONFIG=JSON.stringify({...configuration,privateBaseUrl:`http://127.0.0.1:${address.port}`});
+   const request=()=>new Request('https://acme.example.test/api/v1/holdings/acme/finance/journals/journal-one/post',{method:'POST',headers:{host:'acme.example.test',cookie:'opaque','content-type':'application/json','idempotency-key':'original-key','x-erpx-context-company':'company','x-erpx-context-assignment':'grant','x-erpx-context-revision':'7','x-erpx-context-assignment-version':'3'},body:'{"expectedVersion":1}'});
+   expect((await nativeJournalPost(request(),'acme','journal-one'))?.status).toBe(200);
+   expect(seen).toEqual({body:'{"expectedVersion":1}',key:'original-key',company:'company',origin:undefined});
+   missing=true;const notFound=await nativeJournalPost(request(),'acme','journal-one');expect(notFound?.status).toBe(404);expect(await notFound?.json()).toMatchObject({error:{code:'NOT_FOUND'}});
+   process.env.ERPX_NATIVE_FINANCE_JOURNAL_POST_CONFIG='{';
+   await expect(nativeJournalPost(request(),'acme','journal-one')).rejects.toMatchObject({code:'NATIVE_FINANCE_CONFIGURATION_INVALID'});
+  }finally{if(old===undefined)delete process.env.ERPX_NATIVE_FINANCE_JOURNAL_POST_CONFIG;else process.env.ERPX_NATIVE_FINANCE_JOURNAL_POST_CONFIG=old;await new Promise<void>((resolve,reject)=>server.close(error=>error?reject(error):resolve()));}
+ });
+});

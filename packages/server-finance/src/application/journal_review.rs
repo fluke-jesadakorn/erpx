@@ -21,10 +21,13 @@ use crate::domain::{
 };
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(untagged)]
 pub enum JournalReviewInput {
     Post {
         #[serde(rename = "expectedVersion")]
+        #[cfg_attr(feature = "contracts", ts(type = "number"))]
+        #[cfg_attr(feature = "contracts", schema(value_type = i64, minimum = 1, maximum = 9_007_199_254_740_991_i64))]
         expected_version: i64,
     },
     Reverse {
@@ -51,11 +54,14 @@ impl JournalReviewCommand {
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(untagged)]
 pub enum JournalReviewResult {
     Posted {
         id: String,
         status: String,
+        #[cfg_attr(feature = "contracts", ts(type = "number"))]
+        #[cfg_attr(feature = "contracts", schema(value_type = i64, minimum = 1, maximum = 9_007_199_254_740_991_i64))]
         version: i64,
     },
     Reversed {

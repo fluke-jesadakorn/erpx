@@ -18,6 +18,8 @@ import {
 import { Card, Stack, FormGrid, FormLayout } from "@erpx/ui/components/foundation";
 import { useFinanceActionAllowed } from "@erpx/feature-finance/components/purchase-context";
 import {financeDocumentCommandAllowed, financeDocumentCommandContext, financeDocumentFormUnchanged, type FinanceDocumentPostControl} from "@erpx/feature-finance/lib/document-post-control";
+import { NativeJournalPost } from "./native-journal-post";
+import type { PostContext } from "../application/native-journal-post";
 import {announceWorkChange} from "@erpx/feature-work_projection/lib/work-refresh";
 function useFinanceCommand(base: string, purpose: "new-work" | "settle-existing" = "settle-existing", capability = "finance.accounting", post?: FinanceDocumentPostControl) {
   const allowed = useFinanceActionAllowed(purpose, capability);
@@ -803,9 +805,11 @@ export function JournalAction({
   canPost,
   sourceCanPost,
   periods,
+  nativePost,
 }: {
   base: string;
   journal: LedgerRow;
+  nativePost?: { context?: PostContext };
   canPost: boolean;
   sourceCanPost?: boolean;
   periods: LedgerRow[];
@@ -819,8 +823,7 @@ export function JournalAction({
           {error}
         </InlineNotice>
       )}
-      {canPost && canPostSend && ["draft", "in_review"].includes(String(journal.status)) && (
-        <Button appearance="standard"
+      {nativePost ? nativePost.context ? <NativeJournalPost url={`${base.replace(canonicalUiHref("/holdings/"), "/api/v1/holdings/")}/finance/journals/${encodeURIComponent(String(journal.id))}`} id={String(journal.id)} version={journal.version} context={nativePost.context} allowed={canPost && canPostSend && ["draft", "in_review"].includes(String(journal.status))} /> : <InlineNotice tone="danger" role="alert">The current work context cannot be confirmed.</InlineNotice> : canPost && canPostSend && ["draft", "in_review"].includes(String(journal.status)) ? <Button appearance="standard"
           type="submit"
           variant="primary"
           disabled={pending || !canPostSend}
@@ -829,8 +832,7 @@ export function JournalAction({
           }
         >
           Approve and post journal
-        </Button>
-      )}
+        </Button> : null}
       {canPost &&
         journal.status === "posted" &&
         ["manual", "opening_import", "reversal"].includes(String(journal.source_type)) && (

@@ -26,6 +26,7 @@ name = "erpx-server"
 path = "src/main.rs"
 
 [dependencies]
+erpx-server-organization.workspace = true
 erpx-server-quality.workspace=true
 erpx-server-field-service.workspace=true
 erpx-server-support.workspace=true
@@ -201,3 +202,8 @@ required-features = ["business-http"]
 name = "native-finance-development"
 path = "../../scripts/seed/native-finance-development.rs"
 required-features = ["private-development-api"]
+
+[[example]]
+name = "export-finance-journal-post-contracts"
+path = "../../scripts/docs/export-finance-journal-post-contracts.rs"
+required-features = ["contracts"]

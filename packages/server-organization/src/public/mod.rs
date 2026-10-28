@@ -15,3 +15,5 @@ pub use crate::domain::hierarchy::{
     CompanyContext, HierarchyLineage, NodeKind, NodeStatus, OrganizationNode, WorkspaceRouteQuery,
     company_context,
 };
+
+pub mod journal_flow_department;

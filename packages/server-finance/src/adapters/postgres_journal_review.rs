@@ -86,6 +86,36 @@ pub trait PgFinanceJournalReviewPolicy: Send {
     /// History is called only after Workflow matches the entire request hash.
     /// Repeated calls must revalidate the original foreign source/purchase facts,
     /// not accept source_type/source_id or a caller-supplied capability as proof.
+    /// Optional for legacy foundation callers. An HTTP composition that enables
+    /// journal posting must supply the enforced implementation.
+    fn prepare_post_flow(
+        &mut self,
+        _c: &mut PgConnection,
+        _actor: &CommandActor,
+        _journal: &ReviewJournal,
+        _command: &JournalReviewCommand,
+        _now: i64,
+    ) -> impl Future<Output = Result<(), WorkflowError>> + Send {
+        async { Ok(()) }
+    }
+    fn apply_post_flow_before(
+        &mut self,
+        _c: &mut PgConnection,
+    ) -> impl Future<Output = Result<(), WorkflowError>> + Send {
+        async { Ok(()) }
+    }
+    fn apply_post_flow_after(
+        &mut self,
+        _c: &mut PgConnection,
+    ) -> impl Future<Output = Result<(), WorkflowError>> + Send {
+        async { Ok(()) }
+    }
+    fn retain_post_flow(
+        &mut self,
+        _c: &mut PgConnection,
+    ) -> impl Future<Output = Result<(), WorkflowError>> + Send {
+        async { Ok(()) }
+    }
     fn require_source_access(
         &mut self,
         connection: &mut PgConnection,
@@ -263,13 +293,14 @@ impl PgOwnerCommandEffects for ReplayOnly {
         Err(PersistenceError::new("FINANCE_REPLAY_CANNOT_RETAIN").into())
     }
 }
-struct Effects<'a> {
+struct Effects<'a, P> {
+    policy: &'a Mutex<P>,
     source: &'a PgJournalReviewSource,
     plan: &'a JournalReviewPlan,
     money: &'a PgJournalReviewMoney,
     normalized: Option<&'a NormalizedJournalReviewCommand>,
 }
-impl PgOwnerCommandEffects for Effects<'_> {
+impl<P: PgFinanceJournalReviewPolicy> PgOwnerCommandEffects for Effects<'_, P> {
     async fn lock_sources(
         &mut self,
         _: &mut PgConnection,
@@ -302,6 +333,7 @@ impl PgOwnerCommandEffects for Effects<'_> {
         _: &WorkflowRequest,
     ) -> Result<(), WorkflowError> {
         self.source.require_before(c).await.map_err(to_workflow)?;
+        self.policy.lock().await.apply_post_flow_before(c).await?;
         image::apply(c, actor, self.source, self.plan)
             .await
             .map_err(to_workflow)?;
@@ -310,7 +342,8 @@ impl PgOwnerCommandEffects for Effects<'_> {
             .map_err(to_workflow)?;
         image::apply_opening(c, actor, self.source, self.plan)
             .await
-            .map_err(to_workflow)
+            .map_err(to_workflow)?;
+        self.policy.lock().await.apply_post_flow_after(c).await
     }
     async fn retain(
         &mut self,
@@ -329,7 +362,8 @@ impl PgOwnerCommandEffects for Effects<'_> {
         )
         .await
         .map_err(to_workflow)?;
-        retention::primary(self.source, self.plan, &self.money.row, &after).map_err(to_workflow)
+        retention::primary(self.source, self.plan, &self.money.row, &after).map_err(to_workflow)?;
+        self.policy.lock().await.retain_post_flow(c).await
     }
 }
 
@@ -533,13 +567,28 @@ impl<P: PgFinanceJournalReviewPolicy, C: Clock + Sync, I: IdentifierSource + Sen
     }
     async fn prepare_money(
         &mut self,
-        _: &CommandActor,
+        actor: &CommandActor,
         source: &PgJournalReviewSource,
         plan: &JournalReviewPlan,
     ) -> Result<PgJournalReviewMoney, Error> {
         source.require_before(self.connection).await?;
+        let row = money::prepare(source, plan, self.clock.now().get())?;
+        if matches!(source.command.input, JournalReviewInput::Post { .. }) {
+            self.policy
+                .lock()
+                .await
+                .prepare_post_flow(
+                    self.connection,
+                    actor,
+                    &source.journal,
+                    &source.command,
+                    self.clock.now().get(),
+                )
+                .await
+                .map_err(from_workflow)?;
+        }
         Ok(PgJournalReviewMoney {
-            row: money::prepare(source, plan, self.clock.now().get())?,
+            row,
             witness: source.witness.clone(),
         })
     }
@@ -561,6 +610,7 @@ impl<P: PgFinanceJournalReviewPolicy, C: Clock + Sync, I: IdentifierSource + Sen
             normalized: self.normalized.as_ref(),
         };
         let mut effects = Effects {
+            policy: self.policy,
             source,
             plan,
             money,
@@ -616,6 +666,12 @@ impl<P: PgFinanceJournalReviewPolicy, C: Clock + Sync, I: IdentifierSource + Sen
         .await?;
         let now = image::database_now(self.connection).await?;
         retention::complete(source, plan, &money.row, &after, now)?;
+        self.policy
+            .lock()
+            .await
+            .retain_post_flow(self.connection)
+            .await
+            .map_err(from_workflow)?;
         self.retained = Some((source.primary_ids.clone(), after));
         Ok(())
     }

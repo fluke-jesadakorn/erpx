@@ -1038,6 +1038,7 @@ dependencies = [
  "erpx-server-inventory",
  "erpx-server-legal",
  "erpx-server-maintenance",
+ "erpx-server-organization",
  "erpx-server-people-payroll",
  "erpx-server-platform-administration",
  "erpx-server-pms",

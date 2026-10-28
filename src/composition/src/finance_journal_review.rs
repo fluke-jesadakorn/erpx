@@ -1,6 +1,7 @@
 //! Development-only actual Finance/Identity/Commercial assembly. This library
 //! mounts no route and cannot substitute Legal acceptance for Finance release.
 mod field_service_parts;
+mod journal_post_flow;
 mod maintenance_parts;
 use erpx_server_commercial::public::purchases::{
     CapabilityPurpose, CommercialCatalogue, PackageEnforcementMode, PgCompanyPurchaseReader,
@@ -53,6 +54,7 @@ pub struct FinanceJournalConfiguration {
     holding_id: HoldingId,
     company_id: CompanyId,
     purchases: Arc<CommercialCatalogue>,
+    enforce_post_flow: bool,
 }
 impl FinanceJournalConfiguration {
     pub fn new(
@@ -72,7 +74,20 @@ impl FinanceJournalConfiguration {
             holding_id,
             company_id,
             purchases,
+            enforce_post_flow: false,
         })
+    }
+    /// Explicit native HTTP journal post composition; existing foundation
+    /// callers retain their previous constructor and behavior.
+    pub fn new_enforced_post(
+        environment: FinanceJournalEnvironment,
+        holding_id: HoldingId,
+        company_id: CompanyId,
+        purchases: Arc<CommercialCatalogue>,
+    ) -> Result<Self, BusinessError> {
+        let mut config = Self::new(environment, holding_id, company_id, purchases)?;
+        config.enforce_post_flow = true;
+        Ok(config)
     }
     async fn lock_sources(&self, c: &mut PgConnection) -> Result<(), Error> {
         lock_commercial_authority_sources(c).await?;
@@ -84,6 +99,13 @@ impl FinanceJournalConfiguration {
         )
         .await?;
         erpx_server_workflow::public::record_origin::lock_record_origin_sources(c).await?;
+        if self.enforce_post_flow {
+            erpx_server_identity_access::public::journal_flow_participants::lock_journal_flow_participant_sources(c).await?;
+            erpx_server_people_payroll::public::journal_flow_people::lock_journal_flow_people_sources(c).await?;
+            erpx_server_organization::public::journal_flow_department::lock_journal_flow_department_sources(c).await?;
+            erpx_server_workflow::public::journal_post_flow::lock_journal_post_flow_sources(c)
+                .await?;
+        }
         erpx_server_field_service::public::finance_lineage::lock_field_service_parts_finance_sources(c).await
     }
 }
@@ -201,6 +223,7 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalReviewAdministration<C> {
                             configuration: &configuration,
                             source: None,
                             purchase: None,
+                            flow: None,
                         });
                         let mut ids = ReviewIds;
                         let mut ports = PgJournalReview::new(
@@ -301,6 +324,7 @@ struct CurrentFinancePolicy<'a> {
     configuration: &'a FinanceJournalConfiguration,
     source: Option<CurrentFinanceSource>,
     purchase: Option<(CapabilityPurpose, PurchaseWitness)>,
+    flow: Option<journal_post_flow::JournalPostFlow>,
 }
 enum CurrentFinanceSource {
     Owned(Box<CurrentJournalReviewScope>),
@@ -386,6 +410,52 @@ impl PgFinanceJournalReviewPolicy for CurrentFinancePolicy<'_> {
         // resource context. General production release is rejected at config.
         Ok(self.selected(actor, now)?)
     }
+    async fn prepare_post_flow(
+        &mut self,
+        c: &mut PgConnection,
+        actor: &CommandActor,
+        journal: &ReviewJournal,
+        command: &JournalReviewCommand,
+        now: i64,
+    ) -> Result<(), Error> {
+        if self.configuration.enforce_post_flow {
+            self.selected(actor, now)?;
+            if self.flow.is_some() {
+                return Err(scope_error().into());
+            }
+            self.flow = Some(
+                journal_post_flow::JournalPostFlow::prepare(c, self.current, journal, command, now)
+                    .await?,
+            );
+        }
+        Ok(())
+    }
+    async fn apply_post_flow_before(&mut self, c: &mut PgConnection) -> Result<(), Error> {
+        if self.configuration.enforce_post_flow {
+            self.flow
+                .as_ref()
+                .ok_or_else(scope_error)?
+                .before(c)
+                .await?;
+        }
+        Ok(())
+    }
+    async fn apply_post_flow_after(&mut self, c: &mut PgConnection) -> Result<(), Error> {
+        if self.configuration.enforce_post_flow {
+            self.flow.as_ref().ok_or_else(scope_error)?.after(c).await?;
+        }
+        Ok(())
+    }
+    async fn retain_post_flow(&mut self, c: &mut PgConnection) -> Result<(), Error> {
+        if self.configuration.enforce_post_flow {
+            self.flow
+                .as_ref()
+                .ok_or_else(scope_error)?
+                .retain(c)
+                .await?;
+        }
+        Ok(())
+    }
     async fn require_source_access(
         &mut self,
         c: &mut PgConnection,
@@ -430,6 +500,20 @@ impl PgFinanceJournalReviewPolicy for CurrentFinancePolicy<'_> {
                         },
                     },
                 );
+            }
+        }
+        if self.configuration.enforce_post_flow {
+            match (&self.source, &command.input) {
+                (Some(CurrentFinanceSource::Owned(source)), JournalReviewInput::Post { .. })
+                    if source.journal_id() == source.root_journal_id() => {}
+                _ => {
+                    return Err(BusinessError::new(
+                        FailureKind::Unavailable,
+                        "JOURNAL_FLOW_SOURCE_UNSUPPORTED",
+                        "This journal source is not available for native posting.",
+                    )
+                    .into());
+                }
             }
         }
         if purpose == FinanceJournalAccessPurpose::BaselineRead {

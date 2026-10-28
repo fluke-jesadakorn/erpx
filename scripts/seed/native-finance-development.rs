@@ -67,6 +67,9 @@ async fn main() {
         let prepared = finance::setup(system).await;
         prepared.create("development", false).await.expect("finance fixture unavailable");
         let system = &prepared.system;
+        // Synthetic reviewer, with a real published scoped workflow role and
+        // an active HR engagement. The journal remains created by fixture-a.
+        sqlx::raw_sql("INSERT INTO iam_roles(company_id,id,name,built_in,published_revision,status)VALUES('*','journal_flow_reviewer','Journal workflow reviewer',false,1,'active');INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at)VALUES('*','journal_flow_reviewer',1,'[\"finance.read\",\"finance.write\",\"finance.approve\",\"module.finance.read\",\"workflow.finance_approver\"]','[]','[\"holding\"]','fixture',0);UPDATE assignments SET role='journal_flow_reviewer' WHERE id='finance-fixture-b';INSERT INTO hr_people(id,user_id,company_id,legal_name,country_code,status,created_by,created_at,updated_at)VALUES('person-reviewer','fixture-b','company','Reviewer','TH','active','fixture',0,0);INSERT INTO hr_engagements(id,person_id,company_id,worker_type,employment_type,status,start_date,job_title,currency,created_by,created_at,updated_at)VALUES('reviewer-engagement','person-reviewer','company','employee','salaried','active','2020-01-01','Reviewer','THB','fixture',0,0)").execute(system.holdings[0].raw()).await.expect("journal reviewer fixture unavailable");
         let control = private_fixture::database(&system.control).await;
         let h001 = private_fixture::database(&system.holdings[0]).await;
         let h002 = private_fixture::database(&system.holdings[1]).await;
@@ -77,7 +80,7 @@ async fn main() {
             "holdings":[
                 {"holdingId":"h001","slug":"acme","host":"acme.jesadakorn.com","writeBinding":"HOLDING_H001_DB","readBinding":"HOLDING_H001_READ_DB","filesBinding":"HOLDING_H001_FILES","database":h001},
                 {"holdingId":"h002","slug":"northstar","host":"northstar.jesadakorn.com","writeBinding":"HOLDING_H002_DB","readBinding":"HOLDING_H002_READ_DB","filesBinding":"HOLDING_H002_FILES","database":h002}
-            ],"financeJournalReads":[{"holdingId":"h001","companyId":"company"}],"accountBootstrap":true
+            ],"financeJournalReads":[{"holdingId":"h001","companyId":"company"}],"financeJournalPosts":["h001"],"accountBootstrap":true
         });
         let configuration = DevelopmentApiConfiguration::parse(&doc.to_string()).expect("invalid explicit native case configuration");
         let manifest = serde_json::json!({"version":1,"databases":{
