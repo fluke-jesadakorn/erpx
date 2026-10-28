@@ -220,3 +220,46 @@ pub struct FieldServiceRequestInput {
     #[cfg_attr(feature="contracts", schema(value_type=Option<i64>,minimum=1,maximum=9_007_199_254_740_991_i64))]
     pub scheduled_at: Option<i64>,
 }
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct FieldServiceOrderCreateInput {
+    pub ticket_id: String,
+    #[cfg_attr(feature = "contracts", ts(type = "number"))]
+    #[cfg_attr(feature="contracts",schema(value_type=i64,minimum=1,maximum=9_007_199_254_740_991_i64))]
+    pub ticket_version: i64,
+    pub agreement_id: String,
+    #[cfg_attr(feature = "contracts", ts(type = "number"))]
+    #[cfg_attr(feature="contracts",schema(value_type=i64,minimum=1,maximum=9_007_199_254_740_991_i64))]
+    pub agreement_version: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub asset_id: Option<String>,
+    pub issue: String,
+    pub site: String,
+    pub technician_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "contracts", ts(optional, type = "number | null"))]
+    #[cfg_attr(feature="contracts",schema(value_type=Option<i64>,minimum=1,maximum=9_007_199_254_740_991_i64))]
+    pub scheduled_at: Option<i64>,
+}
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct FieldServiceCreatedOrderRead {
+    pub id: String,
+    pub ticket_id: String,
+    #[cfg_attr(feature = "contracts", ts(type = "number"))]
+    #[cfg_attr(feature="contracts",schema(value_type=i64,minimum=1,maximum=9_007_199_254_740_991_i64))]
+    pub ticket_version: i64,
+    pub agreement_id: String,
+    #[cfg_attr(feature = "contracts", ts(type = "number"))]
+    #[cfg_attr(feature="contracts",schema(value_type=i64,minimum=1,maximum=9_007_199_254_740_991_i64))]
+    pub agreement_version: i64,
+    pub customer_id: String,
+    pub asset_id: Option<String>,
+    pub status: String,
+    #[cfg_attr(feature = "contracts", ts(type = "number"))]
+    #[cfg_attr(feature="contracts",schema(value_type=i64,minimum=1,maximum=9_007_199_254_740_991_i64))]
+    pub version: i64,
+}

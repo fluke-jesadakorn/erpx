@@ -46,7 +46,7 @@ use erpx_server_support::public::field_service_request::{
 use erpx_server_workflow::public::commands::*;
 use sqlx::PgConnection;
 use std::sync::Arc;
-async fn database_now(c: &mut PgConnection) -> Result<TimestampMillis, Error> {
+pub(super) async fn database_now(c: &mut PgConnection) -> Result<TimestampMillis, Error> {
     let ms: i64 =
         sqlx::query_scalar("SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint")
             .fetch_one(c)
@@ -60,7 +60,7 @@ fn unavailable() -> BusinessError {
         "The original Service source is not available in this workspace.",
     )
 }
-fn actor(
+pub(super) fn actor(
     current: &AuthorizedWorkContext,
     now: TimestampMillis,
 ) -> Result<CommandActor, BusinessError> {
@@ -198,6 +198,7 @@ impl<'a> RequestSources<'a> {
             branch_id: a.branch_id.as_str().into(),
             department_id: a.department_id.as_ref().map(|v| v.as_str().into()),
             ticket_id,
+            ticket_version: 1,
             agreement_id: a.id.as_str().into(),
             agreement_version: a.version,
             asset_id: a.asset_id.as_ref().map(|v| v.as_str().into()),
@@ -322,13 +323,13 @@ impl PgFieldServiceNotificationSource for After<'_, '_> {
         self.order.require_image(c).await
     }
 }
-struct Purchases {
+pub(super) struct Purchases {
     catalogue: CommercialCatalogue,
     history: PurchaseWitness,
     new_work: Option<PurchaseWitness>,
 }
 impl Purchases {
-    async fn read(
+    pub(super) async fn read(
         c: &mut PgConnection,
         current: &AuthorizedWorkContext,
         asset: bool,
@@ -373,7 +374,7 @@ impl Purchases {
             new_work,
         })
     }
-    async fn check(
+    pub(super) async fn check(
         &self,
         c: &mut PgConnection,
         current: &AuthorizedWorkContext,

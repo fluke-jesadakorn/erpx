@@ -5,7 +5,7 @@ import {canonicalUiHref} from "@erpx/feature-work_projection/lib/destination-reg
 import {registerUnsavedWork,registerContextSwitchBlocker} from "@erpx/feature-work_projection/lib/context-switch";
 import {createFieldServiceCommands,fieldServiceOwner,type FieldServiceSource} from "@erpx/feature-field_service/lib/command";
 import {createNativeReserveCommands,type ReserveContext} from '@erpx/feature-field_service/lib/native-reserve-command';
-export function useFieldServiceCommand(current:()=>FieldServiceSource|null,rendered:FieldServiceSource,nativeReserve?:{context?:ReserveContext;issue?:boolean;reserve?:boolean;request?:boolean}) {
+export function useFieldServiceCommand(current:()=>FieldServiceSource|null,rendered:FieldServiceSource,nativeReserve?:{context?:ReserveContext;issue?:boolean;reserve?:boolean;request?:boolean;create?:boolean}) {
   const router=useRouter(),commands=useRef<ReturnType<typeof createFieldServiceCommands>|null>(null),inFlight=useRef(false);commands.current??=createFieldServiceCommands(current);
   const native=useMemo(()=>createNativeReserveCommands(current,undefined,JSON.stringify([rendered.base,rendered.recordId])),[current,rendered.base,rendered.recordId]);
   useLayoutEffect(()=>{native.setContext(nativeReserve?.context);},[native,nativeReserve?.context]);
@@ -18,7 +18,7 @@ export function useFieldServiceCommand(current:()=>FieldServiceSource|null,rende
     if(inFlight.current)return;const source=current();if(!source)return;const capturedOwner=fieldServiceOwner(source);inFlight.current=true;setMessageOwner(capturedOwner);setBusy(true);setError("");setNotice("");
     try {
       native.setContext(nativeReserve?.context);
-      const reserve=native.pending() || !!nativeReserve && !retry && !!input && typeof input==='object' && (('entity' in input && input.entity==='request' && nativeReserve.request) || ('action' in input && (input.action==='reserve-part' && nativeReserve.reserve!==false || input.action==='issue-part' && nativeReserve.issue)));
+      const reserve=native.pending() || !!nativeReserve && !retry && !!input && typeof input==='object' && (('entity' in input && input.entity==='request' && nativeReserve.request) || (!('entity' in input) && !('id' in input) && !('action' in input) && nativeReserve.create) || ('action' in input && (input.action==='reserve-part' && nativeReserve.reserve!==false || input.action==='issue-part' && nativeReserve.issue)));
       if(reserve && commands.current!.pending() && !native.pending()) throw Error("Confirm the original Service request first. Your newer entries remain unsent.");
       const selected=reserve?native:commands.current!;
       const outcome=await(retry?selected.retry():selected.submit(input,form?{form,formEditVersion:form.getAttribute('data-erpx-edit-version')}:undefined,displayed)),unchanged=outcome.unchanged();

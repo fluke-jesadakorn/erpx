@@ -617,4 +617,103 @@ mod request_tests {
         assert_eq!(error.issues[0].path, field("title"));
         assert_eq!(error.issues[1].path, field("scheduledAt"));
     }
+    #[test]
+    fn order_create_fingerprint_distinguishes_null_from_omitted_fields() {
+        let explicit = normalize_service_order_create(br#"{"ticketId":"t","ticketVersion":3,"agreementId":"a","agreementVersion":2,"assetId":null,"issue":" Broken ","site":" Shop ","technicianId":"u","scheduledAt":null,"ignored":true}"#).unwrap();
+        let omitted = normalize_service_order_create(br#"{"ticketId":"t","ticketVersion":3,"agreementId":"a","agreementVersion":2,"issue":"Broken","site":"Shop","technicianId":"u"}"#).unwrap();
+        assert_eq!(explicit.asset_id, None);
+        assert_eq!(explicit.scheduled_at, None);
+        assert_ne!(
+            explicit.receipt_input.as_str(),
+            omitted.receipt_input.as_str()
+        );
+        assert!(!explicit.receipt_input.as_str().contains("ignored"));
+    }
+}
+
+#[derive(Clone)]
+pub struct NormalizedServiceOrderCreate {
+    pub ticket_id: String,
+    pub ticket_version: i64,
+    pub agreement_id: String,
+    pub agreement_version: i64,
+    pub asset_id: Option<String>,
+    pub issue: String,
+    pub site: String,
+    pub technician_id: String,
+    pub scheduled_at: Option<i64>,
+    pub receipt_input: CommandJson,
+}
+pub fn normalize_service_order_create(
+    bytes: &[u8],
+) -> Result<NormalizedServiceOrderCreate, FieldServiceWireFailure> {
+    let body = document(bytes)?;
+    let mut check = Validation::default();
+    let mut fields = Vec::new();
+    for (name, version) in [
+        ("ticketId", "ticketVersion"),
+        ("agreementId", "agreementVersion"),
+    ] {
+        if let Some(v) = check.string(property(&body, name), &field(name), 1, None, false) {
+            fields.push((name, v));
+        }
+        if let Some(v) = check.integer(property(&body, version), &field(version), false) {
+            fields.push((version, v));
+        }
+    }
+    if let Some(value) = property(&body, "assetId") {
+        if value.as_str() == "null" {
+            fields.push(("assetId", value));
+        } else if let Some(v) = check.string(Some(value), &field("assetId"), 0, None, false) {
+            fields.push(("assetId", v));
+        }
+    }
+    for (name, max) in [("issue", 3000), ("site", 300)] {
+        if let Some(v) = check.string(property(&body, name), &field(name), 3, Some(max), true) {
+            fields.push((name, v));
+        }
+    }
+    if let Some(v) = check.string(
+        property(&body, "technicianId"),
+        &field("technicianId"),
+        1,
+        None,
+        false,
+    ) {
+        fields.push(("technicianId", v));
+    }
+    if let Some(value) = property(&body, "scheduledAt") {
+        if value.as_str() == "null" {
+            fields.push(("scheduledAt", value));
+        } else if let Some(v) = check.integer(Some(value), &field("scheduledAt"), false) {
+            fields.push(("scheduledAt", v));
+        }
+    }
+    let json = check.finish(&fields)?;
+    let asset_id = match property(&json, "assetId") {
+        None => None,
+        Some(v) if v.as_str() == "null" => None,
+        Some(_) => Some(text(&json, "assetId")?),
+    };
+    let scheduled_at = match property(&json, "scheduledAt") {
+        None => None,
+        Some(v) if v.as_str() == "null" => None,
+        Some(v) => Some(
+            v.as_str()
+                .parse()
+                .map_err(|_| FieldServiceWireFailure::json())?,
+        ),
+    };
+    Ok(NormalizedServiceOrderCreate {
+        ticket_id: text(&json, "ticketId")?,
+        ticket_version: int(&json, "ticketVersion")?,
+        agreement_id: text(&json, "agreementId")?,
+        agreement_version: int(&json, "agreementVersion")?,
+        asset_id,
+        issue: text(&json, "issue")?,
+        site: text(&json, "site")?,
+        technician_id: text(&json, "technicianId")?,
+        scheduled_at,
+        receipt_input: json,
+    })
 }

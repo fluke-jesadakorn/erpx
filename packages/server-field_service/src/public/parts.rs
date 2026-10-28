@@ -21,4 +21,7 @@ pub use crate::application::http_parts::{
     FieldServicePhysicalOrderId, FieldServiceRawOrderTarget, PendingFieldServiceParts,
 };
 
+pub use crate::adapters::parts_wire::{
+    NormalizedServiceOrderCreate, normalize_service_order_create,
+};
 pub use crate::adapters::parts_wire::{NormalizedServiceRequest, normalize_service_request};

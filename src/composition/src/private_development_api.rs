@@ -5,7 +5,7 @@ use crate::{
     field_service_http::{FieldServiceHttpTarget, field_service_http_router},
     field_service_parts::{
         FieldServicePartsAdministration, FieldServicePartsConfiguration,
-        FieldServicePartsEnvironment, RequestDispatcher,
+        FieldServicePartsEnvironment, OrderCreateDispatcher, RequestDispatcher,
     },
     field_service_reservation_read::{
         FieldServiceReservationReadConfiguration, FieldServiceReservationReadService,
@@ -126,6 +126,8 @@ struct ConfigurationDocument {
     #[serde(default)]
     field_service_requests: Vec<String>,
     #[serde(default)]
+    field_service_order_creates: Vec<String>,
+    #[serde(default)]
     account_bootstrap: bool,
 }
 struct HoldingConfiguration {
@@ -154,6 +156,7 @@ pub struct DevelopmentApiConfiguration {
     field_service_reservations: BTreeSet<HoldingId>,
     field_service_issues: BTreeSet<HoldingId>,
     field_service_requests: BTreeSet<HoldingId>,
+    field_service_order_creates: BTreeSet<HoldingId>,
     account_bootstrap: bool,
 }
 impl fmt::Debug for DevelopmentApiConfiguration {
@@ -332,6 +335,16 @@ impl DevelopmentApiConfiguration {
                 return Err("PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID");
             }
         }
+        let mut field_service_order_creates = BTreeSet::new();
+        for id in doc.field_service_order_creates {
+            let holding = HoldingId::new(id)
+                .map_err(|_| "PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID")?;
+            if !field_service_reads.contains_key(&holding)
+                || !field_service_order_creates.insert(holding)
+            {
+                return Err("PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID");
+            }
+        }
         let mut finance_field_service_journal_posts = BTreeSet::new();
         for id in doc.finance_field_service_journal_posts {
             let holding =
@@ -385,6 +398,7 @@ impl DevelopmentApiConfiguration {
             field_service_reservations,
             field_service_issues,
             field_service_requests,
+            field_service_order_creates,
             account_bootstrap: doc.account_bootstrap,
         })
     }
@@ -592,6 +606,7 @@ async fn assemble_checked(
     let mut service_reservation_targets = BTreeSet::new();
     let mut service_issue_targets = BTreeSet::new();
     let mut service_request_targets = BTreeSet::new();
+    let mut service_order_create_targets = BTreeSet::new();
     if !config.finance_journal_reads.is_empty() {
         let catalogue = Arc::new(
             current_package_catalogue().map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
@@ -815,6 +830,12 @@ async fn assemble_checked(
             {
                 service_request_targets.insert(target.clone());
             }
+            if config
+                .field_service_order_creates
+                .contains(&holding.registration.holding_id)
+            {
+                service_order_create_targets.insert(target.clone());
+            }
             service_read_targets.insert(target.clone());
             let read_configuration = FieldServiceReservationReadConfiguration::new(
                 FieldServicePartsEnvironment::Development,
@@ -828,6 +849,14 @@ async fn assemble_checked(
                 .contains(&holding.registration.holding_id)
             {
                 read_configuration.with_requests()
+            } else {
+                read_configuration
+            };
+            let read_configuration = if config
+                .field_service_order_creates
+                .contains(&holding.registration.holding_id)
+            {
+                read_configuration.with_order_creates()
             } else {
                 read_configuration
             };
@@ -854,7 +883,10 @@ async fn assemble_checked(
             let request_enabled = config
                 .field_service_requests
                 .contains(&holding.registration.holding_id);
-            if reserve_enabled || request_enabled {
+            let order_create_enabled = config
+                .field_service_order_creates
+                .contains(&holding.registration.holding_id);
+            if reserve_enabled || request_enabled || order_create_enabled {
                 service_reservation_targets.insert(target.clone());
                 let action = FieldServicePartsConfiguration::new(
                     FieldServicePartsEnvironment::Development,
@@ -872,13 +904,22 @@ async fn assemble_checked(
                 let issue_enabled = config
                     .field_service_issues
                     .contains(&holding.registration.holding_id);
-                reserves.push(if request_enabled {
-                    FieldServiceHttpTarget::new_private_requests(
+                reserves.push(if request_enabled || order_create_enabled {
+                    FieldServiceHttpTarget::new_private_creates(
                         target.0,
                         target.1,
                         service,
-                        Arc::new(RequestDispatcher {
-                            clock: Arc::new(SharedClock(clock.clone())),
+                        request_enabled.then(|| {
+                            Arc::new(RequestDispatcher {
+                                clock: Arc::new(SharedClock(clock.clone())),
+                            })
+                                as Arc<dyn crate::field_service_parts::OtherPost>
+                        }),
+                        order_create_enabled.then(|| {
+                            Arc::new(OrderCreateDispatcher {
+                                clock: Arc::new(SharedClock(clock.clone())),
+                            })
+                                as Arc<dyn crate::field_service_parts::OtherPost>
                         }),
                         reserve_enabled,
                         issue_enabled,
@@ -925,6 +966,7 @@ async fn assemble_checked(
         service_reservation_targets,
         service_issue_targets,
         service_request_targets,
+        service_order_create_targets,
         account_bootstrap: config.account_bootstrap,
     });
     Ok(router.layer(middleware::from_fn_with_state(state, boundary)))
@@ -949,6 +991,7 @@ struct Boundary {
     service_reservation_targets: BTreeSet<(String, String)>,
     service_issue_targets: BTreeSet<(String, String)>,
     service_request_targets: BTreeSet<(String, String)>,
+    service_order_create_targets: BTreeSet<(String, String)>,
     account_bootstrap: bool,
 }
 enum BoundaryDenial {
@@ -1148,6 +1191,18 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             key,
         ] if !key.is_empty() => state
             .service_request_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
+        [
+            "",
+            "api",
+            "v1",
+            "holdings",
+            slug,
+            "field-service",
+            "orders",
+            key,
+        ] if !key.is_empty() => state
+            .service_order_create_targets
             .contains(&(host.to_owned(), (*slug).to_owned())),
         _ => false,
     };

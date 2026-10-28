@@ -1,13 +1,14 @@
 use erpx_server_field_service::public::reservation_read::{
-    FieldServiceIssueAction, FieldServiceIssueAllocation, FieldServiceIssueEvent,
-    FieldServiceIssueInput, FieldServiceRequestEntity, FieldServiceRequestEvent,
-    FieldServiceRequestInput, FieldServiceRequestOrderRead, FieldServiceRequestResult,
-    FieldServiceRequestTicketRead, FieldServiceReservationRead, FieldServiceReserveAction,
-    FieldServiceReserveEvent, FieldServiceReserveInput, FieldServiceReserveResult,
-    FieldServiceStockSnapshot,
+    FieldServiceCreatedOrderRead, FieldServiceIssueAction, FieldServiceIssueAllocation,
+    FieldServiceIssueEvent, FieldServiceIssueInput, FieldServiceOrderCreateInput,
+    FieldServiceRequestEntity, FieldServiceRequestEvent, FieldServiceRequestInput,
+    FieldServiceRequestOrderRead, FieldServiceRequestResult, FieldServiceRequestTicketRead,
+    FieldServiceReservationRead, FieldServiceReserveAction, FieldServiceReserveEvent,
+    FieldServiceReserveInput, FieldServiceReserveResult, FieldServiceStockSnapshot,
 };
 use erpx_service::field_service_reservation_read::{
-    FieldServiceIssueReadResponse, FieldServiceRenderedContext, FieldServiceRequestReadResponse,
+    FieldServiceIssueReadResponse, FieldServiceOrderCreateReadResponse,
+    FieldServiceRenderedContext, FieldServiceRequestReadResponse,
     FieldServiceReservationReadResponse,
 };
 use ts_rs::{Config, TS};
@@ -25,13 +26,19 @@ fn issue_read() {}
 #[utoipa::path(get,path="/api/v1/holdings/{holding_slug}/field-service/requests/{key}",params(("holding_slug"=String,Path),("key"=String,Path)),responses((status=200,body=FieldServiceRequestReadResponse,description="Current scoped request evidence")))]
 fn request_read() {}
 const _: fn() = request_read;
+#[utoipa::path(get,path="/api/v1/holdings/{holding_slug}/field-service/orders/{key}",params(("holding_slug"=String,Path),("key"=String,Path)),responses((status=200,body=FieldServiceOrderCreateReadResponse,description="Current scoped created order evidence")))]
+fn order_create_read() {}
+const _: fn() = order_create_read;
 const _: fn() = issue_read;
 const _: fn() = reserve;
 const _: fn() = read;
 #[derive(utoipa::OpenApi)]
 #[openapi(
-    paths(reserve, read, issue_read, request_read),
+    paths(reserve, read, issue_read, request_read, order_create_read),
     components(schemas(
+        FieldServiceOrderCreateInput,
+        FieldServiceCreatedOrderRead,
+        FieldServiceOrderCreateReadResponse,
         FieldServiceRequestEntity,
         FieldServiceRequestInput,
         FieldServiceRequestResult,
@@ -70,7 +77,7 @@ fn main() {
         value["components"]["schemas"]["FieldServiceIssueInput"]["properties"]["action"] =
             serde_json::json!({"type":"string","const":"issue-part"});
         value["paths"]["/api/v1/holdings/{holding_slug}/field-service"]["post"]["requestBody"]["content"]
-            ["application/json"]["schema"] = serde_json::json!({"oneOf":[{"$ref":"#/components/schemas/FieldServiceReserveInput"},{"$ref":"#/components/schemas/FieldServiceIssueInput"},{"$ref":"#/components/schemas/FieldServiceRequestInput"}]});
+            ["application/json"]["schema"] = serde_json::json!({"oneOf":[{"$ref":"#/components/schemas/FieldServiceReserveInput"},{"$ref":"#/components/schemas/FieldServiceIssueInput"},{"$ref":"#/components/schemas/FieldServiceRequestInput"},{"$ref":"#/components/schemas/FieldServiceOrderCreateInput"}]});
         println!("{}", serde_json::to_string_pretty(&value).unwrap());
         return;
     }
@@ -80,6 +87,9 @@ fn main() {
         "// Generated from the Rust Field Service reservation contracts. Do not edit by hand.\n// Regenerate: bun scripts/docs/generate-field-service-reserve-contracts.ts"
     );
     for declaration in [
+        FieldServiceOrderCreateInput::decl(&config),
+        FieldServiceCreatedOrderRead::decl(&config),
+        FieldServiceOrderCreateReadResponse::decl(&config),
         FieldServiceRequestEntity::decl(&config),
         FieldServiceRequestInput::decl(&config),
         FieldServiceRequestResult::decl(&config),

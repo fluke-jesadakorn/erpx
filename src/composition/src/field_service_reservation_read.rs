@@ -124,6 +124,16 @@ pub struct FieldServiceRequestReadResponse {
     pub ticket: erpx_server_field_service::public::reservation_read::FieldServiceRequestTicketRead,
     pub event: erpx_server_field_service::public::reservation_read::FieldServiceRequestEvent,
 }
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct FieldServiceOrderCreateReadResponse {
+    pub context: FieldServiceRenderedContext,
+    pub receipt: FieldServiceReserveResult,
+    pub order: erpx_server_field_service::public::reservation_read::FieldServiceCreatedOrderRead,
+    pub ticket: erpx_server_field_service::public::reservation_read::FieldServiceRequestTicketRead,
+    pub event: erpx_server_field_service::public::reservation_read::FieldServiceRequestEvent,
+}
 fn context(current: &AuthorizedWorkContext) -> Result<FieldServiceRenderedContext, BusinessError> {
     let selected = current.selection();
     let scope = selected.workspace();
@@ -177,6 +187,7 @@ pub struct FieldServiceReservationReadConfiguration {
     catalogue: Arc<CommercialCatalogue>,
     issues: bool,
     requests: bool,
+    order_creates: bool,
 }
 impl FieldServiceReservationReadConfiguration {
     pub fn new(
@@ -198,7 +209,12 @@ impl FieldServiceReservationReadConfiguration {
             catalogue,
             issues: false,
             requests: false,
+            order_creates: false,
         })
+    }
+    pub fn with_order_creates(mut self) -> Self {
+        self.order_creates = true;
+        self
     }
     pub fn with_requests(mut self) -> Self {
         self.requests = true;
@@ -760,5 +776,67 @@ impl<C: Clock + Send + Sync + 'static> FieldServiceReservationReadService<C> {
                 },
             )
             .await
+    }
+    pub async fn read_created_order<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        key: String,
+    ) -> Result<FieldServiceOrderCreateReadResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        use erpx_server_assets::public::field_service_reference::read_current_field_service_physical_asset;
+        use erpx_server_field_service::public::{
+            request_agreement::read_service_request_agreement_history,
+            request_order::read_service_request_order,
+            reservation_read::{
+                FieldServiceCreatedOrderRead, FieldServiceRequestEvent,
+                FieldServiceRequestTicketRead,
+            },
+        };
+        use erpx_server_finance::public::field_service_customer::read_current_field_service_customer;
+        use erpx_server_support::public::field_service_existing_ticket::read_existing_service_ticket;
+        use erpx_server_workflow::public::record_origin::{
+            RawRecordOriginRequest, read_raw_record_origin_result_with_limit,
+            verify_raw_record_origin,
+        };
+        if !self.config.order_creates {
+            return Err(
+                BusinessError::new(FailureKind::NotFound, "NOT_FOUND", "Not found.").into(),
+            );
+        }
+        erpx_server_shared::public::CommandKey::new(key.clone())?;
+        let company = self.config.company.clone();
+        let input = move || {
+            let mut v = input()?;
+            if v.company_id != company {
+                return Err(denied());
+            }
+            v.mutation = false;
+            Ok(v)
+        };
+        let config = self.config.clone();
+        let clock = self.clock.clone();
+        self.authorizer.execute_with_sources_deferred(host,proof,input,WorkAuthorizationRequest{permission:"records.read".into(),module:Some("field_service".into()),destination:"service/orders".into(),api:true},crate::field_service_parts::FieldServicePartsSourcePreparation,move|c,current|{let config=config.clone();let clock=clock.clone();let key=key.clone();Box::pin(async move{
+   if current.holding_id()!=&config.holding||current.selection().workspace().company_id!=config.company{return Err(denied().into());}current.require_permission("records.read")?;
+   let order=read_service_request_order(c,current,&key).await?.ok_or_else(denied)?;let o=order.facts();
+   let ticket=read_existing_service_ticket(c,&config.company,&o.ticket_id).await?.ok_or_else(denied)?;let t=ticket.facts();
+   let agreement=read_service_request_agreement_history(c,current,&o.agreement_id).await?.ok_or_else(denied)?;let a=agreement.facts();
+   if o.branch_id!=t.branch_id.as_str()||o.department_id.as_deref()!=t.department_id.as_ref().map(|v|v.as_str())||a.branch_id!=t.branch_id||a.department_id!=t.department_id||a.customer_id!=t.customer_id||t.version<o.ticket_version||a.asset_id.as_ref().is_some_and(|v|Some(v.as_str())!=o.asset_id.as_deref())||o.event_status!=if o.scheduled_at.is_some(){"scheduled"}else{"open"}{return Err(denied().into());}
+   let customer=read_current_field_service_customer(c,&config.company,&a.customer_id).await?.ok_or_else(denied)?;
+   let asset=if let Some(id)=o.asset_id.as_ref().filter(|v|!v.is_empty()){let v=read_current_field_service_physical_asset(c,&config.holding,&config.company,id).await?.ok_or_else(denied)?;if v.facts().branch_id!=a.branch_id{return Err(denied().into());}Some(v)}else{None};
+   let db_now:i64=sqlx::query_scalar("SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint").fetch_one(&mut *c).await?;
+   let technician=erpx_server_identity_access::public::field_service_assignment::inspect_field_service_assignment(c,erpx_server_identity_access::public::field_service_assignment::FieldServiceAssignmentRequest{company_id:config.company.clone(),user_id:o.current_technician_id.clone(),branch_id:a.branch_id.clone(),department_id:a.department_id.clone(),permission:erpx_server_identity_access::public::field_service_assignment::FieldServiceAssignmentPermission::Write},TimestampMillis::new(db_now)).await?;
+   let person=erpx_server_people_payroll::public::field_service_worker::inspect_field_service_people_reference(c,&config.company,&o.current_technician_id).await?;
+   let mut caps=vec!["service.orders".into(),"support.source-ticket".into()];if asset.is_some()||a.asset_id.is_some(){caps.push("service.parts-assets".into());}let purchase=PgCompanyPurchaseReader::new(config.holding.clone(),config.company.clone(),c,&config.catalogue).inspect(&PurchaseRequest{capabilities:caps,purpose:CapabilityPurpose::History,mode:PackageEnforcementMode::Enforced},clock.now()).await?.require_allowed()?.clone();
+   let (origin,result)=read_raw_record_origin_result_with_limit(c,RawRecordOriginRequest{command_key:key.clone(),operation:"field.order.create".into(),record_id:o.order_id.clone(),creator_user_id:o.actor_id.clone(),company_id:config.company.clone()},1024*1024).await?.ok_or_else(denied)?;
+   let id=result.property("id")?.and_then(|v|v.string_utf8_storage().ok().flatten()).ok_or_else(denied)?;let status=result.property("status")?.and_then(|v|v.string_utf8_storage().ok().flatten()).ok_or_else(denied)?;let version=result.property("version")?.and_then(|v|v.as_str().parse::<i64>().ok()).ok_or_else(denied)?;if id!=o.order_id||status!=o.event_status||version!=1{return Err(denied().into());}
+   let reply=FieldServiceOrderCreateReadResponse{context:context(current)?,receipt:FieldServiceReserveResult{id,status,version},order:FieldServiceCreatedOrderRead{id:o.order_id.clone(),ticket_id:o.ticket_id.clone(),ticket_version:o.ticket_version,agreement_id:o.agreement_id.clone(),agreement_version:o.agreement_version,customer_id:t.customer_id.as_str().into(),asset_id:o.asset_id.clone(),status:o.status.clone(),version:o.version},ticket:FieldServiceRequestTicketRead{id:t.id.clone(),status:t.status.clone(),version:t.version},event:FieldServiceRequestEvent{actor_id:o.actor_id.clone(),status:o.event_status.clone(),version:1,issue:o.issue.clone(),site:o.site.clone(),technician_id:o.technician_id.clone(),scheduled_at:o.scheduled_at}};
+   let mut budget=ReplyBudget(0);serde_json::to_writer(&mut budget,&reply).map_err(|_|BusinessError::new(FailureKind::Unavailable,"FIELD_SERVICE_READ_LIMIT","The Service source exceeds this bounded read."))?;
+   order.require_current(c,current,&key).await?;ticket.require_current(c).await?;agreement.require_current(c,current).await?;customer.require_current(c).await?;if let Some(v)=asset{v.require_current(c).await?;}let db_now:i64=sqlx::query_scalar("SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint").fetch_one(&mut *c).await?;technician.require_current(c,TimestampMillis::new(db_now)).await?;person.require_current(c).await?;verify_raw_record_origin(c,&origin).await?;
+   PgCompanyPurchaseReader::new(config.holding.clone(),config.company.clone(),c,&config.catalogue).revalidate(&purchase,clock.now()).await?.require_allowed()?;if clock.now().get()>=current.expires_at(){return Err(denied().into());}Ok(reply)
+  })}).await
     }
 }

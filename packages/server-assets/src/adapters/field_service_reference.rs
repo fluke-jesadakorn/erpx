@@ -123,3 +123,88 @@ fn changed() -> Error {
     )
     .into()
 }
+
+/// The selected physical Asset ID is a public string, not a typed RecordId.
+/// Other owner references retain their existing typed limits.
+#[derive(Clone, Eq, PartialEq)]
+pub struct FieldServicePhysicalAssetFacts {
+    pub holding_id: HoldingId,
+    pub company_id: CompanyId,
+    pub asset_id: String,
+    pub branch_id: RecordId,
+    pub department_id: Option<RecordId>,
+    pub lifecycle_status: String,
+    pub warranty_end: Option<String>,
+    pub version: i64,
+}
+pub struct CurrentFieldServicePhysicalAsset {
+    facts: FieldServicePhysicalAssetFacts,
+    unit: Unit,
+}
+impl CurrentFieldServicePhysicalAsset {
+    pub fn facts(&self) -> &FieldServicePhysicalAssetFacts {
+        &self.facts
+    }
+    pub async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
+        if unit(c).await? != self.unit
+            || read_physical(
+                c,
+                &self.facts.holding_id,
+                &self.facts.company_id,
+                &self.facts.asset_id,
+            )
+            .await?
+            .as_ref()
+                != Some(&self.facts)
+        {
+            return Err(changed());
+        }
+        Ok(())
+    }
+}
+pub async fn read_current_field_service_physical_asset(
+    c: &mut PgConnection,
+    holding: &HoldingId,
+    company: &CompanyId,
+    id: &str,
+) -> Result<Option<CurrentFieldServicePhysicalAsset>, Error> {
+    let unit = unit(c).await?;
+    Ok(read_physical(c, holding, company, id)
+        .await?
+        .map(|facts| CurrentFieldServicePhysicalAsset { facts, unit }))
+}
+async fn read_physical(
+    c: &mut PgConnection,
+    holding: &HoldingId,
+    company: &CompanyId,
+    id: &str,
+) -> Result<Option<FieldServicePhysicalAssetFacts>, Error> {
+    let row=sqlx::query("SELECT CASE WHEN octet_length(branch_id)<=200 THEN branch_id END branch_id,CASE WHEN octet_length(department_id)<=200 THEN department_id END department_id,octet_length(department_id)::bigint department_bytes,CASE WHEN octet_length(lifecycle_status)<=32 THEN lifecycle_status END lifecycle_status,CASE WHEN octet_length(warranty_end::text)<=200 THEN warranty_end::text END warranty_end,octet_length(warranty_end::text)::bigint warranty_bytes,version::bigint version FROM operational_assets WHERE id=$1 AND company_id=$2 FOR SHARE").bind(id).bind(company.as_str()).fetch_optional(c).await?;
+    let Some(row) = row else { return Ok(None) };
+    for field in ["department_bytes", "warranty_bytes"] {
+        if row
+            .try_get::<Option<i64>, _>(field)?
+            .is_some_and(|n| n > 200)
+        {
+            return Err(invalid());
+        }
+    }
+    Ok(Some(FieldServicePhysicalAssetFacts {
+        holding_id: holding.clone(),
+        company_id: company.clone(),
+        asset_id: id.into(),
+        branch_id: RecordId::new(
+            row.try_get::<Option<String>, _>("branch_id")?
+                .ok_or_else(invalid)?,
+        )?,
+        department_id: row
+            .try_get::<Option<String>, _>("department_id")?
+            .map(RecordId::new)
+            .transpose()?,
+        lifecycle_status: row
+            .try_get::<Option<String>, _>("lifecycle_status")?
+            .ok_or_else(invalid)?,
+        warranty_end: row.try_get("warranty_end")?,
+        version: row.try_get("version")?,
+    }))
+}

@@ -1,6 +1,60 @@
 {
   "components": {
     "schemas": {
+      "FieldServiceCreatedOrderRead": {
+        "properties": {
+          "agreementId": {
+            "type": "string"
+          },
+          "agreementVersion": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "assetId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "customerId": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "ticketId": {
+            "type": "string"
+          },
+          "ticketVersion": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "version": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "ticketId",
+          "ticketVersion",
+          "agreementId",
+          "agreementVersion",
+          "customerId",
+          "status",
+          "version"
+        ],
+        "type": "object"
+      },
       "FieldServiceIssueAction": {
         "enum": [
           "issue-part"
@@ -163,6 +217,89 @@
           "event",
           "reservation",
           "stock"
+        ],
+        "type": "object"
+      },
+      "FieldServiceOrderCreateInput": {
+        "properties": {
+          "agreementId": {
+            "type": "string"
+          },
+          "agreementVersion": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "assetId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "issue": {
+            "type": "string"
+          },
+          "scheduledAt": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "site": {
+            "type": "string"
+          },
+          "technicianId": {
+            "type": "string"
+          },
+          "ticketId": {
+            "type": "string"
+          },
+          "ticketVersion": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "ticketId",
+          "ticketVersion",
+          "agreementId",
+          "agreementVersion",
+          "issue",
+          "site",
+          "technicianId"
+        ],
+        "type": "object"
+      },
+      "FieldServiceOrderCreateReadResponse": {
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/FieldServiceRenderedContext"
+          },
+          "event": {
+            "$ref": "#/components/schemas/FieldServiceRequestEvent"
+          },
+          "order": {
+            "$ref": "#/components/schemas/FieldServiceCreatedOrderRead"
+          },
+          "receipt": {
+            "$ref": "#/components/schemas/FieldServiceReserveResult"
+          },
+          "ticket": {
+            "$ref": "#/components/schemas/FieldServiceRequestTicketRead"
+          }
+        },
+        "required": [
+          "context",
+          "receipt",
+          "order",
+          "ticket",
+          "event"
         ],
         "type": "object"
       },
@@ -735,6 +872,9 @@
                   },
                   {
                     "$ref": "#/components/schemas/FieldServiceRequestInput"
+                  },
+                  {
+                    "$ref": "#/components/schemas/FieldServiceOrderCreateInput"
                   }
                 ]
               }
@@ -752,6 +892,42 @@
               }
             },
             "description": "Retained reserve command receipt"
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/v1/holdings/{holding_slug}/field-service/orders/{key}": {
+      "get": {
+        "operationId": "order_create_read",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "holding_slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FieldServiceOrderCreateReadResponse"
+                }
+              }
+            },
+            "description": "Current scoped created order evidence"
           }
         },
         "tags": []
