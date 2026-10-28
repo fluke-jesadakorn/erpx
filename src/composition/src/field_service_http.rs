@@ -76,6 +76,19 @@ impl FieldServiceHttpTarget {
             dispatch: HttpDispatch::Shared(other),
         }
     }
+    /// Explicit private development opt-in admits only the existing parts branches.
+    pub fn new_private_parts<W: Clock + Send + Sync + 'static, G: Clock + Send + Sync + 'static>(
+        host: String,
+        holding_slug: String,
+        service: Arc<FieldServicePartsAdministration<W, G>>,
+    ) -> Self {
+        Self {
+            host,
+            holding_slug,
+            service,
+            dispatch: HttpDispatch::PrivateParts,
+        }
+    }
     /// Private development target admits the existing reserve branch only.
     pub fn new_private_reserve<
         W: Clock + Send + Sync + 'static,
@@ -107,9 +120,12 @@ pub fn field_service_http_router(
 ) -> Result<Router, BusinessError> {
     policy.validate()?;
     let private_only = !targets.is_empty()
-        && targets
-            .iter()
-            .all(|target| matches!(target.dispatch, HttpDispatch::ReserveOnly));
+        && targets.iter().all(|target| {
+            matches!(
+                target.dispatch,
+                HttpDispatch::ReserveOnly | HttpDispatch::PrivateParts
+            )
+        });
     let mut registered = BTreeMap::new();
     let mut trusted = Vec::new();
     for target in targets {
@@ -226,11 +242,13 @@ impl PostExecutor for SealedNativeExecutor {
                         HttpDispatch::Shared(other) => {
                             PostResponse::business(other.admission_error(branch, error))
                         }
-                        HttpDispatch::ReserveOnly => PostResponse::error(
-                            axum::http::StatusCode::NOT_FOUND,
-                            "NOT_FOUND",
-                            "Not found.",
-                        ),
+                        HttpDispatch::ReserveOnly | HttpDispatch::PrivateParts => {
+                            PostResponse::error(
+                                axum::http::StatusCode::NOT_FOUND,
+                                "NOT_FOUND",
+                                "Not found.",
+                            )
+                        }
                     }
                 }
                 Ok(Err(HttpIngressError::UnavailableBranch)) => PostResponse::error(

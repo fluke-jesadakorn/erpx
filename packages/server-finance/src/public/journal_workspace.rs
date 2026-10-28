@@ -15,5 +15,7 @@ pub struct FinanceJournalRecordWorkspace {
     pub dimension_values: Vec<FinanceLedgerRow>,
 }
 pub use crate::adapters::postgres_journal_workspace::{
-    CurrentJournalRecordWorkspace, lock_journal_workspace_sources, read_journal_record_workspace,
+    CurrentFieldServiceJournalWorkspace, CurrentJournalRecordWorkspace,
+    lock_journal_workspace_sources, read_field_service_journal_workspace,
+    read_journal_record_workspace,
 };

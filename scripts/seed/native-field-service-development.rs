@@ -71,6 +71,14 @@ async fn main() {
         let prepared = field_service::setup(system).await;
         let system = &prepared.review.system;
         sqlx::raw_sql("UPDATE hr_engagements SET start_date='2020-01-01' WHERE id='field-engagement'").execute(system.holdings[0].raw()).await.expect("synthetic field service source unavailable");
+        // A genuine reserve command creates the immutable Service/Workflow provenance.
+        // The visit is synthetic historical data, not an implemented transition.
+        let reserve = format!(r#"{{"action":"reserve-part","expectedVersion":1,"warehouseId":"warehouse","productId":"product","quantityMilli":1000,"expiresAt":{},"reason":"Synthetic issue reservation"}}"#, now + 3_600_000);
+        prepared.execute("reserve-order", "browser-issue-reserve", &reserve).await.expect("synthetic reserve command failed");
+        let mut historical = system.holdings[0].raw().begin().await.expect("historical visit transaction unavailable");
+        sqlx::query("UPDATE field_service_orders SET status='in_visit',version=3 WHERE id='reserve-order'").execute(&mut *historical).await.expect("synthetic historical visit unavailable");
+        sqlx::query("INSERT INTO field_service_order_events(id,order_id,version,action,actor_id,reason,status,technician_id,scheduled_at,details_json,created_at) VALUES('synthetic-start-issue','reserve-order',3,'start','fixture-a','Synthetic historical visit','in_visit','fixture-a',$1+60000,'{}',$1)").bind(now).execute(&mut *historical).await.expect("synthetic historical event unavailable");
+        historical.commit().await.expect("synthetic historical visit commit failed");
         let control = private_fixture::database(&system.control).await;
         let h001 = private_fixture::database(&system.holdings[0]).await;
         let h002 = private_fixture::database(&system.holdings[1]).await;
@@ -81,7 +89,7 @@ async fn main() {
             "holdings":[
                 {"holdingId":"h001","slug":"acme","host":"acme.jesadakorn.com","writeBinding":"HOLDING_H001_DB","readBinding":"HOLDING_H001_READ_DB","filesBinding":"HOLDING_H001_FILES","database":h001},
                 {"holdingId":"h002","slug":"northstar","host":"northstar.jesadakorn.com","writeBinding":"HOLDING_H002_DB","readBinding":"HOLDING_H002_READ_DB","filesBinding":"HOLDING_H002_FILES","database":h002}
-            ],"fieldServiceReads":[{"holdingId":"h001","companyId":"company"}],"fieldServiceReservations":["h001"],"accountBootstrap":true
+            ],"financeJournalReads":[{"holdingId":"h001","companyId":"company"}],"fieldServiceReads":[{"holdingId":"h001","companyId":"company"}],"fieldServiceReservations":["h001"],"fieldServiceIssues":["h001"],"accountBootstrap":true
         });
         let configuration = DevelopmentApiConfiguration::parse(&doc.to_string()).expect("invalid explicit native case configuration");
         let manifest = serde_json::json!({"version":1,"databases":{
@@ -95,7 +103,7 @@ async fn main() {
         let mut files = CaseFiles(Vec::new());
         files.0.push(write_private(&dir, "native-api.json", &doc));
         files.0.push(write_private(&dir, "databases.json", &manifest));
-        files.0.push(write_private(&dir, "credentials.json", &serde_json::json!({"email":"a@example.test","password":field_service::account::fixture::PASSWORD,"orderId":"reserve-order"})));
+        files.0.push(write_private(&dir, "credentials.json", &serde_json::json!({"email":"a@example.test","password":field_service::account::fixture::PASSWORD,"orderId":"reserve-order","reservationId":"field-part-browser-issue-reserve","expectedVersion":3,"entryDate":"2026-01-10","financeEmail":"b@example.test","financePassword":field_service::account::fixture::PASSWORD})));
         let runtime = assemble_development_api(configuration, Arc::new(SystemAccountClock), Arc::new(SystemAuthenticationSecrets)).await.expect("native case assembly failed");
         let listener = tokio::net::TcpListener::bind(runtime.listen_address()).await.expect("private case listener unavailable");
         println!("{}", dir.join("databases.json").display());

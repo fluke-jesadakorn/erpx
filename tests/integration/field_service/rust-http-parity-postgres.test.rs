@@ -443,3 +443,63 @@ async fn advancing_clock_retains_early_order_witness_across_real_retry() {
         let title:String=sqlx::query_scalar("SELECT title FROM field_service_agreements WHERE id='agreement'").fetch_one(p.pool().raw()).await.unwrap();assert_eq!(title,"Synthetic retained agreement");
     }).await;
 }
+
+#[tokio::test]
+#[cfg(feature = "private-development-api")]
+async fn private_issue_readback_and_finance_source_are_receipt_bound() {
+    account::with_system(|system| async move {
+        let p = setup(system).await;
+        let system = &p.review.system;
+        let now = system.scenario.clock.now().get();
+        let central = account::login(system, "a@example.test", None).await;
+        let child = account::child(system, &central, account::ACME).await;
+        sqlx::query("INSERT INTO active_work_contexts(session_id,user_id,company_id,assignment_id,assignment_version,revision,expires_at,updated_at)VALUES($1,'fixture-a','company','field-fixture-a',3,8,$2,$3)").bind(&child.result.session_id).bind(now+3_600_000).bind(now).execute(p.pool().raw()).await.unwrap();
+        let mut config = private_configuration::document(&system.control, &system.holdings).await;
+        config["financeJournalReads"] = serde_json::json!([{"holdingId":"h001","companyId":"company"}]);
+        config["fieldServiceReads"] = serde_json::json!([{"holdingId":"h001","companyId":"company"}]);
+        config["fieldServiceReservations"] = serde_json::json!(["h001"]);
+        config["fieldServiceIssues"] = serde_json::json!(["h001"]);
+        let runtime = assemble_development_api(DevelopmentApiConfiguration::parse(&config.to_string()).unwrap(),system.scenario.clock.clone(),Arc::new(SystemAuthenticationSecrets)).await.unwrap();
+        let cookie = format!("__Host-erpx-product={}",child.token.expose());
+        let reserve = format!(r#"{{"id":"reserve-order","action":"reserve-part","expectedVersion":1,"warehouseId":"warehouse","productId":"product","quantityMilli":1000,"expiresAt":{},"reason":"Synthetic actual reserve"}}"#,now+3_600_000);
+        let result = send(&runtime.router(),&cookie,"issue-reserve",&reserve).await;
+        assert_eq!(result.0,StatusCode::OK,"{}",result.1);
+        // Synthetic historical transition; command still consumes a genuine reservation.
+        let mut historical = p.pool().raw().begin().await.unwrap();
+        sqlx::query("UPDATE field_service_orders SET status='in_visit',version=3 WHERE id='reserve-order'").execute(&mut *historical).await.unwrap();
+        sqlx::query("INSERT INTO field_service_order_events(id,order_id,version,action,actor_id,reason,status,technician_id,scheduled_at,details_json,created_at) VALUES('synthetic-start-issue','reserve-order',3,'start','fixture-a','Synthetic historical visit','in_visit','fixture-a',$1+60000,'{}',$1)").bind(now).execute(&mut *historical).await.unwrap();
+        historical.commit().await.unwrap();
+        let issue = r#"{"id":"reserve-order","action":"issue-part","expectedVersion":3,"reservationId":"field-part-issue-reserve","quantityMilli":1000,"entryDate":"2026-01-10","allocations":[],"reason":"Synthetic issue"}"#;
+        sqlx::query("ALTER TABLE audit_events ADD CONSTRAINT fixture_issue_audit CHECK(command_id<>'issue-late-rollback')").execute(p.pool().raw()).await.unwrap();
+        assert_eq!(send(&runtime.router(),&cookie,"issue-late-rollback",issue).await.0,StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(p.counts("issue-late-rollback").await,(0,0,0,0,0));
+        let rollback: (i64, i64, i64, i64) = sqlx::query_as("SELECT (SELECT consumed_milli FROM field_service_part_reservations WHERE id='field-part-issue-reserve'), (SELECT quantity_milli FROM commerce_stock WHERE warehouse_id='warehouse' AND product_id='product'), (SELECT version FROM field_service_orders WHERE id='reserve-order'), (SELECT count(*) FROM operational_inventory_consumptions WHERE id='operational-part-issue-late-rollback')").fetch_one(p.pool().raw()).await.unwrap();
+        assert_eq!(rollback, (0, 5000, 3, 0));
+        sqlx::query("ALTER TABLE audit_events DROP CONSTRAINT fixture_issue_audit").execute(p.pool().raw()).await.unwrap();
+        let result=send(&runtime.router(),&cookie,"issue-native-one",issue).await;
+        assert_eq!(result.0,StatusCode::OK,"{}",result.1);
+        assert_eq!(send(&runtime.router(),&cookie,"issue-native-one",issue).await.0,StatusCode::OK);
+        assert_eq!(p.counts("issue-native-one").await,(1,1,1,1,1));
+        let get = || Request::builder().uri("/api/v1/holdings/acme/field-service/reserve-order/issues/issue-native-one").header("host","acme.example.test").header("cookie",&cookie).body(Body::empty()).unwrap();
+        let response=runtime.router().oneshot(get()).await.unwrap(); let status=response.status(); let bytes=to_bytes(response.into_body(),65536).await.unwrap();
+        assert_eq!(status,StatusCode::OK,"{}",String::from_utf8_lossy(&bytes));
+        let data:serde_json::Value=serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(data["event"]["consumptionId"],"operational-part-issue-native-one");
+        assert_eq!(data["reservation"]["consumedMilli"],1000);
+        assert_eq!(data["stock"]["quantityMilli"],4000);
+        assert_eq!(data["receipt"]["version"],4);
+        let journal=data["event"]["journalId"].as_str().unwrap();
+        let finance_get=|suffix:&str,cookie:&str|Request::builder().uri(format!("/api/v1/holdings/acme/finance/journals/{journal}{suffix}")).header("host","acme.example.test").header("cookie",cookie).body(Body::empty()).unwrap();
+        assert_ne!(runtime.router().oneshot(finance_get("",&cookie)).await.unwrap().status(),StatusCode::OK);
+        let finance_cookie=format!("__Host-erpx-product={}",p.review.reviewer_token.expose());
+        for suffix in ["", "/workspace"] {
+            let response=runtime.router().oneshot(finance_get(suffix,&finance_cookie)).await.unwrap(); let status=response.status();let bytes=to_bytes(response.into_body(),2*1024*1024).await.unwrap();
+            assert_eq!(status,StatusCode::OK,"{}",String::from_utf8_lossy(&bytes));
+            let value:serde_json::Value=serde_json::from_slice(&bytes).unwrap();assert_eq!(value["data"]["journal"]["id"],journal);
+        }
+        assert!(sqlx::query("UPDATE field_service_order_events SET details_json=jsonb_set(details_json,'{costMinor}','999'::jsonb) WHERE id='service-order-event-issue-native-one'").execute(p.pool().raw()).await.is_err());
+        sqlx::query("UPDATE finance_journals SET source_id='unrelated' WHERE id=$1").bind(journal).execute(p.pool().raw()).await.unwrap();
+        assert_ne!(runtime.router().oneshot(finance_get("",&finance_cookie)).await.unwrap().status(),StatusCode::OK);
+        runtime.close().await;
+    }).await;
+}

@@ -1,6 +1,6 @@
 //! Development-only actual Finance/Identity/Commercial assembly. This library
 //! mounts no route and cannot substitute Legal acceptance for Finance release.
-mod field_service_parts;
+pub(crate) mod field_service_parts;
 mod journal_post_flow;
 mod maintenance_parts;
 use erpx_server_commercial::public::purchases::{

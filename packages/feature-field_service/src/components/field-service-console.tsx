@@ -67,7 +67,7 @@ function ServiceConsole({
   return (
     <ServiceRecoveryContext.Provider value={recovery}><ServiceCommandErrorContext.Provider value={clearError}>
       {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
-      {order && recovery.nativePending && !(detail && source.canUseParts && Number(order.can_work)>0 && ["open","scheduled"].includes(String(order.status))) && <InlineNotice tone="warning">{recovery.readbackPending?"Reservation saved; readback is pending.":"The original Service reservation awaits confirmation."}<Button appearance="standard" type="button" disabled={busy} onClick={()=>void recovery.retry()}>{recovery.readbackPending?"Retry reservation readback":"Retry original Service request"}</Button></InlineNotice>}
+      {order && recovery.nativePending && <InlineNotice tone="warning">{recovery.readbackPending?"Parts request saved; readback is pending.":"The original Service parts request awaits confirmation."}<Button appearance="standard" type="button" disabled={busy} onClick={()=>void recovery.retry()}>{recovery.readbackPending?"Retry parts readback":"Retry original Service request"}</Button></InlineNotice>}
       {detail?.billing && (
         <Card as="section" appearance="standard" className="ui-panel" aria-label="Billing handoff">
           <h2>Billing handoff</h2>
@@ -260,7 +260,7 @@ function ServiceConsole({
   );
 }
 
-type ServiceConsoleProps = { base: string; nativeReserve?: {context?:ReserveContext}; data?: Awaited<ReturnType<typeof fieldServiceWorkspace>>; detail?: Awaited<ReturnType<typeof fieldServiceDetail>> };
+type ServiceConsoleProps = { base: string; nativeReserve?: {context?:ReserveContext;issue?:boolean;reserve?:boolean}; data?: Awaited<ReturnType<typeof fieldServiceWorkspace>>; detail?: Awaited<ReturnType<typeof fieldServiceDetail>> };
 
 function serviceSource(props:ServiceConsoleProps):FieldServiceSource {const source=props.data??props.detail!,targets:FieldServiceSource["targets"]={};for(const row of source.agreements)targets[`agreement:${row.id}`]={version:Number(row.version),status:String(row.status)};for(const row of source.orders)targets[`order:${row.id}`]={version:Number(row.version),status:String(row.status)};for(const row of source.tickets)targets[`ticket:${row.id}`]={version:Number(row.version),status:String(row.status)};if(props.detail)targets[`order:${props.detail.order.id}`]={version:Number(props.detail.order.version),status:String(props.detail.order.status)};return {base:props.base,workspaceKey:source.workspaceKey,recordId:props.detail?String(props.detail.order.id):null,targets};}
 export function FieldServiceConsole(props: ServiceConsoleProps) {
@@ -293,6 +293,6 @@ function ServiceDraftDrawer({ title, busy, error, children }: { title: string; b
   return <FormDisclosure appearance="standard" className="ui-form-disclosure" dismissDisabled={busy||recovery?.uncertain} error={error}
     onToggle={event => {if(event.currentTarget.open)clearError();editorChanged(id, event.currentTarget.open);}}
     onDiscard={() => body.current?.querySelectorAll("form").forEach(form => form.reset())}>
-    <summary>{title}</summary><div ref={body}>{recovery?.notice&&<InlineNotice role="status">{recovery.notice}</InlineNotice>}{recovery?.saved&&<p>Saved original ID: {recovery.saved.id} · <WorkspaceLink href={recovery.saved.href}>{recovery.saved.agreement?"Review saved service agreements":"Open the saved original service order"}</WorkspaceLink></p>}{recovery?.uncertain&&<InlineNotice tone="warning">{recovery.readbackPending?"Reservation saved; readback is pending. Your newer entries are retained.":"The original request has an uncertain result. Your newer entries are retained."}<Button appearance="standard" type="button" disabled={busy} onClick={()=>void recovery.retry()}>{recovery.readbackPending?"Retry reservation readback":"Retry original Service request"}</Button></InlineNotice>}<fieldset disabled={busy||recovery?.uncertain} style={{display:"contents"}}>{children}</fieldset></div>
+    <summary>{title}</summary><div ref={body}>{recovery?.notice&&<InlineNotice role="status">{recovery.notice}</InlineNotice>}{recovery?.saved&&<p>Saved original ID: {recovery.saved.id} · <WorkspaceLink href={recovery.saved.href}>{recovery.saved.agreement?"Review saved service agreements":"Open the saved original service order"}</WorkspaceLink></p>}{recovery?.uncertain&&<InlineNotice tone="warning">{recovery.readbackPending?"Parts request saved; readback is pending. Your newer entries are retained.":"The original request has an uncertain result. Your newer entries are retained."}<Button appearance="standard" type="button" disabled={busy} onClick={()=>void recovery.retry()}>{recovery.readbackPending?"Retry parts readback":"Retry original Service request"}</Button></InlineNotice>}<fieldset disabled={busy||recovery?.uncertain} style={{display:"contents"}}>{children}</fieldset></div>
   </FormDisclosure>;
 }

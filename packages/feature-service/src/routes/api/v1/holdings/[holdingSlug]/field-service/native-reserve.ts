@@ -1,4 +1,4 @@
-import type { FieldServiceReservationReadResponse } from '@erpx/contracts/field-service-reserve';
+import type { FieldServiceReservationReadResponse, FieldServiceIssueReadResponse } from '@erpx/contracts/field-service-reserve';
 import 'server-only';
 import { Agent, request as httpRequest } from 'node:http';
 import { Readable } from 'node:stream';
@@ -19,9 +19,12 @@ function direct(url:URL,method:'GET'|'POST',headers:Headers,body:Uint8Array|unde
 export function isReserveOrderCommand(input:unknown):input is {id:string;action:'reserve-part'} {
  return !!input && typeof input==='object' && !Array.isArray(input) && (input as {entity?:unknown}).entity!=='request' && (input as {entity?:unknown}).entity!=='agreement' && typeof (input as {id?:unknown}).id==='string' && (input as {action?:unknown}).action==='reserve-part';
 }
+export function isIssueOrderCommand(input:unknown):input is {id:string;action:'issue-part'} {
+ return !!input && typeof input==='object' && !Array.isArray(input) && (input as {entity?:unknown}).entity!=='request' && (input as {entity?:unknown}).entity!=='agreement' && typeof (input as {id?:unknown}).id==='string' && (input as {action?:unknown}).action==='issue-part';
+}
 /** Called only after the shared route has performed its normal checks and parsed the body. */
 export async function nativeReservePost(request:Request,slug:string,input:unknown):Promise<Response|undefined>{
- const raw=process.env.ERPX_NATIVE_FIELD_SERVICE_RESERVE_CONFIG;if(raw===undefined||!isReserveOrderCommand(input))return undefined;
+ const issue=isIssueOrderCommand(input);const raw=issue?process.env.ERPX_NATIVE_FIELD_SERVICE_ISSUE_CONFIG:process.env.ERPX_NATIVE_FIELD_SERVICE_RESERVE_CONFIG;if(raw===undefined||!(issue||isReserveOrderCommand(input)))return undefined;
  let payload:Uint8Array;try{payload=await bytes(request.body,2*1024*1024);}catch{return closed(413,'BODY_TOO_LARGE','Use a smaller request.');}
  const config=settings(raw),host=request.headers.get('host'),target=config.holdings.find(h=>new URL(h.origin).host===host&&h.holdingSlug===slug);
  if(!target)return closed(404,'NOT_FOUND','Service order not found.');const origin=request.headers.get('origin');if(origin&&origin!==target.origin)return closed(403,'ORIGIN_FORBIDDEN','Use the application origin.');
@@ -54,4 +57,19 @@ export async function nativeReserveReadback(request:Request,slug:string,orderId:
  for(const name of ['cookie','x-erpx-context-company','x-erpx-context-revision','x-erpx-context-assignment','x-erpx-context-assignment-version','x-erpx-workspace-branch','x-erpx-workspace-department']){const v=request.headers.get(name);if(v!==null)headers.set(name,v);}
  const controller=new AbortController(),cancel=()=>controller.abort();request.signal.addEventListener('abort',cancel,{once:true});if(request.signal.aborted)cancel();const timer=setTimeout(cancel,config.timeoutMs);
  try{const url=new URL(`/api/v1/holdings/${encodeURIComponent(slug)}/field-service/${encodeURIComponent(orderId)}/reservations/${encodeURIComponent(reservationId)}`,config.privateBaseUrl),response=await direct(url,'GET',headers,undefined,controller.signal);if(response.status!==200||response.headers.get('content-type')?.split(';')[0]?.trim()!=='application/json'){void response.body?.cancel();return closed(503,'NATIVE_SERVICE_UNAVAILABLE','Unable to confirm the reservation.');}const parsed:unknown=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(await bytes(response.body,2*1024*1024)));if(!readback(parsed,target.holdingId,orderId,reservationId))return closed(502,'NATIVE_SERVICE_UNAVAILABLE','Unable to confirm the reservation.');return Response.json(parsed,{headers:{'Cache-Control':'private, no-store'}});}catch{return closed(503,'NATIVE_SERVICE_UNAVAILABLE','Unable to confirm the reservation.');}finally{clearTimeout(timer);request.signal.removeEventListener('abort',cancel);}
+}
+
+/** Issue evidence is authorized by Service; Finance journal access remains separate. */
+export async function nativeIssueReadback(request:Request,slug:string,orderId:string,key:string):Promise<Response|undefined>{
+ const raw=process.env.ERPX_NATIVE_FIELD_SERVICE_ISSUE_CONFIG;if(raw===undefined)return undefined;const config=settings(raw),host=request.headers.get('host'),target=config.holdings.find(h=>new URL(h.origin).host===host&&h.holdingSlug===slug);
+ if(!target||!text(orderId)||!text(key)||orderId.includes('/')||key.includes('/')||orderId.includes('\\')||key.includes('\\'))return closed(404,'NOT_FOUND','Service order not found.');
+ const cookie=request.headers.get('cookie');if(cookie&&new TextEncoder().encode(cookie).length>8192)return closed(503,'NATIVE_SERVICE_UNAVAILABLE','Unable to confirm the parts request.');const headers=new Headers({host:host!,accept:'application/json'});
+ for(const name of ['cookie','x-erpx-context-company','x-erpx-context-revision','x-erpx-context-assignment','x-erpx-context-assignment-version','x-erpx-workspace-branch','x-erpx-workspace-department']){const v=request.headers.get(name);if(v!==null)headers.set(name,v);}
+ const controller=new AbortController(),cancel=()=>controller.abort();request.signal.addEventListener('abort',cancel,{once:true});if(request.signal.aborted)cancel();const timer=setTimeout(cancel,config.timeoutMs);
+ try{const url=new URL(`/api/v1/holdings/${encodeURIComponent(slug)}/field-service/${encodeURIComponent(orderId)}/issues/${encodeURIComponent(key)}`,config.privateBaseUrl),response=await direct(url,'GET',headers,undefined,controller.signal);if(response.status!==200||response.headers.get('content-type')?.split(';')[0]?.trim()!=='application/json'){void response.body?.cancel();return closed(503,'NATIVE_SERVICE_UNAVAILABLE','Unable to confirm the parts request.');}const parsed:unknown=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(await bytes(response.body,2*1024*1024)));
+ if(!exact(parsed,['context','order','receipt','event','reservation','stock'])||!object(parsed.event))return closed(502,'NATIVE_SERVICE_UNAVAILABLE','Unable to confirm the parts request.');
+ const e=parsed.event;if(!exact(e,['version','actorId','reason','status','reservationId','consumptionId','journalId','quantityMilli','costMinor'])||!text(e.reservationId)||e.consumptionId!==`operational-part-${key}`||!text(e.journalId)||!safe(e.quantityMilli,1)||!safe(e.costMinor,1))return closed(502,'NATIVE_SERVICE_UNAVAILABLE','Unable to confirm the parts request.');
+ const reservation=parsed.reservation;if(!object(reservation)||reservation.id!==e.reservationId||!safe(reservation.consumedMilli,0)||Number(reservation.consumedMilli)<Number(e.quantityMilli))return closed(502,'NATIVE_SERVICE_UNAVAILABLE','Unable to confirm the parts request.');
+ const base={...parsed,event:{version:e.version,actorId:e.actorId,reason:e.reason,status:e.status}};if(!readback(base,target.holdingId,orderId,String(e.reservationId)))return closed(502,'NATIVE_SERVICE_UNAVAILABLE','Unable to confirm the parts request.');const verified=parsed as unknown as FieldServiceIssueReadResponse;return Response.json(verified,{headers:{'Cache-Control':'private, no-store'}});
+ }catch{return closed(503,'NATIVE_SERVICE_UNAVAILABLE','Unable to confirm the parts request.');}finally{clearTimeout(timer);request.signal.removeEventListener('abort',cancel);}
 }

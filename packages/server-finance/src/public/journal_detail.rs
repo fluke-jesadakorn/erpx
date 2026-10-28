@@ -38,5 +38,6 @@ pub struct FinanceJournalDetail {
     pub history: Vec<FinanceLedgerRow>,
 }
 pub use crate::adapters::postgres_journal_detail::{
-    CurrentJournalDetail, lock_journal_detail_sources, read_journal_detail,
+    CurrentFieldServiceJournalDetail, CurrentJournalDetail, lock_journal_detail_sources,
+    read_field_service_journal_detail, read_journal_detail,
 };

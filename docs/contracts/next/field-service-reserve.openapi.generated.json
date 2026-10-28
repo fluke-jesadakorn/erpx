@@ -1,6 +1,171 @@
 {
   "components": {
     "schemas": {
+      "FieldServiceIssueAction": {
+        "enum": [
+          "issue-part"
+        ],
+        "type": "string"
+      },
+      "FieldServiceIssueAllocation": {
+        "properties": {
+          "balanceVersion": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "lotId": {
+            "type": "string"
+          },
+          "quantityMilli": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "lotId",
+          "quantityMilli",
+          "balanceVersion"
+        ],
+        "type": "object"
+      },
+      "FieldServiceIssueEvent": {
+        "properties": {
+          "actorId": {
+            "type": "string"
+          },
+          "consumptionId": {
+            "type": "string"
+          },
+          "costMinor": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "journalId": {
+            "type": "string"
+          },
+          "quantityMilli": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "reservationId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "actorId",
+          "reason",
+          "status",
+          "reservationId",
+          "consumptionId",
+          "journalId",
+          "quantityMilli",
+          "costMinor"
+        ],
+        "type": "object"
+      },
+      "FieldServiceIssueInput": {
+        "properties": {
+          "action": {
+            "const": "issue-part",
+            "type": "string"
+          },
+          "allocations": {
+            "items": {
+              "$ref": "#/components/schemas/FieldServiceIssueAllocation"
+            },
+            "type": "array"
+          },
+          "entryDate": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "quantityMilli": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "reservationId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "action",
+          "expectedVersion",
+          "reservationId",
+          "quantityMilli",
+          "allocations",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "FieldServiceIssueReadResponse": {
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/FieldServiceRenderedContext"
+          },
+          "event": {
+            "$ref": "#/components/schemas/FieldServiceIssueEvent"
+          },
+          "order": {
+            "$ref": "#/components/schemas/FieldServiceReserveResult"
+          },
+          "receipt": {
+            "$ref": "#/components/schemas/FieldServiceReserveResult"
+          },
+          "reservation": {
+            "$ref": "#/components/schemas/FieldServiceReservationRead"
+          },
+          "stock": {
+            "$ref": "#/components/schemas/FieldServiceStockSnapshot"
+          }
+        },
+        "required": [
+          "context",
+          "order",
+          "receipt",
+          "event",
+          "reservation",
+          "stock"
+        ],
+        "type": "object"
+      },
       "FieldServiceRenderedContext": {
         "properties": {
           "assignmentId": {
@@ -346,7 +511,14 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/FieldServiceReserveInput"
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/FieldServiceReserveInput"
+                  },
+                  {
+                    "$ref": "#/components/schemas/FieldServiceIssueInput"
+                  }
+                ]
               }
             }
           },
@@ -362,6 +534,50 @@
               }
             },
             "description": "Retained reserve command receipt"
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/v1/holdings/{holding_slug}/field-service/{order_id}/issues/{key}": {
+      "get": {
+        "operationId": "issue_read",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "holding_slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FieldServiceIssueReadResponse"
+                }
+              }
+            },
+            "description": "Current scoped issue readback"
           }
         },
         "tags": []

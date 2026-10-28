@@ -29,4 +29,5 @@ pub trait OtherPost: Send + Sync + 'static {
 pub(crate) enum HttpDispatch {
     Shared(Arc<dyn OtherPost>),
     ReserveOnly,
+    PrivateParts,
 }

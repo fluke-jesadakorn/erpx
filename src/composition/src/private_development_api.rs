@@ -120,6 +120,8 @@ struct ConfigurationDocument {
     #[serde(default)]
     field_service_reservations: Vec<String>,
     #[serde(default)]
+    field_service_issues: Vec<String>,
+    #[serde(default)]
     account_bootstrap: bool,
 }
 struct HoldingConfiguration {
@@ -145,6 +147,7 @@ pub struct DevelopmentApiConfiguration {
     finance_journal_reversals: BTreeSet<HoldingId>,
     field_service_reads: BTreeMap<HoldingId, CompanyId>,
     field_service_reservations: BTreeSet<HoldingId>,
+    field_service_issues: BTreeSet<HoldingId>,
     account_bootstrap: bool,
 }
 impl fmt::Debug for DevelopmentApiConfiguration {
@@ -301,6 +304,18 @@ impl DevelopmentApiConfiguration {
                 return Err("PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID");
             }
         }
+        let mut field_service_issues = BTreeSet::new();
+        for id in doc.field_service_issues {
+            let holding = HoldingId::new(id)
+                .map_err(|_| "PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID")?;
+            if !field_service_reservations.contains(&holding)
+                || field_service_reads.get(&holding) != finance_journal_reads.get(&holding)
+                || !finance_journal_reads.contains_key(&holding)
+                || !field_service_issues.insert(holding)
+            {
+                return Err("PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID");
+            }
+        }
         if doc.account_bootstrap
             && finance_journal_reads.is_empty()
             && field_service_reads.is_empty()
@@ -340,6 +355,7 @@ impl DevelopmentApiConfiguration {
             finance_journal_reversals,
             field_service_reads,
             field_service_reservations,
+            field_service_issues,
             account_bootstrap: doc.account_bootstrap,
         })
     }
@@ -545,6 +561,7 @@ async fn assemble_checked(
     let mut finance_reversal_targets = BTreeSet::new();
     let mut service_read_targets = BTreeSet::new();
     let mut service_reservation_targets = BTreeSet::new();
+    let mut service_issue_targets = BTreeSet::new();
     if !config.finance_journal_reads.is_empty() {
         let catalogue = Arc::new(
             current_package_catalogue().map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
@@ -578,6 +595,14 @@ async fn assemble_checked(
                 catalogue.clone(),
             )
             .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?;
+            let configuration = if config
+                .field_service_issues
+                .contains(&holding.registration.holding_id)
+            {
+                configuration.with_field_service_parts()
+            } else {
+                configuration
+            };
             finance_targets.insert((holding.host.clone(), holding.registration.slug.clone()));
             let post = config
                 .finance_journal_posts
@@ -738,19 +763,34 @@ async fn assemble_checked(
                 .map_err(|_| "PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID")?,
             );
             let target = (holding.host.clone(), holding.registration.slug.clone());
+            if config
+                .field_service_issues
+                .contains(&holding.registration.holding_id)
+            {
+                service_issue_targets.insert(target.clone());
+            }
             service_read_targets.insert(target.clone());
+            let read_configuration = FieldServiceReservationReadConfiguration::new(
+                FieldServicePartsEnvironment::Development,
+                holding.registration.holding_id.clone(),
+                company.clone(),
+                catalogue.clone(),
+            )
+            .map_err(|_| "PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID")?;
+            let read_configuration = if config
+                .field_service_issues
+                .contains(&holding.registration.holding_id)
+            {
+                read_configuration.with_issues()
+            } else {
+                read_configuration
+            };
             reads.push(FieldServiceReservationReadTarget {
                 host: target.0.clone(),
                 holding_slug: target.1.clone(),
                 service: Arc::new(FieldServiceReservationReadService::new(
                     authorizer.clone(),
-                    FieldServiceReservationReadConfiguration::new(
-                        FieldServicePartsEnvironment::Development,
-                        holding.registration.holding_id.clone(),
-                        company.clone(),
-                        catalogue.clone(),
-                    )
-                    .map_err(|_| "PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID")?,
+                    read_configuration,
                     Arc::new(SharedClock(clock.clone())),
                 )),
             });
@@ -766,16 +806,22 @@ async fn assemble_checked(
                     erpx_server_commercial::public::purchases::PackageEnforcementMode::Enforced,
                 )
                 .map_err(|_| "PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID")?;
-                reserves.push(FieldServiceHttpTarget::new_private_reserve(
-                    target.0,
-                    target.1,
-                    Arc::new(FieldServicePartsAdministration::new(
-                        authorizer,
-                        action,
-                        Arc::new(SharedClock(clock.clone())),
-                        Arc::new(SharedClock(clock.clone())),
-                    )),
+                let service = Arc::new(FieldServicePartsAdministration::new(
+                    authorizer,
+                    action,
+                    Arc::new(SharedClock(clock.clone())),
+                    Arc::new(SharedClock(clock.clone())),
                 ));
+                reserves.push(
+                    if config
+                        .field_service_issues
+                        .contains(&holding.registration.holding_id)
+                    {
+                        FieldServiceHttpTarget::new_private_parts(target.0, target.1, service)
+                    } else {
+                        FieldServiceHttpTarget::new_private_reserve(target.0, target.1, service)
+                    },
+                );
             }
         }
         router = router.merge(
@@ -811,6 +857,7 @@ async fn assemble_checked(
         finance_reversal_targets,
         service_read_targets,
         service_reservation_targets,
+        service_issue_targets,
         account_bootstrap: config.account_bootstrap,
     });
     Ok(router.layer(middleware::from_fn_with_state(state, boundary)))
@@ -833,6 +880,7 @@ struct Boundary {
     finance_reversal_targets: BTreeSet<(String, String)>,
     service_read_targets: BTreeSet<(String, String)>,
     service_reservation_targets: BTreeSet<(String, String)>,
+    service_issue_targets: BTreeSet<(String, String)>,
     account_bootstrap: bool,
 }
 enum BoundaryDenial {
@@ -901,6 +949,14 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         ] if !id.is_empty() => state
             .finance_targets
             .contains(&(host.to_owned(), (*slug).to_owned())),
+        ["", "api", "v1", "holdings", slug, "finance", "journals", id] if !id.is_empty() => {
+            state
+                .service_issue_targets
+                .contains(&(host.to_owned(), (*slug).to_owned()))
+                && state
+                    .finance_targets
+                    .contains(&(host.to_owned(), (*slug).to_owned()))
+        }
         _ => false,
     };
     let finance_create = request.method() == axum::http::Method::POST
@@ -1000,11 +1056,19 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             slug,
             "field-service",
             order,
-            "reservations",
+            kind @ ("reservations" | "issues"),
             reservation,
-        ] if !order.is_empty() && !reservation.is_empty() => state
-            .service_read_targets
-            .contains(&(host.to_owned(), (*slug).to_owned())),
+        ] if !order.is_empty()
+            && !reservation.is_empty()
+            && (kind == &"reservations"
+                || state
+                    .service_issue_targets
+                    .contains(&(host.to_owned(), (*slug).to_owned()))) =>
+        {
+            state
+                .service_read_targets
+                .contains(&(host.to_owned(), (*slug).to_owned()))
+        }
         _ => false,
     };
     let service_reserve = request.method() == axum::http::Method::POST

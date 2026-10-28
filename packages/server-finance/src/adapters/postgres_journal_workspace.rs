@@ -198,3 +198,61 @@ pub async fn read_journal_record_workspace(
         references,
     })
 }
+
+/// Workspace projection for an inspected direct Service target. Composition
+/// retains the separate cross-owner lineage and current authorization.
+pub struct CurrentFieldServiceJournalWorkspace {
+    actor: FinanceActor,
+    source: crate::public::journal_detail::CurrentFieldServiceJournalDetail,
+    data: FinanceJournalRecordWorkspace,
+    identity: (String, i32, String, String),
+    references: JournalWorkspaceReferences,
+}
+impl CurrentFieldServiceJournalWorkspace {
+    pub fn data(&self) -> &FinanceJournalRecordWorkspace {
+        &self.data
+    }
+    pub async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
+        if identity(c).await? != self.identity {
+            return Err(changed());
+        }
+        self.source.require_current(c).await?;
+        if !self
+            .references
+            .same_source(&references(c, &self.actor, self.source.detail()).await?)
+        {
+            return Err(changed());
+        }
+        Ok(())
+    }
+}
+pub async fn read_field_service_journal_workspace(
+    c: &mut PgConnection,
+    actor: &FinanceActor,
+    id: &RecordId,
+    target: &crate::public::journal_review::CurrentFieldServicePartsJournalTarget,
+) -> Result<CurrentFieldServiceJournalWorkspace, Error> {
+    let source =
+        crate::public::journal_detail::read_field_service_journal_detail(c, actor, id, target)
+            .await?;
+    let identity = identity(c).await?;
+    let references = references(c, actor, source.detail()).await?;
+    let detail = source.detail();
+    let data = FinanceJournalRecordWorkspace {
+        journal: detail.journal.clone(),
+        lines: detail.lines.clone(),
+        history: detail.history.clone(),
+        chart: references.chart.clone(),
+        accounts: references.accounts.clone(),
+        periods: references.periods.clone(),
+        dimensions: references.dimensions.clone(),
+        dimension_values: references.dimension_values.clone(),
+    };
+    Ok(CurrentFieldServiceJournalWorkspace {
+        actor: actor.clone(),
+        source,
+        data,
+        identity,
+        references,
+    })
+}

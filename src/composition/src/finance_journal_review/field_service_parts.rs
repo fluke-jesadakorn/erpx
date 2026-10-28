@@ -13,14 +13,14 @@ use erpx_server_workflow::public::record_origin::{
     PgRawRecordOrigin, RawRecordOriginRequest, read_raw_record_origin, verify_raw_record_origin,
 };
 
-pub(super) struct FieldServicePartsSource {
+pub(crate) struct FieldServicePartsSource {
     target: CurrentFieldServicePartsJournalTarget,
     consumption: CurrentFieldServiceConsumptionFinance,
     lineage: CurrentFieldServicePartsFinanceLineage,
     origin: PgRawRecordOrigin,
 }
 impl FieldServicePartsSource {
-    pub(super) async fn retain(
+    pub(crate) async fn retain(
         c: &mut PgConnection,
         target: CurrentFieldServicePartsJournalTarget,
     ) -> Result<Self, Error> {
@@ -88,7 +88,7 @@ impl FieldServicePartsSource {
         source.require_current(c).await?;
         Ok(source)
     }
-    pub(super) async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
+    pub(crate) async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
         self.target.require_current(c).await?;
         self.consumption.require_current(c).await?;
         self.lineage.require_current(c).await?;

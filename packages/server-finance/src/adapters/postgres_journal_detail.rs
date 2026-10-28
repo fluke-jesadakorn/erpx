@@ -347,3 +347,46 @@ pub async fn read_journal_detail(
         ancestors,
     })
 }
+
+/// Bounded Finance-owned payload for an already inspected direct Service target.
+/// Cross-owner provenance and authorization remain the composition's responsibility.
+pub struct CurrentFieldServiceJournalDetail {
+    actor: FinanceActor,
+    id: String,
+    transaction: (String, i32, String, String),
+    detail: FinanceJournalDetail,
+}
+impl CurrentFieldServiceJournalDetail {
+    pub fn detail(&self) -> &FinanceJournalDetail {
+        &self.detail
+    }
+    pub async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
+        if witness(c).await? != self.transaction
+            || payload(c, &self.actor, &self.id).await? != self.detail
+        {
+            return Err(denied());
+        }
+        Ok(())
+    }
+}
+pub async fn read_field_service_journal_detail(
+    c: &mut PgConnection,
+    actor: &FinanceActor,
+    id: &RecordId,
+    target: &crate::public::journal_review::CurrentFieldServicePartsJournalTarget,
+) -> Result<CurrentFieldServiceJournalDetail, Error> {
+    let facts = target.facts();
+    if facts.holding_id != actor.holding_id
+        || facts.company_id != actor.company_id
+        || facts.journal_id != id.as_str()
+    {
+        return Err(denied());
+    }
+    target.require_current(c).await?;
+    Ok(CurrentFieldServiceJournalDetail {
+        actor: actor.clone(),
+        id: id.as_str().into(),
+        transaction: witness(c).await?,
+        detail: payload(c, actor, id.as_str()).await?,
+    })
+}

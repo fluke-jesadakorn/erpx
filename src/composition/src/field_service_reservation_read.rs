@@ -9,8 +9,9 @@ use erpx_server_commercial::public::purchases::{
     PurchaseRequest, lock_commercial_authority_sources,
 };
 use erpx_server_field_service::public::reservation_read::{
-    FieldServiceReservationRead, FieldServiceReserveEvent, FieldServiceReserveResult,
-    FieldServiceStockSnapshot, lock_field_service_reservation_read_sources,
+    FieldServiceIssueEvent, FieldServiceReservationRead, FieldServiceReserveEvent,
+    FieldServiceReserveResult, FieldServiceStockSnapshot,
+    lock_field_service_reservation_read_sources, read_field_service_issue,
     read_field_service_reservation,
 };
 use erpx_server_identity_access::public::{
@@ -101,6 +102,17 @@ pub struct FieldServiceReservationReadResponse {
     pub reservation: FieldServiceReservationRead,
     pub stock: FieldServiceStockSnapshot,
 }
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct FieldServiceIssueReadResponse {
+    pub context: FieldServiceRenderedContext,
+    pub order: FieldServiceReserveResult,
+    pub receipt: FieldServiceReserveResult,
+    pub event: FieldServiceIssueEvent,
+    pub reservation: FieldServiceReservationRead,
+    pub stock: FieldServiceStockSnapshot,
+}
 fn context(current: &AuthorizedWorkContext) -> Result<FieldServiceRenderedContext, BusinessError> {
     let selected = current.selection();
     let scope = selected.workspace();
@@ -129,7 +141,9 @@ fn context(current: &AuthorizedWorkContext) -> Result<FieldServiceRenderedContex
     })
 }
 #[derive(Clone)]
-struct ReadSources;
+struct ReadSources {
+    issues: bool,
+}
 impl HoldingWorkSourcePreparation for ReadSources {
     fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
         Box::pin(async move {
@@ -137,7 +151,11 @@ impl HoldingWorkSourcePreparation for ReadSources {
             lock_record_origin_sources(c).await?;
             lock_field_service_reservation_read_sources(c).await?;
             lock_field_service_stock_scope_sources(c).await?;
-            lock_field_service_stock_read_sources(c).await
+            lock_field_service_stock_read_sources(c).await?;
+            if self.issues {
+                erpx_server_inventory::public::field_service_consumption_finance::lock_consumption_finance_sources(c).await?;
+            }
+            Ok(())
         })
     }
 }
@@ -146,6 +164,7 @@ pub struct FieldServiceReservationReadConfiguration {
     holding: HoldingId,
     company: CompanyId,
     catalogue: Arc<CommercialCatalogue>,
+    issues: bool,
 }
 impl FieldServiceReservationReadConfiguration {
     pub fn new(
@@ -165,7 +184,12 @@ impl FieldServiceReservationReadConfiguration {
             holding,
             company,
             catalogue,
+            issues: false,
         })
+    }
+    pub fn with_issues(mut self) -> Self {
+        self.issues = true;
+        self
     }
     pub fn company_id(&self) -> &CompanyId {
         &self.company
@@ -224,7 +248,7 @@ impl<C: Clock + Send + Sync + 'static> FieldServiceReservationReadService<C> {
                     destination: "service/orders".into(),
                     api: true,
                 },
-                ReadSources,
+                ReadSources { issues: false },
                 move |c, current| {
                     let config = config.clone();
                     let clock = clock.clone();
@@ -308,6 +332,153 @@ impl<C: Clock + Send + Sync + 'static> FieldServiceReservationReadService<C> {
                                 (2 * 1024 * 1024_usize).saturating_sub(reply_budget.0),
                             )
                             .await?;
+                        stock_scope.require_current(c).await?;
+                        stock.require_current(c).await?;
+                        PgCompanyPurchaseReader::new(
+                            config.holding.clone(),
+                            config.company.clone(),
+                            c,
+                            &config.catalogue,
+                        )
+                        .revalidate(&purchase.witness, clock.now())
+                        .await?
+                        .require_allowed()?;
+                        if clock.now().get() >= current.expires_at() {
+                            return Err(denied().into());
+                        }
+                        Ok(reply)
+                    })
+                },
+            )
+            .await
+    }
+    pub async fn read_issue<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        order: String,
+        key: String,
+    ) -> Result<FieldServiceIssueReadResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        if !self.config.issues {
+            return Err(
+                BusinessError::new(FailureKind::NotFound, "NOT_FOUND", "Not found.").into(),
+            );
+        }
+        let company = self.config.company.clone();
+        let input = move || {
+            let mut selection = input()?;
+            if selection.company_id != company {
+                return Err(denied());
+            }
+            selection.mutation = false;
+            Ok(selection)
+        };
+        let config = self.config.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                input,
+                WorkAuthorizationRequest {
+                    permission: "records.read".into(),
+                    module: Some("field_service".into()),
+                    destination: "service/orders".into(),
+                    api: true,
+                },
+                ReadSources { issues: true },
+                move |c, current| {
+                    let config = config.clone();
+                    let clock = clock.clone();
+                    let order = order.clone();
+                    let key = key.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &config.holding
+                            || current.selection().workspace().company_id != config.company
+                        {
+                            return Err(denied().into());
+                        }
+                        current.require_permission("records.read")?;
+                        let purchase = PgCompanyPurchaseReader::new(
+                            config.holding.clone(),
+                            config.company.clone(),
+                            c,
+                            &config.catalogue,
+                        )
+                        .inspect(
+                            &PurchaseRequest {
+                                capabilities: vec![
+                                    "service.orders".into(),
+                                    "service.parts-assets".into(),
+                                ],
+                                purpose: CapabilityPurpose::History,
+                                mode: PackageEnforcementMode::Enforced,
+                            },
+                            clock.now(),
+                        )
+                        .await?;
+                        purchase.require_allowed()?;
+                        let source = read_field_service_issue(c, current, &order, &key).await?;
+                        let part = source.reservation().reservation();
+                        let consumption = erpx_server_inventory::public::field_service_consumption_finance::read_field_service_consumption_finance(
+                            c, &config.holding, &config.company, &source.event().consumption_id
+                        ).await?.ok_or_else(denied)?;
+                        let facts = consumption.facts();
+                        let event = source.event();
+                        if facts.order_id != order || facts.source_version != event.version || facts.creator_user_id != event.actor_id
+                            || facts.journal_id != event.journal_id || facts.quantity_milli != event.quantity_milli
+                            || facts.value_minor != event.cost_minor || facts.warehouse_id != part.warehouse_id
+                            || facts.product_id != part.product_id || facts.branch_id != source.reservation().branch_id()
+                        { return Err(denied().into()); }
+                        let stock_scope = read_current_field_service_stock_scope(
+                            c,
+                            FieldServiceStockScopeRequest {
+                                company_id: config.company.clone(),
+                                branch_id: RecordId::new(source.reservation().branch_id())?,
+                                warehouse_id: part.warehouse_id.clone(),
+                                product_id: part.product_id.clone(),
+                            },
+                        )
+                        .await?
+                        .ok_or_else(denied)?;
+                        let stock =
+                            read_field_service_stock(c, &part.warehouse_id, &part.product_id)
+                                .await?
+                                .ok_or_else(denied)?;
+                        let s = stock.data();
+                        let reply = FieldServiceIssueReadResponse {
+                            context: context(current)?,
+                            order: source.reservation().order().clone(),
+                            receipt: source.receipt().clone(),
+                            event: source.event().clone(),
+                            reservation: part.clone(),
+                            stock: FieldServiceStockSnapshot {
+                                warehouse_id: s.warehouse_id.clone(),
+                                product_id: s.product_id.clone(),
+                                quantity_milli: s.quantity_milli,
+                                version: s.version,
+                            },
+                        };
+                        let mut reply_budget = ReplyBudget(0);
+                        serde_json::to_writer(&mut reply_budget, &reply).map_err(|_| {
+                            BusinessError::new(
+                                FailureKind::Unavailable,
+                                "FIELD_SERVICE_READ_LIMIT",
+                                "The Service source exceeds this bounded read.",
+                            )
+                        })?;
+                        source
+                            .require_current(
+                                c,
+                                current,
+                                (2 * 1024 * 1024_usize).saturating_sub(reply_budget.0),
+                            )
+                            .await?;
+                        consumption.require_current(c).await?;
                         stock_scope.require_current(c).await?;
                         stock.require_current(c).await?;
                         PgCompanyPurchaseReader::new(

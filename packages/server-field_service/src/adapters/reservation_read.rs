@@ -255,3 +255,154 @@ pub async fn read_field_service_reservation(
         event_digest,
     })
 }
+
+/// Scoped issue confirmation. The original event and Workflow receipt identify
+/// the exact command independently of the current order/reservation image.
+pub struct CurrentFieldServiceIssueRead {
+    unit: (String, i32, String, String),
+    reservation: CurrentFieldServiceReservationRead,
+    receipt: FieldServiceReserveResult,
+    event: crate::application::reservation_read::FieldServiceIssueEvent,
+    event_digest: String,
+    origin: PgRawRecordOrigin,
+    key: String,
+}
+async fn issue_event(
+    c: &mut PgConnection,
+    current: &AuthorizedWorkContext,
+    order: &str,
+    key: &str,
+) -> Result<
+    (
+        crate::application::reservation_read::FieldServiceIssueEvent,
+        String,
+    ),
+    Error,
+> {
+    use crate::application::reservation_read::FieldServiceIssueEvent;
+    let scope = current.selection().workspace();
+    let row=sqlx::query("SELECT CASE WHEN octet_length(to_jsonb(e)::text)<=262144 THEN e.actor_id END actor_id, CASE WHEN octet_length(to_jsonb(e)::text)<=262144 THEN e.reason END reason, CASE WHEN octet_length(to_jsonb(e)::text)<=262144 THEN e.status END status, CASE WHEN octet_length(to_jsonb(e)::text)<=262144 THEN e.details_json->>'reservationId' END reservation_id, CASE WHEN octet_length(to_jsonb(e)::text)<=262144 THEN e.details_json->>'consumptionId' END consumption_id, CASE WHEN octet_length(to_jsonb(e)::text)<=262144 THEN e.details_json->>'journalId' END journal_id, e.version, CASE WHEN octet_length(to_jsonb(e)::text)<=262144 THEN e.details_json->>'quantityMilli' END quantity, CASE WHEN octet_length(to_jsonb(e)::text)<=262144 THEN e.details_json->>'costMinor' END cost, encode(sha256(convert_to(to_jsonb(e)::text,'UTF8')),'hex') digest FROM field_service_order_events e JOIN field_service_orders o ON o.id=e.order_id WHERE e.id=$1 AND e.order_id=$2 AND e.action='issue-part' AND o.company_id=$3 AND ($4::text IS NULL OR o.branch_id=$4) AND ($5::text IS NULL OR o.department_id=$5) AND o.version>=e.version FOR SHARE OF e,o")
+        .bind(format!("service-order-event-{key}")).bind(order).bind(scope.company_id.as_str()).bind(scope.branch_id.as_ref().map(|v|v.as_str())).bind(scope.department_id.as_ref().map(|v|v.as_str())).fetch_optional(c).await?.ok_or_else(denied)?;
+    let text = |name| -> Result<String, Error> {
+        row.try_get::<Option<String>, _>(name)?
+            .filter(|v| !v.is_empty())
+            .ok_or_else(invalid)
+    };
+    let number = |name| -> Result<i64, Error> {
+        let n = text(name)?.parse::<i64>().map_err(|_| invalid())?;
+        if !(1..=9_007_199_254_740_991).contains(&n) {
+            return Err(invalid());
+        }
+        Ok(n)
+    };
+    let version: i64 = row.try_get("version")?;
+    if !(1..=9_007_199_254_740_991).contains(&version) {
+        return Err(invalid());
+    }
+    let event = FieldServiceIssueEvent {
+        version,
+        actor_id: text("actor_id")?,
+        reason: text("reason")?,
+        status: text("status")?,
+        reservation_id: text("reservation_id")?,
+        consumption_id: text("consumption_id")?,
+        journal_id: text("journal_id")?,
+        quantity_milli: number("quantity")?,
+        cost_minor: number("cost")?,
+    };
+    if event.consumption_id != format!("operational-part-{key}") {
+        return Err(invalid());
+    }
+    Ok((event, row.try_get("digest")?))
+}
+impl CurrentFieldServiceIssueRead {
+    pub fn reservation(&self) -> &CurrentFieldServiceReservationRead {
+        &self.reservation
+    }
+    pub fn receipt(&self) -> &FieldServiceReserveResult {
+        &self.receipt
+    }
+    pub fn event(&self) -> &crate::application::reservation_read::FieldServiceIssueEvent {
+        &self.event
+    }
+    pub async fn require_current(
+        &self,
+        c: &mut PgConnection,
+        current: &AuthorizedWorkContext,
+        remaining: usize,
+    ) -> Result<(), Error> {
+        if unit(c).await? != self.unit {
+            return Err(invalid());
+        }
+        self.reservation
+            .require_current(c, current, remaining)
+            .await?;
+        let (event, digest) = issue_event(c, current, &self.receipt.id, &self.key).await?;
+        if event != self.event || digest != self.event_digest {
+            return Err(invalid());
+        }
+        verify_raw_record_origin(c, &self.origin).await
+    }
+}
+pub async fn read_field_service_issue(
+    c: &mut PgConnection,
+    current: &AuthorizedWorkContext,
+    order: &str,
+    key: &str,
+) -> Result<CurrentFieldServiceIssueRead, Error> {
+    current.require_permission("records.read")?;
+    if !current.modules().iter().any(|m| m == "field_service") {
+        return Err(denied());
+    }
+    erpx_server_shared::public::CommandKey::new(key.to_owned())?;
+    let witness = unit(c).await?;
+    let (event, event_digest) = issue_event(c, current, order, key).await?;
+    let reservation =
+        read_field_service_reservation(c, current, order, &event.reservation_id).await?;
+    let (origin, result) = read_raw_record_origin_result_with_limit(
+        c,
+        RawRecordOriginRequest {
+            command_key: key.into(),
+            operation: "field.order.issue-part".into(),
+            record_id: order.into(),
+            creator_user_id: event.actor_id.clone(),
+            company_id: current.selection().workspace().company_id.clone(),
+        },
+        1024 * 1024,
+    )
+    .await?
+    .ok_or_else(denied)?;
+    let result_id = result
+        .property("id")?
+        .and_then(|v| v.string_utf16_units().ok().flatten())
+        .ok_or_else(invalid)?;
+    let status = result
+        .property("status")?
+        .and_then(|v| v.string_utf8_storage().ok().flatten())
+        .ok_or_else(invalid)?;
+    let version = result
+        .property("version")?
+        .and_then(|v| v.as_str().parse::<i64>().ok())
+        .ok_or_else(invalid)?;
+    if result_id != order.encode_utf16().collect::<Vec<_>>()
+        || version != event.version
+        || status != event.status
+        || event.version > reservation.order().version
+        || reservation.reservation().consumed_milli < event.quantity_milli
+    {
+        return Err(invalid());
+    }
+    Ok(CurrentFieldServiceIssueRead {
+        unit: witness,
+        reservation,
+        receipt: FieldServiceReserveResult {
+            id: order.into(),
+            status,
+            version,
+        },
+        event,
+        event_digest,
+        origin,
+        key: key.into(),
+    })
+}

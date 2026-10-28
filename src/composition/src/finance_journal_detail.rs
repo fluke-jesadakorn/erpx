@@ -30,6 +30,7 @@ pub struct FinanceJournalReadConfiguration {
     holding: HoldingId,
     company: CompanyId,
     purchases: Arc<CommercialCatalogue>,
+    field_service_parts: bool,
 }
 impl FinanceJournalReadConfiguration {
     pub fn new(
@@ -49,7 +50,12 @@ impl FinanceJournalReadConfiguration {
             holding,
             company,
             purchases,
+            field_service_parts: false,
         })
+    }
+    pub fn with_field_service_parts(mut self) -> Self {
+        self.field_service_parts = true;
+        self
     }
     pub fn company_id(&self) -> &CompanyId {
         &self.company
@@ -104,6 +110,7 @@ enum ReadKind {
 #[derive(Clone)]
 struct ReadPreparation {
     kind: ReadKind,
+    field_service_parts: bool,
 }
 impl HoldingWorkSourcePreparation for ReadPreparation {
     fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
@@ -113,6 +120,11 @@ impl HoldingWorkSourcePreparation for ReadPreparation {
                 ReadKind::Detail => lock_journal_detail_sources(c).await?,
                 ReadKind::Workspace => lock_journal_workspace_sources(c).await?,
             }
+            if self.field_service_parts {
+                erpx_server_finance::public::journal_review::lock_journal_review_sources(c).await?;
+                erpx_server_inventory::public::field_service_consumption_finance::lock_consumption_finance_sources(c).await?;
+                erpx_server_field_service::public::finance_lineage::lock_field_service_parts_finance_sources(c).await?;
+            }
             lock_finance_journal_name_sources(c).await
         })
     }
@@ -120,18 +132,36 @@ impl HoldingWorkSourcePreparation for ReadPreparation {
 enum ReadSource {
     Detail(Box<CurrentJournalDetail>),
     Workspace(Box<CurrentJournalRecordWorkspace>),
+    FieldDetail(
+        Box<CurrentFieldServiceJournalDetail>,
+        Box<crate::finance_journal_review::field_service_parts::FieldServicePartsSource>,
+    ),
+    FieldWorkspace(
+        Box<CurrentFieldServiceJournalWorkspace>,
+        Box<crate::finance_journal_review::field_service_parts::FieldServicePartsSource>,
+    ),
 }
 impl ReadSource {
     fn journal(&self) -> &FinanceLedgerRow {
         match self {
             Self::Detail(s) => &s.detail().journal,
             Self::Workspace(s) => &s.data().journal,
+            Self::FieldDetail(s, _) => &s.detail().journal,
+            Self::FieldWorkspace(s, _) => &s.data().journal,
         }
     }
     async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
         match self {
             Self::Detail(s) => s.require_current(c).await,
             Self::Workspace(s) => s.require_current(c).await,
+            Self::FieldDetail(s, lineage) => {
+                s.require_current(c).await?;
+                lineage.require_current(c).await
+            }
+            Self::FieldWorkspace(s, lineage) => {
+                s.require_current(c).await?;
+                lineage.require_current(c).await
+            }
         }
     }
     fn response(
@@ -155,6 +185,16 @@ impl ReadSource {
                 let mut data = s.detail().clone();
                 names(&mut data.journal);
                 ReadResponse::Detail(FinanceJournalReadResponse { data, context })
+            }
+            Self::FieldDetail(s, _) => {
+                let mut data = s.detail().clone();
+                names(&mut data.journal);
+                ReadResponse::Detail(FinanceJournalReadResponse { data, context })
+            }
+            Self::FieldWorkspace(s, _) => {
+                let mut data = s.data().clone();
+                names(&mut data.journal);
+                ReadResponse::Workspace(FinanceJournalWorkspaceReadResponse { data, context })
             }
             Self::Workspace(s) => {
                 let mut data = s.data().clone();
@@ -305,7 +345,10 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
         };
         let configuration = self.configuration.clone();
         let clock = self.clock.clone();
-        let preparation = ReadPreparation { kind };
+        let preparation = ReadPreparation {
+            kind,
+            field_service_parts: configuration.field_service_parts,
+        };
         self.authorizer
             .execute_with_sources_deferred(
                 host,
@@ -353,13 +396,29 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
                             user_id: current.user_id().clone(),
                             assignment_id: current.selection().assignment().id.clone(),
                         };
-                        let source = match kind {
-                            ReadKind::Detail => ReadSource::Detail(Box::new(
-                                read_journal_detail(c, &actor, &id).await?,
-                            )),
-                            ReadKind::Workspace => ReadSource::Workspace(Box::new(
-                                read_journal_record_workspace(c, &actor, &id).await?,
-                            )),
+                        let target = if configuration.field_service_parts {
+                            use erpx_server_finance::public::journal_review::{inspect_field_service_parts_journal_target, JournalReviewCommand, JournalReviewInput};
+                            let command = JournalReviewCommand { key: erpx_server_shared::public::CommandKey::new("read-only-source")?, journal_id: id.clone(), input: JournalReviewInput::Post { expected_version: 1 } };
+                            inspect_field_service_parts_journal_target(c, &actor, &command).await?
+                        } else { None };
+                        let source = if let Some(target) = target {
+                            match kind {
+                                ReadKind::Detail => {
+                                    let detail = read_field_service_journal_detail(c, &actor, &id, &target).await?;
+                                    let lineage = crate::finance_journal_review::field_service_parts::FieldServicePartsSource::retain(c, target).await?;
+                                    ReadSource::FieldDetail(Box::new(detail), Box::new(lineage))
+                                }
+                                ReadKind::Workspace => {
+                                    let workspace = read_field_service_journal_workspace(c, &actor, &id, &target).await?;
+                                    let lineage = crate::finance_journal_review::field_service_parts::FieldServicePartsSource::retain(c, target).await?;
+                                    ReadSource::FieldWorkspace(Box::new(workspace), Box::new(lineage))
+                                }
+                            }
+                        } else {
+                            match kind {
+                                ReadKind::Detail => ReadSource::Detail(Box::new(read_journal_detail(c, &actor, &id).await?)),
+                                ReadKind::Workspace => ReadSource::Workspace(Box::new(read_journal_record_workspace(c, &actor, &id).await?)),
+                            }
                         };
                         let creator = match source.journal().get("created_by") {
                             Some(FinanceLedgerValue::Text(v)) => UserId::new(v)?,
