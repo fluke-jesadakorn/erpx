@@ -1279,6 +1279,7 @@
         "@erpx/feature-records": "workspace:*",
         "@erpx/feature-shared": "workspace:*",
         "@erpx/feature-work_projection": "workspace:*",
+        "@erpx/native-sdk": "workspace:*",
         "@erpx/server-collaboration": "workspace:*",
         "@erpx/server-commercial": "workspace:*",
         "@erpx/server-crm": "workspace:*",
@@ -1505,6 +1506,14 @@
         "@erpx/workplace": "workspace:*",
         "next": "16.4.3",
         "react": "19.3.1",
+      },
+    },
+    "packages/native-sdk": {
+      "name": "@erpx/native-sdk",
+      "version": "0.0.0",
+      "dependencies": {
+        "@erpx/contracts": "workspace:*",
+        "server-only": "0.0.1",
       },
     },
     "packages/server-agent": {
@@ -2007,6 +2016,7 @@
         "@erpx/feature-runtime": "workspace:*",
         "@erpx/feature-shared": "workspace:*",
         "@erpx/feature-work_projection": "workspace:*",
+        "@erpx/native-sdk": "workspace:*",
         "@erpx/server-collaboration": "workspace:*",
         "@erpx/server-commerce": "workspace:*",
         "@erpx/server-commercial": "workspace:*",
@@ -3227,6 +3237,8 @@
     "@erpx/feature-workflow": ["@erpx/feature-workflow@workspace:packages/feature-workflow"],
 
     "@erpx/front": ["@erpx/front@workspace:packages/front"],
+
+    "@erpx/native-sdk": ["@erpx/native-sdk@workspace:packages/native-sdk"],
 
     "@erpx/server-agent": ["@erpx/server-agent@workspace:packages/server-agent"],
 

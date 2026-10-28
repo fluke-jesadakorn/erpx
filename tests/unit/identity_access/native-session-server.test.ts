@@ -45,3 +45,26 @@ describe('typed server-only native session transport',()=>{
   await expect(createNativeSessionClient(configuration,async()=>response())(incoming())).rejects.toMatchObject({code:'NATIVE_SESSION_ABORTED'});expect(cancelled).toBe(2);
  });
 });
+
+describe('Identity application native session selection',()=>{
+ it('maps the validated native session dates and identity without a token or an Actor',async()=>{
+  const {createIdentitySessionAuthenticator}=await import('../../../packages/server-identity_access/src/adapters/native-session');
+  const {createIdentitySession}=await import('@erpx/server-identity_access/application/authorization');
+  const previous=process.env.ERPX_NATIVE_ACCOUNT_SESSION_CONFIG;const legacy=vi.fn(async()=>null);let captured:Pick<Headers,'get'>|undefined;
+  try{process.env.ERPX_NATIVE_ACCOUNT_SESSION_CONFIG=JSON.stringify(configuration);const native=vi.fn(()=>async(headers:Pick<Headers,'get'>)=>{captured=headers;return session();});
+   const result=await createIdentitySession({headers:async()=>incoming(),authenticate:createIdentitySessionAuthenticator(legacy,native)})();
+   expect(result.session).toEqual({session:{id:'session-alpha',userId:'alpha',expiresAt:new Date('2026-10-27T12:00:00Z'),createdAt:new Date('2026-10-27T11:00:00Z'),updatedAt:new Date('2026-10-27T11:00:00Z')},user:{id:'alpha',name:'Synthetic alpha',email:'alpha@example.test',emailVerified:true,image:null}});
+   expect(captured?.get('cookie')).toBe('__Host-erpx-product=opaque-test-only');expect(legacy).not.toHaveBeenCalled();expect(native).toHaveBeenCalledWith(configuration);expect(result.session).not.toHaveProperty('actor');expect(result.session.session).not.toHaveProperty('token');
+  }finally{if(previous===undefined)delete process.env.ERPX_NATIVE_ACCOUNT_SESSION_CONFIG;else process.env.ERPX_NATIVE_ACCOUNT_SESSION_CONFIG=previous;}
+ });
+ it('uses legacy only when unconfigured; malformed config, null and native failures never fall back',async()=>{
+  const {createIdentitySessionAuthenticator}=await import('../../../packages/server-identity_access/src/adapters/native-session');
+  const {createIdentitySession}=await import('@erpx/server-identity_access/application/authorization');
+  const previous=process.env.ERPX_NATIVE_ACCOUNT_SESSION_CONFIG;const legacy=vi.fn(async()=>({session:{id:'old',expiresAt:new Date()},user:{id:'old',name:'Old',email:'old@example.test'}}));
+  try{delete process.env.ERPX_NATIVE_ACCOUNT_SESSION_CONFIG;const absent=createIdentitySessionAuthenticator(legacy,()=>{throw Error('unexpected native');});expect((await absent('https://acme.example.test',incoming()))?.user.id).toBe('old');expect(legacy).toHaveBeenCalledTimes(1);legacy.mockClear();
+   process.env.ERPX_NATIVE_ACCOUNT_SESSION_CONFIG='{broken';const broken=createIdentitySessionAuthenticator(legacy);await expect(broken('https://acme.example.test',incoming())).rejects.toMatchObject({code:'NATIVE_SESSION_CONFIGURATION_INVALID'});expect(legacy).not.toHaveBeenCalled();
+   process.env.ERPX_NATIVE_ACCOUNT_SESSION_CONFIG=JSON.stringify(configuration);const anonymous=createIdentitySessionAuthenticator(legacy,()=>async()=>null);await expect(createIdentitySession({headers:async()=>incoming(),authenticate:anonymous})()).rejects.toThrow('UNAUTHENTICATED');expect(legacy).not.toHaveBeenCalled();
+   const failed=createIdentitySessionAuthenticator(legacy,()=>async()=>{throw new NativeSessionReadError('NATIVE_SESSION_UNAVAILABLE',503);});await expect(failed('https://acme.example.test',incoming())).rejects.toMatchObject({code:'NATIVE_SESSION_UNAVAILABLE',status:503});expect(legacy).not.toHaveBeenCalled();
+  }finally{if(previous===undefined)delete process.env.ERPX_NATIVE_ACCOUNT_SESSION_CONFIG;else process.env.ERPX_NATIVE_ACCOUNT_SESSION_CONFIG=previous;}
+ });
+});

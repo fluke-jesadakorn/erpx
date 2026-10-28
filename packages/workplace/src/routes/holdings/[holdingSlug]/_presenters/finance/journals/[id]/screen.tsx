@@ -24,7 +24,9 @@ import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import {journalRecordWorkspace} from "@erpx/server-finance/public/record-presentation";
+import {nativeJournalPageWorkspace,nativeJournalPageFailure} from "@erpx/feature-finance/public/server";
 import { pageError } from "@erpx/server-work_projection/public/page-error";
+import { ApiError } from "@erpx/server-runtime/public/http";
 import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
 export const dynamic = "force-dynamic";
 export default async function JournalPage({
@@ -40,7 +42,12 @@ export default async function JournalPage({
     printing = query.print === "1";
   const actor = await requireWorkContext(holdingSlug);
   const base = workspaceBase(publicScope(actor));
-  const data=await journalRecordWorkspace(actor,id).catch(error=>pageError(error,holdingSlug));
+  const nativeData = await nativeJournalPageWorkspace(actor, holdingSlug, id).catch(error => {
+    const mapped = nativeJournalPageFailure(error);
+    if (!mapped) throw error;
+    return pageError(new ApiError(mapped.status, mapped.code, mapped.message), holdingSlug);
+  });
+  const data = nativeData ?? await journalRecordWorkspace(actor,id).catch(error=>pageError(error,holdingSlug));
   const {journal,lines,history}=data;
   const documentPost = ["draft","in_review"].includes(String(journal.status)) ? await financeDocumentPostAccess(actor,"journal",id) : undefined;
   const canApprove = hasPermission(actor, "finance.approve");

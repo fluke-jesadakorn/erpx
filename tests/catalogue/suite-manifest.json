@@ -63474,21 +63474,22 @@
         ]
       },
       "verificationInputs": [
-        "packages/server-identity_access/Cargo.toml",
-        "Cargo.toml",
         "Cargo.lock",
+        "Cargo.toml",
+        "docs/contracts/next/account-auth.openapi.generated.json",
+        "packages/contracts/src/account-auth.generated.ts",
+        "packages/server-identity_access/Cargo.toml",
         "rust-toolchain.toml",
-        "tests/support/rust-account.rs",
         "scripts/docs/export-account-contracts.rs",
         "scripts/docs/generate-account-contracts.ts",
-        "packages/contracts/src/account-auth.generated.ts",
-        "tests/support/rust-postgres.rs",
-        "docs/contracts/next/account-auth.openapi.generated.json",
+        "src/composition/Cargo.toml",
+        "tests/support/runtime/private-session-api.rs",
+        "tests/support/runtime/private-session-config.rs",
         "tests/support/rust-account-credentials.rs",
         "tests/support/rust-account-queued-authority.rs",
-        "src/composition/Cargo.toml",
         "tests/support/rust-account-revocation.rs",
-        "tests/support/runtime/private-session-api.rs"
+        "tests/support/rust-account.rs",
+        "tests/support/rust-postgres.rs"
       ],
       "postgres": {
         "mode": "raw",
@@ -63682,13 +63683,17 @@
         "tests/unit/identity_access/native-session-server.test.ts"
       ],
       "verificationInputs": [
-        "packages/contracts/src/account-auth.generated.ts",
         "docs/contracts/next/account-auth.openapi.generated.json",
-        "scripts/docs/export-account-contracts.rs",
-        "scripts/docs/generate-account-contracts.ts",
+        "packages/contracts/src/account-auth.generated.ts",
         "packages/feature-runtime/src/adapters/server/native-session-http.ts",
         "packages/feature-runtime/src/adapters/server/next-native-session.ts",
-        "packages/feature-runtime/src/public/server.ts"
+        "packages/feature-runtime/src/public/server.ts",
+        "packages/native-sdk/package.json",
+        "packages/native-sdk/src/session.ts",
+        "packages/server-identity_access/src/adapters/authorization.ts",
+        "packages/server-identity_access/src/adapters/native-session.ts",
+        "scripts/docs/export-account-contracts.rs",
+        "scripts/docs/generate-account-contracts.ts"
       ]
     },
     {
@@ -63881,23 +63886,24 @@
         ]
       },
       "verificationInputs": [
-        "packages/server-identity_access/Cargo.toml",
-        "Cargo.toml",
         "Cargo.lock",
+        "Cargo.toml",
+        "docs/contracts/next/account-auth.openapi.generated.json",
+        "packages/contracts/src/account-auth.generated.ts",
+        "packages/feature-runtime/src/adapters/server/native-session-http.ts",
+        "packages/server-identity_access/Cargo.toml",
         "rust-toolchain.toml",
-        "tests/support/rust-account.rs",
         "scripts/docs/export-account-contracts.rs",
         "scripts/docs/generate-account-contracts.ts",
-        "packages/contracts/src/account-auth.generated.ts",
-        "tests/support/rust-postgres.rs",
-        "docs/contracts/next/account-auth.openapi.generated.json",
+        "src/composition/Cargo.toml",
+        "tests/support/runtime/native-session-client.mjs",
+        "tests/support/runtime/private-session-api.rs",
+        "tests/support/runtime/private-session-config.rs",
         "tests/support/rust-account-credentials.rs",
         "tests/support/rust-account-queued-authority.rs",
-        "src/composition/Cargo.toml",
         "tests/support/rust-account-revocation.rs",
-        "tests/support/runtime/private-session-api.rs",
-        "tests/support/runtime/native-session-client.mjs",
-        "packages/feature-runtime/src/adapters/server/native-session-http.ts"
+        "tests/support/rust-account.rs",
+        "tests/support/rust-postgres.rs"
       ],
       "provider": {
         "required": [
@@ -64624,8 +64630,10 @@
       "verificationInputs": [
         "packages/contracts/src/finance-journal-read.generated.ts",
         "packages/feature-finance/src/adapters/server/native-journal-detail.ts",
+        "packages/feature-finance/src/adapters/server/native-journal-page.ts",
         "packages/feature-finance/src/adapters/server/next-native-journal-detail.ts",
-        "packages/feature-finance/src/public/server.ts"
+        "packages/feature-finance/src/public/server.ts",
+        "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/finance/journals/[id]/screen.tsx"
       ]
     },
     {
@@ -67082,15 +67090,16 @@
         ]
       },
       "verificationInputs": [
-        "src/composition/Cargo.toml",
-        "Cargo.toml",
         "Cargo.lock",
+        "Cargo.toml",
         "rust-toolchain.toml",
-        "tests/support/files/system-scan-facts.rs",
+        "src/composition/Cargo.toml",
         "tests/support/files/scan-facts.rs",
+        "tests/support/files/system-scan-facts.rs",
         "tests/support/runtime/private-session-api.rs",
-        "tests/support/rust-account-revocation.rs",
+        "tests/support/runtime/private-session-config.rs",
         "tests/support/rust-account-credentials.rs",
+        "tests/support/rust-account-revocation.rs",
         "tests/support/rust-account.rs",
         "tests/support/rust-postgres.rs"
       ],
@@ -67249,18 +67258,19 @@
         ]
       },
       "verificationInputs": [
-        "src/composition/Cargo.toml",
-        "Cargo.toml",
         "Cargo.lock",
+        "Cargo.toml",
         "rust-toolchain.toml",
-        "tests/support/files/system-scan-facts.rs",
+        "src/composition/Cargo.toml",
+        "tests/support/files/files-held-tool.rs",
         "tests/support/files/scan-facts.rs",
+        "tests/support/files/system-scan-facts.rs",
         "tests/support/runtime/private-session-api.rs",
-        "tests/support/rust-account-revocation.rs",
+        "tests/support/runtime/private-session-config.rs",
         "tests/support/rust-account-credentials.rs",
+        "tests/support/rust-account-revocation.rs",
         "tests/support/rust-account.rs",
-        "tests/support/rust-postgres.rs",
-        "tests/support/files/files-held-tool.rs"
+        "tests/support/rust-postgres.rs"
       ],
       "apps": [
         "apps",

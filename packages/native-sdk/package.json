@@ -1,0 +1,11 @@
+{
+  "name": "@erpx/native-sdk",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": { "./session": "./src/session.ts" },
+  "dependencies": {
+    "@erpx/contracts": "workspace:*",
+    "server-only": "0.0.1"
+  }
+}

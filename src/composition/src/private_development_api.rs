@@ -1,5 +1,12 @@
 //! Explicit private development assembly. No environment discovery, migrations,
 //! public listener, installed service, business readiness or legacy backend proxy.
+use crate::{
+    finance_journal_detail::{FinanceJournalDetailService, FinanceJournalReadConfiguration},
+    finance_journal_detail_http::{
+        FinanceJournalReadScopeHeaders, FinanceJournalReadTarget, finance_journal_read_router,
+    },
+    finance_journal_review::FinanceJournalEnvironment,
+};
 use axum::{
     Router,
     extract::{Request, State},
@@ -7,14 +14,20 @@ use axum::{
     middleware::{self, Next},
     response::{IntoResponse, Response},
 };
+use erpx_server_commercial::public::purchases::current_package_catalogue;
 use erpx_server_identity_access::public::{
     AccountAuthentication, AccountPolicy, Argon2Passwords, AuthenticationSecrets, HoldingOrigin,
     PostgresAccountRepository, SystemAccountClock, SystemAuthenticationSecrets,
+    account_auth_router,
     account_holding_bindings::{
         ConfiguredAccountHolding, ConfiguredHoldingRegistry, lock_holding_binding_sources,
     },
     account_revocation::{AccountHoldingWriter, PostgresAccountWorkContextInvalidation},
     account_session_router,
+    account_sso::{
+        AccountSso, PostgresAccountSso, SsoPolicy, SystemSsoCryptography, account_sso_router,
+    },
+    effective_authority::HoldingWorkAuthorizer,
 };
 use erpx_server_runtime::public::{
     foundation_router,
@@ -24,7 +37,7 @@ use erpx_server_runtime::public::{
     },
     validate_foundation_address,
 };
-use erpx_server_shared::public::{Clock, HoldingId};
+use erpx_server_shared::public::{Clock, CompanyId, HoldingId, TimestampMillis};
 use serde::Deserialize;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -56,6 +69,12 @@ struct HoldingDocument {
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct FinanceReadDocument {
+    holding_id: String,
+    company_id: String,
+}
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ConfigurationDocument {
     version: u8,
     mode: String,
@@ -68,8 +87,13 @@ struct ConfigurationDocument {
     request_timeout_ms: u64,
     control: DatabaseDocument,
     holdings: Vec<HoldingDocument>,
+    #[serde(default)]
+    finance_journal_reads: Vec<FinanceReadDocument>,
+    #[serde(default)]
+    account_bootstrap: bool,
 }
 struct HoldingConfiguration {
+    host: String,
     registration: ConfiguredAccountHolding,
     database: LeasedDevelopmentDatabase,
 }
@@ -84,6 +108,8 @@ pub struct DevelopmentApiConfiguration {
     holdings_registry: Arc<ConfiguredHoldingRegistry>,
     control: LeasedDevelopmentDatabase,
     holdings: Vec<HoldingConfiguration>,
+    finance_journal_reads: BTreeMap<HoldingId, CompanyId>,
+    account_bootstrap: bool,
 }
 impl fmt::Debug for DevelopmentApiConfiguration {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -151,6 +177,7 @@ impl DevelopmentApiConfiguration {
                 audience: format!("holding:development:{}:{}", h.holding_id, h.host),
             });
             holdings.push(HoldingConfiguration {
+                host: h.host,
                 registration: ConfiguredAccountHolding {
                     holding_id,
                     slug: h.slug,
@@ -163,6 +190,21 @@ impl DevelopmentApiConfiguration {
         }
         if ids != BTreeSet::from(["h001".to_owned(), "h002".to_owned()]) {
             return Err("EXACT_H001_H002_RESOURCES_REQUIRED");
+        }
+        let mut finance_journal_reads = BTreeMap::new();
+        for read in doc.finance_journal_reads {
+            let holding = HoldingId::new(&read.holding_id)
+                .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?;
+            let company = CompanyId::new(&read.company_id)
+                .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?;
+            if !ids.contains(&read.holding_id)
+                || finance_journal_reads.insert(holding, company).is_some()
+            {
+                return Err("PRIVATE_API_FINANCE_CONFIGURATION_INVALID");
+            }
+        }
+        if doc.account_bootstrap && finance_journal_reads.is_empty() {
+            return Err("PRIVATE_API_FINANCE_CONFIGURATION_INVALID");
         }
         let policy = Arc::new(AccountPolicy {
             account_origin: format!("https://{}", doc.account_host),
@@ -190,6 +232,8 @@ impl DevelopmentApiConfiguration {
             holdings_registry,
             control,
             holdings,
+            finance_journal_reads,
+            account_bootstrap: doc.account_bootstrap,
         })
     }
     pub fn from_file(path: &Path) -> Result<Self, &'static str> {
@@ -365,21 +409,103 @@ async fn assemble_checked(
         )
         .map_err(|_| "PRIVATE_API_ACCOUNT_UNAVAILABLE")?,
     );
+    let mut router = foundation_router();
+    if config.account_bootstrap {
+        let sso_policy = SsoPolicy::new((*config.policy).clone())
+            .map_err(|_| "PRIVATE_API_ACCOUNT_UNAVAILABLE")?;
+        let sso = Arc::new(AccountSso::new(
+            sso_policy.clone(),
+            Arc::new(PostgresAccountSso::from_control_database(
+                pools[0].clone(),
+                sso_policy,
+                clock.clone(),
+                config.holdings_registry.clone(),
+            )),
+            Arc::new(SystemSsoCryptography),
+            secrets,
+            clock.clone(),
+        ));
+        router = router
+            .merge(account_auth_router(auth))
+            .merge(account_sso_router(sso));
+    } else {
+        router = router.merge(account_session_router(auth));
+    }
+    let mut finance_targets = BTreeSet::new();
+    if !config.finance_journal_reads.is_empty() {
+        let catalogue = Arc::new(
+            current_package_catalogue().map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
+        );
+        let mut targets = Vec::new();
+        for (i, holding) in config.holdings.iter().enumerate() {
+            let Some(company) = config
+                .finance_journal_reads
+                .get(&holding.registration.holding_id)
+            else {
+                continue;
+            };
+            let authorizer = Arc::new(
+                HoldingWorkAuthorizer::new(
+                    pools[0].clone(),
+                    pools[i + 1].clone(),
+                    holding.registration.holding_id.clone(),
+                    (*config.policy).clone(),
+                    clock.clone(),
+                    config.holdings_registry.clone(),
+                )
+                .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
+            );
+            let configuration = FinanceJournalReadConfiguration::new(
+                FinanceJournalEnvironment::Development,
+                holding.registration.holding_id.clone(),
+                company.clone(),
+                catalogue.clone(),
+            )
+            .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?;
+            finance_targets.insert((holding.host.clone(), holding.registration.slug.clone()));
+            targets.push(FinanceJournalReadTarget {
+                host: holding.host.clone(),
+                holding_slug: holding.registration.slug.clone(),
+                service: Arc::new(FinanceJournalDetailService::new(
+                    authorizer,
+                    configuration,
+                    Arc::new(SharedClock(clock.clone())),
+                )),
+            });
+        }
+        router = router.merge(
+            finance_journal_read_router(
+                config.policy.clone(),
+                config.holdings_registry.clone(),
+                Arc::new(FinanceJournalReadScopeHeaders),
+                targets,
+            )
+            .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
+        );
+    }
     let state = Arc::new(Boundary {
         policy: config.policy.clone(),
         loopback: config.listen.to_string(),
         permits: Arc::new(Semaphore::new(config.maximum_requests)),
         timeout: config.request_timeout,
+        finance_targets,
+        account_bootstrap: config.account_bootstrap,
     });
-    Ok(foundation_router()
-        .merge(account_session_router(auth))
-        .layer(middleware::from_fn_with_state(state, boundary)))
+    Ok(router.layer(middleware::from_fn_with_state(state, boundary)))
+}
+struct SharedClock(Arc<dyn Clock + Send + Sync>);
+impl Clock for SharedClock {
+    fn now(&self) -> TimestampMillis {
+        self.0.now()
+    }
 }
 struct Boundary {
     policy: Arc<AccountPolicy>,
     loopback: String,
     permits: Arc<Semaphore>,
     timeout: Duration,
+    finance_targets: BTreeSet<(String, String)>,
+    account_bootstrap: bool,
 }
 enum BoundaryDenial {
     InvalidAuthority,
@@ -427,13 +553,51 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
     {
         return Err(BoundaryDenial::NotFound);
     }
-    if !matches!(
+    let finance_workspace = match request
+        .uri()
+        .path()
+        .split('/')
+        .collect::<Vec<_>>()
+        .as_slice()
+    {
+        [
+            "",
+            "api",
+            "v1",
+            "holdings",
+            slug,
+            "finance",
+            "journals",
+            id,
+            "workspace",
+        ] if !id.is_empty() => state
+            .finance_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
+        _ => false,
+    };
+    let bootstrap = state.account_bootstrap
+        && match (request.method(), request.uri().path()) {
+            (&axum::http::Method::POST, "/api/auth/sign-in/email") => {
+                host == state.policy.account_host
+            }
+            (&axum::http::Method::GET, "/sso/authorize") => host == state.policy.account_host,
+            (&axum::http::Method::GET, "/sso/start" | "/sso/callback") => state
+                .finance_targets
+                .iter()
+                .any(|(target_host, _)| target_host == host),
+            _ => false,
+        };
+    if !(matches!(
         request.uri().path(),
         "/api/auth/get-session" | "/api/health" | "/api/ready"
-    ) || !matches!(
-        *request.method(),
-        axum::http::Method::GET | axum::http::Method::HEAD
-    ) {
+    ) || finance_workspace
+        || bootstrap)
+        || !(bootstrap
+            || matches!(
+                *request.method(),
+                axum::http::Method::GET | axum::http::Method::HEAD
+            ))
+    {
         return Err(BoundaryDenial::NotFound);
     }
     Ok(())

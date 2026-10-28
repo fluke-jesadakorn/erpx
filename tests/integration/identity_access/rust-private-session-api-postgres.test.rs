@@ -1,8 +1,8 @@
-#[allow(
-    dead_code,
-    reason = "real Account/SSO/revocation fixture serves several lifecycle suites"
-)]
-#[path = "../../support/runtime/private-session-api.rs"]
+#[allow(dead_code)]
+#[path = "../../support/finance/review-composition.rs"]
+mod finance_facts;
+#[allow(dead_code)]
+#[path = "../../support/runtime/private-session-config.rs"]
 mod fixture;
 use axum::{
     Router,
@@ -11,7 +11,11 @@ use axum::{
 };
 use erpx_server_identity_access::public::SystemAuthenticationSecrets;
 use erpx_service::private_development_api::*;
-use fixture::{account, cookie, document};
+use finance_facts::account;
+use fixture::cookie;
+async fn document(system: &account::System) -> serde_json::Value {
+    fixture::document(&system.control, &system.holdings).await
+}
 use std::sync::Arc;
 use tower::ServiceExt;
 async fn call(
@@ -227,4 +231,95 @@ async fn assembly_refuses_wrong_tracks_missing_changed_extra_receipts_and_stale_
   }
   sqlx::query("UPDATE holding_bindings SET write_binding='MOVED_H001_DB'WHERE holding_id='h001'").execute(system.control.raw()).await.unwrap();let config=DevelopmentApiConfiguration::parse(&original.to_string()).unwrap();assert!(matches!(assemble_development_api(config,system.scenario.clock.clone(),Arc::new(SystemAuthenticationSecrets)).await,Err("PRIVATE_API_BINDINGS_MISMATCH")));
  }).await;
+}
+
+#[tokio::test]
+async fn optional_finance_workspace_uses_real_account_and_holding_authority() {
+    finance_facts::account::with_system(|system| async move {
+        let prepared = finance_facts::setup(system).await;
+        prepared.create("private-workspace", false).await.unwrap();
+        let system = &prepared.system;
+        let mut doc = serde_json::json!({
+            "version":1,"mode":"development","transport":"direct-loopback","listen":"127.0.0.1:43117",
+            "accountHost":"account.example.test","requireEmailVerification":true,"passwordWorkers":1,
+            "maximumRequests":8,"requestTimeoutMs":5000,
+            "control":fixture::database(&system.control).await,
+            "holdings":[
+                {"holdingId":"h001","slug":"acme","host":"acme.example.test","writeBinding":"HOLDING_H001_DB","readBinding":"HOLDING_H001_READ_DB","filesBinding":"HOLDING_H001_FILES","database":fixture::database(&system.holdings[0]).await},
+                {"holdingId":"h002","slug":"northstar","host":"northstar.example.test","writeBinding":"HOLDING_H002_DB","readBinding":"HOLDING_H002_READ_DB","filesBinding":"HOLDING_H002_FILES","database":fixture::database(&system.holdings[1]).await}
+            ]
+        });
+        let config = DevelopmentApiConfiguration::parse(&doc.to_string()).unwrap();
+        let runtime = assemble_development_api(config, system.scenario.clock.clone(), Arc::new(SystemAuthenticationSecrets)).await.unwrap();
+        let path = "/api/v1/holdings/acme/finance/journals/journal-private-workspace/workspace";
+        let request = || Request::builder().uri(path).header("host", "acme.example.test").header("cookie", format!("__Host-erpx-product={}", prepared.reviewer_token.expose())).body(Body::empty()).unwrap();
+        assert_eq!(runtime.router().oneshot(request()).await.unwrap().status(), StatusCode::NOT_FOUND);
+        runtime.close().await;
+        doc["financeJournalReads"] = serde_json::json!([{ "holdingId":"h001", "companyId":"company" }]);
+        let config = DevelopmentApiConfiguration::parse(&doc.to_string()).unwrap();
+        let runtime = assemble_development_api(config, system.scenario.clock.clone(), Arc::new(SystemAuthenticationSecrets)).await.unwrap();
+        let response = runtime.router().oneshot(request()).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body: serde_json::Value = serde_json::from_slice(&to_bytes(response.into_body(), 2 * 1024 * 1024).await.unwrap()).unwrap();
+        assert_eq!(body["context"]["holdingId"], "h001");
+        assert_eq!(body["context"]["companyId"], "company");
+        let anonymous = Request::builder().uri(path).header("host", "acme.example.test").body(Body::empty()).unwrap();
+        assert_ne!(runtime.router().oneshot(anonymous).await.unwrap().status(), StatusCode::OK);
+        let other_host = Request::builder().uri(path).header("host", "northstar.example.test").body(Body::empty()).unwrap();
+        assert_eq!(runtime.router().oneshot(other_host).await.unwrap().status(), StatusCode::NOT_FOUND);
+        let detail = Request::builder().uri("/api/v1/holdings/acme/finance/journals/journal-private-workspace").header("host", "acme.example.test").body(Body::empty()).unwrap();
+        assert_eq!(runtime.router().oneshot(detail).await.unwrap().status(), StatusCode::NOT_FOUND);
+        runtime.close().await;
+    }).await;
+}
+
+#[tokio::test]
+async fn opt_in_account_bootstrap_performs_real_http_sign_in_and_sso_with_closed_boundaries() {
+    account::with_system(|system| async move {
+        let mut doc = document(&system).await;
+        doc["financeJournalReads"] = serde_json::json!([{ "holdingId":"h001", "companyId":"company" }]);
+        doc["accountBootstrap"] = true.into();
+        let runtime = assemble_development_api(
+            DevelopmentApiConfiguration::parse(&doc.to_string()).unwrap(),
+            system.scenario.clock.clone(), Arc::new(SystemAuthenticationSecrets),
+        ).await.unwrap();
+        let router = runtime.router();
+        let sign_in = || Request::builder().method("POST").uri("/api/auth/sign-in/email")
+            .header("host", "account.example.test").header("origin", "https://account.example.test")
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::json!({"email":"a@example.test", "password":account::fixture::PASSWORD}).to_string())).unwrap();
+        let response = router.clone().oneshot(sign_in()).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let account_cookies = response.headers().get_all("set-cookie").iter()
+            .map(|v| v.to_str().unwrap().split(';').next().unwrap()).collect::<Vec<_>>().join("; ");
+        let start = router.clone().oneshot(Request::builder().uri("/sso/start?next=%2Ffinance")
+            .header("host", "acme.example.test").body(Body::empty()).unwrap()).await.unwrap();
+        assert_eq!(start.status(), StatusCode::SEE_OTHER);
+        let browser = start.headers()["set-cookie"].to_str().unwrap().split(';').next().unwrap().to_owned();
+        let location = start.headers()["location"].to_str().unwrap().strip_prefix("https://account.example.test").unwrap();
+        let authorized = router.clone().oneshot(Request::builder().uri(location).header("host", "account.example.test")
+            .header("cookie", &account_cookies).body(Body::empty()).unwrap()).await.unwrap();
+        assert_eq!(authorized.status(), StatusCode::SEE_OTHER);
+        let callback = authorized.headers()["location"].to_str().unwrap().strip_prefix("https://acme.example.test").unwrap();
+        let issued = router.clone().oneshot(Request::builder().uri(callback).header("host", "acme.example.test")
+            .header("cookie", browser).body(Body::empty()).unwrap()).await.unwrap();
+        assert_eq!(issued.status(), StatusCode::SEE_OTHER);
+        let child_cookie = issued.headers().get_all("set-cookie").iter().map(|v| v.to_str().unwrap().split(';').next().unwrap())
+            .find(|v| v.starts_with("__Host-erpx-product=")).unwrap();
+        assert_eq!(call(&router, "acme.example.test", Some(child_cookie)).await.0, StatusCode::OK);
+        for (method, host, path) in [
+            ("POST", "acme.example.test", "/api/auth/sign-in/email"),
+            ("GET", "northstar.example.test", "/sso/start"),
+            ("GET", "acme.example.test", "/sso/authorize"),
+            ("POST", "account.example.test", "/api/auth/sign-out"),
+            ("HEAD", "acme.example.test", "/sso/start"),
+        ] {
+            let request = Request::builder().method(method).uri(path).header("host",host).body(Body::empty()).unwrap();
+            assert_eq!(router.clone().oneshot(request).await.unwrap().status(), StatusCode::NOT_FOUND, "{method} {host} {path}");
+        }
+        let missing_origin = Request::builder().method("POST").uri("/api/auth/sign-in/email").header("host","account.example.test")
+            .header("content-type","application/json").body(Body::from("{}" )).unwrap();
+        assert_eq!(router.oneshot(missing_origin).await.unwrap().status(),StatusCode::FORBIDDEN);
+        runtime.close().await;
+    }).await;
 }

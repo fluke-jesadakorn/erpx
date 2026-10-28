@@ -512,6 +512,7 @@
     "pg": "8.23.1",
     "react": "19.3.1",
     "server-only": "0.0.1",
-    "zod": "4.6.7"
+    "zod": "4.6.7",
+    "@erpx/native-sdk": "workspace:*"
   }
 }

@@ -14,7 +14,7 @@ verification-roots = ["../../scripts/docs/export-directory-source-contracts.rs",
 files-scan-worker = ["erpx-server-files/preview-provider"]
 directory-ldaps = ["erpx-server-identity-access/directory-ldaps"]
 contracts = ["dep:ts-rs", "dep:utoipa", "erpx-server-finance/contracts"]
-private-development-api = []
+private-development-api = ["business-http"]
 business-http = ["legal-queue"]
 legal-queue = []
 legal-pdf-worker = ["erpx-server-legal/pdf-verifier"]
@@ -196,3 +196,8 @@ required-features = ["business-http"]
 name = "field_service_http_parity_postgres"
 path = "../../tests/integration/field_service/rust-http-parity-postgres.test.rs"
 required-features = ["business-http"]
+
+[[example]]
+name = "native-finance-development"
+path = "../../scripts/seed/native-finance-development.rs"
+required-features = ["private-development-api"]

@@ -119,3 +119,24 @@ fn configuration_file_is_an_explicit_absolute_private_regular_file_without_leaf_
     std::fs::write(&path, b"\xff").unwrap();
     assert!(DevelopmentApiConfiguration::from_file(&path).is_err());
 }
+
+#[test]
+fn finance_read_requires_distinct_registered_holdings_and_valid_companies() {
+    let mut d = document();
+    d["financeJournalReads"] = serde_json::json!([{ "holdingId": "h001", "companyId": "company" }]);
+    assert!(parses(&d));
+    d["accountBootstrap"] = true.into();
+    assert!(parses(&d));
+    let mut no_finance = document();
+    no_finance["accountBootstrap"] = true.into();
+    assert!(!parses(&no_finance));
+    for entries in [
+        serde_json::json!([{ "holdingId": "h003", "companyId": "company" }]),
+        serde_json::json!([{ "holdingId": "h001", "companyId": "" }]),
+        serde_json::json!([{ "holdingId": "h001", "companyId": "company" }, { "holdingId": "h001", "companyId": "other" }]),
+        serde_json::json!([{ "holdingId": "h001", "companyId": "company", "host": "other" }]),
+    ] {
+        d["financeJournalReads"] = entries;
+        assert!(!parses(&d));
+    }
+}

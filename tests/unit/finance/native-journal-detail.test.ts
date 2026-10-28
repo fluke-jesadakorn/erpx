@@ -37,3 +37,38 @@ describe('native Journal record workspace SSR transport',()=>{
   const result=await read(incoming(),{...input,branchSlug:'bangkok'});expect(sent?.get('x-erpx-workspace-branch')).toBe('bangkok');expect(result.context.branchSlug).toBe('bangkok');expect(result.context.assignmentScopeKind).toBe('holding');
  });
 });
+
+describe('native journal page integration',()=>{
+ it('uses the real workspace adapter with the genuine page context and rejects an account mismatch',async()=>{
+  const {createNativeJournalPageReader}=await import('@erpx/feature-finance/public/server');
+  const actor={userId:'original-user',holdingId:'h001',holdingSlug:'acme',companyId:'company',branchId:null,departmentId:null,assignmentId:'grant',role:'reader',assignmentScope:'holding',scope:{kind:'holding',holdingId:'h001',holdingSlug:'acme',holdingName:'Acme',companyId:'company'},authority:{revision:7,assignmentVersion:3},modules:['finance'],iam:{permissions:['finance.read','module.finance.read']}} as import('@erpx/feature-finance/public/server').NativeJournalPageContext;
+  requestHeaders.mockClear();requestHeaders.mockResolvedValue(incoming('genuine-cookie'));
+  let calls=0;const read=createNativeJournalWorkspaceClient(configuration,async(_url,headers)=>{calls++;expect(headers.get('cookie')).toBe('genuine-cookie');expect(headers.get('x-erpx-context-revision')).toBe('7');return json(workspaceData());});
+  const page=createNativeJournalPageReader(read);const result=await page(actor,'acme','journal-one');expect(result.journal.id).toBe('journal-one');expect(calls).toBe(1);expect(requestHeaders).toHaveBeenCalledTimes(1);
+  const foreign=createNativeJournalPageReader(createNativeJournalWorkspaceClient(configuration,async()=>json(workspaceData('other-user'))));
+  await expect(foreign(actor,'acme','journal-one')).rejects.toMatchObject({code:'NATIVE_FINANCE_CONTEXT_CHANGED'});
+  for(const changed of [{...actor,holdingId:'h002'},{...actor,role:'different'},{...actor,branchId:'other'},{...actor,assignmentScope:'branch' as const},{...actor,authority:undefined},{...actor,modules:['finance','other']},{...actor,iam:{permissions:['finance.read']}}])await expect(page(changed,'acme','journal-one')).rejects.toMatchObject({code:'NATIVE_FINANCE_CONTEXT_CHANGED'});
+ });
+ it('propagates configured native failures and rejects malformed configuration rather than reading legacy data',async()=>{
+  const {createNativeJournalPageReader,nativeJournalPageWorkspace}=await import('@erpx/feature-finance/public/server');
+  const actor={userId:'original-user',holdingId:'h001',holdingSlug:'acme',companyId:'company',branchId:null,departmentId:null,assignmentId:'grant',role:'reader',assignmentScope:'holding',scope:{kind:'holding',holdingId:'h001',holdingSlug:'acme',holdingName:'Acme',companyId:'company'},authority:{revision:7,assignmentVersion:3},modules:['finance'],iam:{permissions:['finance.read','module.finance.read']}} as import('@erpx/feature-finance/public/server').NativeJournalPageContext;
+  requestHeaders.mockResolvedValue(incoming());
+  const read=createNativeJournalWorkspaceClient(configuration,async()=>json(null,503));
+  await expect(createNativeJournalPageReader(read)(actor,'acme','journal-one')).rejects.toMatchObject({code:'NATIVE_FINANCE_UNAVAILABLE',status:503});
+  const previous=process.env.ERPX_NATIVE_FINANCE_JOURNAL_CONFIG;
+  try{delete process.env.ERPX_NATIVE_FINANCE_JOURNAL_CONFIG;expect(await nativeJournalPageWorkspace(actor,'acme','journal-one')).toBeUndefined();process.env.ERPX_NATIVE_FINANCE_JOURNAL_CONFIG='{broken';await expect(nativeJournalPageWorkspace(actor,'acme','journal-one')).rejects.toMatchObject({code:'NATIVE_FINANCE_CONFIGURATION_INVALID'});process.env.ERPX_NATIVE_FINANCE_JOURNAL_CONFIG=JSON.stringify({...configuration,privateBaseUrl:'http://127.0.0.1:3100'});await expect(nativeJournalPageWorkspace(actor,'acme','journal-one')).rejects.toMatchObject({code:'NATIVE_FINANCE_CONFIGURATION_INVALID'});}
+  finally{if(previous===undefined)delete process.env.ERPX_NATIVE_FINANCE_JOURNAL_CONFIG;else process.env.ERPX_NATIVE_FINANCE_JOURNAL_CONFIG=previous;}
+ });
+});
+
+describe('native journal page error policy',()=>{
+ it('maps expected native outcomes into the existing page policy and leaves unexpected failures alone',async()=>{
+  const {nativeJournalPageFailure}=await import('@erpx/feature-finance/public/server');
+  const {createPageErrorService}=await import('@erpx/server-work_projection/application/page-error');
+  const service=createPageErrorService({headers:async()=>new Headers({'x-erpx-page-path':'/holdings/acme/finance/accounting'}),requestedHoldingScope:async()=>{throw Error('unexpected scope read');},forbidden:()=>{throw Error('FORBIDDEN_PAGE');},notFound:()=>{throw Error('NOT_FOUND_PAGE');},redirect:(url:string)=>{throw Error(`REDIRECT:${url}`);},unstableRethrow:()=>{},isApiError:(e:unknown):e is Error&{code:string;status:number}=>e instanceof Error&&'code'in e&&'status'in e});
+  for(const [error,expected] of [[new NativeFinanceReadError('NATIVE_FINANCE_UNAVAILABLE',401),'REDIRECT:/login?'],[new NativeFinanceReadError('NATIVE_FINANCE_UNAVAILABLE',403),'FORBIDDEN_PAGE'],[new NativeFinanceReadError('NATIVE_FINANCE_UNAVAILABLE',404),'NOT_FOUND_PAGE'],[new NativeFinanceReadError('NATIVE_FINANCE_CONTEXT_CHANGED'),'FORBIDDEN_PAGE'],[new NativeFinanceReadError('NATIVE_FINANCE_UNAVAILABLE',409),'REDIRECT:/access?']] as const){
+   const mapped=nativeJournalPageFailure(error);expect(mapped).toBeDefined();const translated=Object.assign(new Error(mapped!.message),mapped);await expect(service.pageError(translated,'acme')).rejects.toThrow(expected);
+  }
+  for(const error of [new NativeFinanceReadError('NATIVE_FINANCE_UNAVAILABLE',503),new NativeFinanceReadError('NATIVE_FINANCE_CONFIGURATION_INVALID'),new NativeFinanceReadError('NATIVE_FINANCE_RESPONSE_INVALID'),new Error('unexpected')])expect(nativeJournalPageFailure(error)).toBeUndefined();
+ });
+});
