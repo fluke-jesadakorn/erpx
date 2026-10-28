@@ -63891,7 +63891,14 @@
         "packages/server-field_service/src/adapters/reservation_read.rs",
         "packages/server-inventory/src/adapters/field_service_stock_read.rs",
         "packages/server-workflow/src/adapters/postgres_record_origin.rs",
-        "scripts/seed/native-field-service-development.rs"
+        "scripts/seed/native-field-service-development.rs",
+        "packages/server-field_service/src/adapters/request_agreement.rs",
+        "packages/server-field_service/src/adapters/request_order.rs",
+        "packages/server-field_service/src/public/request_agreement.rs",
+        "packages/server-field_service/src/public/request_order.rs",
+        "packages/server-support/src/adapters/field_service_request.rs",
+        "packages/server-support/src/public/field_service_request.rs",
+        "src/composition/src/field_service_parts/request.rs"
       ],
       "apps": [
         "account",
@@ -69616,7 +69623,14 @@
         "packages/server-manage_erpx/src/domain/public-origin.ts",
         "packages/feature-field_service/src/lib/command.ts",
         "packages/feature-work_projection/src/lib/work-fetch.ts",
-        "packages/contracts/src/holding-fetch.ts"
+        "packages/contracts/src/holding-fetch.ts",
+        "packages/server-field_service/src/adapters/request_agreement.rs",
+        "packages/server-field_service/src/adapters/request_order.rs",
+        "packages/server-field_service/src/public/request_agreement.rs",
+        "packages/server-field_service/src/public/request_order.rs",
+        "packages/server-support/src/adapters/field_service_request.rs",
+        "packages/server-support/src/public/field_service_request.rs",
+        "src/composition/src/field_service_parts/request.rs"
       ],
       "postgres": {
         "mode": "raw",

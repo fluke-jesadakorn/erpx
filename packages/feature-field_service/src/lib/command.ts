@@ -2,7 +2,7 @@ import {workFetch,type WorkCommandCompletion} from '@erpx/feature-work_projectio
 import {captureWorkCommandContext} from '@erpx/feature-work_projection/lib/command-context';
 import {retainWorkCommandCompletion} from '@erpx/feature-work_projection/lib/command-completion';
 import {announceWorkChange} from '@erpx/feature-work_projection/lib/work-refresh';
-export type FieldServiceSource={base:string;workspaceKey:string;recordId:string|null;targets:Record<string,{version:number;status:string}>};
+export type FieldServiceSource={base:string;workspaceKey:string;recordId:string|null;targets:Record<string,{version:number;status:string;customerId?:string}>};
 export type FieldServiceReceipt={id:string;status:string;version:number;ticketId?:string};
 export const fieldServiceOwner=(source:FieldServiceSource)=>JSON.stringify([source.base,source.workspaceKey,source.recordId]);
 const work=()=>{const node=typeof document==='undefined'?null:document.querySelector<HTMLElement>('[data-work-revision]');return node?JSON.stringify([node.dataset.workUser,node.dataset.workRevision,node.dataset.workCompany,node.dataset.workAssignment,node.dataset.workAssignmentVersion]):'server';};

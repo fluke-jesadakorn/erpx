@@ -1,6 +1,7 @@
 //! Borrowed, owner-bound insertion plus exact precomputed notification images.
 use crate::domain::field_service_notifications::{
-    FieldServiceNotification, FieldServiceNotificationFacts, derive_field_service_notification,
+    FieldServiceNotification, FieldServiceNotificationFacts,
+    derive_field_service_created_notification, derive_field_service_notification,
 };
 use erpx_server_runtime::public::postgres::PgTransactionError;
 use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind, TimestampMillis};
@@ -90,6 +91,24 @@ pub async fn prepare_field_service_notification<'a, S: PgFieldServiceNotificatio
     source.require_before(c, guard_now).await?;
     let unit = Unit::current(c).await?;
     let notification = derive_field_service_notification(source.facts(), key)?;
+    let images = Images::expected(&notification);
+    Ok(PreparedFieldServiceNotification {
+        source,
+        unit,
+        notification,
+        images,
+    })
+}
+/// The creation source must prove the actual version-one owner plan and after-image.
+pub async fn prepare_field_service_created_notification<'a, S: PgFieldServiceNotificationSource>(
+    c: &mut PgConnection,
+    source: &'a S,
+    key: &CommandKey,
+    guard_now: TimestampMillis,
+) -> Result<PreparedFieldServiceNotification<'a, S>, Error> {
+    source.require_before(c, guard_now).await?;
+    let unit = Unit::current(c).await?;
+    let notification = derive_field_service_created_notification(source.facts(), key)?;
     let images = Images::expected(&notification);
     Ok(PreparedFieldServiceNotification {
         source,

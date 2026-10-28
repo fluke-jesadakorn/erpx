@@ -515,3 +515,106 @@ pub fn field_service_parts_details_json(
     text.push('}');
     CommandJson::parse(&text)
 }
+
+/// The request schema strips shared-edge `entity` and unknown fields before
+/// Workflow fingerprints the exact B0-normalized input.
+#[derive(Clone)]
+pub struct NormalizedServiceRequest {
+    pub agreement_id: String,
+    pub agreement_version: i64,
+    pub title: String,
+    pub issue: String,
+    pub site: String,
+    pub technician_id: String,
+    pub scheduled_at: Option<i64>,
+    pub receipt_input: CommandJson,
+}
+pub fn normalize_service_request(
+    bytes: &[u8],
+) -> Result<NormalizedServiceRequest, FieldServiceWireFailure> {
+    let body = document(bytes)?;
+    let mut check = Validation::default();
+    let mut fields = Vec::new();
+    if let Some(v) = check.string(
+        property(&body, "agreementId"),
+        &field("agreementId"),
+        1,
+        None,
+        false,
+    ) {
+        fields.push(("agreementId", v));
+    }
+    if let Some(v) = check.integer(
+        property(&body, "agreementVersion"),
+        &field("agreementVersion"),
+        false,
+    ) {
+        fields.push(("agreementVersion", v));
+    }
+    for (name, max) in [("title", 160), ("issue", 3000), ("site", 300)] {
+        if let Some(v) = check.string(property(&body, name), &field(name), 3, Some(max), true) {
+            fields.push((name, v));
+        }
+    }
+    if let Some(v) = check.string(
+        property(&body, "technicianId"),
+        &field("technicianId"),
+        1,
+        None,
+        false,
+    ) {
+        fields.push(("technicianId", v));
+    }
+    if let Some(value) = property(&body, "scheduledAt") {
+        if value.as_str() == "null" {
+            fields.push(("scheduledAt", value));
+        } else if let Some(v) = check.integer(Some(value), &field("scheduledAt"), false) {
+            fields.push(("scheduledAt", v));
+        }
+    }
+    let json = check.finish(&fields)?;
+    let scheduled_at = match property(&json, "scheduledAt") {
+        None => None,
+        Some(value) if value.as_str() == "null" => None,
+        Some(value) => Some(
+            value
+                .as_str()
+                .parse()
+                .map_err(|_| FieldServiceWireFailure::json())?,
+        ),
+    };
+    Ok(NormalizedServiceRequest {
+        agreement_id: text(&json, "agreementId")?,
+        agreement_version: int(&json, "agreementVersion")?,
+        title: text(&json, "title")?,
+        issue: text(&json, "issue")?,
+        site: text(&json, "site")?,
+        technician_id: text(&json, "technicianId")?,
+        scheduled_at,
+        receipt_input: json,
+    })
+}
+
+#[cfg(test)]
+mod request_tests {
+    use super::*;
+    #[test]
+    fn request_normalization_preserves_optional_null_and_strips_edge_fields() {
+        let input=br#"{"entity":"request","agreementId":"a","agreementVersion":2,"title":"  Visit  ","issue":" Broken ","site":" Shop ","technicianId":"u","scheduledAt":null,"ignored":true}"#;
+        let value = normalize_service_request(input).unwrap();
+        assert_eq!(
+            value.receipt_input.as_str(),
+            r#"{"agreementId":"a","agreementVersion":2,"title":"Visit","issue":"Broken","site":"Shop","technicianId":"u","scheduledAt":null}"#
+        );
+        assert_eq!(value.scheduled_at, None);
+        let no_date=normalize_service_request(br#"{"agreementId":"a","agreementVersion":2,"title":"Visit","issue":"Broken","site":"Shop","technicianId":"u"}"#).unwrap();
+        assert_ne!(value.receipt_input.as_str(), no_date.receipt_input.as_str());
+    }
+    #[test]
+    fn request_validation_rejects_short_title_and_noninteger_schedule() {
+        let error=normalize_service_request(br#"{"agreementId":"a","agreementVersion":2,"title":" x ","issue":"Broken","site":"Shop","technicianId":"u","scheduledAt":1.5}"#).err().unwrap();
+        assert_eq!(error.issues.len(), 2);
+        assert_eq!(error.issues[0].path, field("title"));
+        assert_eq!(error.issues[1].path, field("scheduledAt"));
+    }
+}

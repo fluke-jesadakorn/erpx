@@ -69,3 +69,9 @@ pub(crate) use http_transport::HttpDispatch;
 
 #[cfg(feature = "business-http")]
 pub use administration::{HttpIngressError, OtherPost, OtherPostInput};
+
+#[cfg(feature = "business-http")]
+mod request;
+
+#[cfg(feature = "business-http")]
+pub(crate) use request::RequestDispatcher;

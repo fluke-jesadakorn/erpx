@@ -89,6 +89,24 @@ impl FieldServiceHttpTarget {
             dispatch: HttpDispatch::PrivateParts,
         }
     }
+    pub fn new_private_requests<
+        W: Clock + Send + Sync + 'static,
+        G: Clock + Send + Sync + 'static,
+    >(
+        host: String,
+        holding_slug: String,
+        service: Arc<FieldServicePartsAdministration<W, G>>,
+        request: Arc<dyn OtherPost>,
+        allow_reserve: bool,
+        allow_issue: bool,
+    ) -> Self {
+        Self {
+            host,
+            holding_slug,
+            service,
+            dispatch: HttpDispatch::PrivateRequests(request, allow_reserve, allow_issue),
+        }
+    }
     /// Private development target admits the existing reserve branch only.
     pub fn new_private_reserve<
         W: Clock + Send + Sync + 'static,
@@ -123,7 +141,9 @@ pub fn field_service_http_router(
         && targets.iter().all(|target| {
             matches!(
                 target.dispatch,
-                HttpDispatch::ReserveOnly | HttpDispatch::PrivateParts
+                HttpDispatch::ReserveOnly
+                    | HttpDispatch::PrivateParts
+                    | HttpDispatch::PrivateRequests(_, _, _)
             )
         });
     let mut registered = BTreeMap::new();
@@ -239,7 +259,8 @@ impl PostExecutor for SealedNativeExecutor {
                 ),
                 Ok(Err(HttpIngressError::OtherAdmissionDenied(branch, error))) => {
                     match &target.dispatch {
-                        HttpDispatch::Shared(other) => {
+                        HttpDispatch::Shared(other)
+                        | HttpDispatch::PrivateRequests(other, _, _) => {
                             PostResponse::business(other.admission_error(branch, error))
                         }
                         HttpDispatch::ReserveOnly | HttpDispatch::PrivateParts => {

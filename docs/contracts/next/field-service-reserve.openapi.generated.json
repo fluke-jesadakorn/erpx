@@ -256,6 +256,221 @@
         ],
         "type": "object"
       },
+      "FieldServiceRequestEntity": {
+        "enum": [
+          "request"
+        ],
+        "type": "string"
+      },
+      "FieldServiceRequestEvent": {
+        "properties": {
+          "actorId": {
+            "type": "string"
+          },
+          "issue": {
+            "type": "string"
+          },
+          "scheduledAt": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "site": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "technicianId": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "actorId",
+          "status",
+          "version",
+          "issue",
+          "site",
+          "technicianId"
+        ],
+        "type": "object"
+      },
+      "FieldServiceRequestInput": {
+        "properties": {
+          "agreementId": {
+            "type": "string"
+          },
+          "agreementVersion": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "entity": {
+            "const": "request",
+            "type": "string"
+          },
+          "issue": {
+            "type": "string"
+          },
+          "scheduledAt": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "site": {
+            "type": "string"
+          },
+          "technicianId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "entity",
+          "agreementId",
+          "agreementVersion",
+          "title",
+          "issue",
+          "site",
+          "technicianId"
+        ],
+        "type": "object"
+      },
+      "FieldServiceRequestOrderRead": {
+        "properties": {
+          "agreementId": {
+            "type": "string"
+          },
+          "agreementVersion": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "customerId": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "ticketId": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "ticketId",
+          "agreementId",
+          "agreementVersion",
+          "customerId",
+          "status",
+          "version"
+        ],
+        "type": "object"
+      },
+      "FieldServiceRequestReadResponse": {
+        "description": "Request verification separates immutable create evidence from current state.",
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/FieldServiceRenderedContext"
+          },
+          "event": {
+            "$ref": "#/components/schemas/FieldServiceRequestEvent"
+          },
+          "order": {
+            "$ref": "#/components/schemas/FieldServiceRequestOrderRead"
+          },
+          "receipt": {
+            "$ref": "#/components/schemas/FieldServiceRequestResult"
+          },
+          "ticket": {
+            "$ref": "#/components/schemas/FieldServiceRequestTicketRead"
+          }
+        },
+        "required": [
+          "context",
+          "receipt",
+          "order",
+          "ticket",
+          "event"
+        ],
+        "type": "object"
+      },
+      "FieldServiceRequestResult": {
+        "description": "Retained Service request result. Version and status are the original result.",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "ticketId": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "ticketId",
+          "version",
+          "status"
+        ],
+        "type": "object"
+      },
+      "FieldServiceRequestTicketRead": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "version"
+        ],
+        "type": "object"
+      },
       "FieldServiceReservationRead": {
         "properties": {
           "consumedMilli": {
@@ -517,6 +732,9 @@
                   },
                   {
                     "$ref": "#/components/schemas/FieldServiceIssueInput"
+                  },
+                  {
+                    "$ref": "#/components/schemas/FieldServiceRequestInput"
                   }
                 ]
               }
@@ -534,6 +752,42 @@
               }
             },
             "description": "Retained reserve command receipt"
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/v1/holdings/{holding_slug}/field-service/requests/{key}": {
+      "get": {
+        "operationId": "request_read",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "holding_slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FieldServiceRequestReadResponse"
+                }
+              }
+            },
+            "description": "Current scoped request evidence"
           }
         },
         "tags": []

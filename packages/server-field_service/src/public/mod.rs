@@ -4,3 +4,7 @@ pub mod parts_source;
 pub mod finance_lineage;
 
 pub mod reservation_read;
+
+pub mod request_agreement;
+
+pub mod request_order;

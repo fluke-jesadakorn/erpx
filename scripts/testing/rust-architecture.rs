@@ -59,52 +59,85 @@ fn examined_contract_attribute(attribute: &syn::Attribute) -> bool {
     }
     if payload.path.is_ident("ts") {
         let parse_ts = |input: syn::parse::ParseStream<'_>| -> syn::Result<bool> {
-            let valid = if input.peek(syn::Token![type]) {
+            if input.peek(syn::Token![type]) {
                 input.parse::<syn::Token![type]>()?;
                 input.parse::<syn::Token![=]>()?;
-                input.parse::<syn::LitStr>()?.value() == "number"
-            } else {
-                input.parse::<syn::Ident>()? == "optional"
-            };
-            Ok(valid && input.is_empty())
+                let value = input.parse::<syn::LitStr>()?.value();
+                return Ok(matches!(value.as_str(), "number" | "number | null") && input.is_empty());
+            }
+            if input.parse::<syn::Ident>()? != "optional" {
+                return Ok(false);
+            }
+            if input.is_empty() {
+                return Ok(true);
+            }
+            input.parse::<syn::Token![,]>()?;
+            input.parse::<syn::Token![type]>()?;
+            input.parse::<syn::Token![=]>()?;
+            Ok(input.parse::<syn::LitStr>()?.value() == "number | null" && input.is_empty())
         };
         return parse_ts.parse2(payload.tokens.clone()).unwrap_or(false);
     }
-    let Ok(args) = parser.parse2(payload.tokens.clone()) else {
-        return false;
-    };
-    if args.trailing_punct() {
-        return false;
-    }
     if payload.path.is_ident("schema") {
-        let mut keys = BTreeSet::new();
-        for arg in args {
-            let syn::Meta::NameValue(value) = arg else {
-                return false;
-            };
-            let Some(key) = value.path.get_ident().map(ToString::to_string) else {
-                return false;
-            };
-            if !keys.insert(key.clone()) {
-                return false;
-            }
-            let valid = match key.as_str() {
-                "value_type" => {
-                    matches!(&value.value, syn::Expr::Path(value) if value.qself.is_none() && value.path.is_ident("i64"))
+        let parse_schema = |input: syn::parse::ParseStream<'_>| -> syn::Result<bool> {
+            let mut keys = BTreeSet::new();
+            while !input.is_empty() {
+                let key = input.parse::<syn::Ident>()?.to_string();
+                if !keys.insert(key.clone()) {
+                    return Ok(false);
                 }
-                "minimum" | "maximum" => {
-                    matches!(&value.value, syn::Expr::Lit(value) if matches!(value.lit, syn::Lit::Int(_)))
+                input.parse::<syn::Token![=]>()?;
+                match key.as_str() {
+                    "value_type" => {
+                        let ty: syn::Type = input.parse()?;
+                        let syn::Type::Path(ty) = ty else {
+                            return Ok(false);
+                        };
+                        if ty.qself.is_some()
+                            || ty.path.leading_colon.is_some()
+                            || ty.path.segments.len() != 1
+                        {
+                            return Ok(false);
+                        }
+                        let segment = &ty.path.segments[0];
+                        let valid = if segment.ident == "i64" {
+                            matches!(segment.arguments, syn::PathArguments::None)
+                        } else if segment.ident == "Option" {
+                            match &segment.arguments {
+                                syn::PathArguments::AngleBracketed(args)
+                                    if args.colon2_token.is_none()
+                                        && !args.args.trailing_punct()
+                                        && args.args.len() == 1 =>
+                                {
+                                    matches!(args.args.first(), Some(syn::GenericArgument::Type(syn::Type::Path(inner))) if inner.qself.is_none() && inner.path.is_ident("i64"))
+                                }
+                                _ => false,
+                            }
+                        } else {
+                            false
+                        };
+                        if !valid {
+                            return Ok(false);
+                        }
+                    }
+                    "minimum" | "maximum" => {
+                        input.parse::<syn::LitInt>()?;
+                    }
+                    _ => return Ok(false),
                 }
-                _ => false,
-            };
-            if !valid {
-                return false;
+                if !input.is_empty() {
+                    input.parse::<syn::Token![,]>()?;
+                    if input.is_empty() {
+                        return Ok(false);
+                    }
+                }
             }
-        }
-        return keys.len() == 3
-            && keys.contains("value_type")
-            && keys.contains("minimum")
-            && keys.contains("maximum");
+            Ok(keys.len() == 3
+                && keys.contains("value_type")
+                && keys.contains("minimum")
+                && keys.contains("maximum"))
+        };
+        return parse_schema.parse2(payload.tokens.clone()).unwrap_or(false);
     }
     false
 }

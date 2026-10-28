@@ -30,4 +30,5 @@ pub(crate) enum HttpDispatch {
     Shared(Arc<dyn OtherPost>),
     ReserveOnly,
     PrivateParts,
+    PrivateRequests(Arc<dyn OtherPost>, bool, bool),
 }

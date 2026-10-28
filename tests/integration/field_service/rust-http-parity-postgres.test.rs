@@ -553,3 +553,89 @@ async fn private_field_cost_post_requires_qualified_source_and_real_flow_primary
         runtime.close().await;
     }).await;
 }
+
+#[tokio::test]
+#[cfg(feature = "private-development-api")]
+async fn private_request_create_is_atomic_and_replayable() {
+    account::with_system(|system|async move{
+  let wall=std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;system.scenario.clock.0.store(wall,std::sync::atomic::Ordering::SeqCst);
+  let p=setup(system).await;sqlx::query("UPDATE hr_engagements SET start_date='2020-01-01' WHERE id='field-engagement'").execute(p.pool().raw()).await.unwrap();let system=&p.review.system;let now=system.scenario.clock.now().get();
+  let central=account::login(system,"a@example.test",None).await;let child=account::child(system,&central,account::ACME).await;
+  sqlx::query("INSERT INTO active_work_contexts(session_id,user_id,company_id,assignment_id,assignment_version,revision,expires_at,updated_at)VALUES($1,'fixture-a','company','field-fixture-a',3,8,$2,$3)").bind(&child.result.session_id).bind(now+3_600_000).bind(now).execute(p.pool().raw()).await.unwrap();
+  let mut doc=private_configuration::document(&system.control,&system.holdings).await;
+  doc["fieldServiceReads"]=serde_json::json!([{"holdingId":"h001","companyId":"company"}]);
+  let cookie=format!("__Host-erpx-product={}",child.token.expose());
+  let body=r#"{"entity":"request","agreementId":"agreement","agreementVersion":2,"title":"New visit","issue":"Synthetic problem","site":"Synthetic site","technicianId":"fixture-a","scheduledAt":null}"#;
+  let closed=assemble_development_api(DevelopmentApiConfiguration::parse(&doc.to_string()).unwrap(),system.scenario.clock.clone(),Arc::new(SystemAuthenticationSecrets)).await.unwrap();assert_eq!(send_raw(&closed.router(),&cookie,"request-off",body).await.0,StatusCode::NOT_FOUND);closed.close().await;
+  doc["fieldServiceRequests"]=serde_json::json!(["h001"]);
+  let runtime=assemble_development_api(DevelopmentApiConfiguration::parse(&doc.to_string()).unwrap(),system.scenario.clock.clone(),Arc::new(SystemAuthenticationSecrets)).await.unwrap();
+  let result=send(&runtime.router(),&cookie,"native-request-one",body).await;assert_eq!(result.0,StatusCode::OK,"{}",result.1);
+  assert_eq!(result.1["data"]["id"],"service-order-native-request-one");assert_eq!(result.1["data"]["ticketId"],"ticket-native-request-one");
+  assert_eq!(send(&runtime.router(),&cookie,"native-request-one",body).await.0,StatusCode::OK);
+  let count:(i64,i64,i64,i64,i64,i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM support_tickets WHERE id='ticket-native-request-one'),(SELECT count(*) FROM support_ticket_events WHERE id='ticket-event-native-request-one-intake'),(SELECT count(*) FROM field_service_orders WHERE id='service-order-native-request-one'),(SELECT count(*) FROM field_service_order_events WHERE id='service-order-event-native-request-one'),(SELECT count(*) FROM staff_notifications WHERE id='service-order-notice-native-request-one'),(SELECT count(*) FROM command_receipts WHERE command_id='native-request-one'),(SELECT count(*) FROM audit_events WHERE command_id='native-request-one'),(SELECT count(*) FROM outbox_events WHERE command_id='native-request-one')").fetch_one(p.pool().raw()).await.unwrap();assert_eq!(count,(1,1,1,1,1,1,1,1));
+  let read=||Request::builder().uri("/api/v1/holdings/acme/field-service/requests/native-request-one").header("host","acme.example.test").header("cookie",&cookie).body(Body::empty()).unwrap();
+  let response=runtime.router().oneshot(read()).await.unwrap();let status=response.status();let bytes=to_bytes(response.into_body(),65536).await.unwrap();assert_eq!(status,StatusCode::OK,"{}",String::from_utf8_lossy(&bytes));let data:serde_json::Value=serde_json::from_slice(&bytes).unwrap();assert_eq!(data["receipt"]["ticketId"],"ticket-native-request-one");assert_eq!(data["order"]["customerId"],"customer");assert_eq!(data["event"]["issue"],"Synthetic problem");assert_eq!(data["event"]["actorId"],"fixture-a");
+  let unauth=Request::builder().uri("/api/v1/holdings/acme/field-service/requests/native-request-one").header("host","acme.example.test").body(Body::empty()).unwrap();assert_ne!(runtime.router().oneshot(unauth).await.unwrap().status(),StatusCode::OK);
+  let foreign=Request::builder().uri("/api/v1/holdings/acme/field-service/requests/native-request-one").header("host","acme.example.test").header("cookie",&cookie).header("x-erpx-context-company","foreign").header("x-erpx-context-assignment","field-fixture-a").header("x-erpx-context-assignment-version","3").header("x-erpx-context-revision","8").body(Body::empty()).unwrap();assert_ne!(runtime.router().oneshot(foreign).await.unwrap().status(),StatusCode::OK);
+  let mut transition=p.pool().raw().begin().await.unwrap();
+  sqlx::query("UPDATE field_service_orders SET status='scheduled',scheduled_at=$1,version=2,completion_evidence=repeat('x',1100000) WHERE id='service-order-native-request-one'").bind(now+60000).execute(&mut *transition).await.unwrap();
+  sqlx::query("INSERT INTO field_service_order_events(id,order_id,version,action,actor_id,reason,status,technician_id,scheduled_at,details_json,created_at) VALUES('request-synthetic-schedule','service-order-native-request-one',2,'schedule','fixture-a','Synthetic later schedule','scheduled','fixture-a',$1,'{}',$2)").bind(now+60000).bind(now).execute(&mut *transition).await.unwrap();transition.commit().await.unwrap();
+  let response=runtime.router().oneshot(read()).await.unwrap();let status=response.status();let bytes=to_bytes(response.into_body(),65536).await.unwrap();assert_eq!(status,StatusCode::OK,"{}",String::from_utf8_lossy(&bytes));let later:serde_json::Value=serde_json::from_slice(&bytes).unwrap();assert_eq!(later["order"]["version"],2);assert_eq!(later["order"]["status"],"scheduled");assert_eq!(later["receipt"]["status"],"open");assert_eq!(later["event"]["scheduledAt"],serde_json::Value::Null);
+  let modified=body.replace("Synthetic problem","Different problem");assert_ne!(send(&runtime.router(),&cookie,"native-request-one",&modified).await.0,StatusCode::OK);
+  sqlx::query("ALTER TABLE audit_events ADD CONSTRAINT request_reject CHECK(command_id<>'request-rollback')").execute(p.pool().raw()).await.unwrap();
+  assert_eq!(send(&runtime.router(),&cookie,"request-rollback",body).await.0,StatusCode::INTERNAL_SERVER_ERROR);
+  let rollback:(i64,i64,i64,i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM support_tickets WHERE id='ticket-request-rollback'),(SELECT count(*) FROM support_ticket_events WHERE id='ticket-event-request-rollback-intake'),(SELECT count(*) FROM field_service_orders WHERE id='service-order-request-rollback'),(SELECT count(*) FROM staff_notifications WHERE id='service-order-notice-request-rollback'),(SELECT count(*) FROM command_receipts WHERE command_id='request-rollback'),(SELECT count(*) FROM outbox_events WHERE command_id='request-rollback')").fetch_one(p.pool().raw()).await.unwrap();assert_eq!(rollback,(0,0,0,0,0,0));
+  sqlx::query("ALTER TABLE audit_events DROP CONSTRAINT request_reject").execute(p.pool().raw()).await.unwrap();
+  let stale=body.replace("\"agreementVersion\":2","\"agreementVersion\":1");assert_ne!(send(&runtime.router(),&cookie,"request-stale-version",&stale).await.0,StatusCode::OK);
+  sqlx::raw_sql("CREATE FUNCTION request_source_drift() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.command_id='request-drift' THEN UPDATE field_service_agreements SET title='unintended' WHERE id='agreement'; END IF; RETURN NEW; END $$; CREATE TRIGGER request_source_drift AFTER INSERT ON command_receipts FOR EACH ROW EXECUTE FUNCTION request_source_drift()").execute(p.pool().raw()).await.unwrap();
+  assert_ne!(send(&runtime.router(),&cookie,"request-drift",body).await.0,StatusCode::OK);
+  let drift:(String,i64,i64)=sqlx::query_as("SELECT (SELECT title FROM field_service_agreements WHERE id='agreement'),(SELECT count(*) FROM field_service_orders WHERE id='service-order-request-drift'),(SELECT count(*) FROM command_receipts WHERE command_id='request-drift')").fetch_one(p.pool().raw()).await.unwrap();assert_eq!(drift,("Synthetic retained agreement".into(),0,0));
+  sqlx::raw_sql("DROP TRIGGER request_source_drift ON command_receipts;DROP FUNCTION request_source_drift()").execute(p.pool().raw()).await.unwrap();
+  publish_http_fixture_permissions(&p,1,2,serde_json::json!(["records.read","module.field_service.read"]),now).await;
+  assert_eq!(runtime.router().oneshot(read()).await.unwrap().status(),StatusCode::OK);
+  assert_ne!(send(&runtime.router(),&cookie,"request-forbidden",body).await.0,StatusCode::OK);
+  publish_http_fixture_permissions(&p,2,3,serde_json::json!(["records.read","records.write","module.field_service.read"]),now).await;
+  for (key,long_id) in [("request-long-ascii","x".repeat(210)),("request-long-cjk","界".repeat(90)),("request-large-physical","x".repeat(150_000))] {
+   let mut source_tx=p.pool().raw().begin().await.unwrap();
+   sqlx::query("INSERT INTO field_service_agreements SELECT (jsonb_populate_record(NULL::field_service_agreements,to_jsonb(g)||jsonb_build_object('id',$1::text))).* FROM field_service_agreements g WHERE id='agreement'").bind(&long_id).execute(&mut *source_tx).await.unwrap();
+   sqlx::query("INSERT INTO field_service_agreement_events(id,agreement_id,version,action,actor_id,reason,status,created_at) VALUES($1,$2,2,'activate','fixture-b','Independent synthetic approval','active',$3)").bind(format!("{key}-review")).bind(&long_id).bind(now-100).execute(&mut *source_tx).await.unwrap();source_tx.commit().await.unwrap();
+   let long_body=body.replace("\"agreement\"",&serde_json::to_string(&long_id).unwrap());
+   let response=send(&runtime.router(),&cookie,key,&long_body).await;assert_eq!(response.0,StatusCode::OK,"{}",response.1);
+   assert_eq!(send(&runtime.router(),&cookie,key,&long_body).await.0,StatusCode::OK);
+   let get=Request::builder().uri(format!("/api/v1/holdings/acme/field-service/requests/{key}")).header("host","acme.example.test").header("cookie",&cookie).body(Body::empty()).unwrap();let response=runtime.router().oneshot(get).await.unwrap();let status=response.status();let bytes=to_bytes(response.into_body(),2*1024*1024).await.unwrap();assert_eq!(status,StatusCode::OK,"{}",String::from_utf8_lossy(&bytes));let value:serde_json::Value=serde_json::from_slice(&bytes).unwrap();assert_eq!(value["order"]["agreementId"],long_id);
+  }
+  let mut draining=p.pool().raw().begin().await.unwrap();
+  let before:serde_json::Value=sqlx::query_scalar("SELECT jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence) FROM company_package_grants WHERE company_id='company' AND package_id='service'").fetch_one(&mut *draining).await.unwrap();
+  sqlx::query("UPDATE company_package_grants SET state='draining',version=version+1 WHERE company_id='company' AND package_id='service'").execute(&mut *draining).await.unwrap();
+  sqlx::query("INSERT INTO company_package_grant_events(id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at) SELECT 'request-service-draining','company',package_id,'fixture-a','synthetic-draining',$1,jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence),$2 FROM company_package_grants WHERE company_id='company' AND package_id='service'").bind(before).bind(now).execute(&mut *draining).await.unwrap();draining.commit().await.unwrap();
+  assert_eq!(runtime.router().oneshot(read()).await.unwrap().status(),StatusCode::OK);
+  assert_eq!(send(&runtime.router(),&cookie,"native-request-one",body).await.0,StatusCode::OK);
+  assert_ne!(send(&runtime.router(),&cookie,"request-no-new-work",body).await.0,StatusCode::OK);
+  runtime.close().await;
+ }).await;
+}
+
+#[tokio::test]
+#[cfg(feature = "private-development-api")]
+async fn private_request_bounds_agreement_references_before_transfer() {
+    account::with_system(|system| async move {
+        let wall=std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;
+        system.scenario.clock.0.store(wall,std::sync::atomic::Ordering::SeqCst);
+        let p=setup(system).await;let system=&p.review.system;let now=system.scenario.clock.now().get();
+        sqlx::query("UPDATE hr_engagements SET start_date='2020-01-01' WHERE id='field-engagement'").execute(p.pool().raw()).await.unwrap();
+        let central=account::login(system,"a@example.test",None).await;let child=account::child(system,&central,account::ACME).await;
+        sqlx::query("INSERT INTO active_work_contexts(session_id,user_id,company_id,assignment_id,assignment_version,revision,expires_at,updated_at)VALUES($1,'fixture-a','company','field-fixture-a',3,8,$2,$3)").bind(&child.result.session_id).bind(now+3_600_000).bind(now).execute(p.pool().raw()).await.unwrap();
+        let customer="x".repeat(1000);let mut tx=p.pool().raw().begin().await.unwrap();
+        sqlx::query("INSERT INTO finance_parties SELECT (jsonb_populate_record(NULL::finance_parties,to_jsonb(p)||jsonb_build_object('id',$1::text,'code','OVERSIZE'))).* FROM finance_parties p WHERE id='customer'").bind(&customer).execute(&mut *tx).await.unwrap();
+        sqlx::query("INSERT INTO field_service_agreements SELECT (jsonb_populate_record(NULL::field_service_agreements,to_jsonb(g)||jsonb_build_object('id','oversized-ref-agreement','customer_id',$1::text))).* FROM field_service_agreements g WHERE id='agreement'").bind(&customer).execute(&mut *tx).await.unwrap();
+        sqlx::query("INSERT INTO field_service_agreement_events(id,agreement_id,version,action,actor_id,reason,status,created_at) VALUES('oversized-ref-review','oversized-ref-agreement',2,'activate','fixture-b','Independent synthetic approval','active',$1)").bind(now-100).execute(&mut *tx).await.unwrap();tx.commit().await.unwrap();
+        let mut doc=private_configuration::document(&system.control,&system.holdings).await;doc["fieldServiceReads"]=serde_json::json!([{"holdingId":"h001","companyId":"company"}]);doc["fieldServiceRequests"]=serde_json::json!(["h001"]);
+        let runtime=assemble_development_api(DevelopmentApiConfiguration::parse(&doc.to_string()).unwrap(),system.scenario.clock.clone(),Arc::new(SystemAuthenticationSecrets)).await.unwrap();
+        let cookie=format!("__Host-erpx-product={}",child.token.expose());let body=r#"{"entity":"request","agreementId":"oversized-ref-agreement","agreementVersion":2,"title":"New visit","issue":"Synthetic problem","site":"Synthetic site","technicianId":"fixture-a","scheduledAt":null}"#;
+        let response=send(&runtime.router(),&cookie,"request-oversized-ref",body).await;
+        assert_eq!(response.0,StatusCode::SERVICE_UNAVAILABLE,"{}",response.1);
+        assert_eq!(response.1["error"]["code"],"FIELD_SERVICE_REQUEST_SOURCE_LIMIT");
+        let count:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM field_service_orders WHERE id='service-order-request-oversized-ref'),(SELECT count(*) FROM support_tickets WHERE id='ticket-request-oversized-ref'),(SELECT count(*) FROM command_receipts WHERE command_id='request-oversized-ref')").fetch_one(p.pool().raw()).await.unwrap();assert_eq!(count,(0,0,0));
+        runtime.close().await;
+    }).await;
+}

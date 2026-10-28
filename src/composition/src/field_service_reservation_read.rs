@@ -27,7 +27,7 @@ use erpx_server_inventory::public::field_service_stock_read::{
 };
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{
-    BusinessError, Clock, CompanyId, FailureKind, HoldingId, RecordId,
+    BusinessError, Clock, CompanyId, FailureKind, HoldingId, RecordId, TimestampMillis,
 };
 use erpx_server_workflow::public::record_origin::lock_record_origin_sources;
 use serde::Serialize;
@@ -113,6 +113,17 @@ pub struct FieldServiceIssueReadResponse {
     pub reservation: FieldServiceReservationRead,
     pub stock: FieldServiceStockSnapshot,
 }
+/// Request verification separates immutable create evidence from current state.
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct FieldServiceRequestReadResponse {
+    pub context: FieldServiceRenderedContext,
+    pub receipt: erpx_server_field_service::public::reservation_read::FieldServiceRequestResult,
+    pub order: erpx_server_field_service::public::reservation_read::FieldServiceRequestOrderRead,
+    pub ticket: erpx_server_field_service::public::reservation_read::FieldServiceRequestTicketRead,
+    pub event: erpx_server_field_service::public::reservation_read::FieldServiceRequestEvent,
+}
 fn context(current: &AuthorizedWorkContext) -> Result<FieldServiceRenderedContext, BusinessError> {
     let selected = current.selection();
     let scope = selected.workspace();
@@ -165,6 +176,7 @@ pub struct FieldServiceReservationReadConfiguration {
     company: CompanyId,
     catalogue: Arc<CommercialCatalogue>,
     issues: bool,
+    requests: bool,
 }
 impl FieldServiceReservationReadConfiguration {
     pub fn new(
@@ -185,7 +197,12 @@ impl FieldServiceReservationReadConfiguration {
             company,
             catalogue,
             issues: false,
+            requests: false,
         })
+    }
+    pub fn with_requests(mut self) -> Self {
+        self.requests = true;
+        self
     }
     pub fn with_issues(mut self) -> Self {
         self.issues = true;
@@ -488,6 +505,251 @@ impl<C: Clock + Send + Sync + 'static> FieldServiceReservationReadService<C> {
                             &config.catalogue,
                         )
                         .revalidate(&purchase.witness, clock.now())
+                        .await?
+                        .require_allowed()?;
+                        if clock.now().get() >= current.expires_at() {
+                            return Err(denied().into());
+                        }
+                        Ok(reply)
+                    })
+                },
+            )
+            .await
+    }
+    pub async fn read_request<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        key: String,
+    ) -> Result<FieldServiceRequestReadResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        use erpx_server_assets::public::field_service_reference::read_current_field_service_asset;
+        use erpx_server_field_service::public::{
+            request_agreement::read_service_request_agreement_history,
+            request_order::read_service_request_order,
+            reservation_read::{
+                FieldServiceRequestEvent, FieldServiceRequestOrderRead, FieldServiceRequestResult,
+                FieldServiceRequestTicketRead,
+            },
+        };
+        use erpx_server_finance::public::field_service_customer::read_current_field_service_customer;
+        use erpx_server_support::public::field_service_request::read_service_intake;
+        use erpx_server_workflow::public::record_origin::{
+            RawRecordOriginRequest, read_raw_record_origin_result_with_limit,
+            verify_raw_record_origin,
+        };
+        if !self.config.requests {
+            return Err(
+                BusinessError::new(FailureKind::NotFound, "NOT_FOUND", "Not found.").into(),
+            );
+        }
+        erpx_server_shared::public::CommandKey::new(key.clone())?;
+        let company = self.config.company.clone();
+        let input = move || {
+            let mut selection = input()?;
+            if selection.company_id != company {
+                return Err(denied());
+            }
+            selection.mutation = false;
+            Ok(selection)
+        };
+        let config = self.config.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                input,
+                WorkAuthorizationRequest {
+                    permission: "records.read".into(),
+                    module: Some("field_service".into()),
+                    destination: "service/orders".into(),
+                    api: true,
+                },
+                crate::field_service_parts::FieldServicePartsSourcePreparation,
+                move |c, current| {
+                    let config = config.clone();
+                    let clock = clock.clone();
+                    let key = key.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &config.holding
+                            || current.selection().workspace().company_id != config.company
+                        {
+                            return Err(denied().into());
+                        }
+                        current.require_permission("records.read")?;
+                        let order = read_service_request_order(c, current, &key)
+                            .await?
+                            .ok_or_else(denied)?;
+                        let ticket = read_service_intake(c, &config.company, &key)
+                            .await?
+                            .ok_or_else(denied)?;
+                        let o = order.facts();
+                        let t = ticket.facts();
+                        if o.order_id != t.order_id
+                            || o.ticket_id != t.ticket_id
+                            || o.agreement_id != t.agreement_id
+                            || o.agreement_version != t.agreement_version
+                            || o.actor_id != t.actor_id
+                            || o.event_status != if o.scheduled_at.is_some() { "scheduled" } else { "open" }
+                            || o.initial_at != t.initial_at || o.issue != t.initial_issue || o.technician_id != t.initial_owner
+                        {
+                            return Err(denied().into());
+                        }
+                        let agreement = read_service_request_agreement_history(
+                            c,
+                            current,
+                            &o.agreement_id,
+                        )
+                        .await?
+                        .ok_or_else(denied)?;
+                        let a = agreement.facts();
+                        if a.branch_id.as_str()!=o.branch_id || a.department_id.as_ref().map(|v|v.as_str())!=o.department_id.as_deref() || a.customer_id.as_str() != t.customer_id || a.branch_id.as_str() != t.branch_id || a.department_id.as_ref().map(|v|v.as_str()) != t.department_id.as_deref() {
+                            return Err(denied().into());
+                        }
+                        let customer =
+                            read_current_field_service_customer(c, &config.company, &a.customer_id)
+                                .await?
+                                .ok_or_else(denied)?;
+                        let db_now: i64=sqlx::query_scalar("SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint").fetch_one(&mut *c).await?;
+                        let technician = erpx_server_identity_access::public::field_service_assignment::inspect_field_service_assignment(c, erpx_server_identity_access::public::field_service_assignment::FieldServiceAssignmentRequest { company_id:config.company.clone(),user_id:o.current_technician_id.clone(),branch_id:a.branch_id.clone(),department_id:a.department_id.clone(),permission:erpx_server_identity_access::public::field_service_assignment::FieldServiceAssignmentPermission::Write },TimestampMillis::new(db_now)).await?;
+                        let person = erpx_server_people_payroll::public::field_service_worker::inspect_field_service_people_reference(c,&config.company,&o.current_technician_id).await?;
+                        let asset = if let Some(id) = &a.asset_id {
+                            let v = read_current_field_service_asset(
+                                c,
+                                &config.holding,
+                                &config.company,
+                                id,
+                            )
+                            .await?
+                            .ok_or_else(denied)?;
+                            if v.facts().branch_id != a.branch_id {
+                                return Err(denied().into());
+                            }
+                            Some(v)
+                        } else {
+                            None
+                        };
+                        let mut caps =
+                            vec!["service.orders".into(), "support.source-ticket".into()];
+                        if asset.is_some() {
+                            caps.push("service.parts-assets".into());
+                        }
+                        let mut purchases = PgCompanyPurchaseReader::new(
+                            config.holding.clone(),
+                            config.company.clone(),
+                            c,
+                            &config.catalogue,
+                        );
+                        let purchase = purchases
+                            .inspect(
+                                &PurchaseRequest {
+                                    capabilities: caps,
+                                    purpose: CapabilityPurpose::History,
+                                    mode: PackageEnforcementMode::Enforced,
+                                },
+                                clock.now(),
+                            )
+                            .await?
+                            .require_allowed()?
+                            .clone();
+                        let (origin, result) = read_raw_record_origin_result_with_limit(
+                            c,
+                            RawRecordOriginRequest {
+                                command_key: key.clone(),
+                                operation: "field.order.request".into(),
+                                record_id: o.order_id.clone(),
+                                creator_user_id: o.actor_id.clone(),
+                                company_id: config.company.clone(),
+                            },
+                            1024 * 1024,
+                        )
+                        .await?
+                        .ok_or_else(denied)?;
+                        let result_id = result
+                            .property("id")?
+                            .and_then(|v| v.string_utf8_storage().ok().flatten())
+                            .ok_or_else(denied)?;
+                        let result_ticket = result
+                            .property("ticketId")?
+                            .and_then(|v| v.string_utf8_storage().ok().flatten())
+                            .ok_or_else(denied)?;
+                        let status = result
+                            .property("status")?
+                            .and_then(|v| v.string_utf8_storage().ok().flatten())
+                            .ok_or_else(denied)?;
+                        let version = result
+                            .property("version")?
+                            .and_then(|v| v.as_str().parse::<i64>().ok())
+                            .ok_or_else(denied)?;
+                        if result_id != o.order_id
+                            || result_ticket != o.ticket_id
+                            || status != o.event_status
+                            || version != 1
+                        {
+                            return Err(denied().into());
+                        }
+                        let reply = FieldServiceRequestReadResponse {
+                            context: context(current)?,
+                            receipt: FieldServiceRequestResult {
+                                id: result_id,
+                                ticket_id: result_ticket,
+                                status,
+                                version,
+                            },
+                            order: FieldServiceRequestOrderRead {
+                                id: o.order_id.clone(),
+                                ticket_id: o.ticket_id.clone(),
+                                agreement_id: o.agreement_id.clone(),
+                                agreement_version: o.agreement_version,
+                                customer_id: t.customer_id.clone(),
+                                status: o.status.clone(),
+                                version: o.version,
+                            },
+                            ticket: FieldServiceRequestTicketRead {
+                                id: t.ticket_id.clone(),
+                                status: t.status.clone(),
+                                version: t.version,
+                            },
+                            event: FieldServiceRequestEvent {
+                                actor_id: o.actor_id.clone(),
+                                status: o.event_status.clone(),
+                                version: 1,
+                                issue: o.issue.clone(),
+                                site: o.site.clone(),
+                                technician_id: o.technician_id.clone(),
+                                scheduled_at: o.scheduled_at,
+                            },
+                        };
+                        let mut budget = ReplyBudget(0);
+                        serde_json::to_writer(&mut budget, &reply).map_err(|_| {
+                            BusinessError::new(
+                                FailureKind::Unavailable,
+                                "FIELD_SERVICE_READ_LIMIT",
+                                "The Service source exceeds this bounded read.",
+                            )
+                        })?;
+                        order.require_current(c, current, &key).await?;
+                        ticket.require_current(c, &config.company, &key).await?;
+                        ticket.require_initial_schedule(c,&key,o.scheduled_at,o.initial_at).await?;
+                        agreement.require_current(c, current).await?;
+                        customer.require_current(c).await?;
+                        let db_now:i64=sqlx::query_scalar("SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint").fetch_one(&mut *c).await?;
+                        technician.require_current(c,TimestampMillis::new(db_now)).await?; person.require_current(c).await?;
+                        if let Some(v) = asset {
+                            v.require_current(c).await?;
+                        }
+                        verify_raw_record_origin(c, &origin).await?;
+                        PgCompanyPurchaseReader::new(
+                            config.holding.clone(),
+                            config.company.clone(),
+                            c,
+                            &config.catalogue,
+                        )
+                        .revalidate(&purchase, clock.now())
                         .await?
                         .require_allowed()?;
                         if clock.now().get() >= current.expires_at() {

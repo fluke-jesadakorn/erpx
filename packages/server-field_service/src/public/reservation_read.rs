@@ -1,6 +1,8 @@
 pub use crate::application::reservation_read::{
     FieldServiceIssueAction, FieldServiceIssueAllocation, FieldServiceIssueEvent,
-    FieldServiceIssueInput, FieldServiceReservationRead, FieldServiceReserveAction,
+    FieldServiceIssueInput, FieldServiceRequestEntity, FieldServiceRequestEvent,
+    FieldServiceRequestInput, FieldServiceRequestOrderRead, FieldServiceRequestResult,
+    FieldServiceRequestTicketRead, FieldServiceReservationRead, FieldServiceReserveAction,
     FieldServiceReserveEvent, FieldServiceReserveInput, FieldServiceReserveResult,
     FieldServiceStockSnapshot,
 };

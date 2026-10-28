@@ -140,3 +140,83 @@ pub struct FieldServiceIssueEvent {
     #[cfg_attr(feature = "contracts", schema(value_type = i64, minimum = 1, maximum = 9_007_199_254_740_991_i64))]
     pub cost_minor: i64,
 }
+
+/// Retained Service request result. Version and status are the original result.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct FieldServiceRequestResult {
+    pub id: String,
+    pub ticket_id: String,
+    #[cfg_attr(feature = "contracts", ts(type = "number"))]
+    #[cfg_attr(feature="contracts", schema(value_type=i64,minimum=1,maximum=9_007_199_254_740_991_i64))]
+    pub version: i64,
+    pub status: String,
+}
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct FieldServiceRequestOrderRead {
+    pub id: String,
+    pub ticket_id: String,
+    pub agreement_id: String,
+    #[cfg_attr(feature = "contracts", ts(type = "number"))]
+    #[cfg_attr(feature="contracts", schema(value_type=i64,minimum=1,maximum=9_007_199_254_740_991_i64))]
+    pub agreement_version: i64,
+    pub customer_id: String,
+    pub status: String,
+    #[cfg_attr(feature = "contracts", ts(type = "number"))]
+    #[cfg_attr(feature="contracts", schema(value_type=i64,minimum=1,maximum=9_007_199_254_740_991_i64))]
+    pub version: i64,
+}
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct FieldServiceRequestTicketRead {
+    pub id: String,
+    pub status: String,
+    #[cfg_attr(feature = "contracts", ts(type = "number"))]
+    #[cfg_attr(feature="contracts", schema(value_type=i64,minimum=1,maximum=9_007_199_254_740_991_i64))]
+    pub version: i64,
+}
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct FieldServiceRequestEvent {
+    pub actor_id: String,
+    pub status: String,
+    #[cfg_attr(feature = "contracts", ts(type = "number"))]
+    #[cfg_attr(feature="contracts", schema(value_type=i64,minimum=1,maximum=9_007_199_254_740_991_i64))]
+    pub version: i64,
+    pub issue: String,
+    pub site: String,
+    pub technician_id: String,
+    #[cfg_attr(feature = "contracts", ts(type = "number | null"))]
+    #[cfg_attr(feature="contracts", schema(value_type=Option<i64>,minimum=1,maximum=9_007_199_254_740_991_i64))]
+    pub scheduled_at: Option<i64>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+pub enum FieldServiceRequestEntity {
+    #[serde(rename = "request")]
+    Request,
+}
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct FieldServiceRequestInput {
+    pub entity: FieldServiceRequestEntity,
+    pub agreement_id: String,
+    #[cfg_attr(feature = "contracts", ts(type = "number"))]
+    #[cfg_attr(feature="contracts", schema(value_type=i64,minimum=1,maximum=9_007_199_254_740_991_i64))]
+    pub agreement_version: i64,
+    pub title: String,
+    pub issue: String,
+    pub site: String,
+    pub technician_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "contracts", ts(optional, type = "number | null"))]
+    #[cfg_attr(feature="contracts", schema(value_type=Option<i64>,minimum=1,maximum=9_007_199_254_740_991_i64))]
+    pub scheduled_at: Option<i64>,
+}

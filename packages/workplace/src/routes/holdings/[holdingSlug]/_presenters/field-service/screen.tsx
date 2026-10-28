@@ -37,7 +37,12 @@ export default async function Page({
       </p>
       {partsSetupAvailable&&<ServicePartsEntryLink base={base}/>}
       {(customers.available||data.customers.length===0)&&<ServiceCustomerPreparation base={base} workspaceKey={data.workspaceKey} initial={customers}/>}
-      <FieldServiceConsole base={base} data={data} />
+      <FieldServiceConsole base={base} data={data} nativeReserve={process.env.ERPX_NATIVE_FIELD_SERVICE_REQUEST_CONFIG === undefined ? undefined : {request:true,reserve:false,context:a.authority && a.iam ? {
+        userId:a.userId,holdingId:a.holdingId,companyId:a.companyId,branchId:a.branchId,departmentId:a.departmentId,
+        branchSlug:a.scope.kind==='holding'?null:a.scope.branchSlug??null,departmentSlug:a.scope.kind==='department'?a.scope.departmentSlug:null,
+        assignmentId:a.assignmentId,assignmentVersion:a.authority.assignmentVersion,revision:a.authority.revision,
+        role:a.role,assignmentScopeKind:a.assignmentScope,modules:[...a.modules],permissions:[...a.iam.permissions],
+      }:undefined}} />
       <Card as="section" appearance="standard" className="ui-panel">
         <h2>Service orders</h2>
         {data.orders.map((x) => (

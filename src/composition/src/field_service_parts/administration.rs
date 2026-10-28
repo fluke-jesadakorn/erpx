@@ -331,6 +331,9 @@ impl<W: Clock + Send + Sync + 'static, G: Clock + Send + Sync + 'static>
                         })?;
                         match wire {
                             SharedPostWire::Parts { target, normalized } => {
+                                if matches!((&dispatch, normalized.input()), (HttpDispatch::PrivateRequests(_, false, _), erpx_server_field_service::public::parts::FieldServicePartsInput::Reserve { .. }) | (HttpDispatch::PrivateRequests(_, _, false), erpx_server_field_service::public::parts::FieldServicePartsInput::Issue { .. })) {
+                                    return Err(HttpIngressError::UnavailableBranch);
+                                }
                                 if reserve_only && !matches!(normalized.input(), erpx_server_field_service::public::parts::FieldServicePartsInput::Reserve { .. }) {
                                     return Err(HttpIngressError::UnavailableBranch);
                                 }
@@ -341,7 +344,7 @@ impl<W: Clock + Send + Sync + 'static, G: Clock + Send + Sync + 'static>
                                 }))
                             }
                             SharedPostWire::Other { branch, id_utf16 } => {
-                                let HttpDispatch::Shared(other) = dispatch else { return Err(HttpIngressError::UnavailableBranch); };
+                                let other = match dispatch { HttpDispatch::Shared(other) => other, HttpDispatch::PrivateRequests(other, _, _) if branch == crate::field_service_http_wire::OtherPostBranch::Request => other, _ => return Err(HttpIngressError::UnavailableBranch) };
                                 let input = OtherPostInput {
                                     branch,
                                     id_utf16,
@@ -375,7 +378,7 @@ impl<W: Clock + Send + Sync + 'static, G: Clock + Send + Sync + 'static>
                         }
                         match prepared {
                             HttpPrepared::Other(input) => {
-                                let HttpDispatch::Shared(other) = dispatch else { return Ok(Err(HttpIngressError::UnavailableBranch)); };
+                                let other = match dispatch { HttpDispatch::Shared(other) => other, HttpDispatch::PrivateRequests(other, _, _) if input.branch == crate::field_service_http_wire::OtherPostBranch::Request => other, _ => return Ok(Err(HttpIngressError::UnavailableBranch)) };
                                 other.execute(c, current, input).await.map(Ok)
                             }
                             HttpPrepared::Parts(pending) => {
