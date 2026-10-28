@@ -38,7 +38,7 @@ export async function prepareHoldingRequest(request:NextRequest):Promise<NextReq
   let internalPath=route.internalPath;
   const company=request.nextUrl.searchParams.get('company');
   if(route.kind==='page'&&!route.branchSlug&&!route.departmentSlug&&!company&&internalPath.startsWith('/holdings/'))internalPath='/product-entry';
-  if(route.branchSlug||route.departmentSlug||company&&internalPath.startsWith('/holdings/')){
+  if(route.branchSlug||route.departmentSlug||company&&(route.kind==='entry'||internalPath.startsWith('/holdings/'))){
     const {write}=await holdingResources(binding.id);
     const structural=await workspaceRouteCompany(write,route.branchSlug,route.departmentSlug,company??undefined);
     if(!structural)return missing();

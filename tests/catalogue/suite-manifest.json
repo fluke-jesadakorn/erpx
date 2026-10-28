@@ -47800,7 +47800,9 @@
       "files": [
         "tests/unit/identity_access/product-sso.test.ts",
         "tests/unit/identity_access/holding-routing.test.ts",
-        "tests/unit/identity_access/holding-role-launch.test.ts"
+        "tests/unit/identity_access/holding-role-launch.test.ts",
+        "tests/unit/identity_access/native-product-entry.test.ts",
+        "tests/unit/identity_access/holding-entry-resolution.test.ts"
       ],
       "fixture": "none",
       "requires": {
@@ -47883,7 +47885,10 @@
       ],
       "verificationInputs": [
         "packages/workplace/src/routes/choose-work-role/page.tsx",
-        "scripts/local/holding-gateway.ts"
+        "scripts/local/holding-gateway.ts",
+        "packages/workplace/src/entries/workspace.tsx",
+        "packages/workplace/src/routes/product-entry/page.tsx",
+        "packages/workplace/src/holding-proxy.ts"
       ]
     },
     {

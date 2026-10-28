@@ -1,5 +1,5 @@
 import {requestProductOrigin} from '@erpx/feature-runtime/lib/product-hosts';
-import {holdingRoutingEnabled,holdingHostForHost} from '@erpx/contracts/holding-hosts';
+import {holdingRoutingEnabled} from '@erpx/contracts/holding-hosts';
 import {AppsHomeLink} from "@erpx/workplace/components/product-link-context";
 import {productAccessLabel} from '@erpx/feature-work_projection/lib/product-access-label';
 import { productEntrySsoHref, type EntryPageSearchParams } from '@erpx/server-identity_access/public/rules/page-entry-return';
@@ -10,6 +10,7 @@ import { notFound, redirect } from "next/navigation";
 import { product } from "@erpx/server-commercial/public/product-registry";
 import { configuredProductOrigin, configuredProductHandoff, productHostForHost } from "@erpx/feature-runtime/lib/product-hosts";
 import { createAuth } from "@erpx/server-identity_access/public/auth";
+import { currentSession } from "@erpx/server-identity_access/public/authorization";
 import { providerEntryOverview } from "@erpx/server-identity_access/public/provider-entry";
 import { adminLaunchChoices } from "@erpx/server-work_projection/public/admin-launcher";
 import { productLaunchChoices, existingWorkspaceLaunchChoices } from "@erpx/server-work_projection/public/product-launcher";
@@ -30,7 +31,12 @@ export default async function ProductEntryPage({ searchParams, applications = fa
   const host = productHostForHost(requestHeaders.get("host"));
   if (!host || host === "account" || host === "booking" || host === "portal" || host === "legal-portal" || host === "forms") notFound();
   const language = await preferredAccountLanguage((await cookies()).get("erpx_language")?.value === "th" ? "th" : "en");
-  const session = await (await createAuth(requestProductOrigin(host,requestHeaders)!)).api.getSession({ headers: requestHeaders });
+  const session = process.env.ERPX_NATIVE_ACCOUNT_SESSION_CONFIG === undefined
+    ? await (await createAuth(requestProductOrigin(host,requestHeaders)!)).api.getSession({ headers: requestHeaders })
+    : await currentSession().then(value => value.session).catch(error => {
+      if (error instanceof Error && error.message === "UNAUTHENTICATED") return null;
+      throw error;
+    });
   if (!session) redirect(holdingRoutingEnabled(process.env)?'/sso/start?'+new URLSearchParams({next:requestHeaders.get('x-erpx-visible-path')??'/'}):productEntrySsoHref(await searchParams ?? {}));
   const sharedAdmin = host === "apps" || host === "admin";
   const [products, adminChoices, provider] = await Promise.all([
