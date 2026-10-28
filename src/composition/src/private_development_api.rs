@@ -110,6 +110,8 @@ struct ConfigurationDocument {
     #[serde(default)]
     finance_journal_posts: Vec<String>,
     #[serde(default)]
+    finance_field_service_journal_posts: Vec<String>,
+    #[serde(default)]
     finance_journal_creates: Vec<String>,
     #[serde(default)]
     finance_journal_edits: Vec<String>,
@@ -142,6 +144,7 @@ pub struct DevelopmentApiConfiguration {
     holdings: Vec<HoldingConfiguration>,
     finance_journal_reads: BTreeMap<HoldingId, CompanyId>,
     finance_journal_posts: BTreeSet<HoldingId>,
+    finance_field_service_journal_posts: BTreeSet<HoldingId>,
     finance_journal_creates: BTreeSet<HoldingId>,
     finance_journal_edits: BTreeSet<HoldingId>,
     finance_journal_reversals: BTreeSet<HoldingId>,
@@ -316,6 +319,17 @@ impl DevelopmentApiConfiguration {
                 return Err("PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID");
             }
         }
+        let mut finance_field_service_journal_posts = BTreeSet::new();
+        for id in doc.finance_field_service_journal_posts {
+            let holding =
+                HoldingId::new(id).map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?;
+            if !finance_journal_posts.contains(&holding)
+                || !field_service_issues.contains(&holding)
+                || !finance_field_service_journal_posts.insert(holding)
+            {
+                return Err("PRIVATE_API_FINANCE_CONFIGURATION_INVALID");
+            }
+        }
         if doc.account_bootstrap
             && finance_journal_reads.is_empty()
             && field_service_reads.is_empty()
@@ -350,6 +364,7 @@ impl DevelopmentApiConfiguration {
             holdings,
             finance_journal_reads,
             finance_journal_posts,
+            finance_field_service_journal_posts,
             finance_journal_creates,
             finance_journal_edits,
             finance_journal_reversals,
@@ -620,6 +635,16 @@ async fn assemble_checked(
                     reverse,
                 )
                 .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?;
+                let action_config = if config
+                    .finance_field_service_journal_posts
+                    .contains(&holding.registration.holding_id)
+                {
+                    action_config
+                        .with_field_service_post()
+                        .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?
+                } else {
+                    action_config
+                };
                 let target = (holding.host.clone(), holding.registration.slug.clone());
                 if post {
                     finance_post_targets.insert(target.clone());

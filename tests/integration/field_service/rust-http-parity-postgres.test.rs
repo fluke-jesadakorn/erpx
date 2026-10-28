@@ -503,3 +503,53 @@ async fn private_issue_readback_and_finance_source_are_receipt_bound() {
         runtime.close().await;
     }).await;
 }
+
+#[tokio::test]
+#[cfg(feature = "private-development-api")]
+async fn private_field_cost_post_requires_qualified_source_and_real_flow_primary() {
+    account::with_system(|system| async move {
+        let wall=std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;
+        system.scenario.clock.0.store(wall,std::sync::atomic::Ordering::SeqCst);
+        let p=setup(system).await;
+        sqlx::query("UPDATE hr_engagements SET start_date='2020-01-01' WHERE id='field-engagement'").execute(p.pool().raw()).await.unwrap();
+        let system=&p.review.system;
+        let db=p.pool().raw();
+        p.issue("post-field-source").await.unwrap();
+        let journal:String=sqlx::query_scalar("SELECT id FROM finance_journals WHERE company_id='company' AND source_id='operational-part-post-field-source'").fetch_one(db).await.unwrap();
+        sqlx::raw_sql("INSERT INTO iam_roles(company_id,id,name,built_in,published_revision,status)VALUES('*','field_post_reviewer','Field journal reviewer',false,1,'active');INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at)VALUES('*','field_post_reviewer',1,'[\"finance.read\",\"finance.write\",\"finance.approve\",\"module.finance.read\",\"workflow.finance_approver\"]','[]','[\"holding\"]','fixture',0);UPDATE assignments SET role='field_post_reviewer' WHERE id='finance-fixture-b';INSERT INTO hr_people(id,user_id,company_id,legal_name,country_code,status,created_by,created_at,updated_at)VALUES('field-post-reviewer','fixture-b','company','Reviewer','TH','active','fixture',0,0);INSERT INTO hr_engagements(id,person_id,company_id,worker_type,employment_type,status,start_date,job_title,currency,created_by,created_at,updated_at)VALUES('field-post-engagement','field-post-reviewer','company','employee','salaried','active','2020-01-01','Reviewer','THB','fixture',0,0)").execute(db).await.unwrap();
+        let mut config=private_configuration::document(&system.control,&system.holdings).await;
+        config["financeJournalReads"]=serde_json::json!([{"holdingId":"h001","companyId":"company"}]);
+        config["financeJournalPosts"]=serde_json::json!(["h001"]);
+        config["fieldServiceReads"]=serde_json::json!([{"holdingId":"h001","companyId":"company"}]);
+        config["fieldServiceReservations"]=serde_json::json!(["h001"]);
+        config["fieldServiceIssues"]=serde_json::json!(["h001"]);
+        let cookie=format!("__Host-erpx-product={}",p.review.reviewer_token.expose());
+        let post=|key:&str, revision:&str|Request::builder().method("POST").uri(format!("/api/v1/holdings/acme/finance/journals/{journal}/post")).header("host","acme.example.test").header("cookie",&cookie).header("x-erpx-context-company","company").header("x-erpx-context-assignment","finance-fixture-b").header("x-erpx-context-assignment-version","3").header("x-erpx-context-revision",revision).header("idempotency-key",key).header("content-type","application/json").body(Body::from(r#"{"expectedVersion":1}"#)).unwrap();
+        let build=|doc:&serde_json::Value|DevelopmentApiConfiguration::parse(&doc.to_string()).unwrap();
+        let closed=assemble_development_api(build(&config),system.scenario.clock.clone(),Arc::new(SystemAuthenticationSecrets)).await.unwrap();
+        assert_ne!(closed.router().oneshot(post("field-off","7")).await.unwrap().status(),StatusCode::OK);
+        closed.close().await;
+        config["financeFieldServiceJournalPosts"]=serde_json::json!(["h001"]);
+        let runtime=assemble_development_api(build(&config),system.scenario.clock.clone(),Arc::new(SystemAuthenticationSecrets)).await.unwrap();
+        assert_ne!(runtime.router().oneshot(post("field-bad-context","999")).await.unwrap().status(),StatusCode::OK);
+        sqlx::query("UPDATE hr_engagements SET status='ended' WHERE id='field-post-engagement'").execute(db).await.unwrap();
+        assert_ne!(runtime.router().oneshot(post("field-no-staff","7")).await.unwrap().status(),StatusCode::OK);
+        sqlx::query("UPDATE hr_engagements SET status='active' WHERE id='field-post-engagement'").execute(db).await.unwrap();
+        sqlx::query("UPDATE finance_journals SET source_id='unrelated' WHERE id=$1").bind(&journal).execute(db).await.unwrap();
+        assert_ne!(runtime.router().oneshot(post("field-source-drift","7")).await.unwrap().status(),StatusCode::OK);
+        sqlx::query("UPDATE finance_journals SET source_id='operational-part-post-field-source' WHERE id=$1").bind(&journal).execute(db).await.unwrap();
+        sqlx::query("ALTER TABLE audit_events ADD CONSTRAINT field_post_reject CHECK(command_id<>'field-post-rollback')").execute(db).await.unwrap();
+        let rollback_response=runtime.router().oneshot(post("field-post-rollback","7")).await.unwrap();let rollback_status=rollback_response.status();let rollback_body=to_bytes(rollback_response.into_body(),65536).await.unwrap();assert_eq!(rollback_status,StatusCode::INTERNAL_SERVER_ERROR,"{}",String::from_utf8_lossy(&rollback_body));
+        let rollback:(String,i64,i64,i64,i64,i64,i64)=sqlx::query_as("SELECT (SELECT status FROM finance_journals WHERE id=$1),(SELECT version FROM finance_journals WHERE id=$1),(SELECT count(*) FROM flow_events WHERE command_id='field-post-rollback'),(SELECT count(*) FROM flow_routes WHERE record_id=$1),(SELECT count(*) FROM command_receipts WHERE command_id='field-post-rollback'),(SELECT count(*) FROM money_transaction_snapshots WHERE source_id=$1),(SELECT count(*) FROM outbox_events WHERE command_id='field-post-rollback')").bind(&journal).fetch_one(db).await.unwrap();
+        assert_eq!(rollback,("draft".into(),1,0,0,0,0,0));
+        sqlx::query("ALTER TABLE audit_events DROP CONSTRAINT field_post_reject").execute(db).await.unwrap();
+        let response=runtime.router().oneshot(post("field-post-success","7")).await.unwrap();let status=response.status();let bytes=to_bytes(response.into_body(),65536).await.unwrap();assert_eq!(status,StatusCode::OK,"{}",String::from_utf8_lossy(&bytes));
+        assert_eq!(runtime.router().oneshot(post("field-post-success","7")).await.unwrap().status(),StatusCode::OK);
+        let facts:(String,i64,i64,i64,i64,i64,i64)=sqlx::query_as("SELECT (SELECT status FROM finance_journals WHERE id=$1),(SELECT version FROM finance_journals WHERE id=$1),(SELECT count(*) FROM flow_events WHERE command_id='field-post-success'),(SELECT count(*) FROM command_receipts WHERE command_id='field-post-success'),(SELECT count(*) FROM money_transaction_snapshots WHERE source_id=$1),(SELECT count(*) FROM audit_events WHERE command_id='field-post-success'),(SELECT count(*) FROM outbox_events WHERE command_id='field-post-success')").bind(&journal).fetch_one(db).await.unwrap();assert_eq!(facts,("posted".into(),2,1,1,1,1,1));
+        let primary:(String,String)=sqlx::query_as("SELECT steps_json::jsonb->'draft'->>'primaryUserId',(SELECT actor_user_id FROM flow_events WHERE command_id='field-post-success') FROM flow_routes WHERE company_id='company' AND kind='journal' AND record_id=$1").bind(&journal).fetch_one(db).await.unwrap();
+        assert_eq!(primary,("fixture-b".into(),"fixture-b".into()));
+        let read=Request::builder().uri(format!("/api/v1/holdings/acme/finance/journals/{journal}/workspace")).header("host","acme.example.test").header("cookie",&cookie).body(Body::empty()).unwrap();
+        let response=runtime.router().oneshot(read).await.unwrap();let status=response.status();let bytes=to_bytes(response.into_body(),2*1024*1024).await.unwrap();assert_eq!(status,StatusCode::OK,"{}",String::from_utf8_lossy(&bytes));let data:serde_json::Value=serde_json::from_slice(&bytes).unwrap();assert_eq!(data["data"]["journal"]["status"],"posted");assert_eq!(data["data"]["journal"]["version"],2);
+        runtime.close().await;
+    }).await;
+}

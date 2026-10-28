@@ -20,6 +20,9 @@ pub(crate) struct FieldServicePartsSource {
     origin: PgRawRecordOrigin,
 }
 impl FieldServicePartsSource {
+    pub(super) fn journal_id(&self) -> &str {
+        &self.target.facts().journal_id
+    }
     pub(crate) async fn retain(
         c: &mut PgConnection,
         target: CurrentFieldServicePartsJournalTarget,

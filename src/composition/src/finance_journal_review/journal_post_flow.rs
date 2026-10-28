@@ -42,6 +42,10 @@ async fn candidates(
     }
     Ok(candidates)
 }
+pub(super) enum JournalFlowSource<'a> {
+    Owned,
+    FieldService(&'a super::field_service_parts::FieldServicePartsSource),
+}
 pub(super) struct JournalPostFlow {
     witness: JournalPostFlowWitness,
     company: CompanyId,
@@ -57,8 +61,17 @@ impl JournalPostFlow {
         journal: &ReviewJournal,
         command: &JournalReviewCommand,
         now: i64,
+        source: JournalFlowSource<'_>,
     ) -> Result<Self, Error> {
-        if !matches!(journal.source_type.as_str(), "manual" | "opening_import") {
+        let admitted = match source {
+            JournalFlowSource::Owned => {
+                matches!(journal.source_type.as_str(), "manual" | "opening_import")
+            }
+            JournalFlowSource::FieldService(source) => {
+                journal.source_type == "field_service_parts" && source.journal_id() == journal.id
+            }
+        };
+        if !admitted {
             return Err(BusinessError::new(
                 FailureKind::Unavailable,
                 "JOURNAL_FLOW_SOURCE_UNSUPPORTED",

@@ -56,6 +56,7 @@ pub struct FinanceJournalConfiguration {
     purchases: Arc<CommercialCatalogue>,
     enforce_post_flow: bool,
     allow_manual_root_reversal: bool,
+    allow_field_service_post: bool,
 }
 impl FinanceJournalConfiguration {
     pub fn new(
@@ -77,6 +78,7 @@ impl FinanceJournalConfiguration {
             purchases,
             enforce_post_flow: false,
             allow_manual_root_reversal: false,
+            allow_field_service_post: false,
         })
     }
     /// Explicit native HTTP journal post composition; existing foundation
@@ -111,6 +113,17 @@ impl FinanceJournalConfiguration {
         config.enforce_post_flow = post;
         config.allow_manual_root_reversal = reverse;
         Ok(config)
+    }
+    /// Narrow private opt-in; actual owner lineage is still required per command.
+    pub fn with_field_service_post(mut self) -> Result<Self, BusinessError> {
+        if !self.enforce_post_flow {
+            return Err(BusinessError::invalid(
+                "FINANCE_REVIEW_CONFIGURATION_INVALID",
+                "Enable journal post first.",
+            ));
+        }
+        self.allow_field_service_post = true;
+        Ok(self)
     }
     async fn lock_sources(&self, c: &mut PgConnection) -> Result<(), Error> {
         lock_commercial_authority_sources(c).await?;
@@ -450,9 +463,25 @@ impl PgFinanceJournalReviewPolicy for CurrentFinancePolicy<'_> {
             if self.flow.is_some() {
                 return Err(scope_error().into());
             }
+            let source = match &self.source {
+                Some(CurrentFinanceSource::Owned(_)) => journal_post_flow::JournalFlowSource::Owned,
+                Some(CurrentFinanceSource::FieldServiceParts(source))
+                    if self.configuration.allow_field_service_post =>
+                {
+                    journal_post_flow::JournalFlowSource::FieldService(source)
+                }
+                _ => return Err(scope_error().into()),
+            };
             self.flow = Some(
-                journal_post_flow::JournalPostFlow::prepare(c, self.current, journal, command, now)
-                    .await?,
+                journal_post_flow::JournalPostFlow::prepare(
+                    c,
+                    self.current,
+                    journal,
+                    command,
+                    now,
+                    source,
+                )
+                .await?,
             );
         }
         Ok(())
@@ -534,6 +563,11 @@ impl PgFinanceJournalReviewPolicy for CurrentFinancePolicy<'_> {
                 (Some(CurrentFinanceSource::Owned(source)), JournalReviewInput::Post { .. })
                     if self.configuration.enforce_post_flow
                         && source.journal_id() == source.root_journal_id() => {}
+                (
+                    Some(CurrentFinanceSource::FieldServiceParts(_)),
+                    JournalReviewInput::Post { .. },
+                ) if self.configuration.enforce_post_flow
+                    && self.configuration.allow_field_service_post => {}
                 (Some(CurrentFinanceSource::Owned(source)), JournalReviewInput::Reverse { .. })
                     if self.configuration.allow_manual_root_reversal
                         && source.root_kind() == JournalReviewRootKind::Manual

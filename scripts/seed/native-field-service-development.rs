@@ -48,10 +48,9 @@ impl Drop for CaseFiles {
 #[tokio::main]
 async fn main() {
     let args: Vec<_> = std::env::args().collect();
-    assert_eq!(
-        args.len(),
-        3,
-        "usage: native-field-service-development ABSOLUTE_PRIVATE_CASE_DIR LOOPBACK_LISTEN"
+    assert!(
+        (3..=4).contains(&args.len()),
+        "usage: native-field-service-development ABSOLUTE_PRIVATE_CASE_DIR LOOPBACK_LISTEN [post]"
     );
     let dir = PathBuf::from(&args[1]);
     assert!(
@@ -65,6 +64,11 @@ async fn main() {
     );
     let dir = dir.canonicalize().expect("private case directory required");
     let listen = args[2].clone();
+    let post_scenario = match args.get(3).map(String::as_str) {
+        None => false,
+        Some("post") => true,
+        _ => panic!("invalid private fixture scenario"),
+    };
     field_service::account::with_system(move |system| async move {
         let now = i64::try_from(SystemTime::now().duration_since(UNIX_EPOCH).expect("wall clock unavailable").as_millis()).expect("wall clock invalid");
         system.scenario.clock.0.store(now, Ordering::SeqCst);
@@ -79,10 +83,19 @@ async fn main() {
         sqlx::query("UPDATE field_service_orders SET status='in_visit',version=3 WHERE id='reserve-order'").execute(&mut *historical).await.expect("synthetic historical visit unavailable");
         sqlx::query("INSERT INTO field_service_order_events(id,order_id,version,action,actor_id,reason,status,technician_id,scheduled_at,details_json,created_at) VALUES('synthetic-start-issue','reserve-order',3,'start','fixture-a','Synthetic historical visit','in_visit','fixture-a',$1+60000,'{}',$1)").bind(now).execute(&mut *historical).await.expect("synthetic historical event unavailable");
         historical.commit().await.expect("synthetic historical visit commit failed");
+        let journal_id = if post_scenario {
+            let issue = r#"{"action":"issue-part","expectedVersion":3,"reservationId":"field-part-browser-issue-reserve","quantityMilli":1000,"entryDate":"2026-01-10","allocations":[],"reason":"Synthetic post source"}"#;
+            prepared.execute("reserve-order", "browser-post-issue", issue).await.expect("synthetic issue command failed");
+            let id: String = sqlx::query_scalar("SELECT id FROM finance_journals WHERE company_id='company' AND source_id='operational-part-browser-post-issue'").fetch_one(system.holdings[0].raw()).await.expect("generated cost journal unavailable");
+        // Independent Finance staff is backed by current HR and a published
+        // scoped IAM role; Workflow selects its actual primary during posting.
+        sqlx::raw_sql("INSERT INTO iam_roles(company_id,id,name,built_in,published_revision,status)VALUES('*','journal_flow_reviewer','Journal workflow reviewer',false,1,'active');INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at)VALUES('*','journal_flow_reviewer',1,'[\"finance.read\",\"finance.write\",\"finance.approve\",\"module.finance.read\",\"workflow.finance_approver\"]','[]','[\"holding\"]','fixture',0);UPDATE assignments SET role='journal_flow_reviewer' WHERE id='finance-fixture-b';INSERT INTO hr_people(id,user_id,company_id,legal_name,country_code,status,created_by,created_at,updated_at)VALUES('person-reviewer','fixture-b','company','Reviewer','TH','active','fixture',0,0);INSERT INTO hr_engagements(id,person_id,company_id,worker_type,employment_type,status,start_date,job_title,currency,created_by,created_at,updated_at)VALUES('reviewer-engagement','person-reviewer','company','employee','salaried','active','2020-01-01','Reviewer','THB','fixture',0,0)").execute(system.holdings[0].raw()).await.expect("journal reviewer fixture unavailable");
+            Some(id)
+        } else { None };
         let control = private_fixture::database(&system.control).await;
         let h001 = private_fixture::database(&system.holdings[0]).await;
         let h002 = private_fixture::database(&system.holdings[1]).await;
-        let doc = serde_json::json!({
+        let mut doc = serde_json::json!({
             "version":1,"mode":"development","transport":"direct-loopback","listen":listen,
             "accountHost":"account-dev-erpx.jesadakorn.com","requireEmailVerification":true,
             "passwordWorkers":2,"maximumRequests":16,"requestTimeoutMs":5000,"control":control,
@@ -91,6 +104,10 @@ async fn main() {
                 {"holdingId":"h002","slug":"northstar","host":"northstar.jesadakorn.com","writeBinding":"HOLDING_H002_DB","readBinding":"HOLDING_H002_READ_DB","filesBinding":"HOLDING_H002_FILES","database":h002}
             ],"financeJournalReads":[{"holdingId":"h001","companyId":"company"}],"fieldServiceReads":[{"holdingId":"h001","companyId":"company"}],"fieldServiceReservations":["h001"],"fieldServiceIssues":["h001"],"accountBootstrap":true
         });
+        if post_scenario {
+            doc["financeJournalPosts"] = serde_json::json!(["h001"]);
+            doc["financeFieldServiceJournalPosts"] = serde_json::json!(["h001"]);
+        }
         let configuration = DevelopmentApiConfiguration::parse(&doc.to_string()).expect("invalid explicit native case configuration");
         let manifest = serde_json::json!({"version":1,"databases":{
             "CONTROL_DB":doc["control"]["url"], "CONTROL_READ_DB":doc["control"]["url"],
@@ -103,7 +120,7 @@ async fn main() {
         let mut files = CaseFiles(Vec::new());
         files.0.push(write_private(&dir, "native-api.json", &doc));
         files.0.push(write_private(&dir, "databases.json", &manifest));
-        files.0.push(write_private(&dir, "credentials.json", &serde_json::json!({"email":"a@example.test","password":field_service::account::fixture::PASSWORD,"orderId":"reserve-order","reservationId":"field-part-browser-issue-reserve","expectedVersion":3,"entryDate":"2026-01-10","financeEmail":"b@example.test","financePassword":field_service::account::fixture::PASSWORD})));
+        files.0.push(write_private(&dir, "credentials.json", &serde_json::json!({"email":"a@example.test","password":field_service::account::fixture::PASSWORD,"orderId":"reserve-order","reservationId":"field-part-browser-issue-reserve","expectedVersion":3,"entryDate":"2026-01-10","financeEmail":"b@example.test","financePassword":field_service::account::fixture::PASSWORD,"journalId":journal_id,"journalVersion":1})));
         let runtime = assemble_development_api(configuration, Arc::new(SystemAccountClock), Arc::new(SystemAuthenticationSecrets)).await.expect("native case assembly failed");
         let listener = tokio::net::TcpListener::bind(runtime.listen_address()).await.expect("private case listener unavailable");
         println!("{}", dir.join("databases.json").display());
