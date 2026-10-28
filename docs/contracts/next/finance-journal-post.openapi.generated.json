@@ -48,6 +48,51 @@
           "version"
         ],
         "type": "object"
+      },
+      "JournalReverseInput": {
+        "properties": {
+          "entryDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "memo": {
+            "type": "string"
+          },
+          "periodId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "periodId",
+          "entryDate"
+        ],
+        "type": "object"
+      },
+      "JournalReverseResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/JournalReverseResult"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "type": "object"
+      },
+      "JournalReverseResult": {
+        "properties": {
+          "reversalJournalId": {
+            "type": "string"
+          },
+          "reversedJournalId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "reversalJournalId",
+          "reversedJournalId"
+        ],
+        "type": "object"
       }
     }
   },
@@ -103,6 +148,61 @@
               }
             },
             "description": "Original journal posting receipt data"
+          },
+          "401": {
+            "description": "Current session required"
+          },
+          "403": {
+            "description": "Current review authority denied"
+          },
+          "409": {
+            "description": "Work or journal changed"
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/v1/holdings/{holding_slug}/finance/journals/{id}/reverse": {
+      "post": {
+        "operationId": "reverse_journal",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "holding_slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JournalReverseInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JournalReverseResponse"
+                }
+              }
+            },
+            "description": "Original reversal receipt data"
           },
           "401": {
             "description": "Current session required"

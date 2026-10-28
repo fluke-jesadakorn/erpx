@@ -52,6 +52,15 @@ export default async function JournalPage({
   const documentPost = ["draft","in_review"].includes(String(journal.status)) ? await financeDocumentPostAccess(actor,"journal",id) : undefined;
   const canApprove = hasPermission(actor, "finance.approve");
   const flow = await financeDocumentFlow(actor, "journal", id);
+  const nativeContext = actor.authority && actor.iam ? {
+                userId: actor.userId, holdingId: actor.holdingId, companyId: actor.companyId,
+                branchId: actor.branchId, departmentId: actor.departmentId,
+                branchSlug: actor.scope.kind === 'holding' ? null : actor.scope.branchSlug ?? null,
+                departmentSlug: actor.scope.kind === 'department' ? actor.scope.departmentSlug : null,
+                assignmentId: actor.assignmentId, assignmentVersion: actor.authority.assignmentVersion,
+                revision: actor.authority.revision, role: actor.role, assignmentScopeKind: actor.assignmentScope,
+                modules: [...actor.modules], permissions: [...actor.iam.permissions],
+              } : undefined;
   return (
     <FeaturePage
       className="ui-page-content"
@@ -103,15 +112,8 @@ export default async function JournalPage({
           <RecordNextAction flow={flow} />
           <FeatureWidget appearance="standard" id="finance-journals-detail-journal-actions" title="Journal actions">
             <JournalAction sourceCanPost={documentPost?.canPost}
-              nativePost={process.env.ERPX_NATIVE_FINANCE_JOURNAL_POST_CONFIG === undefined ? undefined : { context: actor.authority && actor.iam ? {
-                userId: actor.userId, holdingId: actor.holdingId, companyId: actor.companyId,
-                branchId: actor.branchId, departmentId: actor.departmentId,
-                branchSlug: actor.scope.kind === 'holding' ? null : actor.scope.branchSlug ?? null,
-                departmentSlug: actor.scope.kind === 'department' ? actor.scope.departmentSlug : null,
-                assignmentId: actor.assignmentId, assignmentVersion: actor.authority.assignmentVersion,
-                revision: actor.authority.revision, role: actor.role, assignmentScopeKind: actor.assignmentScope,
-                modules: [...actor.modules], permissions: [...actor.iam.permissions],
-              } : undefined }}
+              nativePost={process.env.ERPX_NATIVE_FINANCE_JOURNAL_POST_CONFIG === undefined ? undefined : { context: nativeContext }}
+              nativeReverse={process.env.ERPX_NATIVE_FINANCE_JOURNAL_REVERSE_CONFIG === undefined ? undefined : { context: nativeContext }}
               base={base}
               journal={journal}
               canPost={

@@ -95,6 +95,8 @@ struct ConfigurationDocument {
     #[serde(default)]
     finance_journal_posts: Vec<String>,
     #[serde(default)]
+    finance_journal_reversals: Vec<String>,
+    #[serde(default)]
     account_bootstrap: bool,
 }
 struct HoldingConfiguration {
@@ -115,6 +117,7 @@ pub struct DevelopmentApiConfiguration {
     holdings: Vec<HoldingConfiguration>,
     finance_journal_reads: BTreeMap<HoldingId, CompanyId>,
     finance_journal_posts: BTreeSet<HoldingId>,
+    finance_journal_reversals: BTreeSet<HoldingId>,
     account_bootstrap: bool,
 }
 impl fmt::Debug for DevelopmentApiConfiguration {
@@ -219,6 +222,16 @@ impl DevelopmentApiConfiguration {
                 return Err("PRIVATE_API_FINANCE_CONFIGURATION_INVALID");
             }
         }
+        let mut finance_journal_reversals = BTreeSet::new();
+        for id in doc.finance_journal_reversals {
+            let holding =
+                HoldingId::new(id).map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?;
+            if !finance_journal_reads.contains_key(&holding)
+                || !finance_journal_reversals.insert(holding)
+            {
+                return Err("PRIVATE_API_FINANCE_CONFIGURATION_INVALID");
+            }
+        }
         if doc.account_bootstrap && finance_journal_reads.is_empty() {
             return Err("PRIVATE_API_FINANCE_CONFIGURATION_INVALID");
         }
@@ -250,6 +263,7 @@ impl DevelopmentApiConfiguration {
             holdings,
             finance_journal_reads,
             finance_journal_posts,
+            finance_journal_reversals,
             account_bootstrap: doc.account_bootstrap,
         })
     }
@@ -450,6 +464,7 @@ async fn assemble_checked(
     }
     let mut finance_targets = BTreeSet::new();
     let mut finance_post_targets = BTreeSet::new();
+    let mut finance_reversal_targets = BTreeSet::new();
     if !config.finance_journal_reads.is_empty() {
         let catalogue = Arc::new(
             current_package_catalogue().map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
@@ -482,26 +497,36 @@ async fn assemble_checked(
             )
             .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?;
             finance_targets.insert((holding.host.clone(), holding.registration.slug.clone()));
-            if config
+            let post = config
                 .finance_journal_posts
-                .contains(&holding.registration.holding_id)
-            {
-                let post_config = FinanceJournalConfiguration::new_enforced_post(
+                .contains(&holding.registration.holding_id);
+            let reverse = config
+                .finance_journal_reversals
+                .contains(&holding.registration.holding_id);
+            if post || reverse {
+                let action_config = FinanceJournalConfiguration::new_private_actions(
                     FinanceJournalEnvironment::Development,
                     holding.registration.holding_id.clone(),
                     company.clone(),
                     catalogue.clone(),
+                    post,
+                    reverse,
                 )
                 .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?;
-                finance_post_targets
-                    .insert((holding.host.clone(), holding.registration.slug.clone()));
+                let target = (holding.host.clone(), holding.registration.slug.clone());
+                if post {
+                    finance_post_targets.insert(target.clone());
+                }
+                if reverse {
+                    finance_reversal_targets.insert(target);
+                }
                 post_targets.push(BusinessHttpTarget {
                     host: holding.host.clone(),
                     holding_slug: holding.registration.slug.clone(),
                     legal: None,
                     finance: Some(Arc::new(FinanceJournalReviewAdministration::new(
                         authorizer.clone(),
-                        post_config,
+                        action_config,
                         Arc::new(SharedClock(clock.clone())),
                     ))),
                 });
@@ -544,6 +569,7 @@ async fn assemble_checked(
         timeout: config.request_timeout,
         finance_targets,
         finance_post_targets,
+        finance_reversal_targets,
         account_bootstrap: config.account_bootstrap,
     });
     Ok(router.layer(middleware::from_fn_with_state(state, boundary)))
@@ -561,6 +587,7 @@ struct Boundary {
     timeout: Duration,
     finance_targets: BTreeSet<(String, String)>,
     finance_post_targets: BTreeSet<(String, String)>,
+    finance_reversal_targets: BTreeSet<(String, String)>,
     account_bootstrap: bool,
 }
 enum BoundaryDenial {
@@ -654,6 +681,29 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
                 .contains(&(host.to_owned(), (*slug).to_owned())),
             _ => false,
         };
+    let finance_reverse = request.method() == axum::http::Method::POST
+        && match request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice()
+        {
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "finance",
+                "journals",
+                id,
+                "reverse",
+            ] if !id.is_empty() => state
+                .finance_reversal_targets
+                .contains(&(host.to_owned(), (*slug).to_owned())),
+            _ => false,
+        };
     let bootstrap = state.account_bootstrap
         && match (request.method(), request.uri().path()) {
             (&axum::http::Method::POST, "/api/auth/sign-in/email") => {
@@ -671,9 +721,11 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         "/api/auth/get-session" | "/api/health" | "/api/ready"
     ) || finance_workspace
         || finance_post
+        || finance_reverse
         || bootstrap)
         || !(bootstrap
             || finance_post
+            || finance_reverse
             || matches!(
                 *request.method(),
                 axum::http::Method::GET | axum::http::Method::HEAD

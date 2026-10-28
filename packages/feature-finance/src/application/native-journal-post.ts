@@ -13,12 +13,16 @@ export function postedReceipt(attempt: PostAttempt, value: unknown): PostReceipt
   return result as PostReceipt;
 }
 const sameSet = (a: readonly string[], b: readonly string[]) => a.length === b.length && new Set(a).size === new Set(b).size && a.every(v => b.includes(v));
-export function confirmedReadback(attempt: PostAttempt, response: FinanceJournalWorkspaceReadResponse): boolean {
-  if (!attempt.receipt || !response?.context || !response.data?.journal) return false;
-  const { modules, permissions, ...other } = attempt.context;
+export function matchingReadbackContext(expected: PostContext, response: FinanceJournalWorkspaceReadResponse): boolean {
+  if (!response?.context) return false;
+  const { modules, permissions, ...other } = expected;
   const context = response.context;
   return Object.entries(other).every(([key, value]) => context[key as keyof typeof context] === value)
     && Array.isArray(context.modules) && Array.isArray(context.permissions)
-    && sameSet(modules, context.modules) && sameSet(permissions, context.permissions)
+    && sameSet(modules, context.modules) && sameSet(permissions, context.permissions);
+}
+export function confirmedReadback(attempt: PostAttempt, response: FinanceJournalWorkspaceReadResponse): boolean {
+  if (!attempt.receipt || !response?.data?.journal) return false;
+  return matchingReadbackContext(attempt.context, response)
     && response.data.journal.id === attempt.id && response.data.journal.status === 'posted' && response.data.journal.version === attempt.receipt.version;
 }

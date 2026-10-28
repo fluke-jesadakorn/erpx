@@ -1,10 +1,11 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-const harness = vi.hoisted(() => ({ click: undefined as undefined | (() => void), refresh: vi.fn(), track: vi.fn(), completion: undefined as undefined | {form: HTMLFormElement; formEditVersion: string | null} }));
-vi.mock('@erpx/ui/components/foundation', () => ({ Button: (props: {onClick: () => void}) => { harness.click = props.onClick; return null; }, InlineNotice: () => null }));
+const harness = vi.hoisted(() => ({ click: undefined as undefined | (() => void), submit: undefined as undefined | ((event: unknown) => void), refresh: vi.fn(), track: vi.fn(), completion: undefined as undefined | {form: HTMLFormElement; formEditVersion: string | null} }));
+vi.mock('@erpx/ui/components/foundation', () => ({ Button: (props: {onClick: () => void}) => { harness.click = props.onClick; return null; }, InlineNotice: () => null, FormLayout: (props: {onSubmit: (event: unknown) => void}) => {harness.submit=props.onSubmit;return null;}, Field: () => null, Select: () => null, TextInput: () => null }));
 vi.mock('@erpx/feature-shared/lib/destination-router', () => ({useRouter: () => ({refresh: harness.refresh})}));
 vi.mock('@erpx/feature-finance/components/finance-draft-boundary', async () => { const actual = await vi.importActual<typeof import('@erpx/feature-finance/components/finance-draft-boundary')>('@erpx/feature-finance/components/finance-draft-boundary'); return {...actual, captureFinanceForm: () => harness.completion, useFinanceDraftCommandPending: () => harness.track}; });
+import { NativeJournalReverse } from '../../../packages/feature-finance/src/components/native-journal-reverse';
 import { NativeJournalPost } from '../../../packages/feature-finance/src/components/native-journal-post';
 const context = {userId:'user',holdingId:'h',companyId:'c',branchId:null,departmentId:null,branchSlug:null,departmentSlug:null,assignmentId:'a',assignmentVersion:3,revision:7,role:'reviewer',assignmentScopeKind:'holding',modules:['finance'],permissions:['finance.read']};
 afterEach(() => {vi.unstubAllGlobals();harness.refresh.mockReset();harness.track.mockReset();harness.completion=undefined;});
@@ -52,4 +53,19 @@ it('keeps a newer Finance form edit when a captured posting finishes', async () 
  harness.click!();await readbackStarted;edit='newer-edit';release();
  await vi.waitFor(()=>expect(harness.track.mock.calls.at(-1)?.[2]).toBe(false));
  expect(edit).toBe('newer-edit');expect(dirty).toBe(true);expect(harness.refresh).not.toHaveBeenCalled();
+});
+
+it('retains reversal input and key through a lost reply, then retries only both readbacks after the receipt', async () => {
+ const node={isConnected:true,dataset:{workUser:'user',workCompany:'c',workAssignment:'a',workRevision:'7',workAssignmentVersion:'3',workStale:'false'}};
+ let edit='original', dirty=true, readCount=0; const values={periodId:'period',entryDate:'2026-01-02',memo:''};
+ const form={isConnected:true,getAttribute:()=>edit} as HTMLFormElement;
+ const browser=Object.assign(new EventTarget(),{location:{origin:'https://acme.example.test',host:'acme.example.test',href:'https://acme.example.test/finance'}});
+ browser.addEventListener('erpx:finance-command-acknowledged',event=>{const d=(event as CustomEvent<{form:HTMLFormElement;formEditVersion:string|null}>).detail;if(d.form===form&&d.formEditVersion===edit)dirty=false;});
+ vi.stubGlobal('window',browser);vi.stubGlobal('document',{querySelector:()=>node,querySelectorAll:()=>[form],documentElement:{dataset:{}}});
+ vi.stubGlobal('FormData',class {get(name:keyof typeof values){return values[name]??null;}});
+ const calls:{url:string;init:RequestInit}[]=[];let key='';
+ vi.stubGlobal('fetch',vi.fn(async (url:RequestInfo|URL,init:RequestInit={})=>{calls.push({url:String(url),init});if(init.method==='POST'){key=new Headers(init.headers).get('idempotency-key')!;if(calls.length===1)throw Error('lost reply');return Response.json({data:{reversalJournalId:`reversal-${key}`,reversedJournalId:'reverse-test'}},{status:201});}readCount++;if(readCount===1)throw Error('readback unavailable');const child=String(url).includes(`reversal-${key}`);return Response.json({context:{...context,expiresAt:9999999999999},data:{journal:child?{id:`reversal-${key}`,status:'posted',version:1,source_type:'reversal',source_id:'reverse-test'}:{id:'reverse-test',status:'reversed',version:3}}});}));
+ renderToStaticMarkup(createElement(NativeJournalReverse,{url:'/api/v1/holdings/acme/finance/journals/reverse-test',id:'reverse-test',version:2,context,allowed:true,periods:[]}));
+ const submit=harness.submit!, event={preventDefault:vi.fn(),currentTarget:form};submit(event);await vi.waitFor(()=>expect(calls).toHaveLength(1));await new Promise(resolve=>setTimeout(resolve,0));values.memo='newer';edit='newer-edit';submit(event);await vi.waitFor(()=>expect(calls).toHaveLength(3));await new Promise(resolve=>setTimeout(resolve,0));submit(event);await vi.waitFor(()=>expect(calls).toHaveLength(5));
+ expect(calls.map(c=>c.init.method??'GET')).toEqual(['POST','POST','GET','GET','GET']);expect(calls[0]!.init.body).toBe('{"periodId":"period","entryDate":"2026-01-02","memo":""}');expect(calls[1]!.init.body).toBe(calls[0]!.init.body);expect(new Headers(calls[0]!.init.headers).get('idempotency-key')).toBe(new Headers(calls[1]!.init.headers).get('idempotency-key'));await vi.waitFor(()=>expect(harness.track.mock.calls.at(-1)?.[2]).toBe(false));expect(edit).toBe('newer-edit');expect(dirty).toBe(true);expect(harness.refresh).not.toHaveBeenCalled();
 });

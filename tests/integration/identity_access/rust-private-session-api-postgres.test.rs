@@ -396,3 +396,72 @@ async fn opt_in_journal_post_enforces_current_workflow_and_replays_once() {
         runtime.close().await;
     }).await;
 }
+
+#[tokio::test]
+async fn manual_root_reversal_is_explicit_current_and_replays_without_flow_effects() {
+    finance_facts::account::with_system(|system| async move {
+        let p = finance_facts::setup(system).await;
+        p.create("reverse-private", false).await.unwrap();
+        p.review("journal-reverse-private", "initial-post", finance_facts::post()).await.unwrap();
+        let system = &p.system;
+        let db = &system.holdings[0];
+        let maker = finance_facts::account::login(system, "a@example.test", None).await;
+        let maker = finance_facts::account::child(system, &maker, finance_facts::account::ACME).await;
+        let now = erpx_server_shared::public::Clock::now(system.scenario.clock.as_ref()).get();
+        sqlx::query("INSERT INTO active_work_contexts(session_id,user_id,company_id,assignment_id,assignment_version,revision,expires_at,updated_at)VALUES($1,'fixture-a','company','finance-fixture-a',3,7,$2,$3)")
+            .bind(&maker.result.session_id).bind(now+3_600_000).bind(now).execute(db.raw()).await.unwrap();
+        let mut doc = fixture::document(&system.control, &system.holdings).await;
+        doc["financeJournalReads"] = serde_json::json!([{ "holdingId":"h001", "companyId":"company" }]);
+        let reverse_path = "/api/v1/holdings/acme/finance/journals/journal-reverse-private/reverse";
+        let build = |key: &str, revision: &str, date: &str| Request::builder().method("POST").uri(reverse_path).header("host","acme.example.test").header("origin","https://acme.example.test")
+            .header("cookie",format!("__Host-erpx-product={}",maker.token.expose()))
+            .header("x-erpx-context-company","company").header("x-erpx-context-assignment","finance-fixture-a").header("x-erpx-context-revision",revision).header("x-erpx-context-assignment-version","3").header("idempotency-key",key)
+            .body(Body::from(serde_json::json!({"periodId":"period","entryDate":date,"memo":"Correction"}).to_string())).unwrap();
+        let config = DevelopmentApiConfiguration::parse(&doc.to_string()).unwrap();
+        let runtime = assemble_development_api(config, system.scenario.clock.clone(), Arc::new(SystemAuthenticationSecrets)).await.unwrap();
+        assert_eq!(runtime.router().oneshot(build("reverse-off","7","2026-01-02")).await.unwrap().status(),StatusCode::NOT_FOUND);
+        runtime.close().await;
+        doc["financeJournalReversals"] = serde_json::json!(["h001"]);
+        let config = DevelopmentApiConfiguration::parse(&doc.to_string()).unwrap();
+        let runtime = assemble_development_api(config, system.scenario.clock.clone(), Arc::new(SystemAuthenticationSecrets)).await.unwrap();
+        let post = Request::builder().method("POST").uri("/api/v1/holdings/acme/finance/journals/journal-reverse-private/post").header("host","acme.example.test").body(Body::empty()).unwrap();
+        assert_eq!(runtime.router().oneshot(post).await.unwrap().status(),StatusCode::NOT_FOUND);
+        let anonymous = Request::builder().method("POST").uri(reverse_path).header("host","acme.example.test").body(Body::empty()).unwrap();
+        assert_eq!(runtime.router().oneshot(anonymous).await.unwrap().status(),StatusCode::UNAUTHORIZED);
+        assert_eq!(runtime.router().oneshot(build("stale-reverse","8","2026-01-02")).await.unwrap().status(),StatusCode::CONFLICT);
+        assert_eq!(runtime.router().oneshot(build("bad-period","7","2026-02-02")).await.unwrap().status(),StatusCode::CONFLICT);
+        sqlx::query("ALTER TABLE audit_events ADD CONSTRAINT fixture_reject_reverse_audit CHECK (command_id <> 'failed-reverse')").execute(db.raw()).await.unwrap();
+        assert_eq!(runtime.router().oneshot(build("failed-reverse","7","2026-01-02")).await.unwrap().status(),StatusCode::INTERNAL_SERVER_ERROR);
+        let rolled:(String,i64,i64,i64,i64,i64,i64)=sqlx::query_as("SELECT (SELECT status FROM finance_journals WHERE id='journal-reverse-private'),(SELECT version FROM finance_journals WHERE id='journal-reverse-private'),(SELECT count(*) FROM finance_journals WHERE id='reversal-failed-reverse'),(SELECT count(*) FROM command_receipts WHERE command_id='failed-reverse'),(SELECT count(*) FROM audit_events WHERE command_id='failed-reverse'),(SELECT count(*) FROM outbox_events WHERE command_id='failed-reverse'),(SELECT count(*) FROM money_transaction_snapshots WHERE source_id='reversal-failed-reverse')").fetch_one(db.raw()).await.unwrap();
+        assert_eq!(rolled,("posted".into(),2,0,0,0,0,0));
+        sqlx::query("ALTER TABLE audit_events DROP CONSTRAINT fixture_reject_reverse_audit").execute(db.raw()).await.unwrap();
+        let response = runtime.router().oneshot(build("native-reverse","7","2026-01-02")).await.unwrap();
+        let status=response.status(); let body=to_bytes(response.into_body(),65536).await.unwrap();
+        assert_eq!(status,StatusCode::CREATED,"{}",String::from_utf8_lossy(&body));
+        let body:serde_json::Value=serde_json::from_slice(&body).unwrap();
+        assert_eq!(body["data"]["reversedJournalId"],"journal-reverse-private");assert_eq!(body["data"]["reversalJournalId"],"reversal-native-reverse");
+        assert_eq!(runtime.router().oneshot(build("native-reverse","7","2026-01-02")).await.unwrap().status(),StatusCode::CREATED);
+        assert_eq!(runtime.router().oneshot(build("native-reverse","7","2026-01-03")).await.unwrap().status(),StatusCode::CONFLICT);
+        let counts:(i64,i64,i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM command_receipts WHERE command_id='native-reverse'),(SELECT count(*) FROM audit_events WHERE command_id='native-reverse'),(SELECT count(*) FROM outbox_events WHERE command_id='native-reverse'),(SELECT count(*) FROM money_transaction_snapshots WHERE source_id='reversal-native-reverse'),(SELECT count(*) FROM flow_events WHERE command_id='native-reverse')").fetch_one(db.raw()).await.unwrap();
+        assert_eq!(counts,(1,1,1,1,0));
+        for (id,status,version) in [("journal-reverse-private","reversed",3),("reversal-native-reverse","posted",1)] {
+            let request=Request::builder().uri(format!("/api/v1/holdings/acme/finance/journals/{id}/workspace")).header("host","acme.example.test").header("cookie",format!("__Host-erpx-product={}",maker.token.expose())).body(Body::empty()).unwrap();
+            let response=runtime.router().oneshot(request).await.unwrap();assert_eq!(response.status(),StatusCode::OK);
+            let body:serde_json::Value=serde_json::from_slice(&to_bytes(response.into_body(),2*1024*1024).await.unwrap()).unwrap();assert_eq!(body["data"]["journal"]["status"],status);assert_eq!(body["data"]["journal"]["version"],version);
+        }
+        p.create("reverse-opening",true).await.unwrap();
+        p.review("journal-reverse-opening","opening-post",finance_facts::post()).await.unwrap();
+        let opening=Request::builder().method("POST").uri("/api/v1/holdings/acme/finance/journals/journal-reverse-opening/reverse").header("host","acme.example.test").header("cookie",format!("__Host-erpx-product={}",maker.token.expose())).header("x-erpx-context-company","company").header("x-erpx-context-assignment","finance-fixture-a").header("x-erpx-context-revision","7").header("x-erpx-context-assignment-version","3").header("idempotency-key","unsupported-opening").body(Body::from(r#"{"periodId":"period","entryDate":"2026-01-02"}"#)).unwrap();
+        assert_eq!(runtime.router().oneshot(opening).await.unwrap().status(),StatusCode::SERVICE_UNAVAILABLE);
+        runtime.close().await;
+        p.create("reverse-combined",false).await.unwrap();
+        p.review("journal-reverse-combined","combined-post",finance_facts::post()).await.unwrap();
+        doc["financeJournalPosts"]=serde_json::json!(["h001"]);
+        let config=DevelopmentApiConfiguration::parse(&doc.to_string()).unwrap();
+        let runtime=assemble_development_api(config,system.scenario.clock.clone(),Arc::new(SystemAuthenticationSecrets)).await.unwrap();
+        let combined=Request::builder().method("POST").uri("/api/v1/holdings/acme/finance/journals/journal-reverse-combined/reverse").header("host","acme.example.test").header("cookie",format!("__Host-erpx-product={}",maker.token.expose())).header("x-erpx-context-company","company").header("x-erpx-context-assignment","finance-fixture-a").header("x-erpx-context-revision","7").header("x-erpx-context-assignment-version","3").header("idempotency-key","combined-reverse").body(Body::from(r#"{"periodId":"period","entryDate":"2026-01-02"}"#)).unwrap();
+        let response=runtime.router().oneshot(combined).await.unwrap();let status=response.status();let bytes=to_bytes(response.into_body(),65536).await.unwrap();assert_eq!(status,StatusCode::CREATED,"{}",String::from_utf8_lossy(&bytes));
+        let flow:i64=sqlx::query_scalar("SELECT count(*) FROM flow_events WHERE command_id='combined-reverse'").fetch_one(db.raw()).await.unwrap();assert_eq!(flow,0);
+        runtime.close().await;
+    }).await;
+}

@@ -80,7 +80,7 @@ async fn main() {
             "holdings":[
                 {"holdingId":"h001","slug":"acme","host":"acme.jesadakorn.com","writeBinding":"HOLDING_H001_DB","readBinding":"HOLDING_H001_READ_DB","filesBinding":"HOLDING_H001_FILES","database":h001},
                 {"holdingId":"h002","slug":"northstar","host":"northstar.jesadakorn.com","writeBinding":"HOLDING_H002_DB","readBinding":"HOLDING_H002_READ_DB","filesBinding":"HOLDING_H002_FILES","database":h002}
-            ],"financeJournalReads":[{"holdingId":"h001","companyId":"company"}],"financeJournalPosts":["h001"],"accountBootstrap":true
+            ],"financeJournalReads":[{"holdingId":"h001","companyId":"company"}],"financeJournalPosts":["h001"],"financeJournalReversals":["h001"],"accountBootstrap":true
         });
         let configuration = DevelopmentApiConfiguration::parse(&doc.to_string()).expect("invalid explicit native case configuration");
         let manifest = serde_json::json!({"version":1,"databases":{

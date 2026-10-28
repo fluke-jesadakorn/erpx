@@ -65318,7 +65318,9 @@
         "scripts/docs/generate-finance-journal-post-contracts.ts",
         "packages/contracts/src/finance-journal-post.generated.ts",
         "docs/contracts/next/finance-journal-post.openapi.generated.json",
-        "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts"
+        "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts",
+        "packages/feature-finance/src/application/native-journal-reverse.ts",
+        "packages/feature-finance/src/components/native-journal-reverse.tsx"
       ]
     },
     {

@@ -11,7 +11,7 @@ use erpx_server_finance::public::{
     FinanceActor, JournalError,
     journal_review::{
         CurrentJournalReviewScope, FinanceJournalAccessPurpose, JournalReviewCommand,
-        JournalReviewInput, JournalReviewResult, JournalReviewerFacts,
+        JournalReviewInput, JournalReviewResult, JournalReviewRootKind, JournalReviewerFacts,
         PgFinanceJournalReviewPolicy, PgJournalReview, ReviewJournal,
         inspect_field_service_parts_journal_target, inspect_journal_review_source,
         inspect_maintenance_parts_journal_target, lock_journal_review_sources, review_journal,
@@ -55,6 +55,7 @@ pub struct FinanceJournalConfiguration {
     company_id: CompanyId,
     purchases: Arc<CommercialCatalogue>,
     enforce_post_flow: bool,
+    allow_manual_root_reversal: bool,
 }
 impl FinanceJournalConfiguration {
     pub fn new(
@@ -75,6 +76,7 @@ impl FinanceJournalConfiguration {
             company_id,
             purchases,
             enforce_post_flow: false,
+            allow_manual_root_reversal: false,
         })
     }
     /// Explicit native HTTP journal post composition; existing foundation
@@ -87,6 +89,27 @@ impl FinanceJournalConfiguration {
     ) -> Result<Self, BusinessError> {
         let mut config = Self::new(environment, holding_id, company_id, purchases)?;
         config.enforce_post_flow = true;
+        Ok(config)
+    }
+    /// Closed private HTTP policy for the explicitly enabled actions. Reversal
+    /// is limited to a protected direct manual root and does not use post Flow.
+    pub fn new_private_actions(
+        environment: FinanceJournalEnvironment,
+        holding_id: HoldingId,
+        company_id: CompanyId,
+        purchases: Arc<CommercialCatalogue>,
+        post: bool,
+        reverse: bool,
+    ) -> Result<Self, BusinessError> {
+        if !post && !reverse {
+            return Err(BusinessError::invalid(
+                "FINANCE_REVIEW_CONFIGURATION_INVALID",
+                "Enable an explicit journal action.",
+            ));
+        }
+        let mut config = Self::new(environment, holding_id, company_id, purchases)?;
+        config.enforce_post_flow = post;
+        config.allow_manual_root_reversal = reverse;
         Ok(config)
     }
     async fn lock_sources(&self, c: &mut PgConnection) -> Result<(), Error> {
@@ -224,6 +247,7 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalReviewAdministration<C> {
                             source: None,
                             purchase: None,
                             flow: None,
+                            post_command: matches!(command.input, JournalReviewInput::Post { .. }),
                         });
                         let mut ids = ReviewIds;
                         let mut ports = PgJournalReview::new(
@@ -325,6 +349,7 @@ struct CurrentFinancePolicy<'a> {
     source: Option<CurrentFinanceSource>,
     purchase: Option<(CapabilityPurpose, PurchaseWitness)>,
     flow: Option<journal_post_flow::JournalPostFlow>,
+    post_command: bool,
 }
 enum CurrentFinanceSource {
     Owned(Box<CurrentJournalReviewScope>),
@@ -418,7 +443,7 @@ impl PgFinanceJournalReviewPolicy for CurrentFinancePolicy<'_> {
         command: &JournalReviewCommand,
         now: i64,
     ) -> Result<(), Error> {
-        if self.configuration.enforce_post_flow {
+        if self.configuration.enforce_post_flow && self.post_command {
             self.selected(actor, now)?;
             if self.flow.is_some() {
                 return Err(scope_error().into());
@@ -431,7 +456,7 @@ impl PgFinanceJournalReviewPolicy for CurrentFinancePolicy<'_> {
         Ok(())
     }
     async fn apply_post_flow_before(&mut self, c: &mut PgConnection) -> Result<(), Error> {
-        if self.configuration.enforce_post_flow {
+        if self.configuration.enforce_post_flow && self.post_command {
             self.flow
                 .as_ref()
                 .ok_or_else(scope_error)?
@@ -441,13 +466,13 @@ impl PgFinanceJournalReviewPolicy for CurrentFinancePolicy<'_> {
         Ok(())
     }
     async fn apply_post_flow_after(&mut self, c: &mut PgConnection) -> Result<(), Error> {
-        if self.configuration.enforce_post_flow {
+        if self.configuration.enforce_post_flow && self.post_command {
             self.flow.as_ref().ok_or_else(scope_error)?.after(c).await?;
         }
         Ok(())
     }
     async fn retain_post_flow(&mut self, c: &mut PgConnection) -> Result<(), Error> {
-        if self.configuration.enforce_post_flow {
+        if self.configuration.enforce_post_flow && self.post_command {
             self.flow
                 .as_ref()
                 .ok_or_else(scope_error)?
@@ -502,15 +527,20 @@ impl PgFinanceJournalReviewPolicy for CurrentFinancePolicy<'_> {
                 );
             }
         }
-        if self.configuration.enforce_post_flow {
+        if self.configuration.enforce_post_flow || self.configuration.allow_manual_root_reversal {
             match (&self.source, &command.input) {
                 (Some(CurrentFinanceSource::Owned(source)), JournalReviewInput::Post { .. })
-                    if source.journal_id() == source.root_journal_id() => {}
+                    if self.configuration.enforce_post_flow
+                        && source.journal_id() == source.root_journal_id() => {}
+                (Some(CurrentFinanceSource::Owned(source)), JournalReviewInput::Reverse { .. })
+                    if self.configuration.allow_manual_root_reversal
+                        && source.root_kind() == JournalReviewRootKind::Manual
+                        && source.journal_id() == source.root_journal_id() => {}
                 _ => {
                     return Err(BusinessError::new(
                         FailureKind::Unavailable,
                         "JOURNAL_FLOW_SOURCE_UNSUPPORTED",
-                        "This journal source is not available for native posting.",
+                        "This journal action or source is not available in the private API.",
                     )
                     .into());
                 }

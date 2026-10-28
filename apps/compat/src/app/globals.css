@@ -498,6 +498,7 @@
 @source "../../../../packages/feature-finance/src/adapters/server/next-native-journal-detail.ts";
 @source "../../../../packages/feature-finance/src/application/command-attempts.ts";
 @source "../../../../packages/feature-finance/src/application/native-journal-post.ts";
+@source "../../../../packages/feature-finance/src/application/native-journal-reverse.ts";
 @source "../../../../packages/feature-finance/src/application/submit-command.ts";
 @source "../../../../packages/feature-finance/src/components/accounting-profile-controls.tsx";
 @source "../../../../packages/feature-finance/src/components/bank-controls.tsx";
@@ -543,6 +544,7 @@
 @source "../../../../packages/feature-finance/src/components/ledger-controls.tsx";
 @source "../../../../packages/feature-finance/src/components/money/currency-provider.tsx";
 @source "../../../../packages/feature-finance/src/components/native-journal-post.tsx";
+@source "../../../../packages/feature-finance/src/components/native-journal-reverse.tsx";
 @source "../../../../packages/feature-finance/src/components/payment-correction.tsx";
 @source "../../../../packages/feature-finance/src/components/payment-lifecycle.tsx";
 @source "../../../../packages/feature-finance/src/components/purchase-context.tsx";

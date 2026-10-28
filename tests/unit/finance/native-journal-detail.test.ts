@@ -110,3 +110,15 @@ describe('native journal post edge',()=>{
   }finally{if(old===undefined)delete process.env.ERPX_NATIVE_FINANCE_JOURNAL_POST_CONFIG;else process.env.ERPX_NATIVE_FINANCE_JOURNAL_POST_CONFIG=old;await new Promise<void>((resolve,reject)=>server.close(error=>error?reject(error):resolve()));}
  });
 });
+it('uses the independent reverse config and forwards the original reversal body to the real local HTTP edge',async()=>{
+ const {createServer}=await import('node:http');const {nativeJournalReverse,nativeJournalPost}=await import('@erpx/feature-finance/public/server');
+ const seen:{body:string;path:string;key:string|undefined}[]=[];
+ const server=createServer((req,res)=>{let body='';req.setEncoding('utf8');req.on('data',chunk=>body+=chunk);req.on('end',()=>{const key=req.headers['idempotency-key'];seen.push({body,path:req.url!,key});if(JSON.parse(body).memo===null){res.writeHead(422,{'content-type':'application/json'});res.end(JSON.stringify({error:{code:'VALIDATION_FAILED',message:'Invalid input'}}));return;}res.writeHead(201,{'content-type':'application/json'});res.end(JSON.stringify({data:{reversalJournalId:`reversal-${key}`,reversedJournalId:'journal-one'}}));});});
+ await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));const beforeReverse=process.env.ERPX_NATIVE_FINANCE_JOURNAL_REVERSE_CONFIG,beforePost=process.env.ERPX_NATIVE_FINANCE_JOURNAL_POST_CONFIG;
+ try {const address=server.address();if(!address||typeof address==='string')throw Error('missing port');process.env.ERPX_NATIVE_FINANCE_JOURNAL_REVERSE_CONFIG=JSON.stringify({...configuration,privateBaseUrl:`http://127.0.0.1:${address.port}`});delete process.env.ERPX_NATIVE_FINANCE_JOURNAL_POST_CONFIG;
+  const request=(body:string)=>new Request('https://acme.example.test/api/v1/holdings/acme/finance/journals/journal-one/reverse',{method:'POST',headers:{host:'acme.example.test','idempotency-key':'original','content-type':'application/json'},body});
+  const bodies=['{"periodId":"period","entryDate":"2026-01-02"}','{"periodId":"period","entryDate":"2026-01-02","memo":""}','{"periodId":"period","entryDate":"2026-01-02","memo":null}'];
+  expect(await nativeJournalPost(request(bodies[0]!), 'acme','journal-one')).toBeUndefined();for(const [index,body] of bodies.entries())expect((await nativeJournalReverse(request(body),'acme','journal-one'))?.status).toBe(index===2?422:201);
+  expect(seen.map(v=>v.body)).toEqual(bodies);expect(seen.every(v=>v.path==='/api/v1/holdings/acme/finance/journals/journal-one/reverse'&&v.key==='original')).toBe(true);
+ } finally {if(beforeReverse===undefined)delete process.env.ERPX_NATIVE_FINANCE_JOURNAL_REVERSE_CONFIG;else process.env.ERPX_NATIVE_FINANCE_JOURNAL_REVERSE_CONFIG=beforeReverse;if(beforePost===undefined)delete process.env.ERPX_NATIVE_FINANCE_JOURNAL_POST_CONFIG;else process.env.ERPX_NATIVE_FINANCE_JOURNAL_POST_CONFIG=beforePost;await new Promise<void>((resolve,reject)=>server.close(e=>e?reject(e):resolve()));}
+});

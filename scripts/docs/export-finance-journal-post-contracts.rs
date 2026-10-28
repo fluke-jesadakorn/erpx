@@ -11,9 +11,12 @@ struct JournalPostResponse {
 #[utoipa::path(post, path="/api/v1/holdings/{holding_slug}/finance/journals/{id}/post", params(("holding_slug"=String,Path),("id"=String,Path)), request_body=JournalReviewInput, responses((status=200,body=JournalPostResponse,description="Original journal posting receipt data"),(status=401,description="Current session required"),(status=403,description="Current review authority denied"),(status=409,description="Work or journal changed")))]
 fn post_journal() {}
 const _: fn() = post_journal;
+#[utoipa::path(post, path="/api/v1/holdings/{holding_slug}/finance/journals/{id}/reverse", params(("holding_slug"=String,Path),("id"=String,Path)), request_body=JournalReviewInput, responses((status=201,body=JournalPostResponse,description="Original reversal receipt data"),(status=401,description="Current session required"),(status=403,description="Current review authority denied"),(status=409,description="Work or journal changed")))]
+fn reverse_journal() {}
+const _: fn() = reverse_journal;
 #[derive(utoipa::OpenApi)]
 #[openapi(
-    paths(post_journal),
+    paths(post_journal, reverse_journal),
     components(schemas(JournalReviewInput, JournalReviewResult, JournalPostResponse))
 )]
 struct Document;
@@ -37,10 +40,20 @@ fn main() {
             assert_eq!(matches.len(), 1);
             matches[0].clone()
         }
+        let mut reverse_input = variant(&value, "JournalReviewInput", "periodId");
+        reverse_input["properties"]["memo"]["type"] = "string".into();
+        reverse_input["properties"]["entryDate"]["format"] = "date".into();
+        let reverse_result = variant(&value, "JournalReviewResult", "reversalJournalId");
         let input = variant(&value, "JournalReviewInput", "expectedVersion");
         let mut result = variant(&value, "JournalReviewResult", "id");
         result["properties"]["status"]["const"] = "posted".into();
         let schemas = value["components"]["schemas"].as_object_mut().unwrap();
+        let mut reverse_envelope = schemas["JournalPostResponse"].clone();
+        reverse_envelope["properties"]["data"]["$ref"] =
+            "#/components/schemas/JournalReverseResult".into();
+        schemas.insert("JournalReverseResponse".into(), reverse_envelope);
+        schemas.insert("JournalReverseInput".into(), reverse_input);
+        schemas.insert("JournalReverseResult".into(), reverse_result);
         schemas.insert("JournalPostInput".into(), input);
         schemas.insert("JournalPostResult".into(), result);
         schemas.get_mut("JournalPostResponse").unwrap()["properties"]["data"]["$ref"] =
@@ -50,6 +63,12 @@ fn main() {
         value["paths"]["/api/v1/holdings/{holding_slug}/finance/journals/{id}/post"]["post"]["requestBody"]
             ["content"]["application/json"]["schema"]["$ref"] =
             "#/components/schemas/JournalPostInput".into();
+        let reverse = &mut value["paths"]["/api/v1/holdings/{holding_slug}/finance/journals/{id}/reverse"]
+            ["post"];
+        reverse["requestBody"]["content"]["application/json"]["schema"]["$ref"] =
+            "#/components/schemas/JournalReverseInput".into();
+        reverse["responses"]["201"]["content"]["application/json"]["schema"]["$ref"] =
+            "#/components/schemas/JournalReverseResponse".into();
         println!("{}", serde_json::to_string_pretty(&value).unwrap());
         return;
     }

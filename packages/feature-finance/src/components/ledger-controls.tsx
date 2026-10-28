@@ -18,6 +18,7 @@ import {
 import { Card, Stack, FormGrid, FormLayout } from "@erpx/ui/components/foundation";
 import { useFinanceActionAllowed } from "@erpx/feature-finance/components/purchase-context";
 import {financeDocumentCommandAllowed, financeDocumentCommandContext, financeDocumentFormUnchanged, type FinanceDocumentPostControl} from "@erpx/feature-finance/lib/document-post-control";
+import { NativeJournalReverse } from "./native-journal-reverse";
 import { NativeJournalPost } from "./native-journal-post";
 import type { PostContext } from "../application/native-journal-post";
 import {announceWorkChange} from "@erpx/feature-work_projection/lib/work-refresh";
@@ -806,10 +807,12 @@ export function JournalAction({
   sourceCanPost,
   periods,
   nativePost,
+  nativeReverse,
 }: {
   base: string;
   journal: LedgerRow;
   nativePost?: { context?: PostContext };
+  nativeReverse?: { context?: PostContext };
   canPost: boolean;
   sourceCanPost?: boolean;
   periods: LedgerRow[];
@@ -833,7 +836,7 @@ export function JournalAction({
         >
           Approve and post journal
         </Button> : null}
-      {canPost &&
+      {nativeReverse ? nativeReverse.context ? <NativeJournalReverse url={`${base.replace(canonicalUiHref("/holdings/"), "/api/v1/holdings/")}/finance/journals/${encodeURIComponent(String(journal.id))}`} id={String(journal.id)} version={journal.version} context={nativeReverse.context} allowed={canPost && canSend && journal.status === "posted" && ["manual", "opening_import", "reversal"].includes(String(journal.source_type))} periods={periods} draftScope={draftScope} /> : <InlineNotice tone="danger" role="alert">The current work context cannot be confirmed.</InlineNotice> : canPost &&
         journal.status === "posted" &&
         ["manual", "opening_import", "reversal"].includes(String(journal.source_type)) && (
           <FormLayout data-finance-draft={draftScope}
