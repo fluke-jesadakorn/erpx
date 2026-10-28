@@ -17,7 +17,7 @@ use erpx_server_shared::public::{CommandKey, TimestampMillis, UserId};
 #[derive(Clone, Eq, PartialEq)]
 pub struct FieldServiceReservationBinding {
     pub owner_key: CommandKey,
-    pub order_id: RecordId,
+    pub order_id: String,
     pub reservation_id: String,
     pub company_id: CompanyId,
     pub branch_id: RecordId,
@@ -61,7 +61,7 @@ pub async fn lock_reserved_consumption_sources(c: &mut PgConnection) -> Result<(
 /// this request to an actual Field Service reservation in the same transaction.
 pub struct FieldServiceConsumptionIdentity {
     pub owner_key: CommandKey,
-    pub order_id: RecordId,
+    pub order_id: String,
     pub order_version_after: i64,
     pub department_id: Option<RecordId>,
     pub actor_id: UserId,

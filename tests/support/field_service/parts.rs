@@ -26,6 +26,13 @@ pub async fn setup(system: account::System) -> Parts {
     setup_tracking(system, "none").await
 }
 pub async fn setup_tracking(system: account::System, tracking: &str) -> Parts {
+    setup_with_grants(system, tracking, true).await
+}
+/// Source-order test fixture without a Service purchase or retained Service history.
+pub async fn setup_without_service_history(system: account::System) -> Parts {
+    setup_with_grants(system, "none", false).await
+}
+async fn setup_with_grants(system: account::System, tracking: &str, grants: bool) -> Parts {
     assert!(matches!(tracking, "none" | "lot" | "serial"));
     let review = review::setup(system).await;
     let pool = &review.system.holdings[0];
@@ -63,8 +70,10 @@ pub async fn setup_tracking(system: account::System, tracking: &str) -> Parts {
             .bind(format!("historical-{id}-{version}")).bind(id).bind(version).bind(if version==1{"create"}else{"start"}).bind(status).bind(now).execute(&mut*tx).await.unwrap();
     }
     sqlx::query("INSERT INTO field_service_part_reservations(id,order_id,warehouse_id,product_id,quantity_milli,expires_at,created_by,reason,created_at)VALUES('reserved-part','issue-order','warehouse','product',3000,$1,'fixture-a','Synthetic original reservation',$2)").bind(now+3_600_000).bind(now-100).execute(&mut*tx).await.unwrap();
-    sqlx::query("INSERT INTO company_package_grants(company_id,package_id,package_version,state,starts_at,version,reason,evidence,updated_at)VALUES('company','service',1,'active',0,1,'Synthetic approved source','public synthetic evidence',$1),('company','service-parts-assets',1,'active',0,1,'Synthetic approved source','public synthetic evidence',$1)").bind(now).execute(&mut*tx).await.unwrap();
-    sqlx::query("INSERT INTO company_package_grant_events(id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at)SELECT 'field-origin-'||package_id,company_id,package_id,'fixture-a','synthetic-source-grant',NULL,jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence),$1 FROM company_package_grants WHERE company_id='company'AND package_id IN('service','service-parts-assets')").bind(now).execute(&mut*tx).await.unwrap();
+    if grants {
+        sqlx::query("INSERT INTO company_package_grants(company_id,package_id,package_version,state,starts_at,version,reason,evidence,updated_at)VALUES('company','service',1,'active',0,1,'Synthetic approved source','public synthetic evidence',$1),('company','service-parts-assets',1,'active',0,1,'Synthetic approved source','public synthetic evidence',$1)").bind(now).execute(&mut*tx).await.unwrap();
+        sqlx::query("INSERT INTO company_package_grant_events(id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at)SELECT 'field-origin-'||package_id,company_id,package_id,'fixture-a','synthetic-source-grant',NULL,jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence),$1 FROM company_package_grants WHERE company_id='company'AND package_id IN('service','service-parts-assets')").bind(now).execute(&mut*tx).await.unwrap();
+    }
     tx.commit().await.unwrap();
     let selection = HoldingWorkspaceRequest {
         expected: Some(ExpectedWorkSelection {

@@ -59,7 +59,7 @@ impl<'p, 'a> PreparedPartsSource<'p, 'a> {
         };
         if work.command().order_id() != &source.facts().id
             || i.owner_key != *work.command().key()
-            || i.order_id != source.facts().id
+            || i.order_id != source.facts().id.as_str()
             || i.order_version_after != work.version_after()
             || i.department_id != source.facts().department_id
             || &i.actor_id != source.actor_user_id()
@@ -73,7 +73,7 @@ impl<'p, 'a> PreparedPartsSource<'p, 'a> {
             || p.selection.warehouse_id != r.warehouse_id
             || p.selection.product_id != r.product_id
             || r.id.as_str() != reservation_id
-            || r.order_id != source.facts().id
+            || r.order_id.as_str() != source.facts().id.as_str()
             || p.selection.quantity_milli != *quantity_milli
             || entry_date
                 .as_ref()
@@ -100,7 +100,7 @@ impl<'p, 'a> PreparedPartsSource<'p, 'a> {
             },
             owner_key: work.command().key().clone(),
             kind: PartsOwnerKind::FieldService,
-            source_id: source.facts().id.clone(),
+            source_id: erpx_server_finance::public::parts_draft::PartsDraftSourceIdentity::FieldServicePhysical(source.facts().id.as_str().to_owned()),
             source_version: work.version_after(),
             branch_id: source.facts().branch_id.clone(),
             department_id: source.facts().department_id.clone(),

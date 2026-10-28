@@ -1,5 +1,5 @@
-//! Actual Company package witnesses. History is chosen only after Workflow's
-//! exact request-hash match; ordinary parts work settles both original scopes.
+//! Actual Company package witnesses. HTTP source preflight chooses History from
+//! the source receipt identity tuple; new work settles both original scopes.
 use super::{Error, changed};
 use erpx_server_commercial::public::purchases::{
     CapabilityPurpose, CommercialCatalogue, PackageEnforcementMode, PgCompanyPurchaseReader,

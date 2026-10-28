@@ -2,9 +2,7 @@
 //! receipt effects. All carriers are owned, source-bound and non-deserializable.
 use super::source::*;
 use crate::application::parts::{FieldServicePartsCommand, FieldServicePartsInput};
-use erpx_server_shared::public::{
-    BusinessError, CommandKey, FailureKind, RecordId, TimestampMillis, UserId,
-};
+use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind, TimestampMillis, UserId};
 use sqlx::PgConnection;
 
 pub struct FieldServiceOrderIntent {
@@ -65,7 +63,7 @@ impl<R: PgFieldServiceOrderReferences> CurrentFieldServiceOrder<'_, R> {
 pub struct CurrentFieldServiceOrderVersion {
     unit: Unit,
     key: CommandKey,
-    order: RecordId,
+    order: crate::application::http_parts::FieldServicePhysicalOrderId,
     before: String,
     input: String,
 }

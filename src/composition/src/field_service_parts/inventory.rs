@@ -79,7 +79,7 @@ impl<'p> ReservationSource<'p> {
     ) -> Result<Self, Error> {
         let f = plan.facts();
         if f != original.facts()
-            || f.order_id != order.facts().id
+            || f.order_id.as_str() != order.facts().id.as_str()
             || f.company_id != order.facts().company_id
             || f.holding_id != order.facts().holding_id
         {
@@ -90,7 +90,7 @@ impl<'p> ReservationSource<'p> {
             original,
             binding: FieldServiceReservationBinding {
                 owner_key: key.clone(),
-                order_id: f.order_id.clone(),
+                order_id: f.order_id.as_str().to_owned(),
                 reservation_id: f.id.clone(),
                 company_id: f.company_id.clone(),
                 branch_id: order.facts().branch_id.clone(),
@@ -145,7 +145,7 @@ impl<'p, 'a, G: Clock + Sync> NewReservationSource<'p, 'a, G> {
             guard,
             binding: FieldServiceNewReservationBinding {
                 owner_key: intent.command().key().clone(),
-                order_id: source.facts().id.clone(),
+                order_id: source.facts().id.as_str().to_owned(),
                 reservation_id: prepared.reservation_id().into(),
                 stock: FieldServiceStockScopeRequest {
                     company_id: source.facts().company_id.clone(),

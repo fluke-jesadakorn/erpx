@@ -13,6 +13,7 @@ Reviewed 2026-10-27. This is the single entry point. The [production plan](produ
 - [Native Finance journal detail component contract](contracts/next/rust-finance-journal-detail.md).
 - [Native Maintenance Work component](contracts/next/rust-maintenance-migration.md).
 - [Native Field Service reserve/issue parts component](contracts/next/rust-field-service-migration.md).
+- [Inactive native Field Service shared HTTP parts boundary](contracts/next/rust-field-service-http.md).
 - [Native selected Identity ingress](contracts/next/rust-selected-ingress.md).
 - [Inactive native Payroll accounting projection](contracts/next/rust-payroll-projection.md).
 - [Native Maintenance notification and Inbox component](contracts/next/rust-maintenance-notifications.md).

@@ -1,7 +1,10 @@
 //! Read-only new-command preparation. Current personal authorization and exact
 //! replay precede this phase in Service/Workflow; mandatory ports retain actual
 //! owner/Inventory/Finance proofs and perform no independent commit here.
-use crate::domain::parts::{FieldServicePartsActionKind, require_future_reservation};
+use crate::{
+    application::http_parts::FieldServicePhysicalOrderId,
+    domain::parts::{FieldServicePartsActionKind, require_future_reservation},
+};
 use erpx_server_shared::public::{
     BusinessError, CommandKey, FailureKind, RecordId, TimestampMillis,
 };
@@ -81,6 +84,17 @@ impl NormalizedFieldServiceParts {
     pub fn into_command(self, key: CommandKey, order_id: RecordId) -> FieldServicePartsCommand {
         FieldServicePartsCommand {
             key,
+            order_id: order_id.into(),
+            normalized: self,
+        }
+    }
+    pub fn into_physical_command(
+        self,
+        key: CommandKey,
+        order_id: FieldServicePhysicalOrderId,
+    ) -> FieldServicePartsCommand {
+        FieldServicePartsCommand {
+            key,
             order_id,
             normalized: self,
         }
@@ -89,14 +103,14 @@ impl NormalizedFieldServiceParts {
 #[derive(Clone)]
 pub struct FieldServicePartsCommand {
     key: CommandKey,
-    order_id: RecordId,
+    order_id: FieldServicePhysicalOrderId,
     normalized: NormalizedFieldServiceParts,
 }
 impl FieldServicePartsCommand {
     pub fn key(&self) -> &CommandKey {
         &self.key
     }
-    pub fn order_id(&self) -> &RecordId {
+    pub fn order_id(&self) -> &FieldServicePhysicalOrderId {
         &self.order_id
     }
     pub fn input(&self) -> &FieldServicePartsInput {

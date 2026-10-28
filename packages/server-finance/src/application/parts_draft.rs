@@ -19,13 +19,27 @@ impl PartsOwnerKind {
         }
     }
 }
+/// Physical identity remains owner-specific; this data grants no authority.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum PartsDraftSourceIdentity {
+    Existing(RecordId),
+    FieldServicePhysical(String),
+}
+impl PartsDraftSourceIdentity {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Existing(id) => id.as_str(),
+            Self::FieldServicePhysical(id) => id,
+        }
+    }
+}
 /// Factual original OWNER command binding. No permission or context factory.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PartsDraftFacts {
     pub actor: FinanceActor,
     pub owner_key: CommandKey,
     pub kind: PartsOwnerKind,
-    pub source_id: RecordId,
+    pub source_id: PartsDraftSourceIdentity,
     pub source_version: i64,
     pub branch_id: RecordId,
     pub department_id: Option<RecordId>,
@@ -106,6 +120,13 @@ pub fn derive_parts_draft(
     config: &PartsDraftConfig,
 ) -> Result<PartsDraftPlan, BusinessError> {
     const SAFE: i64 = 9_007_199_254_740_991;
+    if matches!(
+        &facts.source_id,
+        PartsDraftSourceIdentity::FieldServicePhysical(_)
+    ) && facts.kind != PartsOwnerKind::FieldService
+    {
+        return Err(invalid("PARTS_DRAFT_SCOPE_CHANGED"));
+    }
     if facts.actor.holding_id != config.holding_id || facts.actor.company_id != config.company_id {
         return Err(invalid("PARTS_DRAFT_SCOPE_CHANGED"));
     }

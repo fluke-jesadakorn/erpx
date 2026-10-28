@@ -108,6 +108,22 @@ pub(crate) fn same_selected_work(a: &EffectiveAuthorityFacts, b: &EffectiveAutho
         && a.iam.emergency_until == b.iam.emergency_until
 }
 
+pub(crate) enum InitialAdmissionFailure {
+    PermissionRequired(BusinessError),
+    Other(BusinessError),
+}
+impl From<BusinessError> for InitialAdmissionFailure {
+    fn from(error: BusinessError) -> Self {
+        Self::Other(error)
+    }
+}
+impl InitialAdmissionFailure {
+    fn into_business(self) -> BusinessError {
+        match self {
+            Self::PermissionRequired(error) | Self::Other(error) => error,
+        }
+    }
+}
 pub(crate) fn authorize_effective_work(
     request: &WorkContextRequest,
     access: &WorkAuthorizationRequest,
@@ -116,13 +132,21 @@ pub(crate) fn authorize_effective_work(
     modules: &WorkModuleCatalog,
     now: i64,
 ) -> Result<AuthorizedWorkContext, BusinessError> {
+    authorize_effective_work_tagged(request, access, facts, catalog, modules, now)
+        .map_err(InitialAdmissionFailure::into_business)
+}
+pub(crate) fn authorize_effective_work_tagged(
+    request: &WorkContextRequest,
+    access: &WorkAuthorizationRequest,
+    facts: EffectiveAuthorityFacts,
+    catalog: &PermissionCatalog,
+    modules: &WorkModuleCatalog,
+    now: i64,
+) -> Result<AuthorizedWorkContext, InitialAdmissionFailure> {
     if facts.iam.role.id != facts.selection.assignment().role
         || facts.iam.role.revision != facts.selection.role_revision()
     {
-        return Err(authority_error(
-            "ROLE_UNAVAILABLE",
-            "This role is unavailable.",
-        ));
+        return Err(authority_error("ROLE_UNAVAILABLE", "This role is unavailable.").into());
     }
     let evaluated = evaluate_current_iam_authority(&facts.iam, now)?;
     let expires_at = facts
@@ -173,7 +197,8 @@ pub(crate) fn authorize_effective_work(
         return Err(authority_error(
             "BETA_CAPABILITY_UNAVAILABLE",
             "This capability is not part of the public beta.",
-        ));
+        )
+        .into());
     }
     if access
         .module
@@ -183,7 +208,8 @@ pub(crate) fn authorize_effective_work(
         return Err(authority_error(
             "MODULE_UNAVAILABLE",
             "This module is unavailable for the current role.",
-        ));
+        )
+        .into());
     }
     let scope = if facts.selection.workspace().department_id.is_some() {
         "department"
@@ -200,9 +226,11 @@ pub(crate) fn authorize_effective_work(
         .map(|p| p.id.clone())
         .collect::<BTreeSet<_>>();
     if !permissions.contains(&access.permission) {
-        return Err(authority_error(
-            "PERMISSION_REQUIRED",
-            "Your selected role does not grant this permission.",
+        return Err(InitialAdmissionFailure::PermissionRequired(
+            authority_error(
+                "PERMISSION_REQUIRED",
+                "Your selected role does not grant this permission.",
+            ),
         ));
     }
     let mut person_user_ids: BTreeSet<_> = facts.iam.aliases.into_iter().collect();

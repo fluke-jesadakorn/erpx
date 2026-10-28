@@ -1,13 +1,13 @@
 //! Original Field Service updated notification data, never owner authority.
 use erpx_server_shared::public::{
-    BusinessError, CommandKey, CompanyId, HoldingId, RecordId, TimestampMillis,
+    BusinessError, CommandKey, CompanyId, HoldingId, TimestampMillis,
 };
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FieldServiceNotificationFacts {
     pub owner_key: CommandKey,
     pub holding_id: HoldingId,
     pub company_id: CompanyId,
-    pub order_id: RecordId,
+    pub order_id: String,
     pub technician_user_id: String,
     pub order_version_after: i64,
     pub updated_at_after: TimestampMillis,

@@ -195,6 +195,16 @@ async fn selected_ingress_keeps_real_directory_refresh_and_returns_local_error_b
         assert_eq!(local,Err("wire"));assert_eq!(action_calls.load(std::sync::atomic::Ordering::SeqCst),0);assert_eq!(fixture::effects(&prepared).await,0);assert_eq!(prepared.server.stats.lock().unwrap().service_binds,1);
         let selection=prepared.authority.selection.clone();
         let actual=prepared.work.execute_with_selected_ingress_deferred("acme.example.test",prepared.authority.proof.clone(),move || Ok(selection),(prepared.authority.access.clone(),fixture::EffectSources),|_|Ok::<_,&'static str>(()),|c,current,_|Box::pin(async move {sqlx::query("INSERT INTO synthetic_directory_work_effects(id) VALUES('selected-directory')").execute(c).await?;Ok(current.user_id().as_str().to_owned())})).await.unwrap().unwrap();
-        assert_eq!(actual,"fixture-a");assert_eq!(fixture::effects(&prepared).await,1);assert_eq!(prepared.server.stats.lock().unwrap().service_binds,1);prepared.server.finish().await;
+        assert_eq!(actual,"fixture-a");assert_eq!(fixture::effects(&prepared).await,1);assert_eq!(prepared.server.stats.lock().unwrap().service_binds,1);
+        let selection=prepared.authority.selection.clone();
+        let local=prepared.work.execute_with_selected_transport_ingress_deferred(
+            "acme.example.test",prepared.authority.proof.clone(),move||Ok(selection),
+            (prepared.authority.access.clone(),fixture::EffectSources),
+            erpx_server_identity_access::public::effective_authority::SelectedTransportCallbacks::<_, (), &'static str, _>::new::<()>(  |_|Box::pin(async {tokio::task::yield_now().await;Err::<(),_>("async-wire")}),
+            |_,error|Err(error),
+            |_,_,_|Box::pin(async {Ok::<_,erpx_server_runtime::public::postgres::PgTransactionError<erpx_server_shared::public::BusinessError>>(Ok::<_,&'static str>(()))})
+        )).await.unwrap();
+        assert_eq!(local,Err("async-wire"));assert_eq!(fixture::effects(&prepared).await,1);
+        assert_eq!(prepared.server.stats.lock().unwrap().service_binds,1);prepared.server.finish().await;
     }).await;
 }

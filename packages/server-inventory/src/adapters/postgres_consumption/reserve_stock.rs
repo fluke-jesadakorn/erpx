@@ -14,7 +14,7 @@ use erpx_server_shared::public::CommandKey;
 #[derive(Clone, Eq, PartialEq)]
 pub struct FieldServiceNewReservationBinding {
     pub owner_key: CommandKey,
-    pub order_id: RecordId,
+    pub order_id: String,
     pub reservation_id: String,
     pub stock: FieldServiceStockScopeRequest,
     pub quantity_milli: i64,

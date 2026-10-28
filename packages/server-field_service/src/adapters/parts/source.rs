@@ -2,7 +2,8 @@
 //! the normal sealed Holding context; foreign SQL stays behind mandatory owner
 //! references assembled by Service. No inbound Actor DTO or context factory.
 use crate::{
-    application::parts::FieldServicePartsCommand, domain::parts::FieldServicePartsActionKind,
+    application::{http_parts::FieldServicePhysicalOrderId, parts::FieldServicePartsCommand},
+    domain::parts::FieldServicePartsActionKind,
 };
 use erpx_server_identity_access::public::effective_authority::AuthorizedWorkContext;
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
@@ -17,7 +18,7 @@ pub(super) type Unit = (String, i32, String, String);
 pub struct FieldServiceOrderFacts {
     pub holding_id: HoldingId,
     pub company_id: CompanyId,
-    pub id: RecordId,
+    pub id: FieldServicePhysicalOrderId,
     pub branch_id: RecordId,
     pub department_id: Option<RecordId>,
     pub ticket_id: RecordId,
@@ -166,6 +167,27 @@ impl<R: PgFieldServiceOrderReferences> CurrentFieldServiceOrder<'_, R> {
             )
             .await
     }
+    /// Verify a keyless wire request against the same current owner sources.
+    pub async fn require_pending_action(
+        &self,
+        c: &mut PgConnection,
+        pending: &crate::application::http_parts::PendingFieldServiceParts,
+        now: TimestampMillis,
+    ) -> Result<(), Error> {
+        self.require_current(c, now).await?;
+        if pending.target.storage_text() != self.facts().id.as_str() {
+            return Err(changed());
+        }
+        self.references
+            .require_parts_action(
+                c,
+                self.base.current,
+                self.facts(),
+                pending.normalized.input().action(),
+                now,
+            )
+            .await
+    }
     pub async fn reservation(
         &self,
         c: &mut PgConnection,
@@ -186,7 +208,7 @@ pub async fn lock_field_service_order_sources(c: &mut PgConnection) -> Result<()
 pub async fn read_field_service_order_base<'a>(
     c: &mut PgConnection,
     current: &'a AuthorizedWorkContext,
-    id: &RecordId,
+    id: &FieldServicePhysicalOrderId,
     now: TimestampMillis,
 ) -> Result<Option<FieldServiceOrderBase<'a>>, Error> {
     require_actor(current, now, now.get())?;
@@ -203,7 +225,7 @@ pub async fn read_field_service_order_base<'a>(
 pub(super) async fn read(
     c: &mut PgConnection,
     current: &AuthorizedWorkContext,
-    id: &RecordId,
+    id: &FieldServicePhysicalOrderId,
 ) -> Result<Option<Image>, Error> {
     let w = current.selection().workspace();
     // Source identity is the exact original immutable record/reference selection.
@@ -272,7 +294,7 @@ pub(super) async fn read(
 pub struct FieldServiceReservationFacts {
     pub holding_id: HoldingId,
     pub company_id: CompanyId,
-    pub order_id: RecordId,
+    pub order_id: FieldServicePhysicalOrderId,
     pub id: String,
     pub warehouse_id: String,
     pub product_id: String,

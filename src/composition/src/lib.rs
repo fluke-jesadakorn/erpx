@@ -61,3 +61,11 @@ pub mod directory_source_wire;
 pub mod maintenance_settlement;
 
 pub mod field_service_parts;
+
+#[cfg(feature = "business-http")]
+pub mod field_service_http;
+#[cfg(feature = "business-http")]
+mod field_service_http_wire;
+
+#[cfg(feature = "business-http")]
+mod field_service_http_core;

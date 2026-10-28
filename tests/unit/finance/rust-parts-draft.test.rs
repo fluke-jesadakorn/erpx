@@ -13,7 +13,7 @@ fn facts() -> PartsDraftFacts {
         },
         owner_key: CommandKey::new("parts-owner-command").unwrap(),
         kind: PartsOwnerKind::Maintenance,
-        source_id: RecordId::new("work").unwrap(),
+        source_id: PartsDraftSourceIdentity::Existing(RecordId::new("work").unwrap()),
         source_version: 3,
         branch_id: RecordId::new("branch").unwrap(),
         department_id: None,

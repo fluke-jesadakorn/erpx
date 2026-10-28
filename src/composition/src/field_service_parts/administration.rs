@@ -260,3 +260,165 @@ impl IdentifierSource for Ids {
         RecordId::new(uuid::Uuid::new_v4().to_string()).expect("generated UUID")
     }
 }
+
+#[cfg(feature = "business-http")]
+impl<W: Clock + Send + Sync + 'static, G: Clock + Send + Sync + 'static>
+    FieldServicePartsAdministration<W, G>
+{
+    pub(crate) async fn execute_http<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        workspace: Input,
+        ingress_body: Arc<crate::field_service_http_core::PendingIngress>,
+        key: String,
+        other: Arc<dyn super::http_transport::OtherPost>,
+    ) -> Result<
+        Result<erpx_server_workflow::public::commands::CommandJson, HttpIngressError>,
+        PgTransactionError<BusinessError>,
+    >
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        use super::http_transport::OtherPostInput;
+        use crate::field_service_http_core::WireError;
+        use crate::field_service_http_wire::SharedPostWire;
+        use erpx_server_field_service::public::parts::PendingFieldServiceParts;
+        let config = self.configuration.clone();
+        let expected_company = config.company_id.clone();
+        let workspace = move || {
+            let mut value = workspace()?;
+            value.mutation = true;
+            if value.company_id != expected_company {
+                return Err(scope());
+            }
+            Ok(value)
+        };
+        let ingress_config = config.clone();
+        let other_ingress = other.clone();
+        let write = self.write.clone();
+        let guard = self.guard.clone();
+        self.authorizer
+            .execute_with_selected_transport_ingress_deferred(
+                host,
+                proof,
+                workspace,
+                (
+                    WorkAuthorizationRequest {
+                        permission: "records.read".into(),
+                        module: None,
+                        destination: "service/orders".into(),
+                        api: true,
+                    },
+                    FieldServicePartsSourcePreparation,
+                ),
+                erpx_server_identity_access::public::effective_authority::SelectedTransportCallbacks::<_, HttpPrepared, HttpIngressError, _>::new::<erpx_server_workflow::public::commands::CommandJson>(
+                 move |selected: &erpx_server_identity_access::public::effective_authority::SelectedWorkIngress<'_>| -> erpx_server_identity_access::public::effective_authority::SelectedIngressFuture<HttpPrepared, HttpIngressError> {
+                    let valid = selected.holding_id() == &ingress_config.holding_id
+                        && selected.company_id() == &ingress_config.company_id;
+                    let ingress_body = ingress_body.clone();
+                    let other = other_ingress.clone();
+                    let key = key.clone();
+                    Box::pin(async move {
+                        if !valid {
+                            return Err(HttpIngressError::Scope);
+                        }
+                        let (bytes, wire) = ingress_body.decode().await.map_err(|e| match e {
+                            WireError::InvalidJson => HttpIngressError::InvalidJson,
+                            WireError::Validation(message) => HttpIngressError::Validation(message),
+                        })?;
+                        match wire {
+                            SharedPostWire::Parts { target, normalized } => {
+                                Ok(HttpPrepared::Parts(PendingFieldServiceParts {
+                                    target,
+                                    normalized,
+                                    key,
+                                }))
+                            }
+                            SharedPostWire::Other { branch, id_utf16 } => {
+                                let input = OtherPostInput {
+                                    branch,
+                                    id_utf16,
+                                    body: bytes,
+                                    key,
+                                };
+                                other
+                                    .validate(&input)
+                                    .map_err(HttpIngressError::Validation)?;
+                                Ok(HttpPrepared::Other(input))
+                            }
+                        }
+                    })
+                },
+                |prepared: &HttpPrepared, error: BusinessError| match prepared {
+                    HttpPrepared::Parts(_) => Ok(HttpIngressError::InitialOwnerReadDenied(error)),
+                    HttpPrepared::Other(input) => {
+                        Ok(HttpIngressError::OtherAdmissionDenied(input.branch, error))
+                    }
+                },
+                move |c, current, prepared| {
+                    let config = config.clone();
+                    let write = write.clone();
+                    let guard = guard.clone();
+                    let other = other.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &config.holding_id
+                            || current.selection().workspace().company_id != config.company_id
+                        {
+                            return Err(scope().into());
+                        }
+                        match prepared {
+                            HttpPrepared::Other(input) => {
+                                other.execute(c, current, input).await.map(Ok)
+                            }
+                            HttpPrepared::Parts(pending) => {
+                                if let Err(error) = current.require_permission("records.write") {
+                                    return Ok(Err(HttpIngressError::InitialOwnerWriteDenied(
+                                        error,
+                                    )));
+                                }
+                                if !current.modules().iter().any(|m| m == "field_service") {
+                                    return Ok(Err(HttpIngressError::InitialOwnerModuleDenied));
+                                }
+                                let mut ids = Ids;
+                                Ok(Ok(super::command::execute_pending_field_service_parts(
+                                    c,
+                                    current,
+                                    pending,
+                                    config.mode,
+                                    write.as_ref(),
+                                    guard.as_ref(),
+                                    &mut ids,
+                                )
+                                .await?
+                                .result))
+                            }
+                        }
+                    })
+                },
+                ),
+            )
+            .await
+    }
+}
+#[cfg(feature = "business-http")]
+pub enum HttpIngressError {
+    InvalidJson,
+    Validation(String),
+    Scope,
+    InitialOwnerReadDenied(BusinessError),
+    InitialOwnerWriteDenied(BusinessError),
+    InitialOwnerModuleDenied,
+    OtherAdmissionDenied(
+        crate::field_service_http_wire::OtherPostBranch,
+        BusinessError,
+    ),
+}
+#[cfg(feature = "business-http")]
+enum HttpPrepared {
+    Parts(erpx_server_field_service::public::parts::PendingFieldServiceParts),
+    Other(super::http_transport::OtherPostInput),
+}
+
+#[cfg(feature = "business-http")]
+pub use super::http_transport::{OtherPost, OtherPostInput};

@@ -8,7 +8,7 @@ publish.workspace = true
 autotests = false
 
 [package.metadata.erpx]
-verification-roots = ["../../scripts/docs/export-directory-source-contracts.rs", "../../scripts/docs/generate-directory-source-contracts.ts", "../../packages/contracts/src/directory-source-admin.generated.ts", "../../docs/contracts/next/directory-source-admin.openapi.generated.json", "../../scripts/testing/fixtures/generate-directory-review-reason-oracle.ts", "../../tests/support/files/system-scan-facts.rs", "../../tests/support/files/files-held-tool.rs", "../../scripts/docs/export-finance-journal-read-contracts.rs", "../../scripts/docs/generate-finance-journal-read-contracts.ts", "../../packages/contracts/src/finance-journal-read.generated.ts", "../../docs/contracts/next/finance-journal-read.openapi.generated.json", "../../tests/support/finance/native-journal-client.mjs"]
+verification-roots = ["../../scripts/docs/export-directory-source-contracts.rs", "../../scripts/docs/generate-directory-source-contracts.ts", "../../packages/contracts/src/directory-source-admin.generated.ts", "../../docs/contracts/next/directory-source-admin.openapi.generated.json", "../../scripts/testing/fixtures/generate-directory-review-reason-oracle.ts", "../../tests/support/files/system-scan-facts.rs", "../../tests/support/files/files-held-tool.rs", "../../scripts/docs/export-finance-journal-read-contracts.rs", "../../scripts/docs/generate-finance-journal-read-contracts.ts", "../../packages/contracts/src/finance-journal-read.generated.ts", "../../docs/contracts/next/finance-journal-read.openapi.generated.json", "../../tests/support/finance/native-journal-client.mjs", "../../fixtures/field_service/rust-http", "../../scripts/testing/fixtures/generate-field-service-http-oracle.mjs", "../../scripts/testing/fixtures/generate-field-service-http-source-probes.mjs", "../../scripts/testing/fixtures/generate-field-service-http-schema-oracle.mjs", "../../packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/route.ts", "../../packages/server-runtime/src/adapters/http.ts", "../../packages/server-shared/src/domain/error.ts", "../../packages/server-shared/src/domain/consumption-lot.ts", "../../packages/server-field_service/src/domain/service.ts", "../../packages/server-field_service/src/application/service.ts", "../../packages/server-field_service/src/adapters/service.ts", "../../packages/server-field_service/src/adapters/purchases.ts", "../../packages/server-field_service/src/domain/package-commands.ts", "../../packages/server-workflow/src/application/commands.ts", "../../packages/server-workflow/src/domain/commands.ts", "../../packages/feature-identity_access/src/lib/guest-account-compat.ts", "../../packages/server-manage_erpx/src/adapters/public-origin.ts", "../../packages/server-manage_erpx/src/domain/public-origin.ts", "../../packages/feature-field_service/src/lib/command.ts", "../../packages/feature-work_projection/src/lib/work-fetch.ts", "../../packages/contracts/src/holding-fetch.ts"]
 
 [features]
 files-scan-worker = ["erpx-server-files/preview-provider"]
@@ -186,3 +186,13 @@ required-features = ["business-http", "directory-ldaps"]
 [[test]]
 name="field_service_parts_postgres"
 path="../../tests/integration/field_service/rust-parts-command-postgres.test.rs"
+
+[[test]]
+name = "field_service_http_parity"
+path = "../../tests/unit/field_service/rust-http-parity.test.rs"
+required-features = ["business-http"]
+
+[[test]]
+name = "field_service_http_parity_postgres"
+path = "../../tests/integration/field_service/rust-http-parity-postgres.test.rs"
+required-features = ["business-http"]

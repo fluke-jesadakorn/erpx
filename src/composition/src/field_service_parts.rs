@@ -61,3 +61,9 @@ impl HoldingWorkSourcePreparation for FieldServicePartsSourcePreparation {
         })
     }
 }
+
+#[cfg(feature = "business-http")]
+mod http_transport;
+
+#[cfg(feature = "business-http")]
+pub use administration::{HttpIngressError, OtherPost, OtherPostInput};

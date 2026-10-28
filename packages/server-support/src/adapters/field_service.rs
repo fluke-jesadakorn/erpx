@@ -23,7 +23,7 @@ pub struct SupportServiceTicketFacts {
     pub source_kind: String,
     pub sales_order_id: Option<RecordId>,
     pub service_agreement_id: Option<RecordId>,
-    pub service_order_id: Option<RecordId>,
+    pub service_order_id: Option<String>,
 }
 pub struct CurrentSupportServiceTicket {
     facts: SupportServiceTicketFacts,
@@ -98,7 +98,7 @@ impl SupportServicePartsAction {
 /// a command key. The exact derived event may be 200 bytes; its Support history
 /// ID may be 221, and is deliberately not forced into a new CommandKey.
 pub struct SupportServicePartsProjection {
-    pub order_id: RecordId,
+    pub order_id: String,
     pub event_id: String,
     pub order_version_after: i64,
     pub action: SupportServicePartsAction,
@@ -195,10 +195,10 @@ async fn read_facts(
 ) -> Result<Option<SupportServiceTicketFacts>, Error> {
     // This is the original closed lineage projection. Bodies, issue, names,
     // status/version and evidence never leave Support through this source API.
-    let row=sqlx::query("SELECT CASE WHEN octet_length(source_kind)<=32 THEN source_kind END source_kind,CASE WHEN octet_length(order_id)<=200 THEN order_id END order_id,octet_length(order_id)::bigint order_bytes,CASE WHEN octet_length(service_agreement_id)<=200 THEN service_agreement_id END service_agreement_id,octet_length(service_agreement_id)::bigint agreement_bytes,CASE WHEN octet_length(service_order_id)<=200 THEN service_order_id END service_order_id,octet_length(service_order_id)::bigint service_order_bytes FROM support_tickets WHERE id=$1 AND company_id=$2 AND branch_id=$3 AND department_id IS NOT DISTINCT FROM $4 AND customer_id=$5 FOR SHARE")
+    let row=sqlx::query("SELECT CASE WHEN octet_length(source_kind)<=32 THEN source_kind END source_kind,CASE WHEN octet_length(order_id)<=200 THEN order_id END order_id,octet_length(order_id)::bigint order_bytes,CASE WHEN octet_length(service_agreement_id)<=200 THEN service_agreement_id END service_agreement_id,octet_length(service_agreement_id)::bigint agreement_bytes,service_order_id FROM support_tickets WHERE id=$1 AND company_id=$2 AND branch_id=$3 AND department_id IS NOT DISTINCT FROM $4 AND customer_id=$5 FOR SHARE")
         .bind(r.ticket_id.as_str()).bind(r.company_id.as_str()).bind(r.branch_id.as_str()).bind(r.department_id.as_ref().map(RecordId::as_str)).bind(r.customer_id.as_str()).fetch_optional(c).await?;
     let Some(row) = row else { return Ok(None) };
-    for field in ["order_bytes", "agreement_bytes", "service_order_bytes"] {
+    for field in ["order_bytes", "agreement_bytes"] {
         if row
             .try_get::<Option<i64>, _>(field)?
             .is_some_and(|n| n > 200)
@@ -219,10 +219,7 @@ async fn read_facts(
             .try_get::<Option<String>, _>("service_agreement_id")?
             .map(RecordId::new)
             .transpose()?,
-        service_order_id: row
-            .try_get::<Option<String>, _>("service_order_id")?
-            .map(RecordId::new)
-            .transpose()?,
+        service_order_id: row.try_get::<Option<String>, _>("service_order_id")?,
     }))
 }
 async fn full_ticket(

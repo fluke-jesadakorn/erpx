@@ -170,7 +170,9 @@ impl<'p, 'a> PgMaintenancePartsSource<'p, 'a> {
             },
             owner_key: command.key().clone(),
             kind: PartsOwnerKind::Maintenance,
-            source_id: source.facts().id.clone(),
+            source_id: erpx_server_finance::public::parts_draft::PartsDraftSourceIdentity::Existing(
+                source.facts().id.clone(),
+            ),
             source_version: work.version_after(),
             branch_id: source.facts().branch_id.clone(),
             department_id: source.facts().department_id.clone(),

@@ -8,7 +8,7 @@ use sqlx::PgConnection;
 pub struct PreparedFieldServiceReservation {
     unit: Unit,
     key: CommandKey,
-    order: erpx_server_shared::public::RecordId,
+    order: crate::application::http_parts::FieldServicePhysicalOrderId,
     before_order: String,
     reservation_id: String,
     warehouse: String,

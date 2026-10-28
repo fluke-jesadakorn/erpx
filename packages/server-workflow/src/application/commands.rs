@@ -1,4 +1,7 @@
-use crate::domain::command_json::{CommandJson, OrderedJson};
+use crate::domain::{
+    command_json::{CommandJson, OrderedJson},
+    record_identity::WorkflowRecordIdentity,
+};
 use erpx_server_shared::public::{AssignmentId, BusinessError, CompanyId, UserId};
 use sha2::{Digest, Sha256};
 /// Presence is retained independently of JSON null, matching saved JS actors.
@@ -95,12 +98,30 @@ impl CommandActor {
         state: Option<&str>,
         scope: &CommandEventScope,
     ) -> Result<CommandJson, BusinessError> {
+        self.outbox_payload_value(OrderedJson::text(record), version, state, scope)
+    }
+    pub fn outbox_payload_source_ordered(
+        &self,
+        record: &WorkflowRecordIdentity,
+        version: i64,
+        state: Option<&str>,
+        scope: &CommandEventScope,
+    ) -> Result<CommandJson, BusinessError> {
+        self.outbox_payload_value(record.logical_json()?.value()?, version, state, scope)
+    }
+    fn outbox_payload_value(
+        &self,
+        record: OrderedJson,
+        version: i64,
+        state: Option<&str>,
+        scope: &CommandEventScope,
+    ) -> Result<CommandJson, BusinessError> {
         let mut values = vec![
             (
                 "authority".into(),
                 OrderedJson::object(self.authority_fields()?),
             ),
-            ("id".into(), OrderedJson::text(record)),
+            ("id".into(), record),
         ];
         if let Some(state) = state {
             values.push(("state".into(), OrderedJson::text(state)));
@@ -165,6 +186,22 @@ pub fn command_fingerprint(
     record_id: &str,
     input: &CommandJson,
 ) -> Result<String, BusinessError> {
+    command_fingerprint_value(actor, operation, OrderedJson::text(record_id), input)
+}
+pub fn command_fingerprint_source_ordered(
+    actor: &CommandActor,
+    operation: &str,
+    record_id: &WorkflowRecordIdentity,
+    input: &CommandJson,
+) -> Result<String, BusinessError> {
+    command_fingerprint_value(actor, operation, record_id.logical_json()?.value()?, input)
+}
+fn command_fingerprint_value(
+    actor: &CommandActor,
+    operation: &str,
+    record_id: OrderedJson,
+    input: &CommandJson,
+) -> Result<String, BusinessError> {
     actor.validate()?;
     let mut values = vec![
         ("actor".into(), OrderedJson::text(actor.user_id.as_str())),
@@ -188,7 +225,7 @@ pub fn command_fingerprint(
     add_string(&mut values, "branch", &actor.branch_id);
     add_string(&mut values, "department", &actor.department_id);
     values.push(("operation".into(), OrderedJson::text(operation)));
-    values.push(("recordId".into(), OrderedJson::text(record_id)));
+    values.push(("recordId".into(), record_id));
     values.push(("input".into(), input.value()?));
     Ok(hex::encode(Sha256::digest(
         OrderedJson::object(values).encode()?,

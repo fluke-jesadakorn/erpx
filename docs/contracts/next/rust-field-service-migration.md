@@ -10,6 +10,8 @@ This contract describes the guarded native reserve-part and issue-part component
 
 The existing administrative entry retains read/write authorization before wire normalization. A separate internal [selected Identity ingress](rust-selected-ingress.md) accepts typed Order/key data and performs schema normalization after current Identity but before ordinary owner authorization; it is not an HTTP transport.
 
+An additional [shared HTTP parts candidate](rust-field-service-http.md) now uses the actual Account request parser and selected transport ingress for reserve/issue. Its source-qualified PostgreSQL cases preserve the distinct wire, owner, replay and transaction failure channels. It remains unmounted; other POST workflows require an explicit dispatcher, and complete Field Service HTTP/SSR/frontend and runtime migration remain open.
+
 ## Reserve and issue
 
 Reserve prepares the intended reservation and stock evidence, locks and rechecks availability, inserts the reservation, checks the resulting stock view and Support image, then writes the Order/event and notification. Issue rechecks the actual reservation and Inventory/Quality sources, Finance posting mapping and purchase evidence. It applies the reservation, persists the Finance journal, writes consumption and lot evidence, persists stock cost and stock, checks Support, then writes the Order/event and notification. Workflow owns the command receipt, audit and outbox. After deferred constraints, retained expected images and witnesses are checked again; an unexpected trigger rewrite cannot become a new accepted baseline. Failure rolls back the shared unit.

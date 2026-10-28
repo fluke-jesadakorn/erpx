@@ -9,7 +9,8 @@ use crate::{
     application::{
         account_ports::DeviceProof,
         effective_authority::{
-            authorize_effective_work, inspect_selected_work, same_selected_work,
+            InitialAdmissionFailure, authorize_effective_work, authorize_effective_work_tagged,
+            inspect_selected_work, same_selected_work,
         },
     },
     domain::{
@@ -25,7 +26,109 @@ use erpx_server_runtime::public::postgres::{
 use erpx_server_shared::public::{BusinessError, Clock, FailureKind, HoldingId, RecordId, UserId};
 use sha2::{Digest, Sha256};
 use sqlx::PgConnection;
-use std::sync::Arc;
+use std::{future::Future, pin::Pin, sync::Arc};
+
+/// Owned asynchronous work created after selected Identity has been checked.
+pub type SelectedIngressFuture<I, E> = Pin<Box<dyn Future<Output = Result<I, E>> + Send + 'static>>;
+
+/// Owned transport callbacks; the denial factory sees only prepared data.
+pub struct SelectedTransportCallbacks<Ingress, I, E, Action> {
+    pub ingress: Ingress,
+    pub read_denied: fn(&I, BusinessError) -> Result<E, BusinessError>,
+    pub action: Action,
+}
+
+impl<Ingress, I, E, Action> SelectedTransportCallbacks<Ingress, I, E, Action> {
+    /// Package callbacks without invoking them; the bounds supply closure expectations.
+    pub fn new<T>(
+        ingress: Ingress,
+        read_denied: fn(&I, BusinessError) -> Result<E, BusinessError>,
+        action: Action,
+    ) -> Self
+    where
+        T: Send + 'static,
+        I: Send + 'static,
+        E: Send + 'static,
+        Ingress: for<'s> Fn(&SelectedWorkIngress<'s>) -> SelectedIngressFuture<I, E>
+            + Clone
+            + Send
+            + Sync
+            + 'static,
+        Action: for<'c> Fn(
+                &'c mut PgConnection,
+                &'c AuthorizedWorkContext,
+                I,
+            ) -> PgWorkFuture<'c, Result<T, E>, BusinessError>
+            + Clone
+            + Send
+            + Sync
+            + 'static,
+    {
+        Self {
+            ingress,
+            read_denied,
+            action,
+        }
+    }
+}
+
+pub(crate) trait SelectedAction<I, T, E>: Clone + Send + Sync + 'static {
+    fn invoke<'c>(
+        &self,
+        connection: &'c mut PgConnection,
+        current: &'c AuthorizedWorkContext,
+        input: I,
+    ) -> PgWorkFuture<'c, Result<T, E>, BusinessError>;
+}
+#[derive(Clone)]
+struct LegacySelectedAction<F>(F);
+impl<I: Send + 'static, T: Send + 'static, E: Send + 'static, F> SelectedAction<I, T, E>
+    for LegacySelectedAction<F>
+where
+    F: for<'c> Fn(
+            &'c mut PgConnection,
+            &'c AuthorizedWorkContext,
+            I,
+        ) -> PgWorkFuture<'c, T, BusinessError>
+        + Clone
+        + Send
+        + Sync
+        + 'static,
+{
+    fn invoke<'c>(
+        &self,
+        c: &'c mut PgConnection,
+        current: &'c AuthorizedWorkContext,
+        input: I,
+    ) -> PgWorkFuture<'c, Result<T, E>, BusinessError> {
+        let future = (self.0)(c, current, input);
+        Box::pin(async move { future.await.map(Ok) })
+    }
+}
+#[derive(Clone)]
+struct TransportSelectedAction<F>(F);
+impl<I: Send + 'static, T: Send + 'static, E: Send + 'static, F> SelectedAction<I, T, E>
+    for TransportSelectedAction<F>
+where
+    F: for<'c> Fn(
+            &'c mut PgConnection,
+            &'c AuthorizedWorkContext,
+            I,
+        ) -> PgWorkFuture<'c, Result<T, E>, BusinessError>
+        + Clone
+        + Send
+        + Sync
+        + 'static,
+{
+    fn invoke<'c>(
+        &self,
+        c: &'c mut PgConnection,
+        current: &'c AuthorizedWorkContext,
+        input: I,
+    ) -> PgWorkFuture<'c, Result<T, E>, BusinessError> {
+        (self.0)(c, current, input)
+    }
+}
 
 /// Borrowed selected-identity observation, with no permission-bearing actor.
 pub struct SelectedWorkIngress<'a> {
@@ -626,18 +729,107 @@ impl HoldingWorkAuthorizer {
             + Sync
             + 'static,
     {
+        let owned_ingress =
+            move |selected: &SelectedWorkIngress<'_>| -> SelectedIngressFuture<I, E> {
+                let result = ingress(selected);
+                Box::pin(async move { result })
+            };
+        self.execute_selected_transport_core(
+            host,
+            proof,
+            input,
+            access_and_preparation,
+            SelectedTransportCallbacks {
+                ingress: owned_ingress,
+                read_denied: |_, error| Err(error),
+                action: LegacySelectedAction(action),
+            },
+        )
+        .await
+    }
+    /// Await owned request transport only after current selected Identity. The
+    /// returned future cannot retain the borrowed witness or a connection.
+    pub async fn execute_with_selected_transport_ingress_deferred<
+        T,
+        I,
+        E,
+        F,
+        Ingress,
+        Input,
+        Preparation,
+    >(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        access_and_preparation: (WorkAuthorizationRequest, Preparation),
+        callbacks: SelectedTransportCallbacks<Ingress, I, E, F>,
+    ) -> Result<Result<T, E>, PgTransactionError<BusinessError>>
+    where
+        T: Send + 'static,
+        I: Send + 'static,
+        E: Send + 'static,
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+        Preparation: HoldingWorkSourcePreparation,
+        Ingress: for<'c> Fn(&SelectedWorkIngress<'c>) -> SelectedIngressFuture<I, E>
+            + Clone
+            + Send
+            + Sync
+            + 'static,
+        F: for<'c> Fn(
+                &'c mut PgConnection,
+                &'c AuthorizedWorkContext,
+                I,
+            ) -> PgWorkFuture<'c, Result<T, E>, BusinessError>
+            + Clone
+            + Send
+            + Sync
+            + 'static,
+    {
+        let SelectedTransportCallbacks {
+            ingress,
+            read_denied,
+            action,
+        } = callbacks;
+        self.execute_selected_transport_core(
+            host,
+            proof,
+            input,
+            access_and_preparation,
+            SelectedTransportCallbacks {
+                ingress,
+                read_denied,
+                action: TransportSelectedAction(action),
+            },
+        )
+        .await
+    }
+    async fn execute_selected_transport_core<T, I, E, A, Ingress, Input, Preparation>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        access_and_preparation: (WorkAuthorizationRequest, Preparation),
+        callbacks: SelectedTransportCallbacks<Ingress, I, E, A>,
+    ) -> Result<Result<T, E>, PgTransactionError<BusinessError>>
+    where
+        T: Send + 'static,
+        I: Send + 'static,
+        E: Send + 'static,
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+        Preparation: HoldingWorkSourcePreparation,
+        Ingress: for<'c> Fn(&SelectedWorkIngress<'c>) -> SelectedIngressFuture<I, E>
+            + Clone
+            + Send
+            + Sync
+            + 'static,
+        A: SelectedAction<I, T, E>,
+    {
         let (access, preparation) = access_and_preparation;
         #[cfg(feature = "directory-ldaps")]
         if let Some(refresh) = &self.directory_refresh {
             return refresh
-                .execute_selected(
-                    self,
-                    host,
-                    proof,
-                    input,
-                    (access, preparation),
-                    (ingress, action),
-                )
+                .execute_selected(self, host, proof, input, (access, preparation), callbacks)
                 .await;
         }
         self.execute_selected_internal(
@@ -651,8 +843,7 @@ impl HoldingWorkAuthorizer {
                     control: None,
                 },
             ),
-            ingress,
-            action,
+            callbacks,
         )
         .await
     }
@@ -667,27 +858,21 @@ impl HoldingWorkAuthorizer {
             Preparation,
             Option<Arc<dyn WorkControlSources>>,
         ),
-        callbacks: (Ingress, F),
+        callbacks: SelectedTransportCallbacks<Ingress, I, E, F>,
     ) -> Result<Result<T, E>, PgTransactionError<BusinessError>>
     where
         T: Send + 'static,
         I: Send + 'static,
         E: Send + 'static,
         Preparation: HoldingWorkSourcePreparation,
-        Ingress:
-            for<'c> Fn(&SelectedWorkIngress<'c>) -> Result<I, E> + Clone + Send + Sync + 'static,
-        F: for<'c> Fn(
-                &'c mut PgConnection,
-                &'c AuthorizedWorkContext,
-                I,
-            ) -> PgWorkFuture<'c, T, BusinessError>
+        Ingress: for<'c> Fn(&SelectedWorkIngress<'c>) -> SelectedIngressFuture<I, E>
             + Clone
             + Send
             + Sync
             + 'static,
+        F: SelectedAction<I, T, E>,
     {
         let (access, preparation, control) = policy_sources;
-        let (ingress, action) = callbacks;
         self.execute_selected_internal(
             host,
             proof,
@@ -699,8 +884,7 @@ impl HoldingWorkAuthorizer {
                     control,
                 },
             ),
-            ingress,
-            action,
+            callbacks,
         )
         .await
     }
@@ -718,23 +902,22 @@ impl HoldingWorkAuthorizer {
         proof: DeviceProof,
         input: Input,
         policy_sources: (WorkAuthorizationRequest, WorkSourceBundle<Preparation>),
-        ingress: Ingress,
-        action: F,
+        callbacks: SelectedTransportCallbacks<Ingress, I, E, F>,
     ) -> Result<Result<T, E>, PgTransactionError<BusinessError>>
     where
         Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
-        Ingress:
-            for<'c> Fn(&SelectedWorkIngress<'c>) -> Result<I, E> + Clone + Send + Sync + 'static,
-        F: for<'c> Fn(
-                &'c mut PgConnection,
-                &'c AuthorizedWorkContext,
-                I,
-            ) -> PgWorkFuture<'c, T, BusinessError>
+        Ingress: for<'c> Fn(&SelectedWorkIngress<'c>) -> SelectedIngressFuture<I, E>
             + Clone
             + Send
             + Sync
             + 'static,
+        F: SelectedAction<I, T, E>,
     {
+        let SelectedTransportCallbacks {
+            ingress,
+            read_denied,
+            action,
+        } = callbacks;
         let (access, sources) = policy_sources;
         let WorkSourceBundle {
             holding: preparation,
@@ -860,7 +1043,22 @@ impl HoldingWorkAuthorizer {
                                     if let Some(source) = &retained_holding { deadline = deadline.min(source.deadline()); }
                                     if clock.now().get() >= deadline { return Err(authority_error("WORK_AUTHORITY_EXPIRED", "Your work authority expired. Review your current access.").into()); }
                                     let witness = SelectedWorkIngress { holding_id: &request.holding_id, company_id: &facts.selection.workspace().company_id };
-                                    let normalized = match ingress(&witness) {
+                                    let initial = match ingress(&witness).await {
+                                        Ok(value) => {
+                                            let catalog = permission_catalog()?;
+                                            let modules = work_module_catalog()?;
+                                            match authorize_effective_work_tagged(&request, &access, facts.clone(), catalog, modules, clock.now().get()) {
+                                                Ok(context) => Ok((value, context)),
+                                                Err(InitialAdmissionFailure::PermissionRequired(error)) => match read_denied(&value, error) {
+                                                    Ok(local) => Err(local),
+                                                    Err(error) => return Err(error.into()),
+                                                },
+                                                Err(InitialAdmissionFailure::Other(error)) => return Err(error.into()),
+                                            }
+                                        },
+                                        Err(error) => Err(error),
+                                    };
+                                    let (normalized, mut context) = match initial {
                                         Ok(value) => value,
                                         Err(error) => {
                                             if let Some(source) = &retained_holding {
@@ -880,14 +1078,6 @@ impl HoldingWorkAuthorizer {
                                     };
                                     let catalog = permission_catalog()?;
                                     let modules = work_module_catalog()?;
-                                    let mut context = authorize_effective_work(
-                                        &request,
-                                        &access,
-                                        facts,
-                                        catalog,
-                                        modules,
-                                        clock.now().get(),
-                                    )?;
                                     if let Some(source) = &retained_holding {
                                         #[cfg(feature = "directory-ldaps")]
                                         {
@@ -898,7 +1088,7 @@ impl HoldingWorkAuthorizer {
                                             context.expires_at.min(source.deadline());
                                         context.require_current_time(clock.now().get())?;
                                     }
-                                    let result = action(&mut *connection, &context, normalized).await?;
+                                    let result = action.invoke(&mut *connection, &context, normalized).await?;
                                     if let Some(source) = &retained_holding {
                                         sqlx::query("SET CONSTRAINTS ALL IMMEDIATE")
                                             .execute(&mut *connection)
@@ -934,7 +1124,7 @@ impl HoldingWorkAuthorizer {
                                         )
                                         .into());
                                     }
-                                    Ok(Ok(result))
+                                    Ok(result)
                                 })
                             },
                         )

@@ -534,6 +534,32 @@ async fn selected_ingress_checks_time_again_after_fresh_final_identity_inspectio
                 .await;
             code(result, "WORK_AUTHORITY_EXPIRED");
             assert_eq!(clock.reads.load(Ordering::SeqCst), 4);
+            clock.armed.store(false, Ordering::SeqCst);
+            clock.reads.store(0, Ordering::SeqCst);
+            let armed = clock.clone();
+            let async_result = authorizer
+                .execute_with_selected_transport_ingress_deferred(
+                    "acme.example.test",
+                    proof(),
+                    || Ok(input()),
+                    (access(), SelectedFixtureLocks),
+                    erpx_server_identity_access::public::effective_authority::SelectedTransportCallbacks::<_, (), &'static str, _>::new::<()>(  move |_| {
+                        let armed = armed.clone();
+                        Box::pin(async move {
+                            tokio::task::yield_now().await;
+                            armed.armed.store(true, Ordering::SeqCst);
+                            Err::<(), _>("wire")
+                        })
+                    },
+                    |_, error| Err(error),
+                    |_, _, _| {
+                        Box::pin(async {
+                            Ok::<_, PgTransactionError<BusinessError>>(Ok::<_, &'static str>(()))
+                        })
+                    }, ),
+                )
+                .await;
+            code(async_result, "WORK_AUTHORITY_EXPIRED");
             assert_eq!(
                 sqlx::query_scalar::<_, i64>("SELECT count(*) FROM native_owner_effects")
                     .fetch_one(holding.raw())
@@ -545,4 +571,54 @@ async fn selected_ingress_checks_time_again_after_fresh_final_identity_inspectio
         .await;
     })
     .await;
+}
+
+#[tokio::test]
+async fn transport_initial_read_tag_is_distinct_from_final_permission_and_local_action_failure() {
+    fixture::with_database(3,|control|async move {fixture::with_database(3,move|holding|async move {
+        let (authorizer,_) = setup(&control,&holding).await;
+        let calls=Arc::new(AtomicUsize::new(0));let action_calls=calls.clone();
+        let mut denied=access();denied.permission="finance.pay".into();
+        let result=authorizer.execute_with_selected_transport_ingress_deferred(
+            "acme.example.test",proof(),||Ok(input()),(denied,SelectedFixtureLocks),
+            erpx_server_identity_access::public::effective_authority::SelectedTransportCallbacks::<_, (), &'static str, _>::new::<()>(  |_|Box::pin(async {Ok::<_,&'static str>(())}),|_,error|{assert_eq!(error.code,"PERMISSION_REQUIRED");Ok("initial-read")},
+            move |_,_,_| { action_calls.fetch_add(1,Ordering::SeqCst);Box::pin(async {Ok::<_,PgTransactionError<BusinessError>>(Ok::<_,&'static str>(()))}) }
+        )).await.unwrap();
+        assert_eq!(result,Err("initial-read"));assert_eq!(calls.load(Ordering::SeqCst),0);
+        let local=authorizer.execute_with_selected_transport_ingress_deferred(
+            "acme.example.test",proof(),||Ok(input()),(access(),SelectedFixtureLocks),
+            erpx_server_identity_access::public::effective_authority::SelectedTransportCallbacks::<_, (), &'static str, _>::new::<()>(  |_|Box::pin(async {Ok::<_,&'static str>(())}),|_,_|Ok("initial-read"),
+            |_,_,_|Box::pin(async {Ok::<_,PgTransactionError<BusinessError>>(Err::<(),_>("initial-write"))})
+        )).await.unwrap();assert_eq!(local,Err("initial-write"));
+        let final_denial=authorizer.execute_with_selected_transport_ingress_deferred(
+            "acme.example.test",proof(),||Ok(input()),(access(),SelectedFixtureLocks),
+            erpx_server_identity_access::public::effective_authority::SelectedTransportCallbacks::<_, (), &'static str, _>::new::<()>(  |_|Box::pin(async {Ok::<_,&'static str>(())}),|_,_|Ok("initial-read"),
+            |c,current,_|Box::pin(async move {
+                assert!(current.has_permission("finance.write"));
+                assert_eq!(current.selection().role_revision(),1);
+                sqlx::query("INSERT INTO native_owner_effects(id) VALUES('transport-final-permission')").execute(&mut *c).await?;
+                let inserted=sqlx::query(r#"INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) SELECT company_id,role_id,2,'["finance.read","module.finance.read"]'::jsonb,grantable_json,scopes_json,'fixture',$1 FROM iam_role_revisions WHERE company_id='*' AND role_id='custom_native_authority' AND revision=1"#).bind(NOW).execute(&mut *c).await?;
+                assert_eq!(inserted.rows_affected(),1);
+                let updated=sqlx::query("UPDATE iam_roles SET published_revision=2 WHERE company_id='*' AND id='custom_native_authority' AND published_revision=1 AND status='active' AND NOT built_in").execute(&mut *c).await?;
+                assert_eq!(updated.rows_affected(),1);
+                Ok::<_,PgTransactionError<BusinessError>>(Err::<(),_>("initial-write"))
+            })
+        )).await;
+        code(final_denial,"PERMISSION_REQUIRED");
+        let head:i64=sqlx::query_scalar("SELECT published_revision::bigint FROM iam_roles WHERE company_id='*' AND id='custom_native_authority'").fetch_one(holding.raw()).await.unwrap();assert_eq!(head,1);
+        let revision2:i64=sqlx::query_scalar("SELECT count(*) FROM iam_role_revisions WHERE company_id='*' AND role_id='custom_native_authority' AND revision=2").fetch_one(holding.raw()).await.unwrap();assert_eq!(revision2,0);
+        let permissions:serde_json::Value=sqlx::query_scalar("SELECT permissions_json FROM iam_role_revisions WHERE company_id='*' AND role_id='custom_native_authority' AND revision=1").fetch_one(holding.raw()).await.unwrap();
+        assert_eq!(permissions,serde_json::json!(["finance.read","finance.write","module.finance.read"]));
+        assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM native_owner_effects").fetch_one(holding.raw()).await.unwrap(),0);
+        let final_revoked=authorizer.execute_with_selected_transport_ingress_deferred(
+            "acme.example.test",proof(),||Ok(input()),(access(),SelectedFixtureLocks),
+            erpx_server_identity_access::public::effective_authority::SelectedTransportCallbacks::<_, (), &'static str, _>::new::<()>(  |_|Box::pin(async {Ok::<_,&'static str>(())}),|_,_|Ok("initial-read"),
+            |c,_,_|Box::pin(async move {
+                sqlx::query("UPDATE assignments SET revoked_at=$1 WHERE id='grant'").bind(NOW).execute(c).await?;
+                Ok::<_,PgTransactionError<BusinessError>>(Err::<(),_>("initial-write"))
+            })
+        )).await;
+        code(final_revoked,"WORK_ROLE_UNAVAILABLE");
+        assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM native_owner_effects").fetch_one(holding.raw()).await.unwrap(),0);
+    }).await;}).await;
 }

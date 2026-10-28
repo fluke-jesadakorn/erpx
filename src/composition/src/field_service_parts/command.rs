@@ -22,7 +22,7 @@ use erpx_server_identity_access::public::{
 };
 use erpx_server_inventory::public::postgres_consumption::*;
 use erpx_server_shared::public::{
-    BusinessError, Clock, FailureKind, IdentifierSource, RecordId, TimestampMillis,
+    BusinessError, Clock, FailureKind, IdentifierSource, TimestampMillis,
 };
 use erpx_server_support::public::field_service::{
     PreparedSupportServicePartsProjection, SupportServicePartsAction, SupportServicePartsProjection,
@@ -34,7 +34,7 @@ use std::sync::Arc;
 async fn load_order<'a>(
     c: &mut PgConnection,
     current: &'a AuthorizedWorkContext,
-    id: &RecordId,
+    id: &FieldServicePhysicalOrderId,
     now: TimestampMillis,
 ) -> Result<CurrentFieldServiceOrder<'a, FieldServiceReferences>, Error> {
     let base = read_field_service_order_base(c, current, id, now)
@@ -51,10 +51,11 @@ async fn load_order<'a>(
 }
 struct Authority<'a, G> {
     current: &'a AuthorizedWorkContext,
-    command: &'a FieldServicePartsCommand,
+    expected: &'a WorkflowRequest,
     mode: PackageEnforcementMode,
     guard: &'a G,
     purchases: Option<FieldServicePurchases>,
+    http_source: bool,
 }
 impl<G: Clock + Sync> Authority<'_, G> {
     fn bind(&self, request: &WorkflowRequest) -> Result<CommandActor, BusinessError> {
@@ -62,10 +63,10 @@ impl<G: Clock + Sync> Authority<'_, G> {
         self.current.require_permission("records.write")?;
         if !self.current.modules().iter().any(|m| m == "field_service")
             || self.guard.now().get() >= self.current.expires_at()
-            || request.key != self.command.key().as_str()
-            || request.operation != self.command.operation()
-            || request.record_id != self.command.order_id().as_str()
-            || request.input.as_str() != self.command.receipt_input().as_str()
+            || request.key != self.expected.key
+            || request.operation != self.expected.operation
+            || request.record_id != self.expected.record_id
+            || request.input.as_str() != self.expected.input.as_str()
         {
             return Err(changed());
         }
@@ -135,7 +136,16 @@ impl<G: Clock + Sync> PgCommandAuthority for Authority<'_, G> {
         }
         // Source existence/lineage precedes purchase, including History replay;
         // operational ownership/state is deliberately only in new preparation.
-        let _ = load_order(c, self.current, self.command.order_id(), self.guard.now()).await?;
+        let physical = FieldServicePhysicalOrderId::from_storage(r.record_id.clone());
+        let _ = load_order(c, self.current, &physical, self.guard.now())
+            .await
+            .map_err(|error| {
+                if self.http_source {
+                    http_source_error(error)
+                } else {
+                    error
+                }
+            })?;
         match &self.purchases {
             Some(p) => p.require_current(c, self.current, self.guard.now()).await?,
             None => {
@@ -208,6 +218,9 @@ struct Effects<'a, W, G> {
     guard: &'a G,
     prepared: Option<Prepared<'a>>,
     written: Option<Written<'a>>,
+    quote: Option<PendingIssueQuote>,
+    logical: Option<WorkflowRecordIdentity>,
+    pending_at: Option<TimestampMillis>,
 }
 
 #[derive(serde::Serialize)]
@@ -237,6 +250,8 @@ impl<W: Clock + Sync, G: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W, 
                 write: self.write,
                 guard: self.guard,
                 scope: std::marker::PhantomData,
+                quote: self.quote.take(),
+                pending_at: self.pending_at,
             },
             &source,
             self.command,
@@ -323,7 +338,7 @@ impl<W: Clock + Sync, G: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W, 
             .prepare_parts_projection(
                 c,
                 SupportServicePartsProjection {
-                    order_id: source.facts().id.clone(),
+                    order_id: source.facts().id.as_str().to_owned(),
                     event_id: work.event_id().into(),
                     order_version_after: work.version_after(),
                     action: match self.command.input().action() {
@@ -350,11 +365,20 @@ impl<W: Clock + Sync, G: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W, 
         // Only successful late CAS can commit this candidate; the provisional
         // requested MAX_SAFE+1 stays in data so quote/stock failures remain first.
         let version = work.version_after();
-        let result = CommandJson::from_serializable(&FieldServiceResult {
-            id: self.command.order_id().as_str(),
-            version,
-            status: &source.facts().state,
-        })?;
+        let result = if let Some(logical) = &self.logical {
+            CommandJson::parse(&format!(
+                "{{\"id\":{},\"version\":{},\"status\":{}}}",
+                logical.logical_json()?.as_str(),
+                version,
+                serde_json::to_string(&source.facts().state).map_err(|_| changed())?
+            ))?
+        } else {
+            CommandJson::from_serializable(&FieldServiceResult {
+                id: self.command.order_id().as_str(),
+                version,
+                status: &source.facts().state,
+            })?
+        };
         self.prepared = Some(Prepared {
             source,
             work,
@@ -567,10 +591,11 @@ pub(crate) async fn execute_field_service_parts<
     };
     let mut authority = Authority {
         current,
-        command,
+        expected: &request,
         mode,
         guard,
         purchases: None,
+        http_source: false,
     };
     let mut effects = Effects {
         current,
@@ -580,6 +605,9 @@ pub(crate) async fn execute_field_service_parts<
         guard,
         prepared: None,
         written: None,
+        quote: None,
+        logical: None,
+        pending_at: None,
     };
     PgCommandLedger::new(
         current.selection().workspace().company_id.clone(),
@@ -590,4 +618,155 @@ pub(crate) async fn execute_field_service_parts<
     )
     .execute(&request, &mut effects)
     .await
+}
+
+// Replay-only phase cannot prepare or apply owner effects.
+struct ReplayEffects;
+impl PgOwnerCommandEffects for ReplayEffects {
+    async fn lock_sources(
+        &mut self,
+        c: &mut PgConnection,
+        _: &WorkflowRequest,
+    ) -> Result<(), Error> {
+        FieldServicePartsSourcePreparation.prepare(c).await
+    }
+    async fn prepare(
+        &mut self,
+        _: &mut PgConnection,
+        _: &CommandActor,
+        _: &WorkflowRequest,
+    ) -> Result<WorkflowOutput, Error> {
+        Err(changed().into())
+    }
+    async fn apply(
+        &mut self,
+        _: &mut PgConnection,
+        _: &CommandActor,
+        _: &WorkflowRequest,
+    ) -> Result<(), Error> {
+        Err(changed().into())
+    }
+    async fn retain(
+        &mut self,
+        _: &mut PgConnection,
+        _: &CommandActor,
+        _: &WorkflowRequest,
+    ) -> Result<(), Error> {
+        Err(changed().into())
+    }
+}
+
+pub(super) async fn execute_pending_field_service_parts<
+    W: Clock + Sync,
+    G: Clock + Sync,
+    I: IdentifierSource,
+>(
+    c: &mut PgConnection,
+    current: &AuthorizedWorkContext,
+    pending: PendingFieldServiceParts,
+    mode: PackageEnforcementMode,
+    write: &W,
+    guard: &G,
+    identifiers: &mut I,
+) -> Result<CommandOutcome, Error> {
+    let logical = WorkflowRecordIdentity::from_utf16(pending.target.original_utf16().to_vec());
+    let request = WorkflowRequest {
+        key: pending.key.clone(),
+        operation: pending.normalized.input().action().operation().into(),
+        record_id: logical.physical_text().to_owned(),
+        input: field_service_parts_receipt_json(pending.normalized.receipt_input())?,
+    };
+    let source_request = SourceOrderedWorkflowRequest {
+        key: request.key.clone(),
+        operation: request.operation.clone(),
+        record_id: logical.clone(),
+        input: request.input.clone(),
+    };
+    let mut authority = Authority {
+        current,
+        expected: &request,
+        mode,
+        guard,
+        purchases: None,
+        http_source: true,
+    };
+    let actor = authority.bind(&request)?;
+    // The retained source chooses History from the receipt's identifying columns,
+    // before application fingerprint comparison. No fingerprint grants purpose.
+    let candidate: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM command_receipts WHERE command_id=$1 AND operation=$2 AND record_id=$3 AND actor_id=$4 AND authority_json::jsonb->>'companyId'=$5)")
+        .bind(&request.key).bind(&request.operation).bind(&request.record_id)
+        .bind(current.user_id().as_str()).bind(current.selection().workspace().company_id.as_str())
+        .fetch_one(&mut *c).await?;
+    let purpose = if candidate {
+        CommandDisposition::Replay
+    } else {
+        CommandDisposition::Execute
+    };
+    authority
+        .verify_command(c, &actor, &request, purpose)
+        .await?;
+    let mut replay = ReplayEffects;
+    if let Some(result) = PgCommandLedger::new(
+        current.selection().workspace().company_id.clone(),
+        c,
+        &mut authority,
+        write,
+        identifiers,
+    )
+    .replay_source_ordered(&source_request, &mut replay)
+    .await?
+    {
+        return Ok(result);
+    }
+    // A History preflight never grants settlement for a new command.
+    if candidate {
+        authority.purchases = None;
+        authority
+            .verify_command(c, &actor, &request, CommandDisposition::Execute)
+            .await?;
+    }
+    let target = FieldServicePhysicalOrderId::from_storage(pending.target.storage_text());
+    let source = load_order(c, current, &target, guard.now())
+        .await
+        .map_err(http_source_error)?;
+    let (at, quote) = quote_pending_issue(c, &source, &pending, write, guard).await?;
+    let key = erpx_server_shared::public::CommandKey::new(pending.key)?;
+    let command = pending.normalized.into_physical_command(key, target);
+    let mut effects = Effects {
+        current,
+        command: &command,
+        mode,
+        write,
+        guard,
+        prepared: None,
+        written: None,
+        quote,
+        logical: Some(logical),
+        pending_at: Some(at),
+    };
+    PgCommandLedger::new(
+        current.selection().workspace().company_id.clone(),
+        c,
+        &mut authority,
+        write,
+        identifiers,
+    )
+    .execute_source_ordered(&source_request, &mut effects)
+    .await
+}
+
+fn http_source_error(error: Error) -> Error {
+    match error {
+        erpx_server_runtime::public::postgres::PgTransactionError::Business(e)
+            if e.code == "FIELD_SERVICE_ORDER_NOT_FOUND" =>
+        {
+            BusinessError::new(
+                FailureKind::NotFound,
+                "FIELD_SERVICE_ORDER_NOT_FOUND",
+                "The original Service source is not available in this workspace.",
+            )
+            .into()
+        }
+        other => other,
+    }
 }

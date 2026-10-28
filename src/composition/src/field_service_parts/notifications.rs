@@ -32,7 +32,7 @@ impl<'p, 'a> BeforeNotificationSource<'p, 'a> {
                 owner_key: work.command().key().clone(),
                 holding_id: source.facts().holding_id.clone(),
                 company_id: source.facts().company_id.clone(),
-                order_id: source.facts().id.clone(),
+                order_id: source.facts().id.as_str().to_owned(),
                 technician_user_id: work.technician_id().to_owned(),
                 order_version_after: work.version_after(),
                 updated_at_after: work.application_at(),

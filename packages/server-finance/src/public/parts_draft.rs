@@ -6,6 +6,6 @@ pub use crate::adapters::parts_draft::{
     lock_owned_parts_draft_sources, prepare_owned_parts_draft,
 };
 pub use crate::application::parts_draft::{
-    PartsDraftConfig, PartsDraftFacts, PartsDraftIdentity, PartsDraftPlan, PartsOwnerKind,
-    derive_parts_draft, parts_draft_identity,
+    PartsDraftConfig, PartsDraftFacts, PartsDraftIdentity, PartsDraftPlan,
+    PartsDraftSourceIdentity, PartsOwnerKind, derive_parts_draft, parts_draft_identity,
 };

@@ -132,7 +132,7 @@ impl DirectoryRequestRefresh {
         proof: DeviceProof,
         input: Input,
         policy: (WorkAuthorizationRequest, Preparation),
-        callbacks: (Ingress, F),
+        callbacks: super::authorized_work::SelectedTransportCallbacks<Ingress, I, E, F>,
     ) -> Result<Result<T, E>, PgTransactionError<BusinessError>>
     where
         T: Send + 'static,
@@ -140,20 +140,16 @@ impl DirectoryRequestRefresh {
         E: Send + 'static,
         Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
         Preparation: HoldingWorkSourcePreparation,
-        Ingress:
-            for<'c> Fn(&SelectedWorkIngress<'c>) -> Result<I, E> + Clone + Send + Sync + 'static,
-        F: for<'c> Fn(
-                &'c mut sqlx::PgConnection,
-                &'c AuthorizedWorkContext,
-                I,
-            ) -> PgWorkFuture<'c, T, BusinessError>
+        Ingress: for<'c> Fn(
+                &SelectedWorkIngress<'c>,
+            ) -> super::authorized_work::SelectedIngressFuture<I, E>
             + Clone
             + Send
             + Sync
             + 'static,
+        F: super::authorized_work::SelectedAction<I, T, E>,
     {
         let (access, preparation) = policy;
-        let (ingress, action) = callbacks;
         let prepared = self
             .refresh
             .prepare(host, proof.clone(), Box::new(input))
@@ -165,7 +161,7 @@ impl DirectoryRequestRefresh {
                     proof,
                     prepared.preflight.workspace,
                     (access, preparation, None),
-                    (ingress, action),
+                    callbacks,
                 )
                 .await;
         }
@@ -176,7 +172,7 @@ impl DirectoryRequestRefresh {
                 proof,
                 hook.workspace().clone(),
                 (access, preparation, Some(Arc::new(hook))),
-                (ingress, action),
+                callbacks,
             )
             .await
     }

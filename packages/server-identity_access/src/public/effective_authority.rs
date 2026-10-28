@@ -1,5 +1,6 @@
 pub use crate::adapters::authorized_work::{
-    HoldingWorkAuthorizer, HoldingWorkSourcePreparation, SelectedWorkIngress,
+    HoldingWorkAuthorizer, HoldingWorkSourcePreparation, SelectedIngressFuture,
+    SelectedTransportCallbacks, SelectedWorkIngress,
 };
 pub use crate::adapters::queued_work::{PgQueuedWorkAuthorizer, PgQueuedWorkSourcePort};
 pub use crate::domain::effective_authority::{

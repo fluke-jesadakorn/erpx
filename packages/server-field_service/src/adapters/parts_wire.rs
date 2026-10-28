@@ -14,6 +14,7 @@ pub enum FieldServiceIssuePath {
 pub struct FieldServiceWireIssue {
     pub code: &'static str,
     pub path: Vec<FieldServiceIssuePath>,
+    pub message: String,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FieldServiceWireFailure {
@@ -27,10 +28,14 @@ impl FieldServiceWireFailure {
             issues: vec![],
         }
     }
-    fn validation(code: &'static str, path: Vec<FieldServiceIssuePath>) -> Self {
+    fn validation(code: &'static str, path: Vec<FieldServiceIssuePath>, message: String) -> Self {
         Self {
             invalid_json: false,
-            issues: vec![FieldServiceWireIssue { code, path }],
+            issues: vec![FieldServiceWireIssue {
+                code,
+                path,
+                message,
+            }],
         }
     }
 }
@@ -42,9 +47,27 @@ fn document(bytes: &[u8]) -> Result<CommandJson, FieldServiceWireFailure> {
     let text = text.strip_prefix('\u{feff}').unwrap_or(&text);
     let body = CommandJson::parse(text).map_err(|_| FieldServiceWireFailure::json())?;
     if !body.as_str().starts_with('{') {
-        return Err(FieldServiceWireFailure::validation("invalid_type", vec![]));
+        return Err(FieldServiceWireFailure::validation(
+            "invalid_type",
+            vec![],
+            format!(
+                "Invalid input: expected object, received {}",
+                received(Some(&body))
+            ),
+        ));
     }
     Ok(body)
+}
+fn received(value: Option<&CommandJson>) -> &'static str {
+    match value.map(CommandJson::as_str) {
+        None => "undefined",
+        Some("null") => "null",
+        Some("true" | "false") => "boolean",
+        Some(v) if v.starts_with('"') => "string",
+        Some(v) if v.starts_with('[') => "array",
+        Some(v) if v.starts_with('{') => "object",
+        Some(_) => "number",
+    }
 }
 fn property(v: &CommandJson, name: &str) -> Option<CommandJson> {
     v.property(name).ok().flatten()
@@ -57,10 +80,11 @@ struct Validation {
     issues: Vec<FieldServiceWireIssue>,
 }
 impl Validation {
-    fn issue(&mut self, code: &'static str, path: &[FieldServiceIssuePath]) {
+    fn issue(&mut self, code: &'static str, path: &[FieldServiceIssuePath], message: String) {
         self.issues.push(FieldServiceWireIssue {
             code,
             path: path.to_vec(),
+            message,
         });
     }
     fn string(
@@ -71,8 +95,18 @@ impl Validation {
         maximum: Option<usize>,
         trim: bool,
     ) -> Option<CommandJson> {
-        let Some(mut units) = v.and_then(|x| x.string_utf16_units().ok().flatten()) else {
-            self.issue("invalid_type", path);
+        let Some(mut units) = v
+            .as_ref()
+            .and_then(|x| x.string_utf16_units().ok().flatten())
+        else {
+            self.issue(
+                "invalid_type",
+                path,
+                format!(
+                    "Invalid input: expected string, received {}",
+                    received(v.as_ref())
+                ),
+            );
             return None;
         };
         if trim {
@@ -90,10 +124,21 @@ impl Validation {
         // individually. Preserve those exact units in normalized receipt identity.
         let length = char::decode_utf16(units.iter().copied()).count();
         if length < minimum {
-            self.issue("too_small", path);
+            self.issue(
+                "too_small",
+                path,
+                format!("Too small: expected string to have >={minimum} characters"),
+            );
         }
         if maximum.is_some_and(|m| length > m) {
-            self.issue("too_big", path);
+            self.issue(
+                "too_big",
+                path,
+                format!(
+                    "Too big: expected string to have <={} characters",
+                    maximum.expect("checked maximum")
+                ),
+            );
         }
         CommandJson::from_utf16_string(&units).ok()
     }
@@ -106,22 +151,58 @@ impl Validation {
         let Some(value) = v
             .as_ref()
             .and_then(|x| x.as_str().parse::<f64>().ok())
-            .filter(|x| x.is_finite() && x.fract() == 0.0)
+            .filter(|x| x.is_finite())
         else {
-            self.issue("invalid_type", path);
+            self.issue(
+                "invalid_type",
+                path,
+                format!(
+                    "Invalid input: expected number, received {}",
+                    received(v.as_ref())
+                ),
+            );
             return None;
         };
+        if value.fract() != 0.0 {
+            self.issue(
+                "invalid_type",
+                path,
+                "Invalid input: expected int, received number".into(),
+            );
+            return None;
+        }
         const MAX: f64 = 9_007_199_254_740_991.0;
         if value > MAX {
-            self.issue("too_big", path);
+            self.issue(
+                "too_big",
+                path,
+                "Too big: expected int to be <=9007199254740991".into(),
+            );
         } else if value < -MAX {
-            self.issue("too_small", path);
+            self.issue(
+                "too_small",
+                path,
+                "Too small: expected int to be >=-9007199254740991".into(),
+            );
         }
         if value <= 0.0 {
-            self.issue("too_small", path);
+            self.issue(
+                "too_small",
+                path,
+                "Too small: expected number to be >0".into(),
+            );
         }
         if extra_safe && !(-MAX..=MAX).contains(&value) {
-            self.issue(if value > 0.0 { "too_big" } else { "too_small" }, path);
+            self.issue(
+                if value > 0.0 { "too_big" } else { "too_small" },
+                path,
+                if value > 0.0 {
+                    "Too big: expected int to be <=9007199254740991"
+                } else {
+                    "Too small: expected int to be >=-9007199254740991"
+                }
+                .into(),
+            );
         }
         v
     }
@@ -134,7 +215,7 @@ impl Validation {
         if let Some(n) = &normalized {
             let s = n.string_utf8_storage().ok().flatten().unwrap_or_default();
             if !iso_date(&s) {
-                self.issue("invalid_format", path);
+                self.issue("invalid_format", path, "Invalid ISO date".into());
             }
         }
         normalized
@@ -145,13 +226,24 @@ impl Validation {
             return CommandJson::parse("[]").ok();
         };
         let Some(values) = v.array_elements().ok().flatten() else {
-            self.issue("invalid_type", &path);
+            self.issue(
+                "invalid_type",
+                &path,
+                format!(
+                    "Invalid input: expected array, received {}",
+                    received(Some(&v))
+                ),
+            );
             return None;
         };
         // The pinned original array bound rejects before child validation.
         // Preserve that failure order and avoid traversing oversized input.
         if values.len() > 200 {
-            self.issue("too_big", &path);
+            self.issue(
+                "too_big",
+                &path,
+                "Too big: expected array to have <=200 items".into(),
+            );
             return None;
         }
         let mut normalized = Vec::with_capacity(values.len());
@@ -159,7 +251,14 @@ impl Validation {
             let mut prefix = path.clone();
             prefix.push(FieldServiceIssuePath::Index(index));
             if !lot.as_str().starts_with('{') {
-                self.issue("invalid_type", &prefix);
+                self.issue(
+                    "invalid_type",
+                    &prefix,
+                    format!(
+                        "Invalid input: expected object, received {}",
+                        received(Some(lot))
+                    ),
+                );
                 continue;
             }
             let mut fields = vec![];
@@ -262,7 +361,7 @@ pub fn normalize_field_service_parts(
     let action = property(&body, "action")
         .and_then(|x| x.string_utf8_storage().ok().flatten())
         .filter(|s| ["reserve-part", "issue-part"].contains(&s.as_str()))
-        .ok_or_else(|| FieldServiceWireFailure::validation("invalid_union", field("action")))?;
+        .ok_or_else(|| FieldServiceWireFailure::validation("invalid_union", field("action"), "Invalid discriminator value. Expected 'schedule' | 'reserve-part' | 'issue-part' | 'dispatch' | 'start' | 'resume' | 'cancel' | 'exception' | 'complete' | 'release-billing'".into()))?;
     let mut check = Validation::default();
     let mut fields = vec![(
         "action",

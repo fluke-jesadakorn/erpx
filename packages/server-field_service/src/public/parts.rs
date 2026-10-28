@@ -15,3 +15,8 @@ pub use crate::domain::parts::{
     FieldServicePartsAuthorityFacts, parts_capabilities, require_future_reservation,
     require_parts_authority,
 };
+
+pub use crate::adapters::http_parts::field_service_first_wire_message;
+pub use crate::application::http_parts::{
+    FieldServicePhysicalOrderId, FieldServiceRawOrderTarget, PendingFieldServiceParts,
+};
