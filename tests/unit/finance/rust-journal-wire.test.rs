@@ -72,3 +72,22 @@ fn absent_empty_and_null_memo_remain_distinct_and_unknown_fields_cannot_supply_a
     );
     assert_eq!(normalize_journal_post(br#"{"expectedVersion":1,"input":{"memo":"private"},"request_hash":"attacker","permissions":["*"]}"#).unwrap().normalized_json(),"{\"expectedVersion\":1}");
 }
+
+#[test]
+fn manual_create_wire_preserves_ordered_normalized_fields_and_forces_manual_source() {
+    use erpx_server_finance::public::journal_create_wire::normalize_manual_journal_create;
+    let input = br#"{ "lines":[{"accountId":"cash","debit":"1.00","credit":"0","dimensions":{"z":"last","1":"one","a":"first"}},{"accountId":"sales","debit":"0","credit":"1.00"}],"isOpening":true,"sourceId":"untrusted","sourceType":"fiscal_close","currency":"thb","entryDate":"2026-01-05","periodId":"period","chartId":"chart","ignored":1e400 }"#;
+    let normalized = normalize_manual_journal_create(input).unwrap();
+    assert_eq!(
+        normalized.normalized().as_str(),
+        r#"{"chartId":"chart","periodId":"period","entryDate":"2026-01-05","currency":"THB","memo":"","sourceType":"manual","isOpening":false,"lines":[{"accountId":"cash","debit":"1.00","credit":"0","dimensions":{"1":"one","z":"last","a":"first"}},{"accountId":"sales","debit":"0","credit":"1.00"}]}"#
+    );
+    assert_eq!(normalized.draft().source_type, "manual");
+    assert!(normalized.draft().source_id.is_none());
+    assert!(!normalized.draft().is_opening);
+    for input in [
+        br#"{"chartId":"chart","periodId":"period","entryDate":"2026-01-05","currency":"THB","isOpening":null,"lines":[]}"#.as_slice(),
+        br#"{"chartId":"chart","periodId":"period","entryDate":"2026-01-05","currency":"THB","lines":[{"accountId":"cash","debit":"1.0000000","credit":"0"},{"accountId":"sales","debit":"0","credit":"1"}]}"#.as_slice(),
+        br#"{"chartId":"chart","periodId":"period","entryDate":"2026-01-05","currency":"THB","lines":[{"accountId":"cash","debit":"1","credit":"0","dimensions":{"bad":"\ud800"}},{"accountId":"sales","debit":"0","credit":"1"}]}"#.as_slice(),
+    ] { assert!(normalize_manual_journal_create(input).is_err()); }
+}

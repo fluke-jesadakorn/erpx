@@ -295,7 +295,7 @@ fn scope_error() -> BusinessError {
         "Choose the current authorized Finance workspace.",
     )
 }
-fn finance_actor(current: &AuthorizedWorkContext) -> FinanceActor {
+pub(crate) fn finance_actor(current: &AuthorizedWorkContext) -> FinanceActor {
     FinanceActor {
         holding_id: current.holding_id().clone(),
         company_id: current.selection().workspace().company_id.clone(),
@@ -304,7 +304,9 @@ fn finance_actor(current: &AuthorizedWorkContext) -> FinanceActor {
     }
 }
 /// Shared Workflow wire projection, not an independently constructed grant.
-fn command_actor(current: &AuthorizedWorkContext) -> Result<CommandActor, BusinessError> {
+pub(crate) fn command_actor(
+    current: &AuthorizedWorkContext,
+) -> Result<CommandActor, BusinessError> {
     let selected = current.selection();
     let workspace = selected.workspace();
     let assignment = selected.assignment();

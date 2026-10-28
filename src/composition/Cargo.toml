@@ -207,3 +207,8 @@ required-features = ["private-development-api"]
 name = "export-finance-journal-post-contracts"
 path = "../../scripts/docs/export-finance-journal-post-contracts.rs"
 required-features = ["contracts"]
+
+[[example]]
+name = "export-finance-journal-create-contracts"
+path = "../../scripts/docs/export-finance-journal-create-contracts.rs"
+required-features = ["contracts"]

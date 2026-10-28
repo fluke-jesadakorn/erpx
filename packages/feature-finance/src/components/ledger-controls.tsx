@@ -1,5 +1,5 @@
 "use client";
-import { useFinanceDraftScope, useFinanceDraftClose, captureFinanceForm, acknowledgeFinanceForm } from "@erpx/feature-finance/components/finance-draft-boundary";
+import { useFinanceDraftScope, useFinanceDraftClose, captureFinanceForm, acknowledgeFinanceForm, markFinanceFormEdited } from "@erpx/feature-finance/components/finance-draft-boundary";
 import { canonicalUiHref } from "@erpx/feature-work_projection/lib/destination-registry";
 import { InlineNotice } from "@erpx/ui/components/foundation";
 
@@ -18,6 +18,7 @@ import {
 import { Card, Stack, FormGrid, FormLayout } from "@erpx/ui/components/foundation";
 import { useFinanceActionAllowed } from "@erpx/feature-finance/components/purchase-context";
 import {financeDocumentCommandAllowed, financeDocumentCommandContext, financeDocumentFormUnchanged, type FinanceDocumentPostControl} from "@erpx/feature-finance/lib/document-post-control";
+import { useNativeJournalCreate } from "./use-native-journal-create";
 import { NativeJournalReverse } from "./native-journal-reverse";
 import { NativeJournalPost } from "./native-journal-post";
 import type { PostContext } from "../application/native-journal-post";
@@ -78,6 +79,7 @@ export function JournalEditor({
   initialOpen = false,
   draft,
   draftLines=[],
+  nativeCreate,
 }: {
   base: string;
   chart: LedgerRow;
@@ -88,9 +90,13 @@ export function JournalEditor({
   initialOpen?: boolean;
   draft?:LedgerRow;
   draftLines?:LedgerRow[];
+  nativeCreate?: { context?: PostContext };
 }) {
   const draftScope = useFinanceDraftScope();
   const { send, pending, error, canSend } = useFinanceCommand(base, "new-work");
+  const nativeAllowed = useFinanceActionAllowed("new-work", "finance.accounting");
+  const native = useNativeJournalCreate(base, nativeCreate?.context, nativeAllowed);
+  const formRef = useRef<HTMLFormElement>(null);
   const [open, setOpen] = useState(initialOpen);
   const closeEditor = useFinanceDraftClose(() => setOpen(false));
   const [lines, setLines] = useState<Array<{accountId:string;debit:string;credit:string;description?:string;dimensions?:Record<string,string>}>>(draft?draftLines.map(l=>({accountId:String(l.account_id),debit:minorToDecimal(Number(l.debit_minor)),credit:minorToDecimal(Number(l.credit_minor)),description:String(l.description??""),dimensions:JSON.parse(String(l.dimension_json??"{}"))})):[
@@ -107,17 +113,17 @@ export function JournalEditor({
           </Button>
         )}
       </div>
-      {error && (
+      {(error || native.message) && (
         <InlineNotice tone="danger" className="error" role="alert">
-          {error}
+          {error || native.message}
         </InlineNotice>
       )}
       {open && (
-        <FormDrawer appearance="standard" inline={initialOpen} open={open} onClose={closeEditor} title={draft?"Edit manual draft":"Create journal"} dismissDisabled={pending}><Stack as="div" className="ui-stack">{error && <InlineNotice tone="danger" role="alert" className="error">{error}</InlineNotice>}<form data-finance-draft={draftScope}
+        <FormDrawer appearance="standard" inline={initialOpen} open={open} onClose={closeEditor} title={draft?"Edit manual draft":"Create journal"} dismissDisabled={pending || native.busy}><Stack as="div" className="ui-stack">{(error || native.message) && <InlineNotice tone="danger" role="alert" className="error">{error || native.message}</InlineNotice>}<form ref={formRef} data-finance-draft={draftScope}
           onSubmit={(e) => {
             e.preventDefault();
             const f = new FormData(e.currentTarget);
-            void send(draft?`journals/${draft.id}/edit`:"journals", {
+            const input = {
               ...(draft?{expectedVersion:Number(draft.version),reason:f.get("reason")}:{sourceType:"manual"}),
               chartId: chart.id,
               periodId: f.get("periodId"),
@@ -125,7 +131,9 @@ export function JournalEditor({
               currency: draft?.currency??chart.base_currency,
               memo: f.get("memo"),
               lines,
-            });
+            };
+            if (!draft && nativeCreate) void native.send(e.currentTarget, input);
+            else void send(draft?`journals/${draft.id}/edit`:"journals", input);
           }}
         >
           <FormGrid as="div" className="ui-form-grid">
@@ -211,7 +219,7 @@ export function JournalEditor({
                 <Button appearance="standard"
                   variant="secondary"
                   type="button"
-                  onClick={() => setLines(lines.filter((_, j) => j !== i))}
+                  onClick={() => { markFinanceFormEdited(formRef.current); setLines(lines.filter((_, j) => j !== i)); }}
                 >
                   Remove line
                 </Button>
@@ -222,12 +230,12 @@ export function JournalEditor({
             <Button appearance="standard"
               variant="secondary"
               type="button"
-              onClick={() => setLines([...lines, { accountId: "", debit: "0", credit: "0" }])}
+              onClick={() => { markFinanceFormEdited(formRef.current); setLines([...lines, { accountId: "", debit: "0", credit: "0" }]); }}
             >
               Add line
             </Button>
-            <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={pending || !canSend}>
-              Save draft
+            <Button appearance="standard" clientManaged type="submit" formNoValidate={!!nativeCreate && native.hasAttempt} variant="primary" disabled={pending || native.busy || (!canSend && !native.hasAttempt) || !!nativeCreate && !nativeCreate.context && !native.hasAttempt}>
+              {nativeCreate && native.hasAttempt ? native.saved ? "Retry readback" : "Retry original creation" : "Save draft"}
             </Button>
             <span className="muted">
               Currency {String(chart.base_currency)} · another finance approver must post this

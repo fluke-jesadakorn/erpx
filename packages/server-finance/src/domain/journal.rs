@@ -30,14 +30,17 @@ impl std::fmt::Display for JournalError {
 impl std::error::Error for JournalError {}
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct JournalLineInput {
     pub account_id: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "contracts", ts(optional))]
     pub description: Option<String>,
     pub debit: String,
     pub credit: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "contracts", ts(optional))]
     pub dimensions: Option<BTreeMap<String, String>>,
 }
 

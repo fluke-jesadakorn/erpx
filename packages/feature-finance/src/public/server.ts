@@ -4,4 +4,4 @@ export type {NativeFinanceReadConfiguration,NativeJournalReadInput,NativeFinance
 export {createNextNativeJournalDetailReader,createNextNativeJournalWorkspaceReader} from '../adapters/server/next-native-journal-detail';
 export {createNativeJournalPageReader,nativeJournalPageWorkspace,nativeJournalPageFailure} from '../adapters/server/native-journal-page';
 export type {NativeJournalPageContext} from '../adapters/server/native-journal-page';
-export {nativeJournalPost,nativeJournalPostReadback,nativeJournalReverse,nativeJournalReverseReadback} from '../adapters/server/native-journal-post';
+export {nativeJournalCreate,nativeJournalCreateReadback,nativeJournalPost,nativeJournalPostReadback,nativeJournalReverse,nativeJournalReverseReadback} from '../adapters/server/native-journal-post';

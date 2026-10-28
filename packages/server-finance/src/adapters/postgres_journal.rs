@@ -28,6 +28,78 @@ impl<'c> PgJournalStore<'c> {
         }
     }
 
+    /// Verify every persisted draft field and line on the original transaction.
+    /// The caller invokes this after Workflow audit/outbox effects and before
+    /// the final current-authority check; this never commits.
+    pub async fn retain_manual_draft(
+        &mut self,
+        plan: &JournalPreparation,
+    ) -> Result<(), PgTransactionError<JournalError>> {
+        if !self.connection.is_in_transaction() {
+            return Err(PersistenceError::new("JOURNAL_OWNER_TRANSACTION_REQUIRED").into());
+        }
+        let witness = plan
+            .transaction_witness
+            .as_ref()
+            .ok_or_else(|| PersistenceError::new("JOURNAL_TRANSACTION_WITNESS_REQUIRED"))?;
+        if &current_transaction_witness(self.connection).await? != witness
+            || plan.actor.holding_id != self.holding_id
+            || plan.actor.company_id != self.company_id
+            || !matches!(plan.result.status, JournalStatus::Draft)
+            || plan.draft.source_type != "manual"
+            || plan.draft.source_id.is_some()
+            || plan.draft.is_opening
+        {
+            return Err(conflict(
+                "JOURNAL_SOURCE_CHANGED",
+                "The prepared manual journal changed.",
+            ));
+        }
+        let draft = &plan.draft;
+        let expected = serde_json::json!({"id":plan.journal_id,"company_id":self.company_id.as_str(),"chart_id":draft.chart_id,"period_id":draft.period_id,"journal_number":plan.number,"entry_date":draft.entry_date,"currency":draft.currency,"fx_rate_micros":plan.fx,"source_type":"manual","source_id":null,"memo":draft.memo,"status":"draft","is_opening":0,"version":1,"created_by":plan.actor.user_id.as_str(),"posted_by":null,"posted_at":null,"reversed_by":null,"reversed_at":null,"created_at":plan.now.get(),"updated_at":plan.now.get()});
+        let actual: Option<serde_json::Value> = sqlx::query_scalar(
+            "SELECT to_jsonb(j) FROM finance_journals j WHERE id=$1 AND company_id=$2 FOR SHARE",
+        )
+        .bind(&plan.journal_id)
+        .bind(self.company_id.as_str())
+        .fetch_optional(&mut *self.connection)
+        .await?;
+        if actual.as_ref() != Some(&expected) {
+            return Err(conflict(
+                "JOURNAL_SOURCE_CHANGED",
+                "The prepared manual journal changed.",
+            ));
+        }
+        let rows: Vec<serde_json::Value> = sqlx::query_scalar("SELECT to_jsonb(l) FROM finance_journal_lines l WHERE journal_id=$1 ORDER BY ordinal,id FOR SHARE")
+            .bind(&plan.journal_id).fetch_all(&mut *self.connection).await?;
+        if rows.len() != plan.amounts.lines.len() {
+            return Err(conflict(
+                "JOURNAL_SOURCE_CHANGED",
+                "The prepared manual journal changed.",
+            ));
+        }
+        for (index, (row, line)) in rows.iter().zip(&plan.amounts.lines).enumerate() {
+            let dimensions = serde_json::to_string(&line.dimensions.clone().unwrap_or_default())
+                .map_err(|_| PersistenceError::new("JOURNAL_DIMENSION_ENCODING_FAILED"))?;
+            let expected = serde_json::json!({"id":format!("{}-{index}",plan.journal_id),"journal_id":plan.journal_id,"account_id":line.account_id,"description":line.description.as_deref().unwrap_or(""),"debit_minor":line.debit,"credit_minor":line.credit,"base_debit_minor":line.base_debit,"base_credit_minor":line.base_credit,"dimension_json":dimensions,"ordinal":index});
+            if row != &expected {
+                return Err(conflict(
+                    "JOURNAL_SOURCE_CHANGED",
+                    "The prepared manual journal changed.",
+                ));
+            }
+        }
+        let unexpected: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM money_transaction_snapshots WHERE company_id=$1 AND source_type='finance_journal' AND source_id=$2) OR EXISTS(SELECT 1 FROM finance_book_postings WHERE company_id=$1 AND (primary_journal_id=$2 OR secondary_journal_id=$2)) OR EXISTS(SELECT 1 FROM finance_financial_events WHERE company_id=$1 AND journal_id=$2)")
+            .bind(self.company_id.as_str()).bind(&plan.journal_id).fetch_one(&mut *self.connection).await?;
+        if unexpected {
+            return Err(conflict(
+                "JOURNAL_SOURCE_CHANGED",
+                "The prepared manual journal changed.",
+            ));
+        }
+        Ok(())
+    }
+
     /// Persists no independent receipt or commit: the caller must commit source work,
     /// command receipt, audit and outbox atomically on this same connection.
     pub async fn persist(

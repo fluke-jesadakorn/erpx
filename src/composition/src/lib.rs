@@ -69,3 +69,8 @@ mod field_service_http_wire;
 
 #[cfg(feature = "business-http")]
 mod field_service_http_core;
+
+pub mod finance_journal_create;
+
+#[cfg(feature = "business-http")]
+pub mod finance_journal_create_http;

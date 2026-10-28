@@ -1,11 +1,14 @@
 pub mod journal_review;
 pub use crate::adapters::postgres_journal::PgJournalStore;
-pub use crate::adapters::postgres_journal_facts::{PgJournalPreparation, embedded_currency_rules};
+pub use crate::adapters::postgres_journal_facts::{
+    PgJournalPreparation, PgManualJournalCreateSources, embedded_currency_rules,
+};
 pub use crate::application::journal::JournalAuthority;
 pub use crate::application::journal::JournalTransactionWitness;
 pub use crate::application::journal::{
     FinanceActor, FunctionalFxEvidence, JournalChart, JournalDraft, JournalPreparation,
-    JournalPreparationPorts, JournalStatus, PreparedJournalResult, prepare_journal,
+    JournalPreparationPorts, JournalStatus, ManualJournalCreateInput, PreparedJournalResult,
+    prepare_journal,
 };
 pub use crate::domain::calculation_methods::{
     AllocationInput, AllocationResult, ConsolidationInput, ConsolidationResult, FinanceCalculation,
@@ -52,3 +55,5 @@ pub mod parts_draft;
 pub mod journal_settlement;
 
 pub mod field_service_customer;
+
+pub mod journal_create_wire;

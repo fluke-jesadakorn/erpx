@@ -80,7 +80,7 @@ async fn main() {
             "holdings":[
                 {"holdingId":"h001","slug":"acme","host":"acme.jesadakorn.com","writeBinding":"HOLDING_H001_DB","readBinding":"HOLDING_H001_READ_DB","filesBinding":"HOLDING_H001_FILES","database":h001},
                 {"holdingId":"h002","slug":"northstar","host":"northstar.jesadakorn.com","writeBinding":"HOLDING_H002_DB","readBinding":"HOLDING_H002_READ_DB","filesBinding":"HOLDING_H002_FILES","database":h002}
-            ],"financeJournalReads":[{"holdingId":"h001","companyId":"company"}],"financeJournalPosts":["h001"],"financeJournalReversals":["h001"],"accountBootstrap":true
+            ],"financeJournalReads":[{"holdingId":"h001","companyId":"company"}],"financeJournalCreates":["h001"],"financeJournalPosts":["h001"],"financeJournalReversals":["h001"],"accountBootstrap":true
         });
         let configuration = DevelopmentApiConfiguration::parse(&doc.to_string()).expect("invalid explicit native case configuration");
         let manifest = serde_json::json!({"version":1,"databases":{
@@ -94,7 +94,7 @@ async fn main() {
         let mut files = CaseFiles(Vec::new());
         files.0.push(write_private(&dir, "native-api.json", &doc));
         files.0.push(write_private(&dir, "databases.json", &manifest));
-        files.0.push(write_private(&dir, "credentials.json", &serde_json::json!({"email":"b@example.test","password":finance::account::fixture::PASSWORD,"journalId":"journal-development"})));
+        files.0.push(write_private(&dir, "credentials.json", &serde_json::json!({"email":"b@example.test","creatorEmail":"a@example.test","password":finance::account::fixture::PASSWORD,"journalId":"journal-development"})));
         let runtime = assemble_development_api(configuration, Arc::new(SystemAccountClock), Arc::new(SystemAuthenticationSecrets)).await.expect("native case assembly failed");
         let listener = tokio::net::TcpListener::bind(runtime.listen_address()).await.expect("private case listener unavailable");
         println!("{}", dir.join("databases.json").display());

@@ -134,6 +134,13 @@ fn finance_read_requires_distinct_registered_holdings_and_valid_companies() {
     d["financeJournalPosts"] = serde_json::json!(["h001", "h001"]);
     assert!(!parses(&d));
     d["financeJournalPosts"] = serde_json::json!([]);
+    d["financeJournalCreates"] = serde_json::json!(["h001"]);
+    assert!(parses(&d));
+    d["financeJournalCreates"] = serde_json::json!(["h002"]);
+    assert!(!parses(&d));
+    d["financeJournalCreates"] = serde_json::json!(["h001", "h001"]);
+    assert!(!parses(&d));
+    d["financeJournalCreates"] = serde_json::json!([]);
     d["financeJournalReversals"] = serde_json::json!(["h001"]);
     assert!(parses(&d));
     d["financeJournalReversals"] = serde_json::json!(["h002"]);
@@ -153,4 +160,23 @@ fn finance_read_requires_distinct_registered_holdings_and_valid_companies() {
         d["financeJournalReads"] = entries;
         assert!(!parses(&d));
     }
+}
+
+#[test]
+fn manual_create_configuration_never_admits_production() {
+    use erpx_server_commercial::public::purchases::current_package_catalogue;
+    use erpx_server_shared::public::{CompanyId, HoldingId};
+    use erpx_service::{
+        finance_journal_create::FinanceJournalCreateConfiguration,
+        finance_journal_review::FinanceJournalEnvironment,
+    };
+    assert!(
+        FinanceJournalCreateConfiguration::new(
+            FinanceJournalEnvironment::Production,
+            HoldingId::new("h001").unwrap(),
+            CompanyId::new("company").unwrap(),
+            std::sync::Arc::new(current_package_catalogue().unwrap())
+        )
+        .is_err()
+    );
 }

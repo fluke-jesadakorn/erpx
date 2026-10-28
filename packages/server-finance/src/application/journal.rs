@@ -3,7 +3,7 @@ use std::future::Future;
 use erpx_server_shared::public::{
     AssignmentId, CommandKey, CompanyId, FailureKind, HoldingId, TimestampMillis, UserId,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::domain::journal::{
     JournalAmounts, JournalError, JournalLineInput, functional_fx_micros, prepare_journal_amounts,
@@ -17,6 +17,34 @@ pub struct FinanceActor {
     pub holding_id: HoldingId,
     pub company_id: CompanyId,
     pub assignment_id: AssignmentId,
+}
+
+/// Public browser request shape. The private manual-create ingress validates
+/// the complete input then always chooses manual ownership and no source ID.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct ManualJournalCreateInput {
+    pub chart_id: String,
+    pub period_id: String,
+    pub entry_date: String,
+    pub currency: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "contracts", ts(optional))]
+    pub fx_rate: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "contracts", ts(optional))]
+    pub memo: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "contracts", ts(optional))]
+    pub source_type: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "contracts", ts(optional))]
+    pub source_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "contracts", ts(optional))]
+    pub is_opening: Option<bool>,
+    pub lines: Vec<JournalLineInput>,
 }
 
 #[derive(Clone, Debug)]
@@ -51,6 +79,7 @@ pub trait JournalAuthority {
 }
 
 #[derive(Clone, Copy, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(rename_all = "lowercase")]
 pub enum JournalStatus {
     Draft,
@@ -58,6 +87,7 @@ pub enum JournalStatus {
 }
 
 #[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct PreparedJournalResult {
     pub id: String,
@@ -66,6 +96,8 @@ pub struct PreparedJournalResult {
     pub version: u32,
     pub debit: String,
     pub credit: String,
+    #[cfg_attr(feature = "contracts", ts(type = "number"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = i64, minimum = 1, maximum = 1_000_000_000_000_i64))]
     pub fx_rate_micros: i64,
     pub base_currency: String,
 }

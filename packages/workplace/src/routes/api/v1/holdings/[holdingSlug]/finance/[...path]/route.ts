@@ -1,4 +1,4 @@
-import { nativeJournalPost, nativeJournalPostReadback, nativeJournalReverse, nativeJournalReverseReadback } from "@erpx/feature-finance/public/server";
+import { nativeJournalCreate, nativeJournalCreateReadback, nativeJournalPost, nativeJournalPostReadback, nativeJournalReverse, nativeJournalReverseReadback } from "@erpx/feature-finance/public/server";
 import {expensePostingPrerequisites,createExpensePostingChart,createExpensePostingAccount,createExpensePostingPeriod,confirmExpensePostingRate,expensePostingPrerequisiteConfirmation,expensePostingChartSchema,expensePostingAccountSchema,expensePostingPeriodSchema,expensePostingRateSchema,expensePostingPrerequisiteConfirmationSchema} from '@erpx/server-finance/public/expense-posting-prerequisites';
 import {expensePostingSetup,initializeExpensePostingSetup,expensePostingSetupSchema} from '@erpx/server-commerce/public/expense-posting-setup';
 import {confirmServiceNoCharge} from "@erpx/server-finance/public/service-no-charge";
@@ -84,6 +84,11 @@ export async function GET(request: Request, context: FinanceRouteContext) {
   try {
     const { holdingSlug, path } = await context.params;
     const parts = segments(path);
+    if (parts.length === 3 && parts[0] === "journals" && parts[2] === "create-workspace") {
+      const response = await nativeJournalCreateReadback(request, holdingSlug, parts[1]);
+      if (response) return response;
+      throw new ApiError(404, "NOT_FOUND", "Journal not found.");
+    }
     if (parts.length === 3 && parts[0] === "journals" && parts[2] === "reversal-workspace") {
       const response = await nativeJournalReverseReadback(request, holdingSlug, parts[1]);
       if (response) return response;
@@ -186,6 +191,10 @@ export async function POST(request: Request, context: FinanceRouteContext) {
     const origin=request.headers.get("origin");if(origin&&origin!==requestPublicOrigin(request))throw new ApiError(403,"ORIGIN_FORBIDDEN","Use the application origin.");
     const { holdingSlug, path } = await context.params;
     const parts = segments(path);
+    if (parts.length === 1 && parts[0] === "journals") {
+      const response = await nativeJournalCreate(request, holdingSlug);
+      if (response) return response;
+    }
     if (parts.length === 3 && parts[0] === "journals" && parts[2] === "reverse") {
       const response = await nativeJournalReverse(request, holdingSlug, parts[1]);
       if (response) return response;

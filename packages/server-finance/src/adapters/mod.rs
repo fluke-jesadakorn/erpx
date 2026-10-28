@@ -15,3 +15,5 @@ pub(crate) mod parts_draft;
 pub(crate) mod journal_settlement;
 
 pub(crate) mod field_service_customer;
+
+pub(crate) mod journal_create_wire;

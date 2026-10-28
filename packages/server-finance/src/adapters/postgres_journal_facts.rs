@@ -254,3 +254,74 @@ fn conflict(code: &'static str, message: &'static str) -> PgTransactionError<Jou
     }
     .into()
 }
+
+/// Same-transaction retained Finance source image for manual creation. It
+/// includes absence and all candidate FX/period facts used by preparation.
+pub struct PgManualJournalCreateSources {
+    witness: JournalTransactionWitness,
+    company: CompanyId,
+    chart: String,
+    account_ids: Vec<String>,
+    image: Vec<Vec<String>>,
+}
+impl PgManualJournalCreateSources {
+    async fn image(
+        c: &mut PgConnection,
+        company: &CompanyId,
+        chart: &str,
+        account_ids: &[String],
+    ) -> Result<Vec<Vec<String>>, PgTransactionError<JournalError>> {
+        let chart_rows=sqlx::query_scalar("SELECT to_jsonb(x)::text FROM (SELECT * FROM finance_charts WHERE company_id=$1 AND id=$2 ORDER BY id) x").bind(company.as_str()).bind(chart).fetch_all(&mut *c).await?;
+        let account_rows=sqlx::query_scalar("SELECT to_jsonb(x)::text FROM (SELECT * FROM finance_accounts WHERE company_id=$1 AND id=ANY($2) ORDER BY id) x").bind(company.as_str()).bind(account_ids).fetch_all(&mut *c).await?;
+        let period_rows=sqlx::query_scalar("SELECT to_jsonb(x)::text FROM (SELECT * FROM finance_periods WHERE company_id=$1 ORDER BY id) x").bind(company.as_str()).fetch_all(&mut *c).await?;
+        let scale_rows=sqlx::query_scalar("SELECT to_jsonb(x)::text FROM (SELECT * FROM company_currency_scales WHERE company_id=$1 ORDER BY currency) x").bind(company.as_str()).fetch_all(&mut *c).await?;
+        let rate_rows=sqlx::query_scalar("SELECT to_jsonb(x)::text FROM (SELECT * FROM company_fx_rates WHERE company_id=$1 ORDER BY id) x").bind(company.as_str()).fetch_all(&mut *c).await?;
+        Ok(vec![
+            chart_rows,
+            account_rows,
+            period_rows,
+            scale_rows,
+            rate_rows,
+        ])
+    }
+    pub async fn capture(
+        c: &mut PgConnection,
+        actor: &FinanceActor,
+        draft: &JournalDraft,
+    ) -> Result<Self, PgTransactionError<JournalError>> {
+        if !c.is_in_transaction() {
+            return Err(PersistenceError::new("JOURNAL_OWNER_TRANSACTION_REQUIRED").into());
+        }
+        let witness = current_transaction_witness(c).await?;
+        let mut account_ids: Vec<_> = draft
+            .lines
+            .iter()
+            .map(|line| line.account_id.clone())
+            .collect();
+        account_ids.sort();
+        account_ids.dedup();
+        let image = Self::image(c, &actor.company_id, &draft.chart_id, &account_ids).await?;
+        Ok(Self {
+            witness,
+            company: actor.company_id.clone(),
+            chart: draft.chart_id.clone(),
+            account_ids,
+            image,
+        })
+    }
+    pub async fn require_current(
+        &self,
+        c: &mut PgConnection,
+    ) -> Result<(), PgTransactionError<JournalError>> {
+        if !c.is_in_transaction()
+            || current_transaction_witness(c).await? != self.witness
+            || Self::image(c, &self.company, &self.chart, &self.account_ids).await? != self.image
+        {
+            return Err(conflict(
+                "JOURNAL_SOURCE_CHANGED",
+                "The prepared journal sources changed.",
+            ));
+        }
+        Ok(())
+    }
+}
