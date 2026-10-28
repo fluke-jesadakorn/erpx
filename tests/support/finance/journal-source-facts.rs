@@ -2,7 +2,7 @@
 //! ledger and canonical native Finance prepare/persist operations, never fake
 //! receipt INSERTs. This does not stand in for service Identity composition.
 #[path = "journal-facts.rs"]
-mod preparation;
+pub mod preparation;
 #[path = "review-facts.rs"]
 #[allow(dead_code)] // The shared fixture also supports retry-specific suites.
 pub mod review;

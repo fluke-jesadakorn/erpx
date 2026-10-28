@@ -2,14 +2,15 @@ import 'server-only';
 import { Agent, request as httpRequest } from 'node:http';
 import { Readable } from 'node:stream';
 import { createNativeJournalWorkspaceClient, NativeFinanceReadError, type NativeFinanceReadConfiguration } from './native-journal-detail';
+import type { ManualJournalEditResult } from '@erpx/contracts/finance-journal-edit';
 import type { PreparedJournalResult } from '@erpx/contracts/finance-journal-create';
 import type { JournalReviewResult } from '@erpx/contracts/finance-journal-post';
 
 type Posted = Extract<JournalReviewResult, { id: string }>;
 const limit = 2 * 1024 * 1024;
 const closed = (status: number, code: string, message: string) => Response.json({ error: { code, message } }, { status, headers: { 'Cache-Control': 'private, no-store' } });
-function config(operation: 'post' | 'reverse' | 'create'): NativeFinanceReadConfiguration | undefined {
-  const raw = operation === 'post' ? process.env.ERPX_NATIVE_FINANCE_JOURNAL_POST_CONFIG : operation === 'reverse' ? process.env.ERPX_NATIVE_FINANCE_JOURNAL_REVERSE_CONFIG : process.env.ERPX_NATIVE_FINANCE_JOURNAL_CREATE_CONFIG;
+function config(operation: 'post' | 'reverse' | 'create' | 'edit'): NativeFinanceReadConfiguration | undefined {
+  const raw = operation === 'post' ? process.env.ERPX_NATIVE_FINANCE_JOURNAL_POST_CONFIG : operation === 'reverse' ? process.env.ERPX_NATIVE_FINANCE_JOURNAL_REVERSE_CONFIG : operation === 'create' ? process.env.ERPX_NATIVE_FINANCE_JOURNAL_CREATE_CONFIG : process.env.ERPX_NATIVE_FINANCE_JOURNAL_EDIT_CONFIG;
   if (raw === undefined) return undefined;
   let value: unknown;
   try { value = JSON.parse(raw); } catch { throw new NativeFinanceReadError('NATIVE_FINANCE_CONFIGURATION_INVALID'); }
@@ -39,7 +40,7 @@ function direct(url: URL, headers: Headers, body: Uint8Array, signal: AbortSigna
   });
 }
 /** Exact native POST only. An absent config selects the pre-existing legacy route. */
-async function nativeJournalCommand(request: Request, holdingSlug: string, journalId: string, operation: 'post' | 'reverse' | 'create'): Promise<Response | undefined> {
+async function nativeJournalCommand(request: Request, holdingSlug: string, journalId: string, operation: 'post' | 'reverse' | 'create' | 'edit'): Promise<Response | undefined> {
   const settings = config(operation); if (!settings) return undefined;
   const host = request.headers.get('host'); const target = settings.holdings.find(h => new URL(h.origin).host === host && h.holdingSlug === holdingSlug);
   if (!target || operation !== 'create' && (!journalId || journalId.includes('/') || journalId.includes('\\'))) return closed(404,'NOT_FOUND','Journal not found.');
@@ -57,6 +58,13 @@ async function nativeJournalCommand(request: Request, holdingSlug: string, journ
     if (response.status === 404) { void response.body?.cancel(); return closed(404,'NOT_FOUND','Journal not found.'); }
     if (response.headers.get('content-type')?.split(';')[0]?.trim() !== 'application/json') { void response.body?.cancel(); return closed(502,'NATIVE_FINANCE_UNAVAILABLE','Unable to confirm journal posting.'); }
     const payload=await bytes(response.body,32768);let value:unknown;try {value=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(payload));}catch{return closed(502,'NATIVE_FINANCE_UNAVAILABLE','Unable to confirm journal posting.');}
+    if (operation === 'edit' && response.status === 200) {
+      const data=(value as {data?:unknown})?.data;
+      if(!data || typeof data !== 'object' || Array.isArray(data) || Object.keys(data).sort().join(',') !== 'id,status,version') return closed(502,'NATIVE_FINANCE_UNAVAILABLE','Unable to confirm journal edit.');
+      const result=data as Record<string,unknown>;
+      if(result.id!==journalId || result.status!=='draft' || !Number.isSafeInteger(result.version) || Number(result.version)<2) return closed(502,'NATIVE_FINANCE_UNAVAILABLE','Unable to confirm journal edit.');
+      return Response.json({data:result as ManualJournalEditResult},{status:200,headers:{'Cache-Control':'private, no-store'}});
+    }
     if (operation === 'create' && response.status === 201) {
       const data=(value as {data?:unknown})?.data;
       if (!data || typeof data !== 'object' || Array.isArray(data) || Object.keys(data).sort().join(',') !== 'baseCurrency,credit,debit,fxRateMicros,id,number,status,version') return closed(502,'NATIVE_FINANCE_UNAVAILABLE','Unable to confirm journal creation.');
@@ -85,11 +93,12 @@ async function nativeJournalCommand(request: Request, holdingSlug: string, journ
   } catch { return closed(503,'NATIVE_FINANCE_UNAVAILABLE','Unable to confirm journal posting.'); }
   finally {clearTimeout(timer);request.signal.removeEventListener('abort',cancel);}
 }
+export const nativeJournalEdit = (request: Request, holdingSlug: string, journalId: string) => nativeJournalCommand(request, holdingSlug, journalId, 'edit');
 export const nativeJournalCreate = (request: Request, holdingSlug: string) => nativeJournalCommand(request, holdingSlug, '', 'create');
 export const nativeJournalPost = (request: Request, holdingSlug: string, journalId: string) => nativeJournalCommand(request, holdingSlug, journalId, 'post');
 export const nativeJournalReverse = (request: Request, holdingSlug: string, journalId: string) => nativeJournalCommand(request, holdingSlug, journalId, 'reverse');
 /** Re-read through the same real client and full captured context after receipt. */
-async function nativeJournalReadback(request: Request, holdingSlug: string, journalId: string, operation: 'post' | 'reverse' | 'create'): Promise<Response | undefined> {
+async function nativeJournalReadback(request: Request, holdingSlug: string, journalId: string, operation: 'post' | 'reverse' | 'create' | 'edit'): Promise<Response | undefined> {
   const settings=config(operation);if(!settings)return undefined;
   const company=request.headers.get('x-erpx-context-company'),assignment=request.headers.get('x-erpx-context-assignment'),revision=request.headers.get('x-erpx-context-revision'),version=request.headers.get('x-erpx-context-assignment-version');
   if(!company||!assignment||!revision||!version||!/^\d+$/.test(revision)||!/^\d+$/.test(version)||!Number.isSafeInteger(Number(revision))||!Number.isSafeInteger(Number(version)))return closed(409,'WORK_CONTEXT_CHANGED','Your work role changed. Reload and review before submitting.');
@@ -102,3 +111,4 @@ async function nativeJournalReadback(request: Request, holdingSlug: string, jour
 export const nativeJournalPostReadback = (request: Request, holdingSlug: string, journalId: string) => nativeJournalReadback(request, holdingSlug, journalId, 'post');
 export const nativeJournalReverseReadback = (request: Request, holdingSlug: string, journalId: string) => nativeJournalReadback(request, holdingSlug, journalId, 'reverse');
 export const nativeJournalCreateReadback = (request: Request, holdingSlug: string, journalId: string) => nativeJournalReadback(request, holdingSlug, journalId, 'create');
+export const nativeJournalEditReadback = (request: Request, holdingSlug: string, journalId: string) => nativeJournalReadback(request, holdingSlug, journalId, 'edit');

@@ -17,3 +17,5 @@ pub(crate) mod journal_settlement;
 pub(crate) mod field_service_customer;
 
 pub(crate) mod journal_create_wire;
+pub(crate) mod postgres_manual_draft_edit;
+pub(crate) mod postgres_manual_draft_provenance;

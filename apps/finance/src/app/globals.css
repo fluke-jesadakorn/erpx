@@ -114,6 +114,7 @@
 @source "../../../../packages/feature-finance/src/components/supplier-payment-correction.tsx";
 @source "../../../../packages/feature-finance/src/components/use-finance-command.ts";
 @source "../../../../packages/feature-finance/src/components/use-native-journal-create.ts";
+@source "../../../../packages/feature-finance/src/components/use-native-journal-edit.ts";
 @source "../../../../packages/feature-finance/src/components/use-refund-command.ts";
 @source "../../../../packages/feature-finance/src/components/vat-register-controls.tsx";
 @source "../../../../packages/feature-finance/src/domain/command-attempt.ts";

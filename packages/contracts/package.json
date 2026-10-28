@@ -25,7 +25,8 @@
     "./directory-source-admin": "./src/directory-source-admin.generated.ts",
     "./directory-source-admin-client": "./src/directory-source-admin-client.ts",
     "./finance-journal-post": "./src/finance-journal-post.generated.ts",
-    "./finance-journal-create": "./src/finance-journal-create.generated.ts"
+    "./finance-journal-create": "./src/finance-journal-create.generated.ts",
+    "./finance-journal-edit": "./src/finance-journal-edit.generated.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

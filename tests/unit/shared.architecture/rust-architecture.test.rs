@@ -106,6 +106,69 @@ fn rejects_unexamined_core_macros_and_source_path_injection() {
 }
 
 #[test]
+fn contract_metadata_is_fully_examined_and_cannot_hide_effects_or_other_attributes() {
+    for attr in [
+        "derive(ts_rs::TS, utoipa::ToSchema)",
+        "derive(ts_rs::TS)",
+        "derive(utoipa::ToSchema)",
+        "ts(optional)",
+        "ts(type = \"number\")",
+        "schema(value_type = i64, minimum = 1, maximum = 9_007_199_254_740_991_i64)",
+    ] {
+        let source =
+            format!("#[cfg_attr(feature = \"contracts\", {attr})] struct Item {{ value: i64 }}");
+        assert!(
+            architecture::inspect_source(&source, "domain/model.rs")
+                .unwrap()
+                .is_empty(),
+            "rejected {source}"
+        );
+    }
+    for attr in [
+        "feature = \"other\", derive(ts_rs::TS)",
+        "any(feature = \"contracts\"), derive(ts_rs::TS)",
+        "all(feature = \"contracts\"), derive(ts_rs::TS)",
+        "not(feature = \"contracts\"), derive(ts_rs::TS)",
+        "feature = \"contracts\", derive(ts_rs::TS, unknown::Effect)",
+        "feature = \"contracts\", derive(ts_rs::TS, ts_rs::TS)",
+        "feature = \"contracts\", derive(ts_rs::TS), path = \"../adapters/io.rs\"",
+        "feature = \"contracts\", cfg_attr(feature = \"other\", path = \"x\")",
+        "feature = \"contracts\", ts(optional, optional)",
+        "feature = \"contracts\", ts(type = \"number\", optional)",
+        "feature = \"contracts\", ts(type = std::fs::read(\"x\"))",
+        "feature = \"contracts\", ts(type = \"number\"), allow(dead_code)",
+        "feature = \"contracts\", schema(value_type = std::fs::File, minimum = 1, maximum = 2)",
+        "feature = \"contracts\", schema(value_type = i64, minimum = std::fs::read(\"x\"), maximum = 2)",
+        "feature = \"contracts\", schema(value_type = i64, minimum = 1, maximum = 2, example = std::fs::read(\"x\"))",
+        "feature = \"contracts\", schema(value_type = i64, minimum = 1, maximum = 2, maximum = 3)",
+        "feature = \"contracts\", schema(value_type = i64, minimum = 1, maximum = include!(\"x\"))",
+        "feature = \"contracts\", schema(value_type = i64, minimum = 1, maximum = 2) trailing",
+    ] {
+        let source = format!("#[cfg_attr({attr})] struct Item {{ value: i64 }}");
+        let result = architecture::inspect_source(&source, "domain/model.rs");
+        assert!(
+            result.is_err() || !result.unwrap().is_empty(),
+            "accepted {source}"
+        );
+    }
+    let source =
+        "#[cfg_attr(feature = \"contracts\", derive(ts_rs::TS))] fn f() { std::fs::read(\"x\"); }";
+    assert!(
+        architecture::inspect_source(source, "application/check.rs")
+            .unwrap()
+            .iter()
+            .any(|issue| issue.starts_with("portable-core-effect:std::fs"))
+    );
+    let source = "#[cfg_attr(feature = \"contracts\", derive(ts_rs::TS))] fn f() { include!(\"hidden.rs\"); }";
+    assert!(
+        architecture::inspect_source(source, "application/check.rs")
+            .unwrap()
+            .iter()
+            .any(|issue| issue == "portable-core-macro-not-approved:include")
+    );
+}
+
+#[test]
 fn approved_macros_do_not_hide_effectful_arguments() {
     for source in [
         "fn x(){format!(\"{:?}\",std::fs::read(\"x\"));}",

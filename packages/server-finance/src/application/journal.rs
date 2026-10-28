@@ -47,6 +47,74 @@ pub struct ManualJournalCreateInput {
     pub lines: Vec<JournalLineInput>,
 }
 
+/// Strict manual-draft edit input; chart and currency remain fixed.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ManualJournalEditInput {
+    pub chart_id: String,
+    pub period_id: String,
+    pub entry_date: String,
+    pub currency: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "contracts", ts(optional))]
+    pub memo: Option<String>,
+    pub lines: Vec<JournalLineInput>,
+    #[cfg_attr(feature = "contracts", ts(type = "number"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = i64, minimum = 1, maximum = 9_007_199_254_740_990_i64))]
+    pub expected_version: i64,
+    pub reason: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct ManualJournalEditResult {
+    pub id: String,
+    pub status: JournalStatus,
+    #[cfg_attr(feature = "contracts", ts(type = "number"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = i64, minimum = 2, maximum = 9_007_199_254_740_991_i64))]
+    pub version: i64,
+}
+
+/// Current owner facts required before preparing a manual draft replacement.
+pub struct ManualJournalEditBasis<'a> {
+    pub status: &'a str,
+    pub source_type: &'a str,
+    pub source_id: Option<&'a str>,
+    pub is_opening: bool,
+    pub version: i64,
+    pub chart_id: &'a str,
+    pub currency: &'a str,
+}
+
+pub fn validate_manual_journal_edit(
+    basis: &ManualJournalEditBasis<'_>,
+    draft: &JournalDraft,
+    expected_version: i64,
+) -> Result<i64, JournalError> {
+    if basis.status != "draft"
+        || basis.source_type != "manual"
+        || basis.source_id.is_some()
+        || basis.is_opening
+        || basis.version != expected_version
+        || !(1..9_007_199_254_740_991).contains(&expected_version)
+    {
+        return Err(JournalError {
+            kind: FailureKind::Conflict,
+            code: "MANUAL_DRAFT_CHANGED",
+            message: "Edit only the current unposted manual draft.".into(),
+        });
+    }
+    if basis.chart_id != draft.chart_id || basis.currency != draft.currency {
+        return Err(JournalError::new(
+            "MANUAL_DRAFT_BOOK_CHANGED",
+            "Retain this manual draft's book and currency.",
+        ));
+    }
+    Ok(expected_version + 1)
+}
+
 #[derive(Clone, Debug)]
 pub struct JournalDraft {
     pub chart_id: String,

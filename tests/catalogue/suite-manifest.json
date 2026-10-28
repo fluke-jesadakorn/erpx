@@ -63863,7 +63863,9 @@
         "tests/support/rust-account.rs",
         "src/composition/Cargo.toml",
         "src/composition/src/finance_journal_create.rs",
-        "src/composition/src/finance_journal_create_http.rs"
+        "src/composition/src/finance_journal_create_http.rs",
+        "src/composition/src/finance_journal_edit.rs",
+        "src/composition/src/finance_journal_edit_http.rs"
       ],
       "apps": [
         "account",
@@ -64047,7 +64049,12 @@
         "src/composition/src/finance_journal_create.rs",
         "src/composition/src/finance_journal_create_http.rs",
         "packages/server-finance/src/adapters/journal_create_wire.rs",
-        "packages/server-finance/src/adapters/postgres_journal.rs"
+        "packages/server-finance/src/adapters/postgres_journal.rs",
+        "src/composition/src/finance_journal_edit.rs",
+        "src/composition/src/finance_journal_edit_http.rs",
+        "packages/server-finance/src/adapters/postgres_manual_draft_provenance.rs",
+        "packages/server-finance/src/adapters/postgres_manual_draft_edit.rs",
+        "migrations/postgres/holding-write/1076_finance_manual_draft_receipt_links.sql"
       ],
       "postgres": {
         "mode": "raw",
@@ -65333,7 +65340,12 @@
         "packages/contracts/src/finance-journal-create.generated.ts",
         "scripts/docs/export-finance-journal-create-contracts.rs",
         "scripts/docs/generate-finance-journal-create-contracts.ts",
-        "docs/contracts/next/finance-journal-create.openapi.generated.json"
+        "docs/contracts/next/finance-journal-create.openapi.generated.json",
+        "packages/feature-finance/src/components/use-native-journal-edit.ts",
+        "packages/contracts/src/finance-journal-edit.generated.ts",
+        "scripts/docs/export-finance-journal-edit-contracts.rs",
+        "scripts/docs/generate-finance-journal-edit-contracts.ts",
+        "docs/contracts/next/finance-journal-edit.openapi.generated.json"
       ]
     },
     {
@@ -69663,6 +69675,122 @@
         "@erpx/ui",
         "@erpx/workplace"
       ]
+    },
+    {
+      "lane": "integration",
+      "owner": "finance",
+      "modules": [
+        "finance"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "apps": [
+        "finance"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-finance",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-legal",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/native-sdk",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow",
+        "@erpx/workplace"
+      ],
+      "ci": {
+        "critical": true,
+        "reason": "Manual draft replacement, immutable editions and receipt links must remain in the same authorized transaction and roll back together."
+      },
+      "id": "finance.rust-manual-draft-edit-postgres.integration",
+      "files": [
+        "tests/integration/finance/rust-manual-draft-edit-postgres.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-finance",
+        "targets": [
+          "manual_draft_edit_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-finance/Cargo.toml",
+        "packages/server-finance/src/application/manual_draft_edit.rs",
+        "packages/server-finance/src/adapters/postgres_manual_draft_edit.rs",
+        "packages/server-finance/src/adapters/postgres_manual_draft_provenance.rs",
+        "packages/server-workflow/src/adapters/postgres_record_origin.rs",
+        "migrations/postgres/holding-write/1076_finance_manual_draft_receipt_links.sql",
+        "tests/support/finance/review-composition.rs",
+        "tests/support/rust-postgres.rs"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      }
     }
   ]
 }

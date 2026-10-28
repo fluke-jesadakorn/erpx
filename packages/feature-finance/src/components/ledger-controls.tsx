@@ -18,6 +18,7 @@ import {
 import { Card, Stack, FormGrid, FormLayout } from "@erpx/ui/components/foundation";
 import { useFinanceActionAllowed } from "@erpx/feature-finance/components/purchase-context";
 import {financeDocumentCommandAllowed, financeDocumentCommandContext, financeDocumentFormUnchanged, type FinanceDocumentPostControl} from "@erpx/feature-finance/lib/document-post-control";
+import { useNativeJournalEdit } from "./use-native-journal-edit";
 import { useNativeJournalCreate } from "./use-native-journal-create";
 import { NativeJournalReverse } from "./native-journal-reverse";
 import { NativeJournalPost } from "./native-journal-post";
@@ -80,6 +81,7 @@ export function JournalEditor({
   draft,
   draftLines=[],
   nativeCreate,
+  nativeEdit,
 }: {
   base: string;
   chart: LedgerRow;
@@ -91,11 +93,14 @@ export function JournalEditor({
   draft?:LedgerRow;
   draftLines?:LedgerRow[];
   nativeCreate?: { context?: PostContext };
+  nativeEdit?: { context?: PostContext };
 }) {
   const draftScope = useFinanceDraftScope();
   const { send, pending, error, canSend } = useFinanceCommand(base, "new-work");
   const nativeAllowed = useFinanceActionAllowed("new-work", "finance.accounting");
-  const native = useNativeJournalCreate(base, nativeCreate?.context, nativeAllowed);
+  const nativeCreateCommand = useNativeJournalCreate(base, nativeCreate?.context, nativeAllowed);
+  const nativeEditCommand = useNativeJournalEdit(base, String(draft?.id ?? ""), nativeEdit?.context, nativeAllowed);
+  const native = draft && nativeEdit ? nativeEditCommand : nativeCreateCommand;
   const formRef = useRef<HTMLFormElement>(null);
   const [open, setOpen] = useState(initialOpen);
   const closeEditor = useFinanceDraftClose(() => setOpen(false));
@@ -132,7 +137,7 @@ export function JournalEditor({
               memo: f.get("memo"),
               lines,
             };
-            if (!draft && nativeCreate) void native.send(e.currentTarget, input);
+            if ((!draft && nativeCreate) || (draft && nativeEdit)) void native.send(e.currentTarget, input);
             else void send(draft?`journals/${draft.id}/edit`:"journals", input);
           }}
         >
@@ -234,8 +239,8 @@ export function JournalEditor({
             >
               Add line
             </Button>
-            <Button appearance="standard" clientManaged type="submit" formNoValidate={!!nativeCreate && native.hasAttempt} variant="primary" disabled={pending || native.busy || (!canSend && !native.hasAttempt) || !!nativeCreate && !nativeCreate.context && !native.hasAttempt}>
-              {nativeCreate && native.hasAttempt ? native.saved ? "Retry readback" : "Retry original creation" : "Save draft"}
+            <Button appearance="standard" clientManaged type="submit" formNoValidate={!!(draft ? nativeEdit : nativeCreate) && native.hasAttempt} variant="primary" disabled={pending || native.busy || (!canSend && !native.hasAttempt) || !!(draft ? nativeEdit : nativeCreate) && !(draft ? nativeEdit : nativeCreate)?.context && !native.hasAttempt}>
+              {(draft ? nativeEdit : nativeCreate) && native.hasAttempt ? native.saved ? "Retry readback" : draft ? "Retry original edit" : "Retry original creation" : "Save draft"}
             </Button>
             <span className="muted">
               Currency {String(chart.base_currency)} · another finance approver must post this

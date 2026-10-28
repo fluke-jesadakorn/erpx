@@ -1,9 +1,13 @@
 //! Closed Finance-owned source facts for current external policy composition.
 //! Historical provenance is not current IAM, release or purchase authority.
 use super::*;
+use crate::adapters::postgres_manual_draft_provenance::{
+    CurrentManualDraftProvenance, inspect_manual_draft_provenance_with_limit,
+    lock_manual_draft_provenance,
+};
 use erpx_server_shared::public::UserId;
 use erpx_server_workflow::public::record_origin::{
-    PgRecordOrigin, RecordOriginRequest, lock_record_origin_sources, read_record_origin,
+    PgRecordOrigin, RecordOriginRequest, lock_record_origin_sources, read_record_origin_with_limit,
     verify_record_origin,
 };
 
@@ -25,6 +29,7 @@ pub struct CurrentJournalReviewScope {
     root_id: String,
     root_kind: JournalReviewRootKind,
     origins: Vec<PgRecordOrigin>,
+    manual_provenance: Vec<CurrentManualDraftProvenance>,
 }
 
 impl CurrentJournalReviewScope {
@@ -65,6 +70,9 @@ impl CurrentJournalReviewScope {
         for origin in &self.origins {
             verify_record_origin(c, origin).await?;
         }
+        for origin in &self.manual_provenance {
+            origin.require_current(c).await?;
+        }
         let fresh = image::load(c, &self.actor, &self.command, false)
             .await
             .map_err(to_workflow)?
@@ -86,7 +94,8 @@ pub async fn lock_journal_review_sources(c: &mut PgConnection) -> Result<(), Wor
         return Err(PersistenceError::new("JOURNAL_OWNER_TRANSACTION_REQUIRED").into());
     }
     lock_record_origin_sources(c).await?;
-    image::lock_sources(c).await.map_err(to_workflow)
+    image::lock_sources(c).await.map_err(to_workflow)?;
+    lock_manual_draft_provenance(c, true).await
 }
 
 pub async fn inspect_journal_review_source(
@@ -106,6 +115,7 @@ pub async fn inspect_journal_review_source(
         .ok_or_else(unsupported)?
         .to_owned();
     let mut origins = Vec::with_capacity(stable_headers.len());
+    let mut manual_provenance = Vec::new();
     let mut origin_text_bytes = 0usize;
     for (index, header) in stable_headers.iter().enumerate() {
         let id = string(header, "id")?;
@@ -126,7 +136,31 @@ pub async fn inspect_journal_review_source(
         } else {
             "finance.journal.reverse"
         };
-        let origin = read_record_origin(
+        if root && root_kind == JournalReviewRootKind::Manual {
+            let proof = inspect_manual_draft_provenance_with_limit(
+                c,
+                &actor.company_id,
+                id,
+                (32 * 1024 * 1024_usize).saturating_sub(origin_text_bytes),
+            )
+            .await?;
+            origin_text_bytes = origin_text_bytes
+                .checked_add(proof.retained_text_bytes())
+                .filter(|n| *n <= 32 * 1024 * 1024)
+                .ok_or_else(origin_limit)?;
+            manual_provenance.push(proof);
+            continue;
+        }
+        let receipt_limit = (32 * 1024 * 1024_usize)
+            .saturating_sub(origin_text_bytes)
+            .saturating_sub(
+                key.len()
+                    + parent.len()
+                    + actor.company_id.as_str().len()
+                    + creator.as_str().len()
+                    + 1024,
+            );
+        let origin = read_record_origin_with_limit(
             c,
             RecordOriginRequest {
                 command_key: key.to_owned(),
@@ -135,6 +169,7 @@ pub async fn inspect_journal_review_source(
                 creator_user_id: creator,
                 company_id: actor.company_id.clone(),
             },
+            receipt_limit,
         )
         .await?
         .ok_or_else(unsupported)?;
@@ -173,6 +208,7 @@ pub async fn inspect_journal_review_source(
         root_id,
         root_kind,
         origins,
+        manual_provenance,
     })
 }
 

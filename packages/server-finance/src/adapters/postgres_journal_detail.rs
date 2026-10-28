@@ -1,10 +1,14 @@
 //! Minimal read source; no post/reviewer, period-open or active-account policy.
 //! Foreign-owner and secondary-book admission remains explicitly unsupported.
+use crate::adapters::postgres_manual_draft_provenance::{
+    CurrentManualDraftProvenance, inspect_manual_draft_provenance_with_limit,
+    lock_manual_draft_provenance,
+};
 use crate::{application::journal::FinanceActor, public::journal_detail::*};
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::{BusinessError, FailureKind, RecordId, UserId};
 use erpx_server_workflow::public::record_origin::{
-    PgRecordOrigin, RecordOriginRequest, lock_record_origin_sources, read_record_origin,
+    PgRecordOrigin, RecordOriginRequest, lock_record_origin_sources, read_record_origin_with_limit,
     verify_record_origin,
 };
 use futures_util::TryStreamExt;
@@ -66,7 +70,8 @@ pub async fn lock_journal_detail_sources(c: &mut PgConnection) -> Result<(), Err
     lock_record_origin_sources(c).await?;
     // Utility-only before IAM's first snapshot. These retained absence/source
     // fences also cover new editions/lines/book relationships, not just rows.
-    sqlx::query("LOCK TABLE finance_journals,finance_journal_lines,finance_manual_draft_editions,finance_accounts,finance_charts,finance_book_postings,finance_book_rules IN SHARE MODE").execute(c).await?;
+    sqlx::query("LOCK TABLE finance_journals,finance_journal_lines,finance_manual_draft_editions,finance_accounts,finance_charts,finance_book_postings,finance_book_rules IN SHARE MODE").execute(&mut *c).await?;
+    lock_manual_draft_provenance(c, false).await?;
     Ok(())
 }
 pub(super) struct Budget {
@@ -153,6 +158,7 @@ pub struct CurrentJournalDetail {
     transaction: (String, i32, String, String),
     detail: FinanceJournalDetail,
     origins: Vec<PgRecordOrigin>,
+    manual_provenance: Vec<CurrentManualDraftProvenance>,
     ancestors: Vec<FinanceLedgerRow>,
 }
 impl CurrentJournalDetail {
@@ -165,6 +171,9 @@ impl CurrentJournalDetail {
         }
         for origin in &self.origins {
             verify_record_origin(c, origin).await?;
+        }
+        for origin in &self.manual_provenance {
+            origin.require_current(c).await?;
         }
         let mut budget = Budget { bytes: 0, rows: 0 };
         for ancestor in &self.ancestors {
@@ -198,6 +207,7 @@ pub async fn read_journal_detail(
     let mut ancestry_budget = Budget { bytes: 0, rows: 0 };
     let mut seen = std::collections::BTreeSet::new();
     let mut origins = Vec::new();
+    let mut manual_provenance = Vec::new();
     let mut origin_bytes = 0usize;
     for depth in 0..=100 {
         let current_id = text(&current, "id")?.to_owned();
@@ -236,7 +246,33 @@ pub async fn read_journal_detail(
         } else {
             text(&current, "source_id")?
         };
-        let origin = read_record_origin(
+        if root && kind == "manual" {
+            let proof = inspect_manual_draft_provenance_with_limit(
+                c,
+                &actor.company_id,
+                &current_id,
+                (4 * 1024 * 1024_usize).saturating_sub(origin_bytes),
+            )
+            .await?;
+            origin_bytes = origin_bytes
+                .checked_add(proof.retained_text_bytes())
+                .filter(|n| *n <= 4 * 1024 * 1024)
+                .ok_or_else(limit)?;
+            let _ = origin_bytes;
+            manual_provenance.push(proof);
+            ancestors.push(current.clone());
+            break;
+        }
+        let receipt_limit = (4 * 1024 * 1024_usize)
+            .saturating_sub(origin_bytes)
+            .saturating_sub(
+                key.len()
+                    + parent.len()
+                    + actor.company_id.as_str().len()
+                    + text(&current, "created_by")?.len()
+                    + 1024,
+            );
+        let origin = read_record_origin_with_limit(
             c,
             RecordOriginRequest {
                 command_key: key.into(),
@@ -250,6 +286,7 @@ pub async fn read_journal_detail(
                 creator_user_id: UserId::new(text(&current, "created_by")?)?,
                 company_id: actor.company_id.clone(),
             },
+            receipt_limit,
         )
         .await?
         .ok_or_else(denied)?;
@@ -306,6 +343,7 @@ pub async fn read_journal_detail(
         transaction,
         detail,
         origins,
+        manual_provenance,
         ancestors,
     })
 }

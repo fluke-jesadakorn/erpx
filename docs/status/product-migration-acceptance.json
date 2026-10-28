@@ -2,8 +2,8 @@
   "version": 3,
   "environment": "development",
   "deliveryPlan": "docs/production-plan.md",
-  "sourceFingerprint": "7cea96b66a1af5101ea3d635203ba99dd7f7159c387b5c21e26ee5419edf338b",
-  "verificationFingerprint": "91cc2ac551f3ab239e1baa38a37a6b5e55d5cee29981578eba53506c7948b569",
+  "sourceFingerprint": "236c88e36affb72f0c50c1f6bec9ab9abc56ab52842b52b8727557459e0e02c0",
+  "verificationFingerprint": "ca296e02f7a7e18251e073f836260714b3e33549049e019f17efd22e57014449",
   "baseline": {
     "source": ".scratch/dev/product-migration-baseline-2026-10-14/",
     "privateAuthority": "read-only per-database snapshots; no secrets or personal authority rows in this register",
@@ -4690,7 +4690,8 @@
         "shared.testing.native-worker-toolchain.unit",
         "shared.architecture.documentation-integrity.unit",
         "field_service.rust-parts-command-postgres.integration",
-        "field_service.rust-http-parity-postgres.integration"
+        "field_service.rust-http-parity-postgres.integration",
+        "finance.rust-manual-draft-edit-postgres.integration"
       ]
     },
     {

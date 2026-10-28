@@ -141,6 +141,13 @@ fn finance_read_requires_distinct_registered_holdings_and_valid_companies() {
     d["financeJournalCreates"] = serde_json::json!(["h001", "h001"]);
     assert!(!parses(&d));
     d["financeJournalCreates"] = serde_json::json!([]);
+    d["financeJournalEdits"] = serde_json::json!(["h001"]);
+    assert!(parses(&d));
+    d["financeJournalEdits"] = serde_json::json!(["h002"]);
+    assert!(!parses(&d));
+    d["financeJournalEdits"] = serde_json::json!(["h001", "h001"]);
+    assert!(!parses(&d));
+    d["financeJournalEdits"] = serde_json::json!([]);
     d["financeJournalReversals"] = serde_json::json!(["h001"]);
     assert!(parses(&d));
     d["financeJournalReversals"] = serde_json::json!(["h002"]);

@@ -91,3 +91,30 @@ fn manual_create_wire_preserves_ordered_normalized_fields_and_forces_manual_sour
         br#"{"chartId":"chart","periodId":"period","entryDate":"2026-01-05","currency":"THB","lines":[{"accountId":"cash","debit":"1","credit":"0","dimensions":{"bad":"\ud800"}},{"accountId":"sales","debit":"0","credit":"1"}]}"#.as_slice(),
     ] { assert!(normalize_manual_journal_create(input).is_err()); }
 }
+
+#[test]
+fn manual_edit_wire_is_strict_and_normalizes_the_reason_and_defaults() {
+    use erpx_server_finance::public::journal_create_wire::normalize_manual_journal_edit;
+    let input = br#"{"chartId":"chart","periodId":"period","entryDate":"2026-01-05","currency":"thb","lines":[{"accountId":"cash","debit":"1","credit":"0"},{"accountId":"sales","debit":"0","credit":"1"}],"expectedVersion":1,"reason":"  correction made  "}"#;
+    let edit = normalize_manual_journal_edit(input).unwrap();
+    assert_eq!(edit.expected_version(), 1);
+    assert_eq!(edit.reason(), "correction made");
+    assert_eq!(
+        edit.normalized().as_str(),
+        r#"{"chartId":"chart","periodId":"period","entryDate":"2026-01-05","currency":"THB","memo":"","lines":[{"accountId":"cash","debit":"1","credit":"0"},{"accountId":"sales","debit":"0","credit":"1"}],"expectedVersion":1,"reason":"correction made"}"#
+    );
+    for field in ["fxRate", "sourceType", "sourceId", "isOpening", "unknown"] {
+        let mut object: serde_json::Value = serde_json::from_slice(input).unwrap();
+        object[field] = serde_json::Value::Bool(false);
+        assert!(
+            normalize_manual_journal_edit(serde_json::to_string(&object).unwrap().as_bytes())
+                .is_err()
+        );
+    }
+    let surrogate = br#"{"chartId":"chart","periodId":"period","entryDate":"2026-01-05","currency":"THB","lines":[{"accountId":"cash","debit":"1","credit":"0","ignored":1e400},{"accountId":"sales","debit":"0","credit":"1"}],"expectedVersion":1,"reason":"abcdefghij\ud800"}"#;
+    let replacement = br#"{"chartId":"chart","periodId":"period","entryDate":"2026-01-05","currency":"THB","lines":[{"accountId":"cash","debit":"1","credit":"0"},{"accountId":"sales","debit":"0","credit":"1"}],"expectedVersion":1,"reason":"abcdefghij\ufffd"}"#;
+    let first = normalize_manual_journal_edit(surrogate).unwrap();
+    let second = normalize_manual_journal_edit(replacement).unwrap();
+    assert_eq!(first.reason(), second.reason());
+    assert_ne!(first.normalized(), second.normalized());
+}

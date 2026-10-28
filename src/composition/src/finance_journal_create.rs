@@ -37,14 +37,14 @@ use erpx_server_workflow::public::record_origin::{
 use sqlx::PgConnection;
 use std::sync::Arc;
 type Error = PgTransactionError<BusinessError>;
-fn denied() -> BusinessError {
+pub(crate) fn denied() -> BusinessError {
     BusinessError::new(
         FailureKind::Forbidden,
         "FINANCE_CURRENT_AUTHORITY_REQUIRED",
         "Choose the current authorized Finance workspace.",
     )
 }
-fn finance_error(error: PgTransactionError<JournalError>) -> Error {
+pub(crate) fn finance_error(error: PgTransactionError<JournalError>) -> Error {
     match error {
         PgTransactionError::Persistence(e) => PgTransactionError::Persistence(e),
         PgTransactionError::Business(e) => BusinessError::new(
@@ -57,9 +57,9 @@ fn finance_error(error: PgTransactionError<JournalError>) -> Error {
 }
 #[derive(Clone)]
 pub struct FinanceJournalCreateConfiguration {
-    holding: HoldingId,
-    company: CompanyId,
-    catalogue: Arc<CommercialCatalogue>,
+    pub(crate) holding: HoldingId,
+    pub(crate) company: CompanyId,
+    pub(crate) catalogue: Arc<CommercialCatalogue>,
 }
 impl FinanceJournalCreateConfiguration {
     pub fn new(
@@ -217,18 +217,18 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalCreateService<C> {
             .await
     }
 }
-struct Ids;
+pub(crate) struct Ids;
 impl IdentifierSource for Ids {
     fn next(&mut self) -> RecordId {
         RecordId::new(uuid::Uuid::new_v4().to_string()).expect("UUID is bounded")
     }
 }
-struct Authority<'a, C> {
-    current: &'a AuthorizedWorkContext,
-    configuration: &'a FinanceJournalCreateConfiguration,
-    clock: &'a C,
-    purchase: Option<(CapabilityPurpose, PurchaseWitness)>,
-    source: Option<CurrentJournalReviewScope>,
+pub(crate) struct Authority<'a, C> {
+    pub(crate) current: &'a AuthorizedWorkContext,
+    pub(crate) configuration: &'a FinanceJournalCreateConfiguration,
+    pub(crate) clock: &'a C,
+    pub(crate) purchase: Option<(CapabilityPurpose, PurchaseWitness)>,
+    pub(crate) source: Option<CurrentJournalReviewScope>,
 }
 impl<C: Clock + Sync> PgCommandAuthority for Authority<'_, C> {
     async fn lock_sources(
@@ -319,8 +319,8 @@ impl<C: Clock + Sync> PgCommandAuthority for Authority<'_, C> {
         Ok(())
     }
 }
-struct PreparationAuthority<'a> {
-    current: &'a AuthorizedWorkContext,
+pub(crate) struct PreparationAuthority<'a> {
+    pub(crate) current: &'a AuthorizedWorkContext,
 }
 impl JournalAuthority for PreparationAuthority<'_> {
     type Error = PgTransactionError<JournalError>;

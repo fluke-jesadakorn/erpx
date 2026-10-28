@@ -590,6 +590,22 @@ async fn every_persisted_origin_text_is_bounded_before_transfer() {
 }
 
 #[tokio::test]
+async fn positive_origin_respects_the_callers_remaining_budget_before_transfer() {
+    fixture::with_database(3, |pool| async move {
+        setup(&pool).await;
+        execute(&pool, "{}", false, false).await.unwrap();
+        let mut tx = origin_transaction(&pool).await;
+        sqlx::query("UPDATE command_receipts SET authority_json=(authority_json::jsonb || jsonb_build_object('padding',repeat('x',5000)))::text").execute(&mut *tx).await.unwrap();
+        assert!(read_record_origin(&mut tx, origin_request()).await.unwrap().is_some());
+        assert!(matches!(read_record_origin_with_limit(&mut tx, origin_request(), 4096).await, Err(Error::Business(ref e)) if e.code == "COMMAND_RECEIPT_TOO_LARGE"));
+        assert!(matches!(read_record_origin_with_limit(&mut tx, origin_request(), 0).await, Err(Error::Business(ref e)) if e.code == "COMMAND_RECEIPT_TOO_LARGE"));
+        let proof = read_record_origin_with_limit(&mut tx, origin_request(), 8192).await.unwrap().unwrap();
+        verify_record_origin(&mut tx, &proof).await.unwrap();
+        tx.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
 async fn a_positive_origin_cannot_be_reused_in_another_transaction_or_backend() {
     fixture::with_database(3, |pool| async move {
         setup(&pool).await;execute(&pool,"{}",false,false).await.unwrap();

@@ -2,6 +2,113 @@
 use std::{collections::BTreeSet, fs, path::Path};
 use syn::{UseTree, Visibility, parse::Parser, visit::Visit};
 
+/// Only the fully parsed metadata used by owner-generated contracts is
+/// admitted; conditional code and arbitrary helper attributes stay closed.
+fn examined_contract_attribute(attribute: &syn::Attribute) -> bool {
+    let syn::Meta::List(list) = &attribute.meta else {
+        return false;
+    };
+    let parser = syn::punctuated::Punctuated::<syn::Meta, syn::Token![,]>::parse_terminated;
+    let Ok(items) = parser.parse2(list.tokens.clone()) else {
+        return false;
+    };
+    if items.len() != 2 || items.trailing_punct() {
+        return false;
+    }
+    let mut items = items.iter();
+    let Some(syn::Meta::NameValue(feature)) = items.next() else {
+        return false;
+    };
+    if !feature.path.is_ident("feature")
+        || !matches!(&feature.value, syn::Expr::Lit(value) if matches!(&value.lit, syn::Lit::Str(value) if value.value() == "contracts"))
+    {
+        return false;
+    }
+    let Some(syn::Meta::List(payload)) = items.next() else {
+        return false;
+    };
+    if payload.path.is_ident("derive") {
+        let parser = syn::punctuated::Punctuated::<syn::Path, syn::Token![,]>::parse_terminated;
+        let Ok(paths) = parser.parse2(payload.tokens.clone()) else {
+            return false;
+        };
+        if paths.is_empty() || paths.trailing_punct() {
+            return false;
+        }
+        let mut seen = BTreeSet::new();
+        for path in paths {
+            if path.leading_colon.is_some()
+                || path
+                    .segments
+                    .iter()
+                    .any(|s| !matches!(s.arguments, syn::PathArguments::None))
+            {
+                return false;
+            }
+            let parts: Vec<_> = path.segments.iter().map(|s| s.ident.to_string()).collect();
+            let name = match parts.as_slice() {
+                [a, b] if a == "ts_rs" && b == "TS" => "ts_rs::TS",
+                [a, b] if a == "utoipa" && b == "ToSchema" => "utoipa::ToSchema",
+                _ => return false,
+            };
+            if !seen.insert(name) {
+                return false;
+            }
+        }
+        return true;
+    }
+    if payload.path.is_ident("ts") {
+        let parse_ts = |input: syn::parse::ParseStream<'_>| -> syn::Result<bool> {
+            let valid = if input.peek(syn::Token![type]) {
+                input.parse::<syn::Token![type]>()?;
+                input.parse::<syn::Token![=]>()?;
+                input.parse::<syn::LitStr>()?.value() == "number"
+            } else {
+                input.parse::<syn::Ident>()? == "optional"
+            };
+            Ok(valid && input.is_empty())
+        };
+        return parse_ts.parse2(payload.tokens.clone()).unwrap_or(false);
+    }
+    let Ok(args) = parser.parse2(payload.tokens.clone()) else {
+        return false;
+    };
+    if args.trailing_punct() {
+        return false;
+    }
+    if payload.path.is_ident("schema") {
+        let mut keys = BTreeSet::new();
+        for arg in args {
+            let syn::Meta::NameValue(value) = arg else {
+                return false;
+            };
+            let Some(key) = value.path.get_ident().map(ToString::to_string) else {
+                return false;
+            };
+            if !keys.insert(key.clone()) {
+                return false;
+            }
+            let valid = match key.as_str() {
+                "value_type" => {
+                    matches!(&value.value, syn::Expr::Path(value) if value.qself.is_none() && value.path.is_ident("i64"))
+                }
+                "minimum" | "maximum" => {
+                    matches!(&value.value, syn::Expr::Lit(value) if matches!(value.lit, syn::Lit::Int(_)))
+                }
+                _ => false,
+            };
+            if !valid {
+                return false;
+            }
+        }
+        return keys.len() == 3
+            && keys.contains("value_type")
+            && keys.contains("minimum")
+            && keys.contains("maximum");
+    }
+    false
+}
+
 struct MatchArguments {
     expression: syn::Expr,
     pattern: syn::Pat,
@@ -226,7 +333,10 @@ impl<'ast> Visit<'ast> for BoundaryVisitor {
         if self.layer.is_some() && attribute.path().is_ident("path") {
             self.issues.insert("portable-core-path-override".to_owned());
         }
-        if self.layer.is_some() && attribute.path().is_ident("cfg_attr") {
+        if self.layer.is_some()
+            && attribute.path().is_ident("cfg_attr")
+            && !examined_contract_attribute(attribute)
+        {
             self.issues
                 .insert("portable-core-conditional-attribute-unexamined".to_owned());
         }

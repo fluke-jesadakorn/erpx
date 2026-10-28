@@ -4,12 +4,132 @@ use crate::application::journal::JournalDraft;
 use crate::domain::journal::JournalLineInput;
 use erpx_server_shared::public::BusinessError;
 use erpx_server_workflow::public::commands::CommandJson;
+use serde::Deserialize;
+use serde::de::{IgnoredAny, MapAccess, Visitor};
 use std::collections::BTreeMap;
 
 #[derive(Clone, Debug)]
 pub struct ManualJournalCreateWire {
     draft: JournalDraft,
     normalized: CommandJson,
+}
+
+#[derive(Clone, Debug)]
+pub struct ManualJournalEditWire {
+    draft: JournalDraft,
+    normalized: CommandJson,
+    expected_version: i64,
+    reason: String,
+}
+impl ManualJournalEditWire {
+    pub fn draft(&self) -> &JournalDraft {
+        &self.draft
+    }
+    pub fn normalized(&self) -> &CommandJson {
+        &self.normalized
+    }
+    pub fn expected_version(&self) -> i64 {
+        self.expected_version
+    }
+    pub fn reason(&self) -> &str {
+        &self.reason
+    }
+}
+
+/// Strict top-level manual edit fields; line normalization is shared with creation.
+pub fn normalize_manual_journal_edit(bytes: &[u8]) -> Result<ManualJournalEditWire, BusinessError> {
+    let text = String::from_utf8_lossy(bytes);
+    let text = text.strip_prefix('\u{feff}').unwrap_or(&text);
+    let doc = CommandJson::parse(text)
+        .map_err(|_| BusinessError::invalid("INVALID_JSON", "Request body must be valid JSON."))?;
+    struct StrictKeys;
+    impl<'de> Deserialize<'de> for StrictKeys {
+        fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+            struct Keys;
+            impl<'de> Visitor<'de> for Keys {
+                type Value = StrictKeys;
+                fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                    f.write_str("an edit object")
+                }
+                fn visit_map<M: MapAccess<'de>>(self, mut map: M) -> Result<Self::Value, M::Error> {
+                    while let Some(key) = map.next_key::<String>()? {
+                        if !matches!(
+                            key.as_str(),
+                            "chartId"
+                                | "periodId"
+                                | "entryDate"
+                                | "currency"
+                                | "memo"
+                                | "lines"
+                                | "expectedVersion"
+                                | "reason"
+                        ) {
+                            return Err(serde::de::Error::custom("unknown edit field"));
+                        }
+                        map.next_value::<IgnoredAny>()?;
+                    }
+                    Ok(StrictKeys)
+                }
+            }
+            d.deserialize_map(Keys)
+        }
+    }
+    serde_json::from_str::<StrictKeys>(doc.as_str()).map_err(|_| invalid())?;
+    let number = field(&doc, "expectedVersion")?.ok_or_else(invalid)?;
+    let number: f64 = number.as_str().parse().map_err(|_| invalid())?;
+    if !(1.0..=9_007_199_254_740_990.0).contains(&number) || number.fract() != 0.0 {
+        return Err(invalid());
+    }
+    let expected_version = number as i64;
+    let reason_raw = field(&doc, "reason")?.ok_or_else(invalid)?;
+    let units = reason_raw
+        .string_utf16_units()
+        .map_err(|_| invalid())?
+        .ok_or_else(invalid)?;
+    let whitespace = |u: &u16| matches!(*u, 0x0009..=0x000d | 0x0020 | 0x00a0 | 0x1680 | 0x2000..=0x200a | 0x2028 | 0x2029 | 0x202f | 0x205f | 0x3000 | 0xfeff);
+    let start = units
+        .iter()
+        .position(|u| !whitespace(u))
+        .unwrap_or(units.len());
+    let end = units
+        .iter()
+        .rposition(|u| !whitespace(u))
+        .map_or(start, |i| i + 1);
+    let trimmed = &units[start..end];
+    if !(10..=2000).contains(&trimmed.len()) {
+        return Err(invalid());
+    }
+    let reason = String::from_utf16_lossy(trimmed);
+    let escaped_reason = format!(
+        "\"{}\"",
+        trimmed
+            .iter()
+            .map(|u| format!("\\u{u:04x}"))
+            .collect::<String>()
+    );
+    let normalized_reason = CommandJson::parse(&escaped_reason)?;
+    let create = normalize_manual_journal_create(bytes)?;
+    let mut parts = Vec::new();
+    for name in [
+        "chartId",
+        "periodId",
+        "entryDate",
+        "currency",
+        "memo",
+        "lines",
+    ] {
+        let value = field(create.normalized(), name)?.ok_or_else(invalid)?;
+        parts.push(format!("\"{name}\":{}", value.as_str()));
+    }
+    parts.push(format!("\"expectedVersion\":{expected_version}"));
+    parts.push(format!("\"reason\":{}", normalized_reason.as_str()));
+    let normalized = CommandJson::parse(&format!("{{{}}}", parts.join(",")))?;
+    Ok(ManualJournalEditWire {
+        draft: create.draft,
+        normalized,
+        expected_version,
+        reason,
+    })
 }
 impl ManualJournalCreateWire {
     pub fn draft(&self) -> &JournalDraft {

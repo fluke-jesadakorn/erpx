@@ -38,6 +38,7 @@ pub struct PgRecordOrigin {
     backend_pid: i32,
     transaction_id: String,
     database_identity: String,
+    read_limit: Option<usize>,
 }
 impl PgRecordOrigin {
     pub fn result(&self) -> &CommandJson {
@@ -86,10 +87,34 @@ pub async fn read_record_origin(
     connection: &mut PgConnection,
     request: RecordOriginRequest,
 ) -> Result<Option<PgRecordOrigin>, Error> {
+    read_record_origin_impl(connection, request, None).await
+}
+/// Restrict the complete retained receipt text before PostgreSQL transfers it.
+pub async fn read_record_origin_with_limit(
+    connection: &mut PgConnection,
+    request: RecordOriginRequest,
+    limit_bytes: usize,
+) -> Result<Option<PgRecordOrigin>, Error> {
+    let limit_bytes = limit_bytes.min(LIMIT);
+    if limit_bytes == 0 {
+        return Err(BusinessError::new(
+            FailureKind::Unavailable,
+            "COMMAND_RECEIPT_TOO_LARGE",
+            "The retained command exceeds the bounded receipt reader.",
+        )
+        .into());
+    }
+    read_record_origin_impl(connection, request, Some(limit_bytes)).await
+}
+async fn read_record_origin_impl(
+    connection: &mut PgConnection,
+    request: RecordOriginRequest,
+    read_limit: Option<usize>,
+) -> Result<Option<PgRecordOrigin>, Error> {
     validate(&request)?;
     require_unit(connection).await?;
     let Some((image, backend_pid, transaction_id, database_identity)) =
-        read(connection, &request.command_key).await?
+        read(connection, &request.command_key, read_limit).await?
     else {
         return Ok(None);
     };
@@ -120,6 +145,7 @@ pub async fn read_record_origin(
         backend_pid,
         transaction_id,
         database_identity,
+        read_limit,
     }))
 }
 
@@ -132,7 +158,7 @@ pub async fn verify_record_origin(
 ) -> Result<(), Error> {
     require_unit(connection).await?;
     let Some((image, pid, xid, database_identity)) =
-        read(connection, &proof.request.command_key).await?
+        read(connection, &proof.request.command_key, proof.read_limit).await?
     else {
         return Err(changed().into());
     };
@@ -169,22 +195,23 @@ async fn require_unit(connection: &mut PgConnection) -> Result<(), Error> {
 async fn read(
     connection: &mut PgConnection,
     key: &str,
+    read_limit: Option<usize>,
 ) -> Result<Option<(ReceiptImage, i32, String, String)>, Error> {
     // CASE bounds before transfer, not after allocating arbitrary legacy TEXT.
     let row = sqlx::query("SELECT
-      CASE WHEN octet_length(operation)<=200 THEN operation END operation,
-      CASE WHEN octet_length(actor_id)<=200 THEN actor_id END actor_id,
-      CASE WHEN octet_length(record_id)<=200 THEN record_id END record_id,
-      CASE WHEN octet_length(request_hash)<=64 THEN request_hash END request_hash,
-      CASE WHEN octet_length(authority_json)<=$2 THEN authority_json END authority_json,
-      CASE WHEN octet_length(result_json)<=$2 THEN result_json END result_json,
+      CASE WHEN bounded AND octet_length(operation)<=200 THEN operation END operation,
+      CASE WHEN bounded AND octet_length(actor_id)<=200 THEN actor_id END actor_id,
+      CASE WHEN bounded AND octet_length(record_id)<=200 THEN record_id END record_id,
+      CASE WHEN bounded AND octet_length(request_hash)<=64 THEN request_hash END request_hash,
+      CASE WHEN bounded AND octet_length(authority_json)<=$2 THEN authority_json END authority_json,
+      CASE WHEN bounded AND octet_length(result_json)<=$2 THEN result_json END result_json,
       (COALESCE(octet_length(operation),0)>200 OR COALESCE(octet_length(actor_id),0)>200
        OR COALESCE(octet_length(record_id),0)>200 OR COALESCE(octet_length(request_hash),0)>64
-       OR COALESCE(octet_length(authority_json),0)>$2 OR COALESCE(octet_length(result_json),0)>$2) oversized,
+       OR COALESCE(octet_length(authority_json),0)>$2 OR COALESCE(octet_length(result_json),0)>$2 OR NOT bounded) oversized,
       created_at, pg_backend_pid() backend_pid, pg_current_xact_id()::text transaction_id,
       current_database()||'/'||pg_postmaster_start_time()::text database_identity
-      FROM command_receipts WHERE command_id=$1 FOR SHARE")
-        .bind(key).bind(LIMIT as i32).fetch_optional(connection).await?;
+      FROM command_receipts r CROSS JOIN LATERAL (SELECT $3::bigint IS NULL OR (COALESCE(octet_length(operation),0)::bigint+COALESCE(octet_length(actor_id),0)+COALESCE(octet_length(record_id),0)+COALESCE(octet_length(request_hash),0)+COALESCE(octet_length(authority_json),0)+2::bigint*COALESCE(octet_length(result_json),0))<=$3 AS bounded) b WHERE command_id=$1 FOR SHARE OF r")
+        .bind(key).bind(LIMIT as i32).bind(read_limit.map(|v| i64::try_from(v).unwrap_or(i64::MAX))).fetch_optional(connection).await?;
     let Some(row) = row else {
         return Ok(None);
     };
@@ -267,6 +294,12 @@ pub struct PgRawRecordOrigin {
     backend_pid: i32,
     transaction_id: String,
     database_identity: String,
+}
+impl PgRawRecordOrigin {
+    /// Fingerprint of the complete receipt row observed in this transaction.
+    pub fn receipt_fingerprint(&self) -> &str {
+        &self.image
+    }
 }
 pub async fn read_raw_record_origin(
     c: &mut PgConnection,

@@ -73,3 +73,7 @@ path = "../../tests/unit/finance/rust-journal-wire.test.rs"
 [[test]]
 name = "parts_draft"
 path = "../../tests/unit/finance/rust-parts-draft.test.rs"
+
+[[test]]
+name = "manual_draft_edit_postgres"
+path = "../../tests/integration/finance/rust-manual-draft-edit-postgres.test.rs"

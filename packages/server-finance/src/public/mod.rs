@@ -7,8 +7,9 @@ pub use crate::application::journal::JournalAuthority;
 pub use crate::application::journal::JournalTransactionWitness;
 pub use crate::application::journal::{
     FinanceActor, FunctionalFxEvidence, JournalChart, JournalDraft, JournalPreparation,
-    JournalPreparationPorts, JournalStatus, ManualJournalCreateInput, PreparedJournalResult,
-    prepare_journal,
+    JournalPreparationPorts, JournalStatus, ManualJournalCreateInput, ManualJournalEditBasis,
+    ManualJournalEditInput, ManualJournalEditResult, PreparedJournalResult, prepare_journal,
+    validate_manual_journal_edit,
 };
 pub use crate::domain::calculation_methods::{
     AllocationInput, AllocationResult, ConsolidationInput, ConsolidationResult, FinanceCalculation,
@@ -57,3 +58,5 @@ pub mod journal_settlement;
 pub mod field_service_customer;
 
 pub mod journal_create_wire;
+pub mod manual_draft_edit;
+pub mod manual_draft_provenance;

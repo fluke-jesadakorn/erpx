@@ -13464,6 +13464,7 @@
         "$TURBO_ROOT$/migrations/postgres/holding-write/1073_holding_workspace_route_slugs.sql",
         "$TURBO_ROOT$/migrations/postgres/holding-write/1074_native_directory_observation_provenance.sql",
         "$TURBO_ROOT$/migrations/postgres/holding-write/1075_native_directory_principal_provenance.sql",
+        "$TURBO_ROOT$/migrations/postgres/holding-write/1076_finance_manual_draft_receipt_links.sql",
         "$TURBO_ROOT$/public/brand/concepts/01-command-hub.svg",
         "$TURBO_ROOT$/public/brand/concepts/02-modular-e.svg",
         "$TURBO_ROOT$/public/brand/concepts/03-executive-console.svg",
