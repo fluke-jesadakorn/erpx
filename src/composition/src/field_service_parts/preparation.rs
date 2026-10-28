@@ -29,6 +29,7 @@ pub(super) struct PendingIssueQuote {
     pub(super) order_id: String,
 }
 
+#[cfg(feature = "business-http")]
 pub(super) async fn quote_pending_issue<W: Clock + Sync, G: Clock + Sync>(
     c: &mut PgConnection,
     source: &CurrentFieldServiceOrder<'_, FieldServiceReferences>,
