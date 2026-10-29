@@ -589,3 +589,160 @@ pub async fn read_field_service_visit_by_key(
     let order = row.ok_or_else(denied)?.ok_or_else(invalid)?;
     read_field_service_visit(c, current, &order, key).await
 }
+
+/// Fence Agreement and its immutable events before the authorization snapshot.
+pub async fn lock_agreement_review_read_sources(c: &mut PgConnection) -> Result<(), Error> {
+    unit_required(c)?;
+    sqlx::query("LOCK TABLE field_service_agreements,field_service_agreement_events IN SHARE MODE")
+        .execute(c)
+        .await?;
+    Ok(())
+}
+#[derive(PartialEq, Eq)]
+struct AgreementImage {
+    has_asset: bool,
+    agreement: FieldServiceReserveResult,
+    event: crate::application::reservation_read::FieldServiceAgreementReviewEvent,
+    digest: String,
+}
+async fn agreement_image(
+    c: &mut PgConnection,
+    current: &AuthorizedWorkContext,
+    key: &str,
+) -> Result<AgreementImage, Error> {
+    let scope = current.selection().workspace();
+    let grant = current.selection().assignment();
+    let kind = match grant.scope_kind {
+        erpx_server_identity_access::public::work_context::WorkScopeKind::Holding => "holding",
+        erpx_server_identity_access::public::work_context::WorkScopeKind::Branch => "branch",
+        erpx_server_identity_access::public::work_context::WorkScopeKind::Department => {
+            "department"
+        }
+    };
+    let row=sqlx::query("SELECT b.bounded,coalesce(g.asset_id<>'',false) has_asset,CASE WHEN b.bounded THEN g.id END agreement_id,CASE WHEN b.bounded THEN g.status END agreement_status,g.version::bigint agreement_version,CASE WHEN b.bounded THEN e.action END action,CASE WHEN b.bounded THEN e.actor_id END actor_id,CASE WHEN b.bounded THEN e.reason END reason,CASE WHEN b.bounded THEN e.status END event_status,e.version::bigint event_version,encode(sha256(convert_to(jsonb_build_array(to_jsonb(g),to_jsonb(e))::text,'UTF8')),'hex') digest FROM field_service_agreements g JOIN field_service_agreement_events e ON e.agreement_id=g.id CROSS JOIN LATERAL (SELECT octet_length(g.id)::bigint+octet_length(g.status)::bigint+octet_length(e.action)::bigint+octet_length(e.actor_id)::bigint+octet_length(e.reason)::bigint+octet_length(e.status)::bigint<=2097152 AS bounded) b WHERE e.id=$1 AND e.action IN ('activate','reject','retire') AND g.company_id=$2 AND ($3::text IS NULL OR g.branch_id=$3) AND ($4::text IS NULL OR g.department_id=$4) AND ($5::text='holding' OR ($5='branch' AND g.branch_id=$6) OR ($5='department' AND g.department_id=$6)) FOR SHARE OF g,e")
+        .bind(format!("service-agreement-event-{key}")).bind(scope.company_id.as_str()).bind(scope.branch_id.as_ref().map(|v|v.as_str())).bind(scope.department_id.as_ref().map(|v|v.as_str())).bind(kind).bind(grant.scope_node_id.as_ref().map(|v|v.as_str())).fetch_optional(c).await?.ok_or_else(denied)?;
+    if !row.try_get::<bool, _>("bounded")? {
+        return Err(invalid());
+    }
+    let text =
+        |n| -> Result<String, Error> { row.try_get::<Option<String>, _>(n)?.ok_or_else(invalid) };
+    let agreement = FieldServiceReserveResult {
+        id: text("agreement_id")?,
+        status: text("agreement_status")?,
+        version: row.try_get("agreement_version")?,
+    };
+    let event = crate::application::reservation_read::FieldServiceAgreementReviewEvent {
+        version: row.try_get("event_version")?,
+        action: text("action")?,
+        actor_id: text("actor_id")?,
+        reason: text("reason")?,
+        status: text("event_status")?,
+    };
+    if !(1..=9_007_199_254_740_991).contains(&agreement.version)
+        || !(1..=agreement.version).contains(&event.version)
+        || event.status
+            != match event.action.as_str() {
+                "activate" => "active",
+                "reject" => "rejected",
+                "retire" => "retired",
+                _ => return Err(invalid()),
+            }
+    {
+        return Err(invalid());
+    }
+    Ok(AgreementImage {
+        has_asset: row.try_get("has_asset")?,
+        agreement,
+        event,
+        digest: row.try_get("digest")?,
+    })
+}
+pub struct CurrentAgreementReviewRead {
+    unit: (String, i32, String, String),
+    image: AgreementImage,
+    origin: PgRawRecordOrigin,
+    receipt: FieldServiceReserveResult,
+    key: String,
+}
+impl CurrentAgreementReviewRead {
+    pub fn has_asset(&self) -> bool {
+        self.image.has_asset
+    }
+    pub fn agreement(&self) -> &FieldServiceReserveResult {
+        &self.image.agreement
+    }
+    pub fn receipt(&self) -> &FieldServiceReserveResult {
+        &self.receipt
+    }
+    pub fn event(&self) -> &crate::application::reservation_read::FieldServiceAgreementReviewEvent {
+        &self.image.event
+    }
+    pub async fn require_current(
+        &self,
+        c: &mut PgConnection,
+        current: &AuthorizedWorkContext,
+    ) -> Result<(), Error> {
+        if unit(c).await? != self.unit
+            || agreement_image(c, current, &self.key).await? != self.image
+        {
+            return Err(invalid());
+        }
+        verify_raw_record_origin(c, &self.origin).await
+    }
+}
+pub async fn read_agreement_review_by_key(
+    c: &mut PgConnection,
+    current: &AuthorizedWorkContext,
+    key: &str,
+) -> Result<CurrentAgreementReviewRead, Error> {
+    current.require_permission("records.read")?;
+    if !current.modules().iter().any(|m| m == "field_service") {
+        return Err(denied());
+    }
+    erpx_server_shared::public::CommandKey::new(key.to_owned())?;
+    let unit = unit(c).await?;
+    let image = agreement_image(c, current, key).await?;
+    let (origin, result) = read_raw_record_origin_result_with_limit(
+        c,
+        RawRecordOriginRequest {
+            command_key: key.into(),
+            operation: format!("field.agreement.{}", image.event.action),
+            record_id: image.agreement.id.clone(),
+            creator_user_id: image.event.actor_id.clone(),
+            company_id: current.selection().workspace().company_id.clone(),
+        },
+        2 * 1024 * 1024,
+    )
+    .await?
+    .ok_or_else(denied)?;
+    let id = result
+        .property("id")?
+        .and_then(|v| v.string_utf16_units().ok().flatten())
+        .ok_or_else(invalid)?;
+    let status = result
+        .property("status")?
+        .and_then(|v| v.string_utf8_storage().ok().flatten())
+        .ok_or_else(invalid)?;
+    let version = result
+        .property("version")?
+        .and_then(|v| v.as_str().parse::<i64>().ok())
+        .ok_or_else(invalid)?;
+    if id != image.agreement.id.encode_utf16().collect::<Vec<_>>()
+        || version != image.event.version
+        || status != image.event.status
+    {
+        return Err(invalid());
+    }
+    let receipt = FieldServiceReserveResult {
+        id: image.agreement.id.clone(),
+        status,
+        version,
+    };
+    Ok(CurrentAgreementReviewRead {
+        unit,
+        image,
+        origin,
+        receipt,
+        key: key.into(),
+    })
+}

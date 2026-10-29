@@ -195,3 +195,24 @@ pub async fn assign_historical_technician(p: &Parts, technician: &str, orders: &
     }
     tx.commit().await.unwrap();
 }
+
+/// Historical draft rows and their actual Money snapshot; creation itself is
+/// outside the native review migration. The reviewer is a distinct active Person.
+pub async fn setup_agreement_review_facts(p: &Parts, now: i64) {
+    let db = p.pool().raw();
+    sqlx::raw_sql("INSERT INTO iam_roles(company_id,id,name,built_in,published_revision,status) VALUES('*','field_agreement_reviewer','Synthetic independent Agreement reviewer',false,1,'active'); INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) VALUES('*','field_agreement_reviewer',1,'[\"records.read\",\"records.write\",\"records.review\",\"module.field_service.read\"]','[]','[\"holding\"]','fixture',0); INSERT INTO hr_people(id,user_id,company_id,legal_name,country_code,status,created_by,created_at,updated_at) VALUES('agreement-review-person','fixture-b','company','Synthetic independent reviewer','TH','active','fixture-a',0,0); INSERT INTO hr_engagements(id,person_id,company_id,worker_type,employment_type,status,start_date,job_title,currency,created_by,created_at,updated_at) VALUES('agreement-review-engagement','agreement-review-person','company','employee','salaried','active','2020-01-01','Agreement reviewer','THB','fixture-a',0,0); INSERT INTO iam_members(company_id,user_id,principal_id,person_id,status,login_policy,version) VALUES('company','fixture-b','local:fixture-b','agreement-review-person','active','local',1)").execute(db).await.unwrap();
+    sqlx::query("INSERT INTO assignments(id,user_id,role,modules_json,company_id,valid_from,valid_until,version,scope_kind) VALUES('agreement-reviewer-b','fixture-b','field_agreement_reviewer','[\"field_service\"]','company',$1,$2,3,'holding')").bind(now-1000).bind(now+3_600_000).execute(db).await.unwrap();
+    let mut tx = db.begin().await.unwrap();
+    for (id, title) in [
+        ("review-agreement", "Synthetic Agreement for activation"),
+        (
+            "review-reject-agreement",
+            "Synthetic Agreement for rejection",
+        ),
+    ] {
+        sqlx::query("INSERT INTO field_service_agreements(id,company_id,branch_id,customer_id,title,start_date,end_date,currency,visit_rate_minor,status,created_by,version,created_at,updated_at)VALUES($1,'company','branch','customer',$2,'2026-01-01','2027-12-31','THB',10000,'draft','fixture-a',1,$3,$3)").bind(id).bind(title).bind(now).execute(&mut *tx).await.unwrap();
+        sqlx::query("INSERT INTO field_service_agreement_events(id,agreement_id,version,action,actor_id,reason,status,created_at)VALUES($1,$2,1,'create','fixture-a','Agreement drafted for independent review','draft',$3)").bind(format!("historical-create-{id}")).bind(id).bind(now).execute(&mut *tx).await.unwrap();
+        sqlx::query("INSERT INTO money_transaction_snapshots(company_id,source_type,source_id,amount_kind,transaction_date,currency,currency_scale,amount_units,usd_units,fx_rate_id,used_latest_fallback,captured_at) VALUES('company','field_service_agreement',$1,'visit_rate','2026-01-01','THB',2,10000,5000,'rate',false,$2)").bind(id).bind(now).execute(&mut *tx).await.unwrap();
+    }
+    tx.commit().await.unwrap();
+}

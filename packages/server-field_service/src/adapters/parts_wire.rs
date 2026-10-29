@@ -608,6 +608,27 @@ pub fn normalize_service_request(
 mod request_tests {
     use super::*;
     #[test]
+    fn agreement_review_normalizes_the_retained_receipt_input() {
+        let value = normalize_agreement_review(br#"{"entity":"agreement","id":"a","action":"activate","expectedVersion":1,"reason":"  Approved  ","ignored":true}"#).unwrap();
+        assert_eq!(value.reason, "Approved");
+        assert_eq!(
+            value.receipt_input.as_str(),
+            r#"{"action":"activate","expectedVersion":1,"reason":"Approved"}"#
+        );
+        assert!(
+            normalize_agreement_review(
+                br#"{"action":"activate","expectedVersion":0,"reason":"ok"}"#
+            )
+            .is_err()
+        );
+        assert!(
+            normalize_agreement_review(
+                br#"{"action":"other","expectedVersion":1,"reason":"Approved"}"#
+            )
+            .is_err()
+        );
+    }
+    #[test]
     fn request_normalization_preserves_optional_null_and_strips_edge_fields() {
         let input=br#"{"entity":"request","agreementId":"a","agreementVersion":2,"title":"  Visit  ","issue":" Broken ","site":" Shop ","technicianId":"u","scheduledAt":null,"ignored":true}"#;
         let value = normalize_service_request(input).unwrap();
@@ -738,6 +759,67 @@ pub struct NormalizedFieldServiceVisit {
     pub evidence: Option<String>,
     pub customer_confirmation: Option<String>,
     pub receipt_input: CommandJson,
+}
+
+/// The retained Agreement action schema strips shared-edge and unknown fields
+/// before the Workflow receipt fingerprints the normalized original input.
+#[derive(Clone)]
+pub struct NormalizedAgreementReview {
+    pub action: crate::domain::agreement_review::AgreementReviewAction,
+    pub expected_version: i64,
+    pub reason: String,
+    pub receipt_input: CommandJson,
+}
+
+pub fn normalize_agreement_review(
+    bytes: &[u8],
+) -> Result<NormalizedAgreementReview, FieldServiceWireFailure> {
+    use crate::domain::agreement_review::AgreementReviewAction;
+    let body = document(bytes)?;
+    let action_json = property(&body, "action").ok_or_else(|| {
+        FieldServiceWireFailure::validation(
+            "invalid_value",
+            field("action"),
+            "Invalid option: expected one of \"activate\"|\"reject\"|\"retire\"".into(),
+        )
+    })?;
+    let action = match action_json.string_utf8_storage().ok().flatten().as_deref() {
+        Some("activate") => AgreementReviewAction::Activate,
+        Some("reject") => AgreementReviewAction::Reject,
+        Some("retire") => AgreementReviewAction::Retire,
+        _ => {
+            return Err(FieldServiceWireFailure::validation(
+                "invalid_value",
+                field("action"),
+                "Invalid option: expected one of \"activate\"|\"reject\"|\"retire\"".into(),
+            ));
+        }
+    };
+    let mut check = Validation::default();
+    let mut fields = vec![("action", action_json)];
+    if let Some(v) = check.integer(
+        property(&body, "expectedVersion"),
+        &field("expectedVersion"),
+        false,
+    ) {
+        fields.push(("expectedVersion", v));
+    }
+    if let Some(v) = check.string(
+        property(&body, "reason"),
+        &field("reason"),
+        3,
+        Some(3000),
+        true,
+    ) {
+        fields.push(("reason", v));
+    }
+    let receipt_input = check.finish(&fields)?;
+    Ok(NormalizedAgreementReview {
+        action,
+        expected_version: int(&receipt_input, "expectedVersion")?,
+        reason: text(&receipt_input, "reason")?,
+        receipt_input,
+    })
 }
 pub fn normalize_field_service_visit(
     bytes: &[u8],

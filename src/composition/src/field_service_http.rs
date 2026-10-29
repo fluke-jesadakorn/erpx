@@ -26,6 +26,7 @@ use std::{collections::BTreeMap, future::Future, pin::Pin, sync::Arc};
 type WorkspaceInput = Box<dyn FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send>;
 type NativeResult =
     Result<Result<CommandJson, HttpIngressError>, PgTransactionError<BusinessError>>;
+type OptionalOtherPost = Option<Arc<dyn OtherPost>>;
 trait NativeAdministration: Send + Sync {
     fn execute<'a>(
         &'a self,
@@ -98,7 +99,7 @@ impl FieldServiceHttpTarget {
         service: Arc<FieldServicePartsAdministration<W, G>>,
         request: Option<Arc<dyn OtherPost>>,
         order_create: Option<Arc<dyn OtherPost>>,
-        visit: Option<Arc<dyn OtherPost>>,
+        visit_and_review: (OptionalOtherPost, OptionalOtherPost),
         allow_parts: (bool, bool),
     ) -> Self {
         Self {
@@ -108,7 +109,8 @@ impl FieldServiceHttpTarget {
             dispatch: HttpDispatch::PrivateCreates(
                 request,
                 order_create,
-                visit,
+                visit_and_review.0,
+                visit_and_review.1,
                 allow_parts.0,
                 allow_parts.1,
             ),
@@ -150,7 +152,7 @@ pub fn field_service_http_router(
                 target.dispatch,
                 HttpDispatch::ReserveOnly
                     | HttpDispatch::PrivateParts
-                    | HttpDispatch::PrivateCreates(_, _, _, _, _)
+                    | HttpDispatch::PrivateCreates(_, _, _, _, _, _)
             )
         });
     let mut registered = BTreeMap::new();
@@ -269,24 +271,29 @@ impl PostExecutor for SealedNativeExecutor {
                         HttpDispatch::Shared(other) => {
                             PostResponse::business(other.admission_error(branch, error))
                         }
-                        HttpDispatch::PrivateCreates(Some(other), _, _, _, _)
+                        HttpDispatch::PrivateCreates(Some(other), _, _, _, _, _)
                             if branch == OtherPostBranch::Request =>
                         {
                             PostResponse::business(other.admission_error(branch, error))
                         }
-                        HttpDispatch::PrivateCreates(_, Some(other), _, _, _)
+                        HttpDispatch::PrivateCreates(_, Some(other), _, _, _, _)
                             if branch == OtherPostBranch::OrderCreate =>
                         {
                             PostResponse::business(other.admission_error(branch, error))
                         }
-                        HttpDispatch::PrivateCreates(_, _, Some(other), _, _)
+                        HttpDispatch::PrivateCreates(_, _, Some(other), _, _, _)
                             if branch == OtherPostBranch::OrderChange =>
+                        {
+                            PostResponse::business(other.admission_error(branch, error))
+                        }
+                        HttpDispatch::PrivateCreates(_, _, _, Some(other), _, _)
+                            if branch == OtherPostBranch::AgreementChange =>
                         {
                             PostResponse::business(other.admission_error(branch, error))
                         }
                         HttpDispatch::ReserveOnly
                         | HttpDispatch::PrivateParts
-                        | HttpDispatch::PrivateCreates(_, _, _, _, _) => PostResponse::error(
+                        | HttpDispatch::PrivateCreates(_, _, _, _, _, _) => PostResponse::error(
                             axum::http::StatusCode::NOT_FOUND,
                             "NOT_FOUND",
                             "Not found.",

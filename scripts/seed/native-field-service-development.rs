@@ -50,7 +50,7 @@ async fn main() {
     let args: Vec<_> = std::env::args().collect();
     assert!(
         (3..=4).contains(&args.len()),
-        "usage: native-field-service-development ABSOLUTE_PRIVATE_CASE_DIR LOOPBACK_LISTEN [post|request|order-create|visit|complete|recovery|cancel]"
+        "usage: native-field-service-development ABSOLUTE_PRIVATE_CASE_DIR LOOPBACK_LISTEN [post|request|order-create|visit|complete|recovery|cancel|agreement-review]"
     );
     let dir = PathBuf::from(&args[1]);
     assert!(
@@ -74,11 +74,13 @@ async fn main() {
             "visit",
             "complete",
             "recovery",
-            "cancel"
+            "cancel",
+            "agreement-review"
         ]
         .contains(&scenario),
         "invalid private fixture scenario"
     );
+    let agreement_review_scenario = scenario == "agreement-review";
     let visit_scenario = scenario == "visit";
     let completion_scenario = scenario == "complete";
     let recovery_scenario = scenario == "recovery";
@@ -94,7 +96,8 @@ async fn main() {
         sqlx::raw_sql("UPDATE hr_engagements SET start_date='2020-01-01' WHERE id='field-engagement'").execute(system.holdings[0].raw()).await.expect("synthetic field service source unavailable");
         // A genuine reserve command creates the immutable Service/Workflow provenance.
         // The visit is synthetic historical data, not an implemented transition.
-        if !visit_scenario {
+        if agreement_review_scenario { field_service::setup_agreement_review_facts(&prepared, now).await; }
+        if !visit_scenario && !agreement_review_scenario {
         let reserve = format!(r#"{{"action":"reserve-part","expectedVersion":1,"warehouseId":"warehouse","productId":"product","quantityMilli":{},"expiresAt":{},"reason":"Synthetic issue reservation"}}"#, if completion_scenario || recovery_scenario || cancel_scenario {2000} else {1000}, now + 3_600_000);
         prepared.execute("reserve-order", "browser-issue-reserve", &reserve).await.expect("synthetic reserve command failed");
         let mut historical = system.holdings[0].raw().begin().await.expect("historical visit transaction unavailable");
@@ -122,7 +125,7 @@ async fn main() {
                 let config=erpx_service::field_service_parts::FieldServicePartsConfiguration::new(erpx_service::field_service_parts::FieldServicePartsEnvironment::Development,erpx_server_shared::public::HoldingId::new("h001").unwrap(),erpx_server_shared::public::CompanyId::new("company").unwrap(),erpx_server_commercial::public::purchases::PackageEnforcementMode::Enforced).unwrap();
                 let service=Arc::new(erpx_service::field_service_parts::FieldServicePartsAdministration::new(prepared.review.authorizer.clone(),config,system.scenario.clock.clone(),system.scenario.clock.clone()));
                 let dispatcher=Arc::new(erpx_service::field_service_parts::VisitDispatcher{clock:system.scenario.clock.clone(),allow_visits:false,allow_completion:false,allow_recovery:true,allow_cancel:false});
-                let router=erpx_service::field_service_http::field_service_http_router(Arc::new(field_service::account::fixture::account::policy()),field_service::account::fixture::account::holding_registry(),Arc::new(erpx_service::field_service_reservation_read_http::FieldServiceReadScopeHeaders),vec![erpx_service::field_service_http::FieldServiceHttpTarget::new_private_creates("acme.example.test".into(),"acme".into(),service,None,None,Some(dispatcher),(false,false))]).expect("recovery router unavailable");
+                let router=erpx_service::field_service_http::field_service_http_router(Arc::new(field_service::account::fixture::account::policy()),field_service::account::fixture::account::holding_registry(),Arc::new(erpx_service::field_service_reservation_read_http::FieldServiceReadScopeHeaders),vec![erpx_service::field_service_http::FieldServiceHttpTarget::new_private_creates("acme.example.test".into(),"acme".into(),service,None,None,(Some(dispatcher),None),(false,false))]).expect("recovery router unavailable");
                 let request=axum::http::Request::builder().method("POST").uri("/api/v1/holdings/acme/field-service").header("host","acme.example.test").header("origin","https://acme.example.test").header("cookie",format!("__Host-erpx-product={}",child.token.expose())).header("idempotency-key","browser-cancel-exception").header("x-erpx-context-company","company").header("x-erpx-context-revision","8").header("x-erpx-context-assignment","field-fixture-a").header("x-erpx-context-assignment-version","3").body(axum::body::Body::from(r#"{"id":"reserve-order","action":"exception","expectedVersion":4,"reason":"Synthetic access interruption"}"#)).unwrap();
                 let response=router.oneshot(request).await.expect("real recovery request failed");assert_eq!(response.status(),axum::http::StatusCode::OK,"real recovery prerequisite rejected");
             }
@@ -145,6 +148,7 @@ async fn main() {
                 {"holdingId":"h002","slug":"northstar","host":"northstar.jesadakorn.com","writeBinding":"HOLDING_H002_DB","readBinding":"HOLDING_H002_READ_DB","filesBinding":"HOLDING_H002_FILES","database":h002}
             ],"financeJournalReads":[{"holdingId":"h001","companyId":"company"}],"fieldServiceReads":[{"holdingId":"h001","companyId":"company"}],"fieldServiceReservations":["h001"],"fieldServiceIssues":["h001"],"accountBootstrap":true
         });
+        if agreement_review_scenario { doc["fieldServiceAgreementReviews"] = serde_json::json!(["h001"]); }
         if cancel_scenario { doc["fieldServiceOrderCancellations"] = serde_json::json!(["h001"]); }
         if recovery_scenario { doc["fieldServiceVisitRecoveries"] = serde_json::json!(["h001"]); }
         if completion_scenario { doc["fieldServiceVisitCompletions"] = serde_json::json!(["h001"]); }
@@ -167,7 +171,7 @@ async fn main() {
         let mut files = CaseFiles(Vec::new());
         files.0.push(write_private(&dir, "native-api.json", &doc));
         files.0.push(write_private(&dir, "databases.json", &manifest));
-        files.0.push(write_private(&dir, "credentials.json", &serde_json::json!({"email":"a@example.test","password":field_service::account::fixture::PASSWORD,"orderId":"reserve-order","reservationId":"field-part-browser-issue-reserve","expectedVersion":if visit_scenario {1} else if cancel_scenario {5} else if completion_scenario || recovery_scenario {4} else {3},"initialStatus":if visit_scenario {"scheduled"} else if cancel_scenario {"exception"} else {"in_visit"},"entryDate":"2026-01-10","financeEmail":"b@example.test","financePassword":field_service::account::fixture::PASSWORD,"journalId":journal_id,"journalVersion":if completion_scenario || recovery_scenario || cancel_scenario {2} else {1},"agreementId":"agreement","agreementVersion":2,"technicianId":"fixture-a","assignmentId":"field-fixture-a","assignmentVersion":3,"ticketId":"existing-ticket","ticketVersion":3})));
+        files.0.push(write_private(&dir, "credentials.json", &serde_json::json!({"email":if agreement_review_scenario {"b@example.test"} else {"a@example.test"},"password":field_service::account::fixture::PASSWORD,"orderId":"reserve-order","reservationId":"field-part-browser-issue-reserve","expectedVersion":if visit_scenario {1} else if cancel_scenario {5} else if completion_scenario || recovery_scenario {4} else {3},"initialStatus":if visit_scenario {"scheduled"} else if cancel_scenario {"exception"} else {"in_visit"},"entryDate":"2026-01-10","financeEmail":"b@example.test","financePassword":field_service::account::fixture::PASSWORD,"journalId":journal_id,"journalVersion":if completion_scenario || recovery_scenario || cancel_scenario {2} else {1},"agreementId":if agreement_review_scenario {"review-agreement"} else {"agreement"},"agreementVersion":if agreement_review_scenario {1} else {2},"agreementTitle":"Synthetic Agreement for activation","rejectAgreementId":"review-reject-agreement","rejectAgreementTitle":"Synthetic Agreement for rejection","rejectAgreementVersion":1,"creatorId":"fixture-a","technicianId":"fixture-a","assignmentId":if agreement_review_scenario {"agreement-reviewer-b"} else {"field-fixture-a"},"assignmentVersion":3,"ticketId":"existing-ticket","ticketVersion":3})));
         let runtime = assemble_development_api(configuration, Arc::new(SystemAccountClock), Arc::new(SystemAuthenticationSecrets)).await.expect("native case assembly failed");
         let listener = tokio::net::TcpListener::bind(runtime.listen_address()).await.expect("private case listener unavailable");
         println!("{}", dir.join("databases.json").display());

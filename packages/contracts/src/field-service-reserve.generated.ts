@@ -1,5 +1,10 @@
 // Generated from the Rust Field Service reservation contracts. Do not edit by hand.
 // Regenerate: bun scripts/docs/generate-field-service-reserve-contracts.ts
+export type FieldServiceAgreementReviewAction = "activate" | "reject" | "retire";
+export type FieldServiceAgreementReviewEntity = "agreement";
+export type FieldServiceAgreementReviewInput = { entity: FieldServiceAgreementReviewEntity, id: string, action: FieldServiceAgreementReviewAction, expectedVersion: number, reason: string, };
+export type FieldServiceAgreementReviewEvent = { version: number, action: string, actorId: string, reason: string, status: string, };
+export type FieldServiceAgreementReviewReadResponse = { context: FieldServiceRenderedContext, receipt: FieldServiceReserveResult, agreement: FieldServiceReserveResult, event: FieldServiceAgreementReviewEvent, };
 export type FieldServiceCancelAction = "cancel";
 export type FieldServiceCancelInput = { id: string, action: FieldServiceCancelAction, expectedVersion: number, reason: string, };
 export type FieldServiceRecoveryAction = "exception" | "resume";

@@ -291,6 +291,46 @@ pub struct FieldServiceVisitEvent {
     pub customer_confirmation: Option<String>,
 }
 
+#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct FieldServiceAgreementReviewEvent {
+    #[cfg_attr(feature = "contracts", ts(type = "number"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = i64, minimum = 1, maximum = 9_007_199_254_740_991_i64))]
+    pub version: i64,
+    pub action: String,
+    pub actor_id: String,
+    pub reason: String,
+    pub status: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+pub enum FieldServiceAgreementReviewEntity {
+    #[serde(rename = "agreement")]
+    Agreement,
+}
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(rename_all = "lowercase")]
+pub enum FieldServiceAgreementReviewAction {
+    Activate,
+    Reject,
+    Retire,
+}
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct FieldServiceAgreementReviewInput {
+    pub entity: FieldServiceAgreementReviewEntity,
+    pub id: String,
+    pub action: FieldServiceAgreementReviewAction,
+    #[cfg_attr(feature = "contracts", ts(type = "number"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = i64, minimum = 1, maximum = 9_007_199_254_740_991_i64))]
+    pub expected_version: i64,
+    pub reason: String,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 pub enum FieldServiceScheduleAction {

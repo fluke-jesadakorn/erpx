@@ -90,6 +90,7 @@ pub fn field_service_reservation_read_router<C: Clock + Send + Sync + 'static>(
         .route("/api/v1/holdings/{holding_slug}/field-service/{order_id}/reservations/{reservation_id}",get(read::<C>))
         .route("/api/v1/holdings/{holding_slug}/field-service/{order_id}/issues/{key}",get(read_issue::<C>))
         .route("/api/v1/holdings/{holding_slug}/field-service/visits/{key}",get(read_visit::<C>))
+        .route("/api/v1/holdings/{holding_slug}/field-service/agreements/reviews/{key}",get(read_agreement_review::<C>))
         .route("/api/v1/holdings/{holding_slug}/field-service/requests/{key}",get(read_request::<C>))
         .route("/api/v1/holdings/{holding_slug}/field-service/orders/{key}",get(read_created_order::<C>))
         .with_state(Arc::new(ReadState {policy,scopes,targets:configured})))
@@ -271,6 +272,65 @@ async fn read_visit<C: Clock + Send + Sync + 'static>(
     }
     .await;
     let mut response=match result {Ok(data)=>Json(data).into_response(),Err(PgTransactionError::Business(e))=>{let status=match e.kind{FailureKind::InvalidInput=>StatusCode::UNPROCESSABLE_ENTITY,FailureKind::Unauthenticated=>StatusCode::UNAUTHORIZED,FailureKind::Forbidden=>StatusCode::FORBIDDEN,FailureKind::NotFound=>StatusCode::NOT_FOUND,FailureKind::Conflict=>StatusCode::CONFLICT,FailureKind::Unavailable=>StatusCode::SERVICE_UNAVAILABLE};(status,Json(serde_json::json!({"error":{"code":e.code,"message":e.message}}))).into_response()},Err(PgTransactionError::Persistence(_))=>(StatusCode::INTERNAL_SERVER_ERROR,Json(serde_json::json!({"error":{"code":"FIELD_SERVICE_READ_UNAVAILABLE","message":"The visit could not be read."}}))).into_response()};
+    for (name, value) in [
+        (header::CACHE_CONTROL, "private, no-store"),
+        (header::REFERRER_POLICY, "no-referrer"),
+        (header::X_CONTENT_TYPE_OPTIONS, "nosniff"),
+    ] {
+        response
+            .headers_mut()
+            .insert(name, HeaderValue::from_static(value));
+    }
+    response
+}
+
+async fn read_agreement_review<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path((slug, key)): Path<(String, String)>,
+    headers: HeaderMap,
+) -> Response {
+    let result = async {
+        let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
+        let target = state
+            .targets
+            .get(&(host.into(), slug))
+            .ok_or_else(missing)?;
+        let inbound = parse_inbound_account_request(&state.policy, &headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(missing().into());
+        }
+        if unique_request_header(&headers, "origin")?
+            .is_some_and(|v| v != inbound.expected_origin())
+        {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            )
+            .into());
+        }
+        let scope = state.scopes.slugs(&headers);
+        let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
+        let captured = CapturedHoldingMutation::capture(&headers, branch, department);
+        let company = target.service.company_id().clone();
+        if key.is_empty() || key.chars().any(char::is_control) || key.len() > 2 * 1024 * 1024 {
+            return Err(missing().into());
+        }
+        target
+            .service
+            .read_agreement_review(
+                host,
+                inbound.into_proof(),
+                move || {
+                    scope?;
+                    captured.resolve_read(company)
+                },
+                key,
+            )
+            .await
+    }
+    .await;
+    let mut response=match result {Ok(data)=>Json(data).into_response(),Err(PgTransactionError::Business(e))=>{let status=match e.kind{FailureKind::InvalidInput=>StatusCode::UNPROCESSABLE_ENTITY,FailureKind::Unauthenticated=>StatusCode::UNAUTHORIZED,FailureKind::Forbidden=>StatusCode::FORBIDDEN,FailureKind::NotFound=>StatusCode::NOT_FOUND,FailureKind::Conflict=>StatusCode::CONFLICT,FailureKind::Unavailable=>StatusCode::SERVICE_UNAVAILABLE};(status,Json(serde_json::json!({"error":{"code":e.code,"message":e.message}}))).into_response()},Err(PgTransactionError::Persistence(_))=>(StatusCode::INTERNAL_SERVER_ERROR,Json(serde_json::json!({"error":{"code":"FIELD_SERVICE_READ_UNAVAILABLE","message":"The Agreement review could not be read."}}))).into_response()};
     for (name, value) in [
         (header::CACHE_CONTROL, "private, no-store"),
         (header::REFERRER_POLICY, "no-referrer"),

@@ -18,6 +18,69 @@ pub(super) struct FieldServicePurchases {
 }
 impl FieldServicePurchases {
     #[cfg(feature = "business-http")]
+    pub(super) async fn retain_agreement_review(
+        c: &mut PgConnection,
+        current: &AuthorizedWorkContext,
+        asset: bool,
+        disposition: CommandDisposition,
+        action: erpx_server_field_service::public::agreement_review::AgreementReviewAction,
+        now: TimestampMillis,
+    ) -> Result<Self, Error> {
+        use erpx_server_field_service::public::agreement_review::AgreementReviewAction;
+        let holding = current.holding_id().clone();
+        let company = current.selection().workspace().company_id.clone();
+        let catalogue = current_package_catalogue()?;
+        let mut reader =
+            PgCompanyPurchaseReader::new(holding.clone(), company.clone(), c, &catalogue);
+        let mut history = vec!["service.orders".into(), "service.agreements".into()];
+        let mut action_capabilities = vec!["service.agreements".into()];
+        if asset {
+            history.push("service.parts-assets".into());
+            action_capabilities.push("service.parts-assets".into());
+        }
+        let mut witnesses = vec![
+            reader
+                .inspect(
+                    &PurchaseRequest {
+                        capabilities: history,
+                        purpose: CapabilityPurpose::History,
+                        mode: PackageEnforcementMode::Enforced,
+                    },
+                    now,
+                )
+                .await?
+                .require_allowed()?
+                .clone(),
+        ];
+        if disposition == CommandDisposition::Execute {
+            let purpose = if action == AgreementReviewAction::Activate {
+                CapabilityPurpose::NewWork
+            } else {
+                CapabilityPurpose::SettleExisting
+            };
+            witnesses.push(
+                reader
+                    .inspect(
+                        &PurchaseRequest {
+                            capabilities: action_capabilities,
+                            purpose,
+                            mode: PackageEnforcementMode::Enforced,
+                        },
+                        now,
+                    )
+                    .await?
+                    .require_allowed()?
+                    .clone(),
+            );
+        }
+        Ok(Self {
+            holding,
+            company,
+            catalogue,
+            witnesses,
+        })
+    }
+    #[cfg(feature = "business-http")]
     pub(super) async fn retain_visit(
         c: &mut PgConnection,
         current: &AuthorizedWorkContext,

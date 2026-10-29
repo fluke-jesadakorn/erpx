@@ -136,6 +136,8 @@ struct ConfigurationDocument {
     #[serde(default)]
     field_service_order_cancellations: Vec<String>,
     #[serde(default)]
+    field_service_agreement_reviews: Vec<String>,
+    #[serde(default)]
     account_bootstrap: bool,
 }
 struct HoldingConfiguration {
@@ -169,6 +171,7 @@ pub struct DevelopmentApiConfiguration {
     field_service_visit_completions: BTreeSet<HoldingId>,
     field_service_visit_recoveries: BTreeSet<HoldingId>,
     field_service_order_cancellations: BTreeSet<HoldingId>,
+    field_service_agreement_reviews: BTreeSet<HoldingId>,
     account_bootstrap: bool,
 }
 impl fmt::Debug for DevelopmentApiConfiguration {
@@ -396,6 +399,16 @@ impl DevelopmentApiConfiguration {
                 return Err("PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID");
             }
         }
+        let mut field_service_agreement_reviews = BTreeSet::new();
+        for id in doc.field_service_agreement_reviews {
+            let holding = HoldingId::new(id)
+                .map_err(|_| "PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID")?;
+            if !field_service_reads.contains_key(&holding)
+                || !field_service_agreement_reviews.insert(holding)
+            {
+                return Err("PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID");
+            }
+        }
         let mut finance_field_service_journal_posts = BTreeSet::new();
         for id in doc.finance_field_service_journal_posts {
             let holding =
@@ -454,6 +467,7 @@ impl DevelopmentApiConfiguration {
             field_service_visit_completions,
             field_service_visit_recoveries,
             field_service_order_cancellations,
+            field_service_agreement_reviews,
             account_bootstrap: doc.account_bootstrap,
         })
     }
@@ -663,6 +677,7 @@ async fn assemble_checked(
     let mut service_request_targets = BTreeSet::new();
     let mut service_order_create_targets = BTreeSet::new();
     let mut service_visit_targets = BTreeSet::new();
+    let mut service_agreement_review_targets = BTreeSet::new();
     if !config.finance_journal_reads.is_empty() {
         let catalogue = Arc::new(
             current_package_catalogue().map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
@@ -936,6 +951,17 @@ async fn assemble_checked(
             let cancel_enabled = config
                 .field_service_order_cancellations
                 .contains(&holding.registration.holding_id);
+            let agreement_review_enabled = config
+                .field_service_agreement_reviews
+                .contains(&holding.registration.holding_id);
+            if agreement_review_enabled {
+                service_agreement_review_targets.insert(target.clone());
+            }
+            let read_configuration = if agreement_review_enabled {
+                read_configuration.with_agreement_reviews()
+            } else {
+                read_configuration
+            };
             if visit_enabled || completion_enabled || recovery_enabled || cancel_enabled {
                 service_visit_targets.insert(target.clone());
             }
@@ -984,6 +1010,7 @@ async fn assemble_checked(
                 || completion_enabled
                 || recovery_enabled
                 || cancel_enabled
+                || agreement_review_enabled
             {
                 service_reservation_targets.insert(target.clone());
                 let action = FieldServicePartsConfiguration::new(
@@ -1009,6 +1036,7 @@ async fn assemble_checked(
                         || completion_enabled
                         || recovery_enabled
                         || cancel_enabled
+                        || agreement_review_enabled
                     {
                         FieldServiceHttpTarget::new_private_creates(
                             target.0,
@@ -1026,20 +1054,30 @@ async fn assemble_checked(
                                 })
                                     as Arc<dyn crate::field_service_parts::OtherPost>
                             }),
-                            (visit_enabled
-                                || completion_enabled
-                                || recovery_enabled
-                                || cancel_enabled)
-                                .then(|| {
-                                    Arc::new(crate::field_service_parts::VisitDispatcher {
-                                        allow_visits: visit_enabled,
-                                        allow_completion: completion_enabled,
-                                        allow_recovery: recovery_enabled,
-                                        allow_cancel: cancel_enabled,
-                                        clock: Arc::new(SharedClock(clock.clone())),
-                                    })
+                            (
+                                (visit_enabled
+                                    || completion_enabled
+                                    || recovery_enabled
+                                    || cancel_enabled)
+                                    .then(|| {
+                                        Arc::new(crate::field_service_parts::VisitDispatcher {
+                                            allow_visits: visit_enabled,
+                                            allow_completion: completion_enabled,
+                                            allow_recovery: recovery_enabled,
+                                            allow_cancel: cancel_enabled,
+                                            clock: Arc::new(SharedClock(clock.clone())),
+                                        })
+                                            as Arc<dyn crate::field_service_parts::OtherPost>
+                                    }),
+                                agreement_review_enabled.then(|| {
+                                    Arc::new(
+                                        crate::field_service_parts::AgreementReviewDispatcher {
+                                            clock: Arc::new(SharedClock(clock.clone())),
+                                        },
+                                    )
                                         as Arc<dyn crate::field_service_parts::OtherPost>
                                 }),
+                            ),
                             (reserve_enabled, issue_enabled),
                         )
                     } else if issue_enabled {
@@ -1087,6 +1125,7 @@ async fn assemble_checked(
         service_request_targets,
         service_order_create_targets,
         service_visit_targets,
+        service_agreement_review_targets,
         account_bootstrap: config.account_bootstrap,
     });
     Ok(router.layer(middleware::from_fn_with_state(state, boundary)))
@@ -1113,6 +1152,7 @@ struct Boundary {
     service_request_targets: BTreeSet<(String, String)>,
     service_order_create_targets: BTreeSet<(String, String)>,
     service_visit_targets: BTreeSet<(String, String)>,
+    service_agreement_review_targets: BTreeSet<(String, String)>,
     account_bootstrap: bool,
 }
 enum BoundaryDenial {
@@ -1301,6 +1341,19 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
                 .service_read_targets
                 .contains(&(host.to_owned(), (*slug).to_owned()))
         }
+        [
+            "",
+            "api",
+            "v1",
+            "holdings",
+            slug,
+            "field-service",
+            "agreements",
+            "reviews",
+            key,
+        ] if !key.is_empty() => state
+            .service_agreement_review_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
         [
             "",
             "api",

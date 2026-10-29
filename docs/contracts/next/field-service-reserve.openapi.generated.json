@@ -1,6 +1,103 @@
 {
   "components": {
     "schemas": {
+      "FieldServiceAgreementReviewAction": {
+        "enum": [
+          "activate",
+          "reject",
+          "retire"
+        ],
+        "type": "string"
+      },
+      "FieldServiceAgreementReviewEntity": {
+        "enum": [
+          "agreement"
+        ],
+        "type": "string"
+      },
+      "FieldServiceAgreementReviewEvent": {
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "actorId": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "action",
+          "actorId",
+          "reason",
+          "status"
+        ],
+        "type": "object"
+      },
+      "FieldServiceAgreementReviewInput": {
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/FieldServiceAgreementReviewAction"
+          },
+          "entity": {
+            "$ref": "#/components/schemas/FieldServiceAgreementReviewEntity"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "entity",
+          "id",
+          "action",
+          "expectedVersion",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "FieldServiceAgreementReviewReadResponse": {
+        "properties": {
+          "agreement": {
+            "$ref": "#/components/schemas/FieldServiceReserveResult"
+          },
+          "context": {
+            "$ref": "#/components/schemas/FieldServiceRenderedContext"
+          },
+          "event": {
+            "$ref": "#/components/schemas/FieldServiceAgreementReviewEvent"
+          },
+          "receipt": {
+            "$ref": "#/components/schemas/FieldServiceReserveResult"
+          }
+        },
+        "required": [
+          "context",
+          "receipt",
+          "agreement",
+          "event"
+        ],
+        "type": "object"
+      },
       "FieldServiceCancelAction": {
         "enum": [
           "cancel"
@@ -1165,6 +1262,9 @@
                   },
                   {
                     "$ref": "#/components/schemas/FieldServiceCancelInput"
+                  },
+                  {
+                    "$ref": "#/components/schemas/FieldServiceAgreementReviewInput"
                   }
                 ]
               }
@@ -1182,6 +1282,42 @@
               }
             },
             "description": "Retained reserve command receipt"
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/v1/holdings/{holding_slug}/field-service/agreements/reviews/{key}": {
+      "get": {
+        "operationId": "agreement_review_read",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "holding_slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FieldServiceAgreementReviewReadResponse"
+                }
+              }
+            },
+            "description": "Current scoped Agreement review evidence"
           }
         },
         "tags": []

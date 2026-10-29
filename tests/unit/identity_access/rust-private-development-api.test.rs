@@ -198,6 +198,13 @@ fn finance_read_requires_distinct_registered_holdings_and_valid_companies() {
     d["fieldServiceOrderCancellations"] = serde_json::json!(["h002"]);
     assert!(DevelopmentApiConfiguration::parse(&d.to_string()).is_err());
     d["fieldServiceOrderCancellations"] = serde_json::json!([]);
+    d["fieldServiceAgreementReviews"] = serde_json::json!(["h001"]);
+    assert!(DevelopmentApiConfiguration::parse(&d.to_string()).is_ok());
+    d["fieldServiceAgreementReviews"] = serde_json::json!(["h001", "h001"]);
+    assert!(DevelopmentApiConfiguration::parse(&d.to_string()).is_err());
+    d["fieldServiceAgreementReviews"] = serde_json::json!(["h002"]);
+    assert!(DevelopmentApiConfiguration::parse(&d.to_string()).is_err());
+    d["fieldServiceAgreementReviews"] = serde_json::json!([]);
     d["fieldServiceReservations"] = serde_json::json!(["h001"]);
     assert!(parses(&d));
     d["fieldServiceReservations"] = serde_json::json!(["h002"]);

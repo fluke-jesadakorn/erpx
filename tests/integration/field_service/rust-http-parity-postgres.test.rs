@@ -828,3 +828,93 @@ async fn private_cancel_states_reservations_authority_and_rollback() {
   let exception=r#"{"id":"cancel-exception","action":"exception","expectedVersion":2,"reason":"Site blocked"}"#;assert_eq!(send(&runtime.router(),&cookie,"cancel-exception-action",exception).await.0,StatusCode::OK);let cancel_exception=r#"{"id":"cancel-exception","action":"cancel","expectedVersion":3,"reason":"Cancel blocked"}"#;let r=send(&runtime.router(),&cookie,"cancel-exception-final",cancel_exception).await;assert_eq!(r.0,StatusCode::OK,"{}",r.1);let reason:Option<String>=sqlx::query_scalar("SELECT exception_reason FROM field_service_orders WHERE id='cancel-exception'").fetch_one(db).await.unwrap();assert_eq!(reason.as_deref(),Some("Site blocked"));runtime.close().await;
  }).await;
 }
+
+#[cfg(feature = "private-development-api")]
+#[tokio::test]
+async fn private_agreement_review_full_transaction_and_readback() {
+    account::with_system(|system| async move {
+        let now=std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;
+        system.scenario.clock.0.store(now,Ordering::SeqCst);
+        let p=setup(system).await;
+        setup_agreement_review_facts(&p,now).await;
+        let system=&p.review.system; let db=p.pool().raw();
+        let central=account::login(system,"b@example.test",None).await;
+        let child=account::child(system,&central,account::ACME).await;
+        sqlx::query("INSERT INTO active_work_contexts(session_id,user_id,company_id,assignment_id,assignment_version,revision,expires_at,updated_at)VALUES($1,'fixture-b','company','agreement-reviewer-b',3,8,$2,$3)").bind(&child.result.session_id).bind(now+3_600_000).bind(now).execute(db).await.unwrap();
+        let cookie=format!("__Host-erpx-product={}",child.token.expose());
+        let mut doc=private_configuration::document(&system.control,&system.holdings).await;
+        doc["fieldServiceReads"]=serde_json::json!([{"holdingId":"h001","companyId":"company"}]);
+        doc["fieldServiceReservations"]=serde_json::json!(["h001"]);
+        let activate=r#"{"entity":"agreement","id":"review-agreement","action":"activate","expectedVersion":1,"reason":"  Approved  "}"#;
+        let closed=assemble_development_api(DevelopmentApiConfiguration::parse(&doc.to_string()).unwrap(),system.scenario.clock.clone(),Arc::new(SystemAuthenticationSecrets)).await.unwrap();
+        assert_eq!(send_as(&closed.router(),&cookie,"agreement-reviewer-b","review-disabled",activate).await.0,StatusCode::NOT_FOUND);
+        closed.close().await;
+        doc["fieldServiceAgreementReviews"]=serde_json::json!(["h001"]);
+        let runtime=assemble_development_api(DevelopmentApiConfiguration::parse(&doc.to_string()).unwrap(),system.scenario.clock.clone(),Arc::new(SystemAuthenticationSecrets)).await.unwrap();
+        let post=|key:&str,body:&str| { let router=runtime.router(); let cookie=cookie.clone(); let key=key.to_owned(); let body=body.to_owned(); async move {send_as(&router,&cookie,"agreement-reviewer-b",&key,&body).await} };
+        assert_ne!(send_as(&runtime.router(),"","agreement-reviewer-b","review-no-session",activate).await.0,StatusCode::OK);
+        sqlx::query("UPDATE assignments SET valid_until=$1 WHERE id='agreement-reviewer-b'").bind(now-1).execute(db).await.unwrap();
+        assert_ne!(post("review-expired",activate).await.0,StatusCode::OK);
+        sqlx::query("UPDATE assignments SET valid_until=$1 WHERE id='agreement-reviewer-b'").bind(now+3_600_000).execute(db).await.unwrap();
+        assert_eq!(post("review-stale",&activate.replace("\"expectedVersion\":1","\"expectedVersion\":2")).await.0,StatusCode::CONFLICT);
+        assert_eq!(post("review-blocked",r#"{"entity":"agreement","id":"agreement","action":"retire","expectedVersion":2,"reason":"Close Agreement"}"#).await.0,StatusCode::CONFLICT);
+        sqlx::query("UPDATE iam_members SET person_id='field-person' WHERE company_id='company' AND user_id='fixture-b'").execute(db).await.unwrap();
+        assert_eq!(post("review-alias",activate).await.0,StatusCode::FORBIDDEN);
+        sqlx::query("UPDATE iam_members SET person_id='agreement-review-person' WHERE company_id='company' AND user_id='fixture-b'").execute(db).await.unwrap();
+        sqlx::raw_sql("CREATE FUNCTION review_source_drift() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.command_id='review-drift' THEN UPDATE field_service_agreements SET title='drift' WHERE id='review-agreement'; END IF; RETURN NEW; END $$;CREATE TRIGGER review_source_drift AFTER INSERT ON command_receipts FOR EACH ROW EXECUTE FUNCTION review_source_drift()").execute(db).await.unwrap();
+        assert_ne!(post("review-drift",activate).await.0,StatusCode::OK);assert_eq!(p.counts("review-drift").await,(0,0,0,0,0));
+        sqlx::raw_sql("DROP TRIGGER review_source_drift ON command_receipts;DROP FUNCTION review_source_drift()").execute(db).await.unwrap();
+        sqlx::query("ALTER TABLE audit_events ADD CONSTRAINT review_rollback CHECK(command_id<>'review-rollback')").execute(db).await.unwrap();
+        assert_ne!(post("review-rollback",activate).await.0,StatusCode::OK);assert_eq!(p.counts("review-rollback").await,(0,0,0,0,0));
+        sqlx::query("ALTER TABLE audit_events DROP CONSTRAINT review_rollback").execute(db).await.unwrap();
+        for (key,id) in [("review-long-ascii","x".repeat(210)),("review-long-cjk","界".repeat(90))] {
+            sqlx::query("INSERT INTO field_service_agreements SELECT (jsonb_populate_record(NULL::field_service_agreements,to_jsonb(g)||jsonb_build_object('id',$1::text))).* FROM field_service_agreements g WHERE id='review-reject-agreement'").bind(&id).execute(db).await.unwrap();
+            sqlx::query("INSERT INTO field_service_agreement_events(id,agreement_id,version,action,actor_id,reason,status,created_at)VALUES($1,$2,1,'create','fixture-a','Agreement drafted for independent review','draft',$3)").bind(format!("historical-{key}")).bind(&id).bind(now).execute(db).await.unwrap();
+            sqlx::query("INSERT INTO money_transaction_snapshots(company_id,source_type,source_id,amount_kind,transaction_date,currency,currency_scale,amount_units,usd_units,fx_rate_id,used_latest_fallback,captured_at) VALUES('company','field_service_agreement',$1,'visit_rate','2026-01-01','THB',2,10000,5000,'rate',false,$2)").bind(&id).bind(now).execute(db).await.unwrap();
+            let body=serde_json::json!({"entity":"agreement","id":id,"action":"activate","expectedVersion":1,"reason":"Long original reference"}).to_string();
+            let response=post(key,&body).await;assert_eq!(response.0,StatusCode::OK,"{}",response.1);assert_eq!(post(key,&body).await.0,StatusCode::OK);
+            let request=Request::builder().uri(format!("/api/v1/holdings/acme/field-service/agreements/reviews/{key}")).header("host","acme.example.test").header("cookie",&cookie).body(Body::empty()).unwrap();assert_eq!(runtime.router().oneshot(request).await.unwrap().status(),StatusCode::OK);
+        }
+        // Conditional Asset purchase follows the same purpose as the Agreement action.
+        sqlx::query("INSERT INTO operational_assets(id,company_id,branch_id,code,name,category,currency,created_by,created_at,updated_at) VALUES('review-asset','company','branch','REVIEW-ASSET','Synthetic asset','synthetic','THB','fixture-a',$1,$1)").bind(now).execute(db).await.unwrap();
+        sqlx::query("INSERT INTO field_service_agreements SELECT (jsonb_populate_record(NULL::field_service_agreements,to_jsonb(g)||jsonb_build_object('id','review-asset-agreement','asset_id','review-asset'))).* FROM field_service_agreements g WHERE id='review-reject-agreement'").execute(db).await.unwrap();
+        sqlx::query("INSERT INTO field_service_agreement_events(id,agreement_id,version,action,actor_id,reason,status,created_at) VALUES('review-asset-create','review-asset-agreement',1,'create','fixture-a','Agreement drafted for independent review','draft',$1)").bind(now).execute(db).await.unwrap();
+        sqlx::query("INSERT INTO money_transaction_snapshots(company_id,source_type,source_id,amount_kind,transaction_date,currency,currency_scale,amount_units,usd_units,fx_rate_id,used_latest_fallback,captured_at) VALUES('company','field_service_agreement','review-asset-agreement','visit_rate','2026-01-01','THB',2,10000,5000,'rate',false,$1)").bind(now).execute(db).await.unwrap();
+        let mut asset_drain=db.begin().await.unwrap();
+        let before_asset:serde_json::Value=sqlx::query_scalar("SELECT jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence) FROM company_package_grants WHERE company_id='company' AND package_id='service-parts-assets'").fetch_one(&mut *asset_drain).await.unwrap();
+        sqlx::query("UPDATE company_package_grants SET state='draining',version=version+1 WHERE company_id='company' AND package_id='service-parts-assets'").execute(&mut *asset_drain).await.unwrap();
+        sqlx::query("INSERT INTO company_package_grant_events(id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at) SELECT 'review-asset-draining','company',package_id,'fixture-a','synthetic-draining',$1,jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence),$2 FROM company_package_grants WHERE company_id='company' AND package_id='service-parts-assets'").bind(before_asset).bind(now).execute(&mut *asset_drain).await.unwrap();asset_drain.commit().await.unwrap();
+        let asset_activate=activate.replace("review-agreement","review-asset-agreement");assert_eq!(post("review-asset-activate",&asset_activate).await.0,StatusCode::FORBIDDEN);
+        let asset_reject=r#"{"entity":"agreement","id":"review-asset-agreement","action":"reject","expectedVersion":1,"reason":"Asset review rejected"}"#;
+        assert_eq!(post("review-asset-reject",asset_reject).await.0,StatusCode::OK);
+        let result=post("review-activate",activate).await;assert_eq!(result.0,StatusCode::OK,"{}",result.1);assert_eq!(result.1["data"]["status"],"active");
+        assert_eq!(post("review-activate",activate).await.0,StatusCode::OK);
+        assert_ne!(post("review-activate",&activate.replace("Approved","Changed")).await.0,StatusCode::OK);
+        // Draining permits retained settlement and History replay, but cannot activate new work.
+        let mut draining=db.begin().await.unwrap();
+        let before:serde_json::Value=sqlx::query_scalar("SELECT jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence) FROM company_package_grants WHERE company_id='company' AND package_id='service'").fetch_one(&mut *draining).await.unwrap();
+        sqlx::query("UPDATE company_package_grants SET state='draining',version=version+1 WHERE company_id='company' AND package_id='service'").execute(&mut *draining).await.unwrap();
+        sqlx::query("INSERT INTO company_package_grant_events(id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at) SELECT 'review-service-draining','company',package_id,'fixture-a','synthetic-draining',$1,jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence),$2 FROM company_package_grants WHERE company_id='company' AND package_id='service'").bind(before).bind(now).execute(&mut *draining).await.unwrap();
+        draining.commit().await.unwrap();
+        let denied_activation=activate.replace("review-agreement","review-reject-agreement");
+        assert_eq!(post("review-draining-activation",&denied_activation).await.0,StatusCode::FORBIDDEN);
+        assert_eq!(post("review-activate",activate).await.0,StatusCode::OK);
+        let reject=r#"{"entity":"agreement","id":"review-reject-agreement","action":"reject","expectedVersion":1,"reason":"Not ready"}"#;
+        assert_eq!(post("review-reject",reject).await.0,StatusCode::OK);assert_eq!(post("review-reject",reject).await.0,StatusCode::OK);
+        let retire=r#"{"entity":"agreement","id":"review-agreement","action":"retire","expectedVersion":2,"reason":"Contract ended"}"#;
+        // An order that reopens inside the owner unit must roll back retirement.
+        sqlx::query("INSERT INTO support_tickets(id,company_id,branch_id,title,issue,owner_id,due_date,created_by,created_at,updated_at,source_kind) VALUES('review-drift-ticket','company','branch','Synthetic cancelled order','Historical fixture','fixture-a','2027-01-01','fixture-a',$1,$1,'general')").bind(now).execute(db).await.unwrap();
+        sqlx::query("INSERT INTO field_service_orders(id,company_id,branch_id,ticket_id,ticket_version,agreement_id,agreement_version,issue,site,technician_id,status,created_by,version,created_at,updated_at) VALUES('review-drift-order','company','branch','review-drift-ticket',1,'review-agreement',2,'Historical issue','Historical site','fixture-a','cancelled','fixture-a',1,$1,$1)").bind(now).execute(db).await.unwrap();
+        sqlx::raw_sql("CREATE FUNCTION agreement_late_order_drift() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.command_id='review-retire-drift' THEN UPDATE field_service_orders SET status='open' WHERE id='review-drift-order'; END IF; RETURN NEW; END $$;CREATE TRIGGER agreement_late_order_drift AFTER INSERT ON audit_events FOR EACH ROW EXECUTE FUNCTION agreement_late_order_drift()").execute(db).await.unwrap();
+        assert_ne!(post("review-retire-drift",retire).await.0,StatusCode::OK);assert_eq!(p.counts("review-retire-drift").await,(0,0,0,0,0));
+        let stable:(String,String)=sqlx::query_as("SELECT (SELECT status FROM field_service_agreements WHERE id='review-agreement'),(SELECT status FROM field_service_orders WHERE id='review-drift-order')").fetch_one(db).await.unwrap();assert_eq!(stable,("active".into(),"cancelled".into()));
+        sqlx::raw_sql("DROP TRIGGER agreement_late_order_drift ON audit_events;DROP FUNCTION agreement_late_order_drift()").execute(db).await.unwrap();
+        let done=post("review-retire",retire).await;assert_eq!(done.0,StatusCode::OK,"{}",done.1);assert_eq!(post("review-retire",retire).await.0,StatusCode::OK);
+        for (key,action,status) in [("review-activate","activate","active"),("review-reject","reject","rejected"),("review-retire","retire","retired")] {
+            let req=Request::builder().uri(format!("/api/v1/holdings/acme/field-service/agreements/reviews/{key}")).header("host","acme.example.test").header("cookie",&cookie).body(Body::empty()).unwrap();
+            let response=runtime.router().oneshot(req).await.unwrap();let code=response.status();let body=to_bytes(response.into_body(),65536).await.unwrap();assert_eq!(code,StatusCode::OK,"{}",String::from_utf8_lossy(&body));let value:serde_json::Value=serde_json::from_slice(&body).unwrap();assert_eq!(value["event"]["action"],action);assert_eq!(value["receipt"]["status"],status);assert_eq!(value["event"]["actorId"],"fixture-b");
+        }
+        let rows:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM field_service_agreement_events WHERE id IN ('service-agreement-event-review-activate','service-agreement-event-review-reject','service-agreement-event-review-retire')),(SELECT count(*) FROM command_receipts WHERE command_id IN ('review-activate','review-reject','review-retire')),(SELECT count(*) FROM money_transaction_snapshots WHERE source_type='field_service_agreement' AND source_id IN ('review-agreement','review-reject-agreement'))").fetch_one(db).await.unwrap();assert_eq!(rows,(3,3,2));
+        runtime.close().await;
+    }).await;
+}

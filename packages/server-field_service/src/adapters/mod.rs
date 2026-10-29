@@ -9,4 +9,5 @@ pub(crate) mod reservation_read;
 
 pub(crate) mod request_agreement;
 
+pub(crate) mod agreement_review;
 pub(crate) mod request_order;

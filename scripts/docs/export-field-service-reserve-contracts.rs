@@ -1,19 +1,22 @@
 use erpx_server_field_service::public::reservation_read::{
-    FieldServiceCancelAction, FieldServiceCancelInput, FieldServiceCompletionAction,
-    FieldServiceCompletionInput, FieldServiceCreatedOrderRead, FieldServiceIssueAction,
-    FieldServiceIssueAllocation, FieldServiceIssueEvent, FieldServiceIssueInput,
-    FieldServiceOrderCreateInput, FieldServiceRecoveryAction, FieldServiceRecoveryInput,
-    FieldServiceRequestEntity, FieldServiceRequestEvent, FieldServiceRequestInput,
-    FieldServiceRequestOrderRead, FieldServiceRequestResult, FieldServiceRequestTicketRead,
-    FieldServiceReservationRead, FieldServiceReserveAction, FieldServiceReserveEvent,
-    FieldServiceReserveInput, FieldServiceReserveResult, FieldServiceScheduleAction,
-    FieldServiceScheduleInput, FieldServiceStockSnapshot, FieldServiceVisitEvent,
-    FieldServiceVisitStepAction, FieldServiceVisitStepInput,
+    FieldServiceAgreementReviewAction, FieldServiceAgreementReviewEntity,
+    FieldServiceAgreementReviewEvent, FieldServiceAgreementReviewInput, FieldServiceCancelAction,
+    FieldServiceCancelInput, FieldServiceCompletionAction, FieldServiceCompletionInput,
+    FieldServiceCreatedOrderRead, FieldServiceIssueAction, FieldServiceIssueAllocation,
+    FieldServiceIssueEvent, FieldServiceIssueInput, FieldServiceOrderCreateInput,
+    FieldServiceRecoveryAction, FieldServiceRecoveryInput, FieldServiceRequestEntity,
+    FieldServiceRequestEvent, FieldServiceRequestInput, FieldServiceRequestOrderRead,
+    FieldServiceRequestResult, FieldServiceRequestTicketRead, FieldServiceReservationRead,
+    FieldServiceReserveAction, FieldServiceReserveEvent, FieldServiceReserveInput,
+    FieldServiceReserveResult, FieldServiceScheduleAction, FieldServiceScheduleInput,
+    FieldServiceStockSnapshot, FieldServiceVisitEvent, FieldServiceVisitStepAction,
+    FieldServiceVisitStepInput,
 };
 use erpx_service::field_service_reservation_read::{
-    FieldServiceIssueReadResponse, FieldServiceOrderCreateReadResponse,
-    FieldServiceRenderedContext, FieldServiceRequestReadResponse,
-    FieldServiceReservationReadResponse, FieldServiceVisitReadResponse,
+    FieldServiceAgreementReviewReadResponse, FieldServiceIssueReadResponse,
+    FieldServiceOrderCreateReadResponse, FieldServiceRenderedContext,
+    FieldServiceRequestReadResponse, FieldServiceReservationReadResponse,
+    FieldServiceVisitReadResponse,
 };
 use ts_rs::{Config, TS};
 #[derive(utoipa::ToSchema)]
@@ -36,13 +39,29 @@ const _: fn() = order_create_read;
 #[utoipa::path(get,path="/api/v1/holdings/{holding_slug}/field-service/visits/{key}",params(("holding_slug"=String,Path),("key"=String,Path)),responses((status=200,body=FieldServiceVisitReadResponse,description="Current scoped visit evidence")))]
 fn visit_read() {}
 const _: fn() = visit_read;
+#[utoipa::path(get,path="/api/v1/holdings/{holding_slug}/field-service/agreements/reviews/{key}",params(("holding_slug"=String,Path),("key"=String,Path)),responses((status=200,body=FieldServiceAgreementReviewReadResponse,description="Current scoped Agreement review evidence")))]
+fn agreement_review_read() {}
+const _: fn() = agreement_review_read;
 const _: fn() = issue_read;
 const _: fn() = reserve;
 const _: fn() = read;
 #[derive(utoipa::OpenApi)]
 #[openapi(
-    paths(reserve, read, issue_read, request_read, order_create_read, visit_read),
+    paths(
+        reserve,
+        read,
+        issue_read,
+        request_read,
+        order_create_read,
+        visit_read,
+        agreement_review_read
+    ),
     components(schemas(
+        FieldServiceAgreementReviewAction,
+        FieldServiceAgreementReviewEntity,
+        FieldServiceAgreementReviewInput,
+        FieldServiceAgreementReviewEvent,
+        FieldServiceAgreementReviewReadResponse,
         FieldServiceCancelAction,
         FieldServiceCancelInput,
         FieldServiceRecoveryAction,
@@ -96,7 +115,7 @@ fn main() {
         value["components"]["schemas"]["FieldServiceIssueInput"]["properties"]["action"] =
             serde_json::json!({"type":"string","const":"issue-part"});
         value["paths"]["/api/v1/holdings/{holding_slug}/field-service"]["post"]["requestBody"]["content"]
-            ["application/json"]["schema"] = serde_json::json!({"oneOf":[{"$ref":"#/components/schemas/FieldServiceReserveInput"},{"$ref":"#/components/schemas/FieldServiceIssueInput"},{"$ref":"#/components/schemas/FieldServiceRequestInput"},{"$ref":"#/components/schemas/FieldServiceOrderCreateInput"},{"$ref":"#/components/schemas/FieldServiceScheduleInput"},{"$ref":"#/components/schemas/FieldServiceVisitStepInput"},{"$ref":"#/components/schemas/FieldServiceCompletionInput"},{"$ref":"#/components/schemas/FieldServiceRecoveryInput"},{"$ref":"#/components/schemas/FieldServiceCancelInput"}]});
+            ["application/json"]["schema"] = serde_json::json!({"oneOf":[{"$ref":"#/components/schemas/FieldServiceReserveInput"},{"$ref":"#/components/schemas/FieldServiceIssueInput"},{"$ref":"#/components/schemas/FieldServiceRequestInput"},{"$ref":"#/components/schemas/FieldServiceOrderCreateInput"},{"$ref":"#/components/schemas/FieldServiceScheduleInput"},{"$ref":"#/components/schemas/FieldServiceVisitStepInput"},{"$ref":"#/components/schemas/FieldServiceCompletionInput"},{"$ref":"#/components/schemas/FieldServiceRecoveryInput"},{"$ref":"#/components/schemas/FieldServiceCancelInput"},{"$ref":"#/components/schemas/FieldServiceAgreementReviewInput"}]});
         println!("{}", serde_json::to_string_pretty(&value).unwrap());
         return;
     }
@@ -106,6 +125,11 @@ fn main() {
         "// Generated from the Rust Field Service reservation contracts. Do not edit by hand.\n// Regenerate: bun scripts/docs/generate-field-service-reserve-contracts.ts"
     );
     for declaration in [
+        FieldServiceAgreementReviewAction::decl(&config),
+        FieldServiceAgreementReviewEntity::decl(&config),
+        FieldServiceAgreementReviewInput::decl(&config),
+        FieldServiceAgreementReviewEvent::decl(&config),
+        FieldServiceAgreementReviewReadResponse::decl(&config),
         FieldServiceCancelAction::decl(&config),
         FieldServiceCancelInput::decl(&config),
         FieldServiceRecoveryAction::decl(&config),
