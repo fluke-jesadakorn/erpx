@@ -299,3 +299,25 @@ it('bypasses the shared Work cache when the native Field source is configured',a
  try{vi.stubEnv('ERPX_NATIVE_FIELD_SERVICE_WORK_CONFIG','configured');const ports=workSnapshotPorts({} as import('@erpx/server-runtime/public/runtime/types').SqlDatabase);const result=await ports.cached({} as import('@erpx/server-identity_access/public/authorization').WorkContext,load);expect(load).toHaveBeenCalledOnce();expect(result.unavailableSources).toEqual(['Field service']);}
  finally{vi.unstubAllEnvs();}
 });
+
+it('reads only a qualified native Field source with encoded identity and current context',async()=>{
+ const {createNativeSourceRecordReader}=await import('../../../packages/server-field_service/src/adapters/native-source-record');
+ const actor={userId:'worker',holdingId:'holding',holdingSlug:'acme',companyId:'company',branchId:null,departmentId:null,assignmentId:'grant',role:'worker',assignmentScope:'holding',scope:{kind:'holding'},authority:{revision:7,assignmentVersion:3},modules:['field_service'],iam:{permissions:['records.read']}} as unknown as import('@erpx/server-identity_access/public/authorization').WorkContext;
+ const context={userId:'worker',holdingId:'holding',companyId:'company',branchId:null,departmentId:null,branchSlug:null,departmentSlug:null,assignmentId:'grant',assignmentVersion:3,revision:7,role:'worker',assignmentScopeKind:'holding',modules:['field_service'],permissions:['records.read'],expiresAt:1800000000000};
+ const data={id:'order:part%',companyId:'company',branchId:null,departmentId:null,version:4,title:'Site visit',status:'in_visit'},config={privateBaseUrl:'http://127.0.0.1:43117',timeoutMs:250,holdings:[{origin:'https://acme.example.test',holdingSlug:'acme',holdingId:'holding'}]};
+ const read=createNativeSourceRecordReader(JSON.stringify(config),async(url,headers)=>{expect(url.pathname).toBe('/api/v1/holdings/acme/field-service/orders/order%3Apart%25/source-record');expect(url.search).toBe('?version=4');expect(headers.get('x-erpx-context-assignment-version')).toBe('3');return Response.json({data,context});});
+ expect(await read(new Headers({host:'acme.example.test'}),actor,data.id,4)).toEqual({id:data.id,company_id:'company',branch_id:null,department_id:null,version:4,title:'Site visit',status:'in_visit'});
+ for(const [payload,status] of [[{data:{...data,id:'other'},context},503],[{data,context:{...context,revision:8}},409],[{data,context:{...context,expiresAt:1}},409],[{data:{...data,version:5},context},409]] as const){const invalid=createNativeSourceRecordReader(JSON.stringify(config),async()=>Response.json(payload));await expect(invalid(new Headers({host:'acme.example.test'}),actor,data.id,4)).rejects.toMatchObject({status});}
+ for(const status of [403,404,409,503]){const denied=createNativeSourceRecordReader(JSON.stringify(config),async()=>new Response(null,{status}));await expect(denied(new Headers({host:'acme.example.test'}),actor,data.id)).rejects.toMatchObject({status});}
+});
+
+it('does not access request headers when the native Field source is unselected',async()=>{
+ const {nativeSourceRecord}=await import('../../../packages/server-field_service/src/adapters/native-source-record');const actor={holdingSlug:'other'} as import('@erpx/server-identity_access/public/authorization').WorkContext;
+ try{vi.stubEnv('ERPX_NATIVE_FIELD_SERVICE_SOURCE_RECORD_CONFIG',JSON.stringify({privateBaseUrl:'http://127.0.0.1:43117',timeoutMs:250,holdings:[{origin:'https://acme.example.test',holdingSlug:'acme',holdingId:'holding'}]}));await expect(nativeSourceRecord(actor,'order')).resolves.toBeUndefined();}
+ finally{vi.unstubAllEnvs();}
+});
+
+it('preserves the native source version conflict code without accepting arbitrary error text',async()=>{
+ const {createNativeSourceRecordReader}=await import('../../../packages/server-field_service/src/adapters/native-source-record');const actor={userId:'worker',holdingId:'holding',holdingSlug:'acme',companyId:'company',branchId:null,departmentId:null,assignmentId:'grant',role:'worker',assignmentScope:'holding',scope:{kind:'holding'},authority:{revision:7,assignmentVersion:3},modules:['field_service'],iam:{permissions:['records.read']}} as unknown as import('@erpx/server-identity_access/public/authorization').WorkContext, config={privateBaseUrl:'http://127.0.0.1:43117',timeoutMs:250,holdings:[{origin:'https://acme.example.test',holdingSlug:'acme',holdingId:'holding'}]};
+ const reader=createNativeSourceRecordReader(JSON.stringify(config),async()=>Response.json({error:{code:'SOURCE_RECORD_CHANGED',message:'private'}},{status:409}));await expect(reader(new Headers({host:'acme.example.test'}),actor,'order',2)).rejects.toMatchObject({status:409,code:'SOURCE_RECORD_CHANGED'});
+});

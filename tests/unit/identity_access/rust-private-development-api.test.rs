@@ -185,6 +185,20 @@ fn finance_read_requires_distinct_registered_holdings_and_valid_companies() {
     d["fieldAttachmentBinds"] = serde_json::json!([{ "holdingId": "h001", "mode": "enabled" },{ "holdingId": "h001", "mode": "enabled" }]);
     assert!(!parses(&d));
     d["fieldAttachmentBinds"] = serde_json::json!([]);
+    for mode in ["disabled", "shadow", "enforced"] {
+        d["fieldServiceSourceRecordReads"] =
+            serde_json::json!([{ "holdingId":"h001", "mode":mode }]);
+        assert!(parses(&d));
+    }
+    d["fieldServiceSourceRecordReads"] =
+        serde_json::json!([{ "holdingId":"h001", "mode":"invalid" }]);
+    assert!(!parses(&d));
+    d["fieldServiceSourceRecordReads"] =
+        serde_json::json!([{ "holdingId":"h002", "mode":"enforced" }]);
+    assert!(!parses(&d));
+    d["fieldServiceSourceRecordReads"] = serde_json::json!([{ "holdingId":"h001", "mode":"enforced" }, { "holdingId":"h001", "mode":"disabled" }]);
+    assert!(!parses(&d));
+    d["fieldServiceSourceRecordReads"] = serde_json::json!([]);
     d["fieldServiceWorkspaceReads"] = serde_json::json!(["h001"]);
     assert!(parses(&d));
     d["fieldServiceWorkspaceReads"] = serde_json::json!(["h002"]);

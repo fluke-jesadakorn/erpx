@@ -26,6 +26,9 @@ use erpx_service::field_service_reservation_read::{
     FieldServiceRequestReadResponse, FieldServiceReservationReadResponse,
     FieldServiceVisitReadResponse,
 };
+use erpx_service::field_service_source_record::{
+    FieldServiceSourceRecord, FieldServiceSourceRecordResponse,
+};
 use erpx_service::field_service_workspace::{
     FieldServiceWorkResponse, FieldServiceWorkspace, FieldServiceWorkspaceResponse,
     FieldServiceWorkspaceScope,
@@ -72,9 +75,13 @@ const _: fn() = workspace_read;
 #[utoipa::path(get,path="/api/v1/holdings/{holding_slug}/field-service/orders/{id}/detail",params(("holding_slug"=String,Path),("id"=String,Path)),responses((status=200,body=FieldServiceOrderDetailResponse,description="Current scoped Service order detail and workspace")))]
 fn detail_read() {}
 const _: fn() = detail_read;
+#[utoipa::path(get,path="/api/v1/holdings/{holding_slug}/field-service/orders/{id}/source-record",params(("holding_slug"=String,Path),("id"=String,Path),("version"=Option<i64>,Query)),responses((status=200,body=FieldServiceSourceRecordResponse,description="Current scoped Field source record")))]
+fn source_record_read() {}
+const _: fn() = source_record_read;
 #[derive(utoipa::OpenApi)]
 #[openapi(
     paths(
+        source_record_read,
         detail_read,
         workspace_read,
         work_read,
@@ -89,6 +96,8 @@ const _: fn() = detail_read;
         agreement_create_read
     ),
     components(schemas(
+        FieldServiceSourceRecord,
+        FieldServiceSourceRecordResponse,
         FieldServiceDetailSpares,
         FieldServiceOrderDetail,
         FieldServiceOrderDetailResponse,
@@ -172,6 +181,8 @@ fn main() {
         "// Generated from the Rust Field Service reservation contracts. Do not edit by hand.\n// Regenerate: bun scripts/docs/generate-field-service-reserve-contracts.ts"
     );
     for declaration in [
+        FieldServiceSourceRecord::decl(&config),
+        FieldServiceSourceRecordResponse::decl(&config),
         FieldServiceDetailSpares::decl(&config),
         FieldServiceOrderDetail::decl(&config),
         FieldServiceOrderDetailResponse::decl(&config),

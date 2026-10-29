@@ -269,6 +269,7 @@ pub struct FieldServiceReservationReadConfiguration {
     attachment: Option<bool>,
     attachment_bind: Option<bool>,
     work: bool,
+    source_record: Option<crate::field_service_source_record::SourceRecordMode>,
     detail: bool,
     requests: bool,
     order_creates: bool,
@@ -303,6 +304,7 @@ impl FieldServiceReservationReadConfiguration {
             attachment: None,
             attachment_bind: None,
             work: false,
+            source_record: None,
             detail: false,
             requests: false,
             order_creates: false,
@@ -317,6 +319,13 @@ impl FieldServiceReservationReadConfiguration {
     }
     pub fn with_detail(mut self) -> Self {
         self.detail = true;
+        self
+    }
+    pub fn with_source_record(
+        mut self,
+        mode: crate::field_service_source_record::SourceRecordMode,
+    ) -> Self {
+        self.source_record = Some(mode);
         self
     }
     pub fn with_work(mut self) -> Self {
@@ -758,6 +767,74 @@ impl<C: Clock + Send + Sync + 'static> FieldServiceReservationReadService<C> {
                             &config.company,
                             &config.catalogue,
                             clock.as_ref(),
+                        )
+                        .await
+                    })
+                },
+            )
+            .await
+    }
+    pub async fn read_source_record<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        id: String,
+        expected: Option<f64>,
+    ) -> Result<crate::field_service_source_record::FieldServiceSourceRecordResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let mode = self
+            .config
+            .source_record
+            .ok_or_else(|| BusinessError::new(FailureKind::NotFound, "NOT_FOUND", "Not found."))?;
+        let company = self.config.company.clone();
+        let input = move || {
+            let mut v = input()?;
+            if v.company_id != company {
+                return Err(denied());
+            }
+            v.mutation = false;
+            Ok(v)
+        };
+        let config = self.config.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                input,
+                WorkAuthorizationRequest {
+                    permission: "records.read".into(),
+                    module: Some("field_service".into()),
+                    destination: "service/orders".into(),
+                    api: true,
+                },
+                crate::field_service_source_record::SourceRecordSources,
+                move |c, current| {
+                    let config = config.clone();
+                    let clock = clock.clone();
+                    let id = id.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &config.holding
+                            || current.selection().workspace().company_id != config.company
+                        {
+                            return Err(denied().into());
+                        }
+                        current.require_permission("records.read")?;
+                        crate::field_service_source_record::read(
+                            c,
+                            &crate::field_service_source_record::SourceRecordContext {
+                                actor: current,
+                                holding: &config.holding,
+                                company: &config.company,
+                                catalogue: &config.catalogue,
+                                clock: clock.as_ref(),
+                            },
+                            &id,
+                            expected,
+                            mode,
                         )
                         .await
                     })

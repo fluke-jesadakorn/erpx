@@ -1,10 +1,11 @@
 # ERPX documentation index
 
-Reviewed 2026-10-27. This is the single entry point. The [production plan](production-plan.md) owns current delivery scope and remaining work; [owner contracts](contracts/next/README.md) define behavior. Dated evidence certifies only the source, environment and scope it actually inspected.
+Reviewed 2026-10-29. This is the single entry point. The [production plan](production-plan.md) owns current delivery scope and remaining work; [owner contracts](contracts/next/README.md) define behavior. Dated evidence certifies only the source, environment and scope it actually inspected.
 
 ## Current system
 
-- [Active Rust/Next.js delivery plan](production-plan.md), [owner migration register](status/rust-backend-migration.json), [architecture decision](adr/ADR-052-rust-backend-and-domain-aligned-frontend.md) and [PDF policy exception](adr/ADR-053-explicit-pdf-seed-key-usage-prohibitions.md).
+- [Active Rust/Next.js delivery plan](production-plan.md), [owner migration register](status/rust-backend-migration.json), [capability bundles and 206-workflow mapping](status/rust-delivery-bundles.json), [architecture decision](adr/ADR-052-rust-backend-and-domain-aligned-frontend.md) and [PDF policy exception](adr/ADR-053-explicit-pdf-seed-key-usage-prohibitions.md).
+- [Build-time module registration and explicit proof limits](contracts/next/build-time-modules.md).
 - [Native Files original-read migration contract](contracts/next/rust-files-migration.md).
 - [Native Commercial purchase migration contract](contracts/next/rust-commercial-migration.md).
 - [Native scheduled Legal release evidence](contracts/next/rust-release-readiness.md) and [Legal processing/polling boundary](contracts/next/rust-legal-processing.md).

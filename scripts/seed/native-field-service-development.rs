@@ -50,7 +50,7 @@ async fn main() {
     let args: Vec<_> = std::env::args().collect();
     assert!(
         (3..=4).contains(&args.len()),
-        "usage: native-field-service-development ABSOLUTE_PRIVATE_CASE_DIR LOOPBACK_LISTEN [post|request|order-create|visit|complete|recovery|cancel|agreement-review|agreement-create|billing-release|finance-invoice-read|workspace|detail|work|file-withdraw|file-bind]"
+        "usage: native-field-service-development ABSOLUTE_PRIVATE_CASE_DIR LOOPBACK_LISTEN [post|request|order-create|visit|complete|recovery|cancel|agreement-review|agreement-create|billing-release|finance-invoice-read|workspace|detail|work|file-withdraw|file-bind|source-record]"
     );
     let dir = PathBuf::from(&args[1]);
     assert!(
@@ -83,7 +83,8 @@ async fn main() {
             "detail",
             "work",
             "file-withdraw",
-            "file-bind"
+            "file-bind",
+            "source-record"
         ]
         .contains(&scenario),
         "invalid private fixture scenario"
@@ -91,6 +92,7 @@ async fn main() {
     let agreement_review_scenario = scenario == "agreement-review";
     let agreement_create_scenario = scenario == "agreement-create";
     let workspace_scenario = scenario == "workspace";
+    let source_record_scenario = scenario == "source-record";
     let file_withdraw_scenario = scenario == "file-withdraw";
     let file_bind_scenario = scenario == "file-bind";
     let work_scenario = scenario == "work";
@@ -108,7 +110,7 @@ async fn main() {
     field_service::account::with_system(move |system| async move {
         let now = i64::try_from(SystemTime::now().duration_since(UNIX_EPOCH).expect("wall clock unavailable").as_millis()).expect("wall clock invalid");
         system.scenario.clock.0.store(now, Ordering::SeqCst);
-        let prepared = if workspace_scenario || detail_scenario { field_service::setup_workspace(system).await } else { field_service::setup(system).await };
+        let prepared = if workspace_scenario || detail_scenario || source_record_scenario { field_service::setup_workspace(system).await } else { field_service::setup(system).await };
         let system = &prepared.review.system;
         if work_scenario {
             let mut tx = prepared.pool().raw().begin().await.expect("synthetic Work purchase transaction unavailable");
@@ -116,11 +118,19 @@ async fn main() {
             sqlx::query("INSERT INTO company_package_grant_events(id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at) SELECT 'work-fixture-origin',company_id,package_id,'fixture-a','synthetic-work-grant',NULL,jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence),$1 FROM company_package_grants WHERE company_id='company' AND package_id='work'").bind(now).execute(&mut *tx).await.expect("synthetic Work purchase event unavailable");
             tx.commit().await.expect("synthetic Work purchase commit unavailable");
         }
+        if source_record_scenario {
+            let mut tx=prepared.pool().raw().begin().await.expect("synthetic Support source transaction unavailable");
+            sqlx::raw_sql("INSERT INTO iam_roles(company_id,id,name,built_in,published_revision,status) VALUES('*','synthetic_support_field_reader','Synthetic Support and Service reader',false,1,'active'); INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) VALUES('*','synthetic_support_field_reader',1,'[\"records.read\",\"support.read\",\"module.support.read\",\"module.field_service.read\"]','[]','[\"holding\"]','synthetic',0)").execute(&mut *tx).await.expect("synthetic Support reader role unavailable");
+            sqlx::query("INSERT INTO assignments(id,user_id,role,modules_json,company_id,valid_from,valid_until,version,scope_kind) VALUES('support-field-reader','fixture-b','synthetic_support_field_reader','[\"support\",\"field_service\"]','company',$1,$2,3,'holding')").bind(now-1000).bind(now+3600000).execute(&mut *tx).await.expect("synthetic Support reader assignment unavailable");
+            sqlx::query("INSERT INTO company_package_grants(company_id,package_id,package_version,state,starts_at,version,reason,evidence,updated_at) VALUES('company','support',1,'active',0,1,'Synthetic Support purchase','public synthetic evidence',$1)").bind(now).execute(&mut *tx).await.expect("synthetic Support purchase unavailable");
+            sqlx::query("INSERT INTO company_package_grant_events(id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at) SELECT 'source-support-origin',company_id,package_id,'fixture-a','synthetic-support-grant',NULL,jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence),$1 FROM company_package_grants WHERE company_id='company' AND package_id='support'").bind(now).execute(&mut *tx).await.expect("synthetic Support grant event unavailable");
+            tx.commit().await.expect("synthetic Support source transaction failed");
+        }
         sqlx::raw_sql("UPDATE hr_engagements SET start_date='2020-01-01' WHERE id='field-engagement'").execute(system.holdings[0].raw()).await.expect("synthetic field service source unavailable");
         // A genuine reserve command creates the immutable Service/Workflow provenance.
         // The visit is synthetic historical data, not an implemented transition.
         if agreement_review_scenario { field_service::setup_agreement_review_facts(&prepared, now).await; }
-        if !visit_scenario && !agreement_review_scenario && !agreement_create_scenario && !workspace_scenario && !detail_scenario {
+        if !visit_scenario && !agreement_review_scenario && !agreement_create_scenario && !workspace_scenario && !detail_scenario && !source_record_scenario {
         let reserve = format!(r#"{{"action":"reserve-part","expectedVersion":1,"warehouseId":"warehouse","productId":"product","quantityMilli":{},"expiresAt":{},"reason":"Synthetic issue reservation"}}"#, if completion_scenario || recovery_scenario || cancel_scenario || billing_scenario {2000} else {1000}, now + 3_600_000);
         prepared.execute("reserve-order", "browser-issue-reserve", &reserve).await.expect("synthetic reserve command failed");
         let mut historical = system.holdings[0].raw().begin().await.expect("historical visit transaction unavailable");
@@ -203,8 +213,9 @@ async fn main() {
         if file_withdraw_scenario || file_bind_scenario { doc["fieldAttachmentLinks"] = serde_json::json!([{ "holdingId":"h001", "mode":"enabled" }]); }
         if file_bind_scenario { doc["fieldAttachmentBinds"] = serde_json::json!([{ "holdingId":"h001", "mode":"enabled" }]); }
         if work_scenario { doc["fieldServiceWorkReads"] = serde_json::json!(["h001"]); }
-        if detail_scenario { doc["fieldServiceDetailReads"] = serde_json::json!(["h001"]); }
-        if workspace_scenario || detail_scenario { doc["fieldServiceWorkspaceReads"] = serde_json::json!(["h001"]); }
+        if source_record_scenario { doc["fieldServiceSourceRecordReads"] = serde_json::json!([{ "holdingId":"h001", "mode":"enforced" }]); }
+        if detail_scenario || source_record_scenario { doc["fieldServiceDetailReads"] = serde_json::json!(["h001"]); }
+        if workspace_scenario || detail_scenario || source_record_scenario { doc["fieldServiceWorkspaceReads"] = serde_json::json!(["h001"]); }
         if invoice_read_scenario { doc["financeFieldServiceInvoiceReads"] = serde_json::json!(["h001"]); }
         if billing_scenario && !invoice_read_scenario { doc["fieldServiceBillingReleases"] = serde_json::json!(["h001"]); }
         if agreement_create_scenario || workspace_scenario { doc["fieldServiceAgreementCreates"] = serde_json::json!(["h001"]); }
@@ -232,6 +243,10 @@ async fn main() {
         files.0.push(write_private(&dir, "native-api.json", &doc));
         files.0.push(write_private(&dir, "databases.json", &manifest));
         let mut credentials = serde_json::json!({"email":if agreement_review_scenario || billing_scenario {"b@example.test"} else {"a@example.test"},"password":field_service::account::fixture::PASSWORD,"orderId":if detail_scenario {"issue-order"} else {"reserve-order"},"reservationId":if detail_scenario {"reserved-part"} else {"field-part-browser-issue-reserve"},"expectedVersion":if detail_scenario {4} else if visit_scenario || workspace_scenario {1} else if cancel_scenario || billing_scenario {5} else if completion_scenario || recovery_scenario {4} else {3},"initialStatus":if visit_scenario || workspace_scenario {"scheduled"} else if billing_scenario {"completed"} else if cancel_scenario {"exception"} else {"in_visit"},"entryDate":"2026-01-10","financeEmail":"b@example.test","financePassword":field_service::account::fixture::PASSWORD,"journalId":journal_id,"journalVersion":if completion_scenario || recovery_scenario || cancel_scenario || billing_scenario {2} else {1},"agreementId":if agreement_review_scenario {"review-agreement"} else {"agreement"},"agreementVersion":if agreement_review_scenario {1} else {2},"agreementTitle":"Synthetic Agreement for activation","rejectAgreementId":"review-reject-agreement","rejectAgreementTitle":"Synthetic Agreement for rejection","rejectAgreementVersion":1,"creatorId":"fixture-a","technicianId":"fixture-a","assignmentId":if agreement_review_scenario {"agreement-reviewer-b"} else if billing_scenario {"field-billing-reviewer"} else {"field-fixture-a"},"assignmentVersion":3,"ticketId":"existing-ticket","ticketVersion":3});
+        if source_record_scenario {
+            credentials["email"]=serde_json::json!("b@example.test");credentials["assignmentId"]=serde_json::json!("support-field-reader");credentials["assignmentVersion"]=serde_json::json!(3);credentials["readerId"]=serde_json::json!("fixture-b");credentials["ticketId"]=serde_json::json!("ticket-issue-order");credentials["orderId"]=serde_json::json!("issue-order");credentials["expectedVersion"]=serde_json::json!(3);
+            credentials["supportEmail"]=serde_json::json!("b@example.test");credentials["supportPassword"]=serde_json::json!(field_service::account::fixture::PASSWORD);credentials["supportAssignmentId"]=serde_json::json!("support-field-reader");credentials["supportAssignmentVersion"]=serde_json::json!(3);credentials["sourceRecord"]=serde_json::json!({"ticketId":"ticket-issue-order","ticketTitle":"Synthetic retained intake","orderId":"issue-order","orderTitle":"Synthetic service issue","orderVersion":3,"actorId":"fixture-b","companyId":"company"});
+        }
         if agreement_create_scenario || workspace_scenario { credentials["agreementCreate"] = serde_json::json!({"branchId":"branch","branchName":"Synthetic North","customerId":"customer","customerName":"PRIVATE_CUSTOMER","currency":"THB","title":"Synthetic Agreement draft","startDate":"2026-01-10","endDate":"2027-12-31","visitRate":"123.45","visitRateMinor":12345,"warrantyDiscountPercent":"5","warrantyDiscountBps":500,"usdUnits":"6173","fxRateId":"rate","usedLatestFallback":false}); }
         if billing_scenario {
             let pricing_date:String=sqlx::query_scalar("SELECT to_char(to_timestamp($1::double precision/1000) AT TIME ZONE 'UTC','YYYY-MM-DD')").bind(now).fetch_one(system.holdings[0].raw()).await.expect("billing pricing date unavailable");

@@ -19,3 +19,5 @@ pub mod detail;
 pub mod work;
 
 pub mod file_source;
+
+pub mod source_record;

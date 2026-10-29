@@ -10,3 +10,5 @@ pub use crate::domain::migration::MigrationReadiness;
 #[cfg(feature = "owned-process")]
 pub mod owned_process;
 pub mod postgres;
+
+pub mod module_contracts;

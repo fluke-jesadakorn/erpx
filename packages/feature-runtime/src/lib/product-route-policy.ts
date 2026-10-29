@@ -4,7 +4,8 @@ import { destinationProduct, product, type ProductHostKey } from "@erpx/server-c
 import { officeApiAllowed, posStartupApiAllowed, posInitialPhysicalStockApiAllowed, supportTicketPortalApiAllowed } from "@erpx/feature-runtime/lib/product-api-policy";
 
 /** Presentation boundaries supplement, and never replace, owner API/record policy. */
-export function productPageAllowed(host: ProductHostKey, pathname: string, method = "GET") {
+export function productPageAllowed(host: ProductHostKey, pathname: string, method = "GET", registeredAppsPages: readonly string[] = []) {
+  if (host === "apps" && (method === "GET" || method === "HEAD") && /^\/applications\/[a-z0-9-]+$/.test(pathname) && registeredAppsPages.includes(pathname)) return true;
   if (pathname === "/" || pathname.startsWith("/sso/")) return true;
   if (pathname === "/public/launch") return host === "portal" || host === "legal-portal";
   if (pathname === "/account/continue") return host === "apps" || host === "admin" || product(host) !== undefined;

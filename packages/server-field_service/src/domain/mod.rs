@@ -8,3 +8,5 @@ pub(crate) mod workspace;
 pub(crate) mod detail;
 
 pub(crate) mod work;
+
+pub(crate) mod source_record;

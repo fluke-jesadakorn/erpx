@@ -17,7 +17,7 @@ export function RecordLink({ record, onClick, children, ...props }: ComponentPro
   let crossHref=rawHref===null?null:canonicalUiHref(rawHref);
   if(record&&target&&base){const full=new URL(recordCanonicalHref(base,target),"https://record.invalid"),original=rawHref?new URL(rawHref,"https://record.invalid"):null;if(original){for(const [key,value] of original.searchParams)if(!Object.hasOwn(record.args??{},key))full.searchParams.append(key,value);full.hash=original.hash;}crossHref=full.pathname+full.search+full.hash;}
   const crossing=crossHref!==null&&productNavigationHref(crossHref,scope).handoff;
-  return <Link {...props} prefetch={target||crossing ? false : props.prefetch} href={crossing?crossHref!:target && base ? recordDrawerHref(pathname+(query.size?'?'+query:''), target,scope.holdingSlug) : typeof props.href === "string" ? canonicalUiHref(props.href) : props.href} data-record-link={target ? "true" : undefined} title={target ? "View details" : props.title} onClick={event => {
+  return <Link {...props} prefetch={target||crossing ? false : props.prefetch} href={crossing?crossHref!:target && base ? recordDrawerHref(pathname+(query.size?'?'+query:''), target,scope.holdingSlug,base) : typeof props.href === "string" ? canonicalUiHref(props.href) : props.href} data-record-link={target ? "true" : undefined} title={target ? "View details" : props.title} onClick={event => {
     onClick?.(event);
     if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || props.target === "_blank") return;
     if(crossing){if(window.getSelection()?.toString())event.preventDefault();return;}
@@ -33,6 +33,6 @@ export function RecordLink({ record, onClick, children, ...props }: ComponentPro
     event.preventDefault();
     event.currentTarget.setAttribute("data-record-trigger", "true");
     if (dirty) { window.dispatchEvent(new CustomEvent("erpx:record-navigate", { detail: { target } })); return; }
-    router.push(recordDrawerHref(window.location.href, target), { scroll: false });
+    router.push(recordDrawerHref(window.location.href, target,scope.holdingSlug,base??undefined), { scroll: false });
   }}>{children}</Link>;
 }

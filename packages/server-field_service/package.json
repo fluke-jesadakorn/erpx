@@ -44,7 +44,8 @@
     "./domain/package-commands": "./src/domain/package-commands.ts",
     "./domain/agreement": "./src/domain/agreement.ts",
     "./domain/service": "./src/domain/service.ts",
-    "./domain/parts-entry": "./src/domain/parts-entry.ts"
+    "./domain/parts-entry": "./src/domain/parts-entry.ts",
+    "./public/native-source-record": "./src/public/native-source-record.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

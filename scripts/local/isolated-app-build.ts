@@ -10,6 +10,7 @@ import { relocateStandaloneLinks, relocateCompilerDependencyAliases, artifactSym
 import { verifyAppArtifact } from './app-artifact-cache';
 import { workspaceCopyInput } from './workspace-copy-input';
 import { preparePdfAssets } from '../assets/prepare-pdf-assets';
+import {uiModuleSelection,composeUiModules} from './ui-module-registration';
 const root=resolve(import.meta.dirname,'../..');
 const copyOptions={recursive:true,verbatimSymlinks:true,mode:constants.COPYFILE_FICLONE,filter:(path:string)=>workspaceCopyInput(root,path)};
 async function files(directory:string):Promise<string[]>{
@@ -17,9 +18,10 @@ async function files(directory:string):Promise<string[]>{
  return (await Promise.all(entries.map(async entry=>entry.isDirectory()?files(join(directory,entry.name)):entry.isFile()?[join(directory,entry.name)]:[]))).flat();
 }
 async function keyFor(id:string,bundler:string){
- const runtime=appRuntimeFingerprint(loadWorkspaceGraph(root),id),hash=createHash('sha256').update('isolated-app-build/v2').update(holdingRoutingEnabled(process.env)?'holding-hosts':'product-hosts').update(runtime).update(bundler).update(process.env.NEXT_DEPLOYMENT_ID??'default-runtime-deployment');
+ const modules=await uiModuleSelection(root,id,process.env.ERPX_BUILD_UI_MODULES),baseRuntime=appRuntimeFingerprint(loadWorkspaceGraph(root),id),runtime=modules.enabled?createHash('sha256').update(baseRuntime).update(modules.fingerprint).digest('hex'):baseRuntime,hash=createHash('sha256').update('isolated-app-build/v2').update(holdingRoutingEnabled(process.env)?'holding-hosts':'product-hosts').update(runtime).update(bundler).update(process.env.NEXT_DEPLOYMENT_ID??'default-runtime-deployment');
+ if(id==='apps')hash.update(modules.fingerprint).update(await readFile(join(root,'scripts/local/ui-module-registration.ts')));
  for(const name of ['scripts/local/app-task.ts','scripts/local/isolated-app-build.ts','scripts/local/standalone-links.ts','scripts/local/app-artifact-cache.ts','scripts/local/workspace-copy-input.ts'])hash.update(name).update(await readFile(join(root,name)));
- return {runtime,key:hash.digest('hex')};
+ return {runtime,key:hash.digest('hex'),modules};
 }
 /** Build from a private source copy: Next may rewrite next-env and route types. */
 export async function buildIsolatedApp(id:string,bundler='webpack'){
@@ -43,6 +45,7 @@ export async function buildIsolatedApp(id:string,bundler='webpack'){
   for(const name of inputs)if(existsSync(join(root,name)))await cp(join(root,name),join(snapshot,name),copyOptions);
   if(interrupted)throw new Error("APP_BUILD_INTERRUPTED");
   if((await keyFor(id,bundler)).key!==identity.key)throw new Error("APP_SOURCE_CHANGED_DURING_SNAPSHOT");
+  await composeUiModules(root,snapshot,identity.modules.enabled);
   const deploymentId=process.env.NEXT_DEPLOYMENT_ID??`app-${id}-${identity.runtime.slice(0,16)}`;
   await writeFile(join(snapshot,'packages/catalogue/src/release-artifact.json'),JSON.stringify({softwareVersion:deploymentId})+'\n');
   // Pass compiler/network trust inputs explicitly. Installed DB, auth and

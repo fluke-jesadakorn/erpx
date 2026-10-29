@@ -56249,8 +56249,7 @@
         "@erpx/server-talent",
         "@erpx/server-work_projection",
         "@erpx/server-workflow",
-        "@erpx/ui",
-        "@erpx/workplace"
+        "@erpx/ui"
       ],
       "ci": {
         "critical": true,
@@ -56265,6 +56264,9 @@
         "package": "erpx-service",
         "targets": [
           "composition"
+        ],
+        "features": [
+          "existing-business"
         ]
       },
       "verificationInputs": [
@@ -59040,8 +59042,7 @@
         "@erpx/server-talent",
         "@erpx/server-work_projection",
         "@erpx/server-workflow",
-        "@erpx/ui",
-        "@erpx/workplace"
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "raw",
@@ -61141,8 +61142,7 @@
         "@erpx/server-talent",
         "@erpx/server-work_projection",
         "@erpx/server-workflow",
-        "@erpx/ui",
-        "@erpx/workplace"
+        "@erpx/ui"
       ]
     },
     {
@@ -61770,8 +61770,7 @@
         "@erpx/server-talent",
         "@erpx/server-work_projection",
         "@erpx/server-workflow",
-        "@erpx/ui",
-        "@erpx/workplace"
+        "@erpx/ui"
       ],
       "provider": {
         "environment": {},
@@ -62728,6 +62727,9 @@
         "package": "erpx-service",
         "targets": [
           "finance_journal_review"
+        ],
+        "features": [
+          "existing-business"
         ]
       },
       "verificationInputs": [
@@ -64629,8 +64631,7 @@
         "@erpx/server-talent",
         "@erpx/server-work_projection",
         "@erpx/server-workflow",
-        "@erpx/ui",
-        "@erpx/workplace"
+        "@erpx/ui"
       ],
       "id": "identity_access.rust-native-session-http.provider",
       "files": [
@@ -65624,8 +65625,7 @@
         "@erpx/server-talent",
         "@erpx/server-work_projection",
         "@erpx/server-workflow",
-        "@erpx/ui",
-        "@erpx/workplace"
+        "@erpx/ui"
       ],
       "id": "finance.rust-journal-detail-http.provider",
       "files": [
@@ -65691,6 +65691,9 @@
         "package": "erpx-service",
         "targets": [
           "work_source"
+        ],
+        "features": [
+          "existing-business"
         ]
       },
       "verificationInputs": [
@@ -65771,8 +65774,7 @@
         "@erpx/server-talent",
         "@erpx/server-work_projection",
         "@erpx/server-workflow",
-        "@erpx/ui",
-        "@erpx/workplace"
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "raw",
@@ -67002,6 +67004,9 @@
         "package": "erpx-service",
         "targets": [
           "issue_part_command"
+        ],
+        "features": [
+          "existing-business"
         ]
       },
       "verificationInputs": [
@@ -67097,8 +67102,7 @@
         "@erpx/server-talent",
         "@erpx/server-work_projection",
         "@erpx/server-workflow",
-        "@erpx/ui",
-        "@erpx/workplace"
+        "@erpx/ui"
       ]
     },
     {
@@ -67732,8 +67736,7 @@
         "@erpx/server-talent",
         "@erpx/server-work_projection",
         "@erpx/server-workflow",
-        "@erpx/ui",
-        "@erpx/workplace"
+        "@erpx/ui"
       ],
       "ci": {
         "critical": true,
@@ -67826,6 +67829,9 @@
         "package": "erpx-service",
         "targets": [
           "finance_maintenance_parts_postgres"
+        ],
+        "features": [
+          "existing-business"
         ]
       },
       "verificationInputs": [
@@ -67985,6 +67991,9 @@
         "package": "erpx-service",
         "targets": [
           "files_system_scan_postgres"
+        ],
+        "features": [
+          "existing-business"
         ]
       },
       "verificationInputs": [
@@ -68083,8 +68092,7 @@
         "@erpx/server-talent",
         "@erpx/server-work_projection",
         "@erpx/server-workflow",
-        "@erpx/ui",
-        "@erpx/workplace"
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "raw",
@@ -68256,8 +68264,7 @@
         "@erpx/server-talent",
         "@erpx/server-work_projection",
         "@erpx/server-workflow",
-        "@erpx/ui",
-        "@erpx/workplace"
+        "@erpx/ui"
       ],
       "provider": {
         "environment": {},
@@ -68305,6 +68312,9 @@
         "package": "erpx-service",
         "targets": [
           "maintenance_transitions"
+        ],
+        "features": [
+          "existing-business"
         ]
       },
       "verificationInputs": [
@@ -68404,8 +68414,7 @@
         "@erpx/server-talent",
         "@erpx/server-work_projection",
         "@erpx/server-workflow",
-        "@erpx/ui",
-        "@erpx/workplace"
+        "@erpx/ui"
       ]
     },
     {
@@ -68441,6 +68450,9 @@
         "package": "erpx-service",
         "targets": [
           "maintenance_settlement_references"
+        ],
+        "features": [
+          "existing-business"
         ]
       },
       "verificationInputs": [
@@ -68527,8 +68539,7 @@
         "@erpx/server-talent",
         "@erpx/server-work_projection",
         "@erpx/server-workflow",
-        "@erpx/ui",
-        "@erpx/workplace"
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "raw",
@@ -68619,8 +68630,7 @@
         "@erpx/server-talent",
         "@erpx/server-work_projection",
         "@erpx/server-workflow",
-        "@erpx/ui",
-        "@erpx/workplace"
+        "@erpx/ui"
       ],
       "ci": {
         "critical": true,
@@ -68767,8 +68777,7 @@
         "@erpx/server-talent",
         "@erpx/server-work_projection",
         "@erpx/server-workflow",
-        "@erpx/ui",
-        "@erpx/workplace"
+        "@erpx/ui"
       ],
       "ci": {
         "critical": true,
@@ -69285,6 +69294,9 @@
         "package": "erpx-service",
         "targets": [
           "field_service_parts_postgres"
+        ],
+        "features": [
+          "existing-business"
         ]
       },
       "verificationInputs": [
@@ -69399,8 +69411,7 @@
         "@erpx/server-talent",
         "@erpx/server-work_projection",
         "@erpx/server-workflow",
-        "@erpx/ui",
-        "@erpx/workplace"
+        "@erpx/ui"
       ]
     },
     {
@@ -69644,8 +69655,7 @@
         "@erpx/server-talent",
         "@erpx/server-work_projection",
         "@erpx/server-workflow",
-        "@erpx/ui",
-        "@erpx/workplace"
+        "@erpx/ui"
       ]
     },
     {
@@ -69686,7 +69696,8 @@
         ],
         "features": [
           "business-http",
-          "directory-ldaps"
+          "directory-ldaps",
+          "private-development-api"
         ]
       },
       "verificationInputs": [
@@ -69875,7 +69886,14 @@
         "packages/server-files/src/application/field_visit_bind.rs",
         "packages/server-files/src/adapters/field_visit_bind.rs",
         "packages/server-files/src/public/field_visit_bind.rs",
-        "src/composition/src/field_attachment_bind.rs"
+        "src/composition/src/field_attachment_bind.rs",
+        "packages/server-field_service/src/domain/source_record.rs",
+        "packages/server-field_service/src/application/source_record.rs",
+        "packages/server-field_service/src/adapters/source_record.rs",
+        "packages/server-field_service/src/public/source_record.rs",
+        "packages/server-support/src/adapters/field_service_source_record.rs",
+        "packages/server-support/src/public/field_service_source_record.rs",
+        "src/composition/src/field_service_source_record.rs"
       ],
       "postgres": {
         "mode": "raw",
@@ -70082,6 +70100,347 @@
         ],
         "migratedSlots": []
       }
+    },
+    {
+      "id": "shared.runtime.ui-module-registration.unit",
+      "lane": "unit",
+      "owner": "shared.runtime",
+      "modules": [
+        "agent",
+        "assets",
+        "benefits",
+        "brand",
+        "collaboration",
+        "commercial",
+        "crm",
+        "customer_360",
+        "customer_authority",
+        "ecommerce",
+        "field_service",
+        "finance",
+        "identity_access",
+        "inventory",
+        "learning",
+        "legal",
+        "maintenance",
+        "manage_erpx",
+        "manufacturing",
+        "marketing",
+        "operations",
+        "organization",
+        "people_payroll",
+        "planning",
+        "platform_administration",
+        "pms",
+        "pos",
+        "procurement",
+        "projects",
+        "quality",
+        "sales",
+        "support",
+        "talent"
+      ],
+      "files": [
+        "tests/unit/shared.runtime/ui-module-registration.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Optional UI module registration must honor explicit build selection and contract versions without changing default application routes."
+      },
+      "apps": [
+        "apps",
+        "pos",
+        "pms",
+        "finance",
+        "people",
+        "sales",
+        "supply",
+        "assets",
+        "projects",
+        "recruit",
+        "learn",
+        "support",
+        "service",
+        "legal",
+        "manufacturing",
+        "account",
+        "admin",
+        "booking",
+        "portal",
+        "legal-portal",
+        "forms"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-account",
+        "@erpx/feature-admin",
+        "@erpx/feature-agent",
+        "@erpx/feature-apps",
+        "@erpx/feature-assets",
+        "@erpx/feature-benefits",
+        "@erpx/feature-billing",
+        "@erpx/feature-booking",
+        "@erpx/feature-brand",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-commercial",
+        "@erpx/feature-crm",
+        "@erpx/feature-customer_360",
+        "@erpx/feature-customer_authority",
+        "@erpx/feature-ecommerce",
+        "@erpx/feature-field_service",
+        "@erpx/feature-files",
+        "@erpx/feature-finance",
+        "@erpx/feature-forms",
+        "@erpx/feature-iam",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-inventory",
+        "@erpx/feature-learn",
+        "@erpx/feature-learning",
+        "@erpx/feature-legal",
+        "@erpx/feature-legal-portal",
+        "@erpx/feature-maintenance",
+        "@erpx/feature-manufacturing",
+        "@erpx/feature-marketing",
+        "@erpx/feature-operations",
+        "@erpx/feature-organization",
+        "@erpx/feature-people",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-platform_administration",
+        "@erpx/feature-pms",
+        "@erpx/feature-portal",
+        "@erpx/feature-pos",
+        "@erpx/feature-procurement",
+        "@erpx/feature-projects",
+        "@erpx/feature-quality",
+        "@erpx/feature-records",
+        "@erpx/feature-recruit",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-service",
+        "@erpx/feature-shared",
+        "@erpx/feature-supply",
+        "@erpx/feature-support",
+        "@erpx/feature-talent",
+        "@erpx/feature-work_projection",
+        "@erpx/feature-workflow",
+        "@erpx/front",
+        "@erpx/native-sdk",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-billing",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow",
+        "@erpx/ui",
+        "@erpx/workplace"
+      ],
+      "verificationInputs": [
+        "contracts/modules/ui-modules.json",
+        "contracts/modules/backend-modules.json",
+        "scripts/local/isolated-app-build.ts",
+        "scripts/local/ui-module-registration.ts",
+        "packages/feature-runtime/src/modules/example/page.tsx",
+        "scripts/testing/ui-module-build-proof.ts",
+        "packages/feature-runtime/src/lib/product-route-policy.ts",
+        "packages/workplace/src/proxy.ts",
+        "scripts/local/app-proxy.ts"
+      ]
+    },
+    {
+      "lane": "unit",
+      "owner": "shared.architecture",
+      "modules": [
+        "agent",
+        "assets",
+        "benefits",
+        "brand",
+        "collaboration",
+        "commercial",
+        "crm",
+        "customer_360",
+        "customer_authority",
+        "ecommerce",
+        "field_service",
+        "finance",
+        "identity_access",
+        "inventory",
+        "learning",
+        "legal",
+        "maintenance",
+        "manage_erpx",
+        "manufacturing",
+        "marketing",
+        "operations",
+        "organization",
+        "people_payroll",
+        "planning",
+        "platform_administration",
+        "pms",
+        "pos",
+        "procurement",
+        "projects",
+        "quality",
+        "sales",
+        "support",
+        "talent"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "apps": [
+        "apps",
+        "pos",
+        "pms",
+        "finance",
+        "people",
+        "sales",
+        "supply",
+        "assets",
+        "projects",
+        "recruit",
+        "learn",
+        "support",
+        "service",
+        "legal",
+        "manufacturing",
+        "account",
+        "admin",
+        "booking",
+        "portal",
+        "legal-portal",
+        "forms"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-field_service",
+        "@erpx/feature-finance",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-legal",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-service",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/native-sdk",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow",
+        "@erpx/ui"
+      ],
+      "ci": {
+        "critical": true,
+        "reason": "Core must build without business crates, registered contracts must match actual owner Cargo dependencies, and incompatible module/API/event contracts must fail closed."
+      },
+      "id": "shared.architecture.rust-module-assembly.unit",
+      "files": [
+        "tests/unit/shared.architecture/rust-module-assembly.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-service",
+        "targets": [
+          "module_assembly"
+        ]
+      },
+      "verificationInputs": [
+        "contracts/modules/backend-modules.json",
+        "packages/server-runtime/src/application/module_contracts.rs",
+        "src/composition/src/module_assembly.rs",
+        "src/composition/src/module_example.rs",
+        "src/composition/Cargo.toml",
+        "packages/server-runtime/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml"
+      ]
     }
   ]
 }

@@ -42,6 +42,22 @@ vi.mock("@erpx/ui/components/record-context",()=>({EmbeddedRecord:(props:{childr
 vi.mock("@erpx/feature-work_projection/lib/context-switch",()=>({registerUnsavedWork:()=>()=>{}}));
 import {RecordDrawer} from '@erpx/feature-records/components/record-drawer';
 const base='/holdings/acme';
+it('opens distinct Support cases from the product entry and returns to its original filters',()=>{
+ const current='/support?company=company&tag=one&tag=two#list';
+ const first=recordDrawerHref(current,{kind:'support_ticket',id:'ticket:one%'},'acme',base),second=recordDrawerHref(current,{kind:'support_ticket',id:'ticket-two'},'acme',base);
+ expect(new URL(first,'https://erpx.invalid').pathname).toBe(`${base}/customers-sales/customers/service/cases/ticket%3Aone%25/overview`);
+ expect(new URL(second,'https://erpx.invalid').pathname).toBe(`${base}/customers-sales/customers/service/cases/ticket-two/overview`);
+ expect(withoutRecordDrawer(first,'acme')).toBe(current);expect(withoutRecordDrawer(second,'acme')).toBe(current);
+ expect(recordDrawerHref('https://acme.jesadakorn.com/support?company=company',{kind:'support_ticket',id:'ticket-two'},'acme',base)).toContain('ticket-two/overview');
+ const nested=recordDrawerHref('/support?company=company&returnTo=%2F%2Fevil.example&detailId=old', {kind:'support_ticket',id:'ticket-two'},'acme',base);expect(withoutRecordDrawer(nested,'acme')).toBe('/support?company=company');
+});
+it('rejects forged product entry origins and scope bases without changing normal workspace routing',()=>{
+ const target={kind:'support_ticket' as const,id:'ticket'};
+ for(const current of ['https://evil.example/support','//evil.example/support','/\\evil.example/support','/\\acme.jesadakorn.com/support','/support%2fescape'])expect(recordDrawerHref(current,target,'acme',base)).toBe(current);
+ for(const foreign of ['/holdings/northstar','/holdings/acme/branches/main','/holdings/acme/departments/ops'])expect(recordDrawerHref('/support?company=company',target,'acme',foreign)).toBe('/support?company=company');
+ for(const scope of [`${base}/branches/main`,`${base}/branches/main/departments/ops`]){const normal=`${scope}/customers-sales/customers/service/cases?q=one`,detail=new URL(recordDrawerHref(normal,target,'acme',scope),'https://erpx.invalid');expect(withoutRecordDrawer(detail.pathname+detail.search,'acme')).toBe(normal);detail.searchParams.set('returnTo','/support?company=company');expect(withoutRecordDrawer(detail.pathname+detail.search,'acme')).not.toBe('/support?company=company');}
+ const detail=new URL(recordDrawerHref('/support?company=company',target,'acme',base),'https://erpx.invalid');for(const bad of ['//evil.example/','/\\evil.example/','/finance?company=company']){detail.searchParams.set('returnTo',bad);expect(withoutRecordDrawer(detail.pathname+detail.search,'acme')).not.toBe(bad);}
+});
 it('keeps repeated collection filters, pagination and focus fragment when closing a path drawer',()=>{
  const current=`${base}/projects-routines/projects?q=desk&filter=a&filter=b&cursor=page2#projects`;
  const selected=recordDrawerHref(current,{kind:'project',id:'project:line / encoded',args:{section:'documents'}});

@@ -1,5 +1,5 @@
 import { routePath, routePrefixes, sourcePath, workspacePathParts, canonicalUiHref } from "@erpx/feature-work_projection/lib/destination-registry";
-import {holdingHostForHost} from '@erpx/contracts/holding-hosts';
+import {holdingHostForHost,holdingHostForSlug,parseHoldingRoute} from '@erpx/contracts/holding-hosts';
 /** Drawer references select an owner reader; they never confer authority. */
 import {recordRoutes,recordSections,defaultRecordSection,recordBasePath,type RecordKind,type RecordTarget} from '@erpx/feature-records/lib/record-route-definitions';
 export {recordRoutes,recordSections,defaultRecordSection,isRecordKind} from '@erpx/feature-records/lib/record-route-definitions';
@@ -56,6 +56,8 @@ export function withoutRecordDrawer(current:string,holdingSlug?:string) {
   // workspace while preserving list selectors and filters exactly.
   const destinationParts=workspacePathParts(destination.pathname,holding);
   if(destination.origin==='https://erpx.invalid'&&(destination.pathname.startsWith(returnBase+'/')||parts&&destinationParts?.base===parts.base))return destination.pathname+destination.search+destination.hash;
+  const from=holding?parseHoldingRoute(holding,url.pathname):null,entry=holding?parseHoldingRoute(holding,destination.pathname):null;
+  if(destination.origin==='https://erpx.invalid'&&parts&&holding&&parts.base===`/holdings/${holding}`&&entry?.kind==='entry'&&from?.app===entry.app)return destination.pathname+destination.search+destination.hash;
  }
  if(target){url.pathname=url.pathname.split('/').slice(0,-2).join('/');}
  else url.pathname=url.pathname.replace(/\/records\/[^/]+\/[^/]+\/overview$/,'');
@@ -63,10 +65,16 @@ export function withoutRecordDrawer(current:string,holdingSlug?:string) {
  for(const name of ['returnTo','detailKind','detailId','detailArgs','detailPage','detailMode'])url.searchParams.delete(name);
  return canonicalUiHref(url.pathname+url.search+url.hash);
 }
-export function recordDrawerHref(current:string,target:RecordTarget,holdingSlug?:string) {
+export function recordDrawerHref(current:string,target:RecordTarget,holdingSlug?:string,knownBase?:string) {
  const url=new URL(current,'https://erpx.invalid'),holding=holdingSlug??holdingHostForHost(url.host)?.holdingSlug,parts=workspacePathParts(url.pathname,holding);
- if(!parts)return current;
- const next=new URL(recordCanonicalHref(parts.base,target),'https://erpx.invalid');
+ let base=parts?.base;
+ if(!base&&holding&&knownBase===`/holdings/${holding}`){
+  const host=holdingHostForSlug(holding),entry=parseHoldingRoute(holding,url.pathname),destination=parseHoldingRoute(holding,new URL(recordCanonicalHref(knownBase,target),'https://erpx.invalid').pathname);
+  const trustedCurrent=current.startsWith('/')&&!current.startsWith('//')&&url.origin==='https://erpx.invalid'||/^https:\/\//i.test(current)&&!!host&&url.protocol==='https:'&&url.host===host.hostname;
+  if(trustedCurrent&&entry?.kind==='entry'&&destination?.app===entry.app)base=knownBase;
+ }
+ if(!base)return current;
+ const next=new URL(recordCanonicalHref(base,target),'https://erpx.invalid');
  next.searchParams.set('returnTo',withoutRecordDrawer(current,holding));
  return next.pathname+next.search;
 }

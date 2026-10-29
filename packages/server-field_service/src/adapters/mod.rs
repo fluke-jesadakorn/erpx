@@ -19,3 +19,5 @@ pub(crate) mod workspace;
 pub(crate) mod detail;
 
 pub(crate) mod file_source;
+
+pub(crate) mod source_record;

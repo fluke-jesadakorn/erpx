@@ -2,8 +2,8 @@
   "version": 3,
   "environment": "development",
   "deliveryPlan": "docs/production-plan.md",
-  "sourceFingerprint": "a3d8e3fa546d71395600724504266ee03bdc1049f9082e80997172b26f88faf9",
-  "verificationFingerprint": "4f15b3bf9876f35ccaeb3ba2c9da087166caffe28689da235035219d84735bda",
+  "sourceFingerprint": "79f489e7acbfa46a175b22d5481f1be0683394d5c197fd4087d42d5f1d802d14",
+  "verificationFingerprint": "7ad458fa2a2688b0b06d698373ccb9e8179d68079b4e028972bb3f3ca66deeca",
   "baseline": {
     "source": ".scratch/dev/product-migration-baseline-2026-10-14/",
     "privateAuthority": "read-only per-database snapshots; no secrets or personal authority rows in this register",
@@ -359,7 +359,9 @@
         "files.rust-system-scan.integration",
         "files.rust-system-scan.provider",
         "shared.testing.native-worker-toolchain.unit",
-        "shared.architecture.documentation-integrity.unit"
+        "shared.architecture.documentation-integrity.unit",
+        "shared.runtime.ui-module-registration.unit",
+        "shared.architecture.rust-module-assembly.unit"
       ]
     },
     {
@@ -830,7 +832,9 @@
         "shared.testing.native-worker-toolchain.unit",
         "shared.architecture.documentation-integrity.unit",
         "field_service.rust-parts-command-postgres.integration",
-        "field_service.rust-http-parity-postgres.integration"
+        "field_service.rust-http-parity-postgres.integration",
+        "shared.runtime.ui-module-registration.unit",
+        "shared.architecture.rust-module-assembly.unit"
       ]
     },
     {
@@ -1484,7 +1488,9 @@
         "shared.architecture.documentation-integrity.unit",
         "identity_access.rust-oidc-url-values.unit",
         "field_service.rust-parts-command-postgres.integration",
-        "field_service.rust-http-parity-postgres.integration"
+        "field_service.rust-http-parity-postgres.integration",
+        "shared.runtime.ui-module-registration.unit",
+        "shared.architecture.rust-module-assembly.unit"
       ]
     },
     {
@@ -1945,7 +1951,9 @@
         "files.rust-system-scan.integration",
         "files.rust-system-scan.provider",
         "shared.testing.native-worker-toolchain.unit",
-        "shared.architecture.documentation-integrity.unit"
+        "shared.architecture.documentation-integrity.unit",
+        "shared.runtime.ui-module-registration.unit",
+        "shared.architecture.rust-module-assembly.unit"
       ]
     },
     {
@@ -2580,7 +2588,9 @@
         "files.rust-system-scan.integration",
         "files.rust-system-scan.provider",
         "shared.testing.native-worker-toolchain.unit",
-        "shared.architecture.documentation-integrity.unit"
+        "shared.architecture.documentation-integrity.unit",
+        "shared.runtime.ui-module-registration.unit",
+        "shared.architecture.rust-module-assembly.unit"
       ]
     },
     {
@@ -2973,7 +2983,9 @@
         "files.rust-system-scan.integration",
         "files.rust-system-scan.provider",
         "shared.testing.native-worker-toolchain.unit",
-        "shared.architecture.documentation-integrity.unit"
+        "shared.architecture.documentation-integrity.unit",
+        "shared.runtime.ui-module-registration.unit",
+        "shared.architecture.rust-module-assembly.unit"
       ]
     },
     {
@@ -3362,7 +3374,9 @@
         "files.rust-system-scan.integration",
         "files.rust-system-scan.provider",
         "shared.testing.native-worker-toolchain.unit",
-        "shared.architecture.documentation-integrity.unit"
+        "shared.architecture.documentation-integrity.unit",
+        "shared.runtime.ui-module-registration.unit",
+        "shared.architecture.rust-module-assembly.unit"
       ]
     },
     {
@@ -3867,7 +3881,9 @@
         "shared.testing.native-worker-toolchain.unit",
         "shared.architecture.documentation-integrity.unit",
         "field_service.rust-parts-command-postgres.integration",
-        "field_service.rust-http-parity-postgres.integration"
+        "field_service.rust-http-parity-postgres.integration",
+        "shared.runtime.ui-module-registration.unit",
+        "shared.architecture.rust-module-assembly.unit"
       ]
     },
     {
@@ -4691,7 +4707,9 @@
         "shared.architecture.documentation-integrity.unit",
         "field_service.rust-parts-command-postgres.integration",
         "field_service.rust-http-parity-postgres.integration",
-        "finance.rust-manual-draft-edit-postgres.integration"
+        "finance.rust-manual-draft-edit-postgres.integration",
+        "shared.runtime.ui-module-registration.unit",
+        "shared.architecture.rust-module-assembly.unit"
       ]
     },
     {
@@ -5151,7 +5169,9 @@
         "files.rust-system-scan.integration",
         "files.rust-system-scan.provider",
         "shared.testing.native-worker-toolchain.unit",
-        "shared.architecture.documentation-integrity.unit"
+        "shared.architecture.documentation-integrity.unit",
+        "shared.runtime.ui-module-registration.unit",
+        "shared.architecture.rust-module-assembly.unit"
       ]
     },
     {
@@ -5620,7 +5640,9 @@
         "shared.testing.native-worker-toolchain.unit",
         "shared.architecture.documentation-integrity.unit",
         "field_service.rust-parts-command-postgres.integration",
-        "field_service.rust-http-parity-postgres.integration"
+        "field_service.rust-http-parity-postgres.integration",
+        "shared.runtime.ui-module-registration.unit",
+        "shared.architecture.rust-module-assembly.unit"
       ]
     },
     {
@@ -6075,7 +6097,9 @@
         "shared.testing.native-worker-toolchain.unit",
         "shared.architecture.documentation-integrity.unit",
         "field_service.rust-parts-command-postgres.integration",
-        "field_service.rust-http-parity-postgres.integration"
+        "field_service.rust-http-parity-postgres.integration",
+        "shared.runtime.ui-module-registration.unit",
+        "shared.architecture.rust-module-assembly.unit"
       ]
     },
     {
@@ -6611,7 +6635,9 @@
         "shared.testing.native-worker-toolchain.unit",
         "shared.architecture.documentation-integrity.unit",
         "field_service.rust-parts-command-postgres.integration",
-        "field_service.rust-http-parity-postgres.integration"
+        "field_service.rust-http-parity-postgres.integration",
+        "shared.runtime.ui-module-registration.unit",
+        "shared.architecture.rust-module-assembly.unit"
       ]
     },
     {
@@ -7059,7 +7085,9 @@
         "maintenance.rust-transitions-command-postgres.integration",
         "maintenance.rust-settlement-references-postgres.integration",
         "shared.testing.native-worker-toolchain.unit",
-        "shared.architecture.documentation-integrity.unit"
+        "shared.architecture.documentation-integrity.unit",
+        "shared.runtime.ui-module-registration.unit",
+        "shared.architecture.rust-module-assembly.unit"
       ]
     },
     {
@@ -7571,7 +7599,9 @@
         "files.rust-system-scan.integration",
         "files.rust-system-scan.provider",
         "shared.testing.native-worker-toolchain.unit",
-        "shared.architecture.documentation-integrity.unit"
+        "shared.architecture.documentation-integrity.unit",
+        "shared.runtime.ui-module-registration.unit",
+        "shared.architecture.rust-module-assembly.unit"
       ]
     },
     {
@@ -8016,7 +8046,9 @@
         "shared.testing.native-worker-toolchain.unit",
         "shared.architecture.documentation-integrity.unit",
         "field_service.rust-parts-command-postgres.integration",
-        "field_service.rust-http-parity-postgres.integration"
+        "field_service.rust-http-parity-postgres.integration",
+        "shared.runtime.ui-module-registration.unit",
+        "shared.architecture.rust-module-assembly.unit"
       ]
     },
     {
@@ -8418,7 +8450,9 @@
         "shared.testing.native-worker-toolchain.unit",
         "shared.architecture.documentation-integrity.unit",
         "field_service.rust-parts-command-postgres.integration",
-        "field_service.rust-http-parity-postgres.integration"
+        "field_service.rust-http-parity-postgres.integration",
+        "shared.runtime.ui-module-registration.unit",
+        "shared.architecture.rust-module-assembly.unit"
       ]
     },
     {
@@ -8893,7 +8927,9 @@
         "files.rust-system-scan.integration",
         "files.rust-system-scan.provider",
         "shared.testing.native-worker-toolchain.unit",
-        "shared.architecture.documentation-integrity.unit"
+        "shared.architecture.documentation-integrity.unit",
+        "shared.runtime.ui-module-registration.unit",
+        "shared.architecture.rust-module-assembly.unit"
       ]
     },
     {
@@ -9458,7 +9494,9 @@
         "shared.architecture.documentation-integrity.unit",
         "field_service.rust-parts-command-postgres.integration",
         "people_payroll.rust-payroll-accounting.unit",
-        "field_service.rust-http-parity-postgres.integration"
+        "field_service.rust-http-parity-postgres.integration",
+        "shared.runtime.ui-module-registration.unit",
+        "shared.architecture.rust-module-assembly.unit"
       ]
     },
     {
@@ -9901,7 +9939,9 @@
         "files.rust-system-scan.integration",
         "files.rust-system-scan.provider",
         "shared.testing.native-worker-toolchain.unit",
-        "shared.architecture.documentation-integrity.unit"
+        "shared.architecture.documentation-integrity.unit",
+        "shared.runtime.ui-module-registration.unit",
+        "shared.architecture.rust-module-assembly.unit"
       ]
     },
     {
@@ -10374,7 +10414,9 @@
         "files.rust-system-scan.integration",
         "files.rust-system-scan.provider",
         "shared.testing.native-worker-toolchain.unit",
-        "shared.architecture.documentation-integrity.unit"
+        "shared.architecture.documentation-integrity.unit",
+        "shared.runtime.ui-module-registration.unit",
+        "shared.architecture.rust-module-assembly.unit"
       ]
     },
     {
@@ -10872,7 +10914,9 @@
         "files.rust-system-scan.integration",
         "files.rust-system-scan.provider",
         "shared.testing.native-worker-toolchain.unit",
-        "shared.architecture.documentation-integrity.unit"
+        "shared.architecture.documentation-integrity.unit",
+        "shared.runtime.ui-module-registration.unit",
+        "shared.architecture.rust-module-assembly.unit"
       ]
     },
     {
@@ -11291,7 +11335,9 @@
         "files.rust-system-scan.integration",
         "files.rust-system-scan.provider",
         "shared.testing.native-worker-toolchain.unit",
-        "shared.architecture.documentation-integrity.unit"
+        "shared.architecture.documentation-integrity.unit",
+        "shared.runtime.ui-module-registration.unit",
+        "shared.architecture.rust-module-assembly.unit"
       ]
     },
     {
@@ -11799,7 +11845,9 @@
         "files.rust-system-scan.integration",
         "files.rust-system-scan.provider",
         "shared.testing.native-worker-toolchain.unit",
-        "shared.architecture.documentation-integrity.unit"
+        "shared.architecture.documentation-integrity.unit",
+        "shared.runtime.ui-module-registration.unit",
+        "shared.architecture.rust-module-assembly.unit"
       ]
     },
     {
@@ -12263,7 +12311,9 @@
         "files.rust-system-scan.integration",
         "files.rust-system-scan.provider",
         "shared.testing.native-worker-toolchain.unit",
-        "shared.architecture.documentation-integrity.unit"
+        "shared.architecture.documentation-integrity.unit",
+        "shared.runtime.ui-module-registration.unit",
+        "shared.architecture.rust-module-assembly.unit"
       ]
     },
     {
@@ -12681,7 +12731,9 @@
         "files.rust-system-scan.integration",
         "files.rust-system-scan.provider",
         "shared.testing.native-worker-toolchain.unit",
-        "shared.architecture.documentation-integrity.unit"
+        "shared.architecture.documentation-integrity.unit",
+        "shared.runtime.ui-module-registration.unit",
+        "shared.architecture.rust-module-assembly.unit"
       ]
     },
     {
@@ -13123,7 +13175,9 @@
         "files.rust-system-scan.integration",
         "files.rust-system-scan.provider",
         "shared.testing.native-worker-toolchain.unit",
-        "shared.architecture.documentation-integrity.unit"
+        "shared.architecture.documentation-integrity.unit",
+        "shared.runtime.ui-module-registration.unit",
+        "shared.architecture.rust-module-assembly.unit"
       ]
     },
     {
@@ -13619,7 +13673,9 @@
         "files.rust-system-scan.integration",
         "files.rust-system-scan.provider",
         "shared.testing.native-worker-toolchain.unit",
-        "shared.architecture.documentation-integrity.unit"
+        "shared.architecture.documentation-integrity.unit",
+        "shared.runtime.ui-module-registration.unit",
+        "shared.architecture.rust-module-assembly.unit"
       ]
     },
     {
@@ -14130,7 +14186,9 @@
         "field_service.rust-parts-policy.unit",
         "field_service.rust-parts-command-postgres.integration",
         "field_service.rust-http-parity.unit",
-        "field_service.rust-http-parity-postgres.integration"
+        "field_service.rust-http-parity-postgres.integration",
+        "shared.runtime.ui-module-registration.unit",
+        "shared.architecture.rust-module-assembly.unit"
       ]
     },
     {
@@ -14651,7 +14709,9 @@
         "files.rust-system-scan.integration",
         "files.rust-system-scan.provider",
         "shared.testing.native-worker-toolchain.unit",
-        "shared.architecture.documentation-integrity.unit"
+        "shared.architecture.documentation-integrity.unit",
+        "shared.runtime.ui-module-registration.unit",
+        "shared.architecture.rust-module-assembly.unit"
       ]
     },
     {
@@ -15246,7 +15306,9 @@
         "shared.testing.native-worker-toolchain.unit",
         "shared.architecture.documentation-integrity.unit",
         "field_service.rust-parts-command-postgres.integration",
-        "field_service.rust-http-parity-postgres.integration"
+        "field_service.rust-http-parity-postgres.integration",
+        "shared.runtime.ui-module-registration.unit",
+        "shared.architecture.rust-module-assembly.unit"
       ]
     },
     {
@@ -16014,7 +16076,9 @@
         "files.rust-system-scan.integration",
         "files.rust-system-scan.provider",
         "shared.testing.native-worker-toolchain.unit",
-        "shared.architecture.documentation-integrity.unit"
+        "shared.architecture.documentation-integrity.unit",
+        "shared.runtime.ui-module-registration.unit",
+        "shared.architecture.rust-module-assembly.unit"
       ]
     },
     {
@@ -16420,7 +16484,9 @@
         "files.rust-system-scan.integration",
         "files.rust-system-scan.provider",
         "shared.testing.native-worker-toolchain.unit",
-        "shared.architecture.documentation-integrity.unit"
+        "shared.architecture.documentation-integrity.unit",
+        "shared.runtime.ui-module-registration.unit",
+        "shared.architecture.rust-module-assembly.unit"
       ]
     }
   ],

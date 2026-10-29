@@ -22,8 +22,18 @@ import { UiNavigationProvider } from "@erpx/ui/components/navigation-context";
 import { RecordLink, RecordScopeProvider } from "@erpx/feature-records/public/client";
 import { registerUnsavedChanges } from "@erpx/ui/lib/unsaved-changes";
 import { hasUnsavedWork } from "@erpx/feature-work_projection/lib/context-switch";
+import RecordError from "../../../packages/workplace/src/routes/holdings/[holdingSlug]/@record/error";
 
 const roots: string[] = [];
+it("uses the Next retry callback to recover the Record drawer after a transient server error", () => {
+  const retry = vi.fn();
+  const drawer = RecordError({retry});
+  const children = drawer.props.children as [React.ReactElement<{role:string;children:string}>,React.ReactElement<{onClick:()=>void;children:string}>];
+  expect(children[0].props).toMatchObject({role:"alert",children:"The record could not be loaded. Your list is still available."});
+  expect(children[1].props.children).toBe("Retry");
+  children[1].props.onClick();
+  expect(retry).toHaveBeenCalledOnce();
+});
 function expandedRouteClosure(manifest: { closurePaths: string[] }, route: { closureIds?: number[]; entryIds?:number[] }) {
   return routeClosureIds(manifest,route).map((index:number) => manifest.closurePaths[index]);
 }

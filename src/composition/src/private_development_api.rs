@@ -130,6 +130,8 @@ struct ConfigurationDocument {
     #[serde(default)]
     field_service_workspace_reads: Vec<String>,
     #[serde(default)]
+    field_service_source_record_reads: Vec<FieldAttachmentDocument>,
+    #[serde(default)]
     field_attachment_links: Vec<FieldAttachmentDocument>,
     #[serde(default)]
     field_attachment_binds: Vec<FieldAttachmentDocument>,
@@ -187,6 +189,8 @@ pub struct DevelopmentApiConfiguration {
     finance_journal_reversals: BTreeSet<HoldingId>,
     field_service_reads: BTreeMap<HoldingId, CompanyId>,
     field_service_workspace_reads: BTreeSet<HoldingId>,
+    field_service_source_record_reads:
+        BTreeMap<HoldingId, crate::field_service_source_record::SourceRecordMode>,
     field_attachment_links: BTreeMap<HoldingId, bool>,
     field_attachment_binds: BTreeMap<HoldingId, bool>,
     field_service_work_reads: BTreeSet<HoldingId>,
@@ -388,6 +392,24 @@ impl DevelopmentApiConfiguration {
                 return Err("PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID");
             }
         }
+        let mut field_service_source_record_reads = BTreeMap::new();
+        for target in doc.field_service_source_record_reads {
+            let holding = HoldingId::new(target.holding_id)
+                .map_err(|_| "PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID")?;
+            let mode = match target.mode.as_str() {
+                "disabled" => crate::field_service_source_record::SourceRecordMode::Disabled,
+                "shadow" => crate::field_service_source_record::SourceRecordMode::Shadow,
+                "enforced" => crate::field_service_source_record::SourceRecordMode::Enforced,
+                _ => return Err("PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID"),
+            };
+            if !field_service_reads.contains_key(&holding)
+                || field_service_source_record_reads
+                    .insert(holding, mode)
+                    .is_some()
+            {
+                return Err("PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID");
+            }
+        }
         let mut field_service_workspace_reads = BTreeSet::new();
         for id in doc.field_service_workspace_reads {
             let holding = HoldingId::new(id)
@@ -581,6 +603,7 @@ impl DevelopmentApiConfiguration {
             finance_journal_reversals,
             field_service_reads,
             field_service_workspace_reads,
+            field_service_source_record_reads,
             field_attachment_links,
             field_attachment_binds,
             field_service_work_reads,
@@ -662,6 +685,7 @@ pub async fn assemble_development_api(
     clock: Arc<dyn Clock + Send + Sync>,
     secrets: Arc<dyn AuthenticationSecrets>,
 ) -> Result<DevelopmentApiRuntime, &'static str> {
+    crate::module_assembly::validate_build()?;
     let limits = PoolLimits {
         max_connections: 3,
         acquire_timeout: Duration::from_secs(5),
@@ -805,6 +829,7 @@ async fn assemble_checked(
     let mut field_attachment_targets = BTreeSet::new();
     let mut field_attachment_bind_targets = BTreeSet::new();
     let mut service_work_targets = BTreeSet::new();
+    let mut service_source_record_targets = BTreeSet::new();
     let mut service_detail_targets = BTreeSet::new();
     let mut service_reservation_targets = BTreeSet::new();
     let mut service_issue_targets = BTreeSet::new();
@@ -1114,6 +1139,15 @@ async fn assemble_checked(
             } else {
                 read_configuration
             };
+            let read_configuration = if let Some(mode) = config
+                .field_service_source_record_reads
+                .get(&holding.registration.holding_id)
+            {
+                service_source_record_targets.insert(target.clone());
+                read_configuration.with_source_record(*mode)
+            } else {
+                read_configuration
+            };
             let work_enabled = config
                 .field_service_work_reads
                 .contains(&holding.registration.holding_id);
@@ -1358,6 +1392,7 @@ async fn assemble_checked(
         field_attachment_targets,
         field_attachment_bind_targets,
         service_work_targets,
+        service_source_record_targets,
         service_detail_targets,
         service_reservation_targets,
         service_issue_targets,
@@ -1393,6 +1428,7 @@ struct Boundary {
     field_attachment_targets: BTreeSet<(String, String)>,
     field_attachment_bind_targets: BTreeSet<(String, String)>,
     service_work_targets: BTreeSet<(String, String)>,
+    service_source_record_targets: BTreeSet<(String, String)>,
     service_detail_targets: BTreeSet<(String, String)>,
     service_reservation_targets: BTreeSet<(String, String)>,
     service_issue_targets: BTreeSet<(String, String)>,
@@ -1605,6 +1641,19 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             "workspace",
         ] => state
             .service_workspace_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
+        [
+            "",
+            "api",
+            "v1",
+            "holdings",
+            slug,
+            "field-service",
+            "orders",
+            id,
+            "source-record",
+        ] if !id.is_empty() => state
+            .service_source_record_targets
             .contains(&(host.to_owned(), (*slug).to_owned())),
         ["", "api", "v1", "holdings", slug, "field-service", "work"] => state
             .service_work_targets

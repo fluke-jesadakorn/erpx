@@ -1,6 +1,6 @@
 //! Thin executable composition. Owner implementations never depend on this crate.
 use erpx_server_runtime::public::{
-    EmbeddedMigrationInventory, foundation_router, inspect_migration, validate_foundation_address,
+    EmbeddedMigrationInventory, inspect_migration, validate_foundation_address,
 };
 #[tokio::main]
 async fn main() -> std::process::ExitCode {
@@ -14,6 +14,7 @@ async fn main() -> std::process::ExitCode {
 }
 pub async fn run_cli(arguments: impl IntoIterator<Item = String>) -> Result<(), String> {
     let arguments: Vec<_> = arguments.into_iter().collect();
+    erpx_service::module_assembly::validate_build().map_err(str::to_owned)?;
     match arguments.as_slice() {
         #[cfg(feature = "legal-document-worker")]
         [command, once, option, path]
@@ -50,11 +51,12 @@ pub async fn run_cli(arguments: impl IntoIterator<Item = String>) -> Result<(), 
         }
         [command, option, address] if command == "api" && option == "--listen" => {
             let address = validate_foundation_address(address)?;
+            let router = erpx_service::module_assembly::assemble().map_err(str::to_owned)?;
             let listener = tokio::net::TcpListener::bind(address)
                 .await
                 .map_err(|_| "RUST_FOUNDATION_LISTEN_FAILED")?;
             eprintln!("Rust foundation listening on {address}; readiness remains unavailable.");
-            axum::serve(listener, foundation_router())
+            axum::serve(listener, router)
                 .with_graceful_shutdown(shutdown())
                 .await
                 .map_err(|_| "RUST_FOUNDATION_HTTP_FAILED".to_owned())
