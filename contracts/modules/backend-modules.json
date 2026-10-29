@@ -511,6 +511,26 @@
       "requiresEvents": []
     },
     {
+      "id": "erpx-server-records",
+      "version": "0.1.0",
+      "group": "existing-business",
+      "provides": [
+        {
+          "name": "erpx-server-records::public",
+          "version": "0.1.0",
+          "source": "packages/server-records/src/public/mod.rs"
+        }
+      ],
+      "requires": [
+        {
+          "name": "erpx-server-shared::public",
+          "range": ">=0.1.0, <0.2.0"
+        }
+      ],
+      "events": [],
+      "requiresEvents": []
+    },
+    {
       "id": "erpx-server-support",
       "version": "0.1.0",
       "group": "existing-business",
@@ -682,6 +702,10 @@
         {
           "name": "erpx-server-commercial::public::purchases",
           "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-records::public",
+          "range": ">=0.1.0, <0.2.0"
         }
       ],
       "events": [],
@@ -763,6 +787,18 @@
         },
         {
           "name": "erpx-server-commercial::public::purchases",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-records::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-pms::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-platform-administration::public",
           "range": ">=0.1.0, <0.2.0"
         }
       ],

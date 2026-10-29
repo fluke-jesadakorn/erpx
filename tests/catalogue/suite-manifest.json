@@ -70718,6 +70718,1172 @@
       "packages": [
         "@erpx/native-sdk"
       ]
+    },
+    {
+      "id": "shared.records.rust-business-evidence.unit",
+      "lane": "unit",
+      "owner": "shared.records",
+      "modules": [
+        "agent",
+        "assets",
+        "benefits",
+        "brand",
+        "collaboration",
+        "commercial",
+        "crm",
+        "customer_360",
+        "customer_authority",
+        "ecommerce",
+        "field_service",
+        "finance",
+        "identity_access",
+        "inventory",
+        "learning",
+        "legal",
+        "maintenance",
+        "manage_erpx",
+        "manufacturing",
+        "marketing",
+        "operations",
+        "organization",
+        "people_payroll",
+        "planning",
+        "platform_administration",
+        "pms",
+        "pos",
+        "procurement",
+        "projects",
+        "quality",
+        "sales",
+        "support",
+        "talent"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Protects native initial physical Count owner contracts, exact retained behavior, source authority and same-transaction evidence; scaffold existence is not workflow acceptance."
+      },
+      "files": [
+        "tests/unit/shared.records/rust-business-evidence.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-records",
+        "targets": [
+          "business_evidence"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-records/Cargo.toml"
+      ],
+      "apps": [
+        "apps",
+        "pos",
+        "pms",
+        "finance",
+        "people",
+        "sales",
+        "supply",
+        "assets",
+        "projects",
+        "recruit",
+        "learn",
+        "support",
+        "service",
+        "legal",
+        "manufacturing",
+        "account",
+        "admin",
+        "booking",
+        "portal",
+        "legal-portal",
+        "forms"
+      ],
+      "packages": [
+        "@erpx/server-records",
+        "@erpx/server-shared"
+      ]
+    },
+    {
+      "id": "collaboration.rust-service-count-flow-notification-postgres.integration",
+      "lane": "integration",
+      "owner": "collaboration",
+      "modules": [
+        "collaboration"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Protects native initial physical Count owner contracts, exact retained behavior, source authority and same-transaction evidence; scaffold existence is not workflow acceptance."
+      },
+      "files": [
+        "tests/integration/collaboration/rust-service-count-flow-notification-postgres.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-collaboration",
+        "targets": [
+          "service_count_flow_notification_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-collaboration/Cargo.toml",
+        "tests/support/rust-postgres.rs"
+      ],
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/server-collaboration",
+        "@erpx/server-maintenance",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      }
+    },
+    {
+      "id": "commerce.rust-service-count-masters-postgres.integration",
+      "lane": "integration",
+      "owner": "commerce",
+      "modules": [
+        "field_service",
+        "inventory"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Protects native initial physical Count owner contracts, exact retained behavior, source authority and same-transaction evidence; scaffold existence is not workflow acceptance."
+      },
+      "files": [
+        "tests/integration/commerce/rust-service-count-masters-postgres.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-commerce",
+        "targets": [
+          "service_count_masters_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-commerce/Cargo.toml",
+        "tests/support/rust-postgres.rs"
+      ],
+      "apps": [
+        "supply",
+        "service"
+      ],
+      "packages": [
+        "@erpx/server-commerce",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      }
+    },
+    {
+      "id": "files.rust-count-submission-postgres.integration",
+      "lane": "integration",
+      "owner": "files",
+      "modules": [
+        "field_service",
+        "inventory"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Protects native initial physical Count owner contracts, exact retained behavior, source authority and same-transaction evidence; scaffold existence is not workflow acceptance."
+      },
+      "files": [
+        "tests/integration/files/rust-count-submission-postgres.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-files",
+        "targets": [
+          "count_submission_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-files/Cargo.toml",
+        "tests/support/rust-postgres.rs"
+      ],
+      "apps": [
+        "supply",
+        "service"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-finance",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-legal",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/native-sdk",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      }
+    },
+    {
+      "id": "files.rust-count-submission.unit",
+      "lane": "unit",
+      "owner": "files",
+      "modules": [
+        "field_service",
+        "inventory"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Protects native initial physical Count owner contracts, exact retained behavior, source authority and same-transaction evidence; scaffold existence is not workflow acceptance."
+      },
+      "files": [
+        "tests/unit/files/rust-count-submission.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-files",
+        "targets": [
+          "count_submission"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-files/Cargo.toml"
+      ],
+      "apps": [
+        "supply",
+        "service"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-finance",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-legal",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/native-sdk",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow"
+      ]
+    },
+    {
+      "id": "finance.rust-initial-count-finance-postgres.integration",
+      "lane": "integration",
+      "owner": "finance",
+      "modules": [
+        "finance"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Protects native initial physical Count owner contracts, exact retained behavior, source authority and same-transaction evidence; scaffold existence is not workflow acceptance."
+      },
+      "files": [
+        "tests/integration/finance/rust-initial-count-finance-postgres.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-finance",
+        "targets": [
+          "initial_count_finance_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-finance/Cargo.toml",
+        "tests/support/rust-postgres.rs",
+        "packages/server-finance/src/adapters/initial-physical-stock-count-sources.ts"
+      ],
+      "apps": [
+        "finance"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-finance",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-legal",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/native-sdk",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow",
+        "@erpx/workplace"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      }
+    },
+    {
+      "id": "inventory.rust-service-initial-physical-count.unit",
+      "lane": "unit",
+      "owner": "inventory",
+      "modules": [
+        "inventory"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Protects native initial physical Count owner contracts, exact retained behavior, source authority and same-transaction evidence; scaffold existence is not workflow acceptance."
+      },
+      "files": [
+        "tests/unit/inventory/rust-service-initial-physical-count.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-inventory",
+        "targets": [
+          "service_initial_physical_count"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-inventory/Cargo.toml"
+      ],
+      "apps": [
+        "supply"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-finance",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-legal",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/native-sdk",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow",
+        "@erpx/workplace"
+      ]
+    },
+    {
+      "id": "inventory.rust-service-initial-physical-count-postgres.integration",
+      "lane": "integration",
+      "owner": "inventory",
+      "modules": [
+        "inventory"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Protects native initial physical Count owner contracts, exact retained behavior, source authority and same-transaction evidence; scaffold existence is not workflow acceptance."
+      },
+      "files": [
+        "tests/integration/inventory/rust-service-initial-physical-count-postgres.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-inventory",
+        "targets": [
+          "service_initial_physical_count_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-inventory/Cargo.toml",
+        "tests/support/rust-postgres.rs"
+      ],
+      "apps": [
+        "supply"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-finance",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-legal",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/native-sdk",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow",
+        "@erpx/workplace"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      }
+    },
+    {
+      "id": "pms.rust-initial-count-modules-postgres.integration",
+      "lane": "integration",
+      "owner": "pms",
+      "modules": [
+        "pms"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Protects native initial physical Count owner contracts, exact retained behavior, source authority and same-transaction evidence; scaffold existence is not workflow acceptance."
+      },
+      "files": [
+        "tests/integration/pms/rust-initial-count-modules-postgres.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-pms",
+        "targets": [
+          "initial_count_modules_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-pms/Cargo.toml",
+        "tests/support/rust-postgres.rs"
+      ],
+      "apps": [
+        "pms",
+        "booking"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-finance",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-legal",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/native-sdk",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      }
+    },
+    {
+      "id": "workflow.rust-stock-count-flow.unit",
+      "lane": "unit",
+      "owner": "workflow",
+      "modules": [
+        "field_service",
+        "inventory"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Protects native initial physical Count owner contracts, exact retained behavior, source authority and same-transaction evidence; scaffold existence is not workflow acceptance."
+      },
+      "files": [
+        "tests/unit/workflow/rust-stock-count-flow.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-workflow",
+        "targets": [
+          "stock_count_flow"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-workflow/Cargo.toml"
+      ],
+      "apps": [
+        "supply",
+        "service"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-finance",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-legal",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/native-sdk",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow"
+      ]
+    },
+    {
+      "id": "workflow.rust-stock-count-flow-postgres.integration",
+      "lane": "integration",
+      "owner": "workflow",
+      "modules": [
+        "field_service",
+        "inventory"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Protects native initial physical Count owner contracts, exact retained behavior, source authority and same-transaction evidence; scaffold existence is not workflow acceptance."
+      },
+      "files": [
+        "tests/integration/workflow/rust-stock-count-flow-postgres.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-workflow",
+        "targets": [
+          "stock_count_flow_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-workflow/Cargo.toml",
+        "tests/support/rust-postgres.rs"
+      ],
+      "apps": [
+        "supply",
+        "service"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-finance",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-legal",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/native-sdk",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      }
+    },
+    {
+      "id": "field_service.rust-service-initial-physical-stock-postgres.integration",
+      "lane": "integration",
+      "owner": "field_service",
+      "modules": [
+        "field_service"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Protects native initial physical Count owner contracts, exact retained behavior, source authority and same-transaction evidence; scaffold existence is not workflow acceptance."
+      },
+      "files": [
+        "tests/integration/field_service/rust-service-initial-physical-stock-postgres.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-service",
+        "targets": [
+          "service_initial_physical_stock_postgres"
+        ],
+        "features": [
+          "field-service",
+          "existing-business"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "src/composition/Cargo.toml",
+        "tests/support/rust-postgres.rs",
+        "packages/server-inventory/src/adapters/service-initial-physical-stock-count.ts",
+        "packages/server-inventory/src/domain/service-initial-physical-stock-count.ts",
+        "packages/server-inventory/src/application/counts.ts"
+      ],
+      "apps": [
+        "service"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-field_service",
+        "@erpx/feature-finance",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-legal",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-service",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/native-sdk",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow",
+        "@erpx/ui"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      }
     }
   ]
 }

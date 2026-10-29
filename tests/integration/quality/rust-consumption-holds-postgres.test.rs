@@ -3,6 +3,7 @@
 mod facts;
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
+use erpx_server_quality::public::initial_count_history::*;
 use erpx_server_quality::public::inventory_consumption::*;
 use erpx_server_runtime::public::postgres::{PgUnitOfWork, TransactionOptions};
 use erpx_server_shared::public::BusinessError;
@@ -85,4 +86,54 @@ async fn a_relevant_foreign_company_hold_is_not_hidden_from_denial_facts() {
 async fn a_new_hold_committed_while_utility_absence_fence_waits_is_visible() {
     fixture::with_database(3,|pool|async move{setup(&pool,"none").await;let mut writer=pool.raw().begin().await.unwrap();sqlx::query("INSERT INTO inventory_quality_holds(id,company_id,branch_id,warehouse_id,product_id,reason,due_date,created_by,created_at,updated_at)VALUES('held','company','branch','warehouse','product','Hold','2026-12-31','maker',0,0)").execute(&mut *writer).await.unwrap();let read_pool=pool.clone();let task=tokio::spawn(async move{read(&read_pool).await});
  tokio::time::timeout(std::time::Duration::from_secs(10),async{loop{let blocked:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_locks WHERE NOT granted AND mode='ShareLock' AND relation='inventory_quality_holds'::regclass AND database=(SELECT oid FROM pg_database WHERE datname=current_database()))").fetch_one(pool.raw()).await.unwrap();if blocked{break}tokio::task::yield_now().await;}}).await.unwrap();writer.commit().await.unwrap();assert!(task.await.unwrap().unwrap().whole_quantity_hold());}).await;
+}
+
+#[tokio::test]
+async fn initial_count_quality_history_includes_released_holds_and_keeps_original_pair_scope() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool, "none").await;
+        hold(&pool, "released-initial", "whole", None, None).await;
+        sqlx::query("UPDATE inventory_quality_holds SET status='released',last_result='pass',last_inspector='inspector',released_by='reviewer',release_reason='Independently released',released_at=1 WHERE id='released-initial'")
+            .execute(pool.raw()).await.unwrap();
+        // An active-consumption reader correctly permits released stock; the
+        // distinct initial-count history reader must still reject recreation.
+        assert!(!read(&pool).await.unwrap().whole_quantity_hold());
+        let proof = PgUnitOfWork::new(pool.clone()).run::<_, BusinessError, _>(TransactionOptions::default(), |c| Box::pin(async move {
+            lock_initial_count_quality_sources(c).await?;
+            let proof = read_initial_count_quality_history(c, "warehouse", "product").await?;
+            assert!(proof.has_history());
+            assert_eq!(proof.warehouse_id(), "warehouse");
+            assert_eq!(proof.product_id(), "product");
+            // Original history is by pair, without a scope filter masking a
+            // corrupt foreign-company historical row.
+            sqlx::query("UPDATE inventory_quality_holds SET company_id='foreign' WHERE id='released-initial'").execute(&mut *c).await?;
+            proof.require_current(c).await?;
+            Ok(proof)
+        })).await.unwrap();
+        let proof = Arc::new(proof);
+        denied(PgUnitOfWork::new(pool.clone()).run::<_, BusinessError, _>(TransactionOptions::default(), move |c| {
+            let proof = proof.clone();
+            Box::pin(async move {
+                lock_initial_count_quality_sources(c).await?;
+                proof.require_current(c).await
+            })
+        }).await, "QUALITY_INITIAL_COUNT_HISTORY_CHANGED");
+    }).await;
+}
+
+#[tokio::test]
+async fn initial_count_quality_absence_witness_rejects_late_history_and_rolls_it_back() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool, "none").await;
+        denied(PgUnitOfWork::new(pool.clone()).run::<_, BusinessError, _>(TransactionOptions::default(), |c| Box::pin(async move {
+            lock_initial_count_quality_sources(c).await?;
+            let proof = read_initial_count_quality_history(c, "warehouse", "product").await?;
+            assert!(!proof.has_history());
+            sqlx::query("INSERT INTO inventory_quality_holds(id,company_id,branch_id,warehouse_id,product_id,reason,due_date,created_by,created_at,updated_at)VALUES('late-initial','company','branch','warehouse','product','Late hold','2026-12-31','maker',0,0)").execute(&mut *c).await?;
+            proof.require_current(c).await
+        })).await, "QUALITY_INITIAL_COUNT_HISTORY_CHANGED");
+        assert_eq!(sqlx::query_scalar::<_, i64>("SELECT count(*) FROM inventory_quality_holds").fetch_one(pool.raw()).await.unwrap(), 0);
+        let mut connection = pool.raw().acquire().await.unwrap();
+        assert!(read_initial_count_quality_history(&mut connection, "warehouse", "product").await.is_err());
+    }).await;
 }

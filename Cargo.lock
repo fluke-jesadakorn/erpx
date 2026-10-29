@@ -693,6 +693,7 @@ version = "0.1.0"
 dependencies = [
  "erpx-server-runtime",
  "erpx-server-shared",
+ "serde_json",
  "sqlx",
  "tokio",
  "uuid",
@@ -831,6 +832,7 @@ dependencies = [
  "erpx-server-runtime",
  "erpx-server-shared",
  "serde_json",
+ "sha2 0.10.9",
  "sqlx",
  "tokio",
  "uuid",
@@ -934,6 +936,7 @@ dependencies = [
  "erpx-server-runtime",
  "erpx-server-shared",
  "hex",
+ "nix",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -969,6 +972,14 @@ dependencies = [
  "sqlx",
  "tokio",
  "uuid",
+]
+
+[[package]]
+name = "erpx-server-records"
+version = "0.1.0"
+dependencies = [
+ "erpx-server-shared",
+ "tokio",
 ]
 
 [[package]]
@@ -1051,6 +1062,7 @@ dependencies = [
  "erpx-server-platform-administration",
  "erpx-server-pms",
  "erpx-server-quality",
+ "erpx-server-records",
  "erpx-server-runtime",
  "erpx-server-shared",
  "erpx-server-support",

@@ -3,6 +3,7 @@ name: erpx-local-verification
 services:
   workspace:
     image: erpx-local-verification:local
+    init: true
     command: ["sleep", "infinity"]
     working_dir: /workspace/erpx
     environment:

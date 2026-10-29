@@ -43,7 +43,11 @@ async fn field_selection_reports_its_actual_closure_without_other_business_owner
         assert!(ids.contains("erpx-server-finance"));
         assert!(!ids.contains("erpx-server-legal"));
         assert!(!ids.contains("erpx-server-maintenance"));
-        assert!(!ids.contains("erpx-server-pms"));
+        // Initial Count preserves the scheduled-module release gate through
+        // PMS/Platform, and Records owns its evidence planning.
+        assert!(ids.contains("erpx-server-pms"));
+        assert!(ids.contains("erpx-server-platform-administration"));
+        assert!(ids.contains("erpx-server-records"));
     }
 }
 #[tokio::test]

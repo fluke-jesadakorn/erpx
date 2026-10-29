@@ -131,3 +131,21 @@ mod module_example;
 
 #[cfg(feature = "field-service")]
 pub mod service_stock_setup;
+#[cfg(feature = "field-service")]
+mod service_initial_physical_stock_sources;
+#[cfg(feature = "field-service")]
+mod service_initial_physical_stock_purchases;
+#[cfg(feature = "field-service")]
+mod service_initial_physical_stock_read;
+#[cfg(feature = "field-service")]
+mod service_initial_physical_stock_command;
+#[cfg(feature = "field-service")]
+mod service_initial_physical_stock_flow;
+#[cfg(feature = "field-service")]
+mod service_initial_physical_stock_record;
+#[cfg(feature = "field-service")]
+mod service_initial_physical_stock_create;
+#[cfg(feature = "field-service")]
+mod service_initial_physical_stock_action;
+#[cfg(feature = "field-service")]
+pub mod service_initial_physical_stock;

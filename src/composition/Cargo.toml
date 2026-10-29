@@ -12,7 +12,7 @@ verification-roots = ["../../scripts/docs/export-directory-source-contracts.rs",
 
 [features]
 default = ["existing-business"]
-field-service = ["dep:erpx-server-organization", "dep:erpx-server-quality", "dep:erpx-server-field-service", "dep:erpx-server-support", "dep:erpx-server-assets", "dep:erpx-server-collaboration", "dep:erpx-server-commerce", "dep:erpx-server-inventory", "dep:erpx-server-people-payroll", "dep:erpx-server-workflow", "dep:erpx-server-identity-access", "dep:erpx-server-files", "dep:erpx-server-finance", "dep:erpx-server-commercial"]
+field-service = ["dep:erpx-server-platform-administration", "dep:erpx-server-pms", "dep:erpx-server-records", "dep:erpx-server-organization", "dep:erpx-server-quality", "dep:erpx-server-field-service", "dep:erpx-server-support", "dep:erpx-server-assets", "dep:erpx-server-collaboration", "dep:erpx-server-commerce", "dep:erpx-server-inventory", "dep:erpx-server-people-payroll", "dep:erpx-server-workflow", "dep:erpx-server-identity-access", "dep:erpx-server-files", "dep:erpx-server-finance", "dep:erpx-server-commercial"]
 field-service-http = ["field-service"]
 existing-business = ["field-service", "dep:erpx-server-organization", "dep:erpx-server-quality", "dep:erpx-server-field-service", "dep:erpx-server-support", "dep:erpx-server-assets", "dep:erpx-server-collaboration", "dep:erpx-server-commerce", "dep:erpx-server-inventory", "dep:erpx-server-maintenance", "dep:erpx-server-people-payroll", "dep:erpx-server-workflow", "dep:erpx-server-identity-access", "dep:erpx-server-legal", "dep:erpx-server-files", "dep:erpx-server-finance", "dep:erpx-server-commercial", "dep:erpx-server-platform-administration", "dep:erpx-server-pms"]
 module-example = []
@@ -51,6 +51,7 @@ erpx-server-shared.workspace = true
 erpx-server-identity-access = { workspace = true, optional = true }
 erpx-server-legal = { workspace = true, optional = true }
 erpx-server-files = { workspace = true, optional = true }
+erpx-server-records = { workspace = true, optional = true }
 erpx-server-finance = { workspace = true, optional = true }
 erpx-server-commercial = { workspace = true, optional = true }
 erpx-server-platform-administration = { workspace = true, optional = true }
@@ -257,3 +258,8 @@ path = "../../tests/unit/shared.architecture/rust-module-assembly.test.rs"
 name = "private_field_only_postgres"
 path = "../../tests/integration/field_service/rust-private-field-only-postgres.test.rs"
 required-features = ["private-field-api"]
+
+[[test]]
+name = "service_initial_physical_stock_postgres"
+path = "../../tests/integration/field_service/rust-service-initial-physical-stock-postgres.test.rs"
+required-features = ["field-service"]

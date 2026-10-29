@@ -81,3 +81,5 @@ pub mod journal_flow_participants;
 pub mod field_service_workspace;
 
 pub mod selected_command_authority;
+pub mod service_initial_count_authority;
+pub mod service_count_flow_participants;

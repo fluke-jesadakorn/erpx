@@ -77,3 +77,4 @@ pub mod service_parts_posting;
 pub mod service_parts_prerequisites;
 
 pub mod stock_master_money;
+pub mod initial_count_finance;

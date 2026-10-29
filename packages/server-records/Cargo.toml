@@ -1,0 +1,24 @@
+[package]
+name = "erpx-server-records"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+autotests = false
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+erpx-server-shared.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+
+[lints]
+workspace = true
+
+[[test]]
+name = "business_evidence"
+path = "../../tests/unit/shared.records/rust-business-evidence.test.rs"

@@ -14,6 +14,7 @@ path = "src/lib.rs"
 erpx-server-shared.workspace = true
 erpx-server-runtime.workspace = true
 sqlx.workspace = true
+serde_json.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true
@@ -25,3 +26,7 @@ workspace = true
 [[test]]
 name = "consumption_postgres"
 path = "../../tests/integration/commerce/rust-consumption-commerce-postgres.test.rs"
+
+[[test]]
+name = "service_count_masters_postgres"
+path = "../../tests/integration/commerce/rust-service-count-masters-postgres.test.rs"

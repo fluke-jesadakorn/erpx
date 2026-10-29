@@ -10,6 +10,8 @@ use erpx_server_shared::public::{BusinessError, CompanyId, RecordId, TimestampMi
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use sqlx::{Connection, PgConnection, Row};
+#[cfg(any(unix, test))]
+use std::io::Read;
 use std::{fs, path::PathBuf};
 type Error = PgTransactionError<BusinessError>;
 
@@ -93,10 +95,7 @@ fn hexadecimal(value: &str, n: usize) -> bool {
             .bytes()
             .all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c))
 }
-fn attestation(
-    configuration: &EngineeringReadConfiguration,
-    artifact: &str,
-) -> Option<Attestation> {
+fn engineering_paths(configuration: &EngineeringReadConfiguration) -> Option<[PathBuf; 3]> {
     if !hexadecimal(&configuration.run, 12)
         || configuration.environment != "local"
         || configuration.port != "3104"
@@ -117,12 +116,16 @@ fn attestation(
     {
         return None;
     }
-    let a: Attestation = serde_json::from_slice(&fs::read(attestation_path).ok()?).ok()?;
-    // Legacy release.json carries additional artifact metadata. Only its three
-    // source identity fields participate in this existing predicate.
-    let info: serde_json::Value =
-        serde_json::from_slice(&fs::read(release.join("release.json")).ok()?).ok()?;
-    let digest = hex::encode(Sha256::digest(fs::read(manifest).ok()?));
+    Some([attestation_path, release.join("release.json"), manifest])
+}
+fn validate_engineering_buffers(
+    configuration: &EngineeringReadConfiguration,
+    artifact: &str,
+    files: &[Vec<u8>; 3],
+) -> Option<Attestation> {
+    let a: Attestation = serde_json::from_slice(&files[0]).ok()?;
+    let info: serde_json::Value = serde_json::from_slice(&files[1]).ok()?;
+    let digest = hex::encode(Sha256::digest(&files[2]));
     (a.scope == "isolated-engineering"
         && a.run == configuration.run
         && hexadecimal(&a.source_fingerprint, 64)
@@ -133,6 +136,221 @@ fn attestation(
         && digest == a.file_manifest_sha256
         && info["fileManifestSha256"] == digest)
         .then_some(a)
+}
+fn attestation(
+    configuration: &EngineeringReadConfiguration,
+    artifact: &str,
+) -> Option<Attestation> {
+    let paths = engineering_paths(configuration)?;
+    let files = [
+        fs::read(&paths[0]).ok()?,
+        fs::read(&paths[1]).ok()?,
+        fs::read(&paths[2]).ok()?,
+    ];
+    validate_engineering_buffers(configuration, artifact, &files)
+}
+/// Original owner-validated bytes; the identity fields cannot be constructed
+/// independently of the exact filesystem snapshot and sealed content checks.
+#[derive(Clone, PartialEq, Eq)]
+pub struct BoundedEngineeringAttestation {
+    run: String,
+    source_fingerprint: String,
+    software_version: String,
+    file_manifest_sha256: String,
+    files: [Vec<u8>; 3],
+}
+impl BoundedEngineeringAttestation {
+    pub fn run(&self) -> &str {
+        &self.run
+    }
+    pub fn source_fingerprint(&self) -> &str {
+        &self.source_fingerprint
+    }
+    pub fn software_version(&self) -> &str {
+        &self.software_version
+    }
+    pub fn file_manifest_sha256(&self) -> &str {
+        &self.file_manifest_sha256
+    }
+}
+#[cfg(any(unix, test))]
+fn read_bounded(mut reader: impl Read, maximum: usize) -> Option<Vec<u8>> {
+    let mut bytes = Vec::new();
+    reader
+        .by_ref()
+        .take(u64::try_from(maximum).ok()?.checked_add(1)?)
+        .read_to_end(&mut bytes)
+        .ok()?;
+    (bytes.len() <= maximum).then_some(bytes)
+}
+#[cfg(unix)]
+fn open_bounded_regular(path: &std::path::Path, maximum: usize) -> Option<Vec<u8>> {
+    use nix::{
+        fcntl::{OFlag, open, openat},
+        sys::stat::Mode,
+    };
+    use std::path::Component;
+    // Anchor each canonical component to a directory descriptor: no swapped
+    // symlink can be followed, and the final FIFO open is nonblocking.
+    let mut parts = path.components().peekable();
+    if parts.next()? != Component::RootDir {
+        return None;
+    }
+    let mut directory = open(
+        "/",
+        OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC,
+        Mode::empty(),
+    )
+    .ok()?;
+    while let Some(part) = parts.next() {
+        let Component::Normal(name) = part else {
+            return None;
+        };
+        if parts.peek().is_some() {
+            directory = openat(
+                &directory,
+                name,
+                OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC,
+                Mode::empty(),
+            )
+            .ok()?;
+        } else {
+            let file = fs::File::from(
+                openat(
+                    &directory,
+                    name,
+                    OFlag::O_RDONLY | OFlag::O_NOFOLLOW | OFlag::O_NONBLOCK | OFlag::O_CLOEXEC,
+                    Mode::empty(),
+                )
+                .ok()?,
+            );
+            let metadata = file.metadata().ok()?;
+            if !metadata.is_file() || metadata.len() > maximum as u64 {
+                return None;
+            }
+            return read_bounded(file, maximum);
+        }
+    }
+    None
+}
+#[cfg(not(unix))]
+fn open_bounded_regular(_path: &std::path::Path, _maximum: usize) -> Option<Vec<u8>> {
+    None
+}
+/// Validate the same bounded file-handle bytes that are retained by the
+/// caller. Unlike a check-then-reopen workflow this cannot bless different
+/// contents, and growth during the read cannot exceed the allocation limit.
+pub fn capture_bounded_engineering_attestation(
+    configuration: &EngineeringReadConfiguration,
+    artifact: &str,
+    maximum_file_bytes: usize,
+) -> Option<BoundedEngineeringAttestation> {
+    if maximum_file_bytes == 0 || maximum_file_bytes > 16 * 1024 * 1024 {
+        return None;
+    }
+    let paths = engineering_paths(configuration)?;
+    let files = [
+        open_bounded_regular(&paths[0], maximum_file_bytes)?,
+        open_bounded_regular(&paths[1], maximum_file_bytes)?,
+        open_bounded_regular(&paths[2], maximum_file_bytes)?,
+    ];
+    let a = validate_engineering_buffers(configuration, artifact, &files)?;
+    Some(BoundedEngineeringAttestation {
+        run: a.run,
+        source_fingerprint: a.source_fingerprint,
+        software_version: a.software_version,
+        file_manifest_sha256: a.file_manifest_sha256,
+        files,
+    })
+}
+#[cfg(test)]
+mod bounded_attestation_tests {
+    #[cfg(unix)]
+    #[test]
+    fn fifo_never_blocks_and_replaced_symlink_is_rejected() {
+        use std::time::Duration;
+        let root = tempfile::tempdir().unwrap();
+        let run = "0123456789ab";
+        let directory = root.path().join(".runtime/browser").join(run);
+        let release = directory.join("release");
+        std::fs::create_dir_all(&release).unwrap();
+        std::fs::write(directory.join("engineering-attestation.json"), b"{}").unwrap();
+        std::fs::write(release.join("release.json"), b"{}").unwrap();
+        let manifest = release.join("release-files.json");
+        nix::unistd::mkfifo(
+            &manifest,
+            nix::sys::stat::Mode::S_IRUSR | nix::sys::stat::Mode::S_IWUSR,
+        )
+        .unwrap();
+        let configuration = super::EngineeringReadConfiguration {
+            run: run.into(),
+            environment: "local".into(),
+            port: "3104".into(),
+            browser_simulation_port: "3104".into(),
+            data_directory: directory,
+        };
+        let (send, receive) = std::sync::mpsc::channel();
+        let config = configuration.clone();
+        std::thread::spawn(move || {
+            let result =
+                super::capture_bounded_engineering_attestation(&config, "unbuilt", 1024).is_none();
+            let _ = send.send(result);
+        });
+        assert!(
+            receive
+                .recv_timeout(Duration::from_secs(2))
+                .expect("FIFO open blocked")
+        );
+        std::fs::remove_file(&manifest).unwrap();
+        std::fs::write(&manifest, b"regular").unwrap();
+        let paths = super::engineering_paths(&configuration).unwrap();
+        assert!(super::open_bounded_regular(&paths[2], 1024).is_some());
+        assert!(super::open_bounded_regular(&release, 1024).is_none());
+        // Replace the last component after canonicalization but before open.
+        let moved = release.join("moved.json");
+        std::fs::rename(&manifest, &moved).unwrap();
+        std::os::unix::fs::symlink(&moved, &manifest).unwrap();
+        assert!(super::open_bounded_regular(&paths[2], 1024).is_none());
+        assert!(
+            super::capture_bounded_engineering_attestation(&configuration, "unbuilt", 1024)
+                .is_none()
+        );
+        std::fs::remove_file(&manifest).unwrap();
+        std::fs::rename(&moved, &manifest).unwrap();
+        let paths = super::engineering_paths(&configuration).unwrap();
+        let moved_release = root.path().join("moved-release");
+        std::fs::rename(&release, &moved_release).unwrap();
+        std::os::unix::fs::symlink(&moved_release, &release).unwrap();
+        assert!(super::open_bounded_regular(&paths[2], 1024).is_none());
+    }
+    #[test]
+    fn read_bound_applies_to_actual_stream_not_reported_size() {
+        struct Growing {
+            emitted: usize,
+        }
+        impl std::io::Read for Growing {
+            fn read(&mut self, output: &mut [u8]) -> std::io::Result<usize> {
+                // A file initially appearing short grows while its already-open
+                // handle is consumed. No metadata-sized allocation is trusted.
+                let available = if self.emitted == 0 {
+                    4
+                } else {
+                    513usize.saturating_sub(self.emitted)
+                };
+                let n = available.min(output.len());
+                output[..n].fill(b'x');
+                self.emitted += n;
+                Ok(n)
+            }
+        }
+        assert!(super::read_bounded(Growing { emitted: 0 }, 512).is_none());
+        assert_eq!(
+            super::read_bounded(std::io::Cursor::new(vec![0u8; 512]), 512)
+                .unwrap()
+                .len(),
+            512
+        );
+    }
 }
 
 /// Acquire this complete owner bundle before the fresh Holding's first SELECT.

@@ -17,3 +17,5 @@ pub mod field_service_completion;
 pub mod field_service_detail;
 
 pub mod service_parts_posting;
+pub mod service_initial_physical_count;
+pub mod service_initial_count_decision;

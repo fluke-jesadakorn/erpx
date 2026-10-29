@@ -77,3 +77,7 @@ path = "../../tests/unit/finance/rust-parts-draft.test.rs"
 [[test]]
 name = "manual_draft_edit_postgres"
 path = "../../tests/integration/finance/rust-manual-draft-edit-postgres.test.rs"
+
+[[test]]
+name = "initial_count_finance_postgres"
+path = "../../tests/integration/finance/rust-initial-count-finance-postgres.test.rs"

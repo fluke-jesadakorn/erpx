@@ -19,6 +19,8 @@ erpx-server-commerce.workspace = true
 erpx-server-quality.workspace = true
 sqlx.workspace = true
 erpx-server-shared.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
 
 [dev-dependencies]
 uuid.workspace = true
@@ -36,3 +38,11 @@ workspace = true
 [[test]]
 name = "consumption_postgres"
 path = "../../tests/integration/inventory/rust-consumption-planning-postgres.test.rs"
+
+[[test]]
+name = "service_initial_physical_count"
+path = "../../tests/unit/inventory/rust-service-initial-physical-count.test.rs"
+
+[[test]]
+name = "service_initial_physical_count_postgres"
+path = "../../tests/integration/inventory/rust-service-initial-physical-count-postgres.test.rs"

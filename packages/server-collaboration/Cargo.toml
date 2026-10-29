@@ -30,3 +30,7 @@ path = "../../tests/integration/collaboration/rust-maintenance-notifications-pos
 
 [lints]
 workspace = true
+
+[[test]]
+name = "service_count_flow_notification_postgres"
+path = "../../tests/integration/collaboration/rust-service-count-flow-notification-postgres.test.rs"

@@ -92,3 +92,11 @@ path = "../../tests/unit/files/rust-sanitization-io.test.rs"
 [[test]]
 name = "attachment_scan_postgres"
 path = "../../tests/integration/files/rust-attachment-scan-postgres.test.rs"
+
+[[test]]
+name = "count_submission_postgres"
+path = "../../tests/integration/files/rust-count-submission-postgres.test.rs"
+
+[[test]]
+name = "count_submission"
+path = "../../tests/unit/files/rust-count-submission.test.rs"

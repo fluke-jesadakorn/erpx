@@ -36,3 +36,6 @@ pub(crate) mod service_parts_posting;
 pub(crate) mod service_parts_prerequisites;
 
 pub(crate) mod stock_master_money;
+pub(crate) mod initial_count_finance;
+pub(crate) mod initial_count_posting;
+pub(crate) mod initial_count_readiness;

@@ -119,6 +119,19 @@ fn engineering_context_rechecks_real_files_and_exact_local_configuration() {
         data_directory: directory.clone(),
     };
     assert!(engineering_attestation_matches(&configuration, &artifact));
+    let captured =
+        capture_bounded_engineering_attestation(&configuration, &artifact, 1024).unwrap();
+    assert_eq!(captured.run(), run);
+    assert_eq!(captured.source_fingerprint(), source);
+    // A retained valid capture cannot be substituted for different bytes.
+    std::fs::write(release.join("release-files.json"), b"changed-buffer").unwrap();
+    assert!(capture_bounded_engineering_attestation(&configuration, &artifact, 1024).is_none());
+    std::fs::write(release.join("release-files.json"), vec![b'x'; 1025]).unwrap();
+    assert!(capture_bounded_engineering_attestation(&configuration, &artifact, 1024).is_none());
+    std::fs::write(release.join("release-files.json"), manifest).unwrap();
+    let restored =
+        capture_bounded_engineering_attestation(&configuration, &artifact, 1024).unwrap();
+    assert!(captured == restored);
     for variant in 0..5 {
         let mut c = configuration.clone();
         match variant {
@@ -148,5 +161,6 @@ fn engineering_context_rechecks_real_files_and_exact_local_configuration() {
         )
         .unwrap();
         assert!(!engineering_attestation_matches(&configuration, &artifact));
+        assert!(capture_bounded_engineering_attestation(&configuration, &artifact, 1024).is_none());
     }
 }

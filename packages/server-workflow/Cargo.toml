@@ -34,3 +34,11 @@ path = "../../tests/integration/workflow/rust-command-ledger-postgres.test.rs"
 
 [lints]
 workspace = true
+
+[[test]]
+name = "stock_count_flow"
+path = "../../tests/unit/workflow/rust-stock-count-flow.test.rs"
+
+[[test]]
+name = "stock_count_flow_postgres"
+path = "../../tests/integration/workflow/rust-stock-count-flow-postgres.test.rs"

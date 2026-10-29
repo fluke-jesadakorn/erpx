@@ -9,3 +9,4 @@ pub mod field_service_detail;
 pub mod service_parts_posting;
 
 pub mod service_stock_masters;
+pub mod service_initial_count_masters;

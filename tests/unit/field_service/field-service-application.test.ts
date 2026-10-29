@@ -1,5 +1,5 @@
 import { serviceCommandPurchases } from "@erpx/server-field_service/domain/package-commands";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, expectTypeOf, it, vi } from "vitest";
 import { createFieldServiceApplication, type FieldServicePorts, type FieldServiceMutation } from "@erpx/server-field_service/application/service";
 import { orderTransition, type FieldWorkspace, type OrderFacts } from "@erpx/server-field_service/domain/service";
 import { createElement } from "react";
@@ -199,6 +199,16 @@ import {AccountPreferencesContext} from '@erpx/feature-identity_access/component
 import {decimalToUnits,unitsToDecimal} from '@erpx/feature-finance/lib/finance-money';
 import type {FlowView} from '@erpx/feature-shared/lib/flow';
 import {serviceInitialPhysicalStockCountSchema} from '@erpx/server-inventory/domain/service-initial-physical-stock-count';
+import type {z} from 'zod';
+import type {ServiceInitialPhysicalCountAction,ServiceInitialPhysicalCountDecision,ServiceInitialPhysicalCountInput as CountUiInput,ServiceInitialPhysicalCountView as CountUiView,ServiceInitialPhysicalCountProductInput,ServiceInitialPhysicalCountWarehouseInput,ServiceInitialPhysicalCountSelection} from '@erpx/feature-field_service/lib/initial-physical-stock-count-command';
+import type {ServiceInitialPhysicalStockCountAction as CountOwnerAction,ServiceInitialPhysicalStockCountInput as CountOwnerInput,ServiceInitialPhysicalStockCountView as CountOwnerView,serviceInitialPhysicalStockCountActionSchema as countOwnerActionSchema,serviceInitialPhysicalStockCountSelectionSchema as countOwnerSelectionSchema} from '@erpx/server-inventory/public/service-initial-physical-stock-count';
+import type {serviceInitialPhysicalStockProductSchema as stockOwnerProductSchema,serviceInitialPhysicalStockWarehouseSchema as stockOwnerWarehouseSchema} from '@erpx/server-commerce/public/service-initial-physical-stock-masters';
+it('Count frontend exchange remains structurally compatible with the retained owner port',()=>{
+ expectTypeOf<CountUiInput>().toEqualTypeOf<CountOwnerInput>();expectTypeOf<CountUiView>().toMatchTypeOf<CountOwnerView>();expectTypeOf<CountOwnerView>().toMatchTypeOf<CountUiView>();expectTypeOf<ServiceInitialPhysicalCountAction>().toEqualTypeOf<CountOwnerAction>();
+ expectTypeOf<ServiceInitialPhysicalCountDecision>().toEqualTypeOf<z.input<typeof countOwnerActionSchema>>();expectTypeOf<ServiceInitialPhysicalCountSelection>().toEqualTypeOf<z.input<typeof countOwnerSelectionSchema>>();
+ expectTypeOf<ServiceInitialPhysicalCountProductInput>().toEqualTypeOf<z.input<typeof stockOwnerProductSchema>>();expectTypeOf<ServiceInitialPhysicalCountWarehouseInput>().toEqualTypeOf<z.input<typeof stockOwnerWarehouseSchema>>();
+});
+
 vi.mock('next/navigation',()=>({useRouter:()=>({push:vi.fn(),replace:vi.fn(),refresh:vi.fn()}),usePathname:()=>'/holdings/acme/services/field-service/settings/initial-stock',useSearchParams:()=>new URLSearchParams()}));
 const source:import("@erpx/feature-field_service/lib/initial-physical-stock-count-command").ServiceInitialPhysicalCountSource={base:'/holdings/acme',companyId:'company',recordId:null,contextKey:'a'.repeat(64),recordVersion:null,flowVersion:null};
 const input:import("@erpx/feature-field_service/lib/initial-physical-stock-count-command").ServiceInitialPhysicalCountInput={expectedVersion:0,contextKey:source.contextKey!,input:{warehouseId:'warehouse',countDate:'2026-09-02',reason:'Signed original physical-count evidence',lines:[{productId:'product',countedQuantity:'2',unitCost:'6',allocations:[]}]}};

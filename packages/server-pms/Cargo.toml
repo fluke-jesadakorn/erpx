@@ -28,3 +28,7 @@ workspace = true
 [[test]]
 name = "scheduled_legal_postgres"
 path = "../../tests/integration/pms/rust-scheduled-legal-postgres.test.rs"
+
+[[test]]
+name = "initial_count_modules_postgres"
+path = "../../tests/integration/pms/rust-initial-count-modules-postgres.test.rs"

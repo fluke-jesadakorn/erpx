@@ -26,3 +26,4 @@ pub mod attachment_scan_provider;
 pub(crate) mod field_visit_link;
 
 pub(crate) mod field_visit_bind;
+pub(crate) mod count_submission;

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-29",
+  "updatedAt": "2026-10-30",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Incremental independently mergeable capability bundles toward the unchanged full migration scope; unrelated owners and full-system final integration remain later work unless required by this bundle.",
   "catalogue": {
@@ -1660,9 +1660,15 @@
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Inventory count/Flow and, for post, owner stock and Finance effects as applicable.",
           "authorityAndIsolation": "Inventory owns the count; Finance/Workflow effects retain their own authority.",
-          "isolationStatus": "BLOCKED: retained TypeScript is active; no native replacement or explicit single-owner retention/fence proof is established. An active second writer is not inferred.",
+          "isolationStatus": "BLOCKED: retained TypeScript remains authoritative; native candidate is unmounted. Qualify its full delivery and fence all replaced route/internal/job writers before activation. No second active writer is introduced.",
           "withdrawalFence": "Deliver or explicitly retain exactly one authoritative count prepare writer and prove current source/replay/rollback before fencing any replacement.",
-          "status": "retained TypeScript; required bundle setup gap"
+          "status": "retained TypeScript; required bundle setup gap",
+          "candidateNativeImplementation": [
+            "src/composition/src/service_initial_physical_stock.rs",
+            "src/composition/src/service_initial_physical_stock_sources.rs",
+            "src/composition/src/service_initial_physical_stock_create.rs"
+          ],
+          "candidateStatus": "Unmounted/default-off native coordinator with independent review accepted after historical receipt/result and Flow replay corrections; real Account/PostgreSQL tracked and untracked journeys pass. Frontend interaction model has no server-owner imports. No native HTTP/SDK/Next Count journey or legacy writer fence yet; historical decision digest has format and linked-identity checks, not reconstructed byte integrity."
         },
         {
           "id": "stock.command.submit",
@@ -1682,9 +1688,15 @@
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Inventory count/Flow and, for post, owner stock and Finance effects as applicable.",
           "authorityAndIsolation": "Inventory owns the count; Finance/Workflow effects retain their own authority.",
-          "isolationStatus": "BLOCKED: retained TypeScript is active; no native replacement or explicit single-owner retention/fence proof is established. An active second writer is not inferred.",
+          "isolationStatus": "BLOCKED: retained TypeScript remains authoritative; native candidate is unmounted. Qualify its full delivery and fence all replaced route/internal/job writers before activation. No second active writer is introduced.",
           "withdrawalFence": "Deliver or explicitly retain exactly one authoritative count submit writer and prove current source/replay/rollback before fencing any replacement.",
-          "status": "retained TypeScript; required bundle setup gap"
+          "status": "retained TypeScript; required bundle setup gap",
+          "candidateNativeImplementation": [
+            "src/composition/src/service_initial_physical_stock.rs",
+            "src/composition/src/service_initial_physical_stock_sources.rs",
+            "src/composition/src/service_initial_physical_stock_action.rs"
+          ],
+          "candidateStatus": "Unmounted/default-off native coordinator with independent review accepted after historical receipt/result and Flow replay corrections; real Account/PostgreSQL tracked and untracked journeys pass. Frontend interaction model has no server-owner imports. No native HTTP/SDK/Next Count journey or legacy writer fence yet; historical decision digest has format and linked-identity checks, not reconstructed byte integrity."
         },
         {
           "id": "stock.command.approve",
@@ -1704,9 +1716,15 @@
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Inventory count/Flow and, for post, owner stock and Finance effects as applicable.",
           "authorityAndIsolation": "Inventory owns the count; Finance/Workflow effects retain their own authority.",
-          "isolationStatus": "BLOCKED: retained TypeScript is active; no native replacement or explicit single-owner retention/fence proof is established. An active second writer is not inferred.",
+          "isolationStatus": "BLOCKED: retained TypeScript remains authoritative; native candidate is unmounted. Qualify its full delivery and fence all replaced route/internal/job writers before activation. No second active writer is introduced.",
           "withdrawalFence": "Deliver or explicitly retain exactly one authoritative count approve writer and prove current source/replay/rollback before fencing any replacement.",
-          "status": "retained TypeScript; required bundle setup gap"
+          "status": "retained TypeScript; required bundle setup gap",
+          "candidateNativeImplementation": [
+            "src/composition/src/service_initial_physical_stock.rs",
+            "src/composition/src/service_initial_physical_stock_sources.rs",
+            "src/composition/src/service_initial_physical_stock_action.rs"
+          ],
+          "candidateStatus": "Unmounted/default-off native coordinator with independent review accepted after historical receipt/result and Flow replay corrections; real Account/PostgreSQL tracked and untracked journeys pass. Frontend interaction model has no server-owner imports. No native HTTP/SDK/Next Count journey or legacy writer fence yet; historical decision digest has format and linked-identity checks, not reconstructed byte integrity."
         },
         {
           "id": "stock.command.post",
@@ -1726,9 +1744,15 @@
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Inventory count/Flow and, for post, owner stock and Finance effects as applicable.",
           "authorityAndIsolation": "Inventory owns the count; Finance/Workflow effects retain their own authority.",
-          "isolationStatus": "BLOCKED: retained TypeScript is active; no native replacement or explicit single-owner retention/fence proof is established. An active second writer is not inferred.",
+          "isolationStatus": "BLOCKED: retained TypeScript remains authoritative; native candidate is unmounted. Qualify its full delivery and fence all replaced route/internal/job writers before activation. No second active writer is introduced.",
           "withdrawalFence": "Deliver or explicitly retain exactly one authoritative count post writer and prove current source/replay/rollback before fencing any replacement.",
-          "status": "retained TypeScript; required bundle setup gap"
+          "status": "retained TypeScript; required bundle setup gap",
+          "candidateNativeImplementation": [
+            "src/composition/src/service_initial_physical_stock.rs",
+            "src/composition/src/service_initial_physical_stock_sources.rs",
+            "src/composition/src/service_initial_physical_stock_action.rs"
+          ],
+          "candidateStatus": "Unmounted/default-off native coordinator with independent review accepted after historical receipt/result and Flow replay corrections; real Account/PostgreSQL tracked and untracked journeys pass. Frontend interaction model has no server-owner imports. No native HTTP/SDK/Next Count journey or legacy writer fence yet; historical decision digest has format and linked-identity checks, not reconstructed byte integrity."
         },
         {
           "id": "stock.command.reject",
@@ -1748,9 +1772,15 @@
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Inventory count/Flow and, for post, owner stock and Finance effects as applicable.",
           "authorityAndIsolation": "Inventory owns the count; Finance/Workflow effects retain their own authority.",
-          "isolationStatus": "BLOCKED: retained TypeScript is active; no native replacement or explicit single-owner retention/fence proof is established. An active second writer is not inferred.",
+          "isolationStatus": "BLOCKED: retained TypeScript remains authoritative; native candidate is unmounted. Qualify its full delivery and fence all replaced route/internal/job writers before activation. No second active writer is introduced.",
           "withdrawalFence": "Deliver or explicitly retain exactly one authoritative count reject writer and prove current source/replay/rollback before fencing any replacement.",
-          "status": "retained TypeScript; required bundle setup gap"
+          "status": "retained TypeScript; required bundle setup gap",
+          "candidateNativeImplementation": [
+            "src/composition/src/service_initial_physical_stock.rs",
+            "src/composition/src/service_initial_physical_stock_sources.rs",
+            "src/composition/src/service_initial_physical_stock_action.rs"
+          ],
+          "candidateStatus": "Unmounted/default-off native coordinator with independent review accepted after historical receipt/result and Flow replay corrections; real Account/PostgreSQL tracked and untracked journeys pass. Frontend interaction model has no server-owner imports. No native HTTP/SDK/Next Count journey or legacy writer fence yet; historical decision digest has format and linked-identity checks, not reconstructed byte integrity."
         },
         {
           "id": "stock.command.cancel",
@@ -1770,9 +1800,15 @@
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Inventory count/Flow and, for post, owner stock and Finance effects as applicable.",
           "authorityAndIsolation": "Inventory owns the count; Finance/Workflow effects retain their own authority.",
-          "isolationStatus": "BLOCKED: retained TypeScript is active; no native replacement or explicit single-owner retention/fence proof is established. An active second writer is not inferred.",
+          "isolationStatus": "BLOCKED: retained TypeScript remains authoritative; native candidate is unmounted. Qualify its full delivery and fence all replaced route/internal/job writers before activation. No second active writer is introduced.",
           "withdrawalFence": "Deliver or explicitly retain exactly one authoritative count cancel writer and prove current source/replay/rollback before fencing any replacement.",
-          "status": "retained TypeScript; required bundle setup gap"
+          "status": "retained TypeScript; required bundle setup gap",
+          "candidateNativeImplementation": [
+            "src/composition/src/service_initial_physical_stock.rs",
+            "src/composition/src/service_initial_physical_stock_sources.rs",
+            "src/composition/src/service_initial_physical_stock_action.rs"
+          ],
+          "candidateStatus": "Unmounted/default-off native coordinator with independent review accepted after historical receipt/result and Flow replay corrections; real Account/PostgreSQL tracked and untracked journeys pass. Frontend interaction model has no server-owner imports. No native HTTP/SDK/Next Count journey or legacy writer fence yet; historical decision digest has format and linked-identity checks, not reconstructed byte integrity."
         },
         {
           "id": "stock.command.assign-flow",
@@ -1792,9 +1828,15 @@
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Inventory count/Flow and, for post, owner stock and Finance effects as applicable.",
           "authorityAndIsolation": "Inventory owns the count; Finance/Workflow effects retain their own authority.",
-          "isolationStatus": "BLOCKED: retained TypeScript is active; no native replacement or explicit single-owner retention/fence proof is established. An active second writer is not inferred.",
+          "isolationStatus": "BLOCKED: retained TypeScript remains authoritative; native candidate is unmounted. Qualify its full delivery and fence all replaced route/internal/job writers before activation. No second active writer is introduced.",
           "withdrawalFence": "Deliver or explicitly retain exactly one authoritative count assign-flow writer and prove current source/replay/rollback before fencing any replacement.",
-          "status": "retained TypeScript; required bundle setup gap"
+          "status": "retained TypeScript; required bundle setup gap",
+          "candidateNativeImplementation": [
+            "src/composition/src/service_initial_physical_stock.rs",
+            "src/composition/src/service_initial_physical_stock_sources.rs",
+            "src/composition/src/service_initial_physical_stock_action.rs"
+          ],
+          "candidateStatus": "Unmounted/default-off native coordinator with independent review accepted after historical receipt/result and Flow replay corrections; real Account/PostgreSQL tracked and untracked journeys pass. Frontend interaction model has no server-owner imports. No native HTTP/SDK/Next Count journey or legacy writer fence yet; historical decision digest has format and linked-identity checks, not reconstructed byte integrity."
         },
         {
           "id": "stock.read",
@@ -1814,9 +1856,15 @@
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "No business write.",
           "authorityAndIsolation": "Selected current actor and owner source rights.",
-          "isolationStatus": "OPEN: scope and current authority are checked, but production/default owner selection and cross-path equivalence are not proven.",
+          "isolationStatus": "BLOCKED: retained TypeScript remains authoritative; native candidate is unmounted. Qualify its full delivery and fence all replaced route/internal/job writers before activation. No second active writer is introduced.",
           "withdrawalFence": "Preserve actual count selection, state and Flow before changing the reader.",
-          "status": "retained TypeScript; required bundle setup gap"
+          "status": "retained TypeScript; required bundle setup gap",
+          "candidateNativeImplementation": [
+            "src/composition/src/service_initial_physical_stock.rs",
+            "src/composition/src/service_initial_physical_stock_sources.rs",
+            "src/composition/src/service_initial_physical_stock_read.rs"
+          ],
+          "candidateStatus": "Unmounted/default-off native coordinator with independent review accepted after historical receipt/result and Flow replay corrections; real Account/PostgreSQL tracked and untracked journeys pass. Frontend interaction model has no server-owner imports. No native HTTP/SDK/Next Count journey or legacy writer fence yet; historical decision digest has format and linked-identity checks, not reconstructed byte integrity."
         },
         {
           "id": "finance.field-cost-post",
