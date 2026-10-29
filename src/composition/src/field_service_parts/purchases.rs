@@ -17,7 +17,7 @@ pub(super) struct FieldServicePurchases {
     witnesses: Vec<PurchaseWitness>,
 }
 impl FieldServicePurchases {
-    #[cfg(feature = "business-http")]
+    #[cfg(feature = "field-service-http")]
     pub(super) async fn retain_billing(
         c: &mut PgConnection,
         current: &AuthorizedWorkContext,
@@ -77,7 +77,7 @@ impl FieldServicePurchases {
             witnesses,
         })
     }
-    #[cfg(feature = "business-http")]
+    #[cfg(feature = "field-service-http")]
     pub(super) async fn retain_agreement_create(
         c: &mut PgConnection,
         current: &AuthorizedWorkContext,
@@ -133,7 +133,7 @@ impl FieldServicePurchases {
             witnesses,
         })
     }
-    #[cfg(feature = "business-http")]
+    #[cfg(feature = "field-service-http")]
     pub(super) async fn retain_agreement_review(
         c: &mut PgConnection,
         current: &AuthorizedWorkContext,
@@ -196,7 +196,7 @@ impl FieldServicePurchases {
             witnesses,
         })
     }
-    #[cfg(feature = "business-http")]
+    #[cfg(feature = "field-service-http")]
     pub(super) async fn retain_visit(
         c: &mut PgConnection,
         current: &AuthorizedWorkContext,

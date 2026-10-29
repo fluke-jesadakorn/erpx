@@ -554,7 +554,7 @@ impl IdentifierSource for Ids {
         RecordId::new(uuid::Uuid::new_v4().to_string()).expect("generated UUID")
     }
 }
-pub(crate) struct OrderCreateDispatcher<C> {
+pub struct OrderCreateDispatcher<C> {
     pub clock: Arc<C>,
 }
 impl<C: Clock + Send + Sync + 'static> super::OtherPost for OrderCreateDispatcher<C> {

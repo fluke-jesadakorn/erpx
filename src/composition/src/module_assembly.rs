@@ -26,6 +26,25 @@ const BUSINESS: &[&str] = &[
     "erpx-server-workflow",
     "erpx-existing-business-composition",
 ];
+#[cfg(all(feature = "field-service", not(feature = "existing-business")))]
+const FIELD: &[&str] = &[
+    "erpx-server-assets",
+    "erpx-server-collaboration",
+    "erpx-server-commerce",
+    "erpx-server-commercial",
+    "erpx-server-field-service",
+    "erpx-server-files",
+    "erpx-server-finance",
+    "erpx-server-identity-access",
+    "erpx-server-inventory",
+    "erpx-server-manage-erpx",
+    "erpx-server-organization",
+    "erpx-server-people-payroll",
+    "erpx-server-quality",
+    "erpx-server-support",
+    "erpx-server-workflow",
+    "erpx-field-service-composition",
+];
 fn compiled_modules() -> Result<Vec<serde_json::Value>, &'static str> {
     let catalog: ModuleCatalog =
         serde_json::from_str(MANIFEST).map_err(|_| "MODULE_CATALOG_INVALID")?;
@@ -34,6 +53,12 @@ fn compiled_modules() -> Result<Vec<serde_json::Value>, &'static str> {
     let enabled = {
         let mut enabled = enabled;
         enabled.extend_from_slice(BUSINESS);
+        enabled
+    };
+    #[cfg(all(feature = "field-service", not(feature = "existing-business")))]
+    let enabled = {
+        let mut enabled = enabled;
+        enabled.extend_from_slice(FIELD);
         enabled
     };
     #[cfg(feature = "module-example")]

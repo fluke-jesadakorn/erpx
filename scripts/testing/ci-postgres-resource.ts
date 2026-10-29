@@ -1,3 +1,5 @@
+import {existsSync} from 'node:fs';
+import {isolatedVerificationRuntime} from './ci-postgres-contract';
 import { spawn } from 'node:child_process';
 import { appendFile, mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -5,8 +7,8 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { Pool } from 'pg';
 import { ciPostgresInvocation } from './ci-postgres-contract';
 
-// This wrapper is only for the ephemeral GitHub service, never the shared Mac cluster.
-if (process.env.CI !== 'true' || process.env.GITHUB_ACTIONS !== 'true') throw new Error('ISOLATED_GITHUB_POSTGRES_REQUIRED');
+// Only ephemeral hosted services or explicitly selected isolated Linux containers; never the shared Mac cluster.
+if (!isolatedVerificationRuntime(process.env.CI, process.env.GITHUB_ACTIONS, process.env.ERPX_LOCAL_VERIFICATION, process.platform, existsSync('/.dockerenv'))) throw new Error('ISOLATED_GITHUB_POSTGRES_REQUIRED');
 const invocation = ciPostgresInvocation(process.argv.slice(2));
 const url = new URL(process.env.ERPX_CI_POSTGRES_MONITOR_URL ?? '');
 if (!['postgres:', 'postgresql:'].includes(url.protocol) || url.hostname !== '127.0.0.1' || url.port !== '5432'

@@ -36,6 +36,9 @@ pub mod legal_processing_status;
 #[cfg(feature = "business-http")]
 pub mod business_http;
 
+#[cfg(feature = "field-service-http")]
+pub mod http_scope;
+
 #[cfg(feature = "private-development-api")]
 pub mod private_development_api;
 
@@ -67,15 +70,15 @@ pub mod directory_source_wire;
 #[cfg(feature = "existing-business")]
 pub mod maintenance_settlement;
 
-#[cfg(feature = "existing-business")]
+#[cfg(feature = "field-service")]
 pub mod field_service_parts;
 
-#[cfg(feature = "business-http")]
+#[cfg(feature = "field-service-http")]
 pub mod field_service_http;
-#[cfg(feature = "business-http")]
+#[cfg(feature = "field-service-http")]
 mod field_service_http_wire;
 
-#[cfg(feature = "business-http")]
+#[cfg(feature = "field-service-http")]
 mod field_service_http_core;
 
 #[cfg(feature = "existing-business")]
@@ -90,24 +93,24 @@ pub mod finance_journal_create_http;
 #[cfg(feature = "business-http")]
 pub mod finance_journal_edit_http;
 
-#[cfg(feature = "existing-business")]
+#[cfg(feature = "field-service")]
 pub mod field_service_reservation_read;
-#[cfg(feature = "business-http")]
+#[cfg(feature = "field-service-http")]
 pub mod field_service_reservation_read_http;
 
-#[cfg(feature = "existing-business")]
+#[cfg(feature = "field-service")]
 pub mod field_service_workspace;
 
-#[cfg(feature = "existing-business")]
+#[cfg(feature = "field-service")]
 pub mod field_service_detail;
 
-#[cfg(feature = "existing-business")]
+#[cfg(feature = "field-service")]
 pub mod field_attachment;
 
-#[cfg(feature = "existing-business")]
+#[cfg(feature = "field-service")]
 pub mod field_attachment_bind;
 
-#[cfg(feature = "existing-business")]
+#[cfg(feature = "field-service")]
 pub mod field_service_source_record;
 
 pub mod module_assembly;

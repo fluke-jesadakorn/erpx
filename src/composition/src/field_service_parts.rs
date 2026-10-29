@@ -63,38 +63,38 @@ impl HoldingWorkSourcePreparation for FieldServicePartsSourcePreparation {
     }
 }
 
-#[cfg(feature = "business-http")]
+#[cfg(feature = "field-service-http")]
 mod http_transport;
-#[cfg(feature = "business-http")]
+#[cfg(feature = "field-service-http")]
 pub(crate) use http_transport::HttpDispatch;
 
-#[cfg(feature = "business-http")]
+#[cfg(feature = "field-service-http")]
 pub use administration::{HttpIngressError, OtherPost, OtherPostInput};
 
-#[cfg(feature = "business-http")]
+#[cfg(feature = "field-service-http")]
 mod request;
 
-#[cfg(feature = "business-http")]
-pub(crate) use request::RequestDispatcher;
+#[cfg(feature = "field-service-http")]
+pub use request::RequestDispatcher;
 
-#[cfg(feature = "business-http")]
+#[cfg(feature = "field-service-http")]
 mod create_order;
 
-#[cfg(feature = "business-http")]
-pub(crate) use create_order::OrderCreateDispatcher;
+#[cfg(feature = "field-service-http")]
+pub use create_order::OrderCreateDispatcher;
 
-#[cfg(feature = "business-http")]
+#[cfg(feature = "field-service-http")]
 mod visit;
 
-#[cfg(feature = "business-http")]
+#[cfg(feature = "field-service-http")]
 pub use visit::VisitDispatcher;
 
-#[cfg(feature = "business-http")]
+#[cfg(feature = "field-service-http")]
 mod agreement_review;
-#[cfg(feature = "business-http")]
-pub(crate) use agreement_review::AgreementReviewDispatcher;
+#[cfg(feature = "field-service-http")]
+pub use agreement_review::AgreementReviewDispatcher;
 
-#[cfg(feature = "business-http")]
+#[cfg(feature = "field-service-http")]
 mod agreement_create;
-#[cfg(feature = "business-http")]
-pub(crate) use agreement_create::AgreementCreateDispatcher;
+#[cfg(feature = "field-service-http")]
+pub use agreement_create::AgreementCreateDispatcher;

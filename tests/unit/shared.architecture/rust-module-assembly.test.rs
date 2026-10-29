@@ -10,6 +10,43 @@ fn catalog() -> ModuleCatalog {
     serde_json::from_str(MANIFEST).unwrap()
 }
 #[tokio::test]
+async fn field_selection_reports_its_actual_closure_without_other_business_owners() {
+    let response = erpx_service::module_assembly::assemble()
+        .unwrap()
+        .oneshot(
+            Request::builder()
+                .uri("/api/modules")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let bytes = axum::body::to_bytes(response.into_body(), 128 * 1024)
+        .await
+        .unwrap();
+    let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let ids = body["data"]["compiledModules"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|m| m["id"].as_str().unwrap())
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(
+        ids.contains("erpx-server-field-service"),
+        cfg!(feature = "field-service")
+    );
+    if cfg!(all(
+        feature = "field-service",
+        not(feature = "existing-business")
+    )) {
+        assert!(ids.contains("erpx-field-service-composition"));
+        assert!(ids.contains("erpx-server-finance"));
+        assert!(!ids.contains("erpx-server-legal"));
+        assert!(!ids.contains("erpx-server-maintenance"));
+        assert!(!ids.contains("erpx-server-pms"));
+    }
+}
+#[tokio::test]
 async fn real_outer_router_keeps_core_health_and_optional_route() {
     let router = erpx_service::module_assembly::assemble().unwrap();
     for (path, status) in [
@@ -117,6 +154,22 @@ fn required_api_and_event_versions_and_external_boundary_are_checked() {
             .is_err()
         );
     }
+}
+
+#[test]
+fn field_composition_cannot_validate_without_its_owner_contracts() {
+    let c = catalog();
+    assert_eq!(
+        validate(
+            &c,
+            &[
+                "erpx-server-shared",
+                "erpx-server-runtime",
+                "erpx-field-service-composition",
+            ],
+        ),
+        Err("MODULE_CONTRACT_MISSING")
+    );
 }
 #[test]
 fn declared_owner_contracts_and_dependencies_match_actual_workspace_packages() {

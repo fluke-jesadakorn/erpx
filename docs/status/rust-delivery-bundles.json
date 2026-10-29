@@ -12,7 +12,7 @@
     "workflowDenominator": 206,
     "ownerRegister": "docs/status/rust-backend-migration.json",
     "ownerDenominator": 41,
-    "catalogueFingerprint": "79f489e7acbfa46a175b22d5481f1be0683394d5c197fd4087d42d5f1d802d14",
+    "catalogueFingerprint": "0bd939a7417a623eb89cac3858a3a82ba6f455fb3456fc28d83f7336ebeb9abc",
     "interpretation": "The 206 items are catalogue workflows, not the number of bounded flows. Each listed ID occurs once below. A partial item has supporting qualified slices, not whole-workflow verification."
   },
   "counts": {
@@ -156,7 +156,7 @@
       {
         "number": 15,
         "id": "ci-and-regressions",
-        "description": "Resolve hosted CI billing/spending blocker and diagnose earlier 12 Field and 5 Manufacturing integration assertion failures; require passing exact-candidate checks, not a rerun without explanation.",
+        "description": "Use user-authorized isolated local verification instead of exhausted hosted quota; diagnose prior 12 Field and 5 Manufacturing assertion failures and pass all exact-candidate required checks. Do not invent a hosted status or relax assertions.",
         "status": "incomplete",
         "evidenceFlows": []
       },
@@ -218,7 +218,7 @@
     },
     "mergeBlockers": [
       "All incomplete firstBundle checklist entries covering the actual Field scope and required dependencies, before the final merge action itself.",
-      "Hosted CI on f830c48e7 did not start because of account billing/spending limits; no hosted pass is implied. Run40824122229 on2f7116d93 had12 Field and5 Manufacturing failures before cancellation; run40832243680 onf24696bc stopped on3 unit harness failures, now corrected locally. Actual integration causes remain unresolved.",
+      "Hosted free quota is exhausted; user authorizes equivalent isolated local verification with actual source/platform/prerequisites and unchanged checks. Prior non-started jobs remain historical failures, not passes. Run40824122229 on2f7116d93 had12 Field and5 Manufacturing failures before cancellation; run40832243680 onf24696bc stopped on3 unit harness failures, now corrected locally. Actual integration causes remain unresolved.",
       "Known first-Company hydration mismatch and incomplete modularity proof."
     ],
     "nextBundleBacklog": [

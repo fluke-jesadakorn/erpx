@@ -695,7 +695,7 @@ impl IdentifierSource for Ids {
     }
 }
 /// Real Request branch, only constructed by explicit private bootstrap.
-pub(crate) struct RequestDispatcher<C> {
+pub struct RequestDispatcher<C> {
     pub clock: Arc<C>,
 }
 impl<C: Clock + Send + Sync + 'static> super::OtherPost for RequestDispatcher<C> {

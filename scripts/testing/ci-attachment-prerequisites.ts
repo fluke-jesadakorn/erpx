@@ -1,3 +1,5 @@
+import {existsSync} from 'node:fs';
+import {isolatedVerificationRuntime} from './ci-postgres-contract';
 import { createHash } from 'node:crypto';
 import {execFileSync} from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
@@ -7,7 +9,7 @@ import { attachmentScannerReadiness, scanAttachmentBytes } from '@erpx/server-fi
 import { sanitizedAttachmentPreview } from '@erpx/server-files/public/attachments/preview';
 import {ciHeifDecoderInventory} from './ci-attachment-contract';
 
-if (process.env.CI !== 'true' || process.env.GITHUB_ACTIONS !== 'true' || process.platform!=='linux') throw new Error('ISOLATED_GITHUB_ATTACHMENT_PREREQUISITES_REQUIRED');
+if (!isolatedVerificationRuntime(process.env.CI, process.env.GITHUB_ACTIONS, process.env.ERPX_LOCAL_VERIFICATION, process.platform, existsSync('/.dockerenv')) || process.platform!=='linux') throw new Error('ISOLATED_GITHUB_ATTACHMENT_PREREQUISITES_REQUIRED');
 const environment = { ...process.env, ERPX_ATTACHMENTS_V2: 'true' };
 const readiness = await attachmentScannerReadiness(environment);
 if (!readiness.ready || !readiness.engine?.startsWith(`ClamAV ${process.env.ERPX_CLAMAV_VERSION}/`))

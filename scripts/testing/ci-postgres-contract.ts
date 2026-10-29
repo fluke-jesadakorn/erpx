@@ -19,3 +19,10 @@ export function ciPostgresInvocation(arguments_: readonly string[]):
   if(arguments_.length===1&&arguments_[0]==='--probe-only')return {kind:'startup'};
   return {kind:'verification',argv:ciVerificationArgv(arguments_)};
 }
+
+/** Preserve hosted checks while admitting an explicitly selected isolated Linux container. */
+export function isolatedVerificationRuntime(ci: string | undefined, github: string | undefined,
+  local: string | undefined, platform: string, container: boolean): boolean {
+  return ci === 'true' && (github === 'true' ||
+    (github !== 'true' && local === 'owned-linux-container' && platform === 'linux' && container));
+}

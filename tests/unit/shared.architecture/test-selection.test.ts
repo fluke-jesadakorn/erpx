@@ -2,7 +2,7 @@ import { documentationChecksRequired } from "../../../scripts/testing/scoped";
 import { loadRevisionWorkspaceGraph, loadWorkspaceGraph, selectCandidateSuites } from "../../../scripts/testing/workspace-graph";
 import {inferPostgresProfile} from '../../../scripts/testing/workspace-catalogue';
 import {executeOwnedProcess} from '../../support/owned-process';
-import {ciPostgresInvocation,ciVerificationArgv} from '../../../scripts/testing/ci-postgres-contract';
+import {isolatedVerificationRuntime,ciPostgresInvocation,ciVerificationArgv} from '../../../scripts/testing/ci-postgres-contract';
 import {ciHeifDecoderInventory} from '../../../scripts/testing/ci-attachment-contract';
 import {cargoVerificationEdges} from '../../../scripts/testing/cargo';
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -568,6 +568,16 @@ describe("conservative base and head impact selection", () => {
     for (const command of ['scripts/architecture/check.ts', 'scripts/testing/layout.ts', 'scripts/docs/check-documentation.ts']) expect(regressionRunner).toContain(command);
     expect(regressionRunner).not.toContain('scripts/testing/full.ts');
 
+  });
+  it("admits owned Linux verification without pretending to be GitHub", () => {
+    expect(isolatedVerificationRuntime('true', undefined, 'owned-linux-container', 'linux', true)).toBe(true);
+    expect(isolatedVerificationRuntime('true', 'true', undefined, 'linux', false)).toBe(true);
+    for (const [ci, local, platform, container] of [
+      [undefined, 'owned-linux-container', 'linux', true],
+      ['true', undefined, 'linux', true],
+      ['true', 'owned-linux-container', 'darwin', true],
+      ['true', 'owned-linux-container', 'linux', false],
+    ] as const) expect(isolatedVerificationRuntime(ci, undefined, local, platform, container)).toBe(false);
   });
   it("keeps startup observation separate from verification and proves a real HEVC decoder prerequisite", () => {
     expect(ciPostgresInvocation(['--probe-only'])).toEqual({kind:'startup'});

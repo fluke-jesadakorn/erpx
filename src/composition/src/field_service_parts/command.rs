@@ -627,9 +627,9 @@ pub(crate) async fn execute_field_service_parts<
 }
 
 // Replay-only phase cannot prepare or apply owner effects.
-#[cfg(feature = "business-http")]
+#[cfg(feature = "field-service-http")]
 struct ReplayEffects;
-#[cfg(feature = "business-http")]
+#[cfg(feature = "field-service-http")]
 impl PgOwnerCommandEffects for ReplayEffects {
     async fn lock_sources(
         &mut self,
@@ -664,7 +664,7 @@ impl PgOwnerCommandEffects for ReplayEffects {
     }
 }
 
-#[cfg(feature = "business-http")]
+#[cfg(feature = "field-service-http")]
 pub(super) async fn execute_pending_field_service_parts<
     W: Clock + Sync,
     G: Clock + Sync,

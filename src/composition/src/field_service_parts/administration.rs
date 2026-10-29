@@ -261,7 +261,7 @@ impl IdentifierSource for Ids {
     }
 }
 
-#[cfg(feature = "business-http")]
+#[cfg(feature = "field-service-http")]
 impl<W: Clock + Send + Sync + 'static, G: Clock + Send + Sync + 'static>
     FieldServicePartsAdministration<W, G>
 {
@@ -412,7 +412,7 @@ impl<W: Clock + Send + Sync + 'static, G: Clock + Send + Sync + 'static>
             .await
     }
 }
-#[cfg(feature = "business-http")]
+#[cfg(feature = "field-service-http")]
 pub enum HttpIngressError {
     InvalidJson,
     Validation(String),
@@ -426,11 +426,11 @@ pub enum HttpIngressError {
     ),
     UnavailableBranch,
 }
-#[cfg(feature = "business-http")]
+#[cfg(feature = "field-service-http")]
 enum HttpPrepared {
     Parts(erpx_server_field_service::public::parts::PendingFieldServiceParts),
     Other(super::http_transport::OtherPostInput),
 }
 
-#[cfg(feature = "business-http")]
+#[cfg(feature = "field-service-http")]
 pub use super::http_transport::{OtherPost, OtherPostInput};

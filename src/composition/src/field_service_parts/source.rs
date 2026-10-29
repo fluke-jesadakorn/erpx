@@ -80,7 +80,7 @@ pub(super) struct FieldServiceReferences {
     reviewer_person: CurrentFieldServicePeopleReference,
 }
 impl FieldServiceReferences {
-    #[cfg(feature = "business-http")]
+    #[cfg(feature = "field-service-http")]
     pub(super) fn warranty_end(&self) -> Option<String> {
         self.asset
             .as_ref()

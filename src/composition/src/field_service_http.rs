@@ -3,7 +3,6 @@ pub use crate::field_service_http_wire::{
     OtherPostBranch, SharedPostWire, SharedPostWireFailure, classify_shared_post,
 };
 use crate::{
-    business_http::BusinessScopeSlugs,
     field_service_http_core::{
         PendingIngress, PostExecutor, PostResponse, TrustedTarget, WireError, router_for_executor,
         router_for_executor_with_limit,
@@ -11,6 +10,7 @@ use crate::{
     field_service_parts::{
         FieldServicePartsAdministration, HttpDispatch, HttpIngressError, OtherPost,
     },
+    http_scope::BusinessScopeSlugs,
 };
 use axum::{Router, http::HeaderMap};
 use erpx_server_identity_access::public::{
