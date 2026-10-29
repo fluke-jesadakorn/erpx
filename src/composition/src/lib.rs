@@ -85,3 +85,5 @@ pub mod field_service_reservation_read;
 pub mod field_service_reservation_read_http;
 
 pub mod field_service_workspace;
+
+pub mod field_service_detail;

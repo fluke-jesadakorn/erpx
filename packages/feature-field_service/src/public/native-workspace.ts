@@ -1,2 +1,2 @@
 import 'server-only';
-export {nativeServiceWorkspace,NativeServiceWorkspaceError} from '../adapters/server/native-workspace';
+export {nativeServiceWorkspace,nativeServiceDetail,NativeServiceWorkspaceError} from '../adapters/server/native-workspace';

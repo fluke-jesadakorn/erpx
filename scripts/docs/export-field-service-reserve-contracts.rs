@@ -15,6 +15,9 @@ use erpx_server_field_service::public::reservation_read::{
 };
 use erpx_server_field_service::public::visit::FieldServiceBillingRelease;
 use erpx_server_finance::public::field_service_agreement_money::AgreementMoneyEvidence;
+use erpx_service::field_service_detail::{
+    FieldServiceDetailSpares, FieldServiceOrderDetail, FieldServiceOrderDetailResponse,
+};
 use erpx_service::field_service_reservation_read::{
     FieldServiceAgreementCreateReadResponse, FieldServiceAgreementReviewReadResponse,
     FieldServiceBillingReadResponse, FieldServiceIssueReadResponse,
@@ -61,9 +64,13 @@ const _: fn() = read;
 #[utoipa::path(get,path="/api/v1/holdings/{holding_slug}/field-service/workspace",params(("holding_slug"=String,Path)),responses((status=200,body=FieldServiceWorkspaceResponse,description="Current scoped Service workspace")))]
 fn workspace_read() {}
 const _: fn() = workspace_read;
+#[utoipa::path(get,path="/api/v1/holdings/{holding_slug}/field-service/orders/{id}/detail",params(("holding_slug"=String,Path),("id"=String,Path)),responses((status=200,body=FieldServiceOrderDetailResponse,description="Current scoped Service order detail and workspace")))]
+fn detail_read() {}
+const _: fn() = detail_read;
 #[derive(utoipa::OpenApi)]
 #[openapi(
     paths(
+        detail_read,
         workspace_read,
         reserve,
         read,
@@ -76,6 +83,9 @@ const _: fn() = workspace_read;
         agreement_create_read
     ),
     components(schemas(
+        FieldServiceDetailSpares,
+        FieldServiceOrderDetail,
+        FieldServiceOrderDetailResponse,
         FieldServiceWorkspace,
         FieldServiceWorkspaceScope,
         FieldServiceWorkspaceResponse,
@@ -154,6 +164,9 @@ fn main() {
         "// Generated from the Rust Field Service reservation contracts. Do not edit by hand.\n// Regenerate: bun scripts/docs/generate-field-service-reserve-contracts.ts"
     );
     for declaration in [
+        FieldServiceDetailSpares::decl(&config),
+        FieldServiceOrderDetail::decl(&config),
+        FieldServiceOrderDetailResponse::decl(&config),
         FieldServiceWorkspace::decl(&config),
         FieldServiceWorkspaceScope::decl(&config),
         FieldServiceWorkspaceResponse::decl(&config),

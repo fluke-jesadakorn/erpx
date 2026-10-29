@@ -485,6 +485,7 @@
 @source "../../../../packages/feature-field_service/src/lib/initial-physical-stock-count-command.ts";
 @source "../../../../packages/feature-field_service/src/lib/native-reserve-command.ts";
 @source "../../../../packages/feature-field_service/src/lib/parts-setup-command.ts";
+@source "../../../../packages/feature-field_service/src/lib/workspace.ts";
 @source "../../../../packages/feature-field_service/src/public/native-workspace.ts";
 @source "../../../../packages/feature-files/src/components/attachment-feature-context.tsx";
 @source "../../../../packages/feature-files/src/components/attachment-panel.tsx";

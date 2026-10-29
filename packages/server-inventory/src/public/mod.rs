@@ -13,3 +13,5 @@ pub mod field_service_consumption_finance;
 pub mod field_service_stock_read;
 
 pub mod field_service_completion;
+
+pub mod field_service_detail;

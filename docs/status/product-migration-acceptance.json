@@ -2,8 +2,8 @@
   "version": 3,
   "environment": "development",
   "deliveryPlan": "docs/production-plan.md",
-  "sourceFingerprint": "2b0e76e4a174f42d742554915c27ff2c81458672a8ee4a948dc06f564e228df4",
-  "verificationFingerprint": "51d50fd5d5422d8fca0d7b525f602ba1d387bd0203cc35a18638e056395bad8e",
+  "sourceFingerprint": "f9b8d3850d6387a223feed984278cfc2f5701e969e29e43ab8f4fa26dcffca08",
+  "verificationFingerprint": "851f19591fcd540574aa5d456e134e7163b50febe5e5393afcf3636c0569c3a1",
   "baseline": {
     "source": ".scratch/dev/product-migration-baseline-2026-10-14/",
     "privateAuthority": "read-only per-database snapshots; no secrets or personal authority rows in this register",

@@ -58,7 +58,7 @@ use std::{
     sync::Arc,
 };
 type Error = PgTransactionError<BusinessError>;
-fn invalid() -> BusinessError {
+pub(crate) fn invalid() -> BusinessError {
     BusinessError::new(
         FailureKind::Unavailable,
         "FIELD_SERVICE_WORKSPACE_LIMIT",
@@ -75,7 +75,7 @@ fn optional<'a>(row: &'a FieldWorkspaceRow, key: &str) -> Result<Option<&'a str>
         _ => Err(invalid()),
     }
 }
-fn safe_json(value: &serde_json::Value) -> bool {
+pub(crate) fn safe_json(value: &serde_json::Value) -> bool {
     match value {
         serde_json::Value::Number(n) => n
             .as_i64()
@@ -112,14 +112,14 @@ impl HoldingWorkSourcePreparation for WorkspaceSources {
         })
     }
 }
-struct Rights {
+pub(crate) struct Rights {
     agreement_new: bool,
     agreement_settle: bool,
     order_new: bool,
     order_settle: bool,
     parts_new: bool,
-    parts_settle: bool,
-    parts_history: bool,
+    pub(crate) parts_settle: bool,
+    pub(crate) parts_history: bool,
     ticket_new: bool,
     witnesses: Vec<erpx_server_commercial::public::purchases::PurchaseWitness>,
 }
@@ -177,14 +177,14 @@ async fn rights(
         witnesses,
     })
 }
-pub(crate) async fn build_workspace<C: Clock>(
+pub(crate) async fn prepare_workspace<C: Clock>(
     c: &mut PgConnection,
     current: &AuthorizedWorkContext,
     holding: &HoldingId,
     company: &CompanyId,
     catalogue: &Arc<CommercialCatalogue>,
     clock: &C,
-) -> Result<FieldServiceWorkspaceResponse, Error> {
+) -> Result<PreparedWorkspace, Error> {
     use erpx_server_identity_access::public::field_service_workspace::{
         ServiceWorkspaceAssignmentQuery as Query, ServiceWorkspaceAuthorityRequest,
         read_service_workspace_authority,
@@ -599,7 +599,70 @@ pub(crate) async fn build_workspace<C: Clock>(
         data,
         context: crate::field_service_reservation_read::context(current)?,
     };
-    let serialized = serde_json::to_value(&reply).map_err(|_| invalid())?;
+    Ok(PreparedWorkspace {
+        reply,
+        rights,
+        field,
+        support,
+        customers,
+        assets,
+        locations,
+        people,
+        authority,
+        today,
+    })
+}
+pub(crate) struct PreparedWorkspace {
+ pub(crate) reply:FieldServiceWorkspaceResponse,pub(crate) rights:Rights,
+ field:erpx_server_field_service::public::workspace::CurrentFieldWorkspaceRows,
+ support:erpx_server_support::public::field_service_workspace::CurrentServiceWorkspaceTickets,
+ customers:erpx_server_finance::public::field_service_workspace::CurrentServiceWorkspaceCustomers,
+ assets:erpx_server_assets::public::field_service_workspace::CurrentServiceWorkspaceAssets,
+ locations:erpx_server_organization::public::field_service_workspace::CurrentServiceWorkspaceLocations,
+ people:erpx_server_people_payroll::public::field_service_workspace::CurrentServiceWorkspacePeople,
+ authority:erpx_server_identity_access::public::field_service_workspace::CurrentServiceWorkspaceAuthority,
+ today:String,
+}
+impl PreparedWorkspace {
+    pub(crate) async fn require_current<C: Clock>(
+        &self,
+        c: &mut PgConnection,
+        current: &AuthorizedWorkContext,
+        holding: &HoldingId,
+        company: &CompanyId,
+        catalogue: &CommercialCatalogue,
+        clock: &C,
+    ) -> Result<(), Error> {
+        self.field.require_current(c).await?;
+        self.support.require_current(c).await?;
+        self.customers.require_current(c).await?;
+        self.assets.require_current(c).await?;
+        self.locations.require_current(c).await?;
+        self.people.require_current(c).await?;
+        self.authority.require_current(c, clock.now()).await?;
+        for witness in &self.rights.witnesses {
+            PgCompanyPurchaseReader::new(holding.clone(), company.clone(), c, catalogue)
+                .revalidate(witness, clock.now())
+                .await?;
+        }
+        let now = clock.now();
+        let today:String=sqlx::query_scalar("SELECT to_char(to_timestamp($1::double precision/1000) AT TIME ZONE 'UTC','YYYY-MM-DD')").bind(now.get()).fetch_one(&mut *c).await?;
+        if now.get() >= current.expires_at() || today != self.today {
+            return Err(invalid().into());
+        }
+        Ok(())
+    }
+}
+pub(crate) async fn build_workspace<C: Clock>(
+    c: &mut PgConnection,
+    current: &AuthorizedWorkContext,
+    holding: &HoldingId,
+    company: &CompanyId,
+    catalogue: &Arc<CommercialCatalogue>,
+    clock: &C,
+) -> Result<FieldServiceWorkspaceResponse, Error> {
+    let prepared = prepare_workspace(c, current, holding, company, catalogue, clock).await?;
+    let serialized = serde_json::to_value(&prepared.reply).map_err(|_| invalid())?;
     if !safe_json(&serialized) {
         return Err(invalid().into());
     }
@@ -608,28 +671,8 @@ pub(crate) async fn build_workspace<C: Clock>(
         &serialized,
     )
     .map_err(|_| invalid())?;
-    field.require_current(c).await?;
-    support.require_current(c).await?;
-    customers.require_current(c).await?;
-    assets.require_current(c).await?;
-    locations.require_current(c).await?;
-    people.require_current(c).await?;
-    authority.require_current(c, clock.now()).await?;
-    for witness in &rights.witnesses {
-        let r = PgCompanyPurchaseReader::new(holding.clone(), company.clone(), c, catalogue)
-            .revalidate(witness, clock.now())
-            .await?;
-        let _ = r;
-    }
-    let final_now = clock.now();
-    let final_today: String = sqlx::query_scalar(
-        "SELECT to_char(to_timestamp($1::double precision/1000) AT TIME ZONE 'UTC','YYYY-MM-DD')",
-    )
-    .bind(final_now.get())
-    .fetch_one(&mut *c)
-    .await?;
-    if final_now.get() >= current.expires_at() || final_today != today {
-        return Err(invalid().into());
-    }
-    Ok(reply)
+    prepared
+        .require_current(c, current, holding, company, catalogue, clock)
+        .await?;
+    Ok(prepared.reply)
 }

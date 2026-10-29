@@ -260,12 +260,28 @@ pub async fn read_field_service_reservation(
 /// the exact command independently of the current order/reservation image.
 pub struct CurrentFieldServiceIssueRead {
     unit: (String, i32, String, String),
-    reservation: CurrentFieldServiceReservationRead,
+    reservation: CurrentIssueReservation,
     receipt: FieldServiceReserveResult,
     event: crate::application::reservation_read::FieldServiceIssueEvent,
     event_digest: String,
     origin: PgRawRecordOrigin,
     key: String,
+}
+/// The current scoped reservation image is evidence for an issue, including
+/// reservations created before native reserve receipts existed.
+pub struct CurrentIssueReservation {
+    image: Image,
+}
+impl CurrentIssueReservation {
+    pub fn order(&self) -> &FieldServiceReserveResult {
+        &self.image.order
+    }
+    pub fn reservation(&self) -> &FieldServiceReservationRead {
+        &self.image.reservation
+    }
+    pub fn branch_id(&self) -> &str {
+        &self.image.branch
+    }
 }
 async fn issue_event(
     c: &mut PgConnection,
@@ -316,7 +332,7 @@ async fn issue_event(
     Ok((event, row.try_get("digest")?))
 }
 impl CurrentFieldServiceIssueRead {
-    pub fn reservation(&self) -> &CurrentFieldServiceReservationRead {
+    pub fn reservation(&self) -> &CurrentIssueReservation {
         &self.reservation
     }
     pub fn receipt(&self) -> &FieldServiceReserveResult {
@@ -334,9 +350,18 @@ impl CurrentFieldServiceIssueRead {
         if unit(c).await? != self.unit {
             return Err(invalid());
         }
-        self.reservation
-            .require_current(c, current, remaining)
-            .await?;
+        if image(
+            c,
+            current,
+            &self.receipt.id,
+            &self.event.reservation_id,
+            remaining,
+        )
+        .await?
+            != self.reservation.image
+        {
+            return Err(invalid());
+        }
         let (event, digest) = issue_event(c, current, &self.receipt.id, &self.key).await?;
         if event != self.event || digest != self.event_digest {
             return Err(invalid());
@@ -357,8 +382,9 @@ pub async fn read_field_service_issue(
     erpx_server_shared::public::CommandKey::new(key.to_owned())?;
     let witness = unit(c).await?;
     let (event, event_digest) = issue_event(c, current, order, key).await?;
-    let reservation =
-        read_field_service_reservation(c, current, order, &event.reservation_id).await?;
+    let reservation = CurrentIssueReservation {
+        image: image(c, current, order, &event.reservation_id, 2 * 1024 * 1024).await?,
+    };
     let (origin, result) = read_raw_record_origin_result_with_limit(
         c,
         RawRecordOriginRequest {

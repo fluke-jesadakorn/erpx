@@ -39212,7 +39212,11 @@
         "packages/feature-field_service/src/components/service-reference-fields.tsx",
         "packages/feature-field_service/src/lib/workspace.ts",
         "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/field-service/screen.tsx",
-        "packages/feature-field_service/src/public/native-workspace.ts"
+        "packages/feature-field_service/src/public/native-workspace.ts",
+        "packages/feature-field_service/src/components/service-spare-form.tsx",
+        "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/field-service/[id]/screen.tsx",
+        "packages/feature-service/src/routes/holdings/[holdingSlug]/@record/services/field-service/[id]/page.tsx",
+        "packages/feature-service/src/routes/holdings/[holdingSlug]/@record/services/field-service/[id]/[recordSection]/page.tsx"
       ]
     },
     {
@@ -62626,7 +62630,9 @@
         "packages/server-inventory/Cargo.toml",
         "Cargo.toml",
         "Cargo.lock",
-        "rust-toolchain.toml"
+        "rust-toolchain.toml",
+        "packages/server-inventory/src/domain/field_service_detail.rs",
+        "packages/server-inventory/src/public/field_service_detail.rs"
       ],
       "ci": {
         "critical": true,
@@ -69762,7 +69768,27 @@
         "src/composition/src/field_service_workspace.rs",
         "src/composition/src/lib.rs",
         "packages/server-field_service/src/domain/mod.rs",
-        "packages/server-field_service/src/domain/workspace.rs"
+        "packages/server-field_service/src/domain/workspace.rs",
+        "packages/server-commerce/src/adapters/field_service_detail.rs",
+        "packages/server-commerce/src/adapters/mod.rs",
+        "packages/server-commerce/src/public/field_service_detail.rs",
+        "packages/server-commerce/src/public/mod.rs",
+        "packages/server-field_service/src/adapters/detail.rs",
+        "packages/server-field_service/src/domain/detail.rs",
+        "packages/server-field_service/src/public/detail.rs",
+        "packages/server-finance/src/adapters/field_service_detail.rs",
+        "packages/server-finance/src/public/field_service_detail.rs",
+        "packages/server-inventory/src/adapters/field_service_detail.rs",
+        "packages/server-inventory/src/adapters/mod.rs",
+        "packages/server-inventory/src/domain/field_service_detail.rs",
+        "packages/server-inventory/src/domain/mod.rs",
+        "packages/server-inventory/src/public/field_service_detail.rs",
+        "packages/server-inventory/src/public/mod.rs",
+        "packages/server-quality/src/adapters/field_service_detail.rs",
+        "packages/server-quality/src/adapters/mod.rs",
+        "packages/server-quality/src/public/field_service_detail.rs",
+        "packages/server-quality/src/public/mod.rs",
+        "src/composition/src/field_service_detail.rs"
       ],
       "postgres": {
         "mode": "raw",

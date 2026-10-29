@@ -8477,6 +8477,7 @@
         "$TURBO_ROOT$/packages/feature-field_service/src/lib/initial-physical-stock-count-command.ts",
         "$TURBO_ROOT$/packages/feature-field_service/src/lib/native-reserve-command.ts",
         "$TURBO_ROOT$/packages/feature-field_service/src/lib/parts-setup-command.ts",
+        "$TURBO_ROOT$/packages/feature-field_service/src/lib/workspace.ts",
         "$TURBO_ROOT$/packages/feature-field_service/src/public/native-workspace.ts",
         "$TURBO_ROOT$/packages/feature-files/src/components/attachment-feature-context.tsx",
         "$TURBO_ROOT$/packages/feature-files/src/components/attachment-panel.module.css",

@@ -1,3 +1,6 @@
+import {serviceDetailRouteId} from '@erpx/feature-field_service/lib/workspace';
+import {nativeServiceDetail,NativeServiceWorkspaceError} from '@erpx/feature-field_service/public/native-workspace';
+import {ApiError} from '@erpx/server-runtime/public/http';
 import { canonicalUiHref } from "@erpx/feature-work_projection/lib/destination-registry";
 import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
 import { requireWorkContext, publicScope } from "@erpx/server-identity_access/public/authorization";
@@ -15,13 +18,22 @@ export default async function Page({
 }: {
   params: Promise<{ holdingSlug: string; id: string }>;
 }) {
-  const { holdingSlug, id } = await params,
+  const { holdingSlug, id: routeId } = await params,
+    id = serviceDetailRouteId(routeId),
     a = await requireWorkContext(holdingSlug),
-    base = workspaceBase(publicScope(a)),
-    data = await fieldServiceDetail(a, id).catch((e) =>
-      pageError(e, holdingSlug),
-    ),
-    x = data.order;
+    base = workspaceBase(publicScope(a));
+  const context=a.authority && a.iam ? {
+    userId:a.userId,holdingId:a.holdingId,companyId:a.companyId,branchId:a.branchId,departmentId:a.departmentId,
+    branchSlug:a.scope.kind==='holding'?null:a.scope.branchSlug??null,departmentSlug:a.scope.kind==='department'?a.scope.departmentSlug:null,
+    assignmentId:a.assignmentId,assignmentVersion:a.authority.assignmentVersion,revision:a.authority.revision,
+    role:a.role,assignmentScopeKind:a.assignmentScope,modules:[...a.modules],permissions:[...a.iam.permissions],
+  }:undefined;
+  const data=await (async()=>await nativeServiceDetail(holdingSlug,id,context)??await fieldServiceDetail(a,id))().catch(e=>{
+    if(e instanceof NativeServiceWorkspaceError && [401,403,404,409].includes(e.status??0))return pageError(new ApiError(e.status!,e.code,'The Service order is unavailable.'),holdingSlug);
+    if(e instanceof NativeServiceWorkspaceError)throw e;
+    return pageError(e,holdingSlug);
+  });
+  const x=data.order;
   return (
     <PageContent as="div" className="ui-page-content">
       <Link href={canonicalUiHref(`${base}/field-service`)}>Field service</Link>
@@ -30,12 +42,7 @@ export default async function Page({
         {String(x.customer_name)} · {String(x.site)} · {String(x.status)} ·
         technician {String(x.technician_name ?? x.technician_id)}
       </p>
-      <FieldServiceConsole base={base} detail={data} nativeReserve={process.env.ERPX_NATIVE_FIELD_SERVICE_RESERVE_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_ISSUE_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_VISIT_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_VISIT_COMPLETION_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_VISIT_RECOVERY_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_CANCEL_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_BILLING_CONFIG === undefined ? undefined : {billing:process.env.ERPX_NATIVE_FIELD_SERVICE_BILLING_CONFIG !== undefined,cancel:process.env.ERPX_NATIVE_FIELD_SERVICE_CANCEL_CONFIG !== undefined,visitRecovery:process.env.ERPX_NATIVE_FIELD_SERVICE_VISIT_RECOVERY_CONFIG !== undefined,visitCompletion:process.env.ERPX_NATIVE_FIELD_SERVICE_VISIT_COMPLETION_CONFIG !== undefined,visit:process.env.ERPX_NATIVE_FIELD_SERVICE_VISIT_CONFIG !== undefined,reserve:process.env.ERPX_NATIVE_FIELD_SERVICE_RESERVE_CONFIG !== undefined,issue:process.env.ERPX_NATIVE_FIELD_SERVICE_ISSUE_CONFIG !== undefined,context:a.authority && a.iam ? {
-        userId:a.userId,holdingId:a.holdingId,companyId:a.companyId,branchId:a.branchId,departmentId:a.departmentId,
-        branchSlug:a.scope.kind==='holding'?null:a.scope.branchSlug??null,departmentSlug:a.scope.kind==='department'?a.scope.departmentSlug:null,
-        assignmentId:a.assignmentId,assignmentVersion:a.authority.assignmentVersion,revision:a.authority.revision,
-        role:a.role,assignmentScopeKind:a.assignmentScope,modules:[...a.modules],permissions:[...a.iam.permissions],
-      }:undefined}} />
+      <FieldServiceConsole base={base} detail={data} nativeReserve={process.env.ERPX_NATIVE_FIELD_SERVICE_RESERVE_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_ISSUE_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_VISIT_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_VISIT_COMPLETION_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_VISIT_RECOVERY_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_CANCEL_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_BILLING_CONFIG === undefined ? undefined : {billing:process.env.ERPX_NATIVE_FIELD_SERVICE_BILLING_CONFIG !== undefined,cancel:process.env.ERPX_NATIVE_FIELD_SERVICE_CANCEL_CONFIG !== undefined,visitRecovery:process.env.ERPX_NATIVE_FIELD_SERVICE_VISIT_RECOVERY_CONFIG !== undefined,visitCompletion:process.env.ERPX_NATIVE_FIELD_SERVICE_VISIT_COMPLETION_CONFIG !== undefined,visit:process.env.ERPX_NATIVE_FIELD_SERVICE_VISIT_CONFIG !== undefined,reserve:process.env.ERPX_NATIVE_FIELD_SERVICE_RESERVE_CONFIG !== undefined,issue:process.env.ERPX_NATIVE_FIELD_SERVICE_ISSUE_CONFIG !== undefined,context}} />
       <RecordDocumentPanel appearance="standard"
         base={base}
         targetType="field_service_visit"

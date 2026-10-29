@@ -70,3 +70,5 @@ pub mod field_service_billing;
 pub mod field_service_invoice_read;
 
 pub mod field_service_workspace;
+
+pub mod field_service_detail;

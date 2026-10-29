@@ -50,7 +50,7 @@ async fn main() {
     let args: Vec<_> = std::env::args().collect();
     assert!(
         (3..=4).contains(&args.len()),
-        "usage: native-field-service-development ABSOLUTE_PRIVATE_CASE_DIR LOOPBACK_LISTEN [post|request|order-create|visit|complete|recovery|cancel|agreement-review|agreement-create|billing-release|finance-invoice-read|workspace]"
+        "usage: native-field-service-development ABSOLUTE_PRIVATE_CASE_DIR LOOPBACK_LISTEN [post|request|order-create|visit|complete|recovery|cancel|agreement-review|agreement-create|billing-release|finance-invoice-read|workspace|detail]"
     );
     let dir = PathBuf::from(&args[1]);
     assert!(
@@ -79,7 +79,8 @@ async fn main() {
             "agreement-create",
             "billing-release",
             "finance-invoice-read",
-            "workspace"
+            "workspace",
+            "detail"
         ]
         .contains(&scenario),
         "invalid private fixture scenario"
@@ -87,6 +88,7 @@ async fn main() {
     let agreement_review_scenario = scenario == "agreement-review";
     let agreement_create_scenario = scenario == "agreement-create";
     let workspace_scenario = scenario == "workspace";
+    let detail_scenario = scenario == "detail";
     let invoice_read_scenario = scenario == "finance-invoice-read";
     let billing_scenario = scenario == "billing-release" || invoice_read_scenario;
     let visit_scenario = scenario == "visit";
@@ -99,13 +101,13 @@ async fn main() {
     field_service::account::with_system(move |system| async move {
         let now = i64::try_from(SystemTime::now().duration_since(UNIX_EPOCH).expect("wall clock unavailable").as_millis()).expect("wall clock invalid");
         system.scenario.clock.0.store(now, Ordering::SeqCst);
-        let prepared = if workspace_scenario { field_service::setup_workspace(system).await } else { field_service::setup(system).await };
+        let prepared = if workspace_scenario || detail_scenario { field_service::setup_workspace(system).await } else { field_service::setup(system).await };
         let system = &prepared.review.system;
         sqlx::raw_sql("UPDATE hr_engagements SET start_date='2020-01-01' WHERE id='field-engagement'").execute(system.holdings[0].raw()).await.expect("synthetic field service source unavailable");
         // A genuine reserve command creates the immutable Service/Workflow provenance.
         // The visit is synthetic historical data, not an implemented transition.
         if agreement_review_scenario { field_service::setup_agreement_review_facts(&prepared, now).await; }
-        if !visit_scenario && !agreement_review_scenario && !agreement_create_scenario && !workspace_scenario {
+        if !visit_scenario && !agreement_review_scenario && !agreement_create_scenario && !workspace_scenario && !detail_scenario {
         let reserve = format!(r#"{{"action":"reserve-part","expectedVersion":1,"warehouseId":"warehouse","productId":"product","quantityMilli":{},"expiresAt":{},"reason":"Synthetic issue reservation"}}"#, if completion_scenario || recovery_scenario || cancel_scenario || billing_scenario {2000} else {1000}, now + 3_600_000);
         prepared.execute("reserve-order", "browser-issue-reserve", &reserve).await.expect("synthetic reserve command failed");
         let mut historical = system.holdings[0].raw().begin().await.expect("historical visit transaction unavailable");
@@ -113,6 +115,7 @@ async fn main() {
         sqlx::query("INSERT INTO field_service_order_events(id,order_id,version,action,actor_id,reason,status,technician_id,scheduled_at,details_json,created_at) VALUES('synthetic-start-issue','reserve-order',3,'start','fixture-a','Synthetic historical visit','in_visit','fixture-a',$1+60000,'{}',$1)").bind(now).execute(&mut *historical).await.expect("synthetic historical event unavailable");
         historical.commit().await.expect("synthetic historical visit commit failed");
         }
+        if detail_scenario {prepared.issue("browser-detail-prior-issue").await.expect("native detail prior issue unavailable");}
         let journal_id = if post_scenario || completion_scenario || recovery_scenario || cancel_scenario || billing_scenario {
             let issue = r#"{"action":"issue-part","expectedVersion":3,"reservationId":"field-part-browser-issue-reserve","quantityMilli":1000,"entryDate":"2026-01-10","allocations":[],"reason":"Synthetic post source"}"#;
             prepared.execute("reserve-order", "browser-post-issue", issue).await.expect("synthetic issue command failed");
@@ -166,7 +169,7 @@ async fn main() {
                 let response=router.oneshot(request).await.expect("native billing request failed");assert_eq!(response.status(),axum::http::StatusCode::OK,"native billing prerequisite rejected");
             }
             Some(id)
-        } else { None };
+        } else if detail_scenario { Some(prepared.journal("browser-detail-prior-issue").await) } else { None };
         if order_create_scenario || workspace_scenario {
             sqlx::query("INSERT INTO commerce_orders(id,company_id,branch_id,kind,number,party_id,warehouse_id,currency,order_date,due_date,subtotal_minor,tax_minor,created_by,created_at,updated_at)VALUES('source-sale','company','branch','sales','SOURCE-SALE','customer','warehouse','THB','2026-01-01','2026-12-31',100,0,'fixture-a',$1,$1)").bind(now).execute(system.holdings[0].raw()).await.expect("synthetic sales source unavailable");
             sqlx::query("INSERT INTO support_tickets(id,company_id,branch_id,order_id,customer_id,title,issue,owner_id,due_date,created_by,created_at,updated_at,version)VALUES('existing-ticket','company','branch','source-sale','customer','Synthetic source','Synthetic original problem','fixture-a','2026-12-31','fixture-a',$1,$1,3)").bind(now).execute(system.holdings[0].raw()).await.expect("synthetic Support source unavailable");
@@ -184,7 +187,8 @@ async fn main() {
                 {"holdingId":"h002","slug":"northstar","host":"northstar.jesadakorn.com","writeBinding":"HOLDING_H002_DB","readBinding":"HOLDING_H002_READ_DB","filesBinding":"HOLDING_H002_FILES","database":h002}
             ],"financeJournalReads":[{"holdingId":"h001","companyId":"company"}],"fieldServiceReads":[{"holdingId":"h001","companyId":"company"}],"fieldServiceReservations":["h001"],"fieldServiceIssues":["h001"],"accountBootstrap":true
         });
-        if workspace_scenario { doc["fieldServiceWorkspaceReads"] = serde_json::json!(["h001"]); }
+        if detail_scenario { doc["fieldServiceDetailReads"] = serde_json::json!(["h001"]); }
+        if workspace_scenario || detail_scenario { doc["fieldServiceWorkspaceReads"] = serde_json::json!(["h001"]); }
         if invoice_read_scenario { doc["financeFieldServiceInvoiceReads"] = serde_json::json!(["h001"]); }
         if billing_scenario && !invoice_read_scenario { doc["fieldServiceBillingReleases"] = serde_json::json!(["h001"]); }
         if agreement_create_scenario || workspace_scenario { doc["fieldServiceAgreementCreates"] = serde_json::json!(["h001"]); }
@@ -211,7 +215,7 @@ async fn main() {
         let mut files = CaseFiles(Vec::new());
         files.0.push(write_private(&dir, "native-api.json", &doc));
         files.0.push(write_private(&dir, "databases.json", &manifest));
-        let mut credentials = serde_json::json!({"email":if agreement_review_scenario || billing_scenario {"b@example.test"} else {"a@example.test"},"password":field_service::account::fixture::PASSWORD,"orderId":"reserve-order","reservationId":"field-part-browser-issue-reserve","expectedVersion":if visit_scenario || workspace_scenario {1} else if cancel_scenario || billing_scenario {5} else if completion_scenario || recovery_scenario {4} else {3},"initialStatus":if visit_scenario || workspace_scenario {"scheduled"} else if billing_scenario {"completed"} else if cancel_scenario {"exception"} else {"in_visit"},"entryDate":"2026-01-10","financeEmail":"b@example.test","financePassword":field_service::account::fixture::PASSWORD,"journalId":journal_id,"journalVersion":if completion_scenario || recovery_scenario || cancel_scenario || billing_scenario {2} else {1},"agreementId":if agreement_review_scenario {"review-agreement"} else {"agreement"},"agreementVersion":if agreement_review_scenario {1} else {2},"agreementTitle":"Synthetic Agreement for activation","rejectAgreementId":"review-reject-agreement","rejectAgreementTitle":"Synthetic Agreement for rejection","rejectAgreementVersion":1,"creatorId":"fixture-a","technicianId":"fixture-a","assignmentId":if agreement_review_scenario {"agreement-reviewer-b"} else if billing_scenario {"field-billing-reviewer"} else {"field-fixture-a"},"assignmentVersion":3,"ticketId":"existing-ticket","ticketVersion":3});
+        let mut credentials = serde_json::json!({"email":if agreement_review_scenario || billing_scenario {"b@example.test"} else {"a@example.test"},"password":field_service::account::fixture::PASSWORD,"orderId":if detail_scenario {"issue-order"} else {"reserve-order"},"reservationId":if detail_scenario {"reserved-part"} else {"field-part-browser-issue-reserve"},"expectedVersion":if detail_scenario {4} else if visit_scenario || workspace_scenario {1} else if cancel_scenario || billing_scenario {5} else if completion_scenario || recovery_scenario {4} else {3},"initialStatus":if visit_scenario || workspace_scenario {"scheduled"} else if billing_scenario {"completed"} else if cancel_scenario {"exception"} else {"in_visit"},"entryDate":"2026-01-10","financeEmail":"b@example.test","financePassword":field_service::account::fixture::PASSWORD,"journalId":journal_id,"journalVersion":if completion_scenario || recovery_scenario || cancel_scenario || billing_scenario {2} else {1},"agreementId":if agreement_review_scenario {"review-agreement"} else {"agreement"},"agreementVersion":if agreement_review_scenario {1} else {2},"agreementTitle":"Synthetic Agreement for activation","rejectAgreementId":"review-reject-agreement","rejectAgreementTitle":"Synthetic Agreement for rejection","rejectAgreementVersion":1,"creatorId":"fixture-a","technicianId":"fixture-a","assignmentId":if agreement_review_scenario {"agreement-reviewer-b"} else if billing_scenario {"field-billing-reviewer"} else {"field-fixture-a"},"assignmentVersion":3,"ticketId":"existing-ticket","ticketVersion":3});
         if agreement_create_scenario || workspace_scenario { credentials["agreementCreate"] = serde_json::json!({"branchId":"branch","branchName":"Synthetic North","customerId":"customer","customerName":"PRIVATE_CUSTOMER","currency":"THB","title":"Synthetic Agreement draft","startDate":"2026-01-10","endDate":"2027-12-31","visitRate":"123.45","visitRateMinor":12345,"warrantyDiscountPercent":"5","warrantyDiscountBps":500,"usdUnits":"6173","fxRateId":"rate","usedLatestFallback":false}); }
         if billing_scenario {
             let pricing_date:String=sqlx::query_scalar("SELECT to_char(to_timestamp($1::double precision/1000) AT TIME ZONE 'UTC','YYYY-MM-DD')").bind(now).fetch_one(system.holdings[0].raw()).await.expect("billing pricing date unavailable");
@@ -222,6 +226,7 @@ async fn main() {
             credentials["financeAssignmentId"]=serde_json::json!("finance-fixture-b");credentials["financeAssignmentVersion"]=serde_json::json!(3);
             credentials["invoiceRead"]=serde_json::json!({"invoiceId":"field-invoice-browser-invoice-release","invoiceNumber":"FS-reserve-order","currency":"THB","status":"draft","totalMinor":10000,"outstandingMinor":10000,"source":{"releaseId":"field-billing-browser-invoice-release","orderId":"reserve-order","commandKey":"browser-invoice-release","actorId":"fixture-b","currency":"THB","amountUnits":money.0,"usdUnits":money.1,"fxRateId":money.2,"usedLatestFallback":money.3}});
         }
+        if detail_scenario {credentials["detailRead"]=serde_json::json!({"orderTitle":"Synthetic retained intake","status":"in_visit","reservedMilli":3000,"consumedMilli":1000,"releasedMilli":0,"sku":"SYNTHETIC","productName":"Synthetic spare","existingJournalStatus":"draft"});}
         files.0.push(write_private(&dir, "credentials.json", &credentials));
         let runtime = assemble_development_api(configuration, Arc::new(SystemAccountClock), Arc::new(SystemAuthenticationSecrets)).await.expect("native case assembly failed");
         let listener = tokio::net::TcpListener::bind(runtime.listen_address()).await.expect("private case listener unavailable");

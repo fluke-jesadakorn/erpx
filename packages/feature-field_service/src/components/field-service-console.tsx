@@ -14,8 +14,7 @@ import { PreferredDateTimeField } from "@erpx/feature-people_payroll/components/
 import { decimalToMinor, minorToDecimal } from "@erpx/feature-finance/lib/finance-money";
 import { ServiceSpareForm } from "@erpx/feature-field_service/components/service-spare-form";
 import { ServiceAgreementReferenceFields, ServiceRequestReferenceFields, ServiceOrderReferenceFields, ServiceTechnicianField } from "@erpx/feature-field_service/components/service-reference-fields";
-import type { fieldServiceDetail } from "@erpx/server-field_service/public/field-service";
-import type {FieldWorkspace} from "@erpx/feature-field_service/lib/workspace";
+import type {FieldDetail,FieldWorkspace} from "@erpx/feature-field_service/lib/workspace";
 import { FormLayout, Card } from "@erpx/ui/components/foundation";
 
 function ServiceConsole({
@@ -27,7 +26,7 @@ function ServiceConsole({
   recovery:ReturnType<typeof useCommand>;
   base: string;
   data?: FieldWorkspace;
-  detail?: Awaited<ReturnType<typeof fieldServiceDetail>>;
+  detail?: FieldDetail;
 }) {
   const source = data ?? detail!,
     { busy, error, clearError, fail } = recovery,
@@ -261,7 +260,7 @@ function ServiceConsole({
   );
 }
 
-type ServiceConsoleProps = { base: string; nativeReserve?: {context?:ReserveContext;issue?:boolean;reserve?:boolean;request?:boolean;create?:boolean;visit?:boolean;visitCompletion?:boolean;visitRecovery?:boolean;cancel?:boolean;agreementReview?:boolean;agreementCreate?:boolean;billing?:boolean}; data?: FieldWorkspace; detail?: Awaited<ReturnType<typeof fieldServiceDetail>> };
+type ServiceConsoleProps = { base: string; nativeReserve?: {context?:ReserveContext;issue?:boolean;reserve?:boolean;request?:boolean;create?:boolean;visit?:boolean;visitCompletion?:boolean;visitRecovery?:boolean;cancel?:boolean;agreementReview?:boolean;agreementCreate?:boolean;billing?:boolean}; data?: FieldWorkspace; detail?: FieldDetail };
 
 function serviceSource(props:ServiceConsoleProps):FieldServiceSource {const source=props.data??props.detail!,targets:FieldServiceSource["targets"]={};for(const row of source.customers)targets[`customer:${row.id}`]={version:0,status:row.currency};for(const row of source.nodes)targets[`node:${row.id}`]={version:0,status:row.kind,customerId:row.branch_id};for(const row of source.assets)targets[`asset:${row.id}`]={version:row.version,status:row.branch_id,customerId:row.department_id??undefined};for(const row of source.agreements)targets[`agreement:${row.id}`]={version:Number(row.version),status:String(row.status),customerId:typeof row.customer_id==='string'?row.customer_id:undefined};for(const row of source.orders)targets[`order:${row.id}`]={version:Number(row.version),status:String(row.status)};for(const row of source.tickets)targets[`ticket:${row.id}`]={version:Number(row.version),status:String(row.status),customerId:typeof row.customer_id==='string'?row.customer_id:undefined};if(props.detail)targets[`order:${props.detail.order.id}`]={version:Number(props.detail.order.version),status:String(props.detail.order.status),agreementId:String(props.detail.order.agreement_id),customerId:source.agreements.find(row=>row.id===props.detail?.order.agreement_id)?.customer_id?.toString(),technicianId:String(props.detail.order.technician_id),scheduledAt:props.detail.order.scheduled_at===null?null:Number(props.detail.order.scheduled_at)};return {base:props.base,workspaceKey:source.workspaceKey,recordId:props.detail?String(props.detail.order.id):null,targets};}
 export function FieldServiceConsole(props: ServiceConsoleProps) {

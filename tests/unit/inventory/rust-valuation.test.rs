@@ -484,3 +484,12 @@ async fn field_service_utf16_lot_slots_preserve_original_identity_and_storage_bi
         }
     }
 }
+
+#[test]
+fn service_detail_available_stock_accounts_for_reservations_and_holds() {
+    use erpx_server_inventory::public::field_service_detail::service_available_milli;
+    assert_eq!(service_available_milli(5_000, 1_000, false, 1_500), 2_500);
+    assert_eq!(service_available_milli(5_000, 1_000, true, 0), 0);
+    assert_eq!(service_available_milli(5_000, 0, false, 8_000), 0);
+    assert_eq!(service_available_milli(5_000, 8_000, false, 0), 0);
+}

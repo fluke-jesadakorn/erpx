@@ -479,6 +479,27 @@
         ],
         "type": "object"
       },
+      "FieldServiceDetailSpares": {
+        "properties": {
+          "lots": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "stock": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "stock",
+          "lots"
+        ],
+        "type": "object"
+      },
       "FieldServiceIssueAction": {
         "enum": [
           "issue-part"
@@ -724,6 +745,74 @@
           "order",
           "ticket",
           "event"
+        ],
+        "type": "object"
+      },
+      "FieldServiceOrderDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/FieldServiceWorkspace"
+          },
+          {
+            "properties": {
+              "billing": {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "canEditVisitFiles": {
+                "type": "boolean"
+              },
+              "consumptions": {
+                "items": {
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "history": {
+                "items": {
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "order": {
+                "type": "object"
+              },
+              "parts": {
+                "items": {
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "spares": {
+                "$ref": "#/components/schemas/FieldServiceDetailSpares"
+              }
+            },
+            "required": [
+              "order",
+              "spares",
+              "parts",
+              "consumptions",
+              "history",
+              "canEditVisitFiles"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "FieldServiceOrderDetailResponse": {
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/FieldServiceRenderedContext"
+          },
+          "data": {
+            "$ref": "#/components/schemas/FieldServiceOrderDetail"
+          }
+        },
+        "required": [
+          "data",
+          "context"
         ],
         "type": "object"
       },
@@ -1760,6 +1849,42 @@
               }
             },
             "description": "Current scoped billing release evidence"
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/v1/holdings/{holding_slug}/field-service/orders/{id}/detail": {
+      "get": {
+        "operationId": "detail_read",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "holding_slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FieldServiceOrderDetailResponse"
+                }
+              }
+            },
+            "description": "Current scoped Service order detail and workspace"
           }
         },
         "tags": []

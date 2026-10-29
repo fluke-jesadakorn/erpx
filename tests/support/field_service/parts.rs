@@ -40,6 +40,9 @@ pub async fn setup_workspace(system: account::System) -> Parts {
     setup_with_grants(system, "none", true, true, true).await
 }
 /// Realistic workspace with only the base Service purchase, no parts History.
+pub async fn setup_workspace_tracking(system: account::System, tracking: &str) -> Parts {
+    setup_with_grants(system, tracking, true, true, true).await
+}
 pub async fn setup_workspace_without_parts(system: account::System) -> Parts {
     let p = setup_with_grants(system, "none", false, true, true).await;
     let now = p.review.system.scenario.clock.now().get();

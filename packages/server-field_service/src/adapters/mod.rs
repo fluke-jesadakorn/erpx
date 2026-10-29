@@ -15,3 +15,5 @@ pub(crate) mod request_order;
 pub(crate) mod agreement_create;
 
 pub(crate) mod workspace;
+
+pub(crate) mod detail;
