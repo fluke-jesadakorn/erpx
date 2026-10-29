@@ -14,6 +14,7 @@ use erpx_server_field_service::public::reservation_read::{
     FieldServiceVisitStepAction, FieldServiceVisitStepInput,
 };
 use erpx_server_field_service::public::visit::FieldServiceBillingRelease;
+use erpx_server_field_service::public::work::FieldServiceWorkItem;
 use erpx_server_finance::public::field_service_agreement_money::AgreementMoneyEvidence;
 use erpx_service::field_service_detail::{
     FieldServiceDetailSpares, FieldServiceOrderDetail, FieldServiceOrderDetailResponse,
@@ -26,7 +27,8 @@ use erpx_service::field_service_reservation_read::{
     FieldServiceVisitReadResponse,
 };
 use erpx_service::field_service_workspace::{
-    FieldServiceWorkspace, FieldServiceWorkspaceResponse, FieldServiceWorkspaceScope,
+    FieldServiceWorkResponse, FieldServiceWorkspace, FieldServiceWorkspaceResponse,
+    FieldServiceWorkspaceScope,
 };
 use ts_rs::{Config, TS};
 #[derive(utoipa::ToSchema)]
@@ -63,6 +65,9 @@ const _: fn() = reserve;
 const _: fn() = read;
 #[utoipa::path(get,path="/api/v1/holdings/{holding_slug}/field-service/workspace",params(("holding_slug"=String,Path)),responses((status=200,body=FieldServiceWorkspaceResponse,description="Current scoped Service workspace")))]
 fn workspace_read() {}
+#[utoipa::path(get,path="/api/v1/holdings/{holding_slug}/field-service/work",params(("holding_slug"=String,Path)),responses((status=200,body=FieldServiceWorkResponse,description="Current scoped Field Service Work contribution")))]
+fn work_read() {}
+const _: fn() = work_read;
 const _: fn() = workspace_read;
 #[utoipa::path(get,path="/api/v1/holdings/{holding_slug}/field-service/orders/{id}/detail",params(("holding_slug"=String,Path),("id"=String,Path)),responses((status=200,body=FieldServiceOrderDetailResponse,description="Current scoped Service order detail and workspace")))]
 fn detail_read() {}
@@ -72,6 +77,7 @@ const _: fn() = detail_read;
     paths(
         detail_read,
         workspace_read,
+        work_read,
         reserve,
         read,
         issue_read,
@@ -86,6 +92,8 @@ const _: fn() = detail_read;
         FieldServiceDetailSpares,
         FieldServiceOrderDetail,
         FieldServiceOrderDetailResponse,
+        FieldServiceWorkItem,
+        FieldServiceWorkResponse,
         FieldServiceWorkspace,
         FieldServiceWorkspaceScope,
         FieldServiceWorkspaceResponse,
@@ -167,6 +175,8 @@ fn main() {
         FieldServiceDetailSpares::decl(&config),
         FieldServiceOrderDetail::decl(&config),
         FieldServiceOrderDetailResponse::decl(&config),
+        FieldServiceWorkItem::decl(&config),
+        FieldServiceWorkResponse::decl(&config),
         FieldServiceWorkspace::decl(&config),
         FieldServiceWorkspaceScope::decl(&config),
         FieldServiceWorkspaceResponse::decl(&config),

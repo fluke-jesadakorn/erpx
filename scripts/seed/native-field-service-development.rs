@@ -50,7 +50,7 @@ async fn main() {
     let args: Vec<_> = std::env::args().collect();
     assert!(
         (3..=4).contains(&args.len()),
-        "usage: native-field-service-development ABSOLUTE_PRIVATE_CASE_DIR LOOPBACK_LISTEN [post|request|order-create|visit|complete|recovery|cancel|agreement-review|agreement-create|billing-release|finance-invoice-read|workspace|detail]"
+        "usage: native-field-service-development ABSOLUTE_PRIVATE_CASE_DIR LOOPBACK_LISTEN [post|request|order-create|visit|complete|recovery|cancel|agreement-review|agreement-create|billing-release|finance-invoice-read|workspace|detail|work]"
     );
     let dir = PathBuf::from(&args[1]);
     assert!(
@@ -80,7 +80,8 @@ async fn main() {
             "billing-release",
             "finance-invoice-read",
             "workspace",
-            "detail"
+            "detail",
+            "work"
         ]
         .contains(&scenario),
         "invalid private fixture scenario"
@@ -88,7 +89,8 @@ async fn main() {
     let agreement_review_scenario = scenario == "agreement-review";
     let agreement_create_scenario = scenario == "agreement-create";
     let workspace_scenario = scenario == "workspace";
-    let detail_scenario = scenario == "detail";
+    let work_scenario = scenario == "work";
+    let detail_scenario = scenario == "detail" || work_scenario;
     let invoice_read_scenario = scenario == "finance-invoice-read";
     let billing_scenario = scenario == "billing-release" || invoice_read_scenario;
     let visit_scenario = scenario == "visit";
@@ -103,6 +105,12 @@ async fn main() {
         system.scenario.clock.0.store(now, Ordering::SeqCst);
         let prepared = if workspace_scenario || detail_scenario { field_service::setup_workspace(system).await } else { field_service::setup(system).await };
         let system = &prepared.review.system;
+        if work_scenario {
+            let mut tx = prepared.pool().raw().begin().await.expect("synthetic Work purchase transaction unavailable");
+            sqlx::query("INSERT INTO company_package_grants(company_id,package_id,package_version,state,starts_at,version,reason,evidence,updated_at) VALUES('company','work',1,'active',0,1,'Synthetic Work purchase','public synthetic evidence',$1)").bind(now).execute(&mut *tx).await.expect("synthetic Work purchase unavailable");
+            sqlx::query("INSERT INTO company_package_grant_events(id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at) SELECT 'work-fixture-origin',company_id,package_id,'fixture-a','synthetic-work-grant',NULL,jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence),$1 FROM company_package_grants WHERE company_id='company' AND package_id='work'").bind(now).execute(&mut *tx).await.expect("synthetic Work purchase event unavailable");
+            tx.commit().await.expect("synthetic Work purchase commit unavailable");
+        }
         sqlx::raw_sql("UPDATE hr_engagements SET start_date='2020-01-01' WHERE id='field-engagement'").execute(system.holdings[0].raw()).await.expect("synthetic field service source unavailable");
         // A genuine reserve command creates the immutable Service/Workflow provenance.
         // The visit is synthetic historical data, not an implemented transition.
@@ -187,6 +195,7 @@ async fn main() {
                 {"holdingId":"h002","slug":"northstar","host":"northstar.jesadakorn.com","writeBinding":"HOLDING_H002_DB","readBinding":"HOLDING_H002_READ_DB","filesBinding":"HOLDING_H002_FILES","database":h002}
             ],"financeJournalReads":[{"holdingId":"h001","companyId":"company"}],"fieldServiceReads":[{"holdingId":"h001","companyId":"company"}],"fieldServiceReservations":["h001"],"fieldServiceIssues":["h001"],"accountBootstrap":true
         });
+        if work_scenario { doc["fieldServiceWorkReads"] = serde_json::json!(["h001"]); }
         if detail_scenario { doc["fieldServiceDetailReads"] = serde_json::json!(["h001"]); }
         if workspace_scenario || detail_scenario { doc["fieldServiceWorkspaceReads"] = serde_json::json!(["h001"]); }
         if invoice_read_scenario { doc["financeFieldServiceInvoiceReads"] = serde_json::json!(["h001"]); }
@@ -194,7 +203,7 @@ async fn main() {
         if agreement_create_scenario || workspace_scenario { doc["fieldServiceAgreementCreates"] = serde_json::json!(["h001"]); }
         if agreement_review_scenario { doc["fieldServiceAgreementReviews"] = serde_json::json!(["h001"]); }
         if cancel_scenario { doc["fieldServiceOrderCancellations"] = serde_json::json!(["h001"]); }
-        if recovery_scenario { doc["fieldServiceVisitRecoveries"] = serde_json::json!(["h001"]); }
+        if recovery_scenario || work_scenario { doc["fieldServiceVisitRecoveries"] = serde_json::json!(["h001"]); }
         if completion_scenario { doc["fieldServiceVisitCompletions"] = serde_json::json!(["h001"]); }
         if visit_scenario { doc["fieldServiceVisits"] = serde_json::json!(["h001"]); }
         if order_create_scenario { doc["fieldServiceOrderCreates"] = serde_json::json!(["h001"]); }

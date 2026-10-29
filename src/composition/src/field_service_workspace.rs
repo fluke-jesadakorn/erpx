@@ -40,6 +40,14 @@ pub struct FieldServiceWorkspaceResponse {
     pub data: FieldServiceWorkspace,
     pub context: FieldServiceRenderedContext,
 }
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct FieldServiceWorkResponse {
+    pub data: Vec<erpx_server_field_service::public::work::FieldServiceWorkItem>,
+    pub workflow_source_ids: Vec<String>,
+    pub context: FieldServiceRenderedContext,
+}
 
 use erpx_server_commercial::public::purchases::{
     CapabilityPurpose, CommercialCatalogue, PackageEnforcementMode, PgCompanyPurchaseReader,
@@ -220,6 +228,12 @@ pub(crate) async fn prepare_workspace<C: Clock>(
         let tech = string(o, "technician_id")?.to_owned();
         users.insert(tech.clone());
         same_ids.insert(tech);
+    }
+    for g in &field.data().linked_agreements {
+        customer_ids.insert(g.customer_id.clone());
+        if let Some(id) = &g.asset_id {
+            asset_ids.insert(id.clone());
+        }
     }
     for e in &field.data().completions {
         same_ids.insert(e.actor_id.clone());
@@ -624,6 +638,64 @@ pub(crate) struct PreparedWorkspace {
  today:String,
 }
 impl PreparedWorkspace {
+    fn workflow_source_ids(
+        &self,
+        items: &[erpx_server_field_service::public::work::FieldServiceWorkItem],
+    ) -> Result<Vec<String>, BusinessError> {
+        let customers = &self.customers.data().display;
+        let assets = &self.assets.data().display;
+        let tickets = &self.support.data().display;
+        let customer_ok = |id: &str| customers.iter().any(|c| c.id == id && c.kind == "customer");
+        let asset_ok =
+            |id: &str, branch: &str| assets.iter().any(|a| a.id == id && a.branch_id == branch);
+        let mut admitted = BTreeSet::new();
+        for g in &self.field.data().agreements {
+            let branch = string(g, "branch_id")?;
+            let asset = optional(g, "asset_id")?;
+            if customer_ok(string(g, "customer_id")?)
+                && asset.is_none_or(|a| self.rights.parts_history && asset_ok(a, branch))
+            {
+                admitted.insert(string(g, "id")?.to_owned());
+            }
+        }
+        for o in &self.field.data().orders {
+            let Some(g) = self
+                .field
+                .data()
+                .linked_agreements
+                .iter()
+                .find(|g| g.id == string(o, "agreement_id").unwrap_or_default())
+            else {
+                continue;
+            };
+            let branch = string(o, "branch_id")?;
+            let dept = optional(o, "department_id")?;
+            let asset = optional(o, "asset_id")?;
+            let ticket = tickets
+                .iter()
+                .find(|t| t.id == string(o, "ticket_id").unwrap_or_default());
+            let valid_ticket = ticket.is_some_and(|t| {
+                t.customer_id == g.customer_id
+                    && t.branch_id == branch
+                    && t.department_id.as_deref() == dept
+            });
+            if g.branch_id == branch
+                && g.department_id.as_deref() == dept
+                && customer_ok(&g.customer_id)
+                && valid_ticket
+                && g.asset_id.as_deref().is_none_or(|id| asset == Some(id))
+                && asset.is_none_or(|id| asset_ok(id, branch))
+                && (g.asset_id.is_none() && asset.is_none() || self.rights.parts_history)
+            {
+                admitted.insert(string(o, "id")?.to_owned());
+            }
+        }
+        Ok(items
+            .iter()
+            .filter(|i| admitted.contains(&i.id))
+            .map(|i| i.id.clone())
+            .collect())
+    }
     pub(crate) async fn require_current<C: Clock>(
         &self,
         c: &mut PgConnection,
@@ -675,4 +747,53 @@ pub(crate) async fn build_workspace<C: Clock>(
         .require_current(c, current, holding, company, catalogue, clock)
         .await?;
     Ok(prepared.reply)
+}
+pub(crate) async fn build_work<C: Clock>(
+    c: &mut PgConnection,
+    current: &AuthorizedWorkContext,
+    holding: &HoldingId,
+    company: &CompanyId,
+    catalogue: &Arc<CommercialCatalogue>,
+    clock: &C,
+) -> Result<FieldServiceWorkResponse, Error> {
+    let prepared = prepare_workspace(c, current, holding, company, catalogue, clock).await?;
+    let data = &prepared.reply.data;
+    let aliases: Vec<String> = current
+        .command_iam_metadata()
+        .person_user_ids
+        .iter()
+        .map(|x| x.as_str().to_owned())
+        .collect();
+    let items = erpx_server_field_service::public::work::field_service_work_items(
+        &data.agreements,
+        &data.orders,
+        current.user_id().as_str(),
+        &aliases,
+        erpx_server_field_service::public::work::WorkRights {
+            can_write: data.can_write,
+            can_review: current.has_permission("records.review"),
+            can_parts: data.can_use_parts,
+            settle: prepared.rights.order_settle,
+        },
+    )
+    .ok_or_else(invalid)?;
+    let workflow_source_ids = prepared.workflow_source_ids(&items)?;
+    let reply = FieldServiceWorkResponse {
+        data: items,
+        workflow_source_ids,
+        context: prepared.reply.context.clone(),
+    };
+    let serialized = serde_json::to_value(&reply).map_err(|_| invalid())?;
+    if !safe_json(&serialized) {
+        return Err(invalid().into());
+    }
+    serde_json::to_writer(
+        crate::field_service_reservation_read::ReplyBudget(0),
+        &serialized,
+    )
+    .map_err(|_| invalid())?;
+    prepared
+        .require_current(c, current, holding, company, catalogue, clock)
+        .await?;
+    Ok(reply)
 }

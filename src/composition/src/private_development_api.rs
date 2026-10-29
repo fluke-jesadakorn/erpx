@@ -124,6 +124,8 @@ struct ConfigurationDocument {
     #[serde(default)]
     field_service_workspace_reads: Vec<String>,
     #[serde(default)]
+    field_service_work_reads: Vec<String>,
+    #[serde(default)]
     field_service_detail_reads: Vec<String>,
     #[serde(default)]
     field_service_reservations: Vec<String>,
@@ -175,6 +177,7 @@ pub struct DevelopmentApiConfiguration {
     finance_journal_reversals: BTreeSet<HoldingId>,
     field_service_reads: BTreeMap<HoldingId, CompanyId>,
     field_service_workspace_reads: BTreeSet<HoldingId>,
+    field_service_work_reads: BTreeSet<HoldingId>,
     field_service_detail_reads: BTreeSet<HoldingId>,
     field_service_reservations: BTreeSet<HoldingId>,
     field_service_issues: BTreeSet<HoldingId>,
@@ -353,6 +356,16 @@ impl DevelopmentApiConfiguration {
                 return Err("PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID");
             }
         }
+        let mut field_service_work_reads = BTreeSet::new();
+        for id in doc.field_service_work_reads {
+            let holding = HoldingId::new(id)
+                .map_err(|_| "PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID")?;
+            if !field_service_reads.contains_key(&holding)
+                || !field_service_work_reads.insert(holding)
+            {
+                return Err("PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID");
+            }
+        }
         let mut field_service_detail_reads = BTreeSet::new();
         for id in doc.field_service_detail_reads {
             let holding = HoldingId::new(id)
@@ -526,6 +539,7 @@ impl DevelopmentApiConfiguration {
             finance_journal_reversals,
             field_service_reads,
             field_service_workspace_reads,
+            field_service_work_reads,
             field_service_detail_reads,
             field_service_reservations,
             field_service_issues,
@@ -744,6 +758,7 @@ async fn assemble_checked(
     let mut finance_reversal_targets = BTreeSet::new();
     let mut service_read_targets = BTreeSet::new();
     let mut service_workspace_targets = BTreeSet::new();
+    let mut service_work_targets = BTreeSet::new();
     let mut service_detail_targets = BTreeSet::new();
     let mut service_reservation_targets = BTreeSet::new();
     let mut service_issue_targets = BTreeSet::new();
@@ -1035,6 +1050,17 @@ async fn assemble_checked(
             } else {
                 read_configuration
             };
+            let work_enabled = config
+                .field_service_work_reads
+                .contains(&holding.registration.holding_id);
+            if work_enabled {
+                service_work_targets.insert(target.clone());
+            }
+            let read_configuration = if work_enabled {
+                read_configuration.with_work()
+            } else {
+                read_configuration
+            };
             let detail_enabled = config
                 .field_service_detail_reads
                 .contains(&holding.registration.holding_id);
@@ -1265,6 +1291,7 @@ async fn assemble_checked(
         finance_reversal_targets,
         service_read_targets,
         service_workspace_targets,
+        service_work_targets,
         service_detail_targets,
         service_reservation_targets,
         service_issue_targets,
@@ -1297,6 +1324,7 @@ struct Boundary {
     finance_reversal_targets: BTreeSet<(String, String)>,
     service_read_targets: BTreeSet<(String, String)>,
     service_workspace_targets: BTreeSet<(String, String)>,
+    service_work_targets: BTreeSet<(String, String)>,
     service_detail_targets: BTreeSet<(String, String)>,
     service_reservation_targets: BTreeSet<(String, String)>,
     service_issue_targets: BTreeSet<(String, String)>,
@@ -1509,6 +1537,9 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             "workspace",
         ] => state
             .service_workspace_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
+        ["", "api", "v1", "holdings", slug, "field-service", "work"] => state
+            .service_work_targets
             .contains(&(host.to_owned(), (*slug).to_owned())),
         [
             "",

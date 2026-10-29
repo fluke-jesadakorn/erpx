@@ -6,3 +6,5 @@ pub(crate) mod visit;
 pub(crate) mod workspace;
 
 pub(crate) mod detail;
+
+pub(crate) mod work;

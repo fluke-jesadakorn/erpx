@@ -10,6 +10,8 @@ pub struct ServiceTicketDisplay {
     pub id: String,
     pub title: String,
     pub customer_id: String,
+    pub branch_id: String,
+    pub department_id: Option<String>,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ServiceTicketReference {
@@ -67,7 +69,7 @@ async fn image(
     c: &mut PgConnection,
     r: &ServiceWorkspaceTicketScope,
 ) -> Result<(ServiceWorkspaceTickets, String), Error> {
-    let row=sqlx::query("WITH selected AS MATERIALIZED (SELECT t.*, (t.id=ANY($4::text[])) display_it,($5::boolean AND ($2::text IS NULL OR t.branch_id=$2) AND ($3::text IS NULL OR t.department_id=$3) AND t.source_kind='sales_order' AND t.status IN ('open','in_progress','waiting_customer') AND ($6='holding' OR $6='branch' AND t.branch_id=$7 OR $6='department' AND t.department_id=$7)) picker_it FROM support_tickets t WHERE t.company_id=$1), payload AS (SELECT jsonb_build_object('display',coalesce(jsonb_agg(jsonb_build_object('id',id,'title',title,'customer_id',customer_id) ORDER BY id) FILTER(WHERE display_it),'[]'::jsonb),'picker',coalesce(jsonb_agg(jsonb_build_object('id',id,'title',title,'version',version,'customer_id',customer_id,'branch_id',branch_id,'department_id',department_id) ORDER BY updated_at DESC,id) FILTER(WHERE picker_it),'[]'::jsonb)) value,coalesce(jsonb_agg(to_jsonb(selected) ORDER BY id) FILTER(WHERE display_it OR picker_it),'[]'::jsonb) full_rows FROM selected), measured AS (SELECT value::text payload,encode(sha256(convert_to(full_rows::text,'UTF8')),'hex') digest FROM payload) SELECT CASE WHEN octet_length(payload)<=2097152 THEN payload END payload,digest FROM measured").bind(r.company_id.as_str()).bind(r.branch.as_deref()).bind(r.department.as_deref()).bind(&r.ids).bind(r.include_picker).bind(&r.assignment_kind).bind(r.assignment_node.as_deref()).fetch_one(c).await?;
+    let row=sqlx::query("WITH selected AS MATERIALIZED (SELECT t.*, (t.id=ANY($4::text[])) display_it,($5::boolean AND ($2::text IS NULL OR t.branch_id=$2) AND ($3::text IS NULL OR t.department_id=$3) AND t.source_kind='sales_order' AND t.status IN ('open','in_progress','waiting_customer') AND ($6='holding' OR $6='branch' AND t.branch_id=$7 OR $6='department' AND t.department_id=$7)) picker_it FROM support_tickets t WHERE t.company_id=$1), payload AS (SELECT jsonb_build_object('display',coalesce(jsonb_agg(jsonb_build_object('id',id,'title',title,'customer_id',customer_id,'branch_id',branch_id,'department_id',department_id) ORDER BY id) FILTER(WHERE display_it),'[]'::jsonb),'picker',coalesce(jsonb_agg(jsonb_build_object('id',id,'title',title,'version',version,'customer_id',customer_id,'branch_id',branch_id,'department_id',department_id) ORDER BY updated_at DESC,id) FILTER(WHERE picker_it),'[]'::jsonb)) value,coalesce(jsonb_agg(to_jsonb(selected) ORDER BY id) FILTER(WHERE display_it OR picker_it),'[]'::jsonb) full_rows FROM selected), measured AS (SELECT value::text payload,encode(sha256(convert_to(full_rows::text,'UTF8')),'hex') digest FROM payload) SELECT CASE WHEN octet_length(payload)<=2097152 THEN payload END payload,digest FROM measured").bind(r.company_id.as_str()).bind(r.branch.as_deref()).bind(r.department.as_deref()).bind(&r.ids).bind(r.include_picker).bind(&r.assignment_kind).bind(r.assignment_node.as_deref()).fetch_one(c).await?;
     let raw: Option<String> = row.try_get("payload")?;
     Ok((
         serde_json::from_str(&raw.ok_or_else(limited)?).map_err(|_| limited())?,

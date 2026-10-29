@@ -21,6 +21,7 @@
     "./adapters/service": "./src/adapters/service.ts",
     "./adapters/package-obligations": "./src/adapters/package-obligations.ts",
     "./adapters/executive-main-evidence-sources": "./src/adapters/executive-main-evidence-sources.ts",
+    "./public/native-work": "./src/public/native-work.ts",
     "./public/records-source-facts": "./src/public/records-source-facts.ts",
     "./public/final-root-owner-projection-sources": "./src/public/final-root-owner-projection-sources.ts",
     "./public/executive-metric-projections": "./src/public/executive-metric-projections.ts",
@@ -50,6 +51,8 @@
     "lint": "eslint src"
   },
   "dependencies": {
+    "@erpx/contracts": "workspace:*",
+    "next": "16.4.3",
     "@erpx/catalogue": "workspace:*",
     "@erpx/feature-identity_access": "workspace:*",
     "@erpx/feature-shared": "workspace:*",

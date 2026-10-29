@@ -1334,6 +1334,7 @@
 @source "../../../../packages/server-field_service/src/adapters/final-root-owner-projection-sources.ts";
 @source "../../../../packages/server-field_service/src/adapters/finance-record-sources.ts";
 @source "../../../../packages/server-field_service/src/adapters/intake-sources.ts";
+@source "../../../../packages/server-field_service/src/adapters/native-work.ts";
 @source "../../../../packages/server-field_service/src/adapters/package-obligations.ts";
 @source "../../../../packages/server-field_service/src/adapters/purchase-boundary.ts";
 @source "../../../../packages/server-field_service/src/adapters/purchases.ts";
@@ -1356,6 +1357,7 @@
 @source "../../../../packages/server-field_service/src/public/final-root-owner-projection-sources.ts";
 @source "../../../../packages/server-field_service/src/public/finance-record-sources.ts";
 @source "../../../../packages/server-field_service/src/public/intake-sources.ts";
+@source "../../../../packages/server-field_service/src/public/native-work.ts";
 @source "../../../../packages/server-field_service/src/public/package-obligations.ts";
 @source "../../../../packages/server-field_service/src/public/record-purchases.ts";
 @source "../../../../packages/server-field_service/src/public/records-source-facts.ts";

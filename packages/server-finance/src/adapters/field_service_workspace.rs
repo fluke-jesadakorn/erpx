@@ -8,6 +8,7 @@ type Unit = (String, i32, String, String);
 pub struct ServiceCustomerDisplay {
     pub id: String,
     pub name: String,
+    pub kind: String,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ServiceCustomerReference {
@@ -85,7 +86,7 @@ async fn capture(
         return Err(limited());
     }
     // Measure before transferring any physical identifiers or row values.
-    let rows=sqlx::query("WITH source AS MATERIALIZED (SELECT p.*, p.id=ANY($2::text[]) AS display, ($3 AND p.kind='customer' AND p.status='active') AS picker FROM finance_parties p WHERE p.company_id=$1 AND (p.id=ANY($2::text[]) OR ($3 AND p.kind='customer' AND p.status='active'))), measured AS (SELECT *,sum(octet_length(to_jsonb(source)::text)) OVER () bytes,count(*) OVER () count,row_number() OVER () ordinal FROM source) SELECT CASE WHEN bytes<=2097152 AND count<=10000 THEN id END id,CASE WHEN bytes<=2097152 AND count<=10000 THEN name END name,CASE WHEN bytes<=2097152 AND count<=10000 THEN currency END currency,display,picker,encode(sha256(convert_to((to_jsonb(measured)-'bytes'-'count'-'ordinal')::text,'UTF8')),'hex') digest FROM measured WHERE (bytes<=2097152 AND count<=10000) OR ordinal=1 ORDER BY name,id") .bind(company.as_str()).bind(ids).bind(include_picker).fetch_all(c).await?;
+    let rows=sqlx::query("WITH source AS MATERIALIZED (SELECT p.*, p.id=ANY($2::text[]) AS display, ($3 AND p.kind='customer' AND p.status='active') AS picker FROM finance_parties p WHERE p.company_id=$1 AND (p.id=ANY($2::text[]) OR ($3 AND p.kind='customer' AND p.status='active'))), measured AS (SELECT *,sum(octet_length(to_jsonb(source)::text)) OVER () bytes,count(*) OVER () count,row_number() OVER () ordinal FROM source) SELECT CASE WHEN bytes<=2097152 AND count<=10000 THEN id END id,CASE WHEN bytes<=2097152 AND count<=10000 THEN name END name,CASE WHEN bytes<=2097152 AND count<=10000 THEN kind END kind,CASE WHEN bytes<=2097152 AND count<=10000 THEN currency END currency,display,picker,encode(sha256(convert_to((to_jsonb(measured)-'bytes'-'count'-'ordinal')::text,'UTF8')),'hex') digest FROM measured WHERE (bytes<=2097152 AND count<=10000) OR ordinal=1 ORDER BY name,id") .bind(company.as_str()).bind(ids).bind(include_picker).fetch_all(c).await?;
     let mut display = Vec::new();
     let mut picker = Vec::new();
     let mut digests = Vec::new();
@@ -101,6 +102,9 @@ async fn capture(
             display.push(ServiceCustomerDisplay {
                 id: id.clone(),
                 name: name.clone(),
+                kind: r
+                    .try_get::<Option<String>, _>("kind")?
+                    .ok_or_else(limited)?,
             });
         }
         if r.try_get("picker")? {

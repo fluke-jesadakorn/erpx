@@ -1892,6 +1892,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@erpx/catalogue": "workspace:*",
+        "@erpx/contracts": "workspace:*",
         "@erpx/feature-identity_access": "workspace:*",
         "@erpx/feature-shared": "workspace:*",
         "@erpx/feature-work_projection": "workspace:*",
@@ -1911,6 +1912,7 @@
         "@erpx/server-shared": "workspace:*",
         "@erpx/server-support": "workspace:*",
         "@erpx/server-workflow": "workspace:*",
+        "next": "16.4.3",
         "server-only": "0.0.1",
         "zod": "4.6.7",
       },
@@ -2822,6 +2824,7 @@
         "@erpx/server-benefits": "workspace:*",
         "@erpx/server-collaboration": "workspace:*",
         "@erpx/server-commerce": "workspace:*",
+        "@erpx/server-commercial": "workspace:*",
         "@erpx/server-crm": "workspace:*",
         "@erpx/server-customer_360": "workspace:*",
         "@erpx/server-field_service": "workspace:*",

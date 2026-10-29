@@ -36624,11 +36624,14 @@
         "@erpx/feature-billing",
         "@erpx/feature-collaboration",
         "@erpx/feature-commerce",
+        "@erpx/feature-customer_authority",
         "@erpx/feature-finance",
         "@erpx/feature-identity_access",
         "@erpx/feature-legal",
         "@erpx/feature-organization",
         "@erpx/feature-people_payroll",
+        "@erpx/feature-pms",
+        "@erpx/feature-pos",
         "@erpx/feature-records",
         "@erpx/feature-runtime",
         "@erpx/feature-sales",
@@ -36674,7 +36677,14 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
+      ],
+      "verificationInputs": [
+        "packages/server-work_projection/src/adapters/work-items.ts",
+        "packages/server-work_projection/src/application/work-items.ts",
+        "packages/server-field_service/src/adapters/native-work.ts",
+        "packages/contracts/src/field-service-reserve.generated.ts"
       ]
     },
     {
@@ -39142,6 +39152,7 @@
         "@erpx/feature-billing",
         "@erpx/feature-collaboration",
         "@erpx/feature-commerce",
+        "@erpx/feature-customer_authority",
         "@erpx/feature-field_service",
         "@erpx/feature-files",
         "@erpx/feature-finance",
@@ -39150,6 +39161,8 @@
         "@erpx/feature-legal",
         "@erpx/feature-organization",
         "@erpx/feature-people_payroll",
+        "@erpx/feature-pms",
+        "@erpx/feature-pos",
         "@erpx/feature-records",
         "@erpx/feature-runtime",
         "@erpx/feature-sales",
@@ -39216,7 +39229,9 @@
         "packages/feature-field_service/src/components/service-spare-form.tsx",
         "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/field-service/[id]/screen.tsx",
         "packages/feature-service/src/routes/holdings/[holdingSlug]/@record/services/field-service/[id]/page.tsx",
-        "packages/feature-service/src/routes/holdings/[holdingSlug]/@record/services/field-service/[id]/[recordSection]/page.tsx"
+        "packages/feature-service/src/routes/holdings/[holdingSlug]/@record/services/field-service/[id]/[recordSection]/page.tsx",
+        "packages/server-field_service/src/adapters/native-work.ts",
+        "packages/server-field_service/src/public/native-work.ts"
       ]
     },
     {
@@ -43490,6 +43505,12 @@
         "@erpx/server-workflow",
         "@erpx/ui",
         "@erpx/workplace"
+      ],
+      "verificationInputs": [
+        "packages/server-workflow/src/adapters/flow-work.ts",
+        "packages/server-workflow/src/application/flow-work.ts",
+        "packages/server-field_service/src/adapters/native-work.ts",
+        "packages/contracts/src/field-service-reserve.generated.ts"
       ]
     },
     {
@@ -69117,7 +69138,9 @@
         "fixtures/field_service/rust-parts/conformance.v1.json",
         "fixtures/field_service/rust-parts/numeric.v1.json",
         "scripts/testing/fixtures/generate-field-service-parts-oracle.mjs",
-        "scripts/testing/fixtures/generate-field-service-parts-numeric-oracle.mjs"
+        "scripts/testing/fixtures/generate-field-service-parts-numeric-oracle.mjs",
+        "packages/server-field_service/src/domain/work.rs",
+        "packages/server-field_service/src/public/work.rs"
       ],
       "apps": [
         "service"
@@ -69788,7 +69811,9 @@
         "packages/server-quality/src/adapters/mod.rs",
         "packages/server-quality/src/public/field_service_detail.rs",
         "packages/server-quality/src/public/mod.rs",
-        "src/composition/src/field_service_detail.rs"
+        "src/composition/src/field_service_detail.rs",
+        "packages/server-field_service/src/domain/work.rs",
+        "packages/server-field_service/src/public/work.rs"
       ],
       "postgres": {
         "mode": "raw",

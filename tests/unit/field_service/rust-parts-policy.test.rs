@@ -328,3 +328,68 @@ fn boundary_preserves_original_utf16_and_ordered_semantic_event_details() {
         r#"{"reservationId":"r\u0000\ud801","quantityMilli":500,"consumptionId":"consume","costMinor":123,"journalId":"journal"}"#
     );
 }
+
+mod tests {
+    use erpx_server_field_service::public::work::*;
+    use serde_json::json;
+    #[test]
+    fn work_uses_exact_assignment_and_person_aliases_for_independence() {
+        let agreement = json!({"id":"g","status":"draft","created_by":"alias","asset_id":null,"requires_asset_capability":0,"can_review":1,"title":"Plan","customer_name":"Customer","start_date":"2026-01-01","end_date":"2026-12-31","updated_at":1});
+        let order = json!({"id":"o","status":"completed","technician_id":"alias","created_by":"other","completed_by":"other","technician_eligible":1,"can_review":1,"asset_id":null,"requires_asset_capability":0,"independent_billing":1,"scheduled_at":null,"exception_reason":null,"ticket_title":"Ticket","site":"Site","customer_name":"Customer","updated_at":2});
+        let aliases = vec!["alias".to_owned()];
+        let items = field_service_work_items(
+            &[agreement],
+            &[order],
+            "actor",
+            &aliases,
+            WorkRights {
+                can_write: true,
+                can_review: true,
+                can_parts: true,
+                settle: true,
+            },
+        )
+        .unwrap();
+        assert!(!items[0].can_act);
+        assert_eq!(items[0].relationships, ["approval"]);
+        assert!(!items[1].can_act);
+        assert_eq!(items[1].relationships, ["team"]);
+    }
+    #[test]
+    fn terminal_and_settlement_downgrades_preserve_queue_and_fields() {
+        let o = json!({"id":"o","status":"billed","technician_id":"actor","created_by":"actor","completed_by":null,"technician_eligible":1,"can_review":0,"asset_id":null,"requires_asset_capability":0,"independent_billing":1,"scheduled_at":123,"exception_reason":null,"ticket_title":"Ticket","site":"Site","customer_name":"Customer","updated_at":2});
+        let terminal = field_service_work_items(
+            &[],
+            std::slice::from_ref(&o),
+            "actor",
+            &[],
+            WorkRights {
+                can_write: true,
+                can_review: false,
+                can_parts: true,
+                settle: true,
+            },
+        )
+        .unwrap();
+        assert_eq!(terminal[0].queue, "completed");
+        assert!(!terminal[0].can_act);
+        assert_eq!(terminal[0].due_at, Some(Some(123)));
+        let mut open = o;
+        open["status"] = json!("in_visit");
+        let waiting = field_service_work_items(
+            &[],
+            &[open],
+            "actor",
+            &[],
+            WorkRights {
+                can_write: true,
+                can_review: false,
+                can_parts: true,
+                settle: false,
+            },
+        )
+        .unwrap();
+        assert_eq!(waiting[0].queue, "waiting");
+        assert!(!waiting[0].can_act);
+    }
+}

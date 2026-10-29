@@ -15,3 +15,5 @@ pub mod visit;
 pub mod workspace;
 
 pub mod detail;
+
+pub mod work;

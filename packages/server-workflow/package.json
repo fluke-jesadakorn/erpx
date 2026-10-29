@@ -210,6 +210,7 @@
     "@erpx/server-benefits": "workspace:*",
     "@erpx/server-collaboration": "workspace:*",
     "@erpx/server-commerce": "workspace:*",
+    "@erpx/server-commercial": "workspace:*",
     "@erpx/server-crm": "workspace:*",
     "@erpx/server-customer_360": "workspace:*",
     "@erpx/server-field_service": "workspace:*",

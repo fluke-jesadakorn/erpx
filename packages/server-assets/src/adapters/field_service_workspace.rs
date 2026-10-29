@@ -8,6 +8,7 @@ type Unit = (String, i32, String, String);
 pub struct ServiceAssetDisplay {
     pub id: String,
     pub code: String,
+    pub branch_id: String,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ServiceAssetReference {
@@ -117,6 +118,9 @@ async fn capture(
             display.push(ServiceAssetDisplay {
                 id: id.clone(),
                 code: code.clone(),
+                branch_id: r
+                    .try_get::<Option<String>, _>("branch_id")?
+                    .ok_or_else(limited)?,
             });
         }
         if r.try_get("picker")? {
