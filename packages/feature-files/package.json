@@ -12,6 +12,7 @@
     "./components/attachment-feature-context": "./src/components/attachment-feature-context.tsx",
     "./components/record-document-drawer": "./src/components/record-document-drawer.tsx",
     "./lib/attachment-state": "./src/lib/attachment-state.ts",
+    "./lib/native-field-withdraw": "./src/lib/native-field-withdraw.ts",
     "./lib/attachment-client": "./src/lib/attachment-client.ts",
     "./lib/document-pages": "./src/lib/document-pages.ts"
   },

@@ -22,3 +22,5 @@ pub mod local_sanitization_store;
 
 #[cfg(feature = "preview-provider")]
 pub mod attachment_scan_provider;
+
+pub(crate) mod field_visit_link;

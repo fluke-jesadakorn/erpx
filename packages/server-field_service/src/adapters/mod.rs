@@ -17,3 +17,5 @@ pub(crate) mod agreement_create;
 pub(crate) mod workspace;
 
 pub(crate) mod detail;
+
+pub(crate) mod file_source;

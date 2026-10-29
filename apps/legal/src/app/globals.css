@@ -950,6 +950,7 @@
 @source "../../../../packages/server-files/src/adapters/attachments/feature.ts";
 @source "../../../../packages/server-files/src/adapters/attachments/finance-operations-policy.ts";
 @source "../../../../packages/server-files/src/adapters/attachments/hospitality-purchases.ts";
+@source "../../../../packages/server-files/src/adapters/attachments/native-field-attachment.ts";
 @source "../../../../packages/server-files/src/adapters/attachments/policy.ts";
 @source "../../../../packages/server-files/src/adapters/attachments/portal-collaboration-policy.ts";
 @source "../../../../packages/server-files/src/adapters/attachments/preview.ts";
@@ -1030,6 +1031,7 @@
 @source "../../../../packages/server-files/src/public/attachments/feature.ts";
 @source "../../../../packages/server-files/src/public/attachments/finance-operations-policy.ts";
 @source "../../../../packages/server-files/src/public/attachments/legacy-policy.ts";
+@source "../../../../packages/server-files/src/public/attachments/native-field-attachment.ts";
 @source "../../../../packages/server-files/src/public/attachments/policy.ts";
 @source "../../../../packages/server-files/src/public/attachments/portal-collaboration-policy.ts";
 @source "../../../../packages/server-files/src/public/attachments/preview.ts";

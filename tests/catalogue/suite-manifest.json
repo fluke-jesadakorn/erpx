@@ -1688,11 +1688,27 @@
       "packages": [
         "@erpx/contracts",
         "@erpx/feature-files",
+        "@erpx/feature-people_payroll",
         "@erpx/feature-records",
+        "@erpx/feature-shared",
         "@erpx/feature-work_projection",
+        "@erpx/server-commercial",
+        "@erpx/server-identity_access",
         "@erpx/server-support",
         "@erpx/server-talent",
-        "@erpx/ui"
+        "@erpx/ui",
+        "@erpx/workplace"
+      ],
+      "verificationInputs": [
+        "packages/feature-files/src/domain/field-withdrawal.ts",
+        "packages/feature-files/src/application/field-withdrawal.ts",
+        "packages/feature-files/src/lib/native-field-withdraw.ts",
+        "packages/feature-files/src/lib/attachment-client.ts",
+        "packages/feature-files/src/components/attachment-panel.tsx",
+        "packages/contracts/src/field-attachment.generated.ts",
+        "scripts/docs/export-field-attachment-contracts.rs",
+        "scripts/docs/generate-field-attachment-contracts.ts",
+        "docs/contracts/next/field-attachment.openapi.generated.json"
       ]
     },
     {
@@ -2608,11 +2624,27 @@
       "packages": [
         "@erpx/contracts",
         "@erpx/feature-files",
+        "@erpx/feature-people_payroll",
         "@erpx/feature-records",
+        "@erpx/feature-shared",
         "@erpx/feature-work_projection",
+        "@erpx/server-commercial",
+        "@erpx/server-identity_access",
         "@erpx/server-support",
         "@erpx/server-talent",
-        "@erpx/ui"
+        "@erpx/ui",
+        "@erpx/workplace"
+      ],
+      "verificationInputs": [
+        "packages/feature-files/src/domain/field-withdrawal.ts",
+        "packages/feature-files/src/application/field-withdrawal.ts",
+        "packages/feature-files/src/lib/native-field-withdraw.ts",
+        "packages/feature-files/src/lib/attachment-client.ts",
+        "packages/feature-files/src/components/attachment-panel.tsx",
+        "packages/contracts/src/field-attachment.generated.ts",
+        "scripts/docs/export-field-attachment-contracts.rs",
+        "scripts/docs/generate-field-attachment-contracts.ts",
+        "docs/contracts/next/field-attachment.openapi.generated.json"
       ]
     },
     {
@@ -2747,6 +2779,16 @@
         "@erpx/server-work_projection",
         "@erpx/server-workflow",
         "@erpx/workplace"
+      ],
+      "verificationInputs": [
+        "packages/server-files/src/adapters/attachments/native-field-attachment.ts",
+        "packages/server-files/src/public/attachments/native-field-attachment.ts",
+        "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-links/[linkId]/withdraw/route.ts",
+        "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-links/[linkId]/status/route.ts",
+        "packages/contracts/src/field-attachment.generated.ts",
+        "scripts/docs/export-field-attachment-contracts.rs",
+        "scripts/docs/generate-field-attachment-contracts.ts",
+        "docs/contracts/next/field-attachment.openapi.generated.json"
       ]
     },
     {
@@ -67121,7 +67163,11 @@
         "packages/server-files/Cargo.toml",
         "Cargo.toml",
         "Cargo.lock",
-        "rust-toolchain.toml"
+        "rust-toolchain.toml",
+        "packages/server-files/src/domain/field_visit_link.rs",
+        "packages/server-files/src/application/field_visit_link.rs",
+        "packages/server-files/src/adapters/field_visit_link.rs",
+        "packages/server-files/src/public/field_visit_link.rs"
       ],
       "apps": [
         "apps",
@@ -69813,7 +69859,18 @@
         "packages/server-quality/src/public/mod.rs",
         "src/composition/src/field_service_detail.rs",
         "packages/server-field_service/src/domain/work.rs",
-        "packages/server-field_service/src/public/work.rs"
+        "packages/server-field_service/src/public/work.rs",
+        "packages/server-files/src/domain/field_visit_link.rs",
+        "packages/server-files/src/application/field_visit_link.rs",
+        "packages/server-files/src/adapters/field_visit_link.rs",
+        "packages/server-files/src/public/field_visit_link.rs",
+        "packages/server-field_service/src/adapters/file_source.rs",
+        "packages/server-field_service/src/public/file_source.rs",
+        "src/composition/src/field_attachment.rs",
+        "packages/contracts/src/field-attachment.generated.ts",
+        "scripts/docs/export-field-attachment-contracts.rs",
+        "scripts/docs/generate-field-attachment-contracts.ts",
+        "docs/contracts/next/field-attachment.openapi.generated.json"
       ],
       "postgres": {
         "mode": "raw",

@@ -17,3 +17,5 @@ pub mod workspace;
 pub mod detail;
 
 pub mod work;
+
+pub mod file_source;

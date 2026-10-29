@@ -93,6 +93,12 @@ struct FinanceReadDocument {
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct FieldAttachmentDocument {
+    holding_id: String,
+    mode: String,
+}
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ConfigurationDocument {
     version: u8,
     mode: String,
@@ -123,6 +129,8 @@ struct ConfigurationDocument {
     field_service_reads: Vec<FinanceReadDocument>,
     #[serde(default)]
     field_service_workspace_reads: Vec<String>,
+    #[serde(default)]
+    field_attachment_links: Vec<FieldAttachmentDocument>,
     #[serde(default)]
     field_service_work_reads: Vec<String>,
     #[serde(default)]
@@ -177,6 +185,7 @@ pub struct DevelopmentApiConfiguration {
     finance_journal_reversals: BTreeSet<HoldingId>,
     field_service_reads: BTreeMap<HoldingId, CompanyId>,
     field_service_workspace_reads: BTreeSet<HoldingId>,
+    field_attachment_links: BTreeMap<HoldingId, bool>,
     field_service_work_reads: BTreeSet<HoldingId>,
     field_service_detail_reads: BTreeSet<HoldingId>,
     field_service_reservations: BTreeSet<HoldingId>,
@@ -342,6 +351,21 @@ impl DevelopmentApiConfiguration {
                 .map_err(|_| "PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID")?;
             if !ids.contains(&read.holding_id)
                 || field_service_reads.insert(holding, company).is_some()
+            {
+                return Err("PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID");
+            }
+        }
+        let mut field_attachment_links = BTreeMap::new();
+        for target in doc.field_attachment_links {
+            let holding = HoldingId::new(target.holding_id)
+                .map_err(|_| "PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID")?;
+            let read_only = match target.mode.as_str() {
+                "enabled" => false,
+                "read-only" => true,
+                _ => return Err("PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID"),
+            };
+            if !field_service_reads.contains_key(&holding)
+                || field_attachment_links.insert(holding, read_only).is_some()
             {
                 return Err("PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID");
             }
@@ -539,6 +563,7 @@ impl DevelopmentApiConfiguration {
             finance_journal_reversals,
             field_service_reads,
             field_service_workspace_reads,
+            field_attachment_links,
             field_service_work_reads,
             field_service_detail_reads,
             field_service_reservations,
@@ -758,6 +783,7 @@ async fn assemble_checked(
     let mut finance_reversal_targets = BTreeSet::new();
     let mut service_read_targets = BTreeSet::new();
     let mut service_workspace_targets = BTreeSet::new();
+    let mut field_attachment_targets = BTreeSet::new();
     let mut service_work_targets = BTreeSet::new();
     let mut service_detail_targets = BTreeSet::new();
     let mut service_reservation_targets = BTreeSet::new();
@@ -1039,6 +1065,15 @@ async fn assemble_checked(
             } else {
                 read_configuration
             };
+            let read_configuration = if let Some(read_only) = config
+                .field_attachment_links
+                .get(&holding.registration.holding_id)
+            {
+                field_attachment_targets.insert(target.clone());
+                read_configuration.with_attachments(*read_only)
+            } else {
+                read_configuration
+            };
             let workspace_enabled = config
                 .field_service_workspace_reads
                 .contains(&holding.registration.holding_id);
@@ -1291,6 +1326,7 @@ async fn assemble_checked(
         finance_reversal_targets,
         service_read_targets,
         service_workspace_targets,
+        field_attachment_targets,
         service_work_targets,
         service_detail_targets,
         service_reservation_targets,
@@ -1324,6 +1360,7 @@ struct Boundary {
     finance_reversal_targets: BTreeSet<(String, String)>,
     service_read_targets: BTreeSet<(String, String)>,
     service_workspace_targets: BTreeSet<(String, String)>,
+    field_attachment_targets: BTreeSet<(String, String)>,
     service_work_targets: BTreeSet<(String, String)>,
     service_detail_targets: BTreeSet<(String, String)>,
     service_reservation_targets: BTreeSet<(String, String)>,
@@ -1651,6 +1688,45 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
                 .contains(&(host.to_owned(), (*slug).to_owned())),
             _ => false,
         };
+    let field_attachment = match (
+        request.method(),
+        request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice(),
+    ) {
+        (
+            &axum::http::Method::GET,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "attachment-links",
+                id,
+                "status",
+            ],
+        )
+        | (
+            &axum::http::Method::POST,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "attachment-links",
+                id,
+                "withdraw",
+            ],
+        ) if !id.is_empty() => state
+            .field_attachment_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
+        _ => false,
+    };
     let bootstrap = state.account_bootstrap
         && match (request.method(), request.uri().path()) {
             (&axum::http::Method::POST, "/api/auth/sign-in/email") => {
@@ -1674,6 +1750,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         || finance_reverse
         || service_read
         || service_reserve
+        || field_attachment
         || bootstrap)
         || !(bootstrap
             || finance_post
@@ -1681,6 +1758,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             || finance_edit
             || finance_reverse
             || service_reserve
+            || field_attachment
             || matches!(
                 *request.method(),
                 axum::http::Method::GET | axum::http::Method::HEAD

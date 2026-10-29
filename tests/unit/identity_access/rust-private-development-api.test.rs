@@ -163,6 +163,17 @@ fn finance_read_requires_distinct_registered_holdings_and_valid_companies() {
     assert!(!parses(&d));
     d["financeJournalReversals"] = serde_json::json!([]);
     d["fieldServiceReads"] = serde_json::json!([{ "holdingId": "h001", "companyId": "company" }]);
+    d["fieldAttachmentLinks"] = serde_json::json!([{ "holdingId": "h001", "mode": "enabled" }]);
+    assert!(parses(&d));
+    d["fieldAttachmentLinks"] = serde_json::json!([{ "holdingId": "h001", "mode": "read-only" }]);
+    assert!(parses(&d));
+    d["fieldAttachmentLinks"] = serde_json::json!([{ "holdingId": "h001", "mode": "invalid" }]);
+    assert!(!parses(&d));
+    d["fieldAttachmentLinks"] = serde_json::json!([{ "holdingId": "h002", "mode": "enabled" }]);
+    assert!(!parses(&d));
+    d["fieldAttachmentLinks"] = serde_json::json!([{ "holdingId": "h001", "mode": "enabled" },{ "holdingId": "h001", "mode": "enabled" }]);
+    assert!(!parses(&d));
+    d["fieldAttachmentLinks"] = serde_json::json!([]);
     d["fieldServiceWorkspaceReads"] = serde_json::json!(["h001"]);
     assert!(parses(&d));
     d["fieldServiceWorkspaceReads"] = serde_json::json!(["h002"]);

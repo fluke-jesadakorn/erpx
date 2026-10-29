@@ -151,3 +151,45 @@ fn remaining_budget_never_outlives_the_current_lease_cleanup_headroom() {
     }
     assert!(remaining_compute_millis(i64::MIN, i64::MAX).is_err());
 }
+
+#[test]
+fn field_visit_withdrawal_preserves_bound_owner_and_replay_order() {
+    use erpx_server_files::public::field_visit_link::{WithdrawalDecision, withdrawal_decision};
+    assert_eq!(
+        withdrawal_decision("bound", "creator", None, None, "other", "reason")
+            .unwrap_err()
+            .code,
+        "BOUND_ATTACHMENT_IMMUTABLE"
+    );
+    assert_eq!(
+        withdrawal_decision("draft", "creator", None, None, "other", "reason")
+            .unwrap_err()
+            .code,
+        "ATTACHMENT_WITHDRAW_FORBIDDEN"
+    );
+    assert_eq!(
+        withdrawal_decision(
+            "withdrawn",
+            "creator",
+            Some("creator"),
+            Some("reason"),
+            "creator",
+            "reason"
+        )
+        .unwrap(),
+        WithdrawalDecision::Replay
+    );
+    assert_eq!(
+        withdrawal_decision(
+            "withdrawn",
+            "creator",
+            Some("creator"),
+            Some("reason"),
+            "creator",
+            "different"
+        )
+        .unwrap_err()
+        .code,
+        "IDEMPOTENCY_CONFLICT"
+    );
+}

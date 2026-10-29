@@ -5,10 +5,11 @@ use crate::{
 };
 use axum::{
     Json, Router,
+    extract::Request,
     extract::{Path, State},
     http::{HeaderMap, HeaderValue, StatusCode, header},
     response::{IntoResponse, Response},
-    routing::get,
+    routing::{get, post},
 };
 use erpx_server_identity_access::public::{
     AccountPolicy, RequestAudience,
@@ -90,6 +91,8 @@ pub fn field_service_reservation_read_router<C: Clock + Send + Sync + 'static>(
         .route("/api/v1/holdings/{holding_slug}/field-service/{order_id}/reservations/{reservation_id}",get(read::<C>))
         .route("/api/v1/holdings/{holding_slug}/field-service/{order_id}/issues/{key}",get(read_issue::<C>))
         .route("/api/v1/holdings/{holding_slug}/field-service/visits/{key}",get(read_visit::<C>))
+        .route("/api/v1/holdings/{holding_slug}/attachment-links/{link_id}/status",get(attachment_status::<C>))
+        .route("/api/v1/holdings/{holding_slug}/attachment-links/{link_id}/withdraw",post(attachment_withdraw::<C>))
         .route("/api/v1/holdings/{holding_slug}/field-service/workspace",get(read_workspace::<C>))
         .route("/api/v1/holdings/{holding_slug}/field-service/work",get(read_work::<C>))
         .route("/api/v1/holdings/{holding_slug}/field-service/orders/{id}/detail",get(read_detail::<C>))
@@ -744,4 +747,155 @@ async fn read_created_order<C: Clock + Send + Sync + 'static>(
 
 fn missing() -> BusinessError {
     BusinessError::new(FailureKind::NotFound, "NOT_FOUND", "Not found.")
+}
+
+fn attachment_response(
+    result: Result<
+        crate::field_attachment::FieldAttachmentStatusResponse,
+        PgTransactionError<BusinessError>,
+    >,
+) -> Response {
+    let mut response=match result {Ok(value)=>Json(value).into_response(),Err(PgTransactionError::Business(e))=>{let status=match e.kind{FailureKind::InvalidInput=>StatusCode::UNPROCESSABLE_ENTITY,FailureKind::Unauthenticated=>StatusCode::UNAUTHORIZED,FailureKind::Forbidden=>StatusCode::FORBIDDEN,FailureKind::NotFound=>StatusCode::NOT_FOUND,FailureKind::Conflict=>StatusCode::CONFLICT,FailureKind::Unavailable=>StatusCode::SERVICE_UNAVAILABLE};(status,Json(serde_json::json!({"error":{"code":e.code,"message":e.message}}))).into_response()},Err(PgTransactionError::Persistence(_))=>(StatusCode::INTERNAL_SERVER_ERROR,Json(serde_json::json!({"error":{"code":"ATTACHMENT_UNAVAILABLE","message":"The file link is unavailable."}}))).into_response()};
+    for (name, value) in [
+        (header::CACHE_CONTROL, "private, no-store"),
+        (header::REFERRER_POLICY, "no-referrer"),
+        (header::X_CONTENT_TYPE_OPTIONS, "nosniff"),
+    ] {
+        response
+            .headers_mut()
+            .insert(name, HeaderValue::from_static(value));
+    }
+    response
+}
+async fn attachment_status<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path((slug, id)): Path<(String, String)>,
+    headers: HeaderMap,
+) -> Response {
+    let result = async {
+        let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
+        let target = state
+            .targets
+            .get(&(host.into(), slug))
+            .ok_or_else(missing)?;
+        let inbound = parse_inbound_account_request(&state.policy, &headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(missing().into());
+        }
+        if unique_request_header(&headers, "origin")?
+            .is_some_and(|v| v != inbound.expected_origin())
+        {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            )
+            .into());
+        }
+        let scope = state.scopes.slugs(&headers);
+        let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
+        let captured = CapturedHoldingMutation::capture(&headers, branch, department);
+        let company = target.service.company_id().clone();
+        if id.is_empty() || id.len() > 2 * 1024 * 1024 || id.contains('\0') {
+            return Err(missing().into());
+        }
+        target
+            .service
+            .attachment_status(
+                host,
+                inbound.into_proof(),
+                move || {
+                    scope?;
+                    captured.resolve_read(company)
+                },
+                id,
+            )
+            .await
+    }
+    .await;
+    attachment_response(result)
+}
+async fn attachment_withdraw<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path((slug, id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let (parts, body) = request.into_parts();
+    let headers = parts.headers;
+    let result = async {
+        let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
+        let target = state
+            .targets
+            .get(&(host.into(), slug))
+            .ok_or_else(missing)?;
+        let inbound = parse_inbound_account_request(&state.policy, &headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(missing().into());
+        }
+        if unique_request_header(&headers, "origin")?
+            .is_some_and(|v| v != inbound.expected_origin())
+        {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            )
+            .into());
+        }
+        let key = unique_request_header(&headers, "idempotency-key")?
+            .filter(|v| {
+                (8..=180).contains(&v.len())
+                    && v.bytes().all(|b| {
+                        b.is_ascii_alphanumeric() || matches!(b, b':' | b'_' | b'.' | b'-')
+                    })
+            })
+            .ok_or_else(|| {
+                BusinessError::new(
+                    FailureKind::InvalidInput,
+                    "COMMAND_KEY_REQUIRED",
+                    "A valid Idempotency-Key is required.",
+                )
+            })?
+            .to_owned();
+        let scope = state.scopes.slugs(&headers);
+        let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
+        let captured =
+            CapturedHoldingMutation::capture(&headers, branch.clone(), department.clone());
+        let captured_read = CapturedHoldingMutation::capture(&headers, branch, department);
+        let scope_read = state.scopes.slugs(&headers);
+        let company = target.service.company_id().clone();
+        let company_read = company.clone();
+        if id.is_empty() || id.len() > 2 * 1024 * 1024 || id.contains('\0') {
+            return Err(missing().into());
+        }
+        let proof = inbound.into_proof();
+        target
+            .service
+            .attachment_withdraw(
+                host,
+                proof.clone(),
+                move || {
+                    scope?;
+                    captured.resolve()
+                },
+                id.clone(),
+                key,
+                body,
+            )
+            .await?;
+        target
+            .service
+            .attachment_status(
+                host,
+                proof,
+                move || {
+                    scope_read?;
+                    captured_read.resolve_read(company_read)
+                },
+                id,
+            )
+            .await
+    }
+    .await;
+    attachment_response(result)
 }

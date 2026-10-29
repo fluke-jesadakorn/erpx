@@ -227,3 +227,8 @@ required-features = ["contracts"]
 name = "native-field-service-development"
 path = "../../scripts/seed/native-field-service-development.rs"
 required-features = ["private-development-api"]
+
+[[example]]
+name = "export-field-attachment-contracts"
+path = "../../scripts/docs/export-field-attachment-contracts.rs"
+required-features = ["contracts"]

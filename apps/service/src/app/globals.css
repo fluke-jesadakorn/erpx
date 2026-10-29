@@ -38,12 +38,15 @@
 @source "../../../../packages/feature-field_service/src/lib/parts-setup-command.ts";
 @source "../../../../packages/feature-field_service/src/lib/workspace.ts";
 @source "../../../../packages/feature-field_service/src/public/native-workspace.ts";
+@source "../../../../packages/feature-files/src/application/field-withdrawal.ts";
 @source "../../../../packages/feature-files/src/components/attachment-feature-context.tsx";
 @source "../../../../packages/feature-files/src/components/attachment-panel.tsx";
 @source "../../../../packages/feature-files/src/components/record-document-panel.tsx";
+@source "../../../../packages/feature-files/src/domain/field-withdrawal.ts";
 @source "../../../../packages/feature-files/src/lib/attachment-client.ts";
 @source "../../../../packages/feature-files/src/lib/attachment-state.ts";
 @source "../../../../packages/feature-files/src/lib/document-pages.ts";
+@source "../../../../packages/feature-files/src/lib/native-field-withdraw.ts";
 @source "../../../../packages/feature-finance/src/components/money/currency-provider.tsx";
 @source "../../../../packages/feature-finance/src/lib/company-money.ts";
 @source "../../../../packages/feature-finance/src/lib/finance-ai.ts";
@@ -896,6 +899,7 @@
 @source "../../../../packages/server-files/src/adapters/attachments/feature.ts";
 @source "../../../../packages/server-files/src/adapters/attachments/finance-operations-policy.ts";
 @source "../../../../packages/server-files/src/adapters/attachments/hospitality-purchases.ts";
+@source "../../../../packages/server-files/src/adapters/attachments/native-field-attachment.ts";
 @source "../../../../packages/server-files/src/adapters/attachments/policy.ts";
 @source "../../../../packages/server-files/src/adapters/attachments/portal-collaboration-policy.ts";
 @source "../../../../packages/server-files/src/adapters/attachments/preview.ts";
@@ -972,6 +976,7 @@
 @source "../../../../packages/server-files/src/public/attachments/feature.ts";
 @source "../../../../packages/server-files/src/public/attachments/finance-operations-policy.ts";
 @source "../../../../packages/server-files/src/public/attachments/legacy-policy.ts";
+@source "../../../../packages/server-files/src/public/attachments/native-field-attachment.ts";
 @source "../../../../packages/server-files/src/public/attachments/policy.ts";
 @source "../../../../packages/server-files/src/public/attachments/portal-collaboration-policy.ts";
 @source "../../../../packages/server-files/src/public/attachments/preview.ts";
