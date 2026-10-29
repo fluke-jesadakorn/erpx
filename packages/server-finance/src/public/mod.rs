@@ -60,3 +60,5 @@ pub mod field_service_customer;
 pub mod journal_create_wire;
 pub mod manual_draft_edit;
 pub mod manual_draft_provenance;
+
+pub mod field_service_completion;

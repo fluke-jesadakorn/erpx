@@ -16,6 +16,9 @@ pub struct OtherPostInput {
 }
 /// The caller must provide a real dispatcher; this module supplies no fallback.
 pub trait OtherPost: Send + Sync + 'static {
+    fn supports(&self, _input: &OtherPostInput) -> bool {
+        true
+    }
     fn validate(&self, input: &OtherPostInput) -> Result<(), String>;
     fn admission_error(&self, branch: OtherPostBranch, error: BusinessError) -> BusinessError;
     fn execute<'a>(

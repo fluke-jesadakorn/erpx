@@ -148,6 +148,15 @@ impl Validation {
         path: &[FieldServiceIssuePath],
         extra_safe: bool,
     ) -> Option<CommandJson> {
+        self.integer_bound(v, path, extra_safe, false)
+    }
+    fn integer_bound(
+        &mut self,
+        v: Option<CommandJson>,
+        path: &[FieldServiceIssuePath],
+        extra_safe: bool,
+        allow_zero: bool,
+    ) -> Option<CommandJson> {
         let Some(value) = v
             .as_ref()
             .and_then(|x| x.as_str().parse::<f64>().ok())
@@ -185,7 +194,7 @@ impl Validation {
                 "Too small: expected int to be >=-9007199254740991".into(),
             );
         }
-        if value <= 0.0 {
+        if value < 0.0 || (!allow_zero && value == 0.0) {
             self.issue(
                 "too_small",
                 path,
@@ -725,6 +734,9 @@ pub struct NormalizedFieldServiceVisit {
     pub technician_id: Option<String>,
     pub scheduled_at: Option<i64>,
     pub reason: String,
+    pub labor_minutes: Option<i64>,
+    pub evidence: Option<String>,
+    pub customer_confirmation: Option<String>,
     pub receipt_input: CommandJson,
 }
 pub fn normalize_field_service_visit(
@@ -743,6 +755,7 @@ pub fn normalize_field_service_visit(
         Some("schedule") => VisitAction::Schedule,
         Some("dispatch") => VisitAction::Dispatch,
         Some("start") => VisitAction::Start,
+        Some("complete") => VisitAction::Complete,
         _ => {
             return Err(FieldServiceWireFailure::validation(
                 "invalid_union",
@@ -775,6 +788,22 @@ pub fn normalize_field_service_visit(
             fields.push(("scheduledAt", v));
         }
     }
+    if action == VisitAction::Complete {
+        if let Some(v) = check.integer_bound(
+            property(&body, "laborMinutes"),
+            &field("laborMinutes"),
+            false,
+            true,
+        ) {
+            fields.push(("laborMinutes", v));
+        }
+        for name in ["evidence", "customerConfirmation"] {
+            if let Some(v) = check.string(property(&body, name), &field(name), 3, Some(4000), true)
+            {
+                fields.push((name, v));
+            }
+        }
+    }
     if let Some(v) = check.string(
         property(&body, "reason"),
         &field("reason"),
@@ -799,6 +828,21 @@ pub fn normalize_field_service_visit(
             None
         },
         reason: text(&json, "reason")?,
+        labor_minutes: if action == VisitAction::Complete {
+            Some(int(&json, "laborMinutes")?)
+        } else {
+            None
+        },
+        evidence: if action == VisitAction::Complete {
+            Some(text(&json, "evidence")?)
+        } else {
+            None
+        },
+        customer_confirmation: if action == VisitAction::Complete {
+            Some(text(&json, "customerConfirmation")?)
+        } else {
+            None
+        },
         receipt_input: json,
     })
 }

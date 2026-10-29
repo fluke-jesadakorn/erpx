@@ -1,6 +1,53 @@
 {
   "components": {
     "schemas": {
+      "FieldServiceCompletionAction": {
+        "enum": [
+          "complete"
+        ],
+        "type": "string"
+      },
+      "FieldServiceCompletionInput": {
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/FieldServiceCompletionAction"
+          },
+          "customerConfirmation": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "laborMinutes": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "action",
+          "expectedVersion",
+          "laborMinutes",
+          "evidence",
+          "customerConfirmation",
+          "reason"
+        ],
+        "type": "object"
+      },
       "FieldServiceCreatedOrderRead": {
         "properties": {
           "agreementId": {
@@ -873,6 +920,27 @@
           "actorId": {
             "type": "string"
           },
+          "customerConfirmation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "evidence": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "laborMinutes": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
           "reason": {
             "type": "string"
           },
@@ -1023,6 +1091,9 @@
                   },
                   {
                     "$ref": "#/components/schemas/FieldServiceVisitStepInput"
+                  },
+                  {
+                    "$ref": "#/components/schemas/FieldServiceCompletionInput"
                   }
                 ]
               }

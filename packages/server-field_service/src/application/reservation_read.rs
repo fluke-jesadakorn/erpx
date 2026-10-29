@@ -279,6 +279,16 @@ pub struct FieldServiceVisitEvent {
     #[cfg_attr(feature = "contracts", ts(type = "number | null"))]
     #[cfg_attr(feature = "contracts", schema(value_type = Option<i64>, minimum = 1, maximum = 9_007_199_254_740_991_i64))]
     pub scheduled_at: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "contracts", ts(optional, type = "number | null"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = Option<i64>, minimum = 0, maximum = 9_007_199_254_740_991_i64))]
+    pub labor_minutes: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "contracts", ts(optional))]
+    pub evidence: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "contracts", ts(optional))]
+    pub customer_confirmation: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -319,5 +329,28 @@ pub struct FieldServiceVisitStepInput {
     #[cfg_attr(feature = "contracts", ts(type = "number"))]
     #[cfg_attr(feature = "contracts", schema(value_type = i64, minimum = 1, maximum = 9_007_199_254_740_991_i64))]
     pub expected_version: i64,
+    pub reason: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+pub enum FieldServiceCompletionAction {
+    #[serde(rename = "complete")]
+    Complete,
+}
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct FieldServiceCompletionInput {
+    pub id: String,
+    pub action: FieldServiceCompletionAction,
+    #[cfg_attr(feature = "contracts", ts(type = "number"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = i64, minimum = 1, maximum = 9_007_199_254_740_991_i64))]
+    pub expected_version: i64,
+    #[cfg_attr(feature = "contracts", ts(type = "number"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = i64, minimum = 0, maximum = 9_007_199_254_740_991_i64))]
+    pub labor_minutes: i64,
+    pub evidence: String,
+    pub customer_confirmation: String,
     pub reason: String,
 }

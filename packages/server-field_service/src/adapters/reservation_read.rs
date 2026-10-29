@@ -421,7 +421,7 @@ async fn visit_image(
     key: &str,
 ) -> Result<VisitImage, Error> {
     let scope = current.selection().workspace();
-    let row=sqlx::query("SELECT b.bounded,coalesce(o.asset_id<>'',false) has_asset,CASE WHEN b.bounded THEN o.id END order_id,CASE WHEN b.bounded THEN o.status END order_status,o.version::bigint order_version,CASE WHEN b.bounded THEN e.action END action,CASE WHEN b.bounded THEN e.actor_id END actor_id,CASE WHEN b.bounded THEN e.reason END reason,CASE WHEN b.bounded THEN e.status END event_status,CASE WHEN b.bounded THEN e.technician_id END technician_id,e.scheduled_at::bigint scheduled_at,e.version::bigint event_version,encode(sha256(convert_to(jsonb_build_array(to_jsonb(o),to_jsonb(e))::text,'UTF8')),'hex') digest FROM field_service_orders o JOIN field_service_order_events e ON e.order_id=o.id CROSS JOIN LATERAL (SELECT octet_length(o.id)::bigint+octet_length(o.status)::bigint+octet_length(e.action)::bigint+octet_length(e.actor_id)::bigint+octet_length(e.reason)::bigint+octet_length(e.status)::bigint+octet_length(e.technician_id)::bigint<=2097152 AS bounded) b WHERE o.id=$1 AND o.company_id=$2 AND ($3::text IS NULL OR o.branch_id=$3) AND ($4::text IS NULL OR o.department_id=$4) AND e.id=$5 AND e.action IN ('schedule','dispatch','start') FOR SHARE OF o,e").bind(order).bind(scope.company_id.as_str()).bind(scope.branch_id.as_ref().map(|v|v.as_str())).bind(scope.department_id.as_ref().map(|v|v.as_str())).bind(format!("service-order-event-{key}")).fetch_optional(c).await?.ok_or_else(denied)?;
+    let row=sqlx::query("SELECT b.bounded,coalesce(o.asset_id<>'',false) has_asset,CASE WHEN b.bounded THEN o.id END order_id,CASE WHEN b.bounded THEN o.status END order_status,o.version::bigint order_version,CASE WHEN b.bounded THEN e.action END action,CASE WHEN b.bounded THEN e.actor_id END actor_id,CASE WHEN b.bounded THEN e.reason END reason,CASE WHEN b.bounded THEN e.status END event_status,CASE WHEN b.bounded THEN e.technician_id END technician_id,e.scheduled_at::bigint scheduled_at,e.version::bigint event_version,CASE WHEN b.bounded AND e.action='complete' THEN e.details_json->>'laborMinutes' END labor_minutes,CASE WHEN b.bounded AND e.action='complete' THEN e.details_json->>'evidence' END evidence,CASE WHEN b.bounded AND e.action='complete' THEN e.details_json->>'customerConfirmation' END confirmation,encode(sha256(convert_to(jsonb_build_array(to_jsonb(o),to_jsonb(e))::text,'UTF8')),'hex') digest FROM field_service_orders o JOIN field_service_order_events e ON e.order_id=o.id CROSS JOIN LATERAL (SELECT octet_length(o.id)::bigint+octet_length(o.status)::bigint+octet_length(e.action)::bigint+octet_length(e.actor_id)::bigint+octet_length(e.reason)::bigint+octet_length(e.status)::bigint+octet_length(e.technician_id)::bigint+coalesce(octet_length(e.details_json->>'laborMinutes'),0)::bigint+coalesce(octet_length(e.details_json->>'evidence'),0)::bigint+coalesce(octet_length(e.details_json->>'customerConfirmation'),0)::bigint<=2097152 AS bounded) b WHERE o.id=$1 AND o.company_id=$2 AND ($3::text IS NULL OR o.branch_id=$3) AND ($4::text IS NULL OR o.department_id=$4) AND e.id=$5 AND e.action IN ('schedule','dispatch','start','complete') AND (e.action<>'complete' OR (jsonb_typeof(e.details_json->'laborMinutes')='number' AND jsonb_typeof(e.details_json->'evidence')='string' AND jsonb_typeof(e.details_json->'customerConfirmation')='string')) FOR SHARE OF o,e").bind(order).bind(scope.company_id.as_str()).bind(scope.branch_id.as_ref().map(|v|v.as_str())).bind(scope.department_id.as_ref().map(|v|v.as_str())).bind(format!("service-order-event-{key}")).fetch_optional(c).await?.ok_or_else(denied)?;
     if !row.try_get::<bool, _>("bounded")? {
         return Err(invalid());
     }
@@ -440,17 +440,36 @@ async fn visit_image(
         status: text("event_status")?,
         technician_id: text("technician_id")?,
         scheduled_at: row.try_get("scheduled_at")?,
+        labor_minutes: if text("action")? == "complete" {
+            Some(text("labor_minutes")?.parse().map_err(|_| invalid())?)
+        } else {
+            None
+        },
+        evidence: if text("action")? == "complete" {
+            Some(text("evidence")?)
+        } else {
+            None
+        },
+        customer_confirmation: if text("action")? == "complete" {
+            Some(text("confirmation")?)
+        } else {
+            None
+        },
     };
     if !(1..=9_007_199_254_740_991).contains(&order.version)
         || !(1..=order.version).contains(&event.version)
         || event
             .scheduled_at
             .is_some_and(|n| !(1..=9_007_199_254_740_991).contains(&n))
+        || event
+            .labor_minutes
+            .is_some_and(|n| !(0..=9_007_199_254_740_991).contains(&n))
         || event.status
             != match event.action.as_str() {
                 "schedule" => "scheduled",
                 "dispatch" => "dispatched",
                 "start" => "in_visit",
+                "complete" => "completed",
                 _ => return Err(invalid()),
             }
     {
@@ -563,7 +582,7 @@ pub async fn read_field_service_visit_by_key(
     current.require_permission("records.read")?;
     erpx_server_shared::public::CommandKey::new(key.to_owned())?;
     let scope = current.selection().workspace();
-    let row:Option<Option<String>>=sqlx::query_scalar("SELECT CASE WHEN octet_length(o.id)<=2097152 THEN o.id END FROM field_service_orders o JOIN field_service_order_events e ON e.order_id=o.id WHERE e.id=$1 AND e.action IN ('schedule','dispatch','start') AND o.company_id=$2 AND ($3::text IS NULL OR o.branch_id=$3) AND ($4::text IS NULL OR o.department_id=$4) FOR SHARE OF o,e").bind(format!("service-order-event-{key}")).bind(scope.company_id.as_str()).bind(scope.branch_id.as_ref().map(|v|v.as_str())).bind(scope.department_id.as_ref().map(|v|v.as_str())).fetch_optional(&mut *c).await?;
+    let row:Option<Option<String>>=sqlx::query_scalar("SELECT CASE WHEN octet_length(o.id)<=2097152 THEN o.id END FROM field_service_orders o JOIN field_service_order_events e ON e.order_id=o.id WHERE e.id=$1 AND e.action IN ('schedule','dispatch','start','complete') AND o.company_id=$2 AND ($3::text IS NULL OR o.branch_id=$3) AND ($4::text IS NULL OR o.department_id=$4) FOR SHARE OF o,e").bind(format!("service-order-event-{key}")).bind(scope.company_id.as_str()).bind(scope.branch_id.as_ref().map(|v|v.as_str())).bind(scope.department_id.as_ref().map(|v|v.as_str())).fetch_optional(&mut *c).await?;
     let order = row.ok_or_else(denied)?.ok_or_else(invalid)?;
     read_field_service_visit(c, current, &order, key).await
 }

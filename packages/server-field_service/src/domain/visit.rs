@@ -6,6 +6,7 @@ pub enum VisitAction {
     Schedule,
     Dispatch,
     Start,
+    Complete,
 }
 impl VisitAction {
     pub fn operation(self) -> &'static str {
@@ -13,6 +14,7 @@ impl VisitAction {
             Self::Schedule => "field.order.schedule",
             Self::Dispatch => "field.order.dispatch",
             Self::Start => "field.order.start",
+            Self::Complete => "field.order.complete",
         }
     }
     pub fn status(self) -> &'static str {
@@ -20,6 +22,7 @@ impl VisitAction {
             Self::Schedule => "scheduled",
             Self::Dispatch => "dispatched",
             Self::Start => "in_visit",
+            Self::Complete => "completed",
         }
     }
     pub fn allows_state(self, state: &str) -> bool {
@@ -27,6 +30,7 @@ impl VisitAction {
             Self::Schedule => matches!(state, "open" | "scheduled"),
             Self::Dispatch => state == "scheduled",
             Self::Start => state == "dispatched",
+            Self::Complete => state == "in_visit",
         }
     }
 }

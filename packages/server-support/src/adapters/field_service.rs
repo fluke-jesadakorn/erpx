@@ -88,6 +88,7 @@ pub enum SupportServicePartsAction {
     Schedule,
     Dispatch,
     Start,
+    Complete,
 }
 impl SupportServicePartsAction {
     fn as_str(self) -> &'static str {
@@ -97,6 +98,7 @@ impl SupportServicePartsAction {
             Self::Schedule => "schedule",
             Self::Dispatch => "dispatch",
             Self::Start => "start",
+            Self::Complete => "complete",
         }
     }
 }

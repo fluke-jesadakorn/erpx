@@ -63905,7 +63905,13 @@
         "packages/server-field_service/src/adapters/parts/visit.rs",
         "packages/server-field_service/src/domain/visit.rs",
         "packages/server-field_service/src/public/visit.rs",
-        "src/composition/src/field_service_parts/visit.rs"
+        "src/composition/src/field_service_parts/visit.rs",
+        "packages/server-commerce/src/adapters/field_service_completion.rs",
+        "packages/server-commerce/src/public/field_service_completion.rs",
+        "packages/server-finance/src/adapters/field_service_completion.rs",
+        "packages/server-finance/src/public/field_service_completion.rs",
+        "packages/server-inventory/src/adapters/field_service_completion.rs",
+        "packages/server-inventory/src/public/field_service_completion.rs"
       ],
       "apps": [
         "account",
@@ -69644,7 +69650,13 @@
         "packages/server-field_service/src/adapters/parts/visit.rs",
         "packages/server-field_service/src/domain/visit.rs",
         "packages/server-field_service/src/public/visit.rs",
-        "src/composition/src/field_service_parts/visit.rs"
+        "src/composition/src/field_service_parts/visit.rs",
+        "packages/server-commerce/src/adapters/field_service_completion.rs",
+        "packages/server-commerce/src/public/field_service_completion.rs",
+        "packages/server-finance/src/adapters/field_service_completion.rs",
+        "packages/server-finance/src/public/field_service_completion.rs",
+        "packages/server-inventory/src/adapters/field_service_completion.rs",
+        "packages/server-inventory/src/public/field_service_completion.rs"
       ],
       "postgres": {
         "mode": "raw",

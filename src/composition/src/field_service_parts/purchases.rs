@@ -23,6 +23,7 @@ impl FieldServicePurchases {
         current: &AuthorizedWorkContext,
         asset: bool,
         disposition: CommandDisposition,
+        action: erpx_server_field_service::public::visit::VisitAction,
         now: TimestampMillis,
     ) -> Result<Self, Error> {
         let holding = current.holding_id().clone();
@@ -30,7 +31,20 @@ impl FieldServicePurchases {
         let catalogue = current_package_catalogue()?;
         let mut reader =
             PgCompanyPurchaseReader::new(holding.clone(), company.clone(), c, &catalogue);
-        let mut capabilities = vec!["service.orders".into()];
+        let mut capabilities = vec![
+            "service.orders".into(),
+            match action {
+                erpx_server_field_service::public::visit::VisitAction::Schedule
+                | erpx_server_field_service::public::visit::VisitAction::Dispatch => {
+                    "service.dispatch"
+                }
+                erpx_server_field_service::public::visit::VisitAction::Start
+                | erpx_server_field_service::public::visit::VisitAction::Complete => {
+                    "service.visits"
+                }
+            }
+            .into(),
+        ];
         if asset {
             capabilities.push("service.parts-assets".into());
         }

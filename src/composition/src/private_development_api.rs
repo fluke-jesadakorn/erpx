@@ -130,6 +130,8 @@ struct ConfigurationDocument {
     #[serde(default)]
     field_service_visits: Vec<String>,
     #[serde(default)]
+    field_service_visit_completions: Vec<String>,
+    #[serde(default)]
     account_bootstrap: bool,
 }
 struct HoldingConfiguration {
@@ -160,6 +162,7 @@ pub struct DevelopmentApiConfiguration {
     field_service_requests: BTreeSet<HoldingId>,
     field_service_order_creates: BTreeSet<HoldingId>,
     field_service_visits: BTreeSet<HoldingId>,
+    field_service_visit_completions: BTreeSet<HoldingId>,
     account_bootstrap: bool,
 }
 impl fmt::Debug for DevelopmentApiConfiguration {
@@ -357,6 +360,16 @@ impl DevelopmentApiConfiguration {
                 return Err("PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID");
             }
         }
+        let mut field_service_visit_completions = BTreeSet::new();
+        for id in doc.field_service_visit_completions {
+            let holding = HoldingId::new(id)
+                .map_err(|_| "PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID")?;
+            if !field_service_reads.contains_key(&holding)
+                || !field_service_visit_completions.insert(holding)
+            {
+                return Err("PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID");
+            }
+        }
         let mut finance_field_service_journal_posts = BTreeSet::new();
         for id in doc.finance_field_service_journal_posts {
             let holding =
@@ -412,6 +425,7 @@ impl DevelopmentApiConfiguration {
             field_service_requests,
             field_service_order_creates,
             field_service_visits,
+            field_service_visit_completions,
             account_bootstrap: doc.account_bootstrap,
         })
     }
@@ -885,11 +899,19 @@ async fn assemble_checked(
             let visit_enabled = config
                 .field_service_visits
                 .contains(&holding.registration.holding_id);
-            if visit_enabled {
+            let completion_enabled = config
+                .field_service_visit_completions
+                .contains(&holding.registration.holding_id);
+            if visit_enabled || completion_enabled {
                 service_visit_targets.insert(target.clone());
             }
             let read_configuration = if visit_enabled {
                 read_configuration.with_visits()
+            } else {
+                read_configuration
+            };
+            let read_configuration = if completion_enabled {
+                read_configuration.with_completions()
             } else {
                 read_configuration
             };
@@ -911,7 +933,12 @@ async fn assemble_checked(
             let order_create_enabled = config
                 .field_service_order_creates
                 .contains(&holding.registration.holding_id);
-            if reserve_enabled || request_enabled || order_create_enabled || visit_enabled {
+            if reserve_enabled
+                || request_enabled
+                || order_create_enabled
+                || visit_enabled
+                || completion_enabled
+            {
                 service_reservation_targets.insert(target.clone());
                 let action = FieldServicePartsConfiguration::new(
                     FieldServicePartsEnvironment::Development,
@@ -930,7 +957,11 @@ async fn assemble_checked(
                     .field_service_issues
                     .contains(&holding.registration.holding_id);
                 reserves.push(
-                    if request_enabled || order_create_enabled || visit_enabled {
+                    if request_enabled
+                        || order_create_enabled
+                        || visit_enabled
+                        || completion_enabled
+                    {
                         FieldServiceHttpTarget::new_private_creates(
                             target.0,
                             target.1,
@@ -947,8 +978,10 @@ async fn assemble_checked(
                                 })
                                     as Arc<dyn crate::field_service_parts::OtherPost>
                             }),
-                            visit_enabled.then(|| {
+                            (visit_enabled || completion_enabled).then(|| {
                                 Arc::new(crate::field_service_parts::VisitDispatcher {
+                                    allow_visits: visit_enabled,
+                                    allow_completion: completion_enabled,
                                     clock: Arc::new(SharedClock(clock.clone())),
                                 })
                                     as Arc<dyn crate::field_service_parts::OtherPost>

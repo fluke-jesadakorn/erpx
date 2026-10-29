@@ -1,10 +1,12 @@
 // Generated from the Rust Field Service reservation contracts. Do not edit by hand.
 // Regenerate: bun scripts/docs/generate-field-service-reserve-contracts.ts
+export type FieldServiceCompletionAction = "complete";
+export type FieldServiceCompletionInput = { id: string, action: FieldServiceCompletionAction, expectedVersion: number, laborMinutes: number, evidence: string, customerConfirmation: string, reason: string, };
 export type FieldServiceScheduleAction = "schedule";
 export type FieldServiceVisitStepAction = "dispatch" | "start";
 export type FieldServiceScheduleInput = { id: string, action: FieldServiceScheduleAction, expectedVersion: number, technicianId: string, scheduledAt: number, reason: string, };
 export type FieldServiceVisitStepInput = { id: string, action: FieldServiceVisitStepAction, expectedVersion: number, reason: string, };
-export type FieldServiceVisitEvent = { version: number, action: string, actorId: string, reason: string, status: string, technicianId: string, scheduledAt: number | null, };
+export type FieldServiceVisitEvent = { version: number, action: string, actorId: string, reason: string, status: string, technicianId: string, scheduledAt: number | null, laborMinutes?: number | null, evidence?: string, customerConfirmation?: string, };
 export type FieldServiceVisitReadResponse = { context: FieldServiceRenderedContext, order: FieldServiceReserveResult, receipt: FieldServiceReserveResult, event: FieldServiceVisitEvent, };
 export type FieldServiceOrderCreateInput = { ticketId: string, ticketVersion: number, agreementId: string, agreementVersion: number, assetId?: string | null, issue: string, site: string, technicianId: string, scheduledAt?: number | null, };
 export type FieldServiceCreatedOrderRead = { id: string, ticketId: string, ticketVersion: number, agreementId: string, agreementVersion: number, customerId: string, assetId: string | null, status: string, version: number, };

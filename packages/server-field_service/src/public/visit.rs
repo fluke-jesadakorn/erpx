@@ -2,3 +2,5 @@ pub use crate::adapters::parts_wire::{NormalizedFieldServiceVisit, normalize_fie
 pub use crate::domain::visit::{VisitAction, VisitAuthorityFacts, require_visit_authority};
 
 pub use crate::adapters::parts::visit::{PgVisitTechnician, PreparedFieldServiceVisit};
+
+pub use crate::adapters::parts::visit::{CompletionStockGroup, PreparedCompletionReservations};

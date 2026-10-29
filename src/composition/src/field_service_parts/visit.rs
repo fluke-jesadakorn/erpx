@@ -123,6 +123,7 @@ struct Authority<'a, C> {
     expected: &'a WorkflowRequest,
     clock: &'a C,
     purchase: Option<FieldServicePurchases>,
+    action: VisitAction,
 }
 impl<C: Clock + Sync> PgCommandAuthority for Authority<'_, C> {
     async fn lock_sources(
@@ -176,12 +177,45 @@ impl<C: Clock + Sync> PgCommandAuthority for Authority<'_, C> {
                         .as_ref()
                         .is_some_and(|s| !s.is_empty()),
                     d,
+                    self.action,
                     self.clock.now(),
                 )
                 .await?,
             );
         }
         Ok(())
+    }
+}
+struct Completion {
+    consumptions: erpx_server_inventory::public::field_service_completion::CurrentServiceCompletionConsumptions,
+    journals: erpx_server_finance::public::field_service_completion::CurrentServiceCompletionJournals,
+    reservations: PreparedCompletionReservations,
+    stock: erpx_server_commerce::public::field_service_completion::PreparedCompletionStock,
+}
+struct StockSource<'a>(&'a PreparedCompletionReservations);
+impl erpx_server_commerce::public::field_service_completion::PgCompletionStockSource
+    for StockSource<'_>
+{
+    fn groups(
+        &self,
+    ) -> Vec<erpx_server_commerce::public::field_service_completion::CompletionStockGroup> {
+        self.0
+            .groups()
+            .iter()
+            .map(
+                |g| erpx_server_commerce::public::field_service_completion::CompletionStockGroup {
+                    warehouse_id: g.warehouse_id.clone(),
+                    product_id: g.product_id.clone(),
+                    count: g.count,
+                },
+            )
+            .collect()
+    }
+    async fn require_before(&self, c: &mut PgConnection) -> Result<(), Error> {
+        self.0.require_before(c).await
+    }
+    async fn require_after(&self, c: &mut PgConnection) -> Result<(), Error> {
+        self.0.require_after(c).await
     }
 }
 struct Prepared<'a> {
@@ -191,6 +225,7 @@ struct Prepared<'a> {
     support: PreparedSupportServicePartsProjection,
     notice: OwnedPreparedFieldServiceNotification,
     purchase: FieldServicePurchases,
+    completion: Option<Completion>,
 }
 struct Written<'a> {
     source: CurrentFieldServiceOrder<'a, FieldServiceReferences>,
@@ -199,6 +234,7 @@ struct Written<'a> {
     support: PreparedSupportServicePartsProjection,
     purchase: FieldServicePurchases,
     notice: RetainedFieldServiceNotification,
+    completion: Option<Completion>,
 }
 struct Effects<'a, C> {
     current: &'a AuthorizedWorkContext,
@@ -265,9 +301,26 @@ impl<'a, C: Clock + Sync> PgOwnerCommandEffects for Effects<'a, C> {
                 .as_ref()
                 .is_some_and(|s| !s.is_empty()),
             CommandDisposition::Execute,
+            self.input.action,
             self.clock.now(),
         )
         .await?;
+        let completion = if self.input.action == VisitAction::Complete {
+            let consumptions=erpx_server_inventory::public::field_service_completion::read_service_completion_consumptions(c,source.facts().id.as_str()).await?;
+            let journals=erpx_server_finance::public::field_service_completion::inspect_service_completion_journals(c,consumptions.journal_ids()).await?;
+            let reservations =
+                PreparedCompletionReservations::prepare(c, &source, &plan, &tech, self.clock.now())
+                    .await?;
+            let stock=erpx_server_commerce::public::field_service_completion::PreparedCompletionStock::prepare(c,&StockSource(&reservations)).await?;
+            Some(Completion {
+                consumptions,
+                journals,
+                reservations,
+                stock,
+            })
+        } else {
+            None
+        };
         let support = source
             .references()
             .support
@@ -281,6 +334,7 @@ impl<'a, C: Clock + Sync> PgOwnerCommandEffects for Effects<'a, C> {
                         VisitAction::Schedule => SupportServicePartsAction::Schedule,
                         VisitAction::Dispatch => SupportServicePartsAction::Dispatch,
                         VisitAction::Start => SupportServicePartsAction::Start,
+                        VisitAction::Complete => SupportServicePartsAction::Complete,
                     },
                     actor_id: source.actor_user_id().clone(),
                     technician_id: plan.technician().into(),
@@ -319,6 +373,9 @@ impl<'a, C: Clock + Sync> PgOwnerCommandEffects for Effects<'a, C> {
                 status: plan.status().into(),
                 technician_id: plan.technician().into(),
                 scheduled_at: plan.scheduled_at(),
+                labor_minutes: self.input.labor_minutes,
+                evidence: self.input.evidence.clone(),
+                customer_confirmation: self.input.customer_confirmation.clone(),
             },
         };
         let mut budget = crate::field_service_reservation_read::ReplyBudget(0);
@@ -351,6 +408,7 @@ impl<'a, C: Clock + Sync> PgOwnerCommandEffects for Effects<'a, C> {
             support,
             notice,
             purchase,
+            completion,
         });
         Ok(WorkflowOutput {
             version,
@@ -365,6 +423,22 @@ impl<'a, C: Clock + Sync> PgOwnerCommandEffects for Effects<'a, C> {
         _: &WorkflowRequest,
     ) -> Result<(), Error> {
         let p = self.prepared.take().ok_or_else(changed)?;
+        p.plan
+            .require_version(c, &p.source, &p.tech, self.clock.now())
+            .await?;
+        if let Some(v) = &p.completion {
+            v.consumptions.require_current(c).await?;
+            v.journals.require_posted(c).await?;
+            v.stock
+                .require_before(c, &StockSource(&v.reservations))
+                .await?;
+            v.reservations
+                .apply(c, &p.source, &p.plan, &p.tech, self.clock.now())
+                .await?;
+            v.stock
+                .require_after(c, &StockSource(&v.reservations))
+                .await?;
+        }
         p.support.require_before(c).await?;
         p.plan
             .apply(c, &p.source, &p.tech, self.clock.now())
@@ -381,6 +455,7 @@ impl<'a, C: Clock + Sync> PgOwnerCommandEffects for Effects<'a, C> {
             support: p.support,
             purchase: p.purchase,
             notice,
+            completion: p.completion,
         });
         Ok(())
     }
@@ -397,6 +472,14 @@ impl<'a, C: Clock + Sync> PgOwnerCommandEffects for Effects<'a, C> {
         w.plan
             .require_after(c, &w.source, &w.tech, self.clock.now())
             .await?;
+        if let Some(v) = &w.completion {
+            v.consumptions.require_current(c).await?;
+            v.journals.require_posted(c).await?;
+            v.reservations.require_after(c).await?;
+            v.stock
+                .require_after(c, &StockSource(&v.reservations))
+                .await?;
+        }
         w.support.require_after(c).await?;
         w.notice.require_current(c).await?;
         w.purchase
@@ -446,8 +529,24 @@ impl PgOwnerCommandEffects for Replay {
 }
 pub(crate) struct VisitDispatcher<C> {
     pub clock: Arc<C>,
+    pub allow_visits: bool,
+    pub allow_completion: bool,
 }
 impl<C: Clock + Send + Sync + 'static> super::OtherPost for VisitDispatcher<C> {
+    fn supports(&self, input: &super::OtherPostInput) -> bool {
+        let text = String::from_utf8_lossy(&input.body);
+        let parsed = CommandJson::parse(text.strip_prefix('\u{feff}').unwrap_or(&text));
+        match parsed
+            .ok()
+            .and_then(|v| v.property("action").ok().flatten())
+            .and_then(|v| v.string_utf8_storage().ok().flatten())
+            .as_deref()
+        {
+            Some("complete") => self.allow_completion,
+            Some("schedule" | "dispatch" | "start") => self.allow_visits,
+            _ => self.allow_visits || self.allow_completion,
+        }
+    }
     fn validate(&self, input: &super::OtherPostInput) -> Result<(), String> {
         if input.branch != crate::field_service_http_wire::OtherPostBranch::OrderChange {
             return Err("This action is not available.".into());
@@ -473,6 +572,9 @@ impl<C: Clock + Send + Sync + 'static> super::OtherPost for VisitDispatcher<C> {
         input: super::OtherPostInput,
     ) -> PgWorkFuture<'a, CommandJson, BusinessError> {
         Box::pin(async move {
+            if !self.supports(&input) {
+                return Err(changed().into());
+            }
             let normalized = normalize_field_service_visit(&input.body).map_err(|_| {
                 BusinessError::invalid("FIELD_SERVICE_VISIT_INVALID", "Invalid visit action.")
             })?;
@@ -496,6 +598,7 @@ impl<C: Clock + Send + Sync + 'static> super::OtherPost for VisitDispatcher<C> {
                 expected: &request,
                 clock: self.clock.as_ref(),
                 purchase: None,
+                action: normalized.action,
             };
             let actor = actor(current, self.clock.now())?;
             let candidate:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM command_receipts WHERE command_id=$1 AND operation=$2 AND record_id=$3 AND actor_id=$4 AND authority_json::jsonb->>'companyId'=$5)").bind(&request.key).bind(&request.operation).bind(&request.record_id).bind(current.user_id().as_str()).bind(current.selection().workspace().company_id.as_str()).fetch_one(&mut *c).await?;

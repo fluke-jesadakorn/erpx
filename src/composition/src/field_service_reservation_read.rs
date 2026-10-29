@@ -200,6 +200,7 @@ pub struct FieldServiceReservationReadConfiguration {
     requests: bool,
     order_creates: bool,
     visits: bool,
+    completions: bool,
 }
 impl FieldServiceReservationReadConfiguration {
     pub fn new(
@@ -223,7 +224,12 @@ impl FieldServiceReservationReadConfiguration {
             requests: false,
             order_creates: false,
             visits: false,
+            completions: false,
         })
+    }
+    pub fn with_completions(mut self) -> Self {
+        self.completions = true;
+        self
     }
     pub fn with_visits(mut self) -> Self {
         self.visits = true;
@@ -412,7 +418,7 @@ impl<C: Clock + Send + Sync + 'static> FieldServiceReservationReadService<C> {
     where
         Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
     {
-        if !self.config.visits {
+        if !self.config.visits && !self.config.completions {
             return Err(
                 BusinessError::new(FailureKind::NotFound, "NOT_FOUND", "Not found.").into(),
             );
@@ -451,7 +457,27 @@ impl<C: Clock + Send + Sync + 'static> FieldServiceReservationReadService<C> {
                             return Err(denied().into());
                         }
                         let source = read_field_service_visit_by_key(c, current, &key).await?;
-                        let mut caps = vec!["service.orders".into()];
+                        if (source.event().action == "complete" && !config.completions)
+                            || (source.event().action != "complete" && !config.visits)
+                        {
+                            return Err(BusinessError::new(
+                                FailureKind::NotFound,
+                                "NOT_FOUND",
+                                "Not found.",
+                            )
+                            .into());
+                        }
+                        let mut caps = vec![
+                            "service.orders".into(),
+                            if source.event().action == "schedule"
+                                || source.event().action == "dispatch"
+                            {
+                                "service.dispatch"
+                            } else {
+                                "service.visits"
+                            }
+                            .into(),
+                        ];
                         if source.has_asset() {
                             caps.push("service.parts-assets".into());
                         }

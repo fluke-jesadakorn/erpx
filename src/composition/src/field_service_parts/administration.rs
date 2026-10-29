@@ -351,6 +351,7 @@ impl<W: Clock + Send + Sync + 'static, G: Clock + Send + Sync + 'static>
                                     body: bytes,
                                     key,
                                 };
+                                if !other.supports(&input) { return Err(HttpIngressError::UnavailableBranch); }
                                 other
                                     .validate(&input)
                                     .map_err(HttpIngressError::Validation)?;

@@ -1,4 +1,4 @@
-import type {FieldServiceReserveInput,FieldServiceIssueInput,FieldServiceRequestInput,FieldServiceOrderCreateInput,FieldServiceOrderCreateReadResponse,FieldServiceVisitReadResponse,FieldServiceScheduleInput,FieldServiceVisitStepInput,FieldServiceReservationReadResponse,FieldServiceIssueReadResponse,FieldServiceRequestReadResponse,FieldServiceRenderedContext} from '@erpx/contracts/field-service-reserve';
+import type {FieldServiceReserveInput,FieldServiceIssueInput,FieldServiceRequestInput,FieldServiceOrderCreateInput,FieldServiceOrderCreateReadResponse,FieldServiceVisitReadResponse,FieldServiceScheduleInput,FieldServiceVisitStepInput,FieldServiceCompletionInput,FieldServiceReservationReadResponse,FieldServiceIssueReadResponse,FieldServiceRequestReadResponse,FieldServiceRenderedContext} from '@erpx/contracts/field-service-reserve';
 import {holdingFetch} from '@erpx/contracts/holding-fetch';
 import {contextGeneration,contextIsSwitching} from '@erpx/feature-work_projection/lib/context-switch';
 import {announceWorkChange} from '@erpx/feature-work_projection/lib/work-refresh';
@@ -9,7 +9,7 @@ export type ReserveContext=Omit<FieldServiceRenderedContext,'expiresAt'>;
 type IssueInput=Omit<FieldServiceIssueInput,'entryDate'|'allocations'> & {entryDate?:string|null;allocations?:FieldServiceIssueInput['allocations'];warehouseId:string;productId:string};
 type RequestInput=FieldServiceRequestInput & {scheduledAt:number|null};
 type CreateInput=FieldServiceOrderCreateInput & {assetId:string|null;scheduledAt:number|null};
-type VisitInput=FieldServiceScheduleInput | FieldServiceVisitStepInput;
+type VisitInput=FieldServiceScheduleInput | FieldServiceVisitStepInput | FieldServiceCompletionInput;
 type PartsInput=(FieldServiceReserveInput & {action:'reserve-part'}) | IssueInput;
 type Input=PartsInput | RequestInput | CreateInput | VisitInput;
 type Outcome={receipt:FieldServiceReceipt;agreement:false;completion:ReturnType<typeof retainWorkCommandCompletion>;unchanged:()=>boolean;acknowledge:()=>boolean};
@@ -28,6 +28,7 @@ function isInput(v:unknown):v is Input {
  if(typeof v.id!=='string'||typeof v.reason!=='string'||typeof v.expectedVersion!=='number'||!Number.isSafeInteger(v.expectedVersion)||v.expectedVersion<1||v.expectedVersion>=Number.MAX_SAFE_INTEGER)return false;
  if(v.action==='schedule')return typeof v.technicianId==='string'&&typeof v.scheduledAt==='number'&&Number.isSafeInteger(v.scheduledAt);
  if(v.action==='dispatch'||v.action==='start')return true;
+ if(v.action==='complete')return typeof v.laborMinutes==='number'&&Number.isSafeInteger(v.laborMinutes)&&v.laborMinutes>=0&&typeof v.evidence==='string'&&typeof v.customerConfirmation==='string';
  if(typeof v.quantityMilli!=='number'||!Number.isSafeInteger(v.quantityMilli))return false;
  if(v.action==='reserve-part')return typeof v.warehouseId==='string'&&typeof v.productId==='string'&&typeof v.expiresAt==='number'&&Number.isSafeInteger(v.expiresAt);
  return v.action==='issue-part'&&typeof v.reservationId==='string'&&typeof v.warehouseId==='string'&&typeof v.productId==='string'&&(v.entryDate===undefined||v.entryDate===null||typeof v.entryDate==='string')&&(v.allocations===undefined||Array.isArray(v.allocations)&&v.allocations.every(x=>record(x)&&typeof x.lotId==='string'&&typeof x.quantityMilli==='number'&&Number.isSafeInteger(x.quantityMilli)&&typeof x.balanceVersion==='number'&&Number.isSafeInteger(x.balanceVersion)));
@@ -44,10 +45,11 @@ function confirmed(value:unknown,attempt:Attempt): value is FieldServiceReservat
    &&t.id===ticketId&&typeof t.status==='string'&&typeof t.version==='number'&&Number.isSafeInteger(t.version)&&t.version>=('entity' in input?1:input.ticketVersion)
    &&e.actorId===attempt.context.userId&&e.status===receipt.status&&e.version===1&&e.issue===input.issue.trim().toWellFormed()&&e.site===input.site.trim().toWellFormed()&&e.technicianId===input.technicianId&&e.scheduledAt===input.scheduledAt;
  }
- if(['schedule','dispatch','start'].includes(attempt.input.action)){
+ if(['schedule','dispatch','start','complete'].includes(attempt.input.action)){
   const input=attempt.input as VisitInput,receipt=attempt.receipt,original=attempt.source.targets[`order:${input.id}`],technician=input.action==='schedule'?input.technicianId:original?.technicianId,scheduled=input.action==='schedule'?input.scheduledAt:original?.scheduledAt;
   return r.id===receipt.id&&r.status===receipt.status&&r.version===receipt.version&&o.id===receipt.id&&typeof o.status==='string'&&typeof o.version==='number'&&Number.isSafeInteger(o.version)&&o.version>=receipt.version
-   &&e.version===receipt.version&&e.status===receipt.status&&e.action===input.action&&e.actorId===attempt.context.userId&&e.reason===input.reason.trim().toWellFormed()&&typeof technician==='string'&&e.technicianId===technician&&scheduled!==undefined&&e.scheduledAt===scheduled;
+   &&e.version===receipt.version&&e.status===receipt.status&&e.action===input.action&&e.actorId===attempt.context.userId&&e.reason===input.reason.trim().toWellFormed()&&typeof technician==='string'&&e.technicianId===technician&&scheduled!==undefined&&e.scheduledAt===scheduled
+   &&(input.action!=='complete'||e.laborMinutes===input.laborMinutes&&e.evidence===input.evidence.trim().toWellFormed()&&e.customerConfirmation===input.customerConfirmation.trim().toWellFormed());
  }
  if(!record(value.reservation)||!record(value.stock))return false;
  const p=value.reservation,s=value.stock;
@@ -76,10 +78,10 @@ export function createNativeReserveCommands(current:()=>FieldServiceSource|null,
     if(response.status!==200){const error=record(result)&&record(result.error)?result.error:undefined;if(!attempt.uncertain&&typeof error?.message==='string'&&((response.status===422&&error.code==='VALIDATION_FAILED')||(response.status===409&&error.code==='CONFLICT'&&error.message==='The record changed, a reference is unavailable, or this value already exists. Refresh and review again.'))&&stillCurrent()){retained.delete(ownerKey);publish(ownerKey);throw Error(error.message);}throw Error(typeof error?.message==='string'?error.message:'Unable to confirm the original parts request. Retry the original request.');}
     if('entity' in attempt.input){const expectedStatus=attempt.input.scheduledAt?'scheduled':'open';if(!record(data)||Object.keys(data).sort().join(',')!=='id,status,ticketId,version'||data.id!==`service-order-${attempt.key}`||data.ticketId!==`ticket-${attempt.key}`||data.version!==1||data.status!==expectedStatus)throw Error('Unable to confirm the original Service request. Retry the original request.');attempt.receipt={id:data.id as string,status:expectedStatus,version:1,ticketId:data.ticketId as string};}
     else if(!('id' in attempt.input)){const expectedStatus=attempt.input.scheduledAt?'scheduled':'open';if(!record(data)||Object.keys(data).sort().join(',')!=='id,status,version'||data.id!==`service-order-${attempt.key}`||data.version!==1||data.status!==expectedStatus)throw Error('Unable to confirm the original Service order. Retry the original request.');attempt.receipt={id:data.id as string,status:expectedStatus,version:1};}
-    else {const status=attempt.input.action==='schedule'?'scheduled':attempt.input.action==='dispatch'?'dispatched':attempt.input.action==='start'?'in_visit':original?.status;if(!record(data)||Object.keys(data).sort().join(',')!=='id,status,version'||data.id!==attempt.input.id||data.version!==attempt.input.expectedVersion+1||data.status!==status)throw Error('Unable to confirm the original parts request. Retry the original request.');attempt.receipt={id:data.id as string,status:data.status as string,version:data.version as number};}publish(ownerKey);
+    else {const status=attempt.input.action==='schedule'?'scheduled':attempt.input.action==='dispatch'?'dispatched':attempt.input.action==='start'?'in_visit':attempt.input.action==='complete'?'completed':original?.status;if(!record(data)||Object.keys(data).sort().join(',')!=='id,status,version'||data.id!==attempt.input.id||data.version!==attempt.input.expectedVersion+1||data.status!==status)throw Error('Unable to confirm the original parts request. Retry the original request.');attempt.receipt={id:data.id as string,status:data.status as string,version:data.version as number};}publish(ownerKey);
    }
    if(!stillCurrent())throw Error('Service request saved; readback is pending.');
-   const query=new URLSearchParams('entity' in attempt.input?{nativeRequestKey:attempt.key}:!('id' in attempt.input)?{nativeOrderCreateKey:attempt.key}:['schedule','dispatch','start'].includes(attempt.input.action)?{nativeVisitKey:attempt.key}:attempt.input.action==='reserve-part'?{nativeReserveOrder:attempt.input.id,nativeReserveId:`field-part-${attempt.key}`}:{nativeIssueOrder:attempt.input.id,nativeIssueKey:attempt.key});
+   const query=new URLSearchParams('entity' in attempt.input?{nativeRequestKey:attempt.key}:!('id' in attempt.input)?{nativeOrderCreateKey:attempt.key}:attempt.input.action==='complete'?{nativeVisitCompletionKey:attempt.key}:['schedule','dispatch','start'].includes(attempt.input.action)?{nativeVisitKey:attempt.key}:attempt.input.action==='reserve-part'?{nativeReserveOrder:attempt.input.id,nativeReserveId:`field-part-${attempt.key}`}:{nativeIssueOrder:attempt.input.id,nativeIssueKey:attempt.key});
    const response=await holdingFetch(`/api/v1${attempt.source.base}/field-service?${query}`,{headers,cache:'no-store'});const value:unknown=await response.json();
    if(!response.ok||!confirmed(value,attempt)||!stillCurrent())throw Error('Service request saved; readback is pending. Retry confirmation.');
    const receipt=attempt.receipt!;
