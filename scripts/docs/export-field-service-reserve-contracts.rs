@@ -33,6 +33,10 @@ use erpx_service::field_service_workspace::{
     FieldServiceWorkResponse, FieldServiceWorkspace, FieldServiceWorkspaceResponse,
     FieldServiceWorkspaceScope,
 };
+use erpx_service::service_parts_posting_setup::{
+    ServicePostingCommandResponse, ServicePostingReadResponse, ServicePostingResult,
+    ServicePostingView,
+};
 use ts_rs::{Config, TS};
 #[derive(utoipa::ToSchema)]
 struct ReserveResponse {
@@ -78,9 +82,21 @@ const _: fn() = detail_read;
 #[utoipa::path(get,path="/api/v1/holdings/{holding_slug}/field-service/orders/{id}/source-record",params(("holding_slug"=String,Path),("id"=String,Path),("version"=Option<i64>,Query)),responses((status=200,body=FieldServiceSourceRecordResponse,description="Current scoped Field source record")))]
 fn source_record_read() {}
 const _: fn() = source_record_read;
+#[utoipa::path(get,path="/api/v1/holdings/{holding_slug}/field-service/parts-setup",params(("holding_slug"=String,Path)),responses((status=200,body=ServicePostingReadResponse,description="Current Service parts posting setup")))]
+fn parts_posting_read() {}
+#[utoipa::path(post,path="/api/v1/holdings/{holding_slug}/field-service/parts-setup",params(("holding_slug"=String,Path)),responses((status=200,body=ServicePostingCommandResponse,description="Service parts posting initialization receipt")))]
+fn parts_posting_initialize() {}
+#[utoipa::path(post,path="/api/v1/holdings/{holding_slug}/field-service/parts-setup/existing",params(("holding_slug"=String,Path)),responses((status=200,body=ServicePostingCommandResponse,description="Service parts posting confirmation receipt")))]
+fn parts_posting_confirm() {}
+const _: fn() = parts_posting_read;
+const _: fn() = parts_posting_initialize;
+const _: fn() = parts_posting_confirm;
 #[derive(utoipa::OpenApi)]
 #[openapi(
     paths(
+        parts_posting_read,
+        parts_posting_initialize,
+        parts_posting_confirm,
         source_record_read,
         detail_read,
         workspace_read,
@@ -96,6 +112,10 @@ const _: fn() = source_record_read;
         agreement_create_read
     ),
     components(schemas(
+        ServicePostingView,
+        ServicePostingResult,
+        ServicePostingReadResponse,
+        ServicePostingCommandResponse,
         FieldServiceSourceRecord,
         FieldServiceSourceRecordResponse,
         FieldServiceDetailSpares,
@@ -181,6 +201,10 @@ fn main() {
         "// Generated from the Rust Field Service reservation contracts. Do not edit by hand.\n// Regenerate: bun scripts/docs/generate-field-service-reserve-contracts.ts"
     );
     for declaration in [
+        ServicePostingView::decl(&config),
+        ServicePostingResult::decl(&config),
+        ServicePostingReadResponse::decl(&config),
+        ServicePostingCommandResponse::decl(&config),
         FieldServiceSourceRecord::decl(&config),
         FieldServiceSourceRecordResponse::decl(&config),
         FieldServiceDetailSpares::decl(&config),

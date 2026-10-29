@@ -22,3 +22,11 @@ serde_json.workspace=true
 [[test]]
 name="parts_policy"
 path="../../tests/unit/field_service/rust-parts-policy.test.rs"
+
+[dev-dependencies]
+tokio.workspace=true
+uuid.workspace=true
+
+[[test]]
+name="service_parts_history_postgres"
+path="../../tests/integration/field_service/rust-service-parts-history-postgres.test.rs"

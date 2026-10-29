@@ -21,3 +21,5 @@ pub mod work;
 pub mod file_source;
 
 pub mod source_record;
+
+pub mod service_parts_posting;

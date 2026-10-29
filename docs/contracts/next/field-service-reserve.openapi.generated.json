@@ -1811,6 +1811,146 @@
           "data"
         ],
         "type": "object"
+      },
+      "ServicePostingCommandResponse": {
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/FieldServiceRenderedContext"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ServicePostingResult"
+          }
+        },
+        "required": [
+          "data",
+          "context"
+        ],
+        "type": "object"
+      },
+      "ServicePostingReadResponse": {
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/FieldServiceRenderedContext"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ServicePostingView"
+          }
+        },
+        "required": [
+          "data",
+          "context"
+        ],
+        "type": "object"
+      },
+      "ServicePostingResult": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "version"
+        ],
+        "type": "object"
+      },
+      "ServicePostingView": {
+        "properties": {
+          "accounts": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "approvedSalesDefaults": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "canConfigure": {
+            "type": "boolean"
+          },
+          "canConfirmExisting": {
+            "type": "boolean"
+          },
+          "charts": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "companyId": {
+            "type": "string"
+          },
+          "configuration": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "configured": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "contextKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expectedSalesDefaults": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "schemaAvailable": {
+            "type": "boolean"
+          },
+          "sourceReady": {
+            "type": "boolean"
+          },
+          "unavailableReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "version": {
+            "format": "int32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "companyId",
+          "available",
+          "schemaAvailable",
+          "sourceReady",
+          "canConfigure",
+          "canConfirmExisting",
+          "charts",
+          "accounts"
+        ],
+        "type": "object"
       }
     }
   },
@@ -2120,6 +2260,88 @@
               }
             },
             "description": "Current scoped created order evidence"
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/v1/holdings/{holding_slug}/field-service/parts-setup": {
+      "get": {
+        "operationId": "parts_posting_read",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "holding_slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServicePostingReadResponse"
+                }
+              }
+            },
+            "description": "Current Service parts posting setup"
+          }
+        },
+        "tags": []
+      },
+      "post": {
+        "operationId": "parts_posting_initialize",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "holding_slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServicePostingCommandResponse"
+                }
+              }
+            },
+            "description": "Service parts posting initialization receipt"
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/v1/holdings/{holding_slug}/field-service/parts-setup/existing": {
+      "post": {
+        "operationId": "parts_posting_confirm",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "holding_slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServicePostingCommandResponse"
+                }
+              }
+            },
+            "description": "Service parts posting confirmation receipt"
           }
         },
         "tags": []

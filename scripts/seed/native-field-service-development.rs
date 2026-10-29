@@ -50,7 +50,7 @@ async fn main() {
     let args: Vec<_> = std::env::args().collect();
     assert!(
         (3..=4).contains(&args.len()),
-        "usage: native-field-service-development ABSOLUTE_PRIVATE_CASE_DIR LOOPBACK_LISTEN [post|request|order-create|visit|complete|recovery|cancel|agreement-review|agreement-create|billing-release|finance-invoice-read|workspace|detail|work|file-withdraw|file-bind|source-record]"
+        "usage: native-field-service-development ABSOLUTE_PRIVATE_CASE_DIR LOOPBACK_LISTEN [post|request|order-create|visit|complete|recovery|cancel|agreement-review|agreement-create|billing-release|finance-invoice-read|workspace|detail|work|file-withdraw|file-bind|source-record|parts-setup]"
     );
     let dir = PathBuf::from(&args[1]);
     assert!(
@@ -84,11 +84,16 @@ async fn main() {
             "work",
             "file-withdraw",
             "file-bind",
-            "source-record"
+            "source-record",
+            "parts-setup"
         ]
         .contains(&scenario),
         "invalid private fixture scenario"
     );
+    if scenario == "parts-setup" {
+        setup_parts_case(dir, listen).await;
+        return;
+    }
     let agreement_review_scenario = scenario == "agreement-review";
     let agreement_create_scenario = scenario == "agreement-create";
     let workspace_scenario = scenario == "workspace";
@@ -272,5 +277,38 @@ async fn main() {
         runtime.close().await;
         drop(files);
         result.expect("private case listener failed");
+    }).await;
+}
+
+/// Fresh setup case: actual selected Finance actor and references, with no
+/// Commerce mapping or operational history. Only the browser creates a source.
+async fn setup_parts_case(dir: PathBuf, listen: String) {
+    field_service::account::with_system(move |system| async move {
+        let now = i64::try_from(SystemTime::now().duration_since(UNIX_EPOCH).expect("wall clock unavailable").as_millis()).expect("wall clock invalid");
+        system.scenario.clock.0.store(now, Ordering::SeqCst);
+        let prepared = field_service::review::setup(system).await;
+        let system = &prepared.system;
+        let db = system.holdings[0].raw();
+        let mut tx = db.begin().await.expect("synthetic setup transaction unavailable");
+        sqlx::raw_sql("INSERT INTO iam_roles(company_id,id,name,built_in,published_revision,status) VALUES('*','synthetic_parts_finance','Synthetic Service parts Finance operator',false,1,'active'); INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) VALUES('*','synthetic_parts_finance',1,'[\"finance.read\",\"finance.write\",\"finance.approve\",\"module.finance.read\",\"module.field_service.read\",\"records.read\"]','[]','[\"holding\"]','synthetic',0); UPDATE assignments SET role='synthetic_parts_finance',modules_json='[\"finance\",\"field_service\"]' WHERE id='finance-fixture-b'; INSERT INTO finance_accounts(id,company_id,chart_id,code,name,category,currency,control_kind,created_at,updated_at) VALUES ('part-ar','company','chart','111','Synthetic receivable','asset','THB','receivable',0,0),('part-ap','company','chart','211','Synthetic payable','liability','THB','payable',0,0),('part-revenue','company','chart','411','Synthetic revenue','revenue','THB','none',0,0),('part-inventory','company','chart','121','Synthetic inventory','asset','THB','none',0,0),('part-clearing','company','chart','221','Synthetic clearing','liability','THB','none',0,0),('part-cogs','company','chart','511','Synthetic cost','expense','THB','none',0,0),('part-input','company','chart','131','Synthetic input tax','asset','THB','none',0,0),('part-output','company','chart','231','Synthetic output tax','liability','THB','none',0,0),('part-cash','company','chart','141','Synthetic cash','asset','THB','bank',0,0)").execute(&mut *tx).await.expect("synthetic Finance references unavailable");
+        sqlx::query("INSERT INTO company_package_grants(company_id,package_id,package_version,state,starts_at,version,reason,evidence,updated_at) VALUES('company','service',1,'active',0,1,'Synthetic Service purchase','public synthetic evidence',$1),('company','service-parts-assets',1,'active',0,1,'Synthetic parts purchase','public synthetic evidence',$1)").bind(now).execute(&mut *tx).await.expect("synthetic Service purchases unavailable");
+        sqlx::query("INSERT INTO company_package_grant_events(id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at) SELECT 'setup-origin-'||package_id,company_id,package_id,'fixture-a','synthetic-setup-grant',NULL,jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence),$1 FROM company_package_grants WHERE company_id='company' AND package_id IN('service','service-parts-assets')").bind(now).execute(&mut *tx).await.expect("synthetic Service purchase events unavailable");
+        tx.commit().await.expect("synthetic setup transaction failed");
+        let control=private_fixture::database(&system.control).await;
+        let h001=private_fixture::database(&system.holdings[0]).await;
+        let h002=private_fixture::database(&system.holdings[1]).await;
+        let doc=serde_json::json!({"version":1,"mode":"development","transport":"direct-loopback","listen":listen,"accountHost":"account-dev-erpx.jesadakorn.com","requireEmailVerification":true,"passwordWorkers":2,"maximumRequests":16,"requestTimeoutMs":5000,"control":control,"holdings":[{"holdingId":"h001","slug":"acme","host":"acme.jesadakorn.com","writeBinding":"HOLDING_H001_DB","readBinding":"HOLDING_H001_READ_DB","filesBinding":"HOLDING_H001_FILES","database":h001},{"holdingId":"h002","slug":"northstar","host":"northstar.jesadakorn.com","writeBinding":"HOLDING_H002_DB","readBinding":"HOLDING_H002_READ_DB","filesBinding":"HOLDING_H002_FILES","database":h002}],"fieldServiceReads":[{"holdingId":"h001","companyId":"company"}],"fieldServicePartsPostingSetups":["h001"],"accountBootstrap":true});
+        let manifest=serde_json::json!({"version":1,"databases":{"CONTROL_DB":doc["control"]["url"],"CONTROL_READ_DB":doc["control"]["url"],"HOLDING_H001_DB":doc["holdings"][0]["database"]["url"],"HOLDING_H001_READ_DB":doc["holdings"][0]["database"]["url"],"HOLDING_H002_DB":doc["holdings"][1]["database"]["url"],"HOLDING_H002_READ_DB":doc["holdings"][1]["database"]["url"]},"slots":[{"id":"h001","write":"HOLDING_H001_DB","read":"HOLDING_H001_READ_DB","files":"HOLDING_H001_FILES"},{"id":"h002","write":"HOLDING_H002_DB","read":"HOLDING_H002_READ_DB","files":"HOLDING_H002_FILES"}]});
+        let credentials=serde_json::json!({"email":"b@example.test","password":field_service::account::fixture::PASSWORD,"assignmentId":"finance-fixture-b","assignmentVersion":3,"actorId":"fixture-b","companyId":"company","partsSetup":{"chartId":"chart","chartName":"Primary","currency":"THB","receivableAccountId":"part-ar","payableAccountId":"part-ap","revenueAccountId":"part-revenue","inventoryAccountId":"part-inventory","clearingAccountId":"part-clearing","cogsAccountId":"part-cogs","inputTaxAccountId":"part-input","outputTaxAccountId":"part-output","cashAccountId":"part-cash","expectedSalesDefaults":null}});
+        let configuration=DevelopmentApiConfiguration::parse(&doc.to_string()).expect("invalid explicit native case configuration");
+        let mut files=CaseFiles(Vec::new());
+        files.0.push(write_private(&dir,"native-api.json",&doc));files.0.push(write_private(&dir,"databases.json",&manifest));files.0.push(write_private(&dir,"credentials.json",&credentials));
+        let runtime=assemble_development_api(configuration,Arc::new(SystemAccountClock),Arc::new(SystemAuthenticationSecrets)).await.expect("native case assembly failed");
+        let listener=tokio::net::TcpListener::bind(runtime.listen_address()).await.expect("private case listener unavailable");
+        println!("{}",dir.join("databases.json").display());println!("READY");
+        let (stop,stopped)=tokio::sync::oneshot::channel();
+        std::thread::spawn(move||{let _=std::io::stdin().read(&mut [0u8;1]);let _=stop.send(());});
+        let result=axum::serve(listener,runtime.router()).with_graceful_shutdown(async move{tokio::select!{_=stopped=>(),_=tokio::signal::ctrl_c()=>()}}).await;
+        runtime.close().await;drop(files);result.expect("private case listener failed");
     }).await;
 }

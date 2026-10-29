@@ -397,3 +397,48 @@ async fn depletion_retains_other_warehouse_balances_and_keeps_the_shared_lot_act
         let untouched:(i64,i64,i64)=sqlx::query_as("SELECT quantity_milli,value_minor,version FROM inventory_lot_balances WHERE lot_id='lot-1'AND warehouse_id='other-warehouse'").fetch_one(pool.raw()).await.unwrap();assert_eq!(untouched,(1000,200,1));
     }).await;
 }
+
+#[tokio::test]
+async fn service_posting_inventory_history_uses_verified_warehouse_scope_and_detects_drift() {
+    use erpx_server_inventory::public::service_parts_posting::*;
+    fixture::with_database(2, |pool| async move {
+        setup(&pool, "none").await;
+        let outcome = PgUnitOfWork::new(pool.clone()).run::<_, BusinessError, _>(TransactionOptions::default(), |c| Box::pin(async move {
+            lock_service_parts_inventory_history(c).await?;
+            let current = read_service_parts_inventory_history(c, &company(), &["warehouse".into()]).await?;
+            assert!(current.data().has_history);
+            assert!(current.data().stock_json.contains("warehouse"));
+            assert_eq!(current.data().ledger_json, "null");
+            let foreign = read_service_parts_inventory_history(c, &company(), &[]).await?;
+            assert!(!foreign.data().has_history);
+            assert_eq!(foreign.data().stock_json, "null");
+            sqlx::query("UPDATE commerce_stock SET quantity_milli=quantity_milli+1 WHERE warehouse_id='warehouse' AND product_id='product'").execute(&mut *c).await?;
+            current.require_current(c).await
+        })).await;
+        denied(outcome, "SERVICE_PARTS_POSTING_SOURCE_CHANGED");
+        let quantity: i64 = sqlx::query_scalar("SELECT quantity_milli FROM commerce_stock WHERE warehouse_id='warehouse' AND product_id='product'").fetch_one(pool.raw()).await.unwrap();
+        assert_eq!(quantity, 5000);
+    }).await;
+}
+
+#[tokio::test]
+async fn service_posting_inventory_locks_before_first_serializable_snapshot() {
+    use erpx_server_inventory::public::service_parts_posting::*;
+    fixture::with_database(3, |pool| async move {
+        setup(&pool, "none").await;
+        let mut writer=pool.raw().begin().await.unwrap();
+        sqlx::query("UPDATE commerce_stock SET quantity_milli=5001 WHERE warehouse_id='warehouse' AND product_id='product'").execute(&mut *writer).await.unwrap();
+        let read_pool=pool.clone();
+        let task=tokio::spawn(async move { PgUnitOfWork::new(read_pool).run::<_,BusinessError,_>(TransactionOptions::default(),|c|Box::pin(async move {
+            lock_service_parts_inventory_history(c).await?;
+            let source=read_service_parts_inventory_history(c,&company(), &["warehouse".into()]).await?;
+            source.require_current(c).await?;Ok(source.data().stock_json.clone())
+        })).await });
+        tokio::time::timeout(std::time::Duration::from_secs(10),async { loop {
+            let waiting:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_locks WHERE NOT granted AND mode='ShareLock' AND relation='commerce_stock'::regclass AND database=(SELECT oid FROM pg_database WHERE datname=current_database()))").fetch_one(pool.raw()).await.unwrap();
+            if waiting {break} tokio::task::yield_now().await;
+        }}).await.unwrap();
+        writer.commit().await.unwrap();
+        let image=task.await.unwrap().unwrap();assert!(image.contains("\"quantity_milli\": 5001"));
+    }).await;
+}

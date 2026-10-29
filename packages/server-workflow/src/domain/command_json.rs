@@ -374,6 +374,18 @@ impl CommandJson {
     pub fn as_str(&self) -> &str {
         &self.0
     }
+    /// Keys of an object in retained ECMAScript order. Non-Unicode keys are
+    /// rejected by strict-schema consumers, rather than silently replaced.
+    pub fn object_keys(&self) -> Result<Option<Vec<String>>, BusinessError> {
+        match self.value()? {
+            OrderedJson::Object(values) => values
+                .into_iter()
+                .map(|(key, _)| key.as_str().map(str::to_owned).ok_or_else(invalid))
+                .collect::<Result<Vec<_>, _>>()
+                .map(Some),
+            _ => Ok(None),
+        }
+    }
     /// Preserve a property's ordered JSON without an unordered-map conversion.
     pub fn property(&self, name: &str) -> Result<Option<Self>, BusinessError> {
         self.value()?

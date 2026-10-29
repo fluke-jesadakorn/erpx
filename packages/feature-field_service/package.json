@@ -16,6 +16,7 @@
     "./components/parts-entry-link": "./src/components/parts-entry-link.tsx",
     "./lib/customer-preparation-command": "./src/lib/customer-preparation-command.ts",
     "./lib/initial-physical-stock-count-command": "./src/lib/initial-physical-stock-count-command.ts",
+    "./public/native-parts-setup": "./src/public/native-parts-setup.ts",
     "./public/native-workspace": "./src/public/native-workspace.ts",
     "./lib/workspace": "./src/lib/workspace.ts",
     "./lib/command": "./src/lib/command.ts",
@@ -28,6 +29,7 @@
   },
   "dependencies": {
     "@erpx/contracts": "workspace:*",
+    "@erpx/native-sdk": "workspace:*",
     "@erpx/feature-commerce": "workspace:*",
     "@erpx/feature-files": "workspace:*",
     "@erpx/feature-finance": "workspace:*",

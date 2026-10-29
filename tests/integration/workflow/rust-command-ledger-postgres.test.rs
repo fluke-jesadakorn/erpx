@@ -781,3 +781,99 @@ async fn raw_factual_origin_preserves_exact_historical_identity_and_detects_full
         }
     }).await;
 }
+
+/// Workflow-only uncommitted receipt fixture: no Commerce source is fabricated
+/// or committed, and this test grants no business authorization.
+struct SetupMarkerEffects;
+impl PgOwnerCommandEffects for SetupMarkerEffects {
+    async fn lock_sources(
+        &mut self,
+        _: &mut PgConnection,
+        _: &WorkflowRequest,
+    ) -> Result<(), Error> {
+        Ok(())
+    }
+    async fn prepare(
+        &mut self,
+        _: &mut PgConnection,
+        _: &CommandActor,
+        command: &WorkflowRequest,
+    ) -> Result<WorkflowOutput, Error> {
+        let result = format!(
+            r#"{{"id":"company","status":"configured","version":1,"_servicePartsPostingSetup":{{"kind":"service-parts-posting-setup","companyId":"company","commandId":"{}","mode":"initialize","mapping":{{"company_id":"company"}}}}}}"#,
+            command.key
+        );
+        Ok(WorkflowOutput {
+            version: 1,
+            result: CommandJson::parse(&result)?,
+            event_scope: None,
+        })
+    }
+    async fn apply(
+        &mut self,
+        _: &mut PgConnection,
+        _: &CommandActor,
+        _: &WorkflowRequest,
+    ) -> Result<(), Error> {
+        Ok(())
+    }
+    async fn retain(
+        &mut self,
+        _: &mut PgConnection,
+        _: &CommandActor,
+        _: &WorkflowRequest,
+    ) -> Result<(), Error> {
+        Ok(())
+    }
+}
+#[tokio::test]
+async fn service_posting_receipt_discovery_preserves_first_marker_and_absence() {
+    use erpx_server_workflow::public::service_parts_posting::*;
+    fixture::with_database(2,|pool|async move{
+        setup(&pool).await;
+        let mut tx=pool.raw().begin().await.unwrap();
+        sqlx::raw_sql("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        lock_service_posting_receipts(&mut tx).await.unwrap();
+        let company=CompanyId::new("company").unwrap();
+        let missing=read_service_posting_receipt(&mut tx,&company).await.unwrap();
+        assert!(missing.facts().is_none());
+        let make=|key:&str|WorkflowRequest {key:key.into(),operation:"commerce.service-parts-posting-setup.initialize".into(),record_id:"company".into(),input:CommandJson::parse("{}").unwrap()};
+        for key in ["z-service-test","a-service-test"] {
+            PgCommandLedger::new(company.clone(),&mut tx,&mut Authority{deny:false},&Time,&mut Ids).execute(&make(key),&mut SetupMarkerEffects).await.unwrap();
+        }
+        assert!(matches!(missing.require_current(&mut tx).await,Err(Error::Business(e)) if e.code=="SERVICE_PARTS_POSTING_SOURCE_CHANGED"));
+        let selected=read_service_posting_receipt(&mut tx,&company).await.unwrap();
+        assert_eq!(selected.facts().unwrap().command_id,"a-service-test");
+        assert!(selected.facts().unwrap().proof_json.contains("a-service-test"));
+        selected.require_current(&mut tx).await.unwrap();
+        let foreign=read_service_posting_receipt(&mut tx,&CompanyId::new("foreign").unwrap()).await.unwrap();
+        assert!(foreign.facts().is_none());
+        // The intentionally incomplete owner effect is never committed.
+        tx.rollback().await.unwrap();
+        assert_eq!(counts(&pool).await,(0,0,0,0));
+    }).await;
+}
+
+#[tokio::test]
+async fn service_posting_receipt_lock_waits_before_snapshot() {
+    use erpx_server_workflow::public::service_parts_posting::*;
+    fixture::with_database(3,|pool|async move {
+        setup(&pool).await;
+        let mut writer=pool.raw().begin().await.unwrap();
+        sqlx::raw_sql("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *writer).await.unwrap();
+        PgCommandLedger::new(CompanyId::new("company").unwrap(),&mut writer,&mut Authority{deny:false},&Time,&mut Ids).execute(&command("{}"),&mut Effects{fail_retain:false}).await.unwrap();
+        let reader=pool.clone();let task=tokio::spawn(async move{
+            PgUnitOfWork::new(reader).run::<_,BusinessError,_>(TransactionOptions::default(),|c|Box::pin(async move{
+                lock_service_posting_receipts(c).await?;
+                let source=read_service_posting_receipt(c,&CompanyId::new("company").unwrap()).await?;
+                source.require_current(c).await?;
+                Ok(sqlx::query_scalar::<_,bool>("SELECT EXISTS(SELECT 1 FROM command_receipts WHERE command_id='workflow:test:command')").fetch_one(c).await?)
+            })).await
+        });
+        tokio::time::timeout(std::time::Duration::from_secs(10),async{loop{
+            let waiting:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_locks WHERE NOT granted AND mode='ShareRowExclusiveLock' AND relation='command_receipts'::regclass AND database=(SELECT oid FROM pg_database WHERE datname=current_database()))").fetch_one(pool.raw()).await.unwrap();
+            if waiting{break}tokio::task::yield_now().await;
+        }}).await.unwrap();
+        writer.commit().await.unwrap();assert!(task.await.unwrap().unwrap());
+    }).await;
+}

@@ -1,6 +1,6 @@
 # Open with ERPX_DEV_WORKSPACE_KEY set to a unique checkout/architecture key.
 # This volume is the editor workspace; it is never the operator checkout.
-name: erpx-opensource-dev-services
+name: erpx-dev-${ERPX_DEV_WORKSPACE_KEY:?Set ERPX_DEV_WORKSPACE_KEY}
 services:
   workspace:
     working_dir: /workspace/erpx

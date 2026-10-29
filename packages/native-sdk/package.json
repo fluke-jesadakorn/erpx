@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "exports": { "./session": "./src/session.ts" },
+  "exports": { "./session": "./src/session.ts", "./field-service-parts": "./src/field-service-parts.ts" },
   "dependencies": {
     "@erpx/contracts": "workspace:*",
     "server-only": "0.0.1"

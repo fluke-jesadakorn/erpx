@@ -190,3 +190,118 @@ async fn copied_audit_metadata_cannot_survive_a_changed_current_identity_as_comm
         let row=sqlx::query("SELECT version::bigint version FROM iam_members WHERE company_id='company' AND user_id='fixture-a'").fetch_one(prepared.system.holdings[0].raw()).await.unwrap();assert_eq!(row.get::<i64,_>("version"),7);
     }).await;
 }
+
+#[tokio::test]
+async fn synchronous_service_parts_uses_selected_account_and_actual_assignment_version() {
+    use erpx_server_identity_access::public::selected_command_authority::{
+        ServicePartsAuthorityPurpose, capture_service_parts_command_authority,
+    };
+    fixture::account::with_system(|system| async move {
+        let prepared=fixture::prepare(system).await;
+        let pool=prepared.system.holdings[0].clone();
+        sqlx::raw_sql("INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) VALUES('*','custom_queued_legal',2,'[\"legal.read\",\"module.legal.read\",\"finance.read\",\"finance.write\"]','[]','[\"holding\",\"branch\",\"department\"]','fixture',0); UPDATE iam_roles SET published_revision=2 WHERE id='custom_queued_legal'").execute(pool.raw()).await.unwrap();
+        let clock=prepared.system.scenario.clock.clone(); let other_pool=pool.clone();
+        prepared.authorizer.execute("acme.example.test",prepared.proof.clone(),prepared.selection.clone(),prepared.access.clone(),move |c,context|{let clock=clock.clone();let other_pool=other_pool.clone();Box::pin(async move {
+            let witness=capture_service_parts_command_authority(c,context,ServicePartsAuthorityPurpose::Write,clock.as_ref()).await?;
+            let iam=serde_json::to_string(witness.iam()).unwrap();
+            assert!(iam.ends_with(",\"queuedAssignmentVersion\":3}"));
+            witness.require_current(c,clock.as_ref()).await?;
+            let mut other=other_pool.raw().begin().await?; sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other).await?;
+            assert!(capture_service_parts_command_authority(&mut other,context,ServicePartsAuthorityPurpose::Write,clock.as_ref()).await.is_err());
+            assert!(witness.require_current(&mut other,clock.as_ref()).await.is_err()); other.rollback().await?;
+            Ok(())
+        })}).await.unwrap();
+        let clock=prepared.system.scenario.clock.clone();
+        prepared.authorizer.execute("acme.example.test",prepared.proof.clone(),prepared.selection.clone(),prepared.access.clone(),move |c,context|{let clock=clock.clone();Box::pin(async move {
+            let witness=capture_service_parts_command_authority(c,context,ServicePartsAuthorityPurpose::Write,clock.as_ref()).await?;
+            let iam=serde_json::to_string(witness.iam()).unwrap();
+            assert!(iam.ends_with(",\"queuedAssignmentVersion\":3}"));
+            witness.require_current(c,clock.as_ref()).await?;
+            sqlx::query("UPDATE active_work_contexts SET revision=revision+1 WHERE session_id=$1").bind(context.session_id().as_str()).execute(&mut *c).await?;
+            assert!(witness.require_current(c,clock.as_ref()).await.is_err());
+            Ok(())
+        })}).await.expect_err("coordinator must reject the changed selected context");
+        let mut stale=prepared.selection.clone(); stale.expected.as_mut().unwrap().assignment_version=4;
+        let clock=prepared.system.scenario.clock.clone();
+        let result=prepared.authorizer.execute("acme.example.test",prepared.proof.clone(),stale,prepared.access.clone(),move |c,context|{let clock=clock.clone();Box::pin(async move { capture_service_parts_command_authority(c,context,ServicePartsAuthorityPurpose::Write,clock.as_ref()).await?; Ok(()) })}).await;
+        assert!(result.is_err(),"stale selected assignment must not enter command");
+        sqlx::raw_sql("INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) VALUES('*','custom_queued_legal',3,'[\"legal.read\",\"module.legal.read\",\"finance.read\",\"finance.approve\"]','[]','[\"holding\",\"branch\",\"department\"]','fixture',0); UPDATE iam_roles SET published_revision=3 WHERE id='custom_queued_legal'").execute(pool.raw()).await.unwrap();
+        let clock=prepared.system.scenario.clock.clone();
+        prepared.authorizer.execute("acme.example.test",prepared.proof.clone(),prepared.selection.clone(),prepared.access.clone(),move |c,context|{let clock=clock.clone();Box::pin(async move { let witness=capture_service_parts_command_authority(c,context,ServicePartsAuthorityPurpose::Read,clock.as_ref()).await?; assert!(serde_json::to_string(witness.iam()).unwrap().ends_with(",\"queuedAssignmentVersion\":3}")); witness.require_current(c,clock.as_ref()).await?; Ok(()) })}).await.unwrap();
+        let clock=prepared.system.scenario.clock.clone();
+        let result=prepared.authorizer.execute("acme.example.test",prepared.proof.clone(),prepared.selection.clone(),prepared.access.clone(),move |c,context|{let clock=clock.clone();Box::pin(async move { capture_service_parts_command_authority(c,context,ServicePartsAuthorityPurpose::Write,clock.as_ref()).await?; Ok(()) })}).await;
+        assert!(result.is_err(),"finance approve alone cannot perform setup");
+        sqlx::raw_sql("UPDATE iam_roles SET published_revision=2 WHERE id='custom_queued_legal'; INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status) VALUES('service-branch','branch','service-branch','Service Branch','company','company','service-branch','active')").execute(pool.raw()).await.unwrap();
+        let mut branch=prepared.selection.clone(); branch.branch_slug=Some("service-branch".into());
+        let entered=std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)); let observed=entered.clone(); let clock=prepared.system.scenario.clock.clone();
+        let result=prepared.authorizer.execute("acme.example.test",prepared.proof.clone(),branch,prepared.access.clone(),move |c,context|{let clock=clock.clone();let observed=observed.clone();Box::pin(async move { observed.store(true,std::sync::atomic::Ordering::SeqCst); capture_service_parts_command_authority(c,context,ServicePartsAuthorityPurpose::Write,clock.as_ref()).await?; Ok(()) })}).await;
+        assert!(entered.load(std::sync::atomic::Ordering::SeqCst),"normal branch context must reach the purpose guard"); assert!(result.is_err(),"branch context cannot configure Company Finance");
+        prepared.sign_out().await.unwrap();
+        let clock=prepared.system.scenario.clock.clone();
+        let result=prepared.authorizer.execute("acme.example.test",prepared.proof.clone(),prepared.selection.clone(),prepared.access.clone(),move |c,context|{let clock=clock.clone();Box::pin(async move { capture_service_parts_command_authority(c,context,ServicePartsAuthorityPurpose::Write,clock.as_ref()).await?; Ok(()) })}).await;
+        assert!(result.is_err(),"revoked real Account child cannot enter command");
+    }).await;
+}
+
+#[derive(Clone)]
+struct MetadataReadSources;
+impl erpx_server_identity_access::public::effective_authority::HoldingWorkSourcePreparation
+    for MetadataReadSources
+{
+    fn prepare<'c>(
+        &'c self,
+        _: &'c mut sqlx::PgConnection,
+    ) -> erpx_server_runtime::public::postgres::PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async { Ok(()) })
+    }
+}
+#[derive(Debug)]
+enum MetadataDenial {
+    Unavailable(erpx_server_identity_access::public::effective_authority::SelectedContextRead),
+    Error(BusinessError),
+}
+fn denied_metadata(
+    value: &erpx_server_identity_access::public::effective_authority::SelectedContextRead,
+    error: BusinessError,
+) -> Result<MetadataDenial, BusinessError> {
+    if error.code != "PERMISSION_REQUIRED" {
+        return Err(error);
+    }
+    Ok(MetadataDenial::Unavailable(value.clone()))
+}
+#[tokio::test]
+async fn genuine_selected_context_denial_exposes_only_current_read_metadata() {
+    use erpx_server_identity_access::public::effective_authority::{
+        SelectedContextRead, SelectedIngressFuture, SelectedTransportCallbacks, SelectedWorkIngress,
+    };
+    fixture::account::with_system(|system| async move {
+        let prepared=fixture::prepare(system).await;
+        let pool=prepared.system.holdings[0].clone();
+        sqlx::raw_sql("INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) VALUES('*','custom_queued_legal',2,'[]','[]','[\"holding\",\"branch\",\"department\"]','fixture',0); UPDATE iam_roles SET published_revision=2 WHERE id='custom_queued_legal'; UPDATE assignments SET modules_json='[]' WHERE id='queued-account-grant'").execute(pool.raw()).await.unwrap();
+        let mut access=prepared.access.clone(); access.permission="finance.read".into();access.module=None;access.destination="service/orders".into();
+        let selected=prepared.selection.clone();
+        let result=prepared.authorizer.execute_with_selected_transport_ingress_deferred("acme.example.test",prepared.proof.clone(),move||Ok(selected),(access.clone(),MetadataReadSources),
+            SelectedTransportCallbacks::<_,SelectedContextRead,MetadataDenial,_>::new::<()>(
+                |ingress:&SelectedWorkIngress<'_>| -> SelectedIngressFuture<SelectedContextRead,MetadataDenial> { let result=ingress.read_context().map_err(MetadataDenial::Error);Box::pin(async move {result}) },
+                denied_metadata, |_,_,_|Box::pin(async { panic!("no Finance permission must not reach an authorized action") })
+            )).await.unwrap();
+        let metadata=match result { Err(MetadataDenial::Unavailable(value))=>value,Err(MetadataDenial::Error(error))=>panic!("unexpected identity error: {}",error.code),Ok(())=>panic!("unexpected authorized actor") };
+        assert_eq!(metadata.user_id().as_str(),"fixture-a");assert_eq!(metadata.holding_id().as_str(),"h001");assert_eq!(metadata.selection().workspace().company_id.as_str(),"company");assert_eq!(metadata.selection().assignment().version,3);assert_eq!(metadata.selection().revision(),7);assert!(metadata.permissions().is_empty());assert!(metadata.modules().is_empty());
+        let selected=prepared.selection.clone(); let clock=prepared.system.scenario.clock.clone();
+        let expired=prepared.authorizer.execute_with_selected_transport_ingress_deferred("acme.example.test",prepared.proof.clone(),move||Ok(selected),(access.clone(),MetadataReadSources),
+            SelectedTransportCallbacks::<_,SelectedContextRead,MetadataDenial,_>::new::<()>(
+                move |ingress:&SelectedWorkIngress<'_>| -> SelectedIngressFuture<SelectedContextRead,MetadataDenial> {let result=ingress.read_context().map_err(MetadataDenial::Error);let clock=clock.clone();Box::pin(async move {clock.advance(3_600_001);result})},
+                denied_metadata, |_,_,_|Box::pin(async {panic!("no Finance permission must not reach an authorized action")})
+            )).await;
+        assert!(matches!(expired,Err(PgTransactionError::Business(ref e)) if e.code=="WORK_AUTHORITY_EXPIRED"));
+        prepared.system.scenario.clock.advance(-3_600_001);
+        prepared.sign_out().await.unwrap();
+        let selected=prepared.selection.clone();
+        let revoked=prepared.authorizer.execute_with_selected_transport_ingress_deferred("acme.example.test",prepared.proof.clone(),move||Ok(selected),(access,MetadataReadSources),
+            SelectedTransportCallbacks::<_,SelectedContextRead,MetadataDenial,_>::new::<()>(
+                |ingress:&SelectedWorkIngress<'_>| -> SelectedIngressFuture<SelectedContextRead,MetadataDenial> {let result=ingress.read_context().map_err(MetadataDenial::Error);Box::pin(async move {result})},
+                denied_metadata, |_,_,_|Box::pin(async {panic!("revoked child cannot enter")})
+            )).await;
+        assert!(matches!(revoked,Err(PgTransactionError::Business(ref e)) if e.code=="UNAUTHENTICATED"));
+    }).await;
+}

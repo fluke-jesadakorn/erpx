@@ -1,0 +1,39 @@
+import 'server-only';
+import {nativePartsSetupRequest} from '@erpx/native-sdk/field-service-parts';
+import {validServicePartsPostingSetup,type ServicePartsPostingSetupView} from '../../lib/parts-setup-model';
+import type {ServicePostingReadResponse,ServicePostingCommandResponse} from '@erpx/contracts/field-service-reserve';
+import type {ReserveContext} from '../../lib/native-reserve-command';
+
+type Target={origin:string;holdingSlug:string;holdingId:string};
+type Settings={privateBaseUrl:string;timeoutMs:number;holdings:Target[]};
+export class NativePartsSetupError extends Error {constructor(readonly code:string,readonly status=502){super('The native Service parts setup is unavailable.');}}
+const fail=(code:string,status=502):never=>{throw new NativePartsSetupError(code,status);};
+const object=(value:unknown):value is Record<string,unknown>=>!!value&&typeof value==='object'&&!Array.isArray(value);
+const setEqual=(expected:readonly string[],actual:unknown)=>Array.isArray(actual)&&actual.every(x=>typeof x==='string')&&new Set(expected).size===new Set(actual).size&&expected.every(x=>actual.includes(x));
+function settings(raw:string):Settings{
+ let value:unknown;try{value=JSON.parse(raw);}catch{return fail('NATIVE_PARTS_SETUP_CONFIG_INVALID');}
+ if(!object(value)||typeof value.privateBaseUrl!=='string'||typeof value.timeoutMs!=='number'||!Number.isSafeInteger(value.timeoutMs)||value.timeoutMs<250||value.timeoutMs>30000||!Array.isArray(value.holdings)||!value.holdings.length||value.holdings.length>64)return fail('NATIVE_PARTS_SETUP_CONFIG_INVALID');
+ let base:URL;try{base=new URL(value.privateBaseUrl);}catch{return fail('NATIVE_PARTS_SETUP_CONFIG_INVALID');}const port=Number(base.port);
+ if(base.protocol!=='http:'||!['127.0.0.1','[::1]'].includes(base.hostname)||!base.port||[3000,3001,3100,3101,3103,5432,5433,5435,8080].includes(port)||port>=3200&&port<=3299||base.username||base.password||base.origin!==value.privateBaseUrl)return fail('NATIVE_PARTS_SETUP_CONFIG_INVALID');
+ const hosts=new Set<string>(),slugs=new Set<string>();for(const entry of value.holdings){if(!object(entry)||typeof entry.origin!=='string'||typeof entry.holdingSlug!=='string'||!/^[a-z0-9_-]{1,128}$/.test(entry.holdingSlug)||typeof entry.holdingId!=='string'||!entry.holdingId||new TextEncoder().encode(entry.holdingId).length>200)return fail('NATIVE_PARTS_SETUP_CONFIG_INVALID');let origin:URL;try{origin=new URL(entry.origin);}catch{return fail('NATIVE_PARTS_SETUP_CONFIG_INVALID');}if(origin.protocol!=='https:'||origin.origin!==entry.origin||origin.port||origin.username||origin.password||!origin.hostname.includes('.')||!origin.hostname.split('.').every(part=>/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(part))||hosts.has(origin.host)||slugs.has(entry.holdingSlug))return fail('NATIVE_PARTS_SETUP_CONFIG_INVALID');hosts.add(origin.host);slugs.add(entry.holdingSlug);}
+ return value as Settings;
+}
+function selected(raw:string|undefined,headers:Pick<Headers,'get'>,slug:string,actor:ReserveContext|undefined):{config:Settings;target:Target}|undefined{
+ if(raw===undefined)return undefined;const config=settings(raw),host=headers.get('host');const target=config.holdings.find(value=>value.holdingSlug===slug);if(!target)return undefined;if(new URL(target.origin).host!==host)return fail('NATIVE_PARTS_SETUP_HOST_INVALID',404);if(!actor||target.holdingId!==actor.holdingId)return fail('WORK_CONTEXT_CHANGED',409);return {config,target};
+}
+export function nativePartsSetupSelected(headers:Pick<Headers,'get'>,slug:string,actor:ReserveContext|undefined):boolean{return !!selected(process.env.ERPX_NATIVE_FIELD_SERVICE_PARTS_SETUP_CONFIG,headers,slug,actor);}
+function validatedContext(value:unknown,actor:ReserveContext){if(!object(value))return fail('WORK_CONTEXT_CHANGED',409);for(const [key,expected] of Object.entries(actor)){if(key==='modules'||key==='permissions')continue;if(value[key]!==expected)return fail('WORK_CONTEXT_CHANGED',409);}if(!setEqual(actor.modules,value.modules)||!setEqual(actor.permissions,value.permissions)||typeof value.expiresAt!=='number'||!Number.isSafeInteger(value.expiresAt)||value.expiresAt<=Date.now())return fail('WORK_CONTEXT_CHANGED',409);}
+export function nativePartsSetup(incoming:Pick<Headers,'get'>,slug:string,actor:ReserveContext|undefined,method:'GET'):Promise<ServicePartsPostingSetupView|undefined>;
+export function nativePartsSetup(incoming:Pick<Headers,'get'>,slug:string,actor:ReserveContext|undefined,method:'POST',body:unknown,key:string,existing?:boolean):Promise<{id:string;status:string;version:number}|undefined>;
+export async function nativePartsSetup(incoming:Pick<Headers,'get'>,slug:string,actor:ReserveContext|undefined,method:'GET'|'POST',body?:unknown,key?:string,existing=false):Promise<ServicePartsPostingSetupView|{id:string;status:string;version:number}|undefined>{
+ const choice=selected(process.env.ERPX_NATIVE_FIELD_SERVICE_PARTS_SETUP_CONFIG,incoming,slug,actor);if(!choice)return undefined;if(!actor)return fail('WORK_CONTEXT_CHANGED',409);
+ const headers=new Headers({host:new URL(choice.target.origin).host,accept:'application/json','cache-control':'no-cache'}),cookie=incoming.get('cookie');if(cookie){if(new TextEncoder().encode(cookie).length>8192)return fail('NATIVE_PARTS_SETUP_COOKIE_LIMIT');headers.set('cookie',cookie);}
+ for(const [name,value] of [['x-erpx-context-company',actor.companyId],['x-erpx-context-assignment',actor.assignmentId],['x-erpx-context-revision',String(actor.revision)],['x-erpx-context-assignment-version',String(actor.assignmentVersion)]] as const){const captured=incoming.get(name);if(method==='POST'&&captured!==value)return fail('WORK_CONTEXT_CHANGED',409);headers.set(name,method==='POST'?captured!:value);}
+ if(actor.branchSlug)headers.set('x-erpx-workspace-branch',actor.branchSlug);if(actor.departmentSlug)headers.set('x-erpx-workspace-department',actor.departmentSlug);
+ if(method==='POST'){if(!key)return fail('NATIVE_PARTS_SETUP_KEY_REQUIRED',422);const origin=incoming.get('origin');if(origin){if(origin!==choice.target.origin)return fail('ORIGIN_FORBIDDEN',403);headers.set('origin',origin);}headers.set('idempotency-key',key);headers.set('content-type','application/json');}
+ let response:Awaited<ReturnType<typeof nativePartsSetupRequest>>;try{response=await nativePartsSetupRequest({baseUrl:choice.config.privateBaseUrl,timeoutMs:choice.config.timeoutMs,slug,method,existing,headers,...(method==='POST'?{body:JSON.stringify(body)}:{})});}catch{return fail('NATIVE_PARTS_SETUP_UNAVAILABLE',503);}
+ if(response.status!==200){if(object(response.body)&&object(response.body.error)&&typeof response.body.error.code==='string'&&response.body.error.code.length<=100&&response.status>=400&&response.status<=599)return fail(response.body.error.code,response.status);return fail('NATIVE_PARTS_SETUP_UNAVAILABLE',503);}
+ if(!object(response.body))return fail('NATIVE_PARTS_SETUP_RESPONSE_INVALID');validatedContext(response.body.context,actor);const data=response.body.data;
+ if(method==='GET'){const typed=response.body as unknown as ServicePostingReadResponse;if(!validServicePartsPostingSetup(typed.data,actor.companyId)||!Object.hasOwn(typed.data,'expectedSalesDefaults')||!Object.hasOwn(typed.data,'approvedSalesDefaults'))return fail('NATIVE_PARTS_SETUP_RESPONSE_INVALID');return typed.data;}
+ if(!object(data)||Object.keys(data).sort().join(',')!=='id,status,version'||data.id!==actor.companyId||data.status!==(existing?'confirmed-existing':'configured')||data.version!==1)return fail('NATIVE_PARTS_SETUP_RESPONSE_INVALID');const typed=response.body as unknown as ServicePostingCommandResponse;return {id:typed.data.id,status:typed.data.status,version:typed.data.version};
+}

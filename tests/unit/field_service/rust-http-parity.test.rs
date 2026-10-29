@@ -646,3 +646,84 @@ async fn shared_handler_retains_source_review_numeric_and_nested_object_messages
         );
     }
 }
+
+#[test]
+fn service_posting_context_matches_retained_javascript_ordered_json() {
+    use erpx_server_workflow::public::commands::CommandJson;
+    use erpx_service::service_parts_posting_setup::retained_context_key;
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+    let identity = CommandJson::parse(r#"["company",null,null,"user","assignment","finance",{"sessionId":"session","revision":8,"assignmentVersion":3},{"personUserIds":["user"],"emergencyUntil":null,"roleRevision":1,"identityVersion":1,"permissions":["finance.read"],"grantablePermissions":[],"principalId":"local:user","personId":null,"freshUntil":null,"queuedAssignmentVersion":3}]"#).unwrap();
+    let input = format!(
+        r#"[{},{{"mapping":{{"company_id":"company","chart_id":"chart"}},"proof":null,"history":false,"image":"{{\"orders\": null}}"}},"[\"synthetic\"]"]"#,
+        identity.as_str()
+    );
+    let node = std::env::var("ERPX_NODE_BIN").unwrap_or_else(|_| "node".into());
+    let mut oracle = Command::new(node).args(["-e", "const [identity,state,refs]=JSON.parse(require('fs').readFileSync(0,'utf8')); process.stdout.write(require('crypto').createHash('sha256').update(JSON.stringify([JSON.stringify(identity),state,refs])).digest('hex'));"]).stdin(Stdio::piped()).stdout(Stdio::piped()).spawn().expect("pinned Node oracle unavailable");
+    oracle
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(input.as_bytes())
+        .unwrap();
+    let output = oracle.wait_with_output().unwrap();
+    assert!(output.status.success());
+    assert_eq!(
+        retained_context_key(
+            &identity,
+            Some(r#"{"company_id":"company","chart_id":"chart"}"#),
+            None,
+            false,
+            r#"{"orders": null}"#,
+            r#"["synthetic"]"#
+        )
+        .unwrap(),
+        String::from_utf8(output.stdout).unwrap()
+    );
+}
+
+#[test]
+fn service_posting_wire_preserves_normalization_and_optional_fingerprint() {
+    use erpx_server_commerce::public::service_parts_posting::PostingMode;
+    use erpx_server_workflow::public::commands::CommandJson;
+    use erpx_service::service_parts_posting_setup::normalize_service_posting_command;
+    let key = "a".repeat(64);
+    let body = format!(
+        r#"{{"reason":"  Test  ","contextKey":"{key}","expectedVersion":0,"chartId":" chart ","currency":"THB","receivableAccountId":"r","payableAccountId":"p","revenueAccountId":"v","inventoryAccountId":"i","clearingAccountId":"c","cogsAccountId":"g","inputTaxAccountId":"x","outputTaxAccountId":"y","cashAccountId":"s"}}"#
+    );
+    let parsed = normalize_service_posting_command(
+        &CommandJson::parse(&body).unwrap(),
+        PostingMode::Initialize,
+    )
+    .unwrap();
+    assert_eq!(parsed.mapping.unwrap().chart_id, "chart");
+    assert_eq!(
+        parsed.workflow_input.as_str(),
+        format!(
+            r#"{{"expectedVersion":0,"contextKey":"{key}","chartId":"chart","currency":"THB","reason":"Test","receivableAccountId":"r","payableAccountId":"p","revenueAccountId":"v","inventoryAccountId":"i","clearingAccountId":"c","cogsAccountId":"g","inputTaxAccountId":"x","outputTaxAccountId":"y","cashAccountId":"s"}}"#
+        )
+    );
+    let with_null = body.replacen('}', ",\"expectedSalesDefaults\":null}", 1);
+    let null = normalize_service_posting_command(
+        &CommandJson::parse(&with_null).unwrap(),
+        PostingMode::Initialize,
+    )
+    .unwrap();
+    assert_ne!(parsed.workflow_input, null.workflow_input);
+    let unknown = body.replacen('}', ",\"unexpected\":true}", 1);
+    assert!(
+        normalize_service_posting_command(
+            &CommandJson::parse(&unknown).unwrap(),
+            PostingMode::Initialize
+        )
+        .is_err()
+    );
+    let confirm = format!(r#"{{"expectedVersion":0,"contextKey":"{key}","reason":"  \ud800  "}}"#);
+    assert!(
+        normalize_service_posting_command(
+            &CommandJson::parse(&confirm).unwrap(),
+            PostingMode::ConfirmExisting
+        )
+        .is_err()
+    );
+}

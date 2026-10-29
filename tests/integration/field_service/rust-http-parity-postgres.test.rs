@@ -14,7 +14,7 @@ use erpx_server_commercial::public::purchases::PackageEnforcementMode;
 #[cfg(feature = "private-development-api")]
 use erpx_server_identity_access::public::SystemAuthenticationSecrets;
 use erpx_server_identity_access::public::effective_authority::AuthorizedWorkContext;
-use erpx_server_runtime::public::postgres::{PersistenceError, PgWorkFuture};
+use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{BusinessError, Clock, CompanyId, FailureKind, HoldingId};
 use erpx_server_workflow::public::commands::CommandJson;
 #[cfg(feature = "private-development-api")]
@@ -1437,4 +1437,311 @@ async fn private_field_source_record_requires_actual_asset_history() {
   let mut grant=db.begin().await.unwrap();sqlx::query("INSERT INTO company_package_grants(company_id,package_id,package_version,state,starts_at,version,reason,evidence,updated_at) VALUES('company','service-parts-assets',1,'active',0,1,'Synthetic asset history','public synthetic evidence',$1)").bind(now).execute(&mut *grant).await.unwrap();sqlx::query("INSERT INTO company_package_grant_events(id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at) SELECT 'source-asset-grant',company_id,package_id,'fixture-a','synthetic-source-asset',NULL,jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence),$1 FROM company_package_grants WHERE company_id='company' AND package_id='service-parts-assets'").bind(now).execute(&mut *grant).await.unwrap();grant.commit().await.unwrap();assert_eq!(enforced.router().oneshot(get()).await.unwrap().status(),StatusCode::OK);enforced.close().await;
   cfg["fieldServiceSourceRecordReads"]=serde_json::json!([{"holdingId":"h001","mode":"disabled"}]);let disabled=assemble_development_api(DevelopmentApiConfiguration::parse(&cfg.to_string()).unwrap(),system.scenario.clock.clone(),Arc::new(SystemAuthenticationSecrets)).await.unwrap();assert_eq!(disabled.router().oneshot(get()).await.unwrap().status(),StatusCode::OK);disabled.close().await;
  }).await;
+}
+
+#[tokio::test]
+async fn service_posting_history_owner_images_match_original_postgres_text() {
+    use erpx_server_commerce::public::service_parts_posting::{
+        lock_service_parts_posting_sources, read_service_parts_posting,
+    };
+    use erpx_server_field_service::public::service_parts_posting::{
+        lock_service_parts_field_history, read_service_parts_field_history,
+    };
+    use erpx_server_finance::public::service_parts_posting::{
+        lock_service_parts_posting_references, read_service_parts_posting_references,
+    };
+    use erpx_server_inventory::public::service_parts_posting::{
+        lock_service_parts_inventory_history, read_service_parts_inventory_history,
+    };
+    use erpx_server_runtime::public::postgres::{PgUnitOfWork, TransactionOptions};
+    use erpx_service::service_parts_posting_setup::{PostingHistoryImages, retained_history_image};
+    account::with_system(|system| async move {
+        let p=setup_workspace(system).await;
+        PgUnitOfWork::new(p.pool().clone()).run::<_,BusinessError,_>(TransactionOptions::default(),|c|Box::pin(async move {
+            lock_service_parts_posting_sources(c).await?;
+            lock_service_parts_inventory_history(c).await?;
+            lock_service_parts_field_history(c).await?;
+            lock_service_parts_posting_references(c).await?;
+            let company=CompanyId::new("company").unwrap();
+            let commerce=read_service_parts_posting(c,&company).await?;
+            let inventory=read_service_parts_inventory_history(c,&company,&commerce.facts().warehouse_ids).await?;
+            let field=read_service_parts_field_history(c,&company).await?;
+            let finance=read_service_parts_posting_references(c,&company,None).await?;
+            let i=inventory.data();let f=field.data();let h=&finance.data().history_image;
+            let actual=retained_history_image(c,&PostingHistoryImages {orders:&commerce.facts().commerce_orders_json,stock:&i.stock_json,ledger:&i.ledger_json,counts:&i.counts_json,consumptions:&i.consumptions_json,invoices:h.invoices.as_deref(),payments:h.payments.as_deref(),journals:h.journals.as_deref(),service:&f.service_json}).await?;
+            let expected:String=sqlx::query_scalar("SELECT jsonb_build_object('orders',(SELECT jsonb_agg(to_jsonb(source) ORDER BY source.id) FROM commerce_orders source WHERE source.company_id=$1),'stock',(SELECT jsonb_agg(to_jsonb(source) ORDER BY source.warehouse_id,source.product_id) FROM commerce_stock source JOIN commerce_warehouses warehouse ON warehouse.id=source.warehouse_id WHERE warehouse.company_id=$1),'ledger',(SELECT jsonb_agg(to_jsonb(source) ORDER BY source.id) FROM inventory_ledger source JOIN commerce_warehouses warehouse ON warehouse.id=source.warehouse_id WHERE warehouse.company_id=$1),'counts',(SELECT jsonb_agg(to_jsonb(source) ORDER BY source.id) FROM inventory_counts source WHERE source.company_id=$1),'consumptions',(SELECT jsonb_agg(to_jsonb(source) ORDER BY source.id) FROM operational_inventory_consumptions source WHERE source.company_id=$1),'invoices',(SELECT jsonb_agg(to_jsonb(source) ORDER BY source.id) FROM finance_invoices source WHERE source.company_id=$1),'payments',(SELECT jsonb_agg(to_jsonb(source) ORDER BY source.id) FROM finance_payments source WHERE source.company_id=$1),'journals',(SELECT jsonb_agg(to_jsonb(source) ORDER BY source.id) FROM finance_journals source WHERE source.company_id=$1),'service',(SELECT jsonb_agg(to_jsonb(source) ORDER BY source.id) FROM field_service_billing_releases source JOIN field_service_orders service ON service.id=source.order_id WHERE service.company_id=$1))::text").bind("company").fetch_one(&mut *c).await?;
+            assert_eq!(actual,expected);
+            commerce.require_current(c).await?;inventory.require_current(c).await?;field.require_current(c).await?;finance.require_current(c).await?;
+            Ok(())
+        })).await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn service_posting_setup_reads_actual_selected_finance_and_owner_sources() {
+    use erpx_server_identity_access::public::effective_authority::WorkAuthorizationRequest;
+    use erpx_service::service_parts_posting_setup::{
+        ServicePostingEnvironment, ServicePostingSources, read_service_posting_setup,
+    };
+    account::with_system(|system| async move {
+        let p = setup_workspace(system).await;
+        sqlx::query("UPDATE active_work_contexts SET assignment_id='finance-fixture-a',revision=7 WHERE user_id='fixture-a'")
+            .execute(p.pool().raw()).await.unwrap();
+        let clock = p.review.system.scenario.clock.clone();
+        let view = p
+            .review
+            .authorizer
+            .execute_with_sources(
+                "acme.example.test",
+                p.review.maker.clone(),
+                p.review.maker_selection.clone(),
+                WorkAuthorizationRequest {
+                    permission: "finance.read".into(),
+                    module: None,
+                    destination: "services/field-service".into(),
+                    api: true,
+                },
+                ServicePostingSources,
+                move |c, current| {
+                    let clock = clock.clone();
+                    Box::pin(async move {
+                        read_service_posting_setup(
+                            c,
+                            current,
+                            clock.as_ref(),
+                            ServicePostingEnvironment::Development,
+                        )
+                        .await
+                    })
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(view.company_id, "company");
+        assert!(view.available);
+        assert!(view.schema_available);
+        assert_eq!(view.configured, Some(true));
+        assert!(view.context_key.is_some());
+    })
+    .await;
+}
+
+async fn service_posting_finance_fixture(system: account::System) -> review::Prepared {
+    let p = review::setup(system).await;
+    let now = p.system.scenario.clock.now().get();
+    let pool = &p.system.holdings[0];
+    sqlx::raw_sql("INSERT INTO finance_accounts(id,company_id,chart_id,code,name,category,currency,control_kind,created_at,updated_at) VALUES ('part-ar','company','chart','111','AR','asset','THB','receivable',0,0),('part-ap','company','chart','211','AP','liability','THB','payable',0,0),('part-revenue','company','chart','411','Revenue','revenue','THB','none',0,0),('part-inventory','company','chart','121','Inventory','asset','THB','none',0,0),('part-clearing','company','chart','221','Clearing','liability','THB','none',0,0),('part-cogs','company','chart','511','COGS','expense','THB','none',0,0),('part-input','company','chart','131','Input','asset','THB','none',0,0),('part-output','company','chart','231','Output','liability','THB','none',0,0),('part-cash','company','chart','141','Cash','asset','THB','bank',0,0)").execute(pool.raw()).await.unwrap();
+    let mut tx = pool.raw().begin().await.unwrap();
+    sqlx::query("INSERT INTO company_package_grants(company_id,package_id,package_version,state,starts_at,version,reason,evidence,updated_at) VALUES('company','service',1,'active',0,1,'Synthetic source','synthetic',$1),('company','service-parts-assets',1,'active',0,1,'Synthetic source','synthetic',$1)").bind(now).execute(&mut *tx).await.unwrap();
+    sqlx::query("INSERT INTO company_package_grant_events(id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at) SELECT 'setup-origin-'||package_id,company_id,package_id,'fixture-a','synthetic',NULL,jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence),$1 FROM company_package_grants WHERE company_id='company' AND package_id IN('service','service-parts-assets')").bind(now).execute(&mut *tx).await.unwrap();
+    tx.commit().await.unwrap();
+    p
+}
+
+#[tokio::test]
+async fn service_posting_setup_initializes_and_replays_actual_owner_transaction() {
+    use erpx_server_commerce::public::service_parts_posting::PostingMode;
+    use erpx_server_identity_access::public::effective_authority::WorkAuthorizationRequest;
+    use erpx_server_workflow::public::commands::CommandJson;
+    use erpx_service::service_parts_posting_setup::{
+        ServicePostingEnvironment, ServicePostingSources, execute_service_posting_setup,
+        normalize_service_posting_command, read_service_posting_setup,
+    };
+    account::with_system(|system|async move{
+        let p=service_posting_finance_fixture(system).await;let pool=&p.system.holdings[0];
+        let access=||WorkAuthorizationRequest{permission:"finance.read".into(),module:None,destination:"services/field-service".into(),api:true};
+        let clock=p.system.scenario.clock.clone();let c=clock.clone();
+        let view=p.authorizer.execute_with_sources("acme.example.test",p.maker.clone(),p.maker_selection.clone(),access(),ServicePostingSources,move|db,current|{let clock=c.clone();Box::pin(async move{read_service_posting_setup(db,current,clock.as_ref(),ServicePostingEnvironment::Development).await})}).await.unwrap();
+        assert!(view.can_configure);let context=view.context_key.unwrap();
+        let input=CommandJson::parse(&format!(r#"{{"expectedVersion":0,"contextKey":"{context}","chartId":"chart","currency":"THB","reason":"Set up parts","receivableAccountId":"part-ar","payableAccountId":"part-ap","revenueAccountId":"part-revenue","inventoryAccountId":"part-inventory","clearingAccountId":"part-clearing","cogsAccountId":"part-cogs","inputTaxAccountId":"part-input","outputTaxAccountId":"part-output","cashAccountId":"part-cash"}}"#)).unwrap();
+        let input=normalize_service_posting_command(&input,PostingMode::Initialize).unwrap();
+        sqlx::raw_sql("INSERT INTO iam_roles(company_id,id,name,built_in,published_revision,status) VALUES('*','posting_readonly','Synthetic Finance reader',false,1,'active'); INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) VALUES('*','posting_readonly',1,'[\"finance.read\",\"finance.approve\",\"module.finance.read\"]','[]','[\"holding\"]','synthetic',0)").execute(pool.raw()).await.unwrap();
+        sqlx::query("INSERT INTO assignments(id,user_id,role,modules_json,company_id,valid_from,valid_until,version,scope_kind) VALUES('posting-reader-b','fixture-b','posting_readonly','[\"finance\"]','company',$1,$2,3,'holding')").bind(p.system.scenario.clock.now().get()-1000).bind(p.system.scenario.clock.now().get()+3_600_000).execute(pool.raw()).await.unwrap();
+        sqlx::query("UPDATE active_work_contexts SET assignment_id='posting-reader-b',revision=8 WHERE user_id='fixture-b'").execute(pool.raw()).await.unwrap();
+        let mut readonly_selection=p.reviewer_selection.clone();readonly_selection.expected=Some(erpx_server_identity_access::public::work_context::ExpectedWorkSelection{revision:8,assignment_id:erpx_server_shared::public::AssignmentId::new("posting-reader-b").unwrap(),assignment_version:3});
+        let denied_input=input.clone();let denied_clock=clock.clone();
+        let denied=p.authorizer.execute_with_sources("acme.example.test",p.reviewer.clone(),readonly_selection,access(),ServicePostingSources,move|db,current|{let clock=denied_clock.clone();let input=denied_input.clone();Box::pin(async move{execute_service_posting_setup(db,current,clock.as_ref(),ServicePostingEnvironment::Development,"setup-readonly",&input).await})}).await;
+        assert!(matches!(denied,Err(PgTransactionError::Business(e)) if e.kind==FailureKind::Forbidden));
+        sqlx::raw_sql("CREATE FUNCTION fixture_setup_finance_drift() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.command_id='setup-rollback' THEN UPDATE finance_charts SET name='changed' WHERE id='chart'; END IF; RETURN NEW; END $$; CREATE TRIGGER fixture_setup_finance_drift AFTER INSERT ON commerce_service_parts_posting_sources FOR EACH ROW EXECUTE FUNCTION fixture_setup_finance_drift()").execute(pool.raw()).await.unwrap();
+        let drift_input=input.clone();let drift_clock=clock.clone();
+        let failed=p.authorizer.execute_with_sources("acme.example.test",p.maker.clone(),p.maker_selection.clone(),access(),ServicePostingSources,move|db,current|{let clock=drift_clock.clone();let input=drift_input.clone();Box::pin(async move{execute_service_posting_setup(db,current,clock.as_ref(),ServicePostingEnvironment::Development,"setup-rollback",&input).await})}).await;
+        assert!(matches!(failed,Err(PgTransactionError::Business(e)) if e.code=="SERVICE_PARTS_POSTING_SOURCE_CHANGED"));
+        let rollback:(i64,i64,i64,i64,String)=sqlx::query_as("SELECT (SELECT count(*) FROM commerce_settings WHERE company_id='company'),(SELECT count(*) FROM commerce_service_parts_posting_sources WHERE company_id='company'),(SELECT count(*) FROM command_receipts WHERE command_id='setup-rollback'),(SELECT count(*) FROM outbox_events WHERE command_id='setup-rollback'),(SELECT name FROM finance_charts WHERE id='chart')").fetch_one(pool.raw()).await.unwrap();assert_eq!(rollback,(0,0,0,0,"Primary".into()));
+        sqlx::raw_sql("DROP TRIGGER fixture_setup_finance_drift ON commerce_service_parts_posting_sources; DROP FUNCTION fixture_setup_finance_drift()").execute(pool.raw()).await.unwrap();
+        for attempt in 0..2 {let input=input.clone();let clock=clock.clone();let result=p.authorizer.execute_with_sources("acme.example.test",p.maker.clone(),p.maker_selection.clone(),access(),ServicePostingSources,move|db,current|{let clock=clock.clone();let input=input.clone();Box::pin(async move{execute_service_posting_setup(db,current,clock.as_ref(),ServicePostingEnvironment::Development,"setup-real-test",&input).await})}).await.unwrap();assert_eq!(result.replayed,attempt==1);}
+        let counts:(i64,i64,i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM commerce_settings WHERE company_id='company'),(SELECT count(*) FROM commerce_service_parts_posting_sources WHERE company_id='company'),(SELECT count(*) FROM command_receipts WHERE command_id='setup-real-test'),(SELECT count(*) FROM audit_events WHERE command_id='setup-real-test'),(SELECT count(*) FROM outbox_events WHERE command_id='setup-real-test')").fetch_one(pool.raw()).await.unwrap();assert_eq!(counts,(1,1,1,1,1));
+    }).await;
+}
+
+#[tokio::test]
+async fn service_posting_setup_confirms_existing_mapping_without_rewriting_it() {
+    use erpx_server_commerce::public::service_parts_posting::PostingMode;
+    use erpx_server_identity_access::public::effective_authority::WorkAuthorizationRequest;
+    use erpx_server_workflow::public::commands::CommandJson;
+    use erpx_service::service_parts_posting_setup::{
+        ServicePostingEnvironment, ServicePostingSources, execute_service_posting_setup,
+        normalize_service_posting_command, read_service_posting_setup,
+    };
+    account::with_system(|system|async move {
+        let p=service_posting_finance_fixture(system).await;let pool=&p.system.holdings[0];
+        sqlx::query("INSERT INTO commerce_settings(company_id,chart_id,currency,receivable_account_id,payable_account_id,revenue_account_id,inventory_account_id,clearing_account_id,cogs_account_id,input_tax_account_id,output_tax_account_id,cash_account_id) VALUES('company','chart','THB','part-ar','part-ap','part-revenue','part-inventory','part-clearing','part-cogs','part-input','part-output','part-cash')").execute(pool.raw()).await.unwrap();
+        let before:String=sqlx::query_scalar("SELECT to_jsonb(s)::text FROM commerce_settings s WHERE company_id='company'").fetch_one(pool.raw()).await.unwrap();
+        let access=||WorkAuthorizationRequest{permission:"finance.read".into(),module:None,destination:"services/field-service".into(),api:true};
+        let clock=p.system.scenario.clock.clone();let c=clock.clone();
+        let view=p.authorizer.execute_with_sources("acme.example.test",p.maker.clone(),p.maker_selection.clone(),access(),ServicePostingSources,move|db,current|{let clock=c.clone();Box::pin(async move{read_service_posting_setup(db,current,clock.as_ref(),ServicePostingEnvironment::Development).await})}).await.unwrap();
+        assert!(view.can_confirm_existing);let context=view.context_key.unwrap();
+        let body=CommandJson::parse(&format!(r#"{{"expectedVersion":0,"contextKey":"{context}","reason":"Confirm existing"}}"#)).unwrap();
+        let input=normalize_service_posting_command(&body,PostingMode::ConfirmExisting).unwrap();
+        let foreign_input=input.clone();let foreign_clock=clock.clone();
+        let foreign=p.authorizer.execute_with_sources("northstar.example.test",p.maker.clone(),p.maker_selection.clone(),access(),ServicePostingSources,move|db,current|{let clock=foreign_clock.clone();let input=foreign_input.clone();Box::pin(async move{execute_service_posting_setup(db,current,clock.as_ref(),ServicePostingEnvironment::Development,"setup-foreign",&input).await})}).await;
+        assert!(foreign.is_err());
+        for attempt in 0..2 {let input=input.clone();let clock=clock.clone();let result=p.authorizer.execute_with_sources("acme.example.test",p.maker.clone(),p.maker_selection.clone(),access(),ServicePostingSources,move|db,current|{let clock=clock.clone();let input=input.clone();Box::pin(async move{execute_service_posting_setup(db,current,clock.as_ref(),ServicePostingEnvironment::Development,"setup-existing",&input).await})}).await.unwrap();assert_eq!(result.replayed,attempt==1);assert_eq!(result.result.status,"confirmed-existing");}
+        let after:String=sqlx::query_scalar("SELECT to_jsonb(s)::text FROM commerce_settings s WHERE company_id='company'").fetch_one(pool.raw()).await.unwrap();assert_eq!(before,after);
+        let counts:(i64,i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM commerce_service_parts_posting_sources WHERE company_id='company' AND mode='confirm-existing'),(SELECT count(*) FROM command_receipts WHERE command_id='setup-existing'),(SELECT count(*) FROM audit_events WHERE command_id='setup-existing'),(SELECT count(*) FROM outbox_events WHERE command_id='setup-existing')").fetch_one(pool.raw()).await.unwrap();assert_eq!(counts,(1,1,1,1));
+    }).await;
+}
+
+#[tokio::test]
+async fn service_posting_setup_selected_actor_without_finance_gets_unavailable_view() {
+    use erpx_service::service_parts_posting_setup::{
+        ServicePostingEnvironment, ServicePostingTarget, read_selected_service_posting_setup,
+    };
+    account::with_system(|system| async move {
+        let p = setup_workspace(system).await;
+        let result = read_selected_service_posting_setup(
+            &p.review.authorizer,
+            "acme.example.test",
+            p.review.maker.clone(),
+            {
+                let selection = p.selection.clone();
+                move || Ok(selection)
+            },
+            ServicePostingTarget {
+                holding: HoldingId::new("h001").unwrap(),
+                company: CompanyId::new("company").unwrap(),
+                clock: p.review.system.scenario.clock.clone(),
+                environment: ServicePostingEnvironment::Development,
+            },
+        )
+        .await
+        .unwrap();
+        assert!(!result.data.available);
+        assert_eq!(result.data.unavailable_reason, Some("authority-required"));
+        assert_eq!(result.data.company_id, "company");
+    })
+    .await;
+}
+
+#[cfg(feature = "private-development-api")]
+#[tokio::test]
+async fn service_posting_setup_private_http_selected_actor_replay_and_context() {
+    account::with_system(|system| async move {
+        let p = service_posting_finance_fixture(system).await;
+        let cookie = format!("__Host-erpx-product={}", p.reviewer_token.expose());
+        let mut cfg = private_configuration::document(&p.system.control, &p.system.holdings).await;
+        cfg["fieldServiceReads"] = serde_json::json!([{"holdingId":"h001","companyId":"company"}]);
+        let off = assemble_development_api(DevelopmentApiConfiguration::parse(&cfg.to_string()).unwrap(),p.system.scenario.clock.clone(),Arc::new(SystemAuthenticationSecrets)).await.unwrap();
+        let get = || Request::builder().uri("/api/v1/holdings/acme/field-service/parts-setup").header("host","acme.example.test").header("cookie",&cookie).body(Body::empty()).unwrap();
+        assert_eq!(off.router().oneshot(get()).await.unwrap().status(), StatusCode::NOT_FOUND);
+        off.close().await;
+        cfg["fieldServicePartsPostingSetups"] = serde_json::json!(["h001"]);
+        let runtime = assemble_development_api(DevelopmentApiConfiguration::parse(&cfg.to_string()).unwrap(),p.system.scenario.clock.clone(),Arc::new(SystemAuthenticationSecrets)).await.unwrap();
+        let response = runtime.router().oneshot(get()).await.unwrap();
+        assert_eq!(response.status(),StatusCode::OK);
+        let reply:serde_json::Value = serde_json::from_slice(&to_bytes(response.into_body(),2*1024*1024).await.unwrap()).unwrap();
+        assert_eq!(reply["context"]["userId"],"fixture-b");
+        let context=reply["data"]["contextKey"].as_str().unwrap();
+        let body=format!(r#"{{"expectedVersion":0,"contextKey":"{context}","chartId":"chart","currency":"THB","reason":"Set up parts","receivableAccountId":"part-ar","payableAccountId":"part-ap","revenueAccountId":"part-revenue","inventoryAccountId":"part-inventory","clearingAccountId":"part-clearing","cogsAccountId":"part-cogs","inputTaxAccountId":"part-input","outputTaxAccountId":"part-output","cashAccountId":"part-cash"}}"#);
+        let post=|revision:&str|Request::builder().method("POST").uri("/api/v1/holdings/acme/field-service/parts-setup").header("host","acme.example.test").header("origin","https://acme.example.test").header("cookie",&cookie).header("idempotency-key","setup-http-test").header("x-erpx-context-company","company").header("x-erpx-context-revision",revision).header("x-erpx-context-assignment","finance-fixture-b").header("x-erpx-context-assignment-version","3").body(Body::from(body.clone())).unwrap();
+        assert_eq!(runtime.router().oneshot(post("8")).await.unwrap().status(),StatusCode::CONFLICT);
+        let missing=Request::builder().method("POST").uri("/api/v1/holdings/acme/field-service/parts-setup").header("host","acme.example.test").header("origin","https://acme.example.test").header("cookie",&cookie).header("idempotency-key","setup-missing-context").body(Body::from(body.clone())).unwrap();
+        assert_ne!(runtime.router().oneshot(missing).await.unwrap().status(),StatusCode::OK);
+        let before:(i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM commerce_service_parts_posting_sources WHERE company_id='company'),(SELECT count(*) FROM command_receipts WHERE command_id IN ('setup-http-test','setup-missing-context'))").fetch_one(p.system.holdings[0].raw()).await.unwrap();assert_eq!(before,(0,0));
+        for _ in 0..2 {let response=runtime.router().oneshot(post("7")).await.unwrap();assert_eq!(response.status(),StatusCode::OK);let value:serde_json::Value=serde_json::from_slice(&to_bytes(response.into_body(),65536).await.unwrap()).unwrap();assert_eq!(value["data"]["status"],"configured");assert_eq!(value["context"]["userId"],"fixture-b");}
+        let counts:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM commerce_service_parts_posting_sources WHERE company_id='company'),(SELECT count(*) FROM command_receipts WHERE command_id='setup-http-test'),(SELECT count(*) FROM outbox_events WHERE command_id='setup-http-test')").fetch_one(p.system.holdings[0].raw()).await.unwrap();assert_eq!(counts,(1,1,1));
+        let child=account::child(&p.system,&p.reviewer_central,account::ACME).await;let now=p.system.scenario.clock.now().get();let db=p.system.holdings[0].raw();
+        sqlx::query("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status) VALUES('posting-branch','branch','posting-branch','Posting Branch','company','company','posting-branch','active')").execute(db).await.unwrap();
+        sqlx::query("INSERT INTO assignments(id,user_id,role,modules_json,company_id,branch_id,valid_from,valid_until,version,scope_kind,scope_node_id) VALUES('posting-branch-b','fixture-b','custom_finance_review','[\"finance\"]','company','posting-branch',$1,$2,3,'branch','posting-branch')").bind(now-1000).bind(now+3_600_000).execute(db).await.unwrap();
+        sqlx::query("INSERT INTO active_work_contexts(session_id,user_id,company_id,assignment_id,assignment_version,revision,expires_at,updated_at) VALUES($1,'fixture-b','company','posting-branch-b',3,8,$2,$3)").bind(&child.result.session_id).bind(now+3_600_000).bind(now).execute(db).await.unwrap();
+        let branch_cookie=format!("__Host-erpx-product={}",child.token.expose());
+        let branch=Request::builder().uri("/api/v1/holdings/acme/field-service/parts-setup").header("host","acme.example.test").header("cookie",branch_cookie).header("x-erpx-workspace-branch","posting-branch").body(Body::empty()).unwrap();
+        let response=runtime.router().oneshot(branch).await.unwrap();assert_eq!(response.status(),StatusCode::OK);let value:serde_json::Value=serde_json::from_slice(&to_bytes(response.into_body(),65536).await.unwrap()).unwrap();assert_eq!(value["data"]["available"],false);assert_eq!(value["data"]["unavailableReason"],"authority-required");
+        runtime.close().await;
+    }).await;
+}
+
+#[cfg(feature = "private-development-api")]
+#[tokio::test]
+async fn service_posting_setup_private_http_confirms_existing_mapping() {
+    account::with_system(|system| async move {
+        let p=service_posting_finance_fixture(system).await;
+        let db=p.system.holdings[0].raw();
+        sqlx::query("INSERT INTO commerce_settings(company_id,chart_id,currency,receivable_account_id,payable_account_id,revenue_account_id,inventory_account_id,clearing_account_id,cogs_account_id,input_tax_account_id,output_tax_account_id,cash_account_id) VALUES('company','chart','THB','part-ar','part-ap','part-revenue','part-inventory','part-clearing','part-cogs','part-input','part-output','part-cash')").execute(db).await.unwrap();
+        let before:String=sqlx::query_scalar("SELECT to_jsonb(s)::text FROM commerce_settings s WHERE company_id='company'").fetch_one(db).await.unwrap();
+        let cookie=format!("__Host-erpx-product={}",p.reviewer_token.expose());
+        let mut cfg=private_configuration::document(&p.system.control,&p.system.holdings).await;
+        cfg["fieldServiceReads"]=serde_json::json!([{"holdingId":"h001","companyId":"company"}]);cfg["fieldServicePartsPostingSetups"]=serde_json::json!(["h001"]);
+        let runtime=assemble_development_api(DevelopmentApiConfiguration::parse(&cfg.to_string()).unwrap(),p.system.scenario.clock.clone(),Arc::new(SystemAuthenticationSecrets)).await.unwrap();
+        let req=Request::builder().uri("/api/v1/holdings/acme/field-service/parts-setup").header("host","acme.example.test").header("cookie",&cookie).body(Body::empty()).unwrap();
+        let response=runtime.router().oneshot(req).await.unwrap();assert_eq!(response.status(),StatusCode::OK);
+        let view:serde_json::Value=serde_json::from_slice(&to_bytes(response.into_body(),2*1024*1024).await.unwrap()).unwrap();
+        assert_eq!(view["data"]["configuration"]["chartId"],"chart");assert!(view["data"]["configuration"].get("chart_id").is_none());assert_eq!(view["data"]["canConfirmExisting"],true);
+        let body=format!(r#"{{"expectedVersion":0,"contextKey":"{}","reason":"Confirm existing"}}"#,view["data"]["contextKey"].as_str().unwrap());
+        let post=||Request::builder().method("POST").uri("/api/v1/holdings/acme/field-service/parts-setup/existing").header("host","acme.example.test").header("origin","https://acme.example.test").header("cookie",&cookie).header("idempotency-key","setup-http-confirm").header("x-erpx-context-company","company").header("x-erpx-context-revision","7").header("x-erpx-context-assignment","finance-fixture-b").header("x-erpx-context-assignment-version","3").body(Body::from(body.clone())).unwrap();
+        for _ in 0..2 { let response=runtime.router().oneshot(post()).await.unwrap();assert_eq!(response.status(),StatusCode::OK);let value:serde_json::Value=serde_json::from_slice(&to_bytes(response.into_body(),65536).await.unwrap()).unwrap();assert_eq!(value["data"]["status"],"confirmed-existing"); }
+        let after:String=sqlx::query_scalar("SELECT to_jsonb(s)::text FROM commerce_settings s WHERE company_id='company'").fetch_one(db).await.unwrap();assert_eq!(before,after);
+        let count:i64=sqlx::query_scalar("SELECT count(*) FROM command_receipts WHERE command_id='setup-http-confirm'").fetch_one(db).await.unwrap();assert_eq!(count,1);
+        runtime.close().await;
+    }).await;
+}
+
+#[tokio::test]
+async fn service_posting_context_matches_javascript_with_actual_same_unit_sources() {
+    use erpx_server_commerce::public::service_parts_posting::read_service_parts_posting;
+    use erpx_server_field_service::public::service_parts_posting::read_service_parts_field_history;
+    use erpx_server_finance::public::service_parts_posting::read_service_parts_posting_references;
+    use erpx_server_identity_access::public::{
+        effective_authority::WorkAuthorizationRequest,
+        selected_command_authority::{
+            ServicePartsAuthorityPurpose, capture_service_parts_command_authority,
+        },
+    };
+    use erpx_server_inventory::public::service_parts_posting::read_service_parts_inventory_history;
+    use erpx_server_workflow::public::service_parts_posting::read_service_posting_receipt;
+    use erpx_service::service_parts_posting_setup::{
+        PostingHistoryImages, ServicePostingEnvironment, ServicePostingSources,
+        read_service_posting_setup, retained_history_image,
+    };
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+    #[derive(serde::Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Authority<'a> {
+        session_id: &'a str,
+        revision: i64,
+        assignment_version: i64,
+    }
+    account::with_system(|system|async move {
+        let p=service_posting_finance_fixture(system).await;let clock=p.system.scenario.clock.clone();
+        p.authorizer.execute_with_sources("acme.example.test",p.maker.clone(),p.maker_selection.clone(),WorkAuthorizationRequest{permission:"finance.read".into(),module:None,destination:"services/field-service".into(),api:true},ServicePostingSources,move|c,current|{let clock=clock.clone();Box::pin(async move{
+            let view=read_service_posting_setup(c,current,clock.as_ref(),ServicePostingEnvironment::Development).await?;
+            let actor=capture_service_parts_command_authority(c,current,ServicePartsAuthorityPurpose::Read,clock.as_ref()).await?;
+            let company=&current.selection().workspace().company_id;
+            let commerce=read_service_parts_posting(c,company).await?;
+            let inventory=read_service_parts_inventory_history(c,company,&commerce.facts().warehouse_ids).await?;
+            let field=read_service_parts_field_history(c,company).await?;
+            let finance=read_service_parts_posting_references(c,company,None).await?;
+            let receipt=read_service_posting_receipt(c,company).await?;
+            let inv=inventory.data();let fld=field.data();let fin=finance.data();let fh=&fin.history_image;
+            let image=retained_history_image(c,&PostingHistoryImages{orders:&commerce.facts().commerce_orders_json,stock:&inv.stock_json,ledger:&inv.ledger_json,counts:&inv.counts_json,consumptions:&inv.consumptions_json,invoices:fh.invoices.as_deref(),payments:fh.payments.as_deref(),journals:fh.journals.as_deref(),service:&fld.service_json}).await?;
+            let history=commerce.facts().has_commerce_history||inv.has_history||fld.has_history||fin.finance_history;
+            let selection=current.selection();let grant=selection.assignment();
+            let identity=CommandJson::from_serializable(&(company.as_str(),Option::<&str>::None,Option::<&str>::None,current.user_id().as_str(),grant.id.as_str(),grant.role.as_str(),Authority{session_id:current.session_id().as_str(),revision:selection.revision(),assignment_version:grant.version},actor.iam()))?;
+            let mapping=commerce.facts().mapping_json.as_deref().unwrap_or("null");let proof=receipt.facts().map(|v|v.proof_json.as_str()).unwrap_or("null");
+            let input=format!("[{},{{\"mapping\":{},\"proof\":{},\"history\":{},\"image\":{}}},{}]",identity.as_str(),mapping,proof,history,serde_json::to_string(&image).unwrap(),serde_json::to_string(&fin.reference_image).unwrap());
+            let node=std::env::var("ERPX_NODE_BIN").unwrap_or_else(|_|"node".into());let mut child=Command::new(node).args(["-e","const [identity,state,refs]=JSON.parse(require('fs').readFileSync(0,'utf8')); process.stdout.write(require('crypto').createHash('sha256').update(JSON.stringify([JSON.stringify(identity),state,refs])).digest('hex'));"]).stdin(Stdio::piped()).stdout(Stdio::piped()).spawn().expect("pinned Node oracle unavailable");child.stdin.take().unwrap().write_all(input.as_bytes()).unwrap();let result=child.wait_with_output().unwrap();assert!(result.status.success());assert_eq!(view.context_key.as_deref(),Some(std::str::from_utf8(&result.stdout).unwrap()));
+            commerce.require_current(c).await?;inventory.require_current(c).await?;field.require_current(c).await?;finance.require_current(c).await?;receipt.require_current(c).await?;actor.require_current(c,clock.as_ref()).await?;
+            Ok(())
+        })}).await.unwrap();
+    }).await;
 }

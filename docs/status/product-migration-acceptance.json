@@ -2,8 +2,8 @@
   "version": 3,
   "environment": "development",
   "deliveryPlan": "docs/production-plan.md",
-  "sourceFingerprint": "dc2b9476bd801743b075d9e372f41bde0e2c9c9e554f5d9312db282dd9dd43c0",
-  "verificationFingerprint": "7b53e0b6ef11599c03ee2b26fc1d67fb450c01c03272be0fa4903335cf31b332",
+  "sourceFingerprint": "0560a1dd9a8bbccab802c44e5fead10ed441db4b7db11f0c788b22847baaac52",
+  "verificationFingerprint": "3de4ef0de9ae42940a6fbb26648b9ec0b9874da55a8205e388edc8b89f852c0d",
   "baseline": {
     "source": ".scratch/dev/product-migration-baseline-2026-10-14/",
     "privateAuthority": "read-only per-database snapshots; no secrets or personal authority rows in this register",
@@ -14199,7 +14199,8 @@
         "field_service.rust-http-parity-postgres.integration",
         "shared.runtime.ui-module-registration.unit",
         "shared.architecture.rust-module-assembly.unit",
-        "field_service.rust-private-field-only-postgres.integration"
+        "field_service.rust-private-field-only-postgres.integration",
+        "field_service.rust-service-parts-history-postgres.integration"
       ]
     },
     {

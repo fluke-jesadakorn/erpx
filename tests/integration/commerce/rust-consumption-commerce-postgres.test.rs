@@ -95,3 +95,120 @@ async fn archival_committed_while_utility_fence_waits_is_seen_before_first_snaps
  let read_pool=pool.clone();let task=tokio::spawn(async move{PgUnitOfWork::new(read_pool).run::<_,BusinessError,_>(TransactionOptions::default(),|c|Box::pin(async move{lock_consumption_sources(c).await?;Ok(read_consumption_source(c,&request()).await?.is_none())})).await});
  tokio::time::timeout(std::time::Duration::from_secs(10),async{loop{let blocked:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_locks WHERE NOT granted AND mode='ShareLock' AND relation='commerce_products'::regclass AND database=(SELECT oid FROM pg_database WHERE datname=current_database()))").fetch_one(pool.raw()).await.unwrap();if blocked{break}tokio::task::yield_now().await;}}).await.unwrap();writer.commit().await.unwrap();assert!(task.await.unwrap().unwrap());}).await;
 }
+
+#[tokio::test]
+async fn service_posting_commerce_witness_retains_mapping_history_and_same_unit() {
+    use erpx_server_commerce::public::service_parts_posting::*;
+    fixture::with_database(2, |pool| async move {
+        setup(&pool, "none").await;
+        let original = PgUnitOfWork::new(pool.clone())
+            .run::<_, BusinessError, _>(TransactionOptions::default(), |c| {
+                Box::pin(async move {
+                    lock_service_parts_posting_sources(c).await?;
+                    let current = read_service_parts_posting(c, &company()).await?;
+                    assert!(current.facts().schema_available);
+                    assert!(current.facts().mapping_json.is_some());
+                    assert!(current.facts().source_json.is_none());
+                    assert!(!current.facts().has_commerce_history);
+                    assert_eq!(current.facts().commerce_orders_json, "null");
+                    assert_eq!(current.facts().warehouse_ids, vec!["warehouse"]);
+                    let foreign =
+                        read_service_parts_posting(c, &CompanyId::new("foreign").unwrap()).await?;
+                    assert!(foreign.facts().mapping_json.is_none());
+                    assert!(foreign.facts().source_json.is_none());
+                    assert!(!foreign.facts().has_commerce_history);
+                    assert!(foreign.facts().warehouse_ids.is_empty());
+                    assert_eq!(
+                        posting_admission(PostingMode::Initialize, true, false, true),
+                        PostingAdmission::ExistingMappingRequiresConfirmation
+                    );
+                    assert_eq!(
+                        posting_admission(PostingMode::ConfirmExisting, true, false, true),
+                        PostingAdmission::Allowed
+                    );
+                    current.require_current(c).await?;
+                    Ok(current)
+                })
+            })
+            .await
+            .unwrap();
+        let original = Arc::new(original);
+        let cross = PgUnitOfWork::new(pool.clone())
+            .run::<_, BusinessError, _>(TransactionOptions::default(), |c| {
+                let original = original.clone();
+                Box::pin(async move { original.require_current(c).await })
+            })
+            .await;
+        denied(cross, "SERVICE_PARTS_POSTING_SOURCE_CHANGED");
+        let drift = PgUnitOfWork::new(pool.clone())
+            .run::<_, BusinessError, _>(TransactionOptions::default(), |c| {
+                Box::pin(async move {
+                    lock_service_parts_posting_sources(c).await?;
+                    let current = read_service_parts_posting(c, &company()).await?;
+                    sqlx::query(
+                        "UPDATE commerce_settings SET currency='EUR' WHERE company_id='company'",
+                    )
+                    .execute(&mut *c)
+                    .await?;
+                    current.require_current(c).await
+                })
+            })
+            .await;
+        denied(drift, "SERVICE_PARTS_POSTING_SOURCE_CHANGED");
+        let currency: String =
+            sqlx::query_scalar("SELECT currency FROM commerce_settings WHERE company_id='company'")
+                .fetch_one(pool.raw())
+                .await
+                .unwrap();
+        assert_eq!(currency, "USD");
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn service_posting_lock_waits_before_serializable_snapshot() {
+    use erpx_server_commerce::public::service_parts_posting::*;
+    fixture::with_database(3, |pool| async move {
+        setup(&pool, "none").await;
+        let mut writer = pool.raw().begin().await.unwrap();
+        sqlx::query("UPDATE commerce_settings SET currency='EUR' WHERE company_id='company'").execute(&mut *writer).await.unwrap();
+        let read_pool = pool.clone();
+        let task = tokio::spawn(async move {
+            PgUnitOfWork::new(read_pool).run::<_,BusinessError,_>(TransactionOptions::default(), |c| Box::pin(async move {
+                lock_service_parts_posting_sources(c).await?;
+                let current = read_service_parts_posting(c, &company()).await?;
+                current.require_current(c).await?;
+                Ok(current.facts().mapping_json.clone().unwrap())
+            })).await
+        });
+        tokio::time::timeout(std::time::Duration::from_secs(10),async {
+            loop {
+                let waiting:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_locks WHERE NOT granted AND mode='ShareRowExclusiveLock' AND relation='commerce_settings'::regclass AND database=(SELECT oid FROM pg_database WHERE datname=current_database()))").fetch_one(pool.raw()).await.unwrap();
+                if waiting { break; }
+                tokio::task::yield_now().await;
+            }
+        }).await.unwrap();
+        writer.commit().await.unwrap();
+        let mapping=task.await.unwrap().unwrap();
+        assert!(mapping.contains("\"currency\": \"EUR\""));
+    }).await;
+}
+
+#[tokio::test]
+async fn service_posting_absent_schema_is_reported_without_leaving_transaction_aborted() {
+    use erpx_server_commerce::public::service_parts_posting::*;
+    fixture::with_database(2, |pool| async move {
+        setup(&pool, "none").await;
+        let result = PgUnitOfWork::new(pool.clone()).run::<(), BusinessError, _>(TransactionOptions::default(), |c| Box::pin(async move {
+            sqlx::query("ALTER TABLE commerce_service_parts_posting_sources RENAME TO fixture_hidden_service_sources").execute(&mut *c).await?;
+            lock_service_parts_posting_sources(c).await?;
+            let current=read_service_parts_posting(c,&company()).await?;
+            assert!(!current.facts().schema_available);
+            assert!(current.facts().source_json.is_none());
+            Err(BusinessError::new(erpx_server_shared::public::FailureKind::Conflict,"FIXTURE_ROLLBACK","Fixture rollback").into())
+        })).await;
+        denied(result, "FIXTURE_ROLLBACK");
+        let present:bool=sqlx::query_scalar("SELECT to_regclass('commerce_service_parts_posting_sources') IS NOT NULL").fetch_one(pool.raw()).await.unwrap();
+        assert!(present);
+    }).await;
+}

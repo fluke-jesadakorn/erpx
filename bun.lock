@@ -704,6 +704,7 @@
         "@erpx/feature-people_payroll": "workspace:*",
         "@erpx/feature-shared": "workspace:*",
         "@erpx/feature-work_projection": "workspace:*",
+        "@erpx/native-sdk": "workspace:*",
         "@erpx/server-commerce": "workspace:*",
         "@erpx/server-field_service": "workspace:*",
         "@erpx/server-finance": "workspace:*",

@@ -22,7 +22,7 @@ pub fn project_queued_command_iam(
 ) -> Result<CommandIamProjection, BusinessError> {
     project(context, Some(context.selection().assignment().version))
 }
-fn project(
+pub(crate) fn project(
     context: &AuthorizedWorkContext,
     queued: Option<i64>,
 ) -> Result<CommandIamProjection, BusinessError> {

@@ -240,3 +240,61 @@ async fn exact_numeric_evidence_rejects_a_one_unit_insert_mutation_beyond_f64_pr
   assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*)FROM money_transaction_snapshots").fetch_one(p.raw()).await.unwrap(),0);
  }).await;
 }
+
+#[tokio::test]
+async fn service_parts_finance_witness_checks_mapping_defaults_and_same_unit_drift() {
+    use erpx_server_finance::public::service_parts_posting::{
+        ServicePartsPostingMapping, lock_service_parts_posting_references,
+        read_service_parts_posting_references,
+    };
+    fixture::with_database(1, |p| async move {
+        setup(&p).await;
+        sqlx::raw_sql("INSERT INTO finance_accounts(id,company_id,chart_id,code,name,category,currency,control_kind,created_at,updated_at) VALUES ('ar','company','chart','110','AR','asset','THB','receivable',0,0),('ap','company','chart','210','AP','liability','THB','payable',0,0),('revenue','company','chart','400','Revenue','revenue','THB','none',0,0),('clearing','company','chart','220','Clearing','liability','THB','none',0,0),('input','company','chart','120','Input','asset','THB','none',0,0),('output','company','chart','230','Output','liability','THB','none',0,0),('cash','company','chart','130','Cash','asset','THB','bank',0,0); INSERT INTO finance_sales_defaults(id,company_id,chart_id,currency,receivable_account_id,revenue_account_id,tax_account_id,status,reason,created_by,reviewed_by,version,created_at,updated_at) VALUES ('sales-default','company','chart','THB','ar','revenue',NULL,'approved','reviewed','creator','reviewer',2,1,1)").execute(p.raw()).await.unwrap();
+        let m = ServicePartsPostingMapping { chart_id:"chart".into(),currency:"THB".into(),receivable_account_id:"ar".into(),payable_account_id:"ap".into(),revenue_account_id:"revenue".into(),inventory_account_id:"inventory".into(),clearing_account_id:"clearing".into(),cogs_account_id:"expense".into(),input_tax_account_id:"input".into(),output_tax_account_id:"output".into(),cash_account_id:"cash".into() };
+        let mut tx=p.raw().begin().await.unwrap(); serial(&mut tx).await;
+        lock_service_parts_posting_references(&mut tx).await.unwrap();
+        let witness=read_service_parts_posting_references(&mut tx,&CompanyId::new("company").unwrap(),None).await.unwrap();
+        assert!(!witness.data().finance_history); assert!(!witness.data().defaults_blocked);
+        assert!(witness.data().history_image.invoices.is_none() && witness.data().history_image.payments.is_none() && witness.data().history_image.journals.is_none());
+        let charts:Vec<String>=sqlx::query_scalar("SELECT to_jsonb(c)::text FROM finance_charts c WHERE company_id='company' ORDER BY id").fetch_all(&mut *tx).await.unwrap();
+        let accounts:Vec<String>=sqlx::query_scalar("SELECT to_jsonb(a)::text FROM finance_accounts a WHERE company_id='company' ORDER BY id").fetch_all(&mut *tx).await.unwrap();
+        let defaults:Vec<String>=sqlx::query_scalar("SELECT to_jsonb(d)::text FROM finance_sales_defaults d WHERE company_id='company' ORDER BY id").fetch_all(&mut *tx).await.unwrap();
+        let money:String=sqlx::query_scalar("SELECT jsonb_build_object('settings',(SELECT to_jsonb(s) FROM company_money_settings s WHERE s.company_id='company'),'scales',COALESCE((SELECT jsonb_agg(to_jsonb(s) ORDER BY s.currency) FROM company_currency_scales s WHERE s.company_id='company'),'[]'::jsonb))::text").fetch_one(&mut *tx).await.unwrap();
+        let image=serde_json::to_string(&(serde_json::to_string(&(charts,accounts)).unwrap(),money,serde_json::to_string(&defaults).unwrap())).unwrap();
+        assert_eq!(witness.data().reference_image,image);
+        assert_eq!(witness.data().expected_sales_defaults.as_ref().unwrap().version,2);
+        witness.validate_mapping(&m).unwrap(); witness.validate_defaults(&m,witness.data().expected_sales_defaults.as_ref()).unwrap();
+        assert!(witness.validate_defaults(&m,None).is_err());
+        let mut invalid=m.clone(); invalid.cash_account_id="revenue".into(); assert!(witness.validate_mapping(&invalid).is_err());
+        sqlx::query("UPDATE finance_accounts SET name='Changed' WHERE id='cash'").execute(&mut *tx).await.unwrap();
+        denied(witness.require_current(&mut tx).await,"SERVICE_PARTS_POSTING_SOURCE_CHANGED"); tx.rollback().await.unwrap();
+        let mut tx=p.raw().begin().await.unwrap(); serial(&mut tx).await;
+        sqlx::query("UPDATE finance_accounts SET status='inactive' WHERE id='ar'").execute(&mut *tx).await.unwrap();
+        let blocked=read_service_parts_posting_references(&mut tx,&CompanyId::new("company").unwrap(),None).await.unwrap();
+        assert!(blocked.data().defaults_blocked); assert!(blocked.data().expected_sales_defaults.is_none());
+        assert_eq!(blocked.validate_defaults(&m,None).unwrap_err().code,"SALES_DEFAULTS_REQUIRED");
+        assert!(blocked.validate_mapping(&m).is_err()); tx.rollback().await.unwrap();
+        let mut tx=p.raw().begin().await.unwrap(); serial(&mut tx).await;
+        sqlx::raw_sql("UPDATE finance_charts SET status='archived' WHERE id='chart'; INSERT INTO finance_charts(id,company_id,name,base_currency,created_by,created_at,updated_at)VALUES('alternate-chart','company','Alternate','USD','fixture',0,0); INSERT INTO finance_accounts(id,company_id,chart_id,code,name,category,currency,control_kind,created_at,updated_at)VALUES('alternate-ar','company','alternate-chart','110','Alternate AR','asset','USD','receivable',0,0),('alternate-revenue','company','alternate-chart','400','Alternate revenue','revenue','USD','none',0,0); INSERT INTO finance_sales_defaults(id,company_id,chart_id,currency,receivable_account_id,revenue_account_id,tax_account_id,status,reason,created_by,reviewed_by,version,created_at,updated_at) VALUES ('alternate-default','company','alternate-chart','USD','alternate-ar','alternate-revenue',NULL,'approved','reviewed','creator','reviewer',3,2,2)").execute(&mut *tx).await.unwrap();
+        let fallback=read_service_parts_posting_references(&mut tx,&CompanyId::new("company").unwrap(),Some(&m)).await.unwrap();
+        assert_eq!(fallback.data().expected_sales_defaults.as_ref().unwrap().id,"alternate-default");
+        assert_eq!(fallback.data().expected_sales_defaults.as_ref().unwrap().version,3);
+        assert!(!fallback.data().defaults_blocked); assert!(fallback.validate_mapping(&m).is_err());
+        let charts:Vec<String>=sqlx::query_scalar("SELECT to_jsonb(c)::text FROM finance_charts c WHERE company_id='company' ORDER BY id").fetch_all(&mut *tx).await.unwrap();
+        let accounts:Vec<String>=sqlx::query_scalar("SELECT to_jsonb(a)::text FROM finance_accounts a WHERE company_id='company' ORDER BY id").fetch_all(&mut *tx).await.unwrap();
+        let defaults:Vec<String>=sqlx::query_scalar("SELECT to_jsonb(d)::text FROM finance_sales_defaults d WHERE company_id='company' ORDER BY id").fetch_all(&mut *tx).await.unwrap();
+        let money:String=sqlx::query_scalar("SELECT jsonb_build_object('settings',(SELECT to_jsonb(s) FROM company_money_settings s WHERE s.company_id='company'),'scales',COALESCE((SELECT jsonb_agg(to_jsonb(s) ORDER BY s.currency) FROM company_currency_scales s WHERE s.company_id='company'),'[]'::jsonb))::text").fetch_one(&mut *tx).await.unwrap();
+        assert_eq!(fallback.data().reference_image,serde_json::to_string(&(serde_json::to_string(&(charts,accounts)).unwrap(),money,serde_json::to_string(&defaults).unwrap())).unwrap());
+        sqlx::query("UPDATE finance_accounts SET name='Changed alternative' WHERE id='alternate-ar'").execute(&mut *tx).await.unwrap();
+        denied(fallback.require_current(&mut tx).await,"SERVICE_PARTS_POSTING_SOURCE_CHANGED"); tx.rollback().await.unwrap();
+        let mut tx=p.raw().begin().await.unwrap(); serial(&mut tx).await;
+        sqlx::raw_sql("INSERT INTO finance_parties(id,company_id,kind,code,name,currency,created_at,updated_at)VALUES('customer','company','customer','CUS','Customer','THB',1,1); INSERT INTO finance_invoices(id,company_id,party_id,kind,invoice_number,invoice_date,due_date,currency,subtotal_minor,tax_minor,total_minor,outstanding_minor,debit_account_id,credit_account_id,created_by,created_at,updated_at)VALUES('invoice-z','company','customer','receivable','INV-Z','2026-01-01','2026-01-02','THB',10,0,10,10,'ar','revenue','fixture',1,1),('invoice-a','company','customer','receivable','INV-A','2026-01-01','2026-01-02','THB',20,0,20,20,'ar','revenue','fixture',1,1); INSERT INTO finance_payments(id,company_id,kind,payment_number,payment_date,currency,amount_minor,outstanding_minor,created_by,created_at,updated_at)VALUES('payment-z','company','receipt','PAY-Z','2026-01-01','THB',10,10,'fixture',1,1),('payment-a','company','receipt','PAY-A','2026-01-01','THB',20,20,'fixture',1,1); INSERT INTO finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,created_by,created_at,updated_at)VALUES('journal-z','company','chart','period','J-Z','2026-01-01','THB','fixture',1,1),('journal-a','company','chart','period','J-A','2026-01-01','THB','fixture',1,1)").execute(&mut *tx).await.unwrap();
+        let history=read_service_parts_posting_references(&mut tx,&CompanyId::new("company").unwrap(),None).await.unwrap(); assert!(history.data().finance_history);
+        let invoices:Option<String>=sqlx::query_scalar("SELECT jsonb_agg(to_jsonb(source) ORDER BY source.id)::text FROM finance_invoices source WHERE source.company_id='company'").fetch_one(&mut *tx).await.unwrap();
+        let payments:Option<String>=sqlx::query_scalar("SELECT jsonb_agg(to_jsonb(source) ORDER BY source.id)::text FROM finance_payments source WHERE source.company_id='company'").fetch_one(&mut *tx).await.unwrap();
+        let journals:Option<String>=sqlx::query_scalar("SELECT jsonb_agg(to_jsonb(source) ORDER BY source.id)::text FROM finance_journals source WHERE source.company_id='company'").fetch_one(&mut *tx).await.unwrap();
+        assert_eq!(history.data().history_image.invoices,invoices); assert_eq!(history.data().history_image.payments,payments); assert_eq!(history.data().history_image.journals,journals);
+        sqlx::query("UPDATE finance_invoices SET invoice_number='INV-CHANGED' WHERE id='invoice-a'").execute(&mut *tx).await.unwrap();
+        denied(history.require_current(&mut tx).await,"SERVICE_PARTS_POSTING_SOURCE_CHANGED"); tx.rollback().await.unwrap();
+    }).await;
+}

@@ -21,3 +21,5 @@ pub(crate) mod detail;
 pub(crate) mod file_source;
 
 pub(crate) mod source_record;
+
+pub(crate) mod service_parts_posting;

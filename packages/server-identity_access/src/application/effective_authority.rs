@@ -42,6 +42,36 @@ pub(crate) fn inspect_selected_work(
     Ok(deadline)
 }
 
+/// Presentation-only facts from the same inspected selected source, not a grant.
+pub(crate) fn selected_context_read(
+    request: &WorkContextRequest,
+    facts: &EffectiveAuthorityFacts,
+    modules: &WorkModuleCatalog,
+    now: i64,
+    deadline: i64,
+) -> Result<SelectedContextRead, BusinessError> {
+    let evaluated = evaluate_current_iam_authority(&facts.iam, now)?;
+    if now >= deadline {
+        return Err(authority_error(
+            "WORK_AUTHORITY_EXPIRED",
+            "Your work authority expired. Review your current access.",
+        ));
+    }
+    Ok(SelectedContextRead {
+        holding_id: request.holding_id.clone(),
+        user_id: request.user_id.clone(),
+        selection: facts.selection.clone(),
+        modules: modules.effective_modules(
+            &facts.iam.role.id,
+            &facts.selection.assignment().modules,
+            &evaluated.permissions,
+            facts.beta,
+        ),
+        permissions: evaluated.permissions,
+        expires_at: deadline,
+    })
+}
+
 pub(crate) fn same_selected_work(a: &EffectiveAuthorityFacts, b: &EffectiveAuthorityFacts) -> bool {
     let x = a.selection.workspace();
     let y = b.selection.workspace();
@@ -236,6 +266,8 @@ pub(crate) fn authorize_effective_work_tagged(
     let mut person_user_ids: BTreeSet<_> = facts.iam.aliases.into_iter().collect();
     person_user_ids.insert(request.user_id.clone());
     let context = AuthorizedWorkContext {
+        selected_unit: None,
+        selected_request: None,
         #[cfg(feature = "directory-ldaps")]
         directory_administration: None,
         holding_id: request.holding_id.clone(),

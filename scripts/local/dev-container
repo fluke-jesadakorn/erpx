@@ -14,7 +14,7 @@ case "${1:-}" in
     DOCKER_CONFIG=$(mktemp -d "${TMPDIR:-/tmp}/erpx-container-cli.XXXXXXXX")
     trap 'rm -rf -- "$DOCKER_CONFIG"' EXIT HUP INT TERM
     export DOCKER_CONFIG COMPOSE_DISABLE_ENV_FILE=1 DOCKER_HOST="unix://$socket"
-    docker-compose --project-directory "$root/ops/containers" -p erpx-opensource-dev-services \
+    docker-compose --project-directory "$root/ops/containers" -p "erpx-dev-$ERPX_DEV_WORKSPACE_KEY" \
       -f "$root/ops/containers/development-services.compose.yaml" -f "$root/.devcontainer/compose.yaml" up -d
     echo 'Services started. Populate /workspace/erpx with a fresh reviewed clone before opening the editor.'
     echo 'Application bootstrap, local HTTPS, selected-app startup and HMR are not implemented yet.'

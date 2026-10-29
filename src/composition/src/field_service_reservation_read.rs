@@ -41,7 +41,7 @@ fn denied() -> BusinessError {
         "The configured Field Service scope changed.",
     )
 }
-fn safe(value: i64) -> Result<i64, BusinessError> {
+pub(crate) fn safe(value: i64) -> Result<i64, BusinessError> {
     if !(-9_007_199_254_740_991..=9_007_199_254_740_991).contains(&value) {
         return Err(BusinessError::new(
             FailureKind::Unavailable,
@@ -50,6 +50,35 @@ fn safe(value: i64) -> Result<i64, BusinessError> {
         ));
     }
     Ok(value)
+}
+pub(crate) fn selected_read_context(
+    selected: &erpx_server_identity_access::public::effective_authority::SelectedContextRead,
+) -> Result<FieldServiceRenderedContext, BusinessError> {
+    let selection = selected.selection();
+    let scope = selection.workspace();
+    let grant = selection.assignment();
+    Ok(FieldServiceRenderedContext {
+        user_id: selected.user_id().as_str().into(),
+        holding_id: selected.holding_id().as_str().into(),
+        company_id: scope.company_id.as_str().into(),
+        branch_id: scope.branch_id.as_ref().map(|v| v.as_str().into()),
+        department_id: scope.department_id.as_ref().map(|v| v.as_str().into()),
+        branch_slug: scope.branch_slug.clone(),
+        department_slug: scope.department_slug.clone(),
+        assignment_id: grant.id.as_str().into(),
+        assignment_version: safe(grant.version)?,
+        revision: safe(selection.revision())?,
+        role: grant.role.clone(),
+        assignment_scope_kind: match grant.scope_kind {
+            WorkScopeKind::Holding => "holding",
+            WorkScopeKind::Branch => "branch",
+            WorkScopeKind::Department => "department",
+        }
+        .into(),
+        modules: selected.modules().to_vec(),
+        permissions: selected.permissions().to_vec(),
+        expires_at: safe(selected.expires_at())?,
+    })
 }
 pub(crate) struct ReplyBudget(pub(crate) usize);
 impl std::io::Write for ReplyBudget {
@@ -280,6 +309,7 @@ pub struct FieldServiceReservationReadConfiguration {
     billings: bool,
     agreement_reviews: bool,
     agreement_creates: bool,
+    parts_posting_setup: bool,
 }
 impl FieldServiceReservationReadConfiguration {
     pub fn new(
@@ -315,7 +345,12 @@ impl FieldServiceReservationReadConfiguration {
             billings: false,
             agreement_reviews: false,
             agreement_creates: false,
+            parts_posting_setup: false,
         })
+    }
+    pub fn with_parts_posting_setup(mut self) -> Self {
+        self.parts_posting_setup = true;
+        self
     }
     pub fn with_detail(mut self) -> Self {
         self.detail = true;
@@ -407,6 +442,62 @@ impl<C: Clock + Send + Sync + 'static> FieldServiceReservationReadService<C> {
     }
     pub fn company_id(&self) -> &CompanyId {
         &self.config.company
+    }
+    pub async fn parts_posting_setup<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        request: Input,
+    ) -> Result<crate::service_parts_posting_setup::ServicePostingReadResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        if !self.config.parts_posting_setup {
+            return Err(denied().into());
+        }
+        crate::service_parts_posting_setup::read_selected_service_posting_setup(
+            &self.authorizer,
+            host,
+            proof,
+            request,
+            crate::service_parts_posting_setup::ServicePostingTarget {
+                holding: self.config.holding.clone(),
+                company: self.config.company.clone(),
+                clock: self.clock.clone(),
+                environment:
+                    crate::service_parts_posting_setup::ServicePostingEnvironment::Development,
+            },
+        )
+        .await
+    }
+    pub async fn parts_posting_command<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        request: Input,
+        command: crate::service_parts_posting_setup::ServicePostingTransportCommand,
+    ) -> Result<crate::service_parts_posting_setup::ServicePostingCommandResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        if !self.config.parts_posting_setup {
+            return Err(denied().into());
+        }
+        crate::service_parts_posting_setup::execute_selected_service_posting_setup(
+            &self.authorizer,
+            host,
+            proof,
+            request,
+            crate::service_parts_posting_setup::ServicePostingTarget {
+                holding: self.config.holding.clone(),
+                company: self.config.company.clone(),
+                clock: self.clock.clone(),
+                environment:
+                    crate::service_parts_posting_setup::ServicePostingEnvironment::Development,
+            },
+            command,
+        )
+        .await
     }
     pub async fn read<Input>(
         &self,

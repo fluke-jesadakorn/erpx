@@ -90,12 +90,45 @@ pub struct CommandIamMetadata {
     pub person_id: Option<RecordId>,
     pub fresh_until: Option<i64>,
 }
+/// Read-only presentation of a genuine selected context. It is not a Work actor
+/// and cannot be converted to one or used as a command grant.
+#[derive(Clone, Debug)]
+pub struct SelectedContextRead {
+    pub(crate) holding_id: HoldingId,
+    pub(crate) user_id: UserId,
+    pub(crate) selection: CurrentWorkSelection,
+    pub(crate) modules: Vec<String>,
+    pub(crate) permissions: Vec<String>,
+    pub(crate) expires_at: i64,
+}
+impl SelectedContextRead {
+    pub fn holding_id(&self) -> &HoldingId {
+        &self.holding_id
+    }
+    pub fn user_id(&self) -> &UserId {
+        &self.user_id
+    }
+    pub fn selection(&self) -> &CurrentWorkSelection {
+        &self.selection
+    }
+    pub fn modules(&self) -> &[String] {
+        &self.modules
+    }
+    pub fn permissions(&self) -> &[String] {
+        &self.permissions
+    }
+    pub fn expires_at(&self) -> i64 {
+        self.expires_at
+    }
+}
 /// Only the owning PostgreSQL coordinator can construct this context. It lends
 /// a reference during the retained Control/Holding transaction; no constructor,
 /// serialization, deserialization or cloning can move it into a queued command.
 /// Owner-specific record, commercial, MFA and independent-review policy remains required.
 #[derive(Debug)]
 pub struct AuthorizedWorkContext {
+    pub(crate) selected_unit: Option<(String, i32, String, String)>,
+    pub(crate) selected_request: Option<super::work_context::WorkContextRequest>,
     pub(crate) holding_id: HoldingId,
     pub(crate) user_id: UserId,
     pub(crate) session_id: RecordId,

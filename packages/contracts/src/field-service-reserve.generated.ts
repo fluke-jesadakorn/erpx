@@ -1,5 +1,9 @@
 // Generated from the Rust Field Service reservation contracts. Do not edit by hand.
 // Regenerate: bun scripts/docs/generate-field-service-reserve-contracts.ts
+export type ServicePostingView = { companyId: string, available: boolean, schemaAvailable: boolean, configured: boolean | null, sourceReady: boolean, version: number | null, canConfigure: boolean, canConfirmExisting: boolean, contextKey: string | null, configuration: Record<string, string | number | null> | null, charts: Array<Record<string, string | number | null>>, accounts: Array<Record<string, string | number | null>>, expectedSalesDefaults: Record<string, string | number | null> | null, approvedSalesDefaults: Record<string, string | number | null> | null, unavailableReason: string | null, };
+export type ServicePostingResult = { id: string, status: string, version: number, };
+export type ServicePostingReadResponse = { data: ServicePostingView, context: FieldServiceRenderedContext, };
+export type ServicePostingCommandResponse = { data: ServicePostingResult, context: FieldServiceRenderedContext, };
 export type FieldServiceSourceRecord = { id: string, companyId: string, branchId: string | null, departmentId: string | null, version: number, title: string, status: string, };
 export type FieldServiceSourceRecordResponse = { data: FieldServiceSourceRecord, context: FieldServiceRenderedContext, };
 export type FieldServiceDetailSpares = { stock: Array<Record<string, string | number | null>>, lots: Array<Record<string, string | number | null>>, };

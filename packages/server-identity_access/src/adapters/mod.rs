@@ -100,3 +100,5 @@ pub(crate) mod field_service_assignment;
 pub(crate) mod journal_flow_participants;
 
 pub(crate) mod field_service_workspace;
+
+pub(crate) mod selected_command_authority;

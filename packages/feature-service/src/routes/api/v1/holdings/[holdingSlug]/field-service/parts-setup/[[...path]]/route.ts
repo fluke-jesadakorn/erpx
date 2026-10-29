@@ -1,3 +1,5 @@
+import {nativePartsSetup,NativePartsSetupError} from '@erpx/feature-field_service/public/native-parts-setup';
+import {partsSetupContext} from '../../../../../../../../lib/parts-setup-context';
 import {requireWorkContext} from '@erpx/server-identity_access/public/authorization';
 import {requestPublicOrigin} from '@erpx/server-manage_erpx/public/public-origin';
 import {ApiError,errorResponse} from '@erpx/server-runtime/public/http';
@@ -7,9 +9,9 @@ import {createServiceInitialPhysicalStockProduct,createServiceInitialPhysicalSto
 type Context={params:Promise<{holdingSlug:string;path?:string[]}>};
 const headers={'Cache-Control':'private, no-store'};
 const missing=()=>new ApiError(404,'NOT_FOUND','Service parts preparation route not found.');
-function failure(error:unknown){const mapped=error instanceof SyntaxError?new ApiError(422,'INVALID_JSON','Use valid JSON.'):error,response=errorResponse(mapped);response.headers.set('Cache-Control',headers['Cache-Control']);return response;}
+function failure(error:unknown){const mapped=error instanceof NativePartsSetupError?new ApiError(error.status,error.code,'Service parts preparation is unavailable.'):error instanceof SyntaxError?new ApiError(422,'INVALID_JSON','Use valid JSON.'):error,response=errorResponse(mapped);response.headers.set('Cache-Control',headers['Cache-Control']);return response;}
 export async function GET(request:Request,context:Context){
- try{const {holdingSlug,path=[]}=await context.params;if(new URL(request.url).search||!(path.length===0||path.length===1&&['prerequisites','stock'].includes(path[0])))throw missing();const actor=await requireWorkContext(holdingSlug),data=path.length===0?await servicePartsPostingSetup(actor):path[0]==='stock'?await servicePartsStockWorkspace(actor):await servicePartsPrerequisites(actor);return Response.json({data},{headers});}catch(error){return failure(error);}
+ try{const {holdingSlug,path=[]}=await context.params;if(new URL(request.url).search||!(path.length===0||path.length===1&&['prerequisites','stock'].includes(path[0])))throw missing();const actor=await requireWorkContext(holdingSlug),data=path.length===0?await nativePartsSetup(request.headers,holdingSlug,partsSetupContext(actor),'GET')??await servicePartsPostingSetup(actor):path[0]==='stock'?await servicePartsStockWorkspace(actor):await servicePartsPrerequisites(actor);return Response.json({data},{headers});}catch(error){return failure(error);}
 }
 export async function POST(request:Request,context:Context){
  try{
@@ -17,8 +19,8 @@ export async function POST(request:Request,context:Context){
   const {holdingSlug,path=[]}=await context.params,master=path.length===2&&path[0]==='masters'&&['products','warehouses'].includes(path[1]);if(new URL(request.url).search||!(path.length===0||master||path.length===1&&['existing','charts','accounts','periods','rates'].includes(path[0])))throw missing();
   const actor=await requireWorkContext(holdingSlug),key=request.headers.get('Idempotency-Key');if(!key)throw new ApiError(422,'COMMAND_KEY_REQUIRED','Idempotency-Key is required.');const input=await request.json();let data;
   if(master)data=path[1]==='products'?await createServiceInitialPhysicalStockProduct(actor,serviceInitialPhysicalStockProductSchema.parse(input),key):await createServiceInitialPhysicalStockWarehouse(actor,serviceInitialPhysicalStockWarehouseSchema.parse(input),key);
-  else if(path.length===0)data=await initializeServicePartsPostingSetup(actor,servicePartsPostingSetupSchema.parse(input),key);
-  else if(path[0]==='existing')data=await confirmExistingServicePartsPostingSetup(actor,servicePartsExistingPostingSetupSchema.parse(input),key);
+  else if(path.length===0)data=await nativePartsSetup(request.headers,holdingSlug,partsSetupContext(actor),'POST',input,key)??await initializeServicePartsPostingSetup(actor,servicePartsPostingSetupSchema.parse(input),key);
+  else if(path[0]==='existing')data=await nativePartsSetup(request.headers,holdingSlug,partsSetupContext(actor),'POST',input,key,true)??await confirmExistingServicePartsPostingSetup(actor,servicePartsExistingPostingSetupSchema.parse(input),key);
   else if(path[0]==='charts')data=await createServicePartsChart(actor,servicePartsChartSchema.parse(input),key);
   else if(path[0]==='accounts')data=await createServicePartsAccount(actor,servicePartsAccountSchema.parse(input),key);
   else if(path[0]==='periods')data=await createServicePartsPeriod(actor,servicePartsPeriodSchema.parse(input),key);

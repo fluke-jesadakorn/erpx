@@ -135,6 +135,8 @@ struct ConfigurationDocument {
     #[serde(default)]
     field_service_workspace_reads: Vec<String>,
     #[serde(default)]
+    field_service_parts_posting_setups: Vec<String>,
+    #[serde(default)]
     field_service_source_record_reads: Vec<FieldAttachmentDocument>,
     #[serde(default)]
     field_attachment_links: Vec<FieldAttachmentDocument>,
@@ -194,6 +196,7 @@ pub struct DevelopmentApiConfiguration {
     finance_journal_reversals: BTreeSet<HoldingId>,
     field_service_reads: BTreeMap<HoldingId, CompanyId>,
     field_service_workspace_reads: BTreeSet<HoldingId>,
+    field_service_parts_posting_setups: BTreeSet<HoldingId>,
     field_service_source_record_reads:
         BTreeMap<HoldingId, crate::field_service_source_record::SourceRecordMode>,
     field_attachment_links: BTreeMap<HoldingId, bool>,
@@ -424,6 +427,16 @@ impl DevelopmentApiConfiguration {
                 return Err("PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID");
             }
         }
+        let mut field_service_parts_posting_setups = BTreeSet::new();
+        for id in doc.field_service_parts_posting_setups {
+            let holding = HoldingId::new(id)
+                .map_err(|_| "PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID")?;
+            if !field_service_reads.contains_key(&holding)
+                || !field_service_parts_posting_setups.insert(holding)
+            {
+                return Err("PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID");
+            }
+        }
         let mut field_service_workspace_reads = BTreeSet::new();
         for id in doc.field_service_workspace_reads {
             let holding = HoldingId::new(id)
@@ -617,6 +630,7 @@ impl DevelopmentApiConfiguration {
             finance_journal_reversals,
             field_service_reads,
             field_service_workspace_reads,
+            field_service_parts_posting_setups,
             field_service_source_record_reads,
             field_attachment_links,
             field_attachment_binds,
@@ -852,6 +866,7 @@ async fn assemble_checked(
     let finance_reversal_targets = BTreeSet::new();
     let mut service_read_targets = BTreeSet::new();
     let mut service_workspace_targets = BTreeSet::new();
+    let mut service_parts_posting_targets = BTreeSet::new();
     let mut field_attachment_targets = BTreeSet::new();
     let mut field_attachment_bind_targets = BTreeSet::new();
     let mut service_work_targets = BTreeSet::new();
@@ -1130,6 +1145,15 @@ async fn assemble_checked(
                 catalogue.clone(),
             )
             .map_err(|_| "PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID")?;
+            let read_configuration = if config
+                .field_service_parts_posting_setups
+                .contains(&holding.registration.holding_id)
+            {
+                service_parts_posting_targets.insert(target.clone());
+                read_configuration.with_parts_posting_setup()
+            } else {
+                read_configuration
+            };
             let read_configuration = if config
                 .field_service_requests
                 .contains(&holding.registration.holding_id)
@@ -1433,6 +1457,7 @@ async fn assemble_checked(
         finance_reversal_targets,
         service_read_targets,
         service_workspace_targets,
+        service_parts_posting_targets,
         field_attachment_targets,
         field_attachment_bind_targets,
         service_work_targets,
@@ -1469,6 +1494,7 @@ struct Boundary {
     finance_reversal_targets: BTreeSet<(String, String)>,
     service_read_targets: BTreeSet<(String, String)>,
     service_workspace_targets: BTreeSet<(String, String)>,
+    service_parts_posting_targets: BTreeSet<(String, String)>,
     field_attachment_targets: BTreeSet<(String, String)>,
     field_attachment_bind_targets: BTreeSet<(String, String)>,
     service_work_targets: BTreeSet<(String, String)>,
@@ -1799,6 +1825,44 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             .contains(&(host.to_owned(), (*slug).to_owned())),
         _ => false,
     };
+    let service_parts_posting = match (
+        request.method(),
+        request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice(),
+    ) {
+        (
+            &axum::http::Method::GET | &axum::http::Method::POST,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "field-service",
+                "parts-setup",
+            ],
+        )
+        | (
+            &axum::http::Method::POST,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "field-service",
+                "parts-setup",
+                "existing",
+            ],
+        ) => state
+            .service_parts_posting_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
+        _ => false,
+    };
     let service_reserve = request.method() == axum::http::Method::POST
         && match request
             .uri()
@@ -1895,6 +1959,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         || finance_edit
         || finance_reverse
         || service_read
+        || service_parts_posting
         || service_reserve
         || field_attachment
         || field_attachment_bind
@@ -1905,6 +1970,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             || finance_edit
             || finance_reverse
             || service_reserve
+            || service_parts_posting
             || field_attachment
             || field_attachment_bind
             || matches!(

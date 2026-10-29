@@ -79,3 +79,5 @@ pub mod field_service_assignment;
 pub mod journal_flow_participants;
 
 pub mod field_service_workspace;
+
+pub mod selected_command_authority;

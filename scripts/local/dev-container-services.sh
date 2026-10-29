@@ -1,6 +1,9 @@
 #!/bin/sh
 # This command touches only the explicitly named Colima profile and project.
 set -eu
+case "${ERPX_DEV_WORKSPACE_KEY:-}" in
+  ''|*[!a-z0-9-]*|-*|*-) echo 'Set ERPX_DEV_WORKSPACE_KEY to a unique lowercase checkout-and-architecture key.' >&2; exit 2 ;;
+esac
 socket="$HOME/.colima/erpx-opensource-dev/docker.sock"
 [ -S "$socket" ] || { echo 'OWNED_CONTAINER_ENGINE_REQUIRED' >&2; exit 1; }
 root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
@@ -9,7 +12,7 @@ DOCKER_CONFIG=$(mktemp -d "${TMPDIR:-/tmp}/erpx-container-cli.XXXXXXXX")
 trap 'rm -rf -- "$DOCKER_CONFIG"' EXIT HUP INT TERM
 export DOCKER_CONFIG COMPOSE_DISABLE_ENV_FILE=1
 export DOCKER_HOST="unix://$socket"
-project=erpx-opensource-dev-services
+project="erpx-dev-$ERPX_DEV_WORKSPACE_KEY"
 compose() { docker-compose --project-directory "$root/ops/containers" -p "$project" -f "$root/ops/containers/development-services.compose.yaml" "$@"; }
 case "${1:-}" in
   up)
@@ -39,5 +42,5 @@ SQL
     [ "$#" -eq 1 ] || exit 2
     compose down
     ;;
-  *) echo 'Usage: dev-container-services.sh up|down' >&2; exit 2 ;;
+  *) echo 'Usage: ERPX_DEV_WORKSPACE_KEY=<checkout-architecture> dev-container-services.sh up|down' >&2; exit 2 ;;
 esac

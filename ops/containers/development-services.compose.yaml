@@ -28,8 +28,11 @@ services:
     network_mode: service:workspace
 volumes:
   postgres-data:
+    name: erpx-dev-${ERPX_DEV_WORKSPACE_KEY:?Set ERPX_DEV_WORKSPACE_KEY}-postgres
   scanner-socket:
+    name: erpx-dev-${ERPX_DEV_WORKSPACE_KEY:?Set ERPX_DEV_WORKSPACE_KEY}-scanner-socket
   scanner-definitions:
+    name: erpx-dev-${ERPX_DEV_WORKSPACE_KEY:?Set ERPX_DEV_WORKSPACE_KEY}-scanner-definitions
   secrets:
     external: true
-    name: erpx-opensource-dev-services_secrets
+    name: erpx-dev-${ERPX_DEV_WORKSPACE_KEY:?Set ERPX_DEV_WORKSPACE_KEY}_secrets

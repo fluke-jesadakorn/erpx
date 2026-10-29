@@ -10,7 +10,7 @@ use crate::{
         account_ports::DeviceProof,
         effective_authority::{
             InitialAdmissionFailure, authorize_effective_work, authorize_effective_work_tagged,
-            inspect_selected_work, same_selected_work,
+            inspect_selected_work, same_selected_work, selected_context_read,
         },
     },
     domain::{
@@ -134,6 +134,10 @@ where
 pub struct SelectedWorkIngress<'a> {
     holding_id: &'a HoldingId,
     company_id: &'a erpx_server_shared::public::CompanyId,
+    request: &'a WorkContextRequest,
+    facts: &'a EffectiveAuthorityFacts,
+    now: i64,
+    deadline: i64,
 }
 impl SelectedWorkIngress<'_> {
     pub fn holding_id(&self) -> &HoldingId {
@@ -141,6 +145,17 @@ impl SelectedWorkIngress<'_> {
     }
     pub fn company_id(&self) -> &erpx_server_shared::public::CompanyId {
         self.company_id
+    }
+    /// Obtain presentation metadata only; the coordinator rechecks this source
+    /// and the retained System binding before any typed denial is returned.
+    pub fn read_context(&self) -> Result<SelectedContextRead, BusinessError> {
+        selected_context_read(
+            self.request,
+            self.facts,
+            work_module_catalog()?,
+            self.now,
+            self.deadline,
+        )
     }
 }
 
@@ -648,6 +663,13 @@ impl HoldingWorkAuthorizer {
                                             context.expires_at.min(source.deadline());
                                         context.require_current_time(clock.now().get())?;
                                     }
+                                    context.selected_unit = Some(
+                                        super::selected_command_authority::selected_unit(
+                                            connection,
+                                        )
+                                        .await?,
+                                    );
+                                    context.selected_request = Some(request.clone());
                                     let result = action(&mut *connection, &context).await?;
                                     if let Some(source) = &retained_holding {
                                         sqlx::query("SET CONSTRAINTS ALL IMMEDIATE")
@@ -1042,7 +1064,7 @@ impl HoldingWorkAuthorizer {
                                     let mut deadline = inspect_selected_work(&facts, &access, clock.now().get())?;
                                     if let Some(source) = &retained_holding { deadline = deadline.min(source.deadline()); }
                                     if clock.now().get() >= deadline { return Err(authority_error("WORK_AUTHORITY_EXPIRED", "Your work authority expired. Review your current access.").into()); }
-                                    let witness = SelectedWorkIngress { holding_id: &request.holding_id, company_id: &facts.selection.workspace().company_id };
+                                    let witness = SelectedWorkIngress { holding_id: &request.holding_id, company_id: &facts.selection.workspace().company_id, request: &request, facts: &facts, now: clock.now().get(), deadline };
                                     let initial = match ingress(&witness).await {
                                         Ok(value) => {
                                             let catalog = permission_catalog()?;
@@ -1088,6 +1110,8 @@ impl HoldingWorkAuthorizer {
                                             context.expires_at.min(source.deadline());
                                         context.require_current_time(clock.now().get())?;
                                     }
+                                    context.selected_unit = Some(super::selected_command_authority::selected_unit(connection).await?);
+                                    context.selected_request = Some(request.clone());
                                     let result = action.invoke(&mut *connection, &context, normalized).await?;
                                     if let Some(source) = &retained_holding {
                                         sqlx::query("SET CONSTRAINTS ALL IMMEDIATE")

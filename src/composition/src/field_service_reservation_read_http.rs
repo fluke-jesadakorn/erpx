@@ -95,6 +95,8 @@ pub fn field_service_reservation_read_router<C: Clock + Send + Sync + 'static>(
         .route("/api/v1/holdings/{holding_slug}/attachment-links/{link_id}/status",get(attachment_status::<C>))
         .route("/api/v1/holdings/{holding_slug}/attachment-links/{link_id}/withdraw",post(attachment_withdraw::<C>))
         .route("/api/v1/holdings/{holding_slug}/field-service/workspace",get(read_workspace::<C>))
+        .route("/api/v1/holdings/{holding_slug}/field-service/parts-setup",get(read_parts_posting::<C>).post(initialize_parts_posting::<C>))
+        .route("/api/v1/holdings/{holding_slug}/field-service/parts-setup/existing",post(confirm_parts_posting::<C>))
         .route("/api/v1/holdings/{holding_slug}/field-service/work",get(read_work::<C>))
         .route("/api/v1/holdings/{holding_slug}/field-service/orders/{id}/detail",get(read_detail::<C>))
         .route("/api/v1/holdings/{holding_slug}/field-service/orders/{id}/source-record",get(read_source_record::<C>))
@@ -104,6 +106,143 @@ pub fn field_service_reservation_read_router<C: Clock + Send + Sync + 'static>(
         .route("/api/v1/holdings/{holding_slug}/field-service/requests/{key}",get(read_request::<C>))
         .route("/api/v1/holdings/{holding_slug}/field-service/orders/{key}",get(read_created_order::<C>))
         .with_state(Arc::new(ReadState {policy,scopes,targets:configured})))
+}
+fn posting_response<T: serde::Serialize>(
+    result: Result<T, PgTransactionError<BusinessError>>,
+) -> Response {
+    let mut response=match result {Ok(value)=>Json(value).into_response(),Err(PgTransactionError::Business(e))=>{let status=match e.kind{FailureKind::InvalidInput=>StatusCode::UNPROCESSABLE_ENTITY,FailureKind::Unauthenticated=>StatusCode::UNAUTHORIZED,FailureKind::Forbidden=>StatusCode::FORBIDDEN,FailureKind::NotFound=>StatusCode::NOT_FOUND,FailureKind::Conflict=>StatusCode::CONFLICT,FailureKind::Unavailable=>StatusCode::SERVICE_UNAVAILABLE};(status,Json(serde_json::json!({"error":{"code":e.code,"message":e.message}}))).into_response()},Err(PgTransactionError::Persistence(_))=>(StatusCode::INTERNAL_SERVER_ERROR,Json(serde_json::json!({"error":{"code":"SERVICE_POSTING_UNAVAILABLE","message":"The Service parts setup is unavailable."}}))).into_response()};
+    for (name, value) in [
+        (header::CACHE_CONTROL, "private, no-store"),
+        (header::REFERRER_POLICY, "no-referrer"),
+        (header::X_CONTENT_TYPE_OPTIONS, "nosniff"),
+    ] {
+        response
+            .headers_mut()
+            .insert(name, HeaderValue::from_static(value));
+    }
+    response
+}
+async fn read_parts_posting<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path(slug): Path<String>,
+    headers: HeaderMap,
+) -> Response {
+    let result = async {
+        let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
+        let target = state
+            .targets
+            .get(&(host.into(), slug))
+            .ok_or_else(missing)?;
+        let inbound = parse_inbound_account_request(&state.policy, &headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(missing().into());
+        }
+        if unique_request_header(&headers, "origin")?
+            .is_some_and(|v| v != inbound.expected_origin())
+        {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            )
+            .into());
+        }
+        let scope = state.scopes.slugs(&headers);
+        let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
+        let captured = CapturedHoldingMutation::capture(&headers, branch, department);
+        let company = target.service.company_id().clone();
+        target
+            .service
+            .parts_posting_setup(host, inbound.into_proof(), move || {
+                scope?;
+                captured.resolve_read(company)
+            })
+            .await
+    }
+    .await;
+    posting_response(result)
+}
+async fn initialize_parts_posting<C: Clock + Send + Sync + 'static>(
+    state: State<Arc<ReadState<C>>>,
+    path: Path<String>,
+    request: Request,
+) -> Response {
+    write_parts_posting(
+        state,
+        path,
+        request,
+        erpx_server_commerce::public::service_parts_posting::PostingMode::Initialize,
+    )
+    .await
+}
+async fn confirm_parts_posting<C: Clock + Send + Sync + 'static>(
+    state: State<Arc<ReadState<C>>>,
+    path: Path<String>,
+    request: Request,
+) -> Response {
+    write_parts_posting(
+        state,
+        path,
+        request,
+        erpx_server_commerce::public::service_parts_posting::PostingMode::ConfirmExisting,
+    )
+    .await
+}
+async fn write_parts_posting<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path(slug): Path<String>,
+    request: Request,
+    mode: erpx_server_commerce::public::service_parts_posting::PostingMode,
+) -> Response {
+    let (parts, body) = request.into_parts();
+    let headers = parts.headers;
+    let result = async {
+        let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
+        let target = state
+            .targets
+            .get(&(host.into(), slug))
+            .ok_or_else(missing)?;
+        let inbound = parse_inbound_account_request(&state.policy, &headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(missing().into());
+        }
+        if unique_request_header(&headers, "origin")?
+            .is_some_and(|v| v != inbound.expected_origin())
+        {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            )
+            .into());
+        }
+        let key = unique_request_header(&headers, "idempotency-key").and_then(|v| {
+            v.map(str::to_owned).ok_or_else(|| {
+                BusinessError::invalid("COMMAND_KEY_REQUIRED", "Idempotency-Key is required.")
+            })
+        });
+        let scope = state.scopes.slugs(&headers);
+        let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
+        let captured = CapturedHoldingMutation::capture(&headers, branch, department);
+        target
+            .service
+            .parts_posting_command(
+                host,
+                inbound.into_proof(),
+                move || {
+                    scope?;
+                    captured.resolve()
+                },
+                crate::service_parts_posting_setup::ServicePostingTransportCommand {
+                    key,
+                    body,
+                    mode,
+                },
+            )
+            .await
+    }
+    .await;
+    posting_response(result)
 }
 async fn read<C: Clock + Send + Sync + 'static>(
     State(state): State<Arc<ReadState<C>>>,
