@@ -82,6 +82,7 @@
 @source "../../../../packages/feature-runtime/src/lib/console-retirement.ts";
 @source "../../../../packages/feature-runtime/src/lib/database-pool-policy.ts";
 @source "../../../../packages/feature-runtime/src/lib/erpx-hosts.ts";
+@source "../../../../packages/feature-runtime/src/lib/holding-hosts.ts";
 @source "../../../../packages/feature-runtime/src/lib/holding-registry.ts";
 @source "../../../../packages/feature-runtime/src/lib/product-api-policy.ts";
 @source "../../../../packages/feature-runtime/src/lib/product-hosts.ts";
@@ -391,6 +392,7 @@
 @source "../../../../packages/server-field_service/src/adapters/attachments-service-facts.ts";
 @source "../../../../packages/server-field_service/src/adapters/finance-record-sources.ts";
 @source "../../../../packages/server-field_service/src/adapters/intake-sources.ts";
+@source "../../../../packages/server-field_service/src/adapters/native-source-record.ts";
 @source "../../../../packages/server-field_service/src/adapters/purchase-boundary.ts";
 @source "../../../../packages/server-field_service/src/adapters/purchases.ts";
 @source "../../../../packages/server-field_service/src/adapters/record-purchases.ts";
@@ -409,6 +411,7 @@
 @source "../../../../packages/server-field_service/src/public/field-service.ts";
 @source "../../../../packages/server-field_service/src/public/finance-record-sources.ts";
 @source "../../../../packages/server-field_service/src/public/intake-sources.ts";
+@source "../../../../packages/server-field_service/src/public/native-source-record.ts";
 @source "../../../../packages/server-field_service/src/public/records-source-facts.ts";
 @source "../../../../packages/server-files/src/adapters/app-attachment-sources.ts";
 @source "../../../../packages/server-files/src/adapters/attachment-denied-read-audits.ts";

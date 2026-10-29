@@ -21,6 +21,8 @@
 @source "../../../../packages/feature-commerce/src/lib/commerce-command-fetch.ts";
 @source "../../../../packages/feature-commerce/src/lib/commerce-math.ts";
 @source "../../../../packages/feature-commerce/src/lib/posting-setup-prerequisite-command.ts";
+@source "../../../../packages/feature-field_service/src/adapters/server/native-initial-count.ts";
+@source "../../../../packages/feature-field_service/src/adapters/server/native-parts-setup.ts";
 @source "../../../../packages/feature-field_service/src/adapters/server/native-workspace.ts";
 @source "../../../../packages/feature-field_service/src/components/customer-preparation.tsx";
 @source "../../../../packages/feature-field_service/src/components/field-service-console.tsx";
@@ -36,16 +38,22 @@
 @source "../../../../packages/feature-field_service/src/lib/initial-physical-stock-count-command.ts";
 @source "../../../../packages/feature-field_service/src/lib/native-reserve-command.ts";
 @source "../../../../packages/feature-field_service/src/lib/parts-setup-command.ts";
+@source "../../../../packages/feature-field_service/src/lib/parts-setup-model.ts";
 @source "../../../../packages/feature-field_service/src/lib/workspace.ts";
+@source "../../../../packages/feature-field_service/src/public/native-initial-count.ts";
+@source "../../../../packages/feature-field_service/src/public/native-parts-setup.ts";
 @source "../../../../packages/feature-field_service/src/public/native-workspace.ts";
+@source "../../../../packages/feature-files/src/application/field-bind.ts";
 @source "../../../../packages/feature-files/src/application/field-withdrawal.ts";
 @source "../../../../packages/feature-files/src/components/attachment-feature-context.tsx";
 @source "../../../../packages/feature-files/src/components/attachment-panel.tsx";
 @source "../../../../packages/feature-files/src/components/record-document-panel.tsx";
+@source "../../../../packages/feature-files/src/domain/field-bind.ts";
 @source "../../../../packages/feature-files/src/domain/field-withdrawal.ts";
 @source "../../../../packages/feature-files/src/lib/attachment-client.ts";
 @source "../../../../packages/feature-files/src/lib/attachment-state.ts";
 @source "../../../../packages/feature-files/src/lib/document-pages.ts";
+@source "../../../../packages/feature-files/src/lib/native-field-bind.ts";
 @source "../../../../packages/feature-files/src/lib/native-field-withdraw.ts";
 @source "../../../../packages/feature-finance/src/components/money/currency-provider.tsx";
 @source "../../../../packages/feature-finance/src/lib/company-money.ts";
@@ -148,10 +156,12 @@
 @source "../../../../packages/feature-runtime/src/lib/database-pool-policy.ts";
 @source "../../../../packages/feature-runtime/src/lib/erpx-hosts.ts";
 @source "../../../../packages/feature-runtime/src/lib/executive/canvas-domain.ts";
+@source "../../../../packages/feature-runtime/src/lib/holding-hosts.ts";
 @source "../../../../packages/feature-runtime/src/lib/holding-registry.ts";
 @source "../../../../packages/feature-runtime/src/lib/product-api-policy.ts";
 @source "../../../../packages/feature-runtime/src/lib/product-hosts.ts";
 @source "../../../../packages/feature-runtime/src/lib/product-route-policy.ts";
+@source "../../../../packages/feature-service/src/lib/parts-setup-context.ts";
 @source "../../../../packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/customer-preparation/[[...path]]/route.ts";
 @source "../../../../packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/initial-physical-stock/[[...path]]/route.ts";
 @source "../../../../packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/native-reserve.ts";
@@ -235,6 +245,8 @@
 @source "../../../../packages/feature-work_projection/src/lib/workspace.ts";
 @source "../../../../packages/front/src/components/front-error.tsx";
 @source "../../../../packages/front/src/components/front-language.tsx";
+@source "../../../../packages/native-sdk/src/field-service-initial-count.ts";
+@source "../../../../packages/native-sdk/src/field-service-parts.ts";
 @source "../../../../packages/native-sdk/src/session.ts";
 @source "../../../../packages/server-agent/src/adapters/agent-governance.ts";
 @source "../../../../packages/server-agent/src/adapters/ai-gateway.ts";
@@ -867,6 +879,7 @@
 @source "../../../../packages/server-field_service/src/adapters/final-root-owner-projection-sources.ts";
 @source "../../../../packages/server-field_service/src/adapters/finance-record-sources.ts";
 @source "../../../../packages/server-field_service/src/adapters/intake-sources.ts";
+@source "../../../../packages/server-field_service/src/adapters/native-source-record.ts";
 @source "../../../../packages/server-field_service/src/adapters/native-work.ts";
 @source "../../../../packages/server-field_service/src/adapters/purchase-boundary.ts";
 @source "../../../../packages/server-field_service/src/adapters/purchases.ts";
@@ -889,6 +902,7 @@
 @source "../../../../packages/server-field_service/src/public/final-root-owner-projection-sources.ts";
 @source "../../../../packages/server-field_service/src/public/finance-record-sources.ts";
 @source "../../../../packages/server-field_service/src/public/intake-sources.ts";
+@source "../../../../packages/server-field_service/src/public/native-source-record.ts";
 @source "../../../../packages/server-field_service/src/public/native-work.ts";
 @source "../../../../packages/server-field_service/src/public/record-purchases.ts";
 @source "../../../../packages/server-field_service/src/public/records-source-facts.ts";
@@ -900,6 +914,7 @@
 @source "../../../../packages/server-files/src/adapters/attachments/finance-operations-policy.ts";
 @source "../../../../packages/server-files/src/adapters/attachments/hospitality-purchases.ts";
 @source "../../../../packages/server-files/src/adapters/attachments/native-field-attachment.ts";
+@source "../../../../packages/server-files/src/adapters/attachments/native-field-bind.ts";
 @source "../../../../packages/server-files/src/adapters/attachments/policy.ts";
 @source "../../../../packages/server-files/src/adapters/attachments/portal-collaboration-policy.ts";
 @source "../../../../packages/server-files/src/adapters/attachments/preview.ts";
@@ -977,6 +992,7 @@
 @source "../../../../packages/server-files/src/public/attachments/finance-operations-policy.ts";
 @source "../../../../packages/server-files/src/public/attachments/legacy-policy.ts";
 @source "../../../../packages/server-files/src/public/attachments/native-field-attachment.ts";
+@source "../../../../packages/server-files/src/public/attachments/native-field-bind.ts";
 @source "../../../../packages/server-files/src/public/attachments/policy.ts";
 @source "../../../../packages/server-files/src/public/attachments/portal-collaboration-policy.ts";
 @source "../../../../packages/server-files/src/public/attachments/preview.ts";
