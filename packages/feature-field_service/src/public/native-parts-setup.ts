@@ -1,2 +1,2 @@
 import 'server-only';
-export {nativePartsSetup,nativePartsSetupSelected,nativePartsPrerequisites,nativePartsPrerequisitesSelected,NativePartsSetupError} from '../adapters/server/native-parts-setup';
+export {nativePartsStock,nativePartsStockSelected,nativePartsSetup,nativePartsSetupSelected,nativePartsPrerequisites,nativePartsPrerequisitesSelected,NativePartsSetupError} from '../adapters/server/native-parts-setup';

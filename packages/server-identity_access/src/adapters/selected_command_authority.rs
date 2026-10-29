@@ -127,3 +127,90 @@ fn changed() -> Error {
     )
     .into()
 }
+
+/// Synchronous selected Stock authority for Service master discovery and writes.
+/// This is an in-flight witness, not a delegated or queued permission.
+pub struct CurrentServiceStockAuthority<'a> {
+    context: &'a AuthorizedWorkContext,
+    unit: Unit,
+    projection: CommandIamProjection,
+}
+impl CurrentServiceStockAuthority<'_> {
+    pub fn iam(&self) -> &CommandIamProjection {
+        &self.projection
+    }
+    pub async fn require_current(
+        &self,
+        c: &mut PgConnection,
+        clock: &impl Clock,
+    ) -> Result<(), Error> {
+        let projection = inspect_stock(c, self.context, clock).await?;
+        if selected_unit(c).await? != self.unit || projection != self.projection {
+            return Err(changed());
+        }
+        Ok(())
+    }
+}
+pub async fn capture_service_stock_authority<'a>(
+    c: &mut PgConnection,
+    context: &'a AuthorizedWorkContext,
+    clock: &impl Clock,
+) -> Result<CurrentServiceStockAuthority<'a>, Error> {
+    let unit = selected_unit(c).await?;
+    if context.selected_unit.as_ref() != Some(&unit) {
+        return Err(changed());
+    }
+    let projection = inspect_stock(c, context, clock).await?;
+    Ok(CurrentServiceStockAuthority {
+        context,
+        unit,
+        projection,
+    })
+}
+async fn inspect_stock(
+    c: &mut PgConnection,
+    context: &AuthorizedWorkContext,
+    clock: &impl Clock,
+) -> Result<CommandIamProjection, Error> {
+    if context.selected_unit.as_ref() != Some(&selected_unit(c).await?) {
+        return Err(changed());
+    }
+    if context.selection().workspace().department_id.is_some() {
+        return Err(BusinessError::new(
+            FailureKind::Forbidden,
+            "INVENTORY_SCOPE_REQUIRED",
+            "Use a current Company or Branch Stock assignment.",
+        )
+        .into());
+    }
+    context.require_permission("inventory.read")?;
+    context.require_permission("inventory.prepare")?;
+    let now = clock.now().get();
+    context.require_current_time(now)?;
+    let request = context.selected_request.as_ref().ok_or_else(changed)?;
+    let access = WorkAuthorizationRequest {
+        permission: "inventory.prepare".into(),
+        module: None,
+        destination: "services/field-service".into(),
+        api: true,
+    };
+    let facts = current_authority_facts(c, request, now).await?;
+    let mut current = authorize_effective_work(
+        request,
+        &access,
+        facts,
+        permission_catalog()?,
+        work_module_catalog()?,
+        now,
+    )?;
+    current.expires_at = current.expires_at.min(context.expires_at());
+    if !same_selected_command(context, &current)? {
+        return Err(changed());
+    }
+    current.require_permission("inventory.read")?;
+    current.require_permission("inventory.prepare")?;
+    Ok(project(
+        &current,
+        Some(current.selection().assignment().version),
+    )?)
+}

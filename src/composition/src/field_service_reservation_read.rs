@@ -311,6 +311,7 @@ pub struct FieldServiceReservationReadConfiguration {
     agreement_creates: bool,
     parts_posting_setup: bool,
     parts_prerequisites: bool,
+    stock_setup: bool,
 }
 impl FieldServiceReservationReadConfiguration {
     pub fn new(
@@ -348,10 +349,15 @@ impl FieldServiceReservationReadConfiguration {
             agreement_creates: false,
             parts_posting_setup: false,
             parts_prerequisites: false,
+            stock_setup: false,
         })
     }
     pub fn with_parts_posting_setup(mut self) -> Self {
         self.parts_posting_setup = true;
+        self
+    }
+    pub fn with_stock_setup(mut self) -> Self {
+        self.stock_setup = true;
         self
     }
     pub fn with_parts_prerequisites(mut self) -> Self {
@@ -473,6 +479,62 @@ impl<C: Clock + Send + Sync + 'static> FieldServiceReservationReadService<C> {
                 environment:
                     crate::service_parts_posting_setup::ServicePostingEnvironment::Development,
             },
+        )
+        .await
+    }
+    pub async fn stock_setup<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        request: Input,
+    ) -> Result<crate::service_stock_setup::ServiceStockReadResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        if !self.config.stock_setup {
+            return Err(denied().into());
+        }
+        crate::service_stock_setup::read_selected_service_stock(
+            &self.authorizer,
+            host,
+            proof,
+            request,
+            crate::service_parts_posting_setup::ServicePostingTarget {
+                holding: self.config.holding.clone(),
+                company: self.config.company.clone(),
+                clock: self.clock.clone(),
+                environment:
+                    crate::service_parts_posting_setup::ServicePostingEnvironment::Development,
+            },
+        )
+        .await
+    }
+    pub async fn stock_command<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        request: Input,
+        command: crate::service_stock_setup::ServiceStockTransportCommand,
+    ) -> Result<crate::service_stock_setup::ServiceStockCommandResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        if !self.config.stock_setup {
+            return Err(denied().into());
+        }
+        crate::service_stock_setup::execute_selected_service_stock(
+            &self.authorizer,
+            host,
+            proof,
+            request,
+            crate::service_parts_posting_setup::ServicePostingTarget {
+                holding: self.config.holding.clone(),
+                company: self.config.company.clone(),
+                clock: self.clock.clone(),
+                environment:
+                    crate::service_parts_posting_setup::ServicePostingEnvironment::Development,
+            },
+            command,
         )
         .await
     }

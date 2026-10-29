@@ -146,6 +146,72 @@ async fn capture(c: &mut PgConnection, company: &CompanyId) -> Result<Image, Err
         }
     }
 }
+/// Mapping-qualified discovery for the retained Service Stock source. The
+/// mapping is supplied by Commerce and is evidence, never an authorization.
+pub struct CurrentServiceStockPostingReceipt {
+    company: CompanyId,
+    mapping: String,
+    unit: Unit,
+    image: Image,
+}
+impl CurrentServiceStockPostingReceipt {
+    pub fn facts(&self) -> Option<&ServicePostingReceiptFacts> {
+        self.image.facts.as_ref()
+    }
+    pub async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
+        if unit(c).await? != self.unit
+            || capture_for_mapping(c, &self.company, &self.mapping).await? != self.image
+        {
+            return Err(changed());
+        }
+        Ok(())
+    }
+}
+pub async fn read_service_stock_posting_receipt(
+    c: &mut PgConnection,
+    company: &CompanyId,
+    mapping: &str,
+) -> Result<CurrentServiceStockPostingReceipt, Error> {
+    if mapping.len() > 2 * 1024 * 1024 {
+        return Err(invalid());
+    }
+    let unit = unit(c).await?;
+    let image = capture_for_mapping(c, company, mapping).await?;
+    Ok(CurrentServiceStockPostingReceipt {
+        company: company.clone(),
+        mapping: mapping.into(),
+        unit,
+        image,
+    })
+}
+async fn capture_for_mapping(
+    c: &mut PgConnection,
+    company: &CompanyId,
+    mapping: &str,
+) -> Result<Image, Error> {
+    let row=sqlx::query("WITH source AS MATERIALIZED (SELECT r.* FROM command_receipts r WHERE r.record_id=$1 AND r.operation IN ('commerce.service-parts-posting-setup.initialize','commerce.service-parts-posting-setup.confirm-existing') AND r.authority_json::jsonb->>'companyId'=r.record_id AND r.result_json::jsonb->>'id'=r.record_id AND r.result_json::jsonb->>'version'='1' AND r.result_json::jsonb->>'status'=CASE r.operation WHEN 'commerce.service-parts-posting-setup.initialize' THEN 'configured' ELSE 'confirmed-existing' END AND r.result_json::jsonb->'_servicePartsPostingSetup'->>'kind'='service-parts-posting-setup' AND r.result_json::jsonb->'_servicePartsPostingSetup'->>'companyId'=r.record_id AND r.result_json::jsonb->'_servicePartsPostingSetup'->>'commandId'=r.command_id AND r.result_json::jsonb->'_servicePartsPostingSetup'->'mapping'->>'company_id'=r.record_id AND r.result_json::jsonb->'_servicePartsPostingSetup'->'mapping'=$2::jsonb ORDER BY r.command_id LIMIT 1) SELECT CASE WHEN octet_length(to_jsonb(source)::text)<=2097152 THEN command_id END command_id,CASE WHEN octet_length(to_jsonb(source)::text)<=2097152 THEN (result_json::jsonb->'_servicePartsPostingSetup')::text END proof,encode(sha256(convert_to(to_jsonb(source)::text,'UTF8')),'hex') digest FROM source").bind(company.as_str()).bind(mapping).fetch_optional(c).await?;
+    match row {
+        None => Ok(Image {
+            facts: None,
+            digest: None,
+        }),
+        Some(r) => {
+            let command_id = r
+                .try_get::<Option<String>, _>("command_id")?
+                .ok_or_else(invalid)?;
+            let proof_json = r
+                .try_get::<Option<String>, _>("proof")?
+                .ok_or_else(invalid)?;
+            Ok(Image {
+                facts: Some(ServicePostingReceiptFacts {
+                    command_id,
+                    proof_json,
+                }),
+                digest: Some(r.try_get("digest")?),
+            })
+        }
+    }
+}
 async fn unit(c: &mut PgConnection) -> Result<Unit, Error> {
     if !c.is_in_transaction()
         || sqlx::query_scalar::<_, String>("SHOW transaction_isolation")

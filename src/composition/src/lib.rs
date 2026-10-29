@@ -128,3 +128,6 @@ pub mod field_service_source_record;
 pub mod module_assembly;
 #[cfg(feature = "module-example")]
 mod module_example;
+
+#[cfg(feature = "field-service")]
+pub mod service_stock_setup;

@@ -220,6 +220,13 @@ fn finance_read_requires_distinct_registered_holdings_and_valid_companies() {
     d["fieldServicePartsPrerequisites"] = serde_json::json!(["h001", "h001"]);
     assert!(!parses(&d));
     d["fieldServicePartsPrerequisites"] = serde_json::json!([]);
+    d["fieldServiceStockSetups"] = serde_json::json!(["h001"]);
+    assert!(parses(&d));
+    d["fieldServiceStockSetups"] = serde_json::json!(["h002"]);
+    assert!(!parses(&d));
+    d["fieldServiceStockSetups"] = serde_json::json!(["h001", "h001"]);
+    assert!(!parses(&d));
+    d["fieldServiceStockSetups"] = serde_json::json!([]);
     d["fieldServiceWorkReads"] = serde_json::json!(["h001"]);
     assert!(parses(&d));
     d["fieldServiceWorkReads"] = serde_json::json!(["h002"]);

@@ -75,3 +75,5 @@ pub mod field_service_detail;
 
 pub mod service_parts_posting;
 pub mod service_parts_prerequisites;
+
+pub mod stock_master_money;

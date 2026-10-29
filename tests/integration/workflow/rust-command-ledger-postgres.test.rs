@@ -800,8 +800,13 @@ impl PgOwnerCommandEffects for SetupMarkerEffects {
         command: &WorkflowRequest,
     ) -> Result<WorkflowOutput, Error> {
         let result = format!(
-            r#"{{"id":"company","status":"configured","version":1,"_servicePartsPostingSetup":{{"kind":"service-parts-posting-setup","companyId":"company","commandId":"{}","mode":"initialize","mapping":{{"company_id":"company"}}}}}}"#,
-            command.key
+            r#"{{"id":"company","status":"configured","version":1,"_servicePartsPostingSetup":{{"kind":"service-parts-posting-setup","companyId":"company","commandId":"{}","mode":"initialize","mapping":{{"company_id":"company","chart_id":"{}"}}}}}}"#,
+            command.key,
+            if command.key == "z-service-test" {
+                "later"
+            } else {
+                "earlier"
+            }
         );
         Ok(WorkflowOutput {
             version: 1,
@@ -849,6 +854,10 @@ async fn service_posting_receipt_discovery_preserves_first_marker_and_absence() 
         assert_eq!(selected.facts().unwrap().command_id,"a-service-test");
         assert!(selected.facts().unwrap().proof_json.contains("a-service-test"));
         selected.require_current(&mut tx).await.unwrap();
+        let mapping=r#"{"company_id":"company","chart_id":"later"}"#;
+        let stock=read_service_stock_posting_receipt(&mut tx,&company,mapping).await.unwrap();
+        let oracle:String=sqlx::query_scalar("SELECT command_id FROM command_receipts WHERE record_id=$1 AND result_json::jsonb->'_servicePartsPostingSetup'->'mapping'=$2::jsonb ORDER BY command_id LIMIT 1").bind(company.as_str()).bind(mapping).fetch_one(&mut *tx).await.unwrap();
+        assert_eq!(oracle,"z-service-test");assert_eq!(stock.facts().unwrap().command_id,oracle);stock.require_current(&mut tx).await.unwrap();
         let foreign=read_service_posting_receipt(&mut tx,&CompanyId::new("foreign").unwrap()).await.unwrap();
         assert!(foreign.facts().is_none());
         // The intentionally incomplete owner effect is never committed.

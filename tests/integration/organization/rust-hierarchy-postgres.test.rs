@@ -126,3 +126,17 @@ async fn scope_id_tuple_fences_reject_nodes_revoked_after_an_earlier_snapshot() 
         assert_eq!(attempts.load(Ordering::SeqCst),2,"the updated tuple must raise40001 before the new snapshot denies");
     }).await;
 }
+
+#[tokio::test]
+async fn service_stock_branches_match_active_company_branch_picker_and_detect_drift() {
+    use erpx_server_organization::public::field_service_workspace::{
+        lock_service_workspace_locations, read_service_stock_branches,
+    };
+    fixture::with_database(2,|pool|async move{
+  let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");let files=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&files).await.unwrap();
+  sqlx::raw_sql("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status) VALUES('company','company','acme','Acme',NULL,'company',NULL,'active'),('b2','branch','b2','Alpha','company','company','b2','active'),('b1','branch','b1','Zulu','company','company','b1','active'),('b3','branch','b3','Archived','company','company','b3','suspended'),('foreign','company','foreign','Foreign',NULL,'foreign',NULL,'active'),('fb','branch','fb','Foreign branch','foreign','foreign','fb','active')").execute(pool.raw()).await.unwrap();
+  let result=PgUnitOfWork::new(pool.clone()).run::<_,BusinessError,_>(TransactionOptions::default(),|c|Box::pin(async move{
+   lock_service_workspace_locations(c).await?;let company=CompanyId::new("company").unwrap();let all=read_service_stock_branches(c,&company,None).await?;assert_eq!(all.branches().map(|x|x.id.as_str()).collect::<Vec<_>>(),vec!["b1","b2"]);let branch=read_service_stock_branches(c,&company,Some("b2")).await?;assert_eq!(branch.branches().count(),1);sqlx::query("UPDATE organization_nodes SET display_name='changed' WHERE id='b2'").execute(&mut *c).await?;all.require_current(c).await
+  })).await;assert!(result.is_err());
+ }).await;
+}

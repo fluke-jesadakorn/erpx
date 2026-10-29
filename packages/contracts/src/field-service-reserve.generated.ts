@@ -1,5 +1,12 @@
 // Generated from the Rust Field Service reservation contracts. Do not edit by hand.
 // Regenerate: bun scripts/docs/generate-field-service-reserve-contracts.ts
+export type ServiceStockWorkspace = { companyId: string, available: boolean, schemaAvailable: boolean, sourceReady: boolean, currency: string | null, canCreateWarehouse: boolean, canCreateProduct: boolean, branches: Array<ServiceStockBranch>, unavailableReason: string | null, };
+export type ServiceStockBranch = { id: string, name: string, };
+export type ServiceStockReadResponse = { data: ServiceStockWorkspace, context: FieldServiceRenderedContext, };
+export type ServiceStockProductInput = { itemType?: string, sku: string, name: string, unit?: string, trackingMode?: string, price: string, taxBps?: number, status?: string, };
+export type ServiceStockWarehouseInput = { code: string, name: string, branchId: string, status?: string, };
+export type ServiceStockMasterResult = { id: string, version: number, };
+export type ServiceStockMasterResponse = { data: ServiceStockMasterResult, context: FieldServiceRenderedContext, };
 export type ServicePrerequisitesView = { companyId: string, available: boolean, configured: boolean | null, contextKey: string | null, canCreateChart: boolean, canCreateAccount: boolean, canCreatePeriod: boolean, canConfirmRate: boolean, charts: Array<Record<string, string | number | null>>, accounts: Array<Record<string, string | number | null>>, periods: Array<Record<string, string | number | null>>, rates: Array<Record<string, string | number | null>>, unavailableReason: string | null, };
 export type ServicePrerequisitesReadResponse = { data: ServicePrerequisitesView, context: FieldServiceRenderedContext, };
 export type ServicePrerequisiteChartInput = { name: string, baseCurrency: string, accountingBasis?: string, };

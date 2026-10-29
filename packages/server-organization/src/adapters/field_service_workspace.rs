@@ -126,3 +126,65 @@ fn limited() -> Error {
     )
     .into()
 }
+
+/// The Service stock picker uses active branches only, ordered by physical ID.
+/// It intentionally does not inherit the broader workspace's headquarters or
+/// department predicates.
+pub struct CurrentServiceStockBranches {
+    company: CompanyId,
+    branch: Option<String>,
+    unit: Unit,
+    image: Vec<(ServiceLocationReference, String)>,
+}
+impl CurrentServiceStockBranches {
+    pub fn branches(&self) -> impl Iterator<Item = &ServiceLocationReference> {
+        self.image.iter().map(|(row, _)| row)
+    }
+    pub async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
+        if unit(c).await? != self.unit
+            || stock_branches(c, &self.company, self.branch.as_deref()).await? != self.image
+        {
+            return Err(changed());
+        }
+        Ok(())
+    }
+}
+pub async fn read_service_stock_branches(
+    c: &mut PgConnection,
+    company: &CompanyId,
+    branch: Option<&str>,
+) -> Result<CurrentServiceStockBranches, Error> {
+    let unit = unit(c).await?;
+    let image = stock_branches(c, company, branch).await?;
+    Ok(CurrentServiceStockBranches {
+        company: company.clone(),
+        branch: branch.map(str::to_owned),
+        unit,
+        image,
+    })
+}
+async fn stock_branches(
+    c: &mut PgConnection,
+    company: &CompanyId,
+    branch: Option<&str>,
+) -> Result<Vec<(ServiceLocationReference, String)>, Error> {
+    let rows=sqlx::query("WITH source AS MATERIALIZED (SELECT * FROM organization_nodes WHERE company_id=$1 AND kind='branch' AND status='active' AND ($2::text IS NULL OR id=$2)), measured AS (SELECT *,sum(octet_length(to_jsonb(source)::text)) OVER () bytes,count(*) OVER () count,row_number() OVER () ordinal FROM source) SELECT CASE WHEN bytes<=2097152 AND count<=10000 THEN id END id,CASE WHEN bytes<=2097152 AND count<=10000 THEN display_name END display_name,encode(sha256(convert_to((to_jsonb(measured)-'bytes'-'count'-'ordinal')::text,'UTF8')),'hex') digest FROM measured WHERE (bytes<=2097152 AND count<=10000) OR ordinal=1 ORDER BY id").bind(company.as_str()).bind(branch).fetch_all(c).await?;
+    let mut result = Vec::new();
+    for r in rows {
+        let id = r.try_get::<Option<String>, _>("id")?.ok_or_else(limited)?;
+        let name = r
+            .try_get::<Option<String>, _>("display_name")?
+            .ok_or_else(limited)?;
+        let digest = r.try_get("digest")?;
+        result.push((
+            ServiceLocationReference {
+                branch_id: id.clone(),
+                id,
+                kind: "branch".into(),
+                display_name: name,
+            },
+            digest,
+        ));
+    }
+    Ok(result)
+}

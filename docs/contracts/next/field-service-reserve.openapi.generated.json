@@ -2455,6 +2455,177 @@
           "rates"
         ],
         "type": "object"
+      },
+      "ServiceStockBranch": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "type": "object"
+      },
+      "ServiceStockMasterResponse": {
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/FieldServiceRenderedContext"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ServiceStockMasterResult"
+          }
+        },
+        "required": [
+          "data",
+          "context"
+        ],
+        "type": "object"
+      },
+      "ServiceStockMasterResult": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "version"
+        ],
+        "type": "object"
+      },
+      "ServiceStockProductInput": {
+        "properties": {
+          "itemType": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "price": {
+            "type": "string"
+          },
+          "sku": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "taxBps": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "trackingMode": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "sku",
+          "name",
+          "price"
+        ],
+        "type": "object"
+      },
+      "ServiceStockReadResponse": {
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/FieldServiceRenderedContext"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ServiceStockWorkspace"
+          }
+        },
+        "required": [
+          "data",
+          "context"
+        ],
+        "type": "object"
+      },
+      "ServiceStockWarehouseInput": {
+        "description": "Contract-only request/result shapes; runtime uses ordered CommandJson for\nthe retained exact Workflow fingerprint.",
+        "properties": {
+          "branchId": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "branchId"
+        ],
+        "type": "object"
+      },
+      "ServiceStockWorkspace": {
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "branches": {
+            "items": {
+              "$ref": "#/components/schemas/ServiceStockBranch"
+            },
+            "type": "array"
+          },
+          "canCreateProduct": {
+            "type": "boolean"
+          },
+          "canCreateWarehouse": {
+            "type": "boolean"
+          },
+          "companyId": {
+            "type": "string"
+          },
+          "currency": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "schemaAvailable": {
+            "type": "boolean"
+          },
+          "sourceReady": {
+            "type": "boolean"
+          },
+          "unavailableReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "companyId",
+          "available",
+          "schemaAvailable",
+          "sourceReady",
+          "canCreateWarehouse",
+          "canCreateProduct",
+          "branches"
+        ],
+        "type": "object"
       }
     }
   },
@@ -2927,6 +3098,82 @@
         "tags": []
       }
     },
+    "/api/v1/holdings/{holding_slug}/field-service/parts-setup/masters/products": {
+      "post": {
+        "operationId": "parts_stock_products",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "holding_slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServiceStockProductInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceStockMasterResponse"
+                }
+              }
+            },
+            "description": "Original scoped product command receipt"
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/v1/holdings/{holding_slug}/field-service/parts-setup/masters/warehouses": {
+      "post": {
+        "operationId": "parts_stock_warehouses",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "holding_slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServiceStockWarehouseInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceStockMasterResponse"
+                }
+              }
+            },
+            "description": "Original scoped warehouse command receipt"
+          }
+        },
+        "tags": []
+      }
+    },
     "/api/v1/holdings/{holding_slug}/field-service/parts-setup/periods": {
       "post": {
         "operationId": "parts_prerequisite_periods",
@@ -3026,6 +3273,34 @@
               }
             },
             "description": "Original Finance prerequisite command receipt"
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/v1/holdings/{holding_slug}/field-service/parts-setup/stock": {
+      "get": {
+        "operationId": "parts_stock_read",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "holding_slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceStockReadResponse"
+                }
+              }
+            },
+            "description": "Current scoped Service Stock setup"
           }
         },
         "tags": []

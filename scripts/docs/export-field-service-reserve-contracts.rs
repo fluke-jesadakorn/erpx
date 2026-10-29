@@ -47,6 +47,11 @@ use erpx_service::service_parts_prerequisite_setup::{
     ServicePrerequisiteRateInput, ServicePrerequisiteRateRequest, ServicePrerequisiteRateResponse,
     ServicePrerequisiteRateResult, ServicePrerequisitesReadResponse, ServicePrerequisitesView,
 };
+use erpx_service::service_stock_setup::{
+    ServiceStockBranch, ServiceStockMasterResponse, ServiceStockMasterResult,
+    ServiceStockProductInput, ServiceStockReadResponse, ServiceStockWarehouseInput,
+    ServiceStockWorkspace,
+};
 use ts_rs::{Config, TS};
 #[derive(utoipa::ToSchema)]
 struct ReserveResponse {
@@ -116,9 +121,21 @@ const _: fn() = parts_prerequisite_periods;
 #[utoipa::path(post,path="/api/v1/holdings/{holding_slug}/field-service/parts-setup/rates",params(("holding_slug"=String,Path)),request_body=ServicePrerequisiteRateRequest,responses((status=200,body=ServicePrerequisiteRateResponse,description="Original Finance prerequisite command receipt")))]
 fn parts_prerequisite_rates() {}
 const _: fn() = parts_prerequisite_rates;
+#[utoipa::path(get,path="/api/v1/holdings/{holding_slug}/field-service/parts-setup/stock",params(("holding_slug"=String,Path)),responses((status=200,body=ServiceStockReadResponse,description="Current scoped Service Stock setup")))]
+fn parts_stock_read() {}
+const _: fn() = parts_stock_read;
+#[utoipa::path(post,path="/api/v1/holdings/{holding_slug}/field-service/parts-setup/masters/products",params(("holding_slug"=String,Path)),request_body=ServiceStockProductInput,responses((status=200,body=ServiceStockMasterResponse,description="Original scoped product command receipt")))]
+fn parts_stock_products() {}
+const _: fn() = parts_stock_products;
+#[utoipa::path(post,path="/api/v1/holdings/{holding_slug}/field-service/parts-setup/masters/warehouses",params(("holding_slug"=String,Path)),request_body=ServiceStockWarehouseInput,responses((status=200,body=ServiceStockMasterResponse,description="Original scoped warehouse command receipt")))]
+fn parts_stock_warehouses() {}
+const _: fn() = parts_stock_warehouses;
 #[derive(utoipa::OpenApi)]
 #[openapi(
     paths(
+        parts_stock_read,
+        parts_stock_products,
+        parts_stock_warehouses,
         parts_prerequisites_read,
         parts_prerequisite_charts,
         parts_prerequisite_accounts,
@@ -142,6 +159,13 @@ const _: fn() = parts_prerequisite_rates;
         agreement_create_read
     ),
     components(schemas(
+        ServiceStockWorkspace,
+        ServiceStockBranch,
+        ServiceStockReadResponse,
+        ServiceStockProductInput,
+        ServiceStockWarehouseInput,
+        ServiceStockMasterResult,
+        ServiceStockMasterResponse,
         ServicePrerequisitesView,
         ServicePrerequisitesReadResponse,
         ServicePrerequisiteChartInput,
@@ -249,6 +273,13 @@ fn main() {
         "// Generated from the Rust Field Service reservation contracts. Do not edit by hand.\n// Regenerate: bun scripts/docs/generate-field-service-reserve-contracts.ts"
     );
     for declaration in [
+        ServiceStockWorkspace::decl(&config),
+        ServiceStockBranch::decl(&config),
+        ServiceStockReadResponse::decl(&config),
+        ServiceStockProductInput::decl(&config),
+        ServiceStockWarehouseInput::decl(&config),
+        ServiceStockMasterResult::decl(&config),
+        ServiceStockMasterResponse::decl(&config),
         ServicePrerequisitesView::decl(&config),
         ServicePrerequisitesReadResponse::decl(&config),
         ServicePrerequisiteChartInput::decl(&config),

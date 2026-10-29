@@ -395,3 +395,123 @@ async fn service_prerequisite_finance_ignores_unrelated_sales_defaults() {
         tx.rollback().await.unwrap();
     }).await;
 }
+
+#[tokio::test]
+async fn stock_master_finance_witness_and_product_money_preserve_owner_sources() {
+    use erpx_server_finance::public::stock_master_money::*;
+    fixture::with_database(2, |p| async move {
+        setup(&p).await;
+        let company = CompanyId::new("company").unwrap();
+        let mut tx = p.raw().begin().await.unwrap();
+        serial(&mut tx).await;
+        lock_stock_master_finance_sources(&mut tx).await.unwrap();
+        rate(&mut tx, "rate", "2027-01-01", "30", 1).await;
+        sqlx::query("SAVEPOINT unsafe_rate")
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        rate(&mut tx, "unsafe", "2027-01-01", "30", 9_007_199_254_740_992).await;
+        denied(
+            prepare_stock_master_product_money(
+                &mut tx,
+                &company,
+                "products-fixture",
+                "THB",
+                12345,
+                &TestClock,
+            )
+            .await,
+            "SERVICE_INITIAL_PHYSICAL_STOCK_SOURCE_CHANGED",
+        );
+        sqlx::query("ROLLBACK TO SAVEPOINT unsafe_rate")
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        let witness = read_stock_master_finance(&mut tx, &company, "chart", "THB")
+            .await
+            .unwrap();
+        assert!(witness.effective_matches_mapping());
+        assert!(witness.active_chart_base_matches_mapping());
+        let workspace = read_stock_master_workspace_chart(&mut tx, &company, "chart", "THB")
+            .await
+            .unwrap();
+        assert!(workspace.active_chart_base_matches_mapping());
+        let absent = read_stock_master_product_money(&mut tx, &company, "products-fixture")
+            .await
+            .unwrap();
+        assert!(absent.evidence().is_none());
+        absent.require_current(&mut tx).await.unwrap();
+        let different_currency = read_stock_master_finance(&mut tx, &company, "chart", "USD")
+            .await
+            .unwrap();
+        assert!(different_currency.effective_matches_mapping());
+        assert!(!different_currency.active_chart_base_matches_mapping());
+        let prepared = prepare_stock_master_product_money(
+            &mut tx,
+            &company,
+            "products-fixture",
+            "THB",
+            12345,
+            &TestClock,
+        )
+        .await
+        .unwrap();
+        assert_eq!(prepared.evidence().transaction_date, "2027-01-15");
+        assert_eq!(prepared.evidence().amount_units, "12345");
+        assert_eq!(prepared.evidence().usd_units, "412");
+        assert_eq!(prepared.evidence().fx_rate_id.as_deref(), Some("rate"));
+        let retained = prepared.persist(&mut tx).await.unwrap();
+        denied(
+            absent.require_current(&mut tx).await,
+            "SERVICE_INITIAL_PHYSICAL_STOCK_SOURCE_CHANGED",
+        );
+        let present = read_stock_master_product_money(&mut tx, &company, "products-fixture")
+            .await
+            .unwrap();
+        assert!(present.evidence().is_some());
+        present.require_current(&mut tx).await.unwrap();
+        retained.require_current(&mut tx).await.unwrap();
+        rate(&mut tx, "later", "2027-01-02", "31", 2).await;
+        denied(
+            retained.require_current(&mut tx).await,
+            "SERVICE_INITIAL_PHYSICAL_STOCK_SOURCE_CHANGED",
+        );
+
+        let row: (String, String, String) = sqlx::query_as(
+            "SELECT source_type,source_id,amount_kind FROM money_transaction_snapshots",
+        )
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap();
+        assert_eq!(
+            row,
+            (
+                "commerce_product_revision".into(),
+                "products-fixture:1".into(),
+                "unit_price".into()
+            )
+        );
+        let witness = read_stock_master_finance(&mut tx, &company, "chart", "THB")
+            .await
+            .unwrap();
+        sqlx::query("UPDATE finance_charts SET name='late drift' WHERE id='chart'")
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        denied(
+            workspace.require_current(&mut tx).await,
+            "SERVICE_INITIAL_PHYSICAL_STOCK_SOURCE_CHANGED",
+        );
+        denied(
+            witness.require_current(&mut tx).await,
+            "SERVICE_INITIAL_PHYSICAL_STOCK_SOURCE_CHANGED",
+        );
+        tx.rollback().await.unwrap();
+        let count: i64 = sqlx::query_scalar("SELECT count(*) FROM money_transaction_snapshots")
+            .fetch_one(p.raw())
+            .await
+            .unwrap();
+        assert_eq!(count, 0);
+    })
+    .await;
+}

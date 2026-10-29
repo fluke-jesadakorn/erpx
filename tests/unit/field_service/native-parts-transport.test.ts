@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import { createServer, type Server } from 'node:http';
-import { nativePartsPrerequisiteRequest, nativePartsSetupRequest } from '@erpx/native-sdk/field-service-parts';
+import { nativePartsPrerequisiteRequest, nativePartsStockRequest, nativePartsSetupRequest } from '@erpx/native-sdk/field-service-parts';
 
 vi.mock('server-only', () => ({}));
 
@@ -37,4 +37,13 @@ it('rejects an unknown prerequisite operation before opening a request', async (
   const count = observed.length;
   await expect(nativePartsPrerequisiteRequest({ baseUrl, slug: 'acme', operation: 'toString' as never, headers: new Headers(), timeoutMs: 5_000 })).rejects.toThrow('NATIVE_PARTS_SETUP_REQUEST_INVALID');
   expect(observed).toHaveLength(count);
+});
+
+it('uses only the finite Stock routes and preserves original command bytes', async () => {
+ const headers=new Headers({'x-erpx-context-company':'synthetic-company'}),body='{ "name" : "Original" }';
+ for(const [operation,suffix] of [['read','stock'],['products','masters/products'],['warehouses','masters/warehouses']] as const){
+  await nativePartsStockRequest({baseUrl,slug:'acme',operation,headers,timeoutMs:5000,...(operation==='read'?{}:{body})});
+  expect(observed.at(-1)).toEqual({method:operation==='read'?'GET':'POST',path:`/api/v1/holdings/acme/field-service/parts-setup/${suffix}`,body:operation==='read'?'':body,context:'synthetic-company'});
+ }
+ const count=observed.length;await expect(nativePartsStockRequest({baseUrl,slug:'acme',operation:'toString' as never,headers,timeoutMs:5000})).rejects.toThrow('NATIVE_PARTS_SETUP_REQUEST_INVALID');expect(observed).toHaveLength(count);
 });

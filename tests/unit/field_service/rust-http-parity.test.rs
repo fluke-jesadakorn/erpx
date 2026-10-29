@@ -766,3 +766,40 @@ fn service_prerequisite_wire_preserves_defaults_optional_fields_and_utf16() {
         .is_err()
     );
 }
+
+#[test]
+fn service_stock_master_wire_preserves_retained_defaults_and_logical_utf16() {
+    use erpx_server_workflow::public::commands::CommandJson;
+    use erpx_service::service_stock_setup::normalize_service_stock_master;
+    let product =
+        CommandJson::parse(r#"{"sku":" A1 ","name":" \ud800x ","price":"00012.30"}"#).unwrap();
+    let value = normalize_service_stock_master(&product, "products").unwrap();
+    assert_eq!(
+        value.workflow_input.as_str(),
+        r#"{"itemType":"stock","sku":"A1","name":"\ud800x","unit":"each","trackingMode":"none","price":"00012.30","taxBps":0,"status":"active"}"#
+    );
+    let warehouse =
+        CommandJson::parse(r#"{"code":"  W1  ","name":" Branch ","branchId":"branch"}"#).unwrap();
+    let value = normalize_service_stock_master(&warehouse, "warehouses").unwrap();
+    assert_eq!(
+        value.workflow_input.as_str(),
+        r#"{"code":"W1","name":"Branch","branchId":"branch","status":"active"}"#
+    );
+    assert!(
+        normalize_service_stock_master(
+            &CommandJson::parse(r#"{"sku":"AA","name":"Product","price":"1.001"}"#).unwrap(),
+            "products"
+        )
+        .is_err()
+    );
+    assert!(
+        normalize_service_stock_master(
+            &CommandJson::parse(
+                r#"{"code":"AA","name":"Warehouse","branchId":"b","expectedVersion":1}"#
+            )
+            .unwrap(),
+            "warehouses"
+        )
+        .is_err()
+    );
+}

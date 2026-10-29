@@ -5,7 +5,7 @@ mod facts;
 mod fixture;
 use erpx_server_commerce::public::inventory_consumption::*;
 use erpx_server_runtime::public::postgres::{PgUnitOfWork, TransactionOptions};
-use erpx_server_shared::public::{BusinessError, CompanyId};
+use erpx_server_shared::public::{BusinessError, CommandKey, CompanyId};
 use facts::*;
 use std::sync::Arc;
 fn request() -> ConsumptionCommerceRequest {
@@ -210,5 +210,52 @@ async fn service_posting_absent_schema_is_reported_without_leaving_transaction_a
         denied(result, "FIXTURE_ROLLBACK");
         let present:bool=sqlx::query_scalar("SELECT to_regclass('commerce_service_parts_posting_sources') IS NOT NULL").fetch_one(pool.raw()).await.unwrap();
         assert!(present);
+    }).await;
+}
+
+#[tokio::test]
+async fn service_stock_master_owner_rows_are_exact_and_same_unit_fenced() {
+    use erpx_server_commerce::public::service_stock_masters::*;
+    use sqlx::PgConnection;
+    // Component-only witness: real IAM, Workflow and Finance are exercised by
+    // composition, not asserted by this isolated Commerce owner test.
+    #[derive(Clone)]
+    struct ComponentSource(ServiceStockMasterIntent);
+    impl PgServiceStockMasterSource for ComponentSource {
+        fn intent(&self) -> &ServiceStockMasterIntent {
+            &self.0
+        }
+        async fn require_before(&self, _: &mut PgConnection) -> Result<(), Error> {
+            Ok(())
+        }
+        async fn require_after(&self, _: &mut PgConnection) -> Result<(), Error> {
+            Ok(())
+        }
+    }
+    fixture::with_database(2,|pool|async move {
+        setup(&pool,"none").await;
+        for master in [
+            ServiceStockMaster::Warehouse {branch_id:"branch".into(),code:"NEW-WH".into(),name:"New warehouse".into(),status:"active".into()},
+            ServiceStockMaster::Product {sku:"NEW-SKU".into(),name:"New product".into(),unit:"each".into(),tracking_mode:"lot".into(),price_minor:1234,tax_bps:700,status:"active".into()},
+        ] {
+            let source=ComponentSource(ServiceStockMasterIntent{company:company(),command_id:CommandKey::new(match master {ServiceStockMaster::Warehouse{..}=>"component-warehouse",_=>"component-product"}).unwrap(),master});
+            PgUnitOfWork::new(pool.clone()).run::<_,BusinessError,_>(TransactionOptions::default(),|c|{let source=source.clone();Box::pin(async move {
+                lock_service_stock_masters(c).await?;let plan=PreparedServiceStockMaster::prepare(c,&source).await?;
+                plan.apply(c,&source).await?;plan.require_current(c,&source).await?;
+                Ok(())
+            })}).await.unwrap();
+        }
+        let result=PgUnitOfWork::new(pool.clone()).run::<_,BusinessError,_>(TransactionOptions::default(),|c|Box::pin(async move {
+            lock_service_stock_masters(c).await?;let source=ComponentSource(ServiceStockMasterIntent{company:company(),command_id:CommandKey::new("component-late").unwrap(),master:ServiceStockMaster::Product{sku:"LATE".into(),name:"Late change".into(),unit:"each".into(),tracking_mode:"none".into(),price_minor:0,tax_bps:0,status:"active".into()}});
+            let plan=PreparedServiceStockMaster::prepare(c,&source).await?;plan.apply(c,&source).await?;
+            sqlx::query("UPDATE commerce_products SET name='changed' WHERE id='products-component-late'").execute(&mut *c).await?;plan.require_current(c,&source).await
+        })).await;
+        denied(result,"SERVICE_INITIAL_PHYSICAL_STOCK_SOURCE_CHANGED");
+        let count:i64=sqlx::query_scalar("SELECT count(*) FROM commerce_products WHERE id='products-component-late'").fetch_one(pool.raw()).await.unwrap();assert_eq!(count,0);
+        let source=Arc::new(ComponentSource(ServiceStockMasterIntent{company:company(),command_id:CommandKey::new("component-other-unit").unwrap(),master:ServiceStockMaster::Warehouse{branch_id:"branch".into(),code:"OTHER".into(),name:"Other unit".into(),status:"active".into()}}));
+        let plan=PgUnitOfWork::new(pool.clone()).run::<_,BusinessError,_>(TransactionOptions::default(),|c|{let source=source.clone();Box::pin(async move{lock_service_stock_masters(c).await?;PreparedServiceStockMaster::prepare(c,source.as_ref()).await})}).await.unwrap();
+        let plan=Arc::new(plan);
+        let result=PgUnitOfWork::new(pool.clone()).run::<_,BusinessError,_>(TransactionOptions::default(),|c|{let source=source.clone();let plan=plan.clone();Box::pin(async move{lock_service_stock_masters(c).await?;plan.apply(c,source.as_ref()).await})}).await;
+        denied(result,"SERVICE_INITIAL_PHYSICAL_STOCK_SOURCE_CHANGED");
     }).await;
 }

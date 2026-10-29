@@ -442,3 +442,17 @@ async fn service_posting_inventory_locks_before_first_serializable_snapshot() {
         let image=task.await.unwrap().unwrap();assert!(image.contains("\"quantity_milli\": 5001"));
     }).await;
 }
+
+#[tokio::test]
+async fn service_initial_stock_schema_presence_is_same_unit_and_absence_safe() {
+    use erpx_server_inventory::public::service_parts_posting::{
+        lock_service_initial_stock_schema, read_service_initial_stock_schema,
+    };
+    fixture::with_database(2,|pool|async move{
+  setup(&pool,"none").await;
+  PgUnitOfWork::new(pool.clone()).run::<_,BusinessError,_>(TransactionOptions::default(),|c|Box::pin(async move{
+   lock_service_initial_stock_schema(c).await?;let source=read_service_initial_stock_schema(c).await?;assert!(source.available());source.require_current(c).await?;Ok(())
+  })).await.unwrap();
+  let mut tx=pool.raw().begin().await.unwrap();sqlx::raw_sql("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;ALTER TABLE inventory_service_initial_physical_sources RENAME TO fixture_hidden_stock_sources").execute(&mut *tx).await.unwrap();lock_service_initial_stock_schema(&mut tx).await.unwrap();let source=read_service_initial_stock_schema(&mut tx).await.unwrap();assert!(!source.available());source.require_current(&mut tx).await.unwrap();tx.rollback().await.unwrap();
+ }).await;
+}

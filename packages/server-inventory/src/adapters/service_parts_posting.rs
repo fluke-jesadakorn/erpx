@@ -105,3 +105,64 @@ fn changed() -> Error {
     )
     .into()
 }
+
+/// Inventory owns the Service initial-count source relation. Its availability
+/// is a schema fact only and does not confer Stock authority.
+pub struct CurrentServiceInitialStockSchema {
+    unit: Unit,
+    available: bool,
+}
+impl CurrentServiceInitialStockSchema {
+    pub fn available(&self) -> bool {
+        self.available
+    }
+    pub async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
+        if unit(c).await? != self.unit || service_initial_stock_schema(c).await? != self.available {
+            return Err(changed());
+        }
+        Ok(())
+    }
+}
+/// Take this utility lock before any transaction snapshot, including when the
+/// reviewed relation may not yet be installed.
+pub async fn lock_service_initial_stock_schema(c: &mut PgConnection) -> Result<(), Error> {
+    if !c.is_in_transaction() {
+        return Err(invalid());
+    }
+    sqlx::query("SAVEPOINT service_initial_stock_schema_lock")
+        .execute(&mut *c)
+        .await?;
+    let locked = sqlx::query("LOCK TABLE inventory_service_initial_physical_sources IN SHARE MODE")
+        .execute(&mut *c)
+        .await;
+    if let Err(error) = locked {
+        sqlx::query("ROLLBACK TO SAVEPOINT service_initial_stock_schema_lock")
+            .execute(&mut *c)
+            .await?;
+        sqlx::query("RELEASE SAVEPOINT service_initial_stock_schema_lock")
+            .execute(&mut *c)
+            .await?;
+        if error.as_database_error().and_then(|e| e.code()).as_deref() != Some("42P01") {
+            return Err(error.into());
+        }
+        return Ok(());
+    }
+    sqlx::query("RELEASE SAVEPOINT service_initial_stock_schema_lock")
+        .execute(c)
+        .await?;
+    Ok(())
+}
+async fn service_initial_stock_schema(c: &mut PgConnection) -> Result<bool, Error> {
+    Ok(sqlx::query_scalar(
+        "SELECT to_regclass('inventory_service_initial_physical_sources') IS NOT NULL",
+    )
+    .fetch_one(c)
+    .await?)
+}
+pub async fn read_service_initial_stock_schema(
+    c: &mut PgConnection,
+) -> Result<CurrentServiceInitialStockSchema, Error> {
+    let unit = unit(c).await?;
+    let available = service_initial_stock_schema(c).await?;
+    Ok(CurrentServiceInitialStockSchema { unit, available })
+}

@@ -305,3 +305,21 @@ async fn genuine_selected_context_denial_exposes_only_current_read_metadata() {
         assert!(matches!(revoked,Err(PgTransactionError::Business(ref e)) if e.code=="UNAUTHENTICATED"));
     }).await;
 }
+
+#[tokio::test]
+async fn service_stock_authority_uses_selected_stock_permissions_and_current_unit() {
+    use erpx_server_identity_access::public::selected_command_authority::capture_service_stock_authority;
+    fixture::account::with_system(|system|async move {
+        let prepared=fixture::prepare(system).await;let pool=prepared.system.holdings[0].clone();
+        sqlx::raw_sql("INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) VALUES('*','custom_queued_legal',2,'[\"legal.read\",\"module.legal.read\",\"inventory.read\",\"inventory.prepare\"]','[]','[\"holding\",\"branch\",\"department\"]','fixture',0); UPDATE iam_roles SET published_revision=2 WHERE id='custom_queued_legal'; INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status) VALUES('stock-branch','branch','stock-branch','Stock Branch','company','company','stock-branch','active')").execute(pool.raw()).await.unwrap();
+        for branch in [None,Some("stock-branch")] {
+            let mut selection=prepared.selection.clone();selection.branch_slug=branch.map(str::to_owned);let clock=prepared.system.scenario.clock.clone();let other=pool.clone();
+            prepared.authorizer.execute("acme.example.test",prepared.proof.clone(),selection,prepared.access.clone(),move|c,context|{let clock=clock.clone();let other=other.clone();Box::pin(async move{
+                let witness=capture_service_stock_authority(c,context,clock.as_ref()).await?;witness.require_current(c,clock.as_ref()).await?;
+                let mut tx=other.raw().begin().await?;sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await?;assert!(witness.require_current(&mut tx,clock.as_ref()).await.is_err());tx.rollback().await?;Ok(())
+            })}).await.unwrap();
+        }
+        sqlx::raw_sql("INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) VALUES('*','custom_queued_legal',3,'[\"legal.read\",\"module.legal.read\",\"inventory.read\"]','[]','[\"holding\",\"branch\",\"department\"]','fixture',0);UPDATE iam_roles SET published_revision=3 WHERE id='custom_queued_legal'").execute(pool.raw()).await.unwrap();
+        let clock=prepared.system.scenario.clock.clone();let denied=prepared.authorizer.execute("acme.example.test",prepared.proof.clone(),prepared.selection.clone(),prepared.access.clone(),move|c,context|{let clock=clock.clone();Box::pin(async move{capture_service_stock_authority(c,context,clock.as_ref()).await?;Ok(())})}).await;assert!(denied.is_err());
+    }).await;
+}

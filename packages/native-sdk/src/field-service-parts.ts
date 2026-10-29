@@ -14,6 +14,13 @@ export async function nativePartsPrerequisiteRequest(input:NativePartsPrerequisi
  if(suffix===undefined)throw Error('NATIVE_PARTS_SETUP_REQUEST_INVALID');
  return nativePartsTransport({...input,method:input.operation==='read'?'GET':'POST'},suffix);
 }
+export type NativePartsStockOperation='read'|'products'|'warehouses';
+export type NativePartsStockRequest=Omit<NativePartsSetupRequest,'method'|'existing'>&{operation:NativePartsStockOperation};
+const stockPaths=new Map<NativePartsStockOperation,string>([['read','/stock'],['products','/masters/products'],['warehouses','/masters/warehouses']]);
+export async function nativePartsStockRequest(input:NativePartsStockRequest):Promise<NativePartsSetupReply>{
+ const suffix=stockPaths.get(input.operation);if(suffix===undefined)throw Error('NATIVE_PARTS_SETUP_REQUEST_INVALID');
+ return nativePartsTransport({...input,method:input.operation==='read'?'GET':'POST'},suffix);
+}
 export async function nativePartsSetupRequest(input:NativePartsSetupRequest):Promise<NativePartsSetupReply>{
  return nativePartsTransport(input,input.existing?'/existing':'');
 }
