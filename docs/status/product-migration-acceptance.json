@@ -2,8 +2,8 @@
   "version": 3,
   "environment": "development",
   "deliveryPlan": "docs/production-plan.md",
-  "sourceFingerprint": "e223add7025a5242bb2b64dcd328ac5adaade2fb899b23859081b2f892593c53",
-  "verificationFingerprint": "880031a9ec685dbe72c7884aa6f4eaa2577ac8e97b20e6fc6ab01823ce3006ce",
+  "sourceFingerprint": "fcb2a2dc59504bdfb1d377181771e74593e18513cc6d4780934ae453ff69463b",
+  "verificationFingerprint": "8bfd16f89666921deae25afe0b0bb1e2e63388e5afd8790c90e6dbc8928f8dea",
   "baseline": {
     "source": ".scratch/dev/product-migration-baseline-2026-10-14/",
     "privateAuthority": "read-only per-database snapshots; no secrets or personal authority rows in this register",
@@ -329,7 +329,8 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "identity_access.admin-workspace-smoke.e2e"
       ]
     },
     {
@@ -1325,7 +1326,10 @@
         "shared.attachments.specialized-attachment-media.unit",
         "shared.executive.executive-work-mcp.e2e",
         "shared.testing.workspace-graph.unit",
-        "shared.testing.postgres-templates.integration"
+        "shared.testing.postgres-templates.integration",
+        "shared.testing.workspace-supervisor.unit",
+        "identity_access.workspace-hmr.e2e",
+        "identity_access.admin-workspace-smoke.e2e"
       ]
     },
     {
@@ -3081,7 +3085,9 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "customer_authority.portal-workspace-smoke.e2e",
+        "shared.ui.application-hmr.e2e"
       ]
     },
     {
@@ -3553,7 +3559,9 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "support.workspace-smoke.e2e",
+        "shared.ui.application-hmr.e2e"
       ]
     },
     {
@@ -4324,7 +4332,10 @@
         "finance.finance-operations-attachment-policy.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
         "shared.attachments.specialized-attachment-media.unit",
-        "shared.testing.workspace-graph.unit"
+        "shared.testing.workspace-graph.unit",
+        "shared.testing.workspace-supervisor.unit",
+        "finance.workspace-smoke.e2e",
+        "shared.ui.application-hmr.e2e"
       ]
     },
     {
@@ -4753,7 +4764,9 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "pms.pos-workspace-smoke.e2e",
+        "shared.ui.application-hmr.e2e"
       ]
     },
     {
@@ -5185,7 +5198,9 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "sales.workspace-smoke.e2e",
+        "shared.ui.application-hmr.e2e"
       ]
     },
     {
@@ -5601,7 +5616,9 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "assets.workspace-smoke.e2e",
+        "shared.ui.application-hmr.e2e"
       ]
     },
     {
@@ -6980,7 +6997,12 @@
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
         "shared.attachments.specialized-attachment-media.unit",
-        "shared.executive.executive-work-mcp.e2e"
+        "shared.executive.executive-work-mcp.e2e",
+        "shared.testing.workspace-graph.unit",
+        "operations.workspace-smoke.e2e",
+        "shared.work.product-workspace-hmr.e2e",
+        "operations.work-social-api.unit",
+        "shared.ui.application-hmr.e2e"
       ]
     },
     {
@@ -7388,7 +7410,9 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "procurement.workspace-smoke.e2e",
+        "shared.ui.application-hmr.e2e"
       ]
     },
     {
@@ -8175,7 +8199,11 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "legal.file-destruction-ports.unit",
+        "legal.workspace-smoke.e2e",
+        "legal.legal-portal-workspace-smoke.e2e",
+        "shared.ui.application-hmr.e2e"
       ]
     },
     {
@@ -8696,7 +8724,11 @@
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
         "shared.attachments.specialized-attachment-media.unit",
-        "shared.executive.executive-work-mcp.e2e"
+        "shared.executive.executive-work-mcp.e2e",
+        "shared.testing.workspace-graph.unit",
+        "people_payroll.workspace-smoke.e2e",
+        "shared.work.product-workspace-hmr.e2e",
+        "shared.ui.application-hmr.e2e"
       ]
     },
     {
@@ -9552,7 +9584,9 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "marketing.forms-workspace-smoke.e2e",
+        "shared.ui.application-hmr.e2e"
       ]
     },
     {
@@ -10019,7 +10053,9 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "manufacturing.workspace-smoke.e2e",
+        "shared.ui.application-hmr.e2e"
       ]
     },
     {
@@ -10886,7 +10922,9 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "projects.workspace-smoke.e2e",
+        "shared.ui.application-hmr.e2e"
       ]
     },
     {
@@ -12121,7 +12159,9 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "learning.workspace-smoke.e2e",
+        "learning.workspace-hmr.e2e"
       ]
     },
     {
@@ -12585,7 +12625,10 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "shared.testing.workspace-graph.unit",
+        "talent.workspace-smoke.e2e",
+        "shared.work.product-workspace-hmr.e2e"
       ]
     },
     {
@@ -13061,7 +13104,9 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "field_service.workspace-smoke.e2e",
+        "shared.ui.application-hmr.e2e"
       ]
     },
     {
@@ -14111,7 +14156,8 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "operations.work-social-api.unit"
       ]
     },
     {
@@ -14846,7 +14892,10 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "pms.pms-workspace-smoke.e2e",
+        "pms.booking-workspace-smoke.e2e",
+        "shared.ui.application-hmr.e2e"
       ]
     },
     {
