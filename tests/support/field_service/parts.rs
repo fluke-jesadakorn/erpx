@@ -26,15 +26,23 @@ pub async fn setup(system: account::System) -> Parts {
     setup_tracking(system, "none").await
 }
 pub async fn setup_tracking(system: account::System, tracking: &str) -> Parts {
-    setup_with_grants(system, tracking, true).await
+    setup_with_grants(system, tracking, true, true).await
 }
 /// Source-order test fixture without a Service purchase or retained Service history.
 pub async fn setup_without_service_history(system: account::System) -> Parts {
-    setup_with_grants(system, "none", false).await
+    setup_with_grants(system, "none", false, true).await
 }
-async fn setup_with_grants(system: account::System, tracking: &str, grants: bool) -> Parts {
+pub async fn setup_without_finance_history(system: account::System) -> Parts {
+    setup_with_grants(system, "none", true, false).await
+}
+async fn setup_with_grants(
+    system: account::System,
+    tracking: &str,
+    grants: bool,
+    finance: bool,
+) -> Parts {
     assert!(matches!(tracking, "none" | "lot" | "serial"));
-    let review = review::setup(system).await;
+    let review = review::setup_with_finance(system, finance).await;
     let pool = &review.system.holdings[0];
     let now = review.system.scenario.clock.now().get();
     sqlx::raw_sql("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status)VALUES('branch','branch','north','Synthetic North','company','company','branch','active');INSERT INTO iam_roles(company_id,id,name,built_in,published_revision,status)VALUES('*','custom_field_parts','Synthetic actual Service parts operator',false,1,'active');INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at)VALUES('*','custom_field_parts',1,'[\"records.read\",\"records.write\",\"module.field_service.read\"]','[]','[\"holding\",\"branch\",\"department\"]','synthetic',0);INSERT INTO hr_people(id,user_id,company_id,legal_name,country_code,created_by,created_at,updated_at)VALUES('field-person','fixture-a','company','PRIVATE_SYNTHETIC_WORKER','TH','fixture-a',0,0);INSERT INTO hr_engagements(id,person_id,company_id,worker_type,employment_type,status,start_date,job_title,currency,created_by,created_at,updated_at)VALUES('field-engagement','field-person','company','employee','salaried','active','2100-01-01','PRIVATE_JOB','THB','fixture-a',0,0);INSERT INTO iam_members(company_id,user_id,principal_id,person_id,status,login_policy,version)VALUES('company','fixture-a','local:fixture-a','field-person','active','local',1);INSERT INTO finance_parties(id,company_id,kind,code,name,currency,created_at,updated_at)VALUES('customer','company','customer','SYNTHETIC','PRIVATE_CUSTOMER','THB',0,0);INSERT INTO finance_accounts(id,company_id,chart_id,code,name,category,currency,created_at,updated_at)VALUES('inventory','company','chart','110','Inventory','asset','THB',0,0),('expense','company','chart','510','Expense','expense','THB',0,0);INSERT INTO commerce_settings(company_id,chart_id,currency,receivable_account_id,payable_account_id,revenue_account_id,inventory_account_id,clearing_account_id,cogs_account_id,input_tax_account_id,output_tax_account_id,cash_account_id)VALUES('company','chart','USD','inventory','inventory','sales','inventory','inventory','expense','inventory','inventory','cash');INSERT INTO commerce_warehouses(id,company_id,branch_id,code,name)VALUES('warehouse','company','branch','SYNTHETIC','Synthetic warehouse');").execute(pool.raw()).await.unwrap();

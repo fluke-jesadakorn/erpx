@@ -99,6 +99,9 @@ pub fn business<T>(result: Result<T, Error>, code: &str) {
     }
 }
 pub async fn setup(system: System) -> Prepared {
+    setup_with_finance(system, true).await
+}
+pub async fn setup_with_finance(system: System, finance: bool) -> Prepared {
     let maker_central = account::login(&system, "a@example.test", None).await;
     let maker = account::child(&system, &maker_central, account::ACME).await;
     let reviewer_central = account::login(&system, "b@example.test", None).await;
@@ -115,7 +118,9 @@ pub async fn setup(system: System) -> Prepared {
         sqlx::query("INSERT INTO active_work_contexts(session_id,user_id,company_id,assignment_id,assignment_version,revision,expires_at,updated_at)VALUES($1,$2,'company',$3,3,7,$4,$5)").bind(session).bind(user).bind(assignment).bind(now+3_600_000).bind(now).execute(pool.raw()).await.unwrap();
     }
     sqlx::raw_sql("INSERT INTO finance_charts(id,company_id,name,base_currency,created_by,created_at,updated_at)VALUES('chart','company','Primary','THB','fixture-a',0,0),('book-chart','company','Secondary','THB','fixture-a',0,0);INSERT INTO finance_periods(id,company_id,name,start_date,end_date,created_at)VALUES('period','company','January','2026-01-01','2026-01-31',0);INSERT INTO finance_accounts(id,company_id,chart_id,code,name,category,created_at,updated_at)VALUES('cash','company','chart','100','Cash','asset',0,0),('sales','company','chart','400','Sales','revenue',0,0),('book-cash','company','book-chart','100','Cash','asset',0,0),('book-sales','company','book-chart','400','Sales','revenue',0,0);INSERT INTO company_fx_rates(id,company_id,currency,effective_date,currency_per_usd,confirmed_by,confirmed_at)VALUES('rate','company','THB','2026-01-01',2,'fixture-a',1)").execute(pool.raw()).await.unwrap();
-    grant(pool, now).await;
+    if finance {
+        grant(pool, now).await;
+    }
     let authorizer = Arc::new(
         HoldingWorkAuthorizer::new(
             system.control.clone(),

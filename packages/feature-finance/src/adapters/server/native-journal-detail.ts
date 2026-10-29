@@ -49,12 +49,15 @@ function workspaceResponse(value:unknown,holding:{holdingId:string},input:Native
 }
 const reserved=new Set([3000,3001,3100,3101,3103,5432,5433,5435,8080]);
 export function createNativeJournalDetailClient(configuration:NativeFinanceReadConfiguration,transport:NativeFinanceReadTransport=directHttp):NativeJournalDetailRead {
- return createRead(configuration,transport,response,'');
+ return createRead(configuration,transport,response,'journals','');
 }
 export function createNativeJournalWorkspaceClient(configuration:NativeFinanceReadConfiguration,transport:NativeFinanceReadTransport=directHttp):NativeJournalWorkspaceRead {
- return createRead(configuration,transport,workspaceResponse,'/workspace');
+ return createRead(configuration,transport,workspaceResponse,'journals','/workspace');
 }
-function createRead<T>(configuration:NativeFinanceReadConfiguration,transport:NativeFinanceReadTransport,validate:(value:unknown,holding:{holdingId:string},input:NativeJournalReadInput)=>T,suffix:''|'/workspace'):NativeJournalRead<T>{
+export function createNativeFinanceWorkspaceRead<T>(configuration:NativeFinanceReadConfiguration,transport:NativeFinanceReadTransport|undefined,validate:(value:unknown,holding:{holdingId:string},input:NativeJournalReadInput)=>T):NativeJournalRead<T>{
+ return createRead(configuration,transport??directHttp,validate,'invoices','/workspace');
+}
+function createRead<T>(configuration:NativeFinanceReadConfiguration,transport:NativeFinanceReadTransport,validate:(value:unknown,holding:{holdingId:string},input:NativeJournalReadInput)=>T,kind:'journals'|'invoices',suffix:''|'/workspace'):NativeJournalRead<T>{
  let base:URL;try{base=new URL(configuration.privateBaseUrl);}catch{return failure('NATIVE_FINANCE_CONFIGURATION_INVALID');}
  const port=Number(base.port);
  if(base.protocol!=='http:'||!['127.0.0.1','[::1]'].includes(base.hostname)||!base.port||reserved.has(port)||port>=3200&&port<=3299||base.username||base.password||configuration.privateBaseUrl!==base.origin||!integer(configuration.timeoutMs,250)||configuration.timeoutMs>30000||configuration.holdings.length<1||configuration.holdings.length>64)return failure('NATIVE_FINANCE_CONFIGURATION_INVALID');
@@ -73,7 +76,7 @@ function createRead<T>(configuration:NativeFinanceReadConfiguration,transport:Na
   if(cookie){if(new TextEncoder().encode(cookie).length>8192)return failure('NATIVE_FINANCE_COOKIE_LIMIT');headers.set('cookie',cookie);}
   for(const [key,slug]of [['x-erpx-workspace-branch',input.branchSlug],['x-erpx-workspace-department',input.departmentSlug]] as const){if(slug!==undefined){if(!validText(slug,128)||!/^[a-z0-9_-]+$/.test(slug))return failure('NATIVE_FINANCE_REQUEST_INVALID');headers.set(key,slug);}}
   if(input.expected){const e=input.expected;if(!validText(e.companyId)||!validText(e.assignmentId)||!integer(e.revision)||!integer(e.assignmentVersion,1))return failure('NATIVE_FINANCE_REQUEST_INVALID');headers.set('x-erpx-context-company',e.companyId);headers.set('x-erpx-context-assignment',e.assignmentId);headers.set('x-erpx-context-revision',String(e.revision));headers.set('x-erpx-context-assignment-version',String(e.assignmentVersion));}
-  const url=new URL(`/api/v1/holdings/${encodeURIComponent(input.holdingSlug)}/finance/journals/${encodeURIComponent(input.journalId)}${suffix}`,base);
+  const url=new URL(`/api/v1/holdings/${encodeURIComponent(input.holdingSlug)}/finance/${kind}/${encodeURIComponent(input.journalId)}${suffix}`,base);
   const controller=new AbortController();const cancel=()=>controller.abort();signal?.addEventListener('abort',cancel,{once:true});if(signal?.aborted)controller.abort();const timer=setTimeout(cancel,timeout);
   try{
    const result=await transport(url,headers,controller.signal);

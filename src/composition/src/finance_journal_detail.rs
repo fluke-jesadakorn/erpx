@@ -31,6 +31,7 @@ pub struct FinanceJournalReadConfiguration {
     company: CompanyId,
     purchases: Arc<CommercialCatalogue>,
     field_service_parts: bool,
+    field_service_invoices: bool,
 }
 impl FinanceJournalReadConfiguration {
     pub fn new(
@@ -51,7 +52,12 @@ impl FinanceJournalReadConfiguration {
             company,
             purchases,
             field_service_parts: false,
+            field_service_invoices: false,
         })
+    }
+    pub fn with_field_service_invoices(mut self) -> Self {
+        self.field_service_invoices = true;
+        self
     }
     pub fn with_field_service_parts(mut self) -> Self {
         self.field_service_parts = true;
@@ -101,6 +107,30 @@ pub struct FinanceJournalReadResponse {
 pub struct FinanceJournalWorkspaceReadResponse {
     pub data: FinanceJournalRecordWorkspace,
     pub context: FinanceRenderedWorkContext,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+pub struct FinanceServiceInvoiceWorkspaceResponse {
+    pub data:
+        erpx_server_finance::public::field_service_invoice_read::FinanceServiceInvoiceWorkspace,
+    pub context: FinanceRenderedWorkContext,
+    #[serde(rename = "sourceOnly")]
+    pub source_only: bool,
+}
+#[derive(Clone)]
+struct ServiceInvoiceReadSources;
+impl HoldingWorkSourcePreparation for ServiceInvoiceReadSources {
+    fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async move {
+            erpx_server_finance::public::field_service_invoice_read::lock_service_invoice_sources(
+                c,
+            )
+            .await?;
+            lock_commercial_authority_sources(c).await?;
+            erpx_server_workflow::public::record_origin::lock_record_origin_sources(c).await?;
+            erpx_server_field_service::public::finance_lineage::lock_field_service_invoice_finance_sources(c).await
+        })
+    }
 }
 #[derive(Clone, Copy)]
 enum ReadKind {
@@ -286,6 +316,51 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
     }
     pub fn company_id(&self) -> &CompanyId {
         &self.configuration.company
+    }
+    pub async fn read_service_invoice<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        id: String,
+    ) -> Result<FinanceServiceInvoiceWorkspaceResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        if !self.configuration.field_service_invoices {
+            return Err(scope().into());
+        }
+        let company = self.configuration.company.clone();
+        let input = move || {
+            let mut v = input()?;
+            if v.company_id != company {
+                return Err(scope());
+            }
+            v.mutation = false;
+            Ok(v)
+        };
+        let config = self.configuration.clone();
+        let clock = self.clock.clone();
+        self.authorizer.execute_with_sources_deferred(host,proof,input,WorkAuthorizationRequest{permission:"finance.read".into(),module:Some("finance".into()),destination:"finance/invoices".into(),api:true},ServiceInvoiceReadSources,move |c,current|{
+            let config=config.clone();let clock=clock.clone();let id=id.clone();Box::pin(async move {
+                if current.holding_id()!=&config.holding || current.selection().workspace().company_id!=config.company{return Err(scope().into())}
+                current.require_permission("finance.read")?;current.require_permission("module.finance.read")?;
+                let actor=FinanceActor{holding_id:config.holding.clone(),company_id:config.company.clone(),user_id:current.user_id().clone(),assignment_id:current.selection().assignment().id.clone()};
+                let finance=erpx_server_finance::public::field_service_invoice_read::read_service_invoice_workspace(c,&actor,&id).await?;
+                let src=&finance.data().source;
+                let lineage=erpx_server_field_service::public::finance_lineage::read_field_service_invoice_finance_lineage(c,erpx_server_field_service::public::finance_lineage::FieldServiceInvoiceFinanceRequest{company_id:config.company.clone(),order_id:src.order_id.clone(),release_id:src.release_id.clone(),key:src.command_key.clone(),actor_id:src.actor_id.clone(),currency:src.currency.clone(),amount_units:src.amount_units.clone(),customer_id:finance.data().invoice.get("party_id").and_then(|v|v.as_str()).ok_or_else(scope)?.into(),pricing_date:finance.data().invoice.get("invoice_date").and_then(|v|v.as_str()).ok_or_else(scope)?.into()}).await?.ok_or_else(scope)?;
+                let mut reader=PgCompanyPurchaseReader::new(config.holding.clone(),config.company.clone(),c,&config.purchases);
+                let req=|cap:&str|PurchaseRequest{capabilities:vec![cap.into()],purpose:CapabilityPurpose::History,mode:PackageEnforcementMode::Enforced};
+                let base=reader.inspect(&req("finance.accounting"),clock.now()).await?;
+                let source_only=base.require_allowed().is_err();let base_witness=base.witness.clone();let selected=if !source_only {base}else{reader.inspect(&req("finance.service-invoice"),clock.now()).await?};selected.require_allowed()?;
+                let reply=FinanceServiceInvoiceWorkspaceResponse{data:finance.data().clone(),context:rendered(current)?,source_only};
+                serde_json::to_writer(ReplyBudget(0),&reply).map_err(|_|BusinessError::new(FailureKind::Unavailable,"FINANCE_INVOICE_READ_LIMIT","The invoice workspace exceeds this bounded read."))?;
+                finance.require_current(c).await?;lineage.require_current(c).await?;
+                let base_current=PgCompanyPurchaseReader::new(config.holding.clone(),config.company.clone(),c,&config.purchases).revalidate(&base_witness,clock.now()).await?;if base_current.require_allowed().is_err()!=source_only{return Err(scope().into())}
+                PgCompanyPurchaseReader::new(config.holding.clone(),config.company.clone(),c,&config.purchases).revalidate(&selected.witness,clock.now()).await?.require_allowed()?;
+                if clock.now().get()>=current.expires_at(){return Err(scope().into())}Ok(reply)
+            })
+        }).await
     }
     pub async fn read<Input>(
         &self,

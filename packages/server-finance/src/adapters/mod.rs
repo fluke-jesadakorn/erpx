@@ -25,3 +25,5 @@ pub(crate) mod field_service_completion;
 pub(crate) mod field_service_agreement_money;
 
 pub(crate) mod field_service_billing;
+
+pub(crate) mod field_service_invoice_read;

@@ -52,6 +52,7 @@
 @source "../../../../packages/feature-finance/src/adapters/server/native-journal-detail.ts";
 @source "../../../../packages/feature-finance/src/adapters/server/native-journal-page.ts";
 @source "../../../../packages/feature-finance/src/adapters/server/native-journal-post.ts";
+@source "../../../../packages/feature-finance/src/adapters/server/native-service-invoice.ts";
 @source "../../../../packages/feature-finance/src/adapters/server/next-native-journal-detail.ts";
 @source "../../../../packages/feature-finance/src/application/command-attempts.ts";
 @source "../../../../packages/feature-finance/src/application/native-journal-post.ts";
@@ -107,6 +108,7 @@
 @source "../../../../packages/feature-finance/src/components/refund-bank-evidence.tsx";
 @source "../../../../packages/feature-finance/src/components/refund-console.tsx";
 @source "../../../../packages/feature-finance/src/components/sales-controls.tsx";
+@source "../../../../packages/feature-finance/src/components/service-invoice-record-boundary.tsx";
 @source "../../../../packages/feature-finance/src/components/service-no-charge-confirmation.tsx";
 @source "../../../../packages/feature-finance/src/components/service-payment-bank-evidence.tsx";
 @source "../../../../packages/feature-finance/src/components/source-document-backdrop.tsx";

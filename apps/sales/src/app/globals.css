@@ -70,6 +70,7 @@
 @source "../../../../packages/feature-finance/src/adapters/server/native-journal-detail.ts";
 @source "../../../../packages/feature-finance/src/adapters/server/native-journal-page.ts";
 @source "../../../../packages/feature-finance/src/adapters/server/native-journal-post.ts";
+@source "../../../../packages/feature-finance/src/adapters/server/native-service-invoice.ts";
 @source "../../../../packages/feature-finance/src/adapters/server/next-native-journal-detail.ts";
 @source "../../../../packages/feature-finance/src/application/command-attempts.ts";
 @source "../../../../packages/feature-finance/src/application/submit-command.ts";

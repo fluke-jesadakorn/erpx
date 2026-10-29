@@ -63,7 +63,7 @@ export function nativeJournalPageFailure(error: unknown): { status: number; code
   }
 }
 
-function configuration(raw: string): NativeFinanceReadConfiguration {
+export function nativeFinanceConfiguration(raw: string): NativeFinanceReadConfiguration {
   let value: unknown;
   try { value = JSON.parse(raw); } catch { throw new NativeFinanceReadError('NATIVE_FINANCE_CONFIGURATION_INVALID'); }
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new NativeFinanceReadError('NATIVE_FINANCE_CONFIGURATION_INVALID');
@@ -80,6 +80,6 @@ function configuration(raw: string): NativeFinanceReadConfiguration {
 export async function nativeJournalPageWorkspace(actor: NativeJournalPageContext, holdingSlug: string, journalId: string): Promise<FinanceJournalRecordWorkspace | undefined> {
   const raw = process.env.ERPX_NATIVE_FINANCE_JOURNAL_CONFIG;
   if (raw === undefined) return undefined;
-  const read = createNativeJournalWorkspaceClient(configuration(raw));
+  const read = createNativeJournalWorkspaceClient(nativeFinanceConfiguration(raw));
   return createNativeJournalPageReader(read)(actor, holdingSlug, journalId);
 }

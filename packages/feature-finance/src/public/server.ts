@@ -5,3 +5,5 @@ export {createNextNativeJournalDetailReader,createNextNativeJournalWorkspaceRead
 export {createNativeJournalPageReader,nativeJournalPageWorkspace,nativeJournalPageFailure} from '../adapters/server/native-journal-page';
 export type {NativeJournalPageContext} from '../adapters/server/native-journal-page';
 export {nativeJournalEdit,nativeJournalEditReadback,nativeJournalCreate,nativeJournalCreateReadback,nativeJournalPost,nativeJournalPostReadback,nativeJournalReverse,nativeJournalReverseReadback} from '../adapters/server/native-journal-post';
+
+export {nativeServiceInvoiceWorkspace} from '../adapters/server/native-service-invoice';

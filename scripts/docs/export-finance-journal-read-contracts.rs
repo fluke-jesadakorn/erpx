@@ -1,8 +1,13 @@
 use erpx_server_finance::public::{
-    journal_detail::*, journal_workspace::FinanceJournalRecordWorkspace,
+    field_service_invoice_read::{
+        FinanceInvoiceOptions, FinanceServiceInvoiceSource, FinanceServiceInvoiceWorkspace,
+    },
+    journal_detail::*,
+    journal_workspace::FinanceJournalRecordWorkspace,
 };
 use erpx_service::finance_journal_detail::{
     FinanceJournalReadResponse, FinanceJournalWorkspaceReadResponse, FinanceRenderedWorkContext,
+    FinanceServiceInvoiceWorkspaceResponse,
 };
 use ts_rs::{Config, TS};
 #[utoipa::path(get,path="/api/v1/holdings/{holding_slug}/finance/journals/{id}",params(("holding_slug"=String,Path,description="Exact registered Holding slug"),("id"=String,Path,description="Journal identity")),responses((status=200,body=FinanceJournalReadResponse,description="Journal detail and original render context from one retained authorization unit"),(status=401,description="Current session required"),(status=403,description="Finance read/purchase history denied"),(status=404,description="Unavailable or unsupported source"),(status=409,description="Supplied rendered context is stale")))]
@@ -11,10 +16,17 @@ const _: fn() = get_detail;
 #[utoipa::path(get,path="/api/v1/holdings/{holding_slug}/finance/journals/{id}/workspace",params(("holding_slug"=String,Path),("id"=String,Path)),responses((status=200,body=FinanceJournalWorkspaceReadResponse,description="Exact record workspace references and original render context from one retained unit"),(status=401,description="Current session required"),(status=403,description="Finance read/purchase History denied"),(status=404,description="Unavailable or unsupported source"),(status=409,description="Supplied rendered context is stale")))]
 fn get_workspace() {}
 const _: fn() = get_workspace;
+#[utoipa::path(get,path="/api/v1/holdings/{holding_slug}/finance/invoices/{id}/workspace",params(("holding_slug"=String,Path),("id"=String,Path)),responses((status=200,body=FinanceServiceInvoiceWorkspaceResponse,description="Current source-qualified Service invoice workspace"),(status=401,description="Current session required"),(status=403,description="Finance read or purchase History denied"),(status=404,description="Unavailable or unsupported source")))]
+fn get_service_invoice_workspace() {}
+const _: fn() = get_service_invoice_workspace;
 #[derive(utoipa::OpenApi)]
 #[openapi(
-    paths(get_detail, get_workspace),
+    paths(get_detail, get_workspace, get_service_invoice_workspace),
     components(schemas(
+        FinanceInvoiceOptions,
+        FinanceServiceInvoiceSource,
+        FinanceServiceInvoiceWorkspace,
+        FinanceServiceInvoiceWorkspaceResponse,
         FinanceReadInteger,
         FinanceLedgerValue,
         FinanceJournalDetail,
@@ -41,6 +53,10 @@ fn main() {
         "// Generated from the Rust Finance journal read contracts. Do not edit by hand.\n// Regenerate: bun scripts/docs/generate-finance-journal-read-contracts.ts"
     );
     for d in [
+        FinanceInvoiceOptions::decl(&configuration),
+        FinanceServiceInvoiceSource::decl(&configuration),
+        FinanceServiceInvoiceWorkspace::decl(&configuration),
+        FinanceServiceInvoiceWorkspaceResponse::decl(&configuration),
         FinanceReadInteger::decl(&configuration),
         FinanceLedgerValue::decl(&configuration),
         FinanceJournalDetail::decl(&configuration),

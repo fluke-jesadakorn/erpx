@@ -43,6 +43,7 @@
     "./components/money/currency-provider": "./src/components/money/currency-provider.tsx",
     "./components/money/currency-provider.module.css": "./src/components/money/currency-provider.module.css",
     "./components/vat-register-controls": "./src/components/vat-register-controls.tsx",
+    "./components/service-invoice-record-boundary": "./src/components/service-invoice-record-boundary.tsx",
     "./components/source-document-backdrop": "./src/components/source-document-backdrop.tsx",
     "./components/company-stripe": "./src/components/company-stripe.tsx",
     "./components/lazy-invoice-editor": "./src/components/lazy-invoice-editor.tsx",

@@ -50,7 +50,7 @@ async fn main() {
     let args: Vec<_> = std::env::args().collect();
     assert!(
         (3..=4).contains(&args.len()),
-        "usage: native-field-service-development ABSOLUTE_PRIVATE_CASE_DIR LOOPBACK_LISTEN [post|request|order-create|visit|complete|recovery|cancel|agreement-review|agreement-create|billing-release]"
+        "usage: native-field-service-development ABSOLUTE_PRIVATE_CASE_DIR LOOPBACK_LISTEN [post|request|order-create|visit|complete|recovery|cancel|agreement-review|agreement-create|billing-release|finance-invoice-read]"
     );
     let dir = PathBuf::from(&args[1]);
     assert!(
@@ -77,14 +77,16 @@ async fn main() {
             "cancel",
             "agreement-review",
             "agreement-create",
-            "billing-release"
+            "billing-release",
+            "finance-invoice-read"
         ]
         .contains(&scenario),
         "invalid private fixture scenario"
     );
     let agreement_review_scenario = scenario == "agreement-review";
     let agreement_create_scenario = scenario == "agreement-create";
-    let billing_scenario = scenario == "billing-release";
+    let invoice_read_scenario = scenario == "finance-invoice-read";
+    let billing_scenario = scenario == "billing-release" || invoice_read_scenario;
     let visit_scenario = scenario == "visit";
     let completion_scenario = scenario == "complete";
     let recovery_scenario = scenario == "recovery";
@@ -150,6 +152,17 @@ async fn main() {
                 sqlx::raw_sql("INSERT INTO iam_roles(company_id,id,name,built_in,published_revision,status) VALUES('*','field_billing_reviewer','Synthetic independent Service billing reviewer',false,1,'active');INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) VALUES('*','field_billing_reviewer',1,'[\"records.read\",\"records.write\",\"records.review\",\"module.field_service.read\"]','[]','[\"holding\"]','fixture',0);INSERT INTO iam_members(company_id,user_id,principal_id,person_id,status,login_policy,version) VALUES('company','fixture-b','local:fixture-b','person-reviewer','active','local',1)").execute(system.holdings[0].raw()).await.expect("Service billing reviewer unavailable");
                 sqlx::query("INSERT INTO assignments(id,user_id,role,modules_json,company_id,valid_from,valid_until,version,scope_kind) VALUES('field-billing-reviewer','fixture-b','field_billing_reviewer','[\"field_service\"]','company',$1,$2,3,'holding')").bind(now-1000).bind(now+3_600_000).execute(system.holdings[0].raw()).await.expect("Service billing assignment unavailable");
             }
+            if invoice_read_scenario {
+                use tower::ServiceExt;
+                let central=field_service::account::login(system,"b@example.test",None).await;let child=field_service::account::child(system,&central,field_service::account::ACME).await;
+                sqlx::query("INSERT INTO active_work_contexts(session_id,user_id,company_id,assignment_id,assignment_version,revision,expires_at,updated_at)VALUES($1,'fixture-b','company','field-billing-reviewer',3,8,$2,$3)").bind(&child.result.session_id).bind(now+3_600_000).bind(now).execute(system.holdings[0].raw()).await.expect("billing reviewer context unavailable");
+                let config=erpx_service::field_service_parts::FieldServicePartsConfiguration::new(erpx_service::field_service_parts::FieldServicePartsEnvironment::Development,erpx_server_shared::public::HoldingId::new("h001").unwrap(),erpx_server_shared::public::CompanyId::new("company").unwrap(),erpx_server_commercial::public::purchases::PackageEnforcementMode::Enforced).unwrap();
+                let service=Arc::new(erpx_service::field_service_parts::FieldServicePartsAdministration::new(prepared.review.authorizer.clone(),config,system.scenario.clock.clone(),system.scenario.clock.clone()));
+                let dispatcher=Arc::new(erpx_service::field_service_parts::VisitDispatcher{clock:system.scenario.clock.clone(),allow_visits:false,allow_completion:false,allow_recovery:false,allow_cancel:false,allow_billing:true});
+                let router=erpx_service::field_service_http::field_service_http_router(Arc::new(field_service::account::fixture::account::policy()),field_service::account::fixture::account::holding_registry(),Arc::new(erpx_service::field_service_reservation_read_http::FieldServiceReadScopeHeaders),vec![erpx_service::field_service_http::FieldServiceHttpTarget::new_private_creates("acme.example.test".into(),"acme".into(),service,None,None,(Some(dispatcher),None,None),(false,false))]).expect("billing router unavailable");
+                let request=axum::http::Request::builder().method("POST").uri("/api/v1/holdings/acme/field-service").header("host","acme.example.test").header("origin","https://acme.example.test").header("cookie",format!("__Host-erpx-product={}",child.token.expose())).header("idempotency-key","browser-invoice-release").header("x-erpx-context-company","company").header("x-erpx-context-revision","8").header("x-erpx-context-assignment","field-billing-reviewer").header("x-erpx-context-assignment-version","3").body(axum::body::Body::from(r#"{"id":"reserve-order","action":"release-billing","expectedVersion":5,"reason":"Independent synthetic invoice release"}"#)).unwrap();
+                let response=router.oneshot(request).await.expect("native billing request failed");assert_eq!(response.status(),axum::http::StatusCode::OK,"native billing prerequisite rejected");
+            }
             Some(id)
         } else { None };
         if order_create_scenario {
@@ -169,7 +182,8 @@ async fn main() {
                 {"holdingId":"h002","slug":"northstar","host":"northstar.jesadakorn.com","writeBinding":"HOLDING_H002_DB","readBinding":"HOLDING_H002_READ_DB","filesBinding":"HOLDING_H002_FILES","database":h002}
             ],"financeJournalReads":[{"holdingId":"h001","companyId":"company"}],"fieldServiceReads":[{"holdingId":"h001","companyId":"company"}],"fieldServiceReservations":["h001"],"fieldServiceIssues":["h001"],"accountBootstrap":true
         });
-        if billing_scenario { doc["fieldServiceBillingReleases"] = serde_json::json!(["h001"]); }
+        if invoice_read_scenario { doc["financeFieldServiceInvoiceReads"] = serde_json::json!(["h001"]); }
+        if billing_scenario && !invoice_read_scenario { doc["fieldServiceBillingReleases"] = serde_json::json!(["h001"]); }
         if agreement_create_scenario { doc["fieldServiceAgreementCreates"] = serde_json::json!(["h001"]); }
         if agreement_review_scenario { doc["fieldServiceAgreementReviews"] = serde_json::json!(["h001"]); }
         if cancel_scenario { doc["fieldServiceOrderCancellations"] = serde_json::json!(["h001"]); }
@@ -199,6 +213,11 @@ async fn main() {
         if billing_scenario {
             let pricing_date:String=sqlx::query_scalar("SELECT to_char(to_timestamp($1::double precision/1000) AT TIME ZONE 'UTC','YYYY-MM-DD')").bind(now).fetch_one(system.holdings[0].raw()).await.expect("billing pricing date unavailable");
             credentials["billingRelease"] = serde_json::json!({"agreementId":"agreement","customerId":"customer","currency":"THB","amountMinor":10000,"warrantyApplied":false,"warrantyDiscountBps":0,"warrantyEndSnapshot":null,"pricingDate":pricing_date});
+        }
+        if invoice_read_scenario {
+            let money:(String,String,Option<String>,bool)=sqlx::query_as("SELECT amount_units::text,usd_units::text,fx_rate_id,used_latest_fallback FROM money_transaction_snapshots WHERE company_id='company' AND source_type='field_service_billing_release' AND source_id='field-billing-browser-invoice-release' AND amount_kind='invoice_total'").fetch_one(system.holdings[0].raw()).await.expect("invoice source Money unavailable");
+            credentials["financeAssignmentId"]=serde_json::json!("finance-fixture-b");credentials["financeAssignmentVersion"]=serde_json::json!(3);
+            credentials["invoiceRead"]=serde_json::json!({"invoiceId":"field-invoice-browser-invoice-release","invoiceNumber":"FS-reserve-order","currency":"THB","status":"draft","totalMinor":10000,"outstandingMinor":10000,"source":{"releaseId":"field-billing-browser-invoice-release","orderId":"reserve-order","commandKey":"browser-invoice-release","actorId":"fixture-b","currency":"THB","amountUnits":money.0,"usdUnits":money.1,"fxRateId":money.2,"usedLatestFallback":money.3}});
         }
         files.0.push(write_private(&dir, "credentials.json", &credentials));
         let runtime = assemble_development_api(configuration, Arc::new(SystemAccountClock), Arc::new(SystemAuthenticationSecrets)).await.expect("native case assembly failed");

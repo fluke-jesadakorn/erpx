@@ -108,6 +108,8 @@ struct ConfigurationDocument {
     #[serde(default)]
     finance_journal_reads: Vec<FinanceReadDocument>,
     #[serde(default)]
+    finance_field_service_invoice_reads: Vec<String>,
+    #[serde(default)]
     finance_journal_posts: Vec<String>,
     #[serde(default)]
     finance_field_service_journal_posts: Vec<String>,
@@ -161,6 +163,7 @@ pub struct DevelopmentApiConfiguration {
     control: LeasedDevelopmentDatabase,
     holdings: Vec<HoldingConfiguration>,
     finance_journal_reads: BTreeMap<HoldingId, CompanyId>,
+    finance_field_service_invoice_reads: BTreeSet<HoldingId>,
     finance_journal_posts: BTreeSet<HoldingId>,
     finance_field_service_journal_posts: BTreeSet<HoldingId>,
     finance_journal_creates: BTreeSet<HoldingId>,
@@ -268,6 +271,16 @@ impl DevelopmentApiConfiguration {
                 .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?;
             if !ids.contains(&read.holding_id)
                 || finance_journal_reads.insert(holding, company).is_some()
+            {
+                return Err("PRIVATE_API_FINANCE_CONFIGURATION_INVALID");
+            }
+        }
+        let mut finance_field_service_invoice_reads = BTreeSet::new();
+        for id in doc.finance_field_service_invoice_reads {
+            let holding =
+                HoldingId::new(id).map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?;
+            if !finance_journal_reads.contains_key(&holding)
+                || !finance_field_service_invoice_reads.insert(holding)
             {
                 return Err("PRIVATE_API_FINANCE_CONFIGURATION_INVALID");
             }
@@ -479,6 +492,7 @@ impl DevelopmentApiConfiguration {
             control,
             holdings,
             finance_journal_reads,
+            finance_field_service_invoice_reads,
             finance_journal_posts,
             finance_field_service_journal_posts,
             finance_journal_creates,
@@ -695,6 +709,7 @@ async fn assemble_checked(
         router = router.merge(account_session_router(auth));
     }
     let mut finance_targets = BTreeSet::new();
+    let mut finance_service_invoice_targets = BTreeSet::new();
     let mut finance_post_targets = BTreeSet::new();
     let mut finance_create_targets = BTreeSet::new();
     let mut finance_edit_targets = BTreeSet::new();
@@ -746,6 +761,16 @@ async fn assemble_checked(
                 .contains(&holding.registration.holding_id)
             {
                 configuration.with_field_service_parts()
+            } else {
+                configuration
+            };
+            let configuration = if config
+                .finance_field_service_invoice_reads
+                .contains(&holding.registration.holding_id)
+            {
+                finance_service_invoice_targets
+                    .insert((holding.host.clone(), holding.registration.slug.clone()));
+                configuration.with_field_service_invoices()
             } else {
                 configuration
             };
@@ -1181,6 +1206,7 @@ async fn assemble_checked(
         permits: Arc::new(Semaphore::new(config.maximum_requests)),
         timeout: config.request_timeout,
         finance_targets,
+        finance_service_invoice_targets,
         finance_post_targets,
         finance_create_targets,
         finance_edit_targets,
@@ -1210,6 +1236,7 @@ struct Boundary {
     permits: Arc<Semaphore>,
     timeout: Duration,
     finance_targets: BTreeSet<(String, String)>,
+    finance_service_invoice_targets: BTreeSet<(String, String)>,
     finance_post_targets: BTreeSet<(String, String)>,
     finance_create_targets: BTreeSet<(String, String)>,
     finance_edit_targets: BTreeSet<(String, String)>,
@@ -1278,6 +1305,19 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         .collect::<Vec<_>>()
         .as_slice()
     {
+        [
+            "",
+            "api",
+            "v1",
+            "holdings",
+            slug,
+            "finance",
+            "invoices",
+            id,
+            "workspace",
+        ] if !id.is_empty() => state
+            .finance_service_invoice_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
         [
             "",
             "api",

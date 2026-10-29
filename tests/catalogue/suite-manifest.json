@@ -65323,6 +65323,7 @@
         "@erpx/feature-legal",
         "@erpx/feature-organization",
         "@erpx/feature-people_payroll",
+        "@erpx/feature-procurement",
         "@erpx/feature-records",
         "@erpx/feature-runtime",
         "@erpx/feature-sales",
@@ -65379,7 +65380,8 @@
       "id": "finance.native-journal-detail.unit",
       "files": [
         "tests/unit/finance/native-journal-detail.test.ts",
-        "tests/unit/finance/native-journal-post-action.test.ts"
+        "tests/unit/finance/native-journal-post-action.test.ts",
+        "tests/unit/finance/native-service-invoice.test.ts"
       ],
       "verificationInputs": [
         "packages/contracts/src/finance-journal-read.generated.ts",
@@ -65407,7 +65409,13 @@
         "packages/contracts/src/finance-journal-edit.generated.ts",
         "scripts/docs/export-finance-journal-edit-contracts.rs",
         "scripts/docs/generate-finance-journal-edit-contracts.ts",
-        "docs/contracts/next/finance-journal-edit.openapi.generated.json"
+        "docs/contracts/next/finance-journal-edit.openapi.generated.json",
+        "packages/feature-finance/src/adapters/server/native-service-invoice.ts",
+        "packages/feature-finance/src/components/service-invoice-record-boundary.tsx",
+        "packages/feature-finance/src/components/source-document-backdrop.tsx",
+        "packages/feature-finance/src/routes/holdings/[holdingSlug]/@record/finance/documents/invoices/[id]/[recordSection]/page.tsx",
+        "packages/feature-finance/src/routes/holdings/[holdingSlug]/@record/finance/documents/invoices/[id]/page.tsx",
+        "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/finance/invoices/[id]/screen.tsx"
       ]
     },
     {
@@ -69711,7 +69719,14 @@
         "src/composition/src/field_service_parts/command.rs",
         "src/composition/src/field_service_parts/purchases.rs",
         "src/composition/src/field_service_reservation_read_http.rs",
-        "src/composition/src/private_development_api.rs"
+        "src/composition/src/private_development_api.rs",
+        "packages/server-field_service/src/adapters/finance_lineage.rs",
+        "packages/server-field_service/src/public/finance_lineage.rs",
+        "packages/server-finance/src/adapters/field_service_invoice_read.rs",
+        "packages/server-finance/src/public/field_service_invoice_read.rs",
+        "scripts/docs/export-finance-journal-read-contracts.rs",
+        "src/composition/src/finance_journal_detail.rs",
+        "src/composition/src/finance_journal_detail_http.rs"
       ],
       "postgres": {
         "mode": "raw",

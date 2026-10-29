@@ -10,6 +10,51 @@
     "version": "0.1.0"
   },
   "paths": {
+    "/api/v1/holdings/{holding_slug}/finance/invoices/{id}/workspace": {
+      "get": {
+        "tags": [],
+        "operationId": "get_service_invoice_workspace",
+        "parameters": [
+          {
+            "name": "holding_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current source-qualified Service invoice workspace",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FinanceServiceInvoiceWorkspaceResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Current session required"
+          },
+          "403": {
+            "description": "Finance read or purchase History denied"
+          },
+          "404": {
+            "description": "Unavailable or unsupported source"
+          }
+        }
+      }
+    },
     "/api/v1/holdings/{holding_slug}/finance/journals/{id}": {
       "get": {
         "tags": [],
@@ -129,6 +174,48 @@
         },
         "propertyNames": {
           "type": "string"
+        }
+      },
+      "FinanceInvoiceOptions": {
+        "type": "object",
+        "required": [
+          "charts",
+          "accounts",
+          "periods",
+          "parties",
+          "invoices"
+        ],
+        "properties": {
+          "accounts": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "charts": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "invoices": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "parties": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "periods": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
         }
       },
       "FinanceJournalDetail": {
@@ -341,6 +428,117 @@
           },
           "userId": {
             "type": "string"
+          }
+        }
+      },
+      "FinanceServiceInvoiceSource": {
+        "type": "object",
+        "required": [
+          "releaseId",
+          "orderId",
+          "commandKey",
+          "actorId",
+          "currency",
+          "amountUnits",
+          "usdUnits",
+          "usedLatestFallback"
+        ],
+        "properties": {
+          "actorId": {
+            "type": "string"
+          },
+          "amountUnits": {
+            "type": "string"
+          },
+          "commandKey": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "fxRateId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "orderId": {
+            "type": "string"
+          },
+          "releaseId": {
+            "type": "string"
+          },
+          "usdUnits": {
+            "type": "string"
+          },
+          "usedLatestFallback": {
+            "type": "boolean"
+          }
+        }
+      },
+      "FinanceServiceInvoiceWorkspace": {
+        "type": "object",
+        "required": [
+          "invoice",
+          "allocations",
+          "lines",
+          "lineHistory",
+          "thaiDocuments",
+          "options",
+          "source"
+        ],
+        "properties": {
+          "allocations": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "invoice": {
+            "type": "object"
+          },
+          "lineHistory": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "options": {
+            "$ref": "#/components/schemas/FinanceInvoiceOptions"
+          },
+          "source": {
+            "$ref": "#/components/schemas/FinanceServiceInvoiceSource"
+          },
+          "thaiDocuments": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      },
+      "FinanceServiceInvoiceWorkspaceResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "context",
+          "sourceOnly"
+        ],
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/FinanceRenderedWorkContext"
+          },
+          "data": {
+            "$ref": "#/components/schemas/FinanceServiceInvoiceWorkspace"
+          },
+          "sourceOnly": {
+            "type": "boolean"
           }
         }
       }
