@@ -36,6 +36,11 @@ test("isolated demo traces finance report totals to the selected ledger", async 
   try {
     const page = await context.newPage();
     await signInFinance(context, page, credentials, "/holdings/simulation/finance/reports");
+    await expect(page.getByRole("heading", { name: "Reports", exact: true })).toBeVisible();
+    const companyReports = page.getByRole("link", { name: "Company reports", exact: true });
+    await expect(companyReports).toHaveAttribute("href", "/holdings/simulation/finance/reports/company");
+    await companyReports.click();
+    await expect(page.getByRole("heading", { name: "Reports and statements", exact: true })).toBeVisible();
     const chartsResponse = await page.request.get("/api/v1/holdings/simulation/finance/charts");
     expect(chartsResponse.ok(), await chartsResponse.text()).toBe(true);
     const chartsBody = await chartsResponse.json() as { data: Array<{ id: string; base_currency: string }> };
@@ -50,7 +55,7 @@ test("isolated demo traces finance report totals to the selected ledger", async 
     const trialBalanceBody = await trialBalanceResponse.json() as { data: Array<{ id: string; category: string; debit: string; credit: string }> };
     expect(statementsBody.data.trialBalance.length).toBe(trialBalanceBody.data.length);
 
-    await page.goto(`/holdings/simulation/finance/reports?chart=${encodeURIComponent(chart.id)}&refresh=${Date.now()}`, { waitUntil: "domcontentloaded" });
+    await page.goto(`/holdings/simulation/finance/reports/company?chart=${encodeURIComponent(chart.id)}&refresh=${Date.now()}`, { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { name: "Reports and statements", exact: true })).toBeVisible();
     await expect(page.locator('#workspace-content').getByText(`${chart.base_currency} ${statementsBody.data.balanceSheet.assets}`, { exact: true }).first()).toBeVisible();
     const traceLinks = page.getByRole("link", { name: "Trace journal entries →", exact: true });

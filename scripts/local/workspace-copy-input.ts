@@ -32,3 +32,10 @@ export async function copyWorkspaceSnapshot(source:string,target:string,filter:(
  }));
  const failed=copied.find(result=>result.status==='rejected');if(failed?.status==='rejected')throw failed.reason;
 }
+
+/** Inputs needed by the browser case; Next generates declarations in each app. */
+export const browserWorkspaceInputs = ['src','apps','packages','public','scripts','fixtures','migrations/postgres','tests/support','tests/catalogue','tests/config','ops/macos/clamav','ops/macos/install-attachment-runtime.py','ops/macos/attachment-rollout.md','ops/macos/erpxctl.py','ops/macos/offsite.py','ops/macos/recovery_status.py','package.json','bun.lock','next.config.ts','tsconfig.json','tsconfig.base.json','postcss.config.mjs','node_modules'] as const;
+export async function copyBrowserWorkspaceSnapshot(root:string,target:string){
+ await mkdir(target,{recursive:true});
+ for(const name of browserWorkspaceInputs)await copyWorkspaceSnapshot(join(root,name),join(target,name),path=>workspaceCopyInput(root,path));
+}
