@@ -1,6 +1,16 @@
 "use client";
 import { useRef, useState } from "react";
-import type { HierarchyNode } from "@erpx/feature-organization/lib/hierarchy";
+
+/** Presentation data only; owner models can satisfy this contract structurally. */
+export type HierarchyNode = {
+  id: string;
+  parentId: string | null;
+  kind: string;
+  source: string;
+  label: string;
+  status: string;
+  childCount: number;
+};
 
 /** Controlled selection/expansion, with WAI-ARIA tree keyboard navigation. */
 export function HierarchyTree({

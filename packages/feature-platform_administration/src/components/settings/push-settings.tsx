@@ -1,5 +1,7 @@
 "use client";
 import { Button, Field, TextInput } from "@erpx/ui/components/foundation";
+import {holdingHostForHost,holdingTransportPath} from '@erpx/contracts/holding-hosts';
+import {isProductHostKey} from '@erpx/contracts/product-registry';
 
 import { useEffect, useState } from "react";
 import { workFetch } from "@erpx/feature-work_projection/lib/work-fetch";
@@ -96,7 +98,9 @@ export function PushSettings({ appearance = "legacy",
         setMessage("Allow notifications in your browser settings to turn on push.");
         return;
       }
-      const registration = await navigator.serviceWorker.register("/erpx-push-sw.js", {
+      const app=document.documentElement.dataset.erpxApp;
+      const script=holdingHostForHost(window.location.host)&&app&&isProductHostKey(app)?holdingTransportPath(app,'/erpx-push-sw.js'):'/erpx-push-sw.js';
+      const registration = await navigator.serviceWorker.register(script, {
         scope: "/",
       });
       let subscription = await registration.pushManager.getSubscription();

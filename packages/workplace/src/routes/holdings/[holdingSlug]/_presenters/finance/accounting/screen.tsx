@@ -87,6 +87,15 @@ export default async function AccountingPage({
             </Link>
             <JournalEditor
               base={base}
+              nativeCreate={process.env.ERPX_NATIVE_FINANCE_JOURNAL_CREATE_CONFIG === undefined ? undefined : {context: actor.authority && actor.iam ? {
+                userId: actor.userId, holdingId: actor.holdingId, companyId: actor.companyId,
+                branchId: actor.branchId, departmentId: actor.departmentId,
+                branchSlug: actor.scope.kind === 'holding' ? null : actor.scope.branchSlug ?? null,
+                departmentSlug: actor.scope.kind === 'department' ? actor.scope.departmentSlug : null,
+                assignmentId: actor.assignmentId, assignmentVersion: actor.authority.assignmentVersion,
+                revision: actor.authority.revision, role: actor.role, assignmentScopeKind: actor.assignmentScope,
+                modules: [...actor.modules], permissions: [...actor.iam.permissions],
+              } : undefined}}
               chart={data.chart}
               accounts={data.accounts}
               periods={data.periods}

@@ -4,19 +4,23 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./components/use-field-service-command": "./src/components/use-field-service-command.ts",
-    "./components/service-editor-context": "./src/components/service-editor-context.ts",
     "./components/service-reference-fields": "./src/components/service-reference-fields.tsx",
     "./components/service-spare-form": "./src/components/service-spare-form.tsx",
     "./components/service-navigation": "./src/components/service-navigation.tsx",
+    "./components/use-field-service-command": "./src/components/use-field-service-command.ts",
     "./components/initial-physical-stock-count": "./src/components/initial-physical-stock-count.tsx",
     "./components/parts-setup": "./src/components/parts-setup.tsx",
+    "./components/service-editor-context": "./src/components/service-editor-context.ts",
     "./components/field-service-console": "./src/components/field-service-console.tsx",
     "./components/customer-preparation": "./src/components/customer-preparation.tsx",
     "./components/parts-entry-link": "./src/components/parts-entry-link.tsx",
     "./lib/customer-preparation-command": "./src/lib/customer-preparation-command.ts",
     "./lib/initial-physical-stock-count-command": "./src/lib/initial-physical-stock-count-command.ts",
+    "./public/native-parts-setup": "./src/public/native-parts-setup.ts",
+    "./public/native-workspace": "./src/public/native-workspace.ts",
+    "./lib/workspace": "./src/lib/workspace.ts",
     "./lib/command": "./src/lib/command.ts",
+    "./lib/native-reserve-command": "./src/lib/native-reserve-command.ts",
     "./lib/parts-setup-command": "./src/lib/parts-setup-command.ts"
   },
   "scripts": {
@@ -24,6 +28,8 @@
     "lint": "eslint src"
   },
   "dependencies": {
+    "@erpx/contracts": "workspace:*",
+    "@erpx/native-sdk": "workspace:*",
     "@erpx/feature-commerce": "workspace:*",
     "@erpx/feature-files": "workspace:*",
     "@erpx/feature-finance": "workspace:*",
@@ -38,7 +44,7 @@
     "@erpx/server-inventory": "workspace:*",
     "@erpx/ui": "workspace:*",
     "@erpx/workplace": "workspace:*",
-    "react": "19.3.0",
-    "zod": "4.5.4"
+    "react": "19.3.1",
+    "zod": "4.6.7"
   }
 }

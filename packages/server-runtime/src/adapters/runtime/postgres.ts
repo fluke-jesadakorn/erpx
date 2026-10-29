@@ -207,7 +207,10 @@ export class PostgresDatabase implements SqlDatabase {
   readonly pool: Pool;
   constructor(config: PoolConfig) {
     this.pool = new Pool({ pipeline: true, max: 1, idleTimeoutMillis: 30_000, connectionTimeoutMillis: 5_000,
-      options: '-c timezone=UTC -c statement_timeout=30000 -c lock_timeout=10000', ...config });
+      // These pools serve bounded OLTP reads/writes. Complex authorization predicates
+      // can trigger expensive LLVM compilation before returning a handful of rows.
+      // Keep SQL/authority/timeouts unchanged; explicit operator options still override.
+      options: '-c timezone=UTC -c statement_timeout=30000 -c lock_timeout=10000 -c jit=off', ...config });
     instrumentPool(this.pool);
     this.pool.on('error', () => console.error(JSON.stringify({ event: 'database_connection_error' })));
   }

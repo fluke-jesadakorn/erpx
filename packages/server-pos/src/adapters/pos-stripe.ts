@@ -1,6 +1,7 @@
 import{secret,stripeRequest}from '@erpx/server-pos/adapters/stripe-provider';
 import {posStripeBindingFacts} from "@erpx/server-runtime/public/pos-stripe-binding-facts";
 import 'server-only';
+import {holdingRoutingEnabled,holdingOrigin,holdingUiUrl} from '@erpx/contracts/holding-hosts';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { type PosAccounts } from "@erpx/server-pos/public/rules/pos";
 import { resourceSlots } from "@erpx/feature-runtime/lib/holding-registry";
@@ -20,8 +21,8 @@ import { requirePosProviderPurchase, withPosProviderPurchasedTransaction } from 
 import { adminCompanyHandoff, applicationOrigin } from "@erpx/feature-runtime/lib/application-origins";
 export { PosStripeApiError };
 
-function origin() {
-    const value = applicationOrigin("pos", process.env.ERPX_PUBLIC_ORIGIN);
+function origin(holdingSlug?:string) {
+    const value = holdingRoutingEnabled(process.env)?holdingSlug&&holdingOrigin(holdingSlug):applicationOrigin("pos", process.env.ERPX_PUBLIC_ORIGIN);
     if (!value)
         fail('POS_ORIGIN_REQUIRED', 'Configure the public origin before connecting Stripe');
     const u = new URL(value);
@@ -380,10 +381,10 @@ function unit(db: SqlDatabase): PosStripeUnit {
 function repository(db: PostgresDatabase): PosStripeRepository { return { ...unit(db), requirePurchase: input => requirePosProviderPurchase(db, input),
     transaction: (work, purchase) => purchase ? withPosProviderPurchasedTransaction(db, purchase, tx => work(repository(tx as PostgresDatabase)))
         : db.transaction(tx => work(repository(tx as PostgresDatabase))) }; }
-const application = createPosStripe({ clock: { now: () => Date.now() }, uuid: id, environment: key => process.env[key], error: (status, code, message) => new ApiError(status, code, message), resources: async () => { const env = await runtimeEnv(); return { control: repository(env.CONTROL_DB as PostgresDatabase), holdings: resourceSlots(env) }; }, forHolding: async (holdingId) => repository((await holdingResources(holdingId)).write as PostgresDatabase), provider: { request: stripeRequest, secret, origin, settingsReturn: (slug, companyId) => adminCompanyHandoff(companyId, `/holdings/${encodeURIComponent(slug)}/settings/stripe`, process.env.ERPX_PUBLIC_ORIGIN), fetch: (url, { timeoutMs, ...init }) => fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) }) }, signing: { equal: (secret, payload, signature) => timingSafeEqual(createHmac("sha256", secret).update(payload).digest(), Buffer.from(signature, "hex")) }, leases: { repeat: setInterval, cancel: token => clearInterval(token as ReturnType<typeof setInterval>) }, report: value => console.error(value) });
+const application = createPosStripe({ clock: { now: () => Date.now() }, uuid: id, environment: key => process.env[key], error: (status, code, message) => new ApiError(status, code, message), resources: async () => { const env = await runtimeEnv(); return { control: repository(env.CONTROL_DB as PostgresDatabase), holdings: resourceSlots(env) }; }, forHolding: async (holdingId) => repository((await holdingResources(holdingId)).write as PostgresDatabase), provider: { request: stripeRequest, secret, origin, callbackUrl:slug=>`${origin(slug)}${holdingRoutingEnabled(process.env)?'/__erpx/pos':''}/api/v1/holdings/${encodeURIComponent(slug)}/pos/connect/callback`, saleReturn:(slug,companyId,saleId)=>holdingRoutingEnabled(process.env)?holdingUiUrl(`/holdings/${encodeURIComponent(slug)}/pos?sale=${encodeURIComponent(saleId)}`,companyId)!:`${origin(slug)}/holdings/${encodeURIComponent(slug)}/pos?sale=${encodeURIComponent(saleId)}`, settingsReturn: (slug, companyId) => adminCompanyHandoff(companyId, `/holdings/${encodeURIComponent(slug)}/settings/stripe`, process.env.ERPX_PUBLIC_ORIGIN), fetch: (url, { timeoutMs, ...init }) => fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) }) }, signing: { equal: (secret, payload, signature) => timingSafeEqual(createHmac("sha256", secret).update(payload).digest(), Buffer.from(signature, "hex")) }, leases: { repeat: setInterval, cancel: token => clearInterval(token as ReturnType<typeof setInterval>) }, report: value => console.error(value) });
 export function stripeCall(live: boolean, path: string, options: StripeOptions = {}) { return application.stripeCall(live, path, options); }
 export function stripeListCall(live: boolean, path: string, options: StripeOptions = {}) { return application.stripeListCall(live, path, options); }
-export function posStripeWebhook(raw: string, signature: string) { return application.posStripeWebhook(raw, signature); }
+export function posStripeWebhook(raw: string, signature: string, expectedHoldingId?:string) { return application.posStripeWebhook(raw, signature,expectedHoldingId); }
 export function oauthUrl(state: string, holdingSlug: string, live: boolean) { return application.oauthUrl(state, holdingSlug, live); }
 export function finishPosOAuth(actor: WorkContext, stateId: string, code: string) { return application.finishPosOAuth(actor, stateId, code); }
 export function drainPos(db: PostgresDatabase, holdingId: string, limit = 8, companyId: string | null = null) { return application.drainPos(repository(db), holdingId, limit, companyId); }

@@ -21,6 +21,7 @@
     "./adapters/service": "./src/adapters/service.ts",
     "./adapters/package-obligations": "./src/adapters/package-obligations.ts",
     "./adapters/executive-main-evidence-sources": "./src/adapters/executive-main-evidence-sources.ts",
+    "./public/native-work": "./src/public/native-work.ts",
     "./public/records-source-facts": "./src/public/records-source-facts.ts",
     "./public/final-root-owner-projection-sources": "./src/public/final-root-owner-projection-sources.ts",
     "./public/executive-metric-projections": "./src/public/executive-metric-projections.ts",
@@ -43,13 +44,16 @@
     "./domain/package-commands": "./src/domain/package-commands.ts",
     "./domain/agreement": "./src/domain/agreement.ts",
     "./domain/service": "./src/domain/service.ts",
-    "./domain/parts-entry": "./src/domain/parts-entry.ts"
+    "./domain/parts-entry": "./src/domain/parts-entry.ts",
+    "./public/native-source-record": "./src/public/native-source-record.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
     "lint": "eslint src"
   },
   "dependencies": {
+    "@erpx/contracts": "workspace:*",
+    "next": "16.4.3",
     "@erpx/catalogue": "workspace:*",
     "@erpx/feature-identity_access": "workspace:*",
     "@erpx/feature-shared": "workspace:*",
@@ -71,6 +75,6 @@
     "@erpx/server-support": "workspace:*",
     "@erpx/server-workflow": "workspace:*",
     "server-only": "0.0.1",
-    "zod": "4.5.4"
+    "zod": "4.6.7"
   }
 }

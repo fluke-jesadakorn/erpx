@@ -11,7 +11,7 @@ import {workApprovalSettlementSources as approval,workTaskApprovalSourceLocks} f
 import {finalRootOwnerProjectionSources as people} from '@erpx/server-people_payroll/public/final-root-owner-projection-sources';
 import {lockQueuedCommandAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
 import {withProjectTaskAlert} from '@erpx/server-projects/public/scheduled-tasks';
-import {workPackageEnforcementMode,projectsPackageEnforcementMode,readPurchasedAccesses,companyPurchaseReadLocks,purchaseCommandBoundary,purchaseCommandFailure} from '@erpx/server-commercial/public/purchase-command-boundary';
+import {appsPackageEnforcementMode,projectsPackageEnforcementMode,readPurchasedAccesses,companyPurchaseReadLocks,purchaseCommandBoundary,purchaseCommandFailure} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {purchasedCapabilityPredicate,packageClockSql} from '@erpx/server-commercial/public/purchased-capability-sql';
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
@@ -25,7 +25,7 @@ function purchased(socialRequired:string){return `${purchasedCapabilityPredicate
 /** Only actual ordinary Task recipients participate; Project and every other
  * product's foundation actions retain their separate original owner. */
 export async function workTaskAlertReadScope(now:number,deadline=now+86400000){
- if(await workPackageEnforcementMode()!=='enforced')return {prefix:'',where:'TRUE',args:[]};
+ if(await appsPackageEnforcementMode()!=='enforced')return {prefix:'',where:'TRUE',args:[]};
  if(!Number.isSafeInteger(now))throw new ApiError(422,'WORK_ALERT_CLOCK_REQUIRED','A current scheduled task clock is required.');
  const social=await workTaskSocialQueuedSourceScope({deadline}),recipient=`(iam_same_person(work_alert_viewer.user_id,t.assignee_user_id,t.company_id) OR iam_same_person(work_alert_viewer.user_id,d.delegate_user_id,t.company_id) OR (t.due_at<${now} AND iam_same_person(work_alert_viewer.user_id,t.creator_user_id,t.company_id)) OR EXISTS(SELECT 1 FROM (${approval.instances}) pending_instance JOIN (${approval.steps}) pending_step ON pending_step.instance_id=pending_instance.id AND pending_step.state='pending' WHERE pending_instance.company_id=t.company_id AND pending_instance.record_id=t.id AND pending_instance.state='pending' AND iam_same_person(pending_step.approver_user_id,work_alert_viewer.user_id,t.company_id)))`;
  return {prefix:social.prefix,args:social.args,where:`(t.project_id IS NOT NULL OR EXISTS(WITH work_alert_clock AS MATERIALIZED(SELECT ${packageClockSql} now_ms) SELECT 1 FROM work_alert_clock WHERE ${purchased(social.socialRequired)} AND EXISTS(SELECT 1 FROM assignments assignment CROSS JOIN LATERAL(SELECT assignment.id assignment_id,assignment.user_id,assignment.role,assignment.scope_kind,assignment.scope_node_id,work_alert_clock.now_ms) work_alert_viewer WHERE assignment.company_id=t.company_id AND ${recipient} AND ${authority('work_alert_viewer',social.where)})))`};
@@ -36,7 +36,7 @@ type Target={id:string;companyId:string;userId:string;version:number};
 /** Pin a real current recipient assignment, never fabricate a role/session for
  * a system delivery. The private source lease precedes the first snapshot. */
 export async function withWorkTaskAlert<Result>(owner:SqlDatabase,selected:TaskAlertRow|undefined,target:Target,run:(database:SqlDatabase)=>Promise<Result>):Promise<Result|undefined>{
- const mode=await workPackageEnforcementMode();
+ const mode=await appsPackageEnforcementMode();
  if(mode!=='enforced'){if(mode==='shadow'&&!selected?.project_id)await readPurchasedAccesses(owner,mode,target.companyId,['work.actions','work.advanced-routines','work.social']);return withProjectTaskAlert(owner,selected,target,run);}
  if(selected?.project_id&&await projectsPackageEnforcementMode()==='enforced')return withProjectTaskAlert(owner,selected,target,run);
  if(!selected)return undefined;

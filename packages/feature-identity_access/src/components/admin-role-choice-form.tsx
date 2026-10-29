@@ -1,4 +1,5 @@
 'use client';
+import {holdingFetch} from '@erpx/contracts/holding-fetch';
 import {useRef,useState,type ReactNode} from 'react';
 import {confirmContextSwitch,contextIsSwitching,setContextSwitching} from '@erpx/feature-work_projection/lib/context-switch';
 import {useHydrated} from '@erpx/ui/components/use-hydrated';
@@ -14,7 +15,7 @@ export async function submitAdminRoleChoice(form:HTMLFormElement){
  try{
   // Native navigation POSTs carry Origin:null under no-referrer. CORS-mode
   // fetch preserves the real Origin without relaxing the server's strict guard.
-  const response=await fetch('/admin/launch',{method:'POST',mode:'cors',credentials:'same-origin',referrerPolicy:'no-referrer',body});
+  const response=await holdingFetch('/admin/launch',{method:'POST',mode:'cors',credentials:'same-origin',referrerPolicy:'no-referrer',body});
   if(!response.ok)throw Error('The work role could not be selected. Check the current choices and try again.');
   const destination=new URL(response.url);
   if(!response.redirected||destination.origin!==window.location.origin)throw Error('The work role response could not be verified. Reload the current choices.');

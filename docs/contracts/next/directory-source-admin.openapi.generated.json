@@ -1,0 +1,498 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "ERPX native Directory source administration",
+    "description": "Additive private, unmounted Holding-only preview and independent approve/apply. Exact registered origin, opaque Holding child session, current Company IAM/CAS and exact-session fresh MFA precede body/schema validation and receipt replay. Source tags, selectors and result data are not authority. Strings use runtime ECMAScript trimming and 3..1000 Unicode-code-point reason units as in pinned Zod; schema scalar length bounds match. Body limit16KiB. No generic review listing/rejection, platform provenance, bootstrap allowlist, UI, live provider or release acceptance.",
+    "license": {
+      "name": "Apache-2.0",
+      "identifier": "Apache-2.0"
+    },
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/v1/holdings/{holding_slug}/iam/connections/{connection_id}/source/preview": {
+      "post": {
+        "tags": [],
+        "operationId": "preview",
+        "parameters": [
+          {
+            "name": "holding_slug",
+            "in": "path",
+            "description": "Exact registered Holding slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "connection_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "description": "Required exact registered HTTPS Holding origin",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-erpx-context-company",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-erpx-context-revision",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-erpx-context-assignment",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-erpx-context-assignment-version",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DirectorySourcePreviewInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySourceResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySourceErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySourceErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySourceErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Generic unavailable target"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySourceErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySourceErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySourceErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySourceErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySourceErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/holdings/{holding_slug}/iam/connections/{connection_id}/source/reviews/{review_id}/approve": {
+      "post": {
+        "tags": [],
+        "operationId": "approve",
+        "parameters": [
+          {
+            "name": "holding_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "connection_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "review_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-erpx-context-company",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-erpx-context-revision",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-erpx-context-assignment",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-erpx-context-assignment-version",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DirectorySourceApproveInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySourceResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySourceErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySourceErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySourceErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Generic unavailable target"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySourceErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySourceErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySourceErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySourceErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySourceErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "DirectorySourceApproveInput": {
+        "type": "object",
+        "required": [
+          "expectedVersion",
+          "reason"
+        ],
+        "properties": {
+          "expectedVersion": {
+            "$ref": "#/components/schemas/DirectorySourceInteger"
+          },
+          "reason": {
+            "type": "string",
+            "description": "Independent review reason, normalized before receipt/audit identity.",
+            "maxLength": 1000,
+            "minLength": 3
+          }
+        },
+        "additionalProperties": false
+      },
+      "DirectorySourceError": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "DirectorySourceErrorResponse": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/DirectorySourceError"
+          }
+        }
+      },
+      "DirectorySourceInteger": {
+        "type": "integer",
+        "format": "int64",
+        "maximum": 9007199254740991,
+        "minimum": 1
+      },
+      "DirectorySourcePreviewInput": {
+        "type": "object",
+        "required": [
+          "keyId",
+          "expectedConnectionVersion",
+          "reason"
+        ],
+        "properties": {
+          "expectedConnectionVersion": {
+            "$ref": "#/components/schemas/DirectorySourceInteger"
+          },
+          "expectedSourceRevision": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/DirectorySourceInteger"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "keyId": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          },
+          "reason": {
+            "type": "string",
+            "description": "Trimmed ECMAScript text, 3..1000 Unicode code points at runtime.",
+            "maxLength": 1000,
+            "minLength": 3
+          }
+        },
+        "additionalProperties": false
+      },
+      "DirectorySourceResponse": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DirectorySourceReviewData"
+          }
+        }
+      },
+      "DirectorySourceReviewData": {
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "version",
+          "sourceRevision"
+        ],
+        "properties": {
+          "decisionReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "sourceRevision": {
+            "$ref": "#/components/schemas/DirectorySourceInteger"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DirectorySourceStatus"
+          },
+          "version": {
+            "$ref": "#/components/schemas/DirectorySourceInteger"
+          }
+        }
+      },
+      "DirectorySourceStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "approved"
+        ]
+      }
+    }
+  }
+}

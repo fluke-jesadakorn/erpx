@@ -1,0 +1,4924 @@
+{
+  "version": 1,
+  "sourceCommit": "a5ed8737a2f05eff1ee9841fda4a094b3926d732",
+  "sources": [
+    {
+      "path": "packages/server-commercial/src/domain/packages.ts",
+      "sha256": "8c845b72f2907f609fc1fb807726bdaa55400bd10206248c843cd03e540714dc"
+    },
+    {
+      "path": "packages/contracts/src/product-registry.ts",
+      "sha256": "020644bf57514d35941bdf4f95471521127bbc760972aa84e2e4934afb41b57c"
+    },
+    {
+      "path": "packages/server-commercial/src/application/package-grants.ts",
+      "sha256": "6daaee559cb6f31cf5bfd46f15d621eff6daccf2ea3b5977542c0b258b709c2c"
+    },
+    {
+      "path": "packages/server-commercial/src/domain/package-dependencies.ts",
+      "sha256": "bc8f806521b0223ab2fa8f3cf5bc3631e73718c48d43a9dbaa3156a9586ec3e5"
+    }
+  ],
+  "node": "v26.11.1",
+  "scenarios": [
+    {
+      "grants": [],
+      "history": []
+    },
+    {
+      "grants": [
+        {
+          "companyId": "company",
+          "packageId": "work",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        {
+          "companyId": "company",
+          "packageId": "pos",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        {
+          "companyId": "company",
+          "packageId": "pms",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        {
+          "companyId": "company",
+          "packageId": "finance",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        {
+          "companyId": "company",
+          "packageId": "people",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        {
+          "companyId": "company",
+          "packageId": "sales",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        {
+          "companyId": "company",
+          "packageId": "supply",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        {
+          "companyId": "company",
+          "packageId": "assets",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        {
+          "companyId": "company",
+          "packageId": "projects",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        {
+          "companyId": "company",
+          "packageId": "recruit",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        {
+          "companyId": "company",
+          "packageId": "learn",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        {
+          "companyId": "company",
+          "packageId": "support",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        {
+          "companyId": "company",
+          "packageId": "service",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        {
+          "companyId": "company",
+          "packageId": "legal",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        {
+          "companyId": "company",
+          "packageId": "manufacturing",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        {
+          "companyId": "company",
+          "packageId": "work-social",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        {
+          "companyId": "company",
+          "packageId": "work-messages",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        {
+          "companyId": "company",
+          "packageId": "work-routines",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        {
+          "companyId": "company",
+          "packageId": "pos-restaurant",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        {
+          "companyId": "company",
+          "packageId": "pos-hotel-charge",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        {
+          "companyId": "company",
+          "packageId": "pms-minibar-linen",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        {
+          "companyId": "company",
+          "packageId": "finance-advanced",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        {
+          "companyId": "company",
+          "packageId": "people-workforce",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        {
+          "companyId": "company",
+          "packageId": "people-payroll",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        {
+          "companyId": "company",
+          "packageId": "people-expenses",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        {
+          "companyId": "company",
+          "packageId": "people-performance",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        {
+          "companyId": "company",
+          "packageId": "people-benefits",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        {
+          "companyId": "company",
+          "packageId": "sales-marketing",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        {
+          "companyId": "company",
+          "packageId": "sales-ecommerce",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        {
+          "companyId": "company",
+          "packageId": "sales-portal",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        {
+          "companyId": "company",
+          "packageId": "supply-quality",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        {
+          "companyId": "company",
+          "packageId": "supply-advanced",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        {
+          "companyId": "company",
+          "packageId": "assets-preventive",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        {
+          "companyId": "company",
+          "packageId": "assets-parts-costs",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        {
+          "companyId": "company",
+          "packageId": "projects-costs",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        {
+          "companyId": "company",
+          "packageId": "support-portal",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        {
+          "companyId": "company",
+          "packageId": "service-parts-assets",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        {
+          "companyId": "company",
+          "packageId": "manufacturing-mrp",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        }
+      ],
+      "history": []
+    },
+    {
+      "grants": [
+        {
+          "companyId": "company",
+          "packageId": "legal",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        }
+      ],
+      "history": []
+    },
+    {
+      "grants": [
+        {
+          "companyId": "company",
+          "packageId": "legal",
+          "packageVersion": 1,
+          "state": "draining",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        }
+      ],
+      "history": []
+    },
+    {
+      "grants": [
+        {
+          "companyId": "company",
+          "packageId": "legal",
+          "packageVersion": 1,
+          "state": "inactive",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        }
+      ],
+      "history": []
+    },
+    {
+      "grants": [
+        {
+          "companyId": "company",
+          "packageId": "legal",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": 5000,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        }
+      ],
+      "history": []
+    },
+    {
+      "grants": [
+        {
+          "companyId": "company",
+          "packageId": "legal",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": 4999,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        }
+      ],
+      "history": []
+    },
+    {
+      "grants": [
+        {
+          "companyId": "company",
+          "packageId": "legal",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 5000,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        }
+      ],
+      "history": []
+    },
+    {
+      "grants": [
+        {
+          "companyId": "company",
+          "packageId": "legal",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 5001,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        }
+      ],
+      "history": []
+    },
+    {
+      "grants": [
+        {
+          "companyId": "company",
+          "packageId": "legal",
+          "packageVersion": 2,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        }
+      ],
+      "history": []
+    },
+    {
+      "grants": [
+        {
+          "companyId": "foreign",
+          "packageId": "legal",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        }
+      ],
+      "history": []
+    },
+    {
+      "grants": [
+        {
+          "companyId": "company",
+          "packageId": "finance-advanced",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        {
+          "companyId": "company",
+          "packageId": "finance",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        }
+      ],
+      "history": []
+    },
+    {
+      "grants": [
+        {
+          "companyId": "company",
+          "packageId": "finance-advanced",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        {
+          "companyId": "company",
+          "packageId": "finance",
+          "packageVersion": 1,
+          "state": "draining",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        }
+      ],
+      "history": []
+    },
+    {
+      "grants": [
+        {
+          "companyId": "company",
+          "packageId": "finance-advanced",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        {
+          "companyId": "company",
+          "packageId": "finance",
+          "packageVersion": 1,
+          "state": "inactive",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        }
+      ],
+      "history": []
+    },
+    {
+      "grants": [
+        {
+          "companyId": "company",
+          "packageId": "finance-advanced",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        {
+          "companyId": "company",
+          "packageId": "finance",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": 5000,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        }
+      ],
+      "history": []
+    },
+    {
+      "grants": [
+        {
+          "companyId": "company",
+          "packageId": "finance-advanced",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        {
+          "companyId": "company",
+          "packageId": "finance",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 5001,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        }
+      ],
+      "history": []
+    },
+    {
+      "grants": [
+        {
+          "companyId": "company",
+          "packageId": "finance-advanced",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        }
+      ],
+      "history": []
+    },
+    {
+      "grants": [],
+      "history": [
+        {
+          "companyId": "company",
+          "packageId": "legal",
+          "packageVersion": 1,
+          "sourceGrantVersion": 1,
+          "sourceEventId": "synthetic-prior-event",
+          "retainedAt": 1000
+        }
+      ]
+    },
+    {
+      "grants": [
+        {
+          "companyId": "company",
+          "packageId": "legal",
+          "packageVersion": 1,
+          "state": "inactive",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        }
+      ],
+      "history": [
+        {
+          "companyId": "company",
+          "packageId": "legal",
+          "packageVersion": 1,
+          "sourceGrantVersion": 1,
+          "sourceEventId": "synthetic-prior-event",
+          "retainedAt": 1000
+        }
+      ]
+    },
+    {
+      "grants": [],
+      "history": [
+        {
+          "companyId": "company",
+          "packageId": "legal",
+          "packageVersion": 1,
+          "sourceGrantVersion": 0,
+          "sourceEventId": "synthetic-prior-event",
+          "retainedAt": 1000
+        }
+      ]
+    },
+    {
+      "grants": [],
+      "history": [
+        {
+          "companyId": "company",
+          "packageId": "legal",
+          "packageVersion": 1,
+          "sourceGrantVersion": 1,
+          "sourceEventId": "",
+          "retainedAt": 1000
+        }
+      ]
+    },
+    {
+      "grants": [],
+      "history": [
+        {
+          "companyId": "company",
+          "packageId": "legal",
+          "packageVersion": 1,
+          "sourceGrantVersion": 1,
+          "sourceEventId": "synthetic-prior-event",
+          "retainedAt": 5001
+        }
+      ]
+    },
+    {
+      "grants": [],
+      "history": [
+        {
+          "companyId": "company",
+          "packageId": "legal",
+          "packageVersion": 1,
+          "sourceGrantVersion": 1,
+          "sourceEventId": "synthetic-prior-event",
+          "retainedAt": -1
+        }
+      ]
+    },
+    {
+      "grants": [],
+      "history": [
+        {
+          "companyId": "foreign",
+          "packageId": "legal",
+          "packageVersion": 1,
+          "sourceGrantVersion": 1,
+          "sourceEventId": "synthetic-prior-event",
+          "retainedAt": 1000
+        }
+      ]
+    },
+    {
+      "grants": [],
+      "history": [
+        {
+          "companyId": "company",
+          "packageId": "legal",
+          "packageVersion": 2,
+          "sourceGrantVersion": 1,
+          "sourceEventId": "synthetic-prior-event",
+          "retainedAt": 1000
+        }
+      ]
+    },
+    {
+      "grants": [],
+      "history": [
+        {
+          "companyId": "company",
+          "packageId": "finance-advanced",
+          "packageVersion": 1,
+          "sourceGrantVersion": 1,
+          "sourceEventId": "synthetic-prior-event",
+          "retainedAt": 1000
+        },
+        {
+          "companyId": "company",
+          "packageId": "finance",
+          "packageVersion": 1,
+          "sourceGrantVersion": 1,
+          "sourceEventId": "synthetic-prior-event",
+          "retainedAt": 1000
+        }
+      ]
+    },
+    {
+      "grants": [],
+      "history": [
+        {
+          "companyId": "company",
+          "packageId": "finance-advanced",
+          "packageVersion": 1,
+          "sourceGrantVersion": 1,
+          "sourceEventId": "synthetic-prior-event",
+          "retainedAt": 1000
+        }
+      ]
+    }
+  ],
+  "hashes": [
+    {
+      "input": {
+        "grant": {
+          "companyId": "company",
+          "packageId": "legal",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        "expectedVersion": 0,
+        "idempotencyKey": "native-grant-fixture-key"
+      },
+      "expectedHash": "b8f3296d5147e17d1cc6656bea9700374f914ec62b399a1eea885b9128ee617f"
+    },
+    {
+      "input": {
+        "grant": {
+          "companyId": "company",
+          "packageId": "legal",
+          "packageVersion": 1,
+          "state": "draining",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        "expectedVersion": 0,
+        "idempotencyKey": "native-grant-fixture-key"
+      },
+      "expectedHash": "8552c496d4b299b078a0f585a15b86f28a1134d9aca727712dd37b8322e8253d"
+    },
+    {
+      "input": {
+        "grant": {
+          "companyId": "company",
+          "packageId": "legal",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 2,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        "expectedVersion": 1,
+        "idempotencyKey": "native-grant-fixture-key"
+      },
+      "expectedHash": "8d79279ac3e0544fa4a08cfb76154072f5846c047700de94230fcd652399cc29"
+    },
+    {
+      "input": {
+        "grant": {
+          "companyId": "company",
+          "packageId": "legal",
+          "packageVersion": 1,
+          "state": "draining",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 2,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        "expectedVersion": 1,
+        "idempotencyKey": "native-grant-fixture-key"
+      },
+      "expectedHash": "e95b768f53dabdac7d2a6e00be7acd4c8212d0df7f3eddf800fd63e379dd0e6f"
+    },
+    {
+      "input": {
+        "grant": {
+          "companyId": "company",
+          "packageId": "legal",
+          "packageVersion": 1,
+          "state": "inactive",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 2,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        "expectedVersion": 1,
+        "idempotencyKey": "native-grant-fixture-key"
+      },
+      "expectedHash": "a558a50c709dde0460dec9e5c737d6359eed1c27aa8cc2b6db01ac84171a9397"
+    },
+    {
+      "input": {
+        "grant": {
+          "companyId": "company",
+          "packageId": "legal",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 6000,
+          "endsAt": null,
+          "version": 2,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        "expectedVersion": 1,
+        "idempotencyKey": "native-grant-fixture-key"
+      },
+      "expectedHash": "b4fd89017575f3d9a6b2411b97bc2784d259cb5614006ff04a186314f47bdb7d"
+    },
+    {
+      "input": {
+        "grant": {
+          "companyId": "company",
+          "packageId": "legal",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": 5001,
+          "version": 2,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        "expectedVersion": 1,
+        "idempotencyKey": "native-grant-fixture-key"
+      },
+      "expectedHash": "269eb633ef01bbf3f23a92fc4c58f28a117bdea1cf16f395acf3ca31500f1a8e"
+    },
+    {
+      "input": {
+        "grant": {
+          "companyId": "company",
+          "packageId": "legal",
+          "packageVersion": 2,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 2,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        "expectedVersion": 1,
+        "idempotencyKey": "native-grant-fixture-key"
+      },
+      "expectedHash": "73917f4912de68b0a61591d84276740ea7804161a3f511cc77c5c737fa37ad89"
+    },
+    {
+      "input": {
+        "grant": {
+          "companyId": "company",
+          "packageId": "unknown",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 2,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        "expectedVersion": 1,
+        "idempotencyKey": "native-grant-fixture-key"
+      },
+      "expectedHash": "913f382cea106633119b6c08e4de4b8995847d83533b5190460e12fcfd0a21ce"
+    },
+    {
+      "input": {
+        "grant": {
+          "companyId": "company",
+          "packageId": "legal",
+          "packageVersion": 1,
+          "state": "invalid",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 2,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        "expectedVersion": 1,
+        "idempotencyKey": "native-grant-fixture-key"
+      },
+      "expectedHash": "87527b3f9d6ae406d1c469b7feb31c6aca5f0fc23d0ca6ab858af7aec862aca6"
+    },
+    {
+      "input": {
+        "grant": {
+          "companyId": "",
+          "packageId": "legal",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 2,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        "expectedVersion": 1,
+        "idempotencyKey": "native-grant-fixture-key"
+      },
+      "expectedHash": "4b779186621ee71a696cd1a4755deb5a44ae6a731f4fc114380767a3e3cdbf4d"
+    },
+    {
+      "input": {
+        "grant": {
+          "companyId": "company",
+          "packageId": "legal",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 2,
+          "reason": "﻿",
+          "evidence": "Synthetic receipt"
+        },
+        "expectedVersion": 1,
+        "idempotencyKey": "native-grant-fixture-key"
+      },
+      "expectedHash": "d38d53ac1e00126dc813d117befdb122a204898cfe19beff30ef9aafb6bfba30"
+    },
+    {
+      "input": {
+        "grant": {
+          "companyId": "company",
+          "packageId": "legal",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 2,
+          "reason": "Synthetic approved period",
+          "evidence": " "
+        },
+        "expectedVersion": 1,
+        "idempotencyKey": "native-grant-fixture-key"
+      },
+      "expectedHash": "f12fcd6c0d870483988e68b4c30822d578f1d204fe43213d15138afac47825c9"
+    },
+    {
+      "input": {
+        "grant": {
+          "companyId": "company",
+          "packageId": "legal",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 2,
+          "reason": "",
+          "evidence": "Synthetic receipt"
+        },
+        "expectedVersion": 1,
+        "idempotencyKey": "native-grant-fixture-key"
+      },
+      "expectedHash": "02b7a1674af58fa5330920c0ba3f2016fe3fa4daff909e17db2119140e886850"
+    },
+    {
+      "input": {
+        "grant": {
+          "companyId": "company",
+          "packageId": "legal",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": -1,
+          "endsAt": null,
+          "version": 2,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        "expectedVersion": 1,
+        "idempotencyKey": "native-grant-fixture-key"
+      },
+      "expectedHash": "39e0455c999bed75974646e9342f037ddf38999a93db66e4178f29f15ecdf0e5"
+    },
+    {
+      "input": {
+        "grant": {
+          "companyId": "company",
+          "packageId": "legal",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": 0,
+          "version": 2,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        "expectedVersion": 1,
+        "idempotencyKey": "native-grant-fixture-key"
+      },
+      "expectedHash": "ad3751f8dc329637b72ca001dfbfe2fdbd721a13b50c00737227f6581477fcd6"
+    },
+    {
+      "input": {
+        "grant": {
+          "companyId": "company",
+          "packageId": "legal",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 1,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        "expectedVersion": 1,
+        "idempotencyKey": "native-grant-fixture-key"
+      },
+      "expectedHash": "66f39441be175f54e150ac4dcb6643da6cc44e936388a7c8965afcb306e922bc"
+    },
+    {
+      "input": {
+        "grant": {
+          "companyId": "company",
+          "packageId": "legal",
+          "packageVersion": 1,
+          "state": "inactive",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 2,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        "expectedVersion": 1,
+        "idempotencyKey": "native-grant-fixture-key"
+      },
+      "expectedHash": "a558a50c709dde0460dec9e5c737d6359eed1c27aa8cc2b6db01ac84171a9397"
+    },
+    {
+      "input": {
+        "grant": {
+          "companyId": "company",
+          "packageId": "legal",
+          "packageVersion": 1,
+          "state": "inactive",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 2,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        "expectedVersion": 1,
+        "idempotencyKey": "native-grant-fixture-key"
+      },
+      "expectedHash": "a558a50c709dde0460dec9e5c737d6359eed1c27aa8cc2b6db01ac84171a9397"
+    },
+    {
+      "input": {
+        "grant": {
+          "companyId": "company",
+          "packageId": "legal",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 1000,
+          "endsAt": null,
+          "version": 2,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        "expectedVersion": 1,
+        "idempotencyKey": "native-grant-fixture-key"
+      },
+      "expectedHash": "5f2e3f3d09e0bc52512426100bd50e20b95020b84ee56798bc97ede6ff67955a"
+    },
+    {
+      "input": {
+        "grant": {
+          "companyId": "foreign",
+          "packageId": "legal",
+          "packageVersion": 1,
+          "state": "active",
+          "startsAt": 0,
+          "endsAt": null,
+          "version": 2,
+          "reason": "Synthetic approved period",
+          "evidence": "Synthetic receipt"
+        },
+        "expectedVersion": 1,
+        "idempotencyKey": "native-grant-fixture-key"
+      },
+      "expectedHash": "2441fd3fbd8bb75fd960bd337160df333bebd8e6952d4bf580ae7333718af831"
+    }
+  ],
+  "dependencies": [
+    {
+      "scenario": 0,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 0,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "inactive",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 0,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 0,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 0,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 0,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 0,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 0,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "draining",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 0,
+      "grant": {
+        "companyId": "company",
+        "packageId": "unknown",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "UNKNOWN_PACKAGE_VERSION"
+    },
+    {
+      "scenario": 1,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 1,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "inactive",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_IN_USE"
+    },
+    {
+      "scenario": 1,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_PERIOD_CONFLICT"
+    },
+    {
+      "scenario": 1,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_PERIOD_CONFLICT"
+    },
+    {
+      "scenario": 1,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 1,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 1,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 1,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "draining",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 1,
+      "grant": {
+        "companyId": "company",
+        "packageId": "unknown",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "UNKNOWN_PACKAGE_VERSION"
+    },
+    {
+      "scenario": 2,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 2,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "inactive",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 2,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 2,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 2,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 2,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 2,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 2,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "draining",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 2,
+      "grant": {
+        "companyId": "company",
+        "packageId": "unknown",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "UNKNOWN_PACKAGE_VERSION"
+    },
+    {
+      "scenario": 3,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 3,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "inactive",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 3,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 3,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 3,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 3,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 3,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 3,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "draining",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 3,
+      "grant": {
+        "companyId": "company",
+        "packageId": "unknown",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "UNKNOWN_PACKAGE_VERSION"
+    },
+    {
+      "scenario": 4,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 4,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "inactive",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 4,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 4,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 4,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 4,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 4,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 4,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "draining",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 4,
+      "grant": {
+        "companyId": "company",
+        "packageId": "unknown",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "UNKNOWN_PACKAGE_VERSION"
+    },
+    {
+      "scenario": 5,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 5,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "inactive",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 5,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 5,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 5,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 5,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 5,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 5,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "draining",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 5,
+      "grant": {
+        "companyId": "company",
+        "packageId": "unknown",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "UNKNOWN_PACKAGE_VERSION"
+    },
+    {
+      "scenario": 6,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 6,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "inactive",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 6,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 6,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 6,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 6,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 6,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 6,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "draining",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 6,
+      "grant": {
+        "companyId": "company",
+        "packageId": "unknown",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "UNKNOWN_PACKAGE_VERSION"
+    },
+    {
+      "scenario": 7,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 7,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "inactive",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 7,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 7,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 7,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 7,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 7,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 7,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "draining",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 7,
+      "grant": {
+        "companyId": "company",
+        "packageId": "unknown",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "UNKNOWN_PACKAGE_VERSION"
+    },
+    {
+      "scenario": 8,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 8,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "inactive",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 8,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 8,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 8,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 8,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 8,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 8,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "draining",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 8,
+      "grant": {
+        "companyId": "company",
+        "packageId": "unknown",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "UNKNOWN_PACKAGE_VERSION"
+    },
+    {
+      "scenario": 9,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 9,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "inactive",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 9,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 9,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 9,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 9,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 9,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 9,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "draining",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 9,
+      "grant": {
+        "companyId": "company",
+        "packageId": "unknown",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "UNKNOWN_PACKAGE_VERSION"
+    },
+    {
+      "scenario": 10,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 10,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "inactive",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 10,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 10,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 10,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 10,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 10,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 10,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "draining",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 10,
+      "grant": {
+        "companyId": "company",
+        "packageId": "unknown",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "UNKNOWN_PACKAGE_VERSION"
+    },
+    {
+      "scenario": 11,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 11,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "inactive",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_IN_USE"
+    },
+    {
+      "scenario": 11,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_PERIOD_CONFLICT"
+    },
+    {
+      "scenario": 11,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_PERIOD_CONFLICT"
+    },
+    {
+      "scenario": 11,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 11,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 11,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 11,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "draining",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 11,
+      "grant": {
+        "companyId": "company",
+        "packageId": "unknown",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "UNKNOWN_PACKAGE_VERSION"
+    },
+    {
+      "scenario": 12,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 12,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "inactive",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_IN_USE"
+    },
+    {
+      "scenario": 12,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_PERIOD_CONFLICT"
+    },
+    {
+      "scenario": 12,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_PERIOD_CONFLICT"
+    },
+    {
+      "scenario": 12,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 12,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 12,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 12,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "draining",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 12,
+      "grant": {
+        "companyId": "company",
+        "packageId": "unknown",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "UNKNOWN_PACKAGE_VERSION"
+    },
+    {
+      "scenario": 13,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 13,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "inactive",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_IN_USE"
+    },
+    {
+      "scenario": 13,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_PERIOD_CONFLICT"
+    },
+    {
+      "scenario": 13,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_PERIOD_CONFLICT"
+    },
+    {
+      "scenario": 13,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 13,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 13,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 13,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "draining",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 13,
+      "grant": {
+        "companyId": "company",
+        "packageId": "unknown",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "UNKNOWN_PACKAGE_VERSION"
+    },
+    {
+      "scenario": 14,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 14,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "inactive",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_IN_USE"
+    },
+    {
+      "scenario": 14,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_PERIOD_CONFLICT"
+    },
+    {
+      "scenario": 14,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_PERIOD_CONFLICT"
+    },
+    {
+      "scenario": 14,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 14,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 14,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 14,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "draining",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 14,
+      "grant": {
+        "companyId": "company",
+        "packageId": "unknown",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "UNKNOWN_PACKAGE_VERSION"
+    },
+    {
+      "scenario": 15,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 15,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "inactive",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_IN_USE"
+    },
+    {
+      "scenario": 15,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_PERIOD_CONFLICT"
+    },
+    {
+      "scenario": 15,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_PERIOD_CONFLICT"
+    },
+    {
+      "scenario": 15,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 15,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 15,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 15,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "draining",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 15,
+      "grant": {
+        "companyId": "company",
+        "packageId": "unknown",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "UNKNOWN_PACKAGE_VERSION"
+    },
+    {
+      "scenario": 16,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 16,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "inactive",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_IN_USE"
+    },
+    {
+      "scenario": 16,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_PERIOD_CONFLICT"
+    },
+    {
+      "scenario": 16,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_PERIOD_CONFLICT"
+    },
+    {
+      "scenario": 16,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 16,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 16,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 16,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "draining",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 16,
+      "grant": {
+        "companyId": "company",
+        "packageId": "unknown",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "UNKNOWN_PACKAGE_VERSION"
+    },
+    {
+      "scenario": 17,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 17,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "inactive",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 17,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 17,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 17,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 17,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 17,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 17,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "draining",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 17,
+      "grant": {
+        "companyId": "company",
+        "packageId": "unknown",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "UNKNOWN_PACKAGE_VERSION"
+    },
+    {
+      "scenario": 18,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 18,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "inactive",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 18,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 18,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 18,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 18,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 18,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 18,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "draining",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 18,
+      "grant": {
+        "companyId": "company",
+        "packageId": "unknown",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "UNKNOWN_PACKAGE_VERSION"
+    },
+    {
+      "scenario": 19,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 19,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "inactive",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 19,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 19,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 19,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 19,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 19,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 19,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "draining",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 19,
+      "grant": {
+        "companyId": "company",
+        "packageId": "unknown",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "UNKNOWN_PACKAGE_VERSION"
+    },
+    {
+      "scenario": 20,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 20,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "inactive",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 20,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 20,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 20,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 20,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 20,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 20,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "draining",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 20,
+      "grant": {
+        "companyId": "company",
+        "packageId": "unknown",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "UNKNOWN_PACKAGE_VERSION"
+    },
+    {
+      "scenario": 21,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 21,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "inactive",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 21,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 21,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 21,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 21,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 21,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 21,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "draining",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 21,
+      "grant": {
+        "companyId": "company",
+        "packageId": "unknown",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "UNKNOWN_PACKAGE_VERSION"
+    },
+    {
+      "scenario": 22,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 22,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "inactive",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 22,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 22,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 22,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 22,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 22,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 22,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "draining",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 22,
+      "grant": {
+        "companyId": "company",
+        "packageId": "unknown",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "UNKNOWN_PACKAGE_VERSION"
+    },
+    {
+      "scenario": 23,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 23,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "inactive",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 23,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 23,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 23,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 23,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 23,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 23,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "draining",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 23,
+      "grant": {
+        "companyId": "company",
+        "packageId": "unknown",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "UNKNOWN_PACKAGE_VERSION"
+    },
+    {
+      "scenario": 24,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 24,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "inactive",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 24,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 24,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 24,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 24,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 24,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 24,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "draining",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 24,
+      "grant": {
+        "companyId": "company",
+        "packageId": "unknown",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "UNKNOWN_PACKAGE_VERSION"
+    },
+    {
+      "scenario": 25,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 25,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "inactive",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 25,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 25,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 25,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 25,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 25,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 25,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "draining",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 25,
+      "grant": {
+        "companyId": "company",
+        "packageId": "unknown",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "UNKNOWN_PACKAGE_VERSION"
+    },
+    {
+      "scenario": 26,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 26,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "inactive",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 26,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 26,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": null
+    },
+    {
+      "scenario": 26,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 26,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": 6000,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 26,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 100,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 26,
+      "grant": {
+        "companyId": "company",
+        "packageId": "finance-advanced",
+        "packageVersion": 1,
+        "state": "draining",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "PACKAGE_DEPENDENCY_REQUIRED"
+    },
+    {
+      "scenario": 26,
+      "grant": {
+        "companyId": "company",
+        "packageId": "unknown",
+        "packageVersion": 1,
+        "state": "active",
+        "startsAt": 0,
+        "endsAt": null,
+        "version": 1,
+        "reason": "Synthetic approved period",
+        "evidence": "Synthetic receipt"
+      },
+      "expectedCode": "UNKNOWN_PACKAGE_VERSION"
+    }
+  ]
+}

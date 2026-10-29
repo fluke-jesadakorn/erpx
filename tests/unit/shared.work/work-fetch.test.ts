@@ -1,4 +1,4 @@
-import { createFinanceCommandFetch } from "@erpx/feature-finance/lib/finance-command-fetch";
+import { createFinanceCommandFetch } from "@erpx/feature-finance/public/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { workFetch } from "@erpx/feature-work_projection/lib/work-fetch";
 import {
@@ -22,7 +22,7 @@ let channels: { name: string; postMessage: ReturnType<typeof vi.fn>; close: Retu
 const subscriptions: (() => void)[] = [];
 
 beforeEach(() => {
-  context = { isConnected: true, dataset: { workUser: "user-a", workCompany: "company-a", workAssignment: "assignment-a", workRevision: "7", workStale: "false" } };
+  context = { isConnected: true, dataset: { workUser: "user-a", workCompany: "company-a", workAssignment: "assignment-a", workRevision: "7", workAssignmentVersion: "3", workStale: "false" } };
   platform = { isConnected: true, dataset: { platformAssignment: "platform-a" } };
   dirtyMarker = false;
   documentElement = { dataset: {} };
@@ -82,6 +82,7 @@ it("lets the intentional Platform selector run while retaining rendered Holding 
   expect(headers.get("x-erpx-context-company")).toBe("company-a");
   expect(headers.get("x-erpx-context-assignment")).toBe("assignment-a");
   expect(headers.get("x-erpx-context-revision")).toBe("7");
+  expect(headers.get("x-erpx-context-assignment-version")).toBe("3");
   expect(headers.get("x-erpx-platform-assignment")).toBe("platform-a");
 });
 
@@ -95,6 +96,7 @@ it.each(["/api/v1/holdings/acme/push", "/api/v1/holdings/acme/push/session", "/a
   expect(headers.get("x-erpx-context-company")).toBe("company-a");
   expect(headers.get("x-erpx-context-assignment")).toBe("assignment-a");
   expect(headers.get("x-erpx-context-revision")).toBe("7");
+  expect(headers.get("x-erpx-context-assignment-version")).toBe("3");
 });
 
 it("keeps an intentional Holding selector's caller headers and revision during a switch", async () => {
@@ -121,14 +123,14 @@ it("replaces an old successful response when a context switch starts before it f
   expect(JSON.stringify(body)).not.toContain("old account data");
 });
 
-it.each(["removed", "user", "company", "assignment", "revision", "stale"])("rejects a late response when rendered context is %s", async change => {
+it.each(["removed", "user", "company", "assignment", "assignmentVersion", "revision", "stale"])("rejects a late response when rendered context is %s", async change => {
   let finish!: (value: Response) => void;
   vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(resolve => { finish = resolve; })));
   const pending = workFetch("/api/v1/holdings/acme/people");
   if (change === "removed") context.isConnected = false;
   else if (change === "stale") context.dataset.workStale = "true";
   else {
-    const fields: Record<string, string> = { user: "workUser", company: "workCompany", assignment: "workAssignment", revision: "workRevision" };
+    const fields: Record<string, string> = { user: "workUser", company: "workCompany", assignment: "workAssignment", revision: "workRevision", assignmentVersion: "workAssignmentVersion" };
     context.dataset[fields[change]] = "changed";
   }
   finish(Response.json({ data: { privateDetail: "old account data" } }));
@@ -275,4 +277,18 @@ it("retains a Finance draft through a truncated success and acknowledges only th
  const pending=request(url,input);fields="later-finance-edits";finish(Response.json({data:{id:"retained-calculation"}}));await pending;
  expect(saved).toEqual([{form,formEditVersion:"submitted-finance-fields",financeAcknowledged:true}]);expect(changed).toHaveBeenCalledTimes(1);expect(request.hasAttempt(url,input.body)).toBe(false);
  const keys=fetcher.mock.calls.map(call=>new Headers(call[1]?.headers).get("Idempotency-Key"));expect(keys[0]).toBe(keys[1]);
+});
+
+it('replaces a caller-provided assignment version with the original rendered authority',async()=>{
+ const fetcher=vi.fn(async()=>Response.json({data:{saved:true}}));vi.stubGlobal('fetch',fetcher);
+ await workFetch('/api/v1/holdings/acme/finance/journals',{method:'POST',headers:{'x-erpx-context-assignment-version':'999'}});
+ expect(new Headers((fetcher.mock.calls[0] as unknown as [unknown,RequestInit])[1].headers).get('x-erpx-context-assignment-version')).toBe('3');
+});
+
+it('does not confuse distinct valid identifiers that share a colon-joined context string',async()=>{
+ context.dataset={workUser:'a:7',workRevision:'3',workCompany:'c',workAssignment:'d',workAssignmentVersion:'1',workStale:'false'};
+ let finish!:(value:Response)=>void;vi.stubGlobal('fetch',vi.fn(()=>new Promise<Response>(resolve=>{finish=resolve;})));
+ const pending=workFetch('/api/v1/holdings/acme/people');
+ context.dataset={workUser:'a',workRevision:'7',workCompany:'3',workAssignment:'c:d',workAssignmentVersion:'1',workStale:'false'};
+ finish(Response.json({data:{privateDetail:'original synthetic account data'}}));await expectContextConflict(await pending);
 });

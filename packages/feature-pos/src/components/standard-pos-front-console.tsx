@@ -6,7 +6,7 @@ import { PosRecordDetail } from "@erpx/feature-records/components/pos-record-det
 import { RecordDrawer } from "@erpx/feature-records/components/record-drawer";
 import { Button as UiButton, Card } from "@erpx/ui/components/foundation";
 import { PageHeader } from "@erpx/ui/components/primitives";
-import { WorkspaceSections } from "@erpx/ui/components/workspace";
+import { HospitalityGroupedNavigation } from "@erpx/feature-shared/components/hospitality/grouped-navigation";
 import { usePosController } from "@erpx/feature-pos/components/pos-controller";
 import type { PosInitialRead } from "@erpx/feature-pos/lib/pos-read-identity";
 import type { PosWorkspace } from "@erpx/server-pos/public/pos";
@@ -178,10 +178,9 @@ function FrontPosDaily(props: {
           action={<Button secondary onClick={() => void refresh().catch(() => {})}>{tr("Refresh")}</Button>}
         />
         <div className={styles.navigation}>
-          <WorkspaceSections
-            label={tr("Point of sale")}
-            selected={tab}
-            items={posMenu(language).filter((item) => tabs.some(([id]) => id === item.id)).map(item => ({id: item.id, title: item.label, description: item.description}))}
+          <HospitalityGroupedNavigation app="pos" language={language}
+            label={tr("Point of sale")} current={tab}
+            items={posMenu(language).filter((item) => tabs.some(([id]) => id === item.id))}
             onSelect={setTab}
           />
         </div>

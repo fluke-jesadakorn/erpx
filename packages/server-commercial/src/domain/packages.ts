@@ -11,7 +11,7 @@ export type CommercialPackageDefinition = {
 };
 const foundation = ["foundation.identity", "foundation.organization", "foundation.files", "foundation.audit", "foundation.approvals", "foundation.notifications"];
 const base: Record<ProductId, { visible: string[]; included?: string[] }> = {
-  work: { visible: ["work.today", "work.actions", "work.calendar", "work.handbook"] },
+  apps: { visible: ["work.today", "work.actions", "work.calendar", "work.handbook"] },
   pos: { visible: ["pos.sales", "pos.payments", "pos.refunds", "pos.shifts"], included: ["inventory.stock-core", "finance.pos-posting"] },
   pms: { visible: ["pms.reservations", "pms.front-desk", "pms.rooms", "pms.housekeeping", "pms.guest-accounts", "pms.night-audit"], included: ["inventory.stock-core", "finance.hotel-posting"] },
   finance: { visible: ["finance.accounting", "finance.receivables", "finance.payables", "finance.banking", "finance.tax", "finance.close"] },
@@ -28,7 +28,7 @@ const base: Record<ProductId, { visible: string[]; included?: string[] }> = {
   manufacturing: { visible: ["manufacturing.bom", "manufacturing.materials", "manufacturing.execution", "manufacturing.quality", "manufacturing.costs"], included: ["planning.basic", "quality.production", "inventory.stock-core", "finance.production-costing"] },
 };
 const addons: readonly [string, ProductId, readonly string[]][] = [
-  ["work-social", "work", ["work.social"]], ["work-messages", "work", ["work.messages"]], ["work-routines", "work", ["work.advanced-routines"]],
+  ["work-social", "apps", ["work.social"]], ["work-messages", "apps", ["work.messages"]], ["work-routines", "apps", ["work.advanced-routines"]],
   ["pos-restaurant", "pos", ["pos.restaurant", "pos.kitchen"]], ["pos-hotel-charge", "pos", ["pos.hotel-charge"]],
   ["pms-minibar-linen", "pms", ["pms.minibar", "pms.linen"]], ["finance-advanced", "finance", ["finance.advanced"]],
   ["people-workforce", "people", ["people.workforce"]], ["people-payroll", "people", ["people.payroll"]], ["people-expenses", "people", ["people.expenses"]],
@@ -40,8 +40,8 @@ const addons: readonly [string, ProductId, readonly string[]][] = [
   ["service-parts-assets", "service", ["service.parts-assets"]], ["manufacturing-mrp", "manufacturing", ["planning.advanced-mrp"]],
 ];
 export const commercialPackages: readonly CommercialPackageDefinition[] = [
-  ...productIds.map(productId => ({ id: productId, version: 1, productId, kind: "base" as const, visibleCapabilities: base[productId].visible, includedCapabilities: [...foundation, ...(base[productId].included ?? [])], dependencies: [] })),
-  ...addons.map(([id, productId, visibleCapabilities]) => ({ id, version: 1, productId, kind: "addon" as const, visibleCapabilities, includedCapabilities: [], dependencies: [productId] })),
+  ...productIds.map(productId => ({ id: productId === "apps" ? "work" : productId, version: 1, productId, kind: "base" as const, visibleCapabilities: base[productId].visible, includedCapabilities: [...foundation, ...(base[productId].included ?? [])], dependencies: [] })),
+  ...addons.map(([id, productId, visibleCapabilities]) => ({ id, version: 1, productId, kind: "addon" as const, visibleCapabilities, includedCapabilities: [], dependencies: [productId === "apps" ? "work" : productId] })),
 ];
 export function packageDefinition(id: string, version: number) { return commercialPackages.find(entry => entry.id === id && entry.version === version); }
 export type CompanyPackageGrant = {

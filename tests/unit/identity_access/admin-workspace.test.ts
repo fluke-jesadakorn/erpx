@@ -11,7 +11,7 @@ vi.mock("@erpx/server-pms/public/feature-availability",()=>({assertProductionMod
 vi.mock("@erpx/server-runtime/public/runtime",()=>({holdingResources:async()=>({write:{prepare:()=>({bind:()=>({first:mocks.current})})}})}));
 vi.mock("@erpx/server-work_projection/public/work-role-store",()=>({initializeWorkSelection:mocks.selection,selectWorkRole:mocks.select}));
 vi.mock("@erpx/server-organization/public/product-company",()=>({productCompany:async()=>({id:'company',name:'Current Company'})}));
-vi.mock("@erpx/feature-runtime/lib/product-hosts",()=>({productHostForHost:(host:string)=>host==='admin-dev-erpx.jesadakorn.com'?'admin':null,configuredProductOrigin:()=> 'https://admin-dev-erpx.jesadakorn.com'}));
+vi.mock("@erpx/feature-runtime/lib/product-hosts",()=>({productHostForHost:(host:string)=>host==='admin-dev-erpx.jesadakorn.com'?'admin':null,requestProductOrigin:()=> 'https://admin-dev-erpx.jesadakorn.com',configuredProductOrigin:()=> 'https://admin-dev-erpx.jesadakorn.com'}));
 import {adminWorkspaceTarget,adminTargetAllowed} from '@erpx/server-identity_access/domain/admin-workspace';
 import {adminWorkspaceRequest,adminManagementAvailable,adminWorkRoleChoices,adminWorkspaceAvailabilityReader,adminWorkspaceDestinations} from '@erpx/server-identity_access/adapters/admin-workspace';
 import {ApiError} from '@erpx/server-runtime/public/http';

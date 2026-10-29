@@ -1,4 +1,5 @@
 import {expensePostingPrerequisitesLanding,expensePostingPrerequisitesPresentationAllowed} from '@erpx/server-finance/public/rules/expense-posting-prerequisites-entry';
+import {holdingFrontUiUrl} from '@erpx/contracts/holding-hosts';
 import {payrollPostingPrerequisitesLanding,payrollPostingPrerequisitesPresentationAllowed} from '@erpx/server-finance/public/rules/payroll-posting-prerequisites-entry';
 import {expenseFinancialLanding,payrollFinancialLanding,peopleFinancialPresentationAllowed,type PeopleFinancialEntry} from '@erpx/server-people_payroll/public/rules/financial-product-entry';
 import {learningWorkerStartupLanding,learningWorkerPresentationAllowed} from "@erpx/server-people_payroll/public/rules/learning-worker-startup-entry";
@@ -20,24 +21,25 @@ import type { AccountAccessContext } from "@erpx/server-identity_access/public/a
 import type { ProductModuleAccess } from "@erpx/server-identity_access/public/rules/product-module-access";
 import { productOfficeLanding } from "@erpx/server-work_projection/domain/product-landings";
 
-export type ProductWorkspaceCandidate = { holding: string; company: string; companyId: string; workspace: string; scope: HoldingWorkspaceScope };
+export type ProductWorkspaceCandidate = { holding: string; company: string; companyId: string; workspace: string; branch?: string; scope: HoldingWorkspaceScope };
 export function productWorkspaceCandidates(choices: readonly WorkspaceChoice[]): ProductWorkspaceCandidate[] {
   return choices.flatMap(holding => holding.kind === "platform" ? [] : holding.companies.flatMap(company => {
-    const candidates = [
+    const candidates: {destination?: string; label: string; branch?: string}[] = [
       { destination: company.destination, label: company.label },
-      ...company.branches.flatMap(branch => [{ destination: branch.destination, label: branch.label }, ...branch.departments.map(department => ({ destination: department.destination, label: `${branch.label} / ${department.label}` }))]),
+      ...company.branches.flatMap(branch => [{ destination: branch.destination, label: branch.label }, ...branch.departments.map(department => ({ destination: department.destination, label: `${branch.label} / ${department.label}`, branch: branch.label }))]),
       ...company.departments.map(department => ({ destination: department.destination, label: department.label })),
     ];
     return candidates.flatMap(candidate => {
       if (!candidate.destination) return [];
       const parts = new URL(candidate.destination, "https://erpx.invalid").pathname.split("/").filter(Boolean).map(decodeURIComponent);
       const parsed = parts[0] === "holdings" ? parseHoldingWorkspace(parts[1], parts.slice(2)) : null;
-      return parsed ? [{ holding: holding.label, company: company.label, companyId: company.id, workspace: candidate.label, scope: parsed.scope }] : [];
+      return parsed ? [{ holding: holding.label, company: company.label, companyId: company.id, workspace: candidate.label, ...(candidate.branch ? {branch: candidate.branch} : {}), scope: parsed.scope }] : [];
     });
   }));
 }
 
 export function createProductLauncher(ports: {
+  holdingAddresses?:boolean;
   commercialAdmissionDeferred?(id:ProductId):boolean;
   choices(): Promise<WorkspaceChoice[]>;
   access(scope: HoldingWorkspaceScope, options: { companyId: string }): Promise<AccountAccessContext>;
@@ -56,7 +58,7 @@ export function createProductLauncher(ports: {
   manufacturingInitialPhysicalStockCountEntry?(access:AccountAccessContext,assignment:AccountAccessContext["assignments"][number]):Promise<{capability:string;purchasePurpose:"history"}|null>;
   initialPhysicalStockCountEntry?(access:AccountAccessContext,assignment:AccountAccessContext["assignments"][number]):Promise<{capability:string;purchasePurpose:"history"}|null>;
   companySlug(access: AccountAccessContext): Promise<string | null>;
-  origin(id: ProductId): string | null;
+  origin(id: ProductId, holdingSlug?:string): string | null;
   denied(error: unknown): boolean;
   now(): number;
 }) {
@@ -87,7 +89,7 @@ export function createProductLauncher(ports: {
       };
       for (const definition of products) {
         if (productId && definition.id !== productId) continue;
-        const origin = ports.origin(definition.id);
+        const origin = ports.origin(definition.id,candidate.scope.holdingSlug);
         const commercialAdmissionDeferred=deferredProducts.has(definition.id);
         const expenseIncluded=definition.id==="finance"&&purchasedCapabilityPurpose(facts,candidate.companyId,"people.expenses",ports.now())!==null;
         if (!origin || !commercialAdmissionDeferred&&!purchased.includes(definition.id)&&!expenseIncluded) continue;
@@ -97,7 +99,7 @@ export function createProductLauncher(ports: {
         for (const assignment of applicable) {
           if (!authority.permissionsByAssignment.has(assignment.id)) continue;
           const modules = authority.presentationModulesByAssignment.get(assignment.id) ?? [];
-          const ready = (await Promise.all([...new Set([...modules, ...(definition.id === "work" ? ["operations"] : [])])]
+          const ready = (await Promise.all([...new Set([...modules, ...(definition.id === "apps" ? ["operations"] : [])])]
             .map(async id => await readyModule(id) ? id : null))).filter((id): id is string => id !== null);
           let roleLanding: string | null = null;
           let includedPurpose: CapabilityPurpose | null = null;
@@ -180,10 +182,15 @@ export function createProductLauncher(ports: {
         } else {
           const select = new URL("/launch", origin);
           select.searchParams.set("companyId", candidate.companyId);
+          if(ports.holdingAddresses)select.searchParams.set('app',definition.id);
           // The destination host chooses a landing for its current selected role.
           // Another applicable role's discovery must never select that role.
           select.searchParams.set("next", `${workspaceBase(candidate.scope)}/${definition.shell === "front" || landing===expenseFinancialLanding || landing===payrollFinancialLanding || landing===payrollPostingPrerequisitesLanding || landing===expensePostingPrerequisitesLanding ? landing : definition.landing}`);
           target = select.pathname + select.search;
+        }
+        if(ports.holdingAddresses){
+          const front=definition.id==='pos'||definition.id==='pms'?holdingFrontUiUrl(target,definition.id):null;
+          result.push({...candidate,productId:definition.id,href:front??new URL(target,origin).href,purchasePurpose,...(sourceRecord?{sourceRecord:true as const}:{})});continue;
         }
         const href = new URL("/sso/start", origin);
         href.searchParams.set("next", target);

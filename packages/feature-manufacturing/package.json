@@ -4,7 +4,6 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./components/production-messages-context": "./src/components/production-messages-context.ts",
     "./components/existing-posting-setup": "./src/components/existing-posting-setup.tsx",
     "./components/posting-setup": "./src/components/posting-setup.tsx",
     "./components/production-console": "./src/components/production-console.tsx",
@@ -13,6 +12,7 @@
     "./components/use-order-command": "./src/components/use-order-command.ts",
     "./components/posting-preparation": "./src/components/posting-preparation.tsx",
     "./components/draft-boundary": "./src/components/draft-boundary.tsx",
+    "./components/production-messages-context": "./src/components/production-messages-context.ts",
     "./lib/posting-preparation-command": "./src/lib/posting-preparation-command.ts",
     "./lib/planning-review-command": "./src/lib/planning-review-command.ts",
     "./lib/existing-posting-setup-command": "./src/lib/existing-posting-setup-command.ts",
@@ -70,7 +70,7 @@
     "@erpx/server-work_projection": "workspace:*",
     "@erpx/ui": "workspace:*",
     "@erpx/workplace": "workspace:*",
-    "next": "16.4.0",
-    "react": "19.3.0"
+    "next": "16.4.3",
+    "react": "19.3.1"
   }
 }

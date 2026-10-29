@@ -50,3 +50,9 @@ async function otherFlowWork(actor:WorkContext, reference = false):Promise<WorkI
 }
 
 return {enrichFlowWork,otherFlowWork};}
+
+/** Preserve generic Flow fields while restricting Field items to current owner evidence. */
+export function reconcileFieldServiceWork(items:WorkItem[],native:{data:{id:string;canAct:boolean}[];workflowSourceIds:string[]},mode:'shadow'|'enforced'):WorkItem[]{
+ const admitted=new Set(mode==='enforced'?native.workflowSourceIds:native.data.map(item=>item.id)),sources=new Map(native.data.filter(item=>admitted.has(item.id)).map(item=>[item.id,item]));
+ return items.flatMap(item=>{if(item.type!=="field_service")return [item];const source=sources.get(item.id);if(!source)return [];const canAct=item.canAct&&source.canAct;return [{...item,canAct,...(!canAct?{queue:item.queue==='completed'?'completed' as const:'waiting' as const,actionKind:'work' as const,relationships:(item.relationships??[]).filter(value=>!['assigned','approval'].includes(value)),flow:item.flow?{...item.flow,canAct:false,canManage:false}:undefined}:{})}];});
+}

@@ -1,23 +1,41 @@
-# People: employee directory and IT-owned external access
+# People relationships and independent account administration
 
-People is shared by HR and IT. HR's directory, archive, search, selected profiles, member pickers and lifecycle roster expose employee engagements only. IT's default Company-level entry is `/holdings/:slug/people?view=users`; `/people?view=internal` retains the employee organization view. IT receives basic employee identity and placement information, never compensation or restricted HR documents from its IT role.
+People owns employee work and the presentation of Company relationships. IAM remains the owner of external relationship metadata, accounts and access decisions in PostgreSQL. AD/UCS/Samba account, group and GPO integration is optional; this change does not establish that Samba is connected or enabled.
 
-## External relationships
+## People and Administration
 
-External organizations and independent affiliations are Company-owned IAM metadata, not Companies or organization nodes. External teams may record the internal Department they work with. Neither team membership nor that Department relationship creates grants, employment, positions, levels or GPO inheritance.
+People has three Company views: **Employees**, **External collaborators**, and **Unclassified**. Employees retain Company → Branch → Department navigation, positions, archive, search, roster and HR drawers. HR can create employees, positions and placements without an account, a prepared package or IT action. Employee creation, verified account linking and granting access are separate commands. Creating or moving a position never grants access automatically.
 
-An external subject can be prepared without a login or HR profile. New access requires an affiliation, active employee sponsor in the selected Company and a future relationship expiry. Access scope is selected independently from the collaboration Department. Classification is per Company. Invitations to an existing local account require its password before activating the Company relationship; names or matching contact details alone never verify a link. Existing directory accounts continue through verified Directory linking.
+External organizations and independent affiliations are Company-owned IAM metadata, never Companies or organization nodes. External teams can name the internal Department they work with. Collaborators have an internal employee sponsor, status and relationship expiry. They can be recorded before any account exists. Neither affiliation nor team membership creates employment, positions, grants, levels or GPO inheritance.
 
-## Preview and direct application
+Unclassified means a Company account or prepared invitation subject has neither an employee relationship nor an explicit external relationship. Account creation by IT does not classify a person as external. `classification: employee | external | unclassified` is a presentation property, independent of `accountSource: local | directory`. Verified aliases are collected into `linkedUserIds`; relationship cutoffs cover every linked identity in the selected Company.
 
-`GET .../iam/people-access` returns the permission-filtered Company snapshot. `POST .../iam/people-access/preview` takes `{change}` and supports organization, team, subject, role, grant, invite and revoke operations. `POST .../iam/people-access/apply` takes `{previewToken}` with the normal rendered work-context headers and Idempotency-Key.
+Administration → Technology → Resources → Accounts is the account/invitation/grant editor. Roles, groups, access packages and position bindings keep their existing Administration editors. AD/GPO and Directory work stay in Technology. People profiles link to related accounts and account details link back to employee profiles or relationships. Detail and edit surfaces use right drawers. Search, classification and selected subject use URL state for reload and Back/Forward. Retained Users & Access and IAM links redirect to their owner while preserving filters, repeated query values and fragments.
 
-Previews expire after ten minutes and bind the actor, session, authorizing assignment and visible data. Apply checks the snapshot and current authority again inside a serializable IAM command. IT may publish custom roles, authorize invitations and assign access immediately with `iam.access.apply`; no HR action or independent reviewer is needed for these new commands. The delegation ceiling, supported Company/Branch/Department scopes, fresh MFA, optimistic versions, immutable role revisions, receipts and audit remain mandatory. Ownership, recovery and Platform permissions cannot be published through this flow. Self grants and publication of a role held by the author or a verified alias are refused.
+## HR and IT authority
 
-Direct invitations reuse the normal activation flow and delivery jobs, with explicit authorization evidence separate from legacy reviews. A prospective assignment cannot authorize login while the invitation is pending. Activation rechecks the current relationship, sponsor, authorizing assignment and role revision; interrupted activation can resume. No external HR profile is created. Suspension and expiry gate principal authorization, including verified aliases, without relying on a worker.
+`people.relationships.read` and `people.relationships.manage` are Company-scoped permissions for the default HR administrator, IT administrator and Company owner. They add no account, invitation, role or Directory authority to HR. Relationship reads return basic people, organizations, teams and units; they omit assignments, role/permission definitions and Directory configuration. Relationship mutations allow only organization, team and subject metadata, including classifying an already verified Company account as external. They accept no account-link field and never match identities using a name or email alone.
 
-## Compatibility
+HR status/expiry edits affect authorization immediately through `iam_principal_active`, including verified aliases, without a worker or IT confirmation. Recording a past expiry is a valid immediate cutoff. Renewal does not create grants, extend assignment deadlines or restore revoked assignments. Updating an invited relationship to Active cannot bypass acceptance and proof of identity. Self changes and protected recovery-account changes remain denied.
 
-Migrations `1042_people_external_access.sql` and `1043_people_attribute_definition_authority.sql` retain contractor records and Finance history and classifies contractor-only people as external. Their legacy metadata is deliberately incomplete until IT supplies sponsorship and expiry; migration does not create accounts, send invitations or grant access. Existing delegation evidence on HR roles is retained to avoid invalidating legitimate descendant grants, while HR's IAM management/read permissions are removed. IT gains explicit apply authority and the bounded delegation ceiling. Field-definition/ACL administration has its own `iam.attributes.manage` authority, so default IT role authoring cannot open restricted HR fields. Existing explicit custom administrator delegations retain that authority. Existing pending reviews are never auto-approved and legacy reviewed operations retain their previous evidence.
+IT can prepare an unclassified account and custom roles before HR records exist. Account preparation creates only an IAM subject; invitation and access remain explicit later commands. An unclassified account can receive direct grants under the existing delegation rules. External invitations/grants require an affiliation, active employee sponsor and future relationship expiry. Existing local accounts must prove their password during acceptance; Directory accounts retain verified Directory linking. No HR profile is created by an invitation.
 
-Focused coverage lives in the identity-access People access unit/integration suites, employee directory/selection integration suites and workplace navigation suite. Development browser verification must cover desktop, mobile and right drawers. Production deployment and staging operations are outside this change.
+## API and command boundary
+
+People prefix: `/api/v1/holdings/:holdingSlug/people/relationships`.
+
+| Method and suffix | Operation |
+| --- | --- |
+| GET `/` | Relationship-only Company projection |
+| POST `/preview` | `{change}` with organization, team or subject metadata |
+| POST `/apply` | `{previewToken}`; revalidate and apply the reviewed relationship |
+
+IAM's existing `/iam/people-access`, `/preview` and `/apply` support IT account preparation, roles, grants, invitations and revocation. Both transports use the original IAM owner transaction, normal authenticated work-context headers, same-origin checks, Idempotency-Key, fresh MFA, current assignment/Company authority, optimistic versions, immutable audit and receipts. HR cannot submit a privilege command through its transport or apply a privilege-bearing token. Previews expire after ten minutes and bind the actor, session, authorizing assignment and data fingerprint. Apply checks current authority and data again inside the serializable command.
+
+IT retains its delegation ceiling, supported Company/Branch/Department grant scopes, immutable role revisions and self-access restrictions. Ownership, recovery and Platform permissions cannot be published through direct IT role authoring. Pending reviews remain independent and are never auto-approved. Position package revisions remain preparations for explicit individual access decisions.
+
+## Migration and verification
+
+Migrations `1042` and `1043` retain contractor/Finance history and historical delegation evidence. Additive migration `1072_people_relationship_authority.sql` publishes the two relationship permissions and extends the authorization predicate to retain invitation acceptance gating during HR edits. It creates no accounts, sends no invitations and grants no individual access. There is no Directory data migration or staging/production change in this development task.
+
+Coverage lives in the identity-access People access unit/integration suites, People lifecycle/directory selection suites and workplace navigation suite. It covers IT-first account activation, HR-only metadata commands, filtered reads, Company boundaries, forged privilege previews, alias cutoffs, immediate expiry and renewal without assignment changes. UI verification covers the authenticated public development pages, desktop/mobile drawers, search and history. Development smoke checks are not full migration acceptance.

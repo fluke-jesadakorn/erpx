@@ -1,18 +1,32 @@
 import{workspaceBrowserFixtureProfile}from '../../../scripts/testing/development-host-profile';
+import { execFileSync } from 'node:child_process';
 import{firstRouteCompile,firstRouteEnsure}from '../../../scripts/performance/route-compile-metrics';
 import{runtimeOwnerCycles}from '../../../scripts/architecture/owner-cycles';
 import { mkdtemp, mkdir, writeFile, rm, realpath } from 'node:fs/promises';
 import {readFileSync} from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { runtimeSourceFingerprint } from '../../../scripts/local/source-fingerprint';
 import { describe, expect, it, vi } from 'vitest';
-import { createWorkspaceGraph, selectWorkspaceSuites, selectCandidateSuites, appRuntimeFingerprint, workspaceFingerprint } from '../../../scripts/testing/workspace-graph';
+import { createWorkspaceGraph, loadWorkspaceGraph, loadRevisionWorkspaceGraph, changedWorkspaceFiles, selectWorkspaceSuites, selectCandidateSuites, appRuntimeFingerprint, workspaceFingerprint } from '../../../scripts/testing/workspace-graph';
 import type { Suite } from '../../../scripts/testing/catalogue';
 import { workspaceStyleSheet } from '../../../scripts/assets/workspace-styles';
 import { Scanner } from '@tailwindcss/oxide';
-import {watchWorkspaceStyleSources,workspaceStyleGraphChanged,workspaceStyleWatchInput} from '../../../scripts/local/workspace-style-watcher';
+import {subscribeWorkspaceStyleSources,watchWorkspaceStyleSources,workspaceStyleGraphChanged,workspaceStyleWatchInput,type WorkspaceStyleSubscription} from '../../../scripts/local/workspace-style-watcher';
 const suite=(id:string,app:string,file:string):Suite=>({id,lane:'unit',owner:'shared.testing',modules:['finance'],files:[file],fixture:'none',requires:{jobs:false,scanner:false},apps:[app],packages:['@erpx/contracts']});
+it('passes pinned toolchain paths through actual Turbo strict mode and binds their cache identity without admitting unrelated environment',()=>{
+ const root=join(import.meta.dirname,'../../..');
+ const run=(node:string,sensitive:string)=>JSON.parse(execFileSync(process.execPath,[join(root,'node_modules/turbo/bin/turbo'),'run','typecheck','--filter=@erpx/app-legal-portal','--dry=json'],{
+  cwd:root,env:{NODE_ENV:'test',PATH:process.env.PATH,HOME:process.env.HOME,TMPDIR:process.env.TMPDIR,TURBO_TELEMETRY_DISABLED:'1',ERPX_NODE_BIN:node,ERPX_BUN_BIN:'/synthetic/pinned/bun',ERPX_UNDECLARED_SECRET:sensitive},encoding:'utf8',stdio:['ignore','pipe','ignore'],maxBuffer:8*1024*1024,
+ }));
+ const first=run('/synthetic/pinned/node','first-synthetic-value'),otherSecret=run('/synthetic/pinned/node','different-synthetic-value'),otherNode=run('/synthetic/other/node','first-synthetic-value');
+ expect(first.tasks[0].envMode).toBe('strict');
+ expect(first.globalCacheInputs.environmentVariables.specified.env).toEqual(['ERPX_BUN_BIN','ERPX_NODE_BIN']);
+ expect(first.globalCacheInputs.environmentVariables.specified.passThroughEnv).toBeNull();
+ expect(first.tasks[0].hash).toBe(otherSecret.tasks[0].hash);
+ expect(first.tasks[0].hash).not.toBe(otherNode.tasks[0].hash);
+ expect(JSON.stringify(first.globalCacheInputs.environmentVariables)).not.toContain('ERPX_UNDECLARED_SECRET');
+});
 function sources(){return new Map([
  ['apps/finance/src/app/page.tsx','import "@erpx/contracts/finance";'],
  ['apps/people/src/app/page.tsx','import "@erpx/contracts/people";'],
@@ -85,25 +99,107 @@ it('regenerates style inputs after a rename without weakening normal missing-sou
  expect(()=>createWorkspaceGraph(files)).not.toThrow();
 });
 
+it('reconciles sparse directory and nullable watch events against observed and newly added source paths',async()=>{
+ const root=await realpath(await mkdtemp(join(tmpdir(),'erpx-sparse-style-watch-'))),file='apps/account/src/panel.tsx',initial='export const Panel=()=> <div className="p-4"/>;';
+ const changed=new Map<string,(name:string|null)=>void>(),errors=new Map<string,()=>void>(),closed=vi.fn(),refresh=vi.fn(),report=vi.fn();
+ const subscribe:WorkspaceStyleSubscription=(directory,callback,failed)=>{changed.set(basename(directory),callback);errors.set(basename(directory),failed);return{close:closed};};
+ await mkdir(join(root,'apps/account/src'),{recursive:true});await mkdir(join(root,'packages'),{recursive:true});await writeFile(join(root,file),initial);
+ const watcher=watchWorkspaceStyleSources(root,new Map([[file,initial]]),{refresh,report,subscribe,delayMs:1});
+ try{
+  await watcher.whenSettled();expect(refresh).not.toHaveBeenCalled();
+  await writeFile(join(root,file),initial.replace('p-4','p-8'));changed.get('apps')!('account/src');await watcher.whenSettled();expect(refresh).not.toHaveBeenCalled();
+  await writeFile(join(root,file),'import "@erpx/ui/new";'+initial);changed.get('apps')!(null);await watcher.whenSettled();expect(refresh).toHaveBeenCalledTimes(1);
+  const added='packages/ui/src/nested/new.tsx';await mkdir(dirname(join(root,added)),{recursive:true});await writeFile(join(root,added),'export const New=()=>null;');changed.get('packages')!('ui/src/nested');await watcher.whenSettled();expect(refresh).toHaveBeenCalledTimes(2);
+  await writeFile(join(root,added),'import "./other";');changed.get('packages')!('packages');await watcher.whenSettled();expect(refresh).toHaveBeenCalledTimes(3);
+  await rm(join(root,'packages/ui/src/nested'),{recursive:true});changed.get('packages')!('ui/src/nested');await watcher.whenSettled();expect(refresh).toHaveBeenCalledTimes(4);
+  // Ambiguous paths can trigger reconciliation, but never read outside/root
+  // private/generated directories or follow a source-directory symlink.
+  const outside=await realpath(await mkdtemp(join(tmpdir(),'erpx-style-watch-outside-')));
+  try{
+   await writeFile(join(outside,'secret.ts'),'export const secret=1;');await symlink(outside,join(root,'apps/account/src/external'));
+   for(const path of ['apps/account/node_modules/owned/src/secret.ts','apps/account/src/.scratch/secret.ts','packages/.env.local/src/secret.ts']){await mkdir(dirname(join(root,path)),{recursive:true});await writeFile(join(root,path),'private');}
+   changed.get('apps')!('../outside');changed.get('packages')!(null);await watcher.whenSettled();expect(refresh).toHaveBeenCalledTimes(4);expect(report).not.toHaveBeenCalled();
+  }finally{await rm(outside,{recursive:true,force:true});}
+  watcher.close();expect(closed).toHaveBeenCalledTimes(2);changed.get('apps')!(null);errors.get('apps')!();await watcher.whenSettled();expect(refresh).toHaveBeenCalledTimes(4);expect(report).not.toHaveBeenCalled();
+ }finally{watcher.close();await rm(root,{recursive:true,force:true});}
+});
+it('closes a successful source subscription when the next native subscription cannot start',async()=>{
+ const root=await realpath(await mkdtemp(join(tmpdir(),'erpx-style-watch-start-failure-'))),close=vi.fn();
+ try{
+  await mkdir(join(root,'apps'));await mkdir(join(root,'packages'));
+  const subscribe:WorkspaceStyleSubscription=directory=>{if(basename(directory)==='packages')throw new Error('synthetic native subscription failure');return{close};};
+  expect(()=>watchWorkspaceStyleSources(root,new Map(),{subscribe})).toThrow('synthetic native subscription failure');expect(close).toHaveBeenCalledOnce();
+ }finally{await rm(root,{recursive:true,force:true});}
+});
 it('updates newly imported sources during a live watch and closes its owned watchers',async()=>{
- const root=await mkdtemp(join(tmpdir(),'erpx-style-watch-')),file='apps/account/src/panel.tsx',initial='export const Panel=()=> <div className="p-4"/>;',report=vi.fn();
+ const root=await realpath(await mkdtemp(join(tmpdir(),'erpx-style-watch-'))),file='apps/account/src/panel.tsx',initial='export const Panel=()=> <div className="p-4"/>;',report=vi.fn();
  const inputs=sources();inputs.set(file,initial);inputs.set('packages/ui/src/new.tsx','export const New=()=> <div className="p-7"/>;');
  let css=workspaceStyleSheet(createWorkspaceGraph(inputs),'apps/account');
  const refresh=vi.fn(()=>{const current=new Map(inputs);current.set(file,readFileSync(join(root,file),'utf8'));css=workspaceStyleSheet(createWorkspaceGraph(current),'apps/account');});
  expect(css).not.toContain('packages/ui/src/new.tsx');
  await mkdir(join(root,'apps/account/src'),{recursive:true});await mkdir(join(root,'packages'),{recursive:true});await writeFile(join(root,file),initial);
- const watcher=watchWorkspaceStyleSources(root,new Map([[file,initial]]),{refresh,report,delayMs:20});
+ let nativeEvents=0;
+ const subscribe:WorkspaceStyleSubscription=(directory,changed,failed)=>subscribeWorkspaceStyleSources(directory,name=>{changed(name);nativeEvents++;},failed);
+ const watcher=watchWorkspaceStyleSources(root,new Map([[file,initial]]),{refresh,report,subscribe,delayMs:20});
  try{
-  await writeFile(join(root,file),initial.replace('p-4','p-8'));
-  await new Promise(done=>setTimeout(done,80));expect(refresh).not.toHaveBeenCalled();
+  await watcher.whenSettled();
+  // fs.watch has no ready event. Bounded harmless text probes establish real
+  // OS delivery before the one import mutation; they never poll source trees
+  // or change imports. A lost startup write cannot masquerade as readiness.
+  let probe=0;
+  await vi.waitFor(async()=>{if(nativeEvents===0)await writeFile(join(root,file),initial.replace('p-4','p-8')+`// native readiness ${++probe}\n`);expect(nativeEvents).toBeGreaterThan(0);},{timeout:10_000,interval:50});
+  await watcher.whenSettled();expect(refresh).not.toHaveBeenCalled();
   await writeFile(join(root,file),'import "@erpx/ui/new";'+initial);
-  await vi.waitFor(()=>expect(refresh).toHaveBeenCalledTimes(1),{timeout:3000});
+  await vi.waitFor(()=>expect(refresh).toHaveBeenCalledTimes(1),{timeout:10_000});
   expect(css).toContain('packages/ui/src/new.tsx');
-  watcher.close();await writeFile(join(root,file),'import "./other";'+initial);
-  await new Promise(done=>setTimeout(done,80));expect(refresh).toHaveBeenCalledTimes(1);expect(report).not.toHaveBeenCalled();
+  const delivered=nativeEvents;watcher.close();await writeFile(join(root,file),'import "./other";'+initial);
+  await new Promise(done=>setTimeout(done,80));expect(nativeEvents).toBe(delivered);expect(refresh).toHaveBeenCalledTimes(1);expect(report).not.toHaveBeenCalled();
  }finally{watcher.close();await rm(root,{recursive:true,force:true});}
 });
 describe('workspace impact boundaries',()=>{
+ it('maps tracked root inputs and deleted legacy app assets from both Git revisions without following public symlinks',async()=>{
+  const root=await mkdtemp(join(tmpdir(),'erpx-revision-inputs-')),outside=await mkdtemp(join(tmpdir(),'erpx-private-inputs-'));
+  const git=(...args:string[])=>execFileSync('git',args,{cwd:root,encoding:'utf8'}).trim();
+  const assets=['apps/work/public','apps/work/src/app/apple-icon.png','apps/work/src/app/favicon.ico','apps/work/src/app/icon.svg'];
+  const tracked=new Map<string,string|Buffer>([
+   ['.env.example','ERPX_ENVIRONMENT=development\n'],['bun.lock','lock-v1'],['.gitattributes','licenses/*.txt -text\n'],
+   ['scripts/local/workspace-settings.json',JSON.stringify({version:1,bundlers:{work:'turbopack',finance:'webpack'},activeApps:['work','finance']})],
+   ['apps/work/package.json','{"name":"@erpx/app-work"}'],['apps/work/src/app/page.tsx','export default function Page(){return "Legacy";}'],
+   ['apps/work/src/app/apple-icon.png',Buffer.from([0,255,1,254])],['apps/work/src/app/favicon.ico',Buffer.from([0,0,1,0])],['apps/work/src/app/icon.svg','<svg/>'],
+   ['apps/finance/package.json','{"name":"@erpx/app-finance"}'],['apps/finance/src/app/page.tsx','export default function Page(){return "Finance";}'],
+   ['apps/finance/src/app/icon.png',Buffer.from([1,2,255])],['apps/finance/public/owner.bin',Buffer.from([254,3,0])],
+  ]);
+  try{
+   git('init','--quiet');
+   for(const[file,bytes]of tracked){await mkdir(dirname(join(root,file)),{recursive:true});await writeFile(join(root,file),bytes);}
+   await writeFile(join(outside,'private.ts'),'private material');await symlink(outside,join(root,'apps/work/public'));
+   // Private environment files and unregistered binary source are never admitted.
+   await writeFile(join(root,'.env.local'),'private');await writeFile(join(root,'apps/finance/src/unknown.bin'),'unknown');
+   git('add','--',...tracked.keys(),'apps/work/public');git('-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','--quiet','-m','base');
+   const baseSha=git('rev-parse','HEAD'),base=loadRevisionWorkspaceGraph(baseSha,root),local=loadWorkspaceGraph(root);
+   for(const file of ['.env.example','bun.lock','.gitattributes',...assets,'apps/finance/public/owner.bin'])expect(local.files.get(file)).toBe(base.files.get(file));
+   expect(base.files.get(assets[1])).toMatch(/^resource-sha256:[a-f0-9]{64}$/);
+   expect(base.files.get(assets[0])).toMatch(/^symlink-sha256:[a-f0-9]{64}$/);
+   expect([...local.files.keys()]).not.toContain('apps/work/public/private.ts');expect(local.files.has('.env.local')).toBe(false);
+   expect(local.files.has('apps/finance/src/unknown.bin')).toBe(false);
+   const before=appRuntimeFingerprint(local,'finance');
+   await writeFile(join(outside,'private.ts'),'changed private material');
+   expect(loadWorkspaceGraph(root).files.get(assets[0])).toBe(local.files.get(assets[0]));
+   await writeFile(join(root,'apps/finance/public/owner.bin'),Buffer.from([253,3,0]));
+   expect(appRuntimeFingerprint(loadWorkspaceGraph(root),'finance')).not.toBe(before);
+   await rm(join(root,'apps/work'),{recursive:true});await writeFile(join(root,'.env.example'),'ERPX_ENVIRONMENT=test\n');await writeFile(join(root,'bun.lock'),'lock-v2');await writeFile(join(root,'.gitattributes'),'licenses/*.txt -text -diff\n');
+   await writeFile(join(root,'scripts/local/workspace-settings.json'),JSON.stringify({version:1,bundlers:{finance:'webpack'},activeApps:['finance']}));
+   git('add','--update');git('-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','--quiet','-m','head');
+   const headSha=git('rev-parse','HEAD'),head=loadRevisionWorkspaceGraph(headSha,root),changed=changedWorkspaceFiles(root,baseSha,headSha);
+   expect(changed).toContain('.gitattributes');expect(head.files.get('.gitattributes')).not.toBe(base.files.get('.gitattributes'));
+   const selected=selectCandidateSuites(head,base,suites,changed);
+   expect(selected.suites.map(item=>item.id)).toEqual(['finance','people']);
+   for(const asset of assets)expect(selected.removed).toContain(asset);
+   expect(()=>selectCandidateSuites(head,base,suites,assets)).not.toThrow();
+   expect(()=>selectCandidateSuites(head,base,suites,['apps/finance/src/unknown.bin'])).toThrow('WORKSPACE_CHANGE_UNMAPPED');
+   expect(()=>selectCandidateSuites(head,base,suites,['.env.local'])).toThrow('WORKSPACE_CHANGE_UNMAPPED');
+  }finally{await rm(root,{recursive:true,force:true});await rm(outside,{recursive:true,force:true});}
+ });
  it('preserves historical app identity across a folder rename and a deleted dependency',()=>{
   const original=sources(),next=sources();
   original.set('apps/apps/package.json','{"name":"@erpx/app-apps"}');
@@ -456,6 +552,19 @@ it('fails configured app selection when a compiler mapping is invalid or removed
   expect(()=>selectCandidateSuites(createWorkspaceGraph(files),createWorkspaceGraph(sources()),suites,[path])).toThrow('WORKSPACE_SETTINGS_MAPPING_REQUIRED');
   files.set(path,JSON.stringify({version:1,bundlers:{},activeApps:[]}));const base=createWorkspaceGraph(files);files.delete(path);
   expect(()=>selectCandidateSuites(createWorkspaceGraph(files),base,suites,[path])).toThrow('WORKSPACE_SETTINGS_MAPPING_REQUIRED');
+});
+it('accepts source-bound retired settings only in the historical graph and rejects unknown candidate settings',()=>{
+  const path='scripts/local/workspace-settings.json',original=sources();
+  original.set('apps/work/package.json','{"name":"@erpx/app-work"}');original.set('apps/work/src/app/page.tsx','export default function Page(){return "Legacy";}');
+  original.set(path,JSON.stringify({version:1,bundlers:{work:'turbopack',finance:'webpack'},activeApps:['work','finance']}));
+  const base=createWorkspaceGraph(original),candidate=sources();candidate.set(path,JSON.stringify({version:1,bundlers:{finance:'turbopack'},activeApps:['finance']}));
+  const selected=selectCandidateSuites(createWorkspaceGraph(candidate),base,suites,[path]);expect(selected.apps).toEqual(['finance']);expect(selected.suites.map(suite=>suite.id)).toEqual(['finance']);
+  candidate.set('apps/work/package.json',original.get('apps/work/package.json')!);candidate.set('apps/work/src/app/page.tsx',original.get('apps/work/src/app/page.tsx')!);
+  candidate.set(path,original.get(path)!);expect(()=>selectCandidateSuites(createWorkspaceGraph(candidate),base,suites,[path])).toThrow('WORKSPACE_SETTINGS_MAPPING_REQUIRED');
+  const ghost=new Map(original);ghost.set(path,JSON.stringify({version:1,bundlers:{ghost:'webpack'},activeApps:['ghost']}));
+  const validHead=sources();validHead.set(path,JSON.stringify({version:1,bundlers:{finance:'webpack'},activeApps:['finance']}));
+  expect(()=>selectCandidateSuites(createWorkspaceGraph(validHead),createWorkspaceGraph(ghost),suites,[path])).toThrow('WORKSPACE_SETTINGS_MAPPING_REQUIRED');
+  ghost.set('apps/ghost/package.json','{"name":"@erpx/app-ghost"}');expect(()=>selectCandidateSuites(createWorkspaceGraph(validHead),createWorkspaceGraph(ghost),suites,[path])).toThrow('WORKSPACE_SETTINGS_MAPPING_REQUIRED');
 });
 
 

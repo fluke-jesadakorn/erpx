@@ -13,7 +13,7 @@ const strings = (value: unknown) => Array.isArray(value) && value.every(item => 
 export function validDirectoryLifecyclePreview(value: unknown): value is LifecyclePreview {
   return object(value) && typeof value.token === "string" && !!value.token && typeof value.ready === "boolean" && ["blockers", "removed", "added", "accounts", "affectedPositions", "affectedPeople", "affectedComputers"].every(key => strings(value[key])) && (value.definition === null || object(value.definition));
 }
-function workOwner() {const node = typeof document === "undefined" ? null : document.querySelector<HTMLElement>("[data-work-revision]"); return node ? JSON.stringify([node.dataset.workUser, node.dataset.workCompany, node.dataset.workAssignment]) : "server";}
+function workOwner() {const node = typeof document === "undefined" ? null : document.querySelector<HTMLElement>("[data-work-revision]"); return node ? JSON.stringify([node.dataset.workUser, node.dataset.workCompany, node.dataset.workAssignment,node.dataset.workAssignmentVersion]) : "server";}
 function changed() {return Object.assign(Error("Your current People owner, Company or work role changed. Recover the original request after reviewing the current owner; your draft is retained."), {code: "WORK_CONTEXT_CHANGED"});}
 function route(family: "directory" | "lifecycle", path: string) {
   return family === "directory" ? path === "" || /^\/[^/]+(?:\/status)?$/.test(path) : ["placements/preview", "placements/draft", "placements/submit", "rehire"].includes(path) || /^cases\/[^/]+\/(?:cancel|request-access)$/.test(path);

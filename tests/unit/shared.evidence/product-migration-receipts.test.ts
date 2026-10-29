@@ -142,6 +142,16 @@ type FixtureBrowserReceipt = {
   evidencePath?: string;
 };
 
+/** Independent synthetic case folders can be prepared concurrently. Keep a
+ * fixed bound and settle all writes before validation or fixture cleanup. */
+async function prepareFixtureCases<T>(cases: readonly T[], prepare: (value: T) => Promise<void>) {
+  let next = 0;
+  const results = await Promise.allSettled(Array.from({ length: Math.min(8, cases.length) }, async () => {
+    for (let index = next++; index < cases.length; index = next++) await prepare(cases[index]);
+  }));
+  for (const result of results) if (result.status === "rejected") throw result.reason;
+}
+
 async function writeBrowserIsolationFixture(root: string, runId: string, binding: {
   runtimeFingerprint: string;
   verificationFingerprint: string;
@@ -161,8 +171,8 @@ async function writeBrowserIsolationFixture(root: string, runId: string, binding
     receipt.evidencePath = evidencePath;
     if (groupId === "product-host" && stage !== "probe") {
       const browserReceipt = receipt as FixtureBrowserReceipt;
-      for (const test of browserReceipt.receipts) {
-        if (test.suite !== productHostSuiteId || test.passed !== true || !test.run || !test.file || !test.title) continue;
+      await prepareFixtureCases(browserReceipt.receipts, async test => {
+        if (test.suite !== productHostSuiteId || test.passed !== true || !test.run || !test.file || !test.title) return;
         const casePath = join(evidencePath, test.run), caseDirectory = resolve(root, casePath), artifactDirectory = join(casePath, "artifacts");
         const businessWorkflow = productHostBusinessWorkflowForCase(test.file, test.title);
         const readOnlyWorkflow = productHostReadOnlyWorkflowForCase(test.file, test.title);
@@ -256,7 +266,7 @@ async function writeBrowserIsolationFixture(root: string, runId: string, binding
             bytes: commercialBytes.length,
           };
         }
-      }
+      });
     }
     await writeFixtureFile(root, join(evidencePath, "receipt.json"), JSON.stringify(receipt, null, 2) + "\n");
     return resolve(root, evidencePath);
@@ -358,7 +368,7 @@ async function migrationImportFixture() {
   for (const directory of ["src", "public", "scripts", "fixtures", "tests/support", "migrations/postgres", "ops/macos/clamav", ".github/workflows", ".github/actions"])
     await mkdir(join(root, directory), { recursive: true });
   const sourceFiles = [
-    "bun.lock", "package.json", "next.config.ts", "tsconfig.json", "postcss.config.mjs", "eslint.config.mjs",
+    "bun.lock", "package.json", "next.config.ts", "tsconfig.base.json", "tsconfig.json", "postcss.config.mjs", "eslint.config.mjs",
     "tests/config/tsconfig.json", "tests/config/vitest.config.mts", "tests/config/vitest.unit.config.mts",
     "tests/config/vitest.integration.config.mts", "tests/config/playwright.config.ts",
     "tests/catalogue/engineering-scenarios.json", "tests/catalogue/legal-uat-engineering-cases.json",
@@ -1500,8 +1510,11 @@ describe("current-source product migration receipt v2", () => {
         expect(() => requiredProductMigrationCases(scenario.id, "verified")).toThrow("PRODUCT_MIGRATION_BROWSER_WITNESS_REQUIRED");
       }
     }
-    expect(nativeOnly).toBe(109);
+    expect(nativeOnly).toBe(107);
     expect(ids.size).toBe(187);
+    for (const id of ["customer_360/feature-customer-notes", "crm/activities"]) {
+      expect(requiredProductMigrationCases(id, "verified").filter(test => test.runner === "playwright").map(test => test.project).sort()).toEqual(["desktop", "mobile"]);
+    }
     const rejectedNearFitMappings = [
       "assets/asset-register",
       "commercial/entitlements",
@@ -1554,7 +1567,6 @@ describe("current-source product migration receipt v2", () => {
       "pms/cashier",
       "customer_360/service-timeline",
       "customer_360/feature-customer-profile",
-      "customer_360/feature-customer-notes",
       "customer_authority/access-history",
       "customer_authority/feature-identity-changes",
       "pos/feature-register-session",
@@ -1563,7 +1575,6 @@ describe("current-source product migration receipt v2", () => {
       "sales/quotes",
       "sales/orders",
       "sales/fulfillment",
-      "crm/activities",
       "crm/feature-leads",
       "marketing/feature-forms-profiles",
       "marketing/feature-engagement",

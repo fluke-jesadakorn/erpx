@@ -44,7 +44,7 @@
 }
 @media (max-width:620px) {
  .header { gap: 6px; padding: 10px 13px; }
- .controls { width: 100%; gap: 5px; flex-wrap: nowrap; justify-content: space-between; }
+ .controls { width: 100%; gap: 5px; flex-wrap: wrap; justify-content: space-between; }
  .content { padding: 14px; }
  .quickAccess { padding: 14px 14px 0; }
  .brand > img, .brand > .mark { width: 37px; height: 37px; }
@@ -53,7 +53,7 @@
  .locations { grid-template-columns: 1fr; }
 }
 @media (min-width:1200px) {
- .withQuickAccess { display: grid; grid-template-columns: minmax(0,1fr) 240px; align-items: start; }
+ .withQuickAccess { display: grid; grid-template-columns: minmax(0,1fr) 260px; align-items: start; }
  .withQuickAccess .content { grid-column: 1; grid-row: 1; }
  .withQuickAccess .quickAccess { grid-column: 2; grid-row: 1; align-self: stretch; padding: 36px 18px 36px 0; }
 }

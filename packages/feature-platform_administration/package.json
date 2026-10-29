@@ -29,7 +29,8 @@
     "@erpx/server-agent": "workspace:*",
     "@erpx/server-platform_administration": "workspace:*",
     "@erpx/ui": "workspace:*",
-    "lucide-react": "1.41.0",
-    "react": "19.3.0"
+    "lucide-react": "1.61.0",
+    "react": "19.3.1",
+    "@erpx/contracts": "workspace:*"
   }
 }

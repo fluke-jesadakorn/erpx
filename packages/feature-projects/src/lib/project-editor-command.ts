@@ -13,7 +13,7 @@ type Native=ProjectEditorRecord&{version:number;projectId:string|null;operation:
 type Attempt={base:string;companyId:string;actorId:string;workOwner:string;editor:ProjectEditorCurrent['kind'];anchor:string|null;path:string;body:string;key:string;native:Native;draftVersion:number;uncertain:boolean;hadForm:boolean;completion:ReturnType<typeof retainWorkCommandCompletion>};
 const object=(value:unknown):value is Record<string,unknown>=>!!value&&typeof value==='object'&&!Array.isArray(value);
 function changed(){return Object.assign(Error('Your Company, Project source or work role changed. Return to the original owner and recover the submitted request.'),{code:'WORK_CONTEXT_CHANGED'});}
-function workOwner(){const node=typeof document==='undefined'?null:document.querySelector<HTMLElement>('[data-work-revision]');return node?JSON.stringify([node.dataset.workUser,node.dataset.workCompany,node.dataset.workAssignment]):'server';}
+function workOwner(){const node=typeof document==='undefined'?null:document.querySelector<HTMLElement>('[data-work-revision]');return node?JSON.stringify([node.dataset.workUser,node.dataset.workCompany,node.dataset.workAssignment,node.dataset.workAssignmentVersion]):'server';}
 function stamp(source:ProjectEditorCurrent){return JSON.stringify({...source,draftVersion:undefined,dirty:undefined});}
 function nativeRequest(source:ProjectEditorCurrent,path:string,input:unknown,key:string,known:Native|null):Native{
  if(!object(input)||!source.scope)throw Error('The actual Project command source is unavailable.');

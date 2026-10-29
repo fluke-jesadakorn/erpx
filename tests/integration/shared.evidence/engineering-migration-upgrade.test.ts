@@ -1,3 +1,4 @@
+export const postgresFixtureSlots=["CONTROL_DB","CONTROL_READ_DB","H001_DB","H001_READ_DB","H002_DB","H002_READ_DB","H003_DB","H003_READ_DB"] as const;
 import { canonicalGuestAccount, legacyGuestAccount, parseGuestAccountJson } from "@erpx/feature-identity_access/lib/guest-account-compat";
 import { expect, it, vi } from "vitest";
 import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";

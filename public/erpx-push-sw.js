@@ -5,7 +5,8 @@ self.addEventListener("push", event => {
   const tag = typeof data.tag === "string" && /^[0-9a-f-]{36}$/.test(data.tag) ? data.tag : "erpx-inbox";
   const path = typeof data.path === "string" && (
     /^\/holdings\/[a-zA-Z0-9%_-]+(?:\/[^?#]*)?\/inbox\?tab=updates$/.test(data.path) ||
-    /^\/[a-zA-Z0-9_-]+\/[a-zA-Z0-9_-]+\/(?:holding|branches\/[a-zA-Z0-9_-]+(?:\/departments\/[a-zA-Z0-9_-]+)?|departments\/[a-zA-Z0-9_-]+)\/notifications$/.test(data.path)
+    /^\/[a-zA-Z0-9_-]+\/[a-zA-Z0-9_-]+\/(?:holding|branches\/[a-zA-Z0-9_-]+(?:\/departments\/[a-zA-Z0-9_-]+)?|departments\/[a-zA-Z0-9_-]+)\/notifications$/.test(data.path) ||
+    /^\/(?:[a-z0-9_-]+\/|[a-z0-9_-]+\/[a-z0-9_-]+\/)?(?:apps\/inbox\/notifications|(?:pos|pms)\/notifications)(?:\?company=[a-zA-Z0-9%_-]+)?$/.test(data.path)
   )
     ? data.path : "/";
   event.waitUntil(self.registration.showNotification("ERPX", {

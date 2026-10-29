@@ -3,7 +3,7 @@ import {randomUUID} from 'node:crypto';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import {lockQueuedCommandAuthority,requireQueuedAccountAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
 import {privateFileDenialAuthoritySourceLocks} from '@erpx/server-identity_access/public/private-file-denial-authority';
-import {workPackageEnforcementMode,companyPurchaseReadLocks,checkPurchasedCapability,readPurchasedAccess,purchaseCommandBoundary,purchaseCommandFailure} from '@erpx/server-commercial/public/purchase-command-boundary';
+import {appsPackageEnforcementMode,companyPurchaseReadLocks,checkPurchasedCapability,readPurchasedAccess,purchaseCommandBoundary,purchaseCommandFailure} from '@erpx/server-commercial/public/purchase-command-boundary';
 import type {CapabilityPurpose} from '@erpx/server-commercial/public/rules/packages';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
@@ -16,12 +16,12 @@ type Command={key:string;operation:string;id:string;purpose:CapabilityPurpose|((
 type Unit={companyId:string;actorKey:string;checks:Array<()=>Promise<void>>;targets:Set<string>};
 const units=new WeakMap<SqlDatabase,Unit>();
 const actorKey=(actor:WorkContext)=>JSON.stringify([actor.companyId,actor.branchId,actor.departmentId,actor.userId,actor.assignmentId,actor.role,actor.authority??null,actor.iam??null]);
-export async function requireMessagingCurrentAccount(database:SqlDatabase,actor:WorkContext){if(await workPackageEnforcementMode()!=='disabled')await requireQueuedAccountAuthority(database,actor);}
+export async function requireMessagingCurrentAccount(database:SqlDatabase,actor:WorkContext){if(await appsPackageEnforcementMode()!=='disabled')await requireQueuedAccountAuthority(database,actor);}
 async function released(database:SqlDatabase,companyId:string){return !!await database.prepare(`SELECT ${scheduledFeaturePredicate('message_release.company_id','collaboration')} allowed FROM (SELECT ?::text company_id) message_release`).bind(companyId).first<boolean>('allowed');}
 export async function messagingPurchaseControls(database:SqlDatabase,actor:WorkContext):Promise<MessagingPurchaseControls|undefined>{
- const mode=await workPackageEnforcementMode();if(mode==='disabled')return;await requireMessagingCurrentAccount(database,actor);const access=await readPurchasedAccess(database,mode,{companyId:actor.companyId,capability:'work.messages'}),ready=await released(database,actor.companyId);return {newWork:ready&&access.newWork,settleExisting:ready&&access.settleExisting,history:ready&&access.history,revision:access.revision};
+ const mode=await appsPackageEnforcementMode();if(mode==='disabled')return;await requireMessagingCurrentAccount(database,actor);const access=await readPurchasedAccess(database,mode,{companyId:actor.companyId,capability:'work.messages'}),ready=await released(database,actor.companyId);return {newWork:ready&&access.newWork,settleExisting:ready&&access.settleExisting,history:ready&&access.history,revision:access.revision};
 }
-export async function requireMessagingPurchase(database:SqlDatabase,actor:WorkContext,purpose:CapabilityPurpose){const mode=await workPackageEnforcementMode();if(mode==='disabled')return;await requireQueuedAccountAuthority(database,actor);if(!await released(database,actor.companyId))throw new ApiError(403,'FEATURE_COMING_SOON','Messages is not released for this Company.');await checkPurchasedCapability(database,mode,{companyId:actor.companyId,capability:'work.messages',purpose});}
+export async function requireMessagingPurchase(database:SqlDatabase,actor:WorkContext,purpose:CapabilityPurpose){const mode=await appsPackageEnforcementMode();if(mode==='disabled')return;await requireQueuedAccountAuthority(database,actor);if(!await released(database,actor.companyId))throw new ApiError(403,'FEATURE_COMING_SOON','Messages is not released for this Company.');await checkPurchasedCapability(database,mode,{companyId:actor.companyId,capability:'work.messages',purpose});}
 export async function messagingSourceReadLocks(database:SqlDatabase,companyId:string,privateFiles=false){
  const purchase=companyPurchaseReadLocks(database,companyId);await database.batch([purchase[0],database.prepare('LOCK TABLE messaging_teams,messaging_team_members,messaging_rooms,messaging_room_members,messaging_messages,messaging_reads,messaging_files IN SHARE ROW EXCLUSIVE MODE'),...(privateFiles?[attachmentPrivateReadSourceLocks(database),...privateFileDenialAuthoritySourceLocks(database)]:[])]);await lockQueuedCommandAuthority(database);await lockScheduledFeatureSources(database);await database.batch(purchase.slice(1));
 }
@@ -29,7 +29,7 @@ async function image(database:SqlDatabase,companyId:string,id:string,team=false,
 /** Every source operation, including replay, uses the exact original actor in
  * its complete Holding unit. Arbitrary supplied SQL transactions are denied. */
 export async function withMessagingPurchasedCommand<Result>(owner:SqlDatabase,actor:WorkContext,command:Command,run:(database:SqlDatabase)=>Promise<Result>){
- const mode=await workPackageEnforcementMode();if(mode==='disabled'&&!command.alwaysOwned)return run(owner);
+ const mode=await appsPackageEnforcementMode();if(mode==='disabled'&&!command.alwaysOwned)return run(owner);
  const registered=units.get(owner);if(registered){if(registered.companyId!==actor.companyId||registered.actorKey!==actorKey(actor))throw new ApiError(503,'MESSAGING_TRANSACTION_REQUIRED','Messages requires its original complete owner transaction.');return runGuarded(owner,registered);}
  if(!isTransactionalSqlDatabase(owner))throw new ApiError(503,'MESSAGING_TRANSACTION_REQUIRED','Messages requires its complete owned Holding transaction.');
  try{return await owner.transaction(async database=>{await messagingSourceReadLocks(database,actor.companyId,command.privateFiles);const unit:Unit={companyId:actor.companyId,actorKey:actorKey(actor),checks:[],targets:new Set()};units.set(database,unit);try{const result=await runGuarded(database,unit);await flushFinanceDeferredEffects(database);for(const check of unit.checks)await check();return result;}finally{units.delete(database);}});}catch(error){throw purchaseCommandFailure(error)??error;}

@@ -33,7 +33,7 @@ export async function AccountInvitations({
       {invitations.map((invite) => (
         <div className="ui-record-item" key={invite.id}>
           <div className="row-main">
-            <Link href={canonicalUiHref(`${base}/people/${invite.person_id}?tab=access`)}>
+            <Link href={canonicalUiHref(`${base}/technology?view=resources&section=accounts&subject=${encodeURIComponent(invite.person_id)}`)}>
               {invite.email}
             </Link>
             <p className="muted">

@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "provenance": "ERPX-authored solid-color raster; no external image or personal data",
+  "generatorSha256": "96f29cc01382c83672b496de53e838b6c6f5663504d04adea17f1ba27540b5d0",
+  "encoderVersion": "1.23.6\nlibheif: 1.23.6\nplugin path: /opt/homebrew/lib/libheif",
+  "sourceWidth": 80,
+  "sourceHeight": 40,
+  "clockwiseRotation": 90,
+  "decodedWidth": 40,
+  "decodedHeight": 80,
+  "description": "private metadata",
+  "files": {
+    "source.png": {
+      "bytes": 754,
+      "sha256": "2ee9092aba4a1c1a2f678bda26f02fae15ffd4ce9e2dcbe4e8d688d7d41fc069"
+    },
+    "rotated-non-square.heic": {
+      "bytes": 1218,
+      "sha256": "b0a87bf0a8628bc3d4b2a5fb4339b80cae23d113f151f830511b99e2793f8f8c"
+    }
+  }
+}

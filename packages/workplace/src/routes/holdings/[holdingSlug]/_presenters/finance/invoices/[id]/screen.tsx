@@ -1,3 +1,4 @@
+import {nativeServiceInvoiceWorkspace,nativeJournalPageFailure} from "@erpx/feature-finance/public/server";
 import {serviceNoChargeControls} from "@erpx/server-finance/public/service-no-charge";
 import {ServiceNoChargeConfirmation} from "@erpx/feature-finance/components/service-no-charge-confirmation";
 import {financeProductPresentationOptions} from "@erpx/server-finance/public/product-presentation-request";
@@ -56,12 +57,13 @@ export default async function InvoiceDetail({ params, searchParams }: { params: 
   const actor = await requireWorkContext(holdingSlug);
   const query = await searchParams, printing = query.print === "1";
   let data;
-  try { data = await invoiceRecordWorkspace(actor, id); } catch (error) { return pageError(error, actor.holdingSlug); }
+  let native;
+  try { native = await nativeServiceInvoiceWorkspace(actor, holdingSlug, id); data = native ?? await invoiceRecordWorkspace(actor, id); } catch (error) { const mapped=nativeJournalPageFailure(error); return pageError(mapped?new ApiError(mapped.status,mapped.code,mapped.message.replaceAll('Journal','Invoice').replaceAll('journal','invoice')):error, actor.holdingSlug); }
   const base = workspaceBase(publicScope(actor));
   const noCharge=await serviceNoChargeControls(actor,id);
   const servicePaymentPurchase=await servicePaymentControls(actor,{kind:"invoice",id});
   const supplierCorrections=await supplierInvoiceCorrections(actor,id);
-  const invoice = data.invoice,purchases=await financePurchaseControls(actor),presentation=await financeDocumentPresentationAccess(actor,"invoice",id,await financeProductPresentationOptions());
+  const invoice = data.invoice,purchases=await financePurchaseControls(actor),presentation=native?{sourceOnly:native.sourceOnly,historyOnly:!financeActionAllowed(purchases,"settle-existing")}:await financeDocumentPresentationAccess(actor,"invoice",id,await financeProductPresentationOptions());
   const supplierCandidate=!printing&&invoice.kind==="payable"&&["posted","partially_paid"].includes(String(invoice.status))&&Number(invoice.outstanding_minor)>0&&hasPermission(actor,"finance.write")&&!actor.branchId&&!actor.departmentId;
   const supplierAccess=supplierCandidate?await financePurchaseControls(actor,["finance.banking","finance.inventory-valuation"]):undefined;
   const supplierPreparation=supplierCandidate&&(financeActionAllowed(supplierAccess,"settle-existing","finance.banking")||financeActionAllowed(supplierAccess,"settle-existing","finance.inventory-valuation"))?await supplierInvoiceBatchWorkspace(actor,id).catch(error=>{if(error instanceof ApiError&&error.status===403&&error.code==="PACKAGE_REQUIRED")return null;return pageError(error,holdingSlug);}):null;

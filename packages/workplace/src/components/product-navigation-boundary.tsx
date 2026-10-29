@@ -17,7 +17,7 @@ export function ProductNavigationBoundary({ children, language = "en", appearanc
   const th = language === "th";
   useEffect(() => {
     // No mount read: server content is already authoritative for this render.
-    const revalidate = () => { if (document.visibilityState === "visible") router.refresh(); };
+    const revalidate = () => { if (document.visibilityState === "visible" && document.documentElement.dataset.deviceAccounts !== 'true') router.refresh(); };
     const restored = (event: PageTransitionEvent) => {
       setContextSwitching(false);
       // An initial pageshow already has its server snapshot. Only restoring a

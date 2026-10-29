@@ -1,4 +1,5 @@
 'use client';
+import {holdingFetch} from '@erpx/contracts/holding-fetch';
 import {useCallback,useEffect,useRef,useState} from 'react';
 import {useRouter} from 'next/navigation';
 import {Button,Field,InlineNotice,Panel,Stack,TextArea} from '@erpx/ui/components/foundation';
@@ -7,14 +8,14 @@ import {TimeText} from '@erpx/feature-people_payroll/components/time/time-prefer
 import {contextGeneration,registerUnsavedWork} from '@erpx/feature-work_projection/lib/context-switch';
 import {createAccountSecurityCommand} from '@erpx/feature-identity_access/lib/account-security-client';
 import type {AccountSecurityInput,AccountSecuritySeed} from '@erpx/feature-identity_access/lib/account-security';
-import {accountSecuritySeedSchema} from '@erpx/feature-identity_access/lib/account-security';
+import {createAccountSecurityHttpPort} from '@erpx/feature-identity_access/adapters/http/account-security';
 
 export function AccountSessions({initial}:{initial:AccountSecuritySeed}){
  const [seed,setSeed]=useState(initial),[selection,setSelection]=useState<{scope:'family'|'all';family?:string}|null>(null),[reason,setReason]=useState(''),[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[error,setError]=useState(''),[invalidated,setInvalidated]=useState(false),[uncertain,setUncertain]=useState<AccountSecurityInput|null>(null);
  const [received,setReceived]=useState(initial);
  if(received!==initial){setReceived(initial);if(!selection&&!uncertain&&!busy)setSeed(initial);}
- const command=useRef(createAccountSecurityCommand()),unknown=useRef(false),lifecycle=useRef({epoch:0}),router=useRouter();
- const reload=useCallback(async()=>{const generation=contextGeneration(),current=++lifecycle.current.epoch;setBusy(true);setError('');try{const response=await fetch('/api/v1/account/security',{cache:'no-store'}),body=await response.json();if(current!==lifecycle.current.epoch||generation!==contextGeneration())return;if(!response.ok)throw Error(body.error?.message??'Could not reload your sessions.');const next=accountSecuritySeedSchema.parse(body.data);if(next.accountKey!==initial.accountKey){setInvalidated(true);return;}setSeed(next);}catch(cause){if(current===lifecycle.current.epoch)setError(cause instanceof Error?cause.message:'Could not reload your sessions.');}finally{if(current===lifecycle.current.epoch)setBusy(false);}},[initial.accountKey]);
+ const command=useRef(createAccountSecurityCommand()),reader=useRef(createAccountSecurityHttpPort(holdingFetch)),unknown=useRef(false),lifecycle=useRef({epoch:0}),router=useRouter();
+ const reload=useCallback(async()=>{const generation=contextGeneration(),current=++lifecycle.current.epoch;setBusy(true);setError('');try{const next=await reader.current.read();if(current!==lifecycle.current.epoch||generation!==contextGeneration())return;if(next.accountKey!==initial.accountKey){setInvalidated(true);return;}setSeed(next);}catch(cause){if(current===lifecycle.current.epoch)setError(cause instanceof Error?cause.message:'Could not reload your sessions.');}finally{if(current===lifecycle.current.epoch)setBusy(false);}},[initial.accountKey]);
  useEffect(()=>{const source=lifecycle.current,unregister=registerUnsavedWork(()=>unknown.current),verified=()=>{void reload();},changed=()=>{source.epoch++;setInvalidated(true);setBusy(false);};window.addEventListener('erpx:account-security-updated',verified);window.addEventListener('erpx:context-switch-started',changed);window.addEventListener('erpx:work-context-changed',changed);return()=>{source.epoch++;unregister();window.removeEventListener('erpx:account-security-updated',verified);window.removeEventListener('erpx:context-switch-started',changed);window.removeEventListener('erpx:work-context-changed',changed);};},[reload]);
  async function revoke(input:AccountSecurityInput){
   if(busy||invalidated)return;setBusy(true);setError('');const generation=contextGeneration(),current=++lifecycle.current.epoch;

@@ -1,0 +1,1441 @@
+{
+  "profile": {
+    "TZ": "Asia/Bangkok",
+    "LANG": "en_US.UTF-8",
+    "LC_ALL": "en_US.UTF-8",
+    "locale": "en-US",
+    "timeZone": "Asia/Bangkok"
+  },
+  "acceptance": false,
+  "scope": "actual retained source/fingerprint/replay/Headers/schema with fake authority/receipt/owner data and actual local pg serializer; NO PG",
+  "baseGeneratorSha256": "5151c725fcba0d023c049ec2bc982ffd9b2568d52d8028e41e82968597d71518",
+  "sourceHashes": {
+    "packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/route.ts": "07ad895c2eaef855efcd6492b629a9ef5fe5502db44c7696cae130610feba877",
+    "packages/server-runtime/src/adapters/http.ts": "70ce5f82e007f79946dd95c3fd7b1b052c2e847e0d38a6e0ffd402364ea858f6",
+    "packages/server-shared/src/domain/error.ts": "ff9c315f159f7adcff264d6637617b80760f758c7cb0b19e1896f85bb51b798c",
+    "packages/server-shared/src/domain/consumption-lot.ts": "dddcf06b3390953a58715a7c7888b888fa1069a9f82ae0cf675f8fc799aa543f",
+    "packages/server-field_service/src/domain/service.ts": "9fc084338201fe2ee1f5864f49f8eb568f757f433154008c633755dd05636e28",
+    "packages/server-field_service/src/application/service.ts": "95aa03b1a0662783476429056fb5f7c5e568b95747830f9a8ac934e7ba1429c7",
+    "packages/server-field_service/src/adapters/service.ts": "5276d8703ffd87144a9bec9a5fb4d7246e9a42411029dc2cf5e1362a57ce2b5e",
+    "packages/server-field_service/src/adapters/purchases.ts": "69d1e89e2f2d156ceb58f76a60cf6965eb5abbfc44a2d7de75f3e85f30602d8e",
+    "packages/server-field_service/src/domain/package-commands.ts": "0c403ef49059bb02a5f5c45630723e6500dcd2ba3b41e0b60de8b434e5d8b8b7",
+    "packages/server-workflow/src/application/commands.ts": "665c8e957951a7748c0211e58b2001a133d4479bf546fc986f61d1cc6920ea98",
+    "packages/server-workflow/src/domain/commands.ts": "c610e8a5dcd72dec347f6c2e842d469cf37a5e0eac428d82dfe5f50c6c76f92b",
+    "packages/feature-identity_access/src/lib/guest-account-compat.ts": "9cb447b63957b7a91f6bbc85f2074a531e5e8bb3e14dac7d58cd17d61b5b6e80",
+    "packages/server-manage_erpx/src/adapters/public-origin.ts": "42da7a5939c001617d5cb082a0e4c1054a75c39e5cfb11009097b52c37f3e7d8",
+    "packages/server-manage_erpx/src/domain/public-origin.ts": "27bf065b5c10b4f18b2f782db60190b3a21281c8084e766fc3ae5145e9d48b88",
+    "packages/feature-field_service/src/lib/command.ts": "5e9c974dd8cb41c38f77d8876f465c8e0d549f2ca4eed0dd9bd74189711d5f83",
+    "packages/feature-work_projection/src/lib/work-fetch.ts": "70ee5907223c3e7c5ce95ce0fb1eed1c1487f9bb3f638c8270d56251ed7ec56b",
+    "packages/contracts/src/holding-fetch.ts": "cbe52d2a0d0ccacec4eb983523752c29d324e8b6d6955b5fb0608a2664cc9a55"
+  },
+  "driverHashes": {
+    "node_modules/pg/package.json": "b1e53333a3d0c2c47c49a5cb919d221135dc03145df740925b899bc2baacc435",
+    "node_modules/pg/lib/utils.js": "0348fa1818f4490823187cafc3d31738de7fe3bd30dd0cd12711c272367b2d80",
+    "node_modules/pg-protocol/package.json": "a4a4e23027b26c72be7729d045d0100ad9329959db0449c535fa7b2ba2e717c6",
+    "node_modules/pg-protocol/dist/serializer.js": "0c81a499cd210334e14bc65ee514b2ecf842588e27533f5e9a461f914d0b9623",
+    "node_modules/pg-protocol/dist/buffer-writer.js": "78428fc0607cd87c28009159e87ca3704faf7bda000ea44d2ec46a97805cec9d"
+  },
+  "runtime": {
+    "node": "v26.11.1",
+    "v8": "14.6.202.34-node.37",
+    "icu": "78.3",
+    "locale": "en-US",
+    "timeZone": "Asia/Bangkok",
+    "typescriptWrapper": "6.0.2",
+    "typescriptEngine": "6.0.3",
+    "pg": "8.23.1"
+  },
+  "targets": [
+    {
+      "id": "empty",
+      "originalUtf16": [],
+      "json": "\"\"",
+      "bindHex": "",
+      "bindBytes": 0,
+      "physicalUtf8": "",
+      "physicalUtf16": [],
+      "fingerprint": {
+        "encoded": "{\"actor\":\"actor\",\"assignment\":\"assignment\",\"role\":\"technician\",\"company\":\"company\",\"branch\":\"branch\",\"department\":null,\"operation\":\"field.order.reserve-part\",\"recordId\":\"\",\"input\":{\"action\":\"reserve-part\",\"expectedVersion\":7,\"warehouseId\":\"warehouse\",\"productId\":\"product\",\"quantityMilli\":1000,\"expiresAt\":1800000010100,\"reason\":\"reason\"}}",
+        "digest": "82dd2193ab079f6d8b83e665331444449da04a5398454fe741cf53e3b554045e",
+        "recordUtf16": []
+      },
+      "invalidNonemptyKeyExactReplay": {
+        "value": {
+          "id": "",
+          "version": 8,
+          "status": "scheduled"
+        },
+        "events": [
+          [
+            "receipt",
+            "bad!"
+          ]
+        ]
+      },
+      "executeInvalidNonemptyKeyError": {
+        "name": "Error",
+        "status": 422,
+        "code": "COMMAND_KEY_REQUIRED",
+        "message": "Use a valid Idempotency-Key for this action."
+      }
+    },
+    {
+      "id": "long220",
+      "originalUtf16": [
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120
+      ],
+      "json": "\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"",
+      "bindHex": "78787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878",
+      "bindBytes": 220,
+      "physicalUtf8": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "physicalUtf16": [
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120
+      ],
+      "fingerprint": {
+        "encoded": "{\"actor\":\"actor\",\"assignment\":\"assignment\",\"role\":\"technician\",\"company\":\"company\",\"branch\":\"branch\",\"department\":null,\"operation\":\"field.order.reserve-part\",\"recordId\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"input\":{\"action\":\"reserve-part\",\"expectedVersion\":7,\"warehouseId\":\"warehouse\",\"productId\":\"product\",\"quantityMilli\":1000,\"expiresAt\":1800000010100,\"reason\":\"reason\"}}",
+        "digest": "5ccf4ce3c33ee1cdaa46755d21b1e70df8c69f331d374ae4347e7352825e3ccf",
+        "recordUtf16": [
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120
+        ]
+      },
+      "invalidNonemptyKeyExactReplay": {
+        "value": {
+          "id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+          "version": 8,
+          "status": "scheduled"
+        },
+        "events": [
+          [
+            "receipt",
+            "bad!"
+          ]
+        ]
+      },
+      "executeInvalidNonemptyKeyError": {
+        "name": "Error",
+        "status": 422,
+        "code": "COMMAND_KEY_REQUIRED",
+        "message": "Use a valid Idempotency-Key for this action."
+      }
+    },
+    {
+      "id": "NUL",
+      "originalUtf16": [
+        97,
+        0,
+        98
+      ],
+      "json": "\"a\\u0000b\"",
+      "bindHex": "610062",
+      "bindBytes": 3,
+      "physicalUtf8": "a\u0000b",
+      "physicalUtf16": [
+        97,
+        0,
+        98
+      ],
+      "fingerprint": {
+        "encoded": "{\"actor\":\"actor\",\"assignment\":\"assignment\",\"role\":\"technician\",\"company\":\"company\",\"branch\":\"branch\",\"department\":null,\"operation\":\"field.order.reserve-part\",\"recordId\":\"a\\u0000b\",\"input\":{\"action\":\"reserve-part\",\"expectedVersion\":7,\"warehouseId\":\"warehouse\",\"productId\":\"product\",\"quantityMilli\":1000,\"expiresAt\":1800000010100,\"reason\":\"reason\"}}",
+        "digest": "64065b84201a5109b72b9de150779751b6042dfc99baa99f5c9e88a0a05be03f",
+        "recordUtf16": [
+          97,
+          0,
+          98
+        ]
+      },
+      "invalidNonemptyKeyExactReplay": {
+        "value": {
+          "id": "a\u0000b",
+          "version": 8,
+          "status": "scheduled"
+        },
+        "events": [
+          [
+            "receipt",
+            "bad!"
+          ]
+        ]
+      },
+      "executeInvalidNonemptyKeyError": {
+        "name": "Error",
+        "status": 422,
+        "code": "COMMAND_KEY_REQUIRED",
+        "message": "Use a valid Idempotency-Key for this action."
+      }
+    },
+    {
+      "id": "high",
+      "originalUtf16": [
+        97,
+        55296,
+        98
+      ],
+      "json": "\"a\\ud800b\"",
+      "bindHex": "61efbfbd62",
+      "bindBytes": 5,
+      "physicalUtf8": "a�b",
+      "physicalUtf16": [
+        97,
+        65533,
+        98
+      ],
+      "fingerprint": {
+        "encoded": "{\"actor\":\"actor\",\"assignment\":\"assignment\",\"role\":\"technician\",\"company\":\"company\",\"branch\":\"branch\",\"department\":null,\"operation\":\"field.order.reserve-part\",\"recordId\":\"a\\ud800b\",\"input\":{\"action\":\"reserve-part\",\"expectedVersion\":7,\"warehouseId\":\"warehouse\",\"productId\":\"product\",\"quantityMilli\":1000,\"expiresAt\":1800000010100,\"reason\":\"reason\"}}",
+        "digest": "84824bc405303759c2663c56862cc631b1461b8e1364bca630ce5b3ea4f4ee60",
+        "recordUtf16": [
+          97,
+          55296,
+          98
+        ]
+      },
+      "invalidNonemptyKeyExactReplay": {
+        "value": {
+          "id": "a\ud800b",
+          "version": 8,
+          "status": "scheduled"
+        },
+        "events": [
+          [
+            "receipt",
+            "bad!"
+          ]
+        ]
+      },
+      "executeInvalidNonemptyKeyError": {
+        "name": "Error",
+        "status": 422,
+        "code": "COMMAND_KEY_REQUIRED",
+        "message": "Use a valid Idempotency-Key for this action."
+      }
+    },
+    {
+      "id": "low",
+      "originalUtf16": [
+        97,
+        56320,
+        98
+      ],
+      "json": "\"a\\udc00b\"",
+      "bindHex": "61efbfbd62",
+      "bindBytes": 5,
+      "physicalUtf8": "a�b",
+      "physicalUtf16": [
+        97,
+        65533,
+        98
+      ],
+      "fingerprint": {
+        "encoded": "{\"actor\":\"actor\",\"assignment\":\"assignment\",\"role\":\"technician\",\"company\":\"company\",\"branch\":\"branch\",\"department\":null,\"operation\":\"field.order.reserve-part\",\"recordId\":\"a\\udc00b\",\"input\":{\"action\":\"reserve-part\",\"expectedVersion\":7,\"warehouseId\":\"warehouse\",\"productId\":\"product\",\"quantityMilli\":1000,\"expiresAt\":1800000010100,\"reason\":\"reason\"}}",
+        "digest": "3b717514c7f35c834388cf93d92adce6631be940fa8eff64aed82f3d75d7b7c3",
+        "recordUtf16": [
+          97,
+          56320,
+          98
+        ]
+      },
+      "invalidNonemptyKeyExactReplay": {
+        "value": {
+          "id": "a\udc00b",
+          "version": 8,
+          "status": "scheduled"
+        },
+        "events": [
+          [
+            "receipt",
+            "bad!"
+          ]
+        ]
+      },
+      "executeInvalidNonemptyKeyError": {
+        "name": "Error",
+        "status": 422,
+        "code": "COMMAND_KEY_REQUIRED",
+        "message": "Use a valid Idempotency-Key for this action."
+      }
+    },
+    {
+      "id": "replacement",
+      "originalUtf16": [
+        97,
+        65533,
+        98
+      ],
+      "json": "\"a�b\"",
+      "bindHex": "61efbfbd62",
+      "bindBytes": 5,
+      "physicalUtf8": "a�b",
+      "physicalUtf16": [
+        97,
+        65533,
+        98
+      ],
+      "fingerprint": {
+        "encoded": "{\"actor\":\"actor\",\"assignment\":\"assignment\",\"role\":\"technician\",\"company\":\"company\",\"branch\":\"branch\",\"department\":null,\"operation\":\"field.order.reserve-part\",\"recordId\":\"a�b\",\"input\":{\"action\":\"reserve-part\",\"expectedVersion\":7,\"warehouseId\":\"warehouse\",\"productId\":\"product\",\"quantityMilli\":1000,\"expiresAt\":1800000010100,\"reason\":\"reason\"}}",
+        "digest": "06dd5ec0daa3a7a3cdc88150ae884bf417715b9a8b2cbb4dec2a70bfccb931f3",
+        "recordUtf16": [
+          97,
+          65533,
+          98
+        ]
+      },
+      "invalidNonemptyKeyExactReplay": {
+        "value": {
+          "id": "a�b",
+          "version": 8,
+          "status": "scheduled"
+        },
+        "events": [
+          [
+            "receipt",
+            "bad!"
+          ]
+        ]
+      },
+      "executeInvalidNonemptyKeyError": {
+        "name": "Error",
+        "status": 422,
+        "code": "COMMAND_KEY_REQUIRED",
+        "message": "Use a valid Idempotency-Key for this action."
+      }
+    },
+    {
+      "id": "pair",
+      "originalUtf16": [
+        97,
+        55357,
+        56832,
+        98
+      ],
+      "json": "\"a😀b\"",
+      "bindHex": "61f09f988062",
+      "bindBytes": 6,
+      "physicalUtf8": "a😀b",
+      "physicalUtf16": [
+        97,
+        55357,
+        56832,
+        98
+      ],
+      "fingerprint": {
+        "encoded": "{\"actor\":\"actor\",\"assignment\":\"assignment\",\"role\":\"technician\",\"company\":\"company\",\"branch\":\"branch\",\"department\":null,\"operation\":\"field.order.reserve-part\",\"recordId\":\"a😀b\",\"input\":{\"action\":\"reserve-part\",\"expectedVersion\":7,\"warehouseId\":\"warehouse\",\"productId\":\"product\",\"quantityMilli\":1000,\"expiresAt\":1800000010100,\"reason\":\"reason\"}}",
+        "digest": "ed2b14b2020de81cb2aa9914b7f7295e4934787b50bd5c1096856dc1ffab10a6",
+        "recordUtf16": [
+          97,
+          55357,
+          56832,
+          98
+        ]
+      },
+      "invalidNonemptyKeyExactReplay": {
+        "value": {
+          "id": "a😀b",
+          "version": 8,
+          "status": "scheduled"
+        },
+        "events": [
+          [
+            "receipt",
+            "bad!"
+          ]
+        ]
+      },
+      "executeInvalidNonemptyKeyError": {
+        "name": "Error",
+        "status": 422,
+        "code": "COMMAND_KEY_REQUIRED",
+        "message": "Use a valid Idempotency-Key for this action."
+      }
+    },
+    {
+      "id": "unicode",
+      "originalUtf16": [
+        3591,
+        3634,
+        3609,
+        55357,
+        56832
+      ],
+      "json": "\"งาน😀\"",
+      "bindHex": "e0b887e0b8b2e0b899f09f9880",
+      "bindBytes": 13,
+      "physicalUtf8": "งาน😀",
+      "physicalUtf16": [
+        3591,
+        3634,
+        3609,
+        55357,
+        56832
+      ],
+      "fingerprint": {
+        "encoded": "{\"actor\":\"actor\",\"assignment\":\"assignment\",\"role\":\"technician\",\"company\":\"company\",\"branch\":\"branch\",\"department\":null,\"operation\":\"field.order.reserve-part\",\"recordId\":\"งาน😀\",\"input\":{\"action\":\"reserve-part\",\"expectedVersion\":7,\"warehouseId\":\"warehouse\",\"productId\":\"product\",\"quantityMilli\":1000,\"expiresAt\":1800000010100,\"reason\":\"reason\"}}",
+        "digest": "3467fe5fb3949c2f46f7648ccbe3a3fefecb0690ea454e6fec0391a277f7174e",
+        "recordUtf16": [
+          3591,
+          3634,
+          3609,
+          55357,
+          56832
+        ]
+      },
+      "invalidNonemptyKeyExactReplay": {
+        "value": {
+          "id": "งาน😀",
+          "version": 8,
+          "status": "scheduled"
+        },
+        "events": [
+          [
+            "receipt",
+            "bad!"
+          ]
+        ]
+      },
+      "executeInvalidNonemptyKeyError": {
+        "name": "Error",
+        "status": 422,
+        "code": "COMMAND_KEY_REQUIRED",
+        "message": "Use a valid Idempotency-Key for this action."
+      }
+    }
+  ],
+  "routes": [
+    {
+      "id": "valid-denied-write",
+      "options": {
+        "denyWrite": true,
+        "action": "issue-part"
+      },
+      "trace": [
+        [
+          "actual.publicOrigin"
+        ],
+        [
+          "fake.requireWorkContext",
+          "holding"
+        ],
+        [
+          "request.json"
+        ],
+        [
+          "owner.changeServiceOrder",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.enforcement",
+          "enforced"
+        ],
+        [
+          "fake.transaction"
+        ],
+        [
+          "fake.batch",
+          3
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ]
+      ],
+      "response": {
+        "status": 403,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "{\"error\":{\"code\":\"WORK_ROLE_UNAVAILABLE\",\"message\":\"The original Service assignment is no longer current.\"}}"
+      }
+    },
+    {
+      "id": "valid-denied-read",
+      "options": {
+        "denyRead": true,
+        "action": "issue-part"
+      },
+      "trace": [
+        [
+          "actual.publicOrigin"
+        ],
+        [
+          "fake.requireWorkContext",
+          "holding"
+        ],
+        [
+          "request.json"
+        ],
+        [
+          "owner.changeServiceOrder",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.enforcement",
+          "enforced"
+        ],
+        [
+          "fake.transaction"
+        ],
+        [
+          "fake.batch",
+          3
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ]
+      ],
+      "response": {
+        "status": 403,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "{\"error\":{\"code\":\"WORK_ROLE_UNAVAILABLE\",\"message\":\"The original Service assignment is no longer current.\"}}"
+      }
+    },
+    {
+      "id": "schema-denied-read",
+      "options": {
+        "denyRead": true,
+        "action": "issue-part"
+      },
+      "trace": [
+        [
+          "actual.publicOrigin"
+        ],
+        [
+          "fake.requireWorkContext",
+          "holding"
+        ],
+        [
+          "request.json"
+        ],
+        [
+          "owner.changeServiceOrder",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.enforcement",
+          "enforced"
+        ]
+      ],
+      "response": {
+        "status": 422,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "{\"error\":{\"code\":\"VALIDATION_FAILED\",\"message\":\"Too small: expected number to be >0\"}}"
+      }
+    },
+    {
+      "id": "schema-denied-write",
+      "options": {
+        "denyWrite": true,
+        "action": "issue-part"
+      },
+      "trace": [
+        [
+          "actual.publicOrigin"
+        ],
+        [
+          "fake.requireWorkContext",
+          "holding"
+        ],
+        [
+          "request.json"
+        ],
+        [
+          "owner.changeServiceOrder",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.enforcement",
+          "enforced"
+        ]
+      ],
+      "response": {
+        "status": 422,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "{\"error\":{\"code\":\"VALIDATION_FAILED\",\"message\":\"Too small: expected number to be >0\"}}"
+      }
+    },
+    {
+      "id": "json-denied-write",
+      "options": {
+        "denyWrite": true,
+        "wire": "{"
+      },
+      "trace": [
+        [
+          "actual.publicOrigin"
+        ],
+        [
+          "fake.requireWorkContext",
+          "holding"
+        ],
+        [
+          "request.json"
+        ]
+      ],
+      "response": {
+        "status": 500,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "{\"error\":{\"code\":\"INTERNAL_ERROR\",\"message\":\"The request could not be completed.\"}}"
+      }
+    },
+    {
+      "id": "auth-no-json",
+      "options": {
+        "denyAuth": true,
+        "wire": "{"
+      },
+      "trace": [
+        [
+          "actual.publicOrigin"
+        ],
+        [
+          "fake.requireWorkContext",
+          "holding"
+        ]
+      ],
+      "response": {
+        "status": 401,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "{\"error\":{\"code\":\"UNAUTHENTICATED\",\"message\":\"Sign in to continue.\"}}"
+      }
+    }
+  ],
+  "schema": [
+    {
+      "id": "missing-number",
+      "first": {
+        "expected": "number",
+        "code": "invalid_type",
+        "path": [
+          "expectedVersion"
+        ],
+        "message": "Invalid input: expected number, received undefined"
+      },
+      "http": {
+        "status": 422,
+        "body": "{\"error\":{\"code\":\"VALIDATION_FAILED\",\"message\":\"Invalid input: expected number, received undefined\"}}"
+      }
+    },
+    {
+      "id": "wrong-number",
+      "first": {
+        "expected": "number",
+        "code": "invalid_type",
+        "path": [
+          "expectedVersion"
+        ],
+        "message": "Invalid input: expected number, received string"
+      },
+      "http": {
+        "status": 422,
+        "body": "{\"error\":{\"code\":\"VALIDATION_FAILED\",\"message\":\"Invalid input: expected number, received string\"}}"
+      }
+    },
+    {
+      "id": "missing-string",
+      "first": {
+        "expected": "string",
+        "code": "invalid_type",
+        "path": [
+          "reservationId"
+        ],
+        "message": "Invalid input: expected string, received undefined"
+      },
+      "http": {
+        "status": 422,
+        "body": "{\"error\":{\"code\":\"VALIDATION_FAILED\",\"message\":\"Invalid input: expected string, received undefined\"}}"
+      }
+    },
+    {
+      "id": "wrong-string",
+      "first": {
+        "expected": "string",
+        "code": "invalid_type",
+        "path": [
+          "reservationId"
+        ],
+        "message": "Invalid input: expected string, received null"
+      },
+      "http": {
+        "status": 422,
+        "body": "{\"error\":{\"code\":\"VALIDATION_FAILED\",\"message\":\"Invalid input: expected string, received null\"}}"
+      }
+    },
+    {
+      "id": "too-big-reason",
+      "first": {
+        "origin": "string",
+        "code": "too_big",
+        "maximum": 3000,
+        "inclusive": true,
+        "path": [
+          "reason"
+        ],
+        "message": "Too big: expected string to have <=3000 characters"
+      },
+      "http": {
+        "status": 422,
+        "body": "{\"error\":{\"code\":\"VALIDATION_FAILED\",\"message\":\"Too big: expected string to have <=3000 characters\"}}"
+      }
+    },
+    {
+      "id": "too-big-allocations",
+      "first": {
+        "origin": "array",
+        "code": "too_big",
+        "maximum": 200,
+        "inclusive": true,
+        "path": [
+          "allocations"
+        ],
+        "message": "Too big: expected array to have <=200 items"
+      },
+      "http": {
+        "status": 422,
+        "body": "{\"error\":{\"code\":\"VALIDATION_FAILED\",\"message\":\"Too big: expected array to have <=200 items\"}}"
+      }
+    },
+    {
+      "id": "invalid-entry-date",
+      "first": {
+        "origin": "string",
+        "code": "invalid_format",
+        "format": "date",
+        "pattern": "/^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$/",
+        "path": [
+          "entryDate"
+        ],
+        "message": "Invalid ISO date"
+      },
+      "http": {
+        "status": 422,
+        "body": "{\"error\":{\"code\":\"VALIDATION_FAILED\",\"message\":\"Invalid ISO date\"}}"
+      }
+    },
+    {
+      "id": "invalid-action",
+      "first": {
+        "code": "invalid_union",
+        "errors": [],
+        "note": "No matching discriminator",
+        "discriminator": "action",
+        "options": [
+          "schedule",
+          "reserve-part",
+          "issue-part",
+          "dispatch",
+          "start",
+          "resume",
+          "cancel",
+          "exception",
+          "complete",
+          "release-billing"
+        ],
+        "path": [
+          "action"
+        ],
+        "message": "Invalid discriminator value. Expected 'schedule' | 'reserve-part' | 'issue-part' | 'dispatch' | 'start' | 'resume' | 'cancel' | 'exception' | 'complete' | 'release-billing'"
+      },
+      "http": {
+        "status": 422,
+        "body": "{\"error\":{\"code\":\"VALIDATION_FAILED\",\"message\":\"Invalid discriminator value. Expected 'schedule' | 'reserve-part' | 'issue-part' | 'dispatch' | 'start' | 'resume' | 'cancel' | 'exception' | 'complete' | 'release-billing'\"}}"
+      }
+    }
+  ]
+}

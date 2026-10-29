@@ -1,0 +1,83 @@
+[package]
+name = "erpx-server-finance"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+autotests = false
+
+[package.metadata.erpx]
+verification-roots = ["../../fixtures/finance/rust-parts-draft", "../../scripts/testing/fixtures/generate-finance-parts-draft-oracle.ts", "../../fixtures/finance/rust-journal-wire", "../../scripts/testing/fixtures/generate-business-http-wire-oracle.ts", "../../fixtures/finance/rust-journal-review", "../../scripts/testing/fixtures/generate-finance-journal-review-oracle.ts", "../catalogue/src/iso-4217-current.json", "../../fixtures/finance/rust-instruments", "../../tests/support/finance", "../../scripts/testing/fixtures/generate-finance-rust-goldens.ts", "../../scripts/testing/fixtures/finance-node-oracle.ts"]
+
+[lib]
+path = "src/lib.rs"
+
+[features]
+contracts = ["dep:ts-rs", "dep:utoipa"]
+
+[dependencies]
+sha2.workspace = true
+ts-rs = { workspace = true, optional = true }
+utoipa = { workspace = true, optional = true }
+time.workspace = true
+futures-util.workspace = true
+erpx-server-workflow.workspace = true
+tokio.workspace = true
+erpx-server-shared.workspace = true
+erpx-server-runtime.workspace = true
+sqlx.workspace = true
+icu_collator.workspace = true
+icu_locale.workspace = true
+num-bigint.workspace = true
+num-traits.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+base64.workspace = true
+tokio.workspace = true
+uuid.workspace = true
+
+[[test]]
+name = "instrument_policies"
+path = "../../tests/unit/finance/rust-instrument-policies.test.rs"
+
+[[test]]
+name = "journal_postgres"
+path = "../../tests/integration/finance/rust-journal-postgres.test.rs"
+
+[[test]]
+name = "journal_review"
+path = "../../tests/unit/finance/rust-journal-review.test.rs"
+
+[[test]]
+name = "journal_review_postgres"
+path = "../../tests/integration/finance/rust-journal-review-postgres.test.rs"
+
+[lints]
+workspace = true
+
+[[test]]
+name = "journal_source_postgres"
+path = "../../tests/integration/finance/rust-journal-source-postgres.test.rs"
+
+[[test]]
+name = "inventory_consumption_postgres"
+path = "../../tests/integration/finance/rust-inventory-consumption-postgres.test.rs"
+
+[[test]]
+name = "journal_wire"
+path = "../../tests/unit/finance/rust-journal-wire.test.rs"
+
+[[test]]
+name = "parts_draft"
+path = "../../tests/unit/finance/rust-parts-draft.test.rs"
+
+[[test]]
+name = "manual_draft_edit_postgres"
+path = "../../tests/integration/finance/rust-manual-draft-edit-postgres.test.rs"
+
+[[test]]
+name = "initial_count_finance_postgres"
+path = "../../tests/integration/finance/rust-initial-count-finance-postgres.test.rs"

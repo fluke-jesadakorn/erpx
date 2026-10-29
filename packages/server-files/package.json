@@ -170,6 +170,7 @@
     "./public/attachments/upload": "./src/public/attachments/upload.ts",
     "./public/attachments/scanner": "./src/public/attachments/scanner.ts",
     "./public/attachments/reconciliation-adjudication": "./src/public/attachments/reconciliation-adjudication.ts",
+    "./public/attachments/native-field-attachment": "./src/public/attachments/native-field-attachment.ts",
     "./public/attachments/service": "./src/public/attachments/service.ts",
     "./public/attachments/preview": "./src/public/attachments/preview.ts",
     "./public/legal-portal-binding": "./src/public/legal-portal-binding.ts",
@@ -211,13 +212,15 @@
     "./domain/attachments/policy": "./src/domain/attachments/policy.ts",
     "./domain/attachments/portal-collaboration-policy": "./src/domain/attachments/portal-collaboration-policy.ts",
     "./domain/streamed-file": "./src/domain/streamed-file.ts",
-    "./domain/upload-validation": "./src/domain/upload-validation.ts"
+    "./domain/upload-validation": "./src/domain/upload-validation.ts",
+    "./public/attachments/native-field-bind": "./src/public/attachments/native-field-bind.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
     "lint": "eslint src"
   },
   "dependencies": {
+    "@erpx/contracts": "workspace:*",
     "@erpx/catalogue": "workspace:*",
     "@erpx/feature-identity_access": "workspace:*",
     "@erpx/feature-people_payroll": "workspace:*",
@@ -259,6 +262,6 @@
     "@erpx/server-talent": "workspace:*",
     "@erpx/server-workflow": "workspace:*",
     "server-only": "0.0.1",
-    "sharp": "0.35.4"
+    "sharp": "0.35.5"
   }
 }

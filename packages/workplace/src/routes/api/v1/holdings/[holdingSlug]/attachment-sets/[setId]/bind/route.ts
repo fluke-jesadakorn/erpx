@@ -1,4 +1,5 @@
 import type { RouteContext } from "@erpx/contracts/next-routes";
+import {nativeFieldBind} from "@erpx/server-files/public/attachments/native-field-bind";
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import {appAttachmentSources} from "@erpx/server-files/public/app-attachment-sources";
 import { z } from "zod";
@@ -27,6 +28,7 @@ export async function POST(
       );
     const { holdingSlug, setId } = await context.params;
     const actor = await requireWorkContext(holdingSlug);
+    const original = request.clone();
     const parsed = schema.safeParse(await request.json());
     if (!parsed.success)
       throw new ApiError(
@@ -34,6 +36,8 @@ export async function POST(
         "VALIDATION_FAILED",
         parsed.error.issues[0]?.message ?? "Invalid record document bind.",
       );
+    const native = await nativeFieldBind(request.headers,actor,setId,{key,body:await original.text(),expectedVersion:parsed.data.expectedTargetVersion});
+    if(native) return Response.json(canonicalDestinationLinks({data:native}),{headers:{"Cache-Control":"private, no-store"}});
     const { write } = await holdingResources(actor.holdingId);
     const compatibilityAdapter = await appAttachmentSources(write).compatibilitySet(setId,actor.companyId);
     return Response.json(canonicalDestinationLinks({

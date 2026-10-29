@@ -1,4 +1,5 @@
 "use client";
+import {holdingFetch} from '@erpx/contracts/holding-fetch';
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
@@ -29,8 +30,8 @@ async function responseSnapshot(response: Response): Promise<AccountPreferenceSn
 function model(snapshot: AccountPreferenceSnapshot, refresh: () => void) {
   const languageRefresh=createAccountLanguageRefresh(snapshot.preference?.language??'en',{active:()=>!contextIsSwitching()&&typeof document!=='undefined'&&document.visibilityState!=='hidden',dirty:hasUnsavedWork,refresh});
   const client = createAccountPreferencesClient(snapshot, {
-    read: signal => fetch("/api/v1/account/preferences", { cache: "no-store", signal }).then(responseSnapshot),
-    write: (accountKey, expectedVersion, values, signal) => fetch("/api/v1/account/preferences", {
+    read: signal => holdingFetch("/api/v1/account/preferences", { cache: "no-store", signal }).then(responseSnapshot),
+    write: (accountKey, expectedVersion, values, signal) => holdingFetch("/api/v1/account/preferences", {
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ accountKey, expectedVersion, ...values }), signal,
     }).then(responseSnapshot),

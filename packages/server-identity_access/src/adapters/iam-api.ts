@@ -17,7 +17,7 @@ import {
   revokeEmergency,
 } from "@erpx/server-identity_access/public/iam-recovery";
 import "server-only";
-import { peopleAccessSnapshot, previewPeopleAccess, applyPeopleAccess } from "@erpx/server-identity_access/public/people-access";
+import { peopleRelationshipsSnapshot, previewPeopleRelationships, applyPeopleRelationships, peopleAccessSnapshot, previewPeopleAccess, applyPeopleAccess } from "@erpx/server-identity_access/public/people-access";
 import { z } from "zod";
 import { currentSession,requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import {bindIamReviewEvidence,bindIamMigrationEvidence} from "@erpx/server-platform_administration/public/system-evidence";
@@ -170,6 +170,7 @@ export async function iamApi(
       route = path.join("/"),
       key = request.headers.get("Idempotency-Key") ?? "";
     if (request.method === "GET") {
+      if (route === "people-relationships") return Response.json({ data: await peopleRelationshipsSnapshot(db, actor) }, { headers: { "Cache-Control": "private, no-store" } });
       if (route === "people-access") return Response.json(canonicalDestinationLinks({ data: await peopleAccessSnapshot(db, actor) }), { headers: { "Cache-Control": "no-store" } });
       if (route === "audit") {
         const params = new URL(request.url).searchParams;
@@ -272,7 +273,9 @@ export async function iamApi(
     sameOrigin(request);
     const input = await request.json();
     let result: unknown;
-    if (route === "people-access/preview") result = await previewPeopleAccess(db, actor, input.change);
+    if (route === "people-relationships/preview") result = await previewPeopleRelationships(db, actor, input.change);
+    else if (route === "people-relationships/apply") result = await applyPeopleRelationships(db, actor, z.string().uuid().parse(input.previewToken), key);
+    else if (route === "people-access/preview") result = await previewPeopleAccess(db, actor, input.change);
     else if (route === "people-access/apply") result = await applyPeopleAccess(db, actor, z.string().uuid().parse(input.previewToken), key);
     else if(holdingSlug&&path.length===3&&path[2]==='evidence'&&path[0]==='reviews')
       result=await bindIamReviewEvidence(db,await requireWorkContext(holdingSlug),path[1],input,key);

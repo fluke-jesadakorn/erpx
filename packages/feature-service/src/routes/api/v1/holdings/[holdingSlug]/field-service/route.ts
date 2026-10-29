@@ -1,3 +1,4 @@
+import { nativeReservePost, nativeReserveReadback, nativeIssueReadback, nativeRequestReadback, nativeOrderCreateReadback, nativeVisitReadback, nativeBillingReadback, nativeAgreementReviewReadback, isBillingOrderCommand, isAgreementCreateCommand, isAgreementReviewCommand, isCancelOrderCommand, isVisitRecoveryCommand, isVisitCompletionCommand, isVisitOrderCommand, isOrderCreateCommand, isReserveOrderCommand, isIssueOrderCommand, isRequestCommand } from "./native-reserve";
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import { requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
@@ -15,8 +16,85 @@ type C = { params: Promise<{ holdingSlug: string }> };
 const headers = { "Cache-Control": "private, no-store" };
 export async function GET(r: Request, c: C) {
   try {
-    const a = await requireWorkContext((await c.params).holdingSlug),
-      id = new URL(r.url).searchParams.get("id");
+    const slug=(await c.params).holdingSlug, query=new URL(r.url).searchParams;
+    const billingKey=query.get("nativeBillingKey");
+    if(billingKey!==null) {
+      if(!billingKey||[...query.keys()].length!==1) throw new ApiError(404,"NOT_FOUND","Service order not found.");
+      const native=await nativeBillingReadback(r,slug,billingKey);
+      if(native)return native;
+      throw new ApiError(404,"NOT_FOUND","Service order not found.");
+    }
+    const agreementCreateKey=query.get("nativeAgreementCreateKey");
+    if(agreementCreateKey!==null) {
+      if(!agreementCreateKey||[...query.keys()].length!==1) throw new ApiError(404,"NOT_FOUND","Service agreement not found.");
+      const native=await nativeAgreementReviewReadback(r,slug,agreementCreateKey,true);
+      if(native)return native;
+      throw new ApiError(404,"NOT_FOUND","Service agreement not found.");
+    }
+    const agreementReviewKey=query.get("nativeAgreementReviewKey");
+    if(agreementReviewKey!==null) {
+      if(!agreementReviewKey||[...query.keys()].length!==1) throw new ApiError(404,"NOT_FOUND","Service agreement not found.");
+      const native=await nativeAgreementReviewReadback(r,slug,agreementReviewKey);
+      if(native)return native;
+      throw new ApiError(404,"NOT_FOUND","Service agreement not found.");
+    }
+    const cancelKey=query.get("nativeCancelKey");
+    if(cancelKey!==null) {
+      if(!cancelKey||[...query.keys()].length!==1) throw new ApiError(404,"NOT_FOUND","Service order not found.");
+      const native=await nativeVisitReadback(r,slug,cancelKey,'cancel');
+      if(native)return native;
+      throw new ApiError(404,"NOT_FOUND","Service order not found.");
+    }
+    const recoveryKey=query.get("nativeVisitRecoveryKey");
+    if(recoveryKey!==null) {
+      if(!recoveryKey||[...query.keys()].length!==1) throw new ApiError(404,"NOT_FOUND","Service order not found.");
+      const native=await nativeVisitReadback(r,slug,recoveryKey,'recovery');
+      if(native)return native;
+      throw new ApiError(404,"NOT_FOUND","Service order not found.");
+    }
+    const completionKey=query.get("nativeVisitCompletionKey");
+    if(completionKey!==null) {
+      if(!completionKey||[...query.keys()].length!==1) throw new ApiError(404,"NOT_FOUND","Service order not found.");
+      const native=await nativeVisitReadback(r,slug,completionKey,'completion');
+      if(native)return native;
+      throw new ApiError(404,"NOT_FOUND","Service order not found.");
+    }
+    const visitKey=query.get("nativeVisitKey");
+    if(visitKey!==null) {
+      if(!visitKey||[...query.keys()].length!==1) throw new ApiError(404,"NOT_FOUND","Service order not found.");
+      const native=await nativeVisitReadback(r,slug,visitKey);
+      if(native)return native;
+      throw new ApiError(404,"NOT_FOUND","Service order not found.");
+    }
+    const orderCreateKey=query.get("nativeOrderCreateKey");
+    if(orderCreateKey!==null) {
+      if(!orderCreateKey||[...query.keys()].length!==1) throw new ApiError(404,"NOT_FOUND","Service order not found.");
+      const native=await nativeOrderCreateReadback(r,slug,orderCreateKey);
+      if(native)return native;
+      throw new ApiError(404,"NOT_FOUND","Service order not found.");
+    }
+    const requestKey=query.get("nativeRequestKey");
+    if(requestKey!==null) {
+      if(!requestKey||[...query.keys()].length!==1) throw new ApiError(404,"NOT_FOUND","Service request not found.");
+      const native=await nativeRequestReadback(r,slug,requestKey);
+      if(native)return native;
+      throw new ApiError(404,"NOT_FOUND","Service request not found.");
+    }
+    const issueOrder=query.get("nativeIssueOrder"), issueKey=query.get("nativeIssueKey");
+    if(issueOrder!==null || issueKey!==null) {
+      if(!issueOrder||!issueKey||[...query.keys()].length!==2) throw new ApiError(404,"NOT_FOUND","Service order not found.");
+      const native=await nativeIssueReadback(r,slug,issueOrder,issueKey);
+      if(native)return native;
+      throw new ApiError(404,"NOT_FOUND","Service order not found.");
+    }
+    const order=query.get("nativeReserveOrder"), reservation=query.get("nativeReserveId");
+    if(order!==null || reservation!==null) {
+      if(!order||!reservation||[...query.keys()].length!==2) throw new ApiError(404,"NOT_FOUND","Service order not found.");
+      const native=await nativeReserveReadback(r,slug,order,reservation);
+      if(native)return native;
+      throw new ApiError(404,"NOT_FOUND","Service order not found.");
+    }
+    const a = await requireWorkContext(slug), id = query.get("id");
     return Response.json(
       canonicalDestinationLinks({
         data: id
@@ -47,8 +125,16 @@ export async function POST(r: Request, c: C) {
         "COMMAND_KEY_REQUIRED",
         "Idempotency-Key is required.",
       );
-    const a = await requireWorkContext((await c.params).holdingSlug),
-      input = await r.json();
+    const holdingSlug=(await c.params).holdingSlug;
+    const a = await requireWorkContext(holdingSlug);
+    const original=process.env.ERPX_NATIVE_FIELD_SERVICE_RESERVE_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_ISSUE_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_REQUEST_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_ORDER_CREATE_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_VISIT_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_VISIT_COMPLETION_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_VISIT_RECOVERY_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_CANCEL_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_AGREEMENT_REVIEW_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_AGREEMENT_CREATE_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_BILLING_CONFIG === undefined ? undefined : r.clone();
+    let input: Awaited<ReturnType<Request["json"]>>;
+    try { input=await r.json(); } catch(error) { void original?.body?.cancel().catch(()=>undefined); throw error; }
+    if(original && (isBillingOrderCommand(input) && process.env.ERPX_NATIVE_FIELD_SERVICE_BILLING_CONFIG !== undefined || isAgreementCreateCommand(input) && process.env.ERPX_NATIVE_FIELD_SERVICE_AGREEMENT_CREATE_CONFIG !== undefined || isAgreementReviewCommand(input) && process.env.ERPX_NATIVE_FIELD_SERVICE_AGREEMENT_REVIEW_CONFIG !== undefined || isRequestCommand(input) && process.env.ERPX_NATIVE_FIELD_SERVICE_REQUEST_CONFIG !== undefined || isOrderCreateCommand(input) && process.env.ERPX_NATIVE_FIELD_SERVICE_ORDER_CREATE_CONFIG !== undefined || isVisitOrderCommand(input) && process.env.ERPX_NATIVE_FIELD_SERVICE_VISIT_CONFIG !== undefined || isVisitCompletionCommand(input) && process.env.ERPX_NATIVE_FIELD_SERVICE_VISIT_COMPLETION_CONFIG !== undefined || isVisitRecoveryCommand(input) && process.env.ERPX_NATIVE_FIELD_SERVICE_VISIT_RECOVERY_CONFIG !== undefined || isCancelOrderCommand(input) && process.env.ERPX_NATIVE_FIELD_SERVICE_CANCEL_CONFIG !== undefined || isReserveOrderCommand(input) && process.env.ERPX_NATIVE_FIELD_SERVICE_RESERVE_CONFIG !== undefined || isIssueOrderCommand(input) && process.env.ERPX_NATIVE_FIELD_SERVICE_ISSUE_CONFIG !== undefined)) {
+      const native=await nativeReservePost(original,holdingSlug,input);
+      if(native)return native;
+      throw new ApiError(503,"NATIVE_SERVICE_UNAVAILABLE","Unable to confirm the Service command.");
+    } else { void original?.body?.cancel().catch(()=>undefined); }
     const data =
       input.entity === "request" ? await createServiceRequest(a,input,key) :
       input.entity === "agreement"

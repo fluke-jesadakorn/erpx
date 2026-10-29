@@ -1,0 +1,590 @@
+{
+  "version": 1,
+  "baseline": "a5ed8737a2f05eff1ee9841fda4a094b3926d732",
+  "adr": "docs/adr/ADR-052-rust-backend-and-domain-aligned-frontend.md",
+  "acceptance": false,
+  "backendMigrated": false,
+  "owners": [
+    {
+      "id": "brand",
+      "package": "erpx-server-brand",
+      "phase": "pending",
+      "businessMigrationComplete": false,
+      "surfaces": {
+        "domain": "pending",
+        "application": "pending",
+        "http": "pending",
+        "ssr": "pending",
+        "jobs": "pending",
+        "providers": "pending"
+      }
+    },
+    {
+      "id": "commercial",
+      "package": "erpx-server-commercial",
+      "phase": "foundation",
+      "businessMigrationComplete": false,
+      "surfaces": {
+        "domain": "foundation",
+        "application": "foundation",
+        "http": "pending",
+        "ssr": "pending",
+        "jobs": "pending",
+        "providers": "pending"
+      }
+    },
+    {
+      "id": "identity_access",
+      "package": "erpx-server-identity-access",
+      "phase": "foundation",
+      "businessMigrationComplete": false,
+      "surfaces": {
+        "domain": "foundation",
+        "application": "foundation",
+        "http": "foundation",
+        "ssr": "pending",
+        "jobs": "foundation",
+        "providers": "foundation"
+      }
+    },
+    {
+      "id": "organization",
+      "package": "erpx-server-organization",
+      "phase": "foundation",
+      "businessMigrationComplete": false,
+      "surfaces": {
+        "domain": "foundation",
+        "application": "foundation",
+        "http": "pending",
+        "ssr": "pending",
+        "jobs": "pending",
+        "providers": "pending"
+      }
+    },
+    {
+      "id": "platform_administration",
+      "package": "erpx-server-platform-administration",
+      "phase": "foundation",
+      "businessMigrationComplete": false,
+      "surfaces": {
+        "domain": "foundation",
+        "application": "foundation",
+        "http": "pending",
+        "ssr": "pending",
+        "jobs": "pending",
+        "providers": "pending"
+      }
+    },
+    {
+      "id": "customer_360",
+      "package": "erpx-server-customer-360",
+      "phase": "pending",
+      "businessMigrationComplete": false,
+      "surfaces": {
+        "domain": "pending",
+        "application": "pending",
+        "http": "pending",
+        "ssr": "pending",
+        "jobs": "pending",
+        "providers": "pending"
+      }
+    },
+    {
+      "id": "customer_authority",
+      "package": "erpx-server-customer-authority",
+      "phase": "pending",
+      "businessMigrationComplete": false,
+      "surfaces": {
+        "domain": "pending",
+        "application": "pending",
+        "http": "pending",
+        "ssr": "pending",
+        "jobs": "pending",
+        "providers": "pending"
+      }
+    },
+    {
+      "id": "support",
+      "package": "erpx-server-support",
+      "phase": "pending",
+      "businessMigrationComplete": false,
+      "surfaces": {
+        "domain": "pending",
+        "application": "pending",
+        "http": "pending",
+        "ssr": "pending",
+        "jobs": "pending",
+        "providers": "pending"
+      }
+    },
+    {
+      "id": "finance",
+      "package": "erpx-server-finance",
+      "phase": "foundation",
+      "businessMigrationComplete": false,
+      "surfaces": {
+        "domain": "foundation",
+        "application": "foundation",
+        "http": "pending",
+        "ssr": "pending",
+        "jobs": "pending",
+        "providers": "pending"
+      }
+    },
+    {
+      "id": "pos",
+      "package": "erpx-server-pos",
+      "phase": "pending",
+      "businessMigrationComplete": false,
+      "surfaces": {
+        "domain": "pending",
+        "application": "pending",
+        "http": "pending",
+        "ssr": "pending",
+        "jobs": "pending",
+        "providers": "pending"
+      }
+    },
+    {
+      "id": "sales",
+      "package": "erpx-server-sales",
+      "phase": "pending",
+      "businessMigrationComplete": false,
+      "surfaces": {
+        "domain": "pending",
+        "application": "pending",
+        "http": "pending",
+        "ssr": "pending",
+        "jobs": "pending",
+        "providers": "pending"
+      }
+    },
+    {
+      "id": "assets",
+      "package": "erpx-server-assets",
+      "phase": "foundation",
+      "businessMigrationComplete": false,
+      "surfaces": {
+        "domain": "foundation",
+        "application": "pending",
+        "http": "pending",
+        "ssr": "pending",
+        "jobs": "pending",
+        "providers": "pending"
+      }
+    },
+    {
+      "id": "inventory",
+      "package": "erpx-server-inventory",
+      "phase": "foundation",
+      "businessMigrationComplete": false,
+      "surfaces": {
+        "domain": "foundation",
+        "application": "foundation",
+        "http": "pending",
+        "ssr": "pending",
+        "jobs": "pending",
+        "providers": "pending"
+      }
+    },
+    {
+      "id": "maintenance",
+      "package": "erpx-server-maintenance",
+      "phase": "foundation",
+      "businessMigrationComplete": false,
+      "surfaces": {
+        "domain": "foundation",
+        "application": "foundation",
+        "http": "pending",
+        "ssr": "pending",
+        "jobs": "pending",
+        "providers": "pending"
+      }
+    },
+    {
+      "id": "operations",
+      "package": "erpx-server-operations",
+      "phase": "pending",
+      "businessMigrationComplete": false,
+      "surfaces": {
+        "domain": "pending",
+        "application": "pending",
+        "http": "pending",
+        "ssr": "pending",
+        "jobs": "pending",
+        "providers": "pending"
+      }
+    },
+    {
+      "id": "procurement",
+      "package": "erpx-server-procurement",
+      "phase": "pending",
+      "businessMigrationComplete": false,
+      "surfaces": {
+        "domain": "pending",
+        "application": "pending",
+        "http": "pending",
+        "ssr": "pending",
+        "jobs": "pending",
+        "providers": "pending"
+      }
+    },
+    {
+      "id": "quality",
+      "package": "erpx-server-quality",
+      "phase": "foundation",
+      "businessMigrationComplete": false,
+      "surfaces": {
+        "domain": "pending",
+        "application": "pending",
+        "http": "pending",
+        "ssr": "pending",
+        "jobs": "pending",
+        "providers": "pending"
+      }
+    },
+    {
+      "id": "legal",
+      "package": "erpx-server-legal",
+      "phase": "foundation",
+      "businessMigrationComplete": false,
+      "surfaces": {
+        "domain": "foundation",
+        "application": "foundation",
+        "http": "pending",
+        "ssr": "pending",
+        "jobs": "foundation",
+        "providers": "foundation"
+      },
+      "capabilities": {
+        "offlinePdfValidation": {
+          "implementation": "candidate",
+          "conformance": "in-progress",
+          "runtimeBinding": "pending"
+        }
+      }
+    },
+    {
+      "id": "people_payroll",
+      "package": "erpx-server-people-payroll",
+      "phase": "foundation",
+      "businessMigrationComplete": false,
+      "surfaces": {
+        "domain": "foundation",
+        "application": "foundation",
+        "http": "pending",
+        "ssr": "pending",
+        "jobs": "pending",
+        "providers": "pending"
+      }
+    },
+    {
+      "id": "crm",
+      "package": "erpx-server-crm",
+      "phase": "pending",
+      "businessMigrationComplete": false,
+      "surfaces": {
+        "domain": "pending",
+        "application": "pending",
+        "http": "pending",
+        "ssr": "pending",
+        "jobs": "pending",
+        "providers": "pending"
+      }
+    },
+    {
+      "id": "marketing",
+      "package": "erpx-server-marketing",
+      "phase": "pending",
+      "businessMigrationComplete": false,
+      "surfaces": {
+        "domain": "pending",
+        "application": "pending",
+        "http": "pending",
+        "ssr": "pending",
+        "jobs": "pending",
+        "providers": "pending"
+      }
+    },
+    {
+      "id": "manufacturing",
+      "package": "erpx-server-manufacturing",
+      "phase": "pending",
+      "businessMigrationComplete": false,
+      "surfaces": {
+        "domain": "pending",
+        "application": "pending",
+        "http": "pending",
+        "ssr": "pending",
+        "jobs": "pending",
+        "providers": "pending"
+      }
+    },
+    {
+      "id": "planning",
+      "package": "erpx-server-planning",
+      "phase": "pending",
+      "businessMigrationComplete": false,
+      "surfaces": {
+        "domain": "pending",
+        "application": "pending",
+        "http": "pending",
+        "ssr": "pending",
+        "jobs": "pending",
+        "providers": "pending"
+      }
+    },
+    {
+      "id": "projects",
+      "package": "erpx-server-projects",
+      "phase": "pending",
+      "businessMigrationComplete": false,
+      "surfaces": {
+        "domain": "pending",
+        "application": "pending",
+        "http": "pending",
+        "ssr": "pending",
+        "jobs": "pending",
+        "providers": "pending"
+      }
+    },
+    {
+      "id": "ecommerce",
+      "package": "erpx-server-ecommerce",
+      "phase": "pending",
+      "businessMigrationComplete": false,
+      "surfaces": {
+        "domain": "pending",
+        "application": "pending",
+        "http": "pending",
+        "ssr": "pending",
+        "jobs": "pending",
+        "providers": "pending"
+      }
+    },
+    {
+      "id": "benefits",
+      "package": "erpx-server-benefits",
+      "phase": "pending",
+      "businessMigrationComplete": false,
+      "surfaces": {
+        "domain": "pending",
+        "application": "pending",
+        "http": "pending",
+        "ssr": "pending",
+        "jobs": "pending",
+        "providers": "pending"
+      }
+    },
+    {
+      "id": "learning",
+      "package": "erpx-server-learning",
+      "phase": "pending",
+      "businessMigrationComplete": false,
+      "surfaces": {
+        "domain": "pending",
+        "application": "pending",
+        "http": "pending",
+        "ssr": "pending",
+        "jobs": "pending",
+        "providers": "pending"
+      }
+    },
+    {
+      "id": "talent",
+      "package": "erpx-server-talent",
+      "phase": "pending",
+      "businessMigrationComplete": false,
+      "surfaces": {
+        "domain": "pending",
+        "application": "pending",
+        "http": "pending",
+        "ssr": "pending",
+        "jobs": "pending",
+        "providers": "pending"
+      }
+    },
+    {
+      "id": "field_service",
+      "package": "erpx-server-field-service",
+      "phase": "pending",
+      "businessMigrationComplete": false,
+      "surfaces": {
+        "domain": "pending",
+        "application": "pending",
+        "http": "pending",
+        "ssr": "pending",
+        "jobs": "pending",
+        "providers": "pending"
+      }
+    },
+    {
+      "id": "agent",
+      "package": "erpx-server-agent",
+      "phase": "pending",
+      "businessMigrationComplete": false,
+      "surfaces": {
+        "domain": "pending",
+        "application": "pending",
+        "http": "pending",
+        "ssr": "pending",
+        "jobs": "pending",
+        "providers": "pending"
+      }
+    },
+    {
+      "id": "collaboration",
+      "package": "erpx-server-collaboration",
+      "phase": "foundation",
+      "businessMigrationComplete": false,
+      "surfaces": {
+        "domain": "foundation",
+        "application": "pending",
+        "http": "pending",
+        "ssr": "pending",
+        "jobs": "pending",
+        "providers": "pending"
+      }
+    },
+    {
+      "id": "pms",
+      "package": "erpx-server-pms",
+      "phase": "foundation",
+      "businessMigrationComplete": false,
+      "surfaces": {
+        "domain": "foundation",
+        "application": "foundation",
+        "http": "pending",
+        "ssr": "pending",
+        "jobs": "pending",
+        "providers": "pending"
+      }
+    },
+    {
+      "id": "manage_erpx",
+      "package": "erpx-server-manage-erpx",
+      "phase": "foundation",
+      "businessMigrationComplete": false,
+      "surfaces": {
+        "domain": "foundation",
+        "application": "foundation",
+        "http": "pending",
+        "ssr": "pending",
+        "jobs": "pending",
+        "providers": "pending"
+      }
+    },
+    {
+      "id": "commerce",
+      "package": "erpx-server-commerce",
+      "phase": "foundation",
+      "businessMigrationComplete": false,
+      "surfaces": {
+        "domain": "pending",
+        "application": "pending",
+        "http": "pending",
+        "ssr": "pending",
+        "jobs": "pending",
+        "providers": "pending"
+      }
+    },
+    {
+      "id": "billing",
+      "package": "erpx-server-billing",
+      "phase": "pending",
+      "businessMigrationComplete": false,
+      "surfaces": {
+        "domain": "pending",
+        "application": "pending",
+        "http": "pending",
+        "ssr": "pending",
+        "jobs": "pending",
+        "providers": "pending"
+      }
+    },
+    {
+      "id": "records",
+      "package": "erpx-server-records",
+      "phase": "pending",
+      "businessMigrationComplete": false,
+      "surfaces": {
+        "domain": "pending",
+        "application": "pending",
+        "http": "pending",
+        "ssr": "pending",
+        "jobs": "pending",
+        "providers": "pending"
+      }
+    },
+    {
+      "id": "workflow",
+      "package": "erpx-server-workflow",
+      "phase": "foundation",
+      "businessMigrationComplete": false,
+      "surfaces": {
+        "domain": "foundation",
+        "application": "foundation",
+        "http": "pending",
+        "ssr": "pending",
+        "jobs": "pending",
+        "providers": "pending"
+      }
+    },
+    {
+      "id": "files",
+      "package": "erpx-server-files",
+      "phase": "foundation",
+      "businessMigrationComplete": false,
+      "surfaces": {
+        "domain": "foundation",
+        "application": "foundation",
+        "http": "pending",
+        "ssr": "pending",
+        "jobs": "pending",
+        "providers": "foundation"
+      }
+    },
+    {
+      "id": "work_projection",
+      "package": "erpx-server-work-projection",
+      "phase": "pending",
+      "businessMigrationComplete": false,
+      "surfaces": {
+        "domain": "pending",
+        "application": "pending",
+        "http": "pending",
+        "ssr": "pending",
+        "jobs": "pending",
+        "providers": "pending"
+      }
+    },
+    {
+      "id": "runtime",
+      "package": "erpx-server-runtime",
+      "phase": "foundation",
+      "businessMigrationComplete": false,
+      "surfaces": {
+        "domain": "pending",
+        "application": "pending",
+        "http": "foundation",
+        "ssr": "pending",
+        "jobs": "pending",
+        "providers": "pending"
+      }
+    },
+    {
+      "id": "shared",
+      "package": "erpx-server-shared",
+      "phase": "foundation",
+      "businessMigrationComplete": false,
+      "surfaces": {
+        "domain": "foundation",
+        "application": "foundation",
+        "http": "pending",
+        "ssr": "pending",
+        "jobs": "pending",
+        "providers": "pending"
+      }
+    }
+  ]
+}

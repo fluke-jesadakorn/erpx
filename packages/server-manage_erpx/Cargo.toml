@@ -1,0 +1,16 @@
+[package]
+name = "erpx-server-manage-erpx"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+autotests = false
+
+[dependencies]
+erpx-server-shared.workspace = true
+erpx-server-runtime.workspace = true
+sqlx.workspace = true
+
+[lints]
+workspace = true

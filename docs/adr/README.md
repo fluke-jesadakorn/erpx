@@ -1,5 +1,7 @@
 # Architecture decisions
 
+Current development reading order: [ADR-051 Holding addresses](ADR-051-holding-addresses-and-workspace-paths.md), [ADR-050 Apps/Work](ADR-050-apps-feed-and-work-retirement.md), then [ADR-049 independent apps](ADR-049-product-app-workspaces-and-development-verification.md). There are21 active apps plus retained non-product compatibility source, and three Holding hosts plus Account. Historical decisions retain their original text; supersession notices identify the parts that no longer govern development. [README recovery](../../README.md#recovery) replaces the removed standalone cutover document.
+
 Reviewed 2026-10-03. Decisions retain their identifiers and original rationale; implementation acceptance is recorded separately. Current stack: ADR-020/024/032; configured file storage: ADR-035/036; Sandbox pricing: ADR-037; manual currencies and immutable money snapshots: ADR-038.
 
 | Decision | Current disposition |
@@ -67,3 +69,13 @@ Historical Rust terms and dated rollout evidence in older decisions apply to tha
 - [ADR-048 — Ticket-bound Support Portal](ADR-048-ticket-bound-support-portal.md)
 
 - [ADR-049 — Product app workspaces and development verification](ADR-049-product-app-workspaces-and-development-verification.md)
+
+| [ADR-050: Apps Feed and Work retirement](ADR-050-apps-feed-and-work-retirement.md) | Accepted for development; Cloudflare retirement requires current administration access. |
+
+- [ADR-051: Holding addresses and workspace paths](ADR-051-holding-addresses-and-workspace-paths.md) — development host identity, explicit scope and shared app namespaces.
+
+- [ADR-052: Rust modular monolith and domain-aligned frontend](ADR-052-rust-backend-and-domain-aligned-frontend.md) — accepted development migration and sequential container preparation.
+
+- [ADR-053: Explicit PDF seed Key Usage prohibitions](ADR-053-explicit-pdf-seed-key-usage-prohibitions.md) — preserve explicit prohibitions and record the narrow legacy-oracle security exception.
+
+- [ADR-054: Competing delta CRLs](ADR-054-preserve-proved-revocation-across-competing-delta-crls.md) — preserve independently proved revocation and record its separate legacy-oracle exception.

@@ -157,57 +157,57 @@
     },
     {
       "from": "src/app/holdings/[holdingSlug]/insights/executive/records/executive_source/[id]/[recordSection]/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/insights/executive/records/executive_source/[id]/[recordSection]/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/insights/executive/records/executive_source/[id]/[recordSection]/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/insights/executive/records/executive_source/[id]/[recordSection]/page",
       "sha256": "20b2097214bb7a6664f4c0e687a7077d3bac72521bbbf7f03a1893b3a8a2bd7d"
     },
     {
       "from": "src/app/holdings/[holdingSlug]/insights/executive/records/executive_source/[id]/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/insights/executive/records/executive_source/[id]/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/insights/executive/records/executive_source/[id]/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/insights/executive/records/executive_source/[id]/page",
       "sha256": "5db817e4fc932bea41a17d972f1f9757c3e97c259265228ec236500daf8f7272"
     },
     {
       "from": "src/app/holdings/[holdingSlug]/insights/executive/records/executive_sources/[id]/[recordSection]/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/insights/executive/records/executive_sources/[id]/[recordSection]/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/insights/executive/records/executive_sources/[id]/[recordSection]/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/insights/executive/records/executive_sources/[id]/[recordSection]/page",
       "sha256": "4bac74a3326d7697ae6228175dad4fc86009dcc9d39ce23db98767cd804f365d"
     },
     {
       "from": "src/app/holdings/[holdingSlug]/insights/executive/records/executive_sources/[id]/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/insights/executive/records/executive_sources/[id]/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/insights/executive/records/executive_sources/[id]/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/insights/executive/records/executive_sources/[id]/page",
       "sha256": "bb964ca137c309e0ffd901c51c63cac3ec64f36f44c1f1e4eebb4ea324e7d537"
     },
     {
       "from": "src/app/holdings/[holdingSlug]/insights/executive/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/insights/executive/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/insights/executive/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/insights/executive/page",
       "sha256": "670f68241e4b9179287eb3fb08a383e5e97e78c5e25932ea3dc2dcc4acb0adc5"
     },
     {
       "from": "src/app/holdings/[holdingSlug]/insights/executive/reports/[reportId]/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/insights/executive/reports/[reportId]/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/insights/executive/reports/[reportId]/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/insights/executive/reports/[reportId]/page",
       "sha256": "9052064c53920e693368ab8b46b31e4f373f8816eaac9de64fc315e9d6332544"
     },
     {
       "from": "src/app/holdings/[holdingSlug]/insights/executive/reports/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/insights/executive/reports/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/insights/executive/reports/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/insights/executive/reports/page",
       "sha256": "5e2d9475d20066c6f8a7412d79c1316771a36cb6c8352a146030597463085e43"
     },
     {
       "from": "src/app/holdings/[holdingSlug]/home/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/home/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/home/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/home/page",
       "sha256": "7a776e6f55fb319630f22706233876d3f5d71a9a88b3e9367072a20f773d25f5"
     },
@@ -220,29 +220,29 @@
     },
     {
       "from": "src/app/holdings/[holdingSlug]/projects-routines/tasks/new/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/projects-routines/tasks/new/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/projects-routines/tasks/new/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/projects-routines/tasks/new/page",
       "sha256": "4c34155d6ca6ebe3055954853c7cfa45a4a0aceebb6198fb905ac4b866474896"
     },
     {
       "from": "src/app/holdings/[holdingSlug]/projects-routines/tasks/[id]/[recordSection]/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/projects-routines/tasks/[id]/[recordSection]/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/projects-routines/tasks/[id]/[recordSection]/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/projects-routines/tasks/[id]/[recordSection]/page",
       "sha256": "206624bd51e58dc1245c29341d14e3d175ec4704934a8a3467c30026c3f4e350"
     },
     {
       "from": "src/app/holdings/[holdingSlug]/projects-routines/tasks/[id]/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/projects-routines/tasks/[id]/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/projects-routines/tasks/[id]/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/projects-routines/tasks/[id]/page",
       "sha256": "372c39ba7638c114beee473d093e1293ea63c86674b72177ea74562c5683abf4"
     },
     {
       "from": "src/app/holdings/[holdingSlug]/projects-routines/tasks/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/projects-routines/tasks/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/projects-routines/tasks/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/projects-routines/tasks/page",
       "sha256": "c7895d0b9c9ff06e007c76897d36d9404338fe6932e459f5756036a67cd2e8f3"
     },
@@ -297,43 +297,43 @@
     },
     {
       "from": "src/app/holdings/[holdingSlug]/projects-routines/operations/[id]/[recordSection]/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/projects-routines/operations/[id]/[recordSection]/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/projects-routines/operations/[id]/[recordSection]/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/projects-routines/operations/[id]/[recordSection]/page",
       "sha256": "b127ca92cbcd03ade97dce5143331a011c235dc08a49f4945f3688afe9ffadcf"
     },
     {
       "from": "src/app/holdings/[holdingSlug]/projects-routines/operations/[id]/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/projects-routines/operations/[id]/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/projects-routines/operations/[id]/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/projects-routines/operations/[id]/page",
       "sha256": "4657110c12e0104d7592f1571daded6464a312c9c56c027568ad9f290ad5ebf2"
     },
     {
       "from": "src/app/holdings/[holdingSlug]/projects-routines/operations/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/projects-routines/operations/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/projects-routines/operations/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/projects-routines/operations/page",
       "sha256": "b4ca22f82280a2b39d357345ec2d20acd52d2479d5e533bc19e3e4127c004754"
     },
     {
       "from": "src/app/holdings/[holdingSlug]/projects-routines/routines/[id]/[recordSection]/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/projects-routines/routines/[id]/[recordSection]/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/projects-routines/routines/[id]/[recordSection]/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/projects-routines/routines/[id]/[recordSection]/page",
       "sha256": "13c05fca1cf0608db1b0a591c196e2999e430547f2c6c51f62f1704b244ac663"
     },
     {
       "from": "src/app/holdings/[holdingSlug]/projects-routines/routines/[id]/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/projects-routines/routines/[id]/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/projects-routines/routines/[id]/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/projects-routines/routines/[id]/page",
       "sha256": "483a12de25b76f1183642d38b3a93c21f07305944e3803dbc2766febf08d6bc7"
     },
     {
       "from": "src/app/holdings/[holdingSlug]/projects-routines/routines/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/projects-routines/routines/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/projects-routines/routines/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/projects-routines/routines/page",
       "sha256": "516af71719668491a9eaca27a4d67e9d3bfe3ef93edd2c93f3ecccc58d5695da"
     },
@@ -1123,8 +1123,8 @@
     },
     {
       "from": "src/app/holdings/[holdingSlug]/tasks/people_payroll/[id]/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/tasks/people_payroll/[id]/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/tasks/people_payroll/[id]/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/tasks/people_payroll/[id]/page",
       "sha256": "39e7c3e9b92dbc3b9982422aea4f31217f75c6a78f2e60772a9172ffd08305be"
     },
@@ -1144,8 +1144,8 @@
     },
     {
       "from": "src/app/holdings/[holdingSlug]/posts/[id]/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/posts/[id]/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/posts/[id]/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/posts/[id]/page",
       "sha256": "06167c5d10d082056761627aa553eb849efc72939954fbad55f9cf4ccdfbdfc7"
     },
@@ -1158,29 +1158,29 @@
     },
     {
       "from": "src/app/holdings/[holdingSlug]/calendar/team/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/calendar/team/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/calendar/team/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/calendar/team/page",
       "sha256": "59f40dfe57e2514d3f9fc7e0cf98ac6f76e685edb3d730b0dcf85819f3b61ff4"
     },
     {
       "from": "src/app/holdings/[holdingSlug]/calendar/mine/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/calendar/mine/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/calendar/mine/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/calendar/mine/page",
       "sha256": "2043ac939369536d5d70b3666f7e89b6d97dccb7eb5a423f4611480611772040"
     },
     {
       "from": "src/app/holdings/[holdingSlug]/calendar/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/calendar/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/calendar/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/calendar/page",
       "sha256": "d0ad3d9e26dd9de7a39636d39b2223fd385515a57bf5a5151453ce0616c2c795"
     },
     {
       "from": "src/app/holdings/[holdingSlug]/calendar/coverage/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/calendar/coverage/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/calendar/coverage/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/calendar/coverage/page",
       "sha256": "9d106236e9b2904a122dc832a3ca75355c5ca0e0dd44a689683f8c926a8fce83"
     },
@@ -1193,8 +1193,8 @@
     },
     {
       "from": "src/app/holdings/[holdingSlug]/inbox/messages/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/inbox/messages/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/inbox/messages/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/inbox/messages/page",
       "sha256": "709d290e6c1dfdedf458340b191b2221236d93f0fc988544bc93f49f5d6bdc7f"
     },
@@ -1207,15 +1207,15 @@
     },
     {
       "from": "src/app/holdings/[holdingSlug]/inbox/teams/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/inbox/teams/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/inbox/teams/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/inbox/teams/page",
       "sha256": "6df7d3dcda1b6b062c6860962e9c000d39a7363a8b88b60532817dd8c243067e"
     },
     {
       "from": "src/app/holdings/[holdingSlug]/inbox/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/inbox/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/inbox/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/inbox/page",
       "sha256": "d8131f39d2ea746a73690690a2e1fb1ae8135f95203cb8525cf9faf88752923a"
     },
@@ -1228,8 +1228,8 @@
     },
     {
       "from": "src/app/holdings/[holdingSlug]/inbox/notifications/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/inbox/notifications/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/inbox/notifications/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/inbox/notifications/page",
       "sha256": "49862279305e345bac4dae2494acdb39361c5ad5424d35ff932959981907c482"
     },
@@ -3727,8 +3727,8 @@
     },
     {
       "from": "src/app/holdings/[holdingSlug]/knowledge/roadmap/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/knowledge/roadmap/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/knowledge/roadmap/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/knowledge/roadmap/page",
       "sha256": "c668f43bb6aa3ad561601f9a8face6f66872d5b58635386802ba582734d573d3"
     },
@@ -3839,8 +3839,8 @@
     },
     {
       "from": "src/app/holdings/[holdingSlug]/knowledge/handbook/drafts/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/knowledge/handbook/drafts/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/knowledge/handbook/drafts/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/knowledge/handbook/drafts/page",
       "sha256": "c82ba2441e31ca520f6b7303355e61a2b8cef19005ceae4d39ee8b34ac8b1e6a"
     },
@@ -3853,8 +3853,8 @@
     },
     {
       "from": "src/app/holdings/[holdingSlug]/knowledge/handbook/editors/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/knowledge/handbook/editors/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/knowledge/handbook/editors/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/knowledge/handbook/editors/page",
       "sha256": "cb6426fa4d8fe753d1b976d3f8ef0e8e148a8904f9f9b2141e2f4509bdb6a04f"
     },
@@ -3867,43 +3867,43 @@
     },
     {
       "from": "src/app/holdings/[holdingSlug]/knowledge/handbook/published/[id]/[recordSection]/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/knowledge/handbook/published/[id]/[recordSection]/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/knowledge/handbook/published/[id]/[recordSection]/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/knowledge/handbook/published/[id]/[recordSection]/page",
       "sha256": "ce57e793111147c87e93d8205f9047af1b9c96cfb2892c12b20437d2dbb4226a"
     },
     {
       "from": "src/app/holdings/[holdingSlug]/knowledge/handbook/published/[id]/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/knowledge/handbook/published/[id]/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/knowledge/handbook/published/[id]/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/knowledge/handbook/published/[id]/page",
       "sha256": "3780bb3a822eeaf6a8e5d0954c62eaf8243bf89422f03c619d2ba819baf3cbad"
     },
     {
       "from": "src/app/holdings/[holdingSlug]/knowledge/handbook/published/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/knowledge/handbook/published/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/knowledge/handbook/published/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/knowledge/handbook/published/page",
       "sha256": "d9b9d7960e0f8026dae62a483f07e19121d8eee0e445a49b877ae8391c7d6bf7"
     },
     {
       "from": "src/app/holdings/[holdingSlug]/knowledge/handbook/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/knowledge/handbook/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/knowledge/handbook/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/knowledge/handbook/page",
       "sha256": "e90e6a3e70627aecd0ea6978bab3d44f4b13411f0f6411bd3bc20ff334a45c1d"
     },
     {
       "from": "src/app/holdings/[holdingSlug]/knowledge/guides/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/knowledge/guides/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/knowledge/guides/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/knowledge/guides/page",
       "sha256": "791198ecc33d144638223c47a11292f97abe0ccd1e0867793ff2d8d85dcb4057"
     },
     {
       "from": "src/app/holdings/[holdingSlug]/knowledge/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/knowledge/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/knowledge/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/knowledge/page",
       "sha256": "45b5ada1a6ce722993e7c8238f8854ec683ebab8366c646324e0c09b855b02dd"
     },
@@ -3916,8 +3916,8 @@
     },
     {
       "from": "src/app/holdings/[holdingSlug]/knowledge/help/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/knowledge/help/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/knowledge/help/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/knowledge/help/page",
       "sha256": "1afb841fee7c4bf6aeb1385a7e9af631e3809351b74cb9a97a2bbd2ff52b8935"
     },
@@ -3930,8 +3930,8 @@
     },
     {
       "from": "src/app/holdings/[holdingSlug]/work/completed/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/work/completed/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/work/completed/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/work/completed/page",
       "sha256": "765283e521570ffc3764a7b5a0a1294d8a76795b04e7439ac1bcc5b78140ecec"
     },
@@ -3944,8 +3944,8 @@
     },
     {
       "from": "src/app/holdings/[holdingSlug]/work/for-me/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/work/for-me/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/work/for-me/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/work/for-me/page",
       "sha256": "31cc9b40152d579c5a24dfc356b973bce399cfee03fdde9eb98f47877fffc8b3"
     },
@@ -3958,29 +3958,29 @@
     },
     {
       "from": "src/app/holdings/[holdingSlug]/work/all/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/work/all/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/work/all/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/work/all/page",
       "sha256": "fd6483904a0c108b1c482bb78149c043c863b94ad0fb8ac213447365562dce39"
     },
     {
       "from": "src/app/holdings/[holdingSlug]/work/department-approvals/[kind]/[id]/[recordSection]/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/work/department-approvals/[kind]/[id]/[recordSection]/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/work/department-approvals/[kind]/[id]/[recordSection]/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/work/department-approvals/[kind]/[id]/[recordSection]/page",
       "sha256": "37e49b1c67fddab6d8c978871036dba43b94d6e489be49cad743391ffc01da75"
     },
     {
       "from": "src/app/holdings/[holdingSlug]/work/department-approvals/[kind]/[id]/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/work/department-approvals/[kind]/[id]/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/work/department-approvals/[kind]/[id]/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/work/department-approvals/[kind]/[id]/page",
       "sha256": "64de9be2b14c29e703aa298889bbea50bf93d7b63d9fc4cc0cab7595af0b82c0"
     },
     {
       "from": "src/app/holdings/[holdingSlug]/work/department-approvals/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/work/department-approvals/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/work/department-approvals/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/work/department-approvals/page",
       "sha256": "cf5e0f1b103a409757b628407334430aada5582bd12bcbd5b75179679916e2d8"
     },
@@ -3993,8 +3993,8 @@
     },
     {
       "from": "src/app/holdings/[holdingSlug]/work/requests/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/work/requests/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/work/requests/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/work/requests/page",
       "sha256": "25db96e4420a0fe967a282d62c6df4ce79753f0ed6952f31f22b6b37d67c5b18"
     },
@@ -4007,8 +4007,8 @@
     },
     {
       "from": "src/app/holdings/[holdingSlug]/work/team/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/work/team/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/work/team/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/work/team/page",
       "sha256": "947ca9845a193a57573722e69db829d2a51192c9a98cb2fd07241e0233bf93fd"
     },
@@ -4021,8 +4021,8 @@
     },
     {
       "from": "src/app/holdings/[holdingSlug]/work/waiting/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/work/waiting/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/work/waiting/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/work/waiting/page",
       "sha256": "d07f346721a031233373e340cbca787bdd8674ff24812d0341c1b75b19b333eb"
     },
@@ -4035,8 +4035,8 @@
     },
     {
       "from": "src/app/holdings/[holdingSlug]/work/actions/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/work/actions/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/work/actions/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/work/actions/page",
       "sha256": "909154a8ed78f0142bd464f945ab9edf194a661d260b01c8afea429b12d704e7"
     },
@@ -4049,29 +4049,29 @@
     },
     {
       "from": "src/app/holdings/[holdingSlug]/work/tracking/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/work/tracking/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/work/tracking/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/work/tracking/page",
       "sha256": "5ecfd38b947e83ba0cbf73b6946e9b0e379919526597192107805dbea93adbd7"
     },
     {
       "from": "src/app/holdings/[holdingSlug]/work/routing/[kind]/[id]/[recordSection]/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/work/routing/[kind]/[id]/[recordSection]/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/work/routing/[kind]/[id]/[recordSection]/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/work/routing/[kind]/[id]/[recordSection]/page",
       "sha256": "37e49b1c67fddab6d8c978871036dba43b94d6e489be49cad743391ffc01da75"
     },
     {
       "from": "src/app/holdings/[holdingSlug]/work/routing/[kind]/[id]/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/work/routing/[kind]/[id]/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/work/routing/[kind]/[id]/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/work/routing/[kind]/[id]/page",
       "sha256": "a77c25da0ca2498a56604ce53be533e00701d1246e651014dde8647c42326e90"
     },
     {
       "from": "src/app/holdings/[holdingSlug]/work/routing/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/work/routing/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/work/routing/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/work/routing/page",
       "sha256": "a315eb2680dc5cbdc6b13dfb980b2f71f5b5eec1dc3be10103cd8b8578266f19"
     },
@@ -4084,22 +4084,22 @@
     },
     {
       "from": "src/app/holdings/[holdingSlug]/work/approvals/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/work/approvals/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/work/approvals/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/work/approvals/page",
       "sha256": "8111c3b694615e3be949b5b3b55714949339c431f6811c32781d209605c2258b"
     },
     {
       "from": "src/app/holdings/[holdingSlug]/work/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/work/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/work/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/work/page",
       "sha256": "7fd6a3acaa1f80300aa27a9c62fbee5afcf1d2942c5b22c0b4eac9ce0d8f85d0"
     },
     {
       "from": "src/app/holdings/[holdingSlug]/work/reports/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/work/reports/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/work/reports/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/work/reports/page",
       "sha256": "ea94bbd3085e8661731fceefad427ee994a5f6a9d7f7495d43603f4b1b8bd659"
     },
@@ -6807,43 +6807,43 @@
     },
     {
       "from": "src/app/holdings/[holdingSlug]/@record/insights/executive/records/executive_source/[id]/[recordSection]/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/@record/insights/executive/records/executive_source/[id]/[recordSection]/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/@record/insights/executive/records/executive_source/[id]/[recordSection]/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/@record/insights/executive/records/executive_source/[id]/[recordSection]/page",
       "sha256": "303b05db4af85561053dae5f8a18ee62eb579df7a1d56ee6c902fdec5d02c32d"
     },
     {
       "from": "src/app/holdings/[holdingSlug]/@record/insights/executive/records/executive_source/[id]/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/@record/insights/executive/records/executive_source/[id]/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/@record/insights/executive/records/executive_source/[id]/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/@record/insights/executive/records/executive_source/[id]/page",
       "sha256": "f42d363949205136c2e068a0310b761b3a1cbd369376e91c7dbdaaebe2819b89"
     },
     {
       "from": "src/app/holdings/[holdingSlug]/@record/insights/executive/records/executive_sources/[id]/[recordSection]/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/@record/insights/executive/records/executive_sources/[id]/[recordSection]/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/@record/insights/executive/records/executive_sources/[id]/[recordSection]/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/@record/insights/executive/records/executive_sources/[id]/[recordSection]/page",
       "sha256": "5b4827a2a9a2792631bf4a106c500b06616decb3626fd9b91623984a78a0ae93"
     },
     {
       "from": "src/app/holdings/[holdingSlug]/@record/insights/executive/records/executive_sources/[id]/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/@record/insights/executive/records/executive_sources/[id]/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/@record/insights/executive/records/executive_sources/[id]/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/@record/insights/executive/records/executive_sources/[id]/page",
       "sha256": "d96fb1b4e044ffc3188a0e7b0a5c11c01c86c43790f0e8ec6d8d408ac49c52e1"
     },
     {
       "from": "src/app/holdings/[holdingSlug]/@record/projects-routines/tasks/[id]/[recordSection]/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/@record/projects-routines/tasks/[id]/[recordSection]/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/@record/projects-routines/tasks/[id]/[recordSection]/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/@record/projects-routines/tasks/[id]/[recordSection]/page",
       "sha256": "9bb95ee23845bbdd29961e3a8dbda40db9576cc107db0f9e9450cf5779a9ec4a"
     },
     {
       "from": "src/app/holdings/[holdingSlug]/@record/projects-routines/tasks/[id]/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/@record/projects-routines/tasks/[id]/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/@record/projects-routines/tasks/[id]/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/@record/projects-routines/tasks/[id]/page",
       "sha256": "77b2c4ccfc12c1df70e829ab96d008bb3519a4a63b543ea71dcc0340c631b3f2"
     },
@@ -6877,29 +6877,29 @@
     },
     {
       "from": "src/app/holdings/[holdingSlug]/@record/projects-routines/operations/[id]/[recordSection]/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/@record/projects-routines/operations/[id]/[recordSection]/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/@record/projects-routines/operations/[id]/[recordSection]/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/@record/projects-routines/operations/[id]/[recordSection]/page",
       "sha256": "63e6f79a578098944e9ac24e83e4606af9ebe5da244f69aeba5a5fa5b31cb2d0"
     },
     {
       "from": "src/app/holdings/[holdingSlug]/@record/projects-routines/operations/[id]/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/@record/projects-routines/operations/[id]/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/@record/projects-routines/operations/[id]/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/@record/projects-routines/operations/[id]/page",
       "sha256": "4a76e8221f36e67f3010df21b5725659beea52da2c732ba883e03263d28f73a3"
     },
     {
       "from": "src/app/holdings/[holdingSlug]/@record/projects-routines/routines/[id]/[recordSection]/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/@record/projects-routines/routines/[id]/[recordSection]/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/@record/projects-routines/routines/[id]/[recordSection]/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/@record/projects-routines/routines/[id]/[recordSection]/page",
       "sha256": "4882662c2e8abbd30033e63a19577082d3b8791bbe78fb7061719133336dda18"
     },
     {
       "from": "src/app/holdings/[holdingSlug]/@record/projects-routines/routines/[id]/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/@record/projects-routines/routines/[id]/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/@record/projects-routines/routines/[id]/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/@record/projects-routines/routines/[id]/page",
       "sha256": "a7b4aeb87f64c0cd794019f673088cee31110b8cb22bbb848484afa3a57536b9"
     },
@@ -7052,8 +7052,8 @@
     },
     {
       "from": "src/app/holdings/[holdingSlug]/@record/tasks/people_payroll/[id]/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/@record/tasks/people_payroll/[id]/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/@record/tasks/people_payroll/[id]/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/@record/tasks/people_payroll/[id]/page",
       "sha256": "179b0100549705859d1cd256ea7027d66a52339d7a0a70f7035c631cff868fa5"
     },
@@ -7269,29 +7269,29 @@
     },
     {
       "from": "src/app/holdings/[holdingSlug]/@record/knowledge/handbook/published/[id]/[recordSection]/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/@record/knowledge/handbook/published/[id]/[recordSection]/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/@record/knowledge/handbook/published/[id]/[recordSection]/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/@record/knowledge/handbook/published/[id]/[recordSection]/page",
       "sha256": "85e1f928b4dee27fa214144fcee11889802ced13bb7bb9e85bd0e1cf51c70d9c"
     },
     {
       "from": "src/app/holdings/[holdingSlug]/@record/knowledge/handbook/published/[id]/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/@record/knowledge/handbook/published/[id]/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/@record/knowledge/handbook/published/[id]/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/@record/knowledge/handbook/published/[id]/page",
       "sha256": "00debe268690b92b8a32ca5061bd8dd37fd32f4c9da829484b36353164f006eb"
     },
     {
       "from": "src/app/holdings/[holdingSlug]/@record/work/department-approvals/[kind]/[id]/[recordSection]/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/@record/work/department-approvals/[kind]/[id]/[recordSection]/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/@record/work/department-approvals/[kind]/[id]/[recordSection]/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/@record/work/department-approvals/[kind]/[id]/[recordSection]/page",
       "sha256": "d5d236d13f3f67f3170855ea84b91a793e3c878c7960c2178c11a41e35a9d033"
     },
     {
       "from": "src/app/holdings/[holdingSlug]/@record/work/routing/[kind]/[id]/[recordSection]/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/@record/work/routing/[kind]/[id]/[recordSection]/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/@record/work/routing/[kind]/[id]/[recordSection]/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/@record/work/routing/[kind]/[id]/[recordSection]/page",
       "sha256": "f826022d02a657b1763e1951af70bdba6d577f00a6ad7a36cea09ce72f5d7338"
     },
@@ -8466,8 +8466,8 @@
     },
     {
       "from": "src/app/holdings/[holdingSlug]/@record/overtime/[id]/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/@record/overtime/[id]/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/@record/overtime/[id]/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/@record/overtime/[id]/page",
       "sha256": "6c5b0069946ef0a620f01464f3bf840c99b42a20382cc995537656461b7cc4d6"
     },
@@ -8893,15 +8893,15 @@
     },
     {
       "from": "src/app/holdings/[holdingSlug]/overtime/[id]/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/overtime/[id]/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/overtime/[id]/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/overtime/[id]/page",
       "sha256": "d63c199772a6057be5638a91eb60a23d5b111bb254eab189b0358c6a548bc5bf"
     },
     {
       "from": "src/app/holdings/[holdingSlug]/overtime/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/overtime/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/overtime/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/overtime/page",
       "sha256": "314c69762d458a0cb090fb5b5a1ba9fe23261ead6278ce1a7839d9eabb3df4f6"
     },
@@ -9425,15 +9425,15 @@
     },
     {
       "from": "src/app/holdings/[holdingSlug]/leave/new/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/leave/new/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/leave/new/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/leave/new/page",
       "sha256": "4bd35526140c520e901a25c3c3f31bf0416fbbcfe6df17bd471c4c7e589164a5"
     },
     {
       "from": "src/app/holdings/[holdingSlug]/leave/page.tsx",
-      "to": "packages/feature-work/src/routes/holdings/[holdingSlug]/leave/page.tsx",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/holdings/[holdingSlug]/leave/page.tsx",
+      "package": "@erpx/feature-apps",
       "key": "routes/holdings/[holdingSlug]/leave/page",
       "sha256": "db659ffb639213c5afea1df12b361e575fa780c6ce480ed985cab083524a0783"
     },
@@ -10440,8 +10440,8 @@
     },
     {
       "from": "src/app/api/v1/holdings/[holdingSlug]/collaboration/route.ts",
-      "to": "packages/feature-work/src/routes/api/v1/holdings/[holdingSlug]/collaboration/route.ts",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/collaboration/route.ts",
+      "package": "@erpx/feature-apps",
       "key": "routes/api/v1/holdings/[holdingSlug]/collaboration/route",
       "sha256": "06548d789de375a551050d4b0af131a017971ec537a8d286efcdddfa3a353509"
     },
@@ -10573,57 +10573,57 @@
     },
     {
       "from": "src/app/api/v1/holdings/[holdingSlug]/posts/[id]/comments/route.ts",
-      "to": "packages/feature-work/src/routes/api/v1/holdings/[holdingSlug]/posts/[id]/comments/route.ts",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/posts/[id]/comments/route.ts",
+      "package": "@erpx/feature-apps",
       "key": "routes/api/v1/holdings/[holdingSlug]/posts/[id]/comments/route",
       "sha256": "5c6bdb681b7d92c23f2e4176a0527eeccc566ede6cc22c14a328d18150ccdc2b"
     },
     {
       "from": "src/app/api/v1/holdings/[holdingSlug]/posts/[id]/reaction/route.ts",
-      "to": "packages/feature-work/src/routes/api/v1/holdings/[holdingSlug]/posts/[id]/reaction/route.ts",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/posts/[id]/reaction/route.ts",
+      "package": "@erpx/feature-apps",
       "key": "routes/api/v1/holdings/[holdingSlug]/posts/[id]/reaction/route",
       "sha256": "29b23a6f4b8bba125cf52c7f7d19cd17a1e34edc34db65a46a9a362e554ab578"
     },
     {
       "from": "src/app/api/v1/holdings/[holdingSlug]/posts/[id]/follow/route.ts",
-      "to": "packages/feature-work/src/routes/api/v1/holdings/[holdingSlug]/posts/[id]/follow/route.ts",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/posts/[id]/follow/route.ts",
+      "package": "@erpx/feature-apps",
       "key": "routes/api/v1/holdings/[holdingSlug]/posts/[id]/follow/route",
       "sha256": "9ef54fe0fa7dd4c0badf0bf5b9dfd215cad2cb89db6710beaa3095bd76963d73"
     },
     {
       "from": "src/app/api/v1/holdings/[holdingSlug]/posts/[id]/ai-drafts/route.ts",
-      "to": "packages/feature-work/src/routes/api/v1/holdings/[holdingSlug]/posts/[id]/ai-drafts/route.ts",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/posts/[id]/ai-drafts/route.ts",
+      "package": "@erpx/feature-apps",
       "key": "routes/api/v1/holdings/[holdingSlug]/posts/[id]/ai-drafts/route",
       "sha256": "e4598a4ecb3d0c6d669bc7536119bdbe746c0395672f8b07e35bc0de45a948ef"
     },
     {
       "from": "src/app/api/v1/holdings/[holdingSlug]/posts/[id]/route.ts",
-      "to": "packages/feature-work/src/routes/api/v1/holdings/[holdingSlug]/posts/[id]/route.ts",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/posts/[id]/route.ts",
+      "package": "@erpx/feature-apps",
       "key": "routes/api/v1/holdings/[holdingSlug]/posts/[id]/route",
       "sha256": "3ee98c487414927fd3963bf55fccb1d6b7097e4aacecf9ec34752793d023615e"
     },
     {
       "from": "src/app/api/v1/holdings/[holdingSlug]/posts/[id]/task/route.ts",
-      "to": "packages/feature-work/src/routes/api/v1/holdings/[holdingSlug]/posts/[id]/task/route.ts",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/posts/[id]/task/route.ts",
+      "package": "@erpx/feature-apps",
       "key": "routes/api/v1/holdings/[holdingSlug]/posts/[id]/task/route",
       "sha256": "5566a5a97a2a7a758595c4e625c07d9ec8be1b789f83c06f2dbc987d0935a9d2"
     },
     {
       "from": "src/app/api/v1/holdings/[holdingSlug]/posts/[id]/task-source/route.ts",
-      "to": "packages/feature-work/src/routes/api/v1/holdings/[holdingSlug]/posts/[id]/task-source/route.ts",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/posts/[id]/task-source/route.ts",
+      "package": "@erpx/feature-apps",
       "key": "routes/api/v1/holdings/[holdingSlug]/posts/[id]/task-source/route",
       "sha256": "a3023f1f8861befa76c96cdbe39a6c30b2113948d6fb2fdf6059ae0bf86519b2"
     },
     {
       "from": "src/app/api/v1/holdings/[holdingSlug]/posts/[id]/revisions/route.ts",
-      "to": "packages/feature-work/src/routes/api/v1/holdings/[holdingSlug]/posts/[id]/revisions/route.ts",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/posts/[id]/revisions/route.ts",
+      "package": "@erpx/feature-apps",
       "key": "routes/api/v1/holdings/[holdingSlug]/posts/[id]/revisions/route",
       "sha256": "77c8730cb1220ec944dcf90320a1bac95180ceceea634f96d9f5db700d1d855c"
     },
@@ -10643,8 +10643,8 @@
     },
     {
       "from": "src/app/api/v1/holdings/[holdingSlug]/inbox/[[...path]]/route.ts",
-      "to": "packages/feature-work/src/routes/api/v1/holdings/[holdingSlug]/inbox/[[...path]]/route.ts",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/inbox/[[...path]]/route.ts",
+      "package": "@erpx/feature-apps",
       "key": "routes/api/v1/holdings/[holdingSlug]/inbox/[[...path]]/route",
       "sha256": "3f5f59b4e7b4937c93a69e2b404cbbe24c702c565f46912da804d49eefd5fc89"
     },
@@ -10692,8 +10692,8 @@
     },
     {
       "from": "src/app/api/v1/holdings/[holdingSlug]/routine-schedules/[[...path]]/route.ts",
-      "to": "packages/feature-work/src/routes/api/v1/holdings/[holdingSlug]/routine-schedules/[[...path]]/route.ts",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/routine-schedules/[[...path]]/route.ts",
+      "package": "@erpx/feature-apps",
       "key": "routes/api/v1/holdings/[holdingSlug]/routine-schedules/[[...path]]/route",
       "sha256": "6b7e4ed9a88cb0c60f7e54c0fd2d51cf1aae4ee49686940c5e7b7f750bf6d369"
     },
@@ -10755,15 +10755,15 @@
     },
     {
       "from": "src/app/api/v1/holdings/[holdingSlug]/handover/route.ts",
-      "to": "packages/feature-work/src/routes/api/v1/holdings/[holdingSlug]/handover/route.ts",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/handover/route.ts",
+      "package": "@erpx/feature-apps",
       "key": "routes/api/v1/holdings/[holdingSlug]/handover/route",
       "sha256": "b0b6c4aa67753a3fccbb2772cfeb27f4fac3753669058565a20f29989b7471da"
     },
     {
       "from": "src/app/api/v1/holdings/[holdingSlug]/handover/[postId]/acknowledgement/route.ts",
-      "to": "packages/feature-work/src/routes/api/v1/holdings/[holdingSlug]/handover/[postId]/acknowledgement/route.ts",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/handover/[postId]/acknowledgement/route.ts",
+      "package": "@erpx/feature-apps",
       "key": "routes/api/v1/holdings/[holdingSlug]/handover/[postId]/acknowledgement/route",
       "sha256": "d8c735cb22c9871a3c856131307ab23f1ef8bc290b66f481deebaf5c4a0298c6"
     },
@@ -10965,8 +10965,8 @@
     },
     {
       "from": "src/app/api/v1/holdings/[holdingSlug]/operations/route.ts",
-      "to": "packages/feature-work/src/routes/api/v1/holdings/[holdingSlug]/operations/route.ts",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/operations/route.ts",
+      "package": "@erpx/feature-apps",
       "key": "routes/api/v1/holdings/[holdingSlug]/operations/route",
       "sha256": "a8fdef484250f51c81e43352c4b6d69a23efe5e6942581c40a6faf3398a01ed9"
     },
@@ -11035,8 +11035,8 @@
     },
     {
       "from": "src/app/api/v1/holdings/[holdingSlug]/handbook/[[...path]]/route.ts",
-      "to": "packages/feature-work/src/routes/api/v1/holdings/[holdingSlug]/handbook/[[...path]]/route.ts",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/handbook/[[...path]]/route.ts",
+      "package": "@erpx/feature-apps",
       "key": "routes/api/v1/holdings/[holdingSlug]/handbook/[[...path]]/route",
       "sha256": "9a1e2ff5b43aa344958a5674170965080dcad81a0cd13baf823e22f17d0df079"
     },
@@ -11056,15 +11056,15 @@
     },
     {
       "from": "src/app/api/v1/holdings/[holdingSlug]/stories/route.ts",
-      "to": "packages/feature-work/src/routes/api/v1/holdings/[holdingSlug]/stories/route.ts",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/stories/route.ts",
+      "package": "@erpx/feature-apps",
       "key": "routes/api/v1/holdings/[holdingSlug]/stories/route",
       "sha256": "ccacb85ab323e9173d59594a2b563568cb32589570b32692d8b93e5798a82be4"
     },
     {
       "from": "src/app/api/v1/holdings/[holdingSlug]/stories/[id]/archive/route.ts",
-      "to": "packages/feature-work/src/routes/api/v1/holdings/[holdingSlug]/stories/[id]/archive/route.ts",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/stories/[id]/archive/route.ts",
+      "package": "@erpx/feature-apps",
       "key": "routes/api/v1/holdings/[holdingSlug]/stories/[id]/archive/route",
       "sha256": "e6c6460fbf4be6f7c51f0b67fc933dffb783d2ee07dc8d78192a20a12b30b5a6"
     },
@@ -11161,8 +11161,8 @@
     },
     {
       "from": "src/app/api/v1/holdings/[holdingSlug]/feed/route.ts",
-      "to": "packages/feature-work/src/routes/api/v1/holdings/[holdingSlug]/feed/route.ts",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/feed/route.ts",
+      "package": "@erpx/feature-apps",
       "key": "routes/api/v1/holdings/[holdingSlug]/feed/route",
       "sha256": "6c73bb782f766e617e51dabd34e5e64532611081e445d9e3585f55e586f60c77"
     },
@@ -11364,8 +11364,8 @@
     },
     {
       "from": "src/app/api/v1/holdings/[holdingSlug]/staff/[[...path]]/route.ts",
-      "to": "packages/feature-work/src/routes/api/v1/holdings/[holdingSlug]/staff/[[...path]]/route.ts",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/staff/[[...path]]/route.ts",
+      "package": "@erpx/feature-apps",
       "key": "routes/api/v1/holdings/[holdingSlug]/staff/[[...path]]/route",
       "sha256": "aed71b7d03564074b9ad329008a0d1f2ae304d59917cfcd750ea631b56e2ee55"
     },
@@ -11448,8 +11448,8 @@
     },
     {
       "from": "src/app/api/v1/holdings/[holdingSlug]/approvals/[[...path]]/route.ts",
-      "to": "packages/feature-work/src/routes/api/v1/holdings/[holdingSlug]/approvals/[[...path]]/route.ts",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/approvals/[[...path]]/route.ts",
+      "package": "@erpx/feature-apps",
       "key": "routes/api/v1/holdings/[holdingSlug]/approvals/[[...path]]/route",
       "sha256": "e11beba3b3652a00a1e8ccba0770a0fc0148b55177216502622e9deca0c159f9"
     },
@@ -11497,8 +11497,8 @@
     },
     {
       "from": "src/app/api/v1/holdings/[holdingSlug]/messaging/[[...path]]/route.ts",
-      "to": "packages/feature-work/src/routes/api/v1/holdings/[holdingSlug]/messaging/[[...path]]/route.ts",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/messaging/[[...path]]/route.ts",
+      "package": "@erpx/feature-apps",
       "key": "routes/api/v1/holdings/[holdingSlug]/messaging/[[...path]]/route",
       "sha256": "b22e93c38c1222e2ecd599ccea5d622acef44e057d2cffcbb9b2a5b93bbd5aa2"
     },
@@ -11539,8 +11539,8 @@
     },
     {
       "from": "src/app/api/v1/holdings/[holdingSlug]/daily-plan/route.ts",
-      "to": "packages/feature-work/src/routes/api/v1/holdings/[holdingSlug]/daily-plan/route.ts",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/daily-plan/route.ts",
+      "package": "@erpx/feature-apps",
       "key": "routes/api/v1/holdings/[holdingSlug]/daily-plan/route",
       "sha256": "e12903b6c6f2d7cc936de397f5c6283962c946ea4dbb5b0e305a65aee3ee6337"
     },
@@ -11609,8 +11609,8 @@
     },
     {
       "from": "src/app/api/v1/holdings/[holdingSlug]/routine-templates/[[...path]]/route.ts",
-      "to": "packages/feature-work/src/routes/api/v1/holdings/[holdingSlug]/routine-templates/[[...path]]/route.ts",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/routine-templates/[[...path]]/route.ts",
+      "package": "@erpx/feature-apps",
       "key": "routes/api/v1/holdings/[holdingSlug]/routine-templates/[[...path]]/route",
       "sha256": "1b2389f75a3958c1b433bc91353c729a9bc43e9fc26e745b65afcbd1a72acdd1"
     },
@@ -11637,15 +11637,15 @@
     },
     {
       "from": "src/app/api/v1/holdings/[holdingSlug]/executive/[[...path]]/route.ts",
-      "to": "packages/feature-work/src/routes/api/v1/holdings/[holdingSlug]/executive/[[...path]]/route.ts",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/executive/[[...path]]/route.ts",
+      "package": "@erpx/feature-apps",
       "key": "routes/api/v1/holdings/[holdingSlug]/executive/[[...path]]/route",
       "sha256": "1572ef7e6b9efd15da187be51646f9ab19ac3bab92472acef5983a11da450435"
     },
     {
       "from": "src/app/api/v1/holdings/[holdingSlug]/executive/connections/route.ts",
-      "to": "packages/feature-work/src/routes/api/v1/holdings/[holdingSlug]/executive/connections/route.ts",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/executive/connections/route.ts",
+      "package": "@erpx/feature-apps",
       "key": "routes/api/v1/holdings/[holdingSlug]/executive/connections/route",
       "sha256": "cbcd1bc391ecb80b6a0c22214024d09d4ee77905cc4abae84935f3a3f34ee197"
     },
@@ -11791,8 +11791,8 @@
     },
     {
       "from": "src/app/api/mcp/executive/route.ts",
-      "to": "packages/feature-work/src/routes/api/mcp/executive/route.ts",
-      "package": "@erpx/feature-work",
+      "to": "packages/feature-apps/src/routes/api/mcp/executive/route.ts",
+      "package": "@erpx/feature-apps",
       "key": "routes/api/mcp/executive/route",
       "sha256": "41eb760a1d2c588b864a77f9bb6d8053cb4433dc65063f3445a68c2c92c2f8fc"
     },

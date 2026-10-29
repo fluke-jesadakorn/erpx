@@ -1,0 +1,229 @@
+{
+  "version": 1,
+  "observedAt": "2026-10-26",
+  "environment": "development",
+  "acceptance": false,
+  "tunnel": {
+    "name": "erpx-local",
+    "uuid": "750f6ab5-1a43-4369-a40a-f6c88ccfb9c6",
+    "service": "http://127.0.0.1:3100",
+    "otherRoutesPreserved": true
+  },
+  "hosts": [
+    {
+      "holdingId": "h001",
+      "hostname": "acme.jesadakorn.com",
+      "published": true,
+      "dnsCnameCreated": true
+    },
+    {
+      "holdingId": "h002",
+      "hostname": "northstar.jesadakorn.com",
+      "published": true,
+      "dnsCnameCreated": true
+    },
+    {
+      "holdingId": "h003",
+      "hostname": "erpx-internal.jesadakorn.com",
+      "published": true,
+      "dnsCnameCreated": true
+    }
+  ],
+  "cacheRule": {
+    "id": "30ce9522677d42a2bbfe0dc3f78aef33",
+    "name": "ERPX Holding development: bypass cache",
+    "status": "active",
+    "scope": "exact registered Holding hosts, including /__erpx/"
+  },
+  "redirectRules": {
+    "ids": [
+      "02150c8e57404873b031b44944e7d678",
+      "bc7a8870bb47450980f980a2bb36872a"
+    ],
+    "change": "exclude ERPX development Account/Holding/retired product hosts; preserve all existing conditions and targets"
+  },
+  "organizationMigration": {
+    "version": 1073,
+    "changed": {
+      "h001": 10,
+      "h002": 4,
+      "h003": 0
+    },
+    "identityAndLineagePreserved": true,
+    "immutableTriggerRestored": true,
+    "remainingReservedSlugs": 0
+  },
+  "retiredHostBehavior": "generic404, no redirects or business forwarding; existing Tunnel/DNS tombstones retained",
+  "consoleException": "exact health/ready reads remain200",
+  "productionDeployed": false,
+  "stagingAccessed": false,
+  "evidenceDirectory": ".scratch/dev/holding-addresses/",
+  "providerAcceptance": false,
+  "verificationUpdatedAt": "2026-10-27",
+  "stripeTestWebhook": {
+    "id": "we_1ULP9mKLj1zd9NnvYA8ULFtT",
+    "url": "https://acme.jesadakorn.com/__erpx/pos/api/pos/stripe/webhook",
+    "status": "enabled",
+    "liveMode": false,
+    "signingSecretRotated": false,
+    "eventsPreserved": true,
+    "currentConnectedHoldingIds": [
+      "h001"
+    ],
+    "invalidSignatureLocalAndPublicStatus": 400
+  },
+  "verification": {
+    "unitCases": 691,
+    "posProviderUnitCases": 184,
+    "identityIntegrationCases": 87,
+    "peopleLifecycleIntegrationCases": 58,
+    "typecheck": "passed",
+    "lintErrors": 0,
+    "catalogueSuites": 589,
+    "architectureAndStructure": "passed",
+    "isolatedBuilds": [
+      "finance",
+      "apps",
+      "pos",
+      "booking"
+    ],
+    "browser": "Authenticated Finance and explicit root selection inspected; POS desktop rendered; Booking empty publication state inspected at390x844 and emulation reset. Full responsive, record/draft and account-switch/logout matrix remains incomplete; PMS public navigation encountered Cloudflare502/1033.",
+    "acceptance": false
+  },
+  "remaining": [
+    "Public Console/PMS return530 (Tunnel1033); private3101 health timed out at final check. Local3100 remains200. Installed service logs require administrator access; no installed service was restarted. Complete the remaining browser matrix after recovery.",
+    "Sign into the matching Stripe Dashboard to verify/update Connect callback allowlist; public PMS payment remains disabled."
+  ],
+  "lastHttpReceipt": {
+    "local": 200,
+    "console-health": 200,
+    "private": 200,
+    "acme-health": 200,
+    "northstar-health": 200,
+    "erpx-internal-health": 200,
+    "acme-root": 307,
+    "book": 200,
+    "cross-holding": 404,
+    "finance-retired": 404,
+    "apps-retired": 404,
+    "pos-retired": 404,
+    "pms-retired": 404,
+    "admin-retired": 404,
+    "booking-retired": 404,
+    "portal-retired": 404,
+    "legal-portal-retired": 404,
+    "forms-retired": 404,
+    "work-retired": 404,
+    "console-retired": 404
+  },
+  "finalAvailability": [
+    {
+      "name": "local",
+      "url": "http://127.0.0.1:3100/api/health",
+      "status": 200,
+      "exit": 0,
+      "checkedAt": "2026-10-26T17:55:43.603795+00:00"
+    },
+    {
+      "name": "public-console",
+      "url": "https://console-dev-erpx.jesadakorn.com/api/health",
+      "status": 530,
+      "exit": 0,
+      "checkedAt": "2026-10-26T17:55:43.739516+00:00"
+    },
+    {
+      "name": "private",
+      "url": "http://127.0.0.1:3101/api/health",
+      "status": 0,
+      "exit": 28,
+      "checkedAt": "2026-10-26T17:56:03.756402+00:00"
+    },
+    {
+      "name": "public-pms",
+      "url": "https://acme.jesadakorn.com/bangkok/pms",
+      "status": 530,
+      "exit": 0,
+      "checkedAt": "2026-10-26T17:56:04.014107+00:00"
+    },
+    {
+      "name": "retired-console",
+      "url": "https://console-dev-erpx.jesadakorn.com/",
+      "status": 530,
+      "exit": 0,
+      "checkedAt": "2026-10-26T17:56:04.119979+00:00"
+    }
+  ],
+  "recoveryFollowup": {
+    "checkedAt": "2026-10-27T00:54:45.368016+00:00",
+    "acceptance": false,
+    "recoveryComplete": false,
+    "stagingAccessed": false,
+    "restartAttempt": {
+      "service": "system/com.erpx.tunnel",
+      "exit": 1,
+      "reason": "Operation not permitted; sudo requires administrator authentication"
+    },
+    "browser": {
+      "url": "https://acme.jesadakorn.com/bangkok/pms",
+      "shellRendered": true,
+      "complete": false,
+      "observations": [
+        "PMS shell and example stays rendered during a successful interval",
+        "Calendar displayed an HTML-as-JSON error during intermittent upstream failures",
+        "Browser Network showed manifest/favicon/icon responses502",
+        "Legacy issued-document/detail links need follow-up once transport is stable"
+      ]
+    },
+    "healthSamples": {
+      "local": [
+        "200 0.067585",
+        "200 0.019312",
+        "200 0.021923",
+        "200 0.017870",
+        "200 0.023914",
+        "200 0.019757"
+      ],
+      "private": [
+        "000 6.005990",
+        "000 6.003500",
+        "200 0.892450",
+        "200 0.025218",
+        "200 2.672490",
+        "200 1.925965"
+      ],
+      "public": [
+        "000 6.007018",
+        "502 0.134783",
+        "530 0.090447",
+        "200 0.243689",
+        "200 1.727683",
+        "502 1.009276"
+      ],
+      "tunnel": [
+        "200 2.634625",
+        "200 2.877288",
+        "200 0.832706",
+        "200 0.000682",
+        "200 1.689900",
+        "200 1.805319"
+      ]
+    }
+  },
+  "authorizedRecoveryFollowup": {
+    "at": "2026-10-27T03:21:54.276437+00:00",
+    "actions": [
+      "User-authorized restart of existing com.erpx.tunnel and com.erpx.web; no release, configuration, ingress or DNS change.",
+      "Existing development-only FreshClam update and clamd reload; verified official database28165 loaded."
+    ],
+    "observedHealthy": {
+      "localHealth": 200,
+      "publicConsoleHealth": 200,
+      "privateHealth": 200,
+      "retiredConsole": 404
+    },
+    "repeatedCheck": "Later eight-second public/private probes still timed out; initial200 observations do not establish sustained availability.",
+    "browser": "Finance normal Account SSO rendered the canonical invoice page. Chrome security notice interrupted further interaction; user requested skipping that issue and continuing migration. Full browser acceptance remains incomplete.",
+    "productionRelease": false,
+    "stagingTouched": false
+  }
+}

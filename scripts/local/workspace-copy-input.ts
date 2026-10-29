@@ -2,7 +2,7 @@ import { constants } from 'node:fs';
 import { copyFile, lstat, mkdir, readdir, readlink, symlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { relative, resolve, sep } from 'node:path';
-const privateDirectories = new Set(['.next', '.build', '.cache', '.turbo', '.scratch', '.runtime', '.git']);
+const privateDirectories = new Set(['.next', '.build', '.cache', '.turbo', '.scratch', '.runtime', '.git', 'target']);
 /** Source snapshots never inherit local configuration, state or generated output. */
 export function workspaceCopyInput(root: string, path: string) {
   const base = resolve(root), target = resolve(path);

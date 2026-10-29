@@ -11,6 +11,7 @@ vi.mock("@erpx/server-identity_access/public/authorization", () => ({ firstAutho
 vi.mock("@erpx/server-commercial/public/package-grants", () => ({ readCompanyPurchaseFacts: migrationPorts.grants }));
 
 it("keeps existing workspace recovery scoped to current authority without reading or inventing product grants", async () => {
+  vi.stubEnv("ERPX_ENVIRONMENT", "local");
   vi.stubEnv("ERPX_PUBLIC_ORIGIN", "https://console-dev-erpx.jesadakorn.com");
   vi.stubEnv("ERPX_PRODUCT_ROUTING", "enabled");vi.stubEnv("ERPX_PRODUCT_ENVIRONMENT", "development");vi.stubEnv("ERPX_CONSOLE_RETIRED", "disabled");
   try {
@@ -21,6 +22,11 @@ it("keeps existing workspace recovery scoped to current authority without readin
     expect(migrationPorts.grants).not.toHaveBeenCalled();
     const bindingReads=migrationPorts.bindings.mock.calls.length;vi.stubEnv("ERPX_CONSOLE_RETIRED", "enabled");
     expect(await existingWorkspaceLaunchChoices()).toEqual([]);expect(migrationPorts.bindings).toHaveBeenCalledTimes(bindingReads);
+    // Retirement is an exact local-development policy, not a flag-only grant.
+    vi.stubEnv("ERPX_ENVIRONMENT", "remote");
+    expect(await existingWorkspaceLaunchChoices()).toEqual([{ holding: "Acme", href: "https://console-dev-erpx.jesadakorn.com/holdings/acme/branches/main/home" }]);
+    expect(migrationPorts.grants).not.toHaveBeenCalled();
+    vi.stubEnv("ERPX_ENVIRONMENT", "local");
     vi.stubEnv("ERPX_CONSOLE_RETIRED", "disabled");
     migrationPorts.workspace.mockResolvedValue(null);
     expect(await existingWorkspaceLaunchChoices()).toEqual([]);

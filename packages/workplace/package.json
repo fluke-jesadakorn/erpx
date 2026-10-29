@@ -60,6 +60,7 @@
     "./components/work-attention": "./src/components/work-attention.tsx",
     "./components/remember-workspace": "./src/components/remember-workspace.tsx",
     "./components/navigation-counts": "./src/components/navigation-counts.tsx",
+    "./components/apps-sidebar": "./src/components/apps-sidebar.tsx",
     "./components/workspace-assistant-content": "./src/components/workspace-assistant-content.tsx",
     "./components/request-validation": "./src/components/request-validation.tsx",
     "./components/request-ai": "./src/components/request-ai.tsx",
@@ -92,6 +93,8 @@
     "./components/workspace-menu": "./src/components/workspace-menu.tsx",
     "./components/return-to-front": "./src/components/return-to-front.tsx",
     "./components/work-review-panel.module.css": "./src/components/work-review-panel.module.css",
+    "./components/product-account.module.css": "./src/components/product-account.module.css",
+    "./components/product-account-provider": "./src/components/product-account-provider.tsx",
     "./components/workspace-assistant": "./src/components/workspace-assistant.tsx",
     "./proxy": "./src/proxy.ts",
     "./routes/favicon.ico": "./src/routes/favicon.ico",
@@ -729,7 +732,12 @@
     "./routes/login/page": "./src/routes/login/page.tsx",
     "./routes/onboarding/page": "./src/routes/onboarding/page.tsx",
     "./routes/global-error": "./src/routes/global-error.tsx",
-    "./routes/not-found": "./src/routes/not-found.tsx"
+    "./routes/not-found": "./src/routes/not-found.tsx",
+    "./components/apps-launcher": "./src/components/apps-launcher.tsx",
+    "./components/apps-workspace-memory": "./src/components/apps-workspace-memory.tsx",
+    "./components/topic-navigation": "./src/components/topic-navigation.tsx",
+    "./routes/holdings/[holdingSlug]/_presenters/people/relationships-page": "./src/routes/holdings/[holdingSlug]/_presenters/people/relationships-page.tsx",
+    "./components/ui-navigation": "./src/components/ui-navigation.tsx"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
@@ -815,11 +823,11 @@
     "@erpx/server-work_projection": "workspace:*",
     "@erpx/server-workflow": "workspace:*",
     "@erpx/ui": "workspace:*",
-    "lucide-react": "1.41.0",
-    "next": "16.4.0",
-    "react": "19.3.0",
-    "react-dom": "19.3.0",
+    "lucide-react": "1.61.0",
+    "next": "16.4.3",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
     "server-only": "0.0.1",
-    "zod": "4.5.4"
+    "zod": "4.6.7"
   }
 }

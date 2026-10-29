@@ -109,7 +109,13 @@
     "./routes/api/v1/holdings/[holdingSlug]/people/route": "./src/routes/api/v1/holdings/[holdingSlug]/people/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/people/evaluation/[[...path]]/route": "./src/routes/api/v1/holdings/[holdingSlug]/people/evaluation/[[...path]]/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/benefits/route": "./src/routes/api/v1/holdings/[holdingSlug]/benefits/route.ts",
-    "./routes/api/v1/holdings/[holdingSlug]/leave/admin/route": "./src/routes/api/v1/holdings/[holdingSlug]/leave/admin/route.ts"
+    "./routes/api/v1/holdings/[holdingSlug]/leave/admin/route": "./src/routes/api/v1/holdings/[holdingSlug]/leave/admin/route.ts",
+    "./routes/holdings/[holdingSlug]/people-organization/people/external/users/page": "./src/routes/holdings/[holdingSlug]/people-organization/people/external/users/page.tsx",
+    "./routes/holdings/[holdingSlug]/people-organization/people/external/organizations/page": "./src/routes/holdings/[holdingSlug]/people-organization/people/external/organizations/page.tsx",
+    "./routes/holdings/[holdingSlug]/people-organization/people/external/teams/page": "./src/routes/holdings/[holdingSlug]/people-organization/people/external/teams/page.tsx",
+    "./routes/holdings/[holdingSlug]/people-organization/people/unclassified/page": "./src/routes/holdings/[holdingSlug]/people-organization/people/unclassified/page.tsx",
+    "./routes/api/v1/holdings/[holdingSlug]/people/relationships/[[...path]]/route": "./src/routes/api/v1/holdings/[holdingSlug]/people/relationships/[[...path]]/route.ts",
+    "./routes/holdings/[holdingSlug]/people-organization/people/external/page": "./src/routes/holdings/[holdingSlug]/people-organization/people/external/page.tsx"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
@@ -127,7 +133,7 @@
     "@erpx/server-people_payroll": "workspace:*",
     "@erpx/server-runtime": "workspace:*",
     "@erpx/workplace": "workspace:*",
-    "next": "16.4.0",
-    "zod": "4.5.4"
+    "next": "16.4.3",
+    "zod": "4.6.7"
   }
 }

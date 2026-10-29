@@ -1,4 +1,5 @@
 "use client";
+import {holdingFetch} from '@erpx/contracts/holding-fetch';
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button, Field, TextArea, TextInput, Select, Stack, Panel, InlineNotice, Badge } from "@erpx/ui/components/foundation";
 import {useProviderContext} from '@erpx/feature-identity_access/components/provider-context-boundary';
@@ -33,7 +34,7 @@ export function LegacyGrantReview({ companies, canApply, language }: { companies
     controller.current?.abort(); const abort = new AbortController(); controller.current = abort;
     const current = ++epoch.current, generation = contextGeneration(); setPending(true); setError("");
     try {
-      const response = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json", ...(key ? { "Idempotency-Key": key } : {}) }, body: JSON.stringify(input), signal: abort.signal });
+      const response = await holdingFetch(path, { method: "POST", headers: { "Content-Type": "application/json", ...(key ? { "Idempotency-Key": key } : {}) }, body: JSON.stringify(input), signal: abort.signal });
       const result = await response.json();
       if (current !== epoch.current || generation !== contextGeneration() || abort.signal.aborted) return;
       if (!response.ok) { setMfa(result.error?.code === "FRESH_MFA_REQUIRED"); throw new Error(result.error?.message ?? "Unable to complete this request."); }

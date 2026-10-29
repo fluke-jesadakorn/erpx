@@ -1,6 +1,6 @@
 import 'server-only';
 import type {SqlValue} from '@erpx/server-runtime/public/runtime/types';
-import {workPackageEnforcementMode,projectsPackageEnforcementMode} from '@erpx/server-commercial/public/purchase-command-boundary';
+import {appsPackageEnforcementMode,projectsPackageEnforcementMode} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {packageClockSql,purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
 import {workOperationsSettlementSources as operations} from '@erpx/server-operations/public/work-package-obligation-sources';
 import {taskParticipantReadPolicy} from '@erpx/server-operations/public/project-task-record-policy';
@@ -13,7 +13,7 @@ import {workSocialNativePostPredicate,workSocialUnresolvedPostPredicate,operatio
  * statement: Company grants once, native sources once, and source rights once
  * per actual current assignment. No authorization survives this SQL snapshot. */
 export async function workTaskSocialQueuedSourceScope(input:{deadline:number;target?:{id:string;companyId:string}}){
- const mode=await workPackageEnforcementMode(),projectMode=await projectsPackageEnforcementMode();
+ const mode=await appsPackageEnforcementMode(),projectMode=await projectsPackageEnforcementMode();
  if(mode!=='enforced'&&projectMode!=='enforced')return {prefix:'',where:'TRUE',socialRequired:'FALSE',args:[] as SqlValue[]};
  if(!Number.isSafeInteger(input.deadline))throw Error('WORK_TASK_QUEUED_CLOCK_REQUIRED');
  const target=input.target,scope=target?'task.id=? AND task.company_id=?':"task.state NOT IN ('completed','cancelled') AND task.due_at IS NOT NULL AND task.due_at<=?",args:SqlValue[]=target?[target.id,target.companyId]:[input.deadline];

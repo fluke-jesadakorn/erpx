@@ -71,9 +71,9 @@
     "@erpx/server-manage_erpx": "workspace:*",
     "@erpx/server-operations": "workspace:*",
     "@erpx/server-runtime": "workspace:*",
-    "next": "16.4.0",
-    "pg": "8.23.0",
+    "next": "16.4.3",
+    "pg": "8.23.1",
     "server-only": "0.0.1",
-    "zod": "4.5.4"
+    "zod": "4.6.7"
   }
 }

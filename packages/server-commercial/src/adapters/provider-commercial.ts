@@ -1,3 +1,4 @@
+import {requestProductOrigin} from '@erpx/feature-runtime/lib/product-hosts';
 import "server-only";
 import { z } from "zod";
 import { currentSession, requirePlatformContext } from "@erpx/server-identity_access/public/authorization";
@@ -50,7 +51,7 @@ export async function providerCompanyPackageOverview(holdingId: string, companyI
 export async function providerCommercialApi(request: Request, path: string[]) {
   const headers = { "Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff" };
   try {
-    const origin = configuredProductOrigin("admin");
+    const origin = requestProductOrigin("admin",request.headers);
     if (!origin || productHostForHost(request.headers.get("host")) !== "admin") throw new ApiError(404, "NOT_FOUND", "Not found.");
     if (request.method === "GET" && path.length === 0) return Response.json({ data: await providerCommercialOverview() }, { headers });
     if (request.method === "GET" && path.join("/") === "packages") {

@@ -1,4 +1,6 @@
+import {AppsHomeLink} from "@erpx/workplace/components/product-link-context";
 import type { LayoutProps } from "@erpx/contracts/next-routes";
+import { AppsWorkspaceMemory } from "@erpx/workplace/components/apps-workspace-memory";
 import {manufacturingInitialPhysicalStockCountEntry} from "@erpx/server-inventory/public/rules/manufacturing-initial-physical-stock-count";
 import {initialPhysicalStockCountEntry} from "@erpx/server-inventory/public/rules/initial-physical-stock-count";
 import { workforceSelfServiceEntry } from "@erpx/server-people_payroll/public/rules/self-service-product-entry";
@@ -13,7 +15,7 @@ import { workspaceNavigation, restrictedWorkspaceNavigation } from "@erpx/server
 import { workProjectionPresentationQueries } from "@erpx/server-work_projection/public/presentation-queries";
 
 import { RecordWorkspaceProvider } from "@erpx/feature-records/components/record-workspace";
-import { RecordScopeProvider } from "@erpx/ui/components/record-context";
+import { RecordScopeProvider } from "@erpx/feature-records/public/client";
 import { MainContent } from "@erpx/ui/components/main";
 import { Button } from "@erpx/ui/components/foundation";
 import { measureReadPhase } from "@erpx/server-runtime/public/runtime/read-metrics";
@@ -28,9 +30,11 @@ import { ApiError } from "@erpx/server-runtime/public/http";
 import { OfficeProductMenus } from "@erpx/workplace/components/office-product-menus";
 import { AdminWorkspaceMenus } from "@erpx/workplace/components/admin-workspace-menus";
 import { ProductNavigationBoundary } from "@erpx/workplace/components/product-navigation-boundary";
+import {ProductAccountTrigger} from '@erpx/workplace/components/product-account-provider';
 import { redirect } from "next/navigation";
 import { WorkspaceBrandMark } from "@erpx/feature-brand/components/workspace-brand";
 import { FeatureEnvironment } from "@erpx/feature-shared/components/features/feature-environment";
+import { WorkEntryNavigation } from "@erpx/workplace/components/topic-navigation";
 import { NavigationCountsProvider } from "@erpx/workplace/components/navigation-counts";
 
 import { localShortcutKey } from "@erpx/feature-work_projection/lib/local-shortcuts";
@@ -137,10 +141,10 @@ export default async function WorkplaceLayout({
       const path = requestHeaders.get("x-erpx-page-path");
       const access = await productPageAccess(officeProduct.id, actor.companyId, path ?? "");
       sourceRecord=access.sourceRecord;
-      sourceProjectTask=officeProduct.id==="work"&&!!path&&!!projectTaskSourceEntry(workspacePathParts(new URL(path,"https://entry.invalid").pathname)?.path??"");
+      sourceProjectTask=officeProduct.id==="apps"&&!!path&&!!projectTaskSourceEntry(workspacePathParts(new URL(path,"https://entry.invalid").pathname)?.path??"");
       const sourcePath=path?workspacePathParts(new URL(path,"https://entry.invalid").pathname)?.path??"":"";
-      sourceConversation=officeProduct.id==="work"&&!!socialPostSourceEntry(sourcePath);
-      sourceSelfService=officeProduct.id==="work"&&!!workforceSelfServiceEntry(sourcePath);
+      sourceConversation=officeProduct.id==="apps"&&!!socialPostSourceEntry(sourcePath);
+      sourceSelfService=officeProduct.id==="apps"&&!!workforceSelfServiceEntry(sourcePath);
       sourcePostingSetup=officeProduct.id==="supply"&&sourcePath==="purchasing/setup/posting";
       sourceInitialPhysicalStock=officeProduct.id==="sales"&&!!initialPhysicalStockCountEntry(sourcePath);
       sourceManufacturingInitialStock=officeProduct.id==="manufacturing"&&!!manufacturingInitialPhysicalStockCountEntry(sourcePath);
@@ -211,6 +215,7 @@ export default async function WorkplaceLayout({
     frontBase ? `${frontBase}/${app}/${frontLocation}/` : undefined;
   const handbookAccess=sourceRecord?{editor:false,owner:false}:await (await collaborationPresentationQueries(context.holdingId)).handbookAccess(context).catch(()=>({editor:false,owner:false}));
   const navigation = {
+    language,
     ...(officeProduct ? { productId: officeProduct.id } : {}),
     handbookAccess:sourceRecord?{editor:false,owner:false}:handbookAccess,
     financeWorkspaceV2: financeWorkspaceV2Enabled(),
@@ -273,24 +278,25 @@ export default async function WorkplaceLayout({
             base={base}
             companyId={context.companyId}
             assignmentId={context.assignmentId}
-            revision={context.authority!.revision}
+            revision={context.authority!.revision} assignmentVersion={context.authority!.assignmentVersion}
           />
           <a href="#workspace-content" className="skip-link">
             Skip to content
           </a>
           <aside className={styles.sidebar} data-app-chrome>
-            <Link className={styles.brand} href={sourceRecord?configuredProductHandoff("apps")!:canonicalUiHref(`${base}/${productLanding}`)}>
+            <AppsHomeLink className={styles.brand}>
               <ProductBrand appearance="standard" className={`${styles.productBrand} ${styles.productBrandWordmark}`} />
               <ProductBrand appearance="standard"
                 variant="symbol"
                 className={`${styles.productBrand} ${styles.productBrandSymbol}`}
               />
               <small>{officeProduct?.label[language] ?? "WORKSPACE"}</small>
-            </Link>
+            </AppsHomeLink>
             {!sourceRecord && <Suspense>
               <WorkplaceNavigation {...navigation} />
             </Suspense>}
             <div className={styles.sidebarBottom}>
+              <ProductAccountTrigger sidebar companyId={context.companyId} workspaceBase={base} roleLabel={context.assignments.find(option=>option.id===context.assignmentId)?.label??context.role.replaceAll('_',' ')}/>
               <div>
                 <Building2 size={17} />
                 <div>
@@ -303,8 +309,8 @@ export default async function WorkplaceLayout({
           <div className={styles.main} data-app-main>
             <header className={styles.topbar} data-app-chrome>
               <div className={styles.workspace}>
-                <WorkspaceBrandMark appearance="standard" brand={workspaceBrand} compact />
-                {sourceRecord ? <Link href={configuredProductHandoff("apps")!} aria-label={language==="th"?"เลือกผลิตภัณฑ์ใน Apps":"Choose a product in Apps"}>{workspaceLabel} · Apps</Link> : officeProduct ? <Suspense fallback={<span>{workspaceLabel}</span>}><OfficeProductMenus productId={officeProduct.id} companyId={context.companyId} scopeBase={base} workspaceLabel={workspaceLabel} language={language} /></Suspense> : audience === "admin" ? <Suspense fallback={<span>{workspaceLabel}</span>}><AdminWorkspaceMenus companyId={context.companyId} scopeBase={base} workspaceLabel={workspaceLabel} management={adminManagementPath} language={language}/></Suspense> : <Suspense
+                <AppsHomeLink><WorkspaceBrandMark appearance="standard" brand={workspaceBrand} compact /></AppsHomeLink>
+                {sourceRecord ? <Link href={configuredProductHandoff("apps", "/?launcher=open")!} aria-label={language === "th" ? "เลือกแอปและพื้นที่ทำงาน" : "Choose apps and workspace"}>{workspaceLabel} · Apps</Link> : officeProduct ? <Suspense fallback={<span>{workspaceLabel}</span>}><OfficeProductMenus accountId={context.userId} productId={officeProduct.id} companyId={context.companyId} scopeBase={base} workspaceLabel={workspaceLabel} language={language} /></Suspense> : audience === "admin" ? <Suspense fallback={<span>{workspaceLabel}</span>}><AdminWorkspaceMenus accountId={context.userId} companyId={context.companyId} scopeBase={base} workspaceLabel={workspaceLabel} management={adminManagementPath} language={language}/></Suspense> : <Suspense
                   fallback={
                     <Button appearance="standard"
                       variant="ghost"
@@ -353,7 +359,7 @@ export default async function WorkplaceLayout({
                     </span>
                   }
                 >
-                  {sourceRecord?<span>{officeProduct?.id==="work"?(sourceConversation?(language==="th"?"บทสนทนาของรายการต้นทาง":"Source conversation"):sourceSelfService?(language==="th"?"คำขอของฉัน":"My requests"):sourceProjectTask?(language==="th"?"งานในโครงการ":"Project task"):(language==="th"?"การแจ้งเตือน":"Notifications")):officeProduct?.id==="recruit"?(language==="th"?"ความเป็นส่วนตัวของผู้สมัคร":"Candidate privacy"):officeProduct?.id==="people"?(sourcePayrollPostingSetup?(language==="th"?"ตั้งค่าบัญชีเงินเดือน":"Payroll posting setup"):requestHeaders.get("x-erpx-page-path")?.includes("/people/payroll/")?(language==="th"?"การชำระภาระผูกพันเงินเดือน":"Payroll settlement"):(language==="th"?"รับเข้าทำงานจากข้อเสนอที่ยอมรับแล้ว":"Accepted hire handoff")):sourceExpensePostingSetup?(language==="th"?"ตั้งค่าบัญชีค่าใช้จ่าย":"Expense posting setup"):sourceInitialPhysicalStock?(language==="th"?"ตรวจนับสต็อกครั้งแรก":"Initial physical stock count"):sourceManufacturingInitialStock?(language==="th"?"ตรวจนับวัสดุตั้งต้น":"Initial physical material count"):sourceManufacturingPostingSetup?(language==="th"?"ตั้งค่าบัญชีการผลิต":"Manufacturing posting setup"):sourceSalesPostingSetup?(language==="th"?"ตั้งค่าบัญชีงานขาย":"Sales posting setup"):officeProduct?.id==="supply"?(sourcePostingSetup?(language==="th"?"ตั้งค่าบัญชีจัดซื้อและสินค้า":"Purchase and stock posting setup"):(language==="th"?"งานคุณภาพจากรายการต้นทาง":"Source quality work")):(language==="th"?"งานการเงินที่รวมในผลิตภัณฑ์":"Included Finance work")}</span>:<WorkspaceBreadcrumb
+                  {sourceRecord?<span>{officeProduct?.id==="apps"?(sourceConversation?(language==="th"?"บทสนทนาของรายการต้นทาง":"Source conversation"):sourceSelfService?(language==="th"?"คำขอของฉัน":"My requests"):sourceProjectTask?(language==="th"?"งานในโครงการ":"Project task"):(language==="th"?"การแจ้งเตือน":"Notifications")):officeProduct?.id==="recruit"?(language==="th"?"ความเป็นส่วนตัวของผู้สมัคร":"Candidate privacy"):officeProduct?.id==="people"?(sourcePayrollPostingSetup?(language==="th"?"ตั้งค่าบัญชีเงินเดือน":"Payroll posting setup"):requestHeaders.get("x-erpx-page-path")?.includes("/people/payroll/")?(language==="th"?"การชำระภาระผูกพันเงินเดือน":"Payroll settlement"):(language==="th"?"รับเข้าทำงานจากข้อเสนอที่ยอมรับแล้ว":"Accepted hire handoff")):sourceExpensePostingSetup?(language==="th"?"ตั้งค่าบัญชีค่าใช้จ่าย":"Expense posting setup"):sourceInitialPhysicalStock?(language==="th"?"ตรวจนับสต็อกครั้งแรก":"Initial physical stock count"):sourceManufacturingInitialStock?(language==="th"?"ตรวจนับวัสดุตั้งต้น":"Initial physical material count"):sourceManufacturingPostingSetup?(language==="th"?"ตั้งค่าบัญชีการผลิต":"Manufacturing posting setup"):sourceSalesPostingSetup?(language==="th"?"ตั้งค่าบัญชีงานขาย":"Sales posting setup"):officeProduct?.id==="supply"?(sourcePostingSetup?(language==="th"?"ตั้งค่าบัญชีจัดซื้อและสินค้า":"Purchase and stock posting setup"):(language==="th"?"งานคุณภาพจากรายการต้นทาง":"Source quality work")):(language==="th"?"งานการเงินที่รวมในผลิตภัณฑ์":"Included Finance work")}</span>:<WorkspaceBreadcrumb
                     workspaceBase={base}
                     ancestors={ancestors}
                     navigation={navigation}
@@ -361,9 +367,8 @@ export default async function WorkplaceLayout({
                 </Suspense>
               </div>
               <div className={styles.actions}>
-                {(officeProduct || audience === "admin") && <a data-product-switch href={configuredProductHandoff("apps")!}>Apps</a>}
                 <CurrencySelector />
-                {officeProduct && <Link href={`${base}/inbox/notifications`}>{language==="th"?"การแจ้งเตือน":"Notifications"}</Link>}
+                {officeProduct && <Link className={styles.notificationShortcut} href={`${base}/inbox/notifications`}>{language==="th"?"การแจ้งเตือน":"Notifications"}</Link>}
                 {!sourceRecord && <CommandSearch {...navigation} />}
                 <AccountSwitcher
                   accountNavigation={configuredProductOrigin("account")!==null}
@@ -388,8 +393,8 @@ export default async function WorkplaceLayout({
                 userId={context.userId}
                 companyId={context.companyId}
                 assignmentId={context.assignmentId}
-                revision={context.authority!.revision}
-                initialCurrent={{version:1,base,userId:context.userId,companyId:context.companyId,assignmentId:context.assignmentId,revision:context.authority!.revision,checkedAt:workContextCheckedAt}}
+                revision={context.authority!.revision} assignmentVersion={context.authority!.assignmentVersion}
+                initialCurrent={{version:2,base,userId:context.userId,companyId:context.companyId,assignmentId:context.assignmentId,revision:context.authority!.revision,assignmentVersion:context.authority!.assignmentVersion,checkedAt:workContextCheckedAt}}
               >
                 {!sourceRecord&&<Suspense>
                   <WorkspaceAssistant
@@ -424,7 +429,7 @@ export default async function WorkplaceLayout({
                           : undefined
                       }
                     >
-                      <RecordWorkspaceProvider><RecordScopeProvider base={base}>{children}{record}</RecordScopeProvider></RecordWorkspaceProvider>
+                      <RecordWorkspaceProvider><RecordScopeProvider base={base}><Suspense fallback={null}><WorkEntryNavigation context={navigation}/></Suspense>{children}{record}</RecordScopeProvider></RecordWorkspaceProvider>
                     </FeatureEnvironment>
                   </MainContent>
                 </div>
@@ -440,5 +445,5 @@ export default async function WorkplaceLayout({
       </CurrencyProvider>
   );
   const counted=sourceRecord?workplace:<NavigationCountsProvider key={homeContextKey(context)} base={base} initial={initialNavigation} shortcutStorageKey={localShortcutKey(context.userId,context.companyId,base)}>{workplace}</NavigationCountsProvider>;
-  return <ProductWorkLinks companyId={context.companyId} companySlug={companySlug??undefined} workspaceBase={base}>{officeProduct || audience === "admin" ? <ProductNavigationBoundary language={language}>{counted}</ProductNavigationBoundary> : counted}</ProductWorkLinks>;
+  return <ProductWorkLinks companyId={context.companyId} companySlug={companySlug??undefined} workspaceBase={base}>{audience === "apps" && <AppsWorkspaceMemory accountId={context.userId} companyId={JSON.stringify([holdingSlug, context.companyId])} workspaceId={base} />}{officeProduct || audience === "admin" ? <ProductNavigationBoundary language={language}>{counted}</ProductNavigationBoundary> : counted}</ProductWorkLinks>;
 }

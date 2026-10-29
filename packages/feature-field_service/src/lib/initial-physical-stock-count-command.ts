@@ -3,22 +3,15 @@ import {captureWorkCommandContext} from '@erpx/feature-work_projection/lib/comma
 import {retainWorkCommandCompletion} from '@erpx/feature-work_projection/lib/command-completion';
 import {announceWorkChange} from '@erpx/feature-work_projection/lib/work-refresh';
 import {countCommandContext,countFormUnchanged} from '@erpx/feature-inventory/lib/count-command-fetch';
-import type {z} from 'zod';
-import type {ServiceInitialPhysicalStockCountInput,ServiceInitialPhysicalStockCountAction,ServiceInitialPhysicalStockCountView,serviceInitialPhysicalStockCountActionSchema,serviceInitialPhysicalStockCountSelectionSchema} from '@erpx/server-inventory/public/service-initial-physical-stock-count';
-type ServiceInitialPhysicalStockCountActionInput=z.input<typeof serviceInitialPhysicalStockCountActionSchema>;
-type ServiceInitialPhysicalStockCountSelection=z.input<typeof serviceInitialPhysicalStockCountSelectionSchema>;
-import type {serviceInitialPhysicalStockWarehouseSchema,serviceInitialPhysicalStockProductSchema} from '@erpx/server-commerce/public/service-initial-physical-stock-masters';
-
-export type ServiceInitialPhysicalCountAction=ServiceInitialPhysicalStockCountAction;
-export type ServiceInitialPhysicalCountInput=ServiceInitialPhysicalStockCountInput;
-export type ServiceInitialPhysicalCountDecision=ServiceInitialPhysicalStockCountActionInput;
+import type {ServiceInitialPhysicalCountAction,ServiceInitialPhysicalCountDecision,ServiceInitialPhysicalCountInput,ServiceInitialPhysicalCountProductInput,ServiceInitialPhysicalCountSelection,ServiceInitialPhysicalCountView,ServiceInitialPhysicalCountWarehouseInput} from './initial-physical-stock-count-model';
+export type {ServiceInitialPhysicalCountAction,ServiceInitialPhysicalCountDecision,ServiceInitialPhysicalCountInput,ServiceInitialPhysicalCountProductInput,ServiceInitialPhysicalCountSelection,ServiceInitialPhysicalCountView,ServiceInitialPhysicalCountWarehouseInput} from './initial-physical-stock-count-model';
 export type ServiceInitialPhysicalCountSource={base:string;companyId:string;recordId:string|null;contextKey:string|null;recordVersion:number|null;flowVersion:number|null};
 export type ServiceInitialPhysicalCountReceipt={id:string;status?:'draft'|'submitted'|'approved'|'posted'|'rejected'|'cancelled';version:number;journalId?:string|null};
 const owner=(value:ServiceInitialPhysicalCountSource)=>JSON.stringify([value.base,value.companyId,value.recordId]);
 const row=(value:unknown):value is Record<string,unknown>=>!!value&&typeof value==='object'&&!Array.isArray(value);
 const statuses={submit:'submitted',approve:'approved',post:'posted',reject:'rejected',cancel:'cancelled'} as const;
 export type ServiceInitialPhysicalCountFlowInput={stepKey:string;userId:string;expectedVersion:number;recordVersion:number;reason:string;saveDefault:false};
-type Request={kind:'flow';id:string;input:ServiceInitialPhysicalCountFlowInput}|{kind:'prepare';input:ServiceInitialPhysicalCountInput}|{kind:ServiceInitialPhysicalCountAction;id:string;input:ServiceInitialPhysicalCountDecision}|{kind:'warehouse';input:z.input<typeof serviceInitialPhysicalStockWarehouseSchema>}|{kind:'product';input:z.input<typeof serviceInitialPhysicalStockProductSchema>};
+type Request={kind:'flow';id:string;input:ServiceInitialPhysicalCountFlowInput}|{kind:'prepare';input:ServiceInitialPhysicalCountInput}|{kind:ServiceInitialPhysicalCountAction;id:string;input:ServiceInitialPhysicalCountDecision}|{kind:'warehouse';input:ServiceInitialPhysicalCountWarehouseInput}|{kind:'product';input:ServiceInitialPhysicalCountProductInput};
 type Attempt={request:Request;source:ServiceInitialPhysicalCountSource;body:string;key:string;work:string;uncertain:boolean;hadCompletion:boolean;completion:ReturnType<typeof retainWorkCommandCompletion>};
 function acknowledged(value:unknown,captured:Attempt):value is ServiceInitialPhysicalCountReceipt{
  const request=captured.request;
@@ -55,13 +48,13 @@ export function createServiceInitialPhysicalStockCountCommands(current:()=>Servi
   const body=JSON.stringify(request.input),work=countCommandContext();if(attempt&&(attempt.body!==body||owner(attempt.source)!==owner(source)||attempt.request.kind!==request.kind||work!==attempt.work))throw Error('Confirm the original physical-count request first. Your newer entries are retained.');
   attempt??={request:structuredClone(request),source:{...source},body,key:crypto.randomUUID(),work,uncertain:false,hadCompletion:!!completion,completion:retainWorkCommandCompletion(completion)};return run(attempt);
  }
- return {assign:(id:string,input:ServiceInitialPhysicalCountFlowInput,completion?:WorkCommandCompletion)=>submit({kind:'flow',id,input},completion),createWarehouse:(input:z.input<typeof serviceInitialPhysicalStockWarehouseSchema>,completion?:WorkCommandCompletion)=>submit({kind:'warehouse',input},completion),createProduct:(input:z.input<typeof serviceInitialPhysicalStockProductSchema>,completion?:WorkCommandCompletion)=>submit({kind:'product',input},completion),prepare:(input:ServiceInitialPhysicalCountInput,completion?:WorkCommandCompletion)=>submit({kind:'prepare',input},completion),transition:(id:string,action:ServiceInitialPhysicalCountAction,input:ServiceInitialPhysicalCountDecision,completion?:WorkCommandCompletion)=>submit({kind:action,id,input},completion),retry(){if(!attempt)throw Error('There is no original physical-count request to confirm.');return run(attempt);},pending:()=>attempt!==null};
+ return {assign:(id:string,input:ServiceInitialPhysicalCountFlowInput,completion?:WorkCommandCompletion)=>submit({kind:'flow',id,input},completion),createWarehouse:(input:ServiceInitialPhysicalCountWarehouseInput,completion?:WorkCommandCompletion)=>submit({kind:'warehouse',input},completion),createProduct:(input:ServiceInitialPhysicalCountProductInput,completion?:WorkCommandCompletion)=>submit({kind:'product',input},completion),prepare:(input:ServiceInitialPhysicalCountInput,completion?:WorkCommandCompletion)=>submit({kind:'prepare',input},completion),transition:(id:string,action:ServiceInitialPhysicalCountAction,input:ServiceInitialPhysicalCountDecision,completion?:WorkCommandCompletion)=>submit({kind:action,id,input},completion),retry(){if(!attempt)throw Error('There is no original physical-count request to confirm.');return run(attempt);},pending:()=>attempt!==null};
 }
 
 const text=(value:unknown)=>typeof value==='string'&&value.length>0;
 const nullableText=(value:unknown)=>value===null||text(value);
 const booleans=(value:Record<string,unknown>,keys:string[])=>keys.every(key=>typeof value[key]==='boolean');
-export function validServiceInitialPhysicalStockCountView(value:unknown,companyId:string):value is ServiceInitialPhysicalStockCountView{
+export function validServiceInitialPhysicalStockCountView(value:unknown,companyId:string):value is ServiceInitialPhysicalCountView{
  if(!row(value)||value.companyId!==companyId||!booleans(value,['available','canPrepare','canCreateWarehouse','canCreateProduct'])||!nullableText(value.currency)||!nullableText(value.documentCurrency)||!row(value.selection)||!['warehouseId','productId','countDate'].every(key=>nullableText((value.selection as Record<string,unknown>)[key]))||!row(value.readiness)||!booleans(value.readiness,['postingConfigured','varianceAccountAvailable','postingPeriodAvailable','schemaAvailable']))return false;
  if(!Array.isArray(value.branches)||!value.branches.every(item=>row(item)&&['id','name'].every(key=>text(item[key])))||!Array.isArray(value.warehouses)||!value.warehouses.every(item=>row(item)&&['id','name','branchId'].every(key=>text(item[key])))||!Array.isArray(value.products)||!value.products.every(item=>row(item)&&['id','sku','name','unit','trackingMode'].every(key=>text(item[key]))))return false;
  if(value.contextKey!==null&&(typeof value.contextKey!=='string'||!/^[a-f0-9]{64}$/.test(value.contextKey)))return false;
@@ -73,7 +66,7 @@ export function validServiceInitialPhysicalStockCountView(value:unknown,companyI
 }
 /** Explicit source review only; matching initial server content never triggers
  * a mount GET. New selection is not authority until the owner returns its key. */
-export async function readServiceInitialPhysicalStockCount(current:()=>ServiceInitialPhysicalCountSource|null,selection:ServiceInitialPhysicalStockCountSelection={},send:typeof workFetch=workFetch,signal?:AbortSignal){
+export async function readServiceInitialPhysicalStockCount(current:()=>ServiceInitialPhysicalCountSource|null,selection:ServiceInitialPhysicalCountSelection={},send:typeof workFetch=workFetch,signal?:AbortSignal){
  const source=current();if(!source)throw Error('Return to the original physical-count workspace.');const captured={...source},assertWork=captureWorkCommandContext(),query=new URLSearchParams();
  for(const key of ['warehouseId','productId','countDate'] as const)if(selection[key])query.set(key,selection[key]);
  const resource=source.recordId?`/${encodeURIComponent(source.recordId)}`:query.size?`?${query}`:'';

@@ -1,0 +1,42 @@
+#!/bin/sh
+# Contributor lifecycle for isolated services and bootstrap.
+set -eu
+root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
+case "${ERPX_DEV_WORKSPACE_KEY:-}" in
+  ''|*[!a-z0-9-]*|-*|*-) echo 'Set ERPX_DEV_WORKSPACE_KEY to a unique lowercase checkout-and-architecture key.' >&2; exit 2 ;;
+esac
+case "${1:-}" in
+  up)
+    [ "$#" -eq 1 ] || { echo 'Selected-app startup is not implemented yet.' >&2; exit 2; }
+    "$root/scripts/local/dev-container-services.sh" up
+    socket="$HOME/.colima/erpx-opensource-dev/docker.sock"
+    unset DOCKER_CONTEXT DOCKER_TLS_VERIFY DOCKER_CERT_PATH
+    DOCKER_CONFIG=$(mktemp -d "${TMPDIR:-/tmp}/erpx-container-cli.XXXXXXXX")
+    trap 'rm -rf -- "$DOCKER_CONFIG"' EXIT HUP INT TERM
+    export DOCKER_CONFIG COMPOSE_DISABLE_ENV_FILE=1 DOCKER_HOST="unix://$socket"
+    docker-compose --project-directory "$root/ops/containers" -p "erpx-dev-$ERPX_DEV_WORKSPACE_KEY" \
+      -f "$root/ops/containers/development-services.compose.yaml" -f "$root/.devcontainer/compose.yaml" up -d
+    echo 'Services started. Populate /workspace/erpx with a fresh reviewed clone before opening the editor.'
+    echo 'After populating the source, run scripts/local/dev-container bootstrap. Local HTTPS, app startup and HMR remain unverified.'
+    ;;
+  bootstrap)
+    [ "$#" -eq 1 ] || exit 2
+    if [ -f /.dockerenv ]; then
+      cd /workspace/erpx
+      exec env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/root ERPX_DEV_WORKSPACE_KEY="$ERPX_DEV_WORKSPACE_KEY" bun --no-env-file scripts/local/dev-container-bootstrap.ts
+    fi
+    socket="$HOME/.colima/erpx-opensource-dev/docker.sock"
+    [ -S "$socket" ] || { echo 'OWNED_CONTAINER_ENGINE_REQUIRED' >&2; exit 1; }
+    unset DOCKER_CONTEXT DOCKER_TLS_VERIFY DOCKER_CERT_PATH
+    DOCKER_CONFIG=$(mktemp -d "${TMPDIR:-/tmp}/erpx-container-cli.XXXXXXXX")
+    trap 'rm -rf -- "$DOCKER_CONFIG"' EXIT HUP INT TERM
+    export DOCKER_CONFIG COMPOSE_DISABLE_ENV_FILE=1 DOCKER_HOST="unix://$socket"
+    docker-compose --project-directory "$root/ops/containers" -p "erpx-dev-$ERPX_DEV_WORKSPACE_KEY" \
+      -f "$root/ops/containers/development-services.compose.yaml" -f "$root/.devcontainer/compose.yaml" exec -T workspace scripts/local/dev-container bootstrap
+    ;;
+  down)
+    [ "$#" -eq 1 ] || exit 2
+    "$root/scripts/local/dev-container-services.sh" down
+    ;;
+  *) echo 'Usage: ERPX_DEV_WORKSPACE_KEY=<checkout-architecture> scripts/local/dev-container up|bootstrap|down' >&2; exit 2 ;;
+esac

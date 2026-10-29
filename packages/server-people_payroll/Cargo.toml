@@ -1,0 +1,52 @@
+[package]
+name = "erpx-server-people-payroll"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+autotests = false
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+erpx-server-shared.workspace = true
+erpx-server-runtime.workspace = true
+sqlx.workspace = true
+
+serde.workspace = true
+serde_json = { workspace = true, features = ["raw_value"] }
+num-bigint.workspace = true
+num-traits.workspace = true
+icu_collator.workspace = true
+icu_collator_data.workspace = true
+icu_locale.workspace = true
+ryu-js.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+uuid.workspace = true
+
+[[test]]
+name = "identity_facts"
+path = "../../tests/unit/people_payroll/rust-identity-facts.test.rs"
+
+[[test]]
+name = "identity_facts_postgres"
+path = "../../tests/integration/people_payroll/rust-identity-facts-postgres.test.rs"
+
+[lints]
+workspace = true
+
+[[test]]
+name = "invitation_person_link"
+path = "../../tests/unit/people_payroll/rust-invitation-person-link.test.rs"
+
+[[test]]
+name = "invitation_person_link_postgres"
+path = "../../tests/integration/people_payroll/rust-invitation-person-link-postgres.test.rs"
+
+[[test]]
+name = "payroll_accounting"
+path = "../../tests/unit/people_payroll/rust-payroll-accounting.test.rs"

@@ -18,6 +18,7 @@
     "@erpx/feature-work_projection": "workspace:*",
     "@erpx/server-commercial": "workspace:*",
     "@erpx/ui": "workspace:*",
-    "react": "19.3.0"
+    "react": "19.3.1",
+    "@erpx/contracts": "workspace:*"
   }
 }

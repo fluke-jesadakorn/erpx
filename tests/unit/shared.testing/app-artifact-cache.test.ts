@@ -68,6 +68,10 @@ it('copies source while excluding private environment and generated state in nes
     await writeFile(join(source, 'apps/finance/page.tsx'), 'export default 1;');
     await writeFile(join(source, 'apps/finance/.env.local'), 'FICTIONAL_PRIVATE_CONFIGURATION=omit');
     await writeFile(join(source, 'apps/finance/.cache/state'), 'generated');
+    await mkdir(join(source, 'target/debug'), { recursive: true });
+    await mkdir(join(source, 'packages/server-example/target/release'), { recursive: true });
+    await writeFile(join(source, 'target/debug/runtime'), 'native generated output');
+    await writeFile(join(source, 'packages/server-example/target/release/worker'), 'nested native output');
     await symlink('page.tsx',join(source,'apps/finance/entry.tsx'));
     await copyWorkspaceSnapshot(source, output,path => workspaceCopyInput(source, path));
     expect(await readlink(join(output,'apps/finance/entry.tsx'))).toBe('page.tsx');
@@ -75,6 +79,8 @@ it('copies source while excluding private environment and generated state in nes
     expect(await readFile(join(output, 'apps/finance/page.tsx'), 'utf8')).toBe('export default 1;');
     await expect(readFile(join(output, 'apps/finance/.env.local'))).rejects.toMatchObject({ code: 'ENOENT' });
     await expect(readFile(join(output, 'apps/finance/.cache/state'))).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(readFile(join(output, 'target/debug/runtime'))).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(readFile(join(output, 'packages/server-example/target/release/worker'))).rejects.toMatchObject({ code: 'ENOENT' });
     expect(workspaceCopyInput(source, join(root, 'outside.ts'))).toBe(false);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
@@ -97,7 +103,7 @@ async function combinedReleaseFixture() {
 it('verifies all 22 relocated apps plus gateway/jobs and refuses development evidence as a frozen candidate',async()=>{
  const f=await combinedReleaseFixture();try{
   const {verifyWorkspaceRelease}=await import('../../../scripts/local/workspace-release-manifest');
-  expect(Object.keys((await verifyWorkspaceRelease(f.root)).apps)).toHaveLength(22);
+  expect(Object.keys((await verifyWorkspaceRelease(f.root)).apps)).toHaveLength(21);
   await expect(verifyWorkspaceRelease(f.root,{frozen:true})).rejects.toThrow('EXACT_COMBINED_RELEASE_REQUIRED');
   await expect(verifyWorkspaceRelease(f.root,{candidate:'c'.repeat(40)})).rejects.toThrow('EXACT_COMBINED_RELEASE_REQUIRED');
   await writeFile(join(f.root,'apps/finance/entry.mjs'),'tampered');

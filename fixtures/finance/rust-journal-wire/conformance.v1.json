@@ -1,0 +1,763 @@
+{
+  "version": 1,
+  "commit": "a5ed8737a2f05eff1ee9841fda4a094b3926d732",
+  "sources": [
+    {
+      "path": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts",
+      "sha256": "a1d9e2b3a7f4fe7c70e7b33613b3dd02ab6e2feba30c24e9bd679776c34128c9"
+    },
+    {
+      "path": "packages/feature-legal/src/routes/api/v1/holdings/[holdingSlug]/legal/[[...path]]/route.ts",
+      "sha256": "ae1399b78a0bb12b135968693aa6d82e5200231e2dfc46ff05f6c7a26cdc5cf3"
+    }
+  ],
+  "scope": "Exact retained HTTP wire schemas/body/status only. Legal queue result is a synthetic transport port; no auth, current-source or database acceptance.",
+  "node": "v26.11.1",
+  "cases": [
+    {
+      "id": "post-number-1",
+      "kind": "post",
+      "base64": "eyJleHBlY3RlZFZlcnNpb24iOjF9",
+      "contentType": "application/json",
+      "expected": {
+        "status": 200,
+        "normalized": "{\"expectedVersion\":1}"
+      }
+    },
+    {
+      "id": "post-number-1.0",
+      "kind": "post",
+      "base64": "eyJleHBlY3RlZFZlcnNpb24iOjEuMH0=",
+      "contentType": "application/json",
+      "expected": {
+        "status": 200,
+        "normalized": "{\"expectedVersion\":1}"
+      }
+    },
+    {
+      "id": "post-number-1e0",
+      "kind": "post",
+      "base64": "eyJleHBlY3RlZFZlcnNpb24iOjFlMH0=",
+      "contentType": "application/json",
+      "expected": {
+        "status": 200,
+        "normalized": "{\"expectedVersion\":1}"
+      }
+    },
+    {
+      "id": "post-number-1.0000000000000001",
+      "kind": "post",
+      "base64": "eyJleHBlY3RlZFZlcnNpb24iOjEuMDAwMDAwMDAwMDAwMDAwMX0=",
+      "contentType": "application/json",
+      "expected": {
+        "status": 200,
+        "normalized": "{\"expectedVersion\":1}"
+      }
+    },
+    {
+      "id": "post-number-0",
+      "kind": "post",
+      "base64": "eyJleHBlY3RlZFZlcnNpb24iOjB9",
+      "contentType": "application/json",
+      "expected": {
+        "status": 422,
+        "code": "VALIDATION_FAILED",
+        "message": "expectedVersion is required."
+      }
+    },
+    {
+      "id": "post-number--0",
+      "kind": "post",
+      "base64": "eyJleHBlY3RlZFZlcnNpb24iOi0wfQ==",
+      "contentType": "application/json",
+      "expected": {
+        "status": 422,
+        "code": "VALIDATION_FAILED",
+        "message": "expectedVersion is required."
+      }
+    },
+    {
+      "id": "post-number--1",
+      "kind": "post",
+      "base64": "eyJleHBlY3RlZFZlcnNpb24iOi0xfQ==",
+      "contentType": "application/json",
+      "expected": {
+        "status": 422,
+        "code": "VALIDATION_FAILED",
+        "message": "expectedVersion is required."
+      }
+    },
+    {
+      "id": "post-number-1.5",
+      "kind": "post",
+      "base64": "eyJleHBlY3RlZFZlcnNpb24iOjEuNX0=",
+      "contentType": "application/json",
+      "expected": {
+        "status": 422,
+        "code": "VALIDATION_FAILED",
+        "message": "expectedVersion is required."
+      }
+    },
+    {
+      "id": "post-number-1e400",
+      "kind": "post",
+      "base64": "eyJleHBlY3RlZFZlcnNpb24iOjFlNDAwfQ==",
+      "contentType": "application/json",
+      "expected": {
+        "status": 422,
+        "code": "VALIDATION_FAILED",
+        "message": "expectedVersion is required."
+      }
+    },
+    {
+      "id": "post-number-9007199254740991",
+      "kind": "post",
+      "base64": "eyJleHBlY3RlZFZlcnNpb24iOjkwMDcxOTkyNTQ3NDA5OTF9",
+      "contentType": "application/json",
+      "expected": {
+        "status": 200,
+        "normalized": "{\"expectedVersion\":9007199254740991}"
+      }
+    },
+    {
+      "id": "post-number-9007199254740992",
+      "kind": "post",
+      "base64": "eyJleHBlY3RlZFZlcnNpb24iOjkwMDcxOTkyNTQ3NDA5OTJ9",
+      "contentType": "application/json",
+      "expected": {
+        "status": 422,
+        "code": "VALIDATION_FAILED",
+        "message": "expectedVersion is required."
+      }
+    },
+    {
+      "id": "post-number-\"1\"",
+      "kind": "post",
+      "base64": "eyJleHBlY3RlZFZlcnNpb24iOiIxIn0=",
+      "contentType": "application/json",
+      "expected": {
+        "status": 422,
+        "code": "VALIDATION_FAILED",
+        "message": "expectedVersion is required."
+      }
+    },
+    {
+      "id": "post-number-true",
+      "kind": "post",
+      "base64": "eyJleHBlY3RlZFZlcnNpb24iOnRydWV9",
+      "contentType": "application/json",
+      "expected": {
+        "status": 422,
+        "code": "VALIDATION_FAILED",
+        "message": "expectedVersion is required."
+      }
+    },
+    {
+      "id": "post-number-null",
+      "kind": "post",
+      "base64": "eyJleHBlY3RlZFZlcnNpb24iOm51bGx9",
+      "contentType": "application/json",
+      "expected": {
+        "status": 422,
+        "code": "VALIDATION_FAILED",
+        "message": "expectedVersion is required."
+      }
+    },
+    {
+      "id": "post-missing",
+      "kind": "post",
+      "base64": "e30=",
+      "contentType": "application/json",
+      "expected": {
+        "status": 422,
+        "code": "VALIDATION_FAILED",
+        "message": "expectedVersion is required."
+      }
+    },
+    {
+      "id": "post-primitive",
+      "kind": "post",
+      "base64": "MQ==",
+      "contentType": "application/json",
+      "expected": {
+        "status": 422,
+        "code": "VALIDATION_FAILED",
+        "message": "expectedVersion is required."
+      }
+    },
+    {
+      "id": "post-array",
+      "kind": "post",
+      "base64": "W10=",
+      "contentType": "application/json",
+      "expected": {
+        "status": 422,
+        "code": "VALIDATION_FAILED",
+        "message": "expectedVersion is required."
+      }
+    },
+    {
+      "id": "post-null",
+      "kind": "post",
+      "base64": "bnVsbA==",
+      "contentType": "application/json",
+      "expected": {
+        "status": 422,
+        "code": "VALIDATION_FAILED",
+        "message": "expectedVersion is required."
+      }
+    },
+    {
+      "id": "post-duplicate",
+      "kind": "post",
+      "base64": "eyJleHBlY3RlZFZlcnNpb24iOjEsImV4cGVjdGVkVmVyc2lvbiI6Mn0=",
+      "contentType": "application/json",
+      "expected": {
+        "status": 200,
+        "normalized": "{\"expectedVersion\":2}"
+      }
+    },
+    {
+      "id": "post-duplicateInvalidFirst",
+      "kind": "post",
+      "base64": "eyJleHBlY3RlZFZlcnNpb24iOm51bGwsImV4cGVjdGVkVmVyc2lvbiI6MX0=",
+      "contentType": "application/json",
+      "expected": {
+        "status": 200,
+        "normalized": "{\"expectedVersion\":1}"
+      }
+    },
+    {
+      "id": "post-duplicateInvalidLast",
+      "kind": "post",
+      "base64": "eyJleHBlY3RlZFZlcnNpb24iOjEsImV4cGVjdGVkVmVyc2lvbiI6bnVsbH0=",
+      "contentType": "application/json",
+      "expected": {
+        "status": 422,
+        "code": "VALIDATION_FAILED",
+        "message": "expectedVersion is required."
+      }
+    },
+    {
+      "id": "post-unknown",
+      "kind": "post",
+      "base64": "eyJleHBlY3RlZFZlcnNpb24iOjEsImlnbm9yZWQiOnsibmVnYXRpdmUiOjFlNDAwLCJ1bnBhaXJlZCI6Ilx1ZDgwMCJ9fQ==",
+      "contentType": "application/json",
+      "expected": {
+        "status": 200,
+        "normalized": "{\"expectedVersion\":1}"
+      }
+    },
+    {
+      "id": "post-empty",
+      "kind": "post",
+      "base64": "",
+      "contentType": "application/json",
+      "expected": {
+        "status": 422,
+        "code": "INVALID_JSON",
+        "message": "Request body must be valid JSON."
+      }
+    },
+    {
+      "id": "post-malformed",
+      "kind": "post",
+      "base64": "eyJleHBlY3RlZFZlcnNpb24iOg==",
+      "contentType": "application/json",
+      "expected": {
+        "status": 422,
+        "code": "INVALID_JSON",
+        "message": "Request body must be valid JSON."
+      }
+    },
+    {
+      "id": "post-bom",
+      "kind": "post",
+      "base64": "77u/eyJleHBlY3RlZFZlcnNpb24iOjF9",
+      "contentType": "application/json",
+      "expected": {
+        "status": 200,
+        "normalized": "{\"expectedVersion\":1}"
+      }
+    },
+    {
+      "id": "post-content-null",
+      "kind": "post",
+      "base64": "eyJleHBlY3RlZFZlcnNpb24iOjF9",
+      "contentType": null,
+      "expected": {
+        "status": 200,
+        "normalized": "{\"expectedVersion\":1}"
+      }
+    },
+    {
+      "id": "post-content-text/plain",
+      "kind": "post",
+      "base64": "eyJleHBlY3RlZFZlcnNpb24iOjF9",
+      "contentType": "text/plain",
+      "expected": {
+        "status": 200,
+        "normalized": "{\"expectedVersion\":1}"
+      }
+    },
+    {
+      "id": "post-content-application/json; charset=utf-8",
+      "kind": "post",
+      "base64": "eyJleHBlY3RlZFZlcnNpb24iOjF9",
+      "contentType": "application/json; charset=utf-8",
+      "expected": {
+        "status": 200,
+        "normalized": "{\"expectedVersion\":1}"
+      }
+    },
+    {
+      "id": "reverse-memo-absent",
+      "kind": "reverse",
+      "base64": "eyJwZXJpb2RJZCI6InBlcmlvZCIsImVudHJ5RGF0ZSI6IjIwMjYtMDEtMDEifQ==",
+      "contentType": "application/json",
+      "expected": {
+        "status": 201,
+        "normalized": "{\"periodId\":\"period\",\"entryDate\":\"2026-01-01\"}"
+      }
+    },
+    {
+      "id": "reverse-memo-empty",
+      "kind": "reverse",
+      "base64": "eyJwZXJpb2RJZCI6InBlcmlvZCIsImVudHJ5RGF0ZSI6IjIwMjYtMDEtMDEiLCJtZW1vIjoiIn0=",
+      "contentType": "application/json",
+      "expected": {
+        "status": 201,
+        "normalized": "{\"periodId\":\"period\",\"entryDate\":\"2026-01-01\",\"memo\":\"\"}"
+      }
+    },
+    {
+      "id": "reverse-memo-null",
+      "kind": "reverse",
+      "base64": "eyJwZXJpb2RJZCI6InBlcmlvZCIsImVudHJ5RGF0ZSI6IjIwMjYtMDEtMDEiLCJtZW1vIjpudWxsfQ==",
+      "contentType": "application/json",
+      "expected": {
+        "status": 422,
+        "code": "VALIDATION_FAILED",
+        "message": "A reversal period and date are required."
+      }
+    },
+    {
+      "id": "reverse-memo-false",
+      "kind": "reverse",
+      "base64": "eyJwZXJpb2RJZCI6InBlcmlvZCIsImVudHJ5RGF0ZSI6IjIwMjYtMDEtMDEiLCJtZW1vIjpmYWxzZX0=",
+      "contentType": "application/json",
+      "expected": {
+        "status": 422,
+        "code": "VALIDATION_FAILED",
+        "message": "A reversal period and date are required."
+      }
+    },
+    {
+      "id": "reverse-memo-number",
+      "kind": "reverse",
+      "base64": "eyJwZXJpb2RJZCI6InBlcmlvZCIsImVudHJ5RGF0ZSI6IjIwMjYtMDEtMDEiLCJtZW1vIjowfQ==",
+      "contentType": "application/json",
+      "expected": {
+        "status": 422,
+        "code": "VALIDATION_FAILED",
+        "message": "A reversal period and date are required."
+      }
+    },
+    {
+      "id": "reverse-memo-thai",
+      "kind": "reverse",
+      "base64": "eyJwZXJpb2RJZCI6InBlcmlvZCIsImVudHJ5RGF0ZSI6IjIwMjYtMDEtMDEiLCJtZW1vIjoi4LiC4LmJ4Lit4LiE4Lin4Liy4LihIPCfmIAifQ==",
+      "contentType": "application/json",
+      "expected": {
+        "status": 201,
+        "normalized": "{\"periodId\":\"period\",\"entryDate\":\"2026-01-01\",\"memo\":\"ข้อความ 😀\"}"
+      }
+    },
+    {
+      "id": "reverse-memo-unpaired",
+      "kind": "reverse",
+      "base64": "eyJwZXJpb2RJZCI6InBlcmlvZCIsImVudHJ5RGF0ZSI6IjIwMjYtMDEtMDEiLCJtZW1vIjoiXHVkODAwIn0=",
+      "contentType": "application/json",
+      "expected": {
+        "status": 201,
+        "normalized": "{\"periodId\":\"period\",\"entryDate\":\"2026-01-01\",\"memo\":\"\\ud800\"}"
+      }
+    },
+    {
+      "id": "reverse-memo-pair",
+      "kind": "reverse",
+      "base64": "eyJwZXJpb2RJZCI6InBlcmlvZCIsImVudHJ5RGF0ZSI6IjIwMjYtMDEtMDEiLCJtZW1vIjoiXHVkODNkXHVkZTAwIn0=",
+      "contentType": "application/json",
+      "expected": {
+        "status": 201,
+        "normalized": "{\"periodId\":\"period\",\"entryDate\":\"2026-01-01\",\"memo\":\"😀\"}"
+      }
+    },
+    {
+      "id": "reverse-memo-newline",
+      "kind": "reverse",
+      "base64": "eyJwZXJpb2RJZCI6InBlcmlvZCIsImVudHJ5RGF0ZSI6IjIwMjYtMDEtMDEiLCJtZW1vIjoiZmlyc3RcbnNlY29uZCJ9",
+      "contentType": "application/json",
+      "expected": {
+        "status": 201,
+        "normalized": "{\"periodId\":\"period\",\"entryDate\":\"2026-01-01\",\"memo\":\"first\\nsecond\"}"
+      }
+    },
+    {
+      "id": "reverse-emptyPeriod",
+      "kind": "reverse",
+      "base64": "eyJwZXJpb2RJZCI6IiIsImVudHJ5RGF0ZSI6IjIwMjYtMDEtMDEifQ==",
+      "contentType": "application/json",
+      "expected": {
+        "status": 201,
+        "normalized": "{\"periodId\":\"\",\"entryDate\":\"2026-01-01\"}"
+      }
+    },
+    {
+      "id": "reverse-missingPeriod",
+      "kind": "reverse",
+      "base64": "eyJlbnRyeURhdGUiOiIyMDI2LTAxLTAxIn0=",
+      "contentType": "application/json",
+      "expected": {
+        "status": 422,
+        "code": "VALIDATION_FAILED",
+        "message": "A reversal period and date are required."
+      }
+    },
+    {
+      "id": "reverse-dateNull",
+      "kind": "reverse",
+      "base64": "eyJwZXJpb2RJZCI6InBlcmlvZCIsImVudHJ5RGF0ZSI6bnVsbH0=",
+      "contentType": "application/json",
+      "expected": {
+        "status": 422,
+        "code": "VALIDATION_FAILED",
+        "message": "A reversal period and date are required."
+      }
+    },
+    {
+      "id": "reverse-wrongDate",
+      "kind": "reverse",
+      "base64": "eyJwZXJpb2RJZCI6InBlcmlvZCIsImVudHJ5RGF0ZSI6IjIwMjYtMDItMjkifQ==",
+      "contentType": "application/json",
+      "expected": {
+        "status": 422,
+        "code": "VALIDATION_FAILED",
+        "message": "A reversal period and date are required."
+      }
+    },
+    {
+      "id": "reverse-leapDate",
+      "kind": "reverse",
+      "base64": "eyJwZXJpb2RJZCI6InBlcmlvZCIsImVudHJ5RGF0ZSI6IjIwMjQtMDItMjkifQ==",
+      "contentType": "application/json",
+      "expected": {
+        "status": 201,
+        "normalized": "{\"periodId\":\"period\",\"entryDate\":\"2024-02-29\"}"
+      }
+    },
+    {
+      "id": "reverse-datePadding",
+      "kind": "reverse",
+      "base64": "eyJwZXJpb2RJZCI6InBlcmlvZCIsImVudHJ5RGF0ZSI6IjIwMjYtMS0wMSJ9",
+      "contentType": "application/json",
+      "expected": {
+        "status": 422,
+        "code": "VALIDATION_FAILED",
+        "message": "A reversal period and date are required."
+      }
+    },
+    {
+      "id": "reverse-unknown",
+      "kind": "reverse",
+      "base64": "eyJwZXJpb2RJZCI6InBlcmlvZCIsImVudHJ5RGF0ZSI6IjIwMjYtMDEtMDEiLCJpZ25vcmVkIjpudWxsfQ==",
+      "contentType": "application/json",
+      "expected": {
+        "status": 201,
+        "normalized": "{\"periodId\":\"period\",\"entryDate\":\"2026-01-01\"}"
+      }
+    },
+    {
+      "id": "reverse-duplicate",
+      "kind": "reverse",
+      "base64": "eyJwZXJpb2RJZCI6InBlcmlvZCIsImVudHJ5RGF0ZSI6IjIwMjYtMDEtMDEiLCJtZW1vIjoib2xkIiwibWVtbyI6IiJ9",
+      "contentType": "application/json",
+      "expected": {
+        "status": 201,
+        "normalized": "{\"periodId\":\"period\",\"entryDate\":\"2026-01-01\",\"memo\":\"\"}"
+      }
+    }
+  ],
+  "legal": [
+    {
+      "kind": "ocr",
+      "contentType": null,
+      "body": "",
+      "expected": {
+        "status": 200,
+        "body": {
+          "data": {
+            "id": "item",
+            "jobId": "key",
+            "state": "queued"
+          }
+        }
+      }
+    },
+    {
+      "kind": "ocr",
+      "contentType": null,
+      "body": "not-json",
+      "expected": {
+        "status": 200,
+        "body": {
+          "data": {
+            "id": "item",
+            "jobId": "key",
+            "state": "queued"
+          }
+        }
+      }
+    },
+    {
+      "kind": "ocr",
+      "contentType": null,
+      "body": "null",
+      "expected": {
+        "status": 200,
+        "body": {
+          "data": {
+            "id": "item",
+            "jobId": "key",
+            "state": "queued"
+          }
+        }
+      }
+    },
+    {
+      "kind": "ocr",
+      "contentType": "application/json",
+      "body": "",
+      "expected": {
+        "status": 200,
+        "body": {
+          "data": {
+            "id": "item",
+            "jobId": "key",
+            "state": "queued"
+          }
+        }
+      }
+    },
+    {
+      "kind": "ocr",
+      "contentType": "application/json",
+      "body": "not-json",
+      "expected": {
+        "status": 200,
+        "body": {
+          "data": {
+            "id": "item",
+            "jobId": "key",
+            "state": "queued"
+          }
+        }
+      }
+    },
+    {
+      "kind": "ocr",
+      "contentType": "application/json",
+      "body": "null",
+      "expected": {
+        "status": 200,
+        "body": {
+          "data": {
+            "id": "item",
+            "jobId": "key",
+            "state": "queued"
+          }
+        }
+      }
+    },
+    {
+      "kind": "ocr",
+      "contentType": "text/plain",
+      "body": "",
+      "expected": {
+        "status": 200,
+        "body": {
+          "data": {
+            "id": "item",
+            "jobId": "key",
+            "state": "queued"
+          }
+        }
+      }
+    },
+    {
+      "kind": "ocr",
+      "contentType": "text/plain",
+      "body": "not-json",
+      "expected": {
+        "status": 200,
+        "body": {
+          "data": {
+            "id": "item",
+            "jobId": "key",
+            "state": "queued"
+          }
+        }
+      }
+    },
+    {
+      "kind": "ocr",
+      "contentType": "text/plain",
+      "body": "null",
+      "expected": {
+        "status": 200,
+        "body": {
+          "data": {
+            "id": "item",
+            "jobId": "key",
+            "state": "queued"
+          }
+        }
+      }
+    },
+    {
+      "kind": "verify",
+      "contentType": null,
+      "body": "",
+      "expected": {
+        "status": 200,
+        "body": {
+          "data": {
+            "id": "item",
+            "jobId": "key",
+            "state": "queued"
+          }
+        }
+      }
+    },
+    {
+      "kind": "verify",
+      "contentType": null,
+      "body": "not-json",
+      "expected": {
+        "status": 200,
+        "body": {
+          "data": {
+            "id": "item",
+            "jobId": "key",
+            "state": "queued"
+          }
+        }
+      }
+    },
+    {
+      "kind": "verify",
+      "contentType": null,
+      "body": "null",
+      "expected": {
+        "status": 200,
+        "body": {
+          "data": {
+            "id": "item",
+            "jobId": "key",
+            "state": "queued"
+          }
+        }
+      }
+    },
+    {
+      "kind": "verify",
+      "contentType": "application/json",
+      "body": "",
+      "expected": {
+        "status": 200,
+        "body": {
+          "data": {
+            "id": "item",
+            "jobId": "key",
+            "state": "queued"
+          }
+        }
+      }
+    },
+    {
+      "kind": "verify",
+      "contentType": "application/json",
+      "body": "not-json",
+      "expected": {
+        "status": 200,
+        "body": {
+          "data": {
+            "id": "item",
+            "jobId": "key",
+            "state": "queued"
+          }
+        }
+      }
+    },
+    {
+      "kind": "verify",
+      "contentType": "application/json",
+      "body": "null",
+      "expected": {
+        "status": 200,
+        "body": {
+          "data": {
+            "id": "item",
+            "jobId": "key",
+            "state": "queued"
+          }
+        }
+      }
+    },
+    {
+      "kind": "verify",
+      "contentType": "text/plain",
+      "body": "",
+      "expected": {
+        "status": 200,
+        "body": {
+          "data": {
+            "id": "item",
+            "jobId": "key",
+            "state": "queued"
+          }
+        }
+      }
+    },
+    {
+      "kind": "verify",
+      "contentType": "text/plain",
+      "body": "not-json",
+      "expected": {
+        "status": 200,
+        "body": {
+          "data": {
+            "id": "item",
+            "jobId": "key",
+            "state": "queued"
+          }
+        }
+      }
+    },
+    {
+      "kind": "verify",
+      "contentType": "text/plain",
+      "body": "null",
+      "expected": {
+        "status": 200,
+        "body": {
+          "data": {
+            "id": "item",
+            "jobId": "key",
+            "state": "queued"
+          }
+        }
+      }
+    }
+  ]
+}

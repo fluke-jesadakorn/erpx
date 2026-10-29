@@ -60,6 +60,8 @@ export type AttachmentStatusDto = {
     attempts: number;
     lastResult?: string | null;
     lastError?: string | null;
+    signature?: string | null;
+    definitionUpdatedAt?: number | null;
     scannedAt?: number | null;
   };
   previewAvailable: boolean;
@@ -291,6 +293,7 @@ export async function bindRecordAttachmentSet(
   setId: string,
   expectedTargetVersion: number,
   idempotencyKey: string,
+  acknowledgement: "automatic" | "caller" = "automatic",
 ) {
   const response = await workFetch(
     `${attachmentApiBase(base)}/attachment-sets/${encodeURIComponent(setId)}/bind`,
@@ -301,7 +304,7 @@ export async function bindRecordAttachmentSet(
         "Idempotency-Key": idempotencyKey,
       },
       body: JSON.stringify({ expectedTargetVersion }),
-    },
+    }, undefined, acknowledgement,
   );
   return envelope<{
     setId: string;
@@ -330,6 +333,7 @@ export async function withdrawAttachmentLink(
   linkId: string,
   reason: string,
   idempotencyKey: string,
+  acknowledgement: "automatic" | "caller" = "automatic",
 ) {
   const response = await workFetch(
     `${attachmentApiBase(base)}/attachment-links/${encodeURIComponent(linkId)}/withdraw`,
@@ -341,6 +345,8 @@ export async function withdrawAttachmentLink(
       },
       body: JSON.stringify({ reason }),
     },
+    undefined,
+    acknowledgement,
   );
   return envelope<AttachmentStatusDto>(response);
 }

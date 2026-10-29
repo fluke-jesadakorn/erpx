@@ -7,12 +7,12 @@
     "./components/appearance": "./src/components/appearance.ts",
     "./components/workspace-overlay": "./src/components/workspace-overlay.tsx",
     "./components/ui-standard-demo": "./src/components/ui-standard-demo.tsx",
-    "./components/use-recoverable-draft": "./src/components/use-recoverable-draft.tsx",
     "./components/main": "./src/components/main.tsx",
     "./components/ui-contract-demo": "./src/components/ui-contract-demo.tsx",
     "./components/card": "./src/components/card.tsx",
     "./components/person-avatar.module.css": "./src/components/person-avatar.module.css",
     "./components/workspace.module.css": "./src/components/workspace.module.css",
+    "./components/interaction-suspension": "./src/components/interaction-suspension.tsx",
     "./components/field": "./src/components/field.tsx",
     "./components/list-pagination": "./src/components/list-pagination.tsx",
     "./components/destination-filter-form": "./src/components/destination-filter-form.tsx",
@@ -43,25 +43,22 @@
     "./components/components.css": "./src/components/components.css",
     "./components/input": "./src/components/input.tsx",
     "./components/use-hydrated": "./src/components/use-hydrated.ts",
-    "./lib/cn": "./src/lib/cn.ts"
+    "./lib/cn": "./src/lib/cn.ts",
+    "./components/sidebar-navigation": "./src/components/sidebar-navigation.tsx",
+    "./lib/unsaved-changes": "./src/lib/unsaved-changes.ts",
+    "./components/navigation-context": "./src/components/navigation-context.tsx"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
     "lint": "eslint src"
   },
   "dependencies": {
-    "@base-ui/react": "1.8.0",
-    "@erpx/feature-organization": "workspace:*",
-    "@erpx/feature-records": "workspace:*",
-    "@erpx/feature-shared": "workspace:*",
-    "@erpx/feature-work_projection": "workspace:*",
-    "@erpx/front": "workspace:*",
-    "@erpx/workplace": "workspace:*",
+    "@base-ui/react": "1.9.0",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
-    "lucide-react": "1.41.0",
-    "next": "16.4.0",
-    "react": "19.3.0",
+    "lucide-react": "1.61.0",
+    "next": "16.4.3",
+    "react": "19.3.1",
     "tailwind-merge": "3.7.0"
   }
 }

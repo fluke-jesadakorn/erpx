@@ -14,6 +14,7 @@
     "./routes/api/v1/join/route": "./src/routes/api/v1/join/route.ts",
     "./routes/api/v1/account-invitations/route": "./src/routes/api/v1/account-invitations/route.ts",
     "./routes/api/v1/account/security/route": "./src/routes/api/v1/account/security/route.ts",
+    "./routes/api/v1/account/device-accounts/[[...action]]/route": "./src/routes/api/v1/account/device-accounts/[[...action]]/route.ts",
     "./routes/api/v1/account/quick-access/[area]/route": "./src/routes/api/v1/account/quick-access/[area]/route.ts",
     "./routes/api/v1/account/iam/[[...path]]/route": "./src/routes/api/v1/account/iam/[[...path]]/route.ts",
     "./routes/api/v1/account/profile/route": "./src/routes/api/v1/account/profile/route.ts",
@@ -43,7 +44,7 @@
     "@erpx/server-work_projection": "workspace:*",
     "@erpx/ui": "workspace:*",
     "@erpx/workplace": "workspace:*",
-    "next": "16.4.0",
-    "zod": "4.5.4"
+    "next": "16.4.3",
+    "zod": "4.6.7"
   }
 }

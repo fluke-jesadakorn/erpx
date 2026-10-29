@@ -7,7 +7,14 @@ import type { NavigationItem, WorkplaceNavigationModel } from "@erpx/feature-wor
  * child without linking to another product's collection. */
 export function productOfficeNavigation(model: WorkplaceNavigationModel, productId: ProductHostKey): WorkplaceNavigationModel {
   const allowed = (href: string) => {
-    try { return productPageAllowed(productId, new URL(href, "https://navigation.invalid").pathname); }
+    try {
+      const pathname = new URL(href, "https://navigation.invalid").pathname;
+      // Front's transport gate delegates daily paths to its native parser.
+      // Discovery must also retain the explicit owner in legacy Front links.
+      const frontOwner = /^\/front\/[^/]+\/[^/]+\/(pos|pms)(?:\/|$)/.exec(pathname)?.[1];
+      if (frontOwner) return frontOwner === productId;
+      return productPageAllowed(productId, pathname);
+    }
     catch { return false; }
   };
   const item = (entry: NavigationItem): NavigationItem | null => {

@@ -1,0 +1,547 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "ERPX native Finance journal reads",
+    "description": "Development-only unmounted detail and record-workspace component. Current finance.read/module and actual Commercial History remain required; no post/reviewer grant. First source scope admits proved Finance manual/opening/manual-root reversal records; missing foreign-owner/secondary-book facts deny. Render context is output data from the same retained authorization unit, never an input authority. No installed route/current page or release acceptance.",
+    "license": {
+      "name": "Apache-2.0",
+      "identifier": "Apache-2.0"
+    },
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/v1/holdings/{holding_slug}/finance/invoices/{id}/workspace": {
+      "get": {
+        "tags": [],
+        "operationId": "get_service_invoice_workspace",
+        "parameters": [
+          {
+            "name": "holding_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current source-qualified Service invoice workspace",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FinanceServiceInvoiceWorkspaceResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Current session required"
+          },
+          "403": {
+            "description": "Finance read or purchase History denied"
+          },
+          "404": {
+            "description": "Unavailable or unsupported source"
+          }
+        }
+      }
+    },
+    "/api/v1/holdings/{holding_slug}/finance/journals/{id}": {
+      "get": {
+        "tags": [],
+        "operationId": "get_detail",
+        "parameters": [
+          {
+            "name": "holding_slug",
+            "in": "path",
+            "description": "Exact registered Holding slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Journal identity",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Journal detail and original render context from one retained authorization unit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FinanceJournalReadResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Current session required"
+          },
+          "403": {
+            "description": "Finance read/purchase history denied"
+          },
+          "404": {
+            "description": "Unavailable or unsupported source"
+          },
+          "409": {
+            "description": "Supplied rendered context is stale"
+          }
+        }
+      }
+    },
+    "/api/v1/holdings/{holding_slug}/finance/journals/{id}/workspace": {
+      "get": {
+        "tags": [],
+        "operationId": "get_workspace",
+        "parameters": [
+          {
+            "name": "holding_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Exact record workspace references and original render context from one retained unit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FinanceJournalWorkspaceReadResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Current session required"
+          },
+          "403": {
+            "description": "Finance read/purchase History denied"
+          },
+          "404": {
+            "description": "Unavailable or unsupported source"
+          },
+          "409": {
+            "description": "Supplied rendered context is stale"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "BTreeMap": {
+        "type": "object",
+        "additionalProperties": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "$ref": "#/components/schemas/FinanceReadInteger"
+            },
+            {
+              "type": "null",
+              "default": null
+            }
+          ]
+        },
+        "propertyNames": {
+          "type": "string"
+        }
+      },
+      "FinanceInvoiceOptions": {
+        "type": "object",
+        "required": [
+          "charts",
+          "accounts",
+          "periods",
+          "parties",
+          "invoices"
+        ],
+        "properties": {
+          "accounts": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "charts": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "invoices": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "parties": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "periods": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      },
+      "FinanceJournalDetail": {
+        "type": "object",
+        "required": [
+          "journal",
+          "lines",
+          "history"
+        ],
+        "properties": {
+          "history": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BTreeMap"
+            }
+          },
+          "journal": {
+            "$ref": "#/components/schemas/BTreeMap"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BTreeMap"
+            }
+          }
+        }
+      },
+      "FinanceJournalReadResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "context"
+        ],
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/FinanceRenderedWorkContext"
+          },
+          "data": {
+            "$ref": "#/components/schemas/FinanceJournalDetail"
+          }
+        }
+      },
+      "FinanceJournalRecordWorkspace": {
+        "type": "object",
+        "required": [
+          "journal",
+          "lines",
+          "history",
+          "chart",
+          "accounts",
+          "periods",
+          "dimensions",
+          "dimensionValues"
+        ],
+        "properties": {
+          "accounts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BTreeMap"
+            }
+          },
+          "chart": {
+            "$ref": "#/components/schemas/BTreeMap"
+          },
+          "dimensionValues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BTreeMap"
+            }
+          },
+          "dimensions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BTreeMap"
+            }
+          },
+          "history": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BTreeMap"
+            }
+          },
+          "journal": {
+            "$ref": "#/components/schemas/BTreeMap"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BTreeMap"
+            }
+          },
+          "periods": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BTreeMap"
+            }
+          }
+        }
+      },
+      "FinanceJournalWorkspaceReadResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "context"
+        ],
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/FinanceRenderedWorkContext"
+          },
+          "data": {
+            "$ref": "#/components/schemas/FinanceJournalRecordWorkspace"
+          }
+        }
+      },
+      "FinanceLedgerValue": {
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "$ref": "#/components/schemas/FinanceReadInteger"
+          },
+          {
+            "type": "null",
+            "default": null
+          }
+        ]
+      },
+      "FinanceReadInteger": {
+        "type": "integer",
+        "format": "int64",
+        "maximum": 9007199254740991,
+        "minimum": -9007199254740991
+      },
+      "FinanceRenderedWorkContext": {
+        "type": "object",
+        "required": [
+          "userId",
+          "holdingId",
+          "companyId",
+          "assignmentId",
+          "assignmentVersion",
+          "revision",
+          "role",
+          "assignmentScopeKind",
+          "modules",
+          "permissions",
+          "expiresAt"
+        ],
+        "properties": {
+          "assignmentId": {
+            "type": "string"
+          },
+          "assignmentScopeKind": {
+            "type": "string"
+          },
+          "assignmentVersion": {
+            "$ref": "#/components/schemas/FinanceReadInteger"
+          },
+          "branchId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "branchSlug": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "companyId": {
+            "type": "string"
+          },
+          "departmentId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "departmentSlug": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expiresAt": {
+            "$ref": "#/components/schemas/FinanceReadInteger"
+          },
+          "holdingId": {
+            "type": "string"
+          },
+          "modules": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "revision": {
+            "$ref": "#/components/schemas/FinanceReadInteger"
+          },
+          "role": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          }
+        }
+      },
+      "FinanceServiceInvoiceSource": {
+        "type": "object",
+        "required": [
+          "releaseId",
+          "orderId",
+          "commandKey",
+          "actorId",
+          "currency",
+          "amountUnits",
+          "usdUnits",
+          "usedLatestFallback"
+        ],
+        "properties": {
+          "actorId": {
+            "type": "string"
+          },
+          "amountUnits": {
+            "type": "string"
+          },
+          "commandKey": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "fxRateId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "orderId": {
+            "type": "string"
+          },
+          "releaseId": {
+            "type": "string"
+          },
+          "usdUnits": {
+            "type": "string"
+          },
+          "usedLatestFallback": {
+            "type": "boolean"
+          }
+        }
+      },
+      "FinanceServiceInvoiceWorkspace": {
+        "type": "object",
+        "required": [
+          "invoice",
+          "allocations",
+          "lines",
+          "lineHistory",
+          "thaiDocuments",
+          "options",
+          "source"
+        ],
+        "properties": {
+          "allocations": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "invoice": {
+            "type": "object"
+          },
+          "lineHistory": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "options": {
+            "$ref": "#/components/schemas/FinanceInvoiceOptions"
+          },
+          "source": {
+            "$ref": "#/components/schemas/FinanceServiceInvoiceSource"
+          },
+          "thaiDocuments": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      },
+      "FinanceServiceInvoiceWorkspaceResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "context",
+          "sourceOnly"
+        ],
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/FinanceRenderedWorkContext"
+          },
+          "data": {
+            "$ref": "#/components/schemas/FinanceServiceInvoiceWorkspace"
+          },
+          "sourceOnly": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  }
+}

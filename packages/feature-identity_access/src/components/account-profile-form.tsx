@@ -1,4 +1,5 @@
 "use client";
+import {holdingFetch} from '@erpx/contracts/holding-fetch';
 
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
@@ -58,7 +59,7 @@ export function AccountProfileForm({ accountKey, initial, language }: { accountK
     const capturedRevision=edits.current;
     controller.current = abort; setPending(true); setError(""); setSaved(false);
     try {
-      const response = await fetch(`/api/v1/account/profile?${new URLSearchParams({ accountKey })}`, { cache: "no-store", signal: abort.signal });
+      const response = await holdingFetch(`/api/v1/account/profile?${new URLSearchParams({ accountKey })}`, { cache: "no-store", signal: abort.signal });
       const body = await response.json();
       if (attempt !== epoch.current || generation !== contextGeneration() || abort.signal.aborted) return;
       if (!response.ok) throw new Error(body.error?.message ?? "Unable to load your saved settings.");
@@ -82,7 +83,7 @@ export function AccountProfileForm({ accountKey, initial, language }: { accountK
     const submitted={draft:{...state.draft},baseline:state.baseline,revision:edits.current};
     controller.current = abort; setPending(true); setError(""); setSaved(false);
     try {
-      const response = await fetch("/api/v1/account/profile", { method: "PATCH", headers: { "Content-Type": "application/json" },
+      const response = await holdingFetch("/api/v1/account/profile", { method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...submitted.draft, accountKey, expectedName: submitted.baseline.name, expectedVersion: submitted.baseline.preferences.version }), signal: abort.signal });
       const result = await response.json();
       if (attempt !== epoch.current || generation !== contextGeneration() || abort.signal.aborted) return;

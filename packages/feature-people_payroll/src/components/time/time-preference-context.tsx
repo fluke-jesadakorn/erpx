@@ -1,4 +1,5 @@
 "use client";
+import {holdingFetch} from '@erpx/contracts/holding-fetch';
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { defaultTimePreference, formatPreferredDateTime, resolvedTimeZone, systemTimeZone, type TimePreference } from "@erpx/feature-shared/lib/ui-format";
@@ -38,7 +39,7 @@ export function TimePreferenceProvider({ children, initialPreference, accountKey
       // Share only an in-flight read within this mounted account provider. In
       // particular, development Strict Mode must not issue two identical GETs.
       if (!pendingRead.current || pendingRead.current.accountKey !== accountKey) {
-        const read = fetch("/api/v1/account/time-preference", { cache: "no-store" })
+        const read = holdingFetch("/api/v1/account/time-preference", { cache: "no-store" })
           .then(response => response.ok ? response.json() : null)
           .then(body => body?.data as TimePreference | undefined ?? null).catch(() => null);
         const pending = { accountKey, read };

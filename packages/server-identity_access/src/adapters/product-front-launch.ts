@@ -1,3 +1,5 @@
+import {requestProductOrigin} from '@erpx/feature-runtime/lib/product-hosts';
+import {holdingRoutingEnabled,holdingFrontUiUrl} from '@erpx/contracts/holding-hosts';
 import 'server-only';
 import {NextResponse} from 'next/server';
 import {productHostForHost,configuredProductOrigin} from '@erpx/feature-runtime/lib/product-hosts';
@@ -18,6 +20,6 @@ export async function productFrontLaunch(request:Request){
   if(!companyId||companyId.length>128||!target)throw new ApiError(400,'INVALID_PRODUCT_WORKSPACE','Select a valid Front workspace.');
   const entry=await frontCompanyApp(target.holdingSlug,target.companySlug,app);
   if(!entry||entry.companyId!==companyId||!entry.locations.some(location=>location.path===target.location))throw new ApiError(403,'ASSIGNMENT_UNAVAILABLE','Your current account cannot open this Company and work location.');
-  return NextResponse.redirect(new URL(target.target,configuredProductOrigin(app)!),{status:303,headers});
+  return NextResponse.redirect(new URL(holdingRoutingEnabled(process.env)?holdingFrontUiUrl(target.target,app)??target.target:target.target,requestProductOrigin(app,request.headers)!),{status:303,headers});
  }catch(error){const response=errorResponse(error);for(const [key,value] of Object.entries(headers))response.headers.set(key,value);return response;}
 }

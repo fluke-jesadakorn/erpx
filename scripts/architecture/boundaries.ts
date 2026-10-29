@@ -16,13 +16,14 @@ export type BoundaryIssue = {
 
 const relocatedSources = new Map(relocationInventory.moves.map(move=>[move.from,move.to]));
 const extensions = ["", ".ts", ".tsx", ".mts", ".json", "/index.ts", "/index.tsx"];
-const forbiddenCorePackages = /^(?:next(?:\/|$)|react(?:\/|$)|server-only$|node:|pg$|drizzle-orm(?:\/|$)|@aws-sdk\/)/;
+const forbiddenCorePackages = /^(?:next(?:\/|$)|react(?:\/|$)|react-dom(?:\/|$)|server-only$|node:|pg$|drizzle-orm(?:\/|$)|@aws-sdk\/)/;
 const nodePackages=new Set(builtinModules.map(name=>name.replace(/^node:/,"")));
 const forbiddenCoreNames = new Set(["SqlDatabase", "TransactionalSqlDatabase", "SqlStatement", "PostgresDatabase", "FileStore", "RuntimeEnv", "holdingResources", "runtimeEnv", "controlResources", "iamDb"]);
+const frontendAmbientNames = new Set(["window", "document", "navigator", "localStorage", "sessionStorage", "indexedDB"]);
 // UPDATE requires SET; imperative workflow guidance without SET is not SQL.
 // Template heads are checked against the complete template below so interpolated targets remain guarded.
 const sql = /^\s*(?:SELECT\s+(?:[\s\S]*\bFROM\b|(?:DISTINCT\s+)?(?:\d+|true|false|null|\?)(?:\s*[,;()]|\s*$)|[\w]+\s*\()|INSERT\s+INTO\s|UPDATE\s+(?!FROM(?:\s|$))[\s\S]*\bSET\b|DELETE\s+FROM\s|WITH\s+\w+\s+AS\s*\(|CREATE\s+TABLE\s|ALTER\s+TABLE\s|DROP\s+TABLE\s)/i;
-const publicEntry = /^(?:src\/server\/modules\/[^/]+\/|packages\/server-[^/]+\/src\/)(?:(?:index|contracts|expense)\.ts|public\/.*\.ts)$/;
+const publicEntry = /^(?:src\/server\/modules\/[^/]+\/|packages\/(?:server|feature)-[^/]+\/src\/)(?:(?:index|contracts|expense)\.ts|public\/.*\.ts)$/;
 // Presentation calls semantic owner APIs; inbound HTTP/worker adapters can compose typed resources.
 const runtimeGateway = /^(?:src\/server\/(?:runtime(?:\/env)?|modules\/runtime\/(?:public\/runtime(?:\/env)?|adapters\/runtime(?:\/env)?))|packages\/server-runtime\/src\/(?:public|adapters)\/runtime(?:\/env)?)\.ts$/;
 const resourceAcquisition = new Set(["holdingResources", "holdingMigrationDatabase", "runtimeEnv", "getRuntime", "controlResources", "controlDatabase", "iamDb", "iamContext", "bookingDatabase", "registeredResources", "registeredMigrationDatabase", "staffPage", "portalContext", "customerPortalContext", "PostgresDatabase"]);
@@ -68,9 +69,9 @@ export function resolveSource(root: string, source: string, specifier: string): 
   return unresolved + (/^src\/server\/modules\/[^/]+$/.test(unresolved) ? "/index.ts" : ".ts");
 }
 
-function moduleLayer(source: string): { owner: string; layer: string } | null {
-  const match = /^(?:src\/server\/modules\/|packages\/server-)([^/]+)\/(?:src\/)?(domain|application|adapters)\//.exec(source);
-  return match ? { owner: match[1], layer: match[2] } : null;
+function moduleLayer(source: string): { owner: string; layer: string; frontend?: boolean } | null {
+  const match = /^(?:src\/server\/modules\/|packages\/(?:server|feature)-)([^/]+)\/(?:src\/)?(domain|application|adapters)\//.exec(source);
+  return match ? { owner: match[1], layer: match[2], frontend: source.startsWith("packages/feature-") } : null;
 }
 
 function importNames(node: ts.ImportDeclaration | ts.ExportDeclaration): string {
@@ -186,12 +187,13 @@ function sqlArgument(expression: ts.Expression, resolve: ReturnType<typeof const
   return false;
 }
 
-export function inspectSource(root: string, source: string, text: string, coreContext?: {owner:string;layer:string}): BoundaryIssue[] {
+export function inspectSource(root: string, source: string, text: string, coreContext?: {owner:string;layer:string;frontend?:boolean}): BoundaryIssue[] {
   const parsed = ts.createSourceFile(source, text, ts.ScriptTarget.Latest, true, source.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
   const issues: BoundaryIssue[] = [];
   const layer = coreContext??moduleLayer(source);
   const core = layer?.layer === "domain" || layer?.layer === "application";
-  const component = source.startsWith("src/components/") || /^packages\/[^/]+\/src\/components\//.test(source);
+  const frontendCore = core && layer?.frontend === true;
+  const component = source.startsWith("src/components/") || /^packages\/[^/]+\/src\/(?:components|presentation\/(?:server|client))\//.test(source);
   const presentation = component || (/^(?:src\/app\/|apps\/[^/]+\/src\/app\/|packages\/[^/]+\/src\/routes\/).*\.tsx?$/.test(source) && !/\/route\.tsx?$/.test(source));
   const entrypoint = component || /^(?:src\/(?:app|workers)\/|apps\/[^/]+\/src\/app\/|packages\/[^/]+\/src\/routes\/)/.test(source);
   const resolveConstant = constantResolver(parsed);
@@ -254,6 +256,8 @@ export function inspectSource(root: string, source: string, text: string, coreCo
     }
     const target = resolveSource(root, source, specifier);
     if (core && (forbiddenCorePackages.test(specifier)||nodePackages.has(specifier))) add(node, "core-infrastructure", specifier);
+    if (frontendCore && (/^@erpx\/server-/.test(specifier) || !!target && /^(?:packages\/server-|src\/server\/)/.test(target))) add(node, "frontend-core-server-dependency", specifier);
+    if (frontendCore && !!target && /^packages\/feature-[^/]+\/src\/(?:adapters|presentation|components|routes)\//.test(target)) add(node, "frontend-core-presentation-dependency", target);
     if (presentation && !typeOnly && /^(?:pg|drizzle-orm)(?:\/|$)/.test(specifier)) resourceIssue(node, specifier);
     if (target) {
       const bindings = ts.isImportDeclaration(node) ? node.importClause?.namedBindings : undefined;
@@ -267,7 +271,9 @@ export function inspectSource(root: string, source: string, text: string, coreCo
       if (core && targetLayer && (targetLayer.layer === "adapters" || (layer?.layer === "domain" && targetLayer.layer === "application"))) add(node, "core-dependency-direction", target);
       if (core && publicEntry.test(target) && !typeOnly && !target.includes("/shared/") && !target.startsWith("packages/server-shared/") && !target.includes("/public/rules/")) add(node, "core-runtime-facade", target);
       const targetOwners = ownersForSource(target);
-      const sameOwner = owners.some((owner) => targetOwners.some((other) => owner.id === other.id));
+      const sourcePackage = /^packages\/[^/]+\//.exec(source)?.[0];
+      const samePackage = source.startsWith("packages/feature-") && !!sourcePackage && target.startsWith(sourcePackage);
+      const sameOwner = samePackage || owners.some((owner) => targetOwners.some((other) => owner.id === other.id));
       const sharedCore = targetLayer?.owner === "shared" && targetLayer.layer !== "adapters";
       if (targetOwners.length && !sameOwner && !sharedCore && !publicEntry.test(target)) add(node, "owner-private-import", target, !core && !moduleLayer(source));
       if (targetLayer && !sameOwner && !sharedCore) add(node, "module-private-import", target, !core && !moduleLayer(source));
@@ -319,6 +325,20 @@ export function inspectSource(root: string, source: string, text: string, coreCo
       }
       if (ts.isNewExpression(node) && !node.arguments?.length && globalEffectName(node.expression) === "Date") add(node, "core-global-effect", "new Date()");
     }
+    if (frontendCore) {
+      if (ts.isIdentifier(node) && frontendAmbientNames.has(node.text) && !resolveConstant.binding(node)) {
+        const parent = node.parent;
+        const memberNameOnly = ts.isPropertyAccessExpression(parent) && parent.name === node
+          || (ts.isPropertyAssignment(parent) || ts.isPropertySignature(parent) || ts.isMethodSignature(parent)) && parent.name === node;
+        if (!memberNameOnly) add(node, "frontend-core-browser-global", node.text);
+      }
+      if ((ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) && ts.isIdentifier(node.expression) && node.expression.text === "globalThis" && !resolveConstant.binding(node.expression)) {
+        const member = memberName(node);
+        if (member && frontendAmbientNames.has(member)) add(node, "frontend-core-browser-global", `globalThis.${member}`);
+      }
+      if (ts.isTypeReferenceNode(node) && ts.isIdentifier(node.typeName) && ["Window", "Document", "HTMLElement", "Request", "Response", "Headers", "Storage"].includes(node.typeName.text)) add(node, "frontend-core-browser-type", node.typeName.text);
+      if (ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node) || ts.isJsxFragment(node)) add(node, "frontend-core-presentation", "JSX");
+    }
     ts.forEachChild(node, visit);
   };
   visit(parsed);
@@ -350,10 +370,11 @@ export function inspectArchitecture(root: string): BoundaryIssue[] {
       if(seen.has(current)||!fs.existsSync(path.join(root,current)))return;seen.add(current);
       const text=fs.readFileSync(path.join(root,current),"utf8"),parsed=ts.createSourceFile(current,text,ts.ScriptTarget.Latest,true);
       if(current!==source&&(!moduleLayer(current)||current.includes("/public/rules/")))for(const issue of inspectSource(root,current,text,traversalContext))issues.push({...issue,id:`${source} :: core-transitive-dependency :: ${issue.id}`,source,rule:"core-transitive-dependency",target:`${current}:${issue.line} ${issue.rule}: ${issue.target}`,grandfatherable:false});
-      const dependency=(specifier:string)=>{const target=resolveSource(root,current,specifier);if(target&&/\.(ts|tsx|mts)$/.test(target)&&((!moduleLayer(target)&&!publicEntry.test(target))||target.includes("/public/rules/")))visit(target,traversalContext);};
+      const dependency=(specifier:string)=>{const target=resolveSource(root,current,specifier);if(target&&/\.(ts|tsx|mts)$/.test(target)&&((!moduleLayer(target)&&(!publicEntry.test(target)||context.frontend))||target.includes("/public/rules/")))visit(target,traversalContext);};
       const walk=(node:ts.Node)=>{
-        if(ts.isImportDeclaration(node)&&node.moduleSpecifier&&ts.isStringLiteral(node.moduleSpecifier)&&!node.importClause?.isTypeOnly){const bindings=node.importClause?.namedBindings;if(!(bindings&&ts.isNamedImports(bindings)&&bindings.elements.every(entry=>entry.isTypeOnly)))dependency(node.moduleSpecifier.text);}
-        if(ts.isExportDeclaration(node)&&node.moduleSpecifier&&ts.isStringLiteral(node.moduleSpecifier)&&!node.isTypeOnly){const clause=node.exportClause;if(!(clause&&ts.isNamedExports(clause)&&clause.elements.every(entry=>entry.isTypeOnly)))dependency(node.moduleSpecifier.text);}
+        if(ts.isImportDeclaration(node)&&node.moduleSpecifier&&ts.isStringLiteral(node.moduleSpecifier)&&(context.frontend||!node.importClause?.isTypeOnly)){const bindings=node.importClause?.namedBindings;if(context.frontend||!(bindings&&ts.isNamedImports(bindings)&&bindings.elements.every(entry=>entry.isTypeOnly)))dependency(node.moduleSpecifier.text);}
+        if(ts.isExportDeclaration(node)&&node.moduleSpecifier&&ts.isStringLiteral(node.moduleSpecifier)&&(context.frontend||!node.isTypeOnly)){const clause=node.exportClause;if(context.frontend||!(clause&&ts.isNamedExports(clause)&&clause.elements.every(entry=>entry.isTypeOnly)))dependency(node.moduleSpecifier.text);}
+        if(context.frontend&&ts.isImportTypeNode(node)&&ts.isLiteralTypeNode(node.argument)&&ts.isStringLiteral(node.argument.literal))dependency(node.argument.literal.text);
         if(ts.isCallExpression(node)&&node.arguments[0]&&ts.isStringLiteral(node.arguments[0])&&(node.expression.kind===ts.SyntaxKind.ImportKeyword||(ts.isIdentifier(node.expression)&&node.expression.text==="require")))dependency(node.arguments[0].text);
         ts.forEachChild(node,walk);
       };walk(parsed);

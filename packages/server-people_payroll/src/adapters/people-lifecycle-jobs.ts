@@ -67,7 +67,7 @@ function repository(client: PoolClient): PeopleLifecycleWorkerRepository {
         applyEffect24(currentId: string, now: number, code: string) { return client.query<Record<string, unknown>>("UPDATE people_lifecycle_cases SET attempts=attempts+1,next_attempt_at=$2+LEAST(3600000,1000*power(2,LEAST(attempts,12)))::bigint,last_error=$3 WHERE id=$1 AND status='scheduled'", [currentId, now, code]); } };
 }
 export async function drainPeopleLifecycle(raw: PostgresDatabase, now = Date.now()) { const mode=await peoplePackageEnforcementMode();return createPeopleLifecycleWorker({ withSession: async (run) => { const client = await iamDb(raw).pool.connect(); try {
-        return await run({ repository: repository(client), transaction: async (run) => { const projectTarget=await projectWorkerJobPreflight(raw,now);await client.query('BEGIN ISOLATION LEVEL SERIALIZABLE'); try {
+        return await run({ repository: repository(client), transaction: async (run) => { const projectTarget=await projectWorkerJobPreflight(transactionDatabase(client),now);await client.query('BEGIN ISOLATION LEVEL SERIALIZABLE'); try {
                 const database=transactionDatabase(client),original=repository(client);
                 let projectJob:Awaited<ReturnType<typeof prepareProjectWorkerJob>>|undefined;
                 if(projectTarget){await projectWorkerJobSourceLocks(database);await database.batch(companyPurchaseReadLocks(database,projectTarget.company_id).slice(1));}

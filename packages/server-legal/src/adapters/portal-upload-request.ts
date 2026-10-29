@@ -1,3 +1,4 @@
+import {ssoAudienceForHost} from '@erpx/feature-runtime/lib/product-hosts';
 import 'server-only';
 import {productHostForHost} from '@erpx/feature-runtime/lib/product-hosts';
 import {sessionFromRequest} from '@erpx/server-identity_access/public/auth';
@@ -16,7 +17,7 @@ export async function legalPortalUploadRequest(request:Request,holdingSlug:strin
  const session=await sessionFromRequest(request);
  if(!session)throw new ApiError(401,'UNAUTHENTICATED','Sign in to upload the shared Legal document.');
  const actor=legalPortalActor(session.user,session.session.id,(status,code,message)=>new ApiError(status,code,message)),image=()=>JSON.stringify({session,headers:[...request.headers.entries()]}),captured=image();
- return withCurrentPrivateSessionRead({userId:actor.userId,email:actor.email,sessionId:actor.sessionId,audience:productHostForHost(request.headers.get('host'))},async assertSession=>{
+ return withCurrentPrivateSessionRead({userId:actor.userId,email:actor.email,sessionId:actor.sessionId,audience:ssoAudienceForHost(request.headers.get('host'))},async assertSession=>{
   const assertCurrent=async()=>{if(image()!==captured)throw new ApiError(401,'SESSION_REVOKED','The shared Legal upload sign-in changed.');await assertSession();};
   const binding=await holdingBindingBySlug(holdingSlug),resources=await holdingResources(binding.id);
   if(!(resources.write instanceof PostgresDatabase))throw new ApiError(503,'LEGAL_PORTAL_TRANSACTION_REQUIRED','The shared Legal upload requires its original Holding owner.');

@@ -23,6 +23,6 @@ export default async function PeopleSettings({ params, searchParams }: {
   const initialData=section?await peopleHrSettingsData(actor,section as PeopleHrTopic):undefined;
   return <div className="content-stack" data-source="live">
     <PageHeader appearance="standard" eyebrow="People" title="HR settings" description="Manage Company policies and defaults." />
-    <PeopleHrSettings standalone appearance="standard" base={base} initialTopic={section} initialAction={action} initialIndex={initialIndex} initialData={initialData} />
+    <PeopleHrSettings standalone navigation={false} appearance="standard" base={base} initialTopic={section} initialAction={action} initialIndex={initialIndex} initialData={initialData} />
   </div>;
 }

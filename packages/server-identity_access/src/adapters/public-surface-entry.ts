@@ -1,4 +1,6 @@
+import {requestProductOrigin} from '@erpx/feature-runtime/lib/product-hosts';
 import 'server-only';
+import {holdingHostForHost,holdingRoutingEnabled,holdingPathMatches,holdingPublicUiUrl} from '@erpx/contracts/holding-hosts';
 import {configuredProductOrigin,configuredProductHandoff,productHostForHost} from '@erpx/feature-runtime/lib/product-hosts';
 import {publicSurfaceTarget,type PublicSurfaceHost} from '@erpx/server-identity_access/domain/public-surface-entry';
 import {currentSession} from '@erpx/server-identity_access/adapters/authorization';
@@ -10,16 +12,18 @@ const headers={'Cache-Control':'private, no-store','Referrer-Policy':'no-referre
 export async function publicSurfaceLaunchRequest(request:Request){
  const host=productHostForHost(request.headers.get('host')),url=new URL(request.url);
  if(host!=='portal'&&host!=='legal-portal')return new Response('Not found',{status:404,headers});
- const origin=configuredProductOrigin(host);
+ const origin=requestProductOrigin(host,request.headers);
  if(!origin||url.origin!==origin||request.headers.get('host')!==url.host||url.pathname!=='/public/launch')return new Response('Not found',{status:404,headers});
  if(request.method!=='GET')return new Response('Method not allowed',{status:405,headers:{...headers,Allow:'GET'}});
  const target=url.searchParams.getAll('next').length===1&&[...url.searchParams.keys()].every(key=>key==='next')?publicSurfaceTarget(url.searchParams.get('next')):null;
  if(!target||target.host!==host)return new Response('Invalid public destination',{status:422,headers});
+ const holding=holdingRoutingEnabled(process.env)&&holdingHostForHost(request.headers.get('host'));
+ if(holding&&!holdingPathMatches(holding.holdingSlug,new URL(target.target,origin).pathname))return new Response('Invalid public destination',{status:422,headers});
  try{await currentSession();}catch(error){
   if(!(error instanceof Error&&error.message==='UNAUTHENTICATED')&&!(error instanceof ApiError&&error.status===401))throw error;
   const next='/public/launch?'+new URLSearchParams({next:target.target}),destination=configuredProductHandoff(host,next);
   if(!destination)return new Response('Not found',{status:404,headers});
   return new Response(null,{status:303,headers:{...headers,Location:destination}});
  }
- return new Response(null,{status:303,headers:{...headers,Location:new URL(target.target,origin).href}});
+ return new Response(null,{status:303,headers:{...headers,Location:holding?holdingPublicUiUrl(target.target)??new URL(target.target,origin).href:new URL(target.target,origin).href}});
 }

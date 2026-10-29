@@ -1,0 +1,11 @@
+# Enforce explicit PDF seed Key Usage prohibitions
+
+Accepted 2026-10-27 for the Rust verifier migration. Preserve an explicit seed certificate Key Usage prohibition even when the seed profile has no required usages. This is a narrow security correction to the legacy oracle, not a claim of identical legacy behavior or a change to cryptographic integrity checks.
+
+The source-bound synthetic case `seed_key_usage_forbidden_only_legacy_gap` requires `/SVCert` with `Ff32` and `/KeyUsage[(0XXXXXXXX)]`, while the signing certificate asserts `digitalSignature`. The retained B0 implementation reports it valid: pyHanko 0.37.0 `sign/validation/settings.py:125-126` returns when the required-usage set is empty, before checking the forbidden set at lines129-136. The seed caller at `sign/fields.py:655-662` supplies both sets. Reproducing that early return would ignore an explicit prohibition.
+
+Rust reports cryptographic integrity as `valid`, seed policy as `invalid`, and the overall result as `indeterminate` with `SEED_VALUE_CONSTRAINTS_FAILURE`, consistent with the existing overall treatment of seed-policy failures. It cannot establish a verified Legal document from this result. Other certificate, revocation and timestamp components retain their own outcomes; policy failure must not be mislabeled as broken signature mathematics.
+
+Keep the [B0-oracle capture](../../fixtures/legal/pdf-signatures/seed-forbidden-only-b0.v1.json) unchanged. Its synthetic PDF SHA-256 is `59f4beb6ff0f7176c5a7c3333e7f2e379c4aaa80ad6feaab8d08866536c3dc14`. Native conformance tests must assert both the retained oracle result and the intentional Rust policy difference. Report exact matches and this exception separately. This exception does not clear any unrelated verifier gap or owner migration gate.
+
+The inspected source was verified against the [official pyHanko 0.37.0 wheel metadata](https://pypi.org/pypi/pyHanko/0.37.0/json): wheel SHA-256 `79046d8057edec5fcc61aa66dc1041262f5248eec473c33a89905a0a661eed05`, `settings.py` SHA-256 `cd18586bce329f604fce902ea1dd051b40d26088f1b97766f5d0594febe403cb`, and `fields.py` SHA-256 `2c4946e60537aa7c6361ea4934ff8350e960e9fd97b1ab8584e71cb9d44bb044`. Python remains a development oracle; this decision adds no production Python runtime. Prior signed or checksum-bound evidence keeps its original source identity and outcome.

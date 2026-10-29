@@ -1,0 +1,61 @@
+#!/bin/sh
+# Controls only the named disposable verification project on the owned profile.
+set -eu
+case "${ERPX_VERIFY_KEY:-}" in
+  ''|*[!a-z0-9-]*|-*|*-) echo 'Set ERPX_VERIFY_KEY to a unique candidate-and-architecture key.' >&2; exit 2 ;;
+esac
+root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
+socket="$HOME/.colima/erpx-opensource-dev/docker.sock"
+[ -S "$socket" ] || { echo 'OWNED_CONTAINER_ENGINE_REQUIRED' >&2; exit 1; }
+unset DOCKER_CONTEXT DOCKER_TLS_VERIFY DOCKER_CERT_PATH
+DOCKER_CONFIG=$(mktemp -d "${TMPDIR:-/tmp}/erpx-verification-cli.XXXXXXXX")
+trap 'rm -rf -- "$DOCKER_CONFIG"' EXIT HUP INT TERM
+export DOCKER_CONFIG DOCKER_HOST="unix://$socket" COMPOSE_DISABLE_ENV_FILE=1
+compose() { docker-compose --project-directory "$root/ops/containers" -p "erpx-verify-$ERPX_VERIFY_KEY" -f "$root/ops/containers/local-verification.compose.yaml" "$@"; }
+case "${1:-}" in
+  build)
+    [ "$#" -eq 1 ] || exit 2
+    free_kib=$(df -Pk "$root" | awk 'NR==2 {print $4}')
+    case "$free_kib" in ''|*[!0-9]*) echo 'HOST_DISK_SPACE_UNAVAILABLE' >&2; exit 1;; esac
+    [ "$free_kib" -ge 65011712 ] || { echo 'HOST_DISK_SPACE_BELOW_BUILD_HEADROOM' >&2; exit 1; }
+    # No checkout, ignored credentials or runtime artifacts enter this context.
+    docker build -f "$root/ops/containers/verification.Dockerfile" -t erpx-local-verification:local "$root/ops/containers"
+    ;;
+  up)
+    [ "$#" -eq 1 ] || exit 2
+    free_kib=$(df -Pk "$root" | awk 'NR==2 {print $4}')
+    case "$free_kib" in ''|*[!0-9]*) echo 'HOST_DISK_SPACE_UNAVAILABLE' >&2; exit 1;; esac
+    [ "$free_kib" -ge 62914560 ] || { echo 'HOST_DISK_SPACE_BELOW_FLOOR' >&2; exit 1; }
+    docker volume create "erpx-verify-$ERPX_VERIFY_KEY-secrets" >/dev/null
+    docker run --rm --network=none -v "erpx-verify-$ERPX_VERIFY_KEY-secrets:/secrets" erpx-local-verification:local sh -ec '
+      umask 077
+      test -s /secrets/postgres || openssl rand -hex 32 > /secrets/postgres
+      test -s /secrets/test-admin || openssl rand -hex 32 > /secrets/test-admin
+      printf "postgresql://postgres:%s@127.0.0.1:5432/postgres" "$(cat /secrets/postgres)" > /secrets/monitor-url
+      printf "postgresql://erpx_test_admin:%s@127.0.0.1:5432/postgres" "$(cat /secrets/test-admin)" > /secrets/test-admin-url
+    '
+    compose up -d
+    compose exec -T postgres sh -ec '
+      tries=0
+      until pg_isready -h 127.0.0.1 -U postgres -d postgres >/dev/null; do
+        tries=$((tries+1)); [ "$tries" -lt 60 ] || { echo POSTGRES_NOT_READY >&2; exit 1; }; sleep 1
+      done
+      export PGPASSWORD="$(cat /run/erpx-verification-secrets/postgres)"
+      psql -X -q -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d postgres -v test_password="$(cat /run/erpx-verification-secrets/test-admin)" >/dev/null <<'"'"'SQL'"'"'
+SELECT format('"'"'CREATE ROLE erpx_test_admin LOGIN CREATEDB PASSWORD %L'"'"', :'"'"'test_password'"'"') WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='"'"'erpx_test_admin'"'"') \gexec
+SQL
+      psql -X -At -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d postgres -c "SELECT rolcanlogin AND rolcreatedb AND NOT rolsuper AND NOT rolcreaterole AND NOT rolreplication FROM pg_roles WHERE rolname='"'"'erpx_test_admin'"'"'" | grep -qx t
+      PGPASSWORD="$(cat /run/erpx-verification-secrets/test-admin)" psql -X -At -v ON_ERROR_STOP=1 -h 127.0.0.1 -U erpx_test_admin -d postgres -c '"'"'SELECT current_user'"'"' | grep -qx erpx_test_admin
+    '
+    echo 'Verification services started; populate the source volume from the reviewed Git bundle before testing.'
+    ;;
+  exec)
+    shift; [ "$#" -gt 0 ] || exit 2
+    compose exec -T workspace "$@"
+    ;;
+  down)
+    [ "$#" -eq 1 ] || exit 2
+    compose down
+    ;;
+  *) echo 'Usage: ERPX_VERIFY_KEY=<candidate-architecture> scripts/local/local-verification-engine build|up|exec <command>...|down' >&2; exit 2 ;;
+esac

@@ -53,7 +53,7 @@ function projectWithdrawalReview(request:Awaited<ReturnType<typeof projectWithdr
  return withOwnerPackageObligations(db,projectSettlementInput(request.changes[0].grant.packageId),tx=>apply?store.batch.applyIn(tx,request,async()=>{}):store.batch.previewIn(tx,request));
 }
 it.each(['disabled','enforced'] as const)('keeps actual Projects-only member document bytes inside full native source and account checks (%s)',async mode=>{
- enableAttachmentV2ForTest();f.owner.modules=['projects'];f.head.modules=['projects'];f.tie.modules=['projects'];await grantProject();vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT',mode);vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_WORK_PACKAGE_ENFORCEMENT','enforced');
+ enableAttachmentV2ForTest();f.owner.modules=['projects'];f.head.modules=['projects'];f.tie.modules=['projects'];await grantProject();vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT',mode);vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT','enforced');
  const project=await newProject(),evidence=await seedAttachmentSet(db,f.owner,{targetType:'project',targetId:project.id,componentKind:'record',purposeKey:'project_document',expectedTargetVersion:1});await bindRecordAttachmentSet(db,f.owner,evidence.setId,1,key());
  const objectKey=await db.prepare('SELECT object_key FROM attachments WHERE id=?').bind(evidence.sourceId).first<string>('object_key');if(!objectKey)throw Error('ACTUAL_PROJECT_DOCUMENT_REQUIRED');const bytes='Retained original Project-only deliverable';await env.H001_FILES.put(objectKey,bytes);let consumed=0;
  const files:FileStore={put:(...args)=>env.H001_FILES.put(...args),get:async(...args)=>{const result=await env.H001_FILES.get(...args);return result?{...result,arrayBuffer:async()=>{consumed++;return result.arrayBuffer();}}:null;},head:(...args)=>env.H001_FILES.head(...args),delete:(...args)=>env.H001_FILES.delete(...args),list:(...args)=>env.H001_FILES.list(...args)};
@@ -338,7 +338,7 @@ it('rolls back independent handoff acceptance and its owner notice after late ou
 });
 
 it.each(['immediate','deferred'] as const)('keeps the Projects-only member reference unchanged through %s native worker effects',async timing=>{
- await grantProject();vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_WORK_PACKAGE_ENFORCEMENT','enforced');
+ await grantProject();vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT','enforced');
  const receipt=key(),id=`project-${receipt}`,input=projectSchema.parse({title:'Actual included worker membership',memberUserIds:[f.claimant.userId]}),fn=`project_member_reference_${key().replaceAll('-','')}`,
   before=await db.prepare('SELECT to_jsonb(e) image FROM hr_engagements e WHERE company_id=? AND person_id=?').bind(f.company,`person-${f.claimant.userId}`).first('image');
  await db.exec(`CREATE FUNCTION ${fn}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE hr_engagements SET status='suspended',version=version+1 WHERE company_id='${f.company}' AND person_id='person-${f.claimant.userId}';RETURN NEW;END $$;
@@ -379,7 +379,7 @@ it('preserves Projects-only cross-branch worker membership and an older exact re
   db.prepare('UPDATE hr_engagements SET branch_id=?,department_id=?,version=version+1 WHERE company_id=? AND person_id=?').bind(branch,department,f.company,`person-${f.claimant.userId}`),
   db.prepare("UPDATE assignments SET scope_kind='branch',scope_node_id=?,version=version+1 WHERE id=?").bind(f.branch,f.head.assignmentId)]);
  const actor={...f.head,branchId:f.branch,assignmentScope:'branch' as const,scope:{kind:'branch' as const,holdingId:f.head.holdingId,holdingSlug:f.head.holdingSlug,holdingName:f.head.holdingName,companyId:f.company,branchId:f.branch,branchSlug:'original-branch',branchName:'Original branch'}};
- await grantProject();vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_WORK_PACKAGE_ENFORCEMENT','enforced');
+ await grantProject();vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT','enforced');
  const receipt=key(),input=projectSchema.parse({title:'Cross branch foundation members',memberUserIds:[f.claimant.userId]}),saved=await saveProject(db,actor,null,input,receipt);
  expect(await db.prepare('SELECT branch_id,department_id FROM hr_engagements WHERE company_id=? AND person_id=?').bind(f.company,`person-${f.claimant.userId}`).first()).toEqual({branch_id:branch,department_id:department});
  expect(await db.prepare('SELECT user_id FROM staff_project_members WHERE project_id=?').bind(saved.id).first('user_id')).toBe(f.claimant.userId);
@@ -435,7 +435,7 @@ async function zeroWorkerProjectCompany(purchased=true){
  const store=packageGrantStore(db,{authorize:async(_tx,id)=>{if(id!==company)throw Error('PROJECT_WORKER_FIXTURE_COMPANY');return {userId:'isolated-project-worker-provider'};},obligations:async()=>{throw Error('PROJECT_WORKER_FIXTURE_CANNOT_INACTIVATE');}});
  async function purchase(state:'active'|'draining'='active'){const prior=(await readCompanyPackageGrants(db,company)).find(row=>row.packageId==='projects');return store.apply({expectedVersion:prior?.version??0,idempotencyKey:key(),grant:{companyId:company,packageId:'projects',packageVersion:1,state,startsAt:0,endsAt:null,version:(prior?.version??0)+1,reason:'Actual Projects-only worker-reference foundation',evidence:'test:projects-zero-worker-native'}});}
  if(purchased)await purchase();
- vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_WORK_PACKAGE_ENFORCEMENT','enforced');
+ vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT','enforced');
  const api=await import('@erpx/server-people_payroll/public/project-worker-startup'),jobs=await import('@erpx/server-people_payroll/public/people-lifecycle-jobs');
  const counts=()=>Promise.all(['hr_people','hr_engagements','employees','people_lifecycle_cases','people_project_worker_starters','people_project_worker_placements','staff_projects','finance_charts','finance_accounts','finance_journals','finance_payments','hr_pay_groups','hr_payroll_runs'].map(table=>db.prepare(`SELECT count(*) n FROM ${table} WHERE company_id=?`).bind(company).first<number>('n')));
  expect(await counts()).toEqual(Array(13).fill(0));

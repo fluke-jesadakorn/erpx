@@ -4,6 +4,11 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./business-role-modules": "./src/business-role-modules.generated.ts",
+    "./account-auth": "./src/account-auth.generated.ts",
+    "./permission-catalog": "./src/permission-catalog.generated.json",
+    "./holding-hosts": "./src/holding-hosts.ts",
+    "./holding-fetch": "./src/holding-fetch.ts",
     "./workforce-self-service-entry": "./src/workforce-self-service-entry.ts",
     "./ownership.json": "./src/ownership.json",
     "./work-social-api": "./src/work-social-api.ts",
@@ -14,13 +19,22 @@
     "./social-post-entry": "./src/social-post-entry.ts",
     "./command-flow": "./src/command-flow.ts",
     "./ownership": "./src/ownership.ts",
-    "./development-module-admission": "./src/development-module-admission.ts"
+    "./development-module-admission": "./src/development-module-admission.ts",
+    "./legal-portal-upload": "./src/legal-portal-upload.ts",
+    "./finance-journal-read": "./src/finance-journal-read.generated.ts",
+    "./directory-source-admin": "./src/directory-source-admin.generated.ts",
+    "./directory-source-admin-client": "./src/directory-source-admin-client.ts",
+    "./finance-journal-post": "./src/finance-journal-post.generated.ts",
+    "./finance-journal-create": "./src/finance-journal-create.generated.ts",
+    "./finance-journal-edit": "./src/finance-journal-edit.generated.ts",
+    "./field-service-reserve": "./src/field-service-reserve.generated.ts",
+    "./field-attachment": "./src/field-attachment.generated.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
     "lint": "eslint src"
   },
   "dependencies": {
-    "react": "19.3.0"
+    "react": "19.3.1"
   }
 }

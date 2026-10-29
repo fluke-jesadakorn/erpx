@@ -1,4 +1,5 @@
 import 'server-only';
+import {holdingRoutingEnabled,holdingHosts} from '@erpx/contracts/holding-hosts';
 import { createCipheriv, createDecipheriv, createECDH, createHash, randomBytes } from 'node:crypto';
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
@@ -44,6 +45,7 @@ export function pushConfig(): PushConfig | null {
     return { publicKey, privateKey, subject, dataKey };
 }
 export function allowedPushOrigin(origin: string) { return pushOriginAllowed(origin, [
+    ...(holdingRoutingEnabled(process.env)?holdingHosts.map(host=>`https://${host.hostname}`):[]),
     ...(!legacyConsoleRetired() ? [process.env.ERPX_PUBLIC_ORIGIN] : []),
     process.env.ERPX_FRONT_PMS_ORIGIN, process.env.ERPX_FRONT_POS_ORIGIN,
     ...(["work", "pos", "pms"] as const).map(key => configuredProductOrigin(key)),

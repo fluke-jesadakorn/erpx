@@ -5,7 +5,7 @@ import type { UiAppearance } from "@erpx/ui/components/appearance";
 import { Dialog } from "@erpx/ui/components/dialog";
 import { DraftFormDrawer } from "@erpx/ui/components/draft-form-drawer";
 import { cn } from "@erpx/ui/lib/cn";
-import { registerUnsavedWork } from "@erpx/feature-work_projection/lib/context-switch";
+import { registerUnsavedChanges } from "@erpx/ui/lib/unsaved-changes";
 import { InlineNotice } from "@erpx/ui/components/foundation";
 
 function labelText(node: ReactNode): string {
@@ -36,7 +36,7 @@ export function FormDisclosure({ children, open, onToggle, finalFocus, className
 }) {
   const hydrated = useSyncExternalStore(subscribeHydration, clientHydrated, serverHydrated);
   const [dirty, setDirty] = useState(false);
-  useEffect(() => registerUnsavedWork(() => dirty), [dirty]);
+  useEffect(() => registerUnsavedChanges(() => dirty), [dirty]);
   const bodyRef = useRef<HTMLDivElement>(null);
   const editedForms = useRef(new Set<HTMLFormElement>());
   const nonFormEdits = useRef(false);

@@ -25,6 +25,6 @@
     "@erpx/feature-work_projection": "workspace:*",
     "@erpx/server-operations": "workspace:*",
     "@erpx/ui": "workspace:*",
-    "react": "19.3.0"
+    "react": "19.3.1"
   }
 }

@@ -151,7 +151,7 @@ it("applies independently reviewed branch and department changes with safe suspe
   expect(branch).toMatchObject({display_name:"Northern branch",status:"active",hierarchy_revision:1});
   expect(await db.prepare("SELECT name FROM messaging_rooms WHERE organization_node_id=?").bind(branch!.id).first()).toEqual({name:"Northern branch"});
 
-  const department=await saveOrganizationNodeChange(db,f.owner,null,organizationNodeChangeSchema.parse({action:"create",kind:"department",slug:"service",displayName:"Service",branchId:branch!.id,targetNodeId:null,expectedNodeVersion:null,expectedVersion:0,reason:"Create the reviewed service team"}),key(),true);
+  const department=await saveOrganizationNodeChange(db,f.owner,null,organizationNodeChangeSchema.parse({action:"create",kind:"department",slug:"service-team",displayName:"Service",branchId:branch!.id,targetNodeId:null,expectedNodeVersion:null,expectedVersion:0,reason:"Create the reviewed service team"}),key(),true);
   await decideOrganizationNodeChange(db,reviewer,department.id,{expectedVersion:1,decision:"approve",reason:"Team placement reviewed"},key());
   const movable=await saveOrganizationNodeChange(db,f.owner,null,organizationNodeChangeSchema.parse({action:"create",kind:"department",slug:`movable-${key().slice(0,8)}`,displayName:"Movable team",branchId:f.branch,targetNodeId:null,expectedNodeVersion:null,expectedVersion:0,reason:"Create a team for relocation"}),key(),true);
   const movableApplied=await decideOrganizationNodeChange(db,reviewer,movable.id,{expectedVersion:1,decision:"approve",reason:"Relocation target reviewed"},key());

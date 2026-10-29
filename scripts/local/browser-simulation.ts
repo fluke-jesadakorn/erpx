@@ -441,20 +441,20 @@ if(mode==='prepare'||diagnostic){
     const {seedEngineeringThaiPayrollBrowser}=await import("../../fixtures/people_payroll/builders/engineering-thai-payroll-browser");
     const {seedEngineeringFinanceCloseBrowser}=await import("../../fixtures/finance/builders/engineering-finance-close-browser");
     const {createEngineeringShowcaseGuide}=await import("../../fixtures/shared/builders/engineering-showcase-guide");
-    state.fixture.engineeringMoneyPeople=await seedEngineeringMoneyPeopleBrowser({run,directory,control:env.CONTROL_DB as PostgresDatabase,db:env.H001_DB as PostgresDatabase,files:env.H001_FILES,...(workspaceFixtureProfile==='money-people'?{workspaceProducts:['finance','people','work'] as ProductId[]}:workspaceConsoleRetired?{workspaceProducts:workspaceApps!.filter((id):id is ProductId=>productIds.includes(id as ProductId))}:{})});
+    state.fixture.engineeringMoneyPeople=await seedEngineeringMoneyPeopleBrowser({run,directory,control:env.CONTROL_DB as PostgresDatabase,db:env.H001_DB as PostgresDatabase,files:env.H001_FILES,...(workspaceFixtureProfile==='money-people'?{workspaceProducts:['finance','people','apps'] as ProductId[]}:workspaceConsoleRetired?{workspaceProducts:workspaceApps!.filter((id):id is ProductId=>productIds.includes(id as ProductId))}:{})});
     // Account/Apps/Admin need the foundation fixture; Learn additionally declares
     // its fictional academy package. Other profiles retain the full cohort.
     const foundationOnly=workspaceApps?.every(id=>['account','apps','admin','portal','legal-portal','forms'].includes(id));
     const academyOnly=workspaceApps?.includes('learn')&&workspaceApps.every(id=>['account','apps','learn'].includes(id));
-    const productApps=workspaceApps?.filter(id=>['work','people','recruit'].includes(id))??[];
-    const productOnly=productApps.length>0&&workspaceApps?.every(id=>['account','apps','work','people','recruit'].includes(id))||workspaceConsoleRetired&&workspaceApps?.every(id=>['account','apps',...productIds].includes(id));
+    const productApps=workspaceApps?.filter(id=>['apps','people','recruit'].includes(id))??[];
+    const productOnly=productApps.length>0&&workspaceApps?.every(id=>['account','apps','apps','people','recruit'].includes(id))||workspaceConsoleRetired&&workspaceApps?.every(id=>['account','apps',...productIds].includes(id));
     if(academyOnly){
      const {seedLearningWorkspacePackages}=await import('../../fixtures/learning/builders/workspace-browser');
      await seedLearningWorkspacePackages({run,db:env.H001_DB as PostgresDatabase,academy:JSON.parse(await readFile(join(directory,'engineering-money-people.json'),'utf8'))});
     }
     if(workspaceFixtureProfile==='money-people'){
      const {seedWorkspaceProductPackages}=await import('../../fixtures/shared/builders/workspace-product-packages');
-     await seedWorkspaceProductPackages({run,db:env.H001_DB as PostgresDatabase,apps:['work','people','finance'],cohort:JSON.parse(await readFile(join(directory,'engineering-money-people.json'),'utf8'))});
+     await seedWorkspaceProductPackages({run,db:env.H001_DB as PostgresDatabase,apps:['apps','people','finance'],cohort:JSON.parse(await readFile(join(directory,'engineering-money-people.json'),'utf8'))});
     }
     if(productOnly&&!workspaceConsoleRetired&&workspaceFixtureProfile!=='money-people'){
      const {seedWorkspaceProductPackages}=await import('../../fixtures/shared/builders/workspace-product-packages');

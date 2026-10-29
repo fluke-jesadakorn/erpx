@@ -3,7 +3,7 @@ import {workSocialBetaPathAllowed} from '@erpx/contracts/work-social-api';
 
 const ownerResources: Partial<Record<ProductHostKey, readonly string[]>> = {
   admin: ["agents", "ai-providers", "authority", "beta", "billing", "brand", "branding", "business-readiness", "feature-catalogue", "iam", "technology", "usage"],
-  work: ["approvals", "calendar", "collaboration", "daily-plan", "executive", "feed", "handbook", "handover", "inbox", "messaging", "operations", "posts", "routine-schedules", "routine-templates", "staff", "staff-tasks", "stories", "work"],
+  apps: ["approvals", "calendar", "collaboration", "daily-plan", "executive", "feed", "handbook", "handover", "inbox", "messaging", "operations", "posts", "routine-schedules", "routine-templates", "staff", "staff-tasks", "stories", "work"],
   finance: ["finance", "expenses", "hospitality-tax-documents"],
   people: ["benefits", "people", "leave", "leave-requests", "overtime-requests"],
   sales: ["crm", "customer-access", "customer-duplicates", "customer-followups", "customer-identity", "customer-notes", "customers", "ecommerce", "marketing"],
@@ -77,11 +77,11 @@ export function officeApiAllowed(host: ProductHostKey, pathname: string, method:
   if (/^\/api\/v1\/me\/page-layouts\/[^/]+$/.test(pathname)) return read || method === "POST";
   // Company Executive work and its existing scoped MCP connection live on Work.
   // Provider Executive remains on the distinct Administration platform API.
-  if (pathname === "/api/mcp/executive") return host === "work";
+  if (pathname === "/api/mcp/executive") return host === "apps";
   const resource = holdingResource(pathname);
   if (!resource) return false;
   const [root, second, third] = resource.split("/");
-  if(host==='work'&&root==='beta')return workSocialBetaPathAllowed(resource.split('/').slice(1),method);
+  if(host==='apps'&&root==='beta')return workSocialBetaPathAllowed(resource.split('/').slice(1),method);
   const expenseDecoded=(value:string|undefined)=>{try{return value===undefined?null:decodeURIComponent(value);}catch{return null;}};
   const expenseOwner=expenseDecoded(root),expenseFamily=expenseDecoded(second);
   if(expenseOwner==='finance'&&expenseFamily?.startsWith('expense-setup')){
@@ -111,16 +111,16 @@ export function officeApiAllowed(host: ProductHostKey, pathname: string, method:
   // Shared Work summaries, personal intake and source review retain their
   // native controllers; owner management collections below remain separate.
   if (root === "work" || root === "requests" || root === "self-service") return true;
-  if (root === "calendar") return read || host === "work"
+  if (root === "calendar") return read || host === "apps"
     || host === "people" && method === "POST" && ["calendar", "calendar/tasks", "calendar/shifts"].includes(resource);
-  if (root === "routing-attention") return host === "admin" || host === "work";
+  if (root === "routing-attention") return host === "admin" || host === "apps";
   if (root === "records") {
     if (resource === "records/search") return read;
     const owner = second && Object.hasOwn(modulePlacement, second) ? modulePlacement[second as keyof typeof modulePlacement] : undefined;
     if (owner === host || host === "admin" && (owner === "provider" || second === "agent")) return true;
     if (host === "sales" && ["customer_360", "customer_authority"].includes(second)) return true;
     // Work's personal retained leave source is not the People collection.
-    return host === "work" && second === "people_payroll" && !!third && read;
+    return host === "apps" && second === "people_payroll" && !!third && read;
   }
   if (root === "flows") {
     if (!third || resource.split("/").length !== 3) return false;
@@ -248,10 +248,10 @@ export function officeApiAllowed(host: ProductHostKey, pathname: string, method:
   if (ownerResources[host]?.includes(root)) return true;
 
   // Published dependencies used by the existing same-page owner controls.
-  if (root === "expenses") return host === "work";
+  if (root === "expenses") return host === "apps";
   if (root === "staff-tasks") return host === "projects";
-  if (root === "leave-requests" || root === "overtime-requests") return host === "work";
-  if (root === "leave") return host === "work" && read && ["leave/calendar", "leave/summary"].includes(resource);
+  if (root === "leave-requests" || root === "overtime-requests") return host === "apps";
+  if (root === "leave") return host === "apps" && read && ["leave/calendar", "leave/summary"].includes(resource);
   if (root === "iam") return host === "people"; // Existing People access explorer.
   if (root === "people") return host === "recruit" && (resource === "people/hire-handoffs/consume" && method === "POST"
       || /^people\/hire-handoffs\/[^/]+\/pay-groups$/.test(resource) && (read || method === "POST"))

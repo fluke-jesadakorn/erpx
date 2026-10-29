@@ -1,7 +1,7 @@
 import {contextGeneration,contextIsSwitching} from '@erpx/feature-work_projection/lib/context-switch';
 
 const boundary=()=>typeof document==='undefined'?null:document.querySelector<HTMLElement>('[data-work-revision]');
-const identity=(node:HTMLElement|null)=>node?[node.dataset.workUser,node.dataset.workRevision,node.dataset.workCompany,node.dataset.workAssignment].join(':'):null;
+const identity=(node:HTMLElement|null)=>node?JSON.stringify([node.dataset.workUser,node.dataset.workRevision,node.dataset.workCompany,node.dataset.workAssignment,node.dataset.workAssignmentVersion]):null;
 
 /** Recheck the rendered authority after asynchronous acknowledgement decoding.
  * Owners still validate their own source, body/key and receipt before clearing. */

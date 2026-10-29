@@ -185,7 +185,7 @@ function managementPresenter(send: typeof managementWorkFetch, original = false)
   const drawer = (props: {open?: boolean; retainFormContents?: boolean; children?: managementReact.ReactNode}) => props.open || props.retainFormContents ? managementReact.createElement("aside", props, props.children) : null;
   const evaluatedModule = {exports: {} as Record<string, unknown>};
   const sourcePath = original ? "packages/feature-people_payroll/src/components/user-management.tsx" : "packages/feature-identity_access/src/components/user-management-workspace.tsx";
-  const source = managementRead(original ? sourcePath : `${process.env.ERPX_MANAGEMENT_SOURCE_ROOT ? process.env.ERPX_MANAGEMENT_SOURCE_ROOT + "/" : ""}${sourcePath}`, "utf8"), code = ts.transpileModule(source, {compilerOptions: {jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022}}).outputText;
+  const source = managementRead(original ? sourcePath : `${process.env.ERPX_MANAGEMENT_SOURCE_ROOT ? process.env.ERPX_MANAGEMENT_SOURCE_ROOT + "/" : ""}${sourcePath}`, "utf8"), code = ts.transpileModule(source, {compilerOptions: {esModuleInterop: false, jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022}}).outputText;
   const localRequire = (name: string) => {
     if (name === "react") return {...managementReact, useState, useRef, useEffect: effect, useLayoutEffect: effect};
     if (name === "react/jsx-runtime") return require(name);

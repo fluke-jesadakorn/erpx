@@ -1,6 +1,6 @@
 import {workFetch} from '@erpx/feature-work_projection/lib/work-fetch';
 export type MessagingAttempt={path:string;body:string;key:string;context:string};
-export function messagingCommandContext(token=''){const node=typeof document==='undefined'?null:document.querySelector<HTMLElement>('[data-work-revision]');return JSON.stringify([token,node?[node.dataset.workUser,node.dataset.workRevision,node.dataset.workCompany,node.dataset.workAssignment]:null]);}
+export function messagingCommandContext(token=''){const node=typeof document==='undefined'?null:document.querySelector<HTMLElement>('[data-work-revision]');return JSON.stringify([token,node?[node.dataset.workUser,node.dataset.workRevision,node.dataset.workCompany,node.dataset.workAssignment,node.dataset.workAssignmentVersion]:null]);}
 export function validMessagingReceipt(attempt:MessagingAttempt,value:unknown){
  if(!value||typeof value!=='object'||!('id'in value)||typeof value.id!=='string')return false;
  const {path,key}=attempt,input:Record<string,unknown>=JSON.parse(attempt.body);

@@ -20,6 +20,18 @@ export function suiteApps(suite: Pick<Suite, "modules">): string[] {
 export function inferPostgresProfile(files: string[], texts: string[]) {
   const selected = new Set<string>();
   for (const source of texts) {
+    // Full snapshot consumers enumerate env dynamically. Their reviewed source
+    // declares its finite slots explicitly instead of relying on member regexes.
+    const declarations = [...source.matchAll(/^\s*(?:export\s+)?const\s+postgresFixtureSlots\s*=\s*\[([^\]]*)\]\s+as\s+const/gm)];
+    if ([...source.matchAll(/^\s*(?:export\s+)?const\s+postgresFixtureSlots\s*=/gm)].length !== declarations.length)
+      throw new Error('INVALID_DECLARED_POSTGRES_FIXTURE_SLOTS');
+    for (const declaration of declarations) {
+      const entries = declaration[1].trim().replace(/,\s*$/, '').split(',').map(value => value.trim());
+      const names = entries.map(value => /^['"]([A-Z0-9_]+)['"]$/.exec(value)?.[1]);
+      if (!names.length || names.some(name => !name || !slots.includes(name)) || new Set(names).size !== names.length)
+        throw new Error('INVALID_DECLARED_POSTGRES_FIXTURE_SLOTS');
+      for (const name of names) selected.add(name!);
+    }
     for (const match of source.matchAll(/\b(?:env|localEnv)\s*(?:\.\s*(CONTROL(?:_READ)?_DB|H00[1-3](?:_READ)?_DB)|\[\s*["'](CONTROL(?:_READ)?_DB|H00[1-3](?:_READ)?_DB)["']\s*\])/g)) selected.add(match[1] ?? match[2]);
     for (const match of source.matchAll(/\{([^}]+)\}\s*=\s*(?:env|localEnv)\b/g)) for (const slot of slots) if (new RegExp(`\\b${slot}\\b`).test(match[1])) selected.add(slot);
   }

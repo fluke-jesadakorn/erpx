@@ -1,0 +1,26 @@
+# Open with ERPX_DEV_WORKSPACE_KEY set to a unique checkout/architecture key.
+# This volume is the editor workspace; it is never the operator checkout.
+name: erpx-dev-${ERPX_DEV_WORKSPACE_KEY:?Set ERPX_DEV_WORKSPACE_KEY}
+services:
+  workspace:
+    working_dir: /workspace/erpx
+    volumes:
+      - source:/workspace/erpx
+      - node-modules:/workspace/erpx/node_modules
+      - cargo-target:/workspace/erpx/target
+      - cargo-registry:/usr/local/cargo/registry
+      - cargo-git:/usr/local/cargo/git
+      - bun-cache:/root/.bun/install/cache
+volumes:
+  source:
+    name: erpx-dev-${ERPX_DEV_WORKSPACE_KEY:?Set ERPX_DEV_WORKSPACE_KEY}-source
+  node-modules:
+    name: erpx-dev-${ERPX_DEV_WORKSPACE_KEY:?Set ERPX_DEV_WORKSPACE_KEY}-node26.11.1-bun1.4.3-modules
+  cargo-target:
+    name: erpx-dev-${ERPX_DEV_WORKSPACE_KEY:?Set ERPX_DEV_WORKSPACE_KEY}-rust1.99.1-target
+  cargo-registry:
+    name: erpx-dev-${ERPX_DEV_WORKSPACE_KEY:?Set ERPX_DEV_WORKSPACE_KEY}-rust1.99.1-registry
+  cargo-git:
+    name: erpx-dev-${ERPX_DEV_WORKSPACE_KEY:?Set ERPX_DEV_WORKSPACE_KEY}-rust1.99.1-git
+  bun-cache:
+    name: erpx-dev-${ERPX_DEV_WORKSPACE_KEY:?Set ERPX_DEV_WORKSPACE_KEY}-bun1.4.3-cache

@@ -1,6 +1,13 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { documentationChecksRequired } from "../../../scripts/testing/scoped";
+import { loadRevisionWorkspaceGraph, loadWorkspaceGraph, selectCandidateSuites } from "../../../scripts/testing/workspace-graph";
+import {inferPostgresProfile} from '../../../scripts/testing/workspace-catalogue';
+import {executeOwnedProcess} from '../../support/owned-process';
+import {isolatedVerificationRuntime,ciPostgresInvocation,ciVerificationArgv} from '../../../scripts/testing/ci-postgres-contract';
+import {ciHeifDecoderInventory} from '../../../scripts/testing/ci-attachment-contract';
+import {cargoVerificationEdges} from '../../../scripts/testing/cargo';
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { availableParallelism, tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { parseTestArguments } from "../../../scripts/testing/arguments";
@@ -9,7 +16,7 @@ import { assertExplicitSelectionIncluded, importSpecifiers, loadCatalogue, reach
 import { parseChanges, patternMatches, selectImpact, type ImpactResult, type SourceOwnership } from "../../../scripts/testing/impact";
 import { selectCiSuites } from "../../../scripts/testing/ci-selection";
 import { developmentSelection } from "../../../scripts/testing/development";
-import { nativeCaseTitle, requiredCaseFailures } from "../../../scripts/testing/required-cases-reporter";
+import RequiredCasesReporter, { failedCaseDiagnostic, nativeCaseTitle, requiredCaseFailures } from "../../../scripts/testing/required-cases-reporter";
 import { browserChildEnvironment, vitestChildEnvironment } from "../../../scripts/testing/runner-environment";
 import { assertRequiredCaseInventory, assertUatRouteSources, browserRequiredCaseBaseline, currentRequiredCases, loadBrowserCaseBaseline, loadRequiredCases, requiredCaseKey } from "../../../scripts/testing/required-case-inventory";
 import { loadProviderRehearsals, unselectedProviderRehearsals, validateProviderRehearsals } from "../../../scripts/testing/provider-rehearsals";
@@ -18,6 +25,7 @@ import { assertAcmeBrowserSeedTarget } from "../../../fixtures/shared/builders/a
 import { assertLocalBrowserRealmTarget } from "../../../fixtures/shared/builders/local-browser-erpx-realm";
 import { pinnedBunBinary } from "../../../scripts/testing/runtime-tooling";
 import { assertTestPlacement } from "../../../scripts/testing/layout";
+import { unitWorkerLimit, vitestConfiguration } from "../../../scripts/testing/vitest-config";
 
 const suite = (id: string, modules: string[], lane: Suite["lane"] = "unit"): Suite => ({ id, lane, owner: modules[0], modules, files: [`tests/${id}.test.ts`], fixture: "none", requires: { jobs: false, scanner: false }, ...(["unit", "integration"].includes(lane) ? { ci: { critical: true, reason: "Test fixture covers a protected business invariant." } } : {}) });
 const catalogue: Catalogue = { version: 1, modules: ["sales", "finance", "people_payroll"], suites: [suite("sales.rules", ["sales"]), suite("finance.rules", ["finance"]), suite("people_payroll.expense", ["people_payroll"]), suite("sales.collection", ["sales", "finance"], "journeys")] };
@@ -45,6 +53,31 @@ function ciCatalogues() {
   return { baseCatalogue, headCatalogue, baseCritical, headCritical, nativeLow, nativeIntegration };
 }
 const ciImpact = (mode: ImpactResult["mode"], suites: Suite[] = [], changed: ImpactResult["changed"] = []): ImpactResult => ({ mode, suites, changed, modules: [], reasons: [mode === "full" ? "GLOBAL_DEPENDENCY" : mode === "affected" ? "OWNED_CHANGE" : "DOCUMENTATION_ONLY"] });
+
+it("retains the declared complete recovery fixture through catalogue regeneration without widening ordinary suites",()=>{
+  const slots=['CONTROL_DB','CONTROL_READ_DB','H001_DB','H001_READ_DB','H002_DB','H002_READ_DB','H003_DB','H003_READ_DB'];
+  const source=`export const postgresFixtureSlots=${JSON.stringify(slots)} as const; const db=env.H001_DB; Object.entries(env);`;
+  expect(inferPostgresProfile(['tests/integration/shared.evidence/engineering-recovery.test.ts'],[source]))
+    .toEqual({mode:'raw',slots,migratedSlots:[]});
+  expect(inferPostgresProfile(['tests/integration/ordinary.test.ts'],['env.H001_DB; STAFF_TEST_MIGRATIONS']))
+    .toEqual({mode:'template',slots:['CONTROL_DB','H001_DB','H001_READ_DB'],migratedSlots:['H001_DB']});
+  for(const declared of [['CONTROL_DB','LIVE_DB'],['H001_DB','H001_DB'],[]])
+    expect(()=>inferPostgresProfile(['recovery.test.ts'],[`export const postgresFixtureSlots=${JSON.stringify(declared)} as const;`]))
+      .toThrow('INVALID_DECLARED_POSTGRES_FIXTURE_SLOTS');
+  expect(()=>inferPostgresProfile(['recovery.test.ts'],['export const postgresFixtureSlots=unknownRuntimeSlots(); env.H001_DB;']))
+    .toThrow('INVALID_DECLARED_POSTGRES_FIXTURE_SLOTS');
+});
+
+it("kills and reaps an owned timed-out operator group including its real descendant",async()=>{
+  const code=`const {spawn}=require('node:child_process');const child=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'inherit'});console.log(child.pid);process.on('SIGTERM',()=>child.once('exit',()=>process.exit(0)));setInterval(()=>{},1000);`;
+  let failure:unknown;
+  try{await executeOwnedProcess(process.execPath,['-e',code],{timeout:1_000});}catch(error){failure=error;}
+  expect(failure).toMatchObject({code:'OWNED_PROCESS_TIMEOUT',killed:true,signal:'SIGKILL'});
+  const pid=Number((failure as {stdout:string}).stdout.trim());expect(Number.isSafeInteger(pid)&&pid>1).toBe(true);
+  expect(()=>process.kill(pid,0)).toThrow();
+  await expect(executeOwnedProcess(process.execPath,['-e','process.stdout.write(process.argv[1])','literal $(echo untouched)'],{timeout:1_000}))
+    .resolves.toMatchObject({stdout:'literal $(echo untouched)'});
+});
 
 describe("test selection contracts", () => {
   it("resolves unique exact case titles and file identities and rejects unknown or ambiguous selectors", () => {
@@ -102,6 +135,18 @@ describe("test selection contracts", () => {
     const conflicting = spawnSync(pinnedBunBinary(repositoryRoot), ["--env-file=/dev/null", "scripts/testing/browser-runner.ts", "e2e", `--case=${title}`, "--project=mobile", "--grep=booking", "--list"], { cwd: repositoryRoot, env: process.env, maxBuffer: 16 * 1024 * 1024 });
     expect(conflicting.status).not.toBe(0);
     expect(`${conflicting.stdout.toString()}${conflicting.stderr.toString()}`).toContain("EXACT_BROWSER_CASE_PATTERN_CONFLICT");
+  });
+  it("bounds unit forks by actual available CPUs without weakening case deadlines or integration admission", () => {
+    expect(unitWorkerLimit(1)).toBe(1);
+    expect(unitWorkerLimit(2)).toBe(2);
+    expect(unitWorkerLimit(8)).toBe(8);
+    expect(unitWorkerLimit(128)).toBe(8);
+    expect(vitestConfiguration("unit").test).toMatchObject({
+      maxWorkers: unitWorkerLimit(availableParallelism()), testTimeout: 30_000, retry: 0,
+    });
+    expect(vitestConfiguration("all").test?.maxWorkers).toBe(2);
+    for (const invalid of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY])
+      expect(() => unitWorkerLimit(invalid)).toThrow("POSITIVE_AVAILABLE_PARALLELISM_REQUIRED");
   });
   it("defaults development commands to unit while preserving explicit native selections and lane errors", () => {
     const native: Catalogue = { ...catalogue, suites: [...catalogue.suites, suite("finance.adapter", ["finance"], "integration")] };
@@ -276,7 +321,7 @@ describe("test selection contracts", () => {
         project,
       }))),
     ];
-    for (const test of reviewedSupplemental) expect(registered.some(candidate => requiredCaseKey(candidate) === requiredCaseKey(test))).toBe(true);
+    for (const test of reviewedSupplemental) expect(registered.some(candidate => requiredCaseKey(candidate) === requiredCaseKey(test)), requiredCaseKey(test)).toBe(true);
     const reviewed = [...new Map([...baseline.cases, ...reviewedSupplemental, ...registered.filter(test=>test.runner==="playwright"&&files.includes(test.file))].map(test=>[requiredCaseKey(test),test] as const)).values()];
     const observed = [...reviewed.map(test => ({ ...test, required: true })), ...baseline.excludedCases.map(test => ({ ...test, required: false }))];
     expect(() => assertRequiredCaseInventory(registered, observed, { runner: "playwright", files })).not.toThrow();
@@ -407,6 +452,27 @@ describe("test selection contracts", () => {
     expect(() => validateCatalogue(malformed)).toThrow(`INVALID_TEST_SUITE:${actual.suites[0].id}`);
     expect(actual.suites.filter(suite => suite.lane === "provider").every(suite => !!suite.provider?.required.length)).toBe(true);
   });
+  it("rejects directory verification inputs immediately while retaining declared native resource members",()=>{
+    const actual=loadCatalogue(),id='maintenance.rust-work-policy.unit';
+    const target=actual.suites.find(suite=>suite.id===id)!;
+    for(const file of ['fixtures/maintenance/rust-work','fixtures/maintenance/rust-work/missing.v1.json']){
+      const changed={...actual,suites:[{...target,verificationInputs:[...(target.verificationInputs??[]).filter(value=>!value.startsWith('fixtures/maintenance/rust-work')),file]}]};
+      expect(()=>validateCatalogue(changed)).toThrow(`INVALID_SUITE_VERIFICATION_INPUT:${id}`);
+    }
+    const manifest='packages/server-maintenance/Cargo.toml',test='tests/unit/maintenance/resource.test.rs';
+    const files=new Map([
+      ['Cargo.toml','[workspace]'],['Cargo.lock','version = 4'],['rust-toolchain.toml','[toolchain]'],
+      [manifest,'[package]\nname = "erpx-server-maintenance"\n[package.metadata.erpx]\nverification-roots = ["../../fixtures/maintenance/rust-work"]\n[[test]]\nname = "resource"\npath = "../../tests/unit/maintenance/resource.test.rs"\n'],
+      [test,'#[test] fn source_bound_case() {}'],
+      ['fixtures/maintenance/rust-work/conformance.v1.json','{}'],
+      ['fixtures/maintenance/rust-work/wire.v1.json','{}'],
+      ['fixtures/maintenance/rust-work/future-case.json','{}'],
+    ]);
+    const edges=cargoVerificationEdges(files);
+    expect([...edges.get(manifest)!]).toEqual(expect.arrayContaining(['fixtures/maintenance/rust-work/conformance.v1.json','fixtures/maintenance/rust-work/wire.v1.json','fixtures/maintenance/rust-work/future-case.json']));
+    expect(edges.get(test)?.has(manifest)).toBe(true);
+    expect(edges.get(manifest)?.has('fixtures/maintenance/rust-work')).toBe(false);
+  });
   it("confines fictional PMS provider recovery to booking E2E with real jobs and scanner", () => {
     const actual = loadCatalogue(), id = 'pms.booking-payment-recovery.e2e';
     expect(actual.suites.find(suite => suite.id === id)).toMatchObject({ fictionalProvider: 'pms-stripe', fixture: 'booking', lane: 'e2e', requires: { jobs: true, scanner: true } });
@@ -486,13 +552,74 @@ describe("conservative base and head impact selection", () => {
   it("requires complete semantic ownership in impact CI even after import boundaries pass", () => {
     const workflow = readFileSync(join(process.cwd(), ".github/workflows/nextjs.yml"), "utf8");
     const impactJob = workflow.match(/^  verification:\n([\s\S]*?)(?=^  acceptance:)/m)?.[1];
-    expect(impactJob).toContain('run: bun run test:ci');
+    expect(impactJob).toContain('run: bun scripts/testing/ci-postgres-resource.ts -- bun run test:ci --base="$ERPX_CI_BASE" --head="$ERPX_CI_HEAD"');
+    expect(ciVerificationArgv(['--','bun','run','test:ci','--base=original-base','--head=exact-head']))
+      .toEqual(['run','test:ci','--base=original-base','--head=exact-head']);
+    expect(ciVerificationArgv(['bun','run','test:ci','--base=original-base','--head=exact-head']))
+      .toEqual(['run','test:ci','--base=original-base','--head=exact-head']);
+    for(const argv of [[],['bun','run','test:ci'],['--','sh','-c','test:ci'],['--','bun','run','deploy:build'],
+      ['--','--','bun','run','test:ci','--base=x','--head=y'],['bun','run','test:ci','--base=x','--skip=y'],
+      ['bun','run','test:ci','--base=x','--base=y'],['bun','run','test:ci','--base=','--head=y'],
+      ['bun','run','release:acceptance','--candidate=x','--unknown=y']])
+      expect(()=>ciVerificationArgv(argv)).toThrow('EXPLICIT_CI_VERIFICATION_COMMAND_REQUIRED');
     expect(impactJob).not.toContain('release:acceptance');
     expect(impactJob).not.toContain('deploy:build');
     const regressionRunner = readFileSync(join(process.cwd(), "scripts/testing/scoped.ts"), "utf8");
     for (const command of ['scripts/architecture/check.ts', 'scripts/testing/layout.ts', 'scripts/docs/check-documentation.ts']) expect(regressionRunner).toContain(command);
     expect(regressionRunner).not.toContain('scripts/testing/full.ts');
 
+  });
+  it("admits owned Linux verification without pretending to be GitHub", () => {
+    expect(isolatedVerificationRuntime('true', undefined, 'owned-linux-container', 'linux', true)).toBe(true);
+    expect(isolatedVerificationRuntime('true', 'true', undefined, 'linux', false)).toBe(true);
+    for (const [ci, local, platform, container] of [
+      [undefined, 'owned-linux-container', 'linux', true],
+      ['true', undefined, 'linux', true],
+      ['true', 'owned-linux-container', 'darwin', true],
+      ['true', 'owned-linux-container', 'linux', false],
+    ] as const) expect(isolatedVerificationRuntime(ci, undefined, local, platform, container)).toBe(false);
+  });
+  it("keeps startup observation separate from verification and proves a real HEVC decoder prerequisite", () => {
+    expect(ciPostgresInvocation(['--probe-only'])).toEqual({kind:'startup'});
+    expect(ciPostgresInvocation(['--','bun','run','test:ci','--base=original','--head=exact']))
+      .toEqual({kind:'verification',argv:['run','test:ci','--base=original','--head=exact']});
+    for(const args of [['--probe-only','--base=x'],['--probe-only','bun','run','test:ci'],['--probe']])
+      expect(()=>ciPostgresInvocation(args)).toThrow('EXPLICIT_CI_VERIFICATION_COMMAND_REQUIRED');
+    const action=readFileSync(join(process.cwd(),'.github/actions/test-runtime/action.yml'),'utf8');
+    expect(action).toContain('libheif-examples libheif-plugin-libde265');
+    expect(action.indexOf('ci-postgres-resource.ts --probe-only')).toBeGreaterThan(action.indexOf('Provision the guarded disposable database administrator'));
+    expect(action.indexOf('ci-postgres-resource.ts --probe-only')).toBeLessThan(action.indexOf('Prove the real scanner and decoder prerequisites'));
+    const inventory=['libheif1\t1.17.6-1ubuntu4.9','libheif-examples\t1.17.6-1ubuntu4.9',
+      'libheif-plugin-libde265\t1.17.6-1ubuntu4.9','libde265-0\t1.0.15-1build3'].join('\n')+'\n';
+    expect(ciHeifDecoderInventory(inventory)).toHaveLength(4);
+    expect(ciHeifDecoderInventory(inventory)).toContainEqual({name:'libheif-plugin-libde265',version:'1.17.6-1ubuntu4.9'});
+    for(const invalid of [inventory.replace('libheif-plugin-libde265','libheif-plugin-x265'),
+      inventory.replace('libheif-plugin-libde265','libheif1'),inventory.replace('1.0.15-1build3','1.0;echo bad'),
+      inventory+'libheif1\t1.17.6\n','x'.repeat(4097)])expect(()=>ciHeifDecoderInventory(invalid)).toThrow();
+    const probe=readFileSync(join(process.cwd(),'scripts/testing/ci-attachment-prerequisites.ts'),'utf8');
+    expect(probe).toContain("sanitizedAttachmentPreview(source, 'image/heic')");
+    expect(probe).toContain('metadata.width !== 40 || metadata.height !== 80');
+    expect(probe).toContain('clean.clean || detected.clean');
+  });
+  it("delegates byte-exact CI arguments observed from the actual pinned Bun script boundary", () => {
+    const bun=process.env.ERPX_BUN_BIN??'bun';
+    const version=spawnSync(bun,['--version'],{encoding:'utf8',timeout:5_000});
+    expect(version.status).toBe(0);expect(version.stdout.trim()).toBe('1.4.3');
+    const directory=mkdtempSync(join(tmpdir(),'erpx-ci-argv-'));
+    const probe=join(directory,'probe.ts');
+    try{
+      writeFileSync(probe,`import {ciPostgresInvocation} from ${JSON.stringify(join(process.cwd(),'scripts/testing/ci-postgres-contract.ts'))};\nprocess.stdout.write(JSON.stringify(ciPostgresInvocation(process.argv.slice(2))));\n`,{mode:0o600});
+      for(const invocation of [
+        {args:['--','bun','run','test:ci','--base=source ref with space','--head=literal $(never_execute)'],argv:['run','test:ci','--base=source ref with space','--head=literal $(never_execute)']},
+        {args:['--','bun','run','release:acceptance','--candidate=original exact candidate'],argv:['run','release:acceptance','--candidate=original exact candidate']},
+      ]){
+        // This executes only the pure argument observer, never test:ci,
+        // acceptance, database setup or a shell interpreting those values.
+        const result=spawnSync(bun,[probe,...invocation.args],{encoding:'utf8',timeout:5_000});
+        expect(result.status,result.stderr).toBe(0);
+        expect(JSON.parse(result.stdout)).toEqual({kind:'verification',argv:invocation.argv});
+      }
+    }finally{rmSync(directory,{recursive:true,force:true});}
   });
   it("starts CI for operational runners, nested fixtures and workspace rules that force full impact", () => {
     const workflow=readFileSync(join(process.cwd(),".github/workflows/nextjs.yml"),"utf8");
@@ -527,7 +654,12 @@ describe("conservative base and head impact selection", () => {
     expect(workflow).toContain("if: github.event_name == 'workflow_dispatch'");
     expect(workflow).not.toContain('schedule:');
     expect(workflow).toContain('name: Affected development verification');
-    expect(workflow).toContain('run: bun run release:acceptance --candidate="$CANDIDATE"');
+    const acceptanceJob=workflow.match(/^  acceptance:\n([\s\S]*)$/m)?.[1];
+    expect(acceptanceJob).toContain("if: github.event_name == 'workflow_dispatch'");
+    expect(acceptanceJob).toContain('run: bun scripts/testing/ci-postgres-resource.ts -- bun run release:acceptance --candidate="$CANDIDATE"');
+    expect(ciVerificationArgv(['--','bun','run','release:acceptance','--candidate=original exact candidate']))
+      .toEqual(['run','release:acceptance','--candidate=original exact candidate']);
+    expect(workflow.match(/^  verification:\n([\s\S]*?)(?=^  acceptance:)/m)?.[1]).not.toContain('release:acceptance');
     expect(workflow).not.toContain('deploy:build');
     expect(workflow).not.toContain('ci-regression.ts browser');
 
@@ -724,6 +856,37 @@ describe("required native cases", () => {
     const capabilityModule = { relativeModuleId: "tests/case.test.ts", children: { allTests: () => [test] } };
     expect(requiredCaseFailures([capabilityModule], ["tests/case.test.ts"], /^Commerce money > threshold rounds tax > zero$/, [{ runner: "vitest", file: "tests/case.test.ts", title: "Commerce money > threshold rounds tax > zero" }])).toEqual({ missing: [], skipped: [], empty: false });
   });
+  it("emits only bounded registered-case failure facts before the run ends", () => {
+    const file = "tests/case.test.ts", title = "registered case", registered = [{runner:"vitest" as const,file,title}];
+    const error = {name:"AssertionError",message:"secret actual https://user:password@example.test",code:"53200",stack:`Error: secret\n    at example (${process.cwd()}/${file}:17:9)\n    at private (/secret/token:22:1)`,actual:"password",expected:"token"};
+    expect(failedCaseDiagnostic(file,title,[error],[file],registered,[file])).toEqual({file,title,errors:[{category:"database",code:"53200",frames:[{line:17,column:9}]}]});
+    expect(failedCaseDiagnostic(file,"dynamic secret",[error],[file],registered,[file])).toEqual({file,title:"[unregistered case]",errors:[{category:"database",code:"53200",frames:[{line:17,column:9}]}]});
+    expect(failedCaseDiagnostic(file,title,[error],[file],registered,[])).toBeUndefined();
+    expect(failedCaseDiagnostic(file,title,[{name:"AssertionError",message:"Test timed out in 30000ms.\nDetails: secret",code:"SECRET"}],[file],registered,[file])).toEqual({file,title,errors:[{category:"timeout",timeoutMs:30000}]});
+    expect(JSON.stringify(failedCaseDiagnostic(file,title,[error],[file],registered,[file]))).not.toMatch(/password|token|https|secret/);
+
+    const real = loadRequiredCases().find(test=>test.runner==="vitest")!;
+    const before=process.env.ERPX_SELECTED_TEST_FILES, output=vi.spyOn(console,"error").mockImplementation(()=>{});
+    try {
+      process.env.ERPX_SELECTED_TEST_FILES=JSON.stringify([real.file]);
+      const test={name:real.title,fullName:real.title,parent:{type:"module"},module:{relativeModuleId:real.file},result:()=>({state:"failed",errors:[{name:"AssertionError",message:"secret"}]})};
+      new RequiredCasesReporter().onTestCaseResult(test as never);
+      expect(output).toHaveBeenCalledOnce();
+      expect(output.mock.calls[0][0]).toContain("TEST_CASE_FAILURE_DIAGNOSTIC:");
+      expect(output.mock.calls[0][0]).not.toContain("secret");
+      output.mockClear();
+      for (const path of ["tests/integration/manufacturing/production.test.ts", "tests/integration/field_service/field-service.test.ts"]) {
+        process.env.ERPX_SELECTED_TEST_FILES=JSON.stringify([path]);
+        new RequiredCasesReporter().onTestCaseResult({...test,name:"dynamic secret",fullName:"dynamic secret",module:{relativeModuleId:path}} as never);
+        expect(output.mock.calls.at(-1)?.[0]).toContain('"title":"[unregistered case]"');
+        expect(output.mock.calls.at(-1)?.[0]).not.toContain("secret");
+      }
+      output.mockClear();process.env.ERPX_SELECTED_TEST_FILES=JSON.stringify(["tests/integration/unknown.test.ts"]);
+      new RequiredCasesReporter().onTestCaseResult({...test,module:{relativeModuleId:"tests/integration/unknown.test.ts"}} as never);
+      new RequiredCasesReporter().onTestCaseResult({...test,result:()=>({state:"passed"})} as never);
+      expect(output).not.toHaveBeenCalled();
+    } finally {output.mockRestore();if(before===undefined)delete process.env.ERPX_SELECTED_TEST_FILES;else process.env.ERPX_SELECTED_TEST_FILES=before;}
+  });
   it("fails when a registered file has no discovery even if another required file passes", () => {
     const registered = [{ runner: "playwright" as const, file: "tests/e2e/required.spec.ts", title: "required consent", project: "mobile" as const }];
     expect(() => assertRequiredCaseInventory(registered, [{ runner: "playwright", file: "tests/e2e/optional.spec.ts", title: "optional consent", project: "mobile" }], { runner: "playwright", files: ["tests/e2e/required.spec.ts", "tests/e2e/optional.spec.ts"], projects: ["mobile"] })).toThrow("REGISTERED_REQUIRED_CASE_MISSING");
@@ -803,6 +966,10 @@ describe("database-free unit fixture imports", () => {
     writeFileSync(join(root, "tests/pure.test.ts"), "export const number = 1;");
     expect(reachesDatabaseFixture("tests/case.test.ts", root)).toBe(true);
     expect(reachesDatabaseFixture("tests/pure.test.ts", root)).toBe(false);
+    writeFileSync(join(root, "tests/support/helpers/a.ts"), "export const pure = 1;");
+    expect(reachesDatabaseFixture("tests/case.test.ts", root)).toBe(false);
+    writeFileSync(join(root, "tests/support/helpers/a.ts"), "export { env } from '../runtime-env';");
+    expect(reachesDatabaseFixture("tests/case.test.ts", root)).toBe(true);
   });
   it("detects actual PostgreSQL value imports without interpreting source-text fixtures or type imports as connections", () => {
     const root = mkdtempSync(join(tmpdir(), "erpx-postgres-import-")); directories.push(root);
@@ -841,4 +1008,43 @@ it("isolates the Service enforcement flag while retaining only explicit browser 
   expect(browserChildEnvironment(ambient)).not.toHaveProperty("ERPX_SERVICE_PACKAGE_ENFORCEMENT");
   expect(browserChildEnvironment(ambient,{ERPX_SERVICE_PACKAGE_ENFORCEMENT:"shadow"})).toHaveProperty("ERPX_SERVICE_PACKAGE_ENFORCEMENT","shadow");
   expect(ambient.ERPX_SERVICE_PACKAGE_ENFORCEMENT).toBe("enforced");
+});
+
+it("admits only proven deletion of the exact retired documentation paths", () => {
+  const root=mkdtempSync(join(tmpdir(),"erpx-retired-docs-"));
+  const retired=[
+    ...["inventory-contradiction-matrix","canonical-glossary-home","adr-authority-nextjs-era","plan-lineage-normalization","audits-prune-policy","docs-contracts-schema-role","top-level-entry-coherence","seamless-navigation-prototype","designed-skills-dedup","nextjs-ci-traceability"].map((name,i)=>`.scratch/docs-seamless/issues/${String(i+1).padStart(2,"0")}-${name}.md`),
+    ".scratch/docs-seamless/map.md", ".scratch/docs-seamless/prototype/TOC-seamless.md", "audits/.gitkeep",
+  ];
+  const git=(...args:string[])=>{const result=spawnSync("git",args,{cwd:root,encoding:"utf8"});if(result.status!==0)throw new Error(result.stderr);return result.stdout.trim();};
+  const put=(file:string,text="original")=>{mkdirSync(join(root,file,".."),{recursive:true});writeFileSync(join(root,file),text);};
+  try{
+    git("init","-q");git("config","user.email","test@example.invalid");git("config","user.name","Test");
+    for(const file of retired)put(file);
+    put(".scratch/unrelated.md");git("add","-f",".");git("commit","-qm","base");const base=git("rev-parse","HEAD");
+    for(const file of retired)rmSync(join(root,file));rmSync(join(root,".scratch/unrelated.md"));
+    git("add","-u");git("commit","-qm","remove");const head=git("rev-parse","HEAD");
+    const before=loadRevisionWorkspaceGraph(base,root),after=loadRevisionWorkspaceGraph(head,root);
+    for(const file of retired)expect(()=>selectCandidateSuites(after,before,[],[file])).not.toThrow();
+    const auditPlan=selectCandidateSuites(after,before,[],["audits/.gitkeep"]);
+    expect(auditPlan.removed).toEqual(["audits/.gitkeep"]);
+    expect(documentationChecksRequired(auditPlan.changed,auditPlan.removed)).toBe(true);
+    expect(documentationChecksRequired(["scripts/testing/example.ts"],[])).toBe(false);
+    expect(documentationChecksRequired([".scratch/unknown"],[])).toBe(false);
+    expect(documentationChecksRequired(["README.md"],[])).toBe(true);
+    expect(()=>selectCandidateSuites(after,before,[],[".scratch/unrelated.md"])).toThrow("WORKSPACE_CHANGE_UNMAPPED");
+    expect(()=>selectCandidateSuites(after,before,[],[".scratch/unknown.md"])).toThrow("WORKSPACE_CHANGE_UNMAPPED");
+    expect(()=>selectCandidateSuites({...after,retirementPresence:undefined},before,[],[retired[0]])).toThrow("WORKSPACE_CHANGE_UNMAPPED");
+    expect(()=>selectCandidateSuites(after,{...before,retirementPresence:undefined},[],[retired[0]])).toThrow("WORKSPACE_CHANGE_UNMAPPED");
+    put(retired[0],"readded");
+    expect(()=>selectCandidateSuites(loadWorkspaceGraph(root),before,[],[retired[0]])).toThrow("WORKSPACE_CHANGE_UNMAPPED");
+    git("add","-f",retired[0]);git("commit","-qm","readd");const added=loadRevisionWorkspaceGraph("HEAD",root);
+    expect(()=>selectCandidateSuites(added,after,[],[retired[0]])).toThrow("WORKSPACE_CHANGE_UNMAPPED");
+    put(retired[0],"modified");
+    expect(()=>selectCandidateSuites(loadWorkspaceGraph(root),added,[],[retired[0]])).toThrow("WORKSPACE_CHANGE_UNMAPPED");
+    git("add","-f",retired[0]);git("commit","-qm","modify");
+    expect(()=>selectCandidateSuites(loadRevisionWorkspaceGraph("HEAD",root),added,[],[retired[0]])).toThrow("WORKSPACE_CHANGE_UNMAPPED");
+    rmSync(join(root,retired[0]));symlinkSync("missing-target",join(root,retired[0]));
+    expect(()=>selectCandidateSuites(loadWorkspaceGraph(root),before,[],[retired[0]])).toThrow("WORKSPACE_CHANGE_UNMAPPED");
+  }finally{rmSync(root,{recursive:true,force:true});}
 });

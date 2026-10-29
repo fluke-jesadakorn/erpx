@@ -1,6 +1,6 @@
 # ERPX production recovery
 
-The active recovery procedure is [Mac deployment and recovery](../macos/README.md), per [ADR-024](../../docs/adr/ADR-024-local-postgresql-runtime.md). This deployment uses local PostgreSQL logical backups and private filesystem snapshots. It has no managed-provider PITR or off-machine backup.
+The active recovery procedure is [Mac deployment and recovery](../macos/README.md), per [ADR-024](../../docs/adr/ADR-024-local-postgresql-runtime.md). This deployment uses local PostgreSQL logical backups and private filesystem snapshots. It has no managed-provider PITR. Encrypted off-machine export is supported by the operator only when separately configured and verified; do not infer that an off-machine backup exists from source support alone.
 
 1. Inspect `/Library/Application Support/ERPX/logs/` and run `sudo /usr/bin/python3 '/Library/Application Support/ERPX/ops/erpxctl.py' doctor`.
 2. Select a complete root-private snapshot under `backups/`. Keep the matching release installed. Do not use a `.partial` snapshot.

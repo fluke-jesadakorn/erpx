@@ -8,7 +8,9 @@ import { isAbsolute, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
 import { recoverGatewayApps, type ProcessIdentity } from "./app-process-leases";
 import { randomBytes, timingSafeEqual } from "node:crypto";
-import { appDefinitions, appDirectory, appForHost } from "@erpx/contracts/apps";
+import { appDefinitions, appDirectory, appForHost, unregisteredDevelopmentProductHost } from "@erpx/contracts/apps";
+import {holdingRoutingEnabled,holdingHostForHost} from '@erpx/contracts/holding-hosts';
+import {holdingGatewayApp,holdingGatewayLocation} from './holding-gateway';
 import { consoleWorkspaceCutoverBlockers } from "./console-workspace-cutover";
 import {consoleRetirementResult,developmentConsoleRetired} from '@erpx/contracts/console-retirement';
 
@@ -202,6 +204,11 @@ function retirementHost(host: string | undefined) {
     ? 'console-dev-erpx.jesadakorn.com' : host;
 }
 function target(req: IncomingMessage) {
+  if (holdingRoutingEnabled(environment) && holdingHostForHost(req.headers.host)) {
+    const id = holdingGatewayApp(req.headers.host!, req.url ?? '/', req.headers.referer);
+    if (!id || !settings().activeApps.includes(id)) throw new Error('HOLDING_ROUTE_NOT_FOUND');
+    return id;
+  }
   if(developmentConsoleRetired(environment)&&retirementHost(req.headers.host)==='console-dev-erpx.jesadakorn.com'&&['/api/health','/api/ready'].includes((req.url??'').split('?')[0])){
     settings();return 'account';
   }
@@ -215,11 +222,20 @@ function target(req: IncomingMessage) {
   return options.fallback ?? "compat";
 }
 function failed(res: ServerResponse, error: unknown) {
+  if (error instanceof Error && error.message === 'HOLDING_ROUTE_NOT_FOUND' && !res.headersSent) { res.writeHead(404, {'Cache-Control':'private, no-store','Content-Type':'text/plain; charset=utf-8'});res.end('Not Found\n');return; }
   console.error(error instanceof Error ? error.message : "GATEWAY_REQUEST_FAILED");
   if (!res.headersSent) { res.writeHead(503, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" }); res.end(error instanceof Error&&error.message.startsWith("DEVELOPMENT_APP_CAPACITY:")?"Development app capacity reached. Close an unused development app tab or increase ERPX_DEV_MAX_APPS in your local configuration.":"Development application unavailable. See the owned application log."); }
   else res.destroy();
 }
 const server = createServer(async (req, res) => {
+  if(holdingRoutingEnabled(environment)&&!holdingHostForHost(req.headers.host)&&!appForHost(req.headers.host??'')&&
+    !['console-dev-erpx.jesadakorn.com','dev-erpx.jesadakorn.com',`127.0.0.1:${options.port}`,`localhost:${options.port}`,`[::1]:${options.port}`].includes(req.headers.host??'')){
+    res.writeHead(404,{'Cache-Control':'private, no-store','Content-Type':'text/plain; charset=utf-8'});res.end('Not Found\n');return;
+  }
+  if (unregisteredDevelopmentProductHost(req.headers.host)) {
+    res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "private, no-store" });
+    res.end("Not Found\n"); return;
+  }
   try{
     const retired=consoleRetirementResult({host:retirementHost(req.headers.host),method:req.method??'GET',url:req.url??'/',accept:req.headers.accept},environment);
     if(retired){settings();res.writeHead(retired.status,retired.headers);res.end(retired.body);return;}
@@ -242,7 +258,12 @@ const server = createServer(async (req, res) => {
     res.once("finish", finish); res.once("close", finish);
     // A failed upstream is never retried: this stream may be a business mutation.
     const headers = { ...req.headers }; delete headers["x-erpx-workspace-preview"];
-    const upstream = httpRequest({ host: "127.0.0.1", port: app.port, method: req.method, path: req.url, headers }, response => {
+    const transportPrefix=`/__erpx/${id}`;
+    const holdingWorker=holdingRoutingEnabled(environment)&&!!holdingHostForHost(req.headers.host)&&(req.url??'').split('?')[0]===transportPrefix+'/erpx-push-sw.js';
+    const upstreamPath=holdingRoutingEnabled(environment)&&holdingHostForHost(req.headers.host)&&((req.url??'').startsWith(transportPrefix+'/api/')||holdingWorker)?req.url!.slice(transportPrefix.length):req.url;
+    const upstream = httpRequest({ host: "127.0.0.1", port: app.port, method: req.method, path: upstreamPath, headers }, response => {
+      if(holdingWorker&&response.statusCode===200)response.headers['service-worker-allowed']='/';
+      if(id!=='compat'&&holdingRoutingEnabled(environment)&&response.headers.location)response.headers.location=holdingGatewayLocation(req.headers.host??'',req.url??'/',response.headers.location,id);
       res.writeHead(response.statusCode ?? 502, response.statusMessage, response.headers); response.pipe(res);
       response.once("error", error => failed(res, error));
     });
@@ -251,6 +272,13 @@ const server = createServer(async (req, res) => {
   } catch (error) { failed(res, error); } finally {releaseDemand?.();}
 });
 server.on("upgrade", async (req, downstream, head) => {
+  if(holdingRoutingEnabled(environment)&&!holdingHostForHost(req.headers.host)&&!appForHost(req.headers.host??'')&&
+    !['console-dev-erpx.jesadakorn.com','dev-erpx.jesadakorn.com',`127.0.0.1:${options.port}`,`localhost:${options.port}`,`[::1]:${options.port}`].includes(req.headers.host??'')){
+    downstream.end('HTTP/1.1 404 Not Found\r\nConnection: close\r\nCache-Control: private, no-store\r\nContent-Length: 0\r\n\r\n');return;
+  }
+  if (unregisteredDevelopmentProductHost(req.headers.host)) {
+    downstream.end("HTTP/1.1 404 Not Found\r\nConnection: close\r\nCache-Control: private, no-store\r\nContent-Length: 0\r\n\r\n"); return;
+  }
   let releaseDemand:(()=>void)|undefined, releaseHandshake:(()=>void)|undefined;
   const waiting=new PassThrough({highWaterMark:64*1024});
   downstream.once('error',()=>downstream.destroy());downstream.once('end',()=>downstream.destroy());

@@ -118,6 +118,7 @@ export async function GET(request: Request, { params }: Context) {
         valid: !!state.selected,
         userId: state.access.userId,
         revision: state.selection?.revision ?? 0,
+        assignmentVersion: state.selection?.assignment_version ?? null,
         assignmentId: state.selection?.assignment_id ?? null,
         companyId: brand.companyId,
       } }), { headers: { "Cache-Control": "private, no-store" } });

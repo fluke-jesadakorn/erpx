@@ -26,6 +26,7 @@
     "lint": "eslint src"
   },
   "dependencies": {
+    "@erpx/contracts": "workspace:*",
     "@erpx/feature-field_service": "workspace:*",
     "@erpx/feature-records": "workspace:*",
     "@erpx/feature-work_projection": "workspace:*",
@@ -38,6 +39,6 @@
     "@erpx/server-runtime": "workspace:*",
     "@erpx/server-work_projection": "workspace:*",
     "@erpx/workplace": "workspace:*",
-    "next": "16.4.0"
+    "next": "16.4.3"
   }
 }

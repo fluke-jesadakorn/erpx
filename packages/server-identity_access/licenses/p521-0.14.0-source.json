@@ -1,0 +1,22 @@
+{
+  "crate": "p521",
+  "version": "0.14.0",
+  "license": "Apache-2.0 OR MIT",
+  "archive": "https://static.crates.io/crates/p521/p521-0.14.0.crate",
+  "archiveSha256": "4ad64cc32c2dc466317c12ee5853e61f159f9eab1fe7efade0395dc2e7b43449",
+  "upstream": "https://github.com/RustCrypto/elliptic-curves",
+  "rustVersion": "1.85",
+  "usage": "Optional directory-oidc ES512 public-key verification only; no secret-key construction, signing, default std/getrandom, PEM or precomputed-table feature is selected. Upstream ecdsa feature also defines generic signing APIs, which are not used here.",
+  "upstreamSecurityLimitation": "Upstream states this curve arithmetic has not been independently audited. Independent pinned Node JOSE verification vectors are compatibility tests, not a cryptographic audit.",
+  "modifiedUpstream": false,
+  "licenses": [
+    {
+      "path": "packages/server-identity_access/licenses/p521-0.14.0-APACHE-2.0.txt",
+      "sha256": "a9040321c3712d8fd0b09cf52b17445de04a23a10165049ae187cd39e5c86be5"
+    },
+    {
+      "path": "packages/server-identity_access/licenses/p521-0.14.0-MIT.txt",
+      "sha256": "d8c4ab431f20da8452c9a217084163822e5fd9d134e1343903c929f2859fc8fd"
+    }
+  ]
+}

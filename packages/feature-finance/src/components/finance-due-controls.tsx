@@ -2,7 +2,7 @@
 import { canonicalUiHref } from "@erpx/feature-work_projection/lib/destination-registry";
 import {useState} from "react";
 import { useRouter } from "@erpx/feature-shared/lib/destination-router";
-import {financeCommandFetch as workFetch} from "@erpx/feature-finance/lib/finance-command-fetch";
+import {financeCommandFetch as workFetch} from "@erpx/feature-finance/public/client";
 import {Button,Card,Field,FormLayout,TextArea,InlineNotice,ActionLink} from "@erpx/ui/components/foundation";
 type Row=Record<string,string|number|null>;
 export function FinanceDueControls({base,rows,canWrite}:{base:string;rows:Row[];canWrite:boolean}){

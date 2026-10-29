@@ -43,6 +43,7 @@
     "./components/money/currency-provider": "./src/components/money/currency-provider.tsx",
     "./components/money/currency-provider.module.css": "./src/components/money/currency-provider.module.css",
     "./components/vat-register-controls": "./src/components/vat-register-controls.tsx",
+    "./components/service-invoice-record-boundary": "./src/components/service-invoice-record-boundary.tsx",
     "./components/source-document-backdrop": "./src/components/source-document-backdrop.tsx",
     "./components/company-stripe": "./src/components/company-stripe.tsx",
     "./components/lazy-invoice-editor": "./src/components/lazy-invoice-editor.tsx",
@@ -75,7 +76,6 @@
     "./lib/expense-posting-setup-command": "./src/lib/expense-posting-setup-command.ts",
     "./lib/finance-vat-labels": "./src/lib/finance-vat-labels.ts",
     "./lib/refund-command-controls": "./src/lib/refund-command-controls.ts",
-    "./lib/finance-command-fetch": "./src/lib/finance-command-fetch.ts",
     "./lib/finance-starter": "./src/lib/finance-starter.ts",
     "./lib/finance-report-periods": "./src/lib/finance-report-periods.ts",
     "./lib/bank-command": "./src/lib/bank-command.ts",
@@ -356,7 +356,10 @@
     "./routes/holdings/[holdingSlug]/@record/finance/documents/expenses/[id]/page": "./src/routes/holdings/[holdingSlug]/@record/finance/documents/expenses/[id]/page.tsx",
     "./routes/holdings/[holdingSlug]/@record/finance/reports/statement-packages/[id]/[recordSection]/page": "./src/routes/holdings/[holdingSlug]/@record/finance/reports/statement-packages/[id]/[recordSection]/page.tsx",
     "./routes/holdings/[holdingSlug]/@record/finance/reports/statement-packages/[id]/page": "./src/routes/holdings/[holdingSlug]/@record/finance/reports/statement-packages/[id]/page.tsx",
-    "./routes/api/v1/holdings/[holdingSlug]/finance/route": "./src/routes/api/v1/holdings/[holdingSlug]/finance/route.ts"
+    "./routes/api/v1/holdings/[holdingSlug]/finance/route": "./src/routes/api/v1/holdings/[holdingSlug]/finance/route.ts",
+    "./public/client": "./src/public/client.ts",
+    "./public/contracts": "./src/public/contracts.ts",
+    "./public/server": "./src/public/server.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
@@ -380,10 +383,10 @@
     "@erpx/server-work_projection": "workspace:*",
     "@erpx/ui": "workspace:*",
     "@erpx/workplace": "workspace:*",
-    "lucide-react": "1.41.0",
-    "next": "16.4.0",
-    "react": "19.3.0",
+    "lucide-react": "1.61.0",
+    "next": "16.4.3",
+    "react": "19.3.1",
     "server-only": "0.0.1",
-    "zod": "4.5.4"
+    "zod": "4.6.7"
   }
 }

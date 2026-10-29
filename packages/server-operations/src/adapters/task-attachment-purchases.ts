@@ -12,7 +12,7 @@ import {workTaskSocialReadPolicy} from '@erpx/server-collaboration/public/work-t
 import {projectSocialSourceReadLocks} from '@erpx/server-projects/public/social-purchase-sources';
 import {socialPmsSourceReadLocks} from '@erpx/server-pms/public/social-source-facts';
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
-import {workPackageEnforcementMode,companyPurchaseReadLocks,checkPurchasedCapability,purchaseCommandBoundary,observePurchaseResults} from '@erpx/server-commercial/public/purchase-command-boundary';
+import {appsPackageEnforcementMode,companyPurchaseReadLocks,checkPurchasedCapability,purchaseCommandBoundary,observePurchaseResults} from '@erpx/server-commercial/public/purchase-command-boundary';
 import type {CapabilityPurpose} from '@erpx/server-commercial/public/rules/packages';
 import {financeDeferredEffectStatements} from '@erpx/server-finance/public/finance-transactions';
 import {isTransactionalSqlDatabase,type SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
@@ -33,7 +33,7 @@ function source(ownedAction:boolean){return `SELECT t.id,t.company_id,t.branch_i
 const fileUnits=new WeakSet<SqlDatabase>();
 type Source={id:string;company_id:string;branch_id:string|null;department_id:string|null;project_id:string|null;state:string;creator_user_id:string;assignee_user_id:string;template_id:string|null;work_social:boolean;witness:string};
 export async function workTaskAttachmentPurchaseScope(database:SqlDatabase,actor:WorkContext,type:string,id:string,operation?:AttachmentOperation):Promise<WorkTaskAttachmentPurchase|null>{
- const mode=await workPackageEnforcementMode();if(type!=='staff_task'||mode==='disabled')return null;
+ const mode=await appsPackageEnforcementMode();if(type!=='staff_task'||mode==='disabled')return null;
  const ownedAction=workTaskOwnsAttachmentAction(database,actor,id),row=await database.prepare(source(ownedAction)).bind(id,actor.companyId).first<Source>();
  if(!row)throw new ApiError(404,'ATTACHMENT_TARGET_NOT_FOUND','The original task evidence owner is unavailable.');
  // The existing Project owner separately licenses its actual foundation.
@@ -44,19 +44,19 @@ export async function workTaskAttachmentPurchaseScope(database:SqlDatabase,actor
 }
 export async function authorizeWorkTaskAttachmentPurchase(database:SqlDatabase,actor:WorkContext,type:string,id:string,operation:AttachmentOperation){
  const scope=await workTaskAttachmentPurchaseScope(database,actor,type,id,operation);if(!scope)return;
- for(const capability of scope.capabilities)await checkPurchasedCapability(database,await workPackageEnforcementMode(),{companyId:scope.companyId,capability,purpose:operation==='read'?'history':scope.purpose});
+ for(const capability of scope.capabilities)await checkPurchasedCapability(database,await appsPackageEnforcementMode(),{companyId:scope.companyId,capability,purpose:operation==='read'?'history':scope.purpose});
 }
 /** A file command leases its actual native task, routine/social source and
  * current original IAM/HR before its first transactional SELECT. */
 export async function workTaskAttachmentSourceReadLocks(database:SqlDatabase,scopes:readonly WorkTaskAttachmentPurchase[]){
- if(!scopes.length||await workPackageEnforcementMode()==='disabled')return [];
+ if(!scopes.length||await appsPackageEnforcementMode()==='disabled')return [];
  const locks=[...new Set(scopes.map(scope=>scope.companyId))].sort().map(company=>companyPurchaseReadLocks(database,company));
  await database.batch([...locks.map(items=>items[0]),database.prepare('LOCK TABLE staff_tasks,staff_task_delegations,routine_templates,routine_schedules IN SHARE ROW EXCLUSIVE MODE'),workTaskApprovalSourceLocks(database),workTaskSocialSourceLocks(database),workTaskSocialAudienceSourceLocks(database),projectSocialSourceReadLocks(database),socialPmsSourceReadLocks(database)]);
  await lockQueuedCommandAuthority(database);await lockScheduledFeatureSources(database);fileUnits.add(database);
  return locks.flatMap(items=>items.slice(1));
 }
 export async function workTaskAttachmentCommandBoundary(database:SqlDatabase,scopes:readonly WorkTaskAttachmentPurchase[]){
- const mode=await workPackageEnforcementMode();if(!scopes.length||mode==='disabled')return;
+ const mode=await appsPackageEnforcementMode();if(!scopes.length||mode==='disabled')return;
  const unique=[...new Map(scopes.map(scope=>[`${scope.companyId}:${scope.targetId}:${scope.purpose}:${scope.actor.userId}`,scope])).values()],boundaries=unique.flatMap(scope=>scope.capabilities.map(capability=>{const key=`work-task-file-purchase:${randomUUID()}`;return {key,boundary:purchaseCommandBoundary(database,mode,key,{companyId:scope.companyId,capability,purpose:scope.purpose})!};}));
  const social=await Promise.all(unique.map(scope=>workTaskSocialReadPolicy(database,scope.actor,scope.targetId)));
  const guards=(phase:string)=>unique.flatMap((scope,index)=>{

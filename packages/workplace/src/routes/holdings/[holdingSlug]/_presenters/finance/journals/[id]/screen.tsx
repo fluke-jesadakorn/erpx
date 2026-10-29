@@ -24,7 +24,9 @@ import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import {journalRecordWorkspace} from "@erpx/server-finance/public/record-presentation";
+import {nativeJournalPageWorkspace,nativeJournalPageFailure} from "@erpx/feature-finance/public/server";
 import { pageError } from "@erpx/server-work_projection/public/page-error";
+import { ApiError } from "@erpx/server-runtime/public/http";
 import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
 export const dynamic = "force-dynamic";
 export default async function JournalPage({
@@ -40,11 +42,25 @@ export default async function JournalPage({
     printing = query.print === "1";
   const actor = await requireWorkContext(holdingSlug);
   const base = workspaceBase(publicScope(actor));
-  const data=await journalRecordWorkspace(actor,id).catch(error=>pageError(error,holdingSlug));
+  const nativeData = await nativeJournalPageWorkspace(actor, holdingSlug, id).catch(error => {
+    const mapped = nativeJournalPageFailure(error);
+    if (!mapped) throw error;
+    return pageError(new ApiError(mapped.status, mapped.code, mapped.message), holdingSlug);
+  });
+  const data = nativeData ?? await journalRecordWorkspace(actor,id).catch(error=>pageError(error,holdingSlug));
   const {journal,lines,history}=data;
   const documentPost = ["draft","in_review"].includes(String(journal.status)) ? await financeDocumentPostAccess(actor,"journal",id) : undefined;
   const canApprove = hasPermission(actor, "finance.approve");
   const flow = await financeDocumentFlow(actor, "journal", id);
+  const nativeContext = actor.authority && actor.iam ? {
+                userId: actor.userId, holdingId: actor.holdingId, companyId: actor.companyId,
+                branchId: actor.branchId, departmentId: actor.departmentId,
+                branchSlug: actor.scope.kind === 'holding' ? null : actor.scope.branchSlug ?? null,
+                departmentSlug: actor.scope.kind === 'department' ? actor.scope.departmentSlug : null,
+                assignmentId: actor.assignmentId, assignmentVersion: actor.authority.assignmentVersion,
+                revision: actor.authority.revision, role: actor.role, assignmentScopeKind: actor.assignmentScope,
+                modules: [...actor.modules], permissions: [...actor.iam.permissions],
+              } : undefined;
   return (
     <FeaturePage
       className="ui-page-content"
@@ -96,6 +112,8 @@ export default async function JournalPage({
           <RecordNextAction flow={flow} />
           <FeatureWidget appearance="standard" id="finance-journals-detail-journal-actions" title="Journal actions">
             <JournalAction sourceCanPost={documentPost?.canPost}
+              nativePost={process.env.ERPX_NATIVE_FINANCE_JOURNAL_POST_CONFIG === undefined ? undefined : { context: nativeContext }}
+              nativeReverse={process.env.ERPX_NATIVE_FINANCE_JOURNAL_REVERSE_CONFIG === undefined ? undefined : { context: nativeContext }}
               base={base}
               journal={journal}
               canPost={
@@ -107,7 +125,7 @@ export default async function JournalPage({
               periods={data.periods}
             />
           </FeatureWidget>
-          {journal.status==='draft'&&journal.source_type==='manual'&&hasPermission(actor,'finance.write')&&<FeatureWidget appearance="standard" id="finance-journals-detail-draft-edit" title="Complete or revise draft"><JournalEditor base={base} chart={data.chart} accounts={data.accounts} periods={data.periods} dimensions={data.dimensions} dimensionValues={data.dimensionValues} draft={journal} draftLines={lines}/></FeatureWidget>}
+          {journal.status==='draft'&&journal.source_type==='manual'&&hasPermission(actor,'finance.write')&&<FeatureWidget appearance="standard" id="finance-journals-detail-draft-edit" title="Complete or revise draft"><JournalEditor base={base} nativeEdit={process.env.ERPX_NATIVE_FINANCE_JOURNAL_EDIT_CONFIG === undefined ? undefined : {context:nativeContext}} chart={data.chart} accounts={data.accounts} periods={data.periods} dimensions={data.dimensions} dimensionValues={data.dimensionValues} draft={journal} draftLines={lines}/></FeatureWidget>}
           {history.length>0&&<FeatureWidget appearance="standard" id="finance-journals-detail-draft-history" title="Retained draft history"><ul>{history.map(h=><li key={String(h.id)}><details><summary>Draft version {Number(h.journal_version)} · {String(h.reason)}</summary>{(()=>{const snapshot=JSON.parse(String(h.snapshot_json)) as {journal:{entry_date:string;memo:string;currency:string};lines:Array<{account_id:string;description:string;debit_minor:number;credit_minor:number;dimension_json:string}>};return <><p>{snapshot.journal.entry_date} · {snapshot.journal.currency} · {snapshot.journal.memo}</p><TableFrame appearance="standard" label={`Draft version ${h.journal_version}`}><Table><thead><tr><th>Account</th><th>Description</th><th>Debit</th><th>Credit</th><th>Reporting dimensions</th></tr></thead><tbody>{snapshot.lines.map((l,i)=><tr key={i}><td>{String(data.accounts.find(a=>a.id===l.account_id)?.code??'Historical account')} · {String(data.accounts.find(a=>a.id===l.account_id)?.name??l.account_id)}</td><td>{l.description}</td><td>{minorToDecimal(l.debit_minor)}</td><td>{minorToDecimal(l.credit_minor)}</td><td>{Object.entries(JSON.parse(l.dimension_json) as Record<string,string>).map(([k,v])=>`${String(data.dimensions.find(d=>d.code===k)?.name??k)}: ${v}`).join(' · ')||'—'}</td></tr>)}</tbody></Table></TableFrame></>})()}</details></li>)}</ul></FeatureWidget>}
           {journal.source_id &&
             ["stock_count", "expense_claim", "reversal"].includes(String(journal.source_type)) && (

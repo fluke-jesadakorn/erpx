@@ -1,0 +1,232 @@
+[package]
+name = "erpx-server-identity-access"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+autotests = false
+
+[package.metadata.erpx]
+verification-roots = ["../../scripts/testing/fixtures/generate-directory-source-oracle.ts", "../../scripts/testing/fixtures/generate-directory-mapping-oracle.ts", "licenses", "../../fixtures/identity_access/directory", "../../scripts/testing/fixtures/generate-directory-rust-oracle.ts", "../../fixtures/identity_access/account-security", "../../scripts/testing/fixtures/generate-account-security-oracle.ts", "resources", "../../fixtures/identity_access/permissions", "../../scripts/testing/fixtures/generate-work-admission-oracle.ts"]
+
+[lib]
+path = "src/lib.rs"
+
+[features]
+directory-oidc = ["dep:ryu-js", "dep:ml-dsa", "dep:rsa", "sha2/oid", "dep:p521", "dep:reqwest", "dep:rustls", "dep:webpki-roots"]
+directory-ldaps = ["dep:ldap3_proto", "dep:bytes", "dep:tokio-util", "dep:tracing", "dep:tokio-rustls", "dep:rustls", "dep:webpki-roots"]
+contracts = ["dep:ts-rs", "dep:utoipa"]
+mail-resend = ["dep:reqwest", "dep:rustls", "dep:webpki-roots"]
+mail-smtp = ["dep:lettre"]
+mail-providers = ["mail-resend", "mail-smtp"]
+
+[dependencies]
+ml-dsa = { workspace = true, optional = true }
+rsa = { workspace = true, optional = true }
+ryu-js = { workspace = true, optional = true }
+p521 = { workspace = true, optional = true }
+ldap3_proto = { workspace = true, optional = true }
+bytes = { workspace = true, optional = true }
+tokio-util = { workspace = true, optional = true }
+tracing = { workspace = true, optional = true }
+tokio-rustls = { workspace = true, optional = true }
+futures-util.workspace = true
+reqwest = { workspace = true, optional = true }
+rustls = { workspace = true, optional = true }
+webpki-roots = { workspace = true, optional = true }
+lettre = { workspace = true, optional = true }
+base64.workspace = true
+url.workspace = true
+ring.workspace = true
+subtle.workspace = true
+erpx-server-shared.workspace = true
+erpx-server-organization.workspace = true
+erpx-server-people-payroll.workspace = true
+erpx-server-runtime.workspace = true
+erpx-server-manage-erpx.workspace = true
+argon2.workspace = true
+getrandom.workspace = true
+sha2.workspace = true
+hex.workspace = true
+time.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+axum.workspace = true
+tokio.workspace = true
+sqlx.workspace = true
+ts-rs = { workspace = true, optional = true }
+utoipa = { workspace = true, optional = true }
+
+[dev-dependencies]
+tempfile.workspace = true
+uuid.workspace = true
+tower.workspace = true
+
+[[example]]
+name = "export-account-contracts"
+path = "../../scripts/docs/export-account-contracts.rs"
+required-features = ["contracts"]
+
+[[test]]
+name = "work_context"
+path = "../../tests/unit/identity_access/rust-work-context.test.rs"
+
+[[test]]
+name = "work_context_postgres"
+path = "../../tests/integration/identity_access/rust-work-context-postgres.test.rs"
+
+[[test]]
+name = "account_auth"
+path = "../../tests/unit/identity_access/rust-account-auth.test.rs"
+
+[[test]]
+name = "account_auth_postgres"
+path = "../../tests/integration/identity_access/rust-account-auth-postgres.test.rs"
+
+[[test]]
+name = "account_recovery"
+path = "../../tests/unit/identity_access/rust-account-recovery.test.rs"
+
+[[test]]
+name = "account_recovery_postgres"
+path = "../../tests/integration/identity_access/rust-account-recovery-postgres.test.rs"
+
+[[example]]
+name = "export-permission-contracts"
+path = "../../scripts/docs/export-permission-contracts.rs"
+
+[[test]]
+name = "permission_catalog"
+path = "../../tests/unit/identity_access/rust-permission-catalog.test.rs"
+
+[[test]]
+name = "command_metadata_postgres"
+path = "../../tests/integration/identity_access/rust-command-metadata-postgres.test.rs"
+
+[[test]]
+name = "account_device_http_postgres"
+path = "../../tests/integration/identity_access/rust-account-device-http-postgres.test.rs"
+
+[[test]]
+name = "account_group_recovery_postgres"
+path = "../../tests/integration/identity_access/rust-account-group-recovery-postgres.test.rs"
+
+[lints]
+workspace = true
+
+[[example]]
+name = "export-work-module-contracts"
+path = "../../scripts/docs/export-work-module-contracts.rs"
+
+[[test]]
+name = "work_admission"
+path = "../../tests/unit/identity_access/rust-work-admission.test.rs"
+
+[[test]]
+name = "effective_authority_postgres"
+path = "../../tests/integration/identity_access/rust-effective-authority-postgres.test.rs"
+
+[[test]]
+name = "account_sso"
+path = "../../tests/unit/identity_access/rust-account-sso.test.rs"
+
+[[test]]
+name = "account_sso_postgres"
+path = "../../tests/integration/identity_access/rust-account-sso-postgres.test.rs"
+
+[[test]]
+name = "invitation_authority_postgres"
+path = "../../tests/integration/identity_access/rust-invitation-authority-postgres.test.rs"
+
+[[test]]
+name = "account_invitation_activation_postgres"
+path = "../../tests/integration/identity_access/rust-account-invitation-activation-postgres.test.rs"
+
+[[test]]
+name = "account_mail"
+path = "../../tests/unit/identity_access/rust-account-mail.test.rs"
+
+[[test]]
+name = "account_mail_postgres"
+path = "../../tests/integration/identity_access/rust-account-mail-postgres.test.rs"
+
+[[test]]
+name = "account_mail_transport"
+path = "../../tests/provider/identity_access/rust-account-mail-transport.test.rs"
+required-features = ["mail-providers"]
+
+[[test]]
+name = "release_reviewers_postgres"
+path = "../../tests/integration/identity_access/rust-release-reviewers-postgres.test.rs"
+
+[[test]]
+name = "account_revocation_postgres"
+path = "../../tests/integration/identity_access/rust-account-revocation-postgres.test.rs"
+
+[[test]]
+name = "account_mfa"
+path = "../../tests/unit/identity_access/rust-account-mfa.test.rs"
+
+[[test]]
+name = "account_mfa_postgres"
+path = "../../tests/integration/identity_access/rust-account-mfa-postgres.test.rs"
+
+[[test]]
+name = "account_security_postgres"
+path = "../../tests/integration/identity_access/rust-account-security-postgres.test.rs"
+
+[[test]]
+name = "directory_policy"
+path = "../../tests/unit/identity_access/rust-directory-policy.test.rs"
+
+[[test]]
+name = "directory_ber"
+path = "../../tests/unit/identity_access/rust-directory-ber.test.rs"
+required-features = ["directory-ldaps"]
+
+[[test]]
+name = "holding_bindings_postgres"
+path = "../../tests/integration/identity_access/rust-holding-bindings-postgres.test.rs"
+
+[[test]]
+name = "account_inbound"
+path = "../../tests/unit/identity_access/rust-account-inbound.test.rs"
+
+[[test]]
+name = "directory_ldaps"
+path = "../../tests/provider/identity_access/rust-directory-ldaps.test.rs"
+required-features = ["directory-ldaps"]
+
+[[test]]
+name = "directory_mappings"
+path = "../../tests/unit/identity_access/rust-directory-mappings.test.rs"
+
+[[test]]
+name = "directory_postgres"
+path = "../../tests/integration/identity_access/rust-directory-postgres.test.rs"
+required-features = ["directory-ldaps"]
+
+[[test]]
+name = "directory_refresh_policy"
+path = "../../tests/unit/identity_access/rust-directory-refresh-policy.test.rs"
+required-features = ["directory-ldaps"]
+
+[[test]]
+name = "directory_work_postgres"
+path = "../../tests/integration/identity_access/rust-directory-work-postgres.test.rs"
+required-features = ["directory-ldaps"]
+
+[[test]]
+name = "directory_provenance"
+path = "../../tests/unit/identity_access/rust-directory-provenance.test.rs"
+required-features = ["directory-ldaps"]
+
+[[test]]
+name = "directory_provenance_postgres"
+path = "../../tests/integration/identity_access/rust-directory-provenance-postgres.test.rs"
+required-features = ["directory-ldaps"]
+
+[[test]]
+name = "oidc_url_values"
+path = "../../tests/unit/identity_access/rust-oidc-url-values.test.rs"

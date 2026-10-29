@@ -13,13 +13,13 @@ in session storage and reuse an idempotency key for an unchanged failed command.
 
 Read alongside these implementation sources:
 
-- [Work page](../../packages/feature-work/src/routes/holdings/[holdingSlug]/work/page.tsx),
+- [Work page](../../packages/feature-apps/src/routes/holdings/[holdingSlug]/work/page.tsx),
   [dashboard](../../packages/workplace/src/components/work-dashboard.tsx),
   [results](../../packages/workplace/src/components/work-list.tsx), and
   [new-work dialog](../../packages/workplace/src/components/new-work.tsx).
 - [Request editor and actions](../../packages/workplace/src/components/request-controls.tsx),
   [request service](../../packages/server-records/src/public/employee-requests.ts),
-  [browser draft recovery](../../packages/ui/src/components/use-recoverable-draft.tsx), and
+  [browser draft recovery](../../packages/feature-shared/src/components/use-recoverable-draft.tsx), and
   [command retry](../../packages/feature-work_projection/src/components/staff-work-controls.tsx).
 - [Named workflow handoffs](../production-plan.md),
   [local personas and connected examples](../local-seed.md), and

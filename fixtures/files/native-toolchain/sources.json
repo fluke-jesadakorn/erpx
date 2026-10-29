@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "vipsVersion": "8.18.7",
+  "rustVersion": "1.99.1",
+  "qualification": "compile-only; Linux codec/corpus and production image qualification are separate",
+  "vips": {
+    "file": "vips-8.18.7.tar.xz",
+    "url": "https://github.com/libvips/libvips/releases/download/v8.18.7/vips-8.18.7.tar.xz",
+    "sha256": "5baaead3b0bb20ffdb9e9ff09aa9fda08620923df77b63b436654cb5e0b3bf94",
+    "bytes": 25425084,
+    "sourceMetadata": "https://api.github.com/repos/libvips/libvips/releases/tags/v8.18.7"
+  },
+  "meson": {
+    "file": "meson-1.12.1-py3-none-any.whl",
+    "url": "https://files.pythonhosted.org/packages/57/99/36cd25f9598eef70db97577440a70a360af505f6f01c2338a18d1556079c/meson-1.12.1-py3-none-any.whl",
+    "sha256": "930bc7542cbd9f57009e182fd014eba48cf1a0180a7b9006d2d32d8f168d8b02",
+    "bytes": 1108668,
+    "sourceMetadata": "https://pypi.org/pypi/meson/1.12.1/json"
+  },
+  "ninja": {
+    "x64": {
+      "file": "ninja-1.13.2-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "url": "https://files.pythonhosted.org/packages/6e/53/ebfed7b689c338dd8ebeec9c0730c8d56821292f14e2536e5f3ef1a05744/ninja-1.13.2-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "sha256": "65a24341b5ac09fcadcc37082660be40a94174e51a937fabf6e2cae26225fa2c",
+      "bytes": 183365
+    },
+    "arm64": {
+      "file": "ninja-1.13.2-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl",
+      "url": "https://files.pythonhosted.org/packages/35/54/7368ce188625e39acc03ee362bb86cc9bfa6ad15e25c50889ae36e2889b3/ninja-1.13.2-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl",
+      "sha256": "d775a5e43e9088f507a6250d57fcf5678eb31268c545feb5064ffeee33735622",
+      "bytes": 177180
+    },
+    "sourceMetadata": "https://pypi.org/pypi/ninja/1.13.2/json"
+  },
+  "mesonOptions": [
+    "--auto-features=disabled",
+    "--buildtype=release",
+    "--default-library=shared",
+    "--libdir=lib",
+    "-Ddeprecated=false",
+    "-Dcplusplus=false",
+    "-Dexamples=false",
+    "-Dmodules=disabled",
+    "-Dintrospection=disabled",
+    "-Ddocs=false",
+    "-Djpeg=enabled",
+    "-Dpng=enabled",
+    "-Dwebp=enabled",
+    "-Dheif=enabled",
+    "-Dheif-module=disabled",
+    "-Dexif=enabled",
+    "-Dlcms=enabled",
+    "-Dzlib=enabled",
+    "-Dnsgif=false",
+    "-Dppm=false",
+    "-Danalyze=false",
+    "-Dradiance=false"
+  ],
+  "buildJobs": 2,
+  "references": [
+    "https://www.libvips.org/install.html",
+    "https://github.com/libvips/libvips/blob/v8.18.7/meson_options.txt",
+    "https://mesonbuild.com/Quick-guide.html"
+  ],
+  "aptBuildDependencies": [
+    "build-essential",
+    "binutils",
+    "pkg-config",
+    "python3-venv",
+    "libglib2.0-dev",
+    "libexpat1-dev",
+    "libjpeg-dev",
+    "libpng-dev",
+    "libwebp-dev",
+    "libheif-dev",
+    "libexif-dev",
+    "liblcms2-dev",
+    "zlib1g-dev"
+  ]
+}

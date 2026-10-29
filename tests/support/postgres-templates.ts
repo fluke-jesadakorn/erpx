@@ -107,6 +107,22 @@ function validateSuiteLease(lease: SuiteLease, root: string, prefix: string) {
     throw new Error('TEST_LEASE_IDENTITY_CHANGED');
   for(const database of lease.databases)if(!databasePattern.test(database)||!database.startsWith(prefix+'_'))throw new Error('UNSAFE_ABANDONED_DATABASE');
 }
+/** Verify the actual allocated fixture, without mistaking a Docker server NIC for its client endpoint. */
+export async function assertSuiteDatabaseIdentity(root: string, prefix: string, slot: DatabaseSlot, db: PostgresDatabase) {
+  const lease: SuiteLease = JSON.parse(await readFile(join(directory(root), `${prefix}.lease.json`), 'utf8'));
+  validateSuiteLease(lease, root, prefix);
+  const expected = `${prefix}_${slot.toLowerCase()}`, configured = new URL(db.pool.options.connectionString ?? '');
+  if (lease.pid !== process.pid || lease.completed || !lease.databases.includes(expected)
+    || !['postgres:', 'postgresql:'].includes(configured.protocol) || configured.hostname !== '127.0.0.1'
+    || configured.port !== '5432' || configured.username !== 'erpx_test_admin' || configured.pathname !== `/${expected}`
+    || configured.search || configured.hash) throw new Error('EXACT_NATIVE_SOURCE_DATABASE_REQUIRED');
+  const result = await db.pool.query<{ name: string; actor: string; owner: string; port: number; marker: string }>(
+    "SELECT current_database() name,current_user actor,pg_get_userbyid(datdba) owner,inet_server_port() port,shobj_description(oid,'pg_database') marker FROM pg_database WHERE datname=current_database()");
+  const actual = result.rows[0];
+  if (!actual || actual.name !== expected || actual.actor !== 'erpx_test_admin' || actual.owner !== 'erpx_test_admin'
+    || actual.port !== 5432 || actual.marker !== suiteMarker(lease)) throw new Error('EXACT_NATIVE_SOURCE_DATABASE_REQUIRED');
+  return { name: actual.name, actor: actual.actor, owner: actual.owner, port: actual.port };
+}
 async function dropLeasedDatabases(admin: Pool, lease: SuiteLease) {
   const owned: string[]=[];
   // Preflight all ownership markers before deleting any database.
@@ -114,7 +130,14 @@ async function dropLeasedDatabases(admin: Pool, lease: SuiteLease) {
     const row=(await admin.query("SELECT pg_get_userbyid(datdba) owner,shobj_description(oid,'pg_database') description FROM pg_database WHERE datname=$1",[database])).rows[0];
     if(!row)continue;
     if(row.owner!=='erpx_test_admin'||row.description!==suiteMarker(lease))throw new Error('TEST_DATABASE_OWNERSHIP_CHANGED');
-    if((await admin.query('SELECT 1 FROM pg_stat_activity WHERE datname=$1',[database])).rowCount)throw new Error('OWNED_TEST_DATABASE_STILL_BUSY');
+    // pool.end() can finish before PostgreSQL removes the terminated backend
+    // from pg_stat_activity. Wait for that acknowledgement; never force-drop
+    // or terminate a still-live connection.
+    const deadline=Date.now()+1000;
+    while((await admin.query('SELECT 1 FROM pg_stat_activity WHERE datname=$1',[database])).rowCount){
+      if(Date.now()>=deadline)throw new Error('OWNED_TEST_DATABASE_STILL_BUSY');
+      await new Promise(resolve=>setTimeout(resolve,20));
+    }
     owned.push(database);
   }
   for(const database of owned)await admin.query(`DROP DATABASE "${database}"`);

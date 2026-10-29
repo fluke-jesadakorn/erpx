@@ -1,4 +1,5 @@
 "use client";
+import {holdingFetch} from '@erpx/contracts/holding-fetch';
 import { canonicalUiHref } from "@erpx/feature-work_projection/lib/destination-registry";
 import { Button,Field,Select,TextInput,ActionAnchor,InlineNotice,Panel,FormLayout,FormActions,RecordList,RecordListItem } from '@erpx/ui/components/foundation';
 import { DraftFormDrawer } from '@erpx/ui/components/draft-form-drawer';
@@ -51,13 +52,13 @@ function GuestBookingManagementForHolding({slug,accessToken}:{slug:string;access
  useEffect(()=>{const unregister=registerUnsavedWork(()=>dirtyRef.current||changes.hasPending()),unload=(event:BeforeUnloadEvent)=>{if((dirtyRef.current||changes.hasPending())&&!contextIsSwitching())event.preventDefault();};window.addEventListener('beforeunload',unload);return()=>{unregister();window.removeEventListener('beforeunload',unload);};},[changes]);
  async function request(action:string,body:unknown={},access=context.current.token,key?:string,method:'GET'|'POST'='POST'){
   const epoch=context.current.epoch;if(context.current.base!==base||access!==context.current.token)throw new DOMException('Booking context changed','AbortError');
-  const r=await fetch(canonicalUiHref(`${base}/${action}`),{method,cache:'no-store',headers:{'Content-Type':'application/json',...(access?{Authorization:`Bearer ${access}`} : {}),...(key?{'Idempotency-Key':key}:{})},...(method==='POST'?{body:JSON.stringify(body)}:{})}),result=await r.json();
+  const r=await holdingFetch(canonicalUiHref(`${base}/${action}`),{method,cache:'no-store',headers:{'Content-Type':'application/json',...(access?{Authorization:`Bearer ${access}`} : {}),...(key?{'Idempotency-Key':key}:{})},...(method==='POST'?{body:JSON.stringify(body)}:{})}),result=await r.json();
   if(epoch!==context.current.epoch||context.current.base!==base||access!==context.current.token)throw new DOMException('Booking context changed','AbortError');if(!r.ok)throw new Error(result.error?.message??'Please try again');return result.data;
  }
  useEffect(()=>{
   const value=accessToken,epoch=++context.current.epoch;context.current={epoch,base,token:value};
   if(!value)return()=>{++context.current.epoch;};let active=true;const controller=new AbortController();
-  fetch(canonicalUiHref(`${base}/manage`),{method:'POST',cache:'no-store',signal:controller.signal,headers:{'Content-Type':'application/json',Authorization:`Bearer ${value}`},body:'{}'}).then(async r=>{const body=await r.json();if(!r.ok)throw new Error(body.error?.message??'Unable to load booking');if(active&&epoch===context.current.epoch){setToken(value);setBooking(body.data);}}).catch(e=>{if(active&&epoch===context.current.epoch)setError(e.message);});return()=>{active=false;controller.abort();++context.current.epoch;};
+  holdingFetch(canonicalUiHref(`${base}/manage`),{method:'POST',cache:'no-store',signal:controller.signal,headers:{'Content-Type':'application/json',Authorization:`Bearer ${value}`},body:'{}'}).then(async r=>{const body=await r.json();if(!r.ok)throw new Error(body.error?.message??'Unable to load booking');if(active&&epoch===context.current.epoch){setToken(value);setBooking(body.data);}}).catch(e=>{if(active&&epoch===context.current.epoch)setError(e.message);});return()=>{active=false;controller.abort();++context.current.epoch;};
  },[base,accessToken]);
  async function downloadDocument(id:string){
   const d=await request('document',{id}) as Awaited<ReturnType<typeof guestBookingDocument>>;

@@ -1,6 +1,10 @@
 # docs/contracts/next — Route Table (Living, Next.js)
 
-> Current versioned REST route reference. Handlers in `src/app/api/` and the owner contracts are authoritative; archived Rust RPCs are recoverable through [CUTOVER](../../../README.md#recovery).
+Browser development addresses follow the [Holding address contract](holding-addresses.md). Paths in this table identify app-internal owner routes unless explicitly presented as public Holding paths; the gateway translates them without changing record or permission ownership.
+
+Apps owns Feed. Holding root/unscoped app entry requires explicit current scope selection; `/applications` redirects to Apps with `launcher=open` for the hierarchy/app modal. Selected Feed continues through the authorized owner launch to the app-internal `/holdings/…/home`. Work has no registered app or redirect.
+
+> Current versioned REST route reference. Handlers in `apps/<id>/src/app/api/` and the owner contracts are authoritative; archived Rust RPCs are recoverable through [Git recovery](../../../README.md#recovery).
 
 ## Implemented foundation routes
 
@@ -8,9 +12,16 @@ Directory & access at scoped /people/access owns the People, Groups, Access poli
 
 | Route | Method | Context | Contract | Status |
 |---|---|---|---|---|
+| `/` on Apps | GET | Authenticated Apps identity | Explicit Holding scope selection and the Navbar hierarchy/app modal; all eligible apps, exact authorized links and account-separated optional recency; see [Apps selection](identity-access.md#holding-entry-and-appsworkspace-picker) | Development |
 | `/api/mcp/executive` | POST | Executive | Token-authenticated Streamable HTTP for five read-only dashboard/KPI tools | Development; production rollout separate |
 | `/api/v1/holdings/{holdingSlug}/executive/connections` | GET/POST | Executive | Own connection metadata, one-time token issuance and revocation via browser work context | Implemented |
 | `/api/auth/[...all]` | GET/POST | identity | Better Auth handler with device multi-session account switching | Implemented |
+| `/api/v1/account/device-accounts` | GET/DELETE/OPTIONS | Account device owner | Token-free saved account summaries and removal; exact staff-origin credentialed CORS | Development |
+| `/api/v1/account/device-accounts/{initialize,sign-in,active}` | POST/OPTIONS | Account device owner | Five-account browser selection, normal authentication, revision checks and old Work-context revocation | Development |
+| `/api/v1/account/switcher-context` | GET | Staff product identity | Current local identity and minimal authorized Company/Platform role choices | Development |
+| `/api/v1/account/role-selection` | POST | Staff product identity | Delegate the current versioned role choice to its original owner | Development |
+| `/account/continue` | GET | Staff product identity | Check the source workspace after SSO, or return to Apps; verified original-account draft continuation | Development |
+| `/account/device-return` | GET | Account identity | Closed return from normal Account/Directory login to the selected staff app | Development |
 | `/api/v1/platform/assignments/active` | POST | platform identity/access | Select an active Platform-only assignment | Implemented |
 | `/api/v1/platform/operations` | GET | platform operations | Read-only live control-plane and per-Holding outbox health; requires Platform context and returns private no-store data | Implemented |
 | `/api/v1/platform/operations/recover` | POST | platform operations | Platform-admin reviewed dead-letter recovery with reason, expected attempt/error snapshot, idempotency and Holding audit | Implemented |
@@ -172,7 +183,7 @@ navigation contract.
 
 ## Links
 
-- Current workflow ownership: [catalogue](catalogue.md); Rust recovery: [CUTOVER](../../../README.md#recovery)
+- Current workflow ownership: [catalogue](catalogue.md); Rust recovery: [Git recovery](../../../README.md#recovery)
 - Spec hub: `docs/TOC.md` → `docs/production-plan.md` (current scope) → affected owner contract.
 - Policy: `CONTRACT_POLICY.md` + `docs/adr/ADR-020-nextjs-stack.md` + `docs/adr/ADR-024-local-postgresql-runtime.md` + `docs/adr/ADR-023-three-level-workspace-routing.md`
 

@@ -2,6 +2,7 @@ vi.mock('server-only',()=>({}));
 const menuSources=vi.hoisted(()=>({products:vi.fn(),admin:vi.fn()}));
 vi.mock("@erpx/server-work_projection/public/product-launcher",()=>({productLaunchChoices:menuSources.products}));
 vi.mock("@erpx/server-work_projection/public/admin-launcher",()=>({adminLaunchChoices:menuSources.admin}));
+vi.mock("@erpx/server-identity_access/public/provider-entry",()=>({providerEntryOverview:async()=>null}));
 import {workspaceBase} from "@erpx/feature-work_projection/lib/workspace";
 import { expect, it, vi } from "vitest";
 import { buildWorkspaceHoldingChoice, type WorkspaceChoice } from "@erpx/feature-work_projection/lib/workspace-choice";
@@ -23,6 +24,12 @@ const choices = (): WorkspaceChoice[] => [buildWorkspaceHoldingChoice("acme", "A
   { id: "b2", kind: "branch", slug: "branch-two", label: "Branch Two", companyId: "c2", branchId: null, branchSlug: null },
   { id: "d2", kind: "department", slug: "department-two", label: "Department Two", companyId: "c2", branchId: "b2", branchSlug: "branch-two" },
 ], true)!];
+it('preserves exact scope and branch labels in authorized Company administration choices', async () => {
+ const {createAdminLauncher}=await import('@erpx/server-work_projection/application/admin-launcher');
+ const links=await createAdminLauncher({choices:async()=>choices(),available:async()=>true,origin:()=> 'https://admin-dev-erpx.jesadakorn.com',denied:()=>false})();
+ expect(links.map(link=>link.scope)).toEqual(productWorkspaceCandidates(choices()).map(candidate=>candidate.scope));
+ expect(links[3].branch).toBe('Branch Two');
+});
 const grant = (companyId: string, packageId = "finance"): CompanyPackageGrant => ({ companyId, packageId, packageVersion: 1, state: "active", startsAt: 0, endsAt: null, version: 1, reason: "Fixture", evidence: "fixture" });
 function fixture() {
   const access = vi.fn(async (scope, options) => ({ scope: { ...scope, holdingId: "h001", companyId: options.companyId, branchId: scope.kind !== "holding" ? scope.branchSlug === "branch-one" ? "b1" : "b2" : undefined, departmentId: scope.kind === "department" ? scope.departmentSlug === "department-one" ? "d1" : "d2" : undefined },
@@ -144,7 +151,7 @@ it("keeps purchased personal Work available to an applicable role without granti
   const f = fixture(); f.grants.mockImplementation(async access => [grant(access.scope.companyId, "work")]);
   f.moduleAccess.mockResolvedValue({ modulesByAssignment: new Map([["role", []]]),
     presentationModulesByAssignment: new Map([["role", []]]), permissionsByAssignment: new Map([["role", []]]), beta: true });
-  const links = await f.launch(); expect(links).toHaveLength(4); expect(links.every(link => link.productId === "work")).toBe(true);
+  const links = await f.launch(); expect(links).toHaveLength(4); expect(links.every(link => link.productId === "apps")).toBe(true);
 });
 it("chooses owner menu landings for narrow roles rather than a forbidden default", () => {
   const capabilities = commercialPackages.flatMap(definition => [...definition.visibleCapabilities, ...definition.includedCapabilities]);
@@ -196,11 +203,24 @@ it('hides denied Company Admin and ERPX management scopes while surfacing unexpe
 });
 
 
-it('adds only the same current Company and location Admin foundation to the actual Office product picker',async()=>{
- const {OfficeProductMenus}=await import('@erpx/workplace/components/office-product-menus'),scope={kind:'holding' as const,holdingSlug:'acme'},base='/holdings/acme',link=(companyId:string,target:string)=>'https://admin-dev-erpx.jesadakorn.com/sso/start?'+new URLSearchParams({next:'/admin/launch?'+new URLSearchParams({companyId,next:target})});
- menuSources.products.mockResolvedValue([{holding:'Acme',company:'Current',companyId:'c1',workspace:'Current',scope,productId:'assets',href:'https://assets-dev-erpx.jesadakorn.com/sso/start?next=/',purchasePurpose:'new-work'},{holding:'Acme',company:'Other',companyId:'c2',workspace:'Other',scope,productId:'assets',href:'https://assets-dev-erpx.jesadakorn.com/sso/start?next=/other',purchasePurpose:'history'}]);
- menuSources.admin.mockResolvedValue([{holding:'Acme',company:'Current',companyId:'c1',workspace:'Current',kind:'company',href:link('c1',base+'/administration')},{holding:'Acme',company:'Other',companyId:'c2',workspace:'Other',kind:'company',href:link('c2',base+'/administration')},{holding:'Acme',company:'Current',companyId:'c1',workspace:'Branch',kind:'company',href:link('c1',base+'/branches/b1/administration')},{holding:'ERPX',company:'Current',companyId:'c1',workspace:'Current',kind:'management',href:link('c1','/holdings/erpx/erpx-management')}]);
- const view=await OfficeProductMenus({productId:'assets',companyId:'c1',scopeBase:base,workspaceLabel:'Current',language:'en'});expect(view.props.products).toEqual([{href:'https://assets-dev-erpx.jesadakorn.com/sso/start?next=/',label:'Assets & Maintenance',detail:undefined,current:true},{href:link('c1',base+'/administration'),label:'Company Admin'}]);expect(view.props.workspaces).toHaveLength(2);expect(JSON.stringify(view.props)).not.toMatch(/permissions|assignment|session|grants/);menuSources.admin.mockResolvedValue([]);expect((await OfficeProductMenus({productId:'assets',companyId:'c1',scopeBase:base,workspaceLabel:'Current',language:'th'})).props.products).toHaveLength(1);
+it('projects all authorized companies and exact admin scopes into the shared Office modal',async()=>{
+ const {OfficeProductMenus}=await import('@erpx/workplace/components/office-product-menus');
+ const scope={kind:'holding' as const,holdingSlug:'acme'},base='/holdings/acme';
+ menuSources.products.mockResolvedValue([
+  {holding:'Acme',company:'Current',companyId:'c1',workspace:'Current',scope,productId:'assets',href:'assets-current',purchasePurpose:'new-work'},
+  {holding:'Acme',company:'Other',companyId:'c2',workspace:'Other',scope,productId:'assets',href:'assets-other',purchasePurpose:'history'}
+ ]);
+ menuSources.admin.mockResolvedValue([
+  {holding:'Acme',company:'Current',companyId:'c1',workspace:'Branch',scope:{kind:'branch',holdingSlug:'acme',branchSlug:'b1'},kind:'company',href:'branch-admin'},
+  {holding:'Acme',company:'Admin only',companyId:'c3',workspace:'Admin only',scope,kind:'company',href:'admin-only'}
+ ]);
+ const view=await OfficeProductMenus({accountId:'user-a',productId:'assets',companyId:'c1',scopeBase:base,workspaceLabel:'Current',language:'en'});
+ expect(view.props.currentCompanyId).toBe(JSON.stringify(['acme','c1']));
+ expect(view.props.currentWorkspaceId).toBe(base);
+ expect(view.props.companies).toHaveLength(3);
+ expect(view.props.companies[0].workspaces[1]).toMatchObject({id:base+'/branches/b1',adminHref:'branch-admin',apps:[]});
+ expect(view.props.companies[2].workspaces[0]).toMatchObject({adminHref:'admin-only',apps:[]});
+ expect(JSON.stringify(view.props)).not.toMatch(/permissions|assignment|session|grants/);
 });
 
 it('discovers only the owner-proven included Stock entry for an existing Inventory role and keeps Department and read-only roles out',async()=>{

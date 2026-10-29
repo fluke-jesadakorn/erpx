@@ -1,0 +1,46 @@
+[package]
+name = "erpx-server-maintenance"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+autotests = false
+
+[package.metadata.erpx]
+verification-roots = ["../../fixtures/maintenance/rust-work", "../../fixtures/maintenance/rust-schedule", "../../scripts/testing/fixtures/generate-maintenance-schedule-oracle.mjs", "../../scripts/testing/fixtures/generate-maintenance-rust-oracle.mjs", "../../scripts/testing/fixtures/generate-maintenance-wire-oracle.mjs"]
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+erpx-server-shared.workspace = true
+erpx-server-assets.workspace = true
+erpx-server-identity-access.workspace = true
+erpx-server-runtime.workspace = true
+erpx-server-workflow.workspace = true
+sqlx.workspace = true
+
+[dev-dependencies]
+uuid.workspace = true
+tokio.workspace = true
+serde_json.workspace = true
+
+[[test]]
+name = "work_policy"
+path = "../../tests/unit/maintenance/rust-work-policy.test.rs"
+
+[[test]]
+name = "work_wire"
+path = "../../tests/unit/maintenance/rust-work-wire.test.rs"
+
+[[test]]
+name = "work_commands"
+path = "../../tests/unit/maintenance/rust-work-commands.test.rs"
+
+[[test]]
+name = "schedule_commands"
+path = "../../tests/unit/maintenance/rust-schedule-commands.test.rs"
+
+[lints]
+workspace = true

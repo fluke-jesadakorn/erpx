@@ -59,3 +59,22 @@ test('employee request replay preserves current membership checks before avoidin
 test('AI results cannot cite sources that were never supplied by the request owner',()=>{expect(requestAiResult.safeParse({title:null,description:null,category:null,summary:'Checked',sources:['request','external']}).success).toBe(false);});
 test('an AI worker does not discover a provider when its lease could not be claimed',async()=>{const app=createRequestAiApplication(strict<RequestAiPorts<string,never>>({clock:{now:()=>42},identifiers:{next:()=> 'lease'},repository:strict<RequestAiRepository<string>>({readRunRequestAiClaimed:async()=>null})}));await app.runRequestAi({},'proposal');});
 test('domain drawers refuse an absent record rather than showing another owner record',async()=>{const app=createRecordDomainDetailsApplication(strict<RecordDomainDetailsPorts<string>>({learningWorkspace:async()=>({courses:[],assignments:[],people:[],canWrite:false,canReview:false,actorId:actor.userId})}));await expect(app.recordDomainData(actor,'learning_course','missing')).rejects.toMatchObject({code:'RECORD_NOT_FOUND'});});
+
+test('Field native source selection preserves visible errors and provided database guards',async()=>{
+ const {ApiError}=await import('@erpx/server-runtime/public/http');
+ const row={id:'source',company_id:'company',branch_id:null,department_id:null,version:3,title:'Service visit',status:'scheduled'}, native=vi.fn(async()=>row as typeof row|undefined), retained=vi.fn(async()=>row), guard=vi.fn(async()=>['guard']);
+ const database={prepare:()=>({bind:()=>({first:async()=>null})})} as unknown as import('@erpx/server-runtime/public/runtime/types').SqlDatabase;
+ vi.doMock('@erpx/server-field_service/public/native-source-record',()=>({nativeSourceRecord:native}));
+ vi.doMock('@erpx/server-field_service/public/records-source-facts',()=>({ownedRecordSource:()=>({read:retained,guards:guard})}));
+ vi.doMock('@erpx/server-identity_access/public/iam-permissions',()=>({requirePermission:()=>{}}));
+ vi.doMock('../../../packages/server-runtime/src/public/runtime',()=>({holdingResources:async()=>({write:database})}));
+ try{
+  const policy=await import('../../../packages/server-records/src/adapters/source-record-policy');
+  const source=await policy.readSourceRecord(actor,{kind:'field_service_order',id:'source',version:3});expect(source).toMatchObject({id:'source',version:3,title:'Service visit',href:'/field-service/source'});expect(native).toHaveBeenCalledWith(actor,'source',3);expect(retained).not.toHaveBeenCalled();
+  native.mockClear();await policy.readSourceRecord(actor,{kind:'field_service_order',id:'source'},database);expect(native).not.toHaveBeenCalled();expect(retained).toHaveBeenCalled();
+  native.mockClear();expect(await policy.sourceRecordGuards(database,actor,'key',source)).toEqual(['guard']);expect(native).not.toHaveBeenCalled();
+  for(const status of [403,404]){native.mockRejectedValueOnce(new ApiError(status,'DENIED','unavailable'));expect(await policy.visibleSourceRecord(actor,{kind:'field_service_order',id:'source'})).toBeNull();}
+  for(const status of [409,503]){native.mockRejectedValueOnce(new ApiError(status,'UNAVAILABLE','unavailable'));await expect(policy.visibleSourceRecord(actor,{kind:'field_service_order',id:'source'})).rejects.toMatchObject({status});}
+  native.mockResolvedValueOnce(undefined);await policy.readSourceRecord(actor,{kind:'field_service_order',id:'source'});expect(retained).toHaveBeenCalled();
+ }finally{vi.doUnmock('@erpx/server-field_service/public/native-source-record');vi.doUnmock('@erpx/server-field_service/public/records-source-facts');vi.doUnmock('@erpx/server-identity_access/public/iam-permissions');vi.doUnmock('../../../packages/server-runtime/src/public/runtime');vi.resetModules();}
+});

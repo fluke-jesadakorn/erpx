@@ -4,8 +4,9 @@ import { InlineNotice } from "@erpx/ui/components/foundation";
 import { FormDisclosure } from "@erpx/ui/components/form-disclosure";
 import { Button, Field, Select, TextArea, TextInput } from "@erpx/ui/components/foundation";
 
-import { useContext, useLayoutEffect, useId, useRef, useState } from "react";
+import { useCallback, useContext, useLayoutEffect, useId, useRef, useState } from "react";
 import WorkspaceLink from "@erpx/workplace/components/workspace-link";
+import type {ReserveContext} from "@erpx/feature-field_service/lib/native-reserve-command";
 import type {FieldServiceSource} from "@erpx/feature-field_service/lib/command";
 import {useFieldServiceCommand as useCommand} from "@erpx/feature-field_service/components/use-field-service-command";
 import {ServiceEditorContext,ServiceCommandErrorContext,ServiceRecoveryContext} from "@erpx/feature-field_service/components/service-editor-context";
@@ -13,7 +14,7 @@ import { PreferredDateTimeField } from "@erpx/feature-people_payroll/components/
 import { decimalToMinor, minorToDecimal } from "@erpx/feature-finance/lib/finance-money";
 import { ServiceSpareForm } from "@erpx/feature-field_service/components/service-spare-form";
 import { ServiceAgreementReferenceFields, ServiceRequestReferenceFields, ServiceOrderReferenceFields, ServiceTechnicianField } from "@erpx/feature-field_service/components/service-reference-fields";
-import type { fieldServiceDetail, fieldServiceWorkspace } from "@erpx/server-field_service/public/field-service";
+import type {FieldDetail,FieldWorkspace} from "@erpx/feature-field_service/lib/workspace";
 import { FormLayout, Card } from "@erpx/ui/components/foundation";
 
 function ServiceConsole({
@@ -24,8 +25,8 @@ function ServiceConsole({
 }: {
   recovery:ReturnType<typeof useCommand>;
   base: string;
-  data?: Awaited<ReturnType<typeof fieldServiceWorkspace>>;
-  detail?: Awaited<ReturnType<typeof fieldServiceDetail>>;
+  data?: FieldWorkspace;
+  detail?: FieldDetail;
 }) {
   const source = data ?? detail!,
     { busy, error, clearError, fail } = recovery,
@@ -66,6 +67,7 @@ function ServiceConsole({
   return (
     <ServiceRecoveryContext.Provider value={recovery}><ServiceCommandErrorContext.Provider value={clearError}>
       {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
+      {recovery.nativePending && <InlineNotice tone="warning">{recovery.readbackPending?"Service request saved; readback is pending.":"The original Service request awaits confirmation."}<Button appearance="standard" type="button" disabled={busy} onClick={()=>void recovery.retry()}>{recovery.readbackPending?"Retry Service readback":"Retry original Service request"}</Button></InlineNotice>}
       {detail?.billing && (
         <Card as="section" appearance="standard" className="ui-panel" aria-label="Billing handoff">
           <h2>Billing handoff</h2>
@@ -252,19 +254,20 @@ function ServiceConsole({
         )}
       {order && order.status === "completed" && action("release-billing", "Release billing")}
       {order &&
-        !["completed", "billed", "cancelled"].includes(String(order.status)) &&
+        ["open", "scheduled", "dispatched", "exception"].includes(String(order.status)) &&
         action("cancel", "Cancel service order")}
     </ServiceCommandErrorContext.Provider></ServiceRecoveryContext.Provider>
   );
 }
 
-type ServiceConsoleProps = { base: string; data?: Awaited<ReturnType<typeof fieldServiceWorkspace>>; detail?: Awaited<ReturnType<typeof fieldServiceDetail>> };
+type ServiceConsoleProps = { base: string; nativeReserve?: {context?:ReserveContext;issue?:boolean;reserve?:boolean;request?:boolean;create?:boolean;visit?:boolean;visitCompletion?:boolean;visitRecovery?:boolean;cancel?:boolean;agreementReview?:boolean;agreementCreate?:boolean;billing?:boolean}; data?: FieldWorkspace; detail?: FieldDetail };
 
-function serviceSource(props:ServiceConsoleProps):FieldServiceSource {const source=props.data??props.detail!,targets:FieldServiceSource["targets"]={};for(const row of source.agreements)targets[`agreement:${row.id}`]={version:Number(row.version),status:String(row.status)};for(const row of source.orders)targets[`order:${row.id}`]={version:Number(row.version),status:String(row.status)};for(const row of source.tickets)targets[`ticket:${row.id}`]={version:Number(row.version),status:String(row.status)};if(props.detail)targets[`order:${props.detail.order.id}`]={version:Number(props.detail.order.version),status:String(props.detail.order.status)};return {base:props.base,workspaceKey:source.workspaceKey,recordId:props.detail?String(props.detail.order.id):null,targets};}
+function serviceSource(props:ServiceConsoleProps):FieldServiceSource {const source=props.data??props.detail!,targets:FieldServiceSource["targets"]={};for(const row of source.customers)targets[`customer:${row.id}`]={version:0,status:row.currency};for(const row of source.nodes)targets[`node:${row.id}`]={version:0,status:row.kind,customerId:row.branch_id};for(const row of source.assets)targets[`asset:${row.id}`]={version:row.version,status:row.branch_id,customerId:row.department_id??undefined};for(const row of source.agreements)targets[`agreement:${row.id}`]={version:Number(row.version),status:String(row.status),customerId:typeof row.customer_id==='string'?row.customer_id:undefined};for(const row of source.orders)targets[`order:${row.id}`]={version:Number(row.version),status:String(row.status)};for(const row of source.tickets)targets[`ticket:${row.id}`]={version:Number(row.version),status:String(row.status),customerId:typeof row.customer_id==='string'?row.customer_id:undefined};if(props.detail)targets[`order:${props.detail.order.id}`]={version:Number(props.detail.order.version),status:String(props.detail.order.status),agreementId:String(props.detail.order.agreement_id),customerId:source.agreements.find(row=>row.id===props.detail?.order.agreement_id)?.customer_id?.toString(),technicianId:String(props.detail.order.technician_id),scheduledAt:props.detail.order.scheduled_at===null?null:Number(props.detail.order.scheduled_at)};return {base:props.base,workspaceKey:source.workspaceKey,recordId:props.detail?String(props.detail.order.id):null,targets};}
 export function FieldServiceConsole(props: ServiceConsoleProps) {
   const source = props.data ?? props.detail!;
   const live=useRef<FieldServiceSource|null>(serviceSource(props));useLayoutEffect(()=>{live.current=serviceSource(props);return()=>{live.current=null;};},[props]);
-  const recovery=useCommand(()=>live.current,serviceSource(props));
+  const current=useCallback(()=>live.current,[]);
+  const recovery=useCommand(current,serviceSource(props),props.nativeReserve);
   return <ServiceEditorSession key={`${source.workspaceKey}:${props.detail?.order.id ?? "workspace"}`} {...props} recovery={recovery} />;
 }
 function ServiceEditorSession(props: ServiceConsoleProps&{recovery:ReturnType<typeof useCommand>}) {
@@ -290,6 +293,6 @@ function ServiceDraftDrawer({ title, busy, error, children }: { title: string; b
   return <FormDisclosure appearance="standard" className="ui-form-disclosure" dismissDisabled={busy||recovery?.uncertain} error={error}
     onToggle={event => {if(event.currentTarget.open)clearError();editorChanged(id, event.currentTarget.open);}}
     onDiscard={() => body.current?.querySelectorAll("form").forEach(form => form.reset())}>
-    <summary>{title}</summary><div ref={body}>{recovery?.notice&&<InlineNotice role="status">{recovery.notice}</InlineNotice>}{recovery?.saved&&<p>Saved original ID: {recovery.saved.id} · <WorkspaceLink href={recovery.saved.href}>{recovery.saved.agreement?"Review saved service agreements":"Open the saved original service order"}</WorkspaceLink></p>}{recovery?.uncertain&&<InlineNotice tone="warning">The original request has an uncertain result. Your newer entries are retained.<Button appearance="standard" type="button" disabled={busy} onClick={()=>void recovery.retry()}>Retry original Service request</Button></InlineNotice>}<fieldset disabled={busy||recovery?.uncertain} style={{display:"contents"}}>{children}</fieldset></div>
+    <summary>{title}</summary><div ref={body}>{recovery?.notice&&<InlineNotice role="status">{recovery.notice}</InlineNotice>}{recovery?.saved&&<p>Saved original ID: {recovery.saved.id} · <WorkspaceLink href={recovery.saved.href}>{recovery.saved.agreement?"Review saved service agreements":"Open the saved original service order"}</WorkspaceLink></p>}{recovery?.uncertain&&<InlineNotice tone="warning">{recovery.readbackPending?"Service request saved; readback is pending. Your newer entries are retained.":"The original request has an uncertain result. Your newer entries are retained."}<Button appearance="standard" type="button" disabled={busy} onClick={()=>void recovery.retry()}>{recovery.readbackPending?"Retry Service readback":"Retry original Service request"}</Button></InlineNotice>}<fieldset disabled={busy||recovery?.uncertain} style={{display:"contents"}}>{children}</fieldset></div>
   </FormDisclosure>;
 }

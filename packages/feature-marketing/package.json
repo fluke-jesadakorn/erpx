@@ -21,6 +21,7 @@
     "@erpx/server-marketing": "workspace:*",
     "@erpx/ui": "workspace:*",
     "@erpx/workplace": "workspace:*",
-    "react": "19.3.0"
+    "react": "19.3.1",
+    "@erpx/contracts": "workspace:*"
   }
 }

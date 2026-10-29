@@ -1,0 +1,10 @@
+import {contextGeneration,contextIsSwitching} from '@erpx/feature-work_projection/lib/context-switch';
+import {announceWorkChange} from '@erpx/feature-work_projection/lib/work-refresh';
+import {createFieldBind} from '../application/field-bind';
+import {bindRecordAttachmentSet} from './attachment-client';
+const binding=createFieldBind({context:()=>{const n=typeof document==='undefined'?null:document.querySelector<HTMLElement>('[data-work-revision]');if(!n)return null;const values=[n.dataset.workUser,n.dataset.workRevision,n.dataset.workCompany,n.dataset.workAssignment,n.dataset.workAssignmentVersion];return {identity:JSON.stringify(values),generation:contextGeneration(),valid:values.every(v=>typeof v==='string'&&v.length>0)&&n.isConnected&&n.dataset.workStale!=='true'&&!contextIsSwitching()};},key:()=>crypto.randomUUID(),bind:a=>bindRecordAttachmentSet(a.base,a.setId,a.expectedVersion,a.key,'caller'),acknowledge:()=>{window.dispatchEvent(new CustomEvent('erpx:record-command-saved',{detail:{form:null,formEditVersion:null}}));announceWorkChange();}});
+export const registerFieldBindOwner=binding.register;
+export const subscribeFieldBind=binding.subscribe;
+export const pendingFieldBind=binding.pending;
+export const submitFieldBind=binding.submit;
+export const retryFieldBind=binding.retry;

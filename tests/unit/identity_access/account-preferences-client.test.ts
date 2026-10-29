@@ -178,7 +178,9 @@ import {accountSecurityInput,accountSecuritySeedSchema,type AccountSecuritySeed}
 import {AccountShell} from '@erpx/feature-identity_access/components/account-shell';
 import {AccountSessions} from '@erpx/feature-identity_access/components/account-sessions';
 import {accountSelfNavigation} from '@erpx/feature-identity_access/lib/account-self-navigation';
-import {createElement} from 'react';
+import {createElement,Fragment,isValidElement,type ReactNode} from 'react';
+import {AccountSecurity} from '@erpx/workplace/routes/security/security-form';
+import {createAccountSecurityHttpPort} from '@erpx/feature-identity_access/adapters/http/account-security';
 import {renderToStaticMarkup} from 'react-dom/server';
 vi.mock('next/navigation',()=>({useRouter:()=>({refresh:vi.fn(),push:vi.fn()})}));
 it('keeps the exact personal security body and key through lost or malformed acknowledgements and blocks a changed uncertain action',async()=>{
@@ -192,12 +194,36 @@ it('renders personal Account routes and initial own security content without a m
  const seed:AccountSecuritySeed={accountKey:key,revision:other,mfaEnabled:true,mfaFreshUntil:null,families:[{handle:'c'.repeat(64),current:true,createdAt:1,expiresAt:2000000000000,userAgent:'Fictional native browser',audiences:['finance','people']}],legacySessions:0},fetcher=vi.spyOn(globalThis,'fetch');
  try{const html=renderToStaticMarkup(createElement(AccountShell,{current:'security'},createElement(AccountSessions,{initial:seed})));for(const href of ['/my-profile','/my-access','/security'])expect(html).toContain(`href="${href}"`);expect(html).toContain('This sign-in');expect(html).toContain('Fictional native browser');expect(html).toContain('Sign out all devices');for(const value of ['permissions_json','authority_json','session_token','company_package_grants','platform_assignments',key,other,'c'.repeat(64)])expect(html).not.toContain(value);expect(fetcher).not.toHaveBeenCalled();expect(accountSecuritySeedSchema.safeParse({...seed,sessionToken:'private'}).success).toBe(false);}finally{fetcher.mockRestore();}
 });
+it('keeps authenticator setup and the existing emergency seed server-rendered without secret storage or mount requests',()=>{
+ const transport=vi.spyOn(globalThis,'fetch');try{const html=renderToStaticMarkup(createElement(AccountSecurity,{initialEmergency:{access:[],unavailableScopes:[]}}));expect(html).toContain('Set up authenticator');expect(html).toContain('Six-digit code');expect(html).toContain('Temporary emergency access');expect(html).not.toContain('Setup key:');expect(transport).not.toHaveBeenCalled();}finally{transport.mockRestore();}
+});
+it('drops an actual typed MFA setup response after account change or unmount before exposing a key or dispatching freshness',async()=>{
+ for(const mode of ['change','unmount']){
+  const source=readFileSync(new URL('../../../packages/workplace/src/routes/security/security-form.tsx',import.meta.url),'utf8');
+  const browser=Object.assign(new EventTarget(),{location:new URL('https://account-dev-erpx.jesadakorn.com/security')}),documentPort={documentElement:{dataset:{erpxApp:'account'}}},late=deferred<Response>(),transport=vi.fn(()=>late.promise),updated=vi.fn();browser.addEventListener('erpx:account-security-updated',updated);
+  const values:unknown[]=[],cleanups:(()=>void)[]=[],effects=new Set<number>();let cursor=0;
+  const ports={jsx:createElement,Fragment,window:browser,CustomEvent,contextGeneration:()=>0,createAccountSecurityHttpPort,holdingFetch:actualHoldingFetch(browser,documentPort,transport),
+   useState:(initial:unknown)=>{const slot=cursor++;if(!(slot in values))values[slot]=initial;return [values[slot],(next:unknown)=>{values[slot]=typeof next==='function'?(next as (v:unknown)=>unknown)(values[slot]):next;}];},
+   useRef:(initial:unknown)=>{const slot=cursor++;if(!(slot in values))values[slot]={current:initial};return values[slot];},useCallback:(fn:unknown)=>fn,
+   useEffect:(effect:()=>undefined|(()=>void))=>{const slot=cursor++;if(!effects.has(slot)){effects.add(slot);const cleanup=effect();if(cleanup)cleanups.push(cleanup);}},
+   InlineNotice:'div',Button:'button',Field:'label',TextArea:'textarea',TextInput:'input',TimeText:'time',Card:'section',FormLayout:'form'};
+  const declaration=accountOwnerDeclaration(source,'AccountSecurity','function'),output=ts.transpileModule(declaration+'\nreturn AccountSecurity;', {compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.None,jsx:ts.JsxEmit.React,jsxFactory:'jsx',jsxFragmentFactory:'Fragment'}}).outputText;
+  const component=Function(...Object.keys(ports),output)(...Object.values(ports)) as (props:{initialEmergency:{access:never[];unavailableScopes:never[]}})=>ReactNode;
+  const render=()=>{cursor=0;return component({initialEmergency:{access:[],unavailableScopes:[]}});};
+  let start:(()=>Promise<void>)|undefined;function find(node:ReactNode){if(!isValidElement<{children?:ReactNode;onClick?:()=>Promise<void>}>(node))return;const children=node.props.children;if(node.type==='button'&&String(children).includes('Set up authenticator'))start=node.props.onClick;for(const child of Array.isArray(children)?children:[children])find(child);}find(render());expect(start).toBeDefined();const pending=start!();
+  if(mode==='change')browser.dispatchEvent(new Event('erpx:context-switch-started'));else for(const cleanup of cleanups)cleanup();
+  const secret='GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ';late.resolve(Response.json({data:{secret,uri:`otpauth://totp/ERPX:synthetic?secret=${secret}&issuer=ERPX&algorithm=SHA1&digits=6&period=30`}}));await pending;
+  expect(values).not.toContain(secret);expect(updated).not.toHaveBeenCalled();expect(transport).toHaveBeenCalledTimes(1);for(const cleanup of cleanups)cleanup();
+ }
+});
 it('keeps original Console self links when central Account routing is disabled and separates personal and Company profiles when enabled',()=>{
  expect(accountSelfNavigation('/holdings/acme','own-user')).toEqual({access:'/holdings/acme/iam/my-access',profile:'/holdings/acme/profiles/own-user',companyProfile:null});expect(accountSelfNavigation('/platform','own-user')).toEqual({access:'/platform/iam/my-access',profile:null,companyProfile:null});expect(accountSelfNavigation('/holdings/acme/branches/b1','own/user',true)).toEqual({access:'/my-access',profile:'/my-profile',companyProfile:'/holdings/acme/branches/b1/profiles/own%2Fuser'});expect(accountSelfNavigation('/platform','own-user',true)).toEqual({access:'/my-access',profile:'/my-profile',companyProfile:null});
 });
 
 import {readFileSync} from 'node:fs';
 import ts from 'typescript';
+import {holdingHostForHost,holdingTransportPath} from '@erpx/contracts/holding-hosts';
+import {isProductHostKey} from '@erpx/contracts/product-registry';
 import type {AccountProfile} from '@erpx/server-identity_access/public/account-preferences';
 import {accountProfileAcknowledgement,accountProfilePreferenceEvent,accountProfileResponseCurrent,observeAccountProfileWitness,type AccountProfileWitness} from '@erpx/feature-identity_access/lib/account-profile-client';
 import {AccountProfileForm} from '@erpx/feature-identity_access/components/account-profile-form';
@@ -207,13 +233,19 @@ import {AccountProfileForm} from '@erpx/feature-identity_access/components/accou
 function accountOwnerDeclaration(source:string,name:string,kind:'function'|'variable'){
  const tree=ts.createSourceFile('account-owner.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);let found:ts.Node|undefined;
  function visit(node:ts.Node):void{if(found)return;if(kind==='function'&&ts.isFunctionDeclaration(node)&&node.name?.text===name)found=node;else if(kind==='variable'&&ts.isVariableDeclaration(node)&&ts.isIdentifier(node.name)&&node.name.text===name)found=node;ts.forEachChild(node,visit);}
- visit(tree);if(!found)throw Error(`Missing actual Account owner declaration ${name}`);return(kind==='variable'?'const ':'')+found.getText(tree)+(kind==='variable'?';':'');
+ visit(tree);if(!found)throw Error(`Missing actual Account owner declaration ${name}`);return(kind==='variable'?'const ':'')+found.getText(tree).replace(/^export\s+/, '')+(kind==='variable'?';':'');
 }
 function accountOwnerCallable(source:string,name:string,kind:'function'|'variable',ports:Record<string,unknown>,prefix=''){
  const js=ts.transpileModule(prefix+'\n'+accountOwnerDeclaration(source,name,kind)+'\nreturn '+name+';',{
   compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.None},
  }).outputText;
  const result:unknown=Function(...Object.keys(ports),js)(...Object.values(ports));if(typeof result!=='function')throw Error('Actual Account handler was not callable');return result;
+}
+/** Bind the actual imported transport, with its real registry/path helpers.
+ * Each handler fixture owns browser ports; globals and production code stay intact. */
+function actualHoldingFetch(windowPort:unknown,documentPort:unknown,transport:unknown):typeof import('@erpx/contracts/holding-fetch').holdingFetch {
+ const source=readFileSync(new URL('../../../packages/contracts/src/holding-fetch.ts',import.meta.url),'utf8');
+ return accountOwnerCallable(source,'holdingFetch','function',{window:windowPort,document:documentPort,globalThis:{fetch:transport},holdingHostForHost,holdingTransportPath,isProductHostKey}) as typeof import('@erpx/contracts/holding-fetch').holdingFetch;
 }
 const profileOwnerSource=()=>readFileSync(new URL("../../../packages/feature-identity_access/src/components/account-profile-form.tsx",import.meta.url),'utf8');
 const preferenceProviderSource=()=>readFileSync(new URL("../../../packages/feature-identity_access/src/components/account-preferences-provider.tsx",import.meta.url),'utf8');
@@ -224,15 +256,15 @@ function actualAccountProfileFixture(options:{accountKey?:string;initialVersion?
  const initial:AccountProfile={name:'Original own name',email:'own@example.test',preferences:preference(options.initialVersion??1,'system','en')};
  let state:AccountProfileFormState={received:initial,baseline:initial,draft:{name:'Captured own name',language:'en',appearance:'light'}},saved=false,invalidated=false;
  if(options.clean)state={...state,draft:{name:initial.name,language:initial.preferences.language,appearance:initial.preferences.appearance}};
- const browser=Object.assign(new EventTarget(),{confirm:vi.fn(()=>true)}),cookies:string[]=[],theme=vi.fn((_name:string,_value:string)=>{void _name;void _value;});
- const documentPort={documentElement:{lang:'en',setAttribute:theme},visibilityState:'visible',cookie:''};
+ const browser=Object.assign(new EventTarget(),{confirm:vi.fn(()=>true),location:new URL('https://account-dev-erpx.jesadakorn.com/my-profile')}),cookies:string[]=[],theme=vi.fn((_name:string,_value:string)=>{void _name;void _value;});
+ const documentPort={documentElement:{lang:'en',setAttribute:theme,dataset:{erpxApp:'account'}},visibilityState:'visible',cookie:''};
  Object.defineProperty(documentPort,'cookie',{get:()=>cookies.at(-1)??'',set:(value:string)=>cookies.push(value)});
  let body!:ReadableStreamDefaultController<Uint8Array>;
  const held=new Response(new ReadableStream<Uint8Array>({start(controller){body=controller;}}),{headers:{'Content-Type':'application/json'}});
  let preferenceBody:ReadableStreamDefaultController<Uint8Array>|undefined;
  const heldPreference=options.holdPreferenceWrite?new Response(new ReadableStream<Uint8Array>({start(controller){preferenceBody=controller;}}),{headers:{'Content-Type':'application/json'}}):undefined;
  const transport=vi.fn(async(url:string,init?:RequestInit)=>url.startsWith('/api/v1/account/profile')?held:init?.method==='PATCH'&&heldPreference?heldPreference:Response.json({data:{key:accountKey,preference:options.preferenceRead??preference(3,'dark','en')}}));
- const browserPorts={document:documentPort,window:browser,location:{protocol:'https:'},CustomEvent,fetch:transport,
+ const browserPorts={document:documentPort,window:browser,location:browser.location,CustomEvent,fetch:transport,holdingFetch:actualHoldingFetch(browser,documentPort,transport),
   contextGeneration:()=>0,contextIsSwitching:()=>false,hasUnsavedWork:()=>true,BroadcastChannel:undefined,
   createAccountPreferencesClient,createAccountLanguageRefresh};
  const provider=accountOwnerCallable(providerSource,'model','function',browserPorts,
@@ -336,4 +368,16 @@ it('the actual Account Profile acknowledgement cannot cancel a newer pending ori
  expect(f.provider.client.getSnapshot()).toMatchObject({pending:false,preference:preference(3,'dark','en')});
  expect(f.theme).toHaveBeenLastCalledWith('data-theme','dark');expect(f.cookies.filter(value=>value.startsWith('erpx_appearance=')).at(-1)).toContain('erpx_appearance=dark;');
  expect(f.saved()).toBe(false);expect(f.state().baseline).toEqual(f.initial);expect(f.state().draft.name).toBe('Captured own name');expect(f.refresh).not.toHaveBeenCalled();
+});
+
+it('binds the actual Holding transport for Account handlers and preserves request proof without inventing identity URLs',async()=>{
+ const transport=vi.fn<(input:RequestInfo|URL,init?:RequestInit)=>Promise<Response>>(async()=>Response.json({status:true}));
+ const signal=new AbortController().signal,headers={'Content-Type':'application/json'},body=JSON.stringify({accountKey:key,expectedVersion:4,language:'en',appearance:'dark'}),init:RequestInit={method:'PATCH',headers,body,signal,credentials:'include'};
+ const windowPort={location:new URL('https://acme.jesadakorn.com/finance')},documentPort={documentElement:{dataset:{erpxApp:'finance'}}};
+ const fetch=actualHoldingFetch(windowPort,documentPort,transport);
+ await fetch('/api/v1/account/preferences?original=exact%2Fquery',init);
+ const [url,received]=transport.mock.calls[0];expect(url).toBeInstanceOf(URL);expect(String(url)).toBe('https://acme.jesadakorn.com/__erpx/finance/api/v1/account/preferences?original=exact%2Fquery');expect(received).toBe(init);expect(received?.signal).toBe(signal);expect(received?.body).toBe(body);
+ const foreign='https://account-dev-erpx.jesadakorn.com/api/v1/account/profile';await fetch(foreign,init);expect(transport.mock.calls[1]).toEqual([foreign,init]);
+ const central=actualHoldingFetch({location:new URL('https://account-dev-erpx.jesadakorn.com/my-profile')},documentPort,transport);await central('/api/v1/account/profile',init);expect(transport.mock.calls[2]).toEqual(['/api/v1/account/profile',init]);
+ const unregistered=actualHoldingFetch({location:new URL('https://unregistered.example.test/profile')},documentPort,transport);await unregistered('/api/v1/account/profile',init);expect(transport.mock.calls[3]).toEqual(['/api/v1/account/profile',init]);
 });

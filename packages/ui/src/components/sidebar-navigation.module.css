@@ -1,0 +1,66 @@
+.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand);
+}
+.icon[data-tone="blue"] { background: var(--ui-blue-soft); color: var(--ui-blue); }
+.icon[data-tone="violet"] { background: var(--ui-violet-soft); color: var(--ui-violet); }
+.icon[data-tone="teal"] { background: var(--ui-teal-soft); color: var(--ui-teal); }
+.icon[data-tone="green"] { background: var(--ui-green-soft); color: var(--ui-green); }
+.icon[data-tone="amber"] { background: var(--ui-amber-soft); color: var(--ui-amber); }
+.icon > svg { width: 18px; height: 18px; flex-shrink: 0; }
+.label { display: grid; gap: 3px; min-width: 0; overflow-wrap: anywhere; line-height: 1.5; }
+.label > small { color: var(--ui-muted); font-size: 11px; font-weight: 400; }
+.item, .item[data-slot="button"], .groupToggle[data-slot="button"] {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ui-ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  text-decoration: none;
+  white-space: normal;
+}
+.item:hover, .groupToggle[data-slot="button"]:hover { background: var(--ui-card-2); }
+.item[aria-current="page"] {
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand-strong);
+  font-weight: 650;
+}
+.item[aria-current="page"]::before {
+  content: "";
+  position: absolute;
+  inset: 10px auto 10px 0;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--ui-brand);
+}
+.item:focus-visible, .groupToggle[data-slot="button"]:focus-visible { outline: 2px solid var(--ui-brand); outline-offset: 2px; }
+.group { display: grid; min-width: 0; }
+.groupToggle[data-slot="button"] { font-weight: 650; }
+.group[data-active="true"] > .groupToggle { color: var(--ui-brand-strong); }
+.chevron { margin-left: auto; flex: 0 0 16px; color: var(--ui-muted); transition: transform 150ms ease; }
+.groupToggle[aria-expanded="false"] > .chevron { transform: rotate(-90deg); }
+.children { display: grid; gap: 3px; min-width: 0; margin: 4px 0 8px 23px; padding-left: 10px; border-left: 1px solid var(--ui-line); }
+.children[hidden] { display: none; }
+@media (min-width: 721px) {
+  .group[data-layout="tiles"] > .children { grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr)); margin-left: 0; padding-left: 0; border-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .chevron { transition: none; } }

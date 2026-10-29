@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { moduleRegistry } from "@erpx/catalogue/module-registry";
+import { appDefinition } from "@erpx/contracts/apps";
 import { developmentProductOrigin, destinationProduct, futureProductOrigin, modulePlacement, productIds, products, sharedHostKeys, validateProductRegistry } from "@erpx/contracts/product-registry";
 import { configuredProductOrigin, configuredProductHandoff, productHostConfiguration, productHostForHost, trustedProductOrigin } from "@erpx/feature-runtime/lib/product-hosts";
 import { productPageAllowed } from "@erpx/feature-runtime/lib/product-route-policy";
@@ -32,37 +33,37 @@ describe("product registry", () => {
   it("maps all 33 original modules and 22 exact hosts without granting provider authority", () => {
     expect(moduleRegistry).toHaveLength(33);
     expect(validateProductRegistry(moduleRegistry.map(module => module.id))).toEqual([]);
-    expect([...productIds, ...sharedHostKeys]).toHaveLength(22);
+    expect([...productIds, ...sharedHostKeys]).toHaveLength(21);
     expect(modulePlacement.platform_administration).toBe("provider");
     expect(modulePlacement.manage_erpx).toBe("provider");
   });
   it("keeps every Office landing on an existing canonical page", () => {
     for (const product of products.filter(product => product.shell === "office")) {
-      expect(existsSync(resolve("src/app/holdings/[holdingSlug]", product.landing, "page.tsx")), product.id).toBe(true);
+      expect(existsSync(resolve(appDefinition(product.id).directory, "src/app/holdings/[holdingSlug]", product.landing, "page.tsx")), product.id).toBe(true);
     }
   });
   it("uses the most specific product destination and preserves record-owner paths", () => {
     expect(destinationProduct("knowledge/learning/courses")).toBe("learn");
-    expect(destinationProduct("knowledge/handbook/published")).toBe("work");
+    expect(destinationProduct("knowledge/handbook/published")).toBe("apps");
     expect(destinationProduct("customers-sales/customers/service/cases/records/ticket/t1/summary")).toBe("support");
     expect(destinationProduct("services/legal/mine")).toBe("legal");
     expect(destinationProduct("erpx-management/billing")).toBeUndefined();
-    expect(destinationProduct("insights/executive/reports/original")).toBe("work");
+    expect(destinationProduct("insights/executive/reports/original")).toBe("apps");
     for (const destination of destinations.filter(item => !item.path.startsWith("administration") && !item.path.startsWith("erpx-management")))
       expect(destinationProduct(destination.path), destination.path).toBeDefined();
   });
   it("keeps included conversation and own workforce routes on Work without opening owner collections", () => {
     for (const path of ["posts/post1", "leave", "leave/new", "overtime", "overtime/new", "overtime/ot1/overview", "tasks/people_payroll/leave1/overview"]) {
       for (const scope of ["", "branches/main/", "branches/main/departments/it/"]) {
-        expect(productPageAllowed("work", `/holdings/acme/${scope}${path}`)).toBe(true);
+        expect(productPageAllowed("apps", `/holdings/acme/${scope}${path}`)).toBe(true);
         expect(productPageAllowed("finance", `/holdings/acme/${scope}${path}`)).toBe(false);
       }
     }
     for (const path of ["posts", "posts/new", "posts/post1/moderation", "tasks/people_payroll", "tasks/people_payroll/leave1/private", "overtime/ot1/approve", "leave/private"])
-      expect(productPageAllowed("work", `/holdings/acme/${path}`)).toBe(false);
+      expect(productPageAllowed("apps", `/holdings/acme/${path}`)).toBe(false);
   });
   it("trusts owned exact development origins only after both independent flags", () => {
-    expect(developmentProductOrigin("work")).toBe("https://work-dev-erpx.jesadakorn.com");
+    expect(developmentProductOrigin("apps")).toBe("https://apps-dev-erpx.jesadakorn.com");
     for (const key of [...productIds, ...sharedHostKeys]) {
       expect(configuredProductOrigin(key, enabled)).toBe(developmentProductOrigin(key));
       expect(productHostForHost(new URL(developmentProductOrigin(key)).host, enabled)).toBe(key);
@@ -224,7 +225,7 @@ describe("product API ownership", () => {
   const offices = products.filter(entry => entry.shell === "office").map(entry => entry.id);
   const scopes = ["", "branches/main/", "departments/team/", "branches/main/departments/team/"];
   it("denies unrelated owner commands on every Office surface before dispatch, including unknown and public endpoints", () => {
-    const commands = {work:"operations",finance:"finance/journals",people:"people/payroll/runs",sales:"crm",supply:"stock-counts",assets:"maintenance",projects:"projects",recruit:"talent",learn:"learning",support:"support/incidents",service:"field-service",legal:"legal",manufacturing:"production",admin:"agents"} as const;
+    const commands = {apps:"operations",finance:"finance/journals",people:"people/payroll/runs",sales:"crm",supply:"stock-counts",assets:"maintenance",projects:"projects",recruit:"talent",learn:"learning",support:"support/incidents",service:"field-service",legal:"legal",manufacturing:"production",admin:"agents"} as const;
     for (const [owner, command] of Object.entries(commands)) for (const scope of scopes) for (const host of [...offices, "admin"] as const) {
       const path = `/api/v1/holdings/acme/${scope}${command}`;
       expect(productPageAllowed(host, path, "POST"), `${host}: ${path}`).toBe(host === owner);
@@ -235,7 +236,7 @@ describe("product API ownership", () => {
   });
   it("preserves actual same-origin dependencies without exposing their management collections", () => {
     const dependencies = [
-      ["work", "leave-requests/leave1/approve"], ["work", "overtime-requests/request1/transition"], ["work", "expenses/expense1/approve"],
+      ["apps", "leave-requests/leave1/approve"], ["apps", "overtime-requests/request1/transition"], ["apps", "expenses/expense1/approve"],
       ["projects", "staff-tasks/task1/transition"], ["projects", "finance/project-cost-allocations"], ["projects", "finance/project-cost-allocations/cost1/review"],
       ["sales", "finance/sales/customers"], ["sales", "commerce/pricing"], ["supply", "commerce/orders/order1/fulfill"],
       ["recruit", "people/hire-handoffs/consume"], ["people", "iam/assignments"],
@@ -245,7 +246,7 @@ describe("product API ownership", () => {
     ] as const;
     for (const [host, resource] of dependencies) for (const scope of scopes)
       expect(productPageAllowed(host, `/api/v1/holdings/acme/${scope}${resource}`, "POST"), `${host}: ${resource}`).toBe(true);
-    for (const [host, resource] of [["projects", "finance/journals"], ["recruit", "people/payroll/runs"], ["work", "leave/admin"], ["admin", "pos/sale/pay"], ["finance", "pos/sale/pay"], ["finance", "pms/reports"], ["admin", "people/payroll/runs"]] as const)
+    for (const [host, resource] of [["projects", "finance/journals"], ["recruit", "people/payroll/runs"], ["apps", "leave/admin"], ["admin", "pos/sale/pay"], ["finance", "pos/sale/pay"], ["finance", "pms/reports"], ["admin", "people/payroll/runs"]] as const)
       expect(productPageAllowed(host, `/api/v1/holdings/acme/${resource}`, "POST"), `${host}: ${resource}`).toBe(false);
     expect(productPageAllowed("finance", "/api/v1/holdings/acme/hospitality/setup", "GET")).toBe(true);
     expect(productPageAllowed("finance", "/api/v1/holdings/acme/pms", "GET")).toBe(false);
@@ -269,9 +270,9 @@ describe("product API ownership", () => {
       expect(productPageAllowed(host, `/api/v1/holdings/acme/records/${module}`, "POST")).toBe(true);
       expect(productPageAllowed("sales", `/api/v1/holdings/acme/records/${module}`, "POST")).toBe(false);
     }
-    expect(productPageAllowed("work", "/api/v1/holdings/acme/records/people_payroll/leave1", "GET")).toBe(true);
-    expect(productPageAllowed("work", "/api/v1/holdings/acme/records/people_payroll", "GET")).toBe(false);
-    expect(productPageAllowed("work", "/api/v1/holdings/acme/records/people_payroll/leave1/transition", "POST")).toBe(false);
+    expect(productPageAllowed("apps", "/api/v1/holdings/acme/records/people_payroll/leave1", "GET")).toBe(true);
+    expect(productPageAllowed("apps", "/api/v1/holdings/acme/records/people_payroll", "GET")).toBe(false);
+    expect(productPageAllowed("apps", "/api/v1/holdings/acme/records/people_payroll/leave1/transition", "POST")).toBe(false);
     expect(productPageAllowed("finance", "/api/v1/holdings/acme/records/unknown", "POST")).toBe(false);
     for (const path of ["/api/v1/holdings/acme/branches", "/api/v1/holdings/acme/branches/main/departments", "/api/v1/holdings/acme/branches//finance/journals", "/api/v1/holdings/acme/finance%2fjournals"])
       expect(officeApiAllowed("finance", path, "POST")).toBe(false);
@@ -287,12 +288,12 @@ describe("product API ownership", () => {
   it("keeps Company Executive and its scoped MCP on Work while retaining separate provider Executive authority", () => {
     for (const host of [...productIds, ...sharedHostKeys]) {
       for (const path of ["/api/v1/holdings/acme/executive/reports", "/api/v1/holdings/acme/executive/connections", "/api/mcp/executive"])
-        expect(productPageAllowed(host, path, "POST"), `${host}: ${path}`).toBe(host === "work");
+        expect(productPageAllowed(host, path, "POST"), `${host}: ${path}`).toBe(host === "apps");
       expect(productPageAllowed(host, "/api/v1/platform/executive", "POST")).toBe(host === "admin");
     }
     for (const action of ["task.plan", "task.complete", "shift.reschedule"]) expect(calendarProductActionAllowed("people", action)).toBe(true);
     for (const action of ["appointment.save", "announcement.publish", "task.new", null, {}]) expect(calendarProductActionAllowed("people", action)).toBe(false);
-    expect(calendarProductActionAllowed("work", "appointment.save")).toBe(true);
+    expect(calendarProductActionAllowed("apps", "appointment.save")).toBe(true);
     expect(productPageAllowed("people", "/api/v1/holdings/acme/calendar/appointments", "POST")).toBe(false);
   });
   it("retains only the original Admin Commercial MFA verification dependency without opening Account security management",()=>{
@@ -305,14 +306,14 @@ describe("product API ownership", () => {
 });
 it('opens only canonical Work Routine collection and native overview under Operations readiness without buying or releasing Projects',async()=>{
  const {productDestinationAvailable}=await import('@erpx/server-work_projection/public/rules/product-landings'),context={role:'custom_original_routine',permissions:['records.read'],scopeKind:'holding' as const,modules:[],readyModules:['operations'],capabilities:['work.advanced-routines'],beta:false};
- for(const path of['projects-routines/routines','projects-routines/routines/routine-original','projects-routines/routines/routine-original/overview']){expect(productDestinationAvailable('work',path,context)).toBe(true);expect(productDestinationAvailable('work',path,{...context,beta:true})).toBe(false);expect(productDestinationAvailable('work',path,{...context,permissions:[]})).toBe(false);expect(productDestinationAvailable('work',path,{...context,readyModules:['projects']})).toBe(false);expect(productDestinationAvailable('work',path,{...context,capabilities:['work.actions']})).toBe(false);}
- for(const path of['projects-routines/routines/new','projects-routines/routines/routine-original/private','projects-routines/routines/routine-original/overview/more','projects-routines/routines/../operations','projects-routines/operations','projects-routines/projects'])expect(productDestinationAvailable('work',path,context)).toBe(false);
+ for(const path of['projects-routines/routines','projects-routines/routines/routine-original','projects-routines/routines/routine-original/overview']){expect(productDestinationAvailable('apps',path,context)).toBe(true);expect(productDestinationAvailable('apps',path,{...context,beta:true})).toBe(false);expect(productDestinationAvailable('apps',path,{...context,permissions:[]})).toBe(false);expect(productDestinationAvailable('apps',path,{...context,readyModules:['projects']})).toBe(false);expect(productDestinationAvailable('apps',path,{...context,capabilities:['work.actions']})).toBe(false);}
+ for(const path of['projects-routines/routines/new','projects-routines/routines/routine-original/private','projects-routines/routines/routine-original/overview/more','projects-routines/routines/../operations','projects-routines/operations','projects-routines/projects'])expect(productDestinationAvailable('apps',path,context)).toBe(false);
 });
 it('classifies only exact native conversation and personal workforce pages without a broad posts or generic-task product prefix',async()=>{
  const {productEntryCapability}=await import('@erpx/server-commercial/public/rules/product-entry-capability'),{productDestinationAvailable}=await import('@erpx/server-work_projection/public/rules/product-landings');
- for(const path of ['posts/actual-post','leave','leave/new','overtime','overtime/new','overtime/actual-id/overview','tasks/people_payroll/actual-id/overview'])expect(destinationProduct(path)).toBe('work');
+ for(const path of ['posts/actual-post','leave','leave/new','overtime','overtime/new','overtime/actual-id/overview','tasks/people_payroll/actual-id/overview'])expect(destinationProduct(path)).toBe('apps');
  for(const path of ['posts','posts/new','posts/actual-id/comments','posts/../admin','tasks/people_payroll','tasks/people_payroll/new','tasks/people_payroll/actual-id/private','leave/admin'])expect(destinationProduct(path)).toBeUndefined();
- const context={role:'employee',permissions:[],scopeKind:'holding' as const,modules:[],readyModules:['operations','collaboration'],capabilities:['work.today']};expect(productEntryCapability('work','posts/actual-post')).toBe('work.social');expect(productDestinationAvailable('work','posts/actual-post',context)).toBe(false);expect(productDestinationAvailable('work','posts/actual-post',{...context,capabilities:['work.social']})).toBe(true);expect(productDestinationAvailable('work','posts/actual-post',{...context,capabilities:['work.social'],readyModules:['operations']})).toBe(false);expect(productEntryCapability('work','leave')).toBe('people.workforce');
+ const context={role:'employee',permissions:[],scopeKind:'holding' as const,modules:[],readyModules:['operations','collaboration'],capabilities:['work.today']};expect(productEntryCapability('apps','posts/actual-post')).toBe('work.social');expect(productDestinationAvailable('apps','posts/actual-post',context)).toBe(false);expect(productDestinationAvailable('apps','posts/actual-post',{...context,capabilities:['work.social']})).toBe(true);expect(productDestinationAvailable('apps','posts/actual-post',{...context,capabilities:['work.social'],readyModules:['operations']})).toBe(false);expect(productEntryCapability('apps','leave')).toBe('people.workforce');
 });
 
 
@@ -539,7 +540,7 @@ it('keeps ticket-bound Helpdesk Portal staff commands on their exact owner host 
   const base=`/api/v1/holdings/acme/${scope}support/ticket-portal`;
   for(const [suffix,method] of [['','GET'],['','HEAD'],['','POST'],['/binding-original','GET'],['/binding-original','HEAD'],['/binding-original/decisions','POST'],['/binding-original/responses','POST']]){
    expect(productPageAllowed('support',base+suffix,method)).toBe(true);
-   for(const host of ['sales','service','admin','portal','account','work'] as const)expect(productPageAllowed(host,base+suffix,method)).toBe(false);
+   for(const host of ['sales','service','admin','portal','account','apps'] as const)expect(productPageAllowed(host,base+suffix,method)).toBe(false);
   }
   for(const [suffix,method] of [['','DELETE'],['/binding-original','POST'],['/binding-original/decisions','GET'],['/binding-original/responses','PATCH'],['/binding-original/close','POST'],['/binding-original/responses/extra','POST'],['//decisions','POST'],['/%2f/decisions','POST']])expect(productPageAllowed('support',base+suffix,method)).toBe(false);
  }
@@ -549,7 +550,7 @@ it('separates verified Support ticket transport from staff, Sales and unknown pu
  const base='/api/customer-portal/acme/tickets';
  for(const [suffix,method] of [['','GET'],['','HEAD'],['/binding-original/acknowledgements','POST'],['/binding-original/files/link-original/content','GET'],['/binding-original/files/link-original/content','HEAD']]){
   expect(productPageAllowed('portal',base+suffix,method)).toBe(true);
-  for(const host of ['support','sales','service','admin','account','work','legal-portal'] as const)expect(productPageAllowed(host,base+suffix,method)).toBe(false);
+  for(const host of ['support','sales','service','admin','account','apps','legal-portal'] as const)expect(productPageAllowed(host,base+suffix,method)).toBe(false);
  }
  for(const [suffix,method] of [['','POST'],['/binding-original','GET'],['/binding-original/acknowledgements','GET'],['/binding-original/responses','POST'],['/binding-original/close','POST'],['/binding-original/files/link-original/content','POST'],['/binding-original/files/link-original/content/extra','GET'],['/%2f/acknowledgements','POST'],['/%255c/acknowledgements','POST'],['//acknowledgements','POST']])expect(productPageAllowed('portal',base+suffix,method)).toBe(false);
  expect(productPageAllowed('portal','/api/customer-portal/acme/%74ickets/binding-original/close','POST')).toBe(false);
@@ -581,7 +582,7 @@ it('retains the real Helpdesk Portal binding page instead of interpreting it as 
 it('keeps Payroll posting prerequisites on their exact canonical owner page while preserving query and fragment bytes',async()=>{
  const {payrollPostingPrerequisitesEntry:entry,payrollPostingPrerequisitesLanding:landing,payrollPostingPrerequisitesPresentationAllowed:present}=await import('@erpx/server-finance/public/rules/payroll-posting-prerequisites-entry'),query='?payGroupId=group-original&tag=one&tag=two#references';
  expect(entry(landing)).toBe(true);for(const path of [landing+'/','landing',landing+'/charts',landing+'/new',landing+'?payGroupId=forged',landing+'#references',landing.replace('/posting',''),landing.replace('/posting','/posting-extra')])expect(entry(path)).toBe(false);
- expect(canonicalUiHref('/holdings/acme/people/payroll/settings/posting'+query)).toBe('/holdings/acme/'+landing+query);expect(canonicalUiHref('/holdings/acme/'+landing+query)).toBe('/holdings/acme/'+landing+query);expect(destinationProduct(landing)).toBe('people');expect(productPageAllowed('people','/holdings/acme/'+landing+query)).toBe(true);for(const host of ['finance','work','admin','learn','projects'] as const)expect(productPageAllowed(host,'/holdings/acme/'+landing+query)).toBe(false);
+ expect(canonicalUiHref('/holdings/acme/people/payroll/settings/posting'+query)).toBe('/holdings/acme/'+landing+query);expect(canonicalUiHref('/holdings/acme/'+landing+query)).toBe('/holdings/acme/'+landing+query);expect(destinationProduct(landing)).toBe('people');expect(productPageAllowed('people','/holdings/acme/'+landing+query)).toBe(true);for(const host of ['finance','apps','admin','learn','projects'] as const)expect(productPageAllowed(host,'/holdings/acme/'+landing+query)).toBe(false);
  const context={scopeKind:'holding',modules:['finance'],permissions:['finance.approve']};expect(present(context)).toBe(true);for(const patch of [{modules:[]},{modules:['people_payroll']},{permissions:['finance.read','finance.write']},{scopeKind:'branch'},{scopeKind:'department'},{beta:true}])expect(present({...context,...patch})).toBe(false);
 });
 it('closes Payroll prerequisite transport to the exact People reference actions without generic Finance or residual child authority',()=>{

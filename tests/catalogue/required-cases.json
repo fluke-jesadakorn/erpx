@@ -1955,6 +1955,11 @@
       "file": "tests/e2e/shared.ui/application-hmr.spec.ts",
       "title": "work representative cold route uses normal fictional sign-in on its declared runtime",
       "project": "desktop"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/integration/identity_access/product-sso-auth.test.ts",
+      "title": "keeps equal external subjects separate across providers after the Better Auth account identity migration"
     }
   ]
 }

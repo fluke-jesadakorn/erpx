@@ -1,4 +1,5 @@
 "use client";
+import {holdingFetch} from '@erpx/contracts/holding-fetch';
 import { InlineNotice } from "@erpx/ui/components/foundation";
 
 import { Button, Field, TextArea, TextInput } from "@erpx/ui/components/foundation";
@@ -6,8 +7,10 @@ import { Button, Field, TextArea, TextInput } from "@erpx/ui/components/foundati
 import { TimeText } from "@erpx/feature-people_payroll/components/time/time-preference-context";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Card, FormLayout } from "@erpx/ui/components/foundation";
-import type {currentAccountSecurity} from '@erpx/server-identity_access/public/account-security';
-export function AccountSecurity({initialEmergency}:{initialEmergency?:Awaited<ReturnType<typeof currentAccountSecurity>>['emergency']}) {
+import {createAccountSecurityHttpPort} from '@erpx/feature-identity_access/public/client';
+import {contextGeneration} from '@erpx/feature-work_projection/lib/context-switch';
+type EmergencySeed={access:{companyId:string;holdingSlug:string|null;scopeLabel:string;reason:string;expiresAt:number}[];unavailableScopes:string[]};
+export function AccountSecurity({initialEmergency}:{initialEmergency?:EmergencySeed}) {
   const [message, setMessage] = useState(""),
     [secret, setSecret] = useState(""),
     [busy, setBusy] = useState(false),
@@ -25,11 +28,18 @@ export function AccountSecurity({initialEmergency}:{initialEmergency?:Awaited<Re
     [emergencyLoading, setEmergencyLoading] = useState(initialEmergency===undefined),
     [emergencyError, setEmergencyError] = useState(""),
     commandKeys = useRef(new Map<string, string>());
+  const mfa=useRef(createAccountSecurityHttpPort(holdingFetch)),mfaLifecycle=useRef({epoch:0,active:true}),[invalidated,setInvalidated]=useState(false);
+  useEffect(()=>{
+    const state=mfaLifecycle.current;state.active=true;
+    const changed=()=>{state.epoch++;setSecret('');setInvalidated(true);setBusy(false);setError('Your account changed. Reload the page before continuing.');};
+    window.addEventListener('erpx:context-switch-started',changed);window.addEventListener('erpx:work-context-changed',changed);
+    return()=>{state.active=false;state.epoch++;window.removeEventListener('erpx:context-switch-started',changed);window.removeEventListener('erpx:work-context-changed',changed);};
+  },[]);
   const refreshEmergencyAccess = useCallback(async () => {
     setEmergencyLoading(true);
     setEmergencyError("");
     try {
-      const r = await fetch("/api/v1/account/iam/emergency/active", {
+      const r = await holdingFetch("/api/v1/account/iam/emergency/active", {
           cache: "no-store",
         }),
         v = await r.json();
@@ -45,7 +55,7 @@ export function AccountSecurity({initialEmergency}:{initialEmergency?:Awaited<Re
   useEffect(() => {
     if(initialEmergency!==undefined)return;
     let current = true;
-    void fetch("/api/v1/account/iam/emergency/active", { cache: "no-store" })
+    void holdingFetch("/api/v1/account/iam/emergency/active", { cache: "no-store" })
       .then(async (r) => {
         const v = await r.json();
         if (!r.ok) throw new Error(v.error?.message ?? "Unable to load temporary access.");
@@ -68,6 +78,9 @@ export function AccountSecurity({initialEmergency}:{initialEmergency?:Awaited<Re
     };
   }, [initialEmergency]);
   async function send(path: string, body: unknown) {
+    if(busy||invalidated)return;
+    const generation=contextGeneration(),epoch=++mfaLifecycle.current.epoch;
+    const current=()=>mfaLifecycle.current.active&&mfaLifecycle.current.epoch===epoch&&contextGeneration()===generation;
     setBusy(true);
     setError("");
     const emergencyCommand = path.startsWith("emergency/"),
@@ -81,7 +94,17 @@ export function AccountSecurity({initialEmergency}:{initialEmergency?:Awaited<Re
       }
     }
     try {
-      const r = await fetch("/api/v1/account/iam/" + path, {
+      if(path==='mfa/enroll'||path==='mfa/verify'){
+        if(path==='mfa/enroll'){
+          const result=await mfa.current.enroll();if(!current())return;setSecret(result.secret);
+        }else{
+          if(!body||typeof body!=='object'||!('code'in body)||typeof body.code!=='string')throw Error('Enter a six-digit authenticator code.');
+          await mfa.current.verify({code:body.code});if(!current())return;setSecret('');
+        }
+        window.dispatchEvent(new CustomEvent('erpx:account-security-updated'));
+        setMessage(path==='mfa/enroll'?'Add the setup key to your authenticator, then verify a code.':'Authenticator verified. Sensitive actions are available for five minutes.');return;
+      }
+      const r = await holdingFetch("/api/v1/account/iam/" + path, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -90,21 +113,20 @@ export function AccountSecurity({initialEmergency}:{initialEmergency?:Awaited<Re
           body: JSON.stringify(body),
         }),
         v = await r.json();
+      if(!current())return;
       if (!r.ok) throw new Error(v.error?.message ?? "Request failed.");
       if (emergencyCommand) {
         commandKeys.current.delete(commandIdentity);
         await refreshEmergencyAccess();
       }
-      if (v.data.secret) setSecret(v.data.secret);
-      if(path==='mfa/verify'||path==='mfa/enroll')window.dispatchEvent(new CustomEvent('erpx:account-security-updated'));
       setMessage(
         v.data.message ??
           "Authenticator verified. Sensitive actions are available for five minutes.",
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Request failed.");
+      if(current())setError(e instanceof Error ? e.message : "Request failed.");
     } finally {
-      setBusy(false);
+      if(current())setBusy(false);
     }
   }
   return (
@@ -121,7 +143,7 @@ export function AccountSecurity({initialEmergency}:{initialEmergency?:Awaited<Re
           type="submit"
           variant="secondary"
 
-          disabled={busy}
+          disabled={busy||invalidated}
           onClick={() => send("mfa/enroll", {})}
         >
           Set up authenticator
@@ -150,7 +172,7 @@ export function AccountSecurity({initialEmergency}:{initialEmergency?:Awaited<Re
               required
             />
           </Field>
-          <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
+          <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy||invalidated}>
             Verify code
           </Button>
         </FormLayout>

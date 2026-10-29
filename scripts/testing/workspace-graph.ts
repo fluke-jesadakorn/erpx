@@ -1,29 +1,70 @@
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync, readlinkSync, readdirSync } from "node:fs";
 import { resolve, posix } from "node:path";
 import { execFileSync } from "node:child_process";
 import { parseWorkspaceSource, type WorkspaceSource } from "./workspace-imports";
 import { workspaceSourceCache } from "./workspace-source-cache";
 import { appDefinitions, appDefinition } from "@erpx/contracts/apps";
 import { verificationSources, resolveImport, type Suite, repositoryRoot } from "./catalogue";
+import { cargoRootInputs, cargoVerificationEdges, cargoResourceRoots, cargoResourcePath, isCargoInput } from './cargo';
 
-export type WorkspaceGraph = { appDirectories?: Map<string,string>; sourceCache?: {hits:number;misses:number;persisted:boolean;loaded:boolean}; runtimeImports: Map<string, Set<string>>; files: Map<string, string>; imports: Map<string, Set<string>>; reverse: Map<string, Set<string>>; apps: Map<string, Set<string>> };
+export type WorkspaceGraph = { retirementPresence?: ReadonlySet<string>; appDirectories?: Map<string,string>; sourceCache?: {hits:number;misses:number;persisted:boolean;loaded:boolean}; runtimeImports: Map<string, Set<string>>; files: Map<string, string>; imports: Map<string, Set<string>>; reverse: Map<string, Set<string>>; apps: Map<string, Set<string>> };
+// Exact filenames of the reviewed historical documentation cleanup. Only their
+// presence is observed; private contents never enter the graph or source cache.
+const retiredDocumentationPaths = new Set([
+  ...Array.from({length:10}, (_, index) => `.scratch/docs-seamless/issues/${String(index+1).padStart(2,"0")}-${["inventory-contradiction-matrix","canonical-glossary-home","adr-authority-nextjs-era","plan-lineage-normalization","audits-prune-policy","docs-contracts-schema-role","top-level-entry-coherence","seamless-navigation-prototype","designed-skills-dedup","nextjs-ci-traceability"][index]}.md`),
+  ".scratch/docs-seamless/map.md", ".scratch/docs-seamless/prototype/TOC-seamless.md", "audits/.gitkeep",
+]);
+function workingRetirementPresence(root:string):Set<string>{
+  const present=new Set<string>();
+  for(const file of retiredDocumentationPaths){
+    try{lstatSync(resolve(root,file));present.add(file);}catch(error){if((error as NodeJS.ErrnoException).code!=="ENOENT")throw error;}
+  }
+  return present;
+}
 const resourcePrefix = 'resource-input:';
 export function workspaceInputFile(file: string) { return file.startsWith(resourcePrefix) ? file.slice(resourcePrefix.length) : file; }
-const sourceExtension = /\.(?:[cm]?[jt]sx?|json|css|mjs|md|mdx|yml|yaml|py|sh|plist|toml|html|sql)$/;
+const sourceExtension = /\.(?:[cm]?[jt]sx?|rs|json|css|mjs|md|mdx|yml|yaml|py|sh|plist|toml|html|sql)$/;
+const workspaceDirectories = ["apps", "packages", "src", "scripts", "tests", "fixtures", "public", "docs", ".github", "ops", "migrations"];
+const rootInputs = new Set(["next.config.ts", "tsconfig.base.json", "tsconfig.json", "postcss.config.mjs", "package.json", "bun.lock", ".env.example", "eslint.config.mjs", "README.md", "AGENTS.md", "CONTEXT.md", "CONTRACT_POLICY.md", "LICENSE", "NOTICE", "LICENSING.md", "CONTRIBUTING.md", "SECURITY.md", "CODE_OF_CONDUCT.md", "GOVERNANCE.md", ".bun-version", ".node-version", "bunfig.toml", "turbo.json", ".gitignore", ".gitattributes", ...cargoRootInputs]);
+// Next metadata and app public assets are inputs even when no JS imports them.
+// A public symlink is inventoried as its target text; never traverse its target.
+const appResource = /^apps\/[^/]+\/(?:public(?:\/|$)|src\/app\/(?:[^/]+\/)*(?:favicon\.ico|(?:icon|apple-icon|opengraph-image|twitter-image)\d*\.(?:ico|jpe?g|png|svg|gif)|robots\.txt|sitemap\.xml|manifest\.webmanifest)$)/;
+function resourceMember(file:string,roots:readonly string[]){return roots.some(root=>file===root||file.startsWith(root+'/'));}
+function declaredCargoResource(file:string,roots:readonly string[]){return cargoResourcePath(file)&&resourceMember(file,roots);}
+// `target` is also a real business route name. Only actual Cargo output trees
+// or private subtrees of newly admitted resources are excluded for that name.
+function privateWorkspacePath(file:string){return file.split('/').some(part=>/^\.env(?:\.|$)/.test(part)||['.git','.scratch','.runtime','node_modules','.next','.build','.cache','.turbo'].includes(part))||/^(?:packages\/server-[^/]+|src\/composition)\/target(?:\/|$)/.test(file);}
+function workspacePath(file: string,roots:readonly string[]=[]) {
+  return rootInputs.has(file) || !privateWorkspacePath(file) && (!resourceMember(file,roots)||cargoResourcePath(file)) && workspaceDirectories.some(directory => file.startsWith(directory + '/')) &&
+    (sourceExtension.test(file) || isCargoInput(file) || file === '.github/CODEOWNERS' || /^(?:public|docs|fixtures)\//.test(file) || appResource.test(file)||declaredCargoResource(file,roots));
+}
+function resourceInput(file: string) {
+  return /^(?:public|docs|\.github|ops|migrations)\//.test(file) || appResource.test(file) ||
+    file === '.env.example' || file === 'LICENSE' || file === 'NOTICE' || /^[A-Z][A-Z_.-]*\.md$/.test(file);
+}
+function graphContent(file: string, bytes: Buffer, symlink = false,declared=false) {
+  return resourceInput(file) || symlink || declared && !sourceExtension.test(file) && !isCargoInput(file)
+    ? (symlink ? 'symlink-sha256:' : 'resource-sha256:') + createHash('sha256').update(bytes).digest('hex')
+    : bytes.toString('utf8');
+}
 const ignored = new Set(["node_modules", ".next", ".build", ".cache", ".turbo"]);
-export function workspaceSourcePaths(root = repositoryRoot): string[] {
+function workspaceSourceInventory(root:string){
   function visit(directory: string): string[] {
     if (!existsSync(resolve(root, directory))) return [];
     return readdirSync(resolve(root, directory), { withFileTypes: true }).flatMap(entry => {
       const file = `${directory}/${entry.name}`;
+      if (privateWorkspacePath(file) || entry.isDirectory() && entry.name === 'target' && existsSync(resolve(root,directory,'Cargo.toml'))) return [];
       return entry.isDirectory() && !ignored.has(entry.name) ? visit(file)
-        : entry.isFile() && (sourceExtension.test(entry.name) || /^(?:public|docs|fixtures)(?:\/|$)/.test(directory)) && !["next-env.d.ts", "next.config.compiled.js"].includes(entry.name) ? [file] : [];
+        : (entry.isFile() || entry.isSymbolicLink()) && !["next-env.d.ts", "next.config.compiled.js"].includes(entry.name) ? [file] : [];
     });
   }
-  return [...["apps", "packages", "src", "scripts", "tests", "fixtures", "public", "docs", ".github", "ops", "migrations"].flatMap(visit),
-    ...["next.config.ts", "tsconfig.base.json", "tsconfig.json", "postcss.config.mjs", "package.json", "bun.lock", "eslint.config.mjs", "README.md", "AGENTS.md", "CONTEXT.md", "CONTRACT_POLICY.md", ".bun-version", ".node-version", "bunfig.toml", "turbo.json", ".gitignore"].filter(file => existsSync(resolve(root, file)))].sort();
+  const candidates=[...workspaceDirectories.flatMap(visit), ...[...rootInputs].filter(file => existsSync(resolve(root, file)))];
+  const manifests=new Map(candidates.filter(file=>file.endsWith('/Cargo.toml')&&workspacePath(file)&&!lstatSync(resolve(root,file)).isSymbolicLink()).map(file=>[file,readFileSync(resolve(root,file),'utf8')]));
+  const roots=[...cargoResourceRoots(manifests).values()].flat();
+  return {roots,paths:candidates.filter(file=>workspacePath(file,roots)&&(!lstatSync(resolve(root,file)).isSymbolicLink()||appResource.test(file)||declaredCargoResource(file,roots))).sort()};
 }
+export function workspaceSourcePaths(root = repositoryRoot): string[] {return workspaceSourceInventory(root).paths;}
 export function createWorkspaceGraph(files: Map<string, string>, parseSource: (file:string,source:string)=>WorkspaceSource = parseWorkspaceSource, options:{excludeStyleSources?:boolean}={}): WorkspaceGraph {
   files = new Map(files);
   const names = new Set(files.keys()), imports = new Map<string, Set<string>>(), reverse = new Map<string, Set<string>>();
@@ -106,8 +147,17 @@ export function createWorkspaceGraph(files: Map<string, string>, parseSource: (f
     imports.set(file, dependencies);
     for (const target of dependencies) { const users = reverse.get(target) ?? new Set<string>(); users.add(file); reverse.set(target, users); }
   }
+  for (const [file, dependencies] of cargoVerificationEdges(files)) {
+    const existing = imports.get(file) ?? new Set<string>();
+    for (const dependency of dependencies) {
+      existing.add(dependency);
+      const users = reverse.get(dependency) ?? new Set<string>(); users.add(file); reverse.set(dependency, users);
+    }
+    imports.set(file, existing);
+  }
   const runtimeImports = new Map<string, Set<string>>();
   for (const [file, dependencies] of imports) {
+    if (isCargoInput(file)) { runtimeImports.set(file, new Set()); continue; }
     const runtime = new Set(dependencies);
     const syntax=parsed.get(file);
     if(syntax){
@@ -124,7 +174,7 @@ export function createWorkspaceGraph(files: Map<string, string>, parseSource: (f
   const graph: WorkspaceGraph = { files, imports, runtimeImports, reverse, appDirectories, apps: new Map() };
   for (const app of appDefinitions) {
     const directory=appDirectories.get(app.package)??app.directory;
-    const entries = [...names].filter(file => file.startsWith(`${directory}/src/`) || file === `${directory}/next.config.mjs` || file === `${directory}/package.json`);
+    const entries = [...names].filter(file => file.startsWith(`${directory}/src/`) || file === `${directory}/public` || file.startsWith(`${directory}/public/`) || file === `${directory}/next.config.mjs` || file === `${directory}/package.json`);
     graph.apps.set(app.id, dependencyClosure(graph, entries));
   }
   return graph;
@@ -134,7 +184,13 @@ function graphWithSourceCache(files:Map<string,string>,root:string,cacheRoot=roo
   try{const graph=createWorkspaceGraph(files,cache.parse,{excludeStyleSources});cache.flush();graph.sourceCache={...cache.stats};return graph;}catch(error){cache.flush();throw error;}
 }
 export function loadWorkspaceGraph(root = repositoryRoot, options:{cacheRoot?:string;excludeStyleSources?:boolean}={}): WorkspaceGraph {
-  return graphWithSourceCache(new Map(workspaceSourcePaths(root).map(file => [file, /^(?:public|docs|\.github|ops|migrations)\//.test(file) || /^(?:README|AGENTS|CONTEXT|CONTRACT_POLICY)\.md$/.test(file) ? "resource-sha256:" + createHash("sha256").update(readFileSync(resolve(root, file))).digest("hex") : readFileSync(resolve(root, file), "utf8")])),root,options.cacheRoot,options.excludeStyleSources);
+  const inventory=workspaceSourceInventory(root);
+  const graph = graphWithSourceCache(new Map(inventory.paths.map(file => {
+    const path = resolve(root, file), symlink = lstatSync(path).isSymbolicLink();
+    return [file, graphContent(file, symlink ? Buffer.from(readlinkSync(path)) : readFileSync(path), symlink,!workspacePath(file)&&declaredCargoResource(file,inventory.roots))];
+  })),root,options.cacheRoot,options.excludeStyleSources);
+  graph.retirementPresence=workingRetirementPresence(root);
+  return graph;
 }
 
 export function dependencyClosure(graph: Pick<WorkspaceGraph, "imports">, entries: Iterable<string>): Set<string> {
@@ -187,7 +243,7 @@ export function appRuntimeFingerprint(graph: WorkspaceGraph, id: string) {
     if (manifest.scripts) for (const name of Object.keys(manifest.scripts)) if (/^(?:test(?::|$)|lint(?::|$)|typecheck(?::|$))/.test(name)) delete manifest.scripts[name];
     runtime.files.set(file, JSON.stringify(manifest));
   }
-  const entries = [...graph.files.keys()].filter(file => file.startsWith(`${directory}/src/`) || file.startsWith(`${directory}/`) && /(?:config|package)\./.test(file));
+  const entries = [...graph.files.keys()].filter(file => file.startsWith(`${directory}/src/`) || file === `${directory}/public` || file.startsWith(`${directory}/public/`) || file.startsWith(`${directory}/`) && /(?:config|package)\./.test(file));
   const source = workspaceFingerprint(runtime, entries, ["scripts/local/app-next-config.ts", "next.config.ts", "postcss.config.mjs", ...[...graph.files.keys()].filter(file => /^(?:public|migrations)\//.test(file))]);
   return createHash("sha256").update(source).update(JSON.stringify(Object.entries(process.env).filter(([key]) => key.startsWith("NEXT_PUBLIC_")).sort(([a],[b]) => a.localeCompare(b)))).digest("hex");
 }
@@ -199,17 +255,28 @@ if (import.meta.main) {
 /** Read both sides of a candidate without switching the shared checkout. */
 export function loadRevisionWorkspaceGraph(revision: string, root = repositoryRoot): WorkspaceGraph {
   const sha = execFileSync('git', ['rev-parse', '--verify', `${revision}^{commit}`], { cwd: root, encoding: 'utf8' }).trim();
-  const paths = execFileSync('git', ['ls-tree', '-rz', '--name-only', sha], { cwd: root, encoding: 'utf8', maxBuffer:64*1024*1024 }).split('\0')
-    .filter(file => (sourceExtension.test(file) || /^(?:public|docs|fixtures)\//.test(file)) && (/^(?:apps|packages|src|scripts|tests|fixtures|public|docs|\.github|ops|migrations)\//.test(file) || ['next.config.ts','tsconfig.base.json','tsconfig.json','postcss.config.mjs','package.json','bun.lock','eslint.config.mjs','README.md','AGENTS.md','CONTEXT.md','CONTRACT_POLICY.md','.bun-version','.node-version','bunfig.toml','turbo.json','.gitignore'].includes(file)));
-  if (paths.some(file => /[\r\n]/.test(file))) throw new Error('UNSUPPORTED_GIT_SOURCE_NAME');
-  const contents = execFileSync('git', ['cat-file', '--batch'], { cwd: root, input: paths.map(file => `${sha}:${file}\n`).join(''), maxBuffer: 512 * 1024 * 1024 });
-  const files = new Map<string,string>(); let offset = 0;
-  for (const file of paths) {
-    const end = contents.indexOf(10, offset), metadata = contents.subarray(offset, end).toString().split(' '), size = Number(metadata.at(-1));
-    if (metadata[1] !== 'blob' || !Number.isSafeInteger(size)) throw new Error(`GIT_SOURCE_UNREADABLE:${file}`);
-    offset = end + 1; files.set(file, /^(?:public|docs|\.github|ops|migrations)\//.test(file) || /^(?:README|AGENTS|CONTEXT|CONTRACT_POLICY)\.md$/.test(file) ? "resource-sha256:" + createHash("sha256").update(contents.subarray(offset,offset + size)).digest("hex") : contents.subarray(offset, offset + size).toString()); offset += size + 1;
+  const entries = execFileSync('git', ['ls-tree', '-rz', sha], { cwd: root, encoding: 'utf8', maxBuffer:64*1024*1024 }).split('\0').filter(Boolean).map(row => {
+    const separator = row.indexOf('\t');
+    return { file: row.slice(separator + 1), symlink: row.startsWith('120000 ') };
+  });
+  function read(tree:typeof entries,roots:readonly string[]=[]) {
+    const paths=tree.map(({file})=>file);
+    if(paths.some(file=>/[\r\n]/.test(file)))throw new Error('UNSUPPORTED_GIT_SOURCE_NAME');
+    const contents=execFileSync('git',['cat-file','--batch'],{cwd:root,input:paths.map(file=>`${sha}:${file}\n`).join(''),maxBuffer:512*1024*1024});
+    const files=new Map<string,string>();let offset=0;
+    for(const {file,symlink}of tree){
+      const end=contents.indexOf(10,offset),metadata=contents.subarray(offset,end).toString().split(' '),size=Number(metadata.at(-1));
+      if(metadata[1]!=='blob'||!Number.isSafeInteger(size))throw new Error(`GIT_SOURCE_UNREADABLE:${file}`);
+      offset=end+1;files.set(file,graphContent(file,contents.subarray(offset,offset+size),symlink,!workspacePath(file)&&declaredCargoResource(file,roots)));offset+=size+1;
+    }
+    return files;
   }
-  return graphWithSourceCache(files,root);
+  const manifests=read(entries.filter(({file,symlink})=>!symlink&&file.endsWith('/Cargo.toml')&&workspacePath(file)));
+  const roots=[...cargoResourceRoots(manifests).values()].flat();
+  const files=read(entries.filter(({file})=>workspacePath(file,roots)),roots);
+  const graph=graphWithSourceCache(files,root);
+  graph.retirementPresence=new Set(entries.map(({file})=>file).filter(file=>retiredDocumentationPaths.has(file)));
+  return graph;
 }
 function configuredAppChanges(head: WorkspaceGraph, base: WorkspaceGraph, changed: readonly string[]) {
   const file='scripts/local/workspace-settings.json';
@@ -219,6 +286,13 @@ function configuredAppChanges(head: WorkspaceGraph, base: WorkspaceGraph, change
     if(source===undefined){if(required)throw new Error('WORKSPACE_SETTINGS_MAPPING_REQUIRED');return{bundlers:{} as Record<string,string>,defaultBundler:'webpack',activeApps:[] as string[]};}
     let value;try{value=JSON.parse(source);}catch{throw new Error('WORKSPACE_SETTINGS_MAPPING_REQUIRED');}
     const ids=new Set(['compat',...appDefinitions.map(app=>app.id)]),compilers=new Set(['webpack','turbopack']);
+    // Base settings describe that exact revision, including apps retired since
+    // then. Admit an additional historical ID only with its recorded package
+    // owner and route entry; the current candidate still uses today's registry.
+    if(!required)for(const [name,directory]of graph.appDirectories??[]){
+      const id=/^@erpx\/app-([a-z][a-z0-9-]*)$/.exec(name)?.[1];
+      if(id&&graph.files.has(`${directory}/src/app/page.tsx`))ids.add(id);
+    }
     if(!value||typeof value!=='object'||value.version!==1||!value.bundlers||typeof value.bundlers!=='object'||Array.isArray(value.bundlers)||Object.entries(value.bundlers).some(([id,bundler])=>!ids.has(id)||!compilers.has(bundler as string))||!compilers.has(value.defaultBundler??'webpack')||!Array.isArray(value.activeApps)||value.activeApps.some((id:unknown)=>typeof id!=='string'||id==='compat'||!ids.has(id)))throw new Error('WORKSPACE_SETTINGS_MAPPING_REQUIRED');
     return{bundlers:value.bundlers as Record<string,string>,defaultBundler:value.defaultBundler??'webpack',activeApps:value.activeApps as string[]};
   }
@@ -230,11 +304,12 @@ function configuredAppChanges(head: WorkspaceGraph, base: WorkspaceGraph, change
 }
 export function selectCandidateSuites(head: WorkspaceGraph, base: WorkspaceGraph, suites: readonly Suite[], changed: string[], apps: string[] = []) {
   const known = changed.filter(file => head.files.has(file) || base.files.has(file));
-  const missing = changed.filter(file => !head.files.has(file) && !base.files.has(file) && !/^(?:docs|public|migrations|ops|\.github)\//.test(file) && !/^(?:[A-Z][A-Z_.-]*\.md|\.gitignore|\.bun-version|\.node-version|bunfig\.toml|turbo\.json|tsconfig(?:\.[\w-]+)?\.json)$/.test(file));
+  const retiredDeletion = (file:string) => retiredDocumentationPaths.has(file) && base.retirementPresence?.has(file) === true && head.retirementPresence !== undefined && !head.retirementPresence.has(file);
+  const missing = changed.filter(file => !retiredDeletion(file) && !head.files.has(file) && !base.files.has(file) && !/^(?:docs|public|migrations|ops|\.github)\//.test(file) && !/^(?:[A-Z][A-Z_.-]*\.md|\.gitignore|\.bun-version|\.node-version|bunfig\.toml|turbo\.json|tsconfig(?:\.[\w-]+)?\.json)$/.test(file));
   if (missing.length) throw new Error(`WORKSPACE_CHANGE_UNMAPPED:${missing.join(',')}`);
   const a = selectWorkspaceSuites(head, suites, { apps, changed: known });
   const b = selectWorkspaceSuites(base, suites, { changed: known });
-  const global = changed.some(file => ['bun.lock','package.json','tsconfig.base.json','next.config.ts','postcss.config.mjs'].includes(file));
+  const global = changed.some(file => ['bun.lock','package.json','tsconfig.base.json','tests/config/tsconfig.frontend.json','next.config.ts','postcss.config.mjs'].includes(file));
   const migrations=changed.filter(file=>file.startsWith('migrations/postgres/'));
   const configuredApps=configuredAppChanges(head,base,changed);
   const affectedApps = global || migrations.length ? appDefinitions.map(app => app.id) : [...new Set([...a.apps, ...b.apps,...configuredApps])];
@@ -253,5 +328,5 @@ export function selectCandidateSuites(head: WorkspaceGraph, base: WorkspaceGraph
   for (const graph of [head,base]) for (const suite of suites) for (const file of dependencyClosure(graph,verificationSources([suite]))) covered.add(file);
   const unmapped = known.filter(file => /^(?:packages|src|apps|tests\/(?:unit|integration))\//.test(file) && !covered.has(file) && !affectedApps.length && head.files.has(file));
   if (unmapped.length) throw new Error(`WORKSPACE_TEST_MAPPING_REQUIRED:${unmapped.join(',')}`);
-  return { scope: 'development' as const, acceptance: false as const, apps: affectedApps, changed, suites: suites.filter(suite => selected.has(suite.id)), removed: changed.filter(file => base.files.has(file) && !head.files.has(file)) };
+  return { scope: 'development' as const, acceptance: false as const, apps: affectedApps, changed, suites: suites.filter(suite => selected.has(suite.id)), removed: changed.filter(file => base.files.has(file) && !head.files.has(file) || retiredDeletion(file)) };
 }

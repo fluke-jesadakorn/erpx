@@ -63,7 +63,6 @@ export async function directoryOidcConfig(id: string): Promise<GenericOAuthConfi
         clientId: connection.config.clientId!,
         clientSecret: secret.clientSecret,
         discoveryUrl: `${issuer.replace(/\/$/, "")}/.well-known/openid-configuration`,
-        accountIssuer: issuer,
         requireIdTokenVerification: true,
         pkce: true,
         scopes: ["openid", "profile", "email"],

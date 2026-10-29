@@ -1,3 +1,4 @@
+import { nativeJournalEdit, nativeJournalEditReadback, nativeJournalCreate, nativeJournalCreateReadback, nativeJournalPost, nativeJournalPostReadback, nativeJournalReverse, nativeJournalReverseReadback } from "@erpx/feature-finance/public/server";
 import {expensePostingPrerequisites,createExpensePostingChart,createExpensePostingAccount,createExpensePostingPeriod,confirmExpensePostingRate,expensePostingPrerequisiteConfirmation,expensePostingChartSchema,expensePostingAccountSchema,expensePostingPeriodSchema,expensePostingRateSchema,expensePostingPrerequisiteConfirmationSchema} from '@erpx/server-finance/public/expense-posting-prerequisites';
 import {expensePostingSetup,initializeExpensePostingSetup,expensePostingSetupSchema} from '@erpx/server-commerce/public/expense-posting-setup';
 import {confirmServiceNoCharge} from "@erpx/server-finance/public/service-no-charge";
@@ -82,8 +83,28 @@ type FinanceRouteContext = { params: Promise<{ holdingSlug: string; path: string
 export async function GET(request: Request, context: FinanceRouteContext) {
   try {
     const { holdingSlug, path } = await context.params;
+    const parts = segments(path);
+    if (parts.length === 3 && parts[0] === "journals" && parts[2] === "edit-workspace") {
+      const response = await nativeJournalEditReadback(request, holdingSlug, parts[1]);
+      if (response) return response;
+      throw new ApiError(404, "NOT_FOUND", "Journal not found.");
+    }
+    if (parts.length === 3 && parts[0] === "journals" && parts[2] === "create-workspace") {
+      const response = await nativeJournalCreateReadback(request, holdingSlug, parts[1]);
+      if (response) return response;
+      throw new ApiError(404, "NOT_FOUND", "Journal not found.");
+    }
+    if (parts.length === 3 && parts[0] === "journals" && parts[2] === "reversal-workspace") {
+      const response = await nativeJournalReverseReadback(request, holdingSlug, parts[1]);
+      if (response) return response;
+      throw new ApiError(404, "NOT_FOUND", "Journal not found.");
+    }
+    if (parts.length === 3 && parts[0] === "journals" && parts[2] === "workspace") {
+      const response = await nativeJournalPostReadback(request, holdingSlug, parts[1]);
+      if (response) return response;
+    }
     const actor = requirePermission(await requireWorkContext(holdingSlug),"finance.read");
-    const parts = segments(path); const search = new URL(request.url).searchParams;
+    const search = new URL(request.url).searchParams;
     if(parts[0]?.startsWith('expense-setup')){
       if(parts[0]!=='expense-setup'||parts.length!==1)throw new ApiError(404,'NOT_FOUND','Expense setup resource not found.');
       if([...search.keys()].length)throw new ApiError(422,'VALIDATION_FAILED','Expense setup uses the current Company without a query selector.');
@@ -174,8 +195,25 @@ export async function POST(request: Request, context: FinanceRouteContext) {
   try {
     const origin=request.headers.get("origin");if(origin&&origin!==requestPublicOrigin(request))throw new ApiError(403,"ORIGIN_FORBIDDEN","Use the application origin.");
     const { holdingSlug, path } = await context.params;
+    const parts = segments(path);
+    if (parts.length === 3 && parts[0] === "journals" && parts[2] === "edit") {
+      const response = await nativeJournalEdit(request, holdingSlug, parts[1]);
+      if (response) return response;
+    }
+    if (parts.length === 1 && parts[0] === "journals") {
+      const response = await nativeJournalCreate(request, holdingSlug);
+      if (response) return response;
+    }
+    if (parts.length === 3 && parts[0] === "journals" && parts[2] === "reverse") {
+      const response = await nativeJournalReverse(request, holdingSlug, parts[1]);
+      if (response) return response;
+    }
+    if (parts.length === 3 && parts[0] === "journals" && parts[2] === "post") {
+      const response = await nativeJournalPost(request, holdingSlug, parts[1]);
+      if (response) return response;
+    }
     const actor = requirePermission(await requireWorkContext(holdingSlug),"finance.read");
-    const parts = segments(path); const input = await body(request);
+    const input = await body(request);
     if(parts[0]?.startsWith('expense-setup')){
       if(parts[0]!=='expense-setup'||parts.length!==2)throw new ApiError(404,'NOT_FOUND','Expense setup resource not found.');
       const key=needCommand(request);

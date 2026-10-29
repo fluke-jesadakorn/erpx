@@ -3,7 +3,7 @@ import { canonicalUiHref } from "@erpx/feature-work_projection/lib/destination-r
 import { useSearchParams } from "@erpx/feature-shared/lib/destination-search";
 import {RecordWorkspaceProvider} from "@erpx/feature-records/components/record-workspace";
 import {RecordDrawer} from "@erpx/feature-records/components/record-drawer";
-import {RecordScopeProvider} from "@erpx/ui/components/record-context";
+import {RecordScopeProvider} from "@erpx/feature-records/public/client";
 import {RecordLink} from "@erpx/feature-records/components/record-link";
 import {SectionWorkspace} from "@erpx/workplace/components/section-workspace";
 import {FormDisclosure} from "@erpx/ui/components/form-disclosure";

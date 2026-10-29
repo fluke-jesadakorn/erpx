@@ -20,10 +20,10 @@ it('requires every app mapping and the exact development environment before Cons
   const environment = { ERPX_ENVIRONMENT: 'local', ERPX_PRODUCT_ENVIRONMENT: 'development', ERPX_PUBLIC_ORIGIN: 'https://console-dev-erpx.jesadakorn.com', ERPX_PRODUCT_ROUTING: 'enabled', ERPX_PRODUCT_SSO: 'enabled' };
   expect(consoleWorkspaceCutoverBlockers(appIds, environment)).toEqual([]);
   const partial = consoleWorkspaceCutoverBlockers(['account', 'apps', 'learn', 'admin'], environment);
-  expect(partial).toHaveLength(18);
-  expect(partial).toContain('Application still uses compatibility mapping: work');
+  expect(partial).toHaveLength(17);
+  expect(partial).toContain('Application still uses compatibility mapping: people');
   expect(consoleWorkspaceCutoverBlockers([...appIds, 'compat'], environment)).toContain('Unknown application mapping: compat');
-  expect(consoleWorkspaceCutoverBlockers([...appIds, 'work'], environment)).toContain('Duplicate active application mappings');
+  expect(consoleWorkspaceCutoverBlockers([...appIds, 'apps'], environment)).toContain('Duplicate active application mappings');
   for (const patch of [{ ERPX_ENVIRONMENT: 'production' }, { ERPX_PRODUCT_ENVIRONMENT: 'production' }, { ERPX_PUBLIC_ORIGIN: 'https://foreign.invalid' }, { ERPX_PUBLIC_ORIGIN: 'https://console-dev-erpx.jesadakorn.com/other' }, { ERPX_PRODUCT_ROUTING: 'disabled' }, { ERPX_PRODUCT_SSO: 'disabled' }])
     expect(consoleWorkspaceCutoverBlockers(appIds, { ...environment, ...patch }).length).toBeGreaterThan(0);
 });
@@ -92,6 +92,19 @@ it('launches the stable Apps host and process identity from its launcher directo
     await writeFile(join(root,'node_modules/next/package.json'),JSON.stringify({name:'next',type:'commonjs'}));
     await writeFile(join(root,'node_modules/next/dist/bin/next'),`const{createServer}=require('node:http'),{join}=require('node:path'),{existsSync}=require('node:fs');if(process.env.ERPX_APP_ID!=='apps'||process.argv[3]!==join(process.cwd(),'apps/launcher')||!existsSync(process.argv[3]))process.exit(2);createServer((req,res)=>{res.setHeader('X-ERPX-App','apps');res.end('apps');}).listen(Number(process.env.ERPX_APP_PORT),'127.0.0.1');`);
     gateway=await startWorkspaceGateway({root,node:process.execPath,port:3104,preview:false,fallback:null,appPorts:new Map([['apps',3292]]),environment:{NODE_ENV:'development',PATH:process.env.PATH},settings:()=>({version:1,activeApps:['apps'],maxApps:1,idleMinutes:10,bundlers:{},defaultBundler:'turbopack'})});
+    // Rejection precedes both application startup and compatibility fallback.
+    for (const host of ['work-dev-erpx.jesadakorn.com', 'work-dev-erpx.jesadakorn.com.', 'work-dev-erpx.jesadakorn.com:443', 'WORK-dev-erpx.jesadakorn.com', 'unknown-dev-erpx.jesadakorn.com']) {
+      expect(await get(3104, host)).toEqual({ status: 404, body: 'Not Found\n' });
+      const upgrade = await new Promise<string>((done, reject) => {
+        const socket = connect(3104, '127.0.0.1'); let body = '';
+        socket.on('connect', () => socket.write(`GET /_next/hmr HTTP/1.1\r\nHost: ${host}\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n`));
+        socket.on('data', chunk => body += chunk); socket.on('end', () => done(body)); socket.on('error', reject);
+      });
+      expect(upgrade).toContain('HTTP/1.1 404 Not Found');
+    }
+    expect(JSON.parse(await readFile(gateway.leasePath, 'utf8')).apps).toEqual([]);
+    expect(appDefinition('apps').port).toBe(3216);
+    expect(() => appDefinition('work')).toThrow('UNKNOWN_APP:work');
     expect(await get(3104,new URL(appDefinition('apps').origin).host)).toEqual({status:200,body:'apps'});
     const lease=JSON.parse(await readFile(gateway.leasePath,'utf8'));expect(lease.apps[0].id).toBe('apps');expect(lease.apps[0].identity.command).toContain(root+'/apps/launcher ');
   }finally{await gateway?.close();await rm(root,{recursive:true,force:true});}
@@ -215,7 +228,7 @@ function compiledRouting(){
 }
 it('requires complete unique compiled app routing and rejects reserved ports before listening',async()=>{
  const {validateCompiledRouting,startCompiledWorkspaceGateway}=await import('../../../scripts/local/compiled-workspace-gateway');
- const routing=compiledRouting();expect(Object.keys(validateCompiledRouting(routing).ports)).toHaveLength(22);
+ const routing=compiledRouting();expect(Object.keys(validateCompiledRouting(routing).ports)).toHaveLength(21);
  expect(()=>validateCompiledRouting({...routing,ports:{...routing.ports,finance:3000}})).toThrow('INVALID_COMPILED_APP_PORT');
  expect(()=>validateCompiledRouting({...routing,hosts:{...routing.hosts,'outside.invalid':'compat'}})).toThrow('INVALID_COMPILED_HOST');
  expect(()=>validateCompiledRouting({...routing,hosts:{}})).toThrow('EXACT_COMPILED_ROUTING_REQUIRED');

@@ -75,6 +75,7 @@
     "./adapters/staff-api": "./src/adapters/staff-api.ts",
     "./adapters/front-quick-access": "./src/adapters/front-quick-access.ts",
     "./adapters/identity-access-verified-context-projections": "./src/adapters/identity-access-verified-context-projections.ts",
+    "./adapters/account-switcher": "./src/adapters/account-switcher.ts",
     "./adapters/app-executive-cache-source": "./src/adapters/app-executive-cache-source.ts",
     "./adapters/work-cache": "./src/adapters/work-cache.ts",
     "./public/calendar-reminders-facts": "./src/public/calendar-reminders-facts.ts",
@@ -151,6 +152,7 @@
     "./public/front-quick-access": "./src/public/front-quick-access.ts",
     "./public/work-cards": "./src/public/work-cards.ts",
     "./public/identity-access-verified-context-projections": "./src/public/identity-access-verified-context-projections.ts",
+    "./public/account-switcher": "./src/public/account-switcher.ts",
     "./public/app-executive-cache-source": "./src/public/app-executive-cache-source.ts",
     "./public/work-cache": "./src/public/work-cache.ts",
     "./index": "./src/index.ts",
@@ -275,10 +277,10 @@
     "@erpx/server-support": "workspace:*",
     "@erpx/server-talent": "workspace:*",
     "@erpx/server-workflow": "workspace:*",
-    "next": "16.4.0",
-    "react": "19.3.0",
+    "next": "16.4.3",
+    "react": "19.3.1",
     "server-only": "0.0.1",
-    "sharp": "0.35.4",
-    "zod": "4.5.4"
+    "sharp": "0.35.5",
+    "zod": "4.6.7"
   }
 }

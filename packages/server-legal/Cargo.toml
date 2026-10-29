@@ -1,0 +1,143 @@
+[package]
+name = "erpx-server-legal"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+autotests = false
+
+[package.metadata.erpx]
+verification-roots = ["licenses", "../../fixtures/legal/pdf-signatures", "../../fixtures/legal/documents", "../../tests/support/legal"]
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "erpx-validate-pdf"
+path = "src/main.rs"
+required-features = ["pdf-verifier"]
+
+[[bin]]
+name = "erpx-extract-document"
+path = "src/adapters/document_cli.rs"
+required-features = ["document-provider"]
+
+[features]
+default = []
+trust-materials = ["dep:x509-cert", "dep:der", "dep:const-oid", "dep:hex", "dep:base64"]
+pdf-verifier = ["trust-materials", "dep:roxmltree", "dep:openssl", "dep:lopdf", "dep:cms", "dep:der", "dep:x509-cert", "dep:x509-tsp", "dep:x509-ocsp", "dep:const-oid", "dep:hex", "dep:tokio", "dep:tempfile", "dep:nix", "dep:sysinfo"]
+vendored-openssl = ["pdf-verifier", "openssl/vendored"]
+document-provider = ["dep:docx-rs", "dep:zip", "dep:roxmltree", "dep:hex", "dep:tokio", "dep:tempfile", "dep:nix", "dep:rustix", "dep:sysinfo"]
+
+[dependencies]
+docx-rs = { workspace = true, optional = true }
+zip = { workspace = true, optional = true }
+erpx-server-runtime.workspace = true
+sqlx.workspace = true
+url.workspace = true
+base64 = { workspace = true, optional = true }
+roxmltree = { workspace = true, optional = true }
+openssl = { workspace = true, optional = true }
+lopdf = { workspace = true, optional = true }
+cms = { workspace = true, optional = true }
+der = { workspace = true, optional = true }
+x509-cert = { workspace = true, optional = true }
+x509-tsp = { workspace = true, optional = true }
+x509-ocsp = { workspace = true, optional = true }
+const-oid = { workspace = true, optional = true }
+sha2.workspace = true
+hex = { workspace = true, optional = true }
+serde.workspace = true
+serde_json.workspace = true
+time.workspace = true
+tokio = { workspace = true, optional = true }
+tempfile = { workspace = true, optional = true }
+erpx-server-shared.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+uuid.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+nix = { workspace = true, optional = true }
+rustix = { workspace = true, optional = true }
+
+[[test]]
+name = "pdf_validation"
+path = "../../tests/unit/legal/rust-pdf-validation.test.rs"
+required-features = ["pdf-verifier"]
+
+[[test]]
+name = "pdf_process"
+path = "../../tests/unit/legal/rust-pdf-process.test.rs"
+required-features = ["pdf-verifier"]
+
+[target.'cfg(target_os = "macos")'.dependencies]
+sysinfo = { workspace = true, optional = true }
+
+[[test]]
+name = "trust_management"
+path = "../../tests/unit/legal/rust-trust-management.test.rs"
+required-features = ["trust-materials"]
+
+[[test]]
+name = "trust_postgres"
+path = "../../tests/integration/legal/rust-trust-postgres.test.rs"
+required-features = ["trust-materials"]
+
+[[test]]
+name = "pdf_verification_postgres"
+path = "../../tests/integration/legal/rust-pdf-verification-postgres.test.rs"
+required-features = ["pdf-verifier"]
+
+[lints]
+workspace = true
+
+[[test]]
+name = "processing"
+path = "../../tests/unit/legal/rust-processing.test.rs"
+
+[[test]]
+name = "processing_postgres"
+path = "../../tests/integration/legal/rust-processing-postgres.test.rs"
+
+[[test]]
+name = "document_extraction"
+path = "../../tests/unit/legal/rust-document-extraction.test.rs"
+
+[[test]]
+name = "docx_extraction"
+path = "../../tests/unit/legal/rust-docx-extraction.test.rs"
+required-features = ["document-provider"]
+
+[[test]]
+name = "document_process"
+path = "../../tests/unit/legal/rust-document-process.test.rs"
+required-features = ["document-provider"]
+
+[[test]]
+name = "document_provider"
+path = "../../tests/provider/legal/rust-document-provider.test.rs"
+required-features = ["document-provider"]
+
+[[test]]
+name = "record_policy"
+path = "../../tests/unit/legal/rust-record-policy.test.rs"
+
+[[test]]
+name = "record_policy_postgres"
+path = "../../tests/integration/legal/rust-record-policy-postgres.test.rs"
+
+[[test]]
+name = "document_processing"
+path = "../../tests/unit/legal/rust-document-processing.test.rs"
+
+[[test]]
+name = "document_processing_postgres"
+path = "../../tests/integration/legal/rust-document-processing-postgres.test.rs"
+required-features = ["document-provider"]
+
+[[test]]
+name = "processing_maintenance_postgres"
+path = "../../tests/integration/legal/rust-processing-maintenance-postgres.test.rs"

@@ -1,5 +1,7 @@
 # Product app workspaces and development verification
 
+> Current development clarification,2026-10-27: [ADR-050](ADR-050-apps-feed-and-work-retirement.md) and [ADR-051](ADR-051-holding-addresses-and-workspace-paths.md) leave21 active application workspaces plus non-product compatibility source, with three Holding hosts and central Account. Development Console returns generic404, with exact health/ready reads through Account. Earlier22-app/separate-host/410 rollout text below is historical; independent app ownership and deferred full acceptance still apply.
+
 Accepted for implementation, 2026-10-22. ERPX separates the fifteen products and seven shared hosts into independent Next.js applications in a Bun workspace. A development gateway retains the existing origins and forwards to independently started app processes. Shared owner implementations retain native PostgreSQL transactions; this supersedes ADR-043's single web-runtime topology, without changing Product, Commercial Package, Module or host-bound identity semantics.
 
 Workspace contracts, owner packages and app composition roots replace application-to-application imports. Development verification selects affected dependencies, uses disposable database clones from content-addressed templates and records development-only observations. Full acceptance is exclusively an explicitly invoked pre-production operation: development, PRs, merges and scheduled jobs must not invoke it. Historical receipts remain bound to their original inputs.

@@ -113,3 +113,42 @@ export function organizationContextFor(
     directory: data,
   };
 }
+
+/** Summaries use the same permitted, projected directory as the position rows. */
+export function organizationUnitOverview(
+  data: HoldingPeopleDirectory,
+  selection: OrganizationSelection,
+  archived = false,
+) {
+  const context = organizationContextFor(data, selection);
+  const occupied = new Set(data.people.map(person => person.positionId).filter(Boolean));
+  const positions = context.positions.filter(position => !archived || occupied.has(position.id));
+  const companyId = context.company?.id;
+  const descendantIds = descendants(data, selection.id);
+  const hasUnitParent = (parentId: string | null) => data.nodes.some(node =>
+    node.companyId === companyId && node.id === parentId && ["department", "team"].includes(node.kind),
+  );
+  const children = data.nodes.filter(node => node.companyId === companyId && (
+    selection.kind === "company"
+      ? node.kind === "branch" || node.kind === "headquarters" ||
+        (["department", "team"].includes(node.kind) && !node.branchId && !hasUnitParent(node.parentId))
+      : selection.kind === "branch"
+        ? ["department", "team"].includes(node.kind) &&
+          (node.parentId === selection.id || node.branchId === selection.id && !hasUnitParent(node.parentId))
+        : ["department", "team"].includes(node.kind) && node.parentId === selection.id
+  ));
+  return {
+    children: children.sort((a, b) => a.name.localeCompare(b.name)),
+    departments: data.nodes.filter(node => node.companyId === companyId && node.kind === "department" && (
+      selection.kind === "company" ||
+      selection.kind === "branch" && node.branchId === selection.id ||
+      descendantIds.has(node.id)
+    )).length,
+    positions,
+    people: context.people,
+    directPositions: positions.filter(position => !position.departmentId && (
+      selection.kind === "company" ? !position.branchId : position.branchId === selection.id
+    )),
+    loosePeople: context.people.filter(person => !person.positionId),
+  };
+}

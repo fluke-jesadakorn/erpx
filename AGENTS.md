@@ -10,11 +10,11 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # AGENTS.md
 
-ERPX is a Bun workspaces monorepo of Next.js applications rooted at this directory (rebuilt from Rust/Dioxus on 2026-09-02).
+ERPX is a Bun workspaces monorepo of Next.js applications rooted at this directory (rebuilt from Rust/Dioxus on 2026-09-02). The accepted Rust modular-monolith and domain-aligned frontend migration is recorded in `docs/adr/ADR-052-rust-backend-and-domain-aligned-frontend.md`; implementation status is explicit and foundation code is not a migrated business backend.
 
 ## Tooling
 
-Use Bun 1.4.3, Node.js 26.11.1, and Next.js 16.4 with the pinned toolchain. New standalone releases target Node.js 26.11.1; the installed private production service remains on Node.js 24.20.0 until a reviewed release is deployed. PostgreSQL 18.6, private local files and durable PostgreSQL jobs run behind Cloudflare Tunnel (ADR-024). Rust/Cargo/Dioxus/Tonic/SQLx are no longer part of this branch — full Rust source is archived on `backup/rust-2026-09-02` tag `rust-archive-2026-09-02` and baseline `cc0887d` per the recovery references in `README.md`.
+Use Bun 1.4.3, Node.js 26.11.1, Next.js 16.4 and the Rust toolchain pinned by `rust-toolchain.toml`. New standalone releases target Node.js 26.11.1; the installed private production service remains on Node.js 24.20.0 until a reviewed release is deployed. PostgreSQL 18.6, private local files and durable PostgreSQL jobs run behind Cloudflare Tunnel (ADR-024). ADR-052 introduces the new Cargo workspace incrementally; the migration register, rather than scaffold existence, identifies completed owners. The earlier Rust/Dioxus/Tonic system remains archived on `backup/rust-2026-09-02` tag `rust-archive-2026-09-02` and baseline `cc0887d` per the recovery references in `README.md`; do not restore its obsolete runtime or schema.
 
 ```bash
 bun --version  # 1.4.3
@@ -42,7 +42,7 @@ Long forms opened from the current page must use a right drawer, not a centered 
 
 Ports `3000`, `3001`, and `8080` are reserved for other projects. Never start ERPX or any ERPX helper service on those ports, and never stop the processes using them.
 
-- Next.js development: `3100` → `https://console-dev-erpx.jesadakorn.com`
+- Next.js development: `3100` → registered Holding hosts, for example `https://acme.jesadakorn.com`
 - Staging standalone: `3103` → `https://erpx.jesadakorn.com`
 - Private production standalone: `3101` (loopback only)
 - Shared PostgreSQL 18.6: `5432` (dev `erpx_dev_*`, private production `erpx_*`, staging `erpx_stage_*` databases)
@@ -52,7 +52,7 @@ Check that the intended port is available before starting a service. Reuse an ex
 
 ## Required end-of-work environment availability
 
-Use `https://apps-dev-erpx.jesadakorn.com/` and the owned product hosts for development work and normal Account SSO. The user-authorized development Console cutover is active: `https://console-dev-erpx.jesadakorn.com/` and local gateway Console pages/APIs return a generic404 without Console branding or a migration page; exact health/ready reads remain200 through Account. The shared gateway remains at `http://127.0.0.1:3100`. Keep the installed production web/jobs service on `3101` private and the shared PostgreSQL service on `5432` available. Do not restart the retired `5433`/`5435` clusters during normal work.
+Use exact registered Holding hosts (`acme.jesadakorn.com`, `northstar.jesadakorn.com`, `erpx-internal.jesadakorn.com`) and central `account-dev-erpx.jesadakorn.com` for development work and normal SSO. Former app hosts, including Apps, return generic404 without business aliases. The Holding owns the host; app, branch and department use paths. See `ops/macos/holding-development.md`. The user-authorized development Console cutover is active: `https://console-dev-erpx.jesadakorn.com/` and local gateway Console pages/APIs return a generic404 without Console branding or a migration page; exact health/ready reads remain200 through Account. The shared gateway remains at `http://127.0.0.1:3100`. Keep the installed production web/jobs service on `3101` private and the shared PostgreSQL service on `5432` available. Do not restart the retired `5433`/`5435` clusters during normal work.
 
 Do not touch staging unless the user explicitly instructs you to do so. This includes staging browser visits, health checks, deployments, builds in staging directories, migrations, configuration or route changes, and starting, stopping, or restarting staging services. Staging uses port `3103`, `https://erpx.jesadakorn.com`, `https://console-erpx.jesadakorn.com`, and `erpx_stage_*` databases. Routine development work and end-of-work verification do not authorize staging access.
 
@@ -60,14 +60,14 @@ Do not touch staging unless the user explicitly instructs you to do so. This inc
 - After completing work and verification, leave `bun run dev` running on `3100` in a detached background process that survives the command/task ending. Use pinned Node 26.11.1 and Bun 1.4.3. Keep logs and PID information under ignored `.scratch/dev/`; never print secrets from logs.
 - If a build, configuration change, or verification requires stopping dev, restart it before finishing. Do not run a build against the same Next output directory while dev is using it; use the isolated release build or stop and restore dev.
 - Start and verify the authorized environment locally before changing its Cloudflare routes. Preserve other Tunnel routes and services; staging route changes require an explicit user instruction.
-- Before the final response, verify HTTP 200 from `http://127.0.0.1:3100/api/health`, `https://console-dev-erpx.jesadakorn.com/api/health`, and the private production service at `http://127.0.0.1:3101/api/health`. Also inspect the affected owned product/Apps page and the retired Console404 response through their public development URLs. Check staging health and pages only when the user explicitly requests staging work.
+- Before the final response, verify HTTP 200 from `http://127.0.0.1:3100/api/health`, `https://console-dev-erpx.jesadakorn.com/api/health`, and the private production service at `http://127.0.0.1:3101/api/health`. Also inspect the affected Holding app page and the retired Console404 response through their public development URLs. Check staging health and pages only when the user explicitly requests staging work.
 - For UI work, inspect the actual browser page and confirm the requested appearance/behavior. Health checks alone do not establish completion. Use the user's existing authenticated session when available; never bypass authentication. Report explicitly if login prevents verification.
 - Recheck the listener and HTTP response after the startup command has returned, so an initial startup message is not mistaken for a persistent server.
 - On 502, 404, or other failures, inspect relevant logs and fix the issue before claiming success. If blocked, state exactly what remains unverified or broken. Include the public URL and actual verification results in the final response.
 
 This is an end-of-work availability requirement, not an uptime guarantee or an instruction to install an automatic boot service.
 
-Env `.env/.env.local` ignored (see `.env.example`). Legacy `.runtime/target/.cargo` not used — see `backup`. Keep `.env/node_modules/.next/out` out of Git; no secrets; no Cargo without ADR.
+Env `.env/.env.local` ignored (see `.env.example`). Legacy `.runtime/target/.cargo` not used — see `backup`. Keep `.env/node_modules/.next/out` and Cargo build output out of Git; no secrets. Rust workspace changes follow ADR-052; archived Rust recovery is reference material, not the current schema or runtime.
 
 Development browser login credentials are stored locally in ignored `.scratch/dev/credentials/console-dev.json` (mode `0600`). The user authorized saving and reusing this account for `https://console-dev-erpx.jesadakorn.com` without asking again. Use the normal sign-in flow; never print, commit, or copy these credentials to another environment.
 
@@ -75,8 +75,8 @@ Development browser login credentials are stored locally in ignored `.scratch/de
 
 > Map: `docs/TOC.md` (single hub).
 
-- `apps/<id>/src/app/` owns each Next app's routes/layouts/config/generated types and output. Never import another app's implementation. `apps/compat/` retains non-product compatibility source; the retired development Console cannot route business requests to it, and product apps must not use it as a backend. Apps keeps the stable `apps` host/CLI identity in `apps/launcher/`.
-- `packages/` contains explicit contract, UI, feature and server-owner subpaths; business owner code remains in `packages/server-<owner>/src/{domain,application,adapters,public}`. Keep client/server boundaries and assemble typed owner ports at composition roots. `src/workers/` owns the single jobs runtime; `public/` holds shared static assets.
+- `apps/<id>/src/app/` owns each Next app's routes/layouts/config/generated types and output. Never import another app's implementation. `apps/compat/` retains non-product compatibility source; the retired development Console cannot route business requests to it, and product apps must not use it as a backend. Apps keeps the stable `apps` app/CLI identity in `apps/launcher/`.
+- `packages/` contains explicit contract, UI, feature and server-owner subpaths; business owner code remains in `packages/server-<owner>/src/{domain,application,adapters,public}`. Keep client/server boundaries and assemble typed owner ports in the Rust `src/composition/` service crate. Runtime infrastructure stays in `server-runtime` without importing business owners. `src/workers/` retains the TypeScript jobs runtime until its Rust replacement passes migration gates; `public/` holds shared static assets.
 - `bun run dev` runs the host gateway on3100 and opens apps on demand; `bun run dev -- --app=finance` prewarms one. Only3200–3299 may be used by owned app processes. Development verification and smoke receipts are never acceptance. Full acceptance is deferred during this migration and is an intentional clean-candidate production preparation command only; never invoke it from daily CI, merge hooks or schedules.
 - Browser workspace aliases always resolve into the owned case. Turbopack vendor dependencies must also resolve within that case root; clone them rather than broadening the root to another case. Webpack may share the immutable vendor installation. Retain declared app startup logs before disposable-case cleanup, with private permissions and no auth/config-file collection.
 - `migrations/postgres/` active schema tracks; `ops/macos/` native deployment; remaining Wrangler/D1 fixtures serve the historical E2E adapter. Removed Workers/OpenNext tooling is recoverable through `README.md#recovery`.

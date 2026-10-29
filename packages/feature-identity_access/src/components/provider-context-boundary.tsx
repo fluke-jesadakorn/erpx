@@ -1,4 +1,5 @@
 'use client';
+import {holdingFetch} from '@erpx/contracts/holding-fetch';
 import {createContext,useContext,useEffect,useState,useSyncExternalStore} from 'react';
 import {Button} from '@erpx/ui/components/foundation';
 import {InlineNotice} from '@erpx/ui/components/patterns';
@@ -9,7 +10,7 @@ import type {ProviderContextSeed} from '@erpx/feature-identity_access/lib/provid
 import {useAccountPreferences} from '@erpx/feature-identity_access/components/account-preferences-context';
 const Context=createContext<{state:ProviderContextState;select:(id:string)=>Promise<boolean>}|null>(null);
 async function parsed(response:Response){const body=await response.json();if(!response.ok)throw Object.assign(Error(body?.error?.message??'The Platform context could not be read.'),{status:response.status});return body?.data;}
-function model(initial:ProviderContextSeed){return createProviderContextClient(initial,{read:signal=>fetch(`/api/v1/platform/context?accountKey=${encodeURIComponent(initial.accountKey)}`,{cache:'no-store',signal}).then(parsed),write:(input,key,signal)=>fetch('/api/v1/platform/context',{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':key},body:JSON.stringify(input),signal}).then(parsed),key:()=>crypto.randomUUID(),generation:contextGeneration});}
+function model(initial:ProviderContextSeed){return createProviderContextClient(initial,{read:signal=>holdingFetch(`/api/v1/platform/context?accountKey=${encodeURIComponent(initial.accountKey)}`,{cache:'no-store',signal}).then(parsed),write:(input,key,signal)=>holdingFetch('/api/v1/platform/context',{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':key},body:JSON.stringify(input),signal}).then(parsed),key:()=>crypto.randomUUID(),generation:contextGeneration});}
 export function ProviderContextBoundary({initial,children}:{initial:ProviderContextSeed;children:React.ReactNode}){
  const th=useAccountPreferences()?.preference?.language==='th',t=(thai:string,en:string)=>th?thai:en;
  const {switchContext}=useContextSwitch(),[holder,setHolder]=useState(()=>({key:initial.accountKey,client:model(initial)}));

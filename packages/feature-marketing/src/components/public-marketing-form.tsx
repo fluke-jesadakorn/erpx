@@ -1,4 +1,5 @@
 "use client";
+import {holdingFetch} from '@erpx/contracts/holding-fetch';
 import { InlineNotice } from "@erpx/ui/components/foundation";
 
 import { Button, Field, TextArea, TextInput } from "@erpx/ui/components/foundation";
@@ -29,7 +30,7 @@ export function PublicMarketingForm({
     if(!current(attempt)){setError('Return to the original form and account context before retrying.');return;}
     pending.current=true;setBusy(true);setError('');setSaved('');
     try{
-      await command.current.execute(attempt,captured=>fetch(`/api/public/marketing/${encodeURIComponent(holdingSlug)}/${encodeURIComponent(formId)}`,{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':captured.key},body:captured.body}),()=>current(attempt));
+      await command.current.execute(attempt,captured=>holdingFetch(`/api/public/marketing/${encodeURIComponent(holdingSlug)}/${encodeURIComponent(formId)}`,{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':captured.key},body:captured.body}),()=>current(attempt));
       if(!current(attempt))return;
       setUncertain(false);const captured=completions.current.get(attempt.key),unchanged=publicMarketingAcknowledgementCurrent(attempt,currentContext.current,contextGeneration(),edits.current)&&captured===form.current&&captured?.isConnected;
       completions.current.delete(attempt.key);

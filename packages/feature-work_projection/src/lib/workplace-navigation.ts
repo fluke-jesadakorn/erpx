@@ -1,5 +1,5 @@
+import { presentNavigation, navigationWorkEntry } from "./navigation-presentation";
 import {destinationAvailable} from '@erpx/feature-work_projection/lib/destination-access';
-import { productOfficeNavigation } from "@erpx/feature-work_projection/lib/product-office-navigation";
 import type { ProductHostKey } from "@erpx/server-commercial/public/rules/product-registry";
 import {hasModuleAccess} from "@erpx/catalogue/module-access";
 import {destinations, parentLabels, canonicalUiHref, destinationForPath, destinationTrail, selectionForPath, sourcePath} from '@erpx/feature-work_projection/lib/destination-registry';
@@ -23,6 +23,7 @@ export type NavigationScopeKind =
 
 export type NavigationContext = {
   workspaceBase: string;
+  language?: "en" | "th";
   /** Exact server-selected product host; absent on the compatibility Console. */
   productId?: ProductHostKey;
   workViewAvailability?: WorkViewAvailability | null;
@@ -101,6 +102,8 @@ export type NavigationItem = {
   aiSupport?: AiSupport;
   /** Direct destinations nested under a sidebar module. */
   submodules?: NavigationItem[];
+  /** Explicit presentation owner, independent of URL ancestry. */
+  workEntryId?: string;
 };
 
 export type NavigationApp = {
@@ -190,15 +193,6 @@ const holdingRolesWithPayroll = new Set([
   "auditor",
 ]);
 
-function uniqueDestinations(items: NavigationItem[]) {
-  const seen = new Set<string>();
-  return items.filter((item) => {
-    if (seen.has(item.href)) return false;
-    seen.add(item.href);
-    return true;
-  });
-}
-
 export function workplaceNavigation(
   context: NavigationContext,
 ): WorkplaceNavigationModel {
@@ -243,7 +237,7 @@ export function workplaceNavigation(
         item("inbox", "Inbox", "inbox", "Workspace", "inbox"),
       ]
     : [
-        item("home", "Today", "home", "Workspace", "home", ["work", "my day", "feed", "tasks"]),
+        item("home", context.language === "th" ? "ฟีด" : "Feed", "home", "Workspace", "home", ["work", "my day", "feed", "tasks"]),
         item("work", "My work", "work", "Workspace", "work", ["actions", "approvals", "tracking", "requests", "for me"]),
         item("calendar", "Calendar", "calendar", "Workspace", "calendar", ["shifts", "leave", "appointments", "onboarding"]),
         item("inbox", "Messages", "inbox", "Workspace", "inbox", ["chat", "notifications", "teams"]),
@@ -329,9 +323,9 @@ export function workplaceNavigation(
   }
 
   const peopleItems = [
-    item("people-directory", "People", "people?view=internal", "People", "admin-people", ["employees", "staff", "profiles", "organization", "positions", "archived profiles", "roster", "shifts", "schedule", "HR settings", "leave policy", "pay groups"]),
+    item("people-directory", "Employees", "people?view=internal", "People", "admin-people", ["employees", "staff", "profiles", "organization", "positions", "archived profiles", "roster", "shifts", "schedule", "HR settings", "leave policy", "pay groups"]),
     ...(!beta && scopeKind === "holding" && (hasPermission(actor,"leave.policy.manage") || hasPermission(actor,"people.payroll.details") || (hasPermission(actor,"people.manage") && hasPermission(actor,"organization.manage"))) ? [item("people-settings", "HR settings", "people/settings", "People", "settings", ["staff levels", "leave policy", "holiday calendars", "pay groups", "templates", "lifecycle handoff"])] : []),
-    ...(!beta && hasPermission(actor,"iam.read") && scopeKind === "holding" ? [item("people-users-access", "Users & Access", "people?view=users", "People", "access", ["users", "third party", "contractor", "external organizations", "external teams", "IAM", "permissions"])] : []),
+    ...(!beta && hasPermission(actor,"people.relationships.read") && scopeKind === "holding" ? [item("people-external", "External collaborators", "people?view=external&section=users", "People", "admin-people", ["contractor", "external organizations", "external teams"]),item("people-unclassified", "Unclassified", "people?view=unclassified", "People", "admin-people", ["accounts awaiting classification"])] : []),
     ...(!beta && hasPermission(actor,"people.read") ? [item("people-evaluation", "Skills & performance", "people/evaluation", "People", "admin-people", ["evaluation", "compensation", "skills", "pay bands", "annual review"])] : []),
     ...(!beta && hasPermission(actor,"roster.read") ? [item("people-roster","Roster","people/roster","People","calendar",["staffing","leave","overtime","coverage"])] : []),
     ...(scopeKind === "holding" && !beta &&
@@ -605,6 +599,7 @@ export function workplaceNavigation(
     const technologyItems = hasPermission(actor, "iam.read") ? [
       item("technology-organization", "Organization & Access", "technology?view=organization", "Technology", "access", ["positions", "employees", "levels", "departments", "Directory", "GPO", "provisioning", "Windows policies", "mappings"]),
       item("technology-devices", "Resources", "technology?view=resources", "Technology", "technology", ["equipment", "IT preparation"]),
+      item("technology-accounts", "Accounts", "technology?view=resources&section=accounts", "Technology", "access", ["users", "invitations", "accounts"]),
       item("technology-directory", "Directory", "technology?view=directory", "Technology", "admin-iam", ["connections", "Active Directory", "Entra", "UCS", "OU", "field mappings", "verification"]),
       item("technology-settings", "Access settings", "technology?view=settings", "Technology", "access", ["custom attributes", "roles", "permissions", "access matrix", "group mappings", "reviews", "audit"]),
     ] : [];
@@ -793,7 +788,7 @@ export function workplaceNavigation(
     .filter(entry => entry.id !== "operations-pricing" || hubAccess.pricing);
   const hubEntries: NavigationItem[] = beta ? [] : [
     ...(hubAccess.today ? [{ ...item("sales-hub", "Sales", "sales", "Sales", "commerce", ["today", "follow-ups", "pipeline", "quotations", "orders"]), categoryId: "customers-sales" as const, ownerModuleId: "sales" }] : []),
-    ...(hubAccess.directory || hubAccess.support || hubAccess.contacts || hubAccess.reviews ? [{ ...item("customers-hub", "Customers", hubAccess.directory ? "customers" : hubAccess.contacts ? "customers?view=contacts" : hubAccess.support ? "customers?view=support" : "customers?view=reviews", "Customers", "parties", ["Customer 360", "prospects", "contacts", "service", "reviews"]), categoryId: "customers-sales" as const, ownerModuleId: "crm" }] : []),
+    ...(hubAccess.directory || hubAccess.support || hubAccess.contacts || hubAccess.reviews ? [{ ...item("customers-hub", "Customers", hubAccess.directory ? "customers?view=directory" : hubAccess.contacts ? "customers?view=contacts" : hubAccess.support ? "customers?view=support" : "customers?view=reviews", "Customers", "parties", ["Customer 360", "prospects", "contacts", "service", "reviews"]), categoryId: "customers-sales" as const, ownerModuleId: "crm" }] : []),
   ];
   const hubTools = beta ? [] : [
     ...(hubAccess.contacts ? [{ ...item("crm-contacts", "Prospects & contacts", "customers?view=contacts", "Customers", "parties", ["accounts", "contacts"]), categoryId: "customers-sales" as const, ownerModuleId: "crm" }] : []),
@@ -827,10 +822,6 @@ export function workplaceNavigation(
     const parent=destination.path.split('/').slice(0,-1).join('/');
     return {...(existing??item(`destination:${destination.path}`,destination.label,href,parentLabels[parent]??destination.label,'settings')),label:destination.label,href,categoryId:(['home','work','calendar','inbox'].includes(destination.path.split('/')[0])?'daily':destination.path.split('/')[0]) as NavigationItem['categoryId']};
   });
-  function withSubmodules(entry:NavigationItem){const url=new URL(entry.href,'https://navigation.invalid');if(!url.pathname.startsWith(base+'/'))return entry;const path=url.pathname.slice(base.length+1),parent=Object.hasOwn(parentLabels,path)?path:path.split('/').slice(0,-1).join('/');if(parent.split('/').length<2||parent===entry.categoryId)return entry;const children=registered.filter(child=>{const childPath=child.href.slice(base.length+1);return child.id!==entry.id&&childPath!==path&&childPath.startsWith(parent+'/')&&childPath.slice(parent.length+1).split('/').length===1;});return children.length?{...entry,submodules:uniqueDestinations(children)}:entry;}
-
-  for(const category of categories)category.apps=category.apps.map(withSubmodules);
-  for(const app of apps)app.items=app.items.map(withSubmodules);
   const work=primary.find(entry=>entry.id==='work');if(work)work.submodules=registered.filter(entry=>entry.href.startsWith(base+'/work/'));
   const model: WorkplaceNavigationModel = {
     primary,
@@ -841,7 +832,7 @@ export function workplaceNavigation(
       ...workplaceStartActions.map(action=>({...item(`start-${action.id}`,action.label,`${base}${action.path}`,"Start","work"),categoryId:"daily" as const,ownerModuleId:action.owner,objective:action.objective,aiSupport:"prepare" as const}))]),
     settingsDefault: sectionWorkspaceTopics.administration.find(topic=>visibleAdminSections.includes(topic.query.section as AdminSection))?.query.section as AdminSection ?? "feedback",
   };
-  return context.productId ? productOfficeNavigation(model, context.productId) : model;
+  return presentNavigation(model, context);
 }
 
 function uniqueDestinationIds(items:NavigationItem[]){const seen=new Set<string>();return items.filter(item=>!seen.has(item.id)&&!!seen.add(item.id));}
@@ -870,7 +861,18 @@ function hasApp(model: WorkplaceNavigationModel, id: string) {
   return model.apps.some((entry) => entry.id === id);
 }
 
-export function resolveNavigation(
+export function resolveNavigation(model: WorkplaceNavigationModel, base: string, pathname: string, searchParams?: SearchParamsLike): NavigationResolution {
+  const active = resolveLegacyNavigation(model, base, pathname, searchParams);
+  const query = new URLSearchParams();
+  for (const key of ['view','kind','section','tab','queue','type']) {
+    const value = searchParams?.get(key);
+    if (value) query.set(key,value);
+  }
+  const entry = navigationWorkEntry(model, base, pathname + (query.size ? "?" + query : ""));
+  return entry ? {...active, ...(model.primary.some(item=>item.id===entry.id) ? {activeId:entry.id} : {}), sidebarId:entry.id} : active;
+}
+
+function resolveLegacyNavigation(
   model: WorkplaceNavigationModel,
   base: string,
   pathname: string,
@@ -957,11 +959,14 @@ export function resolveNavigation(
     const normalized = view === "attributes" ? "settings" : view;
     const section = view === "attributes" ? "attributes" : queryValue(searchParams,"section");
     const detailLabel = normalized in technologySections ? technologySections[normalized as keyof typeof technologySections].find(item => item.id === section)?.title : undefined;
+    if (normalized === "resources" && section === "accounts") return { activeId: "technology-accounts", groupId: "technology" };
     return { activeId: ({resources:"technology-devices",directory:"technology-directory",settings:"technology-settings"} as Record<string,string>)[normalized] ?? "technology-organization", groupId:"technology", ...(detailLabel ? {detailLabel} : {}) };
   }
 
   if (route === "people") {
-    if (!second && searchParams?.get("view") === "users") return { activeId: "people-users-access", groupId: "people" };
+    if (!second && searchParams?.get("view") === "users") return { activeId: "technology-accounts", groupId: "technology" };
+    if (!second && searchParams?.get("view") === "external") return { activeId: "people-external", groupId: "people" };
+    if (!second && searchParams?.get("view") === "unclassified") return { activeId: "people-unclassified", groupId: "people" };
     if (second === "evaluation") return { activeId: "people-evaluation", groupId: "people" };
     if (second === "roster") return { activeId: model.search.some(item=>item.id==="people-roster") ? "people-roster" : "people-directory", groupId: "people" };
     if (second === "settings") {

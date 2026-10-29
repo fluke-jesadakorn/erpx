@@ -12,4 +12,8 @@ describe("Front push landing path", () => {
     expect(frontPushLandingPath({ kind: "department", holdingSlug: "acme", departmentSlug: "rooms" }, "hotel"))
       .toBe("/acme/hotel/departments/rooms/notifications");
   });
+  it('uses the app path on a registered Holding address',()=>{
+    expect(frontPushLandingPath({kind:'branch',holdingSlug:'acme',branchSlug:'bangkok'},'acme-co','pos')).toBe('/bangkok/pos/notifications');
+    expect(frontPushLandingPath({kind:'holding',holdingSlug:'acme'},'acme-co','pms')).toBe('/pms/notifications?company=acme-co');
+  });
 });

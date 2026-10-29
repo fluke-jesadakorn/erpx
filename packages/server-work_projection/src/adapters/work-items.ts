@@ -33,7 +33,10 @@ export function workSnapshotPorts(write: SqlDatabase): WorkSnapshotPorts {
                 case "maintenanceWork": return (await import("@erpx/server-maintenance/public/asset-maintenance")).maintenanceWork(actor);
                 case "preventivePlanWork": return (await import("@erpx/server-maintenance/public/maintenance-preventive")).preventivePlanWork(actor);
                 case "projectHandoffWork": return (await import("@erpx/server-projects/public/project-structure")).projectHandoffWork(actor);
-                case "fieldServiceWork": return (await import("@erpx/server-field_service/public/field-service")).fieldServiceWork(actor);
+                case "fieldServiceWork": {
+                    const native=await (await import("@erpx/server-field_service/public/native-work")).nativeServiceWork(actor);
+                    return native?.data ?? (await import("@erpx/server-field_service/public/field-service")).fieldServiceWork(actor);
+                }
                 case "collaborationActionWork": return (await import("@erpx/server-collaboration/public/collaboration-work")).collaborationActionWork(actor);
                 case "operationsExceptionWork": return (await import("@erpx/server-operations/public/operations-exceptions")).operationsExceptionWork(actor);
                 case "learningWork": return (await import("@erpx/server-learning/public/learning")).learningWork(actor);
@@ -62,10 +65,9 @@ export function workSnapshotPorts(write: SqlDatabase): WorkSnapshotPorts {
                 case "peopleLifecycleWork": return (await import("@erpx/server-people_payroll/public/people-lifecycle")).peopleLifecycleWork(write, actor);
                 case "otherFlowWork": return (await import("@erpx/server-workflow/public/flow-work")).otherFlowWork(actor);
             }
-        }, domain: (actor, source) => getDomainWork(actor, source), leave: actor => getWork(actor.holdingId, actor), enrich: (actor, items) => enrichFlowWork(actor, items), enabledModules: async (actor) => (await import("@erpx/server-pms/public/feature-availability")).enabledProductionModules(write, actor.companyId), production: () => process.env.NODE_ENV === 'production', monotonic: () => performance.now(), performanceLog: () => process.env.ERPX_PERF_LOG === '1', errorStatus: error => error instanceof ApiError ? error.status : undefined, info: value => console.info(value), warn: (...values) => console.warn(...values), cached: (actor, load) => cachedWorkSnapshot(actor, write, load)
+        }, domain: (actor, source) => getDomainWork(actor, source), leave: actor => getWork(actor.holdingId, actor), enrich: (actor, items) => enrichFlowWork(actor, items), enabledModules: async (actor) => (await import("@erpx/server-pms/public/feature-availability")).enabledProductionModules(write, actor.companyId), production: () => process.env.NODE_ENV === 'production', monotonic: () => performance.now(), performanceLog: () => process.env.ERPX_PERF_LOG === '1', errorStatus: error => error instanceof ApiError ? error.status : undefined, info: value => console.info(value), warn: (...values) => console.warn(...values), cached: (actor, load) => process.env.ERPX_NATIVE_FIELD_SERVICE_WORK_CONFIG === undefined ? cachedWorkSnapshot(actor, write, load) : load()
     };
 }
 export async function readWorkSnapshot(actor: WorkContext): Promise<WorkSnapshot> { const { write } = await holdingResources(actor.holdingId); return createWorkSnapshot(workSnapshotPorts(write)).readWorkSnapshot(actor); }
-export async function workSnapshot(actor: WorkContext): Promise<WorkSnapshot> { const { write } = await holdingResources(actor.holdingId); return cachedWorkSnapshot(actor, write, async () => { const measured = await measureReads(() => withPolicyReadSnapshot(() => createWorkSnapshot(workSnapshotPorts(write)).readWorkSnapshot(actor))); if (process.env.ERPX_PERF_LOG === '1')
-    console.info(JSON.stringify({ event: 'work_snapshot', ...measured.metrics, items: measured.result.items.length })); return measured.result; }); }
+export async function workSnapshot(actor: WorkContext): Promise<WorkSnapshot> { const { write } = await holdingResources(actor.holdingId); const load=async () => { const measured = await measureReads(() => withPolicyReadSnapshot(() => createWorkSnapshot(workSnapshotPorts(write)).readWorkSnapshot(actor))); if (process.env.ERPX_PERF_LOG === '1') console.info(JSON.stringify({ event: "work_snapshot", ...measured.metrics, items: measured.result.items.length })); return measured.result; }; return process.env.ERPX_NATIVE_FIELD_SERVICE_WORK_CONFIG === undefined ? cachedWorkSnapshot(actor,write,load) : load(); }
 export async function workItems(actor: WorkContext) { return (await workSnapshot(actor)).items; }

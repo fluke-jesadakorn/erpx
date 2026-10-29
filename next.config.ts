@@ -32,6 +32,7 @@ const nextConfig: NextConfig = {
   // Compile/runtime errors still appear without the floating dev indicator.
   devIndicators: false,
   experimental: {
+    agentUpgrade: "security",
     authInterrupts: true,
     // Shared record readers add server entry points; reduce Webpack graph memory.
     webpackMemoryOptimizations: true,

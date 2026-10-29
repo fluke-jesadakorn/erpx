@@ -3,7 +3,7 @@ import { createHmac } from "node:crypto";
 import { hashPassword } from "better-auth/crypto";
 import { env, applyMigrations } from "../../support/runtime-env";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
-import { peopleAccessSnapshot, previewPeopleAccess, applyPeopleAccess } from "@erpx/server-identity_access/public/people-access";
+import { peopleRelationshipsSnapshot, previewPeopleRelationships, applyPeopleRelationships, peopleAccessSnapshot, previewPeopleAccess, applyPeopleAccess } from "@erpx/server-identity_access/public/people-access";
 import { acceptInvitation } from "@erpx/server-identity_access/public/account-access";
 import { loadIamAuthority, iamRole } from "@erpx/server-identity_access/public/iam-store";
 import { selectWorkRole } from "@erpx/server-work_projection/public/work-role-store";
@@ -117,4 +117,84 @@ it("cannot grant oneself, publish ownership, or change a role already assigned t
   await expect(previewPeopleAccess(db,f.it,{operation:"role",name:"Ownership",permissions:["company.owner"],scopes:["holding"],expectedVersion:0,reason:"Unauthorized role"})).rejects.toMatchObject({code:"DELEGATION_EXCEEDED"});
   await db.prepare("INSERT INTO assignments(id,user_id,role,company_id,scope_kind,scope_node_id,modules_json,valid_from,valid_until) VALUES(?,?,?,?,'department',?,'[]',0,?)").bind(key(),f.it.userId,f.role.id,f.company,f.department,Date.now()+86400000).run();
   await expect(previewPeopleAccess(db,f.it,{operation:"role",id:f.role.id,name:"Changed role",permissions:["iam.self"],scopes:["department"],expectedVersion:1,reason:"Indirect self change"})).rejects.toMatchObject({code:"SELF_ACCESS_CHANGE"});
+});
+
+it("HR manages only Company relationships, without receiving grants or Directory configuration",async()=>{
+ const f=await fixture(),before=(await db.prepare("SELECT id,version,valid_until,revoked_at FROM assignments WHERE company_id=? ORDER BY id").bind(f.company).all()).results;
+ const data=await peopleRelationshipsSnapshot(db,f.hr);
+ expect(data.canManage).toBe(true);
+ for(const key of ["roles","permissions","assignments","connections","authorizingUntil"])expect(data).not.toHaveProperty(key);
+ const change={operation:"organization" as const,name:"HR partner",kind:"organization" as const,expectedVersion:0,reason:"HR relationship maintenance"};
+ const preview=await previewPeopleRelationships(db,f.hr,change),commandKey=key();
+ const applied=await applyPeopleRelationships(db,f.hr,preview.token,commandKey);
+ expect(await applyPeopleRelationships(db,f.hr,preview.token,commandKey)).toEqual(applied);
+ for(const change of [{operation:"account",name:"Denied account",email:"denied@example.invalid",reason:"Unauthorized account"},{operation:"role",name:"Denied role",permissions:["iam.self"],scopes:["department"],expectedVersion:0,reason:"Unauthorized role"},{operation:"grant",subjectId:f.subject.id,roleId:f.role.id,scopeKind:"department",scopeNodeId:f.department,validUntil:Date.now()+100000,reason:"Unauthorized grant"}])await expect(previewPeopleRelationships(db,f.hr,change)).rejects.toMatchObject({code:"RELATIONSHIP_COMMAND_REQUIRED"});
+ await expect(previewPeopleAccess(db,f.hr,change)).rejects.toMatchObject({status:403});
+ await expect(peopleRelationshipsSnapshot(db,{...f.hr,scopeKind:"branch",branchId:f.branch,scopeNodeId:f.branch})).rejects.toMatchObject({code:"COMPANY_SCOPE_REQUIRED"});
+ const other=await fixture();await expect(previewPeopleRelationships(db,f.hr,{...change,operation:"team",organizationId:other.organization.id,departmentId:f.department})).rejects.toMatchObject({status:404});
+ const forged=key();await db.prepare("INSERT INTO iam_access_previews VALUES(?,?,?,?,?,?,?,?)").bind(forged,f.company,f.hr.userId,f.hr.assignmentId,f.hr.sessionId,JSON.stringify({operation:"role",name:"Denied role",permissions:["iam.self"],scopes:["department"],expectedVersion:0,reason:"Forged role change"}),"unused",Date.now()+100000).run();
+ await expect(applyPeopleRelationships(db,f.hr,forged,key())).rejects.toMatchObject({code:"RELATIONSHIP_COMMAND_REQUIRED"});
+ expect((await db.prepare("SELECT id,version,valid_until,revoked_at FROM assignments WHERE company_id=? ORDER BY id").bind(f.company).all()).results).toEqual(before);
+});
+it("IT prepares and activates an unclassified account before any HR record or position",async()=>{
+ const f=await fixture(),email=`${key()}@example.invalid`;
+ const account=await f.apply({operation:"account",name:"IT first account",email,reason:"Account before employment"});
+ let subject=(await peopleAccessSnapshot(db,f.it)).subjects.find(s=>s.id===account.id)!;
+ expect(subject).toMatchObject({classification:"unclassified",kind:"unclassified",personId:null,userId:null});
+ const result=await f.apply({operation:"invite",subjectId:account.id,roleId:f.role.id,scopeKind:"department",scopeNodeId:f.department,validUntil:Date.now()+86400000,reason:"Separate account invitation"});
+ if(!("invitationId" in result)||!result.invitationId)throw Error("INVITATION_EXPECTED");
+ const token=createHmac("sha256",env.BETTER_AUTH_SECRET).update(`invitation:${result.invitationId}`).digest("hex");
+ await acceptInvitation({token,password:"Test-only-unclassified-account-123!"});
+ subject=(await peopleRelationshipsSnapshot(db,f.hr)).subjects.find(s=>s.id===account.id)!;
+ expect(subject).toMatchObject({classification:"unclassified",personId:null,accountSource:"local"});
+ expect(subject.userId).toBeTruthy();expect(await db.prepare("SELECT id FROM hr_people WHERE user_id=?").bind(subject.userId).first()).toBeNull();
+ expect((await db.prepare("SELECT iam_assignment_active(?,?) ok").bind(result.assignmentId,Date.now()).first<{ok:boolean}>())?.ok).toBe(true);
+ const before=(await db.prepare("SELECT id,version,valid_until,revoked_at FROM assignments WHERE company_id=? ORDER BY id").bind(f.company).all()).results;
+ const preview=await previewPeopleRelationships(db,f.hr,{operation:"subject",id:subject.id,name:subject.name,email:subject.email,expectedVersion:subject.version,organizationId:f.organization.id,teamId:f.team.id,sponsorPersonId:`person-${f.owner.userId}`,expiresAt:Date.now()-1,status:"active",reason:"Relationship ends immediately"});
+ await applyPeopleRelationships(db,f.hr,preview.token,key());
+ expect((await peopleRelationshipsSnapshot(db,f.hr)).subjects.find(s=>s.id===account.id)?.classification).toBe("external");
+ expect((await db.prepare("SELECT iam_assignment_active(?,?) ok").bind(result.assignmentId,Date.now()).first<{ok:boolean}>())?.ok).toBe(false);
+ expect((await db.prepare("SELECT id,version,valid_until,revoked_at FROM assignments WHERE company_id=? ORDER BY id").bind(f.company).all()).results).toEqual(before);
+});
+it("HR cutoff covers every verified alias and renewal preserves assignment expiry and revocation",async()=>{
+ const f=await fixture(),result=await f.apply({operation:"invite",subjectId:f.subject.id,roleId:f.role.id,scopeKind:"department",scopeNodeId:f.department,validUntil:Date.now()+86400000,reason:"Expiry verification"});
+ if(!("invitationId" in result)||!result.invitationId)throw Error("INVITATION_EXPECTED");
+ await acceptInvitation({token:createHmac("sha256",env.BETTER_AUTH_SECRET).update(`invitation:${result.invitationId}`).digest("hex"),password:"Test-only-relationship-account-123!"});
+ let subject=(await peopleRelationshipsSnapshot(db,f.hr)).subjects.find(s=>s.id===f.subject.id)!;
+ const alias=key();await db.prepare("UPDATE iam_access_subjects SET person_id=? WHERE id=?").bind(subject.id,subject.id).run();
+ await db.prepare("UPDATE iam_members SET person_id=? WHERE company_id=? AND user_id=?").bind(subject.id,f.company,subject.userId).run();
+ await db.prepare("INSERT INTO iam_members(company_id,user_id,principal_id,person_id) VALUES(?,?,?,?)").bind(f.company,alias,key(),subject.id).run();
+ expect((await peopleRelationshipsSnapshot(db,f.hr)).subjects.find(s=>s.id===subject.id)?.linkedUserIds).toEqual(expect.arrayContaining([subject.userId,alias]));
+ const edit=async(status:"active"|"suspended",expiresAt:number)=>{subject=(await peopleRelationshipsSnapshot(db,f.hr)).subjects.find(s=>s.id===subject.id)!;const preview=await previewPeopleRelationships(db,f.hr,{operation:"subject",id:subject.id,name:subject.name,email:subject.email,expectedVersion:subject.version,organizationId:f.organization.id,teamId:f.team.id,sponsorPersonId:subject.sponsorPersonId,expiresAt,status,reason:"HR relationship status"});await applyPeopleRelationships(db,f.hr,preview.token,key());};
+ const expiry=(await db.prepare("SELECT valid_until FROM assignments WHERE id=?").bind(result.assignmentId).first<{valid_until:number}>())!.valid_until;
+ await edit("suspended",Date.now()+86400000);
+ for(const userId of [subject.userId,alias])expect((await db.prepare("SELECT iam_principal_active(?,?,?) ok").bind(userId,f.company,Date.now()).first<{ok:boolean}>())?.ok).toBe(false);
+ await db.prepare("UPDATE assignments SET revoked_at=?,version=version+1 WHERE id=?").bind(Date.now(),result.assignmentId).run();
+ await edit("active",Date.now()+7*86400000);
+ expect(await db.prepare("SELECT valid_until,revoked_at FROM assignments WHERE id=?").bind(result.assignmentId).first()).toMatchObject({valid_until:expiry,revoked_at:expect.any(Number)});
+ expect((await db.prepare("SELECT iam_assignment_active(?,?) ok").bind(result.assignmentId,Date.now()).first<{ok:boolean}>())?.ok).toBe(false);
+});
+it("relationship edits cannot activate an unaccepted invitation or change one's own linked account",async()=>{
+ const f=await fixture(),result=await f.apply({operation:"invite",subjectId:f.subject.id,roleId:f.role.id,scopeKind:"department",scopeNodeId:f.department,validUntil:Date.now()+86400000,reason:"Pending identity proof"});
+ if(!("invitationId" in result)||!result.invitationId)throw Error("INVITATION_EXPECTED");
+ const subject=(await peopleRelationshipsSnapshot(db,f.hr)).subjects.find(s=>s.id===f.subject.id)!;
+ const change={operation:"subject" as const,id:subject.id,name:subject.name,email:subject.email,expectedVersion:subject.version,organizationId:f.organization.id,teamId:f.team.id,sponsorPersonId:subject.sponsorPersonId,expiresAt:subject.expiresAt,status:"active" as const,reason:"HR updates pending relationship"};
+ const preview=await previewPeopleRelationships(db,f.hr,change);await applyPeopleRelationships(db,f.hr,preview.token,key());
+ expect((await db.prepare("SELECT iam_assignment_active(?,?) ok").bind(result.assignmentId,Date.now()).first<{ok:boolean}>())?.ok).toBe(false);
+ await db.prepare("UPDATE iam_access_subjects SET person_id=? WHERE id=?").bind(`person-${f.hr.userId}`,subject.id).run();
+ await expect(previewPeopleRelationships(db,f.hr,{...change,expectedVersion:subject.version+1})).rejects.toMatchObject({code:"SELF_ACCESS_CHANGE"});
+});
+
+it("classifies one verified account independently in two Companies without colliding relationship IDs",async()=>{
+ const first=await fixture(),second=await fixture(),userId=key(),now=Date.now();
+ await env.CONTROL_DB.prepare('INSERT INTO "user"(id,name,email,"emailVerified","createdAt","updatedAt") VALUES(?,?,?,1,?,?)').bind(userId,"Shared verified account",`${userId}@example.invalid`,now,now).run();
+ for(const f of [first,second])await db.prepare("INSERT INTO iam_members(company_id,user_id,principal_id) VALUES(?,?,?)").bind(f.company,userId,key()).run();
+ const a=(await peopleRelationshipsSnapshot(db,first.hr)).subjects.find(s=>s.userId===userId)!,b=(await peopleRelationshipsSnapshot(db,second.hr)).subjects.find(s=>s.userId===userId)!;
+ expect(a.classification).toBe("unclassified");expect(b.classification).toBe("unclassified");expect(a.id).not.toBe(b.id);
+ for(const [f,subject] of [[first,a],[second,b]] as const){
+  const preview=await previewPeopleRelationships(db,f.hr,{operation:"subject",id:subject.id,name:subject.name,email:subject.email,expectedVersion:0,organizationId:f.organization.id,teamId:f.team.id,sponsorPersonId:`person-${f.owner.userId}`,expiresAt:now+86400000,status:"active",reason:"Company-specific relationship"});await applyPeopleRelationships(db,f.hr,preview.token,key());
+ }
+ expect((await peopleRelationshipsSnapshot(db,first.hr)).subjects.find(s=>s.userId===userId)).toMatchObject({classification:"external",organizationId:first.organization.id});
+ expect((await peopleRelationshipsSnapshot(db,second.hr)).subjects.find(s=>s.userId===userId)).toMatchObject({classification:"external",organizationId:second.organization.id});
+ expect((await db.prepare("SELECT count(*) count FROM assignments WHERE user_id=?").bind(userId).first<{count:number}>())?.count).toBe(0);
 });

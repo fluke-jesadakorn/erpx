@@ -1,3 +1,4 @@
+import {requestProductOrigin} from '@erpx/feature-runtime/lib/product-hosts';
 import { guestAccountUrl } from "@erpx/feature-identity_access/lib/guest-account-compat";
 import { canonicalUiHref, sourcePath } from '@erpx/feature-work_projection/lib/destination-registry';
 import { runWithRequestMemo } from "@erpx/server-runtime/public/runtime/request-memo";
@@ -6,10 +7,12 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { frontAppForHost, frontOrigin, frontVisiblePath } from "@erpx/feature-shared/lib/front-host";
 import { consoleOrigin, isMarketingHost, marketingIsIndexable, marketingOrigin } from "@erpx/feature-runtime/lib/erpx-hosts";
-import { configuredProductOrigin, productHostForHost } from "@erpx/feature-runtime/lib/product-hosts";
+import { configuredProductHandoff, configuredProductOrigin, productHostForHost } from "@erpx/feature-runtime/lib/product-hosts";
 import { productPageAllowed, productFrontBackofficeAllowed } from "@erpx/feature-runtime/lib/product-route-policy";
 import { applicationUrl } from "@erpx/feature-runtime/lib/application-origins";
 import { consoleRetirementResponse } from "@erpx/feature-runtime/lib/console-retirement";
+import {prepareHoldingRequest,finishHoldingResponse,holdingRewriteUrl} from './holding-proxy';
+import {holdingRoutingEnabled,holdingHostForHost} from '@erpx/contracts/holding-hosts';
 
 type ParsedScope = {
   holdingSlug: string;
@@ -60,7 +63,18 @@ function requestedPagePath(request: NextRequest) {
 
 // Proxy owns a separate invocation; nothing is shared with the route handler.
 // Origin/artifact guards remain fresh; byte-identical digest work is local.
-export function proxy(request: NextRequest) {
+export async function holdingAwareProxy(request:NextRequest, registeredAppsPages: readonly string[] = []){
+  const prepared=await prepareHoldingRequest(request);
+  if(prepared instanceof NextResponse)return prepared;
+  if(prepared){
+    if(request.nextUrl.pathname.startsWith('/__erpx/')&&prepared.nextUrl.pathname.startsWith('/front/'))return NextResponse.rewrite(holdingRewriteUrl(request,prepared.nextUrl.pathname),{request:{headers:prepared.headers},headers:{'Cache-Control':'private, no-store'}});
+    if(prepared.nextUrl.pathname==='/product-entry')return NextResponse.rewrite(holdingRewriteUrl(request,'/product-entry'),{request:{headers:prepared.headers}});
+    return runWithRequestMemo(()=>finishHoldingResponse(request,prepared,routeRequest(prepared, registeredAppsPages)));
+  }
+  return proxy(request, registeredAppsPages);
+}
+
+export function proxy(request: NextRequest, registeredAppsPages: readonly string[] = []) {
   const retired = consoleRetirementResponse(request);
   if (retired) return retired;
   // These paths previously bypassed Proxy through its matcher. Keep their
@@ -69,7 +83,7 @@ export function proxy(request: NextRequest) {
   if (path.startsWith("/_next/static/") || path === "/_next/static" || path === "/_next/image" || path.startsWith("/vendor/"))
     return NextResponse.next();
   return runWithRequestMemo(() => {
-    const response = routeRequest(request);
+    const response = routeRequest(request, registeredAppsPages);
     if (productHostForHost(request.headers.get("host"))) {
       response.headers.set("Cache-Control", "private, no-store");
       response.headers.set("Referrer-Policy", "no-referrer");
@@ -79,7 +93,7 @@ export function proxy(request: NextRequest) {
   });
 }
 
-function routeRequest(request: NextRequest) {
+function routeRequest(request: NextRequest, registeredAppsPages: readonly string[]) {
   const production = process.env.NODE_ENV === "production";
   const path = request.nextUrl.pathname;
   const host = request.headers.get("host") ?? new URL(request.url).host;
@@ -102,16 +116,28 @@ function routeRequest(request: NextRequest) {
       });
     }
   }
+  // Retained People bookmarks move before the source product admission gate.
+  // Only GET navigation is redirected; the destination keeps its normal SSO,
+  // selected Company and owner authorization. API/mutation routes never forward.
+  const peopleAlias = productHost === "people" && request.method === "GET"
+    ? path.match(/^(\/holdings\/[^/]+(?:\/branches\/[^/]+)?(?:\/departments\/[^/]+)?)\/(people-organization\/people\/users-access(?:\/(?:users|roles|organizations|teams))?|iam(?:\/(?:overview|users|roles|matrix|groups|reviews|connections|my-access))?|people)\/?$/)
+    : null;
+  if (peopleAlias && (peopleAlias[2] !== "people" || request.nextUrl.searchParams.get("view") === "users")) {
+    const canonical = canonicalUiHref(path + request.nextUrl.search);
+    const owner = canonical.startsWith(peopleAlias[1] + "/administration/") ? "admin" : canonical === "/my-access" ? "account" : "people";
+    const destination = owner === "people" ? new URL(canonical, requestProductOrigin("people",request.headers)!) : configuredProductHandoff(owner, canonical);
+    if (destination && canonical !== path + request.nextUrl.search) return NextResponse.redirect(destination, 307);
+  }
   if (productHost) {
-    const assets = path.startsWith("/_next/") || publicFont || path.startsWith("/brand/") || (!frontApp && path === "/manifest.webmanifest") || /^\/(?:favicon\.ico|icon\.svg|apple-icon\.png|icon-(?:192|512|maskable-512)\.png)$/.test(path);
-    if (!assets && path !== "/api/health" && path !== "/api/ready" && path !== "/robots.txt" && !productPageAllowed(productHost, path, request.method)) return new NextResponse("Not found", { status: 404 });
+    const assets = path.startsWith("/_next/") || path==='/erpx-push-sw.js' || publicFont || path.startsWith("/brand/") || (!frontApp && path === "/manifest.webmanifest") || /^\/(?:favicon\.ico|icon\.svg|apple-icon\.png|icon-(?:192|512|maskable-512)\.png)$/.test(path);
+    if (!assets && path !== "/api/health" && path !== "/api/ready" && path !== "/robots.txt" && !productPageAllowed(productHost, path, request.method, registeredAppsPages)) return new NextResponse("Not found", { status: 404 });
     // Shared product assets must not fall through to Front's operational URL parser.
     // Keep its existing favicon redirect for company-aware Front icons.
     if (assets && path !== "/favicon.ico") return NextResponse.next();
     if (path.startsWith("/sso/")) return NextResponse.next();
     if (path === "/login" && productHost !== "account") {
       if (request.method !== "GET") return new NextResponse("Method not allowed", { status: 405 });
-      const destination = new URL("/sso/start", configuredProductOrigin(productHost)!);
+      const destination = new URL("/sso/start", requestProductOrigin(productHost,request.headers)!);
       if (request.nextUrl.searchParams.has("next")) destination.searchParams.set("next", request.nextUrl.searchParams.get("next")!);
       return NextResponse.redirect(destination, 303);
     }
@@ -127,7 +153,7 @@ function routeRequest(request: NextRequest) {
       return NextResponse.redirect(new URL(canonical, request.url), 308);
   }
   if (production) {
-    const origin = productHost ? new URL(configuredProductOrigin(productHost)!) : frontApp ? frontOrigin(frontApp)! : marketing ? marketingOrigin()! : erpOrigin!;
+    const origin = productHost ? new URL(requestProductOrigin(productHost,request.headers)!) : frontApp ? frontOrigin(frontApp)! : marketing ? marketingOrigin()! : erpOrigin!;
     if (!loopbackHealth && origin.protocol === "https:" && request.headers.get("x-forwarded-proto") === "http") {
       const secure = new URL(origin);
       secure.pathname = path;
@@ -171,6 +197,9 @@ function routeRequest(request: NextRequest) {
     // Owned product handoffs use the normal host-bound launch before the
     // operational Front URL parser; legacy Front hosts gain no new entry.
     if(productHost===frontApp&&["/launch", "/choose-work-role"].includes(path))return NextResponse.next();
+    // Exact staff switcher routes have already passed productPageAllowed.
+    // They are host-owned handlers, not operational Front page segments.
+    if(productHost===frontApp&&["/account/continue", "/api/v1/account/switcher-context", "/api/v1/account/role-selection"].includes(path))return NextResponse.next();
     if(productHost===frontApp&&["/api/v1/account/work-context", "/api/v1/workspace-preference"].includes(path))return NextResponse.next();
     if (path === "/api/health" || path === "/api/ready" || path.startsWith("/_next/") || publicFont) return NextResponse.next();
     // The shared date renderer reads only the signed-in account's preference.
@@ -319,7 +348,7 @@ function routeRequest(request: NextRequest) {
       ["GET", "HEAD"].includes(request.method) && parsed.destination[0] === "support") {
     const canonical = canonicalUiHref(path + request.nextUrl.search);
     if (canonical !== path + request.nextUrl.search) {
-      const origin = productHost ? configuredProductOrigin(productHost)! : host === erpOrigin?.host ? erpOrigin.origin : new URL(request.url).origin;
+      const origin = productHost ? requestProductOrigin(productHost,request.headers)! : host === erpOrigin?.host ? erpOrigin.origin : new URL(request.url).origin;
       return NextResponse.redirect(new URL(canonical, origin), { status: 307, headers: { "Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer" } });
     }
   }
@@ -327,6 +356,7 @@ function routeRequest(request: NextRequest) {
   const headers = new Headers(request.headers);
   headers.set("x-erpx-page-path", requestedPagePath(request));
   for (const key of ["x-erpx-workspace-kind","x-erpx-branch-slug","x-erpx-department-slug","x-erpx-destination","x-erpx-api","x-erpx-method","x-erpx-front-company","x-erpx-front-app"]) headers.delete(key);
+  if(holdingRoutingEnabled(process.env)&&holdingHostForHost(host)&&request.headers.get('x-erpx-route-company'))headers.set('x-erpx-front-company',request.headers.get('x-erpx-route-company')!);
   headers.set("x-erpx-destination",(api ? parsed.destination.join('/') : sourcePath(parsed.destination.join('/'))) || "home");
   headers.set("x-erpx-api",String(api));
   headers.set("x-erpx-method",request.method);

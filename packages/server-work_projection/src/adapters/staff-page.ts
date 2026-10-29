@@ -13,7 +13,7 @@ import { ApiError } from "@erpx/server-runtime/public/http";
 import {createStaffPageService} from "@erpx/server-work_projection/application/staff-page";
 export type StaffPageOptions={routineProjects?:true;projectOptions?:'optional'};
 export async function staffPage(slug:string,options?:StaffPageOptions){let write:Awaited<ReturnType<typeof holdingResources>>["write"];
- const projectPickerStrict=!!(options?.routineProjects||options?.projectOptions==='optional')&&productHostForHost((await headers()).get('host'))==='work';
+ const projectPickerStrict=!!(options?.routineProjects||options?.projectOptions==='optional')&&productHostForHost((await headers()).get('host'))==='apps';
  const projectOptions={strictProduct:projectPickerStrict};
  const result=await createStaffPageService({actor:requireWorkContext,prepare:async actor=>{write=(await holdingResources(actor.holdingId)).write;},settings:actor=>staffSettings(write,actor),projects:actor=>options?.routineProjects?routineProjectOptions(write,actor,projectOptions):options?.projectOptions==='optional'?optionalProjectOptions(write,actor,projectOptions):listProjects(write,actor),staff:actor=>activeStaff(write,actor.companyId,actor.userId),expectedAbsence:error=>error instanceof ApiError,base:actor=>workspaceBase(publicScope(actor))})(slug);
  return {...result,write:write!,projectPickerStrict};

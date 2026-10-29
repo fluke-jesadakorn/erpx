@@ -1,0 +1,265 @@
+[package]
+name = "erpx-service"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+autotests = false
+
+[package.metadata.erpx]
+verification-roots = ["../../scripts/docs/export-directory-source-contracts.rs", "../../scripts/docs/generate-directory-source-contracts.ts", "../../packages/contracts/src/directory-source-admin.generated.ts", "../../docs/contracts/next/directory-source-admin.openapi.generated.json", "../../scripts/testing/fixtures/generate-directory-review-reason-oracle.ts", "../../tests/support/files/system-scan-facts.rs", "../../tests/support/files/files-held-tool.rs", "../../scripts/docs/export-finance-journal-read-contracts.rs", "../../scripts/docs/generate-finance-journal-read-contracts.ts", "../../packages/contracts/src/finance-journal-read.generated.ts", "../../docs/contracts/next/finance-journal-read.openapi.generated.json", "../../tests/support/finance/native-journal-client.mjs", "../../fixtures/field_service/rust-http", "../../scripts/testing/fixtures/generate-field-service-http-oracle.mjs", "../../scripts/testing/fixtures/generate-field-service-http-source-probes.mjs", "../../scripts/testing/fixtures/generate-field-service-http-schema-oracle.mjs", "../../packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/route.ts", "../../packages/server-runtime/src/adapters/http.ts", "../../packages/server-shared/src/domain/error.ts", "../../packages/server-shared/src/domain/consumption-lot.ts", "../../packages/server-field_service/src/domain/service.ts", "../../packages/server-field_service/src/application/service.ts", "../../packages/server-field_service/src/adapters/service.ts", "../../packages/server-field_service/src/adapters/purchases.ts", "../../packages/server-field_service/src/domain/package-commands.ts", "../../packages/server-workflow/src/application/commands.ts", "../../packages/server-workflow/src/domain/commands.ts", "../../packages/feature-identity_access/src/lib/guest-account-compat.ts", "../../packages/server-manage_erpx/src/adapters/public-origin.ts", "../../packages/server-manage_erpx/src/domain/public-origin.ts", "../../packages/feature-field_service/src/lib/command.ts", "../../packages/feature-work_projection/src/lib/work-fetch.ts", "../../packages/contracts/src/holding-fetch.ts"]
+
+[features]
+default = ["existing-business"]
+field-service = ["dep:erpx-server-platform-administration", "dep:erpx-server-pms", "dep:erpx-server-records", "dep:erpx-server-organization", "dep:erpx-server-quality", "dep:erpx-server-field-service", "dep:erpx-server-support", "dep:erpx-server-assets", "dep:erpx-server-collaboration", "dep:erpx-server-commerce", "dep:erpx-server-inventory", "dep:erpx-server-people-payroll", "dep:erpx-server-workflow", "dep:erpx-server-identity-access", "dep:erpx-server-files", "dep:erpx-server-finance", "dep:erpx-server-commercial"]
+field-service-http = ["field-service"]
+existing-business = ["field-service", "dep:erpx-server-organization", "dep:erpx-server-quality", "dep:erpx-server-field-service", "dep:erpx-server-support", "dep:erpx-server-assets", "dep:erpx-server-collaboration", "dep:erpx-server-commerce", "dep:erpx-server-inventory", "dep:erpx-server-maintenance", "dep:erpx-server-people-payroll", "dep:erpx-server-workflow", "dep:erpx-server-identity-access", "dep:erpx-server-legal", "dep:erpx-server-files", "dep:erpx-server-finance", "dep:erpx-server-commercial", "dep:erpx-server-platform-administration", "dep:erpx-server-pms"]
+module-example = []
+files-scan-worker = ["existing-business", "erpx-server-files/preview-provider"]
+directory-ldaps = ["existing-business", "erpx-server-identity-access/directory-ldaps"]
+contracts = ["existing-business", "dep:ts-rs", "dep:utoipa", "erpx-server-finance/contracts", "erpx-server-field-service/contracts"]
+finance-field-read = ["field-service-http"]
+private-field-api = ["finance-field-read"]
+private-development-api = ["private-field-api", "existing-business", "business-http"]
+business-http = ["existing-business", "legal-queue", "field-service-http"]
+legal-queue = ["existing-business", ]
+legal-pdf-worker = ["existing-business", "erpx-server-legal/pdf-verifier"]
+legal-document-worker = ["existing-business", "erpx-server-legal/document-provider"]
+legal-processing-worker = ["existing-business", "legal-pdf-worker","legal-document-worker"]
+
+[[bin]]
+name = "erpx-server"
+path = "src/main.rs"
+
+[dependencies]
+erpx-server-organization = { workspace = true, optional = true }
+erpx-server-quality = { workspace = true, optional = true }
+erpx-server-field-service = { workspace = true, optional = true }
+erpx-server-support = { workspace = true, optional = true }
+erpx-server-assets = { workspace = true, optional = true }
+erpx-server-collaboration = { workspace = true, optional = true }
+erpx-server-commerce = { workspace = true, optional = true }
+erpx-server-inventory = { workspace = true, optional = true }
+erpx-server-maintenance = { workspace = true, optional = true }
+ts-rs = { workspace = true, optional = true }
+utoipa = { workspace = true, optional = true }
+erpx-server-people-payroll = { workspace = true, optional = true }
+erpx-server-runtime.workspace = true
+erpx-server-workflow = { workspace = true, optional = true }
+erpx-server-shared.workspace = true
+erpx-server-identity-access = { workspace = true, optional = true }
+erpx-server-legal = { workspace = true, optional = true }
+erpx-server-files = { workspace = true, optional = true }
+erpx-server-records = { workspace = true, optional = true }
+erpx-server-finance = { workspace = true, optional = true }
+erpx-server-commercial = { workspace = true, optional = true }
+erpx-server-platform-administration = { workspace = true, optional = true }
+erpx-server-pms = { workspace = true, optional = true }
+sha2.workspace = true
+hex.workspace = true
+uuid.workspace = true
+sqlx.workspace = true
+axum.workspace = true
+tokio.workspace = true
+serde_json.workspace = true
+serde.workspace = true
+nix.workspace = true
+
+[dev-dependencies]
+tracing.workspace = true
+bytes.workspace = true
+ldap3_proto.workspace = true
+rustls.workspace = true
+tokio-rustls.workspace = true
+tokio-util.workspace = true
+tower.workspace = true
+time.workspace = true
+tempfile.workspace = true
+
+[[test]]
+name = "composition"
+path = "../../tests/unit/shared.architecture/rust-composition.test.rs"
+required-features = ["existing-business"]
+
+[[test]]
+name = "legal_queued_authority"
+path = "../../tests/integration/legal/rust-queued-authority-composition.test.rs"
+required-features = ["legal-pdf-worker", "legal-document-worker", "legal-queue"]
+
+[[test]]
+name = "legal_worker_bootstrap"
+path = "../../tests/unit/legal/rust-worker-bootstrap.test.rs"
+required-features = ["legal-document-worker"]
+
+[[test]]
+name = "legal_worker_provider"
+path = "../../tests/provider/legal/rust-worker-bootstrap.test.rs"
+required-features = ["legal-pdf-worker", "legal-document-worker", "legal-queue"]
+
+[[test]]
+name = "maintenance_settlement_references"
+path = "../../tests/integration/maintenance/rust-settlement-references-postgres.test.rs"
+required-features = ["existing-business"]
+
+[lints]
+workspace = true
+
+[[test]]
+name = "finance_journal_review"
+path = "../../tests/integration/finance/rust-journal-review-composition.test.rs"
+required-features = ["existing-business"]
+
+[[test]]
+name = "business_http_postgres"
+path = "../../tests/integration/finance/rust-business-http-postgres.test.rs"
+required-features = ["business-http"]
+
+[[test]]
+name = "private_development_api"
+path = "../../tests/unit/identity_access/rust-private-development-api.test.rs"
+required-features = ["private-development-api"]
+
+[[test]]
+name = "private_session_api_postgres"
+path = "../../tests/integration/identity_access/rust-private-session-api-postgres.test.rs"
+required-features = ["private-development-api"]
+
+[[test]]
+name = "private_session_http_provider"
+path = "../../tests/provider/identity_access/rust-native-session-http.test.rs"
+required-features = ["private-development-api"]
+
+[[example]]
+name = "export-finance-journal-read-contracts"
+path = "../../scripts/docs/export-finance-journal-read-contracts.rs"
+required-features = ["contracts"]
+
+[[test]]
+name = "finance_journal_detail_postgres"
+path = "../../tests/integration/finance/rust-journal-detail-postgres.test.rs"
+required-features = ["business-http"]
+
+[[test]]
+name = "finance_journal_detail_http_provider"
+path = "../../tests/provider/finance/rust-journal-detail-http.test.rs"
+required-features = ["business-http"]
+
+[[test]]
+name = "finance_directory_composition"
+path = "../../tests/integration/finance/rust-directory-journal-composition.test.rs"
+required-features = ["business-http", "directory-ldaps"]
+
+[[test]]
+name = "work_source"
+path = "../../tests/integration/maintenance/rust-work-source-postgres.test.rs"
+required-features = ["existing-business"]
+
+[[test]]
+name = "issue_part_command"
+path = "../../tests/integration/maintenance/rust-issue-part-command-postgres.test.rs"
+required-features = ["existing-business"]
+
+[[test]]
+name = "directory_source_admin_postgres"
+path = "../../tests/integration/identity_access/rust-directory-source-admin-postgres.test.rs"
+required-features = ["directory-ldaps"]
+
+[[test]]
+name = "finance_maintenance_parts_postgres"
+path = "../../tests/integration/finance/rust-maintenance-parts-postgres.test.rs"
+required-features = ["existing-business"]
+
+[[test]]
+name = "files_system_scan_postgres"
+path = "../../tests/integration/files/rust-system-scan-postgres.test.rs"
+required-features = ["existing-business"]
+
+[[test]]
+name = "files_system_scan_provider"
+path = "../../tests/provider/files/rust-system-scan-provider.test.rs"
+required-features = ["files-scan-worker", "contracts"]
+
+[[bin]]
+name = "erpx-files-scan-held-tool"
+path = "../../tests/support/files/files-held-tool.rs"
+required-features = ["files-scan-worker", "contracts"]
+
+[[test]]
+name = "maintenance_transitions"
+path = "../../tests/integration/maintenance/rust-transitions-command-postgres.test.rs"
+required-features = ["existing-business"]
+
+[[example]]
+name = "export-directory-source-contracts"
+path = "../../scripts/docs/export-directory-source-contracts.rs"
+required-features = ["contracts", "directory-ldaps"]
+
+[[test]]
+name = "directory_source_http_postgres"
+path = "../../tests/integration/identity_access/rust-directory-source-http-postgres.test.rs"
+required-features = ["business-http", "directory-ldaps"]
+
+[[test]]
+name="field_service_parts_postgres"
+path="../../tests/integration/field_service/rust-parts-command-postgres.test.rs"
+required-features = ["existing-business"]
+
+[[test]]
+name = "field_service_http_parity"
+path = "../../tests/unit/field_service/rust-http-parity.test.rs"
+required-features = ["business-http"]
+
+[[test]]
+name = "field_service_http_parity_postgres"
+path = "../../tests/integration/field_service/rust-http-parity-postgres.test.rs"
+required-features = ["business-http"]
+
+[[example]]
+name = "native-finance-development"
+path = "../../scripts/seed/native-finance-development.rs"
+required-features = ["private-development-api"]
+
+[[example]]
+name = "export-finance-journal-post-contracts"
+path = "../../scripts/docs/export-finance-journal-post-contracts.rs"
+required-features = ["contracts"]
+
+[[example]]
+name = "export-finance-journal-create-contracts"
+path = "../../scripts/docs/export-finance-journal-create-contracts.rs"
+required-features = ["contracts"]
+
+[[example]]
+name = "export-finance-journal-edit-contracts"
+path = "../../scripts/docs/export-finance-journal-edit-contracts.rs"
+required-features = ["contracts"]
+
+[[example]]
+name = "export-field-service-reserve-contracts"
+path = "../../scripts/docs/export-field-service-reserve-contracts.rs"
+required-features = ["contracts"]
+
+[[example]]
+name = "native-field-service-development"
+path = "../../scripts/seed/native-field-service-development.rs"
+required-features = ["private-development-api"]
+
+[[example]]
+name = "export-field-attachment-contracts"
+path = "../../scripts/docs/export-field-attachment-contracts.rs"
+required-features = ["contracts"]
+
+[[test]]
+name = "module_assembly"
+path = "../../tests/unit/shared.architecture/rust-module-assembly.test.rs"
+
+[[test]]
+name = "private_field_only_postgres"
+path = "../../tests/integration/field_service/rust-private-field-only-postgres.test.rs"
+required-features = ["private-field-api"]
+
+[[test]]
+name = "service_initial_physical_stock_postgres"
+path = "../../tests/integration/field_service/rust-service-initial-physical-stock-postgres.test.rs"
+required-features = ["field-service"]
