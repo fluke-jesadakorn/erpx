@@ -1,3 +1,4 @@
+import {postgresBackupTools} from '../../support/postgres-tools';
 import {expect,it,vi} from 'vitest';
 import {cp,mkdir,mkdtemp,readdir,rm} from 'node:fs/promises';
 import {execFile} from 'node:child_process';
@@ -19,7 +20,7 @@ import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 
 let db:PostgresDatabase,files:LocalFileStore;
-const key=()=>randomUUID(),run=promisify(execFile),pgDump='/opt/homebrew/opt/postgresql@18/bin/pg_dump',pgRestore='/opt/homebrew/opt/postgresql@18/bin/pg_restore';
+const key=()=>randomUUID(),run=promisify(execFile);
 vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:db,files}),runtimeEnv:async()=>env}));
 async function snapshot(database:SqlDatabase){
  const names=(await database.prepare("SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename<>'erpx_migrations' ORDER BY tablename").all<{tablename:string}>()).results.map(row=>row.tablename);
@@ -30,6 +31,7 @@ function native(error:unknown):{code?:string;constraint?:string;message?:string}
 }
 
 it('upgrades populated1055 without rewriting old rows and admits only original warehouse-free Company service refunds under1056',async()=>{
+ const {pgDump,pgRestore}=await postgresBackupTools();
  const oldRoot=await mkdtemp(resolve('.runtime/tests/company-service-refund-before-')),currentRoot=await mkdtemp(resolve('.runtime/tests/company-service-refund-current-')),source=resolve('migrations/postgres'),directory=await mkdtemp(resolve('.runtime/tests/company-service-refund-data-'));
  const adminUrl=new URL(process.env.ERPX_TEST_ADMIN_URL??'postgresql://erpx_test_admin@127.0.0.1:5432/postgres');if(!['postgresql:','postgres:'].includes(adminUrl.protocol)||adminUrl.search||adminUrl.hash||adminUrl.hostname!=='127.0.0.1'||adminUrl.port!=='5432'||adminUrl.username!=='erpx_test_admin'||adminUrl.pathname!=='/postgres')throw Error('LOCAL_TEST_ADMIN_REQUIRED');
  const prefix=`erpx_test_refund_${key().replaceAll('-','')}`,beforeName=`${prefix}_before`,restoreName=`${prefix}_restore`,admin=new Pool({connectionString:adminUrl.href,max:1}),databases:PostgresDatabase[]=[],created:string[]=[];

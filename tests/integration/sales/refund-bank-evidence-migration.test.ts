@@ -1,3 +1,4 @@
+import {postgresBackupTools} from '../../support/postgres-tools';
 import {expect,it,vi} from 'vitest';
 import {cp,mkdir,mkdtemp,readdir,rm} from 'node:fs/promises';
 import {join,resolve} from 'node:path';
@@ -242,7 +243,7 @@ it('rejects invalid populated pre1057 bank consumption atomically and upgrades n
 // Ignored ONE1058 migration/restore candidate. Append only after the exact
 // existing05a07355 migration-file prefix; all original helpers/cases stay byte exact.
 it('preserves populated pre1058 manual Count history and restored source while admitting only reciprocal new Initial Physical Stock provenance',async()=>{
- const {execFile}=await import('node:child_process'),{promisify,isDeepStrictEqual}=await import('node:util'),{chmod,writeFile}=await import('node:fs/promises'),run=promisify(execFile),pgDump='/opt/homebrew/opt/postgresql@18/bin/pg_dump',pgRestore='/opt/homebrew/opt/postgresql@18/bin/pg_restore';
+ const {execFile}=await import('node:child_process'),{promisify,isDeepStrictEqual}=await import('node:util'),{chmod,writeFile}=await import('node:fs/promises'),run=promisify(execFile),{pgDump,pgRestore}=await postgresBackupTools();
  const oldRoot=await mkdtemp(resolve('.runtime/tests/initial-stock-before-')),currentRoot=await mkdtemp(resolve('.runtime/tests/initial-stock-current-')),directory=await mkdtemp(resolve('.runtime/tests/initial-stock-data-')),adminUrl=new URL(process.env.ERPX_TEST_ADMIN_URL??'postgresql://erpx_test_admin@127.0.0.1:5432/postgres');
  if(!['postgresql:','postgres:'].includes(adminUrl.protocol)||adminUrl.search||adminUrl.hash||adminUrl.hostname!=='127.0.0.1'||adminUrl.port!=='5432'||adminUrl.username!=='erpx_test_admin'||adminUrl.pathname!=='/postgres')throw Error('LOCAL_TEST_ADMIN_REQUIRED');
  const prefix=`erpx_test_initial_stock_${key().replaceAll('-','')}`,beforeName=`${prefix}_before`,restoreName=`${prefix}_restore`,admin=new Pool({connectionString:adminUrl.href,max:1}),databases:PostgresDatabase[]=[],created:string[]=[];

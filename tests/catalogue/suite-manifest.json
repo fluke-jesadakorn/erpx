@@ -13923,8 +13923,13 @@
         "mode": "raw",
         "slots": [
           "CONTROL_DB",
+          "CONTROL_READ_DB",
           "H001_DB",
-          "H001_READ_DB"
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
         ],
         "migratedSlots": []
       }
@@ -14292,8 +14297,13 @@
         "mode": "raw",
         "slots": [
           "CONTROL_DB",
+          "CONTROL_READ_DB",
           "H001_DB",
-          "H001_READ_DB"
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
         ],
         "migratedSlots": []
       }
@@ -23559,8 +23569,13 @@
         "mode": "raw",
         "slots": [
           "CONTROL_DB",
+          "CONTROL_READ_DB",
           "H001_DB",
-          "H001_READ_DB"
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
         ],
         "migratedSlots": []
       }
