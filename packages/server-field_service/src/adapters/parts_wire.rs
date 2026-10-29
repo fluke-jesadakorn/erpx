@@ -608,6 +608,35 @@ pub fn normalize_service_request(
 mod request_tests {
     use super::*;
     #[test]
+    fn agreement_create_normalizes_defaults_and_retained_validation_messages() {
+        let input = br#"{"entity":"agreement","branchId":"branch","customerId":"customer","title":"  Visit  ","startDate":"2026-01-01","endDate":"2026-12-31","currency":"thb","visitRateMinor":0}"#;
+        let value = normalize_agreement_create(input).unwrap();
+        assert_eq!(value.currency, "THB");
+        assert_eq!(value.title, "Visit");
+        assert_eq!(value.warranty_discount_bps, 0);
+        assert!(
+            value
+                .receipt_input
+                .as_str()
+                .ends_with("\"warrantyDiscountBps\":0}")
+        );
+        let short = String::from_utf8_lossy(input).replace("thb", "x");
+        let issue = normalize_agreement_create(short.as_bytes()).err().unwrap();
+        assert_eq!(
+            issue.issues[0].message,
+            "Too small: expected string to have exactly 3 characters"
+        );
+        let negative =
+            String::from_utf8_lossy(input).replace("\"visitRateMinor\":0", "\"visitRateMinor\":-1");
+        let issue = normalize_agreement_create(negative.as_bytes())
+            .err()
+            .unwrap();
+        assert_eq!(
+            issue.issues[0].message,
+            "Too small: expected number to be >=0"
+        );
+    }
+    #[test]
     fn agreement_review_normalizes_the_retained_receipt_input() {
         let value = normalize_agreement_review(br#"{"entity":"agreement","id":"a","action":"activate","expectedVersion":1,"reason":"  Approved  ","ignored":true}"#).unwrap();
         assert_eq!(value.reason, "Approved");
@@ -929,5 +958,155 @@ pub fn normalize_field_service_visit(
             None
         },
         receipt_input: json,
+    })
+}
+
+/// Original Agreement create schema and its exact normalized Workflow input.
+#[derive(Clone)]
+pub struct NormalizedAgreementCreate {
+    pub branch_id: String,
+    pub department_id: Option<String>,
+    pub customer_id: String,
+    pub asset_id: Option<String>,
+    pub title: String,
+    pub start_date: String,
+    pub end_date: String,
+    pub currency: String,
+    pub visit_rate_minor: i64,
+    pub warranty_discount_bps: i64,
+    pub receipt_input: CommandJson,
+}
+pub fn normalize_agreement_create(
+    bytes: &[u8],
+) -> Result<NormalizedAgreementCreate, FieldServiceWireFailure> {
+    let body = document(bytes)?;
+    let mut check = Validation::default();
+    let mut fields = Vec::new();
+    if let Some(v) = check.string(
+        property(&body, "branchId"),
+        &field("branchId"),
+        1,
+        None,
+        false,
+    ) {
+        fields.push(("branchId", v));
+    }
+    for name in ["departmentId", "customerId", "assetId"] {
+        let v = property(&body, name);
+        if name != "customerId" && v.is_none() {
+            continue;
+        }
+        if name != "customerId" && v.as_ref().is_some_and(|v| v.as_str() == "null") {
+            fields.push((name, v.expect("present")));
+            continue;
+        }
+        if let Some(v) = check.string(
+            v,
+            &field(name),
+            if name == "customerId" { 1 } else { 0 },
+            None,
+            false,
+        ) {
+            fields.push((name, v));
+        }
+    }
+    if let Some(v) = check.string(
+        property(&body, "title"),
+        &field("title"),
+        3,
+        Some(160),
+        true,
+    ) {
+        fields.push(("title", v));
+    }
+    for name in ["startDate", "endDate"] {
+        if let Some(v) = check.date(property(&body, name), &field(name)) {
+            fields.push((name, v));
+        }
+    }
+    if let Some(v) = check.string(
+        property(&body, "currency"),
+        &field("currency"),
+        3,
+        Some(3),
+        false,
+    ) {
+        let units = v
+            .string_utf16_units()
+            .ok()
+            .flatten()
+            .ok_or_else(FieldServiceWireFailure::json)?;
+        let mut upper = Vec::new();
+        for ch in char::decode_utf16(units) {
+            match ch {
+                Ok(ch) => {
+                    for u in ch.to_uppercase() {
+                        let mut buf = [0u16; 2];
+                        upper.extend_from_slice(u.encode_utf16(&mut buf));
+                    }
+                }
+                Err(e) => upper.push(e.unpaired_surrogate()),
+            }
+        }
+        fields.push((
+            "currency",
+            CommandJson::from_utf16_string(&upper).map_err(|_| FieldServiceWireFailure::json())?,
+        ));
+    }
+    if let Some(v) = check.integer_bound(
+        property(&body, "visitRateMinor"),
+        &field("visitRateMinor"),
+        false,
+        true,
+    ) {
+        fields.push(("visitRateMinor", v));
+    }
+    let warranty = property(&body, "warrantyDiscountBps").or_else(|| CommandJson::parse("0").ok());
+    if let Some(v) = check.integer_bound(warranty, &field("warrantyDiscountBps"), false, true) {
+        if v.as_str().parse::<f64>().ok().is_some_and(|x| x > 10_000.0) {
+            check.issue(
+                "too_big",
+                &field("warrantyDiscountBps"),
+                "Too big: expected number to be <=10000".into(),
+            );
+        }
+        fields.push(("warrantyDiscountBps", v));
+    }
+    for issue in &mut check.issues {
+        if issue.path == field("currency") && matches!(issue.code, "too_small" | "too_big") {
+            issue.message = if issue.code == "too_small" {
+                "Too small: expected string to have exactly 3 characters"
+            } else {
+                "Too big: expected string to have exactly 3 characters"
+            }
+            .into();
+        }
+        if (issue.path == field("visitRateMinor") || issue.path == field("warrantyDiscountBps"))
+            && issue.code == "too_small"
+            && issue.message == "Too small: expected number to be >0"
+        {
+            issue.message = "Too small: expected number to be >=0".into();
+        }
+    }
+    let receipt_input = check.finish(&fields)?;
+    let optional = |name: &str| -> Result<Option<String>, FieldServiceWireFailure> {
+        match property(&receipt_input, name) {
+            None => Ok(None),
+            Some(v) if v.as_str() == "null" => Ok(None),
+            Some(_) => Ok(Some(text(&receipt_input, name)?)),
+        }
+    };
+    Ok(NormalizedAgreementCreate {
+        branch_id: text(&receipt_input, "branchId")?,
+        department_id: optional("departmentId")?,
+        customer_id: text(&receipt_input, "customerId")?,
+        asset_id: optional("assetId")?,
+        title: text(&receipt_input, "title")?,
+        start_date: text(&receipt_input, "startDate")?,
+        end_date: text(&receipt_input, "endDate")?,
+        currency: text(&receipt_input, "currency")?,
+        visit_rate_minor: int(&receipt_input, "visitRateMinor")?,
+        warranty_discount_bps: int(&receipt_input, "warrantyDiscountBps")?,
+        receipt_input,
     })
 }

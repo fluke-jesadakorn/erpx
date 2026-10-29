@@ -92,3 +92,8 @@ pub use visit::VisitDispatcher;
 mod agreement_review;
 #[cfg(feature = "business-http")]
 pub(crate) use agreement_review::AgreementReviewDispatcher;
+
+#[cfg(feature = "business-http")]
+mod agreement_create;
+#[cfg(feature = "business-http")]
+pub(crate) use agreement_create::AgreementCreateDispatcher;

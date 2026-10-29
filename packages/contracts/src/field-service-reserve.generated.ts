@@ -1,5 +1,8 @@
 // Generated from the Rust Field Service reservation contracts. Do not edit by hand.
 // Regenerate: bun scripts/docs/generate-field-service-reserve-contracts.ts
+export type AgreementMoneyEvidence = { transactionDate: string, currency: string, currencyScale: number, amountUnits: string, usdUnits: string, fxRateId: string | null, usedLatestFallback: boolean, };
+export type FieldServiceAgreementCreateInput = { entity: FieldServiceAgreementReviewEntity, branchId: string, departmentId?: string | null, customerId: string, assetId?: string | null, title: string, startDate: string, endDate: string, currency: string, visitRateMinor: number, warrantyDiscountBps?: number, };
+export type FieldServiceAgreementCreateReadResponse = { context: FieldServiceRenderedContext, receipt: FieldServiceReserveResult, agreement: FieldServiceReserveResult, event: FieldServiceAgreementReviewEvent, money: AgreementMoneyEvidence, };
 export type FieldServiceAgreementReviewAction = "activate" | "reject" | "retire";
 export type FieldServiceAgreementReviewEntity = "agreement";
 export type FieldServiceAgreementReviewInput = { entity: FieldServiceAgreementReviewEntity, id: string, action: FieldServiceAgreementReviewAction, expectedVersion: number, reason: string, };

@@ -98,3 +98,51 @@ fn changed() -> Error {
     )
     .into()
 }
+
+/// Raw physical Customer identity for the existing Agreement-create schema.
+/// The exact source row remains on the caller's serializable transaction.
+pub struct CurrentAgreementCustomer {
+    company: CompanyId,
+    id: String,
+    currency: String,
+    digest: String,
+    unit: Unit,
+}
+impl CurrentAgreementCustomer {
+    pub async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
+        if unit(c).await? != self.unit
+            || agreement_customer_image(c, &self.company, &self.id, &self.currency)
+                .await?
+                .as_ref()
+                != Some(&self.digest)
+        {
+            return Err(changed());
+        }
+        Ok(())
+    }
+}
+pub async fn read_agreement_customer(
+    c: &mut PgConnection,
+    company: &CompanyId,
+    id: &str,
+    currency: &str,
+) -> Result<Option<CurrentAgreementCustomer>, Error> {
+    let unit = unit(c).await?;
+    Ok(agreement_customer_image(c, company, id, currency)
+        .await?
+        .map(|digest| CurrentAgreementCustomer {
+            company: company.clone(),
+            id: id.into(),
+            currency: currency.into(),
+            digest,
+            unit,
+        }))
+}
+async fn agreement_customer_image(
+    c: &mut PgConnection,
+    company: &CompanyId,
+    id: &str,
+    currency: &str,
+) -> Result<Option<String>, Error> {
+    Ok(sqlx::query_scalar("SELECT encode(sha256(convert_to(to_jsonb(p)::text,'UTF8')),'hex') FROM finance_parties p WHERE p.id=$1 AND p.company_id=$2 AND p.kind='customer' AND p.status='active' AND p.currency=$3 FOR SHARE OF p").bind(id).bind(company.as_str()).bind(currency).fetch_optional(c).await?)
+}

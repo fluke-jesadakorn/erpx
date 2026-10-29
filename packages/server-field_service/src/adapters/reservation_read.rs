@@ -609,6 +609,7 @@ async fn agreement_image(
     c: &mut PgConnection,
     current: &AuthorizedWorkContext,
     key: &str,
+    create: bool,
 ) -> Result<AgreementImage, Error> {
     let scope = current.selection().workspace();
     let grant = current.selection().assignment();
@@ -619,8 +620,8 @@ async fn agreement_image(
             "department"
         }
     };
-    let row=sqlx::query("SELECT b.bounded,coalesce(g.asset_id<>'',false) has_asset,CASE WHEN b.bounded THEN g.id END agreement_id,CASE WHEN b.bounded THEN g.status END agreement_status,g.version::bigint agreement_version,CASE WHEN b.bounded THEN e.action END action,CASE WHEN b.bounded THEN e.actor_id END actor_id,CASE WHEN b.bounded THEN e.reason END reason,CASE WHEN b.bounded THEN e.status END event_status,e.version::bigint event_version,encode(sha256(convert_to(jsonb_build_array(to_jsonb(g),to_jsonb(e))::text,'UTF8')),'hex') digest FROM field_service_agreements g JOIN field_service_agreement_events e ON e.agreement_id=g.id CROSS JOIN LATERAL (SELECT octet_length(g.id)::bigint+octet_length(g.status)::bigint+octet_length(e.action)::bigint+octet_length(e.actor_id)::bigint+octet_length(e.reason)::bigint+octet_length(e.status)::bigint<=2097152 AS bounded) b WHERE e.id=$1 AND e.action IN ('activate','reject','retire') AND g.company_id=$2 AND ($3::text IS NULL OR g.branch_id=$3) AND ($4::text IS NULL OR g.department_id=$4) AND ($5::text='holding' OR ($5='branch' AND g.branch_id=$6) OR ($5='department' AND g.department_id=$6)) FOR SHARE OF g,e")
-        .bind(format!("service-agreement-event-{key}")).bind(scope.company_id.as_str()).bind(scope.branch_id.as_ref().map(|v|v.as_str())).bind(scope.department_id.as_ref().map(|v|v.as_str())).bind(kind).bind(grant.scope_node_id.as_ref().map(|v|v.as_str())).fetch_optional(c).await?.ok_or_else(denied)?;
+    let row=sqlx::query("SELECT b.bounded,coalesce(g.asset_id<>'',false) has_asset,CASE WHEN b.bounded THEN g.id END agreement_id,CASE WHEN b.bounded THEN g.status END agreement_status,g.version::bigint agreement_version,CASE WHEN b.bounded THEN e.action END action,CASE WHEN b.bounded THEN e.actor_id END actor_id,CASE WHEN b.bounded THEN e.reason END reason,CASE WHEN b.bounded THEN e.status END event_status,e.version::bigint event_version,encode(sha256(convert_to(jsonb_build_array(to_jsonb(g),to_jsonb(e))::text,'UTF8')),'hex') digest FROM field_service_agreements g JOIN field_service_agreement_events e ON e.agreement_id=g.id CROSS JOIN LATERAL (SELECT octet_length(g.id)::bigint+octet_length(g.status)::bigint+octet_length(e.action)::bigint+octet_length(e.actor_id)::bigint+octet_length(e.reason)::bigint+octet_length(e.status)::bigint<=2097152 AS bounded) b WHERE e.id=$1 AND (($7::bool AND e.action='create') OR (NOT $7::bool AND e.action IN ('activate','reject','retire'))) AND g.company_id=$2 AND ($3::text IS NULL OR g.branch_id=$3) AND ($4::text IS NULL OR g.department_id=$4) AND ($5::text='holding' OR ($5='branch' AND g.branch_id=$6) OR ($5='department' AND g.department_id=$6)) FOR SHARE OF g,e")
+        .bind(format!("service-agreement-event-{key}")).bind(scope.company_id.as_str()).bind(scope.branch_id.as_ref().map(|v|v.as_str())).bind(scope.department_id.as_ref().map(|v|v.as_str())).bind(kind).bind(grant.scope_node_id.as_ref().map(|v|v.as_str())).bind(create).fetch_optional(c).await?.ok_or_else(denied)?;
     if !row.try_get::<bool, _>("bounded")? {
         return Err(invalid());
     }
@@ -642,6 +643,12 @@ async fn agreement_image(
         || !(1..=agreement.version).contains(&event.version)
         || event.status
             != match event.action.as_str() {
+                "create"
+                    if event.version == 1
+                        && event.reason == "Agreement drafted for independent review" =>
+                {
+                    "draft"
+                }
                 "activate" => "active",
                 "reject" => "rejected",
                 "retire" => "retired",
@@ -663,6 +670,7 @@ pub struct CurrentAgreementReviewRead {
     origin: PgRawRecordOrigin,
     receipt: FieldServiceReserveResult,
     key: String,
+    create: bool,
 }
 impl CurrentAgreementReviewRead {
     pub fn has_asset(&self) -> bool {
@@ -683,7 +691,7 @@ impl CurrentAgreementReviewRead {
         current: &AuthorizedWorkContext,
     ) -> Result<(), Error> {
         if unit(c).await? != self.unit
-            || agreement_image(c, current, &self.key).await? != self.image
+            || agreement_image(c, current, &self.key, self.create).await? != self.image
         {
             return Err(invalid());
         }
@@ -695,13 +703,28 @@ pub async fn read_agreement_review_by_key(
     current: &AuthorizedWorkContext,
     key: &str,
 ) -> Result<CurrentAgreementReviewRead, Error> {
+    read_agreement_by_key(c, current, key, false).await
+}
+pub async fn read_agreement_create_by_key(
+    c: &mut PgConnection,
+    current: &AuthorizedWorkContext,
+    key: &str,
+) -> Result<CurrentAgreementReviewRead, Error> {
+    read_agreement_by_key(c, current, key, true).await
+}
+async fn read_agreement_by_key(
+    c: &mut PgConnection,
+    current: &AuthorizedWorkContext,
+    key: &str,
+    create: bool,
+) -> Result<CurrentAgreementReviewRead, Error> {
     current.require_permission("records.read")?;
     if !current.modules().iter().any(|m| m == "field_service") {
         return Err(denied());
     }
     erpx_server_shared::public::CommandKey::new(key.to_owned())?;
     let unit = unit(c).await?;
-    let image = agreement_image(c, current, key).await?;
+    let image = agreement_image(c, current, key, create).await?;
     let (origin, result) = read_raw_record_origin_result_with_limit(
         c,
         RawRecordOriginRequest {
@@ -744,5 +767,6 @@ pub async fn read_agreement_review_by_key(
         origin,
         receipt,
         key: key.into(),
+        create,
     })
 }

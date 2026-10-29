@@ -104,3 +104,58 @@ fn changed() -> Error {
     )
     .into()
 }
+
+/// Same scoped predicate for physical Service Agreement references, without
+/// turning an unbounded foreign row ID into a Work/actor identity.
+pub struct FieldServiceRawAssignmentRequest {
+    pub company_id: CompanyId,
+    pub user_id: String,
+    pub branch_id: String,
+    pub department_id: Option<String>,
+    pub permission: FieldServiceAssignmentPermission,
+}
+pub struct CurrentFieldServiceRawAssignment {
+    request: FieldServiceRawAssignmentRequest,
+    positive: bool,
+    unit: Unit,
+    observed_at: i64,
+}
+impl CurrentFieldServiceRawAssignment {
+    pub fn is_eligible(&self) -> bool {
+        self.positive
+    }
+    pub async fn require_current(
+        &self,
+        c: &mut PgConnection,
+        now: TimestampMillis,
+    ) -> Result<(), Error> {
+        if now.get() < self.observed_at
+            || unit(c).await? != self.unit
+            || read_raw(c, &self.request, now).await? != self.positive
+        {
+            return Err(changed());
+        }
+        Ok(())
+    }
+}
+pub async fn inspect_field_service_raw_assignment(
+    c: &mut PgConnection,
+    request: FieldServiceRawAssignmentRequest,
+    now: TimestampMillis,
+) -> Result<CurrentFieldServiceRawAssignment, Error> {
+    let unit = unit(c).await?;
+    let positive = read_raw(c, &request, now).await?;
+    Ok(CurrentFieldServiceRawAssignment {
+        request,
+        positive,
+        unit,
+        observed_at: now.get(),
+    })
+}
+async fn read_raw(
+    c: &mut PgConnection,
+    r: &FieldServiceRawAssignmentRequest,
+    now: TimestampMillis,
+) -> Result<bool, Error> {
+    Ok(sqlx::query_scalar::<_,bool>("SELECT true FROM assignments a WHERE a.company_id=$1 AND a.user_id=$2 AND iam_assignment_active(a.id,$3) AND iam_principal_active(a.user_id,a.company_id,$3) AND iam_role_allows(a.role,a.company_id,$4) AND (a.scope_kind='holding' OR a.scope_kind='branch' AND a.scope_node_id=$5 OR a.scope_kind='department' AND a.scope_node_id=$6) ORDER BY a.id LIMIT 1 FOR SHARE OF a").bind(r.company_id.as_str()).bind(&r.user_id).bind(now.get()).bind(r.permission.as_str()).bind(&r.branch_id).bind(r.department_id.as_deref()).fetch_optional(c).await?.unwrap_or(false))
+}

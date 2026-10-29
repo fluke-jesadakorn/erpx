@@ -208,3 +208,62 @@ async fn read_physical(
         version: row.try_get("version")?,
     }))
 }
+
+/// Actual new-Agreement link predicate using physical row identities.
+pub struct CurrentAgreementLinkAsset {
+    company: CompanyId,
+    id: String,
+    branch: String,
+    workspace_department: Option<String>,
+    digest: String,
+    unit: Unit,
+}
+impl CurrentAgreementLinkAsset {
+    pub async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
+        if unit(c).await? != self.unit
+            || agreement_link_image(
+                c,
+                &self.company,
+                &self.id,
+                &self.branch,
+                self.workspace_department.as_deref(),
+            )
+            .await?
+            .as_ref()
+                != Some(&self.digest)
+        {
+            return Err(changed());
+        }
+        Ok(())
+    }
+}
+pub async fn read_agreement_link_asset(
+    c: &mut PgConnection,
+    company: &CompanyId,
+    id: &str,
+    branch: &str,
+    workspace_department: Option<&str>,
+) -> Result<Option<CurrentAgreementLinkAsset>, Error> {
+    let unit = unit(c).await?;
+    Ok(
+        agreement_link_image(c, company, id, branch, workspace_department)
+            .await?
+            .map(|digest| CurrentAgreementLinkAsset {
+                company: company.clone(),
+                id: id.into(),
+                branch: branch.into(),
+                workspace_department: workspace_department.map(str::to_owned),
+                digest,
+                unit,
+            }),
+    )
+}
+async fn agreement_link_image(
+    c: &mut PgConnection,
+    company: &CompanyId,
+    id: &str,
+    branch: &str,
+    workspace_department: Option<&str>,
+) -> Result<Option<String>, Error> {
+    Ok(sqlx::query_scalar("SELECT encode(sha256(convert_to(to_jsonb(a)::text,'UTF8')),'hex') FROM operational_assets a WHERE a.id=$1 AND a.company_id=$2 AND a.branch_id=$3 AND a.lifecycle_status NOT IN ('retired','retirement_pending') AND ($4::text IS NULL OR a.department_id=$4) FOR SHARE OF a").bind(id).bind(company.as_str()).bind(branch).bind(workspace_department).fetch_optional(c).await?)
+}

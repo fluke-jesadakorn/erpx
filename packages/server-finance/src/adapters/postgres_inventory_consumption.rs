@@ -289,11 +289,15 @@ fn limit() -> Error {
 }
 
 #[derive(Clone, Eq, PartialEq)]
-struct Quote {
-    rates: Vec<Value>,
-    scale: Option<i64>,
+pub(super) struct Quote {
+    pub(super) rates: Vec<Value>,
+    pub(super) scale: Option<i64>,
 }
-async fn quote(c: &mut PgConnection, company: &CompanyId, currency: &str) -> Result<Quote, Error> {
+pub(super) async fn quote(
+    c: &mut PgConnection,
+    company: &CompanyId,
+    currency: &str,
+) -> Result<Quote, Error> {
     let scale:Option<i64>=sqlx::query_scalar("SELECT scale::bigint FROM company_currency_scales WHERE company_id=$1 AND currency=$2 FOR SHARE").bind(company.as_str()).bind(currency).fetch_optional(&mut*c).await?;
     let mut stream=sqlx::query("SELECT CASE WHEN pg_column_size(jsonb_build_object('id',r.id,'company_id',r.company_id,'currency',r.currency,'effective_date',r.effective_date,'currency_per_usd',r.currency_per_usd::text,'confirmed_at',r.confirmed_at))<=65536 THEN jsonb_build_object('id',r.id,'company_id',r.company_id,'currency',r.currency,'effective_date',r.effective_date,'currency_per_usd',r.currency_per_usd::text,'confirmed_at',r.confirmed_at)::text END image FROM company_fx_rates r WHERE company_id=$1 AND currency=$2 ORDER BY r.id LIMIT 20001 FOR SHARE OF r").bind(company.as_str()).bind(currency).fetch(c);
     let mut rates = Vec::new();

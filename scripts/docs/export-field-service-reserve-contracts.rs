@@ -1,22 +1,23 @@
 use erpx_server_field_service::public::reservation_read::{
-    FieldServiceAgreementReviewAction, FieldServiceAgreementReviewEntity,
-    FieldServiceAgreementReviewEvent, FieldServiceAgreementReviewInput, FieldServiceCancelAction,
-    FieldServiceCancelInput, FieldServiceCompletionAction, FieldServiceCompletionInput,
-    FieldServiceCreatedOrderRead, FieldServiceIssueAction, FieldServiceIssueAllocation,
-    FieldServiceIssueEvent, FieldServiceIssueInput, FieldServiceOrderCreateInput,
-    FieldServiceRecoveryAction, FieldServiceRecoveryInput, FieldServiceRequestEntity,
-    FieldServiceRequestEvent, FieldServiceRequestInput, FieldServiceRequestOrderRead,
-    FieldServiceRequestResult, FieldServiceRequestTicketRead, FieldServiceReservationRead,
-    FieldServiceReserveAction, FieldServiceReserveEvent, FieldServiceReserveInput,
-    FieldServiceReserveResult, FieldServiceScheduleAction, FieldServiceScheduleInput,
-    FieldServiceStockSnapshot, FieldServiceVisitEvent, FieldServiceVisitStepAction,
-    FieldServiceVisitStepInput,
+    FieldServiceAgreementCreateInput, FieldServiceAgreementReviewAction,
+    FieldServiceAgreementReviewEntity, FieldServiceAgreementReviewEvent,
+    FieldServiceAgreementReviewInput, FieldServiceCancelAction, FieldServiceCancelInput,
+    FieldServiceCompletionAction, FieldServiceCompletionInput, FieldServiceCreatedOrderRead,
+    FieldServiceIssueAction, FieldServiceIssueAllocation, FieldServiceIssueEvent,
+    FieldServiceIssueInput, FieldServiceOrderCreateInput, FieldServiceRecoveryAction,
+    FieldServiceRecoveryInput, FieldServiceRequestEntity, FieldServiceRequestEvent,
+    FieldServiceRequestInput, FieldServiceRequestOrderRead, FieldServiceRequestResult,
+    FieldServiceRequestTicketRead, FieldServiceReservationRead, FieldServiceReserveAction,
+    FieldServiceReserveEvent, FieldServiceReserveInput, FieldServiceReserveResult,
+    FieldServiceScheduleAction, FieldServiceScheduleInput, FieldServiceStockSnapshot,
+    FieldServiceVisitEvent, FieldServiceVisitStepAction, FieldServiceVisitStepInput,
 };
+use erpx_server_finance::public::field_service_agreement_money::AgreementMoneyEvidence;
 use erpx_service::field_service_reservation_read::{
-    FieldServiceAgreementReviewReadResponse, FieldServiceIssueReadResponse,
-    FieldServiceOrderCreateReadResponse, FieldServiceRenderedContext,
-    FieldServiceRequestReadResponse, FieldServiceReservationReadResponse,
-    FieldServiceVisitReadResponse,
+    FieldServiceAgreementCreateReadResponse, FieldServiceAgreementReviewReadResponse,
+    FieldServiceIssueReadResponse, FieldServiceOrderCreateReadResponse,
+    FieldServiceRenderedContext, FieldServiceRequestReadResponse,
+    FieldServiceReservationReadResponse, FieldServiceVisitReadResponse,
 };
 use ts_rs::{Config, TS};
 #[derive(utoipa::ToSchema)]
@@ -42,6 +43,9 @@ const _: fn() = visit_read;
 #[utoipa::path(get,path="/api/v1/holdings/{holding_slug}/field-service/agreements/reviews/{key}",params(("holding_slug"=String,Path),("key"=String,Path)),responses((status=200,body=FieldServiceAgreementReviewReadResponse,description="Current scoped Agreement review evidence")))]
 fn agreement_review_read() {}
 const _: fn() = agreement_review_read;
+#[utoipa::path(get,path="/api/v1/holdings/{holding_slug}/field-service/agreements/creates/{key}",params(("holding_slug"=String,Path),("key"=String,Path)),responses((status=200,body=FieldServiceAgreementCreateReadResponse,description="Current scoped Agreement create evidence")))]
+fn agreement_create_read() {}
+const _: fn() = agreement_create_read;
 const _: fn() = issue_read;
 const _: fn() = reserve;
 const _: fn() = read;
@@ -54,9 +58,13 @@ const _: fn() = read;
         request_read,
         order_create_read,
         visit_read,
-        agreement_review_read
+        agreement_review_read,
+        agreement_create_read
     ),
     components(schemas(
+        AgreementMoneyEvidence,
+        FieldServiceAgreementCreateInput,
+        FieldServiceAgreementCreateReadResponse,
         FieldServiceAgreementReviewAction,
         FieldServiceAgreementReviewEntity,
         FieldServiceAgreementReviewInput,
@@ -115,7 +123,7 @@ fn main() {
         value["components"]["schemas"]["FieldServiceIssueInput"]["properties"]["action"] =
             serde_json::json!({"type":"string","const":"issue-part"});
         value["paths"]["/api/v1/holdings/{holding_slug}/field-service"]["post"]["requestBody"]["content"]
-            ["application/json"]["schema"] = serde_json::json!({"oneOf":[{"$ref":"#/components/schemas/FieldServiceReserveInput"},{"$ref":"#/components/schemas/FieldServiceIssueInput"},{"$ref":"#/components/schemas/FieldServiceRequestInput"},{"$ref":"#/components/schemas/FieldServiceOrderCreateInput"},{"$ref":"#/components/schemas/FieldServiceScheduleInput"},{"$ref":"#/components/schemas/FieldServiceVisitStepInput"},{"$ref":"#/components/schemas/FieldServiceCompletionInput"},{"$ref":"#/components/schemas/FieldServiceRecoveryInput"},{"$ref":"#/components/schemas/FieldServiceCancelInput"},{"$ref":"#/components/schemas/FieldServiceAgreementReviewInput"}]});
+            ["application/json"]["schema"] = serde_json::json!({"oneOf":[{"$ref":"#/components/schemas/FieldServiceReserveInput"},{"$ref":"#/components/schemas/FieldServiceIssueInput"},{"$ref":"#/components/schemas/FieldServiceRequestInput"},{"$ref":"#/components/schemas/FieldServiceOrderCreateInput"},{"$ref":"#/components/schemas/FieldServiceScheduleInput"},{"$ref":"#/components/schemas/FieldServiceVisitStepInput"},{"$ref":"#/components/schemas/FieldServiceCompletionInput"},{"$ref":"#/components/schemas/FieldServiceRecoveryInput"},{"$ref":"#/components/schemas/FieldServiceCancelInput"},{"$ref":"#/components/schemas/FieldServiceAgreementReviewInput"},{"$ref":"#/components/schemas/FieldServiceAgreementCreateInput"}]});
         println!("{}", serde_json::to_string_pretty(&value).unwrap());
         return;
     }
@@ -125,6 +133,9 @@ fn main() {
         "// Generated from the Rust Field Service reservation contracts. Do not edit by hand.\n// Regenerate: bun scripts/docs/generate-field-service-reserve-contracts.ts"
     );
     for declaration in [
+        AgreementMoneyEvidence::decl(&config),
+        FieldServiceAgreementCreateInput::decl(&config),
+        FieldServiceAgreementCreateReadResponse::decl(&config),
         FieldServiceAgreementReviewAction::decl(&config),
         FieldServiceAgreementReviewEntity::decl(&config),
         FieldServiceAgreementReviewInput::decl(&config),

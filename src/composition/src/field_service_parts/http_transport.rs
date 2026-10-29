@@ -38,6 +38,7 @@ pub(crate) enum HttpDispatch {
         Option<Arc<dyn OtherPost>>,
         Option<Arc<dyn OtherPost>>,
         Option<Arc<dyn OtherPost>>,
+        Option<Arc<dyn OtherPost>>,
         bool,
         bool,
     ),

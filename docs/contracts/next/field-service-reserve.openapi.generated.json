@@ -1,6 +1,131 @@
 {
   "components": {
     "schemas": {
+      "AgreementMoneyEvidence": {
+        "properties": {
+          "amountUnits": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "currencyScale": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "fxRateId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "transactionDate": {
+            "type": "string"
+          },
+          "usdUnits": {
+            "type": "string"
+          },
+          "usedLatestFallback": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "transactionDate",
+          "currency",
+          "currencyScale",
+          "amountUnits",
+          "usdUnits",
+          "usedLatestFallback"
+        ],
+        "type": "object"
+      },
+      "FieldServiceAgreementCreateInput": {
+        "properties": {
+          "assetId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "branchId": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "customerId": {
+            "type": "string"
+          },
+          "departmentId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "endDate": {
+            "type": "string"
+          },
+          "entity": {
+            "$ref": "#/components/schemas/FieldServiceAgreementReviewEntity"
+          },
+          "startDate": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "visitRateMinor": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "warrantyDiscountBps": {
+            "format": "int64",
+            "maximum": 10000,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "entity",
+          "branchId",
+          "customerId",
+          "title",
+          "startDate",
+          "endDate",
+          "currency",
+          "visitRateMinor"
+        ],
+        "type": "object"
+      },
+      "FieldServiceAgreementCreateReadResponse": {
+        "properties": {
+          "agreement": {
+            "$ref": "#/components/schemas/FieldServiceReserveResult"
+          },
+          "context": {
+            "$ref": "#/components/schemas/FieldServiceRenderedContext"
+          },
+          "event": {
+            "$ref": "#/components/schemas/FieldServiceAgreementReviewEvent"
+          },
+          "money": {
+            "$ref": "#/components/schemas/AgreementMoneyEvidence"
+          },
+          "receipt": {
+            "$ref": "#/components/schemas/FieldServiceReserveResult"
+          }
+        },
+        "required": [
+          "context",
+          "receipt",
+          "agreement",
+          "event",
+          "money"
+        ],
+        "type": "object"
+      },
       "FieldServiceAgreementReviewAction": {
         "enum": [
           "activate",
@@ -1265,6 +1390,9 @@
                   },
                   {
                     "$ref": "#/components/schemas/FieldServiceAgreementReviewInput"
+                  },
+                  {
+                    "$ref": "#/components/schemas/FieldServiceAgreementCreateInput"
                   }
                 ]
               }
@@ -1282,6 +1410,42 @@
               }
             },
             "description": "Retained reserve command receipt"
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/v1/holdings/{holding_slug}/field-service/agreements/creates/{key}": {
+      "get": {
+        "operationId": "agreement_create_read",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "holding_slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FieldServiceAgreementCreateReadResponse"
+                }
+              }
+            },
+            "description": "Current scoped Agreement create evidence"
           }
         },
         "tags": []

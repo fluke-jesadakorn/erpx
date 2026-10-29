@@ -63915,7 +63915,13 @@
         "packages/server-field_service/src/adapters/agreement_review.rs",
         "packages/server-field_service/src/domain/agreement_review.rs",
         "packages/server-field_service/src/public/agreement_review.rs",
-        "src/composition/src/field_service_parts/agreement_review.rs"
+        "src/composition/src/field_service_parts/agreement_review.rs",
+        "packages/server-field_service/src/adapters/agreement_create.rs",
+        "packages/server-finance/src/adapters/field_service_agreement_money.rs",
+        "packages/server-finance/src/public/field_service_agreement_money.rs",
+        "packages/server-organization/src/adapters/field_service_agreement.rs",
+        "packages/server-organization/src/public/field_service_agreement.rs",
+        "src/composition/src/field_service_parts/agreement_create.rs"
       ],
       "apps": [
         "account",
@@ -69664,7 +69670,13 @@
         "packages/server-field_service/src/adapters/agreement_review.rs",
         "packages/server-field_service/src/domain/agreement_review.rs",
         "packages/server-field_service/src/public/agreement_review.rs",
-        "src/composition/src/field_service_parts/agreement_review.rs"
+        "src/composition/src/field_service_parts/agreement_review.rs",
+        "packages/server-field_service/src/adapters/agreement_create.rs",
+        "packages/server-finance/src/adapters/field_service_agreement_money.rs",
+        "packages/server-finance/src/public/field_service_agreement_money.rs",
+        "packages/server-organization/src/adapters/field_service_agreement.rs",
+        "packages/server-organization/src/public/field_service_agreement.rs",
+        "src/composition/src/field_service_parts/agreement_create.rs"
       ],
       "postgres": {
         "mode": "raw",

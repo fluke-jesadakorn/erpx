@@ -333,6 +333,30 @@ pub struct FieldServiceAgreementReviewInput {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct FieldServiceAgreementCreateInput {
+    pub entity: FieldServiceAgreementReviewEntity,
+    pub branch_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub department_id: Option<String>,
+    pub customer_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub asset_id: Option<String>,
+    pub title: String,
+    pub start_date: String,
+    pub end_date: String,
+    pub currency: String,
+    #[cfg_attr(feature = "contracts", ts(type = "number"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = i64, minimum = 0, maximum = 9_007_199_254_740_991_i64))]
+    pub visit_rate_minor: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "contracts", ts(optional))]
+    #[cfg_attr(feature = "contracts", schema(value_type = i64, minimum = 0, maximum = 10_000))]
+    pub warranty_discount_bps: Option<i32>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 pub enum FieldServiceScheduleAction {
     #[serde(rename = "schedule")]
     Schedule,

@@ -13,8 +13,8 @@ type Unit = (String, i32, String, String);
 pub struct AgreementReviewFacts {
     pub id: String,
     pub company_id: CompanyId,
-    pub branch_id: RecordId,
-    pub department_id: Option<RecordId>,
+    pub branch_id: String,
+    pub department_id: Option<String>,
     pub creator_id: String,
     pub has_asset: bool,
     pub status: String,
@@ -64,7 +64,7 @@ async fn capture(
 ) -> Result<Option<(AgreementReviewFacts, String)>, Error> {
     let scope = current.selection().workspace();
     let assignment = current.selection().assignment();
-    let row=sqlx::query("SELECT b.bounded,CASE WHEN b.bounded THEN g.branch_id END branch_id,CASE WHEN b.bounded THEN g.department_id END department_id,CASE WHEN b.bounded THEN g.created_by END created_by,CASE WHEN b.bounded THEN g.status END status,g.asset_id IS NOT NULL AND g.asset_id<>'' has_asset,g.version::bigint version,encode(sha256(convert_to(to_jsonb(g)::text,'UTF8')),'hex') image FROM field_service_agreements g CROSS JOIN LATERAL (SELECT octet_length(g.branch_id)<=200 AND coalesce(octet_length(g.department_id),0)<=200 AND octet_length(g.created_by)<=200 AND octet_length(g.status)<=32 AS bounded) b WHERE g.id=$1 AND g.company_id=$2 AND ($3::text IS NULL OR g.branch_id=$3) AND ($4::text IS NULL OR g.department_id=$4) FOR SHARE OF g")
+    let row=sqlx::query("SELECT b.bounded,CASE WHEN b.bounded THEN g.branch_id END branch_id,CASE WHEN b.bounded THEN g.department_id END department_id,CASE WHEN b.bounded THEN g.created_by END created_by,CASE WHEN b.bounded THEN g.status END status,g.asset_id IS NOT NULL AND g.asset_id<>'' has_asset,g.version::bigint version,encode(sha256(convert_to(to_jsonb(g)::text,'UTF8')),'hex') image FROM field_service_agreements g CROSS JOIN LATERAL (SELECT octet_length(g.branch_id)::bigint+coalesce(octet_length(g.department_id),0)::bigint<=2097152 AND octet_length(g.created_by)<=200 AND octet_length(g.status)<=32 AS bounded) b WHERE g.id=$1 AND g.company_id=$2 AND ($3::text IS NULL OR g.branch_id=$3) AND ($4::text IS NULL OR g.department_id=$4) FOR SHARE OF g")
         .bind(id).bind(scope.company_id.as_str()).bind(scope.branch_id.as_ref().map(RecordId::as_str)).bind(scope.department_id.as_ref().map(RecordId::as_str)).fetch_optional(c).await?;
     let Some(row) = row else { return Ok(None) };
     if !row.try_get::<bool, _>("bounded")? {
@@ -75,25 +75,20 @@ async fn capture(
         )
         .into());
     }
-    let branch = RecordId::new(
-        row.try_get::<Option<String>, _>("branch_id")?
-            .ok_or_else(changed)?,
-    )?;
-    let department = row
-        .try_get::<Option<String>, _>("department_id")?
-        .map(RecordId::new)
-        .transpose()?;
+    let branch: String = row
+        .try_get::<Option<String>, _>("branch_id")?
+        .ok_or_else(changed)?;
+    let department: Option<String> = row.try_get("department_id")?;
     let allowed = match assignment.scope_kind {
         WorkScopeKind::Holding => true,
         WorkScopeKind::Branch => assignment
             .scope_node_id
             .as_ref()
-            .is_some_and(|n| n.as_str() == branch.as_str()),
-        WorkScopeKind::Department => assignment.scope_node_id.as_ref().is_some_and(|n| {
-            department
-                .as_ref()
-                .is_some_and(|d| n.as_str() == d.as_str())
-        }),
+            .is_some_and(|n| n.as_str() == branch),
+        WorkScopeKind::Department => assignment
+            .scope_node_id
+            .as_ref()
+            .is_some_and(|n| department.as_ref().is_some_and(|d| n.as_str() == d)),
     };
     if !allowed {
         return Ok(None);

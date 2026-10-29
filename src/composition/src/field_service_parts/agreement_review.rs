@@ -11,8 +11,8 @@ use erpx_server_field_service::public::{
 use erpx_server_identity_access::public::{
     effective_authority::{AuthorizedWorkContext, HoldingWorkSourcePreparation},
     field_service_assignment::{
-        CurrentFieldServiceAssignment, FieldServiceAssignmentPermission,
-        FieldServiceAssignmentRequest, inspect_field_service_assignment,
+        CurrentFieldServiceRawAssignment, FieldServiceAssignmentPermission,
+        FieldServiceRawAssignmentRequest, inspect_field_service_raw_assignment,
     },
     release_reviewers::PgSamePersonReader,
 };
@@ -42,7 +42,7 @@ async fn source(
     })
 }
 struct Reviewer {
-    assignment: CurrentFieldServiceAssignment,
+    assignment: CurrentFieldServiceRawAssignment,
     person: CurrentFieldServicePeopleReference,
     creator: UserId,
 }
@@ -55,9 +55,9 @@ impl Reviewer {
         current.require_permission("records.review")?;
         let f = source.facts();
         let now = database_now(c).await?;
-        let assignment = inspect_field_service_assignment(
+        let assignment = inspect_field_service_raw_assignment(
             c,
-            FieldServiceAssignmentRequest {
+            FieldServiceRawAssignmentRequest {
                 company_id: f.company_id.clone(),
                 user_id: current.user_id().as_str().into(),
                 branch_id: f.branch_id.clone(),

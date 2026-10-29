@@ -132,6 +132,17 @@ pub struct FieldServiceAgreementReviewReadResponse {
     pub event:
         erpx_server_field_service::public::reservation_read::FieldServiceAgreementReviewEvent,
 }
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct FieldServiceAgreementCreateReadResponse {
+    pub context: FieldServiceRenderedContext,
+    pub receipt: FieldServiceReserveResult,
+    pub agreement: FieldServiceReserveResult,
+    pub event:
+        erpx_server_field_service::public::reservation_read::FieldServiceAgreementReviewEvent,
+    pub money: erpx_server_finance::public::field_service_agreement_money::AgreementMoneyEvidence,
+}
 /// Request verification separates immutable create evidence from current state.
 #[derive(Clone, Debug, Serialize)]
 #[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
@@ -200,6 +211,16 @@ impl HoldingWorkSourcePreparation for AgreementReadSources {
         })
     }
 }
+#[derive(Clone)]
+struct AgreementCreateReadSources;
+impl HoldingWorkSourcePreparation for AgreementCreateReadSources {
+    fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async move {
+            erpx_server_finance::public::field_service_agreement_money::lock_agreement_money_read_sources(c).await?;
+            AgreementReadSources.prepare(c).await
+        })
+    }
+}
 impl HoldingWorkSourcePreparation for ReadSources {
     fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
         Box::pin(async move {
@@ -228,6 +249,7 @@ pub struct FieldServiceReservationReadConfiguration {
     recoveries: bool,
     cancellations: bool,
     agreement_reviews: bool,
+    agreement_creates: bool,
 }
 impl FieldServiceReservationReadConfiguration {
     pub fn new(
@@ -255,6 +277,7 @@ impl FieldServiceReservationReadConfiguration {
             recoveries: false,
             cancellations: false,
             agreement_reviews: false,
+            agreement_creates: false,
         })
     }
     pub fn with_cancellations(mut self) -> Self {
@@ -263,6 +286,10 @@ impl FieldServiceReservationReadConfiguration {
     }
     pub fn with_agreement_reviews(mut self) -> Self {
         self.agreement_reviews = true;
+        self
+    }
+    pub fn with_agreement_creates(mut self) -> Self {
+        self.agreement_creates = true;
         self
     }
     pub fn with_recoveries(mut self) -> Self {
@@ -494,6 +521,59 @@ impl<C: Clock + Send + Sync + 'static> FieldServiceReservationReadService<C> {
                     let mut budget=ReplyBudget(0);
                     serde_json::to_writer(&mut budget,&reply).map_err(|_|BusinessError::new(FailureKind::Unavailable,"FIELD_SERVICE_READ_LIMIT","The Service source exceeds this bounded read."))?;
                     source.require_current(c,current).await?;
+                    PgCompanyPurchaseReader::new(config.holding.clone(),config.company.clone(),c,&config.catalogue).revalidate(&purchase.witness,clock.now()).await?.require_allowed()?;
+                    if clock.now().get()>=current.expires_at(){return Err(denied().into());}
+                    Ok(reply)
+                })
+            }
+        ).await
+    }
+    pub async fn read_agreement_create<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        key: String,
+    ) -> Result<FieldServiceAgreementCreateReadResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        if !self.config.agreement_creates {
+            return Err(
+                BusinessError::new(FailureKind::NotFound, "NOT_FOUND", "Not found.").into(),
+            );
+        }
+        let company = self.config.company.clone();
+        let input = move || {
+            let mut v = input()?;
+            if v.company_id != company {
+                return Err(denied());
+            }
+            v.mutation = false;
+            Ok(v)
+        };
+        let config = self.config.clone();
+        let clock = self.clock.clone();
+        self.authorizer.execute_with_sources_deferred(
+            host, proof, input,
+            WorkAuthorizationRequest { permission: "records.read".into(), module: Some("field_service".into()), destination: "service/orders".into(), api: true },
+            AgreementCreateReadSources,
+            move |c, current| {
+                let config = config.clone(); let clock = clock.clone(); let key = key.clone();
+                Box::pin(async move {
+                    if current.holding_id() != &config.holding || current.selection().workspace().company_id != config.company { return Err(denied().into()); }
+                    let source = erpx_server_field_service::public::reservation_read::read_agreement_create_by_key(c,current,&key).await?;
+                    let mut caps = vec!["service.orders".into(), "service.agreements".into()];
+                    if source.has_asset() { caps.push("service.parts-assets".into()); }
+                    let purchase = PgCompanyPurchaseReader::new(config.holding.clone(),config.company.clone(),c,&config.catalogue)
+                        .inspect(&PurchaseRequest { capabilities:caps, purpose:CapabilityPurpose::History, mode:PackageEnforcementMode::Enforced },clock.now()).await?;
+                    purchase.require_allowed()?;
+                    let money = erpx_server_finance::public::field_service_agreement_money::read_agreement_money(c,&config.company,&source.agreement().id).await?.ok_or_else(denied)?;
+                    let reply = FieldServiceAgreementCreateReadResponse { context:context(current)?, agreement:source.agreement().clone(),receipt:source.receipt().clone(),event:source.event().clone(),money:money.evidence().clone() };
+                    let mut budget=ReplyBudget(0);
+                    serde_json::to_writer(&mut budget,&reply).map_err(|_|BusinessError::new(FailureKind::Unavailable,"FIELD_SERVICE_READ_LIMIT","The Service source exceeds this bounded read."))?;
+                    source.require_current(c,current).await?;
+                    money.require_current(c).await?;
                     PgCompanyPurchaseReader::new(config.holding.clone(),config.company.clone(),c,&config.catalogue).revalidate(&purchase.witness,clock.now()).await?.require_allowed()?;
                     if clock.now().get()>=current.expires_at(){return Err(denied().into());}
                     Ok(reply)

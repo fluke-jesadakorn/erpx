@@ -21,3 +21,5 @@ pub(crate) mod postgres_manual_draft_edit;
 pub(crate) mod postgres_manual_draft_provenance;
 
 pub(crate) mod field_service_completion;
+
+pub(crate) mod field_service_agreement_money;

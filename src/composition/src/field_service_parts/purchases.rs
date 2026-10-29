@@ -18,6 +18,62 @@ pub(super) struct FieldServicePurchases {
 }
 impl FieldServicePurchases {
     #[cfg(feature = "business-http")]
+    pub(super) async fn retain_agreement_create(
+        c: &mut PgConnection,
+        current: &AuthorizedWorkContext,
+        asset: bool,
+        disposition: CommandDisposition,
+        now: TimestampMillis,
+    ) -> Result<Self, Error> {
+        let holding = current.holding_id().clone();
+        let company = current.selection().workspace().company_id.clone();
+        let catalogue = current_package_catalogue()?;
+        let mut reader =
+            PgCompanyPurchaseReader::new(holding.clone(), company.clone(), c, &catalogue);
+        let mut history = vec!["service.orders".into(), "service.agreements".into()];
+        let mut create = vec!["service.agreements".into()];
+        if asset {
+            history.push("service.parts-assets".into());
+            create.push("service.parts-assets".into());
+        }
+        let mut witnesses = vec![
+            reader
+                .inspect(
+                    &PurchaseRequest {
+                        capabilities: history,
+                        purpose: CapabilityPurpose::History,
+                        mode: PackageEnforcementMode::Enforced,
+                    },
+                    now,
+                )
+                .await?
+                .require_allowed()?
+                .clone(),
+        ];
+        if disposition == CommandDisposition::Execute {
+            witnesses.push(
+                reader
+                    .inspect(
+                        &PurchaseRequest {
+                            capabilities: create,
+                            purpose: CapabilityPurpose::NewWork,
+                            mode: PackageEnforcementMode::Enforced,
+                        },
+                        now,
+                    )
+                    .await?
+                    .require_allowed()?
+                    .clone(),
+            );
+        }
+        Ok(Self {
+            holding,
+            company,
+            catalogue,
+            witnesses,
+        })
+    }
+    #[cfg(feature = "business-http")]
     pub(super) async fn retain_agreement_review(
         c: &mut PgConnection,
         current: &AuthorizedWorkContext,
