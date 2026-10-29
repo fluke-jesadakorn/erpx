@@ -19,7 +19,9 @@ module-example = []
 files-scan-worker = ["existing-business", "erpx-server-files/preview-provider"]
 directory-ldaps = ["existing-business", "erpx-server-identity-access/directory-ldaps"]
 contracts = ["existing-business", "dep:ts-rs", "dep:utoipa", "erpx-server-finance/contracts", "erpx-server-field-service/contracts"]
-private-development-api = ["existing-business", "business-http"]
+finance-field-read = ["field-service-http"]
+private-field-api = ["finance-field-read"]
+private-development-api = ["private-field-api", "existing-business", "business-http"]
 business-http = ["existing-business", "legal-queue", "field-service-http"]
 legal-queue = ["existing-business", ]
 legal-pdf-worker = ["existing-business", "erpx-server-legal/pdf-verifier"]
@@ -250,3 +252,8 @@ required-features = ["contracts"]
 [[test]]
 name = "module_assembly"
 path = "../../tests/unit/shared.architecture/rust-module-assembly.test.rs"
+
+[[test]]
+name = "private_field_only_postgres"
+path = "../../tests/integration/field_service/rust-private-field-only-postgres.test.rs"
+required-features = ["private-field-api"]

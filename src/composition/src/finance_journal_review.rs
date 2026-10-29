@@ -1,6 +1,6 @@
 //! Development-only actual Finance/Identity/Commercial assembly. This library
 //! mounts no route and cannot substitute Legal acceptance for Finance release.
-pub(crate) mod field_service_parts;
+pub(crate) use crate::finance_field_service_lineage as field_service_parts;
 mod journal_post_flow;
 mod maintenance_parts;
 use erpx_server_commercial::public::purchases::{
@@ -43,12 +43,7 @@ use tokio::sync::Mutex;
 
 type Error = PgTransactionError<BusinessError>;
 
-/// Chosen only by trusted bootstrap code, never an HTTP or serialized grant.
-#[derive(Clone, Copy, Debug)]
-pub enum FinanceJournalEnvironment {
-    Development,
-    Production,
-}
+pub use crate::finance_journal_environment::FinanceJournalEnvironment;
 #[derive(Clone)]
 pub struct FinanceJournalConfiguration {
     holding_id: HoldingId,

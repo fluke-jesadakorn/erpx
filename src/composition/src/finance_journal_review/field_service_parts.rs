@@ -1,6 +1,9 @@
 //! Minimum original financial lineage only. Finance reviewers borrow neither
 //! current operational worker rights nor current Support/Agreement/Asset state.
-use super::*;
+use erpx_server_runtime::public::postgres::PgTransactionError;
+use erpx_server_shared::public::{BusinessError, FailureKind};
+use sqlx::PgConnection;
+type Error = PgTransactionError<BusinessError>;
 use erpx_server_field_service::public::finance_lineage::{
     CurrentFieldServicePartsFinanceLineage, FieldServicePartsFinanceRequest,
     read_field_service_parts_finance_lineage,
@@ -20,7 +23,8 @@ pub(crate) struct FieldServicePartsSource {
     origin: PgRawRecordOrigin,
 }
 impl FieldServicePartsSource {
-    pub(super) fn journal_id(&self) -> &str {
+    #[cfg(feature = "existing-business")]
+    pub(crate) fn journal_id(&self) -> &str {
         &self.target.facts().journal_id
     }
     pub(crate) async fn retain(

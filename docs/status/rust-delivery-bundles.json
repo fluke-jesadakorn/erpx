@@ -12,7 +12,7 @@
     "workflowDenominator": 206,
     "ownerRegister": "docs/status/rust-backend-migration.json",
     "ownerDenominator": 41,
-    "catalogueFingerprint": "0bd939a7417a623eb89cac3858a3a82ba6f455fb3456fc28d83f7336ebeb9abc",
+    "catalogueFingerprint": "dc2b9476bd801743b075d9e372f41bde0e2c9c9e554f5d9312db282dd9dd43c0",
     "interpretation": "The 206 items are catalogue workflows, not the number of bounded flows. Each listed ID occurs once below. A partial item has supporting qualified slices, not whole-workflow verification."
   },
   "counts": {

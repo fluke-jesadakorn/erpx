@@ -1,7 +1,15 @@
 //! Explicit private development assembly. No environment discovery, migrations,
 //! public listener, installed service, business readiness or legacy backend proxy.
+#[cfg(feature = "business-http")]
 use crate::{
     business_http::{BusinessHttpTarget, business_router},
+    finance_journal_create::{FinanceJournalCreateConfiguration, FinanceJournalCreateService},
+    finance_journal_create_http::{FinanceJournalCreateTarget, finance_journal_create_router},
+    finance_journal_edit::FinanceJournalEditService,
+    finance_journal_edit_http::{FinanceJournalEditTarget, finance_journal_edit_router},
+    finance_journal_review::{FinanceJournalConfiguration, FinanceJournalReviewAdministration},
+};
+use crate::{
     field_service_http::{FieldServiceHttpTarget, field_service_http_router},
     field_service_parts::{
         FieldServicePartsAdministration, FieldServicePartsConfiguration,
@@ -11,19 +19,16 @@ use crate::{
         FieldServiceReservationReadConfiguration, FieldServiceReservationReadService,
     },
     field_service_reservation_read_http::{
-        FieldServiceReservationReadTarget, field_service_reservation_read_router,
+        FieldServiceReadScopeHeaders, FieldServiceReservationReadTarget,
+        field_service_reservation_read_router,
     },
-    finance_journal_create::{FinanceJournalCreateConfiguration, FinanceJournalCreateService},
-    finance_journal_create_http::{FinanceJournalCreateTarget, finance_journal_create_router},
+};
+use crate::{
     finance_journal_detail::{FinanceJournalDetailService, FinanceJournalReadConfiguration},
     finance_journal_detail_http::{
         FinanceJournalReadScopeHeaders, FinanceJournalReadTarget, finance_journal_read_router,
     },
-    finance_journal_edit::FinanceJournalEditService,
-    finance_journal_edit_http::{FinanceJournalEditTarget, finance_journal_edit_router},
-    finance_journal_review::{
-        FinanceJournalConfiguration, FinanceJournalEnvironment, FinanceJournalReviewAdministration,
-    },
+    finance_journal_environment::FinanceJournalEnvironment,
 };
 use axum::{
     Router,
@@ -220,6 +225,15 @@ impl DevelopmentApiConfiguration {
         }
         let doc: ConfigurationDocument =
             serde_json::from_str(json).map_err(|_| "PRIVATE_API_CONFIGURATION_INVALID")?;
+        #[cfg(not(feature = "business-http"))]
+        if !doc.finance_journal_posts.is_empty()
+            || !doc.finance_field_service_journal_posts.is_empty()
+            || !doc.finance_journal_creates.is_empty()
+            || !doc.finance_journal_edits.is_empty()
+            || !doc.finance_journal_reversals.is_empty()
+        {
+            return Err("PRIVATE_API_FINANCE_CONFIGURATION_INVALID");
+        }
         if doc.version != 1
             || doc.mode != "development"
             || doc.transport != "direct-loopback"
@@ -820,10 +834,22 @@ async fn assemble_checked(
     }
     let mut finance_targets = BTreeSet::new();
     let mut finance_service_invoice_targets = BTreeSet::new();
+    #[cfg(feature = "business-http")]
     let mut finance_post_targets = BTreeSet::new();
+    #[cfg(not(feature = "business-http"))]
+    let finance_post_targets = BTreeSet::new();
+    #[cfg(feature = "business-http")]
     let mut finance_create_targets = BTreeSet::new();
+    #[cfg(not(feature = "business-http"))]
+    let finance_create_targets = BTreeSet::new();
+    #[cfg(feature = "business-http")]
     let mut finance_edit_targets = BTreeSet::new();
+    #[cfg(not(feature = "business-http"))]
+    let finance_edit_targets = BTreeSet::new();
+    #[cfg(feature = "business-http")]
     let mut finance_reversal_targets = BTreeSet::new();
+    #[cfg(not(feature = "business-http"))]
+    let finance_reversal_targets = BTreeSet::new();
     let mut service_read_targets = BTreeSet::new();
     let mut service_workspace_targets = BTreeSet::new();
     let mut field_attachment_targets = BTreeSet::new();
@@ -839,13 +865,25 @@ async fn assemble_checked(
     let mut service_billing_targets = BTreeSet::new();
     let mut service_agreement_review_targets = BTreeSet::new();
     let mut service_agreement_create_targets = BTreeSet::new();
+    #[cfg(not(feature = "business-http"))]
+    if !config.finance_journal_posts.is_empty()
+        || !config.finance_field_service_journal_posts.is_empty()
+        || !config.finance_journal_creates.is_empty()
+        || !config.finance_journal_edits.is_empty()
+        || !config.finance_journal_reversals.is_empty()
+    {
+        return Err("PRIVATE_API_FINANCE_CONFIGURATION_INVALID");
+    }
     if !config.finance_journal_reads.is_empty() {
         let catalogue = Arc::new(
             current_package_catalogue().map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
         );
         let mut targets = Vec::new();
+        #[cfg(feature = "business-http")]
         let mut post_targets = Vec::new();
+        #[cfg(feature = "business-http")]
         let mut create_targets = Vec::new();
+        #[cfg(feature = "business-http")]
         let mut edit_targets = Vec::new();
         for (i, holding) in config.holdings.iter().enumerate() {
             let Some(company) = config
@@ -891,95 +929,98 @@ async fn assemble_checked(
                 configuration
             };
             finance_targets.insert((holding.host.clone(), holding.registration.slug.clone()));
-            let post = config
-                .finance_journal_posts
-                .contains(&holding.registration.holding_id);
-            let reverse = config
-                .finance_journal_reversals
-                .contains(&holding.registration.holding_id);
-            if post || reverse {
-                let action_config = FinanceJournalConfiguration::new_private_actions(
-                    FinanceJournalEnvironment::Development,
-                    holding.registration.holding_id.clone(),
-                    company.clone(),
-                    catalogue.clone(),
-                    post,
-                    reverse,
-                )
-                .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?;
-                let action_config = if config
-                    .finance_field_service_journal_posts
+            #[cfg(feature = "business-http")]
+            {
+                let post = config
+                    .finance_journal_posts
+                    .contains(&holding.registration.holding_id);
+                let reverse = config
+                    .finance_journal_reversals
+                    .contains(&holding.registration.holding_id);
+                if post || reverse {
+                    let action_config = FinanceJournalConfiguration::new_private_actions(
+                        FinanceJournalEnvironment::Development,
+                        holding.registration.holding_id.clone(),
+                        company.clone(),
+                        catalogue.clone(),
+                        post,
+                        reverse,
+                    )
+                    .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?;
+                    let action_config = if config
+                        .finance_field_service_journal_posts
+                        .contains(&holding.registration.holding_id)
+                    {
+                        action_config
+                            .with_field_service_post()
+                            .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?
+                    } else {
+                        action_config
+                    };
+                    let target = (holding.host.clone(), holding.registration.slug.clone());
+                    if post {
+                        finance_post_targets.insert(target.clone());
+                    }
+                    if reverse {
+                        finance_reversal_targets.insert(target);
+                    }
+                    post_targets.push(BusinessHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        legal: None,
+                        finance: Some(Arc::new(FinanceJournalReviewAdministration::new(
+                            authorizer.clone(),
+                            action_config,
+                            Arc::new(SharedClock(clock.clone())),
+                        ))),
+                    });
+                }
+                if config
+                    .finance_journal_creates
                     .contains(&holding.registration.holding_id)
                 {
-                    action_config
-                        .with_field_service_post()
-                        .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?
-                } else {
-                    action_config
-                };
-                let target = (holding.host.clone(), holding.registration.slug.clone());
-                if post {
-                    finance_post_targets.insert(target.clone());
+                    let create_config = FinanceJournalCreateConfiguration::new(
+                        FinanceJournalEnvironment::Development,
+                        holding.registration.holding_id.clone(),
+                        company.clone(),
+                        catalogue.clone(),
+                    )
+                    .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?;
+                    finance_create_targets
+                        .insert((holding.host.clone(), holding.registration.slug.clone()));
+                    create_targets.push(FinanceJournalCreateTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        service: Arc::new(FinanceJournalCreateService::new(
+                            authorizer.clone(),
+                            create_config,
+                            Arc::new(SharedClock(clock.clone())),
+                        )),
+                    });
                 }
-                if reverse {
-                    finance_reversal_targets.insert(target);
+                if config
+                    .finance_journal_edits
+                    .contains(&holding.registration.holding_id)
+                {
+                    let edit_config = FinanceJournalCreateConfiguration::new(
+                        FinanceJournalEnvironment::Development,
+                        holding.registration.holding_id.clone(),
+                        company.clone(),
+                        catalogue.clone(),
+                    )
+                    .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?;
+                    finance_edit_targets
+                        .insert((holding.host.clone(), holding.registration.slug.clone()));
+                    edit_targets.push(FinanceJournalEditTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        service: Arc::new(FinanceJournalEditService::new(
+                            authorizer.clone(),
+                            edit_config,
+                            Arc::new(SharedClock(clock.clone())),
+                        )),
+                    });
                 }
-                post_targets.push(BusinessHttpTarget {
-                    host: holding.host.clone(),
-                    holding_slug: holding.registration.slug.clone(),
-                    legal: None,
-                    finance: Some(Arc::new(FinanceJournalReviewAdministration::new(
-                        authorizer.clone(),
-                        action_config,
-                        Arc::new(SharedClock(clock.clone())),
-                    ))),
-                });
-            }
-            if config
-                .finance_journal_creates
-                .contains(&holding.registration.holding_id)
-            {
-                let create_config = FinanceJournalCreateConfiguration::new(
-                    FinanceJournalEnvironment::Development,
-                    holding.registration.holding_id.clone(),
-                    company.clone(),
-                    catalogue.clone(),
-                )
-                .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?;
-                finance_create_targets
-                    .insert((holding.host.clone(), holding.registration.slug.clone()));
-                create_targets.push(FinanceJournalCreateTarget {
-                    host: holding.host.clone(),
-                    holding_slug: holding.registration.slug.clone(),
-                    service: Arc::new(FinanceJournalCreateService::new(
-                        authorizer.clone(),
-                        create_config,
-                        Arc::new(SharedClock(clock.clone())),
-                    )),
-                });
-            }
-            if config
-                .finance_journal_edits
-                .contains(&holding.registration.holding_id)
-            {
-                let edit_config = FinanceJournalCreateConfiguration::new(
-                    FinanceJournalEnvironment::Development,
-                    holding.registration.holding_id.clone(),
-                    company.clone(),
-                    catalogue.clone(),
-                )
-                .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?;
-                finance_edit_targets
-                    .insert((holding.host.clone(), holding.registration.slug.clone()));
-                edit_targets.push(FinanceJournalEditTarget {
-                    host: holding.host.clone(),
-                    holding_slug: holding.registration.slug.clone(),
-                    service: Arc::new(FinanceJournalEditService::new(
-                        authorizer.clone(),
-                        edit_config,
-                        Arc::new(SharedClock(clock.clone())),
-                    )),
-                });
             }
             targets.push(FinanceJournalReadTarget {
                 host: holding.host.clone(),
@@ -991,38 +1032,41 @@ async fn assemble_checked(
                 )),
             });
         }
-        if !create_targets.is_empty() {
-            router = router.merge(
-                finance_journal_create_router(
-                    config.policy.clone(),
-                    config.holdings_registry.clone(),
-                    Arc::new(FinanceJournalReadScopeHeaders),
-                    create_targets,
-                )
-                .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
-            );
-        }
-        if !edit_targets.is_empty() {
-            router = router.merge(
-                finance_journal_edit_router(
-                    config.policy.clone(),
-                    config.holdings_registry.clone(),
-                    Arc::new(FinanceJournalReadScopeHeaders),
-                    edit_targets,
-                )
-                .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
-            );
-        }
-        if !post_targets.is_empty() {
-            router = router.merge(
-                business_router(
-                    config.policy.clone(),
-                    config.holdings_registry.clone(),
-                    Arc::new(FinanceJournalReadScopeHeaders),
-                    post_targets,
-                )
-                .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
-            );
+        #[cfg(feature = "business-http")]
+        {
+            if !create_targets.is_empty() {
+                router = router.merge(
+                    finance_journal_create_router(
+                        config.policy.clone(),
+                        config.holdings_registry.clone(),
+                        Arc::new(FinanceJournalReadScopeHeaders),
+                        create_targets,
+                    )
+                    .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
+                );
+            }
+            if !edit_targets.is_empty() {
+                router = router.merge(
+                    finance_journal_edit_router(
+                        config.policy.clone(),
+                        config.holdings_registry.clone(),
+                        Arc::new(FinanceJournalReadScopeHeaders),
+                        edit_targets,
+                    )
+                    .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
+                );
+            }
+            if !post_targets.is_empty() {
+                router = router.merge(
+                    business_router(
+                        config.policy.clone(),
+                        config.holdings_registry.clone(),
+                        Arc::new(FinanceJournalReadScopeHeaders),
+                        post_targets,
+                    )
+                    .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
+                );
+            }
         }
         router = router.merge(
             finance_journal_read_router(
@@ -1359,7 +1403,7 @@ async fn assemble_checked(
             field_service_reservation_read_router(
                 config.policy.clone(),
                 config.holdings_registry.clone(),
-                Arc::new(FinanceJournalReadScopeHeaders),
+                Arc::new(FieldServiceReadScopeHeaders),
                 reads,
             )
             .map_err(|_| "PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID")?,
@@ -1369,7 +1413,7 @@ async fn assemble_checked(
                 field_service_http_router(
                     config.policy.clone(),
                     config.holdings_registry.clone(),
-                    Arc::new(FinanceJournalReadScopeHeaders),
+                    Arc::new(FieldServiceReadScopeHeaders),
                     reserves,
                 )
                 .map_err(|_| "PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID")?,

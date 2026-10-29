@@ -29,7 +29,7 @@ pub async fn run_cli(arguments: impl IntoIterator<Item = String>) -> Result<(), 
             println!("{}", outcome);
             Ok(())
         }
-        #[cfg(feature = "private-development-api")]
+        #[cfg(feature = "private-field-api")]
         [command, option, path] if command == "private-api" && option == "--development-config" => {
             erpx_service::private_development_api::run_development_api_file(
                 std::path::Path::new(path),
@@ -68,7 +68,7 @@ pub async fn run_cli(arguments: impl IntoIterator<Item = String>) -> Result<(), 
             if cfg!(feature = "legal-document-worker") {
                 usage.push_str(" | erpx-server legal-worker --once --development-config /absolute/private.json");
             }
-            if cfg!(feature = "private-development-api") {
+            if cfg!(feature = "private-field-api") {
                 usage.push_str(
                     " | erpx-server private-api --development-config /absolute/private.json",
                 );

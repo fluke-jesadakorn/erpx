@@ -39,13 +39,20 @@ pub mod business_http;
 #[cfg(feature = "field-service-http")]
 pub mod http_scope;
 
-#[cfg(feature = "private-development-api")]
+#[cfg(feature = "private-field-api")]
 pub mod private_development_api;
 
-#[cfg(feature = "existing-business")]
+#[cfg(any(feature = "existing-business", feature = "finance-field-read"))]
 pub mod finance_journal_detail;
 
-#[cfg(feature = "business-http")]
+#[cfg(any(feature = "existing-business", feature = "finance-field-read"))]
+pub mod finance_journal_environment;
+
+#[cfg(any(feature = "existing-business", feature = "finance-field-read"))]
+#[path = "finance_journal_review/field_service_parts.rs"]
+mod finance_field_service_lineage;
+
+#[cfg(any(feature = "business-http", feature = "finance-field-read"))]
 pub mod finance_journal_detail_http;
 
 #[cfg(feature = "existing-business")]

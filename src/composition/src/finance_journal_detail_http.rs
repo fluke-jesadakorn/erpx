@@ -1,7 +1,5 @@
 //! Unmounted detail HTTP; one retained read returns owner data + render context.
-use crate::{
-    business_http::BusinessScopeSlugs, finance_journal_detail::FinanceJournalDetailService,
-};
+use crate::{finance_journal_detail::FinanceJournalDetailService, http_scope::BusinessScopeSlugs};
 use axum::{
     Json, Router,
     extract::{Path, State},

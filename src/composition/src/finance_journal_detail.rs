@@ -1,6 +1,6 @@
 //! Development read assembly. Rendered context is output data from the SAME
 //! retained authorization unit, never a deserialized actor or a command grant.
-use crate::finance_journal_review::FinanceJournalEnvironment;
+use crate::finance_journal_environment::FinanceJournalEnvironment;
 use erpx_server_commercial::public::purchases::{
     CapabilityPurpose, CommercialCatalogue, PackageEnforcementMode, PgCompanyPurchaseReader,
     PurchaseRequest, lock_commercial_authority_sources,
@@ -164,11 +164,11 @@ enum ReadSource {
     Workspace(Box<CurrentJournalRecordWorkspace>),
     FieldDetail(
         Box<CurrentFieldServiceJournalDetail>,
-        Box<crate::finance_journal_review::field_service_parts::FieldServicePartsSource>,
+        Box<crate::finance_field_service_lineage::FieldServicePartsSource>,
     ),
     FieldWorkspace(
         Box<CurrentFieldServiceJournalWorkspace>,
-        Box<crate::finance_journal_review::field_service_parts::FieldServicePartsSource>,
+        Box<crate::finance_field_service_lineage::FieldServicePartsSource>,
     ),
 }
 impl ReadSource {
@@ -480,12 +480,12 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
                             match kind {
                                 ReadKind::Detail => {
                                     let detail = read_field_service_journal_detail(c, &actor, &id, &target).await?;
-                                    let lineage = crate::finance_journal_review::field_service_parts::FieldServicePartsSource::retain(c, target).await?;
+                                    let lineage = crate::finance_field_service_lineage::FieldServicePartsSource::retain(c, target).await?;
                                     ReadSource::FieldDetail(Box::new(detail), Box::new(lineage))
                                 }
                                 ReadKind::Workspace => {
                                     let workspace = read_field_service_journal_workspace(c, &actor, &id, &target).await?;
-                                    let lineage = crate::finance_journal_review::field_service_parts::FieldServicePartsSource::retain(c, target).await?;
+                                    let lineage = crate::finance_field_service_lineage::FieldServicePartsSource::retain(c, target).await?;
                                     ReadSource::FieldWorkspace(Box::new(workspace), Box::new(lineage))
                                 }
                             }

@@ -2,8 +2,8 @@
   "version": 3,
   "environment": "development",
   "deliveryPlan": "docs/production-plan.md",
-  "sourceFingerprint": "0bd939a7417a623eb89cac3858a3a82ba6f455fb3456fc28d83f7336ebeb9abc",
-  "verificationFingerprint": "54a732dc20eb66694ceabd7cd2f8c558d40cfedf6a79894cc525b0cfbb6591c1",
+  "sourceFingerprint": "dc2b9476bd801743b075d9e372f41bde0e2c9c9e554f5d9312db282dd9dd43c0",
+  "verificationFingerprint": "7b53e0b6ef11599c03ee2b26fc1d67fb450c01c03272be0fa4903335cf31b332",
   "baseline": {
     "source": ".scratch/dev/product-migration-baseline-2026-10-14/",
     "privateAuthority": "read-only per-database snapshots; no secrets or personal authority rows in this register",
@@ -834,7 +834,8 @@
         "field_service.rust-parts-command-postgres.integration",
         "field_service.rust-http-parity-postgres.integration",
         "shared.runtime.ui-module-registration.unit",
-        "shared.architecture.rust-module-assembly.unit"
+        "shared.architecture.rust-module-assembly.unit",
+        "field_service.rust-private-field-only-postgres.integration"
       ]
     },
     {
@@ -1490,7 +1491,8 @@
         "field_service.rust-parts-command-postgres.integration",
         "field_service.rust-http-parity-postgres.integration",
         "shared.runtime.ui-module-registration.unit",
-        "shared.architecture.rust-module-assembly.unit"
+        "shared.architecture.rust-module-assembly.unit",
+        "field_service.rust-private-field-only-postgres.integration"
       ]
     },
     {
@@ -3883,7 +3885,8 @@
         "field_service.rust-parts-command-postgres.integration",
         "field_service.rust-http-parity-postgres.integration",
         "shared.runtime.ui-module-registration.unit",
-        "shared.architecture.rust-module-assembly.unit"
+        "shared.architecture.rust-module-assembly.unit",
+        "field_service.rust-private-field-only-postgres.integration"
       ]
     },
     {
@@ -4709,7 +4712,8 @@
         "field_service.rust-http-parity-postgres.integration",
         "finance.rust-manual-draft-edit-postgres.integration",
         "shared.runtime.ui-module-registration.unit",
-        "shared.architecture.rust-module-assembly.unit"
+        "shared.architecture.rust-module-assembly.unit",
+        "field_service.rust-private-field-only-postgres.integration"
       ]
     },
     {
@@ -5642,7 +5646,8 @@
         "field_service.rust-parts-command-postgres.integration",
         "field_service.rust-http-parity-postgres.integration",
         "shared.runtime.ui-module-registration.unit",
-        "shared.architecture.rust-module-assembly.unit"
+        "shared.architecture.rust-module-assembly.unit",
+        "field_service.rust-private-field-only-postgres.integration"
       ]
     },
     {
@@ -6099,7 +6104,8 @@
         "field_service.rust-parts-command-postgres.integration",
         "field_service.rust-http-parity-postgres.integration",
         "shared.runtime.ui-module-registration.unit",
-        "shared.architecture.rust-module-assembly.unit"
+        "shared.architecture.rust-module-assembly.unit",
+        "field_service.rust-private-field-only-postgres.integration"
       ]
     },
     {
@@ -6637,7 +6643,8 @@
         "field_service.rust-parts-command-postgres.integration",
         "field_service.rust-http-parity-postgres.integration",
         "shared.runtime.ui-module-registration.unit",
-        "shared.architecture.rust-module-assembly.unit"
+        "shared.architecture.rust-module-assembly.unit",
+        "field_service.rust-private-field-only-postgres.integration"
       ]
     },
     {
@@ -8048,7 +8055,8 @@
         "field_service.rust-parts-command-postgres.integration",
         "field_service.rust-http-parity-postgres.integration",
         "shared.runtime.ui-module-registration.unit",
-        "shared.architecture.rust-module-assembly.unit"
+        "shared.architecture.rust-module-assembly.unit",
+        "field_service.rust-private-field-only-postgres.integration"
       ]
     },
     {
@@ -8452,7 +8460,8 @@
         "field_service.rust-parts-command-postgres.integration",
         "field_service.rust-http-parity-postgres.integration",
         "shared.runtime.ui-module-registration.unit",
-        "shared.architecture.rust-module-assembly.unit"
+        "shared.architecture.rust-module-assembly.unit",
+        "field_service.rust-private-field-only-postgres.integration"
       ]
     },
     {
@@ -9496,7 +9505,8 @@
         "people_payroll.rust-payroll-accounting.unit",
         "field_service.rust-http-parity-postgres.integration",
         "shared.runtime.ui-module-registration.unit",
-        "shared.architecture.rust-module-assembly.unit"
+        "shared.architecture.rust-module-assembly.unit",
+        "field_service.rust-private-field-only-postgres.integration"
       ]
     },
     {
@@ -14188,7 +14198,8 @@
         "field_service.rust-http-parity.unit",
         "field_service.rust-http-parity-postgres.integration",
         "shared.runtime.ui-module-registration.unit",
-        "shared.architecture.rust-module-assembly.unit"
+        "shared.architecture.rust-module-assembly.unit",
+        "field_service.rust-private-field-only-postgres.integration"
       ]
     },
     {
@@ -15308,7 +15319,8 @@
         "field_service.rust-parts-command-postgres.integration",
         "field_service.rust-http-parity-postgres.integration",
         "shared.runtime.ui-module-registration.unit",
-        "shared.architecture.rust-module-assembly.unit"
+        "shared.architecture.rust-module-assembly.unit",
+        "field_service.rust-private-field-only-postgres.integration"
       ]
     },
     {
