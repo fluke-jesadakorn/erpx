@@ -1,4 +1,4 @@
-import type { Reporter, TestModule } from "vitest/node";
+import type { Reporter, TestCase, TestModule } from "vitest/node";
 import { writeFileSync } from "node:fs";
 import { assertRequiredCaseResults, canonicalCaseFile, loadRequiredCases, type CaseObservation, type RequiredCaseIdentity } from "./required-case-inventory";
 
@@ -25,8 +25,42 @@ export function requiredCaseFailures(modules: ReadonlyArray<RequiredModule>, sel
   return { missing, skipped: cases.filter(test => ["skipped", "pending"].includes(test.result().state)).map(test => test.fullName), empty: !cases.length };
 }
 
+const diagnosticSqlStates = new Set(["23503", "23505", "23514", "40001", "40P01", "53200", "57014"]);
+type DiagnosticError = { name?: unknown; message?: unknown; code?: unknown; stack?: unknown; stacks?: unknown };
+/** Only reviewed identity and narrowly structured error facts may leave the worker. */
+export function failedCaseDiagnostic(file: string, title: string, errors: readonly DiagnosticError[], selected: readonly string[], registered: readonly RequiredCaseIdentity[]) {
+  const identity = registered.find(test => test.runner === "vitest" && test.file === file && test.title === title && selected.includes(file));
+  if (!identity) return undefined;
+  const diagnostics = errors.slice(0, 4).map(error => {
+    const timeout = typeof error.message === "string" ? /^Test timed out in (\d{1,8})ms\.(?:\n|$)/.exec(error.message) : null;
+    const code = typeof error.code === "string" && diagnosticSqlStates.has(error.code) ? error.code : undefined;
+    const category = timeout ? "timeout" : code ? "database" : error.name === "AssertionError" ? "assertion" : "error";
+    const frames: { line: number; column: number }[] = [];
+    const root = process.cwd().replaceAll("\\", "/").replace(/\/$/, "");
+    const add = (path: unknown, line: unknown, column: unknown) => {
+      if (typeof path !== "string" || path.replaceAll("\\", "/") !== `${root}/${file}` || !Number.isSafeInteger(line) || !Number.isSafeInteger(column) || (line as number) < 1 || (column as number) < 1 || frames.length >= 4) return;
+      frames.push({line: line as number, column: column as number});
+    };
+    if (Array.isArray(error.stacks)) for (const frame of error.stacks.slice(0, 32)) if (frame && typeof frame === "object") add(frame.file, frame.line, frame.column);
+    if (typeof error.stack === "string") for (const line of error.stack.slice(0, 16_384).split("\n").slice(0, 32)) {
+      const match = /^\s*at (?:[^()\n]* \()?([^()\n]+):(\d+):(\d+)\)?$/.exec(line);
+      if (match) add(match[1], Number(match[2]), Number(match[3]));
+    }
+    return { category, ...(code ? {code} : {}), ...(timeout ? {timeoutMs: Number(timeout[1])} : {}), ...(frames.length ? {frames} : {}) };
+  });
+  return {file: identity.file, title: identity.title, errors: diagnostics};
+}
+
 /** A green acceptance run cannot be built from missing, skipped or todo cases. */
 export default class RequiredCasesReporter implements Reporter {
+  onTestCaseResult(test: TestCase): void {
+    const result = test.result();
+    if (result.state !== "failed") return;
+    const selected = JSON.parse(process.env.ERPX_SELECTED_TEST_FILES ?? "[]") as string[];
+    const file = canonicalCaseFile(test.module.relativeModuleId, selected);
+    const diagnostic = failedCaseDiagnostic(file, nativeCaseTitle(test), result.errors, selected, loadRequiredCases());
+    if (diagnostic) console.error(`TEST_CASE_FAILURE_DIAGNOSTIC:${JSON.stringify(diagnostic)}`);
+  }
   onTestRunEnd(modules: ReadonlyArray<TestModule>): void {
     const selected = JSON.parse(process.env.ERPX_SELECTED_TEST_FILES ?? "[]") as string[];
     const pattern = process.env.ERPX_TEST_NAME_PATTERN ? new RegExp(process.env.ERPX_TEST_NAME_PATTERN) : undefined;

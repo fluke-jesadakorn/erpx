@@ -5,7 +5,7 @@ import {executeOwnedProcess} from '../../support/owned-process';
 import {ciPostgresInvocation,ciVerificationArgv} from '../../../scripts/testing/ci-postgres-contract';
 import {ciHeifDecoderInventory} from '../../../scripts/testing/ci-attachment-contract';
 import {cargoVerificationEdges} from '../../../scripts/testing/cargo';
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { availableParallelism, tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
@@ -16,7 +16,7 @@ import { assertExplicitSelectionIncluded, importSpecifiers, loadCatalogue, reach
 import { parseChanges, patternMatches, selectImpact, type ImpactResult, type SourceOwnership } from "../../../scripts/testing/impact";
 import { selectCiSuites } from "../../../scripts/testing/ci-selection";
 import { developmentSelection } from "../../../scripts/testing/development";
-import { nativeCaseTitle, requiredCaseFailures } from "../../../scripts/testing/required-cases-reporter";
+import RequiredCasesReporter, { failedCaseDiagnostic, nativeCaseTitle, requiredCaseFailures } from "../../../scripts/testing/required-cases-reporter";
 import { browserChildEnvironment, vitestChildEnvironment } from "../../../scripts/testing/runner-environment";
 import { assertRequiredCaseInventory, assertUatRouteSources, browserRequiredCaseBaseline, currentRequiredCases, loadBrowserCaseBaseline, loadRequiredCases, requiredCaseKey } from "../../../scripts/testing/required-case-inventory";
 import { loadProviderRehearsals, unselectedProviderRehearsals, validateProviderRehearsals } from "../../../scripts/testing/provider-rehearsals";
@@ -845,6 +845,25 @@ describe("required native cases", () => {
     expect(nativeCaseTitle(test)).toBe("Commerce money > threshold rounds tax > zero");
     const capabilityModule = { relativeModuleId: "tests/case.test.ts", children: { allTests: () => [test] } };
     expect(requiredCaseFailures([capabilityModule], ["tests/case.test.ts"], /^Commerce money > threshold rounds tax > zero$/, [{ runner: "vitest", file: "tests/case.test.ts", title: "Commerce money > threshold rounds tax > zero" }])).toEqual({ missing: [], skipped: [], empty: false });
+  });
+  it("emits only bounded registered-case failure facts before the run ends", () => {
+    const file = "tests/case.test.ts", title = "registered case", registered = [{runner:"vitest" as const,file,title}];
+    const error = {name:"AssertionError",message:"secret actual https://user:password@example.test",code:"53200",stack:`Error: secret\n    at example (${process.cwd()}/${file}:17:9)\n    at private (/secret/token:22:1)`,actual:"password",expected:"token"};
+    expect(failedCaseDiagnostic(file,title,[error],[file],registered)).toEqual({file,title,errors:[{category:"database",code:"53200",frames:[{line:17,column:9}]}]});
+    expect(failedCaseDiagnostic(file,"dynamic secret",[error],[file],registered)).toBeUndefined();
+    expect(failedCaseDiagnostic(file,title,[{name:"AssertionError",message:"Test timed out in 30000ms.\nDetails: secret",code:"SECRET"}],[file],registered)).toEqual({file,title,errors:[{category:"timeout",timeoutMs:30000}]});
+    expect(JSON.stringify(failedCaseDiagnostic(file,title,[error],[file],registered))).not.toMatch(/password|token|https|secret/);
+
+    const real = loadRequiredCases().find(test=>test.runner==="vitest")!;
+    const before=process.env.ERPX_SELECTED_TEST_FILES, output=vi.spyOn(console,"error").mockImplementation(()=>{});
+    try {
+      process.env.ERPX_SELECTED_TEST_FILES=JSON.stringify([real.file]);
+      const test={name:real.title,fullName:real.title,parent:{type:"module"},module:{relativeModuleId:real.file},result:()=>({state:"failed",errors:[{name:"AssertionError",message:"secret"}]})};
+      new RequiredCasesReporter().onTestCaseResult(test as never);
+      expect(output).toHaveBeenCalledOnce();
+      expect(output.mock.calls[0][0]).toContain("TEST_CASE_FAILURE_DIAGNOSTIC:");
+      expect(output.mock.calls[0][0]).not.toContain("secret");
+    } finally {output.mockRestore();if(before===undefined)delete process.env.ERPX_SELECTED_TEST_FILES;else process.env.ERPX_SELECTED_TEST_FILES=before;}
   });
   it("fails when a registered file has no discovery even if another required file passes", () => {
     const registered = [{ runner: "playwright" as const, file: "tests/e2e/required.spec.ts", title: "required consent", project: "mobile" as const }];
