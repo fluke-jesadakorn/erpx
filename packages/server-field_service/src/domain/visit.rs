@@ -9,6 +9,7 @@ pub enum VisitAction {
     Complete,
     Exception,
     Resume,
+    Cancel,
 }
 impl VisitAction {
     pub fn operation(self) -> &'static str {
@@ -19,6 +20,7 @@ impl VisitAction {
             Self::Complete => "field.order.complete",
             Self::Exception => "field.order.exception",
             Self::Resume => "field.order.resume",
+            Self::Cancel => "field.order.cancel",
         }
     }
     pub fn status(self) -> &'static str {
@@ -29,6 +31,7 @@ impl VisitAction {
             Self::Complete => "completed",
             Self::Exception => "exception",
             Self::Resume => "in_visit",
+            Self::Cancel => "cancelled",
         }
     }
     pub fn allows_state(self, state: &str) -> bool {
@@ -39,6 +42,7 @@ impl VisitAction {
             Self::Complete => state == "in_visit",
             Self::Exception => matches!(state, "dispatched" | "in_visit"),
             Self::Resume => state == "exception",
+            Self::Cancel => matches!(state, "open" | "scheduled" | "dispatched" | "exception"),
         }
     }
 }

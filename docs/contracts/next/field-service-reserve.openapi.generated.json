@@ -1,6 +1,38 @@
 {
   "components": {
     "schemas": {
+      "FieldServiceCancelAction": {
+        "enum": [
+          "cancel"
+        ],
+        "type": "string"
+      },
+      "FieldServiceCancelInput": {
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/FieldServiceCancelAction"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "action",
+          "expectedVersion",
+          "reason"
+        ],
+        "type": "object"
+      },
       "FieldServiceCompletionAction": {
         "enum": [
           "complete"
@@ -1130,6 +1162,9 @@
                   },
                   {
                     "$ref": "#/components/schemas/FieldServiceRecoveryInput"
+                  },
+                  {
+                    "$ref": "#/components/schemas/FieldServiceCancelInput"
                   }
                 ]
               }

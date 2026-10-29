@@ -214,6 +214,7 @@ pub struct PreparedCompletionReservations {
     before: String,
     after: String,
     groups: Vec<CompletionStockGroup>,
+    action: VisitAction,
 }
 #[derive(Clone, Debug, serde::Deserialize, PartialEq, Eq)]
 pub struct CompletionStockGroup {
@@ -230,11 +231,14 @@ impl PreparedCompletionReservations {
         now: TimestampMillis,
     ) -> Result<Self, Error> {
         plan.require_before(c, source, tech, now).await?;
-        if plan.input.action != VisitAction::Complete {
+        if !matches!(
+            plan.input.action,
+            VisitAction::Complete | VisitAction::Cancel
+        ) {
             return Err(changed());
         }
         let order = source.facts().id.as_str().to_owned();
-        let (before, after, groups) = reservation_images(c, &order).await?;
+        let (before, after, groups) = reservation_images(c, &order, plan.input.action).await?;
         Ok(Self {
             unit: unit(c).await?,
             order,
@@ -242,6 +246,7 @@ impl PreparedCompletionReservations {
             before,
             after,
             groups,
+            action: plan.input.action,
         })
     }
     pub fn groups(&self) -> &[CompletionStockGroup] {
@@ -251,7 +256,7 @@ impl PreparedCompletionReservations {
         if unit(c).await? != self.unit {
             return Err(changed());
         }
-        let (before, after, groups) = reservation_images(c, &self.order).await?;
+        let (before, after, groups) = reservation_images(c, &self.order, self.action).await?;
         if before != self.before || after != self.after || groups != self.groups {
             return Err(changed());
         }
@@ -265,22 +270,19 @@ impl PreparedCompletionReservations {
         tech: &T,
         now: TimestampMillis,
     ) -> Result<(), Error> {
-        if plan.key != self.key
-            || plan.order_id != self.order
-            || plan.input.action != VisitAction::Complete
-        {
+        if plan.key != self.key || plan.order_id != self.order || plan.input.action != self.action {
             return Err(changed());
         }
         plan.require_version(c, source, tech, now).await?;
         self.require_before(c).await?;
-        sqlx::query("UPDATE field_service_part_reservations SET released_milli=quantity_milli-consumed_milli,release_reason='Visit completed' WHERE order_id=$1 AND quantity_milli>consumed_milli+released_milli").bind(&self.order).execute(&mut *c).await?;
+        sqlx::query("UPDATE field_service_part_reservations SET released_milli=quantity_milli-consumed_milli,release_reason=$2 WHERE order_id=$1 AND quantity_milli>consumed_milli+released_milli").bind(&self.order).bind(release_reason(self.action)?).execute(&mut *c).await?;
         self.require_after(c).await
     }
     pub async fn require_after(&self, c: &mut PgConnection) -> Result<(), Error> {
         if unit(c).await? != self.unit {
             return Err(changed());
         }
-        let (before, _, groups) = reservation_images(c, &self.order).await?;
+        let (before, _, groups) = reservation_images(c, &self.order, self.action).await?;
         if before != self.after || !groups.is_empty() {
             return Err(changed());
         }
@@ -290,12 +292,21 @@ impl PreparedCompletionReservations {
 async fn reservation_images(
     c: &mut PgConnection,
     order: &str,
+    action: VisitAction,
 ) -> Result<(String, String, Vec<CompletionStockGroup>), Error> {
     use sqlx::Row;
-    let row=sqlx::query("WITH rows AS (SELECT * FROM field_service_part_reservations WHERE order_id=$1), groups AS (SELECT warehouse_id,product_id,count(*)::bigint n FROM rows WHERE quantity_milli>consumed_milli+released_milli GROUP BY warehouse_id,product_id), packed AS (SELECT coalesce(jsonb_agg(jsonb_build_object('warehouse_id',warehouse_id,'product_id',product_id,'count',n) ORDER BY warehouse_id,product_id),'[]'::jsonb)::text value FROM groups) SELECT encode(sha256(convert_to(coalesce(jsonb_agg(to_jsonb(r) ORDER BY r.id),'[]'::jsonb)::text,'UTF8')),'hex') before,encode(sha256(convert_to(coalesce(jsonb_agg(to_jsonb(r)||CASE WHEN r.quantity_milli>r.consumed_milli+r.released_milli THEN jsonb_build_object('released_milli',r.quantity_milli-r.consumed_milli,'release_reason','Visit completed') ELSE '{}'::jsonb END ORDER BY r.id),'[]'::jsonb)::text,'UTF8')),'hex') after,CASE WHEN octet_length((SELECT value FROM packed))<=2097152 THEN (SELECT value FROM packed) END groups FROM rows r").bind(order).fetch_one(c).await?;
+    let row=sqlx::query("WITH rows AS (SELECT * FROM field_service_part_reservations WHERE order_id=$1), groups AS (SELECT warehouse_id,product_id,count(*)::bigint n FROM rows WHERE quantity_milli>consumed_milli+released_milli GROUP BY warehouse_id,product_id), packed AS (SELECT coalesce(jsonb_agg(jsonb_build_object('warehouse_id',warehouse_id,'product_id',product_id,'count',n) ORDER BY warehouse_id,product_id),'[]'::jsonb)::text value FROM groups) SELECT encode(sha256(convert_to(coalesce(jsonb_agg(to_jsonb(r) ORDER BY r.id),'[]'::jsonb)::text,'UTF8')),'hex') before,encode(sha256(convert_to(coalesce(jsonb_agg(to_jsonb(r)||CASE WHEN r.quantity_milli>r.consumed_milli+r.released_milli THEN jsonb_build_object('released_milli',r.quantity_milli-r.consumed_milli,'release_reason',$2::text) ELSE '{}'::jsonb END ORDER BY r.id),'[]'::jsonb)::text,'UTF8')),'hex') after,CASE WHEN octet_length((SELECT value FROM packed))<=2097152 THEN (SELECT value FROM packed) END groups FROM rows r").bind(order).bind(release_reason(action)?).fetch_one(c).await?;
     let groups: String = row
         .try_get::<Option<String>, _>("groups")?
         .ok_or_else(invalid)?;
     let groups = serde_json::from_str(&groups).map_err(|_| invalid())?;
     Ok((row.try_get("before")?, row.try_get("after")?, groups))
+}
+
+fn release_reason(action: VisitAction) -> Result<&'static str, Error> {
+    match action {
+        VisitAction::Complete => Ok("Visit completed"),
+        VisitAction::Cancel => Ok("Service order cancelled"),
+        _ => Err(changed()),
+    }
 }

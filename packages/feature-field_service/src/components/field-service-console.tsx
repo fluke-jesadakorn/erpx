@@ -254,13 +254,13 @@ function ServiceConsole({
         )}
       {order && order.status === "completed" && action("release-billing", "Release billing")}
       {order &&
-        !["completed", "billed", "cancelled"].includes(String(order.status)) &&
+        ["open", "scheduled", "dispatched", "exception"].includes(String(order.status)) &&
         action("cancel", "Cancel service order")}
     </ServiceCommandErrorContext.Provider></ServiceRecoveryContext.Provider>
   );
 }
 
-type ServiceConsoleProps = { base: string; nativeReserve?: {context?:ReserveContext;issue?:boolean;reserve?:boolean;request?:boolean;create?:boolean;visit?:boolean;visitCompletion?:boolean;visitRecovery?:boolean}; data?: Awaited<ReturnType<typeof fieldServiceWorkspace>>; detail?: Awaited<ReturnType<typeof fieldServiceDetail>> };
+type ServiceConsoleProps = { base: string; nativeReserve?: {context?:ReserveContext;issue?:boolean;reserve?:boolean;request?:boolean;create?:boolean;visit?:boolean;visitCompletion?:boolean;visitRecovery?:boolean;cancel?:boolean}; data?: Awaited<ReturnType<typeof fieldServiceWorkspace>>; detail?: Awaited<ReturnType<typeof fieldServiceDetail>> };
 
 function serviceSource(props:ServiceConsoleProps):FieldServiceSource {const source=props.data??props.detail!,targets:FieldServiceSource["targets"]={};for(const row of source.agreements)targets[`agreement:${row.id}`]={version:Number(row.version),status:String(row.status),customerId:typeof row.customer_id==='string'?row.customer_id:undefined};for(const row of source.orders)targets[`order:${row.id}`]={version:Number(row.version),status:String(row.status)};for(const row of source.tickets)targets[`ticket:${row.id}`]={version:Number(row.version),status:String(row.status),customerId:typeof row.customer_id==='string'?row.customer_id:undefined};if(props.detail)targets[`order:${props.detail.order.id}`]={version:Number(props.detail.order.version),status:String(props.detail.order.status),technicianId:String(props.detail.order.technician_id),scheduledAt:props.detail.order.scheduled_at===null?null:Number(props.detail.order.scheduled_at)};return {base:props.base,workspaceKey:source.workspaceKey,recordId:props.detail?String(props.detail.order.id):null,targets};}
 export function FieldServiceConsole(props: ServiceConsoleProps) {

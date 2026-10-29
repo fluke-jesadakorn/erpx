@@ -1,5 +1,7 @@
 // Generated from the Rust Field Service reservation contracts. Do not edit by hand.
 // Regenerate: bun scripts/docs/generate-field-service-reserve-contracts.ts
+export type FieldServiceCancelAction = "cancel";
+export type FieldServiceCancelInput = { id: string, action: FieldServiceCancelAction, expectedVersion: number, reason: string, };
 export type FieldServiceRecoveryAction = "exception" | "resume";
 export type FieldServiceRecoveryInput = { id: string, action: FieldServiceRecoveryAction, expectedVersion: number, reason: string, };
 export type FieldServiceCompletionAction = "complete";

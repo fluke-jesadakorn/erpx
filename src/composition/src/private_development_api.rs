@@ -134,6 +134,8 @@ struct ConfigurationDocument {
     #[serde(default)]
     field_service_visit_recoveries: Vec<String>,
     #[serde(default)]
+    field_service_order_cancellations: Vec<String>,
+    #[serde(default)]
     account_bootstrap: bool,
 }
 struct HoldingConfiguration {
@@ -166,6 +168,7 @@ pub struct DevelopmentApiConfiguration {
     field_service_visits: BTreeSet<HoldingId>,
     field_service_visit_completions: BTreeSet<HoldingId>,
     field_service_visit_recoveries: BTreeSet<HoldingId>,
+    field_service_order_cancellations: BTreeSet<HoldingId>,
     account_bootstrap: bool,
 }
 impl fmt::Debug for DevelopmentApiConfiguration {
@@ -383,6 +386,16 @@ impl DevelopmentApiConfiguration {
                 return Err("PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID");
             }
         }
+        let mut field_service_order_cancellations = BTreeSet::new();
+        for id in doc.field_service_order_cancellations {
+            let holding = HoldingId::new(id)
+                .map_err(|_| "PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID")?;
+            if !field_service_reads.contains_key(&holding)
+                || !field_service_order_cancellations.insert(holding)
+            {
+                return Err("PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID");
+            }
+        }
         let mut finance_field_service_journal_posts = BTreeSet::new();
         for id in doc.finance_field_service_journal_posts {
             let holding =
@@ -440,6 +453,7 @@ impl DevelopmentApiConfiguration {
             field_service_visits,
             field_service_visit_completions,
             field_service_visit_recoveries,
+            field_service_order_cancellations,
             account_bootstrap: doc.account_bootstrap,
         })
     }
@@ -919,7 +933,10 @@ async fn assemble_checked(
             let recovery_enabled = config
                 .field_service_visit_recoveries
                 .contains(&holding.registration.holding_id);
-            if visit_enabled || completion_enabled || recovery_enabled {
+            let cancel_enabled = config
+                .field_service_order_cancellations
+                .contains(&holding.registration.holding_id);
+            if visit_enabled || completion_enabled || recovery_enabled || cancel_enabled {
                 service_visit_targets.insert(target.clone());
             }
             let read_configuration = if visit_enabled {
@@ -934,6 +951,11 @@ async fn assemble_checked(
             };
             let read_configuration = if recovery_enabled {
                 read_configuration.with_recoveries()
+            } else {
+                read_configuration
+            };
+            let read_configuration = if cancel_enabled {
+                read_configuration.with_cancellations()
             } else {
                 read_configuration
             };
@@ -961,6 +983,7 @@ async fn assemble_checked(
                 || visit_enabled
                 || completion_enabled
                 || recovery_enabled
+                || cancel_enabled
             {
                 service_reservation_targets.insert(target.clone());
                 let action = FieldServicePartsConfiguration::new(
@@ -985,6 +1008,7 @@ async fn assemble_checked(
                         || visit_enabled
                         || completion_enabled
                         || recovery_enabled
+                        || cancel_enabled
                     {
                         FieldServiceHttpTarget::new_private_creates(
                             target.0,
@@ -1002,15 +1026,20 @@ async fn assemble_checked(
                                 })
                                     as Arc<dyn crate::field_service_parts::OtherPost>
                             }),
-                            (visit_enabled || completion_enabled || recovery_enabled).then(|| {
-                                Arc::new(crate::field_service_parts::VisitDispatcher {
-                                    allow_visits: visit_enabled,
-                                    allow_completion: completion_enabled,
-                                    allow_recovery: recovery_enabled,
-                                    clock: Arc::new(SharedClock(clock.clone())),
-                                })
-                                    as Arc<dyn crate::field_service_parts::OtherPost>
-                            }),
+                            (visit_enabled
+                                || completion_enabled
+                                || recovery_enabled
+                                || cancel_enabled)
+                                .then(|| {
+                                    Arc::new(crate::field_service_parts::VisitDispatcher {
+                                        allow_visits: visit_enabled,
+                                        allow_completion: completion_enabled,
+                                        allow_recovery: recovery_enabled,
+                                        allow_cancel: cancel_enabled,
+                                        clock: Arc::new(SharedClock(clock.clone())),
+                                    })
+                                        as Arc<dyn crate::field_service_parts::OtherPost>
+                                }),
                             (reserve_enabled, issue_enabled),
                         )
                     } else if issue_enabled {

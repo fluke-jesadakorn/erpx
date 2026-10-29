@@ -202,6 +202,7 @@ pub struct FieldServiceReservationReadConfiguration {
     visits: bool,
     completions: bool,
     recoveries: bool,
+    cancellations: bool,
 }
 impl FieldServiceReservationReadConfiguration {
     pub fn new(
@@ -227,7 +228,12 @@ impl FieldServiceReservationReadConfiguration {
             visits: false,
             completions: false,
             recoveries: false,
+            cancellations: false,
         })
+    }
+    pub fn with_cancellations(mut self) -> Self {
+        self.cancellations = true;
+        self
     }
     pub fn with_recoveries(mut self) -> Self {
         self.recoveries = true;
@@ -424,7 +430,11 @@ impl<C: Clock + Send + Sync + 'static> FieldServiceReservationReadService<C> {
     where
         Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
     {
-        if !self.config.visits && !self.config.completions && !self.config.recoveries {
+        if !self.config.visits
+            && !self.config.completions
+            && !self.config.recoveries
+            && !self.config.cancellations
+        {
             return Err(
                 BusinessError::new(FailureKind::NotFound, "NOT_FOUND", "Not found.").into(),
             );
@@ -466,6 +476,7 @@ impl<C: Clock + Send + Sync + 'static> FieldServiceReservationReadService<C> {
                         let allowed = match source.event().action.as_str() {
                             "complete" => config.completions,
                             "exception" | "resume" => config.recoveries,
+                            "cancel" => config.cancellations,
                             _ => config.visits,
                         };
                         if !allowed {
@@ -476,17 +487,12 @@ impl<C: Clock + Send + Sync + 'static> FieldServiceReservationReadService<C> {
                             )
                             .into());
                         }
-                        let mut caps = vec![
-                            "service.orders".into(),
-                            if source.event().action == "schedule"
-                                || source.event().action == "dispatch"
-                            {
-                                "service.dispatch"
-                            } else {
-                                "service.visits"
-                            }
-                            .into(),
-                        ];
+                        let mut caps = vec!["service.orders".into()];
+                        match source.event().action.as_str() {
+                            "cancel" => {}
+                            "schedule" | "dispatch" => caps.push("service.dispatch".into()),
+                            _ => caps.push("service.visits".into()),
+                        }
                         if source.has_asset() {
                             caps.push("service.parts-assets".into());
                         }

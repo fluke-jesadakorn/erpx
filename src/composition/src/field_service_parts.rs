@@ -86,4 +86,4 @@ pub(crate) use create_order::OrderCreateDispatcher;
 mod visit;
 
 #[cfg(feature = "business-http")]
-pub(crate) use visit::VisitDispatcher;
+pub use visit::VisitDispatcher;

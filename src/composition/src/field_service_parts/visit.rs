@@ -305,7 +305,10 @@ impl<'a, C: Clock + Sync> PgOwnerCommandEffects for Effects<'a, C> {
             self.clock.now(),
         )
         .await?;
-        let completion = if self.input.action == VisitAction::Complete {
+        let completion = if matches!(
+            self.input.action,
+            VisitAction::Complete | VisitAction::Cancel
+        ) {
             let consumptions=erpx_server_inventory::public::field_service_completion::read_service_completion_consumptions(c,source.facts().id.as_str()).await?;
             let journals=erpx_server_finance::public::field_service_completion::inspect_service_completion_journals(c,consumptions.journal_ids()).await?;
             let reservations =
@@ -337,6 +340,7 @@ impl<'a, C: Clock + Sync> PgOwnerCommandEffects for Effects<'a, C> {
                         VisitAction::Complete => SupportServicePartsAction::Complete,
                         VisitAction::Exception => SupportServicePartsAction::Exception,
                         VisitAction::Resume => SupportServicePartsAction::Resume,
+                        VisitAction::Cancel => SupportServicePartsAction::Cancel,
                     },
                     actor_id: source.actor_user_id().clone(),
                     technician_id: plan.technician().into(),
@@ -529,11 +533,12 @@ impl PgOwnerCommandEffects for Replay {
         Err(changed().into())
     }
 }
-pub(crate) struct VisitDispatcher<C> {
+pub struct VisitDispatcher<C> {
     pub clock: Arc<C>,
     pub allow_visits: bool,
     pub allow_completion: bool,
     pub allow_recovery: bool,
+    pub allow_cancel: bool,
 }
 impl<C: Clock + Send + Sync + 'static> super::OtherPost for VisitDispatcher<C> {
     fn supports(&self, input: &super::OtherPostInput) -> bool {
@@ -546,9 +551,15 @@ impl<C: Clock + Send + Sync + 'static> super::OtherPost for VisitDispatcher<C> {
             .as_deref()
         {
             Some("complete") => self.allow_completion,
+            Some("cancel") => self.allow_cancel,
             Some("exception" | "resume") => self.allow_recovery,
             Some("schedule" | "dispatch" | "start") => self.allow_visits,
-            _ => self.allow_visits || self.allow_completion || self.allow_recovery,
+            _ => {
+                self.allow_visits
+                    || self.allow_completion
+                    || self.allow_recovery
+                    || self.allow_cancel
+            }
         }
     }
     fn validate(&self, input: &super::OtherPostInput) -> Result<(), String> {

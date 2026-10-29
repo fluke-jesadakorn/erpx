@@ -31,20 +31,15 @@ impl FieldServicePurchases {
         let catalogue = current_package_catalogue()?;
         let mut reader =
             PgCompanyPurchaseReader::new(holding.clone(), company.clone(), c, &catalogue);
-        let mut capabilities = vec![
-            "service.orders".into(),
-            match action {
-                erpx_server_field_service::public::visit::VisitAction::Schedule
-                | erpx_server_field_service::public::visit::VisitAction::Dispatch => {
-                    "service.dispatch"
-                }
-                erpx_server_field_service::public::visit::VisitAction::Start
-                | erpx_server_field_service::public::visit::VisitAction::Complete
-                | erpx_server_field_service::public::visit::VisitAction::Exception
-                | erpx_server_field_service::public::visit::VisitAction::Resume => "service.visits",
+        let mut capabilities = vec!["service.orders".into()];
+        match action {
+            erpx_server_field_service::public::visit::VisitAction::Cancel => {}
+            erpx_server_field_service::public::visit::VisitAction::Schedule
+            | erpx_server_field_service::public::visit::VisitAction::Dispatch => {
+                capabilities.push("service.dispatch".into())
             }
-            .into(),
-        ];
+            _ => capabilities.push("service.visits".into()),
+        }
         if asset {
             capabilities.push("service.parts-assets".into());
         }

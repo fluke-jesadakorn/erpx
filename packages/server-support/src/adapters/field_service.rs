@@ -64,8 +64,8 @@ impl CurrentSupportServiceTicket {
         let project = self.facts.source_kind == "field_service"
             && service_version != Some(input.order_version_after);
         let expected_ticket = if project {
-            sqlx::query_scalar("SELECT encode(sha256(convert_to((to_jsonb(t)||jsonb_build_object('status','open','owner_id',$3::text,'due_date',to_char(to_timestamp(coalesce($4::bigint,$5::bigint)/1000.0) AT TIME ZONE 'UTC','YYYY-MM-DD'),'resolution',NULL,'resolved_by',NULL,'resolved_at',NULL,'confirmed_by',NULL,'confirmed_at',NULL,'confirmation_reason',NULL,'service_order_version',$6::bigint,'version',t.version+1,'updated_at',$5::bigint))::text,'UTF8')),'hex') FROM support_tickets t WHERE id=$1 AND company_id=$2")
-                .bind(self.facts.request.ticket_id.as_str()).bind(self.facts.request.company_id.as_str()).bind(input.technician_id.as_str()).bind(input.scheduled_at.map(TimestampMillis::get)).bind(input.application_at.get()).bind(input.order_version_after).fetch_one(&mut*c).await?
+            sqlx::query_scalar("SELECT encode(sha256(convert_to((to_jsonb(t)||jsonb_build_object('status',$7::text,'owner_id',$3::text,'due_date',to_char(to_timestamp(coalesce($4::bigint,$5::bigint)/1000.0) AT TIME ZONE 'UTC','YYYY-MM-DD'),'resolution',NULL,'resolved_by',NULL,'resolved_at',NULL,'confirmed_by',NULL,'confirmed_at',NULL,'confirmation_reason',NULL,'service_order_version',$6::bigint,'version',t.version+1,'updated_at',$5::bigint))::text,'UTF8')),'hex') FROM support_tickets t WHERE id=$1 AND company_id=$2")
+                .bind(self.facts.request.ticket_id.as_str()).bind(self.facts.request.company_id.as_str()).bind(input.technician_id.as_str()).bind(input.scheduled_at.map(TimestampMillis::get)).bind(input.application_at.get()).bind(input.order_version_after).bind(input.action.target_status()).fetch_one(&mut*c).await?
         } else {
             before.clone()
         };
@@ -91,8 +91,16 @@ pub enum SupportServicePartsAction {
     Complete,
     Exception,
     Resume,
+    Cancel,
 }
 impl SupportServicePartsAction {
+    fn target_status(self) -> &'static str {
+        if matches!(self, Self::Cancel) {
+            "cancelled"
+        } else {
+            "open"
+        }
+    }
     fn as_str(self) -> &'static str {
         match self {
             Self::Reserve => "reserve-part",
@@ -103,6 +111,7 @@ impl SupportServicePartsAction {
             Self::Complete => "complete",
             Self::Exception => "exception",
             Self::Resume => "resume",
+            Self::Cancel => "cancel",
         }
     }
 }
@@ -164,8 +173,8 @@ impl PreparedSupportServicePartsProjection {
         }
         if let Some((input, ticket_version)) = &self.expected_history {
             // Derived only from the retained pre-effect version and immutable input.
-            let expected: String = sqlx::query_scalar("SELECT encode(sha256(convert_to(jsonb_build_object('id',$1::text,'ticket_id',$2::text,'version',$3::bigint,'action',$4::text,'actor_id',$5::text,'reason',$6::text,'owner_id',$7::text,'due_date',to_char(to_timestamp(coalesce($8::bigint,$9::bigint)/1000.0) AT TIME ZONE 'UTC','YYYY-MM-DD'),'status','open','created_at',$9::bigint,'evidence_json',jsonb_build_object('serviceOrderId',$10::text,'serviceOrderVersion',$11::bigint,'serviceEventId',$12::text))::text,'UTF8')),'hex')")
-                .bind(&self.history_id).bind(self.facts.request.ticket_id.as_str()).bind(ticket_version+1).bind(format!("service-{}",input.action.as_str())).bind(input.actor_id.as_str()).bind(&input.reason).bind(input.technician_id.as_str()).bind(input.scheduled_at.map(TimestampMillis::get)).bind(input.application_at.get()).bind(input.order_id.as_str()).bind(input.order_version_after).bind(&input.event_id).fetch_one(&mut*c).await?;
+            let expected: String = sqlx::query_scalar("SELECT encode(sha256(convert_to(jsonb_build_object('id',$1::text,'ticket_id',$2::text,'version',$3::bigint,'action',$4::text,'actor_id',$5::text,'reason',$6::text,'owner_id',$7::text,'due_date',to_char(to_timestamp(coalesce($8::bigint,$9::bigint)/1000.0) AT TIME ZONE 'UTC','YYYY-MM-DD'),'status',$13::text,'created_at',$9::bigint,'evidence_json',jsonb_build_object('serviceOrderId',$10::text,'serviceOrderVersion',$11::bigint,'serviceEventId',$12::text))::text,'UTF8')),'hex')")
+                .bind(&self.history_id).bind(self.facts.request.ticket_id.as_str()).bind(ticket_version+1).bind(format!("service-{}",input.action.as_str())).bind(input.actor_id.as_str()).bind(&input.reason).bind(input.technician_id.as_str()).bind(input.scheduled_at.map(TimestampMillis::get)).bind(input.application_at.get()).bind(input.order_id.as_str()).bind(input.order_version_after).bind(&input.event_id).bind(input.action.target_status()).fetch_one(&mut*c).await?;
             let actual:Option<String>=sqlx::query_scalar("SELECT encode(sha256(convert_to(to_jsonb(e)::text,'UTF8')),'hex') FROM support_ticket_events e WHERE id=$1 AND ticket_id=$2")
                 .bind(&self.history_id).bind(self.facts.request.ticket_id.as_str()).fetch_optional(c).await?;
             if actual.as_ref() != Some(&expected) {
