@@ -201,6 +201,7 @@ pub struct FieldServiceReservationReadConfiguration {
     order_creates: bool,
     visits: bool,
     completions: bool,
+    recoveries: bool,
 }
 impl FieldServiceReservationReadConfiguration {
     pub fn new(
@@ -225,7 +226,12 @@ impl FieldServiceReservationReadConfiguration {
             order_creates: false,
             visits: false,
             completions: false,
+            recoveries: false,
         })
+    }
+    pub fn with_recoveries(mut self) -> Self {
+        self.recoveries = true;
+        self
     }
     pub fn with_completions(mut self) -> Self {
         self.completions = true;
@@ -418,7 +424,7 @@ impl<C: Clock + Send + Sync + 'static> FieldServiceReservationReadService<C> {
     where
         Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
     {
-        if !self.config.visits && !self.config.completions {
+        if !self.config.visits && !self.config.completions && !self.config.recoveries {
             return Err(
                 BusinessError::new(FailureKind::NotFound, "NOT_FOUND", "Not found.").into(),
             );
@@ -457,9 +463,12 @@ impl<C: Clock + Send + Sync + 'static> FieldServiceReservationReadService<C> {
                             return Err(denied().into());
                         }
                         let source = read_field_service_visit_by_key(c, current, &key).await?;
-                        if (source.event().action == "complete" && !config.completions)
-                            || (source.event().action != "complete" && !config.visits)
-                        {
+                        let allowed = match source.event().action.as_str() {
+                            "complete" => config.completions,
+                            "exception" | "resume" => config.recoveries,
+                            _ => config.visits,
+                        };
+                        if !allowed {
                             return Err(BusinessError::new(
                                 FailureKind::NotFound,
                                 "NOT_FOUND",

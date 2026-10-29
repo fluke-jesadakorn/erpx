@@ -1,5 +1,7 @@
 // Generated from the Rust Field Service reservation contracts. Do not edit by hand.
 // Regenerate: bun scripts/docs/generate-field-service-reserve-contracts.ts
+export type FieldServiceRecoveryAction = "exception" | "resume";
+export type FieldServiceRecoveryInput = { id: string, action: FieldServiceRecoveryAction, expectedVersion: number, reason: string, };
 export type FieldServiceCompletionAction = "complete";
 export type FieldServiceCompletionInput = { id: string, action: FieldServiceCompletionAction, expectedVersion: number, laborMinutes: number, evidence: string, customerConfirmation: string, reason: string, };
 export type FieldServiceScheduleAction = "schedule";

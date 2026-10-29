@@ -39,9 +39,9 @@ impl FieldServicePurchases {
                     "service.dispatch"
                 }
                 erpx_server_field_service::public::visit::VisitAction::Start
-                | erpx_server_field_service::public::visit::VisitAction::Complete => {
-                    "service.visits"
-                }
+                | erpx_server_field_service::public::visit::VisitAction::Complete
+                | erpx_server_field_service::public::visit::VisitAction::Exception
+                | erpx_server_field_service::public::visit::VisitAction::Resume => "service.visits",
             }
             .into(),
         ];

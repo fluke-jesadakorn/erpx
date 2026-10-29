@@ -350,6 +350,39 @@
         ],
         "type": "object"
       },
+      "FieldServiceRecoveryAction": {
+        "enum": [
+          "exception",
+          "resume"
+        ],
+        "type": "string"
+      },
+      "FieldServiceRecoveryInput": {
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/FieldServiceRecoveryAction"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "action",
+          "expectedVersion",
+          "reason"
+        ],
+        "type": "object"
+      },
       "FieldServiceRenderedContext": {
         "properties": {
           "assignmentId": {
@@ -1094,6 +1127,9 @@
                   },
                   {
                     "$ref": "#/components/schemas/FieldServiceCompletionInput"
+                  },
+                  {
+                    "$ref": "#/components/schemas/FieldServiceRecoveryInput"
                   }
                 ]
               }

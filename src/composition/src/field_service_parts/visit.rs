@@ -335,6 +335,8 @@ impl<'a, C: Clock + Sync> PgOwnerCommandEffects for Effects<'a, C> {
                         VisitAction::Dispatch => SupportServicePartsAction::Dispatch,
                         VisitAction::Start => SupportServicePartsAction::Start,
                         VisitAction::Complete => SupportServicePartsAction::Complete,
+                        VisitAction::Exception => SupportServicePartsAction::Exception,
+                        VisitAction::Resume => SupportServicePartsAction::Resume,
                     },
                     actor_id: source.actor_user_id().clone(),
                     technician_id: plan.technician().into(),
@@ -531,6 +533,7 @@ pub(crate) struct VisitDispatcher<C> {
     pub clock: Arc<C>,
     pub allow_visits: bool,
     pub allow_completion: bool,
+    pub allow_recovery: bool,
 }
 impl<C: Clock + Send + Sync + 'static> super::OtherPost for VisitDispatcher<C> {
     fn supports(&self, input: &super::OtherPostInput) -> bool {
@@ -543,8 +546,9 @@ impl<C: Clock + Send + Sync + 'static> super::OtherPost for VisitDispatcher<C> {
             .as_deref()
         {
             Some("complete") => self.allow_completion,
+            Some("exception" | "resume") => self.allow_recovery,
             Some("schedule" | "dispatch" | "start") => self.allow_visits,
-            _ => self.allow_visits || self.allow_completion,
+            _ => self.allow_visits || self.allow_completion || self.allow_recovery,
         }
     }
     fn validate(&self, input: &super::OtherPostInput) -> Result<(), String> {

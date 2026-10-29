@@ -354,3 +354,23 @@ pub struct FieldServiceCompletionInput {
     pub customer_confirmation: String,
     pub reason: String,
 }
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+pub enum FieldServiceRecoveryAction {
+    #[serde(rename = "exception")]
+    Exception,
+    #[serde(rename = "resume")]
+    Resume,
+}
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct FieldServiceRecoveryInput {
+    pub id: String,
+    pub action: FieldServiceRecoveryAction,
+    #[cfg_attr(feature = "contracts", ts(type = "number"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = i64, minimum = 1, maximum = 9_007_199_254_740_991_i64))]
+    pub expected_version: i64,
+    pub reason: String,
+}

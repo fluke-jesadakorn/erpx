@@ -756,6 +756,8 @@ pub fn normalize_field_service_visit(
         Some("dispatch") => VisitAction::Dispatch,
         Some("start") => VisitAction::Start,
         Some("complete") => VisitAction::Complete,
+        Some("exception") => VisitAction::Exception,
+        Some("resume") => VisitAction::Resume,
         _ => {
             return Err(FieldServiceWireFailure::validation(
                 "invalid_union",
