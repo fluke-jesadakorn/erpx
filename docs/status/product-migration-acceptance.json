@@ -3,7 +3,7 @@
   "environment": "development",
   "deliveryPlan": "docs/production-plan.md",
   "sourceFingerprint": "fcb2a2dc59504bdfb1d377181771e74593e18513cc6d4780934ae453ff69463b",
-  "verificationFingerprint": "8bfd16f89666921deae25afe0b0bb1e2e63388e5afd8790c90e6dbc8928f8dea",
+  "verificationFingerprint": "677e227eeef51ea74802629b139192acd266d346d227dec6f8a4d202ada56458",
   "baseline": {
     "source": ".scratch/dev/product-migration-baseline-2026-10-14/",
     "privateAuthority": "read-only per-database snapshots; no secrets or personal authority rows in this register",
@@ -330,7 +330,8 @@
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
         "shared.attachments.specialized-attachment-media.unit",
-        "identity_access.admin-workspace-smoke.e2e"
+        "identity_access.admin-workspace-smoke.e2e",
+        "shared.testing.documentation-references.unit"
       ]
     },
     {
@@ -762,7 +763,8 @@
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
         "shared.attachments.specialized-attachment-media.unit",
-        "shared.executive.executive-work-mcp.e2e"
+        "shared.executive.executive-work-mcp.e2e",
+        "shared.testing.documentation-references.unit"
       ]
     },
     {
@@ -1329,7 +1331,8 @@
         "shared.testing.postgres-templates.integration",
         "shared.testing.workspace-supervisor.unit",
         "identity_access.workspace-hmr.e2e",
-        "identity_access.admin-workspace-smoke.e2e"
+        "identity_access.admin-workspace-smoke.e2e",
+        "shared.testing.documentation-references.unit"
       ]
     },
     {
@@ -1758,7 +1761,8 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "shared.testing.documentation-references.unit"
       ]
     },
     {
@@ -2363,7 +2367,8 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "shared.testing.documentation-references.unit"
       ]
     },
     {
@@ -2727,7 +2732,8 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "shared.testing.documentation-references.unit"
       ]
     },
     {
@@ -3087,7 +3093,8 @@
         "shared.attachments.sensitive-attachment-policy.unit",
         "shared.attachments.specialized-attachment-media.unit",
         "customer_authority.portal-workspace-smoke.e2e",
-        "shared.ui.application-hmr.e2e"
+        "shared.ui.application-hmr.e2e",
+        "shared.testing.documentation-references.unit"
       ]
     },
     {
@@ -3561,7 +3568,8 @@
         "shared.attachments.sensitive-attachment-policy.unit",
         "shared.attachments.specialized-attachment-media.unit",
         "support.workspace-smoke.e2e",
-        "shared.ui.application-hmr.e2e"
+        "shared.ui.application-hmr.e2e",
+        "shared.testing.documentation-references.unit"
       ]
     },
     {
@@ -4335,7 +4343,8 @@
         "shared.testing.workspace-graph.unit",
         "shared.testing.workspace-supervisor.unit",
         "finance.workspace-smoke.e2e",
-        "shared.ui.application-hmr.e2e"
+        "shared.ui.application-hmr.e2e",
+        "shared.testing.documentation-references.unit"
       ]
     },
     {
@@ -4766,7 +4775,8 @@
         "shared.attachments.sensitive-attachment-policy.unit",
         "shared.attachments.specialized-attachment-media.unit",
         "pms.pos-workspace-smoke.e2e",
-        "shared.ui.application-hmr.e2e"
+        "shared.ui.application-hmr.e2e",
+        "shared.testing.documentation-references.unit"
       ]
     },
     {
@@ -5200,7 +5210,8 @@
         "shared.attachments.sensitive-attachment-policy.unit",
         "shared.attachments.specialized-attachment-media.unit",
         "sales.workspace-smoke.e2e",
-        "shared.ui.application-hmr.e2e"
+        "shared.ui.application-hmr.e2e",
+        "shared.testing.documentation-references.unit"
       ]
     },
     {
@@ -5618,7 +5629,8 @@
         "shared.attachments.sensitive-attachment-policy.unit",
         "shared.attachments.specialized-attachment-media.unit",
         "assets.workspace-smoke.e2e",
-        "shared.ui.application-hmr.e2e"
+        "shared.ui.application-hmr.e2e",
+        "shared.testing.documentation-references.unit"
       ]
     },
     {
@@ -6113,7 +6125,8 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "shared.testing.documentation-references.unit"
       ]
     },
     {
@@ -6519,7 +6532,8 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "shared.testing.documentation-references.unit"
       ]
     },
     {
@@ -7002,7 +7016,8 @@
         "operations.workspace-smoke.e2e",
         "shared.work.product-workspace-hmr.e2e",
         "operations.work-social-api.unit",
-        "shared.ui.application-hmr.e2e"
+        "shared.ui.application-hmr.e2e",
+        "shared.testing.documentation-references.unit"
       ]
     },
     {
@@ -7412,7 +7427,8 @@
         "shared.attachments.sensitive-attachment-policy.unit",
         "shared.attachments.specialized-attachment-media.unit",
         "procurement.workspace-smoke.e2e",
-        "shared.ui.application-hmr.e2e"
+        "shared.ui.application-hmr.e2e",
+        "shared.testing.documentation-references.unit"
       ]
     },
     {
@@ -7781,7 +7797,8 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "shared.testing.documentation-references.unit"
       ]
     },
     {
@@ -8203,7 +8220,8 @@
         "legal.file-destruction-ports.unit",
         "legal.workspace-smoke.e2e",
         "legal.legal-portal-workspace-smoke.e2e",
-        "shared.ui.application-hmr.e2e"
+        "shared.ui.application-hmr.e2e",
+        "shared.testing.documentation-references.unit"
       ]
     },
     {
@@ -8728,7 +8746,8 @@
         "shared.testing.workspace-graph.unit",
         "people_payroll.workspace-smoke.e2e",
         "shared.work.product-workspace-hmr.e2e",
-        "shared.ui.application-hmr.e2e"
+        "shared.ui.application-hmr.e2e",
+        "shared.testing.documentation-references.unit"
       ]
     },
     {
@@ -9142,7 +9161,8 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "shared.testing.documentation-references.unit"
       ]
     },
     {
@@ -9586,7 +9606,8 @@
         "shared.attachments.sensitive-attachment-policy.unit",
         "shared.attachments.specialized-attachment-media.unit",
         "marketing.forms-workspace-smoke.e2e",
-        "shared.ui.application-hmr.e2e"
+        "shared.ui.application-hmr.e2e",
+        "shared.testing.documentation-references.unit"
       ]
     },
     {
@@ -10055,7 +10076,8 @@
         "shared.attachments.sensitive-attachment-policy.unit",
         "shared.attachments.specialized-attachment-media.unit",
         "manufacturing.workspace-smoke.e2e",
-        "shared.ui.application-hmr.e2e"
+        "shared.ui.application-hmr.e2e",
+        "shared.testing.documentation-references.unit"
       ]
     },
     {
@@ -10445,7 +10467,8 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "shared.testing.documentation-references.unit"
       ]
     },
     {
@@ -10924,7 +10947,8 @@
         "shared.attachments.sensitive-attachment-policy.unit",
         "shared.attachments.specialized-attachment-media.unit",
         "projects.workspace-smoke.e2e",
-        "shared.ui.application-hmr.e2e"
+        "shared.ui.application-hmr.e2e",
+        "shared.testing.documentation-references.unit"
       ]
     },
     {
@@ -11359,7 +11383,8 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "shared.testing.documentation-references.unit"
       ]
     },
     {
@@ -11748,7 +11773,8 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "shared.testing.documentation-references.unit"
       ]
     },
     {
@@ -12161,7 +12187,8 @@
         "shared.attachments.sensitive-attachment-policy.unit",
         "shared.attachments.specialized-attachment-media.unit",
         "learning.workspace-smoke.e2e",
-        "learning.workspace-hmr.e2e"
+        "learning.workspace-hmr.e2e",
+        "shared.testing.documentation-references.unit"
       ]
     },
     {
@@ -12628,7 +12655,8 @@
         "shared.attachments.specialized-attachment-media.unit",
         "shared.testing.workspace-graph.unit",
         "talent.workspace-smoke.e2e",
-        "shared.work.product-workspace-hmr.e2e"
+        "shared.work.product-workspace-hmr.e2e",
+        "shared.testing.documentation-references.unit"
       ]
     },
     {
@@ -13106,7 +13134,8 @@
         "shared.attachments.sensitive-attachment-policy.unit",
         "shared.attachments.specialized-attachment-media.unit",
         "field_service.workspace-smoke.e2e",
-        "shared.ui.application-hmr.e2e"
+        "shared.ui.application-hmr.e2e",
+        "shared.testing.documentation-references.unit"
       ]
     },
     {
@@ -13598,7 +13627,8 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "shared.testing.documentation-references.unit"
       ]
     },
     {
@@ -14157,7 +14187,8 @@
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
         "shared.attachments.specialized-attachment-media.unit",
-        "operations.work-social-api.unit"
+        "operations.work-social-api.unit",
+        "shared.testing.documentation-references.unit"
       ]
     },
     {
@@ -14895,7 +14926,8 @@
         "shared.attachments.specialized-attachment-media.unit",
         "pms.pms-workspace-smoke.e2e",
         "pms.booking-workspace-smoke.e2e",
-        "shared.ui.application-hmr.e2e"
+        "shared.ui.application-hmr.e2e",
+        "shared.testing.documentation-references.unit"
       ]
     },
     {
@@ -15272,7 +15304,8 @@
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
         "shared.attachments.specialized-attachment-media.unit",
-        "shared.executive.executive-work-mcp.e2e"
+        "shared.executive.executive-work-mcp.e2e",
+        "shared.testing.documentation-references.unit"
       ]
     }
   ],

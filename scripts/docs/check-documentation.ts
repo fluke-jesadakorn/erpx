@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { dirname, relative, resolve } from "node:path";
-import { execFileSync } from 'node:child_process';
+import { relative, resolve } from "node:path";
+import { resolveDocumentationReference, type HistoricalSourceSnapshot, type PrivateArtifactReference } from './documentation-references';
 
 const root = resolve(import.meta.dir, "../..");
 const errors: string[] = [];
@@ -11,12 +11,10 @@ const ledger = JSON.parse(read(resolve(root, "docs/status/business-acceptance-ev
   records: Array<{ evidence: Array<{ path: string; sha256: string }> }>;
 };
 const protectedPaths = new Set(ledger.records.flatMap(row => row.evidence.map(item => item.path)));
-const sourceSnapshots=JSON.parse(read(resolve(root,'docs/status/historical-source-snapshots.json'))) as {entries:Array<{document:string;commit:string}>};
-function historicalSource(document:string,file:string) {
- const snapshot=sourceSnapshots.entries.find(entry=>entry.document===document);
- if(!snapshot||!file.startsWith('src/')||!/^[a-f0-9]{40}$/.test(snapshot.commit))return false;
- try {execFileSync('git',['cat-file','-e',`${snapshot.commit}:${file}`],{cwd:root,stdio:'ignore'});return true;}catch{return false;}
-}
+const sourceSnapshots=JSON.parse(read(resolve(root,'docs/status/historical-source-snapshots.json'))) as {entries:HistoricalSourceSnapshot[]};
+const privateArtifacts=JSON.parse(read(resolve(root,'docs/status/private-artifact-references.json'))) as {version:number;entries:PrivateArtifactReference[]};
+if(privateArtifacts.version!==1||!Array.isArray(privateArtifacts.entries))throw new Error('INVALID_PRIVATE_ARTIFACT_REGISTER');
+const privateReferences=new Map<string,'checksum-verified'|'unverified'>();
 for (const row of ledger.records) for (const evidence of row.evidence) {
   const path = resolve(root, evidence.path);
   if (!existsSync(path) || hash(path) !== evidence.sha256) errors.push(`Missing/changed evidence: ${evidence.path}`);
@@ -36,9 +34,9 @@ for (const name of ["README.md", "AGENTS.md", "CLAUDE.md", "CONTEXT.md", "CONTRA
   if (existsSync(resolve(root, name))) documents.push(resolve(root, name));
 const withoutCode = (text: string) => text.replace(/```[\s\S]*?```|~~~[\s\S]*?~~~/g, "");
 const anchorCache = new Map<string, Set<string>>();
-function anchors(path: string) {
+function anchors(path: string, supplied?: string) {
   if (anchorCache.has(path)) return anchorCache.get(path)!;
-  const text = withoutCode(read(path)), ids = new Set<string>(), counts = new Map<string, number>();
+  const text = withoutCode(supplied ?? read(path)), ids = new Set<string>(), counts = new Map<string, number>();
   for (const heading of text.matchAll(/^#{1,6}\s+(.+)$/gm)) {
     const label = heading[1].replace(/\[([^\]]+)\]\([^)]*\)/g, "$1").replace(/<[^>]*>/g, "");
     const slug = label.toLowerCase().replace(/[^\p{L}\p{N}\p{M}_\s-]/gu, "").replace(/\s/g, "-");
@@ -66,11 +64,18 @@ for (const path of documents) {
     const raw = target[1].replace(/^<|>$/g, "");
     if (/^[\w+.-]+:|^\/\//.test(raw)) continue;
     const [destination, fragment] = raw.split("#");
-    const resolved = destination ? resolve(dirname(path), decodeURIComponent(destination)) : path;
     checked++;
-    if (!existsSync(resolved)&&!historicalSource(name,relative(root,resolved))) errors.push(`${name}: missing local link ${raw}`);
-    else if (fragment && /\.mdx?$/.test(resolved) && !anchors(resolved).has(decodeURIComponent(fragment)))
-      errors.push(`${name}: missing anchor ${raw}`);
+    try {
+      const reference=resolveDocumentationReference({root,document:name,destination,snapshots:sourceSnapshots.entries,privateArtifacts:privateArtifacts.entries});
+      if(reference.kind==='missing')errors.push(`${name}: missing local link ${raw}`);
+      else if(reference.kind==='private-artifact')privateReferences.set(reference.id,reference.availability);
+      else if(fragment&&/\.mdx?$/.test(reference.path)){
+        const historical=reference.kind==='historical-source';
+        const key=historical?`${reference.commit}:${reference.path}`:reference.path;
+        if(!anchors(key,historical?reference.markdown:undefined).has(decodeURIComponent(fragment)))errors.push(`${name}: missing anchor ${raw}`);
+      }
+    }catch(error){errors.push(`${name}: invalid local reference ${raw}: ${error instanceof Error?error.message:'REFERENCE_INVALID'}`);}
+
   }
 }
 
@@ -91,4 +96,8 @@ if (routes.exitCode !== 0) errors.push(routes.stderr.toString().trim() || "Gener
 if (errors.length) {
   for (const error of errors) console.error(error);
   process.exitCode = 1;
-} else console.log(`Documentation verified: ${documents.length} Markdown files inventoried; ${checked} local links/anchors, ${protectedPaths.size} ledger files, scenario sources and generated artifacts checked.`);
+} else {
+ console.log(`Documentation verified: ${documents.length} Markdown files inventoried; ${checked} local links/anchors, ${protectedPaths.size} ledger files, scenario sources and generated artifacts checked.`);
+ const available=[...privateReferences.values()].filter(value=>value==='checksum-verified').length;
+ console.log(`Known unpublished private artifacts: ${privateReferences.size}; ${available} checksum-verified; ${privateReferences.size-available} availability unverified. Private references do not establish release acceptance.`);
+}
