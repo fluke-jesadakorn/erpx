@@ -212,7 +212,8 @@
     "./domain/attachments/policy": "./src/domain/attachments/policy.ts",
     "./domain/attachments/portal-collaboration-policy": "./src/domain/attachments/portal-collaboration-policy.ts",
     "./domain/streamed-file": "./src/domain/streamed-file.ts",
-    "./domain/upload-validation": "./src/domain/upload-validation.ts"
+    "./domain/upload-validation": "./src/domain/upload-validation.ts",
+    "./public/attachments/native-field-bind": "./src/public/attachments/native-field-bind.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

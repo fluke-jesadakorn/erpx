@@ -1287,3 +1287,92 @@ async fn private_field_attachment_withdraws_historical_draft_and_replays() {
         sqlx::query("UPDATE active_work_contexts SET revision=revision+1 WHERE session_id=$1").bind(&child.result.session_id).execute(db).await.unwrap();let stale=Request::builder().uri("/api/v1/holdings/acme/attachment-links/files-test-link/status").header("host","acme.example.test").header("cookie",&cookie).header("x-erpx-context-company","company").header("x-erpx-context-assignment","field-fixture-a").header("x-erpx-context-assignment-version","3").header("x-erpx-context-revision","8").body(Body::empty()).unwrap();assert_ne!(runtime.router().oneshot(stale).await.unwrap().status(),StatusCode::OK);runtime.close().await;
     }).await;
 }
+
+// Component fixture: bytes and scan result are deterministic; real Clam is qualified separately.
+#[cfg(feature = "private-development-api")]
+#[path = "../../support/files/scan-facts.rs"]
+#[allow(dead_code)]
+mod bind_scan_facts;
+
+#[tokio::test]
+#[cfg(feature = "private-development-api")]
+async fn private_field_attachment_bind_replays_component_scanned_manifest() {
+    use erpx_server_files::public::attachment_scan::*;
+    use erpx_server_runtime::public::postgres::{PgUnitOfWork, TransactionOptions};
+    use erpx_server_shared::public::RecordId;
+    use sha2::{Digest, Sha256};
+    account::with_system(|system| async move {
+        let now=std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;
+        system.scenario.clock.0.store(now,Ordering::SeqCst);
+        let p=setup_workspace(system).await; let system=&p.review.system; let db=p.pool().raw();
+        let checksum="ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+        assert_eq!(hex::encode(Sha256::digest(b"abc")),checksum);
+        sqlx::query("INSERT INTO attachment_sets(id,company_id,branch_id,target_type,target_id,component_kind,purpose_key,expected_target_version,policy_version,classification,audience_json,state,created_by,created_at,updated_at) VALUES('bind-set','company','branch','field_service_visit','issue-order','record','technician_report',3,1,'confidential','{}','draft','fixture-a',$1,$1)").bind(now).execute(db).await.unwrap();
+        sqlx::query("INSERT INTO upload_intents(id,owner_type,owner_id,purpose,original_name,media_type,declared_bytes,actual_bytes,checksum_sha256,staging_key,final_key,quarantine_key,status,created_by,expires_at,created_at,updated_at,company_id,detected_media_type) VALUES('bind-upload','field_service_visit','issue-order','technician_report','component.csv','text/csv',3,3,$1,'quarantine/bind','quarantine/bind','quarantine/bind','uploaded','fixture-a',$2,$3,$3,'company','text/csv')").bind(checksum).bind(now+3600000).bind(now).execute(db).await.unwrap();
+        sqlx::query("INSERT INTO attachments(id,upload_id,owner_type,owner_id,purpose,object_key,revision,original_name,media_type,bytes,checksum_sha256,created_by,created_at,company_id,source_state,detected_media_type) VALUES('attachment-bind-upload','bind-upload','field_service_visit','issue-order','technician_report','quarantine/bind',1,'component.csv','text/csv',3,$1,'fixture-a',$2,'company','quarantined','text/csv')").bind(checksum).bind(now).execute(db).await.unwrap();
+        sqlx::query("INSERT INTO attachment_links(id,set_id,attachment_id,upload_intent_id,state,created_by,created_at,expires_at) VALUES('bind-link','bind-set','attachment-bind-upload','bind-upload','draft','fixture-a',$1,$2)").bind(now).bind(now+3600000).execute(db).await.unwrap();
+        sqlx::query("UPDATE upload_intents SET attachment_set_id='bind-set',attachment_link_id='bind-link' WHERE id='bind-upload'").execute(db).await.unwrap();
+        sqlx::query("INSERT INTO attachment_storage_ledger(id,company_id,attachment_id,variant,object_key,bytes,state,created_at) VALUES('bind-original','company','attachment-bind-upload','original','quarantine/bind',3,'stored',$1)").bind(now).execute(db).await.unwrap();
+        let details=serde_json::json!({"checksum":checksum,"bytes":3,"detectedMediaType":"text/csv"}).to_string();
+        sqlx::query("INSERT INTO attachment_events(id,company_id,attachment_id,link_id,set_id,actor_id,action,details_json,created_at) VALUES('bind-origin','company','attachment-bind-upload','bind-link','bind-set','fixture-a','file.quarantined',$1,$2)").bind(details).bind(now).execute(db).await.unwrap();
+        sqlx::query("INSERT INTO attachment_scan_attempts(id,attachment_id,attempt,state,created_at) VALUES('bind-scan','attachment-bind-upload',1,'pending',$1)").bind(now).execute(db).await.unwrap();
+        let central=account::login(system,"a@example.test",None).await;let child=account::child(system,&central,account::ACME).await;
+        sqlx::query("INSERT INTO active_work_contexts(session_id,user_id,company_id,assignment_id,assignment_version,revision,expires_at,updated_at) VALUES($1,'fixture-a','company','field-fixture-a',3,8,$2,$3)").bind(&child.result.session_id).bind(now+3600000).bind(now).execute(db).await.unwrap();
+        let cookie=format!("__Host-erpx-product={}",child.token.expose());let mut cfg=private_configuration::document(&system.control,&system.holdings).await;
+        cfg["fieldServiceReads"]=serde_json::json!([{"holdingId":"h001","companyId":"company"}]);cfg["fieldAttachmentBinds"]=serde_json::json!([{"holdingId":"h001","mode":"enabled"}]);cfg["fieldServiceVisitRecoveries"]=serde_json::json!(["h001"]);cfg["fieldServiceOrderCancellations"]=serde_json::json!(["h001"]);
+        let runtime=assemble_development_api(DevelopmentApiConfiguration::parse(&cfg.to_string()).unwrap(),system.scenario.clock.clone(),Arc::new(SystemAuthenticationSecrets)).await.unwrap();
+        let post=|key:&str,version:i64|Request::builder().method("POST").uri("/api/v1/holdings/acme/attachment-sets/bind-set/bind").header("host","acme.example.test").header("cookie",&cookie).header("x-erpx-context-company","company").header("x-erpx-context-assignment","field-fixture-a").header("x-erpx-context-assignment-version","3").header("x-erpx-context-revision","8").header("idempotency-key",key).body(Body::from(serde_json::json!({"expectedTargetVersion":version}).to_string())).unwrap();
+        let post_set=|set:&str,key:&str,version:i64|Request::builder().method("POST").uri(format!("/api/v1/holdings/acme/attachment-sets/{set}/bind")).header("host","acme.example.test").header("cookie",&cookie).header("x-erpx-context-company","company").header("x-erpx-context-assignment","field-fixture-a").header("x-erpx-context-assignment-version","3").header("x-erpx-context-revision","8").header("idempotency-key",key).body(Body::from(serde_json::json!({"expectedTargetVersion":version}).to_string())).unwrap();
+        let default_cfg={let mut c=cfg.clone();c.as_object_mut().unwrap().remove("fieldAttachmentBinds");c};
+        let default_closed=assemble_development_api(DevelopmentApiConfiguration::parse(&default_cfg.to_string()).unwrap(),system.scenario.clock.clone(),Arc::new(SystemAuthenticationSecrets)).await.unwrap();
+        assert_ne!(default_closed.router().oneshot(post("bind-default-closed",3)).await.unwrap().status(),StatusCode::OK);default_closed.close().await;
+        let missing=Request::builder().method("POST").uri("/api/v1/holdings/acme/attachment-sets/bind-set/bind").header("host","acme.example.test").header("cookie",&cookie).header("idempotency-key","missing-cas-key").body(Body::from(r#"{"expectedTargetVersion":3}"#)).unwrap();assert_eq!(runtime.router().oneshot(missing).await.unwrap().status(),StatusCode::CONFLICT);
+        assert_eq!(runtime.router().oneshot(post("bind-pending-key",3)).await.unwrap().status(),StatusCode::CONFLICT);
+        let clock=system.scenario.clock.clone();
+        PgUnitOfWork::new(p.pool().clone()).run::<(),BusinessError,_>(TransactionOptions::default(),move |c| {let clock=clock.clone();Box::pin(async move {
+            let scope=AttachmentScanScope{holding_id:HoldingId::new("h001").unwrap(),company_id:CompanyId::new("company").unwrap()};
+            let id=RecordId::new("attachment-bind-upload").unwrap();
+            let claim=claim_attachment_scan(c,&scope,Some(&id),&*clock,&mut bind_scan_facts::Ids).await?.expect("pending source");
+            let prepared=prepare_current_attachment_scan(c,claim,&*clock).await?;
+            let evidence=AttachmentScanEvidence::Clean{engine:"deterministic component provider".into(),definition_updated_at:1,preview:None};
+            let retained=retain_current_attachment_scan(c,&prepared,&evidence,&*clock,&mut bind_scan_facts::Ids).await?;
+            sqlx::query("SET CONSTRAINTS ALL IMMEDIATE").execute(&mut *c).await?;retained.require_current(c,&*clock).await?;Ok(())
+        })}).await.unwrap();
+        assert_eq!(runtime.router().oneshot(post("bind-stale-key",2)).await.unwrap().status(),StatusCode::CONFLICT);
+        sqlx::query("INSERT INTO attachment_sets(id,company_id,branch_id,target_type,target_id,component_kind,purpose_key,expected_target_version,policy_version,classification,audience_json,state,created_by,created_at,updated_at) VALUES('bind-foreign','other-company','branch','field_service_visit','issue-order','record','technician_report',3,1,'confidential','{}','draft','fixture-a',$1,$1),('bind-withdrawn','company','branch','field_service_visit','issue-order','record','signed_job_sheet',3,1,'confidential','{}','draft','fixture-a',$1,$1),('bind-terminal','company','branch','field_service_visit','reserve-order','record','technician_report',2,1,'confidential','{}','draft','fixture-a',$1,$1)").bind(now).execute(db).await.unwrap();
+        sqlx::query("INSERT INTO attachment_links(id,set_id,attachment_id,state,created_by,created_at,expires_at,withdrawn_at,withdrawn_by,withdrawal_reason) VALUES('bind-withdrawn-link','bind-withdrawn','attachment-bind-upload','withdrawn','fixture-a',$1,$2,$1,'fixture-a','component withdrawal')").bind(now).bind(now+3600000).execute(db).await.unwrap();
+        sqlx::query("INSERT INTO attachment_links(id,set_id,attachment_id,state,created_by,created_at,expires_at) VALUES('bind-terminal-link','bind-terminal','attachment-bind-upload','draft','fixture-a',$1,$2)").bind(now).bind(now+3600000).execute(db).await.unwrap();
+        assert_eq!(runtime.router().oneshot(post_set("bind-foreign","bind-foreign-key",3)).await.unwrap().status(),StatusCode::NOT_FOUND);
+        assert_ne!(runtime.router().oneshot(post_set("bind-withdrawn","bind-withdrawn-key",3)).await.unwrap().status(),StatusCode::OK);
+        let cancelled=send(&runtime.router(),&cookie,"bind-test-cancel",r#"{"id":"reserve-order","action":"cancel","expectedVersion":1,"reason":"Synthetic terminal state"}"#).await;assert_eq!(cancelled.0,StatusCode::OK,"{}",cancelled.1);
+        assert_ne!(runtime.router().oneshot(post_set("bind-terminal","bind-terminal-key",2)).await.unwrap().status(),StatusCode::OK);
+        let readonly_cfg={let mut c=cfg.clone();c["fieldAttachmentBinds"]=serde_json::json!([{"holdingId":"h001","mode":"read-only"}]);c};
+        let readonly=assemble_development_api(DevelopmentApiConfiguration::parse(&readonly_cfg.to_string()).unwrap(),system.scenario.clock.clone(),Arc::new(SystemAuthenticationSecrets)).await.unwrap();
+        assert_eq!(readonly.router().oneshot(post("bind-readonly-key",3)).await.unwrap().status(),StatusCode::SERVICE_UNAVAILABLE);readonly.close().await;
+        sqlx::raw_sql("CREATE FUNCTION bind_late_source_drift() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE finance_parties SET name='Unexpected late customer' WHERE id='customer'; RETURN NEW; END $$; CREATE TRIGGER bind_late_source_drift AFTER INSERT ON attachment_events FOR EACH ROW WHEN (NEW.action='set.bound') EXECUTE FUNCTION bind_late_source_drift()").execute(db).await.unwrap();
+        assert_ne!(runtime.router().oneshot(post("bind-drift-key",3)).await.unwrap().status(),StatusCode::OK);
+        let rolled_back:(String,String,i64,i64)=sqlx::query_as("SELECT s.state,p.name,o.version,(SELECT count(*) FROM command_receipts WHERE command_id='bind-drift-key') FROM attachment_sets s JOIN field_service_orders o ON o.id=s.target_id JOIN finance_parties p ON p.id='customer' WHERE s.id='bind-set'").fetch_one(db).await.unwrap();assert_eq!(rolled_back.0,"draft");assert_ne!(rolled_back.1,"Unexpected late customer");assert_eq!((rolled_back.2,rolled_back.3),(3,0));
+        sqlx::raw_sql("DROP TRIGGER bind_late_source_drift ON attachment_events; DROP FUNCTION bind_late_source_drift()").execute(db).await.unwrap();
+        sqlx::raw_sql("CREATE FUNCTION bind_late_identity_drift() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE assignments SET valid_until=valid_until-1 WHERE id='field-fixture-a'; RETURN NEW; END $$; CREATE TRIGGER bind_late_identity_drift AFTER INSERT ON attachment_events FOR EACH ROW WHEN (NEW.action='set.bound') EXECUTE FUNCTION bind_late_identity_drift()").execute(db).await.unwrap();
+        assert_ne!(runtime.router().oneshot(post("bind-identity-key",3)).await.unwrap().status(),StatusCode::OK);
+        let identity_rolled_back:(String,i64,i64)=sqlx::query_as("SELECT s.state,o.version,(SELECT count(*) FROM command_receipts WHERE command_id='bind-identity-key') FROM attachment_sets s JOIN field_service_orders o ON o.id=s.target_id WHERE s.id='bind-set'").fetch_one(db).await.unwrap();assert_eq!(identity_rolled_back,("draft".into(),3,0));
+        sqlx::raw_sql("DROP TRIGGER bind_late_identity_drift ON attachment_events; DROP FUNCTION bind_late_identity_drift()").execute(db).await.unwrap();
+        let (a,b)=tokio::join!(runtime.router().oneshot(post("bind-retry-key",3)),runtime.router().oneshot(post("bind-retry-key",3)));
+        let a=a.unwrap();let b=b.unwrap();let ast=a.status();let bst=b.status();let ab=to_bytes(a.into_body(),65536).await.unwrap();let bb=to_bytes(b.into_body(),65536).await.unwrap();
+        assert_eq!(ast,StatusCode::OK,"{}",String::from_utf8_lossy(&ab));assert_eq!(bst,StatusCode::OK,"{}",String::from_utf8_lossy(&bb));
+        let value:serde_json::Value=serde_json::from_slice(&ab).unwrap();assert_eq!(value["data"]["manifest"][0]["checksumSha256"],checksum);assert_eq!(value["data"]["manifest"][0]["bytes"],3);
+        assert_eq!(runtime.router().oneshot(post("bind-retry-key",2)).await.unwrap().status(),StatusCode::CONFLICT);
+        let effects:(String,String,i64,i64,i64,i64)=sqlx::query_as("SELECT s.state,l.state,o.version,t.service_order_version,(SELECT count(*) FROM field_service_order_events WHERE id='service-file-event-bind-retry-key'),(SELECT count(*) FROM attachment_events WHERE set_id=s.id AND action='set.bound') FROM attachment_sets s JOIN attachment_links l ON l.set_id=s.id JOIN field_service_orders o ON o.id=s.target_id JOIN support_tickets t ON t.id=o.ticket_id WHERE s.id='bind-set'").fetch_one(db).await.unwrap();assert_eq!(effects,("bound".into(),"bound".into(),4,4,1,1));
+        let command_effects:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM command_receipts WHERE command_id='bind-retry-key' AND operation='attachment.record.bind' AND record_id='issue-order' AND actor_id='fixture-a'),(SELECT count(*) FROM audit_events WHERE command_id='bind-retry-key' AND action='attachment.record.bind' AND record_version=4),(SELECT count(*) FROM outbox_events WHERE command_id='bind-retry-key' AND event_type='attachment.record.bind' AND aggregate_version=4)").fetch_one(db).await.unwrap();assert_eq!(command_effects,(1,1,1));
+        let transition=send(&runtime.router(),&cookie,"bind-later-exception",r#"{"id":"issue-order","action":"exception","expectedVersion":4,"reason":"Synthetic later progress"}"#).await;assert_eq!(transition.0,StatusCode::OK,"{}",transition.1);
+        assert_eq!(runtime.router().oneshot(post("bind-retry-key",3)).await.unwrap().status(),StatusCode::OK);
+        sqlx::query("INSERT INTO attachment_sets(id,company_id,branch_id,target_type,target_id,component_kind,purpose_key,expected_target_version,policy_version,classification,audience_json,state,created_by,created_at,updated_at) VALUES('bind-purchase','company','branch','field_service_visit','issue-order','record','technician_report',5,1,'confidential','{}','draft','fixture-a',$1,$1)").bind(now).execute(db).await.unwrap();
+        sqlx::query("INSERT INTO attachment_links(id,set_id,attachment_id,state,created_by,created_at,expires_at) VALUES('bind-purchase-link','bind-purchase','attachment-bind-upload','draft','fixture-a',$1,$2)").bind(now).bind(now+3600000).execute(db).await.unwrap();
+        withdraw(&p,"service").await;system.scenario.clock.0.store(now+10000,Ordering::SeqCst);
+        assert_ne!(runtime.router().oneshot(post_set("bind-purchase","bind-purchase-key",5)).await.unwrap().status(),StatusCode::OK);
+        let purchase_unchanged:(String,i64)=sqlx::query_as("SELECT state,(SELECT count(*) FROM command_receipts WHERE command_id='bind-purchase-key') FROM attachment_sets WHERE id='bind-purchase'").fetch_one(db).await.unwrap();assert_eq!(purchase_unchanged,("draft".into(),0));
+        sqlx::query("UPDATE active_work_contexts SET revision=revision+1 WHERE session_id=$1").bind(&child.result.session_id).execute(db).await.unwrap();
+        assert_ne!(runtime.router().oneshot(post("bind-retry-key",3)).await.unwrap().status(),StatusCode::OK);
+        runtime.close().await;
+    }).await;
+}

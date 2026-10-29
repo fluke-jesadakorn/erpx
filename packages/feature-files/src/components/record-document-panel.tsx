@@ -23,6 +23,7 @@ type RecordDocumentPanelProps = {
   purposes: readonly RecordDocumentPurpose[];
   editable?: boolean;
   nativeWithdrawIds?: readonly string[];
+  nativeBindIds?: readonly string[];
 };
 
 export function RecordDocumentPanel(props: (RecordDocumentPanelProps) & { appearance?: UiAppearance }) {
@@ -45,6 +46,7 @@ function RecordDocumentPanelContent({ appearance = "legacy",
   purposes,
   editable = true,
   nativeWithdrawIds,
+  nativeBindIds,
 }: (RecordDocumentPanelProps) & { appearance?: UiAppearance }) {
   const [purposeKey, setPurposeKey] = useState(purposes[0]?.key ?? "");
   const [available, setAvailable] = useState<boolean | null>(null);
@@ -78,6 +80,7 @@ function RecordDocumentPanelContent({ appearance = "legacy",
         readOnly={!editable || purpose.editable === false}
         showHistory
         nativeWithdrawIds={nativeWithdrawIds}
+        nativeBindIds={nativeBindIds}
         onAvailabilityChange={setAvailable}
       />
     </section>

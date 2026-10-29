@@ -14,7 +14,8 @@
     "./lib/attachment-state": "./src/lib/attachment-state.ts",
     "./lib/native-field-withdraw": "./src/lib/native-field-withdraw.ts",
     "./lib/attachment-client": "./src/lib/attachment-client.ts",
-    "./lib/document-pages": "./src/lib/document-pages.ts"
+    "./lib/document-pages": "./src/lib/document-pages.ts",
+    "./lib/native-field-bind": "./src/lib/native-field-bind.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

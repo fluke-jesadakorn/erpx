@@ -42,6 +42,7 @@ import {
   withdrawAttachmentLink,
 } from "@erpx/feature-files/lib/attachment-client";
 import {fieldWithdrawalScope,pendingFieldWithdrawal,registerFieldWithdrawalOwner,retryFieldWithdrawal,submitFieldWithdrawal,subscribeFieldWithdrawal} from "@erpx/feature-files/lib/native-field-withdraw";
+import {pendingFieldBind,registerFieldBindOwner,retryFieldBind,submitFieldBind,subscribeFieldBind} from "@erpx/feature-files/lib/native-field-bind";
 import { attachmentStateLabel, canMutateAttachmentDraft } from "@erpx/feature-files/lib/attachment-state";
 import { canMutateAttachments, useAttachmentFeatureMode } from "@erpx/feature-files/components/attachment-feature-context";
 import styles from "@erpx/feature-files/components/attachment-panel.module.css";
@@ -88,6 +89,7 @@ export type AttachmentPanelProps = {
   showHistory?: boolean;
   allowOriginalDownload?: boolean;
   nativeWithdrawIds?: readonly string[];
+  nativeBindIds?: readonly string[];
 };
 
 const active = (link: LocalLink) => !["withdrawn", "expired"].includes(link.linkState);
@@ -190,6 +192,7 @@ function AttachmentPanelContent({ appearance = "legacy",
   showHistory = false,
   allowOriginalDownload = true,
   nativeWithdrawIds = [],
+  nativeBindIds = [],
 }: (AttachmentPanelProps) & { appearance?: UiAppearance }) {
   const router = useRouter();
   const inputId = useId();
@@ -219,6 +222,8 @@ function AttachmentPanelContent({ appearance = "legacy",
   const [,setWithdrawalRevision]=useState(0);
   useEffect(()=>{const unregister=registerFieldWithdrawalOwner(withdrawalScope,()=>({setId:setRef.current?.id??null}));const unsubscribe=subscribeFieldWithdrawal(withdrawalScope,()=>setWithdrawalRevision(v=>v+1));return()=>{unsubscribe();unregister();};},[withdrawalScope,expectedTargetVersion]);
   const pendingWithdrawal=pendingFieldWithdrawal(withdrawalScope);
+  useEffect(()=>{const owner={};const unregister=registerFieldBindOwner(withdrawalScope,owner);const unsubscribe=subscribeFieldBind(withdrawalScope,()=>setWithdrawalRevision(v=>v+1));return()=>{unsubscribe();unregister();};},[withdrawalScope,expectedTargetVersion]);
+  const pendingBind=pendingFieldBind(withdrawalScope);
   const [boundLocally, setBoundLocally] = useState(initialSet?.state === "bound");
   const [retryableLinkIds, setRetryableLinkIds] = useState<Set<string>>(() => new Set());
   const [attestationNote, setAttestationNote] = useState("");
@@ -229,7 +234,7 @@ function AttachmentPanelContent({ appearance = "legacy",
       if (mounted.current) setBusy(active);
       // Keep the owner guard active while an upload still has an in-memory
       // File available for explicit retry, even after the active request ends.
-      onActivityChange?.(active || retryUploads.current.size > 0 || !!pendingFieldWithdrawal(withdrawalScope));
+      onActivityChange?.(active || retryUploads.current.size > 0 || !!pendingFieldWithdrawal(withdrawalScope) || !!pendingFieldBind(withdrawalScope));
     },
     [onActivityChange,withdrawalScope],
   );
@@ -243,14 +248,14 @@ function AttachmentPanelContent({ appearance = "legacy",
   const filesBindable = readyCount >= requiredCount && activeLinks.every(ready);
   const bindable = filesBindable && sanitizationAttested;
   const locked = frozen || boundLocally || set?.state === "bound";
-  const draftMutable = !pendingWithdrawal && canMutateAttachmentDraft({
+  const draftMutable = !pendingWithdrawal && !pendingBind && canMutateAttachmentDraft({
     disabled,
     readOnly,
     frozen,
     locked,
   });
   const submissionBlocked =
-    !!pendingWithdrawal || (draftMutable &&
+    !!pendingWithdrawal || !!pendingBind || (draftMutable &&
     ((requiredCount > 0 && readyCount < requiredCount) || (activeLinks.length > 0 && !bindable)));
 
   useEffect(() => {
@@ -260,7 +265,7 @@ function AttachmentPanelContent({ appearance = "legacy",
       event.preventDefault();
       event.stopImmediatePropagation();
       setError(
-        pendingWithdrawal ? "Confirm the original file withdrawal before submitting." : requiredCount > readyCount
+        pendingWithdrawal ? "Confirm the original file withdrawal before submitting." : pendingBind ? "Confirm the original file binding before submitting." : requiredCount > readyCount
           ? `Wait for ${requiredCount} required clean file${requiredCount === 1 ? "" : "s"} before submitting.`
           : filesBindable && !sanitizationAttested
             ? "Review the final file list and record the sanitization attestation before submitting."
@@ -270,7 +275,7 @@ function AttachmentPanelContent({ appearance = "legacy",
     };
     form.addEventListener("submit", stopPendingSubmission, true);
     return () => form.removeEventListener("submit", stopPendingSubmission, true);
-  }, [filesBindable, readyCount, requiredCount, sanitizationAttested, submissionBlocked,pendingWithdrawal]);
+  }, [filesBindable, readyCount, requiredCount, sanitizationAttested, submissionBlocked,pendingWithdrawal,pendingBind]);
 
   const notify = useCallback(
     (nextSet: AttachmentSetDto | null, nextLinks: LocalLink[]) => {
@@ -284,7 +289,7 @@ function AttachmentPanelContent({ appearance = "legacy",
         readyCount: readyLinks.length,
         requiredCount: minimum,
         bindable:
-          !pendingFieldWithdrawal(withdrawalScope) && readyLinks.length >= minimum &&
+          !pendingFieldWithdrawal(withdrawalScope) && !pendingFieldBind(withdrawalScope) && readyLinks.length >= minimum &&
           usable.every(ready) &&
           (!sanitizationAttestationTargets.has(targetType) ||
             nextSet?.sanitizationAttested === true),
@@ -294,7 +299,7 @@ function AttachmentPanelContent({ appearance = "legacy",
   );
 
   const notifiedPending=useRef(false);
-  useEffect(()=>{const pending=!!pendingWithdrawal;if(notifiedPending.current!==pending){notifiedPending.current=pending;notify(setRef.current,links);onActivityChange?.(pending||busyRef.current||retryUploads.current.size>0);}},[pendingWithdrawal,notify,links,onActivityChange]);
+  useEffect(()=>{const pending=!!pendingWithdrawal||!!pendingBind;if(notifiedPending.current!==pending){notifiedPending.current=pending;notify(setRef.current,links);onActivityChange?.(pending||busyRef.current||retryUploads.current.size>0);}},[pendingWithdrawal,pendingBind,notify,links,onActivityChange]);
 
   const replace = useCallback(
     (nextSet: AttachmentSetDto | null, nextLinks = nextSet?.links ?? []) => {
@@ -664,35 +669,22 @@ function AttachmentPanelContent({ appearance = "legacy",
     }
   }
 
+  async function applyBind(result: Awaited<ReturnType<typeof bindRecordAttachmentSet>>) {
+    if (!mounted.current || setRef.current?.id !== result.setId) return;
+    const boundIds=new Set(result.manifest.map(item=>item.linkId));
+    setLinks(current=>{const next=current.map(link=>boundIds.has(link.id)?{...link,linkState:"bound" as const,boundAt:Date.now()}:link);const currentSet=setRef.current;if(currentSet?.id===result.setId){const updated={...currentSet,state:"bound",links:next};setRef.current=updated;setSet(updated);notify(updated,next);}return next;});
+    setBoundLocally(true);onBound?.({setId:result.setId,version:result.version});router.refresh();
+  }
   async function bindRecord() {
     if (!draftMutable || interactionDisabled || busyRef.current || bindMode !== "record" || !set || readyCount < 1 || !bindable) return;
-    setActivity(true);
-    setError("");
+    setActivity(true);setError("");
     try {
-      if (bindKey.current?.setId !== set.id)
-        bindKey.current = { setId: set.id, key: crypto.randomUUID() };
-      const result = await bindRecordAttachmentSet(
-        base,
-        set.id,
-        expectedTargetVersion,
-        bindKey.current.key,
-      );
-      const now = Date.now();
-      const nextLinks = links.map((link) =>
-        active(link) ? { ...link, linkState: "bound" as const, boundAt: now } : link,
-      );
-      replace({ ...set, state: "bound", links: nextLinks }, nextLinks);
-      setBoundLocally(true);
-      onBound?.({ setId: result.setId, version: result.version });
-      router.refresh();
-    } catch (cause) {
-      setError(
-        cause instanceof Error ? cause.message : "Unable to lock these files to the record.",
-      );
-    } finally {
-      setActivity(false);
-    }
+      if (bindKey.current?.setId !== set.id) bindKey.current={setId:set.id,key:crypto.randomUUID()};
+      const result=nativeBindIds.includes(set.id)?await submitFieldBind({scope:withdrawalScope,base,setId:set.id,expectedVersion:expectedTargetVersion}):await bindRecordAttachmentSet(base,set.id,expectedTargetVersion,bindKey.current.key);
+      await applyBind(result);
+    } catch(cause){setError(cause instanceof Error?cause.message:"Unable to lock these files to the record.");}finally{setActivity(false);}
   }
+  async function retryBind(){const pending=pendingFieldBind(withdrawalScope);if(!pending||interactionDisabled||busyRef.current||!nativeBindIds.includes(pending.setId))return;setActivity(true);setError("");try{const result=await retryFieldBind(withdrawalScope);await applyBind(result);}catch(cause){if(mounted.current)setError(cause instanceof Error?cause.message:"Unable to confirm the original file binding.");}finally{setActivity(false);}}
 
   if (checking || gateUnavailable) return null;
 
@@ -790,7 +782,7 @@ function AttachmentPanelContent({ appearance = "legacy",
         </>
       )}
 
-      {locked && (
+      {locked && !pendingBind && (
         <p data-ui-appearance={appearance} className={styles.notice}>
           <LockKeyhole aria-hidden size={15} />
           This evidence is bound to a recorded action. Add a correction or a new revision instead of
@@ -841,6 +833,7 @@ function AttachmentPanelContent({ appearance = "legacy",
         </div>
       )}
 
+      {pendingBind && <InlineNotice tone="warning">The original file binding awaits confirmation. Your newer entries are retained. <Button appearance={appearance} type="button" disabled={interactionDisabled||busy||!nativeBindIds.includes(pendingBind.setId)} onClick={()=>void retryBind()}>Retry original file binding</Button></InlineNotice>}
       {pendingWithdrawal && <InlineNotice tone="warning">The original file withdrawal awaits confirmation. Your newer entries are retained. <Button appearance={appearance} type="button" disabled={interactionDisabled||busy||!nativeWithdrawIds.includes(pendingWithdrawal.linkId)} onClick={()=>void retryWithdrawal()}>Retry original withdrawal</Button></InlineNotice>}
       {error && (
         <p data-ui-appearance={appearance} className={styles.error} role="alert">
@@ -895,7 +888,7 @@ function AttachmentPanelContent({ appearance = "legacy",
                     data-error={isError}
                     role="status"
                   >
-                    {pendingWithdrawal?.linkId===link.id ? "Withdrawal confirmation pending" : <>{statusIcon(link)} {attachmentStateLabel(link)}</>}
+                    {pendingBind && set?.id===pendingBind.setId ? "Binding confirmation pending" : pendingWithdrawal?.linkId===link.id ? "Withdrawal confirmation pending" : <>{statusIcon(link)} {attachmentStateLabel(link)}</>}
                   </span>
                   {link.localError && <span data-ui-appearance={appearance} role="alert">{link.localError}</span>}
                 </span>

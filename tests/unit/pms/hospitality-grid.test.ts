@@ -622,7 +622,8 @@ async function actualAttachmentPanelSetActivity(retryUploads:{current:Map<string
  const visit=(node:import('typescript').Node)=>{if(ts.isVariableDeclaration(node)&&ts.isIdentifier(node.name)&&node.name.text==='setActivity'&&node.initializer&&ts.isCallExpression(node.initializer)&&node.initializer.arguments[0]&&ts.isArrowFunction(node.initializer.arguments[0]))callback=node.initializer.arguments[0];ts.forEachChild(node,visit);};visit(file);
  if(!callback)throw Error('The actual AttachmentPanel activity callback is required.');
  const emitted=ts.transpileModule(`return (${callback.getText(file)});`,{compilerOptions:{esModuleInterop: false, target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText,busyRef={current:false},mounted={current:true},setBusy=vi.fn();
- return new Function('busyRef','mounted','setBusy','onActivityChange','retryUploads',emitted)(busyRef,mounted,setBusy,onActivityChange,retryUploads) as (active:boolean)=>void;
+ const {pendingFieldWithdrawal}=await import('@erpx/feature-files/lib/native-field-withdraw'),{pendingFieldBind}=await import('@erpx/feature-files/lib/native-field-bind');
+ return new Function('busyRef','mounted','setBusy','onActivityChange','retryUploads','pendingFieldWithdrawal','pendingFieldBind','withdrawalScope',emitted)(busyRef,mounted,setBusy,onActivityChange,retryUploads,pendingFieldWithdrawal,pendingFieldBind,'pms-test-scope') as (active:boolean)=>void;
 }
 function pmsLifetimeBrowser(f:Awaited<ReturnType<typeof actualPmsWorkspaceSend>>,withNavigation=true){
  const url=new URL('https://pms-dev-erpx.jesadakorn.com/acme/acme-co/holding/housekeeping?property=original-hotel&page=1');

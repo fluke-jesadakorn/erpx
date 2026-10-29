@@ -89,3 +89,5 @@ pub mod field_service_workspace;
 pub mod field_service_detail;
 
 pub mod field_attachment;
+
+pub mod field_attachment_bind;

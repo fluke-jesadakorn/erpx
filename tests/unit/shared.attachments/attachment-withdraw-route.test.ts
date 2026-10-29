@@ -5,14 +5,19 @@ const state = vi.hoisted(() => ({
   withdraw: vi.fn(),
   status: vi.fn(),
   native: vi.fn(),
+  nativeBind: vi.fn(),
+  bind: vi.fn(),
   write: { name: "holding-write" },
 }));
 
 vi.mock("@erpx/server-files/public/attachments/native-field-attachment",()=>({nativeFieldAttachment:state.native}));
+vi.mock("@erpx/server-files/public/attachments/native-field-bind",()=>({nativeFieldBind:state.nativeBind}));
+vi.mock("@erpx/server-files/public/app-attachment-sources",()=>({appAttachmentSources:()=>({compatibilitySet:async()=>false})}));
 
 vi.mock("@erpx/server-files/public/attachments/service", () => ({
   withdrawAttachmentLink: state.withdraw,
   attachmentLinkStatus: state.status,
+  bindRecordAttachmentSet: state.bind,
 }));
 
 vi.mock("@erpx/server-identity_access/public/authorization", () => ({
@@ -28,11 +33,14 @@ vi.mock("@erpx/server-runtime/public/runtime", () => ({
 }));
 
 import { POST } from "@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/attachment-links/[linkId]/withdraw/route";
+import { POST as bindPost } from "@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/attachment-sets/[setId]/bind/route";
 import { ApiError } from "@erpx/server-runtime/public/http";
 
 beforeEach(() => {
   state.calls = [];
   state.native.mockReset().mockResolvedValue(undefined);
+  state.nativeBind.mockReset().mockResolvedValue(undefined);
+  state.bind.mockReset().mockResolvedValue({setId:'set-1',version:5,manifest:[]});
   state.withdraw.mockReset().mockImplementation(async () => {
     state.calls.push("withdraw");
     return { id: "link-1", state: "withdrawn" };
@@ -53,6 +61,13 @@ beforeEach(() => {
       withdrawnAt: 30,
     };
   });
+});
+
+it('keeps native bind failure closed and retains the unselected bind route',async()=>{
+ const request=()=>new Request('https://dev-erpx.example.test/api/v1/holdings/acme/attachment-sets/set-1/bind',{method:'POST',headers:{origin:'https://dev-erpx.example.test','idempotency-key':'bind-key-001','content-type':'application/json'},body:'{"expectedTargetVersion":4}'}),ctx={params:Promise.resolve({holdingSlug:'acme',setId:'set-1'})};
+ state.nativeBind.mockRejectedValueOnce(new ApiError(503,'NATIVE_ATTACHMENT_UNAVAILABLE','Unavailable'));expect((await bindPost(request(),ctx)).status).toBe(503);expect(state.bind).not.toHaveBeenCalled();
+ expect((await bindPost(request(),ctx)).status).toBe(200);expect(state.bind).toHaveBeenCalledOnce();
+ state.bind.mockClear();state.nativeBind.mockResolvedValueOnce({setId:'set-1',version:5,manifest:[]});const selected=await bindPost(request(),ctx);expect(selected.status).toBe(200);expect(state.nativeBind).toHaveBeenLastCalledWith(expect.any(Headers),expect.any(Object),'set-1',{key:'bind-key-001',body:'{"expectedTargetVersion":4}',expectedVersion:4});expect(state.bind).not.toHaveBeenCalled();
 });
 
 it("returns the post-withdraw status contract consumed by AttachmentPanel", async () => {
@@ -120,4 +135,15 @@ it("does not fall back to the retained owner when the selected native withdrawal
   expect(response.status).toBe(503);
   expect(state.withdraw).not.toHaveBeenCalled();
   expect(state.status).not.toHaveBeenCalled();
+});
+
+it('selects a native Field bind and validates context and the canonical manifest',async()=>{
+ const {createNativeFieldBindBridge}=await import('../../../packages/server-files/src/adapters/attachments/native-field-bind');
+ const actor={userId:'requester',holdingId:'h001',holdingSlug:'acme',companyId:'acme-co',branchId:null,departmentId:null,assignmentId:'grant',role:'worker',assignmentScope:'holding',scope:{kind:'holding'},authority:{revision:7,assignmentVersion:3},modules:['field_service'],iam:{permissions:['records.read','records.write']}} as unknown as import('@erpx/server-identity_access/public/authorization').WorkContext;
+ const context={userId:'requester',holdingId:'h001',companyId:'acme-co',branchId:null,departmentId:null,branchSlug:null,departmentSlug:null,assignmentId:'grant',assignmentVersion:3,revision:7,role:'worker',assignmentScopeKind:'holding',modules:['field_service'],permissions:['records.read','records.write'],expiresAt:1800000000000};
+ const data={setId:'set-1',version:5,manifest:[{linkId:'link-1',sourceId:'source-1',purposeKey:'site_photo',checksumSha256:'a'.repeat(64),mediaType:'image/png',bytes:8}]},config={privateBaseUrl:'http://127.0.0.1:43117',timeoutMs:250,holdings:[{origin:'https://dev-erpx.example.test',holdingSlug:'acme',holdingId:'h001',setIds:['set-1']}]};let calls=0;
+ const bridge=createNativeFieldBindBridge(JSON.stringify(config),async(url,method,headers,body)=>{calls++;expect(url.pathname).toBe('/api/v1/holdings/acme/attachment-sets/set-1/bind');expect(method).toBe('POST');expect(headers.get('idempotency-key')).toBe('original-key');expect(body).toBe('{"expectedTargetVersion":4}');return Response.json({data,context});});const headers=new Headers({host:'dev-erpx.example.test'}),command={key:'original-key',body:'{"expectedTargetVersion":4}',expectedVersion:4};
+ expect(await bridge(headers,actor,'other',command)).toBeUndefined();expect(calls).toBe(0);expect(await bridge(headers,actor,'set-1',command)).toEqual(data);
+ const stale=createNativeFieldBindBridge(JSON.stringify(config),async()=>Response.json({data,context:{...context,revision:8}}));await expect(stale(headers,actor,'set-1',command)).rejects.toMatchObject({status:409});
+ const malformed=createNativeFieldBindBridge(JSON.stringify(config),async()=>Response.json({data:{...data,manifest:[]},context}));await expect(malformed(headers,actor,'set-1',command)).rejects.toMatchObject({status:503});
 });

@@ -1,6 +1,7 @@
 use erpx_service::field_attachment::{
-    FieldAttachmentScan, FieldAttachmentStatus, FieldAttachmentStatusResponse,
-    FieldAttachmentWithdrawInput,
+    FieldAttachmentBindInput, FieldAttachmentBindResponse, FieldAttachmentBindResult,
+    FieldAttachmentManifestItem, FieldAttachmentScan, FieldAttachmentStatus,
+    FieldAttachmentStatusResponse, FieldAttachmentWithdrawInput,
 };
 use erpx_service::field_service_reservation_read::FieldServiceRenderedContext;
 use ts_rs::{Config, TS};
@@ -8,12 +9,19 @@ use ts_rs::{Config, TS};
 fn status() {}
 #[utoipa::path(post,path="/api/v1/holdings/{holding_slug}/attachment-links/{link_id}/withdraw",params(("holding_slug"=String,Path),("link_id"=String,Path)),request_body=FieldAttachmentWithdrawInput,responses((status=200,body=FieldAttachmentStatusResponse,description="Canonical status after withdrawal")))]
 fn withdraw() {}
+#[utoipa::path(post,path="/api/v1/holdings/{holding_slug}/attachment-sets/{set_id}/bind",params(("holding_slug"=String,Path),("set_id"=String,Path)),request_body=FieldAttachmentBindInput,responses((status=200,body=FieldAttachmentBindResponse,description="Bound Field visit record evidence")))]
+fn bind() {}
+const _: fn() = bind;
 const _: fn() = status;
 const _: fn() = withdraw;
 #[derive(utoipa::OpenApi)]
 #[openapi(
-    paths(status, withdraw),
+    paths(status, withdraw, bind),
     components(schemas(
+        FieldAttachmentBindInput,
+        FieldAttachmentManifestItem,
+        FieldAttachmentBindResult,
+        FieldAttachmentBindResponse,
         FieldAttachmentWithdrawInput,
         FieldAttachmentScan,
         FieldAttachmentStatus,
@@ -34,6 +42,10 @@ fn main() {
     println!("// Generated from Rust Field attachment contracts. Do not edit by hand.");
     for declaration in [
         FieldServiceRenderedContext::decl(&c),
+        FieldAttachmentBindInput::decl(&c),
+        FieldAttachmentManifestItem::decl(&c),
+        FieldAttachmentBindResult::decl(&c),
+        FieldAttachmentBindResponse::decl(&c),
         FieldAttachmentWithdrawInput::decl(&c),
         FieldAttachmentScan::decl(&c),
         FieldAttachmentStatus::decl(&c),

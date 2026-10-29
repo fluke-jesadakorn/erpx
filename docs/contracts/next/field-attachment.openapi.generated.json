@@ -91,10 +91,138 @@
           }
         }
       }
+    },
+    "/api/v1/holdings/{holding_slug}/attachment-sets/{set_id}/bind": {
+      "post": {
+        "tags": [],
+        "operationId": "bind",
+        "parameters": [
+          {
+            "name": "holding_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "set_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FieldAttachmentBindInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Bound Field visit record evidence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FieldAttachmentBindResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "FieldAttachmentBindInput": {
+        "type": "object",
+        "required": [
+          "expectedTargetVersion"
+        ],
+        "properties": {
+          "expectedTargetVersion": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "FieldAttachmentBindResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "context"
+        ],
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/FieldServiceRenderedContext"
+          },
+          "data": {
+            "$ref": "#/components/schemas/FieldAttachmentBindResult"
+          }
+        }
+      },
+      "FieldAttachmentBindResult": {
+        "type": "object",
+        "required": [
+          "setId",
+          "version",
+          "manifest"
+        ],
+        "properties": {
+          "manifest": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FieldAttachmentManifestItem"
+            }
+          },
+          "setId": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "FieldAttachmentManifestItem": {
+        "type": "object",
+        "required": [
+          "linkId",
+          "sourceId",
+          "purposeKey",
+          "checksumSha256",
+          "mediaType",
+          "bytes"
+        ],
+        "properties": {
+          "bytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "checksumSha256": {
+            "type": "string"
+          },
+          "linkId": {
+            "type": "string"
+          },
+          "mediaType": {
+            "type": "string"
+          },
+          "purposeKey": {
+            "type": "string"
+          },
+          "sourceId": {
+            "type": "string"
+          }
+        }
+      },
       "FieldAttachmentScan": {
         "type": "object",
         "required": [

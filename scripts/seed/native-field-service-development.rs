@@ -50,7 +50,7 @@ async fn main() {
     let args: Vec<_> = std::env::args().collect();
     assert!(
         (3..=4).contains(&args.len()),
-        "usage: native-field-service-development ABSOLUTE_PRIVATE_CASE_DIR LOOPBACK_LISTEN [post|request|order-create|visit|complete|recovery|cancel|agreement-review|agreement-create|billing-release|finance-invoice-read|workspace|detail|work|file-withdraw]"
+        "usage: native-field-service-development ABSOLUTE_PRIVATE_CASE_DIR LOOPBACK_LISTEN [post|request|order-create|visit|complete|recovery|cancel|agreement-review|agreement-create|billing-release|finance-invoice-read|workspace|detail|work|file-withdraw|file-bind]"
     );
     let dir = PathBuf::from(&args[1]);
     assert!(
@@ -82,7 +82,8 @@ async fn main() {
             "workspace",
             "detail",
             "work",
-            "file-withdraw"
+            "file-withdraw",
+            "file-bind"
         ]
         .contains(&scenario),
         "invalid private fixture scenario"
@@ -91,8 +92,10 @@ async fn main() {
     let agreement_create_scenario = scenario == "agreement-create";
     let workspace_scenario = scenario == "workspace";
     let file_withdraw_scenario = scenario == "file-withdraw";
+    let file_bind_scenario = scenario == "file-bind";
     let work_scenario = scenario == "work";
-    let detail_scenario = scenario == "detail" || work_scenario || file_withdraw_scenario;
+    let detail_scenario =
+        scenario == "detail" || work_scenario || file_withdraw_scenario || file_bind_scenario;
     let invoice_read_scenario = scenario == "finance-invoice-read";
     let billing_scenario = scenario == "billing-release" || invoice_read_scenario;
     let visit_scenario = scenario == "visit";
@@ -197,7 +200,8 @@ async fn main() {
                 {"holdingId":"h002","slug":"northstar","host":"northstar.jesadakorn.com","writeBinding":"HOLDING_H002_DB","readBinding":"HOLDING_H002_READ_DB","filesBinding":"HOLDING_H002_FILES","database":h002}
             ],"financeJournalReads":[{"holdingId":"h001","companyId":"company"}],"fieldServiceReads":[{"holdingId":"h001","companyId":"company"}],"fieldServiceReservations":["h001"],"fieldServiceIssues":["h001"],"accountBootstrap":true
         });
-        if file_withdraw_scenario { doc["fieldAttachmentLinks"] = serde_json::json!([{ "holdingId":"h001", "mode":"enabled" }]); }
+        if file_withdraw_scenario || file_bind_scenario { doc["fieldAttachmentLinks"] = serde_json::json!([{ "holdingId":"h001", "mode":"enabled" }]); }
+        if file_bind_scenario { doc["fieldAttachmentBinds"] = serde_json::json!([{ "holdingId":"h001", "mode":"enabled" }]); }
         if work_scenario { doc["fieldServiceWorkReads"] = serde_json::json!(["h001"]); }
         if detail_scenario { doc["fieldServiceDetailReads"] = serde_json::json!(["h001"]); }
         if workspace_scenario || detail_scenario { doc["fieldServiceWorkspaceReads"] = serde_json::json!(["h001"]); }

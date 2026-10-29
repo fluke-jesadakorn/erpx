@@ -193,3 +193,47 @@ fn field_visit_withdrawal_preserves_bound_owner_and_replay_order() {
         "IDEMPOTENCY_CONFLICT"
     );
 }
+
+#[test]
+fn field_record_binding_requires_current_draft_and_available_sources() {
+    use erpx_server_files::public::field_visit_bind::{FieldBindLink, FieldBindSet, prepare};
+    let link = FieldBindLink {
+        id: "link".into(),
+        state: "draft".into(),
+        source_id: Some("source".into()),
+        source_state: Some("available".into()),
+        checksum: Some("a".repeat(64)),
+        media_type: Some("text/csv".into()),
+        bytes: Some(3),
+        binding_type: None,
+        binding_id: None,
+    };
+    let mut set = FieldBindSet {
+        id: "set".into(),
+        branch_id: Some("branch".into()),
+        department_id: None,
+        target_id: "visit".into(),
+        target_type: "field_service_visit".into(),
+        component_kind: "record".into(),
+        component_ref: None,
+        purpose_key: "technician_report".into(),
+        expected_version: 3,
+        policy_version: 1,
+        required_count: 1,
+        state: "draft".into(),
+        bound_command_id: None,
+        links: vec![link],
+    };
+    let result = prepare(&set, 3).unwrap();
+    assert_eq!(result.len(), 1);
+    assert_eq!(result[0].source_id, "source");
+    assert!(prepare(&set, 2).is_err());
+    set.links[0].source_state = Some("quarantined".into());
+    assert!(prepare(&set, 3).is_err());
+    set.links[0].source_state = Some("available".into());
+    set.links[0].state = "withdrawn".into();
+    assert!(prepare(&set, 3).is_err());
+    set.links[0].state = "draft".into();
+    set.state = "bound".into();
+    assert!(prepare(&set, 3).is_err());
+}

@@ -132,6 +132,8 @@ struct ConfigurationDocument {
     #[serde(default)]
     field_attachment_links: Vec<FieldAttachmentDocument>,
     #[serde(default)]
+    field_attachment_binds: Vec<FieldAttachmentDocument>,
+    #[serde(default)]
     field_service_work_reads: Vec<String>,
     #[serde(default)]
     field_service_detail_reads: Vec<String>,
@@ -186,6 +188,7 @@ pub struct DevelopmentApiConfiguration {
     field_service_reads: BTreeMap<HoldingId, CompanyId>,
     field_service_workspace_reads: BTreeSet<HoldingId>,
     field_attachment_links: BTreeMap<HoldingId, bool>,
+    field_attachment_binds: BTreeMap<HoldingId, bool>,
     field_service_work_reads: BTreeSet<HoldingId>,
     field_service_detail_reads: BTreeSet<HoldingId>,
     field_service_reservations: BTreeSet<HoldingId>,
@@ -366,6 +369,21 @@ impl DevelopmentApiConfiguration {
             };
             if !field_service_reads.contains_key(&holding)
                 || field_attachment_links.insert(holding, read_only).is_some()
+            {
+                return Err("PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID");
+            }
+        }
+        let mut field_attachment_binds = BTreeMap::new();
+        for target in doc.field_attachment_binds {
+            let holding = HoldingId::new(target.holding_id)
+                .map_err(|_| "PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID")?;
+            let read_only = match target.mode.as_str() {
+                "enabled" => false,
+                "read-only" => true,
+                _ => return Err("PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID"),
+            };
+            if !field_service_reads.contains_key(&holding)
+                || field_attachment_binds.insert(holding, read_only).is_some()
             {
                 return Err("PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID");
             }
@@ -564,6 +582,7 @@ impl DevelopmentApiConfiguration {
             field_service_reads,
             field_service_workspace_reads,
             field_attachment_links,
+            field_attachment_binds,
             field_service_work_reads,
             field_service_detail_reads,
             field_service_reservations,
@@ -784,6 +803,7 @@ async fn assemble_checked(
     let mut service_read_targets = BTreeSet::new();
     let mut service_workspace_targets = BTreeSet::new();
     let mut field_attachment_targets = BTreeSet::new();
+    let mut field_attachment_bind_targets = BTreeSet::new();
     let mut service_work_targets = BTreeSet::new();
     let mut service_detail_targets = BTreeSet::new();
     let mut service_reservation_targets = BTreeSet::new();
@@ -1074,6 +1094,15 @@ async fn assemble_checked(
             } else {
                 read_configuration
             };
+            let read_configuration = if let Some(read_only) = config
+                .field_attachment_binds
+                .get(&holding.registration.holding_id)
+            {
+                field_attachment_bind_targets.insert(target.clone());
+                read_configuration.with_attachment_binds(*read_only)
+            } else {
+                read_configuration
+            };
             let workspace_enabled = config
                 .field_service_workspace_reads
                 .contains(&holding.registration.holding_id);
@@ -1327,6 +1356,7 @@ async fn assemble_checked(
         service_read_targets,
         service_workspace_targets,
         field_attachment_targets,
+        field_attachment_bind_targets,
         service_work_targets,
         service_detail_targets,
         service_reservation_targets,
@@ -1361,6 +1391,7 @@ struct Boundary {
     service_read_targets: BTreeSet<(String, String)>,
     service_workspace_targets: BTreeSet<(String, String)>,
     field_attachment_targets: BTreeSet<(String, String)>,
+    field_attachment_bind_targets: BTreeSet<(String, String)>,
     service_work_targets: BTreeSet<(String, String)>,
     service_detail_targets: BTreeSet<(String, String)>,
     service_reservation_targets: BTreeSet<(String, String)>,
@@ -1727,6 +1758,28 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             .contains(&(host.to_owned(), (*slug).to_owned())),
         _ => false,
     };
+    let field_attachment_bind = request.method() == axum::http::Method::POST
+        && match request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice()
+        {
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "attachment-sets",
+                id,
+                "bind",
+            ] if !id.is_empty() => state
+                .field_attachment_bind_targets
+                .contains(&(host.to_owned(), (*slug).to_owned())),
+            _ => false,
+        };
     let bootstrap = state.account_bootstrap
         && match (request.method(), request.uri().path()) {
             (&axum::http::Method::POST, "/api/auth/sign-in/email") => {
@@ -1751,6 +1804,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         || service_read
         || service_reserve
         || field_attachment
+        || field_attachment_bind
         || bootstrap)
         || !(bootstrap
             || finance_post
@@ -1759,6 +1813,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             || finance_reverse
             || service_reserve
             || field_attachment
+            || field_attachment_bind
             || matches!(
                 *request.method(),
                 axum::http::Method::GET | axum::http::Method::HEAD

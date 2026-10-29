@@ -293,6 +293,7 @@ export async function bindRecordAttachmentSet(
   setId: string,
   expectedTargetVersion: number,
   idempotencyKey: string,
+  acknowledgement: "automatic" | "caller" = "automatic",
 ) {
   const response = await workFetch(
     `${attachmentApiBase(base)}/attachment-sets/${encodeURIComponent(setId)}/bind`,
@@ -303,7 +304,7 @@ export async function bindRecordAttachmentSet(
         "Idempotency-Key": idempotencyKey,
       },
       body: JSON.stringify({ expectedTargetVersion }),
-    },
+    }, undefined, acknowledgement,
   );
   return envelope<{
     setId: string;

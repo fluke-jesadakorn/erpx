@@ -6,3 +6,5 @@ pub mod preview;
 pub mod attachment_scan;
 
 pub mod field_visit_link;
+
+pub mod field_visit_bind;

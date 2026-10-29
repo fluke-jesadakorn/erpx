@@ -24,3 +24,5 @@ pub mod local_sanitization_store;
 pub mod attachment_scan_provider;
 
 pub(crate) mod field_visit_link;
+
+pub(crate) mod field_visit_bind;

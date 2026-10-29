@@ -849,10 +849,11 @@ describe("required native cases", () => {
   it("emits only bounded registered-case failure facts before the run ends", () => {
     const file = "tests/case.test.ts", title = "registered case", registered = [{runner:"vitest" as const,file,title}];
     const error = {name:"AssertionError",message:"secret actual https://user:password@example.test",code:"53200",stack:`Error: secret\n    at example (${process.cwd()}/${file}:17:9)\n    at private (/secret/token:22:1)`,actual:"password",expected:"token"};
-    expect(failedCaseDiagnostic(file,title,[error],[file],registered)).toEqual({file,title,errors:[{category:"database",code:"53200",frames:[{line:17,column:9}]}]});
-    expect(failedCaseDiagnostic(file,"dynamic secret",[error],[file],registered)).toBeUndefined();
-    expect(failedCaseDiagnostic(file,title,[{name:"AssertionError",message:"Test timed out in 30000ms.\nDetails: secret",code:"SECRET"}],[file],registered)).toEqual({file,title,errors:[{category:"timeout",timeoutMs:30000}]});
-    expect(JSON.stringify(failedCaseDiagnostic(file,title,[error],[file],registered))).not.toMatch(/password|token|https|secret/);
+    expect(failedCaseDiagnostic(file,title,[error],[file],registered,[file])).toEqual({file,title,errors:[{category:"database",code:"53200",frames:[{line:17,column:9}]}]});
+    expect(failedCaseDiagnostic(file,"dynamic secret",[error],[file],registered,[file])).toEqual({file,title:"[unregistered case]",errors:[{category:"database",code:"53200",frames:[{line:17,column:9}]}]});
+    expect(failedCaseDiagnostic(file,title,[error],[file],registered,[])).toBeUndefined();
+    expect(failedCaseDiagnostic(file,title,[{name:"AssertionError",message:"Test timed out in 30000ms.\nDetails: secret",code:"SECRET"}],[file],registered,[file])).toEqual({file,title,errors:[{category:"timeout",timeoutMs:30000}]});
+    expect(JSON.stringify(failedCaseDiagnostic(file,title,[error],[file],registered,[file]))).not.toMatch(/password|token|https|secret/);
 
     const real = loadRequiredCases().find(test=>test.runner==="vitest")!;
     const before=process.env.ERPX_SELECTED_TEST_FILES, output=vi.spyOn(console,"error").mockImplementation(()=>{});
@@ -863,6 +864,17 @@ describe("required native cases", () => {
       expect(output).toHaveBeenCalledOnce();
       expect(output.mock.calls[0][0]).toContain("TEST_CASE_FAILURE_DIAGNOSTIC:");
       expect(output.mock.calls[0][0]).not.toContain("secret");
+      output.mockClear();
+      for (const path of ["tests/integration/manufacturing/production.test.ts", "tests/integration/field_service/field-service.test.ts"]) {
+        process.env.ERPX_SELECTED_TEST_FILES=JSON.stringify([path]);
+        new RequiredCasesReporter().onTestCaseResult({...test,name:"dynamic secret",fullName:"dynamic secret",module:{relativeModuleId:path}} as never);
+        expect(output.mock.calls.at(-1)?.[0]).toContain('"title":"[unregistered case]"');
+        expect(output.mock.calls.at(-1)?.[0]).not.toContain("secret");
+      }
+      output.mockClear();process.env.ERPX_SELECTED_TEST_FILES=JSON.stringify(["tests/integration/unknown.test.ts"]);
+      new RequiredCasesReporter().onTestCaseResult({...test,module:{relativeModuleId:"tests/integration/unknown.test.ts"}} as never);
+      new RequiredCasesReporter().onTestCaseResult({...test,result:()=>({state:"passed"})} as never);
+      expect(output).not.toHaveBeenCalled();
     } finally {output.mockRestore();if(before===undefined)delete process.env.ERPX_SELECTED_TEST_FILES;else process.env.ERPX_SELECTED_TEST_FILES=before;}
   });
   it("fails when a registered file has no discovery even if another required file passes", () => {

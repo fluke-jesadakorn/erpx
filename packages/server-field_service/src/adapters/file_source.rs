@@ -54,6 +54,13 @@ pub async fn lock_field_file_sources(c: &mut PgConnection) -> Result<(), Error> 
     sqlx::query("LOCK TABLE field_service_orders,field_service_agreements,field_service_part_reservations,field_service_billing_releases IN SHARE MODE").execute(c).await?;
     Ok(())
 }
+pub async fn lock_field_file_bind_sources(c: &mut PgConnection) -> Result<(), Error> {
+    if !c.is_in_transaction() {
+        return Err(PersistenceError::new("FIELD_SERVICE_TRANSACTION_REQUIRED").into());
+    }
+    sqlx::query("LOCK TABLE field_service_orders,field_service_agreements,field_service_part_reservations,field_service_billing_releases IN SHARE ROW EXCLUSIVE MODE").execute(c).await?;
+    Ok(())
+}
 async fn image(
     c: &mut PgConnection,
     current: &AuthorizedWorkContext,
@@ -101,4 +108,50 @@ pub async fn read_field_file_source(
         facts,
         digest,
     })
+}
+/// Advance only the original Field visit for its actual Files Workflow receipt.
+pub async fn bind_field_file_evidence(
+    c: &mut PgConnection,
+    current: &AuthorizedWorkContext,
+    source: &CurrentFieldFileSource,
+    key: &str,
+    expected: i64,
+    now: i64,
+) -> Result<(), Error> {
+    source.require_current(c, current).await?;
+    let f = source.facts();
+    if f.version != expected || matches!(f.state.as_str(), "cancelled" | "billed") {
+        return Err(changed());
+    }
+    let changed_row=sqlx::query("UPDATE field_service_orders o SET version=version+1,updated_at=$1 WHERE o.id=$2 AND o.company_id=$3 AND o.version=$4 AND o.status NOT IN ('billed','cancelled') AND EXISTS(SELECT 1 FROM command_receipts r WHERE r.command_id=$5 AND r.operation='attachment.record.bind' AND r.record_id=o.id AND r.actor_id=$6 AND r.authority_json::jsonb->>'companyId'=o.company_id)").bind(now).bind(&f.order_id).bind(current.selection().workspace().company_id.as_str()).bind(expected).bind(key).bind(current.user_id().as_str()).execute(&mut *c).await?;
+    if changed_row.rows_affected() != 1 {
+        return Err(changed());
+    }
+    let event = format!("service-file-event-{key}");
+    sqlx::query("INSERT INTO field_service_order_events(id,order_id,version,action,actor_id,reason,status,technician_id,scheduled_at,details_json,created_at) SELECT $1,o.id,o.version,'attach-evidence',$2,'Attached private Service visit evidence',o.status,o.technician_id,o.scheduled_at,jsonb_build_object('attachmentCommandId',$3::text),$4 FROM field_service_orders o WHERE o.id=$5 AND o.company_id=$6 AND o.version=$7").bind(&event).bind(current.user_id().as_str()).bind(key).bind(now).bind(&f.order_id).bind(current.selection().workspace().company_id.as_str()).bind(expected+1).execute(&mut *c).await?;
+    source.require_current(c, current).await?;
+    let good:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM field_service_orders o JOIN field_service_order_events e ON e.order_id=o.id AND e.version=o.version WHERE o.id=$1 AND o.company_id=$2 AND o.version=$3 AND e.id=$4 AND e.action='attach-evidence' AND e.actor_id=$5 AND e.reason='Attached private Service visit evidence' AND e.status=o.status AND e.technician_id=o.technician_id AND e.scheduled_at IS NOT DISTINCT FROM o.scheduled_at AND e.details_json=jsonb_build_object('attachmentCommandId',$6::text))").bind(&f.order_id).bind(current.selection().workspace().company_id.as_str()).bind(expected+1).bind(event).bind(current.user_id().as_str()).bind(key).fetch_one(c).await?;
+    if !good {
+        return Err(changed());
+    }
+    Ok(())
+}
+/// Verify the immutable original bind event after later legitimate visit progress.
+pub async fn verify_field_file_bind(
+    c: &mut PgConnection,
+    current: &AuthorizedWorkContext,
+    source: &CurrentFieldFileSource,
+    key: &str,
+    version: i64,
+) -> Result<(), Error> {
+    source.require_current(c, current).await?;
+    let (f, _) = image(c, current, &source.facts().order_id).await?;
+    if f.version < version {
+        return Err(changed());
+    }
+    let good:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM field_service_order_events e WHERE e.id=$1 AND e.order_id=$2 AND e.version=$3 AND e.action='attach-evidence' AND e.actor_id=$4 AND e.reason='Attached private Service visit evidence' AND e.details_json=jsonb_build_object('attachmentCommandId',$5::text))").bind(format!("service-file-event-{key}")).bind(&f.order_id).bind(version).bind(current.user_id().as_str()).bind(key).fetch_one(c).await?;
+    if !good {
+        return Err(changed());
+    }
+    Ok(())
 }

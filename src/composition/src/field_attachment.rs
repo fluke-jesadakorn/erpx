@@ -29,23 +29,34 @@ fn missing() -> BusinessError {
 pub(crate) struct FieldAttachmentSources;
 impl HoldingWorkSourcePreparation for FieldAttachmentSources {
     fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
-        Box::pin(async move {
-            erpx_server_commercial::public::purchases::lock_commercial_authority_sources(c).await?;
-            erpx_server_finance::public::field_service_workspace::lock_service_workspace_customers(
-                c,
-            )
-            .await?;
-            erpx_server_support::public::field_service_workspace::lock_service_workspace_tickets(c)
-                .await?;
-            erpx_server_assets::public::field_service_workspace::lock_service_workspace_assets(c)
-                .await?;
-            erpx_server_people_payroll::public::field_service_workspace::lock_service_workspace_people(c).await?;
-            erpx_server_identity_access::public::field_service_workspace::lock_service_workspace_authority(c).await?;
-            erpx_server_field_service::public::file_source::lock_field_file_sources(c).await?;
-            erpx_server_files::public::field_visit_link::lock_field_visit_link_sources(c).await?;
-            Ok(())
-        })
+        lock_attachment_sources(c, false)
     }
+}
+pub(crate) fn lock_attachment_sources(
+    c: &mut PgConnection,
+    bind: bool,
+) -> PgWorkFuture<'_, (), BusinessError> {
+    Box::pin(async move {
+        erpx_server_commercial::public::purchases::lock_commercial_authority_sources(c).await?;
+        erpx_server_finance::public::field_service_workspace::lock_service_workspace_customers(c)
+            .await?;
+        erpx_server_support::public::field_service_workspace::lock_service_workspace_tickets(c)
+            .await?;
+        erpx_server_assets::public::field_service_workspace::lock_service_workspace_assets(c)
+            .await?;
+        erpx_server_people_payroll::public::field_service_workspace::lock_service_workspace_people(
+            c,
+        )
+        .await?;
+        erpx_server_identity_access::public::field_service_workspace::lock_service_workspace_authority(c).await?;
+        if bind {
+            erpx_server_field_service::public::file_source::lock_field_file_bind_sources(c).await?;
+        } else {
+            erpx_server_field_service::public::file_source::lock_field_file_sources(c).await?;
+        }
+        erpx_server_files::public::field_visit_link::lock_field_visit_link_sources(c).await?;
+        Ok(())
+    })
 }
 pub(crate) struct AttachmentContext<'a, C> {
     pub actor: &'a AuthorizedWorkContext,
@@ -54,8 +65,8 @@ pub(crate) struct AttachmentContext<'a, C> {
     pub catalogue: &'a CommercialCatalogue,
     pub clock: &'a C,
 }
-struct Proof {
- field:erpx_server_field_service::public::file_source::CurrentFieldFileSource,
+pub(crate) struct Proof {
+ pub(crate) field:erpx_server_field_service::public::file_source::CurrentFieldFileSource,
  customers:erpx_server_finance::public::field_service_workspace::CurrentServiceWorkspaceCustomers,
  tickets:erpx_server_support::public::field_service_workspace::CurrentServiceWorkspaceTickets,
  assets:erpx_server_assets::public::field_service_workspace::CurrentServiceWorkspaceAssets,
@@ -64,7 +75,7 @@ struct Proof {
  purchases:Vec<PurchaseWitness>,
 }
 impl Proof {
-    async fn current<C: Clock>(
+    pub(crate) async fn current<C: Clock>(
         &self,
         c: &mut PgConnection,
         a: &AuthorizedWorkContext,
@@ -89,8 +100,33 @@ impl Proof {
         }
         Ok(())
     }
+    pub(crate) async fn current_file_bind<C: Clock>(
+        &self,
+        c: &mut PgConnection,
+        a: &AuthorizedWorkContext,
+        h: &HoldingId,
+        company: &CompanyId,
+        catalogue: &CommercialCatalogue,
+        clock: &C,
+    ) -> Result<(), Error> {
+        self.field.require_current(c, a).await?;
+        self.customers.require_current(c).await?;
+        self.tickets.require_field_file_current(c).await?;
+        self.assets.require_current(c).await?;
+        self.people.require_current(c).await?;
+        self.authority.require_current(c, clock.now()).await?;
+        for p in &self.purchases {
+            PgCompanyPurchaseReader::new(h.clone(), company.clone(), c, catalogue)
+                .revalidate(p, clock.now())
+                .await?;
+        }
+        if clock.now().get() >= a.expires_at() {
+            return Err(unavailable().into());
+        }
+        Ok(())
+    }
 }
-async fn proof<C: Clock>(
+pub(crate) async fn proof<C: Clock>(
     c: &mut PgConnection,
     ctx: &AttachmentContext<'_, C>,
     id: &str,
@@ -442,4 +478,38 @@ pub(crate) fn normalize_reason(bytes: &[u8]) -> Result<String, BusinessError> {
         ));
     }
     Ok(String::from_utf16_lossy(&units))
+}
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct FieldAttachmentBindInput {
+    #[cfg_attr(feature = "contracts", ts(type = "number"))]
+    pub expected_target_version: i64,
+}
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct FieldAttachmentManifestItem {
+    pub link_id: String,
+    pub source_id: String,
+    pub purpose_key: String,
+    pub checksum_sha256: String,
+    pub media_type: String,
+    #[cfg_attr(feature = "contracts", ts(type = "number"))]
+    pub bytes: i64,
+}
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct FieldAttachmentBindResult {
+    pub set_id: String,
+    #[cfg_attr(feature = "contracts", ts(type = "number"))]
+    pub version: i64,
+    pub manifest: Vec<FieldAttachmentManifestItem>,
+}
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+pub struct FieldAttachmentBindResponse {
+    pub data: FieldAttachmentBindResult,
+    pub context: crate::field_service_reservation_read::FieldServiceRenderedContext,
 }

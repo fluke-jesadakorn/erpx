@@ -69870,7 +69870,12 @@
         "packages/contracts/src/field-attachment.generated.ts",
         "scripts/docs/export-field-attachment-contracts.rs",
         "scripts/docs/generate-field-attachment-contracts.ts",
-        "docs/contracts/next/field-attachment.openapi.generated.json"
+        "docs/contracts/next/field-attachment.openapi.generated.json",
+        "packages/server-files/src/domain/field_visit_bind.rs",
+        "packages/server-files/src/application/field_visit_bind.rs",
+        "packages/server-files/src/adapters/field_visit_bind.rs",
+        "packages/server-files/src/public/field_visit_bind.rs",
+        "src/composition/src/field_attachment_bind.rs"
       ],
       "postgres": {
         "mode": "raw",
