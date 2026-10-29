@@ -5,3 +5,5 @@ pub(crate) mod postgres_hierarchy;
 pub(crate) mod journal_flow_department;
 
 pub(crate) mod field_service_agreement;
+
+pub(crate) mod field_service_workspace;

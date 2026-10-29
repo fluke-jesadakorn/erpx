@@ -469,6 +469,7 @@
 @source "../../../../packages/feature-ecommerce/src/components/ecommerce-checkout-controls.tsx";
 @source "../../../../packages/feature-ecommerce/src/components/ecommerce-console.tsx";
 @source "../../../../packages/feature-ecommerce/src/lib/purchase-controls.ts";
+@source "../../../../packages/feature-field_service/src/adapters/server/native-workspace.ts";
 @source "../../../../packages/feature-field_service/src/components/customer-preparation.tsx";
 @source "../../../../packages/feature-field_service/src/components/field-service-console.tsx";
 @source "../../../../packages/feature-field_service/src/components/initial-physical-stock-count.tsx";
@@ -484,6 +485,7 @@
 @source "../../../../packages/feature-field_service/src/lib/initial-physical-stock-count-command.ts";
 @source "../../../../packages/feature-field_service/src/lib/native-reserve-command.ts";
 @source "../../../../packages/feature-field_service/src/lib/parts-setup-command.ts";
+@source "../../../../packages/feature-field_service/src/public/native-workspace.ts";
 @source "../../../../packages/feature-files/src/components/attachment-feature-context.tsx";
 @source "../../../../packages/feature-files/src/components/attachment-panel.tsx";
 @source "../../../../packages/feature-files/src/components/media-publication-panel.tsx";

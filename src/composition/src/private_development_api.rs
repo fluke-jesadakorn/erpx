@@ -122,6 +122,8 @@ struct ConfigurationDocument {
     #[serde(default)]
     field_service_reads: Vec<FinanceReadDocument>,
     #[serde(default)]
+    field_service_workspace_reads: Vec<String>,
+    #[serde(default)]
     field_service_reservations: Vec<String>,
     #[serde(default)]
     field_service_issues: Vec<String>,
@@ -170,6 +172,7 @@ pub struct DevelopmentApiConfiguration {
     finance_journal_edits: BTreeSet<HoldingId>,
     finance_journal_reversals: BTreeSet<HoldingId>,
     field_service_reads: BTreeMap<HoldingId, CompanyId>,
+    field_service_workspace_reads: BTreeSet<HoldingId>,
     field_service_reservations: BTreeSet<HoldingId>,
     field_service_issues: BTreeSet<HoldingId>,
     field_service_requests: BTreeSet<HoldingId>,
@@ -337,6 +340,16 @@ impl DevelopmentApiConfiguration {
                 return Err("PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID");
             }
         }
+        let mut field_service_workspace_reads = BTreeSet::new();
+        for id in doc.field_service_workspace_reads {
+            let holding = HoldingId::new(id)
+                .map_err(|_| "PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID")?;
+            if !field_service_reads.contains_key(&holding)
+                || !field_service_workspace_reads.insert(holding)
+            {
+                return Err("PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID");
+            }
+        }
         let mut field_service_reservations = BTreeSet::new();
         for id in doc.field_service_reservations {
             let holding = HoldingId::new(id)
@@ -499,6 +512,7 @@ impl DevelopmentApiConfiguration {
             finance_journal_edits,
             finance_journal_reversals,
             field_service_reads,
+            field_service_workspace_reads,
             field_service_reservations,
             field_service_issues,
             field_service_requests,
@@ -715,6 +729,7 @@ async fn assemble_checked(
     let mut finance_edit_targets = BTreeSet::new();
     let mut finance_reversal_targets = BTreeSet::new();
     let mut service_read_targets = BTreeSet::new();
+    let mut service_workspace_targets = BTreeSet::new();
     let mut service_reservation_targets = BTreeSet::new();
     let mut service_issue_targets = BTreeSet::new();
     let mut service_request_targets = BTreeSet::new();
@@ -994,6 +1009,17 @@ async fn assemble_checked(
             } else {
                 read_configuration
             };
+            let workspace_enabled = config
+                .field_service_workspace_reads
+                .contains(&holding.registration.holding_id);
+            if workspace_enabled {
+                service_workspace_targets.insert(target.clone());
+            }
+            let read_configuration = if workspace_enabled {
+                read_configuration.with_workspace()
+            } else {
+                read_configuration
+            };
             let visit_enabled = config
                 .field_service_visits
                 .contains(&holding.registration.holding_id);
@@ -1212,6 +1238,7 @@ async fn assemble_checked(
         finance_edit_targets,
         finance_reversal_targets,
         service_read_targets,
+        service_workspace_targets,
         service_reservation_targets,
         service_issue_targets,
         service_request_targets,
@@ -1242,6 +1269,7 @@ struct Boundary {
     finance_edit_targets: BTreeSet<(String, String)>,
     finance_reversal_targets: BTreeSet<(String, String)>,
     service_read_targets: BTreeSet<(String, String)>,
+    service_workspace_targets: BTreeSet<(String, String)>,
     service_reservation_targets: BTreeSet<(String, String)>,
     service_issue_targets: BTreeSet<(String, String)>,
     service_request_targets: BTreeSet<(String, String)>,
@@ -1430,6 +1458,17 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         .collect::<Vec<_>>()
         .as_slice()
     {
+        [
+            "",
+            "api",
+            "v1",
+            "holdings",
+            slug,
+            "field-service",
+            "workspace",
+        ] => state
+            .service_workspace_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
         [
             "",
             "api",

@@ -77,3 +77,5 @@ pub mod oidc_url_values;
 pub mod field_service_assignment;
 
 pub mod journal_flow_participants;
+
+pub mod field_service_workspace;

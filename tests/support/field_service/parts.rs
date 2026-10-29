@@ -26,20 +26,36 @@ pub async fn setup(system: account::System) -> Parts {
     setup_tracking(system, "none").await
 }
 pub async fn setup_tracking(system: account::System, tracking: &str) -> Parts {
-    setup_with_grants(system, tracking, true, true).await
+    setup_with_grants(system, tracking, true, true, false).await
 }
 /// Source-order test fixture without a Service purchase or retained Service history.
 pub async fn setup_without_service_history(system: account::System) -> Parts {
-    setup_with_grants(system, "none", false, true).await
+    setup_with_grants(system, "none", false, true, false).await
 }
 pub async fn setup_without_finance_history(system: account::System) -> Parts {
-    setup_with_grants(system, "none", true, false).await
+    setup_with_grants(system, "none", true, false, false).await
+}
+/// A separate realistic-size fixture for complete workspace reads; original stress fixtures remain unchanged.
+pub async fn setup_workspace(system: account::System) -> Parts {
+    setup_with_grants(system, "none", true, true, true).await
+}
+/// Realistic workspace with only the base Service purchase, no parts History.
+pub async fn setup_workspace_without_parts(system: account::System) -> Parts {
+    let p = setup_with_grants(system, "none", false, true, true).await;
+    let now = p.review.system.scenario.clock.now().get();
+    let db = p.pool().raw();
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("INSERT INTO company_package_grants(company_id,package_id,package_version,state,starts_at,version,reason,evidence,updated_at)VALUES('company','service',1,'active',0,1,'Synthetic base purchase','public synthetic evidence',$1)").bind(now).execute(&mut *tx).await.unwrap();
+    sqlx::query("INSERT INTO company_package_grant_events(id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at) SELECT 'workspace-base-only',company_id,package_id,'fixture-a','base-only',NULL,jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence),$1 FROM company_package_grants WHERE company_id='company' AND package_id='service'").bind(now).execute(&mut *tx).await.unwrap();
+    tx.commit().await.unwrap();
+    p
 }
 async fn setup_with_grants(
     system: account::System,
     tracking: &str,
     grants: bool,
     finance: bool,
+    realistic: bool,
 ) -> Parts {
     assert!(matches!(tracking, "none" | "lot" | "serial"));
     let review = review::setup_with_finance(system, finance).await;
@@ -70,10 +86,10 @@ async fn setup_with_grants(
         ("issue-order", "in_visit", 3_i64),
     ] {
         let ticket = format!("ticket-{id}");
-        sqlx::query("INSERT INTO support_tickets(id,company_id,branch_id,order_id,customer_id,title,issue,owner_id,due_date,created_by,created_at,updated_at,source_kind,service_agreement_id,service_order_id,service_order_version)VALUES($1,'company','branch',NULL,'customer','Synthetic retained intake',repeat('PRIVATE_ISSUE',200000),'fixture-a',to_char(to_timestamp(($3::bigint+60000)/1000.0)AT TIME ZONE 'UTC','YYYY-MM-DD'),'fixture-a',$3,$3,'field_service','agreement',$2,$4)")
-            .bind(&ticket).bind(id).bind(now).bind(version).execute(&mut*tx).await.unwrap();
-        sqlx::query("INSERT INTO field_service_orders(id,company_id,branch_id,ticket_id,ticket_version,agreement_id,agreement_version,issue,site,technician_id,scheduled_at,status,created_by,version,created_at,updated_at)VALUES($1,'company','branch',$2,1,'agreement',2,repeat('PRIVATE_ISSUE',200000),'PRIVATE_SITE','fixture-a',$3+60000,$4,'fixture-a',$5,$3,$3)")
-            .bind(id).bind(&ticket).bind(now).bind(status).bind(version).execute(&mut*tx).await.unwrap();
+        sqlx::query("INSERT INTO support_tickets(id,company_id,branch_id,order_id,customer_id,title,issue,owner_id,due_date,created_by,created_at,updated_at,source_kind,service_agreement_id,service_order_id,service_order_version)VALUES($1,'company','branch',NULL,'customer','Synthetic retained intake',CASE WHEN $5 THEN 'Synthetic service issue' ELSE repeat('PRIVATE_ISSUE',200000) END,'fixture-a',to_char(to_timestamp(($3::bigint+60000)/1000.0)AT TIME ZONE 'UTC','YYYY-MM-DD'),'fixture-a',$3,$3,'field_service','agreement',$2,$4)")
+            .bind(&ticket).bind(id).bind(now).bind(version).bind(realistic).execute(&mut*tx).await.unwrap();
+        sqlx::query("INSERT INTO field_service_orders(id,company_id,branch_id,ticket_id,ticket_version,agreement_id,agreement_version,issue,site,technician_id,scheduled_at,status,created_by,version,created_at,updated_at)VALUES($1,'company','branch',$2,1,'agreement',2,CASE WHEN $6 THEN 'Synthetic service issue' ELSE repeat('PRIVATE_ISSUE',200000) END,'PRIVATE_SITE','fixture-a',$3+60000,$4,'fixture-a',$5,$3,$3)")
+            .bind(id).bind(&ticket).bind(now).bind(status).bind(version).bind(realistic).execute(&mut*tx).await.unwrap();
         sqlx::query("INSERT INTO field_service_order_events(id,order_id,version,action,actor_id,reason,status,technician_id,scheduled_at,details_json,created_at)VALUES($1,$2,$3,$4,'fixture-a','Synthetic historical retained event',$5,'fixture-a',$6+60000,'{}',$6)")
             .bind(format!("historical-{id}-{version}")).bind(id).bind(version).bind(if version==1{"create"}else{"start"}).bind(status).bind(now).execute(&mut*tx).await.unwrap();
     }

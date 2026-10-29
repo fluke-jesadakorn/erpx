@@ -9,3 +9,5 @@ pub(crate) mod field_service_worker;
 pub(crate) mod payroll_accounting_input;
 
 pub(crate) mod journal_flow_people;
+
+pub(crate) mod field_service_workspace;

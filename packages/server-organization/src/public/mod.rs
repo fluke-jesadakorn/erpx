@@ -19,3 +19,5 @@ pub use crate::domain::hierarchy::{
 pub mod journal_flow_department;
 
 pub mod field_service_agreement;
+
+pub mod field_service_workspace;

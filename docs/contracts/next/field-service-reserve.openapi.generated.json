@@ -1442,6 +1442,122 @@
         ],
         "type": "object"
       },
+      "FieldServiceWorkspace": {
+        "properties": {
+          "agreements": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "assets": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "canCreateAgreement": {
+            "type": "boolean"
+          },
+          "canCreateOrder": {
+            "type": "boolean"
+          },
+          "canUseAssetReferences": {
+            "type": "boolean"
+          },
+          "canUseParts": {
+            "type": "boolean"
+          },
+          "canWrite": {
+            "type": "boolean"
+          },
+          "customers": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "nodes": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "orders": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "people": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "referenceScope": {
+            "$ref": "#/components/schemas/FieldServiceWorkspaceScope"
+          },
+          "tickets": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "workspaceKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "agreements",
+          "orders",
+          "customers",
+          "assets",
+          "tickets",
+          "people",
+          "nodes",
+          "referenceScope",
+          "workspaceKey",
+          "canWrite",
+          "canCreateAgreement",
+          "canCreateOrder",
+          "canUseParts",
+          "canUseAssetReferences"
+        ],
+        "type": "object"
+      },
+      "FieldServiceWorkspaceResponse": {
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/FieldServiceRenderedContext"
+          },
+          "data": {
+            "$ref": "#/components/schemas/FieldServiceWorkspace"
+          }
+        },
+        "required": [
+          "data",
+          "context"
+        ],
+        "type": "object"
+      },
+      "FieldServiceWorkspaceScope": {
+        "properties": {
+          "branchId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "departmentId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
       "ReserveResponse": {
         "properties": {
           "data": {
@@ -1752,6 +1868,34 @@
               }
             },
             "description": "Current scoped visit evidence"
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/v1/holdings/{holding_slug}/field-service/workspace": {
+      "get": {
+        "operationId": "workspace_read",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "holding_slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FieldServiceWorkspaceResponse"
+                }
+              }
+            },
+            "description": "Current scoped Service workspace"
           }
         },
         "tags": []

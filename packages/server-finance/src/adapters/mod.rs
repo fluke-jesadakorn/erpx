@@ -27,3 +27,5 @@ pub(crate) mod field_service_agreement_money;
 pub(crate) mod field_service_billing;
 
 pub(crate) mod field_service_invoice_read;
+
+pub(crate) mod field_service_workspace;

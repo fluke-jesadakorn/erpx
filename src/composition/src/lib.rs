@@ -83,3 +83,5 @@ pub mod finance_journal_edit_http;
 pub mod field_service_reservation_read;
 #[cfg(feature = "business-http")]
 pub mod field_service_reservation_read_http;
+
+pub mod field_service_workspace;

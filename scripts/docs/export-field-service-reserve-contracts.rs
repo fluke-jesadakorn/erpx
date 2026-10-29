@@ -22,6 +22,9 @@ use erpx_service::field_service_reservation_read::{
     FieldServiceRequestReadResponse, FieldServiceReservationReadResponse,
     FieldServiceVisitReadResponse,
 };
+use erpx_service::field_service_workspace::{
+    FieldServiceWorkspace, FieldServiceWorkspaceResponse, FieldServiceWorkspaceScope,
+};
 use ts_rs::{Config, TS};
 #[derive(utoipa::ToSchema)]
 struct ReserveResponse {
@@ -55,9 +58,13 @@ const _: fn() = agreement_create_read;
 const _: fn() = issue_read;
 const _: fn() = reserve;
 const _: fn() = read;
+#[utoipa::path(get,path="/api/v1/holdings/{holding_slug}/field-service/workspace",params(("holding_slug"=String,Path)),responses((status=200,body=FieldServiceWorkspaceResponse,description="Current scoped Service workspace")))]
+fn workspace_read() {}
+const _: fn() = workspace_read;
 #[derive(utoipa::OpenApi)]
 #[openapi(
     paths(
+        workspace_read,
         reserve,
         read,
         issue_read,
@@ -69,6 +76,9 @@ const _: fn() = read;
         agreement_create_read
     ),
     components(schemas(
+        FieldServiceWorkspace,
+        FieldServiceWorkspaceScope,
+        FieldServiceWorkspaceResponse,
         AgreementMoneyEvidence,
         FieldServiceAgreementCreateInput,
         FieldServiceAgreementCreateReadResponse,
@@ -144,6 +154,9 @@ fn main() {
         "// Generated from the Rust Field Service reservation contracts. Do not edit by hand.\n// Regenerate: bun scripts/docs/generate-field-service-reserve-contracts.ts"
     );
     for declaration in [
+        FieldServiceWorkspace::decl(&config),
+        FieldServiceWorkspaceScope::decl(&config),
+        FieldServiceWorkspaceResponse::decl(&config),
         AgreementMoneyEvidence::decl(&config),
         FieldServiceAgreementCreateInput::decl(&config),
         FieldServiceAgreementCreateReadResponse::decl(&config),

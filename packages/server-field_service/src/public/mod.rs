@@ -11,3 +11,5 @@ pub mod request_order;
 
 pub mod agreement_review;
 pub mod visit;
+
+pub mod workspace;

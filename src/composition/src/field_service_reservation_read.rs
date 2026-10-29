@@ -265,6 +265,7 @@ pub struct FieldServiceReservationReadConfiguration {
     company: CompanyId,
     catalogue: Arc<CommercialCatalogue>,
     issues: bool,
+    workspace: bool,
     requests: bool,
     order_creates: bool,
     visits: bool,
@@ -294,6 +295,7 @@ impl FieldServiceReservationReadConfiguration {
             company,
             catalogue,
             issues: false,
+            workspace: false,
             requests: false,
             order_creates: false,
             visits: false,
@@ -304,6 +306,10 @@ impl FieldServiceReservationReadConfiguration {
             agreement_reviews: false,
             agreement_creates: false,
         })
+    }
+    pub fn with_workspace(mut self) -> Self {
+        self.workspace = true;
+        self
     }
     pub fn with_billings(mut self) -> Self {
         self.billings = true;
@@ -609,6 +615,67 @@ impl<C: Clock + Send + Sync + 'static> FieldServiceReservationReadService<C> {
                 })
             }
         ).await
+    }
+    pub async fn read_workspace<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+    ) -> Result<crate::field_service_workspace::FieldServiceWorkspaceResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        if !self.config.workspace {
+            return Err(
+                BusinessError::new(FailureKind::NotFound, "NOT_FOUND", "Not found.").into(),
+            );
+        }
+        let company = self.config.company.clone();
+        let input = move || {
+            let mut v = input()?;
+            if v.company_id != company {
+                return Err(denied());
+            }
+            v.mutation = false;
+            Ok(v)
+        };
+        let config = self.config.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                input,
+                WorkAuthorizationRequest {
+                    permission: "records.read".into(),
+                    module: Some("field_service".into()),
+                    destination: "service/orders".into(),
+                    api: true,
+                },
+                crate::field_service_workspace::WorkspaceSources,
+                move |c, current| {
+                    let config = config.clone();
+                    let clock = clock.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &config.holding
+                            || current.selection().workspace().company_id != config.company
+                        {
+                            return Err(denied().into());
+                        }
+                        current.require_permission("records.read")?;
+                        crate::field_service_workspace::build_workspace(
+                            c,
+                            current,
+                            &config.holding,
+                            &config.company,
+                            &config.catalogue,
+                            clock.as_ref(),
+                        )
+                        .await
+                    })
+                },
+            )
+            .await
     }
     pub async fn read_visit<Input>(
         &self,

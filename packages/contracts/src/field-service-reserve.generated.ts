@@ -1,5 +1,8 @@
 // Generated from the Rust Field Service reservation contracts. Do not edit by hand.
 // Regenerate: bun scripts/docs/generate-field-service-reserve-contracts.ts
+export type FieldServiceWorkspace = { agreements: Array<Record<string, string | number | null>>, orders: Array<Record<string, string | number | null>>, customers: Array<Record<string, string | number | null>>, assets: Array<Record<string, string | number | null>>, tickets: Array<Record<string, string | number | null>>, people: Array<Record<string, string | number | null>>, nodes: Array<Record<string, string | number | null>>, referenceScope: FieldServiceWorkspaceScope, workspaceKey: string, canWrite: boolean, canCreateAgreement: boolean, canCreateOrder: boolean, canUseParts: boolean, canUseAssetReferences: boolean, };
+export type FieldServiceWorkspaceScope = { branchId: string | null, departmentId: string | null, };
+export type FieldServiceWorkspaceResponse = { data: FieldServiceWorkspace, context: FieldServiceRenderedContext, };
 export type AgreementMoneyEvidence = { transactionDate: string, currency: string, currencyScale: number, amountUnits: string, usdUnits: string, fxRateId: string | null, usedLatestFallback: boolean, };
 export type FieldServiceAgreementCreateInput = { entity: FieldServiceAgreementReviewEntity, branchId: string, departmentId?: string | null, customerId: string, assetId?: string | null, title: string, startDate: string, endDate: string, currency: string, visitRateMinor: number, warrantyDiscountBps?: number, };
 export type FieldServiceAgreementCreateReadResponse = { context: FieldServiceRenderedContext, receipt: FieldServiceReserveResult, agreement: FieldServiceReserveResult, event: FieldServiceAgreementReviewEvent, money: AgreementMoneyEvidence, };

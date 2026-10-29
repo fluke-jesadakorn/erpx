@@ -16,6 +16,8 @@
     "./components/parts-entry-link": "./src/components/parts-entry-link.tsx",
     "./lib/customer-preparation-command": "./src/lib/customer-preparation-command.ts",
     "./lib/initial-physical-stock-count-command": "./src/lib/initial-physical-stock-count-command.ts",
+    "./public/native-workspace": "./src/public/native-workspace.ts",
+    "./lib/workspace": "./src/lib/workspace.ts",
     "./lib/command": "./src/lib/command.ts",
     "./lib/native-reserve-command": "./src/lib/native-reserve-command.ts",
     "./lib/parts-setup-command": "./src/lib/parts-setup-command.ts"
