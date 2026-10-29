@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-30",
+  "updatedAt": "2026-10-29T21:43:17.423449+00:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Incremental independently mergeable capability bundles toward the unchanged full migration scope; unrelated owners and full-system final integration remain later work unless required by this bundle.",
   "catalogue": {
@@ -23,7 +23,7 @@
     "workflowsVerified": 0,
     "workflowsMerged": 0,
     "ownersComplete": 0,
-    "bundleChecklistComplete": 6,
+    "bundleChecklistComplete": 7,
     "bundleChecklistTotal": 18
   },
   "evidencePolicy": {
@@ -118,8 +118,11 @@
         "number": 9,
         "id": "initial-stock",
         "description": "Deliver actual Inventory initial physical stock count entry, selection, lifecycle, Flow and Finance dependencies for the Field setup journey.",
-        "status": "incomplete",
-        "evidenceFlows": []
+        "status": "complete",
+        "evidenceFlows": [
+          "field-service-initial-count-native"
+        ],
+        "acceptanceBoundary": "Bounded Count entry/selection/lifecycle/Flow/Finance proof; default runtime/writer withdrawal and exact-candidate integration remain items12\u201315/18."
       },
       {
         "number": 10,
@@ -237,7 +240,8 @@
       "latestQualifiedBindCommit": "f830c48e7ca7679869571c5e4e3a517d9feef37a",
       "latestCommitTime": "2026-10-29T15:07:55+07:00",
       "observedCommitInterval": "16h 38m 08s between these two commit timestamps; not total labor, start time, remaining duration or a delivery estimate.",
-      "remainingDuration": "unknown; depends on unresolved scope, regression diagnosis, modularity and exact-candidate verification."
+      "remainingDuration": "unknown; depends on unresolved scope, regression diagnosis, modularity and exact-candidate verification.",
+      "initialCountBoundedJourneyMs": 57568
     },
     "routeCommandInventory": [
       {
@@ -2346,6 +2350,30 @@
         "Company/Suspense hydration errors and click-before-handler evidence preserved; successful bounded harness waited for actual handler attachment."
       ],
       "cleanup": "Owned listeners absent, leased databases and private credentials removed."
+    },
+    {
+      "id": "field-service-initial-count-native",
+      "kind": "bundle-blocker-evidence",
+      "status": "bounded-qualified",
+      "scope": "Fresh zero-reference native Finance prerequisites and Stock masters through Count prepare/exact retry/Flow/submit/independent approve/post and fresh posted UI readback. Checklist9 only.",
+      "sourceIdentity": "6b8426d19b527b8163dc672e3ae6198383519ddd; tested source4e25904 plus checksum-frozen overlay. Count implementation/HTTP/SDK/UI hashes match; contributor registration and metadata/test deltas reviewed separately.",
+      "evidenceRef": ".scratch/dev/native-field-initial-count-integrated/case/fresh-integrated-result.json",
+      "sourceManifestSha256": "85660630c73b686fb906a53a2d3eab83028d75f986156fee6fb733a4a7594f07",
+      "independentReconciliationRef": ".scratch/dev/native-field-initial-count-integrated/fresh-independent-reconciliation.json",
+      "independentReconciliationSha256": "227b46a85061d3f8fdada0375acb0f1f1a6b8fba9d05f00ce2174dd24be932a1",
+      "finalPostedReadbackRef": ".scratch/dev/native-field-initial-count-integrated/case/posted-readonly-5-result.json",
+      "finalPostedReadbackSha256": "1be3a2a45f746b19cc74687f5f4d1609a125b341a0ba2747dbdb1e17b315fbc4",
+      "effects": "One posted Countv4/source/line/stock/ledger; 2000milli/600minor; one nonopening posted journal with debit Inventory1200=600 and credit variance5400=600; distinct canonical maker/reviewer. Each of22 command receipts has one command-owned audit and outbox effect; total audit rows25 include other activity.",
+      "retry": "Two native201 observations with identical body/key/context hashes; first committed reply dropped, second delivered; one Count create effect.",
+      "durationMs": 57568,
+      "durationBoundary": "Bounded fresh setup\u2192Count browser journey, not full Field bundle or labor/finish estimate.",
+      "limitations": [
+        "Integrated run retains intentional response-loss503 and10ERR_ABORTED navigation events; not clean Company-entry acceptance. Fresh final posted readback has zero page/console/request errors.",
+        "Default native selection, legacy HTTP/internal/jobs fences, Files/Records, full six Field workflows and exact candidate gates remain open.",
+        "Earlier expired fixture, rejected immutable audit update and incorrect-query readback attempts preserved separately."
+      ],
+      "independentReview": "Sol reviewed frozen hashes, receipts, actual SQL and final screenshot; item9 closure justified without other count promotions.",
+      "cleanup": "Qualified fixture closed gracefully; all3leaseddatabasesverifiedabsent,8ownedportsreleased,temporaryprivatecredentials/configsremoved; source/startuplogsandreceipts retained."
     }
   ],
   "workflows": [

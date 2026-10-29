@@ -95,3 +95,31 @@ it('selects only the exact HTTPS contributor browser origin for presentation tra
   }
  }finally{vi.unstubAllGlobals();}
 });
+import { contributorAuthResponse, shouldProjectContributorAuth } from '../../../packages/workplace/src/routes/api/auth/[...all]/contributor-auth-response';
+
+const user = { id: 'synthetic', name: 'Synthetic', email: 'synthetic@example.test', emailVerified: true, image: null, createdAt: 'extra' };
+describe('contributor Node Account projection', () => {
+  it('requires the explicit profile and exact Account authority', () => {
+    expect(shouldProjectContributorAuth(true, 'account.erpx.localhost:3443', 'https://account.erpx.localhost:3443')).toBe(true);
+    for (const [profile, host, origin] of [[false, 'account.erpx.localhost:3443', 'https://account.erpx.localhost:3443'], [true, 'account.erpx.localhost', 'https://account.erpx.localhost:3443'], [true, 'account.erpx.localhost:3443', 'http://account.erpx.localhost:3443'], [true, 'account-dev-erpx.jesadakorn.com', 'https://account-dev-erpx.jesadakorn.com']] as const) expect(shouldProjectContributorAuth(profile, host, origin)).toBe(false);
+  });
+  it('returns the strict sign-in user while retaining each cookie and security header', async () => {
+    const headers = new Headers({ 'content-length': '100', 'cache-control': 'private, no-store', 'x-content-type-options': 'nosniff' });
+    headers.append('set-cookie', 'first=a; Secure; HttpOnly'); headers.append('set-cookie', 'second=b; Secure; HttpOnly');
+    const response = await contributorAuthResponse(Response.json({ user, token: 'secret', redirect: false, url: null }, { headers }), 'sign-in');
+    expect(await response.json()).toEqual({ user: { id: user.id, name: user.name, email: user.email, emailVerified: true, image: null } });
+    expect(response.headers.getSetCookie()).toEqual(['first=a; Secure; HttpOnly', 'second=b; Secure; HttpOnly']);
+    expect(response.headers.get('content-length')).toBeNull(); expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+  });
+  it('projects session fields and accepts the anonymous session', async () => {
+    const session = { id: 's', userId: user.id, expiresAt: '2026-10-30T12:00:00.000Z', createdAt: '2026-10-30T11:00:00.000Z', updatedAt: '2026-10-30T11:00:00.000Z', token: 'secret' };
+    expect(await (await contributorAuthResponse(Response.json({ user, session }), 'session')).json()).toEqual({user:{id:user.id,name:user.name,email:user.email,emailVerified:true,image:null},session:{id:session.id,userId:session.userId,expiresAt:session.expiresAt,createdAt:session.createdAt,updatedAt:session.updatedAt}});
+    expect(await (await contributorAuthResponse(Response.json(null), 'session')).json()).toBeNull();
+  });
+  it('passes errors and empty success through and fails malformed successes without cookies', async () => {
+    const denied = new Response('denied', {status: 401}); const empty = new Response(null, {status: 204});
+    expect(await contributorAuthResponse(denied, 'sign-in')).toBe(denied); expect(await contributorAuthResponse(empty, 'session')).toBe(empty);
+    const malformed = await contributorAuthResponse(Response.json({user: {...user, id: ''}}, {headers: {'set-cookie':'secret=x'}}), 'sign-in');
+    expect(malformed.status).toBe(502); expect(malformed.headers.getSetCookie()).toEqual([]);
+  });
+});

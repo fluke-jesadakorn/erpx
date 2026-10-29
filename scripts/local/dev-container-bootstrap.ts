@@ -77,7 +77,7 @@ if (existing) {
   phase = { key, sourceId, phase: 'seed-pending' };
   writePhase(phase);
 }
-const env: Record<string, string> = { PATH: process.env.PATH ?? '/usr/local/bin:/usr/bin:/bin', HOME: '/root', ERPX_NODE_BIN: '/usr/local/bin/node', ERPX_BUN_BIN: '/usr/local/bin/bun', ERPX_ENVIRONMENT: 'local', ERPX_DATA_DIR: data, ERPX_DATABASE_MANIFEST: `${config}/databases.json`, ERPX_PUBLIC_ORIGIN: 'http://localhost:3100' };
+const env: Record<string, string> = { PATH: process.env.PATH ?? '/usr/local/bin:/usr/bin:/bin', HOME: '/root', ERPX_NODE_BIN: '/usr/local/bin/node', ERPX_BUN_BIN: '/usr/local/bin/bun', ERPX_ENVIRONMENT: 'local', ERPX_DATA_DIR: data, ERPX_DATABASE_MANIFEST: `${config}/databases.json`, ERPX_PUBLIC_ORIGIN: 'http://localhost:3100', ERPX_DEV_WORKSPACE_KEY: key };
 const authSecretPath = `${config}/bootstrap-auth-secret`;
 if (existing && !existsSync(authSecretPath)) throw new Error('EXISTING_AUTH_SECRET_REQUIRED');
 if (!existing) {
@@ -97,6 +97,7 @@ else {
   await run(['bun', '--no-env-file', 'scripts/local/migrate-development.ts']);
   for (const step of ['local', 'identity', 'commerce', 'staff']) await run(['bun', '--no-env-file', '--conditions=react-server', 'scripts/local/dev-container-seed.ts', step]);
 }
+await run(['bun', '--no-env-file', '--conditions=react-server', 'scripts/local/dev-container-seed.ts', 'contributor-finance']);
 await run(['bun', '--no-env-file', '--conditions=react-server', 'scripts/local/dev-container-seed.ts', 'verify']);
 if (phase.phase === 'seed-pending') writePhase({ ...phase, phase: 'complete' });
 console.log('BOOTSTRAP_COMPLETE: isolated transitional development data; application and HTTPS unverified');

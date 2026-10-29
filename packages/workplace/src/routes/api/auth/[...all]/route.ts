@@ -7,6 +7,13 @@ import { productSignOut } from "@erpx/server-identity_access/public/product-sso"
 import { anonymousAccountAuthPath } from "@erpx/server-identity_access/public/product-sso";
 import { accountEmailSignIn, accountAuthenticationRequest, synchronizeAccountAuth } from '@erpx/server-identity_access/public/device-accounts';
 
+import { contributorOriginProfile } from '@erpx/feature-runtime/lib/holding-hosts';
+import { contributorAuthResponse, shouldProjectContributorAuth } from './contributor-auth-response';
+
+function contributorAccount(request: Request) {
+  return contributorOriginProfile() && shouldProjectContributorAuth(true, request.headers.get('host'), requestPublicOrigin(request));
+}
+
 export const dynamic = "force-dynamic";
 
 async function accountSessionDenied(request: Request) {
@@ -31,7 +38,8 @@ export async function GET(request: Request) {
   const audience = productHostForHost(request.headers.get("host"));
   if (audience && new URL(request.url).pathname === "/api/auth/get-session") {
     const session = await (await createAuth(requestPublicOrigin(request))).api.getSession({ headers: request.headers });
-    return Response.json(session ? { ...session, session: { ...session.session, token: undefined } } : null, { headers: { "Cache-Control": "private, no-store" } });
+    const response = Response.json(session ? { ...session, session: { ...session.session, token: undefined } } : null, { headers: { "Cache-Control": "private, no-store" } });
+    return contributorAccount(request) ? contributorAuthResponse(response, 'session') : response;
   }
   if (audience && audience !== "account") return new Response("Not found", { status: 404 });
   const denied = await accountSessionDenied(request);
@@ -47,7 +55,7 @@ export async function POST(request: Request) {
   if (audience && audience !== "account") return new Response("Not found", { status: 404 });
   if (audience === 'account' && new URL(request.url).pathname === '/api/auth/sign-in/email') {
     if(request.headers.get('origin')!==requestPublicOrigin(request)) return new Response('Invalid origin',{status:403});
-    try{return await accountEmailSignIn(request);}catch(error){return errorResponse(error);}
+    try{const response = await accountEmailSignIn(request); return contributorAccount(request) ? contributorAuthResponse(response, 'sign-in') : response;}catch(error){return errorResponse(error);}
   }
   const denied = await accountSessionDenied(request);
   if (denied) return denied;
