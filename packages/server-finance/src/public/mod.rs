@@ -64,3 +64,5 @@ pub mod manual_draft_provenance;
 pub mod field_service_completion;
 
 pub mod field_service_agreement_money;
+
+pub mod field_service_billing;

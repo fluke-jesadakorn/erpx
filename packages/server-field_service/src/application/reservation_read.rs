@@ -456,3 +456,21 @@ pub struct FieldServiceCancelInput {
     pub expected_version: i64,
     pub reason: String,
 }
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+pub enum FieldServiceBillingAction {
+    #[serde(rename = "release-billing")]
+    ReleaseBilling,
+}
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct FieldServiceBillingInput {
+    pub id: String,
+    pub action: FieldServiceBillingAction,
+    #[cfg_attr(feature = "contracts", ts(type = "number"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = i64, minimum = 1, maximum = 9_007_199_254_740_991_i64))]
+    pub expected_version: i64,
+    pub reason: String,
+}

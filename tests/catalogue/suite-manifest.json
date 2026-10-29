@@ -50693,7 +50693,7 @@
         "reason": "Development dependency selection exercises this suite when affected; historical PR metadata is retained only for older receipt readers."
       },
       "serial": {
-        "reason": "Owns the exclusive isolated gateway listener3104 and disposable process-fixture app ports3290\u20133291."
+        "reason": "Owns the exclusive isolated gateway listener3104 and disposable process-fixture app ports3290–3291."
       },
       "verificationInputs": [
         "scripts/local/dev.ts",
@@ -69693,7 +69693,25 @@
         "src/composition/src/field_service_parts/finance.rs",
         "src/composition/src/field_service_parts/source.rs",
         "src/composition/src/field_service_reservation_read.rs",
-        "src/composition/src/maintenance_parts/source.rs"
+        "src/composition/src/maintenance_parts/source.rs",
+        "packages/server-field_service/src/adapters/parts/billing.rs",
+        "packages/server-finance/src/adapters/field_service_billing.rs",
+        "packages/server-finance/src/public/field_service_billing.rs",
+        "packages/server-field_service/src/adapters/parts/mod.rs",
+        "packages/server-field_service/src/adapters/parts_wire.rs",
+        "packages/server-field_service/src/adapters/reservation_read.rs",
+        "packages/server-field_service/src/application/reservation_read.rs",
+        "packages/server-field_service/src/public/reservation_read.rs",
+        "packages/server-finance/src/adapters/mod.rs",
+        "packages/server-finance/src/public/mod.rs",
+        "packages/server-support/src/public/field_service.rs",
+        "scripts/docs/export-field-service-reserve-contracts.rs",
+        "scripts/seed/native-field-service-development.rs",
+        "src/composition/src/field_service_parts.rs",
+        "src/composition/src/field_service_parts/command.rs",
+        "src/composition/src/field_service_parts/purchases.rs",
+        "src/composition/src/field_service_reservation_read_http.rs",
+        "src/composition/src/private_development_api.rs"
       ],
       "postgres": {
         "mode": "raw",

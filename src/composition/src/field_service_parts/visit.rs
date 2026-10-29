@@ -16,22 +16,28 @@ use erpx_server_field_service::public::{
     parts_source::CurrentFieldServiceOrder,
     visit::*,
 };
+use erpx_server_finance::public::field_service_billing::{
+    BillingInvoiceInput, PgBillingOwnerSource, PreparedBillingInvoice, RetainedBillingInvoice,
+    prepare_billing_invoice,
+};
 use erpx_server_identity_access::public::{
     effective_authority::{AuthorizedWorkContext, HoldingWorkSourcePreparation},
     field_service_assignment::{
         CurrentFieldServiceRawAssignment, FieldServiceAssignmentPermission,
         FieldServiceRawAssignmentRequest, inspect_field_service_raw_assignment,
     },
+    release_reviewers::PgSamePersonReader,
 };
 use erpx_server_people_payroll::public::field_service_worker::{
     CurrentFieldServicePeopleReference, inspect_field_service_people_reference,
 };
 use erpx_server_runtime::public::postgres::PgWorkFuture;
 use erpx_server_shared::public::{
-    BusinessError, Clock, CommandKey, IdentifierSource, RecordId, TimestampMillis,
+    BusinessError, Clock, CommandKey, IdentifierSource, RecordId, TimestampMillis, UserId,
 };
 use erpx_server_support::public::field_service::{
-    PreparedSupportServicePartsProjection, SupportServicePartsAction, SupportServicePartsProjection,
+    PreparedSupportServicePartsProjection, SupportCompletionProjection, SupportServicePartsAction,
+    SupportServicePartsProjection,
 };
 use erpx_server_workflow::public::commands::*;
 use sqlx::PgConnection;
@@ -167,7 +173,16 @@ impl<C: Clock + Sync> PgCommandAuthority for Authority<'_, C> {
         if let Some(p) = &self.purchase {
             p.require_current(c, self.current, self.clock.now()).await?;
         } else {
-            self.purchase = Some(
+            self.purchase = Some(if self.action == VisitAction::ReleaseBilling {
+                FieldServicePurchases::retain_billing(
+                    c,
+                    self.current,
+                    source.facts().agreement_has_asset || source.facts().asset_id.is_some(),
+                    d,
+                    self.clock.now(),
+                )
+                .await?
+            } else {
                 FieldServicePurchases::retain_visit(
                     c,
                     self.current,
@@ -180,8 +195,8 @@ impl<C: Clock + Sync> PgCommandAuthority for Authority<'_, C> {
                     self.action,
                     self.clock.now(),
                 )
-                .await?,
-            );
+                .await?
+            });
         }
         Ok(())
     }
@@ -191,6 +206,74 @@ struct Completion {
     journals: erpx_server_finance::public::field_service_completion::CurrentServiceCompletionJournals,
     reservations: PreparedCompletionReservations,
     stock: erpx_server_commerce::public::field_service_completion::PreparedCompletionStock,
+}
+struct BillingPrepared {
+    plan: CurrentFieldBilling,
+    input: BillingInvoiceInput,
+    finance: PreparedBillingInvoice,
+}
+struct BillingWritten {
+    plan: CurrentFieldBilling,
+    input: BillingInvoiceInput,
+    finance: RetainedBillingInvoice,
+}
+struct BillingOwner<'a, 'b, C> {
+    current: &'a AuthorizedWorkContext,
+    source: &'a CurrentFieldServiceOrder<'b, FieldServiceReferences>,
+    visit: &'a PreparedFieldServiceVisit,
+    tech: &'a Technician,
+    billing: &'a CurrentFieldBilling,
+    input: &'a BillingInvoiceInput,
+    clock: &'a C,
+}
+impl<C: Clock + Sync> BillingOwner<'_, '_, C> {
+    async fn independent(&self, c: &mut PgConnection) -> Result<(), Error> {
+        let mut actors = vec![self.source.facts().technician_id.as_str()];
+        actors.extend(self.billing.completion_actors().iter().map(String::as_str));
+        for raw in actors {
+            let user = UserId::new(raw)?;
+            if self.current.same_person_user(&user)
+                || PgSamePersonReader::new(c)
+                    .same_person(
+                        &self.source.facts().company_id,
+                        &user,
+                        self.current.user_id(),
+                    )
+                    .await?
+            {
+                return Err(BusinessError::new(
+                    erpx_server_shared::public::FailureKind::Conflict,
+                    "INDEPENDENT_BILLING_RELEASE_REQUIRED",
+                    "A different eligible reviewer must release billing.",
+                )
+                .into());
+            }
+        }
+        Ok(())
+    }
+}
+impl<C: Clock + Sync> PgBillingOwnerSource for BillingOwner<'_, '_, C> {
+    fn input(&self) -> &BillingInvoiceInput {
+        self.input
+    }
+    async fn require_before(&self, c: &mut PgConnection) -> Result<(), Error> {
+        self.visit
+            .require_before(c, self.source, self.tech, self.clock.now())
+            .await?;
+        self.billing
+            .require_before(c, self.source, self.clock.now())
+            .await?;
+        self.independent(c).await
+    }
+    async fn require_after(&self, c: &mut PgConnection) -> Result<(), Error> {
+        self.visit
+            .require_after(c, self.source, self.tech, self.clock.now())
+            .await?;
+        self.billing
+            .require_after(c, self.source, self.clock.now())
+            .await?;
+        self.independent(c).await
+    }
 }
 struct StockSource<'a>(&'a PreparedCompletionReservations);
 impl erpx_server_commerce::public::field_service_completion::PgCompletionStockSource
@@ -226,6 +309,7 @@ struct Prepared<'a> {
     notice: OwnedPreparedFieldServiceNotification,
     purchase: FieldServicePurchases,
     completion: Option<Completion>,
+    billing: Option<BillingPrepared>,
 }
 struct Written<'a> {
     source: CurrentFieldServiceOrder<'a, FieldServiceReferences>,
@@ -235,6 +319,7 @@ struct Written<'a> {
     purchase: FieldServicePurchases,
     notice: RetainedFieldServiceNotification,
     completion: Option<Completion>,
+    billing: Option<BillingWritten>,
 }
 struct Effects<'a, C> {
     current: &'a AuthorizedWorkContext,
@@ -292,19 +377,30 @@ impl<'a, C: Clock + Sync> PgOwnerCommandEffects for Effects<'a, C> {
                 .into(),
             );
         }
-        let purchase = FieldServicePurchases::retain_visit(
-            c,
-            self.current,
-            source
-                .facts()
-                .asset_id
-                .as_ref()
-                .is_some_and(|s| !s.is_empty()),
-            CommandDisposition::Execute,
-            self.input.action,
-            self.clock.now(),
-        )
-        .await?;
+        let purchase = if self.input.action == VisitAction::ReleaseBilling {
+            FieldServicePurchases::retain_billing(
+                c,
+                self.current,
+                source.facts().agreement_has_asset || source.facts().asset_id.is_some(),
+                CommandDisposition::Execute,
+                self.clock.now(),
+            )
+            .await?
+        } else {
+            FieldServicePurchases::retain_visit(
+                c,
+                self.current,
+                source
+                    .facts()
+                    .asset_id
+                    .as_ref()
+                    .is_some_and(|s| !s.is_empty()),
+                CommandDisposition::Execute,
+                self.input.action,
+                self.clock.now(),
+            )
+            .await?
+        };
         let completion = if matches!(
             self.input.action,
             VisitAction::Complete | VisitAction::Cancel
@@ -320,6 +416,49 @@ impl<'a, C: Clock + Sync> PgOwnerCommandEffects for Effects<'a, C> {
                 journals,
                 reservations,
                 stock,
+            })
+        } else {
+            None
+        };
+        let billing = if self.input.action == VisitAction::ReleaseBilling {
+            let billing_plan = CurrentFieldBilling::prepare(
+                c,
+                &source,
+                self.key,
+                self.input.expected_version,
+                (&self.input.reason, source.references().warranty_end()),
+                at,
+                self.clock.now(),
+            )
+            .await?;
+            let release = billing_plan.release();
+            let input = BillingInvoiceInput {
+                company_id: source.facts().company_id.clone(),
+                owner_key: self.key.clone(),
+                order_id: release.order_id.clone(),
+                customer_id: release.customer_id.clone(),
+                currency: release.currency.clone(),
+                amount_minor: release.amount_minor,
+                invoice_date: release.pricing_date.clone(),
+                due_date: billing_plan.due_date().into(),
+                actor_id: source.actor_user_id().clone(),
+                created_at: at,
+            };
+            let owner = BillingOwner {
+                current: self.current,
+                source: &source,
+                visit: &plan,
+                tech: &tech,
+                billing: &billing_plan,
+                input: &input,
+                clock: self.clock,
+            };
+            owner.independent(c).await?;
+            let finance = prepare_billing_invoice(c, &owner, self.clock).await?;
+            Some(BillingPrepared {
+                plan: billing_plan,
+                input,
+                finance,
             })
         } else {
             None
@@ -341,12 +480,18 @@ impl<'a, C: Clock + Sync> PgOwnerCommandEffects for Effects<'a, C> {
                         VisitAction::Exception => SupportServicePartsAction::Exception,
                         VisitAction::Resume => SupportServicePartsAction::Resume,
                         VisitAction::Cancel => SupportServicePartsAction::Cancel,
+                        VisitAction::ReleaseBilling => SupportServicePartsAction::ReleaseBilling,
                     },
                     actor_id: source.actor_user_id().clone(),
                     technician_id: plan.technician().into(),
                     scheduled_at: plan.scheduled_at().map(TimestampMillis::new),
                     application_at: at,
                     reason: self.input.reason.clone(),
+                    completion: billing.as_ref().map(|v| SupportCompletionProjection {
+                        evidence: v.plan.completion_evidence().into(),
+                        actor_id: v.plan.completion_actors()[0].clone(),
+                        completed_at: v.plan.completed_at(),
+                    }),
                 },
             )
             .await?;
@@ -392,6 +537,26 @@ impl<'a, C: Clock + Sync> PgOwnerCommandEffects for Effects<'a, C> {
                 "The Service source exceeds this bounded read.",
             )
         })?;
+        if let Some(b) = &billing {
+            let response = crate::field_service_reservation_read::FieldServiceBillingReadResponse {
+                context: evidence.context.clone(),
+                order: evidence.order.clone(),
+                receipt: evidence.receipt.clone(),
+                event: evidence.event.clone(),
+                release: b.plan.release().clone(),
+            };
+            serde_json::to_writer(
+                &mut crate::field_service_reservation_read::ReplyBudget(0),
+                &response,
+            )
+            .map_err(|_| {
+                BusinessError::new(
+                    erpx_server_shared::public::FailureKind::Unavailable,
+                    "FIELD_SERVICE_READ_LIMIT",
+                    "The Service source exceeds this bounded read.",
+                )
+            })?;
+        }
         let notice = prepare_field_service_notification(
             c,
             &notify(&source, &plan, &tech),
@@ -415,6 +580,7 @@ impl<'a, C: Clock + Sync> PgOwnerCommandEffects for Effects<'a, C> {
             notice,
             purchase,
             completion,
+            billing,
         });
         Ok(WorkflowOutput {
             version,
@@ -446,6 +612,26 @@ impl<'a, C: Clock + Sync> PgOwnerCommandEffects for Effects<'a, C> {
                 .await?;
         }
         p.support.require_before(c).await?;
+        let billing = if let Some(b) = p.billing {
+            let owner = BillingOwner {
+                current: self.current,
+                source: &p.source,
+                visit: &p.plan,
+                tech: &p.tech,
+                billing: &b.plan,
+                input: &b.input,
+                clock: self.clock,
+            };
+            let finance = b.finance.apply(c, &owner).await?;
+            b.plan.apply(c, &p.source, self.clock.now()).await?;
+            Some(BillingWritten {
+                plan: b.plan,
+                input: b.input,
+                finance,
+            })
+        } else {
+            None
+        };
         p.plan
             .apply(c, &p.source, &p.tech, self.clock.now())
             .await?;
@@ -462,6 +648,7 @@ impl<'a, C: Clock + Sync> PgOwnerCommandEffects for Effects<'a, C> {
             purchase: p.purchase,
             notice,
             completion: p.completion,
+            billing,
         });
         Ok(())
     }
@@ -478,6 +665,18 @@ impl<'a, C: Clock + Sync> PgOwnerCommandEffects for Effects<'a, C> {
         w.plan
             .require_after(c, &w.source, &w.tech, self.clock.now())
             .await?;
+        if let Some(b) = &w.billing {
+            let owner = BillingOwner {
+                current: self.current,
+                source: &w.source,
+                visit: &w.plan,
+                tech: &w.tech,
+                billing: &b.plan,
+                input: &b.input,
+                clock: self.clock,
+            };
+            b.finance.require_current(c, &owner).await?;
+        }
         if let Some(v) = &w.completion {
             v.consumptions.require_current(c).await?;
             v.journals.require_posted(c).await?;
@@ -539,6 +738,7 @@ pub struct VisitDispatcher<C> {
     pub allow_completion: bool,
     pub allow_recovery: bool,
     pub allow_cancel: bool,
+    pub allow_billing: bool,
 }
 impl<C: Clock + Send + Sync + 'static> super::OtherPost for VisitDispatcher<C> {
     fn supports(&self, input: &super::OtherPostInput) -> bool {
@@ -552,6 +752,7 @@ impl<C: Clock + Send + Sync + 'static> super::OtherPost for VisitDispatcher<C> {
         {
             Some("complete") => self.allow_completion,
             Some("cancel") => self.allow_cancel,
+            Some("release-billing") => self.allow_billing,
             Some("exception" | "resume") => self.allow_recovery,
             Some("schedule" | "dispatch" | "start") => self.allow_visits,
             _ => {
@@ -559,6 +760,7 @@ impl<C: Clock + Send + Sync + 'static> super::OtherPost for VisitDispatcher<C> {
                     || self.allow_completion
                     || self.allow_recovery
                     || self.allow_cancel
+                    || self.allow_billing
             }
         }
     }

@@ -4,3 +4,5 @@ pub use crate::domain::visit::{VisitAction, VisitAuthorityFacts, require_visit_a
 pub use crate::adapters::parts::visit::{PgVisitTechnician, PreparedFieldServiceVisit};
 
 pub use crate::adapters::parts::visit::{CompletionStockGroup, PreparedCompletionReservations};
+
+pub use crate::adapters::parts::billing::{CurrentFieldBilling, FieldServiceBillingRelease};

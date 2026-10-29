@@ -125,6 +125,16 @@ pub struct FieldServiceVisitReadResponse {
 #[derive(Clone, Debug, Serialize)]
 #[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
+pub struct FieldServiceBillingReadResponse {
+    pub context: FieldServiceRenderedContext,
+    pub order: FieldServiceReserveResult,
+    pub receipt: FieldServiceReserveResult,
+    pub event: FieldServiceVisitEvent,
+    pub release: erpx_server_field_service::public::visit::FieldServiceBillingRelease,
+}
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(rename_all = "camelCase")]
 pub struct FieldServiceAgreementReviewReadResponse {
     pub context: FieldServiceRenderedContext,
     pub receipt: FieldServiceReserveResult,
@@ -198,6 +208,19 @@ struct ReadSources {
     issues: bool,
 }
 #[derive(Clone)]
+struct BillingReadSources;
+impl HoldingWorkSourcePreparation for BillingReadSources {
+    fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async move {
+            lock_commercial_authority_sources(c).await?;
+            lock_record_origin_sources(c).await?;
+            erpx_server_field_service::public::reservation_read::lock_field_service_billing_read_sources(c).await?;
+            lock_field_service_stock_scope_sources(c).await?;
+            lock_field_service_stock_read_sources(c).await
+        })
+    }
+}
+#[derive(Clone)]
 struct AgreementReadSources;
 impl HoldingWorkSourcePreparation for AgreementReadSources {
     fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
@@ -248,6 +271,7 @@ pub struct FieldServiceReservationReadConfiguration {
     completions: bool,
     recoveries: bool,
     cancellations: bool,
+    billings: bool,
     agreement_reviews: bool,
     agreement_creates: bool,
 }
@@ -276,9 +300,14 @@ impl FieldServiceReservationReadConfiguration {
             completions: false,
             recoveries: false,
             cancellations: false,
+            billings: false,
             agreement_reviews: false,
             agreement_creates: false,
         })
+    }
+    pub fn with_billings(mut self) -> Self {
+        self.billings = true;
+        self
     }
     pub fn with_cancellations(mut self) -> Self {
         self.cancellations = true;
@@ -678,6 +707,107 @@ impl<C: Clock + Send + Sync + 'static> FieldServiceReservationReadService<C> {
                             order: source.order().clone(),
                             receipt: source.receipt().clone(),
                             event: source.event().clone(),
+                        };
+                        let mut budget = ReplyBudget(0);
+                        serde_json::to_writer(&mut budget, &reply).map_err(|_| {
+                            BusinessError::new(
+                                FailureKind::Unavailable,
+                                "FIELD_SERVICE_READ_LIMIT",
+                                "The Service source exceeds this bounded read.",
+                            )
+                        })?;
+                        source.require_current(c, current).await?;
+                        PgCompanyPurchaseReader::new(
+                            config.holding.clone(),
+                            config.company.clone(),
+                            c,
+                            &config.catalogue,
+                        )
+                        .revalidate(&purchase.witness, clock.now())
+                        .await?
+                        .require_allowed()?;
+                        if clock.now().get() >= current.expires_at() {
+                            return Err(denied().into());
+                        }
+                        Ok(reply)
+                    })
+                },
+            )
+            .await
+    }
+    pub async fn read_billing<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        key: String,
+    ) -> Result<FieldServiceBillingReadResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        if !self.config.billings {
+            return Err(
+                BusinessError::new(FailureKind::NotFound, "NOT_FOUND", "Not found.").into(),
+            );
+        }
+        let company = self.config.company.clone();
+        let input = move || {
+            let mut v = input()?;
+            if v.company_id != company {
+                return Err(denied());
+            }
+            v.mutation = false;
+            Ok(v)
+        };
+        let config = self.config.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                input,
+                WorkAuthorizationRequest {
+                    permission: "records.read".into(),
+                    module: Some("field_service".into()),
+                    destination: "service/orders".into(),
+                    api: true,
+                },
+                BillingReadSources,
+                move |c, current| {
+                    let config = config.clone();
+                    let clock = clock.clone();
+                    let key = key.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &config.holding
+                            || current.selection().workspace().company_id != config.company
+                        {
+                            return Err(denied().into());
+                        }
+                        let source = erpx_server_field_service::public::reservation_read::read_field_service_billing_by_key(c, current, &key).await?;
+                        let mut caps = vec!["service.orders".into(), "service.billing".into(), "finance.service-invoice".into()];
+                        if source.has_asset() { caps.push("service.parts-assets".into()); }
+                        let purchase = PgCompanyPurchaseReader::new(
+                            config.holding.clone(),
+                            config.company.clone(),
+                            c,
+                            &config.catalogue,
+                        )
+                        .inspect(
+                            &PurchaseRequest {
+                                capabilities: caps,
+                                purpose: CapabilityPurpose::History,
+                                mode: PackageEnforcementMode::Enforced,
+                            },
+                            clock.now(),
+                        )
+                        .await?;
+                        purchase.require_allowed()?;
+                        let reply = FieldServiceBillingReadResponse {
+                            context: context(current)?,
+                            order: source.visit().order().clone(),
+                            receipt: source.visit().receipt().clone(),
+                            event: source.visit().event().clone(),
+                            release: source.release().clone(),
                         };
                         let mut budget = ReplyBudget(0);
                         serde_json::to_writer(&mut budget, &reply).map_err(|_| {

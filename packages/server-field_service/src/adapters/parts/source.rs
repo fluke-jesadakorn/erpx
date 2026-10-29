@@ -27,6 +27,7 @@ pub struct FieldServiceOrderFacts {
     pub agreement_version: i64,
     pub customer_id: String,
     pub asset_id: Option<String>,
+    pub agreement_has_asset: bool,
     pub created_by: UserId,
     pub version: i64,
     pub state: String,
@@ -248,7 +249,7 @@ pub(super) async fn read(
     let w = current.selection().workspace();
     // Source identity is the exact original immutable record/reference selection.
     // Full Work/agreement rows are hashed inside PostgreSQL, never transferred.
-    let row=sqlx::query("SELECT b.bounded,CASE WHEN b.bounded THEN o.branch_id END branch_id,CASE WHEN b.bounded THEN o.department_id END department_id,CASE WHEN b.bounded THEN o.ticket_id END ticket_id,o.ticket_version::bigint ticket_version,CASE WHEN b.bounded THEN o.agreement_id END agreement_id,o.agreement_version::bigint agreement_version,CASE WHEN b.bounded THEN g.customer_id END customer_id,CASE WHEN b.bounded THEN o.asset_id END asset_id,CASE WHEN octet_length(o.created_by)<=200 THEN o.created_by END created_by,o.version::bigint version,CASE WHEN octet_length(o.status)<=32 THEN o.status END state,CASE WHEN b.bounded THEN o.technician_id END technician_id,o.scheduled_at::bigint scheduled_at,encode(sha256(convert_to(jsonb_build_array(o.id,o.company_id,o.branch_id,o.department_id,o.ticket_id,o.ticket_version,o.agreement_id,o.agreement_version,o.asset_id,o.created_by,o.created_at)::text,'UTF8')),'hex') identity,encode(sha256(convert_to(to_jsonb(o)::text,'UTF8')),'hex') order_image,encode(sha256(convert_to(to_jsonb(g)::text,'UTF8')),'hex') agreement_image FROM field_service_orders o JOIN field_service_agreements g ON g.id=o.agreement_id AND g.company_id=o.company_id AND g.branch_id=o.branch_id AND g.department_id IS NOT DISTINCT FROM o.department_id CROSS JOIN LATERAL (SELECT octet_length(o.branch_id)::bigint+coalesce(octet_length(o.department_id),0)::bigint+octet_length(g.customer_id)::bigint+octet_length(o.ticket_id)::bigint+octet_length(o.agreement_id)::bigint+coalesce(octet_length(o.asset_id),0)::bigint+octet_length(o.technician_id)::bigint<=2097152 AS bounded) b WHERE o.id=$1 AND o.company_id=$2 AND ($3::text IS NULL OR o.branch_id=$3) AND ($4::text IS NULL OR o.department_id=$4) FOR UPDATE OF o FOR SHARE OF g")
+    let row=sqlx::query("SELECT b.bounded,CASE WHEN b.bounded THEN o.branch_id END branch_id,CASE WHEN b.bounded THEN o.department_id END department_id,CASE WHEN b.bounded THEN o.ticket_id END ticket_id,o.ticket_version::bigint ticket_version,CASE WHEN b.bounded THEN o.agreement_id END agreement_id,o.agreement_version::bigint agreement_version,CASE WHEN b.bounded THEN g.customer_id END customer_id,CASE WHEN b.bounded THEN o.asset_id END asset_id,g.asset_id IS NOT NULL agreement_has_asset,CASE WHEN octet_length(o.created_by)<=200 THEN o.created_by END created_by,o.version::bigint version,CASE WHEN octet_length(o.status)<=32 THEN o.status END state,CASE WHEN b.bounded THEN o.technician_id END technician_id,o.scheduled_at::bigint scheduled_at,encode(sha256(convert_to(jsonb_build_array(o.id,o.company_id,o.branch_id,o.department_id,o.ticket_id,o.ticket_version,o.agreement_id,o.agreement_version,o.asset_id,o.created_by,o.created_at)::text,'UTF8')),'hex') identity,encode(sha256(convert_to(to_jsonb(o)::text,'UTF8')),'hex') order_image,encode(sha256(convert_to(to_jsonb(g)::text,'UTF8')),'hex') agreement_image FROM field_service_orders o JOIN field_service_agreements g ON g.id=o.agreement_id AND g.company_id=o.company_id AND g.branch_id=o.branch_id AND g.department_id IS NOT DISTINCT FROM o.department_id CROSS JOIN LATERAL (SELECT octet_length(o.branch_id)::bigint+coalesce(octet_length(o.department_id),0)::bigint+octet_length(g.customer_id)::bigint+octet_length(o.ticket_id)::bigint+octet_length(o.agreement_id)::bigint+coalesce(octet_length(o.asset_id),0)::bigint+octet_length(o.technician_id)::bigint<=2097152 AS bounded) b WHERE o.id=$1 AND o.company_id=$2 AND ($3::text IS NULL OR o.branch_id=$3) AND ($4::text IS NULL OR o.department_id=$4) FOR UPDATE OF o FOR SHARE OF g")
   .bind(id.as_str()).bind(w.company_id.as_str()).bind(w.branch_id.as_ref().map(RecordId::as_str)).bind(w.department_id.as_ref().map(RecordId::as_str)).fetch_optional(c).await?;
     let Some(row) = row else { return Ok(None) };
     if !row.try_get::<bool, _>("bounded")? {
@@ -269,6 +270,7 @@ pub(super) async fn read(
         agreement_version: row.try_get("agreement_version")?,
         customer_id: text("customer_id")?,
         asset_id: row.try_get::<Option<String>, _>("asset_id")?,
+        agreement_has_asset: row.try_get("agreement_has_asset")?,
         created_by: UserId::new(text("created_by")?)?,
         version: row.try_get("version")?,
         state: text("state")?,

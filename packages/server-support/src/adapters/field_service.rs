@@ -64,8 +64,8 @@ impl CurrentSupportServiceTicket {
         let project = self.facts.source_kind == "field_service"
             && service_version != Some(input.order_version_after);
         let expected_ticket = if project {
-            sqlx::query_scalar("SELECT encode(sha256(convert_to((to_jsonb(t)||jsonb_build_object('status',$7::text,'owner_id',$3::text,'due_date',to_char(to_timestamp(coalesce($4::bigint,$5::bigint)/1000.0) AT TIME ZONE 'UTC','YYYY-MM-DD'),'resolution',NULL,'resolved_by',NULL,'resolved_at',NULL,'confirmed_by',NULL,'confirmed_at',NULL,'confirmation_reason',NULL,'service_order_version',$6::bigint,'version',t.version+1,'updated_at',$5::bigint))::text,'UTF8')),'hex') FROM support_tickets t WHERE id=$1 AND company_id=$2")
-                .bind(self.facts.request.ticket_id.as_str()).bind(self.facts.request.company_id.as_str()).bind(input.technician_id.as_str()).bind(input.scheduled_at.map(TimestampMillis::get)).bind(input.application_at.get()).bind(input.order_version_after).bind(input.action.target_status()).fetch_one(&mut*c).await?
+            sqlx::query_scalar("SELECT encode(sha256(convert_to((to_jsonb(t)||jsonb_build_object('status',$7::text,'owner_id',$3::text,'due_date',to_char(to_timestamp(coalesce($4::bigint,$5::bigint)/1000.0) AT TIME ZONE 'UTC','YYYY-MM-DD'),'resolution',$8::text,'resolved_by',$9::text,'resolved_at',$10::bigint,'confirmed_by',$11::text,'confirmed_at',$12::bigint,'confirmation_reason',$13::text,'service_order_version',$6::bigint,'version',t.version+1,'updated_at',$5::bigint))::text,'UTF8')),'hex') FROM support_tickets t WHERE id=$1 AND company_id=$2")
+                .bind(self.facts.request.ticket_id.as_str()).bind(self.facts.request.company_id.as_str()).bind(input.technician_id.as_str()).bind(input.scheduled_at.map(TimestampMillis::get)).bind(input.application_at.get()).bind(input.order_version_after).bind(input.action.target_status()).bind(input.completion.as_ref().map(|v|v.evidence.as_str())).bind(input.completion.as_ref().map(|v|v.actor_id.as_str())).bind(input.completion.as_ref().and_then(|v|v.completed_at)).bind(input.completion.as_ref().map(|_|input.actor_id.as_str())).bind(input.completion.as_ref().map(|_|input.application_at.get())).bind(input.completion.as_ref().map(|_|input.reason.as_str())).fetch_one(&mut*c).await?
         } else {
             before.clone()
         };
@@ -92,13 +92,14 @@ pub enum SupportServicePartsAction {
     Exception,
     Resume,
     Cancel,
+    ReleaseBilling,
 }
 impl SupportServicePartsAction {
     fn target_status(self) -> &'static str {
-        if matches!(self, Self::Cancel) {
-            "cancelled"
-        } else {
-            "open"
+        match self {
+            Self::Cancel => "cancelled",
+            Self::ReleaseBilling => "closed",
+            _ => "open",
         }
     }
     fn as_str(self) -> &'static str {
@@ -112,6 +113,7 @@ impl SupportServicePartsAction {
             Self::Exception => "exception",
             Self::Resume => "resume",
             Self::Cancel => "cancel",
+            Self::ReleaseBilling => "release-billing",
         }
     }
 }
@@ -128,9 +130,20 @@ pub struct SupportServicePartsProjection {
     pub scheduled_at: Option<TimestampMillis>,
     pub application_at: TimestampMillis,
     pub reason: String,
+    pub completion: Option<SupportCompletionProjection>,
+}
+pub struct SupportCompletionProjection {
+    pub evidence: String,
+    pub actor_id: String,
+    pub completed_at: Option<i64>,
 }
 impl SupportServicePartsProjection {
     fn require_data(&self) -> Result<(), Error> {
+        if matches!(self.action, SupportServicePartsAction::ReleaseBilling)
+            != self.completion.is_some()
+        {
+            return Err(invalid());
+        }
         if !(2..=9_007_199_254_740_992).contains(&self.order_version_after)
             || self.event_id.len() > 200
             || !self.event_id.starts_with("service-order-event-")

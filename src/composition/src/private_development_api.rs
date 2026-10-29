@@ -136,6 +136,8 @@ struct ConfigurationDocument {
     #[serde(default)]
     field_service_order_cancellations: Vec<String>,
     #[serde(default)]
+    field_service_billing_releases: Vec<String>,
+    #[serde(default)]
     field_service_agreement_reviews: Vec<String>,
     #[serde(default)]
     field_service_agreement_creates: Vec<String>,
@@ -173,6 +175,7 @@ pub struct DevelopmentApiConfiguration {
     field_service_visit_completions: BTreeSet<HoldingId>,
     field_service_visit_recoveries: BTreeSet<HoldingId>,
     field_service_order_cancellations: BTreeSet<HoldingId>,
+    field_service_billing_releases: BTreeSet<HoldingId>,
     field_service_agreement_reviews: BTreeSet<HoldingId>,
     field_service_agreement_creates: BTreeSet<HoldingId>,
     account_bootstrap: bool,
@@ -402,6 +405,16 @@ impl DevelopmentApiConfiguration {
                 return Err("PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID");
             }
         }
+        let mut field_service_billing_releases = BTreeSet::new();
+        for id in doc.field_service_billing_releases {
+            let holding = HoldingId::new(id)
+                .map_err(|_| "PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID")?;
+            if !field_service_reads.contains_key(&holding)
+                || !field_service_billing_releases.insert(holding)
+            {
+                return Err("PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID");
+            }
+        }
         let mut field_service_agreement_reviews = BTreeSet::new();
         for id in doc.field_service_agreement_reviews {
             let holding = HoldingId::new(id)
@@ -480,6 +493,7 @@ impl DevelopmentApiConfiguration {
             field_service_visit_completions,
             field_service_visit_recoveries,
             field_service_order_cancellations,
+            field_service_billing_releases,
             field_service_agreement_reviews,
             field_service_agreement_creates,
             account_bootstrap: doc.account_bootstrap,
@@ -691,6 +705,7 @@ async fn assemble_checked(
     let mut service_request_targets = BTreeSet::new();
     let mut service_order_create_targets = BTreeSet::new();
     let mut service_visit_targets = BTreeSet::new();
+    let mut service_billing_targets = BTreeSet::new();
     let mut service_agreement_review_targets = BTreeSet::new();
     let mut service_agreement_create_targets = BTreeSet::new();
     if !config.finance_journal_reads.is_empty() {
@@ -966,6 +981,9 @@ async fn assemble_checked(
             let cancel_enabled = config
                 .field_service_order_cancellations
                 .contains(&holding.registration.holding_id);
+            let billing_enabled = config
+                .field_service_billing_releases
+                .contains(&holding.registration.holding_id);
             let agreement_review_enabled = config
                 .field_service_agreement_reviews
                 .contains(&holding.registration.holding_id);
@@ -1011,6 +1029,14 @@ async fn assemble_checked(
             } else {
                 read_configuration
             };
+            if billing_enabled {
+                service_billing_targets.insert(target.clone());
+            }
+            let read_configuration = if billing_enabled {
+                read_configuration.with_billings()
+            } else {
+                read_configuration
+            };
             reads.push(FieldServiceReservationReadTarget {
                 host: target.0.clone(),
                 holding_slug: target.1.clone(),
@@ -1036,6 +1062,7 @@ async fn assemble_checked(
                 || completion_enabled
                 || recovery_enabled
                 || cancel_enabled
+                || billing_enabled
                 || agreement_review_enabled
                 || agreement_create_enabled
             {
@@ -1063,6 +1090,7 @@ async fn assemble_checked(
                         || completion_enabled
                         || recovery_enabled
                         || cancel_enabled
+                        || billing_enabled
                         || agreement_review_enabled
                         || agreement_create_enabled
                     {
@@ -1086,13 +1114,15 @@ async fn assemble_checked(
                                 (visit_enabled
                                     || completion_enabled
                                     || recovery_enabled
-                                    || cancel_enabled)
+                                    || cancel_enabled
+                                    || billing_enabled)
                                     .then(|| {
                                         Arc::new(crate::field_service_parts::VisitDispatcher {
                                             allow_visits: visit_enabled,
                                             allow_completion: completion_enabled,
                                             allow_recovery: recovery_enabled,
                                             allow_cancel: cancel_enabled,
+                                            allow_billing: billing_enabled,
                                             clock: Arc::new(SharedClock(clock.clone())),
                                         })
                                             as Arc<dyn crate::field_service_parts::OtherPost>
@@ -1161,6 +1191,7 @@ async fn assemble_checked(
         service_request_targets,
         service_order_create_targets,
         service_visit_targets,
+        service_billing_targets,
         service_agreement_review_targets,
         service_agreement_create_targets,
         account_bootstrap: config.account_bootstrap,
@@ -1189,6 +1220,7 @@ struct Boundary {
     service_request_targets: BTreeSet<(String, String)>,
     service_order_create_targets: BTreeSet<(String, String)>,
     service_visit_targets: BTreeSet<(String, String)>,
+    service_billing_targets: BTreeSet<(String, String)>,
     service_agreement_review_targets: BTreeSet<(String, String)>,
     service_agreement_create_targets: BTreeSet<(String, String)>,
     account_bootstrap: bool,
@@ -1404,6 +1436,18 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             key,
         ] if !key.is_empty() => state
             .service_agreement_review_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
+        [
+            "",
+            "api",
+            "v1",
+            "holdings",
+            slug,
+            "field-service",
+            "billings",
+            key,
+        ] if !key.is_empty() => state
+            .service_billing_targets
             .contains(&(host.to_owned(), (*slug).to_owned())),
         [
             "",

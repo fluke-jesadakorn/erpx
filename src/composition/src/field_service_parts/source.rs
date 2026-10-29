@@ -80,6 +80,11 @@ pub(super) struct FieldServiceReferences {
     reviewer_person: CurrentFieldServicePeopleReference,
 }
 impl FieldServiceReferences {
+    pub(super) fn warranty_end(&self) -> Option<String> {
+        self.asset
+            .as_ref()
+            .and_then(|asset| asset.facts().warranty_end.clone())
+    }
     pub(super) async fn retain(
         c: &mut PgConnection,
         current: &AuthorizedWorkContext,

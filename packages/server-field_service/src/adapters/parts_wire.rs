@@ -870,6 +870,7 @@ pub fn normalize_field_service_visit(
         Some("exception") => VisitAction::Exception,
         Some("resume") => VisitAction::Resume,
         Some("cancel") => VisitAction::Cancel,
+        Some("release-billing") => VisitAction::ReleaseBilling,
         _ => {
             return Err(FieldServiceWireFailure::validation(
                 "invalid_union",

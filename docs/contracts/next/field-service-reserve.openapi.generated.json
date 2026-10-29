@@ -223,6 +223,129 @@
         ],
         "type": "object"
       },
+      "FieldServiceBillingAction": {
+        "enum": [
+          "release-billing"
+        ],
+        "type": "string"
+      },
+      "FieldServiceBillingInput": {
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/FieldServiceBillingAction"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "action",
+          "expectedVersion",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "FieldServiceBillingReadResponse": {
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/FieldServiceRenderedContext"
+          },
+          "event": {
+            "$ref": "#/components/schemas/FieldServiceVisitEvent"
+          },
+          "order": {
+            "$ref": "#/components/schemas/FieldServiceReserveResult"
+          },
+          "receipt": {
+            "$ref": "#/components/schemas/FieldServiceReserveResult"
+          },
+          "release": {
+            "$ref": "#/components/schemas/FieldServiceBillingRelease"
+          }
+        },
+        "required": [
+          "context",
+          "order",
+          "receipt",
+          "event",
+          "release"
+        ],
+        "type": "object"
+      },
+      "FieldServiceBillingRelease": {
+        "properties": {
+          "agreementId": {
+            "type": "string"
+          },
+          "amountMinor": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "customerId": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "orderId": {
+            "type": "string"
+          },
+          "pricingDate": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "releasedBy": {
+            "type": "string"
+          },
+          "sourceOrderVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "warrantyApplied": {
+            "type": "boolean"
+          },
+          "warrantyDiscountBps": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "warrantyEndSnapshot": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "orderId",
+          "agreementId",
+          "customerId",
+          "currency",
+          "amountMinor",
+          "warrantyApplied",
+          "warrantyDiscountBps",
+          "pricingDate",
+          "sourceOrderVersion",
+          "releasedBy",
+          "reason"
+        ],
+        "type": "object"
+      },
       "FieldServiceCancelAction": {
         "enum": [
           "cancel"
@@ -1389,6 +1512,9 @@
                     "$ref": "#/components/schemas/FieldServiceCancelInput"
                   },
                   {
+                    "$ref": "#/components/schemas/FieldServiceBillingInput"
+                  },
+                  {
                     "$ref": "#/components/schemas/FieldServiceAgreementReviewInput"
                   },
                   {
@@ -1482,6 +1608,42 @@
               }
             },
             "description": "Current scoped Agreement review evidence"
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/v1/holdings/{holding_slug}/field-service/billings/{key}": {
+      "get": {
+        "operationId": "billing_read",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "holding_slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FieldServiceBillingReadResponse"
+                }
+              }
+            },
+            "description": "Current scoped billing release evidence"
           }
         },
         "tags": []

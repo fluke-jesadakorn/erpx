@@ -342,6 +342,7 @@ impl<W: Clock + Sync, G: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W, 
             .prepare_parts_projection(
                 c,
                 SupportServicePartsProjection {
+                    completion: None,
                     order_id: source.facts().id.as_str().to_owned(),
                     event_id: work.event_id().into(),
                     order_version_after: work.version_after(),

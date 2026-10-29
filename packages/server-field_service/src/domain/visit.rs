@@ -10,6 +10,7 @@ pub enum VisitAction {
     Exception,
     Resume,
     Cancel,
+    ReleaseBilling,
 }
 impl VisitAction {
     pub fn operation(self) -> &'static str {
@@ -21,6 +22,7 @@ impl VisitAction {
             Self::Exception => "field.order.exception",
             Self::Resume => "field.order.resume",
             Self::Cancel => "field.order.cancel",
+            Self::ReleaseBilling => "field.order.release-billing",
         }
     }
     pub fn status(self) -> &'static str {
@@ -32,6 +34,7 @@ impl VisitAction {
             Self::Exception => "exception",
             Self::Resume => "in_visit",
             Self::Cancel => "cancelled",
+            Self::ReleaseBilling => "billed",
         }
     }
     pub fn allows_state(self, state: &str) -> bool {
@@ -43,6 +46,7 @@ impl VisitAction {
             Self::Exception => matches!(state, "dispatched" | "in_visit"),
             Self::Resume => state == "exception",
             Self::Cancel => matches!(state, "open" | "scheduled" | "dispatched" | "exception"),
+            Self::ReleaseBilling => state == "completed",
         }
     }
 }
@@ -72,6 +76,13 @@ pub fn require_visit_authority(
             FailureKind::Conflict,
             "FIELD_SERVICE_STATE_CHANGED",
             "Refresh the service order before continuing.",
+        ));
+    }
+    if action == VisitAction::ReleaseBilling && !manage {
+        return Err(BusinessError::new(
+            FailureKind::Conflict,
+            "INDEPENDENT_BILLING_RELEASE_REQUIRED",
+            "A different eligible reviewer must release billing.",
         ));
     }
     Ok(())

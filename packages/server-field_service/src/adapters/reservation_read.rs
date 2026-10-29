@@ -421,7 +421,7 @@ async fn visit_image(
     key: &str,
 ) -> Result<VisitImage, Error> {
     let scope = current.selection().workspace();
-    let row=sqlx::query("SELECT b.bounded,coalesce(o.asset_id<>'',false) has_asset,CASE WHEN b.bounded THEN o.id END order_id,CASE WHEN b.bounded THEN o.status END order_status,o.version::bigint order_version,CASE WHEN b.bounded THEN e.action END action,CASE WHEN b.bounded THEN e.actor_id END actor_id,CASE WHEN b.bounded THEN e.reason END reason,CASE WHEN b.bounded THEN e.status END event_status,CASE WHEN b.bounded THEN e.technician_id END technician_id,e.scheduled_at::bigint scheduled_at,e.version::bigint event_version,CASE WHEN b.bounded AND e.action='complete' THEN e.details_json->>'laborMinutes' END labor_minutes,CASE WHEN b.bounded AND e.action='complete' THEN e.details_json->>'evidence' END evidence,CASE WHEN b.bounded AND e.action='complete' THEN e.details_json->>'customerConfirmation' END confirmation,encode(sha256(convert_to(jsonb_build_array(to_jsonb(o),to_jsonb(e))::text,'UTF8')),'hex') digest FROM field_service_orders o JOIN field_service_order_events e ON e.order_id=o.id CROSS JOIN LATERAL (SELECT octet_length(o.id)::bigint+octet_length(o.status)::bigint+octet_length(e.action)::bigint+octet_length(e.actor_id)::bigint+octet_length(e.reason)::bigint+octet_length(e.status)::bigint+octet_length(e.technician_id)::bigint+coalesce(octet_length(e.details_json->>'laborMinutes'),0)::bigint+coalesce(octet_length(e.details_json->>'evidence'),0)::bigint+coalesce(octet_length(e.details_json->>'customerConfirmation'),0)::bigint<=2097152 AS bounded) b WHERE o.id=$1 AND o.company_id=$2 AND ($3::text IS NULL OR o.branch_id=$3) AND ($4::text IS NULL OR o.department_id=$4) AND e.id=$5 AND e.action IN ('schedule','dispatch','start','complete','exception','resume','cancel') AND (e.action<>'complete' OR (jsonb_typeof(e.details_json->'laborMinutes')='number' AND jsonb_typeof(e.details_json->'evidence')='string' AND jsonb_typeof(e.details_json->'customerConfirmation')='string')) FOR SHARE OF o,e").bind(order).bind(scope.company_id.as_str()).bind(scope.branch_id.as_ref().map(|v|v.as_str())).bind(scope.department_id.as_ref().map(|v|v.as_str())).bind(format!("service-order-event-{key}")).fetch_optional(c).await?.ok_or_else(denied)?;
+    let row=sqlx::query("SELECT b.bounded,coalesce(o.asset_id<>'',false) has_asset,CASE WHEN b.bounded THEN o.id END order_id,CASE WHEN b.bounded THEN o.status END order_status,o.version::bigint order_version,CASE WHEN b.bounded THEN e.action END action,CASE WHEN b.bounded THEN e.actor_id END actor_id,CASE WHEN b.bounded THEN e.reason END reason,CASE WHEN b.bounded THEN e.status END event_status,CASE WHEN b.bounded THEN e.technician_id END technician_id,e.scheduled_at::bigint scheduled_at,e.version::bigint event_version,CASE WHEN b.bounded AND e.action='complete' THEN e.details_json->>'laborMinutes' END labor_minutes,CASE WHEN b.bounded AND e.action='complete' THEN e.details_json->>'evidence' END evidence,CASE WHEN b.bounded AND e.action='complete' THEN e.details_json->>'customerConfirmation' END confirmation,encode(sha256(convert_to(jsonb_build_array(to_jsonb(o),to_jsonb(e))::text,'UTF8')),'hex') digest FROM field_service_orders o JOIN field_service_order_events e ON e.order_id=o.id CROSS JOIN LATERAL (SELECT octet_length(o.id)::bigint+octet_length(o.status)::bigint+octet_length(e.action)::bigint+octet_length(e.actor_id)::bigint+octet_length(e.reason)::bigint+octet_length(e.status)::bigint+octet_length(e.technician_id)::bigint+coalesce(octet_length(e.details_json->>'laborMinutes'),0)::bigint+coalesce(octet_length(e.details_json->>'evidence'),0)::bigint+coalesce(octet_length(e.details_json->>'customerConfirmation'),0)::bigint<=2097152 AS bounded) b WHERE o.id=$1 AND o.company_id=$2 AND ($3::text IS NULL OR o.branch_id=$3) AND ($4::text IS NULL OR o.department_id=$4) AND e.id=$5 AND e.action IN ('schedule','dispatch','start','complete','exception','resume','cancel','release-billing') AND (e.action<>'complete' OR (jsonb_typeof(e.details_json->'laborMinutes')='number' AND jsonb_typeof(e.details_json->'evidence')='string' AND jsonb_typeof(e.details_json->'customerConfirmation')='string')) FOR SHARE OF o,e").bind(order).bind(scope.company_id.as_str()).bind(scope.branch_id.as_ref().map(|v|v.as_str())).bind(scope.department_id.as_ref().map(|v|v.as_str())).bind(format!("service-order-event-{key}")).fetch_optional(c).await?.ok_or_else(denied)?;
     if !row.try_get::<bool, _>("bounded")? {
         return Err(invalid());
     }
@@ -473,6 +473,7 @@ async fn visit_image(
                 "exception" => "exception",
                 "resume" => "in_visit",
                 "cancel" => "cancelled",
+                "release-billing" => "billed",
                 _ => return Err(invalid()),
             }
     {
@@ -768,5 +769,115 @@ async fn read_agreement_by_key(
         receipt,
         key: key.into(),
         create,
+    })
+}
+
+/// Lock the release evidence before taking the authorization snapshot.
+pub async fn lock_field_service_billing_read_sources(c: &mut PgConnection) -> Result<(), Error> {
+    unit_required(c)?;
+    sqlx::query("LOCK TABLE field_service_agreements,field_service_orders,field_service_order_events,field_service_part_reservations,field_service_billing_releases IN SHARE MODE")
+        .execute(c)
+        .await?;
+    Ok(())
+}
+
+pub struct CurrentFieldServiceBillingRead {
+    visit: CurrentFieldServiceVisitRead,
+    release: crate::adapters::parts::billing::FieldServiceBillingRelease,
+    digest: String,
+    has_asset: bool,
+}
+impl CurrentFieldServiceBillingRead {
+    pub fn visit(&self) -> &CurrentFieldServiceVisitRead {
+        &self.visit
+    }
+    pub fn release(&self) -> &crate::adapters::parts::billing::FieldServiceBillingRelease {
+        &self.release
+    }
+    pub fn has_asset(&self) -> bool {
+        self.has_asset
+    }
+    pub async fn require_current(
+        &self,
+        c: &mut PgConnection,
+        current: &AuthorizedWorkContext,
+    ) -> Result<(), Error> {
+        self.visit.require_current(c, current).await?;
+        let (release, digest, has_asset) =
+            billing_release_image(c, current, self.visit.order().id.as_str(), &self.release.id)
+                .await?;
+        if release != self.release || digest != self.digest || has_asset != self.has_asset {
+            return Err(invalid());
+        }
+        Ok(())
+    }
+}
+async fn billing_release_image(
+    c: &mut PgConnection,
+    current: &AuthorizedWorkContext,
+    order: &str,
+    release_id: &str,
+) -> Result<
+    (
+        crate::adapters::parts::billing::FieldServiceBillingRelease,
+        String,
+        bool,
+    ),
+    Error,
+> {
+    use crate::adapters::parts::billing::FieldServiceBillingRelease;
+    let scope = current.selection().workspace();
+    let row=sqlx::query("SELECT b.bounded, CASE WHEN b.bounded THEN r.id END id, CASE WHEN b.bounded THEN r.order_id END order_id, CASE WHEN b.bounded THEN r.agreement_id END agreement_id, CASE WHEN b.bounded THEN r.customer_id END customer_id, CASE WHEN b.bounded THEN r.currency END currency, r.amount_minor::bigint amount_minor, r.warranty_applied, r.warranty_discount_bps::bigint warranty_discount_bps, CASE WHEN b.bounded THEN r.warranty_end_snapshot END warranty_end_snapshot, CASE WHEN b.bounded THEN r.pricing_date END pricing_date, r.source_order_version::bigint source_order_version, CASE WHEN b.bounded THEN r.released_by END released_by, CASE WHEN b.bounded THEN r.reason END reason, (o.asset_id IS NOT NULL OR g.asset_id IS NOT NULL) has_asset, encode(sha256(convert_to(jsonb_build_array(to_jsonb(r),to_jsonb(g))::text,'UTF8')),'hex') digest FROM field_service_billing_releases r JOIN field_service_orders o ON o.id=r.order_id JOIN field_service_agreements g ON g.id=o.agreement_id AND g.company_id=o.company_id CROSS JOIN LATERAL (SELECT octet_length(r.id)::bigint+octet_length(r.order_id)::bigint+octet_length(r.agreement_id)::bigint+octet_length(r.customer_id)::bigint+octet_length(r.currency)::bigint+coalesce(octet_length(r.warranty_end_snapshot),0)::bigint+octet_length(r.pricing_date)::bigint+octet_length(r.released_by)::bigint+octet_length(r.reason)::bigint<=2097152 bounded) b WHERE r.id=$1 AND o.id=$2 AND r.agreement_id=o.agreement_id AND r.customer_id=g.customer_id AND r.status='released' AND o.company_id=$3 AND ($4::text IS NULL OR o.branch_id=$4) AND ($5::text IS NULL OR o.department_id=$5) FOR SHARE OF r,o,g").bind(release_id).bind(order).bind(scope.company_id.as_str()).bind(scope.branch_id.as_ref().map(|v|v.as_str())).bind(scope.department_id.as_ref().map(|v|v.as_str())).fetch_optional(c).await?.ok_or_else(denied)?;
+    if !row.try_get::<bool, _>("bounded")? {
+        return Err(invalid());
+    }
+    let text =
+        |n| -> Result<String, Error> { row.try_get::<Option<String>, _>(n)?.ok_or_else(invalid) };
+    let release = FieldServiceBillingRelease {
+        id: text("id")?,
+        order_id: text("order_id")?,
+        agreement_id: text("agreement_id")?,
+        customer_id: text("customer_id")?,
+        currency: text("currency")?,
+        amount_minor: row.try_get("amount_minor")?,
+        warranty_applied: row.try_get("warranty_applied")?,
+        warranty_discount_bps: row.try_get("warranty_discount_bps")?,
+        warranty_end_snapshot: row.try_get("warranty_end_snapshot")?,
+        pricing_date: text("pricing_date")?,
+        source_order_version: row.try_get("source_order_version")?,
+        released_by: text("released_by")?,
+        reason: text("reason")?,
+    };
+    if !(0..=9_007_199_254_740_991).contains(&release.amount_minor)
+        || !(0..=10000).contains(&release.warranty_discount_bps)
+    {
+        return Err(invalid());
+    }
+    Ok((release, row.try_get("digest")?, row.try_get("has_asset")?))
+}
+pub async fn read_field_service_billing_by_key(
+    c: &mut PgConnection,
+    current: &AuthorizedWorkContext,
+    key: &str,
+) -> Result<CurrentFieldServiceBillingRead, Error> {
+    current.require_permission("records.read")?;
+    erpx_server_shared::public::CommandKey::new(key.to_owned())?;
+    let scope = current.selection().workspace();
+    let order: Option<Option<String>>=sqlx::query_scalar("SELECT CASE WHEN octet_length(o.id)<=2097152 THEN o.id END FROM field_service_orders o JOIN field_service_order_events e ON e.order_id=o.id WHERE e.id=$1 AND e.action='release-billing' AND o.company_id=$2 AND ($3::text IS NULL OR o.branch_id=$3) AND ($4::text IS NULL OR o.department_id=$4) FOR SHARE OF o,e").bind(format!("service-order-event-{key}")).bind(scope.company_id.as_str()).bind(scope.branch_id.as_ref().map(|v|v.as_str())).bind(scope.department_id.as_ref().map(|v|v.as_str())).fetch_optional(&mut *c).await?;
+    let order = order.ok_or_else(denied)?.ok_or_else(invalid)?;
+    let visit = read_field_service_visit(c, current, &order, key).await?;
+    let (release, digest, has_asset) =
+        billing_release_image(c, current, &order, &format!("field-billing-{key}")).await?;
+    if release.source_order_version != visit.event().version
+        || release.released_by != visit.event().actor_id
+        || release.reason != visit.event().reason
+    {
+        return Err(invalid());
+    }
+    Ok(CurrentFieldServiceBillingRead {
+        visit,
+        release,
+        digest,
+        has_asset,
     })
 }

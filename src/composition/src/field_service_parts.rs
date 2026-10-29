@@ -34,6 +34,7 @@ impl HoldingWorkSourcePreparation for FieldServicePartsSourcePreparation {
     fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
         Box::pin(async move {
             erpx_server_finance::public::parts_draft::lock_owned_parts_draft_sources(c).await?;
+            erpx_server_finance::public::field_service_billing::lock_billing_sources(c).await?;
             erpx_server_commercial::public::purchases::lock_commercial_authority_sources(c).await?;
             erpx_server_collaboration::public::field_service_notifications::lock_field_service_notification_sources(c).await?;
             erpx_server_support::public::field_service::lock_service_ticket_sources(c).await?;
