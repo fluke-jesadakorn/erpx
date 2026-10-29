@@ -727,3 +727,42 @@ fn service_posting_wire_preserves_normalization_and_optional_fingerprint() {
         .is_err()
     );
 }
+
+#[test]
+fn service_prerequisite_wire_preserves_defaults_optional_fields_and_utf16() {
+    use erpx_server_workflow::public::commands::CommandJson;
+    use erpx_service::service_parts_prerequisite_setup::normalize_service_prerequisite;
+    let context = "a".repeat(64);
+    let raw = format!(
+        r#"{{"expectedVersion":0,"contextKey":"{context}","input":{{"chartId":"chart","code":"  X  ","name":"  \ud800  ","category":"asset","parentId":null}}}}"#
+    );
+    let actual =
+        normalize_service_prerequisite(&CommandJson::parse(&raw).unwrap(), "account").unwrap();
+    assert_eq!(
+        actual.input_json.as_str(),
+        r#"{"chartId":"chart","code":"X","name":"\ud800","category":"asset","parentId":null,"isControl":false,"controlKind":"none"}"#
+    );
+    let rate = format!(
+        r#"{{"expectedVersion":0,"contextKey":"{context}","input":{{"currency":"THB","effectiveDate":"2028-02-29","currencyPerUsd":"35.125"}}}}"#
+    );
+    let actual =
+        normalize_service_prerequisite(&CommandJson::parse(&rate).unwrap(), "rate").unwrap();
+    assert_eq!(
+        actual.input_json.as_str(),
+        r#"{"currency":"THB","effectiveDate":"2028-02-29","currencyPerUsd":"35.125","note":""}"#
+    );
+    assert!(
+        normalize_service_prerequisite(
+            &CommandJson::parse(&rate.replace("2028-02-29", "2027-02-29")).unwrap(),
+            "rate"
+        )
+        .is_err()
+    );
+    assert!(
+        normalize_service_prerequisite(
+            &CommandJson::parse(&rate.replace("THB", "USD")).unwrap(),
+            "rate"
+        )
+        .is_err()
+    );
+}

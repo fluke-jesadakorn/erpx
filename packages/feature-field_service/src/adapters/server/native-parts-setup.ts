@@ -1,5 +1,8 @@
 import 'server-only';
-import {nativePartsSetupRequest} from '@erpx/native-sdk/field-service-parts';
+import {nativePartsSetupRequest,nativePartsPrerequisiteRequest,type NativePartsPrerequisiteOperation} from '@erpx/native-sdk/field-service-parts';
+import {validPostingPrerequisites} from '@erpx/feature-commerce/lib/posting-setup-prerequisite-command';
+import {validServicePartsReceipt,type ServicePartsRequest,type ServicePartsPrerequisitesView} from '../../lib/parts-setup-command';
+import type {ServicePrerequisitesReadResponse} from '@erpx/contracts/field-service-reserve';
 import {validServicePartsPostingSetup,type ServicePartsPostingSetupView} from '../../lib/parts-setup-model';
 import type {ServicePostingReadResponse,ServicePostingCommandResponse} from '@erpx/contracts/field-service-reserve';
 import type {ReserveContext} from '../../lib/native-reserve-command';
@@ -36,4 +39,21 @@ export async function nativePartsSetup(incoming:Pick<Headers,'get'>,slug:string,
  if(!object(response.body))return fail('NATIVE_PARTS_SETUP_RESPONSE_INVALID');validatedContext(response.body.context,actor);const data=response.body.data;
  if(method==='GET'){const typed=response.body as unknown as ServicePostingReadResponse;if(!validServicePartsPostingSetup(typed.data,actor.companyId)||!Object.hasOwn(typed.data,'expectedSalesDefaults')||!Object.hasOwn(typed.data,'approvedSalesDefaults'))return fail('NATIVE_PARTS_SETUP_RESPONSE_INVALID');return typed.data;}
  if(!object(data)||Object.keys(data).sort().join(',')!=='id,status,version'||data.id!==actor.companyId||data.status!==(existing?'confirmed-existing':'configured')||data.version!==1)return fail('NATIVE_PARTS_SETUP_RESPONSE_INVALID');const typed=response.body as unknown as ServicePostingCommandResponse;return {id:typed.data.id,status:typed.data.status,version:typed.data.version};
+}
+
+export function nativePartsPrerequisitesSelected(headers:Pick<Headers,'get'>,slug:string,actor:ReserveContext|undefined):boolean{return !!selected(process.env.ERPX_NATIVE_FIELD_SERVICE_PREREQUISITES_CONFIG,headers,slug,actor);}
+export function nativePartsPrerequisites(incoming:Pick<Headers,'get'>,slug:string,actor:ReserveContext|undefined,operation:'read'):Promise<ServicePartsPrerequisitesView|undefined>;
+export function nativePartsPrerequisites(incoming:Pick<Headers,'get'>,slug:string,actor:ReserveContext|undefined,operation:Exclude<NativePartsPrerequisiteOperation,'read'>,body:unknown,key:string):Promise<Record<string,unknown>|undefined>;
+export async function nativePartsPrerequisites(incoming:Pick<Headers,'get'>,slug:string,actor:ReserveContext|undefined,operation:NativePartsPrerequisiteOperation,body?:unknown,key?:string):Promise<ServicePartsPrerequisitesView|Record<string,unknown>|undefined>{
+ const choice=selected(process.env.ERPX_NATIVE_FIELD_SERVICE_PREREQUISITES_CONFIG,incoming,slug,actor);if(!choice)return undefined;if(!actor)return fail('WORK_CONTEXT_CHANGED',409);
+ const headers=new Headers({host:new URL(choice.target.origin).host,accept:'application/json','cache-control':'no-cache'}),cookie=incoming.get('cookie');if(cookie){if(new TextEncoder().encode(cookie).length>8192)return fail('NATIVE_PARTS_SETUP_COOKIE_LIMIT');headers.set('cookie',cookie);}
+ for(const [name,value] of [['x-erpx-context-company',actor.companyId],['x-erpx-context-assignment',actor.assignmentId],['x-erpx-context-revision',String(actor.revision)],['x-erpx-context-assignment-version',String(actor.assignmentVersion)]] as const){const captured=incoming.get(name);if(operation!=='read'&&captured!==value)return fail('WORK_CONTEXT_CHANGED',409);headers.set(name,operation==='read'?value:captured!);}
+ if(actor.branchSlug)headers.set('x-erpx-workspace-branch',actor.branchSlug);if(actor.departmentSlug)headers.set('x-erpx-workspace-department',actor.departmentSlug);
+ if(operation!=='read'){if(!key)return fail('NATIVE_PARTS_SETUP_KEY_REQUIRED',422);const origin=incoming.get('origin');if(origin){if(origin!==choice.target.origin)return fail('ORIGIN_FORBIDDEN',403);headers.set('origin',origin);}headers.set('idempotency-key',key);headers.set('content-type','application/json');}
+ let response:Awaited<ReturnType<typeof nativePartsPrerequisiteRequest>>;try{response=await nativePartsPrerequisiteRequest({baseUrl:choice.config.privateBaseUrl,timeoutMs:choice.config.timeoutMs,slug,operation,headers,...(operation!=='read'?{body:JSON.stringify(body)}:{})});}catch{return fail('NATIVE_PARTS_SETUP_UNAVAILABLE',503);}
+ if(response.status!==200){if(object(response.body)&&object(response.body.error)&&typeof response.body.error.code==='string'&&response.body.error.code.length<=100&&response.status>=400&&response.status<=599)return fail(response.body.error.code,response.status);return fail('NATIVE_PARTS_SETUP_UNAVAILABLE',503);}
+ if(!object(response.body))return fail('NATIVE_PARTS_SETUP_RESPONSE_INVALID');validatedContext(response.body.context,actor);const data=response.body.data;
+ if(operation==='read'){const typed=response.body as unknown as ServicePrerequisitesReadResponse;if(!validPostingPrerequisites(typed.data,actor.companyId)||![typed.data.charts,typed.data.accounts,typed.data.periods,typed.data.rates].every(rows=>rows.every(row=>Object.values(row).every(value=>value===null||typeof value==='string'||typeof value==='number'&&Number.isSafeInteger(value)))))return fail('NATIVE_PARTS_SETUP_RESPONSE_INVALID');return typed.data;}
+ const kinds={chart:'charts',account:'accounts',period:'periods',rate:'rates'} as const;
+ if(!object(body)||!object(body.input)||!validServicePartsReceipt(data,{kind:kinds[operation],body} as ServicePartsRequest,actor.companyId,key!)||operation==='account'&&(data.parentId??null)!==(body.input.parentId??null)||operation==='rate'&&!Number.isSafeInteger(data.confirmedAt))return fail('NATIVE_PARTS_SETUP_RESPONSE_INVALID');return data;
 }

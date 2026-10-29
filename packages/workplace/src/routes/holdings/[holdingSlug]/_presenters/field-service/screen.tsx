@@ -1,3 +1,5 @@
+import {headers} from 'next/headers';
+import {nativePartsPrerequisites} from '@erpx/feature-field_service/public/native-parts-setup';
 import {nativeServiceWorkspace,NativeServiceWorkspaceError} from '@erpx/feature-field_service/public/native-workspace';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {serviceCustomerPreparation} from '@erpx/server-finance/public/service-customer-preparation';
@@ -35,7 +37,7 @@ export default async function Page({
     return pageError(e,holdingSlug);
   });
   const stockRole=!a.beta&&!a.departmentId&&hasPermission(a,"inventory.read")&&hasPermission(a,"inventory.prepare"),financeRole=!a.beta&&a.scope.kind==="holding"&&!a.branchId&&!a.departmentId&&hasPermission(a,"finance.read")&&["finance.write","finance.approve"].some(permission=>hasPermission(a,permission));
-  const partsSetupAvailable=stockRole?(await servicePartsStockWorkspace(a).catch(e=>pageError(e,holdingSlug))).available:financeRole?(await servicePartsPrerequisites(a).catch(e=>pageError(e,holdingSlug))).available:false;
+  const partsSetupAvailable=stockRole?(await servicePartsStockWorkspace(a).catch(e=>pageError(e,holdingSlug))).available:financeRole?(await (async()=>await nativePartsPrerequisites(await headers(),holdingSlug,context,'read')??await servicePartsPrerequisites(a))().catch(e=>pageError(e,holdingSlug))).available:false;
   const customers=await serviceCustomerPreparation(a).catch(e=>pageError(e,holdingSlug));
   return (
     <PageContent as="div" className="ui-page-content">

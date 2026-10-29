@@ -97,6 +97,11 @@ pub fn field_service_reservation_read_router<C: Clock + Send + Sync + 'static>(
         .route("/api/v1/holdings/{holding_slug}/field-service/workspace",get(read_workspace::<C>))
         .route("/api/v1/holdings/{holding_slug}/field-service/parts-setup",get(read_parts_posting::<C>).post(initialize_parts_posting::<C>))
         .route("/api/v1/holdings/{holding_slug}/field-service/parts-setup/existing",post(confirm_parts_posting::<C>))
+        .route("/api/v1/holdings/{holding_slug}/field-service/parts-setup/prerequisites",get(read_parts_prerequisites::<C>))
+        .route("/api/v1/holdings/{holding_slug}/field-service/parts-setup/charts",post(create_parts_chart::<C>))
+        .route("/api/v1/holdings/{holding_slug}/field-service/parts-setup/accounts",post(create_parts_account::<C>))
+        .route("/api/v1/holdings/{holding_slug}/field-service/parts-setup/periods",post(create_parts_period::<C>))
+        .route("/api/v1/holdings/{holding_slug}/field-service/parts-setup/rates",post(confirm_parts_rate::<C>))
         .route("/api/v1/holdings/{holding_slug}/field-service/work",get(read_work::<C>))
         .route("/api/v1/holdings/{holding_slug}/field-service/orders/{id}/detail",get(read_detail::<C>))
         .route("/api/v1/holdings/{holding_slug}/field-service/orders/{id}/source-record",get(read_source_record::<C>))
@@ -106,6 +111,191 @@ pub fn field_service_reservation_read_router<C: Clock + Send + Sync + 'static>(
         .route("/api/v1/holdings/{holding_slug}/field-service/requests/{key}",get(read_request::<C>))
         .route("/api/v1/holdings/{holding_slug}/field-service/orders/{key}",get(read_created_order::<C>))
         .with_state(Arc::new(ReadState {policy,scopes,targets:configured})))
+}
+async fn read_parts_prerequisites<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path(slug): Path<String>,
+    headers: HeaderMap,
+) -> Response {
+    let result = async {
+        let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
+        let target = state
+            .targets
+            .get(&(host.into(), slug))
+            .ok_or_else(missing)?;
+        let inbound = parse_inbound_account_request(&state.policy, &headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(missing().into());
+        }
+        if unique_request_header(&headers, "origin")?
+            .is_some_and(|v| v != inbound.expected_origin())
+        {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            )
+            .into());
+        }
+        let scope = state.scopes.slugs(&headers);
+        let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
+        let captured = CapturedHoldingMutation::capture(&headers, branch, department);
+        let company = target.service.company_id().clone();
+        target
+            .service
+            .parts_prerequisites(host, inbound.into_proof(), move || {
+                scope?;
+                captured.resolve_read(company)
+            })
+            .await
+    }
+    .await;
+    posting_response(result)
+}
+async fn create_parts_chart<C: Clock + Send + Sync + 'static>(
+    s: State<Arc<ReadState<C>>>,
+    p: Path<String>,
+    r: Request,
+) -> Response {
+    write_parts_prerequisite(
+        s,
+        p,
+        r,
+        erpx_server_finance::public::service_parts_prerequisites::ServicePrerequisiteKind::Chart,
+    )
+    .await
+}
+async fn create_parts_account<C: Clock + Send + Sync + 'static>(
+    s: State<Arc<ReadState<C>>>,
+    p: Path<String>,
+    r: Request,
+) -> Response {
+    write_parts_prerequisite(
+        s,
+        p,
+        r,
+        erpx_server_finance::public::service_parts_prerequisites::ServicePrerequisiteKind::Account,
+    )
+    .await
+}
+async fn create_parts_period<C: Clock + Send + Sync + 'static>(
+    s: State<Arc<ReadState<C>>>,
+    p: Path<String>,
+    r: Request,
+) -> Response {
+    write_parts_prerequisite(
+        s,
+        p,
+        r,
+        erpx_server_finance::public::service_parts_prerequisites::ServicePrerequisiteKind::Period,
+    )
+    .await
+}
+async fn confirm_parts_rate<C: Clock + Send + Sync + 'static>(
+    s: State<Arc<ReadState<C>>>,
+    p: Path<String>,
+    r: Request,
+) -> Response {
+    write_parts_prerequisite(
+        s,
+        p,
+        r,
+        erpx_server_finance::public::service_parts_prerequisites::ServicePrerequisiteKind::Rate,
+    )
+    .await
+}
+async fn write_parts_prerequisite<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path(slug): Path<String>,
+    request: Request,
+    kind: erpx_server_finance::public::service_parts_prerequisites::ServicePrerequisiteKind,
+) -> Response {
+    let (parts, body) = request.into_parts();
+    let headers = parts.headers;
+    let result = async {
+        let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
+        let target = state
+            .targets
+            .get(&(host.into(), slug))
+            .ok_or_else(missing)?;
+        let inbound = parse_inbound_account_request(&state.policy, &headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(missing().into());
+        }
+        if unique_request_header(&headers, "origin")?
+            .is_some_and(|v| v != inbound.expected_origin())
+        {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            )
+            .into());
+        }
+        let key = unique_request_header(&headers, "idempotency-key").and_then(|v| {
+            v.map(str::to_owned).ok_or_else(|| {
+                BusinessError::invalid("COMMAND_KEY_REQUIRED", "Idempotency-Key is required.")
+            })
+        });
+        let scope = state.scopes.slugs(&headers);
+        let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
+        let captured = CapturedHoldingMutation::capture(&headers, branch, department);
+        target
+            .service
+            .parts_prerequisite_command(
+                host,
+                inbound.into_proof(),
+                move || {
+                    scope?;
+                    captured.resolve()
+                },
+                crate::service_parts_prerequisite_setup::ServicePrerequisiteTransportCommand {
+                    key,
+                    body,
+                    kind,
+                },
+            )
+            .await
+    }
+    .await;
+    match result {
+        Ok(value) => {
+            let rendered = match serde_json::to_string(&value.context) {
+                Ok(v) => v,
+                Err(_) => {
+                    return posting_response::<serde_json::Value>(Err(BusinessError::new(
+                        FailureKind::Unavailable,
+                        "SERVICE_POSTING_UNAVAILABLE",
+                        "The Service parts setup is unavailable.",
+                    )
+                    .into()));
+                }
+            };
+            let body = format!(
+                "{{\"data\":{},\"context\":{rendered}}}",
+                value.data.as_str()
+            );
+            let mut response = body.into_response();
+            response.headers_mut().insert(
+                header::CONTENT_TYPE,
+                HeaderValue::from_static("application/json"),
+            );
+            response.headers_mut().insert(
+                header::CACHE_CONTROL,
+                HeaderValue::from_static("private, no-store"),
+            );
+            response.headers_mut().insert(
+                header::REFERRER_POLICY,
+                HeaderValue::from_static("no-referrer"),
+            );
+            response.headers_mut().insert(
+                header::X_CONTENT_TYPE_OPTIONS,
+                HeaderValue::from_static("nosniff"),
+            );
+            response
+        }
+        Err(error) => posting_response::<serde_json::Value>(Err(error)),
+    }
 }
 fn posting_response<T: serde::Serialize>(
     result: Result<T, PgTransactionError<BusinessError>>,

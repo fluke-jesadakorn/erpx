@@ -1745,3 +1745,165 @@ async fn service_posting_context_matches_javascript_with_actual_same_unit_source
         })}).await.unwrap();
     }).await;
 }
+
+#[tokio::test]
+async fn service_prerequisite_read_matches_actual_javascript_context_key() {
+    use erpx_server_identity_access::public::{
+        effective_authority::WorkAuthorizationRequest,
+        selected_command_authority::{
+            ServicePartsAuthorityPurpose, capture_service_parts_command_authority,
+        },
+    };
+    use erpx_service::service_parts_posting_setup::ServicePostingEnvironment;
+    use erpx_service::service_parts_prerequisite_setup::{
+        ServicePrerequisiteSources, read_service_prerequisites,
+    };
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+    #[derive(serde::Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Authority<'a> {
+        session_id: &'a str,
+        revision: i64,
+        assignment_version: i64,
+    }
+    account::with_system(|system|async move {
+        let p=service_posting_finance_fixture(system).await;let clock=p.system.scenario.clock.clone();
+        p.authorizer.execute_with_sources("acme.example.test",p.maker.clone(),p.maker_selection.clone(),WorkAuthorizationRequest{permission:"finance.read".into(),module:None,destination:"services/field-service".into(),api:true},ServicePrerequisiteSources,move|c,current|{let clock=clock.clone();Box::pin(async move {
+            let actual=read_service_prerequisites(c,current,clock.as_ref(),ServicePostingEnvironment::Development).await?;
+            assert!(actual.available&&actual.can_create_chart&&actual.can_create_account&&actual.can_create_period&&actual.can_confirm_rate);
+            let actor=capture_service_parts_command_authority(c,current,ServicePartsAuthorityPurpose::Read,clock.as_ref()).await?;
+            let iam=serde_json::to_value(actor.iam()).unwrap();let selection=current.selection();let grant=selection.assignment();let company=&selection.workspace().company_id;
+            let identity=CommandJson::from_serializable(&(current.holding_id().as_str(),company.as_str(),current.user_id().as_str(),grant.id.as_str(),grant.role.as_str(),Authority{session_id:current.session_id().as_str(),revision:selection.revision(),assignment_version:grant.version},iam.get("queuedAssignmentVersion"),iam.get("identityVersion"),iam.get("roleRevision"),iam.get("hrAppointmentVersion")))?;
+            let charts:String=sqlx::query_scalar("SELECT COALESCE(json_agg(json_build_object('id',c.id,'name',c.name,'base_currency',c.base_currency,'status',c.status,'version',c.version,'source',to_jsonb(c)::text) ORDER BY c.id)::text,'[]') FROM finance_charts c WHERE c.company_id=$1").bind(company.as_str()).fetch_one(&mut *c).await?;
+            let accounts:String=sqlx::query_scalar("SELECT COALESCE(json_agg(json_build_object('id',a.id,'chart_id',a.chart_id,'code',a.code,'name',a.name,'category',a.category,'currency',a.currency,'control_kind',a.control_kind,'status',a.status,'version',a.version,'source',to_jsonb(a)::text) ORDER BY a.id)::text,'[]') FROM finance_accounts a WHERE a.company_id=$1").bind(company.as_str()).fetch_one(&mut *c).await?;
+            let periods:String=sqlx::query_scalar("SELECT COALESCE(json_agg(json_build_object('id',p.id,'name',p.name,'start_date',p.start_date,'end_date',p.end_date,'state',p.state,'version',p.close_version,'source',to_jsonb(p)::text) ORDER BY p.id)::text,'[]') FROM finance_periods p WHERE p.company_id=$1").bind(company.as_str()).fetch_one(&mut *c).await?;
+            let rates:String=sqlx::query_scalar("SELECT COALESCE(json_agg(json_build_object('id',r.id,'currency',r.currency,'effective_date',r.effective_date::text,'currency_per_usd',r.currency_per_usd::text,'confirmed_at',r.confirmed_at,'source',to_jsonb(r)::text) ORDER BY r.id)::text,'[]') FROM company_fx_rates r WHERE r.company_id=$1").bind(company.as_str()).fetch_one(&mut *c).await?;
+            let money:String=sqlx::query_scalar("SELECT COALESCE(json_agg(json_build_object('kind',kind,'source',source) ORDER BY kind)::text,'[]') FROM (SELECT 'settings' kind,to_jsonb(s)::text source FROM company_money_settings s WHERE s.company_id=$1 UNION ALL SELECT 'scale:'||s.currency,to_jsonb(s)::text FROM company_currency_scales s WHERE s.company_id=$1) rows").bind(company.as_str()).fetch_one(&mut *c).await?;
+            let image:String=sqlx::query_scalar("SELECT jsonb_build_object('orders',NULL,'stock',NULL,'ledger',NULL,'counts',NULL,'consumptions',NULL,'invoices',NULL,'payments',NULL,'journals',NULL,'service',NULL)::text").fetch_one(&mut *c).await?;
+            let input=format!("[{},[{},{},{},{},{}],{}]",identity.as_str(),charts,accounts,periods,rates,money,serde_json::to_string(&image).unwrap());
+            let node=std::env::var("ERPX_NODE_BIN").unwrap_or_else(|_|"node".into());let mut child=Command::new(&node).args(["-e","const [identity,rows,image]=JSON.parse(require('fs').readFileSync(0,'utf8')); const state={configured:false,history:false,chartId:null,mappingImage:'null',proofImage:'null',image,unsupportedExistingMapping:false}; process.stdout.write(require('crypto').createHash('sha256').update(JSON.stringify([...identity,JSON.stringify(rows),state])).digest('hex'));"]).stdin(Stdio::piped()).stdout(Stdio::piped()).spawn().expect("pinned Node oracle unavailable");child.stdin.take().unwrap().write_all(input.as_bytes()).unwrap();let output=child.wait_with_output().unwrap();assert!(output.status.success());assert_eq!(actual.context_key.as_deref(),Some(std::str::from_utf8(&output.stdout).unwrap()));
+            sqlx::raw_sql("INSERT INTO commerce_settings(company_id,chart_id,currency,receivable_account_id,payable_account_id,revenue_account_id,inventory_account_id,clearing_account_id,cogs_account_id,input_tax_account_id,output_tax_account_id,cash_account_id) VALUES('company','chart','USD','part-ar','part-ap','part-revenue','part-inventory','part-clearing','part-cogs','part-input','part-output','part-cash'); INSERT INTO finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,created_by,created_at,updated_at) VALUES('prereq-history','company','chart','period','PREREQ-HISTORY','2026-01-01','THB','fixture-a',1,1)").execute(&mut *c).await?;
+            let historical=read_service_prerequisites(c,current,clock.as_ref(),ServicePostingEnvironment::Development).await?;assert_eq!(historical.configured,Some(true));assert!(!historical.can_create_chart&&!historical.can_create_account);
+            let mapping:String=sqlx::query_scalar("SELECT to_jsonb(s)::text FROM commerce_settings s WHERE company_id=$1").bind(company.as_str()).fetch_one(&mut *c).await?;
+            let image:String=sqlx::query_scalar("SELECT jsonb_build_object('orders',NULL,'stock',NULL,'ledger',NULL,'counts',NULL,'consumptions',NULL,'invoices',NULL,'payments',NULL,'journals',(SELECT jsonb_agg(to_jsonb(j) ORDER BY j.id) FROM finance_journals j WHERE j.company_id=$1),'service',NULL)::text").bind(company.as_str()).fetch_one(&mut *c).await?;
+            let historical_input=format!("[{},[{},{},{},{},{}],{},{}]",identity.as_str(),charts,accounts,periods,rates,money,serde_json::to_string(&image).unwrap(),mapping);
+            let mut child=Command::new(&node).args(["-e","const [identity,rows,image,mapping]=JSON.parse(require('fs').readFileSync(0,'utf8'));const state={configured:true,history:true,chartId:mapping.chart_id,mappingImage:JSON.stringify(mapping),proofImage:'null',image,unsupportedExistingMapping:true};process.stdout.write(require('crypto').createHash('sha256').update(JSON.stringify([...identity,JSON.stringify(rows),state])).digest('hex'));"]).stdin(Stdio::piped()).stdout(Stdio::piped()).spawn().expect("pinned Node oracle unavailable");child.stdin.take().unwrap().write_all(historical_input.as_bytes()).unwrap();let output=child.wait_with_output().unwrap();assert!(output.status.success());assert_eq!(historical.context_key.as_deref(),Some(std::str::from_utf8(&output.stdout).unwrap()));actor.require_current(c,clock.as_ref()).await?;Ok(())
+        })}).await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn service_prerequisite_read_rejects_unsafe_javascript_metadata() {
+    use erpx_server_identity_access::public::effective_authority::WorkAuthorizationRequest;
+    use erpx_service::service_parts_posting_setup::ServicePostingEnvironment;
+    use erpx_service::service_parts_prerequisite_setup::{
+        ServicePrerequisiteSources, read_service_prerequisites,
+    };
+    account::with_system(|system| async move {
+        let p = service_posting_finance_fixture(system).await;
+        let clock = p.system.scenario.clock.clone();
+        sqlx::query("UPDATE finance_periods SET close_version=9007199254740993 WHERE id='period'")
+            .execute(p.system.holdings[0].raw()).await.unwrap();
+        let read = || { let clock=clock.clone(); p.authorizer.execute_with_sources(
+            "acme.example.test", p.maker.clone(), p.maker_selection.clone(),
+            WorkAuthorizationRequest { permission:"finance.read".into(), module:None, destination:"services/field-service".into(), api:true },
+            ServicePrerequisiteSources,
+            move |c,current| { let clock=clock.clone(); Box::pin(async move {
+                read_service_prerequisites(c,current,clock.as_ref(),ServicePostingEnvironment::Development).await
+            }) },
+        ) };
+        assert!(read().await.is_err(), "unsafe period version must not be serialized");
+        sqlx::raw_sql("UPDATE finance_periods SET close_version=0 WHERE id='period'; INSERT INTO company_fx_rates(id,company_id,currency,effective_date,currency_per_usd,confirmed_by,confirmed_at) VALUES('unsafe-rate','company','THB','2026-01-01',2,'fixture-a',9007199254740993)")
+            .execute(p.system.holdings[0].raw()).await.unwrap();
+        assert!(read().await.is_err(), "unsafe rate confirmation must not be serialized");
+    }).await;
+}
+
+#[tokio::test]
+async fn service_prerequisite_commands_apply_replay_and_rollback_actual_owners() {
+    use erpx_server_identity_access::public::effective_authority::WorkAuthorizationRequest;
+    use erpx_service::service_parts_posting_setup::ServicePostingEnvironment;
+    use erpx_service::service_parts_prerequisite_setup::{
+        ServicePrerequisiteSources, ServicePrerequisiteWriteSources, execute_service_prerequisite,
+        normalize_service_prerequisite, read_service_prerequisites,
+    };
+    account::with_system(|system|async move {
+        let p=service_posting_finance_fixture(system).await;let clock=p.system.scenario.clock.clone();
+        let access=||WorkAuthorizationRequest{permission:"finance.read".into(),module:None,destination:"services/field-service".into(),api:true};
+        let read=||{let c=clock.clone();p.authorizer.execute_with_sources("acme.example.test",p.maker.clone(),p.maker_selection.clone(),access(),ServicePrerequisiteSources,move|db,current|{let c=c.clone();Box::pin(async move{read_service_prerequisites(db,current,c.as_ref(),ServicePostingEnvironment::Development).await})})};
+        let view=read().await.unwrap();assert!(view.can_create_chart);
+        let chart_body=format!(r#"{{"expectedVersion":0,"contextKey":"{}","input":{{"name":"New synthetic chart","baseCurrency":"thb"}}}}"#,view.context_key.unwrap());
+        let chart=normalize_service_prerequisite(&CommandJson::parse(&chart_body).unwrap(),"chart").unwrap();
+        let run=|key:&str,input:erpx_service::service_parts_prerequisite_setup::NormalizedPrerequisiteCommand|{let c=clock.clone();let key=key.to_owned();let variant=input.input.variant();p.authorizer.execute_with_sources("acme.example.test",p.maker.clone(),p.maker_selection.clone(),access(),ServicePrerequisiteWriteSources(variant),move|db,current|{let c=c.clone();let key=key.clone();let input=input.clone();Box::pin(async move{execute_service_prerequisite(db,current,c.as_ref(),&key,&input).await})})};
+        let created=run("prereq-chart",chart.clone()).await.unwrap();assert!(!created.replayed);let chart_value:serde_json::Value=serde_json::from_str(created.result.as_str()).unwrap();let chart_id=chart_value["id"].as_str().unwrap().to_owned();assert_eq!(chart_value["baseCurrency"],"THB");assert_eq!(chart_value["accountingBasis"],"IFRS");assert!(run("prereq-chart",chart.clone()).await.unwrap().replayed);
+        let changed=normalize_service_prerequisite(&CommandJson::parse(&chart_body.replace("New synthetic chart","Changed chart")).unwrap(),"chart").unwrap();assert!(matches!(run("prereq-chart",changed).await,Err(PgTransactionError::Business(e)) if e.code=="IDEMPOTENCY_CONFLICT"));
+        let view=read().await.unwrap();let account_body=format!(r#"{{"expectedVersion":0,"contextKey":"{}","input":{{"chartId":"{}","code":"121","name":"Synthetic bank","category":"asset","controlKind":"bank"}}}}"#,view.context_key.unwrap(),chart_id);
+        let account=normalize_service_prerequisite(&CommandJson::parse(&account_body).unwrap(),"account").unwrap();
+        sqlx::raw_sql("CREATE FUNCTION fixture_prereq_drift() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE finance_charts SET name='changed by trigger' WHERE id='chart'; RETURN NEW; END $$; CREATE TRIGGER fixture_prereq_drift AFTER INSERT ON finance_accounts FOR EACH ROW EXECUTE FUNCTION fixture_prereq_drift()").execute(p.system.holdings[0].raw()).await.unwrap();
+        let failed=run("prereq-rollback",account.clone()).await;assert!(matches!(failed,Err(PgTransactionError::Business(e)) if e.code=="SERVICE_PARTS_POSTING_SOURCE_CHANGED"));
+        let counts:(i64,i64,String)=sqlx::query_as("SELECT (SELECT count(*) FROM command_receipts WHERE command_id='prereq-rollback'),(SELECT count(*) FROM finance_accounts WHERE name='Synthetic bank'),(SELECT name FROM finance_charts WHERE id='chart')").fetch_one(p.system.holdings[0].raw()).await.unwrap();assert_eq!(counts,(0,0,"Primary".into()));
+        sqlx::raw_sql("DROP TRIGGER fixture_prereq_drift ON finance_accounts; DROP FUNCTION fixture_prereq_drift()").execute(p.system.holdings[0].raw()).await.unwrap();
+        sqlx::raw_sql("CREATE FUNCTION fixture_prereq_deferred_drift() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE finance_accounts SET updated_at=updated_at+1 WHERE id=NEW.id; RETURN NEW; END $$; CREATE CONSTRAINT TRIGGER fixture_prereq_deferred_drift AFTER INSERT ON finance_accounts DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fixture_prereq_deferred_drift()").execute(p.system.holdings[0].raw()).await.unwrap();
+        assert!(matches!(run("prereq-deferred-drift",account.clone()).await,Err(PgTransactionError::Business(e)) if e.code=="SERVICE_PARTS_POSTING_SOURCE_CHANGED"));let counts:(i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM command_receipts WHERE command_id='prereq-deferred-drift'),(SELECT count(*) FROM finance_accounts WHERE name='Synthetic bank')").fetch_one(p.system.holdings[0].raw()).await.unwrap();assert_eq!(counts,(0,0));
+        sqlx::raw_sql("DROP TRIGGER fixture_prereq_deferred_drift ON finance_accounts; DROP FUNCTION fixture_prereq_deferred_drift()").execute(p.system.holdings[0].raw()).await.unwrap();
+        let result=run("prereq-account",account.clone()).await.unwrap();let value:serde_json::Value=serde_json::from_str(result.result.as_str()).unwrap();assert_eq!(value["currency"],"THB");assert_eq!(value["isControl"],false);assert!(run("prereq-account",account).await.unwrap().replayed);
+        let view=read().await.unwrap();let context=view.context_key.unwrap();let period_body=format!(r#"{{"expectedVersion":0,"contextKey":"{context}","input":{{"name":"Future period","startDate":"2031-01-01","endDate":"2031-12-31"}}}}"#);let period=normalize_service_prerequisite(&CommandJson::parse(&period_body).unwrap(),"period").unwrap();
+        let stale=normalize_service_prerequisite(&CommandJson::parse(&period_body.replace(&context,&"0".repeat(64))).unwrap(),"period").unwrap();assert!(matches!(run("prereq-stale",stale).await,Err(PgTransactionError::Business(e)) if e.code=="SERVICE_PARTS_POSTING_CONTEXT_CHANGED"));
+        sqlx::raw_sql("CREATE FUNCTION fixture_prereq_iam_drift() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE assignments SET version=version+1 WHERE id='finance-fixture-a'; RETURN NEW; END $$; CREATE TRIGGER fixture_prereq_iam_drift AFTER INSERT ON finance_periods FOR EACH ROW EXECUTE FUNCTION fixture_prereq_iam_drift()").execute(p.system.holdings[0].raw()).await.unwrap();
+        assert!(matches!(run("prereq-iam-drift",period.clone()).await,Err(PgTransactionError::Business(_))));let counts:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM command_receipts WHERE command_id IN ('prereq-stale','prereq-iam-drift')),(SELECT count(*) FROM finance_periods WHERE name='Future period'),(SELECT version FROM assignments WHERE id='finance-fixture-a')").fetch_one(p.system.holdings[0].raw()).await.unwrap();assert_eq!(counts,(0,0,3));
+        sqlx::raw_sql("DROP TRIGGER fixture_prereq_iam_drift ON finance_periods; DROP FUNCTION fixture_prereq_iam_drift()").execute(p.system.holdings[0].raw()).await.unwrap();
+        let result=run("prereq-period",period.clone()).await.unwrap();let value:serde_json::Value=serde_json::from_str(result.result.as_str()).unwrap();assert_eq!(value["version"],0);assert_eq!(value["state"],"open");assert!(run("prereq-period",period).await.unwrap().replayed);
+        let view=read().await.unwrap();let rate_body=format!(r#"{{"expectedVersion":0,"contextKey":"{}","input":{{"currency":"THB","effectiveDate":"2027-01-01","currencyPerUsd":"35.125"}}}}"#,view.context_key.unwrap());let rate=normalize_service_prerequisite(&CommandJson::parse(&rate_body).unwrap(),"rate").unwrap();let result=run("prereq-rate",rate.clone()).await.unwrap();let value:serde_json::Value=serde_json::from_str(result.result.as_str()).unwrap();assert_eq!(value["currencyPerUsd"],"35.125");assert!(run("prereq-rate",rate).await.unwrap().replayed);
+        assert!(run("prereq-chart",chart.clone()).await.unwrap().replayed);
+        let counts:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM command_receipts WHERE command_id IN ('prereq-chart','prereq-account','prereq-period','prereq-rate')),(SELECT count(*) FROM audit_events WHERE command_id IN ('prereq-chart','prereq-account','prereq-period','prereq-rate')),(SELECT count(*) FROM outbox_events WHERE command_id IN ('prereq-chart','prereq-account','prereq-period','prereq-rate'))").fetch_one(p.system.holdings[0].raw()).await.unwrap();assert_eq!(counts,(4,4,4));
+        let mut draining=p.system.holdings[0].raw().begin().await.unwrap();let before:serde_json::Value=sqlx::query_scalar("SELECT jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence) FROM company_package_grants WHERE company_id='company' AND package_id='service'").fetch_one(&mut *draining).await.unwrap();
+        sqlx::query("UPDATE company_package_grants SET state='draining',version=version+1 WHERE company_id='company' AND package_id='service'").execute(&mut *draining).await.unwrap();
+        sqlx::query("INSERT INTO company_package_grant_events(id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at) SELECT 'prereq-draining','company',package_id,'fixture-a','synthetic-draining',$1,jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence),$2 FROM company_package_grants WHERE company_id='company' AND package_id='service'").bind(before).bind(clock.now().get()).execute(&mut *draining).await.unwrap();draining.commit().await.unwrap();
+        assert!(run("prereq-chart",chart).await.unwrap().replayed);let view=read().await.unwrap();assert!(!view.can_create_chart&&!view.can_confirm_rate);
+        let new_rate=format!(r#"{{"expectedVersion":0,"contextKey":"{}","input":{{"currency":"THB","effectiveDate":"2028-01-01","currencyPerUsd":"36"}}}}"#,view.context_key.unwrap());let new_rate=normalize_service_prerequisite(&CommandJson::parse(&new_rate).unwrap(),"rate").unwrap();assert!(matches!(run("prereq-draining-new",new_rate).await,Err(PgTransactionError::Business(e)) if e.kind==FailureKind::Forbidden));
+    }).await;
+}
+
+#[tokio::test]
+async fn service_prerequisite_commands_preserve_approve_only_and_legacy_authority() {
+    use erpx_server_identity_access::public::effective_authority::WorkAuthorizationRequest;
+    use erpx_service::service_parts_posting_setup::ServicePostingEnvironment;
+    use erpx_service::service_parts_prerequisite_setup::{
+        ServicePrerequisiteSources, ServicePrerequisiteWriteSources, execute_service_prerequisite,
+        normalize_service_prerequisite, read_service_prerequisites,
+    };
+    account::with_system(|system|async move{
+        let p=service_posting_finance_fixture(system).await;let db=p.system.holdings[0].raw();let clock=p.system.scenario.clock.clone();
+        sqlx::raw_sql("INSERT INTO iam_roles(company_id,id,name,built_in,published_revision,status) VALUES('*','prereq_approver','Synthetic Finance approver',false,1,'active'); INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) VALUES('*','prereq_approver',1,'[\"finance.read\",\"finance.approve\",\"module.finance.read\"]','[]','[\"holding\"]','fixture',0); UPDATE assignments SET role='prereq_approver' WHERE id='finance-fixture-b'; INSERT INTO finance_commands(command_id,company_id,operation,request_hash,created_at) VALUES('prereq-legacy','company','finance.chart.create','synthetic',1)").execute(db).await.unwrap();
+        let access=||WorkAuthorizationRequest{permission:"finance.read".into(),module:None,destination:"services/field-service".into(),api:true};
+        let c=clock.clone();let view=p.authorizer.execute_with_sources("acme.example.test",p.reviewer.clone(),p.reviewer_selection.clone(),access(),ServicePrerequisiteSources,move|db,current|{let c=c.clone();Box::pin(async move{read_service_prerequisites(db,current,c.as_ref(),ServicePostingEnvironment::Development).await})}).await.unwrap();assert!(!view.can_create_chart&&view.can_confirm_rate);
+        let key=view.context_key.unwrap();let rate_body=format!(r#"{{"expectedVersion":0,"contextKey":"{key}","input":{{"currency":"THB","effectiveDate":"2027-02-01","currencyPerUsd":"35"}}}}"#);let rate=normalize_service_prerequisite(&CommandJson::parse(&rate_body).unwrap(),"rate").unwrap();let c=clock.clone();let result=p.authorizer.execute_with_sources("acme.example.test",p.reviewer.clone(),p.reviewer_selection.clone(),access(),ServicePrerequisiteWriteSources(rate.input.variant()),move|db,current|{let c=c.clone();let input=rate.clone();Box::pin(async move{execute_service_prerequisite(db,current,c.as_ref(),"prereq-approve-only",&input).await})}).await.unwrap();assert!(!result.replayed);
+        let chart_body=format!(r#"{{"expectedVersion":0,"contextKey":"{key}","input":{{"name":"Forbidden chart","baseCurrency":"THB"}}}}"#);let chart=normalize_service_prerequisite(&CommandJson::parse(&chart_body).unwrap(),"chart").unwrap();let c=clock.clone();let forbidden=p.authorizer.execute_with_sources("acme.example.test",p.reviewer.clone(),p.reviewer_selection.clone(),access(),ServicePrerequisiteWriteSources(chart.input.variant()),move|db,current|{let c=c.clone();let input=chart.clone();Box::pin(async move{execute_service_prerequisite(db,current,c.as_ref(),"prereq-forbidden",&input).await})}).await;assert!(matches!(forbidden,Err(PgTransactionError::Business(e)) if e.kind==FailureKind::Forbidden));
+        let c=clock.clone();let view=p.authorizer.execute_with_sources("acme.example.test",p.maker.clone(),p.maker_selection.clone(),access(),ServicePrerequisiteSources,move|db,current|{let c=c.clone();Box::pin(async move{read_service_prerequisites(db,current,c.as_ref(),ServicePostingEnvironment::Development).await})}).await.unwrap();let body=format!(r#"{{"expectedVersion":0,"contextKey":"{}","input":{{"name":"Legacy collision","baseCurrency":"THB"}}}}"#,view.context_key.unwrap());let chart=normalize_service_prerequisite(&CommandJson::parse(&body).unwrap(),"chart").unwrap();let c=clock.clone();let legacy=p.authorizer.execute_with_sources("acme.example.test",p.maker.clone(),p.maker_selection.clone(),access(),ServicePrerequisiteWriteSources(chart.input.variant()),move|db,current|{let c=c.clone();let input=chart.clone();Box::pin(async move{execute_service_prerequisite(db,current,c.as_ref(),"prereq-legacy",&input).await})}).await;assert!(matches!(legacy,Err(PgTransactionError::Business(e)) if e.code=="IDEMPOTENCY_CONFLICT"));
+        let counts:(i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM command_receipts WHERE command_id IN ('prereq-forbidden','prereq-legacy')),(SELECT count(*) FROM finance_charts WHERE name IN ('Forbidden chart','Legacy collision'))").fetch_one(db).await.unwrap();assert_eq!(counts,(0,0));
+    }).await;
+}
+
+#[cfg(feature = "private-development-api")]
+#[tokio::test]
+async fn service_prerequisite_private_http_all_four_and_exact_replay() {
+    account::with_system(|system|async move {
+        let p=service_posting_finance_fixture(system).await;let cookie=format!("__Host-erpx-product={}",p.reviewer_token.expose());
+        let mut cfg=private_configuration::document(&p.system.control,&p.system.holdings).await;cfg["fieldServiceReads"]=serde_json::json!([{"holdingId":"h001","companyId":"company"}]);
+        let get=||Request::builder().uri("/api/v1/holdings/acme/field-service/parts-setup/prerequisites").header("host","acme.example.test").header("cookie",&cookie).body(Body::empty()).unwrap();
+        let off=assemble_development_api(DevelopmentApiConfiguration::parse(&cfg.to_string()).unwrap(),p.system.scenario.clock.clone(),Arc::new(SystemAuthenticationSecrets)).await.unwrap();assert_eq!(off.router().oneshot(get()).await.unwrap().status(),StatusCode::NOT_FOUND);off.close().await;
+        cfg["fieldServicePartsPrerequisites"]=serde_json::json!(["h001"]);let runtime=assemble_development_api(DevelopmentApiConfiguration::parse(&cfg.to_string()).unwrap(),p.system.scenario.clock.clone(),Arc::new(SystemAuthenticationSecrets)).await.unwrap();
+        let mut chart_id=String::new();
+        for (kind,key) in [("charts","http-prereq-chart"),("accounts","http-prereq-account"),("periods","http-prereq-period"),("rates","http-prereq-rate")] {
+            let response=runtime.router().oneshot(get()).await.unwrap();assert_eq!(response.status(),StatusCode::OK);let view:serde_json::Value=serde_json::from_slice(&to_bytes(response.into_body(),2*1024*1024).await.unwrap()).unwrap();assert_eq!(view["context"]["userId"],"fixture-b");let context=view["data"]["contextKey"].as_str().unwrap();
+            let input=match kind {"charts"=>serde_json::json!({"name":"HTTP chart","baseCurrency":"THB"}),"accounts"=>serde_json::json!({"chartId":chart_id,"code":"A1","name":"HTTP account","category":"asset","controlKind":"bank"}),"periods"=>serde_json::json!({"name":"HTTP period","startDate":"2032-01-01","endDate":"2032-12-31"}),_=>serde_json::json!({"currency":"THB","effectiveDate":"2028-01-01","currencyPerUsd":"36"})};
+            let body=serde_json::json!({"expectedVersion":0,"contextKey":context,"input":input}).to_string();
+            let post=|revision:&str|Request::builder().method("POST").uri(format!("/api/v1/holdings/acme/field-service/parts-setup/{kind}")).header("host","acme.example.test").header("origin","https://acme.example.test").header("cookie",&cookie).header("idempotency-key",key).header("x-erpx-context-company","company").header("x-erpx-context-revision",revision).header("x-erpx-context-assignment","finance-fixture-b").header("x-erpx-context-assignment-version","3").body(Body::from(body.clone())).unwrap();
+            if kind=="charts"{assert_eq!(runtime.router().oneshot(post("8")).await.unwrap().status(),StatusCode::CONFLICT);let missing=Request::builder().method("POST").uri("/api/v1/holdings/acme/field-service/parts-setup/charts").header("host","acme.example.test").header("cookie",&cookie).header("idempotency-key","http-prereq-missing").body(Body::from(body.clone())).unwrap();assert_ne!(runtime.router().oneshot(missing).await.unwrap().status(),StatusCode::OK);let count:i64=sqlx::query_scalar("SELECT count(*) FROM command_receipts WHERE command_id IN ('http-prereq-chart','http-prereq-missing')").fetch_one(p.system.holdings[0].raw()).await.unwrap();assert_eq!(count,0);}
+            let first=runtime.router().oneshot(post("7")).await.unwrap();assert_eq!(first.status(),StatusCode::OK);let result:serde_json::Value=serde_json::from_slice(&to_bytes(first.into_body(),65536).await.unwrap()).unwrap();if kind=="charts"{chart_id=result["data"]["id"].as_str().unwrap().into();}assert_eq!(result["context"]["userId"],"fixture-b");
+            let replay=runtime.router().oneshot(post("7")).await.unwrap();assert_eq!(replay.status(),StatusCode::OK);let again:serde_json::Value=serde_json::from_slice(&to_bytes(replay.into_body(),65536).await.unwrap()).unwrap();assert_eq!(result["data"],again["data"]);
+        }
+        let counts:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM command_receipts WHERE command_id LIKE 'http-prereq-%'),(SELECT count(*) FROM audit_events WHERE command_id LIKE 'http-prereq-%'),(SELECT count(*) FROM outbox_events WHERE command_id LIKE 'http-prereq-%')").fetch_one(p.system.holdings[0].raw()).await.unwrap();assert_eq!(counts,(4,4,4));runtime.close().await;
+    }).await;
+}

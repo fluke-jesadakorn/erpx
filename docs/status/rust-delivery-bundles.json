@@ -110,7 +110,8 @@
         "description": "Migrate or otherwise deliver actual Commerce parts posting setup and Finance chart/account/period/FX prerequisites with their current authority, pages and commands.",
         "status": "incomplete",
         "evidenceFlows": [
-          "field-service-parts-mapping-initialize-retry"
+          "field-service-parts-mapping-initialize-retry",
+          "field-service-finance-prerequisites-native"
         ]
       },
       {
@@ -2263,6 +2264,23 @@
         "Confirm-existing browser and full prerequisite/initial-stock journeys remain open."
       ],
       "cleanup": "Browser closed; owned listeners and three leased databases absent; private credentials/config/TLS removed."
+    },
+    {
+      "id": "field-service-finance-prerequisites-native",
+      "kind": "bundle-blocker-evidence",
+      "status": "bounded-qualified",
+      "scope": "Native prerequisite read and chart/account/period/manual-FX writers, genuine zero-reference normal-auth UI through nine accounts and mapping, exact lost-reply retry. Company hydration and legacy auxiliary stock paths remain open; not a complete catalogue workflow.",
+      "sourceIdentity": "1c979d9c1 plus frozen independently reviewed prerequisite/backend/frontend batch; composition SHA256 809243a698a0e3ba29ebf466ffd72f2112b1ea88c4a6953c89c999764b217e69; frontend aggregate ab59fc8398ac903d8b848726fe9d1410f037d5964b9397d3bb0da466c48fe7cb",
+      "evidenceRef": ".scratch/dev/native-field-service-prerequisites-flow/case/browser-prerequisites-qualified-result.json",
+      "durableContractRefs": [
+        "docs/contracts/next/rust-field-service-http.md"
+      ],
+      "effects": "1 chart,9 accounts,1 period,1 manual FX rate,1 mapping;13 distinct matching receipts/audits/outboxes,14 POST attempts including exact chart retry. Unrelated stock/Field/Finance business history/Money unchanged.",
+      "limitations": [
+        "Company-choice hydration remains unresolved; no clean-entry or first-click source fix is claimed.",
+        "Stock/master/initial physical Count and writer/jobs withdrawal remain separate required work."
+      ],
+      "cleanup": "All owned services/listeners and three leased databases absent; credentials/config/TLS removed."
     }
   ],
   "workflows": [

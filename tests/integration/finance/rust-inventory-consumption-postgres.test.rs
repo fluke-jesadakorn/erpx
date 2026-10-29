@@ -298,3 +298,100 @@ async fn service_parts_finance_witness_checks_mapping_defaults_and_same_unit_dri
         denied(history.require_current(&mut tx).await,"SERVICE_PARTS_POSTING_SOURCE_CHANGED"); tx.rollback().await.unwrap();
     }).await;
 }
+
+#[tokio::test]
+async fn service_parts_prerequisite_witness_preserves_original_ordered_sources_and_drift() {
+    use erpx_server_finance::public::service_parts_prerequisites::*;
+    use sqlx::Row;
+    fixture::with_database(2,|p|async move {
+        setup(&p).await;
+        sqlx::raw_sql("INSERT INTO finance_periods(id,company_id,name,start_date,end_date,created_at) VALUES('a-period','company','First period','2010-01-01','2011-12-31',0); INSERT INTO company_money_settings(company_id,default_currency,updated_by,updated_at) VALUES('company','THB','fixture',1) ON CONFLICT(company_id) DO UPDATE SET default_currency='THB'; INSERT INTO company_currency_scales(company_id,currency,scale,configured_by,configured_at) VALUES('company','THB',2,'fixture',1),('company','USD',2,'fixture',1)").execute(p.raw()).await.unwrap();
+        let mut tx=p.raw().begin().await.unwrap();serial(&mut tx).await;
+        rate(&mut tx,"z-rate","2026-01-01","35.2500",2).await;rate(&mut tx,"a-rate","2025-01-01","34.1000",1).await;
+        lock_service_parts_prerequisite_references(&mut tx).await.unwrap();
+        let witness=read_service_parts_prerequisite_references(&mut tx,&CompanyId::new("company").unwrap()).await.unwrap();
+        let legacy_absent=read_legacy_finance_command(&mut tx,"legacy-prerequisite").await.unwrap();assert!(!legacy_absent.exists());
+        sqlx::query("INSERT INTO finance_commands(command_id,company_id,operation,request_hash,created_at) VALUES('legacy-prerequisite','company','finance.chart.create','synthetic',1)").execute(&mut *tx).await.unwrap();
+        denied(legacy_absent.require_current(&mut tx).await,"SERVICE_PARTS_POSTING_SOURCE_CHANGED");let legacy=read_legacy_finance_command(&mut tx,"legacy-prerequisite").await.unwrap();assert!(legacy.exists());legacy.require_current(&mut tx).await.unwrap();
+        let periods=sqlx::query("SELECT p.id,p.name,p.start_date,p.end_date,p.state,p.close_version version,to_jsonb(p)::text source FROM finance_periods p WHERE p.company_id=$1 ORDER BY p.id").bind("company").fetch_all(&mut *tx).await.unwrap();
+        assert_eq!(witness.data().periods.len(),periods.len());
+        for (actual,row) in witness.data().periods.iter().zip(periods) {assert_eq!(actual.id,row.get::<String,_>("id"));assert_eq!(actual.name,row.get::<String,_>("name"));assert_eq!(actual.start_date,row.get::<String,_>("start_date"));assert_eq!(actual.end_date,row.get::<String,_>("end_date"));assert_eq!(actual.state,row.get::<String,_>("state"));assert_eq!(actual.version,row.get::<i64,_>("version"));assert_eq!(actual.source,row.get::<String,_>("source"));}
+        let rates=sqlx::query("SELECT r.id,r.currency,r.effective_date::text effective_date,r.currency_per_usd::text currency_per_usd,r.confirmed_at,to_jsonb(r)::text source FROM company_fx_rates r WHERE r.company_id=$1 ORDER BY r.id").bind("company").fetch_all(&mut *tx).await.unwrap();
+        assert_eq!(witness.data().rates.len(),rates.len());
+        for (actual,row) in witness.data().rates.iter().zip(rates) {assert_eq!(actual.id,row.get::<String,_>("id"));assert_eq!(actual.currency,row.get::<String,_>("currency"));assert_eq!(actual.effective_date,row.get::<String,_>("effective_date"));assert_eq!(actual.currency_per_usd,row.get::<String,_>("currency_per_usd"));assert_eq!(actual.confirmed_at,row.get::<i64,_>("confirmed_at"));assert_eq!(actual.source,row.get::<String,_>("source"));}
+        let money=sqlx::query("SELECT 'settings' kind,to_jsonb(s)::text source FROM company_money_settings s WHERE s.company_id=$1 UNION ALL SELECT 'scale:'||s.currency kind,to_jsonb(s)::text source FROM company_currency_scales s WHERE s.company_id=$1 ORDER BY kind").bind("company").fetch_all(&mut *tx).await.unwrap();
+        assert_eq!(witness.data().money.len(),money.len());for (actual,row) in witness.data().money.iter().zip(money){assert_eq!(actual.kind,row.get::<String,_>("kind"));assert_eq!(actual.source,row.get::<String,_>("source"));}
+        let foreign=read_service_parts_prerequisite_references(&mut tx,&CompanyId::new("other").unwrap()).await.unwrap();assert!(foreign.data().periods.is_empty()&&foreign.data().rates.is_empty()&&foreign.data().money.is_empty());
+        let mut other_tx=p.raw().begin().await.unwrap();serial(&mut other_tx).await;denied(witness.require_current(&mut other_tx).await,"SERVICE_PARTS_POSTING_SOURCE_CHANGED");other_tx.rollback().await.unwrap();
+        let rate_witness=read_service_parts_prerequisite_references(&mut tx,&CompanyId::new("company").unwrap()).await.unwrap();
+        rate(&mut tx,"new-rate","2027-01-01","36",3).await;denied(rate_witness.require_current(&mut tx).await,"SERVICE_PARTS_POSTING_SOURCE_CHANGED");
+        let period_witness=read_service_parts_prerequisite_references(&mut tx,&CompanyId::new("company").unwrap()).await.unwrap();
+        sqlx::query("UPDATE finance_periods SET name='changed' WHERE id='period'").execute(&mut *tx).await.unwrap();denied(period_witness.require_current(&mut tx).await,"SERVICE_PARTS_POSTING_SOURCE_CHANGED");
+        let money_witness=read_service_parts_prerequisite_references(&mut tx,&CompanyId::new("company").unwrap()).await.unwrap();
+        sqlx::query("UPDATE company_currency_scales SET scale=3 WHERE company_id='company' AND currency='THB'").execute(&mut *tx).await.unwrap();denied(money_witness.require_current(&mut tx).await,"SERVICE_PARTS_POSTING_SOURCE_CHANGED");
+        sqlx::query("UPDATE company_money_settings SET updated_by=repeat('x',2097153) WHERE company_id='company'").execute(&mut *tx).await.unwrap();denied(read_service_parts_prerequisite_references(&mut tx,&CompanyId::new("company").unwrap()).await,"SERVICE_PARTS_POSTING_SOURCE_LIMIT");
+        tx.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn service_parts_prerequisite_lock_waits_before_serializable_snapshot() {
+    use erpx_server_finance::public::service_parts_prerequisites::*;
+    use erpx_server_runtime::public::postgres::{PgUnitOfWork, TransactionOptions};
+    fixture::with_database(3,|p|async move {
+        setup(&p).await;let mut writer=p.raw().begin().await.unwrap();
+        sqlx::query("UPDATE finance_periods SET name='Committed before read' WHERE id='period'").execute(&mut *writer).await.unwrap();
+        let read_pool=p.clone();let task=tokio::spawn(async move {PgUnitOfWork::new(read_pool).run::<_,BusinessError,_>(TransactionOptions::default(),|c|Box::pin(async move {
+            lock_service_parts_prerequisite_references(c).await?;
+            let witness=read_service_parts_prerequisite_references(c,&CompanyId::new("company").unwrap()).await?;
+            witness.require_current(c).await?;Ok(witness.data().periods[0].name.clone())
+        })).await});
+        tokio::time::timeout(Duration::from_secs(10),async {loop {let waiting:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_locks WHERE NOT granted AND mode='ShareLock' AND relation='finance_periods'::regclass AND database=(SELECT oid FROM pg_database WHERE datname=current_database()))").fetch_one(p.raw()).await.unwrap();if waiting{break}tokio::task::yield_now().await;}}).await.unwrap();
+        writer.commit().await.unwrap();assert_eq!(task.await.unwrap().unwrap(),"Committed before read");
+    }).await;
+}
+
+#[tokio::test]
+async fn service_prerequisite_finance_writers_verify_insert_and_unrelated_source_drift() {
+    use erpx_server_finance::public::{
+        service_parts_posting::{
+            lock_service_parts_prerequisite_finance, read_service_parts_prerequisite_finance,
+        },
+        service_parts_prerequisites::*,
+    };
+    use erpx_server_shared::public::UserId;
+    fixture::with_database(2,|p|async move {
+        setup(&p).await;
+        let cases=[
+            ServicePrerequisiteInput::Chart{name:"New chart".into(),base_currency:"THB".into(),accounting_basis:"IFRS".into()},
+            ServicePrerequisiteInput::Account{chart_id:"chart".into(),code:"122".into(),name:"New bank".into(),category:"asset".into(),parent_id:None,currency:None,is_control:false,control_kind:"bank".into()},
+            ServicePrerequisiteInput::Period{name:"Future period".into(),start_date:"2031-01-01".into(),end_date:"2031-12-31".into()},
+            ServicePrerequisiteInput::Rate{currency:"THB".into(),effective_date:"2027-01-01".into(),currency_per_usd:"35.125".into(),note:"Reviewed rate".into()},
+        ];
+        for (n,input) in cases.into_iter().enumerate(){
+            let mut tx=p.raw().begin().await.unwrap();serial(&mut tx).await;
+            lock_service_prerequisite_writer(&mut tx,input.variant()).await.unwrap();lock_service_parts_prerequisite_finance(&mut tx).await.unwrap();lock_service_parts_prerequisite_references(&mut tx).await.unwrap();
+            let before_revision:i64=sqlx::query_scalar("SELECT revision FROM finance_reporting_revisions WHERE chart_id='chart'").fetch_one(&mut *tx).await.unwrap();
+            let company=CompanyId::new("company").unwrap();let finance=read_service_parts_prerequisite_finance(&mut tx,&company).await.unwrap();let refs=read_service_parts_prerequisite_references(&mut tx,&company).await.unwrap();
+            let plan=PreparedServicePrerequisite::prepare(&mut tx,ServicePrerequisiteIntent{company,actor:UserId::new("fixture").unwrap(),id:format!("new-{n}"),at:7,input},&finance,&refs).await.unwrap();
+            plan.apply(&mut tx,&finance,&refs).await.unwrap();plan.require_current(&mut tx,&finance,&refs).await.unwrap();
+            let after_revision:i64=sqlx::query_scalar("SELECT revision FROM finance_reporting_revisions WHERE chart_id='chart'").fetch_one(&mut *tx).await.unwrap();assert_eq!(after_revision,before_revision+i64::from(n==1));
+            if n==0{let new_revision:i64=sqlx::query_scalar("SELECT revision FROM finance_reporting_revisions WHERE chart_id='new-0'").fetch_one(&mut *tx).await.unwrap();assert_eq!(new_revision,1);}
+            sqlx::query("UPDATE company_money_settings SET updated_at=updated_at+1 WHERE company_id='company'").execute(&mut *tx).await.unwrap();
+            denied(plan.require_current(&mut tx,&finance,&refs).await,"SERVICE_PARTS_POSTING_SOURCE_CHANGED");
+            tx.rollback().await.unwrap();
+        }
+    }).await;
+}
+
+#[tokio::test]
+async fn service_prerequisite_finance_ignores_unrelated_sales_defaults() {
+    use erpx_server_finance::public::service_parts_posting::*;
+    fixture::with_database(1,|p|async move {
+        setup(&p).await;let mut tx=p.raw().begin().await.unwrap();serial(&mut tx).await;
+        sqlx::query("INSERT INTO finance_sales_defaults(id,company_id,chart_id,currency,receivable_account_id,revenue_account_id,status,reason,created_by,version,created_at,updated_at) VALUES('large-unrelated','company','chart','THB','inventory','expense','draft',repeat('x',2097153),'fixture',1,1,1)").execute(&mut *tx).await.unwrap();
+        let company=CompanyId::new("company").unwrap();let source=read_service_parts_prerequisite_finance(&mut tx,&company).await.unwrap();assert_eq!(source.data().charts.len(),1);source.require_current(&mut tx).await.unwrap();
+        denied(read_service_parts_posting_references(&mut tx,&company,None).await,"SERVICE_PARTS_POSTING_SOURCE_LIMIT");
+        tx.rollback().await.unwrap();
+    }).await;
+}

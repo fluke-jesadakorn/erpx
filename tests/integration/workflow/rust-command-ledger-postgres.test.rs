@@ -837,11 +837,14 @@ async fn service_posting_receipt_discovery_preserves_first_marker_and_absence() 
         let company=CompanyId::new("company").unwrap();
         let missing=read_service_posting_receipt(&mut tx,&company).await.unwrap();
         assert!(missing.facts().is_none());
+        let missing_key=read_service_prerequisite_receipt(&mut tx,"a-service-test").await.unwrap();assert!(missing_key.facts().is_none());
         let make=|key:&str|WorkflowRequest {key:key.into(),operation:"commerce.service-parts-posting-setup.initialize".into(),record_id:"company".into(),input:CommandJson::parse("{}").unwrap()};
         for key in ["z-service-test","a-service-test"] {
             PgCommandLedger::new(company.clone(),&mut tx,&mut Authority{deny:false},&Time,&mut Ids).execute(&make(key),&mut SetupMarkerEffects).await.unwrap();
         }
         assert!(matches!(missing.require_current(&mut tx).await,Err(Error::Business(e)) if e.code=="SERVICE_PARTS_POSTING_SOURCE_CHANGED"));
+        assert!(matches!(missing_key.require_current(&mut tx).await,Err(Error::Business(e)) if e.code=="SERVICE_PARTS_POSTING_SOURCE_CHANGED"));
+        let keyed=read_service_prerequisite_receipt(&mut tx,"a-service-test").await.unwrap();let facts=keyed.facts().unwrap();assert_eq!(facts.record_id,"company");assert_eq!(facts.operation,"commerce.service-parts-posting-setup.initialize");assert_eq!(facts.company_id.as_deref(),Some("company"));keyed.require_current(&mut tx).await.unwrap();
         let selected=read_service_posting_receipt(&mut tx,&company).await.unwrap();
         assert_eq!(selected.facts().unwrap().command_id,"a-service-test");
         assert!(selected.facts().unwrap().proof_json.contains("a-service-test"));

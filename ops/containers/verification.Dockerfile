@@ -23,3 +23,8 @@ ENV LD_LIBRARY_PATH=/usr/local/lib \
     ERPX_HEIF_ENC=/usr/bin/heif-enc \
     ERPX_HEIF_CONVERT=/usr/bin/heif-convert \
     ERPX_PDFTOPPM_BIN=/usr/bin/pdftoppm
+
+# The real corpus generates HEVC fixtures as well as decoding them. The decoder
+# plugin alone cannot satisfy that prerequisite on Debian's split packages.
+RUN apt-get update && apt-get install -y --no-install-recommends libheif-plugin-x265 \
+    && rm -rf /var/lib/apt/lists/*

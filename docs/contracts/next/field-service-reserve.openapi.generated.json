@@ -1951,6 +1951,510 @@
           "accounts"
         ],
         "type": "object"
+      },
+      "ServicePrerequisiteAccountInput": {
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "chartId": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "controlKind": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "currency": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "isControl": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "parentId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "chartId",
+          "code",
+          "name",
+          "category"
+        ],
+        "type": "object"
+      },
+      "ServicePrerequisiteAccountRequest": {
+        "properties": {
+          "contextKey": {
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "input": {
+            "$ref": "#/components/schemas/ServicePrerequisiteAccountInput"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "contextKey",
+          "input"
+        ],
+        "type": "object"
+      },
+      "ServicePrerequisiteAccountResponse": {
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/FieldServiceRenderedContext"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ServicePrerequisiteAccountResult"
+          }
+        },
+        "required": [
+          "data",
+          "context"
+        ],
+        "type": "object"
+      },
+      "ServicePrerequisiteAccountResult": {
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "chartId": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "companyId": {
+            "type": "string"
+          },
+          "controlKind": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "isControl": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "parentId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "version": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "chartId",
+          "code",
+          "name",
+          "category",
+          "currency",
+          "isControl",
+          "controlKind",
+          "companyId",
+          "version"
+        ],
+        "type": "object"
+      },
+      "ServicePrerequisiteChartInput": {
+        "properties": {
+          "accountingBasis": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "baseCurrency": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "baseCurrency"
+        ],
+        "type": "object"
+      },
+      "ServicePrerequisiteChartRequest": {
+        "properties": {
+          "contextKey": {
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "input": {
+            "$ref": "#/components/schemas/ServicePrerequisiteChartInput"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "contextKey",
+          "input"
+        ],
+        "type": "object"
+      },
+      "ServicePrerequisiteChartResponse": {
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/FieldServiceRenderedContext"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ServicePrerequisiteChartResult"
+          }
+        },
+        "required": [
+          "data",
+          "context"
+        ],
+        "type": "object"
+      },
+      "ServicePrerequisiteChartResult": {
+        "description": "Wire schemas for the distinct retained command receipts. Runtime emits the\noriginal ordered CommandJson so lone UTF-16 surrogates remain replay-safe.",
+        "properties": {
+          "accountingBasis": {
+            "type": "string"
+          },
+          "baseCurrency": {
+            "type": "string"
+          },
+          "companyId": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "baseCurrency",
+          "accountingBasis",
+          "companyId",
+          "version"
+        ],
+        "type": "object"
+      },
+      "ServicePrerequisitePeriodInput": {
+        "properties": {
+          "endDate": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "startDate": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "startDate",
+          "endDate"
+        ],
+        "type": "object"
+      },
+      "ServicePrerequisitePeriodRequest": {
+        "properties": {
+          "contextKey": {
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "input": {
+            "$ref": "#/components/schemas/ServicePrerequisitePeriodInput"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "contextKey",
+          "input"
+        ],
+        "type": "object"
+      },
+      "ServicePrerequisitePeriodResponse": {
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/FieldServiceRenderedContext"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ServicePrerequisitePeriodResult"
+          }
+        },
+        "required": [
+          "data",
+          "context"
+        ],
+        "type": "object"
+      },
+      "ServicePrerequisitePeriodResult": {
+        "properties": {
+          "companyId": {
+            "type": "string"
+          },
+          "endDate": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "startDate": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "startDate",
+          "endDate",
+          "state",
+          "companyId",
+          "version"
+        ],
+        "type": "object"
+      },
+      "ServicePrerequisiteRateInput": {
+        "properties": {
+          "currency": {
+            "type": "string"
+          },
+          "currencyPerUsd": {
+            "type": "string"
+          },
+          "effectiveDate": {
+            "type": "string"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "currency",
+          "effectiveDate",
+          "currencyPerUsd"
+        ],
+        "type": "object"
+      },
+      "ServicePrerequisiteRateRequest": {
+        "properties": {
+          "contextKey": {
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "input": {
+            "$ref": "#/components/schemas/ServicePrerequisiteRateInput"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "contextKey",
+          "input"
+        ],
+        "type": "object"
+      },
+      "ServicePrerequisiteRateResponse": {
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/FieldServiceRenderedContext"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ServicePrerequisiteRateResult"
+          }
+        },
+        "required": [
+          "data",
+          "context"
+        ],
+        "type": "object"
+      },
+      "ServicePrerequisiteRateResult": {
+        "properties": {
+          "confirmedAt": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "currencyPerUsd": {
+            "type": "string"
+          },
+          "effectiveDate": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "currency",
+          "effectiveDate",
+          "currencyPerUsd",
+          "confirmedAt"
+        ],
+        "type": "object"
+      },
+      "ServicePrerequisitesReadResponse": {
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/FieldServiceRenderedContext"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ServicePrerequisitesView"
+          }
+        },
+        "required": [
+          "data",
+          "context"
+        ],
+        "type": "object"
+      },
+      "ServicePrerequisitesView": {
+        "properties": {
+          "accounts": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "canConfirmRate": {
+            "type": "boolean"
+          },
+          "canCreateAccount": {
+            "type": "boolean"
+          },
+          "canCreateChart": {
+            "type": "boolean"
+          },
+          "canCreatePeriod": {
+            "type": "boolean"
+          },
+          "charts": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "companyId": {
+            "type": "string"
+          },
+          "configured": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "contextKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "periods": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "rates": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "unavailableReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "companyId",
+          "available",
+          "canCreateChart",
+          "canCreateAccount",
+          "canCreatePeriod",
+          "canConfirmRate",
+          "charts",
+          "accounts",
+          "periods",
+          "rates"
+        ],
+        "type": "object"
       }
     }
   },
@@ -2319,6 +2823,82 @@
         "tags": []
       }
     },
+    "/api/v1/holdings/{holding_slug}/field-service/parts-setup/accounts": {
+      "post": {
+        "operationId": "parts_prerequisite_accounts",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "holding_slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServicePrerequisiteAccountRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServicePrerequisiteAccountResponse"
+                }
+              }
+            },
+            "description": "Original Finance prerequisite command receipt"
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/v1/holdings/{holding_slug}/field-service/parts-setup/charts": {
+      "post": {
+        "operationId": "parts_prerequisite_charts",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "holding_slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServicePrerequisiteChartRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServicePrerequisiteChartResponse"
+                }
+              }
+            },
+            "description": "Original Finance prerequisite command receipt"
+          }
+        },
+        "tags": []
+      }
+    },
     "/api/v1/holdings/{holding_slug}/field-service/parts-setup/existing": {
       "post": {
         "operationId": "parts_posting_confirm",
@@ -2342,6 +2922,110 @@
               }
             },
             "description": "Service parts posting confirmation receipt"
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/v1/holdings/{holding_slug}/field-service/parts-setup/periods": {
+      "post": {
+        "operationId": "parts_prerequisite_periods",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "holding_slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServicePrerequisitePeriodRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServicePrerequisitePeriodResponse"
+                }
+              }
+            },
+            "description": "Original Finance prerequisite command receipt"
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/v1/holdings/{holding_slug}/field-service/parts-setup/prerequisites": {
+      "get": {
+        "operationId": "parts_prerequisites_read",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "holding_slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServicePrerequisitesReadResponse"
+                }
+              }
+            },
+            "description": "Current Company Finance prerequisite choices"
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/v1/holdings/{holding_slug}/field-service/parts-setup/rates": {
+      "post": {
+        "operationId": "parts_prerequisite_rates",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "holding_slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServicePrerequisiteRateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServicePrerequisiteRateResponse"
+                }
+              }
+            },
+            "description": "Original Finance prerequisite command receipt"
           }
         },
         "tags": []

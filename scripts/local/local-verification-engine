@@ -13,6 +13,14 @@ trap 'rm -rf -- "$DOCKER_CONFIG"' EXIT HUP INT TERM
 export DOCKER_CONFIG DOCKER_HOST="unix://$socket" COMPOSE_DISABLE_ENV_FILE=1
 compose() { docker-compose --project-directory "$root/ops/containers" -p "erpx-verify-$ERPX_VERIFY_KEY" -f "$root/ops/containers/local-verification.compose.yaml" "$@"; }
 case "${1:-}" in
+  build)
+    [ "$#" -eq 1 ] || exit 2
+    free_kib=$(df -Pk "$root" | awk 'NR==2 {print $4}')
+    case "$free_kib" in ''|*[!0-9]*) echo 'HOST_DISK_SPACE_UNAVAILABLE' >&2; exit 1;; esac
+    [ "$free_kib" -ge 65011712 ] || { echo 'HOST_DISK_SPACE_BELOW_BUILD_HEADROOM' >&2; exit 1; }
+    # No checkout, ignored credentials or runtime artifacts enter this context.
+    docker build -f "$root/ops/containers/verification.Dockerfile" -t erpx-local-verification:local "$root/ops/containers"
+    ;;
   up)
     [ "$#" -eq 1 ] || exit 2
     free_kib=$(df -Pk "$root" | awk 'NR==2 {print $4}')
@@ -49,5 +57,5 @@ SQL
     [ "$#" -eq 1 ] || exit 2
     compose down
     ;;
-  *) echo 'Usage: ERPX_VERIFY_KEY=<candidate-architecture> scripts/local/local-verification-engine up|exec <command>...|down' >&2; exit 2 ;;
+  *) echo 'Usage: ERPX_VERIFY_KEY=<candidate-architecture> scripts/local/local-verification-engine build|up|exec <command>...|down' >&2; exit 2 ;;
 esac

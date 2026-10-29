@@ -1,5 +1,23 @@
 // Generated from the Rust Field Service reservation contracts. Do not edit by hand.
 // Regenerate: bun scripts/docs/generate-field-service-reserve-contracts.ts
+export type ServicePrerequisitesView = { companyId: string, available: boolean, configured: boolean | null, contextKey: string | null, canCreateChart: boolean, canCreateAccount: boolean, canCreatePeriod: boolean, canConfirmRate: boolean, charts: Array<Record<string, string | number | null>>, accounts: Array<Record<string, string | number | null>>, periods: Array<Record<string, string | number | null>>, rates: Array<Record<string, string | number | null>>, unavailableReason: string | null, };
+export type ServicePrerequisitesReadResponse = { data: ServicePrerequisitesView, context: FieldServiceRenderedContext, };
+export type ServicePrerequisiteChartInput = { name: string, baseCurrency: string, accountingBasis?: string, };
+export type ServicePrerequisiteChartRequest = { expectedVersion: number, contextKey: string, input: ServicePrerequisiteChartInput, };
+export type ServicePrerequisiteChartResult = { id: string, name: string, baseCurrency: string, accountingBasis: string, companyId: string, version: number, };
+export type ServicePrerequisiteChartResponse = { data: ServicePrerequisiteChartResult, context: FieldServiceRenderedContext, };
+export type ServicePrerequisiteAccountInput = { chartId: string, code: string, name: string, category: string, parentId?: string | null, currency?: string, isControl?: boolean, controlKind?: string, };
+export type ServicePrerequisiteAccountRequest = { expectedVersion: number, contextKey: string, input: ServicePrerequisiteAccountInput, };
+export type ServicePrerequisiteAccountResult = { id: string, chartId: string, code: string, name: string, category: string, parentId?: string | null, currency: string, isControl: boolean, controlKind: string, companyId: string, version: number, };
+export type ServicePrerequisiteAccountResponse = { data: ServicePrerequisiteAccountResult, context: FieldServiceRenderedContext, };
+export type ServicePrerequisitePeriodInput = { name: string, startDate: string, endDate: string, };
+export type ServicePrerequisitePeriodRequest = { expectedVersion: number, contextKey: string, input: ServicePrerequisitePeriodInput, };
+export type ServicePrerequisitePeriodResult = { id: string, name: string, startDate: string, endDate: string, state: string, companyId: string, version: number, };
+export type ServicePrerequisitePeriodResponse = { data: ServicePrerequisitePeriodResult, context: FieldServiceRenderedContext, };
+export type ServicePrerequisiteRateInput = { currency: string, effectiveDate: string, currencyPerUsd: string, note?: string, };
+export type ServicePrerequisiteRateRequest = { expectedVersion: number, contextKey: string, input: ServicePrerequisiteRateInput, };
+export type ServicePrerequisiteRateResult = { id: string, currency: string, effectiveDate: string, currencyPerUsd: string, confirmedAt: number, };
+export type ServicePrerequisiteRateResponse = { data: ServicePrerequisiteRateResult, context: FieldServiceRenderedContext, };
 export type ServicePostingView = { companyId: string, available: boolean, schemaAvailable: boolean, configured: boolean | null, sourceReady: boolean, version: number | null, canConfigure: boolean, canConfirmExisting: boolean, contextKey: string | null, configuration: Record<string, string | number | null> | null, charts: Array<Record<string, string | number | null>>, accounts: Array<Record<string, string | number | null>>, expectedSalesDefaults: Record<string, string | number | null> | null, approvedSalesDefaults: Record<string, string | number | null> | null, unavailableReason: string | null, };
 export type ServicePostingResult = { id: string, status: string, version: number, };
 export type ServicePostingReadResponse = { data: ServicePostingView, context: FieldServiceRenderedContext, };

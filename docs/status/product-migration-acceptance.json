@@ -2,8 +2,8 @@
   "version": 3,
   "environment": "development",
   "deliveryPlan": "docs/production-plan.md",
-  "sourceFingerprint": "0560a1dd9a8bbccab802c44e5fead10ed441db4b7db11f0c788b22847baaac52",
-  "verificationFingerprint": "3de4ef0de9ae42940a6fbb26648b9ec0b9874da55a8205e388edc8b89f852c0d",
+  "sourceFingerprint": "0e42c7dd8a11a9659d423e6dff72e0dbab5e75ade4ef8604fa5c51557b708588",
+  "verificationFingerprint": "bc740d6cab6f849b5be0ae1c4d30aadf59da53ae66f6f8b4fb87ad14453d134a",
   "baseline": {
     "source": ".scratch/dev/product-migration-baseline-2026-10-14/",
     "privateAuthority": "read-only per-database snapshots; no secrets or personal authority rows in this register",
@@ -14200,7 +14200,8 @@
         "shared.runtime.ui-module-registration.unit",
         "shared.architecture.rust-module-assembly.unit",
         "field_service.rust-private-field-only-postgres.integration",
-        "field_service.rust-service-parts-history-postgres.integration"
+        "field_service.rust-service-parts-history-postgres.integration",
+        "field_service.native-parts-transport.unit"
       ]
     },
     {

@@ -9,3 +9,4 @@ pub(crate) mod journal_review;
 pub(crate) mod money;
 
 pub(crate) mod service_parts_posting;
+pub(crate) mod service_parts_prerequisites;

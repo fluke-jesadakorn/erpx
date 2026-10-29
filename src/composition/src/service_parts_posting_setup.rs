@@ -150,10 +150,10 @@ impl HoldingWorkSourcePreparation for ServicePostingSources {
 }
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-struct RetainedWorkAuthority<'a> {
-    session_id: &'a str,
-    revision: i64,
-    assignment_version: i64,
+pub(crate) struct RetainedWorkAuthority<'a> {
+    pub(crate) session_id: &'a str,
+    pub(crate) revision: i64,
+    pub(crate) assignment_version: i64,
 }
 #[derive(Serialize)]
 #[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
@@ -215,17 +215,17 @@ fn posting_mapping(value: &serde_json::Value) -> Option<ServicePartsPostingMappi
         cash_account_id: field("cash_account_id")?,
     })
 }
-struct PostingPurchases {
+pub(crate) struct PostingPurchases {
     holding: HoldingId,
     company: CompanyId,
     catalogue: CommercialCatalogue,
     history: PurchaseWitness,
     new_work: PurchaseWitness,
-    history_allowed: bool,
-    new_work_allowed: bool,
+    pub(crate) history_allowed: bool,
+    pub(crate) new_work_allowed: bool,
 }
 impl PostingPurchases {
-    async fn capture(
+    pub(crate) async fn capture(
         c: &mut PgConnection,
         current: &AuthorizedWorkContext,
         now: TimestampMillis,
@@ -262,7 +262,7 @@ impl PostingPurchases {
             new_work_allowed,
         })
     }
-    async fn require_current(
+    pub(crate) async fn require_current(
         &self,
         c: &mut PgConnection,
         now: TimestampMillis,
@@ -497,7 +497,7 @@ fn wire_invalid() -> BusinessError {
         "Review the Service posting setup input.",
     )
 }
-fn trimmed_units(
+pub(crate) fn trimmed_units(
     value: &CommandJson,
     min: usize,
     max: usize,
@@ -723,7 +723,9 @@ fn commerce_mapping(m: &ServicePartsPostingMapping) -> CommerceMapping {
 fn posting_changed(code: &'static str, message: &'static str) -> BusinessError {
     BusinessError::new(FailureKind::Conflict, code, message)
 }
-fn posting_actor(current: &AuthorizedWorkContext) -> Result<CommandActor, BusinessError> {
+pub(crate) fn posting_actor(
+    current: &AuthorizedWorkContext,
+) -> Result<CommandActor, BusinessError> {
     let s = current.selection();
     let a = s.assignment();
     let w = s.workspace();
@@ -752,7 +754,7 @@ fn posting_actor(current: &AuthorizedWorkContext) -> Result<CommandActor, Busine
     })
 }
 impl PostingPurchases {
-    async fn require_for(
+    pub(crate) async fn require_for(
         &self,
         c: &mut PgConnection,
         purpose: CapabilityPurpose,

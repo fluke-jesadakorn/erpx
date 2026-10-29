@@ -22,7 +22,14 @@ case "${1:-}" in
     case "$free_kib" in ''|*[!0-9]*) echo 'HOST_DISK_SPACE_UNAVAILABLE' >&2; exit 1;; esac
     [ "$free_kib" -ge 65011712 ] || { echo 'HOST_DISK_SPACE_BELOW_SERVICE_HEADROOM' >&2; exit 1; }
     # The named volume contains only locally generated disposable credentials.
-    docker volume create "${project}_secrets" >/dev/null
+    if docker volume inspect "${project}_secrets" >/dev/null 2>&1; then
+      docker run --rm --network=none -e ERPX_DEV_WORKSPACE_KEY -v "${project}_secrets:/secrets:ro" erpx-opensource-dev-toolchain:local sh -ec 'test -f /secrets/workspace-key && test "$(cat /secrets/workspace-key)" = "$ERPX_DEV_WORKSPACE_KEY" && test "$(stat -c %a /secrets/workspace-key)" = 600 && test -s /secrets/postgres && test -s /secrets/test-admin' || { echo WORKSPACE_LEASE_MISMATCH >&2; exit 1; }
+    else
+      # Never adopt an existing database volume when its secret lease is absent.
+      if docker volume inspect "${project}-postgres" >/dev/null 2>&1 || docker volume inspect "${project}-source" >/dev/null 2>&1; then echo MISSING_LEASE_WITH_EXISTING_DATA >&2; exit 1; fi
+      docker volume create "${project}_secrets" >/dev/null
+      docker run --rm --network=none -e ERPX_DEV_WORKSPACE_KEY -v "${project}_secrets:/secrets" erpx-opensource-dev-toolchain:local sh -ec 'umask 077; printf "%s\n" "$ERPX_DEV_WORKSPACE_KEY" > /secrets/workspace-key'
+    fi
     docker run --rm --network=none -v "${project}_secrets:/secrets" erpx-opensource-dev-toolchain:local sh -ec 'umask 077; test -s /secrets/postgres || openssl rand -hex 32 > /secrets/postgres; test -s /secrets/test-admin || openssl rand -hex 32 > /secrets/test-admin; printf "postgresql://erpx_test_admin:%s@127.0.0.1:5432/postgres" "$(cat /secrets/test-admin)" > /secrets/test-admin-url'
     compose up -d
     compose exec -T postgres sh -ec '

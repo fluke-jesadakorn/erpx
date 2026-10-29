@@ -3,6 +3,8 @@ services:
   workspace:
     image: erpx-opensource-dev-toolchain:local
     command: ["sleep", "infinity"]
+    environment:
+      ERPX_DEV_WORKSPACE_KEY: ${ERPX_DEV_WORKSPACE_KEY:?Set ERPX_DEV_WORKSPACE_KEY}
     volumes:
       - scanner-socket:/run/erpx-scanner
       - scanner-definitions:/run/erpx-clamav-definitions:ro

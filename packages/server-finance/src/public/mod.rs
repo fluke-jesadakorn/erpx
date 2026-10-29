@@ -74,3 +74,4 @@ pub mod field_service_workspace;
 pub mod field_service_detail;
 
 pub mod service_parts_posting;
+pub mod service_parts_prerequisites;

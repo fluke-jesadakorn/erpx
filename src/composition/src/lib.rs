@@ -82,6 +82,8 @@ pub mod field_service_parts;
 
 #[cfg(feature = "field-service")]
 pub mod service_parts_posting_setup;
+#[cfg(feature = "field-service")]
+pub mod service_parts_prerequisite_setup;
 
 #[cfg(feature = "field-service-http")]
 pub mod field_service_http;

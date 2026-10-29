@@ -310,6 +310,7 @@ pub struct FieldServiceReservationReadConfiguration {
     agreement_reviews: bool,
     agreement_creates: bool,
     parts_posting_setup: bool,
+    parts_prerequisites: bool,
 }
 impl FieldServiceReservationReadConfiguration {
     pub fn new(
@@ -346,10 +347,15 @@ impl FieldServiceReservationReadConfiguration {
             agreement_reviews: false,
             agreement_creates: false,
             parts_posting_setup: false,
+            parts_prerequisites: false,
         })
     }
     pub fn with_parts_posting_setup(mut self) -> Self {
         self.parts_posting_setup = true;
+        self
+    }
+    pub fn with_parts_prerequisites(mut self) -> Self {
+        self.parts_prerequisites = true;
         self
     }
     pub fn with_detail(mut self) -> Self {
@@ -467,6 +473,62 @@ impl<C: Clock + Send + Sync + 'static> FieldServiceReservationReadService<C> {
                 environment:
                     crate::service_parts_posting_setup::ServicePostingEnvironment::Development,
             },
+        )
+        .await
+    }
+    pub async fn parts_prerequisites<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        request: Input,
+    ) -> Result<crate::service_parts_prerequisite_setup::ServicePrerequisitesReadResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        if !self.config.parts_prerequisites {
+            return Err(denied().into());
+        }
+        crate::service_parts_prerequisite_setup::read_selected_service_prerequisites(
+            &self.authorizer,
+            host,
+            proof,
+            request,
+            crate::service_parts_posting_setup::ServicePostingTarget {
+                holding: self.config.holding.clone(),
+                company: self.config.company.clone(),
+                clock: self.clock.clone(),
+                environment:
+                    crate::service_parts_posting_setup::ServicePostingEnvironment::Development,
+            },
+        )
+        .await
+    }
+    pub async fn parts_prerequisite_command<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        request: Input,
+        command: crate::service_parts_prerequisite_setup::ServicePrerequisiteTransportCommand,
+    ) -> Result<crate::service_parts_prerequisite_setup::ServicePrerequisiteCommandResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        if !self.config.parts_prerequisites {
+            return Err(denied().into());
+        }
+        crate::service_parts_prerequisite_setup::execute_selected_service_prerequisite(
+            &self.authorizer,
+            host,
+            proof,
+            request,
+            crate::service_parts_posting_setup::ServicePostingTarget {
+                holding: self.config.holding.clone(),
+                company: self.config.company.clone(),
+                clock: self.clock.clone(),
+                environment:
+                    crate::service_parts_posting_setup::ServicePostingEnvironment::Development,
+            },
+            command,
         )
         .await
     }

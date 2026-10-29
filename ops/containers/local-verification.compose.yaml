@@ -14,6 +14,8 @@ services:
       - cargo-registry:/usr/local/cargo/registry
       - cargo-git:/usr/local/cargo/git
       - bun-cache:/root/.bun/install/cache
+      - native-prefix:/cache/erpx-native-vips-8.18.7
+      - browser-cache:/root/.cache/ms-playwright
       - secrets:/run/erpx-verification-secrets:ro
       - scanner-socket:/run/erpx-scanner:ro
       - scanner-definitions:/run/erpx-clamav-definitions:ro
@@ -43,6 +45,10 @@ volumes:
     name: erpx-verify-${ERPX_VERIFY_KEY:?Set ERPX_VERIFY_KEY}-rust1.99.1-git
   bun-cache:
     name: erpx-verify-${ERPX_VERIFY_KEY:?Set ERPX_VERIFY_KEY}-bun1.4.3-cache
+  native-prefix:
+    name: erpx-verify-${ERPX_VERIFY_KEY:?Set ERPX_VERIFY_KEY}-vips8.18.7
+  browser-cache:
+    name: erpx-verify-${ERPX_VERIFY_KEY:?Set ERPX_VERIFY_KEY}-playwright1.63.0
   postgres-data:
     name: erpx-verify-${ERPX_VERIFY_KEY:?Set ERPX_VERIFY_KEY}-postgres
   secrets:

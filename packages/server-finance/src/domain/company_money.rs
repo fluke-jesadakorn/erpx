@@ -18,6 +18,9 @@ pub struct CurrencyDefinition {
 
 pub struct CurrencyRules(BTreeMap<String, Option<u8>>);
 impl CurrencyRules {
+    pub fn contains(&self, currency: &str) -> bool {
+        self.0.contains_key(currency)
+    }
     pub fn new(definitions: Vec<CurrencyDefinition>) -> Result<Self, FinancePolicyError> {
         let mut result = BTreeMap::new();
         for definition in definitions {

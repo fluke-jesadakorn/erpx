@@ -21,10 +21,14 @@ struct Image {
 pub struct CurrentServicePartsPostingReferences {
     company: CompanyId,
     existing: Option<ServicePartsPostingMapping>,
+    include_defaults: bool,
     unit: Unit,
     image: Image,
 }
 impl CurrentServicePartsPostingReferences {
+    pub fn company(&self) -> &CompanyId {
+        &self.company
+    }
     pub fn data(&self) -> &ServicePartsPostingReferences {
         &self.image.data
     }
@@ -46,8 +50,59 @@ impl CurrentServicePartsPostingReferences {
     }
     pub async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
         if unit(c).await? != self.unit
-            || capture(c, &self.company, self.existing.as_ref()).await? != self.image
+            || capture(
+                c,
+                &self.company,
+                self.existing.as_ref(),
+                self.include_defaults,
+            )
+            .await?
+                != self.image
         {
+            return Err(changed());
+        }
+        Ok(())
+    }
+    /// Revalidate every original Finance row after the one Finance-owned
+    /// chart/account insert. The inserted row is verified separately by its
+    /// owner writer; this method never authorizes a command.
+    pub async fn require_after_prerequisite_insert(
+        &self,
+        c: &mut PgConnection,
+        kind: &str,
+        id: &str,
+    ) -> Result<(), Error> {
+        if !matches!(kind, "chart" | "account") || unit(c).await? != self.unit {
+            return Err(changed());
+        }
+        if self
+            .image
+            .rows
+            .iter()
+            .any(|(k, v)| k == kind && v.get("id").and_then(Value::as_str) == Some(id))
+        {
+            return Err(changed());
+        }
+        let current = capture(
+            c,
+            &self.company,
+            self.existing.as_ref(),
+            self.include_defaults,
+        )
+        .await?;
+        let mut matches = 0;
+        let retained: Vec<_> = current
+            .rows
+            .into_iter()
+            .filter(|(k, v)| {
+                let inserted = k == kind && v.get("id").and_then(Value::as_str) == Some(id);
+                if inserted {
+                    matches += 1;
+                }
+                !inserted
+            })
+            .collect();
+        if matches != 1 || retained != self.image.rows {
             return Err(changed());
         }
         Ok(())
@@ -66,21 +121,54 @@ pub async fn read_service_parts_posting_references(
     existing: Option<&ServicePartsPostingMapping>,
 ) -> Result<CurrentServicePartsPostingReferences, Error> {
     let unit = unit(c).await?;
-    let image = capture(c, company, existing).await?;
+    let image = capture(c, company, existing, true).await?;
     Ok(CurrentServicePartsPostingReferences {
         company: company.clone(),
         existing: existing.cloned(),
+        include_defaults: true,
         unit,
         image,
     })
+}
+/// Exact prerequisite sources exclude unrelated Sales-default rows.
+pub async fn read_service_parts_prerequisite_finance(
+    c: &mut PgConnection,
+    company: &CompanyId,
+) -> Result<CurrentServicePartsPostingReferences, Error> {
+    let unit = unit(c).await?;
+    let image = capture(c, company, None, false).await?;
+    Ok(CurrentServicePartsPostingReferences {
+        company: company.clone(),
+        existing: None,
+        include_defaults: false,
+        unit,
+        image,
+    })
+}
+/// Lock only Finance tables in the retained prerequisite source set.
+pub async fn lock_service_parts_prerequisite_finance(c: &mut PgConnection) -> Result<(), Error> {
+    if !c.is_in_transaction() {
+        return Err(PersistenceError::new("FINANCE_TRANSACTION_REQUIRED").into());
+    }
+    sqlx::query("LOCK TABLE finance_charts,finance_accounts,company_money_settings,company_currency_scales,finance_invoices,finance_payments,finance_journals IN SHARE MODE").execute(c).await?;
+    Ok(())
 }
 async fn capture(
     c: &mut PgConnection,
     company: &CompanyId,
     existing: Option<&ServicePartsPostingMapping>,
+    include_defaults: bool,
 ) -> Result<Image, Error> {
     // The budget is checked in SQL before transferring owner rows.
-    let records=sqlx::query("WITH source AS MATERIALIZED (SELECT 'chart' kind,c.id key,to_jsonb(c) body FROM finance_charts c WHERE c.company_id=$1 UNION ALL SELECT 'account',a.id,to_jsonb(a) FROM finance_accounts a WHERE a.company_id=$1 UNION ALL SELECT 'default',d.id,to_jsonb(d) FROM finance_sales_defaults d WHERE d.company_id=$1 UNION ALL SELECT 'settings',s.company_id,to_jsonb(s) FROM company_money_settings s WHERE s.company_id=$1 UNION ALL SELECT 'scale',s.currency,to_jsonb(s) FROM company_currency_scales s WHERE s.company_id=$1 UNION ALL SELECT 'invoice',i.id,to_jsonb(i) FROM finance_invoices i WHERE i.company_id=$1 UNION ALL SELECT 'payment',p.id,to_jsonb(p) FROM finance_payments p WHERE p.company_id=$1 UNION ALL SELECT 'journal',j.id,to_jsonb(j) FROM finance_journals j WHERE j.company_id=$1), measured AS (SELECT *,sum(octet_length(body::text)+octet_length(key)) OVER () bytes,count(*) OVER () count,row_number() OVER (ORDER BY kind,CASE WHEN kind='default' THEN (body->>'created_at')::bigint END DESC NULLS LAST,key) ordinal FROM source) SELECT CASE WHEN bytes<=2097152 AND count<=10000 THEN kind END kind,CASE WHEN bytes<=2097152 AND count<=10000 THEN body::text END body FROM measured WHERE (bytes<=2097152 AND count<=10000) OR ordinal=1 ORDER BY kind,CASE WHEN kind='default' THEN (body->>'created_at')::bigint END DESC NULLS LAST,key").bind(company.as_str()).fetch_all(&mut *c).await?;
+    let source_sql = if include_defaults {
+        "WITH source AS MATERIALIZED (SELECT 'chart' kind,c.id key,to_jsonb(c) body FROM finance_charts c WHERE c.company_id=$1 UNION ALL SELECT 'account',a.id,to_jsonb(a) FROM finance_accounts a WHERE a.company_id=$1 UNION ALL SELECT 'default',d.id,to_jsonb(d) FROM finance_sales_defaults d WHERE d.company_id=$1 UNION ALL SELECT 'settings',s.company_id,to_jsonb(s) FROM company_money_settings s WHERE s.company_id=$1 UNION ALL SELECT 'scale',s.currency,to_jsonb(s) FROM company_currency_scales s WHERE s.company_id=$1 UNION ALL SELECT 'invoice',i.id,to_jsonb(i) FROM finance_invoices i WHERE i.company_id=$1 UNION ALL SELECT 'payment',p.id,to_jsonb(p) FROM finance_payments p WHERE p.company_id=$1 UNION ALL SELECT 'journal',j.id,to_jsonb(j) FROM finance_journals j WHERE j.company_id=$1), measured AS (SELECT *,sum(octet_length(body::text)+octet_length(key)) OVER () bytes,count(*) OVER () count,row_number() OVER (ORDER BY kind,CASE WHEN kind='default' THEN (body->>'created_at')::bigint END DESC NULLS LAST,key) ordinal FROM source) SELECT CASE WHEN bytes<=2097152 AND count<=10000 THEN kind END kind,CASE WHEN bytes<=2097152 AND count<=10000 THEN body::text END body FROM measured WHERE (bytes<=2097152 AND count<=10000) OR ordinal=1 ORDER BY kind,CASE WHEN kind='default' THEN (body->>'created_at')::bigint END DESC NULLS LAST,key"
+    } else {
+        "WITH source AS MATERIALIZED (SELECT 'chart' kind,c.id key,to_jsonb(c) body FROM finance_charts c WHERE c.company_id=$1 UNION ALL SELECT 'account',a.id,to_jsonb(a) FROM finance_accounts a WHERE a.company_id=$1 UNION ALL SELECT 'settings',s.company_id,to_jsonb(s) FROM company_money_settings s WHERE s.company_id=$1 UNION ALL SELECT 'scale',s.currency,to_jsonb(s) FROM company_currency_scales s WHERE s.company_id=$1 UNION ALL SELECT 'invoice',i.id,to_jsonb(i) FROM finance_invoices i WHERE i.company_id=$1 UNION ALL SELECT 'payment',p.id,to_jsonb(p) FROM finance_payments p WHERE p.company_id=$1 UNION ALL SELECT 'journal',j.id,to_jsonb(j) FROM finance_journals j WHERE j.company_id=$1), measured AS (SELECT *,sum(octet_length(body::text)+octet_length(key)) OVER () bytes,count(*) OVER () count,row_number() OVER (ORDER BY kind,CASE WHEN kind='default' THEN (body->>'created_at')::bigint END DESC NULLS LAST,key) ordinal FROM source) SELECT CASE WHEN bytes<=2097152 AND count<=10000 THEN kind END kind,CASE WHEN bytes<=2097152 AND count<=10000 THEN body::text END body FROM measured WHERE (bytes<=2097152 AND count<=10000) OR ordinal=1 ORDER BY kind,CASE WHEN kind='default' THEN (body->>'created_at')::bigint END DESC NULLS LAST,key"
+    };
+    let records = sqlx::query(source_sql)
+        .bind(company.as_str())
+        .fetch_all(&mut *c)
+        .await?;
     let mut rows = Vec::with_capacity(records.len());
     for r in records {
         let kind = r
@@ -103,7 +191,11 @@ async fn capture(
         defaults_blocked,
         approved_sales_defaults,
         expected_sales_defaults,
-        reference_image: reference_image(c, company).await?,
+        reference_image: if include_defaults {
+            reference_image(c, company).await?
+        } else {
+            prerequisite_reference_image(c, company).await?
+        },
         history_image: history_image(c, company).await?,
         finance_history: rows
             .iter()
@@ -139,6 +231,19 @@ async fn reference_image(c: &mut PgConnection, company: &CompanyId) -> Result<St
     let inner = serde_json::to_string(&(charts, accounts)).map_err(|_| limited())?;
     let sales = serde_json::to_string(&defaults).map_err(|_| limited())?;
     serde_json::to_string(&(inner, get("money")?, sales)).map_err(|_| limited())
+}
+async fn prerequisite_reference_image(
+    c: &mut PgConnection,
+    company: &CompanyId,
+) -> Result<String, Error> {
+    let row=sqlx::query("WITH images AS MATERIALIZED (SELECT COALESCE((SELECT jsonb_agg(to_jsonb(c)::text ORDER BY c.id) FROM finance_charts c WHERE c.company_id=$1),'[]'::jsonb)::text charts,COALESCE((SELECT jsonb_agg(to_jsonb(a)::text ORDER BY a.id) FROM finance_accounts a WHERE a.company_id=$1),'[]'::jsonb)::text accounts) SELECT CASE WHEN octet_length(charts)+octet_length(accounts)<=4194304 THEN charts END charts,CASE WHEN octet_length(charts)+octet_length(accounts)<=4194304 THEN accounts END accounts FROM images").bind(company.as_str()).fetch_one(c).await?;
+    let get = |name| -> Result<String, Error> {
+        row.try_get::<Option<String>, _>(name)?.ok_or_else(limited)
+    };
+    let charts: Vec<String> = serde_json::from_str(&get("charts")?).map_err(|_| limited())?;
+    let accounts: Vec<String> = serde_json::from_str(&get("accounts")?).map_err(|_| limited())?;
+    let inner = serde_json::to_string(&(charts, accounts)).map_err(|_| limited())?;
+    serde_json::to_string(&(inner, String::new(), String::from("[]"))).map_err(|_| limited())
 }
 async fn unit(c: &mut PgConnection) -> Result<Unit, Error> {
     if !c.is_in_transaction()

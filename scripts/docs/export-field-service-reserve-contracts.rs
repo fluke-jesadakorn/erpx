@@ -37,6 +37,16 @@ use erpx_service::service_parts_posting_setup::{
     ServicePostingCommandResponse, ServicePostingReadResponse, ServicePostingResult,
     ServicePostingView,
 };
+use erpx_service::service_parts_prerequisite_setup::{
+    ServicePrerequisiteAccountInput, ServicePrerequisiteAccountRequest,
+    ServicePrerequisiteAccountResponse, ServicePrerequisiteAccountResult,
+    ServicePrerequisiteChartInput, ServicePrerequisiteChartRequest,
+    ServicePrerequisiteChartResponse, ServicePrerequisiteChartResult,
+    ServicePrerequisitePeriodInput, ServicePrerequisitePeriodRequest,
+    ServicePrerequisitePeriodResponse, ServicePrerequisitePeriodResult,
+    ServicePrerequisiteRateInput, ServicePrerequisiteRateRequest, ServicePrerequisiteRateResponse,
+    ServicePrerequisiteRateResult, ServicePrerequisitesReadResponse, ServicePrerequisitesView,
+};
 use ts_rs::{Config, TS};
 #[derive(utoipa::ToSchema)]
 struct ReserveResponse {
@@ -91,9 +101,29 @@ fn parts_posting_confirm() {}
 const _: fn() = parts_posting_read;
 const _: fn() = parts_posting_initialize;
 const _: fn() = parts_posting_confirm;
+#[utoipa::path(get,path="/api/v1/holdings/{holding_slug}/field-service/parts-setup/prerequisites",params(("holding_slug"=String,Path)),responses((status=200,body=ServicePrerequisitesReadResponse,description="Current Company Finance prerequisite choices")))]
+fn parts_prerequisites_read() {}
+const _: fn() = parts_prerequisites_read;
+#[utoipa::path(post,path="/api/v1/holdings/{holding_slug}/field-service/parts-setup/charts",params(("holding_slug"=String,Path)),request_body=ServicePrerequisiteChartRequest,responses((status=200,body=ServicePrerequisiteChartResponse,description="Original Finance prerequisite command receipt")))]
+fn parts_prerequisite_charts() {}
+const _: fn() = parts_prerequisite_charts;
+#[utoipa::path(post,path="/api/v1/holdings/{holding_slug}/field-service/parts-setup/accounts",params(("holding_slug"=String,Path)),request_body=ServicePrerequisiteAccountRequest,responses((status=200,body=ServicePrerequisiteAccountResponse,description="Original Finance prerequisite command receipt")))]
+fn parts_prerequisite_accounts() {}
+const _: fn() = parts_prerequisite_accounts;
+#[utoipa::path(post,path="/api/v1/holdings/{holding_slug}/field-service/parts-setup/periods",params(("holding_slug"=String,Path)),request_body=ServicePrerequisitePeriodRequest,responses((status=200,body=ServicePrerequisitePeriodResponse,description="Original Finance prerequisite command receipt")))]
+fn parts_prerequisite_periods() {}
+const _: fn() = parts_prerequisite_periods;
+#[utoipa::path(post,path="/api/v1/holdings/{holding_slug}/field-service/parts-setup/rates",params(("holding_slug"=String,Path)),request_body=ServicePrerequisiteRateRequest,responses((status=200,body=ServicePrerequisiteRateResponse,description="Original Finance prerequisite command receipt")))]
+fn parts_prerequisite_rates() {}
+const _: fn() = parts_prerequisite_rates;
 #[derive(utoipa::OpenApi)]
 #[openapi(
     paths(
+        parts_prerequisites_read,
+        parts_prerequisite_charts,
+        parts_prerequisite_accounts,
+        parts_prerequisite_periods,
+        parts_prerequisite_rates,
         parts_posting_read,
         parts_posting_initialize,
         parts_posting_confirm,
@@ -112,6 +142,24 @@ const _: fn() = parts_posting_confirm;
         agreement_create_read
     ),
     components(schemas(
+        ServicePrerequisitesView,
+        ServicePrerequisitesReadResponse,
+        ServicePrerequisiteChartInput,
+        ServicePrerequisiteChartRequest,
+        ServicePrerequisiteChartResult,
+        ServicePrerequisiteChartResponse,
+        ServicePrerequisiteAccountInput,
+        ServicePrerequisiteAccountRequest,
+        ServicePrerequisiteAccountResult,
+        ServicePrerequisiteAccountResponse,
+        ServicePrerequisitePeriodInput,
+        ServicePrerequisitePeriodRequest,
+        ServicePrerequisitePeriodResult,
+        ServicePrerequisitePeriodResponse,
+        ServicePrerequisiteRateInput,
+        ServicePrerequisiteRateRequest,
+        ServicePrerequisiteRateResult,
+        ServicePrerequisiteRateResponse,
         ServicePostingView,
         ServicePostingResult,
         ServicePostingReadResponse,
@@ -201,6 +249,24 @@ fn main() {
         "// Generated from the Rust Field Service reservation contracts. Do not edit by hand.\n// Regenerate: bun scripts/docs/generate-field-service-reserve-contracts.ts"
     );
     for declaration in [
+        ServicePrerequisitesView::decl(&config),
+        ServicePrerequisitesReadResponse::decl(&config),
+        ServicePrerequisiteChartInput::decl(&config),
+        ServicePrerequisiteChartRequest::decl(&config),
+        ServicePrerequisiteChartResult::decl(&config),
+        ServicePrerequisiteChartResponse::decl(&config),
+        ServicePrerequisiteAccountInput::decl(&config),
+        ServicePrerequisiteAccountRequest::decl(&config),
+        ServicePrerequisiteAccountResult::decl(&config),
+        ServicePrerequisiteAccountResponse::decl(&config),
+        ServicePrerequisitePeriodInput::decl(&config),
+        ServicePrerequisitePeriodRequest::decl(&config),
+        ServicePrerequisitePeriodResult::decl(&config),
+        ServicePrerequisitePeriodResponse::decl(&config),
+        ServicePrerequisiteRateInput::decl(&config),
+        ServicePrerequisiteRateRequest::decl(&config),
+        ServicePrerequisiteRateResult::decl(&config),
+        ServicePrerequisiteRateResponse::decl(&config),
         ServicePostingView::decl(&config),
         ServicePostingResult::decl(&config),
         ServicePostingReadResponse::decl(&config),
