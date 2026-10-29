@@ -1,14 +1,14 @@
 //! Existing Field Service reservation stock scope, without consumption-only
 //! active warehouse/product or posting-settings prerequisites.
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
-use erpx_server_shared::public::{BusinessError, CompanyId, FailureKind, RecordId};
+use erpx_server_shared::public::{BusinessError, CompanyId, FailureKind};
 use sqlx::{Connection, PgConnection};
 type Error = PgTransactionError<BusinessError>;
 type Unit = (String, i32, String, String);
 #[derive(Clone, Eq, PartialEq)]
 pub struct FieldServiceStockScopeRequest {
     pub company_id: CompanyId,
-    pub branch_id: RecordId,
+    pub branch_id: String,
     pub warehouse_id: String,
     pub product_id: String,
 }

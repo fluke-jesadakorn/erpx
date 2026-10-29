@@ -19,8 +19,8 @@ use erpx_server_field_service::public::{
 use erpx_server_identity_access::public::{
     effective_authority::{AuthorizedWorkContext, HoldingWorkSourcePreparation},
     field_service_assignment::{
-        CurrentFieldServiceAssignment, FieldServiceAssignmentPermission,
-        FieldServiceAssignmentRequest, inspect_field_service_assignment,
+        CurrentFieldServiceRawAssignment, FieldServiceAssignmentPermission,
+        FieldServiceRawAssignmentRequest, inspect_field_service_raw_assignment,
     },
 };
 use erpx_server_people_payroll::public::field_service_worker::{
@@ -39,7 +39,7 @@ use std::sync::Arc;
 
 struct Technician {
     id: String,
-    assignment: CurrentFieldServiceAssignment,
+    assignment: CurrentFieldServiceRawAssignment,
     person: CurrentFieldServicePeopleReference,
 }
 impl PgVisitTechnician for Technician {
@@ -62,9 +62,9 @@ async fn technician(
     id: &str,
 ) -> Result<Technician, Error> {
     let at = database_now(c).await?;
-    let assignment = inspect_field_service_assignment(
+    let assignment = inspect_field_service_raw_assignment(
         c,
-        FieldServiceAssignmentRequest {
+        FieldServiceRawAssignmentRequest {
             company_id: source.facts().company_id.clone(),
             user_id: id.into(),
             branch_id: source.facts().branch_id.clone(),

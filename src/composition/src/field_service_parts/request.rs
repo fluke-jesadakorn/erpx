@@ -1,7 +1,7 @@
 //! Actual Service request composition; no other branch or actor factory.
 use super::{Error, FieldServicePartsSourcePreparation, changed};
 use erpx_server_assets::public::field_service_reference::{
-    CurrentFieldServiceAssetReference, read_current_field_service_asset,
+    CurrentFieldServicePhysicalAsset, read_current_field_service_physical_asset,
 };
 use erpx_server_collaboration::public::field_service_notifications::{
     FieldServiceNotificationFacts, OwnedPreparedFieldServiceNotification,
@@ -21,14 +21,14 @@ use erpx_server_field_service::public::{
     },
 };
 use erpx_server_finance::public::field_service_customer::{
-    CurrentFieldServiceCustomer, read_current_field_service_customer,
+    CurrentFieldServicePhysicalCustomer, read_current_field_service_physical_customer,
 };
 use erpx_server_identity_access::public::{
     command_metadata::project_command_iam,
     effective_authority::{AuthorizedWorkContext, HoldingWorkSourcePreparation},
     field_service_assignment::{
-        CurrentFieldServiceAssignment, FieldServiceAssignmentPermission,
-        FieldServiceAssignmentRequest, inspect_field_service_assignment,
+        CurrentFieldServiceRawAssignment, FieldServiceAssignmentPermission,
+        FieldServiceRawAssignmentRequest, inspect_field_service_raw_assignment,
     },
     work_context::WorkScopeKind,
 };
@@ -108,9 +108,9 @@ pub(super) fn actor(
 struct RequestSources<'a> {
     current: &'a AuthorizedWorkContext,
     agreement: CurrentServiceRequestAgreement,
-    customer: CurrentFieldServiceCustomer,
-    asset: Option<CurrentFieldServiceAssetReference>,
-    technician: CurrentFieldServiceAssignment,
+    customer: CurrentFieldServicePhysicalCustomer,
+    asset: Option<CurrentFieldServicePhysicalAsset>,
+    technician: CurrentFieldServiceRawAssignment,
     person: CurrentFieldServicePeopleReference,
     order: ServiceRequestOrderFacts,
     ticket: ServiceIntakeTicketFacts,
@@ -139,14 +139,19 @@ impl<'a> RequestSources<'a> {
             .into());
         }
         agreement.require_new_work(c).await?;
-        let customer = read_current_field_service_customer(c, &a.company_id, &a.customer_id)
+        let customer =
+            read_current_field_service_physical_customer(c, &a.company_id, &a.customer_id)
+                .await?
+                .ok_or_else(unavailable)?;
+        let asset = if let Some(id) = &a.asset_id {
+            let asset = read_current_field_service_physical_asset(
+                c,
+                current.holding_id(),
+                &a.company_id,
+                id,
+            )
             .await?
             .ok_or_else(unavailable)?;
-        let asset = if let Some(id) = &a.asset_id {
-            let asset =
-                read_current_field_service_asset(c, current.holding_id(), &a.company_id, id)
-                    .await?
-                    .ok_or_else(unavailable)?;
             let facts = asset.facts();
             if facts.branch_id != a.branch_id
                 || matches!(
@@ -158,7 +163,7 @@ impl<'a> RequestSources<'a> {
                     .workspace()
                     .department_id
                     .as_ref()
-                    .is_some_and(|d| facts.department_id.as_ref() != Some(d))
+                    .is_some_and(|d| facts.department_id.as_deref() != Some(d.as_str()))
             {
                 return Err(unavailable().into());
             }
@@ -167,9 +172,9 @@ impl<'a> RequestSources<'a> {
             None
         };
         let db_now = database_now(c).await?;
-        let technician = inspect_field_service_assignment(
+        let technician = inspect_field_service_raw_assignment(
             c,
-            FieldServiceAssignmentRequest {
+            FieldServiceRawAssignmentRequest {
                 company_id: a.company_id.clone(),
                 user_id: input.technician_id.clone(),
                 branch_id: a.branch_id.clone(),
@@ -439,15 +444,15 @@ async fn require_replay_source(
         || o.branch_id != t.branch_id
         || o.department_id != t.department_id
         || a.branch_id.as_str() != o.branch_id
-        || a.department_id.as_ref().map(|v| v.as_str()) != o.department_id.as_deref()
+        || a.department_id.as_deref() != o.department_id.as_deref()
         || a.customer_id.as_str() != t.customer_id
     {
         return Err(changed().into());
     }
     let db_now = database_now(c).await?;
-    let technician = inspect_field_service_assignment(
+    let technician = inspect_field_service_raw_assignment(
         c,
-        FieldServiceAssignmentRequest {
+        FieldServiceRawAssignmentRequest {
             company_id: a.company_id.clone(),
             user_id: o.current_technician_id.clone(),
             branch_id: a.branch_id.clone(),
@@ -514,11 +519,11 @@ impl<C: Clock + Sync> PgCommandAuthority for Authority<'_, C> {
             .ok_or_else(unavailable)?;
         let facts = agreement.facts();
         let customer =
-            read_current_field_service_customer(c, &facts.company_id, &facts.customer_id)
+            read_current_field_service_physical_customer(c, &facts.company_id, &facts.customer_id)
                 .await?
                 .ok_or_else(unavailable)?;
         let asset = if let Some(id) = &facts.asset_id {
-            let value = read_current_field_service_asset(
+            let value = read_current_field_service_physical_asset(
                 c,
                 self.current.holding_id(),
                 &facts.company_id,
@@ -734,12 +739,15 @@ impl<C: Clock + Send + Sync + 'static> super::OtherPost for RequestDispatcher<C>
                 .ok_or_else(unavailable)?;
             actor(current, self.clock.now())?;
             let facts = agreement.facts();
-            let customer =
-                read_current_field_service_customer(c, &facts.company_id, &facts.customer_id)
-                    .await?
-                    .ok_or_else(unavailable)?;
+            let customer = read_current_field_service_physical_customer(
+                c,
+                &facts.company_id,
+                &facts.customer_id,
+            )
+            .await?
+            .ok_or_else(unavailable)?;
             let asset = if let Some(id) = &facts.asset_id {
-                let value = read_current_field_service_asset(
+                let value = read_current_field_service_physical_asset(
                     c,
                     current.holding_id(),
                     &facts.company_id,

@@ -349,7 +349,7 @@ async fn field_service_raw_lot_identity_preserves_planning_checks_and_legacy_bou
         let typed = selection(&row);
         let raw = FieldServiceConsumptionSelection {
             company_id: typed.company_id.clone(),
-            branch_id: typed.branch_id.clone(),
+            branch_id: typed.branch_id.as_str().into(),
             warehouse_id: typed.warehouse_id.as_str().into(),
             product_id: typed.product_id.as_str().into(),
             entry_date: typed.entry_date.clone(),
@@ -445,7 +445,7 @@ async fn field_service_utf16_lot_slots_preserve_original_identity_and_storage_bi
     };
     let raw = FieldServiceConsumptionSelection {
         company_id: typed.company_id,
-        branch_id: typed.branch_id,
+        branch_id: typed.branch_id.as_str().into(),
         warehouse_id: "warehouse".into(),
         product_id: "product".into(),
         entry_date: typed.entry_date,

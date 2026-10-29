@@ -102,8 +102,10 @@ impl<'p, 'a> PreparedPartsSource<'p, 'a> {
             kind: PartsOwnerKind::FieldService,
             source_id: erpx_server_finance::public::parts_draft::PartsDraftSourceIdentity::FieldServicePhysical(source.facts().id.as_str().to_owned()),
             source_version: work.version_after(),
-            branch_id: source.facts().branch_id.clone(),
-            department_id: source.facts().department_id.clone(),
+            scope: erpx_server_finance::public::parts_draft::PartsDraftScope::FieldServicePhysical {
+                branch_id: source.facts().branch_id.clone(),
+                department_id: source.facts().department_id.clone(),
+            },
             quantity_milli: p.valuation.quantity_milli,
             value_minor: p.valuation.value_minor,
             consumption_at: i.created_at,

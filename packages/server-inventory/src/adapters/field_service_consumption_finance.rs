@@ -79,9 +79,12 @@ async fn read(
 ) -> Result<Option<FieldServiceConsumptionFinanceFacts>, Error> {
     // Only facts used by the Finance owner predicate leave Inventory. Reason,
     // names, stock, Quality and current availability are intentionally absent.
-    let row=sqlx::query("SELECT id id,CASE WHEN octet_length(company_id)<=200 THEN company_id END company_id,source_id order_id,source_version,branch_id branch_id,department_id department_id,octet_length(department_id)::bigint department_bytes,journal_id journal_id,CASE WHEN octet_length(currency)<=16 THEN currency END currency,quantity_milli,value_minor,warehouse_id warehouse_id,product_id product_id,created_by created_by FROM operational_inventory_consumptions WHERE id=$1 AND company_id=$2 AND source_kind='field_service' FOR SHARE")
+    let row=sqlx::query("SELECT CASE WHEN b.bounded THEN p.id END id,CASE WHEN b.bounded AND octet_length(p.company_id)<=200 THEN p.company_id END company_id,CASE WHEN b.bounded THEN p.source_id END order_id,p.source_version,CASE WHEN b.bounded THEN p.branch_id END branch_id,CASE WHEN b.bounded THEN p.department_id END department_id,CASE WHEN b.bounded THEN p.journal_id END journal_id,CASE WHEN b.bounded AND octet_length(p.currency)<=16 THEN p.currency END currency,p.quantity_milli,p.value_minor,CASE WHEN b.bounded THEN p.warehouse_id END warehouse_id,CASE WHEN b.bounded THEN p.product_id END product_id,CASE WHEN b.bounded THEN p.created_by END created_by,b.bounded FROM operational_inventory_consumptions p CROSS JOIN LATERAL (SELECT octet_length(p.id)::bigint+octet_length(p.source_id)::bigint+octet_length(p.branch_id)::bigint+coalesce(octet_length(p.department_id),0)::bigint+octet_length(p.journal_id)::bigint+octet_length(p.warehouse_id)::bigint+octet_length(p.product_id)::bigint+octet_length(p.created_by)::bigint<=2097152 AS bounded) b WHERE p.id=$1 AND p.company_id=$2 AND p.source_kind='field_service' FOR SHARE OF p")
         .bind(id).bind(company.as_str()).fetch_optional(c).await?;
     let Some(row) = row else { return Ok(None) };
+    if !row.try_get::<bool, _>("bounded")? {
+        return Err(invalid());
+    }
     let text = |name| -> Result<String, Error> {
         row.try_get::<Option<String>, _>(name)?.ok_or_else(invalid)
     };

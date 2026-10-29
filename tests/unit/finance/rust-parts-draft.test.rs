@@ -15,8 +15,10 @@ fn facts() -> PartsDraftFacts {
         kind: PartsOwnerKind::Maintenance,
         source_id: PartsDraftSourceIdentity::Existing(RecordId::new("work").unwrap()),
         source_version: 3,
-        branch_id: RecordId::new("branch").unwrap(),
-        department_id: None,
+        scope: PartsDraftScope::Maintenance {
+            branch_id: RecordId::new("branch").unwrap(),
+            department_id: None,
+        },
         quantity_milli: 1000,
         value_minor: 123,
         consumption_at: TimestampMillis::new(1800000000001),
@@ -61,6 +63,12 @@ fn exact_retained_b0_parts_derivation_covers_long_keys_unicode_cost_and_both_dat
             "field_service" => PartsOwnerKind::FieldService,
             _ => panic!("closed source kind"),
         };
+        if facts.kind == PartsOwnerKind::FieldService {
+            facts.scope = PartsDraftScope::FieldServicePhysical {
+                branch_id: "branch".into(),
+                department_id: None,
+            };
+        }
         facts.reason = row["reason"].as_str().unwrap().into();
         facts.value_minor = row["valueMinor"].as_i64().unwrap();
         let plan = derive_parts_draft(&facts, &config()).unwrap();
@@ -260,4 +268,25 @@ fn provisional_next_version_does_not_preempt_the_original_money_quote_error() {
     assert!(derive_parts_draft(&f, &config()).is_ok());
     // A derived plan has no persistence method. The actual owner still rejects
     // its late Work version/CAS rather than authorizing an unsafe output.
+}
+
+#[test]
+fn source_kind_requires_its_own_scope_variant() {
+    let mut f = facts();
+    f.scope = PartsDraftScope::FieldServicePhysical {
+        branch_id: "b".repeat(210),
+        department_id: Some("d".repeat(210)),
+    };
+    assert!(
+        matches!(derive_parts_draft(&f, &config()), Err(e) if e.code == "PARTS_DRAFT_SCOPE_CHANGED")
+    );
+    f.kind = PartsOwnerKind::FieldService;
+    assert!(derive_parts_draft(&f, &config()).is_ok());
+    f.scope = PartsDraftScope::Maintenance {
+        branch_id: RecordId::new("branch").unwrap(),
+        department_id: None,
+    };
+    assert!(
+        matches!(derive_parts_draft(&f, &config()), Err(e) if e.code == "PARTS_DRAFT_SCOPE_CHANGED")
+    );
 }

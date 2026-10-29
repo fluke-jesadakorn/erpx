@@ -33,6 +33,19 @@ impl PartsDraftSourceIdentity {
         }
     }
 }
+/// Physical Service scope is sourced from its sealed owner witness; Maintenance
+/// retains its existing typed identifiers. Neither variant grants authority.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum PartsDraftScope {
+    Maintenance {
+        branch_id: RecordId,
+        department_id: Option<RecordId>,
+    },
+    FieldServicePhysical {
+        branch_id: String,
+        department_id: Option<String>,
+    },
+}
 /// Factual original OWNER command binding. No permission or context factory.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PartsDraftFacts {
@@ -41,8 +54,7 @@ pub struct PartsDraftFacts {
     pub kind: PartsOwnerKind,
     pub source_id: PartsDraftSourceIdentity,
     pub source_version: i64,
-    pub branch_id: RecordId,
-    pub department_id: Option<RecordId>,
+    pub scope: PartsDraftScope,
     pub quantity_milli: i64,
     pub value_minor: i64,
     pub consumption_at: TimestampMillis,
@@ -125,6 +137,18 @@ pub fn derive_parts_draft(
         PartsDraftSourceIdentity::FieldServicePhysical(_)
     ) && facts.kind != PartsOwnerKind::FieldService
     {
+        return Err(invalid("PARTS_DRAFT_SCOPE_CHANGED"));
+    }
+    if !matches!(
+        (&facts.kind, &facts.scope),
+        (
+            PartsOwnerKind::Maintenance,
+            PartsDraftScope::Maintenance { .. }
+        ) | (
+            PartsOwnerKind::FieldService,
+            PartsDraftScope::FieldServicePhysical { .. }
+        )
+    ) {
         return Err(invalid("PARTS_DRAFT_SCOPE_CHANGED"));
     }
     if facts.actor.holding_id != config.holding_id || facts.actor.company_id != config.company_id {

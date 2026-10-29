@@ -20,8 +20,8 @@ pub struct FieldServiceReservationBinding {
     pub order_id: String,
     pub reservation_id: String,
     pub company_id: CompanyId,
-    pub branch_id: RecordId,
-    pub department_id: Option<RecordId>,
+    pub branch_id: String,
+    pub department_id: Option<String>,
     pub warehouse_id: String,
     pub product_id: String,
     pub quantity_milli: i64,
@@ -63,7 +63,7 @@ pub struct FieldServiceConsumptionIdentity {
     pub owner_key: CommandKey,
     pub order_id: String,
     pub order_version_after: i64,
-    pub department_id: Option<RecordId>,
+    pub department_id: Option<String>,
     pub actor_id: UserId,
     pub reason: String,
     pub created_at: TimestampMillis,
@@ -309,7 +309,7 @@ impl<S: Send + Sync> PgReservedConsumptionEffects<S> {
         let p = &self.source.plan;
         let i = &self.identity;
         sqlx::query("INSERT INTO operational_inventory_consumptions(id,company_id,branch_id,department_id,source_kind,source_id,source_version,warehouse_id,product_id,quantity_milli,value_minor,currency,movement_date,journal_id,reason,created_by,created_at) VALUES($1,$2,$3,$4,'field_service',$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)")
-            .bind(&self.consumption_id).bind(p.selection.company_id.as_str()).bind(p.selection.branch_id.as_str()).bind(i.department_id.as_ref().map(RecordId::as_str)).bind(i.order_id.as_str()).bind(i.order_version_after).bind(p.selection.warehouse_id.as_str()).bind(p.selection.product_id.as_str()).bind(p.valuation.quantity_milli).bind(p.valuation.value_minor).bind(&p.config.currency).bind(&p.selection.entry_date).bind(i.journal_id.as_str()).bind(&i.reason).bind(i.actor_id.as_str()).bind(i.created_at.get()).execute(&mut *c).await?;
+            .bind(&self.consumption_id).bind(p.selection.company_id.as_str()).bind(p.selection.branch_id.as_str()).bind(i.department_id.as_deref()).bind(i.order_id.as_str()).bind(i.order_version_after).bind(p.selection.warehouse_id.as_str()).bind(p.selection.product_id.as_str()).bind(p.valuation.quantity_milli).bind(p.valuation.value_minor).bind(&p.config.currency).bind(&p.selection.entry_date).bind(i.journal_id.as_str()).bind(&i.reason).bind(i.actor_id.as_str()).bind(i.created_at.get()).execute(&mut *c).await?;
         for (index, cost) in p.valuation.lots.iter().enumerate() {
             let previous = self.lots[..index]
                 .iter()
@@ -420,7 +420,7 @@ impl<S: Send + Sync> PgReservedConsumptionEffects<S> {
         let p = &self.source.plan;
         let i = &self.identity;
         let exact:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM operational_inventory_consumptions WHERE id=$1 AND company_id=$2 AND branch_id=$3 AND department_id IS NOT DISTINCT FROM $4 AND source_kind='field_service' AND source_id=$5 AND source_version=$6 AND warehouse_id=$7 AND product_id=$8 AND quantity_milli=$9 AND value_minor=$10 AND currency=$11 AND movement_date=$12 AND journal_id=$13 AND reason=$14 AND created_by=$15 AND created_at=$16)")
-            .bind(&self.consumption_id).bind(p.selection.company_id.as_str()).bind(p.selection.branch_id.as_str()).bind(i.department_id.as_ref().map(RecordId::as_str)).bind(i.order_id.as_str()).bind(i.order_version_after).bind(p.selection.warehouse_id.as_str()).bind(p.selection.product_id.as_str()).bind(p.valuation.quantity_milli).bind(p.valuation.value_minor).bind(&p.config.currency).bind(&p.selection.entry_date).bind(i.journal_id.as_str()).bind(&i.reason).bind(i.actor_id.as_str()).bind(i.created_at.get()).fetch_one(&mut *c).await?;
+            .bind(&self.consumption_id).bind(p.selection.company_id.as_str()).bind(p.selection.branch_id.as_str()).bind(i.department_id.as_deref()).bind(i.order_id.as_str()).bind(i.order_version_after).bind(p.selection.warehouse_id.as_str()).bind(p.selection.product_id.as_str()).bind(p.valuation.quantity_milli).bind(p.valuation.value_minor).bind(&p.config.currency).bind(&p.selection.entry_date).bind(i.journal_id.as_str()).bind(&i.reason).bind(i.actor_id.as_str()).bind(i.created_at.get()).fetch_one(&mut *c).await?;
         if !exact {
             return Err(changed());
         }

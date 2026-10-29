@@ -174,8 +174,10 @@ impl<'p, 'a> PgMaintenancePartsSource<'p, 'a> {
                 source.facts().id.clone(),
             ),
             source_version: work.version_after(),
-            branch_id: source.facts().branch_id.clone(),
-            department_id: source.facts().department_id.clone(),
+            scope: erpx_server_finance::public::parts_draft::PartsDraftScope::Maintenance {
+                branch_id: source.facts().branch_id.clone(),
+                department_id: source.facts().department_id.clone(),
+            },
             quantity_milli: p.valuation.quantity_milli,
             value_minor: p.valuation.value_minor,
             consumption_at: i.created_at,

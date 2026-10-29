@@ -27,7 +27,7 @@ use erpx_server_inventory::public::field_service_stock_read::{
 };
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{
-    BusinessError, Clock, CompanyId, FailureKind, HoldingId, RecordId, TimestampMillis,
+    BusinessError, Clock, CompanyId, FailureKind, HoldingId, TimestampMillis,
 };
 use erpx_server_workflow::public::record_origin::lock_record_origin_sources;
 use serde::Serialize;
@@ -417,7 +417,7 @@ impl<C: Clock + Send + Sync + 'static> FieldServiceReservationReadService<C> {
                             c,
                             FieldServiceStockScopeRequest {
                                 company_id: config.company.clone(),
-                                branch_id: RecordId::new(source.branch_id())?,
+                                branch_id: source.branch_id().to_owned(),
                                 warehouse_id: part.warehouse_id.clone(),
                                 product_id: part.product_id.clone(),
                             },
@@ -792,7 +792,7 @@ impl<C: Clock + Send + Sync + 'static> FieldServiceReservationReadService<C> {
                             c,
                             FieldServiceStockScopeRequest {
                                 company_id: config.company.clone(),
-                                branch_id: RecordId::new(source.reservation().branch_id())?,
+                                branch_id: source.reservation().branch_id().to_owned(),
                                 warehouse_id: part.warehouse_id.clone(),
                                 product_id: part.product_id.clone(),
                             },
@@ -863,7 +863,7 @@ impl<C: Clock + Send + Sync + 'static> FieldServiceReservationReadService<C> {
     where
         Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
     {
-        use erpx_server_assets::public::field_service_reference::read_current_field_service_asset;
+        use erpx_server_assets::public::field_service_reference::read_current_field_service_physical_asset;
         use erpx_server_field_service::public::{
             request_agreement::read_service_request_agreement_history,
             request_order::read_service_request_order,
@@ -872,7 +872,7 @@ impl<C: Clock + Send + Sync + 'static> FieldServiceReservationReadService<C> {
                 FieldServiceRequestTicketRead,
             },
         };
-        use erpx_server_finance::public::field_service_customer::read_current_field_service_customer;
+        use erpx_server_finance::public::field_service_customer::read_current_field_service_physical_customer;
         use erpx_server_support::public::field_service_request::read_service_intake;
         use erpx_server_workflow::public::record_origin::{
             RawRecordOriginRequest, read_raw_record_origin_result_with_limit,
@@ -944,18 +944,18 @@ impl<C: Clock + Send + Sync + 'static> FieldServiceReservationReadService<C> {
                         .await?
                         .ok_or_else(denied)?;
                         let a = agreement.facts();
-                        if a.branch_id.as_str()!=o.branch_id || a.department_id.as_ref().map(|v|v.as_str())!=o.department_id.as_deref() || a.customer_id.as_str() != t.customer_id || a.branch_id.as_str() != t.branch_id || a.department_id.as_ref().map(|v|v.as_str()) != t.department_id.as_deref() {
+                        if a.branch_id.as_str()!=o.branch_id || a.department_id.as_deref()!=o.department_id.as_deref() || a.customer_id.as_str() != t.customer_id || a.branch_id.as_str() != t.branch_id || a.department_id.as_deref() != t.department_id.as_deref() {
                             return Err(denied().into());
                         }
                         let customer =
-                            read_current_field_service_customer(c, &config.company, &a.customer_id)
+                            read_current_field_service_physical_customer(c, &config.company, &a.customer_id)
                                 .await?
                                 .ok_or_else(denied)?;
                         let db_now: i64=sqlx::query_scalar("SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint").fetch_one(&mut *c).await?;
-                        let technician = erpx_server_identity_access::public::field_service_assignment::inspect_field_service_assignment(c, erpx_server_identity_access::public::field_service_assignment::FieldServiceAssignmentRequest { company_id:config.company.clone(),user_id:o.current_technician_id.clone(),branch_id:a.branch_id.clone(),department_id:a.department_id.clone(),permission:erpx_server_identity_access::public::field_service_assignment::FieldServiceAssignmentPermission::Write },TimestampMillis::new(db_now)).await?;
+                        let technician = erpx_server_identity_access::public::field_service_assignment::inspect_field_service_raw_assignment(c, erpx_server_identity_access::public::field_service_assignment::FieldServiceRawAssignmentRequest { company_id:config.company.clone(),user_id:o.current_technician_id.clone(),branch_id:a.branch_id.clone(),department_id:a.department_id.clone(),permission:erpx_server_identity_access::public::field_service_assignment::FieldServiceAssignmentPermission::Write },TimestampMillis::new(db_now)).await?;
                         let person = erpx_server_people_payroll::public::field_service_worker::inspect_field_service_people_reference(c,&config.company,&o.current_technician_id).await?;
                         let asset = if let Some(id) = &a.asset_id {
-                            let v = read_current_field_service_asset(
+                            let v = read_current_field_service_physical_asset(
                                 c,
                                 &config.holding,
                                 &config.company,
@@ -1117,7 +1117,7 @@ impl<C: Clock + Send + Sync + 'static> FieldServiceReservationReadService<C> {
                 FieldServiceRequestTicketRead,
             },
         };
-        use erpx_server_finance::public::field_service_customer::read_current_field_service_customer;
+        use erpx_server_finance::public::field_service_customer::read_current_field_service_physical_customer;
         use erpx_server_support::public::field_service_existing_ticket::read_existing_service_ticket;
         use erpx_server_workflow::public::record_origin::{
             RawRecordOriginRequest, read_raw_record_origin_result_with_limit,
@@ -1145,11 +1145,11 @@ impl<C: Clock + Send + Sync + 'static> FieldServiceReservationReadService<C> {
    let order=read_service_request_order(c,current,&key).await?.ok_or_else(denied)?;let o=order.facts();
    let ticket=read_existing_service_ticket(c,&config.company,&o.ticket_id).await?.ok_or_else(denied)?;let t=ticket.facts();
    let agreement=read_service_request_agreement_history(c,current,&o.agreement_id).await?.ok_or_else(denied)?;let a=agreement.facts();
-   if o.branch_id!=t.branch_id.as_str()||o.department_id.as_deref()!=t.department_id.as_ref().map(|v|v.as_str())||a.branch_id!=t.branch_id||a.department_id!=t.department_id||a.customer_id!=t.customer_id||t.version<o.ticket_version||a.asset_id.as_ref().is_some_and(|v|Some(v.as_str())!=o.asset_id.as_deref())||o.event_status!=if o.scheduled_at.is_some(){"scheduled"}else{"open"}{return Err(denied().into());}
-   let customer=read_current_field_service_customer(c,&config.company,&a.customer_id).await?.ok_or_else(denied)?;
+   if o.branch_id!=t.branch_id.as_str()||o.department_id.as_deref()!=t.department_id.as_deref()||a.branch_id!=t.branch_id||a.department_id!=t.department_id||a.customer_id!=t.customer_id||t.version<o.ticket_version||a.asset_id.as_ref().is_some_and(|v|Some(v.as_str())!=o.asset_id.as_deref())||o.event_status!=if o.scheduled_at.is_some(){"scheduled"}else{"open"}{return Err(denied().into());}
+   let customer=read_current_field_service_physical_customer(c,&config.company,&a.customer_id).await?.ok_or_else(denied)?;
    let asset=if let Some(id)=o.asset_id.as_ref().filter(|v|!v.is_empty()){let v=read_current_field_service_physical_asset(c,&config.holding,&config.company,id).await?.ok_or_else(denied)?;if v.facts().branch_id!=a.branch_id{return Err(denied().into());}Some(v)}else{None};
    let db_now:i64=sqlx::query_scalar("SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint").fetch_one(&mut *c).await?;
-   let technician=erpx_server_identity_access::public::field_service_assignment::inspect_field_service_assignment(c,erpx_server_identity_access::public::field_service_assignment::FieldServiceAssignmentRequest{company_id:config.company.clone(),user_id:o.current_technician_id.clone(),branch_id:a.branch_id.clone(),department_id:a.department_id.clone(),permission:erpx_server_identity_access::public::field_service_assignment::FieldServiceAssignmentPermission::Write},TimestampMillis::new(db_now)).await?;
+   let technician=erpx_server_identity_access::public::field_service_assignment::inspect_field_service_raw_assignment(c,erpx_server_identity_access::public::field_service_assignment::FieldServiceRawAssignmentRequest{company_id:config.company.clone(),user_id:o.current_technician_id.clone(),branch_id:a.branch_id.clone(),department_id:a.department_id.clone(),permission:erpx_server_identity_access::public::field_service_assignment::FieldServiceAssignmentPermission::Write},TimestampMillis::new(db_now)).await?;
    let person=erpx_server_people_payroll::public::field_service_worker::inspect_field_service_people_reference(c,&config.company,&o.current_technician_id).await?;
    let mut caps=vec!["service.orders".into(),"support.source-ticket".into()];if asset.is_some()||a.asset_id.is_some(){caps.push("service.parts-assets".into());}let purchase=PgCompanyPurchaseReader::new(config.holding.clone(),config.company.clone(),c,&config.catalogue).inspect(&PurchaseRequest{capabilities:caps,purpose:CapabilityPurpose::History,mode:PackageEnforcementMode::Enforced},clock.now()).await?.require_allowed()?.clone();
    let (origin,result)=read_raw_record_origin_result_with_limit(c,RawRecordOriginRequest{command_key:key.clone(),operation:"field.order.create".into(),record_id:o.order_id.clone(),creator_user_id:o.actor_id.clone(),company_id:config.company.clone()},1024*1024).await?.ok_or_else(denied)?;

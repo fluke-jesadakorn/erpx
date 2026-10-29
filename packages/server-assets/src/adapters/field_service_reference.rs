@@ -131,8 +131,8 @@ pub struct FieldServicePhysicalAssetFacts {
     pub holding_id: HoldingId,
     pub company_id: CompanyId,
     pub asset_id: String,
-    pub branch_id: RecordId,
-    pub department_id: Option<RecordId>,
+    pub branch_id: String,
+    pub department_id: Option<String>,
     pub lifecycle_status: String,
     pub warranty_end: Option<String>,
     pub version: i64,
@@ -179,12 +179,12 @@ async fn read_physical(
     company: &CompanyId,
     id: &str,
 ) -> Result<Option<FieldServicePhysicalAssetFacts>, Error> {
-    let row=sqlx::query("SELECT CASE WHEN octet_length(branch_id)<=200 THEN branch_id END branch_id,CASE WHEN octet_length(department_id)<=200 THEN department_id END department_id,octet_length(department_id)::bigint department_bytes,CASE WHEN octet_length(lifecycle_status)<=32 THEN lifecycle_status END lifecycle_status,CASE WHEN octet_length(warranty_end::text)<=200 THEN warranty_end::text END warranty_end,octet_length(warranty_end::text)::bigint warranty_bytes,version::bigint version FROM operational_assets WHERE id=$1 AND company_id=$2 FOR SHARE").bind(id).bind(company.as_str()).fetch_optional(c).await?;
+    let row=sqlx::query("SELECT CASE WHEN octet_length(branch_id)::bigint+coalesce(octet_length(department_id),0)::bigint<=2097152 THEN branch_id END branch_id,CASE WHEN octet_length(branch_id)::bigint+coalesce(octet_length(department_id),0)::bigint<=2097152 THEN department_id END department_id,octet_length(branch_id)::bigint+coalesce(octet_length(department_id),0)::bigint scope_bytes,CASE WHEN octet_length(lifecycle_status)<=32 THEN lifecycle_status END lifecycle_status,CASE WHEN octet_length(warranty_end::text)<=200 THEN warranty_end::text END warranty_end,octet_length(warranty_end::text)::bigint warranty_bytes,version::bigint version FROM operational_assets WHERE id=$1 AND company_id=$2 FOR SHARE").bind(id).bind(company.as_str()).fetch_optional(c).await?;
     let Some(row) = row else { return Ok(None) };
-    for field in ["department_bytes", "warranty_bytes"] {
+    for (field, max) in [("scope_bytes", 2097152), ("warranty_bytes", 200)] {
         if row
             .try_get::<Option<i64>, _>(field)?
-            .is_some_and(|n| n > 200)
+            .is_some_and(|n| n > max)
         {
             return Err(invalid());
         }
@@ -193,14 +193,10 @@ async fn read_physical(
         holding_id: holding.clone(),
         company_id: company.clone(),
         asset_id: id.into(),
-        branch_id: RecordId::new(
-            row.try_get::<Option<String>, _>("branch_id")?
-                .ok_or_else(invalid)?,
-        )?,
-        department_id: row
-            .try_get::<Option<String>, _>("department_id")?
-            .map(RecordId::new)
-            .transpose()?,
+        branch_id: row
+            .try_get::<Option<String>, _>("branch_id")?
+            .ok_or_else(invalid)?,
+        department_id: row.try_get("department_id")?,
         lifecycle_status: row
             .try_get::<Option<String>, _>("lifecycle_status")?
             .ok_or_else(invalid)?,

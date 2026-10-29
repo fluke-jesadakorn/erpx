@@ -50693,7 +50693,7 @@
         "reason": "Development dependency selection exercises this suite when affected; historical PR metadata is retained only for older receipt readers."
       },
       "serial": {
-        "reason": "Owns the exclusive isolated gateway listener3104 and disposable process-fixture app ports3290–3291."
+        "reason": "Owns the exclusive isolated gateway listener3104 and disposable process-fixture app ports3290\u20133291."
       },
       "verificationInputs": [
         "scripts/local/dev.ts",
@@ -69676,7 +69676,24 @@
         "packages/server-finance/src/public/field_service_agreement_money.rs",
         "packages/server-organization/src/adapters/field_service_agreement.rs",
         "packages/server-organization/src/public/field_service_agreement.rs",
-        "src/composition/src/field_service_parts/agreement_create.rs"
+        "src/composition/src/field_service_parts/agreement_create.rs",
+        "packages/server-assets/src/adapters/field_service_reference.rs",
+        "packages/server-commerce/src/adapters/field_service_reservation.rs",
+        "packages/server-commerce/src/adapters/postgres_inventory_consumption.rs",
+        "packages/server-field_service/src/adapters/parts/source.rs",
+        "packages/server-finance/src/adapters/field_service_customer.rs",
+        "packages/server-finance/src/application/parts_draft.rs",
+        "packages/server-finance/src/public/field_service_customer.rs",
+        "packages/server-finance/src/public/parts_draft.rs",
+        "packages/server-inventory/src/adapters/field_service_consumption_finance.rs",
+        "packages/server-inventory/src/adapters/postgres_consumption/reserved_effects.rs",
+        "packages/server-inventory/src/application/field_service_consumption.rs",
+        "packages/server-quality/src/adapters/postgres_inventory_consumption.rs",
+        "packages/server-support/src/adapters/field_service.rs",
+        "src/composition/src/field_service_parts/finance.rs",
+        "src/composition/src/field_service_parts/source.rs",
+        "src/composition/src/field_service_reservation_read.rs",
+        "src/composition/src/maintenance_parts/source.rs"
       ],
       "postgres": {
         "mode": "raw",

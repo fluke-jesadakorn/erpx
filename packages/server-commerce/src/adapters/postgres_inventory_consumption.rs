@@ -175,7 +175,7 @@ fn changed() -> Error {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RawConsumptionCommerceRequest {
     pub company_id: CompanyId,
-    pub branch_id: RecordId,
+    pub branch_id: String,
     pub warehouse_id: String,
     pub product_id: String,
 }
@@ -210,8 +210,8 @@ pub async fn read_consumption_source_raw(
     request: &RawConsumptionCommerceRequest,
 ) -> Result<Option<CurrentRawConsumptionCommerce>, Error> {
     require_unit(c).await?;
-    // Matching supplied bounded IDs and schema-constrained status/mode values
-    // avoid transferring names, descriptions, or arbitrary product payloads.
+    // Physical references are matched in SQL; only bounded versions and the
+    // schema-constrained tracking mode cross the owner boundary.
     let row=sqlx::query("SELECT w.version warehouse_version,p.version product_version,p.tracking_mode FROM commerce_warehouses w JOIN commerce_products p ON p.id=$4 AND p.company_id=w.company_id WHERE w.company_id=$1 AND w.branch_id=$2 AND w.id=$3 AND w.status='active' AND p.status='active' FOR SHARE OF w,p")
         .bind(request.company_id.as_str()).bind(request.branch_id.as_str()).bind(request.warehouse_id.as_str()).bind(request.product_id.as_str()).fetch_optional(&mut *c).await?;
     let Some(row) = row else { return Ok(None) };

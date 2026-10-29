@@ -154,7 +154,7 @@ fn changed() -> Error {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RawConsumptionHoldRequest {
     pub company_id: CompanyId,
-    pub branch_id: RecordId,
+    pub branch_id: String,
     pub warehouse_id: String,
     pub product_id: String,
     pub lot_ids: Vec<String>,
@@ -209,7 +209,7 @@ pub async fn read_consumption_holds_raw(
         )
         .into());
     }
-    // One aggregate row and at most the supplied 500 bounded lot IDs. No
+    // One aggregate row and at most the supplied 500 physical lot IDs. No
     // unbounded client collection or historical/free-form hold bodies. SUM is
     // NUMERIC in PostgreSQL and capped before conversion, never bigint overflow.
     let row=sqlx::query("SELECT COALESCE(bool_or(h.company_id<>$1 OR h.branch_id<>$2 OR h.product_id<>$4 OR h.quantity_scope NOT IN ('whole','partial')),false) invalid_scope,COALESCE(bool_or(h.product_id=$4 AND h.quantity_scope='whole'),false) whole,COALESCE(bool_or(h.product_id=$4 AND h.quantity_scope='whole' AND h.lot_id IS NULL),false) unscoped_whole,LEAST(COALESCE(SUM(h.held_quantity_milli)FILTER(WHERE h.product_id=$4 AND h.quantity_scope='partial'),0),9223372036854775807::numeric)::bigint partial,ARRAY(SELECT lot FROM unnest($5::text[]) lot WHERE EXISTS(SELECT 1 FROM inventory_quality_holds selected WHERE selected.warehouse_id=$3 AND selected.lot_id=lot AND selected.status NOT IN ('released','cancelled','disposed'))) blocked FROM inventory_quality_holds h WHERE h.warehouse_id=$3 AND h.status NOT IN ('released','cancelled','disposed') AND (h.product_id=$4 OR h.lot_id=ANY($5::text[]))")

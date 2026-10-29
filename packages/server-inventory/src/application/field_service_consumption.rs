@@ -14,7 +14,7 @@ use std::future::Future;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FieldServiceConsumptionSelection {
     pub company_id: CompanyId,
-    pub branch_id: RecordId,
+    pub branch_id: String,
     pub warehouse_id: String,
     pub product_id: String,
     pub entry_date: String,

@@ -2,7 +2,7 @@
 //! Field Service/Person/purchase grant and no foreign-owner private SQL.
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::{
-    BusinessError, CompanyId, FailureKind, HoldingId, RecordId, TimestampMillis, UserId,
+    BusinessError, CompanyId, FailureKind, HoldingId, TimestampMillis, UserId,
 };
 use sqlx::{Connection, PgConnection, Row};
 type Error = PgTransactionError<BusinessError>;
@@ -13,9 +13,9 @@ pub struct SupportServiceTicketRequest {
     pub holding_id: HoldingId,
     pub company_id: CompanyId,
     pub ticket_id: String,
-    pub branch_id: RecordId,
-    pub department_id: Option<RecordId>,
-    pub customer_id: RecordId,
+    pub branch_id: String,
+    pub department_id: Option<String>,
+    pub customer_id: String,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SupportServiceTicketFacts {
@@ -217,7 +217,7 @@ async fn read_facts(
     // This is the original closed lineage projection. Bodies, issue, names,
     // status/version and evidence never leave Support through this source API.
     let row=sqlx::query("SELECT b.bounded,CASE WHEN b.bounded THEN source_kind END source_kind,CASE WHEN b.bounded THEN order_id END order_id,CASE WHEN b.bounded THEN service_agreement_id END service_agreement_id,CASE WHEN b.bounded THEN service_order_id END service_order_id FROM support_tickets CROSS JOIN LATERAL (SELECT octet_length(source_kind)<=32 AND coalesce(octet_length(order_id),0)::bigint+coalesce(octet_length(service_agreement_id),0)::bigint+coalesce(octet_length(service_order_id),0)::bigint<=2097152 AS bounded) b WHERE id=$1 AND company_id=$2 AND branch_id=$3 AND department_id IS NOT DISTINCT FROM $4 AND customer_id=$5 FOR SHARE OF support_tickets")
-        .bind(r.ticket_id.as_str()).bind(r.company_id.as_str()).bind(r.branch_id.as_str()).bind(r.department_id.as_ref().map(RecordId::as_str)).bind(r.customer_id.as_str()).fetch_optional(c).await?;
+        .bind(r.ticket_id.as_str()).bind(r.company_id.as_str()).bind(r.branch_id.as_str()).bind(r.department_id.as_deref()).bind(r.customer_id.as_str()).fetch_optional(c).await?;
     let Some(row) = row else { return Ok(None) };
     if !row.try_get::<bool, _>("bounded")? {
         return Err(invalid());

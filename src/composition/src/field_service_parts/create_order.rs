@@ -20,13 +20,13 @@ use erpx_server_field_service::public::{
     },
 };
 use erpx_server_finance::public::field_service_customer::{
-    CurrentFieldServiceCustomer, read_current_field_service_customer,
+    CurrentFieldServicePhysicalCustomer, read_current_field_service_physical_customer,
 };
 use erpx_server_identity_access::public::{
     effective_authority::{AuthorizedWorkContext, HoldingWorkSourcePreparation},
     field_service_assignment::{
-        CurrentFieldServiceAssignment, FieldServiceAssignmentPermission,
-        FieldServiceAssignmentRequest, inspect_field_service_assignment,
+        CurrentFieldServiceRawAssignment, FieldServiceAssignmentPermission,
+        FieldServiceRawAssignmentRequest, inspect_field_service_raw_assignment,
     },
 };
 use erpx_server_people_payroll::public::field_service_worker::{
@@ -53,9 +53,9 @@ struct Sources<'a> {
     current: &'a AuthorizedWorkContext,
     agreement: CurrentServiceRequestAgreement,
     ticket: CurrentExistingServiceTicket,
-    customer: CurrentFieldServiceCustomer,
+    customer: CurrentFieldServicePhysicalCustomer,
     asset: Option<CurrentFieldServicePhysicalAsset>,
-    technician: CurrentFieldServiceAssignment,
+    technician: CurrentFieldServiceRawAssignment,
     person: CurrentFieldServicePeopleReference,
     order: ServiceRequestOrderFacts,
     notification: FieldServiceNotificationFacts,
@@ -92,9 +92,10 @@ impl<'a> Sources<'a> {
         {
             return Err(changed().into());
         }
-        let customer = read_current_field_service_customer(c, &a.company_id, &a.customer_id)
-            .await?
-            .ok_or_else(unavailable)?;
+        let customer =
+            read_current_field_service_physical_customer(c, &a.company_id, &a.customer_id)
+                .await?
+                .ok_or_else(unavailable)?;
         let asset = if let Some(id) = input.asset_id.as_ref().filter(|v| !v.is_empty()) {
             let asset = read_current_field_service_physical_asset(
                 c,
@@ -115,7 +116,7 @@ impl<'a> Sources<'a> {
                     .workspace()
                     .department_id
                     .as_ref()
-                    .is_some_and(|d| f.department_id.as_ref() != Some(d))
+                    .is_some_and(|d| f.department_id.as_deref() != Some(d.as_str()))
             {
                 return Err(unavailable().into());
             }
@@ -124,9 +125,9 @@ impl<'a> Sources<'a> {
             None
         };
         let db_now = database_now(c).await?;
-        let technician = inspect_field_service_assignment(
+        let technician = inspect_field_service_raw_assignment(
             c,
-            FieldServiceAssignmentRequest {
+            FieldServiceRawAssignmentRequest {
                 company_id: a.company_id.clone(),
                 user_id: input.technician_id.clone(),
                 branch_id: a.branch_id.clone(),
@@ -243,7 +244,7 @@ async fn agreement_dependencies(
 ) -> Result<
     (
         CurrentServiceRequestAgreement,
-        CurrentFieldServiceCustomer,
+        CurrentFieldServicePhysicalCustomer,
         Option<CurrentFieldServicePhysicalAsset>,
     ),
     Error,
@@ -252,7 +253,7 @@ async fn agreement_dependencies(
         .await?
         .ok_or_else(unavailable)?;
     let a = agreement.facts();
-    let customer = read_current_field_service_customer(c, &a.company_id, &a.customer_id)
+    let customer = read_current_field_service_physical_customer(c, &a.company_id, &a.customer_id)
         .await?
         .ok_or_else(unavailable)?;
     let asset = if let Some(id) = a.asset_id.as_ref() {
@@ -281,7 +282,7 @@ async fn dependencies(
     (
         CurrentServiceRequestAgreement,
         CurrentExistingServiceTicket,
-        CurrentFieldServiceCustomer,
+        CurrentFieldServicePhysicalCustomer,
         Option<CurrentFieldServicePhysicalAsset>,
     ),
     Error,
@@ -319,7 +320,7 @@ async fn replay_source(
         || f.agreement_version != input.agreement_version
         || f.asset_id != input.asset_id
         || f.branch_id != tf.branch_id.as_str()
-        || f.department_id.as_deref() != tf.department_id.as_ref().map(|v| v.as_str())
+        || f.department_id.as_deref() != tf.department_id.as_deref()
     {
         return Err(changed().into());
     }
@@ -336,9 +337,9 @@ async fn replay_source(
         None
     };
     let db_now = database_now(c).await?;
-    let technician = inspect_field_service_assignment(
+    let technician = inspect_field_service_raw_assignment(
         c,
-        FieldServiceAssignmentRequest {
+        FieldServiceRawAssignmentRequest {
             company_id: af.company_id.clone(),
             user_id: f.current_technician_id.clone(),
             branch_id: af.branch_id.clone(),

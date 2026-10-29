@@ -146,3 +146,47 @@ async fn agreement_customer_image(
 ) -> Result<Option<String>, Error> {
     Ok(sqlx::query_scalar("SELECT encode(sha256(convert_to(to_jsonb(p)::text,'UTF8')),'hex') FROM finance_parties p WHERE p.id=$1 AND p.company_id=$2 AND p.kind='customer' AND p.status='active' AND p.currency=$3 FOR SHARE OF p").bind(id).bind(company.as_str()).bind(currency).fetch_optional(c).await?)
 }
+
+/// Existing Service Customer reference under its physical foreign identity;
+/// current status and currency are facts, not new-work gates.
+pub struct CurrentFieldServicePhysicalCustomer {
+    company: CompanyId,
+    id: String,
+    image: String,
+    unit: Unit,
+}
+impl CurrentFieldServicePhysicalCustomer {
+    pub async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
+        if unit(c).await? != self.unit
+            || physical_customer_image(c, &self.company, &self.id)
+                .await?
+                .as_ref()
+                != Some(&self.image)
+        {
+            return Err(changed());
+        }
+        Ok(())
+    }
+}
+pub async fn read_current_field_service_physical_customer(
+    c: &mut PgConnection,
+    company: &CompanyId,
+    id: &str,
+) -> Result<Option<CurrentFieldServicePhysicalCustomer>, Error> {
+    let unit = unit(c).await?;
+    Ok(physical_customer_image(c, company, id).await?.map(|image| {
+        CurrentFieldServicePhysicalCustomer {
+            company: company.clone(),
+            id: id.into(),
+            image,
+            unit,
+        }
+    }))
+}
+async fn physical_customer_image(
+    c: &mut PgConnection,
+    company: &CompanyId,
+    id: &str,
+) -> Result<Option<String>, Error> {
+    Ok(sqlx::query_scalar("SELECT encode(sha256(convert_to(jsonb_build_array(p.id,p.company_id,p.kind,p.status,p.currency)::text,'UTF8')),'hex') FROM finance_parties p WHERE p.id=$1 AND p.company_id=$2 AND p.kind='customer' FOR SHARE OF p").bind(id).bind(company.as_str()).fetch_optional(c).await?)
+}

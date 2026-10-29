@@ -12,10 +12,10 @@ type Unit = (String, i32, String, String);
 pub struct ServiceRequestAgreementFacts {
     pub id: String,
     pub company_id: CompanyId,
-    pub branch_id: RecordId,
-    pub department_id: Option<RecordId>,
-    pub customer_id: RecordId,
-    pub asset_id: Option<RecordId>,
+    pub branch_id: String,
+    pub department_id: Option<String>,
+    pub customer_id: String,
+    pub asset_id: Option<String>,
     pub version: i64,
 }
 pub struct CurrentServiceRequestAgreement {
@@ -85,9 +85,8 @@ async fn capture(
     let scope = current.selection().workspace();
     let assignment = current.selection().assignment();
     // The Agreement ID remains a raw physical identity, never selected or
-    // length-capped here. Each transferred reference has the existing RecordId
-    // limit; the aggregate bounds the entire selected reference projection.
-    let row=sqlx::query("SELECT b.bounded,CASE WHEN b.bounded THEN g.branch_id END branch_id,CASE WHEN b.bounded THEN g.department_id END department_id,CASE WHEN b.bounded THEN g.customer_id END customer_id,CASE WHEN b.bounded THEN g.asset_id END asset_id,g.version::bigint version,encode(sha256(convert_to(to_jsonb(g)::text,'UTF8')),'hex') image FROM field_service_agreements g CROSS JOIN LATERAL (SELECT octet_length(g.branch_id)<=200 AND coalesce(octet_length(g.department_id),0)<=200 AND octet_length(g.customer_id)<=200 AND coalesce(octet_length(g.asset_id),0)<=200 AND octet_length(g.branch_id)::bigint+coalesce(octet_length(g.department_id),0)::bigint+octet_length(g.customer_id)::bigint+coalesce(octet_length(g.asset_id),0)::bigint<=800 AS bounded) b WHERE g.id=$1 AND g.company_id=$2 AND ($3::text IS NULL OR g.branch_id=$3) AND ($4::text IS NULL OR g.department_id=$4) FOR SHARE OF g")
+    // length-capped here. The physical reference projection is bounded before transfer.
+    let row=sqlx::query("SELECT b.bounded,CASE WHEN b.bounded THEN g.branch_id END branch_id,CASE WHEN b.bounded THEN g.department_id END department_id,CASE WHEN b.bounded THEN g.customer_id END customer_id,CASE WHEN b.bounded THEN g.asset_id END asset_id,g.version::bigint version,encode(sha256(convert_to(to_jsonb(g)::text,'UTF8')),'hex') image FROM field_service_agreements g CROSS JOIN LATERAL (SELECT octet_length(g.branch_id)::bigint+coalesce(octet_length(g.department_id),0)::bigint+octet_length(g.customer_id)::bigint+coalesce(octet_length(g.asset_id),0)::bigint<=2097152 AS bounded) b WHERE g.id=$1 AND g.company_id=$2 AND ($3::text IS NULL OR g.branch_id=$3) AND ($4::text IS NULL OR g.department_id=$4) FOR SHARE OF g")
         .bind(id).bind(scope.company_id.as_str()).bind(scope.branch_id.as_ref().map(RecordId::as_str)).bind(scope.department_id.as_ref().map(RecordId::as_str)).fetch_optional(c).await?;
     let Some(row) = row else { return Ok(None) };
     if !row.try_get::<bool, _>("bounded")? {
@@ -98,14 +97,10 @@ async fn capture(
         )
         .into());
     }
-    let branch = RecordId::new(
-        row.try_get::<Option<String>, _>("branch_id")?
-            .ok_or_else(changed)?,
-    )?;
-    let department = row
-        .try_get::<Option<String>, _>("department_id")?
-        .map(RecordId::new)
-        .transpose()?;
+    let branch = row
+        .try_get::<Option<String>, _>("branch_id")?
+        .ok_or_else(changed)?;
+    let department: Option<String> = row.try_get("department_id")?;
     let allowed = match assignment.scope_kind {
         WorkScopeKind::Holding => true,
         WorkScopeKind::Branch => assignment
@@ -126,14 +121,10 @@ async fn capture(
         company_id: scope.company_id.clone(),
         branch_id: branch,
         department_id: department,
-        customer_id: RecordId::new(
-            row.try_get::<Option<String>, _>("customer_id")?
-                .ok_or_else(changed)?,
-        )?,
-        asset_id: row
-            .try_get::<Option<String>, _>("asset_id")?
-            .map(RecordId::new)
-            .transpose()?,
+        customer_id: row
+            .try_get::<Option<String>, _>("customer_id")?
+            .ok_or_else(changed)?,
+        asset_id: row.try_get::<Option<String>, _>("asset_id")?,
         version: row.try_get("version")?,
     };
     if !(1..=9_007_199_254_740_991).contains(&facts.version) {

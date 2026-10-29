@@ -10,13 +10,13 @@ use erpx_server_field_service::public::{
     parts_source::{FieldServiceOrderFacts, PgFieldServiceOrderReferences},
 };
 use erpx_server_finance::public::field_service_customer::{
-    CurrentFieldServiceCustomer, read_current_field_service_customer,
+    CurrentFieldServicePhysicalCustomer, read_current_field_service_physical_customer,
 };
 use erpx_server_identity_access::public::{
     effective_authority::AuthorizedWorkContext,
     field_service_assignment::{
-        CurrentFieldServiceAssignment, FieldServiceAssignmentPermission,
-        FieldServiceAssignmentRequest, inspect_field_service_assignment,
+        CurrentFieldServiceRawAssignment, FieldServiceAssignmentPermission,
+        FieldServiceRawAssignmentRequest, inspect_field_service_raw_assignment,
     },
 };
 use erpx_server_people_payroll::public::field_service_worker::{
@@ -72,11 +72,11 @@ pub(super) struct FieldServiceReferences {
     order: FieldServiceOrderFacts,
     actor: ActorBinding,
     pub(super) support: CurrentSupportServiceTicket,
-    customer: CurrentFieldServiceCustomer,
+    customer: CurrentFieldServicePhysicalCustomer,
     asset: Option<CurrentFieldServicePhysicalAsset>,
-    technician_assignment: CurrentFieldServiceAssignment,
+    technician_assignment: CurrentFieldServiceRawAssignment,
     technician_person: CurrentFieldServicePeopleReference,
-    reviewer_assignment: CurrentFieldServiceAssignment,
+    reviewer_assignment: CurrentFieldServiceRawAssignment,
     reviewer_person: CurrentFieldServicePeopleReference,
 }
 impl FieldServiceReferences {
@@ -105,7 +105,7 @@ impl FieldServiceReferences {
         .await?
         .ok_or_else(unavailable)?;
         let customer =
-            read_current_field_service_customer(c, &order.company_id, &order.customer_id)
+            read_current_field_service_physical_customer(c, &order.company_id, &order.customer_id)
                 .await?
                 .ok_or_else(unavailable)?;
         let asset = match &order.asset_id {
@@ -125,9 +125,9 @@ impl FieldServiceReferences {
                 Some(proof)
             }
         };
-        let technician_assignment = inspect_field_service_assignment(
+        let technician_assignment = inspect_field_service_raw_assignment(
             c,
-            FieldServiceAssignmentRequest {
+            FieldServiceRawAssignmentRequest {
                 company_id: order.company_id.clone(),
                 user_id: order.technician_id.clone(),
                 branch_id: order.branch_id.clone(),
@@ -140,9 +140,9 @@ impl FieldServiceReferences {
         let technician_person =
             inspect_field_service_people_reference(c, &order.company_id, &order.technician_id)
                 .await?;
-        let reviewer_assignment = inspect_field_service_assignment(
+        let reviewer_assignment = inspect_field_service_raw_assignment(
             c,
-            FieldServiceAssignmentRequest {
+            FieldServiceRawAssignmentRequest {
                 company_id: order.company_id.clone(),
                 user_id: current.user_id().as_str().to_owned(),
                 branch_id: order.branch_id.clone(),
