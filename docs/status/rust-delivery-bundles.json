@@ -4891,5 +4891,20 @@
       "sourceRef": "docs/status/product-migration-acceptance.json",
       "gap": "No full-scope Rust qualification recorded."
     }
+  ],
+  "supportingDeliveries": [
+    {
+      "id": "oltp-isolated-verification",
+      "pullRequest": "https://github.com/fluke-jesadakorn/erpx/pull/2",
+      "status": "merged",
+      "candidate": "477599846b3cb90edbb0604b45883ddf17078a1f",
+      "mergeCommit": "f1e19fda8083ade98c0cc47359bda2661941a947",
+      "branch": "development",
+      "remoteVerified": true,
+      "scope": "Bounded OLTP JIT, editor hydration admission, Finance journal navigation and portable isolated verification; no whole Rust workflow or owner completion.",
+      "verification": "Actual isolated Linux: original26 selected cases plus Sales cancellation and focused Maintenance editor,6085 unit tests,affectedMaintenancePG and source-equivalent priorPG,requiredquality/review/secretscans. No hosted success fabricated.",
+      "remainingLimitation": "Older full Maintenance engineering journey fails at retired entry404 before editor; backlog. Existing development deferrals unchanged; no release acceptance.",
+      "measuredCheckpointToMerge": "Approximately6h52m from first scoped checkpoint758add63565096c380e4f9fe77a4d1d9d1541197 to merge; includes investigation/waiting, not complete Field duration."
+    }
   ]
 }

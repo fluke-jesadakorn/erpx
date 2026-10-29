@@ -70,3 +70,28 @@ describe('Holding addresses',()=>{
  });
 
 });
+
+describe('isolated contributor HTTPS origins',()=>{
+ afterEach(()=>vi.unstubAllEnvs());
+ it('uses only the four full development authorities and keeps the public profile separate',async()=>{
+  vi.stubEnv('NODE_ENV','development');vi.stubEnv('NEXT_PUBLIC_ERPX_DEV_ORIGIN_PROFILE','container-localhost');vi.stubEnv('ERPX_HOLDING_ROUTING','enabled');vi.stubEnv('ERPX_ENVIRONMENT','local');vi.stubEnv('ERPX_PRODUCT_ENVIRONMENT','development');vi.stubEnv('ERPX_PRODUCT_ROUTING','enabled');vi.stubEnv('ERPX_PRODUCT_SSO','enabled');vi.stubEnv('ERPX_APP_ID','finance');
+  const hosts=await import('@erpx/feature-runtime/lib/holding-hosts'),runtime=await import('@erpx/feature-runtime/lib/product-hosts'),apps=await import('@erpx/contracts/apps');
+  for(const [host,id] of [['acme.erpx.localhost:3443','h001'],['northstar.erpx.localhost:3443','h002'],['erpx-internal.erpx.localhost:3443','h003']] as const){expect(hosts.holdingHostForHost(host)?.holdingId).toBe(id);expect(hosts.holdingAudience(host)).toBe(`holding:development:${id}:${host}`);expect(runtime.trustedProductOrigin(`https://${host}`)).toBe(`https://${host}`);}
+  const {requestPublicOrigin}=await import('@erpx/server-manage_erpx/public/public-origin');
+  const source=new Request('http://127.0.0.1:3204/path',{headers:{host:'acme.erpx.localhost:3443','x-forwarded-host':'evil.example.test','x-forwarded-proto':'http'}});expect(requestPublicOrigin(source)).toBe('https://acme.erpx.localhost:3443');
+  const {ssoOrigins}=await import('@erpx/server-identity_access/adapters/product-sso-context');const origins=ssoOrigins();expect(Object.keys(origins)).toHaveLength(4);expect(origins.account).toBe('https://account.erpx.localhost:3443');expect(origins['holding:development:h001:acme.erpx.localhost:3443']).toBe('https://acme.erpx.localhost:3443');
+  expect(apps.appForHost('account.erpx.localhost:3443',process.env,'contributor')?.id).toBe('account');expect(runtime.configuredProductOrigin('account')).toBe('https://account.erpx.localhost:3443');expect(hosts.holdingUiUrl('/holdings/acme/finance/documents')).toBe('https://acme.erpx.localhost:3443/finance');
+  for(const host of ['acme.erpx.localhost','acme.erpx.localhost:443','acme.erpx.localhost:3444','x.acme.erpx.localhost:3443','acme.jesadakorn.com','account.erpx.localhost:3444'])expect(hosts.contributorExactOrigin(host)).toBeNull();
+  expect(runtime.trustedProductOrigin('http://acme.erpx.localhost:3443')).toBeNull();expect(runtime.trustedProductOrigin('https://acme.erpx.localhost:3444')).toBeNull();
+  vi.stubEnv('NODE_ENV','production');expect(hosts.holdingHostForHost('acme.jesadakorn.com')?.holdingId).toBe('h001');expect(hosts.contributorExactOrigin('acme.erpx.localhost:3443')).toBeNull();
+ });
+});
+
+it('selects only the exact HTTPS contributor browser origin for presentation transport',async()=>{
+ const {holdingFetch}=await import('@erpx/contracts/holding-fetch');const fetcher=vi.fn(async(_input:RequestInfo|URL,_init?:RequestInit)=>new Response(null,{status:204}));vi.stubGlobal('fetch',fetcher);vi.stubGlobal('document',{documentElement:{dataset:{erpxApp:'finance'}}});
+ try {
+  for(const [origin,host,expected] of [['https://acme.erpx.localhost:3443','acme.erpx.localhost:3443','/__erpx/finance/api/v1/holdings/acme/finance'],['https://acme.erpx.localhost:3444','acme.erpx.localhost:3444','/api/v1/holdings/acme/finance'],['http://acme.erpx.localhost:3443','acme.erpx.localhost:3443','/api/v1/holdings/acme/finance']] as const){
+   vi.stubGlobal('window',{location:{origin,host,href:origin+'/finance'}});fetcher.mockClear();await holdingFetch('/api/v1/holdings/acme/finance');const target=fetcher.mock.calls[0][0];expect(target instanceof URL?target.pathname:typeof target==='string'?target:target.url).toBe(expected);
+  }
+ }finally{vi.unstubAllGlobals();}
+});

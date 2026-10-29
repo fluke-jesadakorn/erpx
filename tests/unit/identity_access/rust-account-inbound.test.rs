@@ -200,3 +200,89 @@ fn missing_malformed_duplicate_and_oversize_cas_is_deferred_then_context_denied(
         9007199254740991
     );
 }
+
+#[test]
+fn contributor_profile_requires_all_exact_authorities_and_retains_port() {
+    let hosts = [
+        ("h001", "acme.erpx.localhost:3443"),
+        ("h002", "northstar.erpx.localhost:3443"),
+        ("h003", "erpx-internal.erpx.localhost:3443"),
+    ];
+    let local = AccountPolicy {
+        account_origin: "https://account.erpx.localhost:3443".into(),
+        account_host: "account.erpx.localhost:3443".into(),
+        environment: "development".into(),
+        require_email_verification: true,
+        holdings: hosts
+            .iter()
+            .map(|(id, host)| HoldingOrigin {
+                origin: format!("https://{host}"),
+                host: (*host).into(),
+                audience: format!("holding:development:{id}:{host}"),
+            })
+            .collect(),
+    };
+    local.validate().unwrap();
+    use erpx_server_identity_access::public::account_holding_bindings::{
+        ConfiguredAccountHolding, ConfiguredHoldingRegistry,
+    };
+    use erpx_server_shared::public::HoldingId;
+    let sso =
+        erpx_server_identity_access::public::account_sso::SsoPolicy::new(local.clone()).unwrap();
+    for (id, host) in hosts {
+        assert_eq!(
+            sso.callback(&format!("holding:development:{id}:{host}"))
+                .unwrap(),
+            format!("https://{host}/sso/callback")
+        );
+    }
+    let registry = ConfiguredHoldingRegistry::new(
+        &local,
+        [("h001", "acme"), ("h002", "northstar"), ("h003", "erpx")]
+            .into_iter()
+            .map(|(id, slug)| ConfiguredAccountHolding {
+                holding_id: HoldingId::new(id).unwrap(),
+                slug: slug.into(),
+                write_binding: format!("{id}_DB"),
+                read_binding: format!("{id}_READ_DB"),
+                files_binding: format!("{id}_FILES"),
+            })
+            .collect(),
+    )
+    .unwrap();
+    for (id, host) in hosts {
+        let audience = local.audience(host).unwrap();
+        assert_eq!(
+            registry
+                .expected_for_audience(&audience)
+                .unwrap()
+                .holding_id
+                .as_str(),
+            id
+        );
+    }
+    for (id, host) in hosts {
+        let mut h = HeaderMap::new();
+        h.insert("host", HeaderValue::from_str(host).unwrap());
+        let request = parse_inbound_account_request(&local, &h).unwrap();
+        assert_eq!(request.expected_origin(), format!("https://{host}"));
+        assert_eq!(
+            request.audience(),
+            &RequestAudience::Holding {
+                audience: format!("holding:development:{id}:{host}")
+            }
+        );
+    }
+    assert!(local.audience("acme.erpx.localhost").is_none());
+    assert!(local.audience("acme.erpx.localhost:3444").is_none());
+    assert!(!local.device_origin_allowed("http://acme.erpx.localhost:3443"));
+    let mut malformed = local.clone();
+    malformed.holdings.pop();
+    assert!(malformed.validate().is_err());
+    let mut malformed = local.clone();
+    malformed.holdings[0].host = "acme.erpx.localhost:3444".into();
+    assert!(malformed.validate().is_err());
+    let mut public = policy();
+    public.holdings[0].host = "acme.erpx.localhost:3443".into();
+    assert!(public.validate().is_err());
+}

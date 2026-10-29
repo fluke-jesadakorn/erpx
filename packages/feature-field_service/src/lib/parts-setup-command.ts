@@ -19,6 +19,12 @@ import {servicePartsPostingAccountFields,validServicePartsPostingSetup} from './
 const row=(value:unknown):value is Record<string,unknown>=>!!value&&typeof value==='object'&&!Array.isArray(value);
 const text=(value:unknown):value is string=>typeof value==='string'&&value.length>0;
 const work=()=>{const node=typeof document==='undefined'?null:document.querySelector<HTMLElement>('[data-work-revision]');return node?JSON.stringify([node.dataset.workUser,node.dataset.workRevision,node.dataset.workCompany,node.dataset.workAssignment,node.dataset.workAssignmentVersion]):'server';};
+/** A native read may survive new RSC objects only while the rendered authority is unchanged. */
+export function servicePartsReadIdentity(source:ServicePartsSource):string|null{
+ const node=typeof document==='undefined'?null:document.querySelector<HTMLElement>('[data-work-revision]');
+ if(!node||node.isConnected===false||node.dataset.workStale==='true'||contextIsSwitching()||!source.nativeContext)return null;
+ return JSON.stringify([source.base,source.companyId,!!source.nativeMapping,!!source.nativePrerequisites,!!source.nativeStock,source.nativeContext,work(),contextGeneration()]);
+}
 export function validServicePartsView(value:unknown,companyId:string):value is ServicePartsView{
  if(!row(value)||!validPostingPrerequisites(value.prerequisites,companyId)||!validServicePartsPostingSetup(value.mapping,companyId))return false;
  return validServicePartsStockWorkspace(value.workspace,companyId);

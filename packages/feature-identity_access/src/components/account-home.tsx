@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import {holdingRoutingEnabled,holdingOrigin} from '@erpx/contracts/holding-hosts';
+import {holdingRoutingEnabled,holdingOrigin} from '@erpx/feature-runtime/lib/holding-hosts';
 import {workspaceChoices} from '@erpx/server-organization/public/workspace-choices';
 import { currentAccountProfile } from "@erpx/server-identity_access/public/account-profile";
 import { appearancePreference } from "@erpx/feature-shared/lib/appearance-preference";

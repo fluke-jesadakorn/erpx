@@ -50,7 +50,7 @@ async fn main() {
     let args: Vec<_> = std::env::args().collect();
     assert!(
         (3..=4).contains(&args.len()),
-        "usage: native-field-service-development ABSOLUTE_PRIVATE_CASE_DIR LOOPBACK_LISTEN [post|request|order-create|visit|complete|recovery|cancel|agreement-review|agreement-create|billing-release|finance-invoice-read|workspace|detail|work|file-withdraw|file-bind|source-record|parts-setup|parts-prerequisites]"
+        "usage: native-field-service-development ABSOLUTE_PRIVATE_CASE_DIR LOOPBACK_LISTEN [post|request|order-create|visit|complete|recovery|cancel|agreement-review|agreement-create|billing-release|finance-invoice-read|workspace|detail|work|file-withdraw|file-bind|source-record|parts-setup|parts-prerequisites|initial-count]"
     );
     let dir = PathBuf::from(&args[1]);
     assert!(
@@ -86,13 +86,33 @@ async fn main() {
             "file-bind",
             "source-record",
             "parts-setup",
-            "parts-prerequisites"
+            "parts-prerequisites",
+            "initial-count"
         ]
         .contains(&scenario),
         "invalid private fixture scenario"
     );
-    if scenario == "parts-setup" || scenario == "parts-prerequisites" {
-        setup_parts_case(dir, listen, scenario == "parts-prerequisites").await;
+    if scenario == "initial-count" {
+        let address: std::net::SocketAddr =
+            listen.parse().expect("private loopback address required");
+        assert!(
+            address.ip().is_loopback()
+                && address.port() != 0
+                && ![3000, 3001, 8080, 3100, 3101, 3103].contains(&address.port()),
+            "choose an owned private loopback port"
+        );
+    }
+    if matches!(
+        scenario,
+        "parts-setup" | "parts-prerequisites" | "initial-count"
+    ) {
+        setup_parts_case(
+            dir,
+            listen,
+            scenario != "parts-setup",
+            scenario == "initial-count",
+        )
+        .await;
         return;
     }
     let agreement_review_scenario = scenario == "agreement-review";
@@ -283,11 +303,11 @@ async fn main() {
 
 /// Fresh setup case: actual selected Finance actor and references, with no
 /// Commerce mapping or operational history. Only the browser creates a source.
-async fn setup_parts_case(dir: PathBuf, listen: String, prerequisites: bool) {
+async fn setup_parts_case(dir: PathBuf, listen: String, prerequisites: bool, initial_count: bool) {
     field_service::account::with_system(move |system| async move {
         let now = i64::try_from(SystemTime::now().duration_since(UNIX_EPOCH).expect("wall clock unavailable").as_millis()).expect("wall clock invalid");
         system.scenario.clock.0.store(now, Ordering::SeqCst);
-        let prepared = if prerequisites { field_service::review::setup_without_finance_references(system).await } else { field_service::review::setup(system).await };
+        let prepared = if initial_count { field_service::review::setup_without_finance_references_with_lifetime(system, 24 * 60 * 60 * 1000).await } else if prerequisites { field_service::review::setup_without_finance_references(system).await } else { field_service::review::setup(system).await };
         let system = &prepared.system;
         let db = system.holdings[0].raw();
         let mut tx = db.begin().await.expect("synthetic setup transaction unavailable");
@@ -297,17 +317,42 @@ async fn setup_parts_case(dir: PathBuf, listen: String, prerequisites: bool) {
         } else {
             sqlx::raw_sql("INSERT INTO finance_accounts(id,company_id,chart_id,code,name,category,currency,control_kind,created_at,updated_at) VALUES ('part-ar','company','chart','111','Synthetic receivable','asset','THB','receivable',0,0),('part-ap','company','chart','211','Synthetic payable','liability','THB','payable',0,0),('part-revenue','company','chart','411','Synthetic revenue','revenue','THB','none',0,0),('part-inventory','company','chart','121','Synthetic inventory','asset','THB','none',0,0),('part-clearing','company','chart','221','Synthetic clearing','liability','THB','none',0,0),('part-cogs','company','chart','511','Synthetic cost','expense','THB','none',0,0),('part-input','company','chart','131','Synthetic input tax','asset','THB','none',0,0),('part-output','company','chart','231','Synthetic output tax','liability','THB','none',0,0),('part-cash','company','chart','141','Synthetic cash','asset','THB','bank',0,0)").execute(&mut *tx).await.expect("synthetic Finance accounts unavailable");
         }
+        if initial_count {
+            // These are synthetic people, assignments and branch only. The browser
+            // creates all Finance references, the mapping and Stock business data.
+            sqlx::raw_sql(r#"INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status) VALUES('branch','branch','north','Synthetic North','company','company','branch','active');
+            INSERT INTO iam_roles(company_id,id,name,built_in,published_revision,status) VALUES('*','synthetic_count_maker','Synthetic Count maker and Flow administrator',false,1,'active'),('*','synthetic_count_reviewer','Synthetic Finance and independent Count reviewer',false,1,'active');
+            INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) VALUES
+             ('*','synthetic_count_maker',1,'["inventory.read","inventory.prepare","workflow.warehouse_manager","organization.manage","module.inventory.read","module.field_service.read"]','[]','["holding","branch"]','synthetic',0),
+             ('*','synthetic_count_reviewer',1,'["finance.read","finance.write","finance.approve","inventory.read","inventory.approve","workflow.finance_approver","module.finance.read","module.inventory.read","module.field_service.read","records.read"]','[]','["holding"]','synthetic',0);
+            UPDATE assignments SET role='synthetic_count_maker',modules_json='["inventory","field_service"]' WHERE id='finance-fixture-a';
+            UPDATE assignments SET role='synthetic_count_reviewer',modules_json='["finance","inventory","field_service"]' WHERE id='finance-fixture-b';
+            INSERT INTO hr_people(id,user_id,company_id,legal_name,country_code,status,created_by,created_at,updated_at) VALUES('count-maker-person','fixture-a','company','Synthetic Count Maker','TH','active','fixture',0,0),('count-reviewer-person','fixture-b','company','Synthetic Count Reviewer','TH','active','fixture',0,0);
+            INSERT INTO hr_engagements(id,person_id,company_id,worker_type,employment_type,status,start_date,job_title,currency,created_by,created_at,updated_at) VALUES('count-maker-engagement','count-maker-person','company','employee','salaried','active','2020-01-01','Stock maker','THB','fixture',0,0),('count-reviewer-engagement','count-reviewer-person','company','employee','salaried','active','2020-01-01','Stock reviewer','THB','fixture',0,0);
+            INSERT INTO iam_members(company_id,user_id,principal_id,person_id,status,login_policy,version) VALUES('company','fixture-a','local:fixture-a','count-maker-person','active','local',1),('company','fixture-b','local:fixture-b','count-reviewer-person','active','local',1)"#).execute(&mut *tx).await.expect("synthetic Count participants unavailable");
+        }
         sqlx::query("INSERT INTO company_package_grants(company_id,package_id,package_version,state,starts_at,version,reason,evidence,updated_at) VALUES('company','service',1,'active',0,1,'Synthetic Service purchase','public synthetic evidence',$1),('company','service-parts-assets',1,'active',0,1,'Synthetic parts purchase','public synthetic evidence',$1)").bind(now).execute(&mut *tx).await.expect("synthetic Service purchases unavailable");
         sqlx::query("INSERT INTO company_package_grant_events(id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at) SELECT 'setup-origin-'||package_id,company_id,package_id,'fixture-a','synthetic-setup-grant',NULL,jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence),$1 FROM company_package_grants WHERE company_id='company' AND package_id IN('service','service-parts-assets')").bind(now).execute(&mut *tx).await.expect("synthetic Service purchase events unavailable");
         tx.commit().await.expect("synthetic setup transaction failed");
+        if initial_count {
+            let clean: bool = sqlx::query_scalar("SELECT NOT EXISTS(SELECT 1 FROM finance_charts) AND NOT EXISTS(SELECT 1 FROM finance_accounts) AND NOT EXISTS(SELECT 1 FROM finance_periods) AND NOT EXISTS(SELECT 1 FROM commerce_settings) AND NOT EXISTS(SELECT 1 FROM commerce_warehouses) AND NOT EXISTS(SELECT 1 FROM commerce_products) AND NOT EXISTS(SELECT 1 FROM inventory_counts) AND NOT EXISTS(SELECT 1 FROM commerce_stock) AND NOT EXISTS(SELECT 1 FROM finance_journals) AND NOT EXISTS(SELECT 1 FROM commerce_service_parts_posting_sources) AND NOT EXISTS(SELECT 1 FROM inventory_service_initial_physical_sources) AND NOT EXISTS(SELECT 1 FROM inventory_ledger) AND NOT EXISTS(SELECT 1 FROM inventory_lots) AND NOT EXISTS(SELECT 1 FROM command_receipts WHERE operation LIKE 'inventory.count.%' OR operation LIKE 'commerce.service-parts-posting-setup.%' OR operation IN ('commerce.warehouses.create','commerce.products.create'))").fetch_one(db).await.expect("fresh Count sources unavailable");
+            assert!(clean, "initial-count case must begin without Finance, mapping or Stock sources");
+        }
         let control=private_fixture::database(&system.control).await;
         let h001=private_fixture::database(&system.holdings[0]).await;
         let h002=private_fixture::database(&system.holdings[1]).await;
         let mut doc=serde_json::json!({"version":1,"mode":"development","transport":"direct-loopback","listen":listen,"accountHost":"account-dev-erpx.jesadakorn.com","requireEmailVerification":true,"passwordWorkers":2,"maximumRequests":16,"requestTimeoutMs":5000,"control":control,"holdings":[{"holdingId":"h001","slug":"acme","host":"acme.jesadakorn.com","writeBinding":"HOLDING_H001_DB","readBinding":"HOLDING_H001_READ_DB","filesBinding":"HOLDING_H001_FILES","database":h001},{"holdingId":"h002","slug":"northstar","host":"northstar.jesadakorn.com","writeBinding":"HOLDING_H002_DB","readBinding":"HOLDING_H002_READ_DB","filesBinding":"HOLDING_H002_FILES","database":h002}],"fieldServiceReads":[{"holdingId":"h001","companyId":"company"}],"fieldServicePartsPostingSetups":["h001"],"accountBootstrap":true});
         if prerequisites { doc["fieldServicePartsPrerequisites"] = serde_json::json!(["h001"]); }
+        if initial_count {
+            doc["fieldServiceStockSetups"] = serde_json::json!(["h001"]);
+            doc["fieldServiceInitialCounts"] = serde_json::json!([{ "holdingId":"h001", "filesEnabled":true, "filesReadOnly":false, "uploadsFrozen":false }]);
+        }
         let manifest=serde_json::json!({"version":1,"databases":{"CONTROL_DB":doc["control"]["url"],"CONTROL_READ_DB":doc["control"]["url"],"HOLDING_H001_DB":doc["holdings"][0]["database"]["url"],"HOLDING_H001_READ_DB":doc["holdings"][0]["database"]["url"],"HOLDING_H002_DB":doc["holdings"][1]["database"]["url"],"HOLDING_H002_READ_DB":doc["holdings"][1]["database"]["url"]},"slots":[{"id":"h001","write":"HOLDING_H001_DB","read":"HOLDING_H001_READ_DB","files":"HOLDING_H001_FILES"},{"id":"h002","write":"HOLDING_H002_DB","read":"HOLDING_H002_READ_DB","files":"HOLDING_H002_FILES"}]});
         let credentials=serde_json::json!({"email":"b@example.test","password":field_service::account::fixture::PASSWORD,"assignmentId":"finance-fixture-b","assignmentVersion":3,"actorId":"fixture-b","companyId":"company","partsSetup":{"chartId":"chart","chartName":"Primary","currency":"THB","receivableAccountId":"part-ar","payableAccountId":"part-ap","revenueAccountId":"part-revenue","inventoryAccountId":"part-inventory","clearingAccountId":"part-clearing","cogsAccountId":"part-cogs","inputTaxAccountId":"part-input","outputTaxAccountId":"part-output","cashAccountId":"part-cash","expectedSalesDefaults":null}});
         let credentials = if prerequisites { serde_json::json!({"email":"b@example.test","password":field_service::account::fixture::PASSWORD,"assignmentId":"finance-fixture-b","assignmentVersion":3,"actorId":"fixture-b","companyId":"company","partsPrerequisites":{"chartName":"Synthetic Service parts chart","baseCurrency":"THB","accountingBasis":"IFRS","periodName":"Synthetic Service parts period","startDate":"2026-01-01","endDate":"2026-12-31","rateCurrency":"THB","rateDate":"2026-01-01","currencyPerUsd":"35"}}) } else { credentials };
+        let credentials = if initial_count {
+            serde_json::json!({"email":"b@example.test","password":field_service::account::fixture::PASSWORD,"assignmentId":"finance-fixture-b","assignmentVersion":3,"actorId":"fixture-b","companyId":"company", "finance":{"email":"b@example.test","password":field_service::account::fixture::PASSWORD,"assignmentId":"finance-fixture-b","assignmentVersion":3}, "maker":{"email":"a@example.test","password":field_service::account::fixture::PASSWORD,"assignmentId":"finance-fixture-a","assignmentVersion":3,"actorId":"fixture-a"}, "reviewer":{"email":"b@example.test","password":field_service::account::fixture::PASSWORD,"assignmentId":"finance-fixture-b","assignmentVersion":3,"actorId":"fixture-b"}, "partsPrerequisites":{"chartName":"Synthetic Service parts chart","baseCurrency":"THB","accountingBasis":"IFRS","periodName":"Synthetic Service parts period","startDate":"2026-01-01","endDate":"2026-12-31","rateCurrency":"THB","rateDate":"2026-01-01","currencyPerUsd":"35"}, "initialCount":{"branchId":"branch","branchName":"Synthetic North","countDate":"2026-10-01","varianceAccountCode":"5400","currency":"THB"}})
+        } else { credentials };
         let configuration=DevelopmentApiConfiguration::parse(&doc.to_string()).expect("invalid explicit native case configuration");
         let mut files=CaseFiles(Vec::new());
         files.0.push(write_private(&dir,"native-api.json",&doc));files.0.push(write_private(&dir,"databases.json",&manifest));files.0.push(write_private(&dir,"credentials.json",&credentials));

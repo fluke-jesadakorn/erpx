@@ -104,6 +104,14 @@ struct FieldAttachmentDocument {
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct FieldInitialCountDocument {
+    holding_id: String,
+    files_enabled: bool,
+    files_read_only: bool,
+    uploads_frozen: bool,
+}
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ConfigurationDocument {
     version: u8,
     mode: String,
@@ -140,6 +148,8 @@ struct ConfigurationDocument {
     field_service_parts_prerequisites: Vec<String>,
     #[serde(default)]
     field_service_stock_setups: Vec<String>,
+    #[serde(default)]
+    field_service_initial_counts: Vec<FieldInitialCountDocument>,
     #[serde(default)]
     field_service_source_record_reads: Vec<FieldAttachmentDocument>,
     #[serde(default)]
@@ -203,6 +213,7 @@ pub struct DevelopmentApiConfiguration {
     field_service_parts_posting_setups: BTreeSet<HoldingId>,
     field_service_parts_prerequisites: BTreeSet<HoldingId>,
     field_service_stock_setups: BTreeSet<HoldingId>,
+    field_service_initial_counts: BTreeMap<HoldingId, crate::service_initial_physical_stock::CountBindingFeatures>,
     field_service_source_record_reads:
         BTreeMap<HoldingId, crate::field_service_source_record::SourceRecordMode>,
     field_attachment_links: BTreeMap<HoldingId, bool>,
@@ -243,10 +254,11 @@ impl DevelopmentApiConfiguration {
         {
             return Err("PRIVATE_API_FINANCE_CONFIGURATION_INVALID");
         }
+        let contributor = doc.account_host == "account.erpx.localhost:3443";
         if doc.version != 1
             || doc.mode != "development"
             || doc.transport != "direct-loopback"
-            || doc.holdings.len() != 2
+            || doc.holdings.len() != if contributor { 3 } else { 2 }
             || !(1..=8).contains(&doc.password_workers)
             || !(1..=64).contains(&doc.maximum_requests)
             || !(250..=60_000).contains(&doc.request_timeout_ms)
@@ -308,7 +320,8 @@ impl DevelopmentApiConfiguration {
                 database,
             });
         }
-        if ids != BTreeSet::from(["h001".to_owned(), "h002".to_owned()]) {
+        let expected_ids = if contributor { BTreeSet::from(["h001".to_owned(), "h002".to_owned(), "h003".to_owned()]) } else { BTreeSet::from(["h001".to_owned(), "h002".to_owned()]) };
+        if ids != expected_ids || (contributor && ![("h001", "acme"), ("h002", "northstar"), ("h003", "erpx")].iter().all(|(id,slug)| holdings.iter().any(|h| h.registration.holding_id.as_str() == *id && h.registration.slug == *slug))) {
             return Err("EXACT_H001_H002_RESOURCES_REQUIRED");
         }
         let mut finance_journal_reads = BTreeMap::new();
@@ -439,6 +452,20 @@ impl DevelopmentApiConfiguration {
                 .map_err(|_| "PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID")?;
             if !field_service_reads.contains_key(&holding)
                 || !field_service_parts_prerequisites.insert(holding)
+            {
+                return Err("PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID");
+            }
+        }
+        let mut field_service_initial_counts = BTreeMap::new();
+        for target in doc.field_service_initial_counts {
+            let holding = HoldingId::new(target.holding_id)
+                .map_err(|_| "PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID")?;
+            if !field_service_reads.contains_key(&holding)
+                || field_service_initial_counts.insert(holding, crate::service_initial_physical_stock::CountBindingFeatures {
+                    enabled: target.files_enabled,
+                    read_only: target.files_read_only,
+                    uploads_frozen: target.uploads_frozen,
+                }).is_some()
             {
                 return Err("PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID");
             }
@@ -659,6 +686,7 @@ impl DevelopmentApiConfiguration {
             field_service_parts_posting_setups,
             field_service_parts_prerequisites,
             field_service_stock_setups,
+            field_service_initial_counts,
             field_service_source_record_reads,
             field_attachment_links,
             field_attachment_binds,
@@ -897,6 +925,7 @@ async fn assemble_checked(
     let mut service_parts_posting_targets = BTreeSet::new();
     let mut service_parts_prerequisite_targets = BTreeSet::new();
     let mut service_stock_setup_targets = BTreeSet::new();
+    let mut service_initial_count_targets = BTreeSet::new();
     let mut field_attachment_targets = BTreeSet::new();
     let mut field_attachment_bind_targets = BTreeSet::new();
     let mut service_work_targets = BTreeSet::new();
@@ -1175,6 +1204,12 @@ async fn assemble_checked(
                 catalogue.clone(),
             )
             .map_err(|_| "PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID")?;
+            let read_configuration = if let Some(files) = config.field_service_initial_counts.get(&holding.registration.holding_id) {
+                service_initial_count_targets.insert(target.clone());
+                read_configuration.with_initial_count(files.clone())
+            } else {
+                read_configuration
+            };
             let read_configuration = if config
                 .field_service_stock_setups
                 .contains(&holding.registration.holding_id)
@@ -1508,6 +1543,7 @@ async fn assemble_checked(
         service_parts_posting_targets,
         service_parts_prerequisite_targets,
         service_stock_setup_targets,
+        service_initial_count_targets,
         field_attachment_targets,
         field_attachment_bind_targets,
         service_work_targets,
@@ -1547,6 +1583,7 @@ struct Boundary {
     service_parts_posting_targets: BTreeSet<(String, String)>,
     service_parts_prerequisite_targets: BTreeSet<(String, String)>,
     service_stock_setup_targets: BTreeSet<(String, String)>,
+    service_initial_count_targets: BTreeSet<(String, String)>,
     field_attachment_targets: BTreeSet<(String, String)>,
     field_attachment_bind_targets: BTreeSet<(String, String)>,
     service_work_targets: BTreeSet<(String, String)>,
@@ -1954,6 +1991,23 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             .contains(&(host.to_owned(), (*slug).to_owned())),
         _ => false,
     };
+    let service_initial_count = match (
+        request.method(),
+        request.uri().path().split('/').collect::<Vec<_>>().as_slice(),
+    ) {
+        (&axum::http::Method::GET | &axum::http::Method::POST,
+            ["", "api", "v1", "holdings", slug, "field-service", "initial-physical-stock"])
+        | (&axum::http::Method::GET,
+            ["", "api", "v1", "holdings", slug, "field-service", "initial-physical-stock", _])
+        | (&axum::http::Method::GET | &axum::http::Method::POST,
+            ["", "api", "v1", "holdings", slug, "field-service", "initial-physical-stock", _, "flow"])
+        | (&axum::http::Method::POST,
+            ["", "api", "v1", "holdings", slug, "field-service", "initial-physical-stock", _, "submit" | "approve" | "post" | "reject" | "cancel"])
+            => state.service_initial_count_targets.contains(&(host.to_owned(), (*slug).to_owned())),
+        _ => false,
+    };
+    let service_initial_count = service_initial_count
+        && request.uri().path().split('/').nth(7) != Some("masters");
     let service_stock_setup = match (
         request.method(),
         request
@@ -2093,6 +2147,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         || service_parts_posting
         || service_parts_prerequisite
         || service_stock_setup
+        || service_initial_count
         || service_reserve
         || field_attachment
         || field_attachment_bind
@@ -2106,6 +2161,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             || service_parts_posting
             || service_parts_prerequisite
             || service_stock_setup
+            || service_initial_count
             || field_attachment
             || field_attachment_bind
             || matches!(

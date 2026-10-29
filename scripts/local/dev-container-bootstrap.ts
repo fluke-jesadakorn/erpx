@@ -93,8 +93,11 @@ async function run(args: string[]) {
   if (await child.exited !== 0) throw new Error('BOOTSTRAP_STEP_FAILED');
 }
 if (existing && phase.phase === 'complete') await run(['bun', '--no-env-file', 'scripts/local/migrate-development.ts']);
-else await run(['bun', '--no-env-file', 'run', 'seed:local']);
-await run(['bun', '--no-env-file', 'run', 'seed:verify:local']);
+else {
+  await run(['bun', '--no-env-file', 'scripts/local/migrate-development.ts']);
+  for (const step of ['local', 'identity', 'commerce', 'staff']) await run(['bun', '--no-env-file', '--conditions=react-server', 'scripts/local/dev-container-seed.ts', step]);
+}
+await run(['bun', '--no-env-file', '--conditions=react-server', 'scripts/local/dev-container-seed.ts', 'verify']);
 if (phase.phase === 'seed-pending') writePhase({ ...phase, phase: 'complete' });
 console.log('BOOTSTRAP_COMPLETE: isolated transitional development data; application and HTTPS unverified');
 } finally { rmdirSync(lock); }

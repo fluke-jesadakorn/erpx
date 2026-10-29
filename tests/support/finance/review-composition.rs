@@ -102,32 +102,37 @@ pub async fn setup(system: System) -> Prepared {
     setup_with_finance(system, true).await
 }
 pub async fn setup_with_finance(system: System, finance: bool) -> Prepared {
-    setup_with_references(system, finance, true).await
+    setup_with_references(system, finance, true, 3_600_000).await
 }
 pub async fn setup_without_finance_references(system: System) -> Prepared {
-    setup_with_references(system, true, false).await
+    setup_with_references(system, true, false, 3_600_000).await
 }
-async fn setup_with_references(system: System, finance: bool, references: bool) -> Prepared {
+pub async fn setup_without_finance_references_with_lifetime(system: System, lifetime_ms: i64) -> Prepared {
+    assert!(lifetime_ms > 0 && lifetime_ms <= 24 * 60 * 60 * 1000);
+    setup_with_references(system, true, false, lifetime_ms).await
+}
+async fn setup_with_references(system: System, finance: bool, references: bool, lifetime_ms: i64) -> Prepared {
     let maker_central = account::login(&system, "a@example.test", None).await;
     let maker = account::child(&system, &maker_central, account::ACME).await;
     let reviewer_central = account::login(&system, "b@example.test", None).await;
     let reviewer = account::child(&system, &reviewer_central, account::ACME).await;
     let pool = &system.holdings[0];
     let now = system.scenario.clock.now().get();
+    let expires = now.checked_add(lifetime_ms).expect("synthetic authority expiry overflow");
     sqlx::raw_sql("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status)VALUES('company','company','acme','Synthetic Acme',NULL,'company',NULL,'active');INSERT INTO iam_roles(company_id,id,name,built_in,published_revision,status)VALUES('*','custom_finance_review','Current finance reviewer',false,1,'active');INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at)VALUES('*','custom_finance_review',1,'[\"finance.read\",\"finance.write\",\"finance.approve\",\"module.finance.read\"]','[]','[\"holding\",\"branch\",\"department\"]','synthetic-fixture',0)").execute(pool.raw()).await.unwrap();
     for (user, session) in [
         ("fixture-a", &maker.result.session_id),
         ("fixture-b", &reviewer.result.session_id),
     ] {
         let assignment = format!("finance-{user}");
-        sqlx::query("INSERT INTO assignments(id,user_id,role,modules_json,company_id,valid_from,valid_until,version,scope_kind)VALUES($1,$2,'custom_finance_review','[\"finance\"]','company',$3,$4,3,'holding')").bind(&assignment).bind(user).bind(now-1000).bind(now+3_600_000).execute(pool.raw()).await.unwrap();
-        sqlx::query("INSERT INTO active_work_contexts(session_id,user_id,company_id,assignment_id,assignment_version,revision,expires_at,updated_at)VALUES($1,$2,'company',$3,3,7,$4,$5)").bind(session).bind(user).bind(assignment).bind(now+3_600_000).bind(now).execute(pool.raw()).await.unwrap();
+        sqlx::query("INSERT INTO assignments(id,user_id,role,modules_json,company_id,valid_from,valid_until,version,scope_kind)VALUES($1,$2,'custom_finance_review','[\"finance\"]','company',$3,$4,3,'holding')").bind(&assignment).bind(user).bind(now-1000).bind(expires).execute(pool.raw()).await.unwrap();
+        sqlx::query("INSERT INTO active_work_contexts(session_id,user_id,company_id,assignment_id,assignment_version,revision,expires_at,updated_at)VALUES($1,$2,'company',$3,3,7,$4,$5)").bind(session).bind(user).bind(assignment).bind(expires).bind(now).execute(pool.raw()).await.unwrap();
     }
     if references {
         sqlx::raw_sql("INSERT INTO finance_charts(id,company_id,name,base_currency,created_by,created_at,updated_at)VALUES('chart','company','Primary','THB','fixture-a',0,0),('book-chart','company','Secondary','THB','fixture-a',0,0);INSERT INTO finance_periods(id,company_id,name,start_date,end_date,created_at)VALUES('period','company','January','2026-01-01','2026-01-31',0);INSERT INTO finance_accounts(id,company_id,chart_id,code,name,category,created_at,updated_at)VALUES('cash','company','chart','100','Cash','asset',0,0),('sales','company','chart','400','Sales','revenue',0,0),('book-cash','company','book-chart','100','Cash','asset',0,0),('book-sales','company','book-chart','400','Sales','revenue',0,0);INSERT INTO company_fx_rates(id,company_id,currency,effective_date,currency_per_usd,confirmed_by,confirmed_at)VALUES('rate','company','THB','2026-01-01',2,'fixture-a',1)").execute(pool.raw()).await.unwrap();
     }
     if finance {
-        grant(pool, now).await;
+        grant_until(pool, now, expires).await;
     }
     let authorizer = Arc::new(
         HoldingWorkAuthorizer::new(
@@ -160,8 +165,11 @@ async fn setup_with_references(system: System, finance: bool, references: bool) 
     }
 }
 pub async fn grant(pool: &DatabasePool, now: i64) {
+    grant_until(pool, now, now.checked_add(3_600_000).expect("synthetic grant expiry overflow")).await;
+}
+async fn grant_until(pool: &DatabasePool, now: i64, expires: i64) {
     let mut tx = pool.raw().begin().await.unwrap();
-    sqlx::query("INSERT INTO company_package_grants(company_id,package_id,package_version,state,starts_at,ends_at,version,reason,evidence,updated_at)VALUES('company','finance',1,'active',0,$2,1,'Synthetic reviewed finance purchase','public synthetic evidence',$1)").bind(now-1000).bind(now+3_600_000).execute(&mut *tx).await.unwrap();
+    sqlx::query("INSERT INTO company_package_grants(company_id,package_id,package_version,state,starts_at,ends_at,version,reason,evidence,updated_at)VALUES('company','finance',1,'active',0,$2,1,'Synthetic reviewed finance purchase','public synthetic evidence',$1)").bind(now-1000).bind(expires).execute(&mut *tx).await.unwrap();
     sqlx::query("INSERT INTO company_package_grant_events(id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at)SELECT 'finance-origin-grant','company','finance','fixture-a','synthetic-request',NULL,jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence),$1 FROM company_package_grants WHERE company_id='company'AND package_id='finance'").bind(now).execute(&mut *tx).await.unwrap();
     tx.commit().await.unwrap();
 }

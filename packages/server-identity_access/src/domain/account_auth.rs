@@ -261,8 +261,28 @@ pub struct AccountPolicy {
 impl AccountPolicy {
     pub fn validate(&self) -> Result<(), BusinessError> {
         let mut hosts = BTreeSet::new();
+        let contributor = self.account_host == "account.erpx.localhost:3443";
+        if contributor
+            && (self.holdings.len() != 3
+                || ![
+                    ("h001", "acme.erpx.localhost:3443"),
+                    ("h002", "northstar.erpx.localhost:3443"),
+                    ("h003", "erpx-internal.erpx.localhost:3443"),
+                ]
+                .iter()
+                .all(|(id, host)| {
+                    self.holdings.iter().any(|h| {
+                        h.host == *host && h.audience == format!("holding:development:{id}:{host}")
+                    })
+                }))
+        {
+            return Err(BusinessError::invalid(
+                "INVALID_HOLDING_AUTHORITY",
+                "Configure the exact contributor Holding origins.",
+            ));
+        }
         if self.account_origin != format!("https://{}", self.account_host)
-            || !exact_host(&self.account_host)
+            || !(exact_host(&self.account_host) || contributor)
             || self.environment != "development"
         {
             return Err(BusinessError::invalid(
@@ -272,9 +292,10 @@ impl AccountPolicy {
         }
         hosts.insert(self.account_host.clone());
         for holding in &self.holdings {
-            let parts = holding.audience.split(':').collect::<Vec<_>>();
+            let parts = holding.audience.splitn(4, ':').collect::<Vec<_>>();
             if holding.origin != format!("https://{}", holding.host)
-                || !exact_host(&holding.host)
+                || !(exact_host(&holding.host)
+                    || contributor && contributor_holding_host(&holding.host))
                 || parts.len() != 4
                 || parts[0] != "holding"
                 || parts[1] != self.environment
@@ -306,6 +327,14 @@ impl AccountPolicy {
         origin == self.account_origin
             || self.holdings.iter().any(|holding| holding.origin == origin)
     }
+}
+pub(crate) fn contributor_holding_host(host: &str) -> bool {
+    matches!(
+        host,
+        "acme.erpx.localhost:3443"
+            | "northstar.erpx.localhost:3443"
+            | "erpx-internal.erpx.localhost:3443"
+    )
 }
 fn exact_host(host: &str) -> bool {
     host.len() <= 253

@@ -21,7 +21,8 @@
     "./lib/workspace": "./src/lib/workspace.ts",
     "./lib/command": "./src/lib/command.ts",
     "./lib/native-reserve-command": "./src/lib/native-reserve-command.ts",
-    "./lib/parts-setup-command": "./src/lib/parts-setup-command.ts"
+    "./lib/parts-setup-command": "./src/lib/parts-setup-command.ts",
+    "./public/native-initial-count": "./src/public/native-initial-count.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

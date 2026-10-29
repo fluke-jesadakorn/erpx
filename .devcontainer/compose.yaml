@@ -4,6 +4,8 @@ name: erpx-dev-${ERPX_DEV_WORKSPACE_KEY:?Set ERPX_DEV_WORKSPACE_KEY}
 services:
   workspace:
     working_dir: /workspace/erpx
+    ports:
+      - "127.0.0.1:3443:3443"
     volumes:
       - source:/workspace/erpx
       - node-modules:/workspace/erpx/node_modules
@@ -11,7 +13,23 @@ services:
       - cargo-registry:/usr/local/cargo/registry
       - cargo-git:/usr/local/cargo/git
       - bun-cache:/root/.bun/install/cache
+  https:
+    image: erpx-contributor-https:local
+    build:
+      context: ../../.devcontainer
+      dockerfile: Dockerfile.https
+    network_mode: service:workspace
+    volumes:
+      - local-ca:/data
+    read_only: true
+    tmpfs:
+      - /config
+      - /tmp
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
 volumes:
+  local-ca:
+    name: erpx-dev-${ERPX_DEV_WORKSPACE_KEY:?Set ERPX_DEV_WORKSPACE_KEY}-local-ca
   source:
     name: erpx-dev-${ERPX_DEV_WORKSPACE_KEY:?Set ERPX_DEV_WORKSPACE_KEY}-source
   node-modules:

@@ -5,7 +5,7 @@ import {adminWorkspaceTarget} from '@erpx/server-identity_access/public/rules/ad
 import {accountWorkspaceTarget} from '@erpx/server-identity_access/public/rules/account-workspace';
 import {publicSurfaceTarget,publicSurfaceLaunchPath,legalEnrollmentEntryTarget} from '@erpx/server-identity_access/public/rules/public-surface-entry';
 import type {UrlObject} from 'node:url';
-import {holdingHostForHost,holdingOrigin,holdingUiUrl,holdingPublicUiUrl,holdingFrontUiUrl,parseHoldingRoute} from '@erpx/contracts/holding-hosts';
+import {holdingHostForHost,holdingOrigin,holdingUiUrl,holdingPublicUiUrl,holdingFrontUiUrl,parseHoldingRoute} from '@erpx/feature-runtime/lib/holding-hosts';
 
 export type ProductNavigationScope={audience:ProductHostKey|null;companyId?:string;companySlug?:string;workspaceBase?:string;holdingSlug?:string};
 const credentials=['code','state','token','session_token','_rsc'];

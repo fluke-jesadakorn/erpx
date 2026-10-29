@@ -66,19 +66,19 @@ async function upgradeEcho(host: string) {
     const timeout=setTimeout(()=>finish(new Error('UPGRADE_ECHO_TIMEOUT')),5000);
     function finish(error?:Error,result?:{headers:string;body:Buffer}){if(finished)return;finished=true;clearTimeout(timeout);socket.destroy();if(error)reject(error);else done(result!);}
     socket.once('error',error=>finish(error));
-    socket.once('connect',()=>{socket.write(Buffer.concat([Buffer.from(`GET /socket HTTP/1.1\r\nHost: ${host}\r\nOrigin: https://${host}\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n`),head]));setTimeout(()=>{if(!finished)socket.write(tail);},20);});
+    socket.once('connect',()=>{socket.write(Buffer.concat([Buffer.from(`GET /socket HTTP/1.1\r\nHost: ${host}\r\nOrigin: https://${host}\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Key: ${Buffer.from('the sample nonce').toString('base64')}\r\nSec-WebSocket-Version: 13\r\n\r\n`),head]));setTimeout(()=>{if(!finished)socket.write(tail);},20);});
     socket.on('data',chunk=>{bytes=Buffer.concat([bytes,typeof chunk==='string'?Buffer.from(chunk):chunk]);const end=bytes.indexOf('\r\n\r\n');if(end>=0&&bytes.length-end-4>=expected.length)finish(undefined,{headers:bytes.subarray(0,end).toString(),body:bytes.subarray(end+4)});});
   });
 }
 
-async function prewarmHost(host: string, id: string) {
+async function prewarmHost(host: string, id: string, options: {profile?:string;nodeEnv?:'development'|'production'|'test';path?:string} = {}) {
   return await new Promise<{code:number|null;stdout:string;stderr:string}>((done,reject)=>{
-    const child=spawn(process.execPath,[fileURLToPath(new URL('../../../scripts/local/prewarm-apps.mjs',import.meta.url))],{stdio:['pipe','pipe','pipe']});
+    const child=spawn(process.execPath,[fileURLToPath(new URL('../../../scripts/local/prewarm-apps.mjs',import.meta.url))],{stdio:['pipe','pipe','pipe'],env:{...process.env,NODE_ENV:options.nodeEnv??process.env.NODE_ENV,NEXT_PUBLIC_ERPX_DEV_ORIGIN_PROFILE:options.profile}});
     let stdout='',stderr='';const timeout=setTimeout(()=>{child.kill('SIGTERM');reject(Error('PREWARM_FIXTURE_TIMEOUT'));},5000);
     child.stdout.on('data',chunk=>stdout+=chunk);child.stderr.on('data',chunk=>stderr+=chunk);
     child.once('error',error=>{clearTimeout(timeout);reject(error);});
     child.once('close',code=>{clearTimeout(timeout);done({code,stdout,stderr});});
-    child.stdin.end(JSON.stringify({version:1,port:3104,token:null,apps:[{id,host}]}));
+    child.stdin.end(JSON.stringify({version:1,port:3104,token:null,apps:[{id,host,...(options.path?{path:options.path}:{})}]}));
   });
 }
 
@@ -288,3 +288,19 @@ it('compiled gateway preserves streaming, cookies, mutation bytes and upgraded h
   expect(observed.at(-1)?.url).toBe('/hmr?key=a%2Fb');expect(observed.at(-1)?.origin).toBe('https://finance.fixture.invalid');
  }finally{releaseStream();await gateway.close();await new Promise<void>(done=>upstream.close(()=>done()));}
 },20000);
+
+
+it('prewarms only exact contributor authorities and declared app health paths',async()=>{
+  await free(3104);const seen:{host:string|undefined;path:string|undefined}[]=[];
+  const server=createServer((req,res)=>{seen.push({host:req.headers.host,path:req.url});res.setHeader('X-ERPX-App','finance');res.end('ready');});
+  await new Promise<void>(done=>server.listen(3104,'127.0.0.1',done));
+  try{
+    const profile={profile:'container-localhost',nodeEnv:'development' as const,path:'/__erpx/finance/api/health'};
+    for(const host of ['account.erpx.localhost:3443','acme.erpx.localhost:3443','northstar.erpx.localhost:3443','erpx-internal.erpx.localhost:3443'])expect((await prewarmHost(host,'finance',profile)).code).toBe(0);
+    expect(seen).toHaveLength(4);expect(seen.every(row=>row.path===profile.path)).toBe(true);
+    for(const host of ['acme.erpx.localhost','acme.erpx.localhost:443','evil.erpx.localhost:3443','acme.erpx.localhost:3443.evil.invalid','acme.jesadakorn.com'])expect((await prewarmHost(host,'finance',profile)).stderr).toContain('EXPLICIT_GATEWAY_PREWARM_REQUIRED');
+    expect((await prewarmHost('acme.erpx.localhost:3443','finance',{...profile,nodeEnv:'production'})).stderr).toContain('EXPLICIT_GATEWAY_PREWARM_REQUIRED');
+    expect((await prewarmHost('acme.erpx.localhost:3443','finance',{...profile,path:'/__erpx/apps/api/health'})).stderr).toContain('INVALID_PREWARM_PATH');
+    expect(seen).toHaveLength(4);
+  }finally{await new Promise<void>((done,reject)=>server.close(error=>error?reject(error):done()));}
+});

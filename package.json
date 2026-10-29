@@ -103,7 +103,9 @@
     "contracts:finance-journal-read": "bun scripts/docs/generate-finance-journal-read-contracts.ts",
     "contracts:finance-journal-read:check": "bun scripts/docs/generate-finance-journal-read-contracts.ts --check",
     "contracts:directory-source": "bun scripts/docs/generate-directory-source-contracts.ts",
-    "contracts:directory-source:check": "bun scripts/docs/generate-directory-source-contracts.ts --check"
+    "contracts:directory-source:check": "bun scripts/docs/generate-directory-source-contracts.ts --check",
+    "contracts:field-service-initial-count": "bun scripts/docs/generate-field-service-initial-count-contracts.ts",
+    "contracts:field-service-initial-count:check": "bun scripts/docs/generate-field-service-initial-count-contracts.ts --check"
   },
   "packageManager": "bun@1.4.3",
   "dependencies": {

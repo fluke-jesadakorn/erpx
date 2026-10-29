@@ -59,7 +59,7 @@ impl ConfiguredHoldingRegistry {
         }
         let mut entries = BTreeMap::new();
         for target in &policy.holdings {
-            let parts = target.audience.split(':').collect::<Vec<_>>();
+            let parts = target.audience.splitn(4, ':').collect::<Vec<_>>();
             let id = HoldingId::new(parts[2]).map_err(|_| invalid())?;
             let entry = ids.remove(&id).ok_or_else(invalid)?;
             if entries.insert(target.audience.clone(), entry).is_some() {

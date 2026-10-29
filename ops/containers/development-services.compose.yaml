@@ -2,6 +2,7 @@
 services:
   workspace:
     image: erpx-opensource-dev-toolchain:local
+    init: true
     command: ["sleep", "infinity"]
     environment:
       ERPX_DEV_WORKSPACE_KEY: ${ERPX_DEV_WORKSPACE_KEY:?Set ERPX_DEV_WORKSPACE_KEY}

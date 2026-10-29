@@ -67,7 +67,7 @@ fn decimal(v: &CommandJson, scale: usize) -> Result<(i64, CommandJson), Business
     };
     Ok((major * 10i64.pow(scale as u32) + minor, j))
 }
-fn date(s: &str) -> bool {
+pub(crate) fn date(s: &str) -> bool {
     let b = s.as_bytes();
     if b.len() != 10
         || b[4] != b'-'

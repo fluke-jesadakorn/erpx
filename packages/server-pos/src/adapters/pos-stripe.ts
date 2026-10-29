@@ -1,7 +1,7 @@
 import{secret,stripeRequest}from '@erpx/server-pos/adapters/stripe-provider';
 import {posStripeBindingFacts} from "@erpx/server-runtime/public/pos-stripe-binding-facts";
 import 'server-only';
-import {holdingRoutingEnabled,holdingOrigin,holdingUiUrl} from '@erpx/contracts/holding-hosts';
+import {holdingRoutingEnabled,holdingOrigin,holdingUiUrl} from '@erpx/feature-runtime/lib/holding-hosts';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { type PosAccounts } from "@erpx/server-pos/public/rules/pos";
 import { resourceSlots } from "@erpx/feature-runtime/lib/holding-registry";

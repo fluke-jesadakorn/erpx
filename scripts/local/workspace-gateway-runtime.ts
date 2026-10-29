@@ -9,7 +9,7 @@ import { execFileSync } from "node:child_process";
 import { recoverGatewayApps, type ProcessIdentity } from "./app-process-leases";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { appDefinitions, appDirectory, appForHost, unregisteredDevelopmentProductHost } from "@erpx/contracts/apps";
-import {holdingRoutingEnabled,holdingHostForHost} from '@erpx/contracts/holding-hosts';
+import {holdingRoutingEnabled,holdingHostForHost,contributorExactOrigin,contributorOriginProfile,originProfile} from '@erpx/feature-runtime/lib/holding-hosts';
 import {holdingGatewayApp,holdingGatewayLocation} from './holding-gateway';
 import { consoleWorkspaceCutoverBlockers } from "./console-workspace-cutover";
 import {consoleRetirementResult,developmentConsoleRetired} from '@erpx/contracts/console-retirement';
@@ -212,7 +212,7 @@ function target(req: IncomingMessage) {
   if(developmentConsoleRetired(environment)&&retirementHost(req.headers.host)==='console-dev-erpx.jesadakorn.com'&&['/api/health','/api/ready'].includes((req.url??'').split('?')[0])){
     settings();return 'account';
   }
-  const app = appForHost(req.headers.host ?? "");
+  const app = appForHost(req.headers.host ?? "",environment,originProfile());
   const cookies = (req.headers.cookie ?? "").split(";").map(value=>value.trim()).filter(value=>value.startsWith("__Host-erpx-dev-preview="));
   const header = req.headers["x-erpx-workspace-preview"] ?? (cookies.length===1 ? cookies[0].slice("__Host-erpx-dev-preview=".length) : undefined);
   const candidate = typeof header === "string" && /^[a-f0-9]{48}$/.test(header) ? Buffer.from(header) : null;
@@ -228,11 +228,15 @@ function failed(res: ServerResponse, error: unknown) {
   else res.destroy();
 }
 const server = createServer(async (req, res) => {
-  if(holdingRoutingEnabled(environment)&&!holdingHostForHost(req.headers.host)&&!appForHost(req.headers.host??'')&&
+  if (contributorOriginProfile() && !contributorExactOrigin(req.headers.host) &&
+      !([`127.0.0.1:${options.port}`,`localhost:${options.port}`,`[::1]:${options.port}`].includes(req.headers.host??'') && ['/api/health','/api/ready'].includes((req.url??'').split('?')[0]))) {
+    res.writeHead(404,{'Cache-Control':'private, no-store'}); res.end(); return;
+  }
+  if(holdingRoutingEnabled(environment)&&!holdingHostForHost(req.headers.host)&&!appForHost(req.headers.host??'',environment,originProfile())&&
     !['console-dev-erpx.jesadakorn.com','dev-erpx.jesadakorn.com',`127.0.0.1:${options.port}`,`localhost:${options.port}`,`[::1]:${options.port}`].includes(req.headers.host??'')){
     res.writeHead(404,{'Cache-Control':'private, no-store','Content-Type':'text/plain; charset=utf-8'});res.end('Not Found\n');return;
   }
-  if (unregisteredDevelopmentProductHost(req.headers.host)) {
+  if (unregisteredDevelopmentProductHost(req.headers.host,environment,originProfile())) {
     res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "private, no-store" });
     res.end("Not Found\n"); return;
   }
@@ -245,7 +249,7 @@ const server = createServer(async (req, res) => {
   const previewPath = (req.url ?? "").split("?")[0];
   if (previewPath.startsWith("/.erpx-dev/preview/")) {
     const token=previewPath.slice("/.erpx-dev/preview/".length), clear=token==="clear";
-    if (options.preview===false || req.method!=="GET" || !appForHost(req.headers.host ?? "") || !clear && (!/^[a-f0-9]{48}$/.test(token) || !timingSafeEqual(Buffer.from(token),Buffer.from(preview)))) { res.writeHead(404,{"Cache-Control":"no-store"});res.end();return; }
+    if (options.preview===false || req.method!=="GET" || !appForHost(req.headers.host ?? "",environment,originProfile()) || !clear && (!/^[a-f0-9]{48}$/.test(token) || !timingSafeEqual(Buffer.from(token),Buffer.from(preview)))) { res.writeHead(404,{"Cache-Control":"no-store"});res.end();return; }
     res.writeHead(303,{Location:"/","Cache-Control":"private, no-store","Referrer-Policy":"no-referrer",
       "Set-Cookie":`__Host-erpx-dev-preview=${clear ? "" : preview}; Secure; HttpOnly; SameSite=Strict; Path=/; Max-Age=${clear ? 0 : 3600}`});res.end();return;
   }
@@ -258,6 +262,7 @@ const server = createServer(async (req, res) => {
     res.once("finish", finish); res.once("close", finish);
     // A failed upstream is never retried: this stream may be a business mutation.
     const headers = { ...req.headers }; delete headers["x-erpx-workspace-preview"];
+    if (contributorExactOrigin(req.headers.host)) { delete headers["forwarded"]; delete headers["x-forwarded-for"]; delete headers["x-forwarded-server"]; delete headers["x-original-host"]; delete headers["x-original-proto"]; headers["x-forwarded-host"] = req.headers.host; headers["x-forwarded-port"] = "3443"; headers["x-forwarded-proto"] = "https"; }
     const transportPrefix=`/__erpx/${id}`;
     const holdingWorker=holdingRoutingEnabled(environment)&&!!holdingHostForHost(req.headers.host)&&(req.url??'').split('?')[0]===transportPrefix+'/erpx-push-sw.js';
     const upstreamPath=holdingRoutingEnabled(environment)&&holdingHostForHost(req.headers.host)&&((req.url??'').startsWith(transportPrefix+'/api/')||holdingWorker)?req.url!.slice(transportPrefix.length):req.url;
@@ -272,11 +277,18 @@ const server = createServer(async (req, res) => {
   } catch (error) { failed(res, error); } finally {releaseDemand?.();}
 });
 server.on("upgrade", async (req, downstream, head) => {
-  if(holdingRoutingEnabled(environment)&&!holdingHostForHost(req.headers.host)&&!appForHost(req.headers.host??'')&&
+  if (contributorOriginProfile() && !contributorExactOrigin(req.headers.host)) {
+    downstream.end('HTTP/1.1 404 Not Found\r\nConnection: close\r\nCache-Control: private, no-store\r\nContent-Length: 0\r\n\r\n'); return;
+  }
+  const contributorOrigin = contributorExactOrigin(req.headers.host);
+  if (contributorOrigin && req.headers.origin !== contributorOrigin) {
+    downstream.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\nCache-Control: private, no-store\r\nContent-Length: 0\r\n\r\n'); return;
+  }
+  if(holdingRoutingEnabled(environment)&&!holdingHostForHost(req.headers.host)&&!appForHost(req.headers.host??'',environment,originProfile())&&
     !['console-dev-erpx.jesadakorn.com','dev-erpx.jesadakorn.com',`127.0.0.1:${options.port}`,`localhost:${options.port}`,`[::1]:${options.port}`].includes(req.headers.host??'')){
     downstream.end('HTTP/1.1 404 Not Found\r\nConnection: close\r\nCache-Control: private, no-store\r\nContent-Length: 0\r\n\r\n');return;
   }
-  if (unregisteredDevelopmentProductHost(req.headers.host)) {
+  if (unregisteredDevelopmentProductHost(req.headers.host,environment,originProfile())) {
     downstream.end("HTTP/1.1 404 Not Found\r\nConnection: close\r\nCache-Control: private, no-store\r\nContent-Length: 0\r\n\r\n"); return;
   }
   let releaseDemand:(()=>void)|undefined, releaseHandshake:(()=>void)|undefined;
@@ -294,6 +306,7 @@ server.on("upgrade", async (req, downstream, head) => {
     let finished=false;releaseHandshake=()=>{if(finished)return;finished=true;app.requests--;app.lastUsed=Date.now();};
     downstream.once('close',()=>releaseHandshake?.());
     const headers = { ...req.headers }; delete headers["x-erpx-workspace-preview"];
+    if (contributorExactOrigin(req.headers.host)) { delete headers["forwarded"]; delete headers["x-forwarded-for"]; delete headers["x-forwarded-server"]; delete headers["x-original-host"]; delete headers["x-original-proto"]; headers["x-forwarded-host"] = req.headers.host; headers["x-forwarded-port"] = "3443"; headers["x-forwarded-proto"] = "https"; }
     const upstream = httpRequest({ host: "127.0.0.1", port: app.port, path: req.url, method: req.method, headers });
     downstream.once('close',()=>upstream.destroy());
     upstream.once("upgrade", (response, socket, upstreamHead) => {

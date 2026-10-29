@@ -1,5 +1,5 @@
 import { routePath, routePrefixes, sourcePath, workspacePathParts, canonicalUiHref } from "@erpx/feature-work_projection/lib/destination-registry";
-import {holdingHostForHost,holdingHostForSlug,parseHoldingRoute} from '@erpx/contracts/holding-hosts';
+import {holdingHostForHost,holdingHostForSlug,parseHoldingRoute} from '@erpx/feature-runtime/lib/holding-hosts';
 /** Drawer references select an owner reader; they never confer authority. */
 import {recordRoutes,recordSections,defaultRecordSection,recordBasePath,type RecordKind,type RecordTarget} from '@erpx/feature-records/lib/record-route-definitions';
 export {recordRoutes,recordSections,defaultRecordSection,isRecordKind} from '@erpx/feature-records/lib/record-route-definitions';

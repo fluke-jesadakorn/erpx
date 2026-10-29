@@ -312,6 +312,11 @@ pub struct FieldServiceReservationReadConfiguration {
     parts_posting_setup: bool,
     parts_prerequisites: bool,
     stock_setup: bool,
+    #[cfg(feature = "field-service-http")]
+    initial_count: Option<(
+        crate::service_initial_physical_stock::ServiceInitialPhysicalStockEnvironment,
+        crate::service_initial_physical_stock::CountBindingFeatures,
+    )>,
 }
 impl FieldServiceReservationReadConfiguration {
     pub fn new(
@@ -350,6 +355,8 @@ impl FieldServiceReservationReadConfiguration {
             parts_posting_setup: false,
             parts_prerequisites: false,
             stock_setup: false,
+            #[cfg(feature = "field-service-http")]
+            initial_count: None,
         })
     }
     pub fn with_parts_posting_setup(mut self) -> Self {
@@ -358,6 +365,23 @@ impl FieldServiceReservationReadConfiguration {
     }
     pub fn with_stock_setup(mut self) -> Self {
         self.stock_setup = true;
+        self
+    }
+    /// Explicit private development opt-in. The environment and file policy
+    /// come from trusted runtime configuration, never HTTP request fields.
+    #[cfg(feature = "field-service-http")]
+    pub fn with_initial_count(
+        mut self,
+        files: crate::service_initial_physical_stock::CountBindingFeatures,
+    ) -> Self {
+        self.initial_count = Some((
+            crate::service_initial_physical_stock::ServiceInitialPhysicalStockEnvironment::new(
+                erpx_server_pms::public::initial_count_modules::InitialCountModuleMode::Development,
+                "private-development-initial-count".into(),
+                None,
+            ),
+            files,
+        ));
         self
     }
     pub fn with_parts_prerequisites(mut self) -> Self {
@@ -454,6 +478,70 @@ impl<C: Clock + Send + Sync + 'static> FieldServiceReservationReadService<C> {
     }
     pub fn company_id(&self) -> &CompanyId {
         &self.config.company
+    }
+    #[cfg(feature = "field-service-http")]
+    pub async fn initial_count_read<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        request: Input,
+        route: crate::service_initial_physical_stock_transport::ServiceInitialCountReadRoute,
+    ) -> Result<
+        crate::service_initial_physical_stock_contracts::ServiceInitialCountReadResponse,
+        Error,
+    >
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let (environment, files_features) =
+            self.config.initial_count.as_ref().ok_or_else(denied)?;
+        crate::service_initial_physical_stock_transport::read_selected_service_initial_count(
+            &self.authorizer,
+            host,
+            proof,
+            request,
+            crate::service_initial_physical_stock_transport::ServiceInitialCountTarget {
+                holding: self.config.holding.clone(),
+                company: self.config.company.clone(),
+                clock: self.clock.clone(),
+                environment: environment.clone(),
+                files_features: files_features.clone(),
+            },
+            route,
+        )
+        .await
+    }
+    #[cfg(feature = "field-service-http")]
+    pub async fn initial_count_command<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        request: Input,
+        command: crate::service_initial_physical_stock_transport::ServiceInitialCountTransportCommand,
+    ) -> Result<
+        crate::service_initial_physical_stock_contracts::ServiceInitialCountCommandResponse,
+        Error,
+    >
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let (environment, files_features) =
+            self.config.initial_count.as_ref().ok_or_else(denied)?;
+        crate::service_initial_physical_stock_transport::execute_selected_service_initial_count(
+            &self.authorizer,
+            host,
+            proof,
+            request,
+            crate::service_initial_physical_stock_transport::ServiceInitialCountTarget {
+                holding: self.config.holding.clone(),
+                company: self.config.company.clone(),
+                clock: self.clock.clone(),
+                environment: environment.clone(),
+                files_features: files_features.clone(),
+            },
+            command,
+        )
+        .await
     }
     pub async fn parts_posting_setup<Input>(
         &self,

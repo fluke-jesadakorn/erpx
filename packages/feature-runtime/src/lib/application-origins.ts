@@ -2,7 +2,7 @@ import { destinationProduct, type ProductHostKey } from "@erpx/server-commercial
 import { canonicalUiHref, workspacePathParts } from "@erpx/feature-work_projection/lib/destination-registry";
 import { configuredProductHandoff, configuredProductOrigin, trustedProductOrigin } from "@erpx/feature-runtime/lib/product-hosts";
 import { consoleOrigin } from "@erpx/feature-runtime/lib/erpx-hosts";
-import {holdingRoutingEnabled,holdingUiUrl,holdingPublicUiUrl} from '@erpx/contracts/holding-hosts';
+import {holdingRoutingEnabled,holdingUiUrl,holdingPublicUiUrl} from '@erpx/feature-runtime/lib/holding-hosts';
 
 /** Link construction only. Every destination retains its normal session,
  * Company, assignment, purchase and record checks. Console is a legacy origin. */

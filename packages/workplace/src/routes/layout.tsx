@@ -1,5 +1,5 @@
 import {requestProductOrigin} from '@erpx/feature-runtime/lib/product-hosts';
-import {holdingRoutingEnabled,holdingHostForHost} from '@erpx/contracts/holding-hosts';
+import {holdingRoutingEnabled,holdingHostForHost} from '@erpx/feature-runtime/lib/holding-hosts';
 import type { LayoutProps } from "@erpx/contracts/next-routes";
 import {ProductLinkEnvironment} from "@erpx/workplace/components/product-link-context";
 import {appsEntryUrl} from "@erpx/feature-runtime/lib/application-origins";

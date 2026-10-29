@@ -29,6 +29,7 @@
     "./lib/engineering-inventory-report": "./src/lib/engineering-inventory-report.ts",
     "./lib/database-pool-policy": "./src/lib/database-pool-policy.ts",
     "./lib/executive/canvas-domain": "./src/lib/executive/canvas-domain.ts",
+    "./lib/holding-hosts": "./src/lib/holding-hosts.ts",
     "./lib/holding-paths": "./src/lib/holding-paths.ts",
     "./public/server": "./src/public/server.ts"
   },

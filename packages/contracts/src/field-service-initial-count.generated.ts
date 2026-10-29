@@ -1,0 +1,32 @@
+// Generated from the Rust Service initial physical Count contracts. Do not edit by hand.
+// Regenerate: bun scripts/docs/generate-field-service-initial-count-contracts.ts
+import type { FieldServiceRenderedContext } from './field-service-reserve.generated';
+export type CountReadiness = { schemaAvailable: boolean, postingConfigured: boolean, varianceAccountAvailable: boolean, postingPeriodAvailable: boolean, };
+export type CountSelection = { warehouseId: string | null, productId: string | null, countDate: string | null, };
+export type CountWarehouse = { id: string, name: string, branchId: string, };
+export type CountBranch = { id: string, name: string, };
+export type CountProduct = { id: string, sku: string, name: string, unit: string, trackingMode: string, };
+export type CountLot = { lotCode: string | null, serialNumber: string | null, manufacturedDate: string | null, expiryDate: string | null, countedQuantity: string, unitCost: string | null, };
+export type CountDecision = { action: string, reason: string | null, actorName: string, createdAt: number, };
+export type CountRecord = { sourceKind: CountSourceKind, id: string, number: string, status: string, version: number, countDate: string, reason: string, warehouseId: string, warehouseName: string, productId: string, sku: string, productName: string, unit: string, trackingMode: string, countedQuantity: string, countedValue: string, unitCost: string | null, lots: Array<CountLot>, journalId: string | null, canSubmit: boolean, canApprove: boolean, canPost: boolean, canReject: boolean, canCancel: boolean, decisions: Array<CountDecision>, };
+export type CountWorkspace = { companyId: string, available: boolean, currency: string | null, documentCurrency: string | null, contextKey: string | null, unavailableReason: CountUnavailableReason | null, canPrepare: boolean, canCreateWarehouse: boolean, canCreateProduct: boolean, selection: CountSelection, readiness: CountReadiness, warehouses: Array<CountWarehouse>, branches: Array<CountBranch>, products: Array<CountProduct>, record: CountRecord | null, };
+export type CountFlowPerson = { userId: string, name: string, teamId: string | null, teamName: string, };
+export type CountFlowStep = { key: string, action: string, role: string, allowedRoles: Array<string>, teamName: string, primary: CountFlowPerson | null, candidates: Array<CountFlowPerson>, status: string, blocker: string | null, };
+export type CountFlowHistory = { action: string, actorName: string, at: number, reason: string, step: string, };
+export type CountFlow = { kind: CountFlowKind, recordId: string, recordVersion: number, version: number, defaultsRevision: number, state: string, steps: Array<CountFlowStep>, current: CountFlowStep | null, next: CountFlowStep | null, canAct: boolean, canManage: boolean, blocker: string | null, history: Array<CountFlowHistory>, };
+export type CountActionResult = { id: string, status: string, version: number, journalId: string | null, };
+export type CountCreateResult = { id: string, status: string, version: number, };
+export type CountAssignmentResult = { id: string, version: number, };
+export type ServiceInitialCountReadData = CountWorkspace | CountFlow;
+export type ServiceInitialCountCommandData = CountCreateResult | CountActionResult | CountAssignmentResult;
+export type ServiceInitialCountReadResponse = { data: ServiceInitialCountReadData, context: FieldServiceRenderedContext, };
+export type ServiceInitialCountCommandResponse = { data: ServiceInitialCountCommandData, context: FieldServiceRenderedContext, };
+export type CountFlowKind = "stock_count";
+export type CountSourceKind = "service-initial-physical-stock-count";
+export type CountUnavailableReason = "purchase-required" | "stock-authority-required" | "service-posting-required" | "selection-required" | "selection-unavailable" | "variance-account-required" | "period-required" | "prior-stock-history" | "schema-required";
+export type CountCreateInput = { expectedVersion: 0, contextKey: string, input: CountDraftInput, };
+export type CountDraftInput = { warehouseId: string, countDate: string, reason: string, lines: Array<CountLineInput>, };
+export type CountLineInput = { productId: string, countedQuantity: string, unitCost?: string, allocations?: Array<CountAllocationInput>, };
+export type CountAllocationInput = { lotId?: string, lotCode?: string, serialNumber?: string, manufacturedDate?: string, expiryDate?: string, countedQuantity: string, unitCost?: string, };
+export type CountActionInput = { expectedVersion: number, attachmentSetIds?: Array<string>, reason?: string, };
+export type CountAssignmentInput = { stepKey: string, userId: string, expectedVersion: number, recordVersion: number, reason: string, saveDefault?: false, };

@@ -99,6 +99,10 @@ pub fn field_service_reservation_read_router<C: Clock + Send + Sync + 'static>(
         .route("/api/v1/holdings/{holding_slug}/field-service/parts-setup/existing",post(confirm_parts_posting::<C>))
         .route("/api/v1/holdings/{holding_slug}/field-service/parts-setup/prerequisites",get(read_parts_prerequisites::<C>))
         .route("/api/v1/holdings/{holding_slug}/field-service/parts-setup/stock",get(read_stock_setup::<C>))
+        .route("/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock",get(read_initial_count_selection::<C>).post(create_initial_count::<C>))
+        .route("/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock/{id}",get(read_initial_count_record::<C>))
+        .route("/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock/{id}/flow",get(read_initial_count_flow::<C>).post(assign_initial_count::<C>))
+        .route("/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock/{id}/{action}",post(act_initial_count::<C>))
         .route("/api/v1/holdings/{holding_slug}/field-service/parts-setup/masters/products",post(create_stock_product::<C>))
         .route("/api/v1/holdings/{holding_slug}/field-service/parts-setup/masters/warehouses",post(create_stock_warehouse::<C>))
         .route("/api/v1/holdings/{holding_slug}/field-service/parts-setup/charts",post(create_parts_chart::<C>))
@@ -1532,6 +1536,209 @@ async fn attachment_bind<C: Clock + Send + Sync + 'static>(
         response
             .headers_mut()
             .insert(name, HeaderValue::from_static(value));
+    }
+    response
+}
+
+// Count routes retain the same Account capture and trusted target boundaries as
+// other Field reads. Their service remains disabled without an explicit opt-in.
+async fn read_initial_count_selection<C: Clock + Send + Sync + 'static>(
+    state: State<Arc<ReadState<C>>>,
+    Path(slug): Path<String>,
+    axum::extract::RawQuery(query): axum::extract::RawQuery,
+    headers: HeaderMap,
+) -> Response {
+    read_initial_count(
+        state,
+        slug,
+        headers,
+        crate::service_initial_physical_stock_transport::ServiceInitialCountReadRoute::Selection {
+            query,
+        },
+    )
+    .await
+}
+async fn read_initial_count_record<C: Clock + Send + Sync + 'static>(
+    state: State<Arc<ReadState<C>>>,
+    Path((slug, id)): Path<(String, String)>,
+    axum::extract::RawQuery(query): axum::extract::RawQuery,
+    headers: HeaderMap,
+) -> Response {
+    read_initial_count(
+        state,
+        slug,
+        headers,
+        crate::service_initial_physical_stock_transport::ServiceInitialCountReadRoute::Record {
+            id,
+            query,
+        },
+    )
+    .await
+}
+async fn read_initial_count_flow<C: Clock + Send + Sync + 'static>(
+    state: State<Arc<ReadState<C>>>,
+    Path((slug, id)): Path<(String, String)>,
+    axum::extract::RawQuery(query): axum::extract::RawQuery,
+    headers: HeaderMap,
+) -> Response {
+    read_initial_count(
+        state,
+        slug,
+        headers,
+        crate::service_initial_physical_stock_transport::ServiceInitialCountReadRoute::Flow {
+            id,
+            query,
+        },
+    )
+    .await
+}
+async fn read_initial_count<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    slug: String,
+    headers: HeaderMap,
+    route: crate::service_initial_physical_stock_transport::ServiceInitialCountReadRoute,
+) -> Response {
+    use crate::service_initial_physical_stock_transport::ServiceInitialCountReadRoute;
+    if matches!(&route, ServiceInitialCountReadRoute::Record {id,..} | ServiceInitialCountReadRoute::Flow {id,..} if id == "masters") {
+        return initial_count_response::<serde_json::Value>(Err(missing().into()), false);
+    }
+    let result = async {
+        let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
+        let target = state
+            .targets
+            .get(&(host.into(), slug))
+            .ok_or_else(missing)?;
+        let inbound = parse_inbound_account_request(&state.policy, &headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(missing().into());
+        }
+        if unique_request_header(&headers, "origin")?
+            .is_some_and(|v| v != inbound.expected_origin())
+        {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            )
+            .into());
+        }
+        let scope = state.scopes.slugs(&headers);
+        let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
+        let captured = CapturedHoldingMutation::capture(&headers, branch, department);
+        let company = target.service.company_id().clone();
+        target
+            .service
+            .initial_count_read(
+                host,
+                inbound.into_proof(),
+                move || {
+                    scope?;
+                    captured.resolve_read(company)
+                },
+                route,
+            )
+            .await
+    }
+    .await;
+    initial_count_response(result, false)
+}
+async fn create_initial_count<C: Clock + Send + Sync + 'static>(
+    state: State<Arc<ReadState<C>>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    write_initial_count(
+        state,
+        slug,
+        request,
+        crate::service_initial_physical_stock_transport::ServiceInitialCountCommandRoute::Create,
+    )
+    .await
+}
+async fn assign_initial_count<C: Clock + Send + Sync + 'static>(
+    state: State<Arc<ReadState<C>>>,
+    Path((slug, id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    write_initial_count(
+        state,
+        slug,
+        request,
+        crate::service_initial_physical_stock_transport::ServiceInitialCountCommandRoute::Assign {
+            id,
+        },
+    )
+    .await
+}
+async fn act_initial_count<C: Clock + Send + Sync + 'static>(
+    state: State<Arc<ReadState<C>>>,
+    Path((slug, id, action)): Path<(String, String, String)>,
+    request: Request,
+) -> Response {
+    use crate::service_initial_physical_stock::CountAction;
+    let action = match action.as_str() {
+        "submit" => CountAction::Submit,
+        "approve" => CountAction::Approve,
+        "post" => CountAction::Post,
+        "reject" => CountAction::Reject,
+        "cancel" => CountAction::Cancel,
+        _ => return initial_count_response::<serde_json::Value>(Err(missing().into()), false),
+    };
+    write_initial_count(
+        state,
+        slug,
+        request,
+        crate::service_initial_physical_stock_transport::ServiceInitialCountCommandRoute::Action {
+            id,
+            action,
+        },
+    )
+    .await
+}
+async fn write_initial_count<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    slug: String,
+    request: Request,
+    route: crate::service_initial_physical_stock_transport::ServiceInitialCountCommandRoute,
+) -> Response {
+    use crate::service_initial_physical_stock_transport::ServiceInitialCountCommandRoute;
+    if matches!(&route, ServiceInitialCountCommandRoute::Action {id,..} | ServiceInitialCountCommandRoute::Assign {id} if id == "masters") {
+        return initial_count_response::<serde_json::Value>(Err(missing().into()), false);
+    }
+    let created = matches!(
+        &route,
+        crate::service_initial_physical_stock_transport::ServiceInitialCountCommandRoute::Create
+    );
+    let (parts, body) = request.into_parts();
+    let headers = parts.headers;
+    let result=async {
+        let host=unique_request_header(&headers,"host")?.ok_or_else(missing)?;
+        let target=state.targets.get(&(host.into(),slug)).ok_or_else(missing)?;
+        let inbound=parse_inbound_account_request(&state.policy,&headers)?;
+        if !matches!(inbound.audience(),RequestAudience::Holding{..}){return Err(missing().into());}
+        if unique_request_header(&headers,"origin")?.is_some_and(|v|v!=inbound.expected_origin()){return Err(BusinessError::new(FailureKind::Forbidden,"ORIGIN_FORBIDDEN","Use the application origin.").into());}
+        let key=unique_request_header(&headers,"idempotency-key").and_then(|v|v.map(str::to_owned).ok_or_else(||BusinessError::invalid("COMMAND_KEY_REQUIRED","Idempotency-Key is required.")));
+        let scope=state.scopes.slugs(&headers);let(branch,department)=scope.as_ref().cloned().unwrap_or_default();let captured=CapturedHoldingMutation::capture(&headers,branch,department);
+        target.service.initial_count_command(host,inbound.into_proof(),move||{scope?;captured.resolve()},crate::service_initial_physical_stock_transport::ServiceInitialCountTransportCommand{key,body,route}).await
+    }.await;
+    initial_count_response(result, created)
+}
+fn initial_count_response<T: serde::Serialize>(
+    result: Result<T, PgTransactionError<BusinessError>>,
+    created: bool,
+) -> Response {
+    let result = match result {
+        Err(PgTransactionError::Persistence(_)) => Err(BusinessError::new(
+            FailureKind::Unavailable,
+            "SERVICE_INITIAL_PHYSICAL_STOCK_UNAVAILABLE",
+            "The Service initial physical stock is unavailable.",
+        )
+        .into()),
+        other => other,
+    };
+    let mut response = posting_response(result);
+    if created && response.status() == StatusCode::OK {
+        *response.status_mut() = StatusCode::CREATED;
     }
     response
 }

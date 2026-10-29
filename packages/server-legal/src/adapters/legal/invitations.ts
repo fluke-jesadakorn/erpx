@@ -1,4 +1,4 @@
-import {holdingRoutingEnabled,holdingOrigin} from '@erpx/contracts/holding-hosts';
+import {holdingRoutingEnabled,holdingOrigin} from '@erpx/feature-runtime/lib/holding-hosts';
 import {legalQueuedPurchasePredicate} from '@erpx/server-legal/adapters/queued-purchases';
 import {publicSurfaceOrigin} from '@erpx/server-identity_access/public/public-surface-entry';
 import "server-only";

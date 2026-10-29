@@ -16,12 +16,13 @@ impl RetiredAccountChild {
         audience: &str,
         environment: &str,
     ) -> Result<Self, BusinessError> {
-        let parts: Vec<_> = audience.split(':').collect();
+        let parts: Vec<_> = audience.splitn(4, ':').collect();
         if environment != "development"
             || parts.len() != 4
             || parts[0] != "holding"
             || parts[1] != environment
             || parts[3].is_empty()
+            || (parts[3].contains(':') && !super::account_auth::contributor_holding_host(parts[3]))
         {
             return Err(reentry_required());
         }

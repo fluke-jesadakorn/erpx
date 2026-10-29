@@ -1,5 +1,5 @@
 import { applicationOrigin } from "@erpx/feature-runtime/lib/application-origins";
-import {holdingRoutingEnabled,holdingHosts} from '@erpx/contracts/holding-hosts';
+import {holdingRoutingEnabled,activeHoldingHosts} from '@erpx/feature-runtime/lib/holding-hosts';
 import { drainProvisioning } from "@erpx/server-identity_access/public/technology";
 import { drainPeopleLifecycle } from "@erpx/server-people_payroll/public/people-lifecycle-jobs";
 import { drainDirectoryOperations } from "@erpx/server-identity_access/public/directory-operations";
@@ -158,7 +158,7 @@ export async function attachmentWork(env: JobEnv) {
 }
 
 export async function pmsWork(env: JobEnv) {
- const holdingOrigins=holdingRoutingEnabled(process.env)?{holdingOrigins:Object.fromEntries(holdingHosts.map(host=>[host.holdingSlug,`https://${host.hostname}`]))}:{};
+ const holdingOrigins=holdingRoutingEnabled(process.env)?{holdingOrigins:Object.fromEntries(activeHoldingHosts().map(host=>[host.holdingSlug,`https://${host.hostname}`]))}:{};
  for (const slot of await activeSlots(env)) if (!slot.beta) {
    const db=registeredResources(env,slot.id).write as PostgresDatabase;
    await (await import("../../../../../packages/server-pms/src/public/pms")).drainPms(db);

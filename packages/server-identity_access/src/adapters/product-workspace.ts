@@ -1,5 +1,5 @@
 import {requestProductOrigin} from '@erpx/feature-runtime/lib/product-hosts';
-import {holdingRoutingEnabled,holdingUiUrl} from '@erpx/contracts/holding-hosts';
+import {holdingRoutingEnabled,holdingUiUrl} from '@erpx/feature-runtime/lib/holding-hosts';
 import {expensePostingPrerequisitesProductEntry} from '@erpx/server-finance/public/expense-posting-prerequisites';
 import {payrollPostingPrerequisitesProductEntry} from '@erpx/server-finance/public/payroll-posting-prerequisites';
 import {peopleFinancialProductEntry} from "@erpx/server-people_payroll/public/financial-product-entry";

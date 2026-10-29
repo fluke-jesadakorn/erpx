@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import { createServer, type Server } from 'node:http';
+import { nativeInitialCountRequest } from '@erpx/native-sdk/field-service-initial-count';
 import { nativePartsPrerequisiteRequest, nativePartsStockRequest, nativePartsSetupRequest } from '@erpx/native-sdk/field-service-parts';
 
 vi.mock('server-only', () => ({}));
@@ -46,4 +47,10 @@ it('uses only the finite Stock routes and preserves original command bytes', asy
   expect(observed.at(-1)).toEqual({method:operation==='read'?'GET':'POST',path:`/api/v1/holdings/acme/field-service/parts-setup/${suffix}`,body:operation==='read'?'':body,context:'synthetic-company'});
  }
  const count=observed.length;await expect(nativePartsStockRequest({baseUrl,slug:'acme',operation:'toString' as never,headers,timeoutMs:5000})).rejects.toThrow('NATIVE_PARTS_SETUP_REQUEST_INVALID');expect(observed).toHaveLength(count);
+});
+
+it('Count transport forwards raw selection query and action body to the exact route',async()=>{
+ const headers=new Headers({'x-erpx-context-company':'synthetic-company'}),body='{ "expectedVersion" : 2 }';
+ await nativeInitialCountRequest({baseUrl,slug:'acme',route:{kind:'record',id:'count 1',query:'?unknown=one&unknown=two'},headers,timeoutMs:5000});expect(observed.at(-1)).toMatchObject({method:'GET',path:'/api/v1/holdings/acme/field-service/initial-physical-stock/count%201?unknown=one&unknown=two'});
+ await nativeInitialCountRequest({baseUrl,slug:'acme',route:{kind:'action',id:'count 1',action:'approve'},headers,body,timeoutMs:5000});expect(observed.at(-1)).toMatchObject({method:'POST',path:'/api/v1/holdings/acme/field-service/initial-physical-stock/count%201/approve',body,context:'synthetic-company'});
 });

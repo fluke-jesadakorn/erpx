@@ -11,7 +11,7 @@ pub use crate::service_initial_physical_stock_command::{
 };
 pub use crate::service_initial_physical_stock_create::create_service_initial_count;
 pub use crate::service_initial_physical_stock_read::{
-    InitialCountSelection, InitialCountWorkspace, read_initial_count_selection,
+    InitialCountSelection, InitialCountWorkspace, read_initial_count_selection, read_initial_count_workspace_record,
 };
 pub use crate::service_initial_physical_stock_sources::{
     ServiceInitialPhysicalStockEnvironment, ServiceInitialPhysicalStockSources,

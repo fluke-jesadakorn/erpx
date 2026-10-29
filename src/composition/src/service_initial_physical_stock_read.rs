@@ -346,3 +346,34 @@ pub async fn read_initial_count_selection<C: Clock>(
     module.require_current(c).await?;
     Ok(output)
 }
+
+/// Historical Count workspace preserves the retained sparse selection shape.
+pub async fn read_initial_count_workspace_record<C: Clock>(
+    c: &mut PgConnection,
+    current: &AuthorizedWorkContext,
+    clock: &C,
+    id: &str,
+    environment: &ServiceInitialPhysicalStockEnvironment,
+) -> Result<InitialCountWorkspace, Error> {
+    let module = require_count_modules(c, current, environment).await?;
+    let source = crate::service_initial_physical_stock_record::read_service_count_record(
+        c, current, clock, id, ServiceCountAuthorityPurpose::Read,
+    ).await?;
+    let schema = read_service_initial_stock_schema(c).await?;
+    let currency = source.image["source"]["currency"].as_str().ok_or_else(changed)?.to_owned();
+    let record = source.wire(current)?;
+    let output = InitialCountWorkspace {
+        company_id: current.selection().workspace().company_id.as_str().into(),
+        available: true, currency: Some(currency), document_currency: None, context_key: None,
+        unavailable_reason: None, can_prepare: false, can_create_warehouse: false,
+        can_create_product: false,
+        selection: InitialCountSelectionView { warehouse_id: None, product_id: None, count_date: None },
+        readiness: InitialCountReadiness { schema_available: schema.available(), posting_configured: false, variance_account_available: false, posting_period_available: false },
+        warehouses: vec![], branches: vec![], products: vec![], record: Some(record),
+    };
+    source.require_current(c, clock).await?;
+    source.flow.require_current(c, current, clock).await?;
+    schema.require_current(c).await?;
+    module.require_current(c).await?;
+    Ok(output)
+}

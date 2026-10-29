@@ -1,0 +1,136 @@
+use erpx_service::field_service_reservation_read::FieldServiceRenderedContext;
+use erpx_service::service_initial_physical_stock_contracts::*;
+use ts_rs::{Config, TS};
+#[utoipa::path(get,path="/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock",params(("holding_slug"=String,Path), ("warehouseId"=Option<String>,Query), ("productId"=Option<String>,Query), ("countDate"=Option<String>,Query)),responses((status=200,body=ServiceInitialCountReadResponse,description="Current authorized Service Count workspace")))]
+fn workspace() {}
+#[utoipa::path(get,path="/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock/{id}",params(("holding_slug"=String,Path), ("id"=String,Path)),responses((status=200,body=ServiceInitialCountReadResponse,description="Current authorized Service Count record")))]
+fn record() {}
+#[utoipa::path(get,path="/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock/{id}/flow",params(("holding_slug"=String,Path), ("id"=String,Path)),responses((status=200,body=ServiceInitialCountReadResponse,description="Current authorized Service Count flow")))]
+fn flow() {}
+#[utoipa::path(post,path="/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock",params(("holding_slug"=String,Path)),request_body=CountCreateInput,responses((status=201,body=ServiceInitialCountCommandResponse,description="Current authorized Service Count create")))]
+fn create() {}
+#[utoipa::path(post,path="/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock/{id}/flow",params(("holding_slug"=String,Path), ("id"=String,Path)),request_body=CountAssignmentInput,responses((status=200,body=ServiceInitialCountCommandResponse,description="Current authorized Service Count assign")))]
+fn assign() {}
+#[utoipa::path(post,path="/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock/{id}/submit",params(("holding_slug"=String,Path), ("id"=String,Path)),request_body=CountActionInput,responses((status=200,body=ServiceInitialCountCommandResponse,description="Current authorized Service Count action_submit")))]
+fn action_submit() {}
+#[utoipa::path(post,path="/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock/{id}/approve",params(("holding_slug"=String,Path), ("id"=String,Path)),request_body=CountActionInput,responses((status=200,body=ServiceInitialCountCommandResponse,description="Current authorized Service Count action_approve")))]
+fn action_approve() {}
+#[utoipa::path(post,path="/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock/{id}/post",params(("holding_slug"=String,Path), ("id"=String,Path)),request_body=CountActionInput,responses((status=200,body=ServiceInitialCountCommandResponse,description="Current authorized Service Count action_post")))]
+fn action_post() {}
+#[utoipa::path(post,path="/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock/{id}/reject",params(("holding_slug"=String,Path), ("id"=String,Path)),request_body=CountActionInput,responses((status=200,body=ServiceInitialCountCommandResponse,description="Current authorized Service Count action_reject")))]
+fn action_reject() {}
+#[utoipa::path(post,path="/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock/{id}/cancel",params(("holding_slug"=String,Path), ("id"=String,Path)),request_body=CountActionInput,responses((status=200,body=ServiceInitialCountCommandResponse,description="Current authorized Service Count action_cancel")))]
+fn action_cancel() {}
+#[derive(utoipa::OpenApi)]
+#[openapi(
+    paths(
+        workspace,
+        record,
+        flow,
+        create,
+        assign,
+        action_submit,
+        action_approve,
+        action_post,
+        action_reject,
+        action_cancel
+    ),
+    components(schemas(
+        CountReadiness,
+        CountSelection,
+        CountWarehouse,
+        CountBranch,
+        CountProduct,
+        CountLot,
+        CountDecision,
+        CountRecord,
+        CountWorkspace,
+        CountFlowPerson,
+        CountFlowStep,
+        CountFlowHistory,
+        CountFlow,
+        CountActionResult,
+        CountCreateResult,
+        CountAssignmentResult,
+        ServiceInitialCountReadData,
+        ServiceInitialCountCommandData,
+        ServiceInitialCountReadResponse,
+        ServiceInitialCountCommandResponse,
+        CountFlowKind,
+        CountSourceKind,
+        CountUnavailableReason,
+        CountCreateInput,
+        CountDraftInput,
+        CountLineInput,
+        CountAllocationInput,
+        CountActionInput,
+        CountAssignmentInput,
+        FieldServiceRenderedContext
+    ))
+)]
+struct Document;
+fn main() {
+    let args = std::env::args().skip(1).collect::<Vec<_>>();
+    if args == ["--openapi"] {
+        use utoipa::OpenApi;
+        let mut document = Document::openapi();
+        document.info.title = "ERPX native Service initial physical Count".into();
+        let mut value = serde_json::to_value(document).unwrap();
+        value["components"]["schemas"]["CountCreateInput"]["properties"]["expectedVersion"] =
+            serde_json::json!({"type":"integer","const":0});
+        value["components"]["schemas"]["CountAssignmentInput"]["properties"]["saveDefault"] =
+            serde_json::json!({"type":"boolean","const":false});
+        if let Some(schemas) = value["components"]["schemas"].as_object_mut() {
+            for name in [
+                "CountCreateInput",
+                "CountDraftInput",
+                "CountLineInput",
+                "CountAllocationInput",
+                "CountActionInput",
+                "CountAssignmentInput",
+            ] {
+                schemas.get_mut(name).unwrap()["additionalProperties"] = false.into();
+            }
+        }
+        println!("{}", serde_json::to_string_pretty(&value).unwrap());
+        return;
+    }
+    assert!(args.is_empty());
+    let config = Config::new();
+    println!(
+        "// Generated from the Rust Service initial physical Count contracts. Do not edit by hand.\n// Regenerate: bun scripts/docs/generate-field-service-initial-count-contracts.ts\nimport type {{ FieldServiceRenderedContext }} from './field-service-reserve.generated';"
+    );
+    for declaration in [
+        CountReadiness::decl(&config),
+        CountSelection::decl(&config),
+        CountWarehouse::decl(&config),
+        CountBranch::decl(&config),
+        CountProduct::decl(&config),
+        CountLot::decl(&config),
+        CountDecision::decl(&config),
+        CountRecord::decl(&config),
+        CountWorkspace::decl(&config),
+        CountFlowPerson::decl(&config),
+        CountFlowStep::decl(&config),
+        CountFlowHistory::decl(&config),
+        CountFlow::decl(&config),
+        CountActionResult::decl(&config),
+        CountCreateResult::decl(&config),
+        CountAssignmentResult::decl(&config),
+        ServiceInitialCountReadData::decl(&config),
+        ServiceInitialCountCommandData::decl(&config),
+        ServiceInitialCountReadResponse::decl(&config),
+        ServiceInitialCountCommandResponse::decl(&config),
+        CountFlowKind::decl(&config),
+        CountSourceKind::decl(&config),
+        CountUnavailableReason::decl(&config),
+        CountCreateInput::decl(&config),
+        CountDraftInput::decl(&config),
+        CountLineInput::decl(&config),
+        CountAllocationInput::decl(&config),
+        CountActionInput::decl(&config),
+        CountAssignmentInput::decl(&config),
+    ] {
+        println!("export {declaration}");
+    }
+}

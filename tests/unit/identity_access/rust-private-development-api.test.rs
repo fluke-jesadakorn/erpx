@@ -382,3 +382,64 @@ fn service_reservation_read_never_admits_production() {
         .is_err()
     );
 }
+
+#[test]
+fn initial_count_requires_registered_company_and_explicit_trusted_file_policy() {
+    let target = serde_json::json!({"holdingId":"h001","filesEnabled":true,"filesReadOnly":false,"uploadsFrozen":false});
+    let mut d = document();
+    d["fieldServiceInitialCounts"] = serde_json::json!([target.clone()]);
+    assert!(
+        !parses(&d),
+        "Count cannot introduce an unbound Field Company"
+    );
+    d["fieldServiceReads"] = serde_json::json!([{"holdingId":"h001","companyId":"company"}]);
+    assert!(parses(&d));
+    for field in ["filesEnabled", "filesReadOnly", "uploadsFrozen"] {
+        let mut missing = d.clone();
+        missing["fieldServiceInitialCounts"][0]
+            .as_object_mut()
+            .unwrap()
+            .remove(field);
+        assert!(!parses(&missing), "Explicit file policy required: {field}");
+        let mut wrong = d.clone();
+        wrong["fieldServiceInitialCounts"][0][field] = "true".into();
+        assert!(!parses(&wrong));
+    }
+    d["fieldServiceInitialCounts"] = serde_json::json!([target.clone(), target.clone()]);
+    assert!(!parses(&d));
+    d["fieldServiceInitialCounts"] = serde_json::json!([target]);
+    d["fieldServiceInitialCounts"][0]["holdingId"] = "h002".into();
+    assert!(!parses(&d));
+    d["fieldServiceInitialCounts"][0]["holdingId"] = "h001".into();
+    d["fieldServiceInitialCounts"][0]["mode"] = "production".into();
+    assert!(!parses(&d));
+}
+
+#[test]
+fn contributor_profile_requires_three_exact_origins_and_canonical_holding_slugs() {
+    let mut d = document();
+    d["accountHost"] = "account.erpx.localhost:3443".into();
+    d["holdings"][0]["host"] = "acme.erpx.localhost:3443".into();
+    d["holdings"][1]["host"] = "northstar.erpx.localhost:3443".into();
+    let mut third = d["holdings"][1].clone();
+    third["holdingId"] = "h003".into();
+    third["slug"] = "erpx".into();
+    third["host"] = "erpx-internal.erpx.localhost:3443".into();
+    third["writeBinding"] = "HOLDING_H003_DB".into();
+    third["readBinding"] = "HOLDING_H003_READ_DB".into();
+    third["filesBinding"] = "HOLDING_H003_FILES".into();
+    third["database"] = serde_json::json!({"url":"postgres://erpx_test_admin:synthetic@127.0.0.1:5432/erpx_dev_rust_33333333333333333333333333333333","leaseToken":"33333333333333333333333333333333"});
+    d["holdings"].as_array_mut().unwrap().push(third);
+    assert!(parses(&d));
+    for (field, value) in [("host", "acme.erpx.localhost:3444"), ("slug", "other")] {
+        let mut wrong = d.clone();
+        wrong["holdings"][0][field] = value.into();
+        assert!(!parses(&wrong));
+    }
+    let mut partial = d.clone();
+    partial["holdings"].as_array_mut().unwrap().pop();
+    assert!(!parses(&partial));
+    let mut public = d.clone();
+    public["accountHost"] = "account.example.test".into();
+    assert!(!parses(&public));
+}

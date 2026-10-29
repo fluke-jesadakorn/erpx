@@ -6,7 +6,7 @@ FROM rust:1.99.1-trixie@sha256:09027f873d45b8ecd1dc86f1fa13b7a62b875c961f017a0e3
 
 COPY --from=node /usr/local/bin/node /usr/local/bin/node
 COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
-RUN apt-get update && apt-get install -y --no-install-recommends lsof procps \
+RUN apt-get update && apt-get install -y --no-install-recommends lsof procps libheif-examples libheif-plugin-libde265 poppler-utils \
     && rm -rf /var/lib/apt/lists/* \
     && rustup component add --toolchain 1.99.1 rustfmt clippy \
     && test "$(node --version)" = v26.11.1 \

@@ -1,6 +1,6 @@
 "use client";
 import { Button, Field, TextInput } from "@erpx/ui/components/foundation";
-import {holdingHostForHost,holdingTransportPath} from '@erpx/contracts/holding-hosts';
+import {holdingHostForHost,holdingTransportPath} from '@erpx/feature-runtime/lib/holding-hosts';
 import {isProductHostKey} from '@erpx/contracts/product-registry';
 
 import { useEffect, useState } from "react";
