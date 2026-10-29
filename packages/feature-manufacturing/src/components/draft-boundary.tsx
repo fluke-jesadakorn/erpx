@@ -3,6 +3,7 @@ import { Children, isValidElement, createContext, useContext, useEffect, useId, 
 import { Dialog } from "@erpx/ui/components/dialog";
 import { DraftFormDrawer } from "@erpx/ui/components/draft-form-drawer";
 import { Button } from "@erpx/ui/components/foundation";
+import { useHydrated } from "@erpx/ui/components/use-hydrated";
 import { contextIsSwitching, registerUnsavedWork, setContextSwitching } from "@erpx/feature-work_projection/lib/context-switch";
 import { usePathname, useSearchParams } from "next/navigation";
 const DraftScope = createContext<string | undefined>(undefined);
@@ -49,7 +50,7 @@ export function ManufacturingDisclosure({children, drawerTitle, open, initialOpe
   children: ReactNode; appearance?: "standard"; drawerTitle?: string; open?: boolean; initialOpen?: boolean; inline?: boolean; onBeforeOpen?: () => void;
   onOpenChange?: (open: boolean) => void; onDiscard: () => void; error?: string; dismissDisabled?: boolean; disabled?:boolean;
 }) {
-  const [expanded, setExpanded] = useState(initialOpen);
+  const [expanded, setExpanded] = useState(initialOpen), hydrated = useHydrated();
   const editor=useRef<HTMLDivElement>(null);
   useEffect(()=>{const accepted=(event:Event)=>{const detail=(event as CustomEvent<{form?:HTMLFormElement;formEditVersion?:string|null}>).detail;if(detail?.form&&editor.current?.contains(detail.form)&&detail.form.getAttribute("data-erpx-edit-version")===detail.formEditVersion){setExpanded(false);onOpenChange?.(false);}};window.addEventListener("erpx:manufacturing-command-accepted",accepted);return()=>window.removeEventListener("erpx:manufacturing-command-accepted",accepted);},[onOpenChange]);
   const nodes = Children.toArray(children), summary = nodes.find(node => isValidElement(node) && node.type === "summary");
@@ -57,7 +58,7 @@ export function ManufacturingDisclosure({children, drawerTitle, open, initialOpe
   const title=(node:ReactNode):string=>typeof node==="string"||typeof node==="number"?String(node):isValidElement<{children?:ReactNode}>(node)?title(node.props.children):Children.toArray(node).map(title).join("");
   const change = (value: boolean) => {if(value)onBeforeOpen?.();setExpanded(value); onOpenChange?.(value);};
   if (inline) return <div>{nodes.filter(node => node !== summary)}</div>;
-  return <><Button appearance="standard" type="button" variant="secondary" disabled={disabled} onClick={() => change(true)}>{label}</Button>
+  return <><Button appearance="standard" type="button" variant="secondary" data-client-managed-ready={String(hydrated)} disabled={disabled||!hydrated} onClick={() => change(true)}>{label}</Button>
     <ManufacturingFormDrawer appearance="standard" open={open ?? expanded} title={drawerTitle??title(label)} onClose={() => change(false)} onDiscard={() => {onDiscard(); change(false);}} dismissDisabled={dismissDisabled}>
       <div ref={editor}>{error && <p role="alert">{error}</p>}{nodes.filter(node => node !== summary)}</div>
     </ManufacturingFormDrawer></>;

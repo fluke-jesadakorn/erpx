@@ -58,7 +58,7 @@ test('Admin workspace signs in through Account and opens its isolated brand draw
     const brand = await page.goto(origin + '/holdings/simulation/administration/brand/identity', { timeout: 120_000 });
     expect(brand?.status()).toBe(200);
     expect(brand?.headers()['x-erpx-app']).toBe('admin');
-    const trigger = page.locator('summary').filter({ hasText: /^Create identity draft$/ });
+    const trigger = page.locator('#workspace-content').locator('summary').filter({ hasText: /^Create identity draft$/ });
     await trigger.click();
     const drawer = page.getByRole('dialog', { name: 'Create identity draft', exact: true });
     await expect(drawer).toBeVisible();

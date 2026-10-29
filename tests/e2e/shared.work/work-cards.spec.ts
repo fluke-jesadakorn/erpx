@@ -361,16 +361,16 @@ test("an expense saved from a card appears once in the matching list and summary
   const response = await saved;
   expect(response.ok(), await response.text()).toBeTruthy();
   const id = (await response.json()).data.id;
-  await expect(page).toHaveURL(new RegExp(`/expenses/${id}\\?return=`));
+  await expect(page).toHaveURL(url => url.pathname === `${base}/finance/documents/expenses/${id}/overview` && url.searchParams.get('return') === new URL(workUrl).search.slice(1));
   await page.goBack();
   await expect(page).toHaveURL(workUrl);
   await showShelf(page);
   await expect(page).toHaveURL(/q=receipt/);
   await shortcutShelf(page)
     .getByRole("article", { name: "Expense claims", exact: true })
-    .locator(`a[href="${base}/work?type=expense&queue=all#work-results"]`)
+    .locator(`a[href="${base}/work/all?type=expense&queue=all#work-results"]`)
     .click();
-  await expect(page).toHaveURL(/type=expense&queue=all#work-results$/);
+  await expect(page).toHaveURL(url => url.pathname === `${base}/work/all` && url.search === "?type=expense&queue=all" && url.hash === "#work-results");
   await expect(page.getByRole("dialog", { name: "App launcher", exact: true })).toBeHidden();
   const summary = (
     await (await context.request.get(`${api}/work/summary`)).json()
@@ -388,7 +388,7 @@ test("an expense saved from a card appears once in the matching list and summary
       .getByRole("link")
       .filter({ hasText: merchant }),
   ).toHaveCount(1);
-  await expect(page.getByRole("region", { name: "Work results" }).locator('[data-slot="record-list-item"]').filter({ has: page.locator(`a[href^="${base}/expenses/${id}?"]`).filter({ hasText: merchant }) })).toHaveAttribute("data-tone", "amber");
+  await expect(page.getByRole("region", { name: "Work results" }).locator('[data-slot="record-list-item"]').filter({ has: page.locator(`a[href^="${base}/finance/documents/expenses/${id}/overview?"]`).filter({ hasText: merchant }) })).toHaveAttribute("data-tone", "amber");
 });
 test("team and inventory cards follow company, branch and department scope", async ({
   page,

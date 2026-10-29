@@ -9880,8 +9880,8 @@
       ],
       "fixture": "general-company",
       "requires": {
-        "jobs": false,
-        "scanner": false
+        "jobs": true,
+        "scanner": true
       },
       "apps": [
         "finance",
@@ -53691,6 +53691,26 @@
         "portal",
         "legal-portal",
         "forms"
+      ],
+      "packages": []
+    },
+    {
+      "id": "maintenance.workspace-editor-smoke.e2e",
+      "lane": "e2e",
+      "owner": "maintenance",
+      "modules": [
+        "assets"
+      ],
+      "files": [
+        "tests/e2e/maintenance/workspace-editor-smoke.spec.ts"
+      ],
+      "fixture": "engineering",
+      "requires": {
+        "jobs": true,
+        "scanner": true
+      },
+      "apps": [
+        "assets"
       ],
       "packages": []
     }
