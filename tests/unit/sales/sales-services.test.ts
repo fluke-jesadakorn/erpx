@@ -158,6 +158,8 @@ const servicePostingPorts=vi.hoisted(()=>({
 }));
 vi.mock("@erpx/server-commerce/public/commerce",async()=>({commercePermissions:(await import('@erpx/server-commerce/domain/commerce')).commercePermissions,commerceSalesDocuments:servicePostingPorts.list,commerceOverview:servicePostingPorts.overview,commercePage:servicePostingPorts.legacyPage,getOrder:servicePostingPorts.order,workOrderRows:vi.fn()}));
 vi.mock("@erpx/server-commerce/public/sales-editor",()=>({salesEditorOptions:servicePostingPorts.editor}));
+vi.mock("@erpx/server-commerce/public/commerce-pages",()=>({commerceSalesDocuments:servicePostingPorts.list}));
+vi.mock("@erpx/server-commerce/public/commerce-order-read",()=>({getOrder:servicePostingPorts.order}));
 vi.mock("@erpx/server-commerce/public/purchase-controls",()=>({commercePurchaseControls:servicePostingPorts.purchase}));
 vi.mock("@erpx/server-finance/public/sales-posting-setup",async()=>({...await import('@erpx/server-finance/domain/sales-posting-setup'),salesPostingSetup:servicePostingPorts.setup,salesPostingDocumentReadiness:servicePostingPorts.readiness,createSalesPostingChart:servicePostingPorts.charts,createSalesPostingAccount:servicePostingPorts.accounts,createSalesPostingPeriod:servicePostingPorts.periods,confirmSalesPostingRate:servicePostingPorts.rates,prepareSalesPostingDefaults:servicePostingPorts.defaults,decideSalesPostingDefaults:servicePostingPorts.decision}));
 vi.mock("@erpx/feature-commerce/components/lazy-order-editor",()=>({OrderEditor:(props:unknown)=>{servicePostingPorts.calls.push({name:'OrderEditor',props});return createElement('span',{'data-sales-editor':'original-widget'},'Original Sales editor');}}));

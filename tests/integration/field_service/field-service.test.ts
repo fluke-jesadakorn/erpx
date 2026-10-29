@@ -1,3 +1,4 @@
+import {attachmentToolEnvironment} from '../../../scripts/testing/runtime-tooling';
 import { packageGrantStore, readCompanyPackageGrants } from "@erpx/server-commercial/public/package-grants";
 import { fieldServiceWorkspace } from "@erpx/server-field_service/public/field-service";
 import {getSupportTicket,supportWorkspace,supportDetail,supportWork,changeSupportTicket} from '@erpx/server-support/public/support';
@@ -1428,8 +1429,8 @@ it('Service customer late native IAM or purchase edition changes cannot commit a
 
 // This suite's native Files intake uses the existing actual development ClamAV
 // socket/definitions. No simulated readiness, scan result or installed setting.
-import {fileURLToPath as serviceScannerFixturePath} from 'node:url';
+const serviceScannerEnvironment=attachmentToolEnvironment(process.cwd());
 beforeEach(()=>{
- vi.stubEnv('ERPX_CLAMD_SOCKET',serviceScannerFixturePath(new URL('../../../.scratch/dev/clamav/clamd.sock',import.meta.url)));
- vi.stubEnv('ERPX_CLAMAV_DATABASE_DIR',serviceScannerFixturePath(new URL('../../../.scratch/dev/clamav/db',import.meta.url)));
+ vi.stubEnv('ERPX_CLAMD_SOCKET',serviceScannerEnvironment.ERPX_CLAMD_SOCKET);
+ vi.stubEnv('ERPX_CLAMAV_DATABASE_DIR',serviceScannerEnvironment.ERPX_CLAMAV_DATABASE_DIR);
 });

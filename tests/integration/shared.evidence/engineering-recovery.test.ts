@@ -1,3 +1,4 @@
+export const postgresFixtureSlots=["CONTROL_DB","CONTROL_READ_DB","H001_DB","H001_READ_DB","H002_DB","H002_READ_DB","H003_DB","H003_READ_DB"] as const;
 import { expect, it, vi } from "vitest";
 import { cp, mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { constants } from "node:fs";
@@ -5,6 +6,7 @@ import { join, resolve } from "node:path";
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { executeOwnedProcess } from '../../support/owned-process';
 import { env, applyMigrations } from "../../support/runtime-env";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
 import { executeCommand } from "@erpx/server-workflow/public/commands";
@@ -198,18 +200,18 @@ it("encrypts a complete isolated snapshot, restores immutable money and files, a
     await symlink(release,join(home,"current"));
     const operator=supplied?join(release,"ops/macos/erpxctl.py"):"ops/macos/erpxctl.py";
     const args=[operator,"--home",home,"--offline-test"];
-    const backup=await execute("python3",[...args,"backup"],{timeout:120_000}), snapshot=backup.stdout.trim().replace("Backup: ","");
+    const backup=await executeOwnedProcess("python3",[...args,"backup"],{timeout:120_000}), snapshot=backup.stdout.trim().replace("Backup: ","");
     const identity=join(home,"age-identity.txt");
     const ageKeygen=process.env.ERPX_AGE_KEYGEN_BIN??"age-keygen";
     await execute(ageKeygen,["-o",identity]);
     const recipient=(await execute(ageKeygen,["-y",identity])).stdout.trim();
-    await execute("python3",[...args,"--destination",join(home,"offsite"),"--recipient",recipient,"export",snapshot],{timeout:120_000});
+    await executeOwnedProcess("python3",[...args,"--destination",join(home,"offsite"),"--recipient",recipient,"export",snapshot],{timeout:120_000});
     const snapshotId=snapshot.split("/").at(-1)!, archive=join(home,"offsite",`${snapshotId}.tar.age`), ciphertext=await readFile(archive);
     expect(ciphertext.subarray(0,22).toString()).toContain("age-encryption.org/v1");
     expect(ciphertext.includes(Buffer.from("synthetic-recovery-auth-secret"))).toBe(false);
     const expectedSnapshotManifest=hash(await readFile(join(snapshot,"checksums.json")));
     await rm(snapshot,{recursive:true});
-    await execute("python3",[...args,"--identity",identity,"import",archive],{timeout:120_000});
+    await executeOwnedProcess("python3",[...args,"--identity",identity,"import",archive],{timeout:120_000});
     expect(hash(await readFile(join(snapshot,"checksums.json")))).toBe(expectedSnapshotManifest);
     await env.H001_DB.prepare("UPDATE engineering_recovery_evidence SET version=2 WHERE id=?").bind(key).run();
     await env.H001_DB.prepare("DELETE FROM engineering_recovery_evidence WHERE id=?").bind(key).run();
@@ -223,7 +225,7 @@ it("encrypts a complete isolated snapshot, restores immutable money and files, a
     await writeFile(join(home,"data/files/mutated-after-backup"),"Revision two");
     await env.H001_DB.prepare("UPDATE pms_properties SET name='Changed after backup',version=version+1 WHERE id=?").bind(hotelPropertyId).run();
     await env.H001_DB.prepare("UPDATE pms_records SET data_json=jsonb_set(data_json::jsonb,'{name}','\"Changed after backup\"'::jsonb)::text,version=version+1 WHERE id=? AND kind='guest'").bind(hotelGuestId).run();
-    await execute("python3",[...args,"restore",snapshot],{timeout:120_000});
+    await executeOwnedProcess("python3",[...args,"restore",snapshot],{timeout:120_000});
     expect(await tableDigests()).toEqual(before);
     expect(await fileDigests(join(home,"data/files"))).toEqual(beforeFiles);
     expect(await hotelSnapshot()).toEqual(hotelOriginal);
@@ -263,7 +265,7 @@ it("encrypts a complete isolated snapshot, restores immutable money and files, a
     expect(previousArtifact.serverSha256).not.toBe(candidateArtifact.serverSha256);
     expect(previousArtifact.sha256).not.toBe(candidateArtifact.sha256);
     const databaseStateBeforeSha256=hash(JSON.stringify(beforeRollback)),privateFilesStateBeforeSha256=hash(JSON.stringify(beforeFiles));
-    await execute("python3",[...args,"rollback",previousId]);
+    await executeOwnedProcess("python3",[...args,"rollback",previousId]);
     const selectedRelease=await realpath(join(home,"current")),expectedPreviousRelease=await realpath(previousRelease);
     expect(selectedRelease).toBe(expectedPreviousRelease);
     expect((JSON.parse(await readFile(join(home,"current/release.json"),"utf8")) as {id:string}).id).toBe(previousId);
@@ -274,7 +276,7 @@ it("encrypts a complete isolated snapshot, restores immutable money and files, a
     const databaseStateAfterSha256=hash(JSON.stringify(databaseStateAfter)),privateFilesStateAfterSha256=hash(JSON.stringify(privateFilesStateAfter));
     expect(databaseStateAfterSha256).toBe(databaseStateBeforeSha256);
     expect(privateFilesStateAfterSha256).toBe(privateFilesStateBeforeSha256);
-    await expect(execute("python3",[...args,"rollback",incompatibleId])).rejects.toThrow("Schema differs");
+    await expect(executeOwnedProcess("python3",[...args,"rollback",incompatibleId])).rejects.toThrow("Schema differs");
     expect((JSON.parse(await readFile(join(home,"current/release.json"),"utf8")) as {id:string}).id).toBe(previousId);
     expect(await realpath(join(home,"current"))).toBe(expectedPreviousRelease);
     const rollbackEvidence={scope:"isolated-synthetic-prior-release",candidateReleaseId:releaseId,previousReleaseId:previousId,
@@ -283,7 +285,7 @@ it("encrypts a complete isolated snapshot, restores immutable money and files, a
       switchedToPrevious:true,databaseAndFilesUnchanged:true,databaseStateBeforeSha256,databaseStateAfterSha256,
       privateFilesStateBeforeSha256,privateFilesStateAfterSha256};
     await writeFile(archive,Buffer.concat([ciphertext,Buffer.from("tampered")]));
-    await expect(execute("python3",[...args,"--identity",identity,"import",archive])).rejects.toThrow("OFFSITE_CIPHERTEXT_MISMATCH");
+    await expect(executeOwnedProcess("python3",[...args,"--identity",identity,"import",archive])).rejects.toThrow("OFFSITE_CIPHERTEXT_MISMATCH");
     const output=process.env.ERPX_ENGINEERING_EVIDENCE_DIR;
     if (output) await writeFile(join(output,"encrypted-recovery.json"),JSON.stringify({sourceFingerprint:build.sourceFingerprint??null,
       softwareVersion:build.softwareVersion,compiledCandidate:Boolean(supplied),candidateReleaseId:releaseId,fileManifestSha256:build.fileManifestSha256??null,

@@ -20,7 +20,7 @@ import {generalCompanyDemoGuide} from "../../fixtures/shared/builders/general-co
 import {placeScopedBrowserEmployee} from "../../fixtures/people_payroll/builders/scoped-browser-staff";
 import {runtimeSourceFingerprint} from './source-fingerprint';
 import {copyReleaseArtifact} from './copy-release-artifact';
-import {workspaceCopyInput,copyWorkspaceSnapshot} from './workspace-copy-input';
+import {copyWorkspaceSnapshot,copyBrowserWorkspaceSnapshot} from './workspace-copy-input';
 import {workspaceBrowserApps,workspaceBrowserBundler} from '../testing/development-host-profile';
 import {linkBrowserWorkspaceModules} from '../testing/browser-workspace-modules';
 import {clonedFixtureMetadata,isolatedAiCredentialEnvironment,isClonedFixtureDocument,isCaseExecutionEvidence,moduleBrowserReleaseVerificationCompanyIds} from '../testing/browser-fixture-metadata';
@@ -493,7 +493,7 @@ if(mode==='prepare'||diagnostic){
   const receipt=JSON.parse(await readFile(join(directory,'attachment-baseline.json'),'utf8'));
   if(receipt.gateReady!==true||receipt.sourceFingerprint!==sourceFingerprint)throw new Error('BROWSER_BASELINE_ATTACHMENT_GATE_NOT_READY');
  }
- await mkdir(app,{recursive:true});for(const name of ['src','apps','packages','public','scripts','fixtures','migrations/postgres','tests/support','tests/catalogue','tests/config','ops/macos/clamav','ops/macos/install-attachment-runtime.py','ops/macos/attachment-rollout.md','ops/macos/erpxctl.py','ops/macos/offsite.py','ops/macos/recovery_status.py','package.json','bun.lock','next.config.ts','tsconfig.json','tsconfig.base.json','next-env.d.ts','postcss.config.mjs','node_modules'])await copyWorkspaceSnapshot(join(root,name),join(app,name),path=>workspaceCopyInput(root,path));
+ await copyBrowserWorkspaceSnapshot(root,app);
  if(await runtimeSourceFingerprint(root)!==sourceFingerprint||await runtimeSourceFingerprint(app)!==sourceFingerprint)throw new Error('BROWSER_PREPARATION_SOURCE_CHANGED');
  state.softwareVersion=`release-${sourceFingerprint}`;
  await writeFile(join(app,'packages/catalogue/src/release-artifact.json'),JSON.stringify({softwareVersion:state.softwareVersion})+'\n');

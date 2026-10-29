@@ -375,6 +375,12 @@
         "bundler": "webpack",
         "consoleRetired": true
       }
+    },
+    {
+      "suite": "maintenance.workspace-editor-smoke.e2e",
+      "file": "tests/e2e/maintenance/workspace-editor-smoke.spec.ts",
+      "title": "Maintenance preventive plan editor opens once after hydration and closes without changes",
+      "project": "desktop"
     }
   ],
   "deferredSuites": [

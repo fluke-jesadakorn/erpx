@@ -4,9 +4,9 @@ import { join, relative } from 'node:path';
 import { Pool } from 'pg';
 import { PostgresDatabase } from "@erpx/server-runtime/adapters/runtime/postgres";
 import { LocalFileStore } from "@erpx/server-runtime/adapters/runtime/filesystem";
-import { migrateDatabase } from "@erpx/server-runtime/adapters/runtime/migrations";
+import { migrateDatabase, refreshMigrationCoverage } from "@erpx/server-runtime/public/runtime/migrations";
 import type { SqlDatabase } from "@erpx/server-runtime/adapters/runtime/types";
-import { createSuiteDatabases, cleanupSuiteDatabases, databaseTracks, type DatabaseSlot, type NativeFixturePlan } from './postgres-templates';
+import { assertSuiteDatabaseIdentity, createSuiteDatabases, cleanupSuiteDatabases, databaseTracks, type DatabaseSlot, type NativeFixturePlan } from './postgres-templates';
 
 const adminUrl=process.env.ERPX_TEST_ADMIN_URL ?? 'postgresql://erpx_test_admin@127.0.0.1:5432/postgres';
 const parsedAdminUrl=new URL(adminUrl);
@@ -30,6 +30,11 @@ export function configureDatabaseFixture(plan:NativeFixturePlan,file:string){
  fixturePlan=plan;fixtureFile=key;selectedNames=plan.files[key].slots;
 }
 export type TestMigration={ name:string; track:string };
+export async function assertCurrentFixtureDatabase(database: PostgresDatabase, slot: DatabaseSlot) {
+  if (!fixturePlan || !fixtureFile || database !== databases[slot] || !selectedNames.includes(slot))
+    throw new Error('EXACT_NATIVE_SOURCE_DATABASE_REQUIRED');
+  return assertSuiteDatabaseIdentity(fixturePlan.root, prefix, slot, database);
+}
 export const env={...databases,H001_FILES:new LocalFileStore(join(directory,'h001')),H002_FILES:new LocalFileStore(join(directory,'h002')),H003_FILES:new LocalFileStore(join(directory,'h003')),
   ERPX_ENVIRONMENT:'local',BETTER_AUTH_URL:'http://localhost:3100',BETTER_AUTH_SECRET:'test-secret-private-local-fixtures-only-2026',
   STAFF_TEST_MIGRATIONS:[{name:'0001_baseline',track:'holding-write'}] as TestMigration[],
@@ -49,6 +54,7 @@ export async function applyMigrations(database:SqlDatabase,migrations:TestMigrat
     for(const name of files){const checksum=createHash('sha256').update(await readFile(join(migrationRoot,name))).digest('hex');
      if(applied.get(name)!==checksum)throw new Error(`MIGRATION_CHANGED:${track}:${name}`);
     }
+    await refreshMigrationCoverage(database, track);
     continue;
    }
    await migrateDatabase(database,track);

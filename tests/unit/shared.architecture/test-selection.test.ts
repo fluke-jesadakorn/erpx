@@ -1,3 +1,5 @@
+import {inferPostgresProfile} from '../../../scripts/testing/workspace-catalogue';
+import {executeOwnedProcess} from '../../support/owned-process';
 import { afterEach, describe, expect, it } from "vitest";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -45,6 +47,31 @@ function ciCatalogues() {
   return { baseCatalogue, headCatalogue, baseCritical, headCritical, nativeLow, nativeIntegration };
 }
 const ciImpact = (mode: ImpactResult["mode"], suites: Suite[] = [], changed: ImpactResult["changed"] = []): ImpactResult => ({ mode, suites, changed, modules: [], reasons: [mode === "full" ? "GLOBAL_DEPENDENCY" : mode === "affected" ? "OWNED_CHANGE" : "DOCUMENTATION_ONLY"] });
+
+it("retains the declared complete recovery fixture through catalogue regeneration without widening ordinary suites",()=>{
+  const slots=['CONTROL_DB','CONTROL_READ_DB','H001_DB','H001_READ_DB','H002_DB','H002_READ_DB','H003_DB','H003_READ_DB'];
+  const source=`export const postgresFixtureSlots=${JSON.stringify(slots)} as const; const db=env.H001_DB; Object.entries(env);`;
+  expect(inferPostgresProfile(['tests/integration/shared.evidence/engineering-recovery.test.ts'],[source]))
+    .toEqual({mode:'raw',slots,migratedSlots:[]});
+  expect(inferPostgresProfile(['tests/integration/ordinary.test.ts'],['env.H001_DB; STAFF_TEST_MIGRATIONS']))
+    .toEqual({mode:'template',slots:['CONTROL_DB','H001_DB','H001_READ_DB'],migratedSlots:['H001_DB']});
+  for(const declared of [['CONTROL_DB','LIVE_DB'],['H001_DB','H001_DB'],[]])
+    expect(()=>inferPostgresProfile(['recovery.test.ts'],[`export const postgresFixtureSlots=${JSON.stringify(declared)} as const;`]))
+      .toThrow('INVALID_DECLARED_POSTGRES_FIXTURE_SLOTS');
+  expect(()=>inferPostgresProfile(['recovery.test.ts'],['export const postgresFixtureSlots=unknownRuntimeSlots(); env.H001_DB;']))
+    .toThrow('INVALID_DECLARED_POSTGRES_FIXTURE_SLOTS');
+});
+
+it("kills and reaps an owned timed-out operator group including its real descendant",async()=>{
+  const code=`const {spawn}=require('node:child_process');const child=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'inherit'});console.log(child.pid);process.on('SIGTERM',()=>child.once('exit',()=>process.exit(0)));setInterval(()=>{},1000);`;
+  let failure:unknown;
+  try{await executeOwnedProcess(process.execPath,['-e',code],{timeout:1_000});}catch(error){failure=error;}
+  expect(failure).toMatchObject({code:'OWNED_PROCESS_TIMEOUT',killed:true,signal:'SIGKILL'});
+  const pid=Number((failure as {stdout:string}).stdout.trim());expect(Number.isSafeInteger(pid)&&pid>1).toBe(true);
+  expect(()=>process.kill(pid,0)).toThrow();
+  await expect(executeOwnedProcess(process.execPath,['-e','process.stdout.write(process.argv[1])','literal $(echo untouched)'],{timeout:1_000}))
+    .resolves.toMatchObject({stdout:'literal $(echo untouched)'});
+});
 
 describe("test selection contracts", () => {
   it("resolves unique exact case titles and file identities and rejects unknown or ambiguous selectors", () => {

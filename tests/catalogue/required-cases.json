@@ -1955,6 +1955,12 @@
       "file": "tests/e2e/shared.ui/application-hmr.spec.ts",
       "title": "work representative cold route uses normal fictional sign-in on its declared runtime",
       "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/maintenance/workspace-editor-smoke.spec.ts",
+      "title": "Maintenance preventive plan editor opens once after hydration and closes without changes",
+      "project": "desktop"
     }
   ]
 }

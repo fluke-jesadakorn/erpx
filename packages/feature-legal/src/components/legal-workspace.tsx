@@ -247,7 +247,7 @@ export function LegalWorkspace({
           <p>Commitments, decisions and evidence in one place.</p>
         </div>
         {can("create") && data.enabled && canPurchase("create") && (
-          <Button appearance="standard"
+          <Button appearance="standard" clientManaged
             type="submit"
             variant="ghost"
             className={primary}

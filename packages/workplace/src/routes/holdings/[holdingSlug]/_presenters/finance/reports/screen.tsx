@@ -44,7 +44,7 @@ export default async function ReportsPage({
   const planning = !actor.branchId && !actor.departmentId ? await financePlanningWorkspace(actor,String(data.chart.id)) : null;
   const planningEnabled=(await financeCompanyTools(actor)).some(r=>r.tool==="planning"&&r.enabled===1);
   const selectedPeriod = data.periods.find((period) => period.id === query.periodId);
-  const accountingHref = canonicalUiHref(`${base}/finance/accounting?chart=${encodeURIComponent(String(data.chart.id))}#journal-entries`);
+  const accountingHref = canonicalUiHref(`${base}/finance/accounting/journals?chart=${encodeURIComponent(String(data.chart.id))}#journal-entries`);
   const cards = [
     ["Assets", report.balanceSheet.assets],
     ["Liabilities", report.balanceSheet.liabilities],

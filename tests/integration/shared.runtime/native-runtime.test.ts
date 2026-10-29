@@ -10,6 +10,13 @@ describe('Native PostgreSQL and private file runtime',()=>{
   await applyMigrations(env.H001_DB,env.STAFF_TEST_MIGRATIONS);
   await applyMigrations(env.H001_READ_DB,[{name:'baseline',track:'holding-read'}]);
  });
+ it('uses bounded OLTP connection settings while retaining explicit operator options',async()=>{
+  const settings=await env.H001_DB.prepare("SELECT current_setting('jit') jit,current_setting('statement_timeout') statement_timeout,current_setting('lock_timeout') lock_timeout,current_setting('timezone') timezone").first();
+  expect(settings).toEqual({jit:'off',statement_timeout:'30s',lock_timeout:'10s',timezone:'UTC'});
+  const explicit=new PostgresDatabase({...env.H001_DB.pool.options,options:'-c timezone=UTC -c statement_timeout=30000 -c lock_timeout=10000 -c jit=on'});
+  try{expect(await explicit.prepare("SELECT current_setting('jit') jit").first('jit')).toBe('on');}
+  finally{await explicit.pool.end();}
+ });
  it('rejects unsafe integers instead of silently changing money or epoch values',async()=>{
   expect(await env.H001_DB.prepare('SELECT ?::bigint amount').bind(Number.MAX_SAFE_INTEGER).first('amount')).toBe(Number.MAX_SAFE_INTEGER);
   await expect(env.H001_DB.prepare("SELECT '9007199254740992'::bigint amount").first()).rejects.toThrow();

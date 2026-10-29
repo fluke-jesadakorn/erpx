@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, readFile, readlink, realpath, rm, symlink, writeFile } 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { it, expect } from 'vitest';
-import { workspaceCopyInput, copyWorkspaceSnapshot } from '../../../scripts/local/workspace-copy-input';
+import { workspaceCopyInput, copyWorkspaceSnapshot, browserWorkspaceInputs, copyBrowserWorkspaceSnapshot } from '../../../scripts/local/workspace-copy-input';
 import { verifyAppArtifact } from '../../../scripts/local/app-artifact-cache';
 import { artifactSymbolicLinks, relocateCompilerDependencyAliases } from '../../../scripts/local/standalone-links';
 
@@ -134,5 +134,18 @@ it('workspace scaffolding preserves an existing app host policy byte-for-byte ac
   const scaffold=await readFile(join(root,'apps/launcher/src/proxy.ts'),'utf8');expect(scaffold).toContain('appProxy("apps")');
   expect(ensureWorkspaceProxySource(root,'apps')).toBe(false);
   expect(await readFile(join(root,'apps/launcher/src/proxy.ts'),'utf8')).toBe(scaffold);
+ }finally{await rm(root,{recursive:true,force:true});}
+});
+
+it('copies the required browser workspace from a fresh source without a generated root Next declaration',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'erpx-browser-source-')),source=join(root,'source'),target=join(root,'snapshot');
+ try{
+  const files=new Set(['package.json','bun.lock','next.config.ts','tsconfig.json','tsconfig.base.json','postcss.config.mjs','ops/macos/install-attachment-runtime.py','ops/macos/attachment-rollout.md','ops/macos/erpxctl.py','ops/macos/offsite.py','ops/macos/recovery_status.py']);
+  for(const name of browserWorkspaceInputs){const path=join(source,name);if(files.has(name)){await mkdir(join(path,'..'),{recursive:true});await writeFile(path,`required:${name}`);}else await mkdir(path,{recursive:true});}
+  await writeFile(join(source,'apps','app-source.ts'),'actual app source');await writeFile(join(source,'apps','.env.local'),'private');
+  await copyBrowserWorkspaceSnapshot(source,target);
+  expect(await readFile(join(target,'apps','app-source.ts'),'utf8')).toBe('actual app source');expect(await readFile(join(target,'tsconfig.base.json'),'utf8')).toBe('required:tsconfig.base.json');
+  await expect(readFile(join(target,'next-env.d.ts'),'utf8')).rejects.toMatchObject({code:'ENOENT'});await expect(readFile(join(target,'apps','.env.local'),'utf8')).rejects.toMatchObject({code:'ENOENT'});
+  await rm(join(source,'tsconfig.base.json'));await expect(copyBrowserWorkspaceSnapshot(source,join(root,'missing'))).rejects.toMatchObject({code:'ENOENT'});
  }finally{await rm(root,{recursive:true,force:true});}
 });

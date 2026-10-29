@@ -9880,8 +9880,8 @@
       ],
       "fixture": "general-company",
       "requires": {
-        "jobs": false,
-        "scanner": false
+        "jobs": true,
+        "scanner": true
       },
       "apps": [
         "finance",
@@ -13923,8 +13923,13 @@
         "mode": "raw",
         "slots": [
           "CONTROL_DB",
+          "CONTROL_READ_DB",
           "H001_DB",
-          "H001_READ_DB"
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
         ],
         "migratedSlots": []
       }
@@ -14292,8 +14297,13 @@
         "mode": "raw",
         "slots": [
           "CONTROL_DB",
+          "CONTROL_READ_DB",
           "H001_DB",
-          "H001_READ_DB"
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
         ],
         "migratedSlots": []
       }
@@ -23559,8 +23569,13 @@
         "mode": "raw",
         "slots": [
           "CONTROL_DB",
+          "CONTROL_READ_DB",
           "H001_DB",
-          "H001_READ_DB"
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
         ],
         "migratedSlots": []
       }
@@ -53596,6 +53611,108 @@
         "@erpx/ui",
         "@erpx/workplace"
       ]
+    },
+    {
+      "id": "shared.testing.documentation-references.unit",
+      "lane": "unit",
+      "owner": "shared.testing",
+      "modules": [
+        "agent",
+        "assets",
+        "benefits",
+        "brand",
+        "collaboration",
+        "commercial",
+        "crm",
+        "customer_360",
+        "customer_authority",
+        "ecommerce",
+        "field_service",
+        "finance",
+        "identity_access",
+        "inventory",
+        "learning",
+        "legal",
+        "maintenance",
+        "manage_erpx",
+        "manufacturing",
+        "marketing",
+        "operations",
+        "organization",
+        "people_payroll",
+        "planning",
+        "platform_administration",
+        "pms",
+        "pos",
+        "procurement",
+        "projects",
+        "quality",
+        "sales",
+        "support",
+        "talent"
+      ],
+      "files": [
+        "tests/unit/shared.testing/documentation-references.test.ts"
+      ],
+      "verificationInputs": [
+        "scripts/docs/documentation-references.ts",
+        "docs/status/historical-source-snapshots.json",
+        "docs/status/private-artifact-references.json"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Historical source and private evidence references must remain source-bound without publishing private artifact bytes."
+      },
+      "apps": [
+        "work",
+        "pos",
+        "pms",
+        "finance",
+        "people",
+        "sales",
+        "supply",
+        "assets",
+        "projects",
+        "recruit",
+        "learn",
+        "support",
+        "service",
+        "legal",
+        "manufacturing",
+        "apps",
+        "account",
+        "admin",
+        "booking",
+        "portal",
+        "legal-portal",
+        "forms"
+      ],
+      "packages": []
+    },
+    {
+      "id": "maintenance.workspace-editor-smoke.e2e",
+      "lane": "e2e",
+      "owner": "maintenance",
+      "modules": [
+        "assets"
+      ],
+      "files": [
+        "tests/e2e/maintenance/workspace-editor-smoke.spec.ts"
+      ],
+      "fixture": "engineering",
+      "requires": {
+        "jobs": true,
+        "scanner": true
+      },
+      "apps": [
+        "assets"
+      ],
+      "packages": []
     }
   ]
 }

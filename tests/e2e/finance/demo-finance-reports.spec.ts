@@ -36,6 +36,11 @@ test("isolated demo traces finance report totals to the selected ledger", async 
   try {
     const page = await context.newPage();
     await signInFinance(context, page, credentials, "/holdings/simulation/finance/reports");
+    await expect(page.getByRole("heading", { name: "Reports", exact: true })).toBeVisible();
+    const companyReports = page.getByRole("link", { name: "Company reports", exact: true });
+    await expect(companyReports).toHaveAttribute("href", "/holdings/simulation/finance/reports/company");
+    await companyReports.click();
+    await expect(page.getByRole("heading", { name: "Reports and statements", exact: true })).toBeVisible();
     const chartsResponse = await page.request.get("/api/v1/holdings/simulation/finance/charts");
     expect(chartsResponse.ok(), await chartsResponse.text()).toBe(true);
     const chartsBody = await chartsResponse.json() as { data: Array<{ id: string; base_currency: string }> };
@@ -50,7 +55,7 @@ test("isolated demo traces finance report totals to the selected ledger", async 
     const trialBalanceBody = await trialBalanceResponse.json() as { data: Array<{ id: string; category: string; debit: string; credit: string }> };
     expect(statementsBody.data.trialBalance.length).toBe(trialBalanceBody.data.length);
 
-    await page.goto(`/holdings/simulation/finance/reports?chart=${encodeURIComponent(chart.id)}&refresh=${Date.now()}`, { waitUntil: "domcontentloaded" });
+    await page.goto(`/holdings/simulation/finance/reports/company?chart=${encodeURIComponent(chart.id)}&refresh=${Date.now()}`, { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { name: "Reports and statements", exact: true })).toBeVisible();
     await expect(page.locator('#workspace-content').getByText(`${chart.base_currency} ${statementsBody.data.balanceSheet.assets}`, { exact: true }).first()).toBeVisible();
     const traceLinks = page.getByRole("link", { name: "Trace journal entries →", exact: true });
@@ -58,32 +63,34 @@ test("isolated demo traces finance report totals to the selected ledger", async 
     await captureInvestorCheckpoint(page, "finance-statements", testInfo.project.name === "mobile" ? traceLinks.first() : page.getByRole("heading", { name: "Reports and statements", exact: true }));
     const assetTrace = traceLinks.first();
     const assetHref = new URL((await assetTrace.getAttribute('href'))!, page.url());
-    expect(assetHref.pathname).toBe('/holdings/simulation/record-details/finance_report/assets');
+    expect(assetHref.pathname).toBe('/holdings/simulation/finance/accounting/records/finance_report/assets/overview');
     expect(assetHref.searchParams.get('chartId')).toBe(chart.id);
     await assetTrace.click();
-    await expect(page).toHaveURL(url => url.searchParams.get('detailKind') === 'finance_report' && url.searchParams.get('detailId') === 'assets');
+    await expect(page).toHaveURL(url => url.pathname === '/holdings/simulation/finance/accounting/records/finance_report/assets/overview' && url.searchParams.get('chartId') === chart.id);
     const drawer = page.getByTestId('record-detail-drawer');
     await expect(drawer.getByRole('heading', { name: 'assets', level: 1, exact: true })).toBeVisible();
     const assetAccount = trialBalanceBody.data.find(row => row.category === 'asset' && (Number(row.debit) > 0 || Number(row.credit) > 0));
     expect(assetAccount, 'a posted asset account in the selected ledger').toBeTruthy();
     const assetSources = drawer.getByRole('region', { name: 'Source records', exact: true });
     await expect(assetSources).toHaveCount(1);
-    const assetRow = assetSources.getByRole('row').filter({ has: page.locator(`a[href^="/holdings/simulation/record-details/trial_balance/${encodeURIComponent(assetAccount!.id)}?"]`) });
+    const trialBalancePath = `/holdings/simulation/finance/accounting/records/trial_balance/${encodeURIComponent(assetAccount!.id)}/overview`;
+    const assetRow = assetSources.getByRole('row').filter({ has: page.locator(`a[href^="${trialBalancePath}?"]`) });
     await expect(assetRow).toHaveCount(1);
     const accountSource = assetRow.getByRole('cell').nth(0).getByRole('link');
     await expect(accountSource).toHaveCount(1);
     expect(new URL((await accountSource.getAttribute('href'))!, page.url()).searchParams.get('chartId')).toBe(chart.id);
     await accountSource.click();
-    await expect(page).toHaveURL(url => url.searchParams.get('detailKind') === 'trial_balance' && url.searchParams.get('detailId') === assetAccount!.id);
+    await expect(page).toHaveURL(url => url.pathname === trialBalancePath && url.searchParams.get('chartId') === chart.id);
     await expect(drawer.getByRole('heading', { name: 'Source records', exact: true })).toBeVisible();
-    await expect(drawer.locator('a[href*="/finance/journals/"]').first()).toBeVisible();
+    await expect(drawer.locator('a[href*="/finance/accounting/journals/"]').first()).toBeVisible();
     await captureInvestorCheckpoint(page, "finance-sources", drawer);
-    await drawer.getByRole('button', { name: 'Close dialog', exact: true }).click();
+    await drawer.getByRole('button', { name: 'Close details', exact: true }).click();
     await expect(drawer).toBeHidden();
+    await expect(page).toHaveURL(url => url.pathname === '/holdings/simulation/finance/reports/company' && url.searchParams.get('chart') === chart.id);
     await expect(page.getByRole("heading", { name: "Trial balance", exact: true })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Open Accounting →", exact: true })).toHaveAttribute("href", `/holdings/simulation/finance/accounting?chart=${encodeURIComponent(chart.id)}#journal-entries`);
+    await expect(page.getByRole("link", { name: "Open Accounting →", exact: true })).toHaveAttribute("href", `/holdings/simulation/finance/accounting/journals?chart=${encodeURIComponent(chart.id)}#journal-entries`);
     await page.getByRole('link', { name: 'Open Accounting →', exact: true }).click();
-    await expect(page).toHaveURL(url => url.pathname === '/holdings/simulation/finance/accounting' && url.searchParams.get('chart') === chart.id && url.hash === '#journal-entries');
+    await expect(page).toHaveURL(url => url.pathname === '/holdings/simulation/finance/accounting/journals' && url.searchParams.get('chart') === chart.id && url.hash === '#journal-entries');
     await expect(page.locator('#workspace-content').getByRole('heading', { name: 'Journal entries', exact: true })).toBeVisible();
   } finally {
     await context.close();
