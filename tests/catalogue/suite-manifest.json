@@ -15801,7 +15801,8 @@
         "tests/support/files/field-files-native-parity.ts",
         "tests/support/files/rust-field-files-vitest-held-provider.rs",
         "src/composition/Cargo.toml",
-        "tests/integration/field_service/rust-files-reservation-postgres.test.rs"
+        "tests/integration/field_service/rust-files-reservation-postgres.test.rs",
+        "tests/support/field_service/historical-supply-parts.ts"
       ]
     },
     {
@@ -39396,7 +39397,10 @@
         "packages/server-field_service/src/adapters/native-work.ts",
         "packages/server-field_service/src/public/native-work.ts",
         "packages/contracts/src/field-service-initial-count.generated.ts",
-        "packages/server-inventory/src/domain/initial-physical-stock-count.ts"
+        "packages/server-inventory/src/domain/initial-physical-stock-count.ts",
+        "tests/support/field_service/legacy-service-parts-posting-schemas.ts",
+        "tests/support/field_service/legacy-service-parts-prerequisite-schemas.ts",
+        "tests/support/field_service/legacy-service-parts-stock-schemas.ts"
       ]
     },
     {

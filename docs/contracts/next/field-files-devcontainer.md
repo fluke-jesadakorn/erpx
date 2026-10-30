@@ -41,4 +41,4 @@ An actual CLI attempt with an orphaned native Files volume failed before creatin
 - [x] Actual HMR and incremental Rust edit/restore pass; renderer publication rejects unauthorized reuse.
 - [x] Orphaned data fails closed; focused boundary tests and independent findings review pass.
 - [x] Official Dev Containers CLI lifecycle passes against the existing exact project; final local source checks pass.
-- [ ] Scoped PR merges into `codex/rust-backend-migration`; remote SHA is verified.
+- [x] [PR #11](https://github.com/fluke-jesadakorn/erpx/pull/11) merged into `codex/rust-backend-migration` at `72e5b5f3b1de44e829b59f5169a85dd5ee97f62f`; remote SHA verified.

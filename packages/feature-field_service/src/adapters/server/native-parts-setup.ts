@@ -1,7 +1,7 @@
 import 'server-only';
 import {contributorExactOrigin} from '@erpx/feature-runtime/lib/holding-hosts';
 import {nativePartsSetupRequest,nativePartsPrerequisiteRequest,nativePartsStockRequest,type NativePartsStockOperation,type NativePartsPrerequisiteOperation} from '@erpx/native-sdk/field-service-parts';
-import {validPostingPrerequisites} from '@erpx/feature-commerce/lib/posting-setup-prerequisite-command';
+import {validPostingPrerequisites} from '@erpx/feature-commerce/lib/posting-prerequisite-read-model';
 import {validServicePartsReceipt,validServicePartsStockWorkspace,type ServicePartsRequest,type ServicePartsPrerequisitesView} from '../../lib/parts-setup-command';
 import type {ServiceStockReadResponse,ServiceStockMasterResponse,ServicePrerequisitesReadResponse} from '@erpx/contracts/field-service-reserve';
 import {validServicePartsPostingSetup,type ServicePartsPostingSetupView} from '../../lib/parts-setup-model';
@@ -60,7 +60,7 @@ export async function nativePartsPrerequisites(incoming:Pick<Headers,'get'>,slug
 }
 
 export function nativePartsStockSelected(headers:Pick<Headers,'get'>,slug:string,actor:ReserveContext|undefined):boolean{return !!selected(process.env.ERPX_NATIVE_FIELD_SERVICE_STOCK_SETUP_CONFIG,headers,slug,actor);}
-export function nativePartsStock(incoming:Pick<Headers,'get'>,slug:string,actor:ReserveContext|undefined,operation:'read'):Promise<import('@erpx/server-commerce/public/service-parts-posting-setup').ServicePartsStockWorkspace|undefined>;
+export function nativePartsStock(incoming:Pick<Headers,'get'>,slug:string,actor:ReserveContext|undefined,operation:'read'):Promise<import('@erpx/contracts/field-service-reserve').ServiceStockWorkspace|undefined>;
 export function nativePartsStock(incoming:Pick<Headers,'get'>,slug:string,actor:ReserveContext|undefined,operation:Exclude<NativePartsStockOperation,'read'>,body:unknown,key:string,originalBody:string):Promise<Record<string,unknown>|undefined>;
 export async function nativePartsStock(incoming:Pick<Headers,'get'>,slug:string,actor:ReserveContext|undefined,operation:NativePartsStockOperation,body?:unknown,key?:string,originalBody?:string){
  const choice=selected(process.env.ERPX_NATIVE_FIELD_SERVICE_STOCK_SETUP_CONFIG,incoming,slug,actor);if(!choice)return undefined;if(!actor)return fail('WORK_CONTEXT_CHANGED',409);
@@ -73,4 +73,11 @@ export async function nativePartsStock(incoming:Pick<Headers,'get'>,slug:string,
  if(!object(response.body))return fail('NATIVE_PARTS_SETUP_RESPONSE_INVALID');validatedContext(response.body.context,actor);const data=response.body.data;
  if(operation==='read'){const typed=response.body as unknown as ServiceStockReadResponse;if(!validServicePartsStockWorkspace(typed.data,actor.companyId))return fail('NATIVE_PARTS_SETUP_RESPONSE_INVALID');return typed.data;}
  if(!object(data)||Object.keys(data).sort().join(',')!=='id,version'||!validServicePartsReceipt(data,{kind:operation,body} as ServicePartsRequest,actor.companyId,key!))return fail('NATIVE_PARTS_SETUP_RESPONSE_INVALID');const typed=response.body as unknown as ServiceStockMasterResponse;return typed.data;
+}
+
+/** Service entry must use the native owner for the selected role. */
+export async function requiredNativePartsEntry(incoming:Pick<Headers,'get'>,slug:string,actor:ReserveContext|undefined,role:'stock'|'finance'):Promise<boolean>{
+ const value=role==='stock'?await nativePartsStock(incoming,slug,actor,'read'):await nativePartsPrerequisites(incoming,slug,actor,'read');
+ if(!value)return fail('NATIVE_PARTS_SETUP_UNAVAILABLE',503);
+ return value.available;
 }

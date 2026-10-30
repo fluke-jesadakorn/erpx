@@ -3,13 +3,12 @@ import {captureWorkCommandContext} from '@erpx/feature-work_projection/lib/comma
 import {retainWorkCommandCompletion} from '@erpx/feature-work_projection/lib/command-completion';
 import {announceWorkChange} from '@erpx/feature-work_projection/lib/work-refresh';
 import {contextGeneration,contextIsSwitching} from '@erpx/feature-work_projection/lib/context-switch';
-import {validPostingPrerequisites} from '@erpx/feature-commerce/lib/posting-setup-prerequisite-command';
+import {validPostingPrerequisites,type PostingPrerequisitesView} from '@erpx/feature-commerce/lib/posting-prerequisite-read-model';
 import type {ServicePrerequisiteChartRequest as ServicePartsChartInput,ServicePrerequisiteAccountRequest as ServicePartsAccountInput,ServicePrerequisitePeriodRequest as ServicePartsPeriodInput,ServicePrerequisiteRateRequest as ServicePartsRateInput} from '@erpx/contracts/field-service-reserve';
-export type ServicePartsPrerequisitesView={companyId:string;available:boolean;configured:boolean|null;contextKey:string|null;canCreateChart:boolean;canCreateAccount:boolean;canCreatePeriod:boolean;canConfirmRate:boolean;charts:{id:string;name:string;baseCurrency:string}[];accounts:{id:string;chartId:string;code:string;name:string;category:string;currency:string;controlKind:string}[];periods:{id:string;name:string;startDate:string;endDate:string;state:string;version:number}[];rates:{id:string;currency:string;effectiveDate:string;currencyPerUsd:string;confirmedAt:number}[];unavailableReason:'authority-required'|'purchase-required'|'history-requires-review'|null};
+export type ServicePartsPrerequisitesView=PostingPrerequisitesView;
 import type {ServicePartsPostingSetupInput,ServicePartsPostingSetupView,ServicePartsExistingPostingSetupInput} from './parts-setup-model';
 import type {ReserveContext} from './native-reserve-command';
-import type {ServiceInitialPhysicalStockProductInput,ServiceInitialPhysicalStockWarehouseInput} from '@erpx/server-commerce/public/service-initial-physical-stock-masters';
-import type {ServicePartsStockWorkspace} from '@erpx/server-commerce/public/service-parts-posting-setup';
+import type {ServiceStockProductInput as ServiceInitialPhysicalStockProductInput,ServiceStockWarehouseInput as ServiceInitialPhysicalStockWarehouseInput,ServiceStockWorkspace as ServicePartsStockWorkspace} from '@erpx/contracts/field-service-reserve';
 export type ServicePartsView={prerequisites:ServicePartsPrerequisitesView;mapping:ServicePartsPostingSetupView;workspace:ServicePartsStockWorkspace};
 export type ServicePartsRequest={kind:'existing';body:ServicePartsExistingPostingSetupInput}|{kind:'charts';body:ServicePartsChartInput}|{kind:'accounts';body:ServicePartsAccountInput}|{kind:'periods';body:ServicePartsPeriodInput}|{kind:'rates';body:ServicePartsRateInput}|{kind:'mapping';body:ServicePartsPostingSetupInput}|{kind:'products';body:ServiceInitialPhysicalStockProductInput}|{kind:'warehouses';body:ServiceInitialPhysicalStockWarehouseInput};
 export type ServicePartsKind=ServicePartsRequest['kind'];

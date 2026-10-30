@@ -2,8 +2,8 @@
   "version": 3,
   "environment": "development",
   "deliveryPlan": "docs/production-plan.md",
-  "sourceFingerprint": "15d3a8588126c961191c2bca2bf3ebccbf6f917bf3d97d7320a92b44f4faac6b",
-  "verificationFingerprint": "f98042b7ae33c42c014f07db8bdf83789f7e0089e7d30083d02bf9257f1411bb",
+  "sourceFingerprint": "a136a732e6661e7122b6c3b2c5b0b2af3f6251ca82bd6e5be0e730b13b3e34e3",
+  "verificationFingerprint": "fb02a9b7a33d7aae091cf38e402ded42f5dfb42d3ec07d1e4805fbc684db7b58",
   "baseline": {
     "source": ".scratch/dev/product-migration-baseline-2026-10-14/",
     "privateAuthority": "read-only per-database snapshots; no secrets or personal authority rows in this register",
@@ -362,7 +362,9 @@
         "shared.architecture.documentation-integrity.unit",
         "shared.runtime.ui-module-registration.unit",
         "shared.architecture.rust-module-assembly.unit",
-        "shared.records.rust-business-evidence.unit"
+        "shared.records.rust-business-evidence.unit",
+        "shared.ui.flow-assignment-command.unit",
+        "files.rust-field-files-private-api.provider"
       ]
     },
     {
@@ -837,7 +839,9 @@
         "shared.runtime.ui-module-registration.unit",
         "shared.architecture.rust-module-assembly.unit",
         "field_service.rust-private-field-only-postgres.integration",
-        "shared.records.rust-business-evidence.unit"
+        "shared.records.rust-business-evidence.unit",
+        "shared.ui.flow-assignment-command.unit",
+        "files.rust-field-files-private-api.provider"
       ]
     },
     {
@@ -1495,7 +1499,10 @@
         "shared.runtime.ui-module-registration.unit",
         "shared.architecture.rust-module-assembly.unit",
         "field_service.rust-private-field-only-postgres.integration",
-        "shared.records.rust-business-evidence.unit"
+        "shared.records.rust-business-evidence.unit",
+        "shared.ui.flow-assignment-command.unit",
+        "shared.attachments.field-file-writer-owner.integration",
+        "files.rust-field-files-private-api.provider"
       ]
     },
     {
@@ -1959,7 +1966,9 @@
         "shared.architecture.documentation-integrity.unit",
         "shared.runtime.ui-module-registration.unit",
         "shared.architecture.rust-module-assembly.unit",
-        "shared.records.rust-business-evidence.unit"
+        "shared.records.rust-business-evidence.unit",
+        "shared.ui.flow-assignment-command.unit",
+        "files.rust-field-files-private-api.provider"
       ]
     },
     {
@@ -2597,7 +2606,9 @@
         "shared.architecture.documentation-integrity.unit",
         "shared.runtime.ui-module-registration.unit",
         "shared.architecture.rust-module-assembly.unit",
-        "shared.records.rust-business-evidence.unit"
+        "shared.records.rust-business-evidence.unit",
+        "shared.ui.flow-assignment-command.unit",
+        "files.rust-field-files-private-api.provider"
       ]
     },
     {
@@ -2993,7 +3004,9 @@
         "shared.architecture.documentation-integrity.unit",
         "shared.runtime.ui-module-registration.unit",
         "shared.architecture.rust-module-assembly.unit",
-        "shared.records.rust-business-evidence.unit"
+        "shared.records.rust-business-evidence.unit",
+        "shared.ui.flow-assignment-command.unit",
+        "files.rust-field-files-private-api.provider"
       ]
     },
     {
@@ -3385,7 +3398,9 @@
         "shared.architecture.documentation-integrity.unit",
         "shared.runtime.ui-module-registration.unit",
         "shared.architecture.rust-module-assembly.unit",
-        "shared.records.rust-business-evidence.unit"
+        "shared.records.rust-business-evidence.unit",
+        "shared.ui.flow-assignment-command.unit",
+        "files.rust-field-files-private-api.provider"
       ]
     },
     {
@@ -3894,7 +3909,9 @@
         "shared.runtime.ui-module-registration.unit",
         "shared.architecture.rust-module-assembly.unit",
         "field_service.rust-private-field-only-postgres.integration",
-        "shared.records.rust-business-evidence.unit"
+        "shared.records.rust-business-evidence.unit",
+        "shared.ui.flow-assignment-command.unit",
+        "files.rust-field-files-private-api.provider"
       ]
     },
     {
@@ -4723,7 +4740,9 @@
         "shared.architecture.rust-module-assembly.unit",
         "field_service.rust-private-field-only-postgres.integration",
         "shared.records.rust-business-evidence.unit",
-        "finance.rust-initial-count-finance-postgres.integration"
+        "finance.rust-initial-count-finance-postgres.integration",
+        "shared.ui.flow-assignment-command.unit",
+        "files.rust-field-files-private-api.provider"
       ]
     },
     {
@@ -5186,7 +5205,9 @@
         "shared.architecture.documentation-integrity.unit",
         "shared.runtime.ui-module-registration.unit",
         "shared.architecture.rust-module-assembly.unit",
-        "shared.records.rust-business-evidence.unit"
+        "shared.records.rust-business-evidence.unit",
+        "shared.ui.flow-assignment-command.unit",
+        "files.rust-field-files-private-api.provider"
       ]
     },
     {
@@ -5659,7 +5680,9 @@
         "shared.runtime.ui-module-registration.unit",
         "shared.architecture.rust-module-assembly.unit",
         "field_service.rust-private-field-only-postgres.integration",
-        "shared.records.rust-business-evidence.unit"
+        "shared.records.rust-business-evidence.unit",
+        "shared.ui.flow-assignment-command.unit",
+        "files.rust-field-files-private-api.provider"
       ]
     },
     {
@@ -6118,7 +6141,9 @@
         "shared.runtime.ui-module-registration.unit",
         "shared.architecture.rust-module-assembly.unit",
         "field_service.rust-private-field-only-postgres.integration",
-        "shared.records.rust-business-evidence.unit"
+        "shared.records.rust-business-evidence.unit",
+        "shared.ui.flow-assignment-command.unit",
+        "files.rust-field-files-private-api.provider"
       ]
     },
     {
@@ -6290,7 +6315,7 @@
             "migrations/postgres/holding-write/1059_manufacturing_initial_physical_stock_count_source.sql",
             "packages/server-inventory/src/domain/initial-physical-stock-count.ts",
             "migrations/postgres/holding-write/1058_initial_physical_stock_count_source.sql",
-            "packages/server-inventory/src/domain/service-initial-physical-stock-count.ts",
+            "packages/server-inventory/src/domain/service_initial_physical_count.rs",
             "migrations/postgres/holding-write/1062_service_parts_initial_physical_stock.sql"
           ],
           "tests": [
@@ -6665,7 +6690,14 @@
         "inventory.rust-service-initial-physical-count.unit",
         "inventory.rust-service-initial-physical-count-postgres.integration",
         "workflow.rust-stock-count-flow.unit",
-        "workflow.rust-stock-count-flow-postgres.integration"
+        "workflow.rust-stock-count-flow-postgres.integration",
+        "field_service.native-count-next-entry.unit",
+        "inventory.rust-service-initial-count-revision-postgres.integration",
+        "shared.ui.flow-assignment-command.unit",
+        "inventory.service-count-native-writer-fence.integration",
+        "workflow.rust-service-count-outbox-postgres.integration",
+        "inventory.rust-service-count-generic-facts-postgres.integration",
+        "files.rust-field-files-private-api.provider"
       ]
     },
     {
@@ -7116,7 +7148,9 @@
         "shared.architecture.documentation-integrity.unit",
         "shared.runtime.ui-module-registration.unit",
         "shared.architecture.rust-module-assembly.unit",
-        "shared.records.rust-business-evidence.unit"
+        "shared.records.rust-business-evidence.unit",
+        "shared.ui.flow-assignment-command.unit",
+        "files.rust-field-files-private-api.provider"
       ]
     },
     {
@@ -7631,7 +7665,9 @@
         "shared.architecture.documentation-integrity.unit",
         "shared.runtime.ui-module-registration.unit",
         "shared.architecture.rust-module-assembly.unit",
-        "shared.records.rust-business-evidence.unit"
+        "shared.records.rust-business-evidence.unit",
+        "shared.ui.flow-assignment-command.unit",
+        "files.rust-field-files-private-api.provider"
       ]
     },
     {
@@ -8080,7 +8116,9 @@
         "shared.runtime.ui-module-registration.unit",
         "shared.architecture.rust-module-assembly.unit",
         "field_service.rust-private-field-only-postgres.integration",
-        "shared.records.rust-business-evidence.unit"
+        "shared.records.rust-business-evidence.unit",
+        "shared.ui.flow-assignment-command.unit",
+        "files.rust-field-files-private-api.provider"
       ]
     },
     {
@@ -8486,7 +8524,9 @@
         "shared.runtime.ui-module-registration.unit",
         "shared.architecture.rust-module-assembly.unit",
         "field_service.rust-private-field-only-postgres.integration",
-        "shared.records.rust-business-evidence.unit"
+        "shared.records.rust-business-evidence.unit",
+        "shared.ui.flow-assignment-command.unit",
+        "files.rust-field-files-private-api.provider"
       ]
     },
     {
@@ -8964,7 +9004,9 @@
         "shared.architecture.documentation-integrity.unit",
         "shared.runtime.ui-module-registration.unit",
         "shared.architecture.rust-module-assembly.unit",
-        "shared.records.rust-business-evidence.unit"
+        "shared.records.rust-business-evidence.unit",
+        "shared.ui.flow-assignment-command.unit",
+        "files.rust-field-files-private-api.provider"
       ]
     },
     {
@@ -9533,7 +9575,9 @@
         "shared.runtime.ui-module-registration.unit",
         "shared.architecture.rust-module-assembly.unit",
         "field_service.rust-private-field-only-postgres.integration",
-        "shared.records.rust-business-evidence.unit"
+        "shared.records.rust-business-evidence.unit",
+        "shared.ui.flow-assignment-command.unit",
+        "files.rust-field-files-private-api.provider"
       ]
     },
     {
@@ -9979,7 +10023,9 @@
         "shared.architecture.documentation-integrity.unit",
         "shared.runtime.ui-module-registration.unit",
         "shared.architecture.rust-module-assembly.unit",
-        "shared.records.rust-business-evidence.unit"
+        "shared.records.rust-business-evidence.unit",
+        "shared.ui.flow-assignment-command.unit",
+        "files.rust-field-files-private-api.provider"
       ]
     },
     {
@@ -10455,7 +10501,9 @@
         "shared.architecture.documentation-integrity.unit",
         "shared.runtime.ui-module-registration.unit",
         "shared.architecture.rust-module-assembly.unit",
-        "shared.records.rust-business-evidence.unit"
+        "shared.records.rust-business-evidence.unit",
+        "shared.ui.flow-assignment-command.unit",
+        "files.rust-field-files-private-api.provider"
       ]
     },
     {
@@ -10956,7 +11004,9 @@
         "shared.architecture.documentation-integrity.unit",
         "shared.runtime.ui-module-registration.unit",
         "shared.architecture.rust-module-assembly.unit",
-        "shared.records.rust-business-evidence.unit"
+        "shared.records.rust-business-evidence.unit",
+        "shared.ui.flow-assignment-command.unit",
+        "files.rust-field-files-private-api.provider"
       ]
     },
     {
@@ -11378,7 +11428,9 @@
         "shared.architecture.documentation-integrity.unit",
         "shared.runtime.ui-module-registration.unit",
         "shared.architecture.rust-module-assembly.unit",
-        "shared.records.rust-business-evidence.unit"
+        "shared.records.rust-business-evidence.unit",
+        "shared.ui.flow-assignment-command.unit",
+        "files.rust-field-files-private-api.provider"
       ]
     },
     {
@@ -11889,7 +11941,9 @@
         "shared.architecture.documentation-integrity.unit",
         "shared.runtime.ui-module-registration.unit",
         "shared.architecture.rust-module-assembly.unit",
-        "shared.records.rust-business-evidence.unit"
+        "shared.records.rust-business-evidence.unit",
+        "shared.ui.flow-assignment-command.unit",
+        "files.rust-field-files-private-api.provider"
       ]
     },
     {
@@ -12356,7 +12410,9 @@
         "shared.architecture.documentation-integrity.unit",
         "shared.runtime.ui-module-registration.unit",
         "shared.architecture.rust-module-assembly.unit",
-        "shared.records.rust-business-evidence.unit"
+        "shared.records.rust-business-evidence.unit",
+        "shared.ui.flow-assignment-command.unit",
+        "files.rust-field-files-private-api.provider"
       ]
     },
     {
@@ -12777,7 +12833,9 @@
         "shared.architecture.documentation-integrity.unit",
         "shared.runtime.ui-module-registration.unit",
         "shared.architecture.rust-module-assembly.unit",
-        "shared.records.rust-business-evidence.unit"
+        "shared.records.rust-business-evidence.unit",
+        "shared.ui.flow-assignment-command.unit",
+        "files.rust-field-files-private-api.provider"
       ]
     },
     {
@@ -13222,7 +13280,9 @@
         "shared.architecture.documentation-integrity.unit",
         "shared.runtime.ui-module-registration.unit",
         "shared.architecture.rust-module-assembly.unit",
-        "shared.records.rust-business-evidence.unit"
+        "shared.records.rust-business-evidence.unit",
+        "shared.ui.flow-assignment-command.unit",
+        "files.rust-field-files-private-api.provider"
       ]
     },
     {
@@ -13721,7 +13781,9 @@
         "shared.architecture.documentation-integrity.unit",
         "shared.runtime.ui-module-registration.unit",
         "shared.architecture.rust-module-assembly.unit",
-        "shared.records.rust-business-evidence.unit"
+        "shared.records.rust-business-evidence.unit",
+        "shared.ui.flow-assignment-command.unit",
+        "files.rust-field-files-private-api.provider"
       ]
     },
     {
@@ -13763,11 +13825,13 @@
           ],
           "services": [
             "packages/server-field_service/src/public/field-service.ts",
+            "src/composition/src/service_parts_posting_setup.rs",
+            "src/composition/src/service_parts_prerequisite_setup.rs",
+            "src/composition/src/service_stock_setup.rs",
+            "packages/server-commerce/src/adapters/service_parts_posting.rs",
+            "packages/server-commerce/src/adapters/service_stock_masters.rs",
+            "packages/server-finance/src/adapters/service_parts_prerequisites.rs",
             "packages/server-commerce/src/adapters/service-parts-posting-setup.ts",
-            "packages/server-commerce/src/adapters/service-parts-posting-sources.ts",
-            "packages/server-commerce/src/adapters/service-initial-physical-stock-masters.ts",
-            "packages/server-finance/src/adapters/service-parts-prerequisites.ts",
-            "packages/server-finance/src/adapters/service-parts-posting-sources.ts",
             "packages/server-finance/src/adapters/approved-sales-posting-defaults.ts",
             "packages/server-inventory/src/adapters/service-initial-physical-stock-count.ts",
             "packages/server-inventory/src/adapters/service-initial-physical-stock-count-source.ts",
@@ -13777,8 +13841,10 @@
             "migrations/postgres/holding-write/0226_field_service.sql",
             "migrations/postgres/holding-write/0268_field_service_warranty_pricing.sql",
             "migrations/postgres/holding-write/0269_field_service_warranty_snapshots.sql",
-            "packages/server-commerce/src/domain/service-parts-posting-setup.ts",
-            "packages/server-inventory/src/domain/service-initial-physical-stock-count.ts",
+            "packages/server-commerce/src/domain/service_parts_posting.rs",
+            "packages/server-commerce/src/domain/service_stock_masters.rs",
+            "packages/server-finance/src/domain/service_parts_prerequisites.rs",
+            "packages/server-inventory/src/domain/service_initial_physical_count.rs",
             "migrations/postgres/holding-write/1062_service_parts_initial_physical_stock.sql"
           ],
           "tests": [
@@ -14244,7 +14310,23 @@
         "files.rust-count-submission.unit",
         "workflow.rust-stock-count-flow.unit",
         "workflow.rust-stock-count-flow-postgres.integration",
-        "field_service.rust-service-initial-physical-stock-postgres.integration"
+        "field_service.rust-service-initial-physical-stock-postgres.integration",
+        "field_service.native-count-next-entry.unit",
+        "field_service.rust-files-intake-owner-proof-postgres.integration",
+        "field_service.rust-files-intake-postgres.integration",
+        "files.rust-field-visit-intake-policy.unit",
+        "field_service.rust-files-intake-command-postgres.integration",
+        "field_service.rust-service-initial-count-update-postgres.integration",
+        "shared.ui.flow-assignment-command.unit",
+        "inventory.service-count-native-writer-fence.integration",
+        "workflow.rust-service-count-outbox-postgres.integration",
+        "field_service.rust-service-count-company-postgres.integration",
+        "field_service.rust-service-count-worker-cli-postgres.integration",
+        "inventory.rust-service-count-generic-facts-postgres.integration",
+        "field_service.rust-files-intake-http-postgres.integration",
+        "field_service.native-attachment-intake-sdk.unit",
+        "shared.attachments.field-file-writer-owner.integration",
+        "files.rust-field-files-private-api.provider"
       ]
     },
     {
@@ -14768,7 +14850,9 @@
         "shared.architecture.documentation-integrity.unit",
         "shared.runtime.ui-module-registration.unit",
         "shared.architecture.rust-module-assembly.unit",
-        "shared.records.rust-business-evidence.unit"
+        "shared.records.rust-business-evidence.unit",
+        "shared.ui.flow-assignment-command.unit",
+        "files.rust-field-files-private-api.provider"
       ]
     },
     {
@@ -15368,7 +15452,9 @@
         "shared.architecture.rust-module-assembly.unit",
         "field_service.rust-private-field-only-postgres.integration",
         "shared.records.rust-business-evidence.unit",
-        "collaboration.rust-service-count-flow-notification-postgres.integration"
+        "collaboration.rust-service-count-flow-notification-postgres.integration",
+        "shared.ui.flow-assignment-command.unit",
+        "files.rust-field-files-private-api.provider"
       ]
     },
     {
@@ -16140,7 +16226,9 @@
         "shared.runtime.ui-module-registration.unit",
         "shared.architecture.rust-module-assembly.unit",
         "shared.records.rust-business-evidence.unit",
-        "pms.rust-initial-count-modules-postgres.integration"
+        "pms.rust-initial-count-modules-postgres.integration",
+        "shared.ui.flow-assignment-command.unit",
+        "files.rust-field-files-private-api.provider"
       ]
     },
     {
@@ -16549,7 +16637,9 @@
         "shared.architecture.documentation-integrity.unit",
         "shared.runtime.ui-module-registration.unit",
         "shared.architecture.rust-module-assembly.unit",
-        "shared.records.rust-business-evidence.unit"
+        "shared.records.rust-business-evidence.unit",
+        "shared.ui.flow-assignment-command.unit",
+        "files.rust-field-files-private-api.provider"
       ]
     }
   ],

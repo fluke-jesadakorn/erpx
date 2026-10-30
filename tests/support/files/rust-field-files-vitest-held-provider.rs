@@ -103,8 +103,9 @@ async fn run_fixture(
     });
     let mut mixed_company = None;
     let mut sessions = serde_json::Map::new();
+    let mut browser_actors = serde_json::Map::new();
     if mixed {
-        assert!(reads.is_none(), "profiles are mutually exclusive");
+        assert!(reads.is_none() || std::env::var_os("ERPX_FIELD_PARTS_MIXED_PROFILE").is_some(), "browser mixed profile requires Parts");
         let seed_path = format!(
             "{}.seed",
             std::env::var("ERPX_FIELD_FILES_FIXTURE_OUTPUT").unwrap()
@@ -161,6 +162,9 @@ async fn run_fixture(
                 sqlx::query("INSERT INTO \"user\"(id,name,email,\"emailVerified\",\"createdAt\",\"updatedAt\") VALUES($1,$1,$2,1,$3,$3)").bind(user).bind(&email).bind(now).execute(p.review.system.control.raw()).await.unwrap();
                 sqlx::query("INSERT INTO account(id,\"accountId\",\"providerId\",issuer,\"userId\",password,\"createdAt\",\"updatedAt\") VALUES($1,$1,'credential','local:credential',$1,$2,$3,$3)").bind(user).bind(&password).bind(now).execute(p.review.system.control.raw()).await.unwrap();
             }
+            if reads.is_some() {
+                browser_actors.insert(label.to_owned(), serde_json::json!({"email":email,"password":facts::account::fixture::PASSWORD}));
+            }
             let central = facts::account::login(&p.review.system, &email, None).await;
             let child =
                 facts::account::child(&p.review.system, &central, facts::account::ACME).await;
@@ -197,7 +201,23 @@ async fn run_fixture(
         doc["fieldServiceDetailReads"] = serde_json::json!(["h001"]);
     }
 
-    doc["fieldServiceReads"] = serde_json::json!([{"holdingId":"h001","companyId":"company"}]);
+    let parts_mixed = std::env::var_os("ERPX_FIELD_PARTS_MIXED_PROFILE").is_some();
+    assert!(!parts_mixed || mixed, "parts profile requires a mixed lease");
+    let read_company = if parts_mixed {
+        mixed_company.as_deref().unwrap()
+    } else {
+        "company"
+    };
+    doc["fieldServiceReads"] =
+        serde_json::json!([{"holdingId":"h001","companyId":read_company}]);
+    if parts_mixed {
+        doc["fieldServicePartsPostingSetups"] = serde_json::json!(["h001"]);
+        doc["fieldServicePartsPrerequisites"] = serde_json::json!(["h001"]);
+        doc["fieldServiceStockSetups"] = serde_json::json!(["h001"]);
+        if reads.is_some() {
+            doc["fieldServiceInitialCounts"] = serde_json::json!([{"holdingId":"h001","filesEnabled":true,"filesReadOnly":false,"uploadsFrozen":false}]);
+        }
+    }
     doc["fieldAttachmentLinks"] = serde_json::json!([{"holdingId":"h001","mode":"enabled"}]);
     doc["fieldAttachmentBinds"] = serde_json::json!([{"holdingId":"h001","mode":"enabled"}]);
     doc["fieldFilesPolicy"] = serde_json::json!({"mode":"enabled","uploadsFrozen":false});
@@ -250,6 +270,10 @@ async fn run_fixture(
     }
     if let Some(ref pools) = reads {
         private["browser"] = serde_json::json!({"control":configuration::database(&p.review.system.control).await,"holding1":configuration::database(&p.review.system.holdings[0]).await,"holding2":configuration::database(&p.review.system.holdings[1]).await,"holding1Read":configuration::database(&pools[0]).await,"holding2Read":configuration::database(&pools[1]).await,"maker":{"email":"a@example.test","password":facts::account::fixture::PASSWORD},"companyId":"company","orderId":"issue-order","privateConfiguration":config_path});
+        if mixed {
+            private["browser"]["companyId"] = mixed_company.as_deref().unwrap().into();
+            private["browser"]["actors"] = browser_actors.into();
+        }
     }
 
     use std::io::Write;

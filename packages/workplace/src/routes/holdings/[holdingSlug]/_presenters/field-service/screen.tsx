@@ -1,12 +1,10 @@
 import {headers} from 'next/headers';
-import {nativePartsPrerequisites} from '@erpx/feature-field_service/public/native-parts-setup';
+import {requiredNativePartsEntry,NativePartsSetupError} from '@erpx/feature-field_service/public/native-parts-setup';
 import {nativeServiceWorkspace,NativeServiceWorkspaceError} from '@erpx/feature-field_service/public/native-workspace';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {serviceCustomerPreparation} from '@erpx/server-finance/public/service-customer-preparation';
 import {ServiceCustomerPreparation} from '@erpx/feature-field_service/components/customer-preparation';
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
-import {servicePartsStockWorkspace} from "@erpx/server-commerce/public/service-parts-posting-setup";
-import {servicePartsPrerequisites} from "@erpx/server-finance/public/service-parts-prerequisites";
 import {ServicePartsEntryLink} from "@erpx/feature-field_service/components/parts-entry-link";
 import { canonicalUiHref } from "@erpx/feature-work_projection/lib/destination-registry";
 import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
@@ -37,7 +35,7 @@ export default async function Page({
     return pageError(e,holdingSlug);
   });
   const stockRole=!a.beta&&!a.departmentId&&hasPermission(a,"inventory.read")&&hasPermission(a,"inventory.prepare"),financeRole=!a.beta&&a.scope.kind==="holding"&&!a.branchId&&!a.departmentId&&hasPermission(a,"finance.read")&&["finance.write","finance.approve"].some(permission=>hasPermission(a,permission));
-  const partsSetupAvailable=stockRole?(await servicePartsStockWorkspace(a).catch(e=>pageError(e,holdingSlug))).available:financeRole?(await (async()=>await nativePartsPrerequisites(await headers(),holdingSlug,context,'read')??await servicePartsPrerequisites(a))().catch(e=>pageError(e,holdingSlug))).available:false;
+  const partsSetupAvailable=stockRole||financeRole?await requiredNativePartsEntry(await headers(),holdingSlug,context,stockRole?'stock':'finance').catch(e=>pageError(e instanceof NativePartsSetupError?new ApiError(e.status,e.code,'Service parts preparation is unavailable.'):e,holdingSlug)):false;
   const customers=await serviceCustomerPreparation(a).catch(e=>pageError(e,holdingSlug));
   return (
     <PageContent as="div" className="ui-page-content">
