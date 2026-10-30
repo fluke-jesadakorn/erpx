@@ -13,3 +13,5 @@ pub mod field_visit_bind;
 
 
 pub mod field_visit_intake;
+
+pub mod field_visit_upload;

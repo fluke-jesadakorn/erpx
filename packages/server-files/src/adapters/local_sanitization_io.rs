@@ -152,6 +152,47 @@ impl SanitizationIo {
             changed.await;
         }
     }
+    /// Run a bounded critical operation in the caller's poll after admission.
+    /// There is no suspension after the operation starts: cancellation or
+    /// runtime shutdown cannot drop its database guards before it completes.
+    /// Multi-thread runtimes can replace the blocked worker; on a current-thread
+    /// runtime the operation deliberately blocks that thread until completion.
+    pub(crate) async fn run_critical<T, E, F>(&self, operation: F) -> Result<T, IoFailure<E>>
+    where
+        F: FnOnce(&File) -> Result<T, E>,
+    {
+        let _permit = self
+            .state
+            .admission
+            .clone()
+            .acquire_owned()
+            .await
+            .map_err(|_| IoFailure::Unavailable)?;
+        let owner = {
+            let mut gate = self
+                .state
+                .gate
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if gate.stopping || self.state.abandoned.load(Ordering::Acquire) != 0 {
+                return Err(IoFailure::Unavailable);
+            }
+            gate.active += 1;
+            Arc::new(Operation {
+                state: self.state.clone(),
+                phase: Mutex::new(Phase::Running),
+            })
+        };
+        let guard = Blocking(owner);
+        let result = match tokio::runtime::Handle::try_current() {
+            Ok(handle) if handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread => {
+                tokio::task::block_in_place(|| operation(&guard.0.state.root))
+            }
+            _ => operation(&guard.0.state.root),
+        };
+        drop(guard);
+        result.map_err(IoFailure::Owner)
+    }
     pub(crate) async fn run<T, E, F>(&self, operation: F) -> Result<T, IoFailure<E>>
     where
         T: Send + 'static,

@@ -38,6 +38,10 @@ pub async fn run_cli(arguments: impl IntoIterator<Item = String>) -> Result<(), 
             .await
             .map_err(str::to_owned)
         }
+        #[cfg(all(feature="files-scan-worker",feature="private-field-api"))]
+        [command,option,path] if command=="field-files-worker" && option=="--development-config" => {
+            erpx_service::private_development_api::run_field_files_worker_file(std::path::Path::new(path),shutdown()).await.map_err(str::to_owned)
+        }
         #[cfg(feature = "private-field-api")]
         [command, option, path] if command == "service-count-worker" && option == "--development-config" => {
             erpx_service::private_development_api::run_service_count_worker_file(

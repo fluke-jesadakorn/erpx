@@ -4,7 +4,7 @@
 pub use crate::adapters::attachment_scan_provider::NativeAttachmentSanitizer;
 pub use crate::adapters::local_sanitization_store::LocalSanitizationStore;
 pub use crate::adapters::postgres_attachment_scan::{
-    CurrentAttachmentScanSource, claim_attachment_scan, prepare_current_attachment_scan,
+    CurrentAttachmentScanSource, claim_attachment_scan, claim_field_attachment_scan, prepare_current_attachment_scan,
     read_current_attachment_scan_source,
 };
 pub use crate::adapters::postgres_attachment_scan_receipt::CurrentAttachmentScanSettlement;

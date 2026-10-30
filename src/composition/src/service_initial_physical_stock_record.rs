@@ -249,6 +249,7 @@ impl ServiceCountRecordSource<'_> {
 
 /// Generic Stock Count presentation assembled only from public owner facts in
 /// the current selected Holding unit. The DTO preserves generic column names.
+#[cfg(feature="field-service-http")]
 pub async fn read_service_count_generic_detail<C: Clock>(
     c: &mut PgConnection,
     current: &AuthorizedWorkContext,

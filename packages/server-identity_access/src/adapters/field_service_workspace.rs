@@ -37,6 +37,9 @@ fn limited() -> Error {
     )
     .into()
 }
+fn changed() -> Error {
+    BusinessError::new(FailureKind::Conflict,"CONFLICT","Your work authority changed before this Service operation committed.").into()
+}
 async fn unit(c: &mut PgConnection) -> Result<Unit, Error> {
     if !c.is_in_transaction()
         || sqlx::query_scalar::<_, String>("SHOW transaction_isolation")
@@ -94,7 +97,7 @@ impl CurrentServiceWorkspaceAuthority {
             || unit(c).await? != self.unit
             || image(c, &self.request, now).await? != self.data
         {
-            return Err(limited());
+            return Err(changed());
         }
         Ok(())
     }

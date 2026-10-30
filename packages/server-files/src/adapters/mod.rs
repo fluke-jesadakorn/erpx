@@ -29,3 +29,17 @@ pub(crate) mod field_visit_bind;
 pub(crate) mod count_submission;
 
 pub(crate) mod field_visit_intake;
+
+pub(crate) mod local_field_quarantine_writer;
+
+pub(crate) mod field_visit_upload_reservation;
+
+pub(crate) mod field_visit_upload_status;
+
+pub(crate) mod field_visit_upload_completion;
+
+pub(crate) mod field_visit_upload_content;
+
+pub(crate) mod field_visit_upload_cleanup;
+
+pub mod field_visit_upload_denial;

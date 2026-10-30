@@ -6,12 +6,15 @@ const state = vi.hoisted(() => ({
   status: vi.fn(),
   native: vi.fn(),
   nativeBind: vi.fn(),
+  writer: vi.fn(),
   bind: vi.fn(),
   write: { name: "holding-write" },
 }));
 
-vi.mock("@erpx/server-files/public/attachments/native-field-attachment",()=>({nativeFieldAttachment:state.native}));
-vi.mock("@erpx/server-files/public/attachments/native-field-bind",()=>({nativeFieldBind:state.nativeBind}));
+vi.mock("@erpx/server-files/public/field-file-writer-owner",()=>({fieldFileWriterOwner:state.writer}));
+vi.mock("../../../packages/workplace/src/lib/native-field-family",()=>({
+ nativeFieldFamilyCommand:async(request:Request,actor:unknown,kind:string,id:string,command:unknown)=>Response.json({data:await(kind==='bind'?state.nativeBind:state.native)(request,actor,id,command)},{headers:{'Cache-Control':'private, no-store'}}),
+}));
 vi.mock("@erpx/server-files/public/app-attachment-sources",()=>({appAttachmentSources:()=>({compatibilitySet:async()=>false})}));
 
 vi.mock("@erpx/server-files/public/attachments/service", () => ({
@@ -38,6 +41,7 @@ import { ApiError } from "@erpx/server-runtime/public/http";
 
 beforeEach(() => {
   state.calls = [];
+  state.writer.mockReset().mockResolvedValue("legacy");
   state.native.mockReset().mockResolvedValue(undefined);
   state.nativeBind.mockReset().mockResolvedValue(undefined);
   state.bind.mockReset().mockResolvedValue({setId:'set-1',version:5,manifest:[]});
@@ -65,9 +69,9 @@ beforeEach(() => {
 
 it('keeps native bind failure closed and retains the unselected bind route',async()=>{
  const request=()=>new Request('https://dev-erpx.example.test/api/v1/holdings/acme/attachment-sets/set-1/bind',{method:'POST',headers:{origin:'https://dev-erpx.example.test','idempotency-key':'bind-key-001','content-type':'application/json'},body:'{"expectedTargetVersion":4}'}),ctx={params:Promise.resolve({holdingSlug:'acme',setId:'set-1'})};
- state.nativeBind.mockRejectedValueOnce(new ApiError(503,'NATIVE_ATTACHMENT_UNAVAILABLE','Unavailable'));expect((await bindPost(request(),ctx)).status).toBe(503);expect(state.bind).not.toHaveBeenCalled();
+ state.writer.mockResolvedValueOnce('field');state.nativeBind.mockRejectedValueOnce(new ApiError(503,'NATIVE_ATTACHMENT_UNAVAILABLE','Unavailable'));expect((await bindPost(request(),ctx)).status).toBe(503);expect(state.bind).not.toHaveBeenCalled();
  expect((await bindPost(request(),ctx)).status).toBe(200);expect(state.bind).toHaveBeenCalledOnce();
- state.bind.mockClear();state.nativeBind.mockResolvedValueOnce({setId:'set-1',version:5,manifest:[]});const selected=await bindPost(request(),ctx);expect(selected.status).toBe(200);expect(state.nativeBind).toHaveBeenLastCalledWith(expect.any(Headers),expect.any(Object),'set-1',{key:'bind-key-001',body:'{"expectedTargetVersion":4}',expectedVersion:4});expect(state.bind).not.toHaveBeenCalled();
+ state.bind.mockClear();state.writer.mockResolvedValueOnce('field');state.nativeBind.mockResolvedValueOnce({setId:'set-1',version:5,manifest:[]});const selected=await bindPost(request(),ctx);expect(selected.status).toBe(200);expect(state.nativeBind).toHaveBeenLastCalledWith(expect.any(Request),expect.any(Object),'set-1',{key:'bind-key-001',body:'{"expectedTargetVersion":4}',expectedVersion:4});expect(state.bind).not.toHaveBeenCalled();
 });
 
 it("returns the post-withdraw status contract consumed by AttachmentPanel", async () => {
@@ -115,10 +119,10 @@ it('selects only a configured link and validates native owner context and full p
 
 
 it('dispatches a selected native withdrawal only after Origin, key, actor and body validation',async()=>{
- state.native.mockResolvedValue({linkId:'link-1',setId:'set-1',linkState:'withdrawn'});
+ state.writer.mockResolvedValue('field');state.native.mockResolvedValue({linkId:'link-1',setId:'set-1',linkState:'withdrawn'});
  const request=(origin:string,key:string,body:string)=>new Request('https://dev-erpx.example.test/api/v1/holdings/acme/attachment-links/link-1/withdraw',{method:'POST',headers:{origin,'Idempotency-Key':key,'content-type':'application/json'},body});const ctx={params:Promise.resolve({holdingSlug:'acme',linkId:'link-1'})};
  expect((await POST(request('https://foreign.example.test','withdraw-001','{"reason":"Original"}'),ctx)).status).toBe(403);expect((await POST(request('https://dev-erpx.example.test','bad','{"reason":"Original"}'),ctx)).status).toBe(422);expect((await POST(request('https://dev-erpx.example.test','withdraw-001','{"reason":"x"}'),ctx)).status).toBe(422);expect(state.native).not.toHaveBeenCalled();
- const body='{"reason":"Original reason"}';const response=await POST(request('https://dev-erpx.example.test','withdraw-001',body),ctx);expect(response.status).toBe(200);expect(state.native).toHaveBeenCalledWith(expect.any(Headers),expect.objectContaining({holdingId:'h001'}),'link-1',{key:'withdraw-001',body});expect(state.withdraw).not.toHaveBeenCalled();expect(state.status).not.toHaveBeenCalled();
+ const body='{"reason":"Original reason"}';const response=await POST(request('https://dev-erpx.example.test','withdraw-001',body),ctx);expect(response.status).toBe(200);expect(state.native).toHaveBeenCalledWith(expect.any(Request),expect.objectContaining({holdingId:'h001'}),'link-1',{key:'withdraw-001',body});expect(state.withdraw).not.toHaveBeenCalled();expect(state.status).not.toHaveBeenCalled();
 });
 
 it('accepts a representable physical link ID longer than 200 bytes in the native selector',async()=>{
@@ -126,7 +130,7 @@ it('accepts a representable physical link ID longer than 200 bytes in the native
 });
 
 it("does not fall back to the retained owner when the selected native withdrawal fails", async () => {
-  state.native.mockRejectedValue(new ApiError(503, "NATIVE_ATTACHMENT_UNAVAILABLE", "Unavailable"));
+  state.writer.mockResolvedValue("field");state.native.mockRejectedValue(new ApiError(503, "NATIVE_ATTACHMENT_UNAVAILABLE", "Unavailable"));
   const response = await POST(new Request("https://dev-erpx.example.test/api/v1/holdings/acme/attachment-links/link-1/withdraw", {
     method: "POST",
     headers: { Origin: "https://dev-erpx.example.test", "Idempotency-Key": "withdraw-001", "Content-Type": "application/json" },

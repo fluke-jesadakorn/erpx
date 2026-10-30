@@ -29,7 +29,8 @@
     "./finance-journal-edit": "./src/finance-journal-edit.generated.ts",
     "./field-service-reserve": "./src/field-service-reserve.generated.ts",
     "./field-attachment": "./src/field-attachment.generated.ts",
-    "./field-service-initial-count": "./src/field-service-initial-count.generated.ts"
+    "./field-service-initial-count": "./src/field-service-initial-count.generated.ts",
+    "./field-service-attachment-intake": "./src/field-service-attachment-intake.generated.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

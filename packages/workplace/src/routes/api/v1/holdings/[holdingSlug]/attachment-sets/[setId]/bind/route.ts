@@ -1,5 +1,7 @@
+import {boundedJsonBody} from '../../../../../../../../lib/bounded-json-body';
+import {nativeFieldFamilyCommand} from '../../../../../../../../lib/native-field-family';
+import {fieldFileWriterOwner} from '@erpx/server-files/public/field-file-writer-owner';
 import type { RouteContext } from "@erpx/contracts/next-routes";
-import {nativeFieldBind} from "@erpx/server-files/public/attachments/native-field-bind";
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import {appAttachmentSources} from "@erpx/server-files/public/app-attachment-sources";
 import { z } from "zod";
@@ -28,16 +30,15 @@ export async function POST(
       );
     const { holdingSlug, setId } = await context.params;
     const actor = await requireWorkContext(holdingSlug);
-    const original = request.clone();
-    const parsed = schema.safeParse(await request.json());
+    const body = await boundedJsonBody(request,2*1024*1024);
+    const parsed = schema.safeParse(body.value);
     if (!parsed.success)
       throw new ApiError(
         422,
         "VALIDATION_FAILED",
         parsed.error.issues[0]?.message ?? "Invalid record document bind.",
       );
-    const native = await nativeFieldBind(request.headers,actor,setId,{key,body:await original.text(),expectedVersion:parsed.data.expectedTargetVersion});
-    if(native) return Response.json(canonicalDestinationLinks({data:native}),{headers:{"Cache-Control":"private, no-store"}});
+    if(await fieldFileWriterOwner(actor,{kind:"set",id:setId})==="field")return await nativeFieldFamilyCommand(request,actor,"bind",setId,{key,body:new TextDecoder().decode(body.raw),expectedVersion:parsed.data.expectedTargetVersion});
     const { write } = await holdingResources(actor.holdingId);
     const compatibilityAdapter = await appAttachmentSources(write).compatibilitySet(setId,actor.companyId);
     return Response.json(canonicalDestinationLinks({

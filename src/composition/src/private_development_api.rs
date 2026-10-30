@@ -105,6 +105,10 @@ struct FieldAttachmentDocument {
     mode: String,
 }
 #[derive(Deserialize)]
+#[serde(rename_all="camelCase",deny_unknown_fields)]
+#[cfg_attr(not(feature="files-scan-worker"),allow(dead_code,reason="Decoded only to reject unavailable provider policy in this build"))]
+struct FieldFilesPolicyDocument {mode:String,uploads_frozen:bool}
+#[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct FieldInitialCountDocument {
     holding_id: String,
@@ -158,6 +162,10 @@ struct ConfigurationDocument {
     field_attachment_links: Vec<FieldAttachmentDocument>,
     #[serde(default)]
     field_attachment_binds: Vec<FieldAttachmentDocument>,
+    #[serde(default)]
+    field_files_providers: Option<serde_json::Value>,
+    #[serde(default)]
+    field_files_policy:Option<FieldFilesPolicyDocument>,
     #[serde(default)]
     field_service_work_reads: Vec<String>,
     #[serde(default)]
@@ -221,6 +229,11 @@ pub struct DevelopmentApiConfiguration {
         BTreeMap<HoldingId, crate::field_service_source_record::SourceRecordMode>,
     field_attachment_links: BTreeMap<HoldingId, bool>,
     field_attachment_binds: BTreeMap<HoldingId, bool>,
+    #[cfg(feature="files-scan-worker")]
+    field_files_providers: Option<serde_json::Value>,
+    #[cfg(feature="files-scan-worker")]
+    field_files_policy:crate::field_attachment_intake_http::FieldIntakePolicy,
+    field_files_companies: BTreeMap<HoldingId,BTreeSet<CompanyId>>,
     field_service_work_reads: BTreeSet<HoldingId>,
     field_service_detail_reads: BTreeSet<HoldingId>,
     field_service_reservations: BTreeSet<HoldingId>,
@@ -679,7 +692,41 @@ impl DevelopmentApiConfiguration {
             )
             .map_err(|_| "PRIVATE_API_BINDINGS_INVALID")?,
         );
+        #[cfg(not(feature="files-scan-worker"))]
+        if doc.field_files_providers.is_some() || doc.field_files_policy.is_some(){return Err("PRIVATE_API_FIELD_FILES_FEATURE_REQUIRED");}
+        #[cfg(feature="files-scan-worker")]
+        let field_files_policy=match &doc.field_files_policy {
+            Some(policy) if doc.field_files_providers.is_some()=>crate::field_attachment_intake_http::FieldIntakePolicy{
+                mode:match policy.mode.as_str(){"enabled"=>crate::field_attachment_intake_http::FieldIntakeMode::Enabled,"read-only"=>crate::field_attachment_intake_http::FieldIntakeMode::ReadOnly,"disabled"=>crate::field_attachment_intake_http::FieldIntakeMode::Disabled,_=>return Err("PRIVATE_API_FIELD_FILES_POLICY_INVALID")},uploads_frozen:policy.uploads_frozen,
+            },
+            None if doc.field_files_providers.is_none()=>crate::field_attachment_intake_http::FieldIntakePolicy{mode:crate::field_attachment_intake_http::FieldIntakeMode::Disabled,uploads_frozen:true},
+            _=>return Err("PRIVATE_API_FIELD_FILES_POLICY_INVALID"),
+        };
+        #[cfg(feature="files-scan-worker")]
+        let mut field_files_companies=BTreeMap::<HoldingId,BTreeSet<CompanyId>>::new();
+        #[cfg(not(feature="files-scan-worker"))]
+        let field_files_companies=BTreeMap::<HoldingId,BTreeSet<CompanyId>>::new();
+        #[cfg(feature="files-scan-worker")]
+        if let Some(ref providers)=doc.field_files_providers {
+            let raw=serde_json::to_vec(providers).map_err(|_|"PRIVATE_API_FIELD_FILES_CONFIGURATION_INVALID")?;
+            let targets=crate::field_files_runtime_configuration::parse_field_files_runtime_configuration(&raw,&holdings_registry).map_err(|_|"PRIVATE_API_FIELD_FILES_CONFIGURATION_INVALID")?;
+            for target in targets {
+                if !field_service_reads.contains_key(&target.holding_id) || !field_attachment_links.contains_key(&target.holding_id) || !field_attachment_binds.contains_key(&target.holding_id) {
+                    return Err("PRIVATE_API_FIELD_FILES_CONFIGURATION_INVALID");
+                }
+                if field_files_policy.mode!=crate::field_attachment_intake_http::FieldIntakeMode::Enabled {
+                    if let Some(value)=field_attachment_links.get_mut(&target.holding_id){*value=true;}
+                    if let Some(value)=field_attachment_binds.get_mut(&target.holding_id){*value=true;}
+                }
+                field_files_companies.entry(target.holding_id).or_default().insert(target.company_id);
+            }
+        }
         Ok(Self {
+            #[cfg(feature="files-scan-worker")]
+            field_files_providers:doc.field_files_providers,
+            #[cfg(feature="files-scan-worker")]
+            field_files_policy,
+            field_files_companies,
             listen,
             policy,
             password_workers: doc.password_workers,
@@ -758,10 +805,17 @@ impl DevelopmentApiConfiguration {
     }
 }
 
+struct CheckedAssembly {
+    router:Router,
+    #[cfg(feature="files-scan-worker")]
+    files_workers:Vec<crate::files_scan_native::NativeFilesScanWorker<SharedClock>>,
+}
 pub struct DevelopmentApiRuntime {
     router: Router,
     listen: SocketAddr,
     pools: Vec<DatabasePool>,
+    #[cfg(feature="files-scan-worker")]
+    files_workers:Vec<crate::files_scan_native::NativeFilesScanWorker<SharedClock>>,
 }
 impl DevelopmentApiRuntime {
     pub fn router(&self) -> Router {
@@ -771,6 +825,8 @@ impl DevelopmentApiRuntime {
         self.listen
     }
     pub async fn close(self) {
+        #[cfg(feature="files-scan-worker")]
+        for worker in self.files_workers {worker.close().await;}
         for pool in &self.pools {
             pool.close().await;
         }
@@ -807,8 +863,10 @@ pub async fn assemble_development_api(
     }
     let result = assemble_checked(&config, &pools, clock, secrets).await;
     match result {
-        Ok(router) => Ok(DevelopmentApiRuntime {
-            router,
+        Ok(assembly) => Ok(DevelopmentApiRuntime {
+            router:assembly.router,
+            #[cfg(feature="files-scan-worker")]
+            files_workers:assembly.files_workers,
             listen: config.listen,
             pools,
         }),
@@ -825,7 +883,7 @@ async fn assemble_checked(
     pools: &[DatabasePool],
     clock: Arc<dyn Clock + Send + Sync>,
     secrets: Arc<dyn AuthenticationSecrets>,
-) -> Result<Router, &'static str> {
+) -> Result<CheckedAssembly, &'static str> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
     let control_files = load_migrations(&root, MigrationTrack::Control)
         .await
@@ -1224,6 +1282,9 @@ async fn assemble_checked(
             } else {
                 read_configuration
             };
+            let read_configuration = if let Some(companies)=config.field_files_companies.get(&holding.registration.holding_id) {
+                read_configuration.with_field_attachment_companies(companies.clone())
+            }else{read_configuration};
             let read_configuration = if config
                 .field_service_stock_setups
                 .contains(&holding.registration.holding_id)
@@ -1541,7 +1602,14 @@ async fn assemble_checked(
             );
         }
     }
+    #[cfg(feature="files-scan-worker")]
+    let (files_router,files_workers,field_files_targets)=field_files::assemble(config,pools,clock.clone()).await?;
+    #[cfg(feature="files-scan-worker")]
+    { router=router.merge(files_router); }
+    #[cfg(not(feature="files-scan-worker"))]
+    let field_files_targets=BTreeSet::new();
     let state = Arc::new(Boundary {
+        field_files_targets,
         policy: config.policy.clone(),
         loopback: config.listen.to_string(),
         permits: Arc::new(Semaphore::new(config.maximum_requests)),
@@ -1573,7 +1641,7 @@ async fn assemble_checked(
         service_agreement_create_targets,
         account_bootstrap: config.account_bootstrap,
     });
-    Ok(router.layer(middleware::from_fn_with_state(state, boundary)))
+    Ok(CheckedAssembly { router:router.layer(middleware::from_fn_with_state(state,boundary)), #[cfg(feature="files-scan-worker")] files_workers })
 }
 struct SharedClock(Arc<dyn Clock + Send + Sync>);
 impl Clock for SharedClock {
@@ -1598,6 +1666,7 @@ struct Boundary {
     service_parts_prerequisite_targets: BTreeSet<(String, String)>,
     service_stock_setup_targets: BTreeSet<(String, String)>,
     service_initial_count_targets: BTreeSet<(String, String)>,
+    field_files_targets: BTreeSet<(String,String)>,
     field_attachment_targets: BTreeSet<(String, String)>,
     field_attachment_bind_targets: BTreeSet<(String, String)>,
     service_work_targets: BTreeSet<(String, String)>,
@@ -2079,6 +2148,13 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
                 .contains(&(host.to_owned(), (*slug).to_owned())),
             _ => false,
         };
+    let field_files = match (request.method(),request.uri().path().split('/').collect::<Vec<_>>().as_slice()) {
+        (&axum::http::Method::GET|&axum::http::Method::POST,["","api","v1","holdings",slug,"field-service","attachment-sets"])
+        | (&axum::http::Method::POST,["","api","v1","holdings",slug,"field-service","attachment-sets",_,"files"])
+        | (&axum::http::Method::PUT,["","api","v1","holdings",slug,"field-service","uploads",_,"content"])
+        | (&axum::http::Method::GET,["","api","v1","holdings",slug,"field-service","attachment-links",_,"status"|"content"]) => state.field_files_targets.contains(&(host.to_owned(),(*slug).to_owned())),
+        _=>false,
+    };
     let field_attachment = match (
         request.method(),
         request
@@ -2182,6 +2258,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         || service_stock_setup
         || service_initial_count
         || service_reserve
+        || field_files
         || field_attachment
         || field_attachment_bind
         || bootstrap)
@@ -2195,6 +2272,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             || service_parts_prerequisite
             || service_stock_setup
             || service_initial_count
+            || field_files
             || field_attachment
             || field_attachment_bind
             || matches!(
@@ -2335,4 +2413,12 @@ pub async fn run_service_count_worker_file(
         for pool in opened { pool.close().await; }
     }).await.map_err(|_| "COUNT_WORKER_CLOSE_TIMEOUT")?;
     result
+}
+
+#[cfg(feature="files-scan-worker")]
+mod field_files;
+
+#[cfg(feature="files-scan-worker")]
+pub async fn run_field_files_worker_file(path:&Path,shutdown:impl std::future::Future<Output=()>+Send)->Result<(), &'static str>{
+    field_files::run_workers(DevelopmentApiConfiguration::from_file(path)?,shutdown).await
 }

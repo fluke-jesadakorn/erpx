@@ -233,64 +233,6 @@ pub fn normalize_service_count_update(raw: &str) -> Result<ServiceCountUpdateInp
         contains_unpaired_surrogate,
     })
 }
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn generic_update_matches_actual_zod_oracle() {
-        let oracle: serde_json::Value = serde_json::from_str(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../fixtures/field_service/service-count-update-zod-oracle.v1.json"
-        )))
-        .unwrap();
-        let cases = oracle["cases"].as_array().unwrap();
-        assert_eq!(cases.len(), 17);
-        for case in cases {
-            let raw = case["raw"].as_str().unwrap();
-            match case["normalized"].as_str() {
-                Some(expected) => {
-                    let normalized = normalize_service_count_update(raw).unwrap();
-                    assert_eq!(normalized.normalized.as_str(), expected, "{}", case["name"]);
-                    assert_eq!(
-                        normalized.contains_unpaired_surrogate,
-                        case["name"] == "surrogate",
-                        "{}",
-                        case["name"]
-                    );
-                }
-                None => assert!(
-                    normalize_service_count_update(raw).is_err(),
-                    "{}",
-                    case["name"]
-                ),
-            }
-        }
-    }
-    #[test]
-    fn generic_update_normalizes_defaults_and_strips_unknown_fields() {
-        let parsed=normalize_service_count_update(r#"{"unknown":1,"warehouseId":"w","countDate":"2026-09-01","reason":"  first count  ","expectedVersion":1.0,"lines":[{"productId":"p","countedQuantity":"2.00","ignored":true},{"productId":"p2","countedQuantity":"1","allocations":[{"lotCode":" Lot ","countedQuantity":"1","unitCost":"2.00","unused":4}]}]}"#).unwrap();
-        assert_eq!(parsed.expected_version, Some(1));
-        assert_eq!(parsed.lines.len(), 2);
-        assert_eq!(
-            parsed.normalized.as_str(),
-            r#"{"warehouseId":"w","countDate":"2026-09-01","reason":"first count","expectedVersion":1,"lines":[{"productId":"p","countedQuantity":"2.00","allocations":[]},{"productId":"p2","countedQuantity":"1","allocations":[{"lotCode":"Lot","manufacturedDate":"","expiryDate":"","countedQuantity":"1","unitCost":"2.00"}]}]}"#
-        );
-    }
-    #[test]
-    fn optional_version_is_omitted_and_bad_lot_inputs_rejected() {
-        let body = r#"{"warehouseId":"w","countDate":"2026-09-01","reason":"hello","lines":[{"productId":"p","countedQuantity":"1"}]}"#;
-        let parsed = normalize_service_count_update(body).unwrap();
-        assert_eq!(parsed.expected_version, None);
-        assert!(!parsed.normalized.as_str().contains("expectedVersion"));
-        assert!(
-            normalize_service_count_update(&body.replace(
-                "\"countedQuantity\":\"1\"",
-                "\"countedQuantity\":\"1.2345\""
-            ))
-            .is_err()
-        );
-    }
-}
 
 use crate::service_initial_physical_stock_purchases::ServiceCountPurchases;
 use crate::service_initial_physical_stock_sources::{
@@ -895,4 +837,63 @@ pub async fn execute_service_initial_count_update<C: Clock + Sync, I: Identifier
     .await?;
     completion.require(c).await?;
     serde_json::from_str(outcome.result.as_str()).map_err(|_| changed().into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn generic_update_matches_actual_zod_oracle() {
+        let oracle: serde_json::Value = serde_json::from_str(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../fixtures/field_service/service-count-update-zod-oracle.v1.json"
+        )))
+        .unwrap();
+        let cases = oracle["cases"].as_array().unwrap();
+        assert_eq!(cases.len(), 17);
+        for case in cases {
+            let raw = case["raw"].as_str().unwrap();
+            match case["normalized"].as_str() {
+                Some(expected) => {
+                    let normalized = normalize_service_count_update(raw).unwrap();
+                    assert_eq!(normalized.normalized.as_str(), expected, "{}", case["name"]);
+                    assert_eq!(
+                        normalized.contains_unpaired_surrogate,
+                        case["name"] == "surrogate",
+                        "{}",
+                        case["name"]
+                    );
+                }
+                None => assert!(
+                    normalize_service_count_update(raw).is_err(),
+                    "{}",
+                    case["name"]
+                ),
+            }
+        }
+    }
+    #[test]
+    fn generic_update_normalizes_defaults_and_strips_unknown_fields() {
+        let parsed=normalize_service_count_update(r#"{"unknown":1,"warehouseId":"w","countDate":"2026-09-01","reason":"  first count  ","expectedVersion":1.0,"lines":[{"productId":"p","countedQuantity":"2.00","ignored":true},{"productId":"p2","countedQuantity":"1","allocations":[{"lotCode":" Lot ","countedQuantity":"1","unitCost":"2.00","unused":4}]}]}"#).unwrap();
+        assert_eq!(parsed.expected_version, Some(1));
+        assert_eq!(parsed.lines.len(), 2);
+        assert_eq!(
+            parsed.normalized.as_str(),
+            r#"{"warehouseId":"w","countDate":"2026-09-01","reason":"first count","expectedVersion":1,"lines":[{"productId":"p","countedQuantity":"2.00","allocations":[]},{"productId":"p2","countedQuantity":"1","allocations":[{"lotCode":"Lot","manufacturedDate":"","expiryDate":"","countedQuantity":"1","unitCost":"2.00"}]}]}"#
+        );
+    }
+    #[test]
+    fn optional_version_is_omitted_and_bad_lot_inputs_rejected() {
+        let body = r#"{"warehouseId":"w","countDate":"2026-09-01","reason":"hello","lines":[{"productId":"p","countedQuantity":"1"}]}"#;
+        let parsed = normalize_service_count_update(body).unwrap();
+        assert_eq!(parsed.expected_version, None);
+        assert!(!parsed.normalized.as_str().contains("expectedVersion"));
+        assert!(
+            normalize_service_count_update(&body.replace(
+                "\"countedQuantity\":\"1\"",
+                "\"countedQuantity\":\"1.2345\""
+            ))
+            .is_err()
+        );
+    }
 }

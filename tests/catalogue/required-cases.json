@@ -1960,6 +1960,21 @@
       "runner": "vitest",
       "file": "tests/integration/identity_access/product-sso-auth.test.ts",
       "title": "keeps equal external subjects separate across providers after the Better Auth account identity migration"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/integration/shared.attachments/attachments-v2.test.ts",
+      "title": "canonical attachment lifecycle serializes a legacy upload against concurrent Field lineage birth before bytes are written"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/integration/people_payroll/leave-attachment-lock.test.ts",
+      "title": "Leave attachment serialization locks Leave before upload rows when approval races file completion"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/integration/people_payroll/expense-v2.test.ts",
+      "title": "rechecks the actual Expense purchase when file completion races entitlement withdrawal"
     }
   ]
 }

@@ -271,3 +271,291 @@ async fn actual_private_storage_stages_without_database_lease_adopts_crash_objec
   store.stop();store.drain().await;assert!(store.require_available().is_err());
  }).await;
 }
+
+#[tokio::test]
+async fn field_scan_claim_uses_persisted_lineage_and_rolls_back_malformed_sources() {
+ fixture::with_database(2,|pool|async move {
+  facts::migrate(&pool).await;
+  let field=facts::seed_source(&pool,"field-owner",facts::TestOrigin::ManagedField,"text/csv",facts::bytes()).await;
+  let other=facts::seed_managed(&pool,"other-owner").await;
+  let flags:Vec<(String,bool)>=sqlx::query_as("SELECT id,erpx_files_field_attachment_owned(id) FROM attachments WHERE id=ANY($1) ORDER BY id").bind(vec![field.as_str(),other.as_str()]).fetch_all(pool.raw()).await.unwrap();assert_eq!(flags.len(),2);assert!(flags.iter().any(|(id,owned)|id==field.as_str()&&*owned));assert!(flags.iter().any(|(id,owned)|id==other.as_str()&&!*owned));
+  let clock=facts::TestClock::new(1000);let id=other.clone();let now=clock.clone();let result=PgUnitOfWork::new(pool.clone()).run::<bool,BusinessError,_>(TransactionOptions::default(),move|c|{let id=id.clone();let now=now.clone();Box::pin(async move{Ok(claim_field_attachment_scan(c,&facts::scope(),Some(&id),&now,&mut facts::Ids).await?.is_none())})}).await.unwrap();assert!(result);
+  let id=field.clone();let now=clock.clone();let claimed=PgUnitOfWork::new(pool.clone()).run::<bool,BusinessError,_>(TransactionOptions::default(),move|c|{let id=id.clone();let now=now.clone();Box::pin(async move{Ok(claim_field_attachment_scan(c,&facts::scope(),Some(&id),&now,&mut facts::Ids).await?.is_some())})}).await.unwrap();assert!(claimed);
+  // A Field marker on an otherwise inconsistent source is owned, yet cannot
+  // commit a native claim or scan effects.
+  let malformed=facts::seed_source_with_receipt(&pool,"field-malformed",facts::TestOrigin::ManagedField,"text/csv",facts::bytes(),false).await;
+  let id=malformed.clone();let now=clock.clone();let denied=PgUnitOfWork::new(pool.clone()).run::<(),BusinessError,_>(TransactionOptions::default(),move|c|{let id=id.clone();let now=now.clone();Box::pin(async move{claim_field_attachment_scan(c,&facts::scope(),Some(&id),&now,&mut facts::Ids).await?;Ok(())})}).await;assert!(denied.is_err());
+  let state:(String,String,i64)=sqlx::query_as("SELECT a.source_state,j.state,(SELECT count(*) FROM attachment_events e WHERE e.attachment_id=a.id AND e.action LIKE 'scan.%') FROM attachments a JOIN attachment_scan_attempts j ON j.attachment_id=a.id WHERE a.id=$1").bind(malformed.as_str()).fetch_one(pool.raw()).await.unwrap();assert_eq!(state,("quarantined".into(),"pending".into(),0));
+ }).await;
+}
+
+#[tokio::test]
+async fn legacy_claim_rechecks_field_lineage_and_blocks_owner_flip_during_scan() {
+ fixture::with_database(2,|pool|async move {
+  facts::migrate(&pool).await;let source=facts::seed_managed(&pool,"legacy-epoch").await;
+  sqlx::query("INSERT INTO attachment_sets(id,company_id,target_type,target_id,component_kind,purpose_key,expected_target_version,policy_version,classification,audience_json,state,created_by,created_at,updated_at) VALUES('field-epoch-set','company-owned','field_service_visit','visit','record','evidence',1,1,'internal','{}','draft','worker',0,0)").execute(pool.raw()).await.unwrap();
+  let row:Option<(String,)>=sqlx::query_as("SELECT id FROM erpx_files_claim_legacy_scan(1000,61000,'legacy-lease',$1)").bind(source.as_str()).fetch_optional(pool.raw()).await.unwrap();assert!(row.is_some());
+  let error=sqlx::query("INSERT INTO attachment_links(id,set_id,attachment_id,state,created_by,created_at,expires_at) VALUES('field-epoch-link','field-epoch-set',$1,'draft','worker',0,10000)").bind(source.as_str()).execute(pool.raw()).await.unwrap_err();assert_eq!(error.as_database_error().and_then(|e|e.constraint()),Some("field_scan_ownership_active"));
+  sqlx::query("UPDATE attachment_links SET expires_at=expires_at+1,state='withdrawn',withdrawn_at=1001,withdrawn_by='worker',withdrawal_reason='review' WHERE attachment_id=$1").bind(source.as_str()).execute(pool.raw()).await.unwrap();
+  let allowed:bool=sqlx::query_scalar("SELECT erpx_files_assert_legacy_scan($1,$2,'legacy-lease')").bind(source.as_str()).bind(row.unwrap().0).fetch_one(pool.raw()).await.unwrap();assert!(allowed);
+ }).await;
+}
+
+#[tokio::test]
+async fn stale_serializable_legacy_claim_cannot_cross_field_link_birth() {
+ fixture::with_database(2,|pool|async move {
+  facts::migrate(&pool).await;let source=facts::seed_managed(&pool,"stale-epoch").await;
+  sqlx::query("INSERT INTO attachment_sets(id,company_id,target_type,target_id,component_kind,purpose_key,expected_target_version,policy_version,classification,audience_json,state,created_by,created_at,updated_at) VALUES('field-stale-set','company-owned','field_service_visit','visit','record','evidence',1,1,'internal','{}','draft','worker',0,0)").execute(pool.raw()).await.unwrap();
+  let mut stale=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *stale).await.unwrap();let initial:bool=sqlx::query_scalar("SELECT erpx_files_field_attachment_owned($1)").bind(source.as_str()).fetch_one(&mut *stale).await.unwrap();assert!(!initial);
+  sqlx::query("INSERT INTO attachment_links(id,set_id,attachment_id,state,created_by,created_at,expires_at) VALUES('field-stale-link','field-stale-set',$1,'draft','worker',0,10000)").bind(source.as_str()).execute(pool.raw()).await.unwrap();
+  let error=sqlx::query("SELECT * FROM erpx_files_claim_legacy_scan(1000,61000,'stale-lease',$1)").bind(source.as_str()).fetch_all(&mut *stale).await.unwrap_err();assert_eq!(error.as_database_error().and_then(|e|e.code()).as_deref(),Some("40001"));stale.rollback().await.unwrap();
+  let owned:bool=sqlx::query_scalar("SELECT erpx_files_field_attachment_owned($1)").bind(source.as_str()).fetch_one(pool.raw()).await.unwrap();assert!(owned);
+ }).await;
+}
+
+#[tokio::test]
+async fn read_committed_legacy_claim_rechecks_ownership_after_blocked_lineage_change() {
+ fixture::with_database(2,|pool|async move {
+  facts::migrate(&pool).await;let source=facts::seed_managed(&pool,"read-committed-race").await;
+  sqlx::query("INSERT INTO attachment_sets(id,company_id,target_type,target_id,component_kind,purpose_key,expected_target_version,policy_version,classification,audience_json,state,created_by,created_at,updated_at) VALUES('field-race-set','company-owned','field_service_visit','visit','record','evidence',1,1,'internal','{}','draft','worker',0,0)").execute(pool.raw()).await.unwrap();
+  let mut writer=pool.raw().begin().await.unwrap();sqlx::query("INSERT INTO attachment_links(id,set_id,attachment_id,state,created_by,created_at,expires_at) VALUES('field-race-link','field-race-set',$1,'draft','worker',0,10000)").bind(source.as_str()).execute(&mut *writer).await.unwrap();
+  let p=pool.raw().clone();let id=source.as_str().to_owned();let task=tokio::spawn(async move{sqlx::query("SELECT * FROM erpx_files_claim_legacy_scan(1000,61000,'racing-lease',$1)").bind(id).fetch_all(&p).await});
+  tokio::time::sleep(std::time::Duration::from_millis(100)).await;assert!(!task.is_finished(),"claim must wait for lineage writer");writer.commit().await.unwrap();let rows=task.await.unwrap().unwrap();assert!(rows.is_empty(),"fresh post-lock owner check must exclude Field");
+  let state:(String,String)=sqlx::query_as("SELECT a.source_state,j.state FROM attachments a JOIN attachment_scan_attempts j ON j.attachment_id=a.id WHERE a.id=$1").bind(source.as_str()).fetch_one(pool.raw()).await.unwrap();assert_eq!(state,("quarantined".into(),"pending".into()));
+ }).await;
+}
+
+#[tokio::test]
+async fn actual_legacy_bun_claimant_excludes_field_and_keeps_other_owner() {
+ fixture::with_database(2,|pool|async move {
+  facts::migrate(&pool).await;let field=facts::seed_source(&pool,"bun-field",facts::TestOrigin::ManagedField,"text/csv",facts::bytes()).await;let other=facts::seed_managed(&pool,"bun-other").await;
+  let name:String=sqlx::query_scalar("SELECT current_database()").fetch_one(pool.raw()).await.unwrap();
+  for (id,expected) in [(field,false),(other,true)] {
+   use std::io::Write;use std::process::{Command,Stdio};
+   let bun=std::env::var("ERPX_BUN_BIN").expect("pinned Bun required");let mut child=Command::new(bun).current_dir(concat!(env!("CARGO_MANIFEST_DIR"),"/../..")).arg("scripts/testing/fixtures/field-scan-legacy-claim.ts").stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().unwrap();
+   let mut input=child.stdin.take().unwrap();writeln!(input,"{}",serde_json::json!({"database":name,"source":id.as_str()})).unwrap();writeln!(input,"GO").unwrap();drop(input);let result=child.wait_with_output().unwrap();assert!(result.status.success(),"owned Bun claimant failed");let output=std::str::from_utf8(&result.stdout).unwrap().strip_prefix("READY\n").unwrap();let value:serde_json::Value=serde_json::from_str(output).unwrap();assert_eq!(value["claimed"],expected);
+  }
+ }).await;
+}
+
+#[tokio::test]
+async fn actual_legacy_claimant_cannot_claim_a_concurrent_native_field_lease() {
+ fixture::with_database(2,|pool|async move {
+  use std::io::{BufRead,BufReader,Read,Write};use std::process::{Command,Stdio};
+  facts::migrate(&pool).await;let field=facts::seed_source(&pool,"bun-race",facts::TestOrigin::ManagedField,"text/csv",facts::bytes()).await;let name:String=sqlx::query_scalar("SELECT current_database()").fetch_one(pool.raw()).await.unwrap();
+  let mut native=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *native).await.unwrap();
+  let claim=claim_field_attachment_scan(&mut native,&facts::scope(),Some(&field),&facts::TestClock::new(1000),&mut facts::Ids).await.unwrap();assert!(claim.is_some());
+  let mut child=Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).current_dir(concat!(env!("CARGO_MANIFEST_DIR"),"/../..")).arg("scripts/testing/fixtures/field-scan-legacy-claim.ts").stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().unwrap();
+  let mut input=child.stdin.take().unwrap();writeln!(input,"{}",serde_json::json!({"database":name,"source":field.as_str()})).unwrap();input.flush().unwrap();let mut output=BufReader::new(child.stdout.take().unwrap());let mut ready=String::new();output.read_line(&mut ready).unwrap();assert_eq!(ready,"READY\n");writeln!(input,"GO").unwrap();drop(input);
+  let mut result=String::new();output.read_to_string(&mut result).unwrap();assert!(child.wait().unwrap().success());let value:serde_json::Value=serde_json::from_str(&result).unwrap();assert_eq!(value["claimed"],false);native.commit().await.unwrap();
+  let state:(String,i64)=sqlx::query_as("SELECT state,(SELECT count(*) FROM attachment_scan_attempts WHERE attachment_id=$1) FROM attachment_scan_attempts WHERE attachment_id=$1").bind(field.as_str()).fetch_one(pool.raw()).await.unwrap();assert_eq!(state,("running".into(),1));
+ }).await;
+}
+
+#[tokio::test]
+async fn field_claim_retries_deadlock_against_committed_current_lineage() {
+ fixture::with_database(2,|pool|async move {
+  use std::sync::atomic::{AtomicUsize,Ordering};
+  facts::migrate(&pool).await;
+  let source=facts::seed_source(&pool,"deadlock-retry",facts::TestOrigin::ManagedField,"text/csv",facts::bytes()).await;
+  sqlx::query("INSERT INTO attachment_sets(id,company_id,target_type,target_id,component_kind,purpose_key,expected_target_version,policy_version,classification,audience_json,state,created_by,created_at,updated_at) VALUES('field-deadlock-set','company-owned','field_service_visit','visit','record','evidence',1,1,'internal','{}','draft','worker',0,0)").execute(pool.raw()).await.unwrap();
+  let mut writer=pool.raw().begin().await.unwrap();
+  let old_set:String=sqlx::query_scalar("SELECT set_id FROM attachment_links WHERE id='link-deadlock-retry' FOR UPDATE").fetch_one(&mut *writer).await.unwrap();
+  let attempts=Arc::new(AtomicUsize::new(0));let started=Arc::new(tokio::sync::Notify::new());
+  let count=attempts.clone();let signal=started.clone();let id=source.clone();let work=PgUnitOfWork::new(pool.clone());
+  let claim=tokio::spawn(async move {work.run::<bool,BusinessError,_>(TransactionOptions::default(),move |c| {let count=count.clone();let signal=signal.clone();let id=id.clone();Box::pin(async move {
+   let attempt=count.fetch_add(1,Ordering::SeqCst);
+   sqlx::query("SELECT id FROM attachment_scan_attempts WHERE attachment_id=$1 FOR UPDATE").bind(id.as_str()).fetch_one(&mut *c).await?;
+   sqlx::query("SELECT erpx_files_lock_scan_lineage($1)").bind(id.as_str()).execute(&mut *c).await?;
+   if attempt==0 {signal.notify_one();}
+   Ok(claim_field_attachment_scan(c,&facts::scope(),Some(&id),&facts::TestClock::new(1000),&mut facts::Ids).await?.is_some())
+  })}).await});
+  tokio::time::timeout(std::time::Duration::from_secs(5),started.notified()).await.expect("claim did not reach epoch lock");
+  tokio::time::sleep(std::time::Duration::from_millis(30)).await;
+  sqlx::query("UPDATE attachment_links SET set_id='field-deadlock-set' WHERE id='link-deadlock-retry'").execute(&mut *writer).await.unwrap();
+  sqlx::query("UPDATE attachment_links SET set_id=$1,expires_at=expires_at+1 WHERE id='link-deadlock-retry'").bind(old_set).execute(&mut *writer).await.unwrap();
+  writer.commit().await.unwrap();
+  assert!(tokio::time::timeout(std::time::Duration::from_secs(5),claim).await.unwrap().unwrap().unwrap());
+  assert!(attempts.load(Ordering::SeqCst)>=2,"the deadlock victim must replay the entire claim");
+  let state:(String,String,i64)=sqlx::query_as("SELECT a.source_state,j.state,(SELECT count(*) FROM attachment_events e WHERE e.attachment_id=a.id AND e.action LIKE 'scan.%') FROM attachments a JOIN attachment_scan_attempts j ON j.attachment_id=a.id WHERE a.id=$1").bind(source.as_str()).fetch_one(pool.raw()).await.unwrap();
+  assert_eq!(state,("scanning".into(),"running".into(),0));
+ }).await;
+}
+
+#[tokio::test]
+async fn cleanup_ownership_guards_field_and_shared_lineage_without_blocking_other_owners() {
+ fixture::with_database(2,|pool|async move {
+  facts::migrate(&pool).await;
+  let field=facts::seed_source(&pool,"cleanup-field",facts::TestOrigin::ManagedField,"text/csv",facts::bytes()).await;
+  let other=facts::seed_managed(&pool,"cleanup-other").await;
+  for (name,expected) in [("cleanup-field",false),("cleanup-other",true)] {
+   let allowed:bool=sqlx::query_scalar("SELECT erpx_files_legacy_cleanup_set_allowed(set_id) FROM attachment_links WHERE id=$1").bind(format!("link-{name}")).fetch_one(pool.raw()).await.unwrap();assert_eq!(allowed,expected);
+  }
+  let allowed:bool=sqlx::query_scalar("SELECT erpx_files_legacy_cleanup_source_allowed($1)").bind(field.as_str()).fetch_one(pool.raw()).await.unwrap();assert!(!allowed);
+  let allowed:bool=sqlx::query_scalar("SELECT erpx_files_legacy_cleanup_source_allowed($1)").bind(other.as_str()).fetch_one(pool.raw()).await.unwrap();assert!(allowed);
+  for (id,expected) in [(&field,false),(&other,true)] {let allowed:bool=sqlx::query_scalar("SELECT erpx_files_legacy_cleanup_object_allowed(company_id,object_key) FROM attachments WHERE id=$1").bind(id.as_str()).fetch_one(pool.raw()).await.unwrap();assert_eq!(allowed,expected);}
+  let field_set:String=sqlx::query_scalar("SELECT set_id FROM attachment_links WHERE id='link-cleanup-field'").fetch_one(pool.raw()).await.unwrap();
+  sqlx::query("INSERT INTO attachment_links(id,set_id,attachment_id,state,created_by,created_at,expires_at) VALUES('field-cleanup-shared',$1,$2,'draft','worker',0,10000)").bind(field_set).bind(other.as_str()).execute(pool.raw()).await.unwrap();
+  let allowed:bool=sqlx::query_scalar("SELECT erpx_files_legacy_cleanup_set_allowed(set_id) FROM attachment_links WHERE id='link-cleanup-other'").fetch_one(pool.raw()).await.unwrap();assert!(!allowed,"a non-Field set sharing a Field-marked source must be quarantined");
+ }).await;
+}
+
+#[tokio::test]
+async fn actual_legacy_cleanup_expires_other_owner_but_leaves_field_untouched() {
+ fixture::with_database(2,|pool|async move {
+  use std::io::Write;use std::process::{Command,Stdio};
+  facts::migrate(&pool).await;
+  let field=facts::seed_source(&pool,"cleanup-bun-field",facts::TestOrigin::ManagedField,"text/csv",facts::bytes()).await;
+  let other=facts::seed_managed(&pool,"cleanup-bun-other").await;
+  sqlx::query("UPDATE attachment_links SET expires_at=1 WHERE id IN ('link-cleanup-bun-field','link-cleanup-bun-other')").execute(pool.raw()).await.unwrap();
+  let name:String=sqlx::query_scalar("SELECT current_database()").fetch_one(pool.raw()).await.unwrap();
+  let mut child=Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).current_dir(concat!(env!("CARGO_MANIFEST_DIR"),"/../..")).arg("scripts/testing/fixtures/field-cleanup-legacy.ts").stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().unwrap();
+  let mut input=child.stdin.take().unwrap();writeln!(input,"{}",serde_json::json!({"database":name,"source":field.as_str()})).unwrap();writeln!(input,"GO").unwrap();drop(input);
+  let result=child.wait_with_output().unwrap();assert!(result.status.success(),"owned Bun cleanup failed; see private fixture diagnostics");
+  let states:Vec<(String,String)>=sqlx::query_as("SELECT id,state FROM attachment_links WHERE id IN ('link-cleanup-bun-field','link-cleanup-bun-other') ORDER BY id").fetch_all(pool.raw()).await.unwrap();
+  assert_eq!(states,vec![("link-cleanup-bun-field".into(),"draft".into()),("link-cleanup-bun-other".into(),"expired".into())]);
+  let owned:bool=sqlx::query_scalar("SELECT erpx_files_field_attachment_owned($1)").bind(other.as_str()).fetch_one(pool.raw()).await.unwrap();assert!(!owned);
+ }).await;
+}
+
+#[tokio::test]
+async fn actual_legacy_cleanup_never_deletes_field_source_bytes() {
+ fixture::with_database(2,|pool|async move {
+  use std::io::Write;use std::process::{Command,Stdio};
+  facts::migrate(&pool).await;
+  let field=facts::seed_source(&pool,"cleanup-delete-field",facts::TestOrigin::ManagedField,"text/csv",facts::bytes()).await;
+  let other=facts::seed_managed(&pool,"cleanup-delete-other").await;
+  let clock=facts::TestClock::new(1000);
+  for id in [&field,&other] {
+   let prepared=Arc::new(facts::claim(&pool,id,&clock).await.unwrap());let now=clock.clone();
+   PgUnitOfWork::new(pool.clone()).run::<(),BusinessError,_>(TransactionOptions::default(),move|c|{let p=prepared.clone();let now=now.clone();Box::pin(async move{retain(c,&p,&now).await?;Ok(())})}).await.unwrap();
+  }
+  sqlx::query("UPDATE attachment_links SET state='expired',expires_at=1 WHERE id IN ('link-cleanup-delete-field','link-cleanup-delete-other')").execute(pool.raw()).await.unwrap();
+  let name:String=sqlx::query_scalar("SELECT current_database()").fetch_one(pool.raw()).await.unwrap();
+  let mut child=Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).current_dir(concat!(env!("CARGO_MANIFEST_DIR"),"/../..")).arg("scripts/testing/fixtures/field-cleanup-legacy.ts").stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().unwrap();
+  let mut input=child.stdin.take().unwrap();writeln!(input,"{}",serde_json::json!({"database":name,"source":field.as_str()})).unwrap();writeln!(input,"GO").unwrap();drop(input);
+  let result=child.wait_with_output().unwrap();assert!(result.status.success(),"owned Bun cleanup failed");
+  let value:serde_json::Value=serde_json::from_str(std::str::from_utf8(&result.stdout).unwrap().strip_prefix("READY\n").unwrap()).unwrap();assert_eq!(value["deleted"],1);
+  let states:Vec<(String,String)>=sqlx::query_as("SELECT id,source_state FROM attachments WHERE id=ANY($1) ORDER BY id").bind(vec![field.as_str(),other.as_str()]).fetch_all(pool.raw()).await.unwrap();
+  assert!(states.iter().any(|(id,state)|id==field.as_str()&&state=="available"));assert!(states.iter().any(|(id,state)|id==other.as_str()&&state=="destroyed"));
+ }).await;
+}
+
+#[tokio::test]
+async fn actual_legacy_cleanup_retries_after_concurrent_field_lineage_birth() {
+ fixture::with_database(2,|pool|async move {
+  use std::io::{BufRead,BufReader,Read,Write};use std::process::{Command,Stdio};
+  facts::migrate(&pool).await;let source=facts::seed_managed(&pool,"cleanup-race").await;
+  sqlx::query("UPDATE attachment_links SET expires_at=1 WHERE id='link-cleanup-race'").execute(pool.raw()).await.unwrap();
+  sqlx::query("INSERT INTO attachment_sets(id,company_id,target_type,target_id,component_kind,purpose_key,expected_target_version,policy_version,classification,audience_json,state,created_by,created_at,updated_at) VALUES('field-cleanup-race-set','company-owned','field_service_visit','visit','record','evidence',1,1,'internal','{}','draft','worker',0,0)").execute(pool.raw()).await.unwrap();
+  let mut writer=pool.raw().begin().await.unwrap();
+  sqlx::query("INSERT INTO attachment_links(id,set_id,attachment_id,state,created_by,created_at,expires_at) VALUES('field-cleanup-race-link','field-cleanup-race-set',$1,'draft','worker',0,10000)").bind(source.as_str()).execute(&mut *writer).await.unwrap();
+  let name:String=sqlx::query_scalar("SELECT current_database()").fetch_one(&mut *writer).await.unwrap();
+  let mut child=Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).current_dir(concat!(env!("CARGO_MANIFEST_DIR"),"/../..")).arg("scripts/testing/fixtures/field-cleanup-legacy.ts").stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().unwrap();
+  let mut input=child.stdin.take().unwrap();writeln!(input,"{}",serde_json::json!({"database":name,"source":source.as_str()})).unwrap();input.flush().unwrap();
+  let mut output=BufReader::new(child.stdout.take().unwrap());let mut ready=String::new();output.read_line(&mut ready).unwrap();assert_eq!(ready,"READY\n");writeln!(input,"GO").unwrap();drop(input);
+  let mut blocked=false;
+  for _ in 0..100 {
+   sqlx::query("SELECT pg_stat_clear_snapshot()").execute(&mut *writer).await.unwrap();
+   blocked=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock' AND query LIKE '%erpx_files_legacy_cleanup_set_allowed%')").fetch_one(&mut *writer).await.unwrap();
+   if blocked {break;} tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+  }
+  assert!(blocked,"legacy cleanup must reach and wait on the in-flight Field lineage");writer.commit().await.unwrap();
+  let mut response=String::new();output.read_to_string(&mut response).unwrap();assert!(child.wait().unwrap().success(),"owned Bun cleanup race failed");
+  let state:String=sqlx::query_scalar("SELECT state FROM attachment_links WHERE id='link-cleanup-race'").fetch_one(pool.raw()).await.unwrap();assert_eq!(state,"draft");
+  let events:i64=sqlx::query_scalar("SELECT count(*) FROM attachment_events WHERE link_id='link-cleanup-race' AND action='link.expired'").fetch_one(pool.raw()).await.unwrap();assert_eq!(events,0);
+ }).await;
+}
+
+#[tokio::test]
+async fn legacy_cleanup_waits_before_snapshot_and_sees_committed_native_pin() {
+ fixture::with_database(2,|pool|async move {
+  use std::io::{BufRead,BufReader,Read,Write};use std::process::{Command,Stdio};
+  facts::migrate(&pool).await;
+  let source=facts::seed_managed(&pool,"pin-race-other").await;
+  let field=facts::seed_source(&pool,"pin-race-field",facts::TestOrigin::ManagedField,"text/csv",facts::bytes()).await;
+  let clock=facts::TestClock::new(1000);let prepared=Arc::new(facts::claim(&pool,&source,&clock).await.unwrap());let now=clock.clone();
+  PgUnitOfWork::new(pool.clone()).run::<(),BusinessError,_>(TransactionOptions::default(),move|c|{let p=prepared.clone();let now=now.clone();Box::pin(async move{retain(c,&p,&now).await?;Ok(())})}).await.unwrap();
+  sqlx::query("UPDATE attachments SET source_state='destroyed',destroyed_at=1001 WHERE id=$1").bind(source.as_str()).execute(pool.raw()).await.unwrap();
+  let (company,key):(String,String)=sqlx::query_as("SELECT company_id,object_key FROM attachments WHERE id=$1").bind(source.as_str()).fetch_one(pool.raw()).await.unwrap();
+  let upload:String=sqlx::query_scalar("SELECT upload_id FROM attachments WHERE id=$1").bind(field.as_str()).fetch_one(pool.raw()).await.unwrap();
+  let mut writer=pool.raw().begin().await.unwrap();sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))").bind(format!("attachment-object:{company}:{key}")).execute(&mut *writer).await.unwrap();
+  sqlx::query("INSERT INTO field_upload_publication_pins(token,company_id,upload_intent_id,object_key,checksum_sha256,bytes,created_at,expires_at) VALUES($1,$2,$3,$4,$5,1,0,9999999999999)").bind(uuid::Uuid::new_v4()).bind(&company).bind(upload).bind(&key).bind("0".repeat(64)).execute(&mut *writer).await.unwrap();
+  let name:String=sqlx::query_scalar("SELECT current_database()").fetch_one(&mut *writer).await.unwrap();
+  let mut child=Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).current_dir(concat!(env!("CARGO_MANIFEST_DIR"),"/../..")).arg("scripts/testing/fixtures/field-cleanup-legacy.ts").stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().unwrap();
+  let mut input=child.stdin.take().unwrap();writeln!(input,"{}",serde_json::json!({"database":name,"source":source.as_str()})).unwrap();input.flush().unwrap();
+  let mut output=BufReader::new(child.stdout.take().unwrap());let mut ready=String::new();output.read_line(&mut ready).unwrap();assert_eq!(ready,"READY\n");writeln!(input,"GO").unwrap();drop(input);
+  let mut blocked=false;for _ in 0..100 {sqlx::query("SELECT pg_stat_clear_snapshot()").execute(&mut *writer).await.unwrap();blocked=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock' AND query LIKE '%pg_advisory_lock(hashtextextended%')").fetch_one(&mut *writer).await.unwrap();if blocked{break;}tokio::time::sleep(std::time::Duration::from_millis(25)).await;}
+  assert!(blocked,"legacy deletion must wait before establishing its transaction snapshot");writer.commit().await.unwrap();
+  let mut response=String::new();output.read_to_string(&mut response).unwrap();assert!(child.wait().unwrap().success());let value:serde_json::Value=serde_json::from_str(&response).unwrap();assert_eq!(value["deleted"],0);
+  let events:i64=sqlx::query_scalar("SELECT count(*) FROM attachment_events WHERE attachment_id=$1 AND action='source.bytes_deleted'").bind(source.as_str()).fetch_one(pool.raw()).await.unwrap();assert_eq!(events,0);
+ }).await;
+}
+
+#[tokio::test]
+async fn legacy_object_lock_callback_failure_does_not_replay_or_leak_session_locks() {
+ fixture::with_database(2,|pool|async move {
+  use std::io::Write;use std::process::{Command,Stdio};
+  facts::migrate(&pool).await;let name:String=sqlx::query_scalar("SELECT current_database()").fetch_one(pool.raw()).await.unwrap();
+  let mut child=Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).current_dir(concat!(env!("CARGO_MANIFEST_DIR"),"/../..")).arg("scripts/testing/fixtures/field-cleanup-legacy.ts").stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().unwrap();
+  let mut input=child.stdin.take().unwrap();writeln!(input,"{}",serde_json::json!({"database":name,"source":"fixture","mode":"failure"})).unwrap();writeln!(input,"GO").unwrap();drop(input);
+  let result=child.wait_with_output().unwrap();assert!(result.status.success());let value:serde_json::Value=serde_json::from_str(std::str::from_utf8(&result.stdout).unwrap().strip_prefix("READY\n").unwrap()).unwrap();assert_eq!(value["attempts"],1);assert_eq!(value["locks"],0);
+ }).await;
+}
+
+#[tokio::test]
+async fn terminated_legacy_object_lock_holder_releases_the_postgres_session_lock() {
+ fixture::with_database(2,|pool|async move {
+  use std::io::{BufRead,BufReader,Write};use std::process::{Command,Stdio};
+  facts::migrate(&pool).await;let name:String=sqlx::query_scalar("SELECT current_database()").fetch_one(pool.raw()).await.unwrap();
+  let mut child=Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).current_dir(concat!(env!("CARGO_MANIFEST_DIR"),"/../..")).arg("scripts/testing/fixtures/field-cleanup-legacy.ts").stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().unwrap();
+  let mut input=child.stdin.take().unwrap();writeln!(input,"{}",serde_json::json!({"database":name,"source":"fixture","mode":"cancel"})).unwrap();input.flush().unwrap();let mut output=BufReader::new(child.stdout.take().unwrap());let mut line=String::new();output.read_line(&mut line).unwrap();assert_eq!(line,"READY\n");writeln!(input,"GO").unwrap();drop(input);line.clear();output.read_line(&mut line).unwrap();assert_eq!(line,"LOCKED\n");
+  let blocked:bool=sqlx::query_scalar("SELECT pg_try_advisory_xact_lock(hashtextextended('attachment-object:company-owned:fixture-cancel',0))").fetch_one(pool.raw()).await.unwrap();assert!(!blocked);
+  child.kill().unwrap();child.wait().unwrap();let mut released=false;
+  for _ in 0..100 {released=sqlx::query_scalar("SELECT pg_try_advisory_xact_lock(hashtextextended('attachment-object:company-owned:fixture-cancel',0))").fetch_one(pool.raw()).await.unwrap();if released{break;}tokio::time::sleep(std::time::Duration::from_millis(25)).await;}
+  assert!(released,"terminated worker must not retain a PostgreSQL session lock");
+ }).await;
+}
+
+#[tokio::test]
+async fn legacy_writer_guard_rejects_persisted_field_and_shared_sources() {
+ fixture::with_database(2,|pool|async move {
+  facts::migrate(&pool).await;
+  let field=facts::seed_source(&pool,"writer-field",facts::TestOrigin::ManagedField,"text/csv",facts::bytes()).await;
+  let other=facts::seed_managed(&pool,"writer-other").await;
+  let set:String=sqlx::query_scalar("SELECT set_id FROM attachment_links WHERE id='link-writer-field'").fetch_one(pool.raw()).await.unwrap();
+  let upload:String=sqlx::query_scalar("SELECT upload_id FROM attachments WHERE id=$1").bind(field.as_str()).fetch_one(pool.raw()).await.unwrap();
+  for (kind,id) in [("set",set.as_str()),("upload",upload.as_str()),("link","link-writer-field"),("attachment",field.as_str())] {
+   let err=sqlx::query("SELECT erpx_files_assert_legacy_writer($1,$2)").bind(kind).bind(id).execute(pool.raw()).await.unwrap_err();
+   assert_eq!(err.as_database_error().and_then(|e|e.constraint()),Some("field_file_native_writer"));
+  }
+  let allowed:bool=sqlx::query_scalar("SELECT erpx_files_assert_legacy_writer('attachment',$1)").bind(other.as_str()).fetch_one(pool.raw()).await.unwrap();assert!(allowed);
+ }).await;
+}
+
+#[tokio::test]
+async fn actual_legacy_reserve_entry_rejects_field_before_provider_or_write() {
+ fixture::with_database(2,|pool|async move {
+  use std::io::Write;use std::process::{Command,Stdio};
+  facts::migrate(&pool).await;let source=facts::seed_source(&pool,"writer-entry",facts::TestOrigin::ManagedField,"text/csv",facts::bytes()).await;
+  let set:String=sqlx::query_scalar("SELECT set_id FROM attachment_links WHERE attachment_id=$1").bind(source.as_str()).fetch_one(pool.raw()).await.unwrap();
+  let before:i64=sqlx::query_scalar("SELECT count(*) FROM upload_intents").fetch_one(pool.raw()).await.unwrap();let name:String=sqlx::query_scalar("SELECT current_database()").fetch_one(pool.raw()).await.unwrap();
+  let mut child=Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).current_dir(concat!(env!("CARGO_MANIFEST_DIR"),"/../..")).arg("scripts/testing/fixtures/field-cleanup-legacy.ts").stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().unwrap();
+  let mut input=child.stdin.take().unwrap();writeln!(input,"{}",serde_json::json!({"database":name,"source":set,"mode":"writer"})).unwrap();writeln!(input,"GO").unwrap();drop(input);
+  let result=child.wait_with_output().unwrap();assert!(result.status.success());let value:serde_json::Value=serde_json::from_str(std::str::from_utf8(&result.stdout).unwrap().strip_prefix("READY\n").unwrap()).unwrap();assert_eq!(value["code"],"FIELD_FILES_NATIVE_REQUIRED");
+  let after:i64=sqlx::query_scalar("SELECT count(*) FROM upload_intents").fetch_one(pool.raw()).await.unwrap();assert_eq!(before,after);
+ }).await;
+}
+
+#[tokio::test]
+async fn actual_legacy_upload_entry_refuses_field_before_any_object_write() {
+ fixture::with_database(2,|pool|async move {
+  use std::io::Write;use std::process::{Command,Stdio};
+  facts::migrate(&pool).await;let source=facts::seed_source(&pool,"upload-entry",facts::TestOrigin::ManagedField,"text/csv",facts::bytes()).await;
+  let upload:String=sqlx::query_scalar("SELECT upload_id FROM attachments WHERE id=$1").bind(source.as_str()).fetch_one(pool.raw()).await.unwrap();
+  let name:String=sqlx::query_scalar("SELECT current_database()").fetch_one(pool.raw()).await.unwrap();
+  let mut child=Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).current_dir(concat!(env!("CARGO_MANIFEST_DIR"),"/../..")).arg("scripts/testing/fixtures/field-cleanup-legacy.ts").stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().unwrap();
+  let mut input=child.stdin.take().unwrap();writeln!(input,"{}",serde_json::json!({"database":name,"source":upload,"mode":"upload"})).unwrap();writeln!(input,"GO").unwrap();drop(input);
+  let result=child.wait_with_output().unwrap();assert!(result.status.success());let value:serde_json::Value=serde_json::from_str(std::str::from_utf8(&result.stdout).unwrap().strip_prefix("READY\n").unwrap()).unwrap();assert_eq!(value["code"],"FIELD_FILES_NATIVE_REQUIRED");assert_eq!(value["puts"],0);
+ }).await;
+}

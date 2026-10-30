@@ -42,6 +42,7 @@ pub struct NativeFilesScanWorker<C> {
     clock: Arc<C>,
     admission: Arc<Mutex<()>>,
     stopping: Arc<AtomicBool>,
+    field_only: bool,
 }
 impl<C> Clone for NativeFilesScanWorker<C> {
     fn clone(&self) -> Self {
@@ -51,10 +52,16 @@ impl<C> Clone for NativeFilesScanWorker<C> {
             clock: self.clock.clone(),
             admission: self.admission.clone(),
             stopping: self.stopping.clone(),
+            field_only: self.field_only,
         }
     }
 }
 impl<C: Clock + Send + Sync + 'static> NativeFilesScanWorker<C> {
+    /// Cursor advancement is operational metadata, never source authority.
+    pub async fn next_field_candidate(&self) -> Result<Option<RecordId>, Error> {
+        if !self.field_only { return Err(unavailable().into()); }
+        self.transactions.next_field_candidate().await
+    }
     pub async fn run_next(
         &self,
         source_filter: Option<&RecordId>,
@@ -78,6 +85,11 @@ impl<C: Clock + Send + Sync + 'static> NativeFilesScanWorker<C> {
         )
         .await
     }
+    pub(crate) fn cleanup_worker(&self,writer:erpx_server_files::public::field_visit_upload::LocalFieldQuarantineWriter)->Result<crate::field_files_cleanup_worker::FieldFilesCleanupWorker<C>,BusinessError>{
+        if !self.field_only {return Err(unavailable());}
+        Ok(crate::field_files_cleanup_worker::FieldFilesCleanupWorker::new(self.transactions.clone(),writer,self.clock.clone()))
+    }
+    pub(crate) fn cleanup_scope(&self)->&erpx_server_files::public::attachment_scan::AttachmentScanScope {self.transactions.scope()}
     pub fn request_shutdown(&self) {
         self.stopping.store(true, Ordering::Release);
         self.sanitizer.request_shutdown();
@@ -96,10 +108,40 @@ impl<C: Clock + Send + Sync + 'static> NativeFilesScanWorker<C> {
     }
 }
 
+impl<C: Clock + Send + Sync + 'static> crate::field_attachment_intake_command::FieldIntakeProviderReadiness for NativeFilesScanWorker<C> {
+    fn probe(&self) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<crate::field_attachment_intake_command::FieldIntakeProviderStatus, BusinessError>> + Send + '_>> {
+        Box::pin(async move {
+            if !self.field_only || self.stopping.load(Ordering::Acquire) { return Err(unavailable()); }
+            // The provider probes current ClamAV PING/VERSION and the bounded
+            // preview executable/profile; these are not caller-supplied flags.
+            self.sanitizer.require_ready(self.clock.as_ref()).await?;
+            Ok(crate::field_attachment_intake_command::FieldIntakeProviderStatus { scanner_enabled:true, scanner_ready:true, preview_ready:true })
+        })
+    }
+}
+
 pub async fn assemble_native_development_files_scan<C: Clock + Send + Sync + 'static>(
     databases: DevelopmentFilesScanConfiguration,
     providers: NativeFilesScanConfiguration,
     clock: Arc<C>,
+) -> Result<NativeFilesScanWorker<C>, Error> {
+    assemble_native_files_scan(databases, providers, clock, false).await
+}
+
+/// Runtime-owned Field worker: persisted Files lineage limits claims.
+pub async fn assemble_native_field_files_scan<C: Clock + Send + Sync + 'static>(
+    databases: DevelopmentFilesScanConfiguration,
+    providers: NativeFilesScanConfiguration,
+    clock: Arc<C>,
+) -> Result<NativeFilesScanWorker<C>, Error> {
+    assemble_native_files_scan(databases, providers, clock, true).await
+}
+
+async fn assemble_native_files_scan<C: Clock + Send + Sync + 'static>(
+    databases: DevelopmentFilesScanConfiguration,
+    providers: NativeFilesScanConfiguration,
+    clock: Arc<C>,
+    field_only: bool,
 ) -> Result<NativeFilesScanWorker<C>, Error> {
     if providers.files_roots.is_empty()
         || providers.files_roots.len() > 64
@@ -112,6 +154,7 @@ pub async fn assemble_native_development_files_scan<C: Clock + Send + Sync + 'st
     // This opens only explicit exact-lease databases and verifies schema/current
     // startup registry. It returns no authority usable across later compute.
     let target = assemble_development_files_scan(databases, clock.clone()).await?;
+    let target = if field_only { target.field_only() } else { target };
     let result = async {
         let root = providers
             .files_roots
@@ -143,6 +186,7 @@ pub async fn assemble_native_development_files_scan<C: Clock + Send + Sync + 'st
             clock,
             admission: Arc::new(Mutex::new(())),
             stopping: Arc::new(AtomicBool::new(false)),
+            field_only,
         }),
         Err(error) => {
             target.close().await;

@@ -13,3 +13,5 @@ pub(crate) mod field_visit_bind;
 
 
 pub(crate) mod field_visit_intake;
+
+pub mod field_visit_upload;

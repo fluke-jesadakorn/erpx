@@ -1651,7 +1651,11 @@
         "talent"
       ],
       "files": [
-        "tests/unit/shared.attachments/attachment-client.test.ts"
+        "tests/unit/shared.attachments/attachment-client.test.ts",
+        "tests/unit/shared.attachments/field-upload-attempt.test.ts",
+        "tests/unit/shared.attachments/field-files-routes.test.ts",
+        "tests/unit/shared.attachments/field-family-bridge.test.ts",
+        "tests/unit/shared.attachments/bounded-json-body.test.ts"
       ],
       "fixture": "none",
       "requires": {
@@ -1686,17 +1690,63 @@
         "forms"
       ],
       "packages": [
+        "@erpx/catalogue",
         "@erpx/contracts",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
         "@erpx/feature-files",
+        "@erpx/feature-finance",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-legal",
+        "@erpx/feature-organization",
         "@erpx/feature-people_payroll",
         "@erpx/feature-records",
         "@erpx/feature-runtime",
+        "@erpx/feature-sales",
         "@erpx/feature-shared",
         "@erpx/feature-work_projection",
+        "@erpx/native-sdk",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
         "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
         "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
         "@erpx/server-support",
         "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow",
         "@erpx/ui",
         "@erpx/workplace"
       ],
@@ -1709,7 +1759,9 @@
         "packages/contracts/src/field-attachment.generated.ts",
         "scripts/docs/export-field-attachment-contracts.rs",
         "scripts/docs/generate-field-attachment-contracts.ts",
-        "docs/contracts/next/field-attachment.openapi.generated.json"
+        "docs/contracts/next/field-attachment.openapi.generated.json",
+        "packages/feature-files/src/application/field-upload-attempt.ts",
+        "packages/workplace/src/lib/bounded-json-body.ts"
       ]
     },
     {
@@ -13379,6 +13431,7 @@
         "@erpx/feature-billing",
         "@erpx/feature-collaboration",
         "@erpx/feature-commerce",
+        "@erpx/feature-field_service",
         "@erpx/feature-finance",
         "@erpx/feature-identity_access",
         "@erpx/feature-legal",
@@ -13387,6 +13440,7 @@
         "@erpx/feature-records",
         "@erpx/feature-runtime",
         "@erpx/feature-sales",
+        "@erpx/feature-service",
         "@erpx/feature-shared",
         "@erpx/feature-work_projection",
         "@erpx/native-sdk",
@@ -13429,7 +13483,8 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/ui"
       ],
       "postgres": {
         "mode": "template",
@@ -13441,7 +13496,13 @@
         "migratedSlots": [
           "H001_DB"
         ]
-      }
+      },
+      "verificationInputs": [
+        "tests/support/files/field-files-native-parity.ts",
+        "tests/support/files/rust-field-files-vitest-held-provider.rs",
+        "src/composition/Cargo.toml",
+        "src/composition/src/private_development_api/field_files.rs"
+      ]
     },
     {
       "id": "shared.evidence.engineering-completion.unit",
@@ -15736,7 +15797,11 @@
         "fixtures/inventory/legacy-count-oracle/service-initial-physical-stock-count-source.ts.snapshot",
         "fixtures/inventory/legacy-count-oracle/service-initial-physical-stock-count-source-sql.ts.snapshot",
         "fixtures/inventory/legacy-count-oracle/service-initial-physical-stock-count.ts.snapshot",
-        "fixtures/inventory/legacy-count-oracle/service-initial-physical-stock-count-domain.ts.snapshot"
+        "fixtures/inventory/legacy-count-oracle/service-initial-physical-stock-count-domain.ts.snapshot",
+        "tests/support/files/field-files-native-parity.ts",
+        "tests/support/files/rust-field-files-vitest-held-provider.rs",
+        "src/composition/Cargo.toml",
+        "tests/integration/field_service/rust-files-reservation-postgres.test.rs"
       ]
     },
     {
@@ -67527,7 +67592,9 @@
         "Cargo.lock",
         "rust-toolchain.toml",
         "tests/support/rust-postgres.rs",
-        "tests/support/files/scan-facts.rs"
+        "tests/support/files/scan-facts.rs",
+        "scripts/testing/fixtures/field-scan-legacy-claim.ts",
+        "scripts/testing/fixtures/field-cleanup-legacy.ts"
       ],
       "apps": [
         "apps",
@@ -72303,19 +72370,23 @@
         "tests/support/rust-postgres.rs",
         "packages/server-files/src/adapters/attachments/service-repository.ts",
         "packages/server-files/src/application/attachments/service.ts",
-        "packages/server-files/src/domain/attachments/policy.ts"
+        "packages/server-files/src/domain/attachments/policy.ts",
+        "packages/server-files/src/domain/field_visit_upload.rs",
+        "packages/server-files/src/public/field_visit_upload.rs"
       ],
       "id": "files.rust-field-visit-intake-policy.unit",
       "lane": "unit",
       "owner": "files",
       "files": [
-        "tests/unit/files/rust-field-visit-intake-policy.test.rs"
+        "tests/unit/files/rust-field-visit-intake-policy.test.rs",
+        "tests/unit/files/rust-field-visit-upload-policy.test.rs"
       ],
       "fixture": "none",
       "cargo": {
         "package": "erpx-server-files",
         "targets": [
-          "field_visit_intake_policy"
+          "field_visit_intake_policy",
+          "field_visit_upload_policy"
         ]
       },
       "apps": [
@@ -72416,17 +72487,20 @@
       "lane": "integration",
       "owner": "field_service",
       "files": [
-        "tests/integration/field_service/rust-files-intake-command-postgres.test.rs"
+        "tests/integration/field_service/rust-files-intake-command-postgres.test.rs",
+        "tests/integration/field_service/rust-files-reservation-postgres.test.rs"
       ],
       "fixture": "postgres",
       "cargo": {
         "package": "erpx-service",
         "targets": [
-          "field_files_intake_command_postgres"
+          "field_files_intake_command_postgres",
+          "files_reservation_postgres"
         ],
         "features": [
           "field-service",
-          "existing-business"
+          "existing-business",
+          "business-http"
         ]
       },
       "apps": [
@@ -73437,6 +73511,497 @@
           "H003_READ_DB"
         ],
         "migratedSlots": []
+      }
+    },
+    {
+      "modules": [
+        "field_service"
+      ],
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Protects selected Account ingress, exact private Field attachment-set HTTP routing, replay and lazy provider readiness; does not qualify real provider mounting, upload/scan, public cutover or complete Field delivery."
+      },
+      "framework": "cargo",
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "src/composition/Cargo.toml",
+        "packages/server-files/Cargo.toml",
+        "src/composition/src/field_attachment_intake.rs",
+        "tests/support/rust-postgres.rs",
+        "packages/server-files/src/adapters/attachments/service-repository.ts",
+        "packages/server-files/src/application/attachments/service.ts",
+        "packages/server-files/src/domain/attachments/policy.ts",
+        "src/composition/src/field_attachment_intake_command.rs",
+        "packages/server-workflow/src/adapters/field_intake_command_evidence.rs",
+        "packages/server-workflow/src/public/field_intake_command_evidence.rs",
+        "contracts/modules/backend-modules.json",
+        "src/composition/src/field_attachment_intake_http.rs",
+        "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-sets/route.ts"
+      ],
+      "id": "field_service.rust-files-intake-http-postgres.integration",
+      "lane": "integration",
+      "owner": "field_service",
+      "files": [
+        "tests/integration/field_service/rust-files-intake-http-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "cargo": {
+        "package": "erpx-service",
+        "targets": [
+          "field_files_intake_http_postgres"
+        ],
+        "features": [
+          "field-service-http",
+          "existing-business"
+        ]
+      },
+      "apps": [
+        "service"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-field_service",
+        "@erpx/feature-finance",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-legal",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-service",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/native-sdk",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow",
+        "@erpx/ui",
+        "@erpx/workplace"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      }
+    },
+    {
+      "id": "field_service.native-attachment-intake-sdk.unit",
+      "lane": "unit",
+      "owner": "field_service",
+      "modules": [
+        "field_service"
+      ],
+      "files": [
+        "tests/unit/field_service/field-service-attachment-intake-sdk.test.ts"
+      ],
+      "verificationInputs": [
+        "packages/native-sdk/src/field-service-attachment-intake.ts",
+        "packages/contracts/src/field-service-attachment-intake.generated.ts",
+        "src/composition/src/field_attachment_intake_contracts.rs",
+        "src/composition/src/field_attachment_intake_http.rs",
+        "scripts/docs/export-field-service-attachment-intake-contracts.rs",
+        "scripts/docs/generate-field-service-attachment-intake-contracts.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Protects bounded private Field Files SDK transport and retained raw body/key/header/query identity; does not qualify canonical public dispatch or writer cutover."
+      },
+      "apps": [
+        "service"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-field_service",
+        "@erpx/feature-finance",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-legal",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-service",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/native-sdk",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow",
+        "@erpx/ui"
+      ]
+    },
+    {
+      "id": "shared.attachments.field-file-writer-owner.integration",
+      "lane": "integration",
+      "owner": "shared.attachments",
+      "modules": [
+        "field_service",
+        "identity_access"
+      ],
+      "files": [
+        "tests/integration/shared.attachments/field-file-writer-owner.test.ts"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Persisted Field Files ownership must fail closed for orphaned and foreign source markers."
+      },
+      "apps": [
+        "service",
+        "account",
+        "admin"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-finance",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-legal",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/native-sdk",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow",
+        "@erpx/workplace"
+      ],
+      "postgres": {
+        "mode": "template",
+        "slots": [
+          "CONTROL_DB",
+          "H001_DB",
+          "H001_READ_DB"
+        ],
+        "migratedSlots": [
+          "H001_DB"
+        ]
+      }
+    },
+    {
+      "id": "files.rust-field-files-private-api.provider",
+      "lane": "provider",
+      "owner": "files",
+      "modules": [
+        "agent",
+        "assets",
+        "benefits",
+        "brand",
+        "collaboration",
+        "commercial",
+        "crm",
+        "customer_360",
+        "customer_authority",
+        "ecommerce",
+        "field_service",
+        "finance",
+        "identity_access",
+        "inventory",
+        "learning",
+        "legal",
+        "maintenance",
+        "manage_erpx",
+        "manufacturing",
+        "marketing",
+        "operations",
+        "organization",
+        "people_payroll",
+        "planning",
+        "platform_administration",
+        "pms",
+        "pos",
+        "procurement",
+        "projects",
+        "quality",
+        "sales",
+        "support",
+        "talent"
+      ],
+      "fixture": "provider",
+      "requires": {
+        "jobs": true,
+        "scanner": true
+      },
+      "files": [
+        "tests/provider/files/rust-field-files-private-api-provider.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-service",
+        "targets": [
+          "field_files_private_api_provider"
+        ],
+        "features": [
+          "private-field-api",
+          "files-scan-worker"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.lock",
+        "Cargo.toml",
+        "rust-toolchain.toml",
+        "src/composition/Cargo.toml",
+        "tests/support/files/files-held-tool.rs",
+        "tests/support/files/scan-facts.rs",
+        "tests/support/files/system-scan-facts.rs",
+        "tests/support/runtime/private-session-api.rs",
+        "tests/support/runtime/private-session-config.rs",
+        "tests/support/rust-account-credentials.rs",
+        "tests/support/rust-account-revocation.rs",
+        "tests/support/rust-account.rs",
+        "tests/support/rust-postgres.rs",
+        "src/composition/src/private_development_api/field_files.rs",
+        "src/composition/src/field_files_runtime_configuration.rs",
+        "src/composition/src/field_upload_http.rs",
+        "src/composition/src/field_attachment_intake_http.rs",
+        "src/composition/src/files_scan_worker.rs"
+      ],
+      "apps": [
+        "apps",
+        "pos",
+        "pms",
+        "finance",
+        "people",
+        "sales",
+        "supply",
+        "assets",
+        "projects",
+        "recruit",
+        "learn",
+        "support",
+        "service",
+        "legal",
+        "manufacturing",
+        "account",
+        "admin",
+        "booking",
+        "portal",
+        "legal-portal",
+        "forms"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-field_service",
+        "@erpx/feature-finance",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-legal",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-service",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/native-sdk",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow",
+        "@erpx/ui"
+      ],
+      "provider": {
+        "environment": {},
+        "required": [
+          "PKG_CONFIG_PATH",
+          "ERPX_TEST_ADMIN_URL",
+          "ERPX_FILES_PREVIEW_BIN",
+          "ERPX_HEIF_CONVERT",
+          "ERPX_PDFTOPPM_BIN",
+          "ERPX_CLAMD_SOCKET",
+          "ERPX_CLAMAV_DATABASE_DIR"
+        ]
       }
     }
   ]

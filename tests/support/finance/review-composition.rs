@@ -107,18 +107,28 @@ pub async fn setup_with_finance(system: System, finance: bool) -> Prepared {
 pub async fn setup_without_finance_references(system: System) -> Prepared {
     setup_with_references(system, true, false, 3_600_000).await
 }
-pub async fn setup_without_finance_references_with_lifetime(system: System, lifetime_ms: i64) -> Prepared {
+pub async fn setup_without_finance_references_with_lifetime(
+    system: System,
+    lifetime_ms: i64,
+) -> Prepared {
     assert!(lifetime_ms > 0 && lifetime_ms <= 24 * 60 * 60 * 1000);
     setup_with_references(system, true, false, lifetime_ms).await
 }
-async fn setup_with_references(system: System, finance: bool, references: bool, lifetime_ms: i64) -> Prepared {
+async fn setup_with_references(
+    system: System,
+    finance: bool,
+    references: bool,
+    lifetime_ms: i64,
+) -> Prepared {
     let maker_central = account::login(&system, "a@example.test", None).await;
     let maker = account::child(&system, &maker_central, account::ACME).await;
     let reviewer_central = account::login(&system, "b@example.test", None).await;
     let reviewer = account::child(&system, &reviewer_central, account::ACME).await;
     let pool = &system.holdings[0];
     let now = system.scenario.clock.now().get();
-    let expires = now.checked_add(lifetime_ms).expect("synthetic authority expiry overflow");
+    let expires = now
+        .checked_add(lifetime_ms)
+        .expect("synthetic authority expiry overflow");
     sqlx::raw_sql("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status)VALUES('company','company','acme','Synthetic Acme',NULL,'company',NULL,'active');INSERT INTO iam_roles(company_id,id,name,built_in,published_revision,status)VALUES('*','custom_finance_review','Current finance reviewer',false,1,'active');INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at)VALUES('*','custom_finance_review',1,'[\"finance.read\",\"finance.write\",\"finance.approve\",\"module.finance.read\"]','[]','[\"holding\",\"branch\",\"department\"]','synthetic-fixture',0)").execute(pool.raw()).await.unwrap();
     for (user, session) in [
         ("fixture-a", &maker.result.session_id),
@@ -165,7 +175,13 @@ async fn setup_with_references(system: System, finance: bool, references: bool, 
     }
 }
 pub async fn grant(pool: &DatabasePool, now: i64) {
-    grant_until(pool, now, now.checked_add(3_600_000).expect("synthetic grant expiry overflow")).await;
+    grant_until(
+        pool,
+        now,
+        now.checked_add(3_600_000)
+            .expect("synthetic grant expiry overflow"),
+    )
+    .await;
 }
 async fn grant_until(pool: &DatabasePool, now: i64, expires: i64) {
     let mut tx = pool.raw().begin().await.unwrap();

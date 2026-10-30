@@ -1,3 +1,4 @@
+#![allow(dead_code, reason="Path anchors generate OpenAPI metadata; runtime handlers live in composition")]
 use erpx_service::field_service_reservation_read::FieldServiceRenderedContext;
 use erpx_service::service_initial_physical_stock_contracts::*;
 use ts_rs::{Config, TS};

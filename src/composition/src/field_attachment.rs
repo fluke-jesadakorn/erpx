@@ -40,8 +40,14 @@ pub(crate) fn lock_attachment_sources(
         erpx_server_commercial::public::purchases::lock_commercial_authority_sources(c).await?;
         erpx_server_finance::public::field_service_workspace::lock_service_workspace_customers(c)
             .await?;
-        erpx_server_support::public::field_service_workspace::lock_service_workspace_tickets(c)
-            .await?;
+        if bind {
+            // The Field update fires the retained Support projection trigger.
+            // Acquire its owner's write-capable lock before the Field lock;
+            // competing binds must not hold Support SHARE while upgrading it.
+            erpx_server_support::public::field_service::lock_service_ticket_sources(c).await?;
+        } else {
+            erpx_server_support::public::field_service_workspace::lock_service_workspace_tickets(c).await?;
+        }
         erpx_server_assets::public::field_service_workspace::lock_service_workspace_assets(c)
             .await?;
         erpx_server_people_payroll::public::field_service_workspace::lock_service_workspace_people(

@@ -12,7 +12,7 @@ export async function serviceCountRead(headers:Pick<Headers,'get'>,actor:WorkCon
  const context=nativeInitialCountContext(actor);
  if(!context)throw new ApiError(409,'WORK_CONTEXT_CHANGED','The work context changed.');
  try {
-  const data=route.kind==='flow'?await nativeInitialCount(headers,slug,context,route):await nativeInitialCount(headers,slug,context,route);
+  const data=route.kind==='flow'?await nativeInitialCount(headers,slug,context,{kind:'flow',id:route.id}):await nativeInitialCount(headers,slug,context,{kind:'generic-detail',id:route.id});
   if(!data)throw new ApiError(503,'NATIVE_INITIAL_COUNT_UNAVAILABLE','Service initial physical stock is unavailable.');
   return data;
  } catch(error) {

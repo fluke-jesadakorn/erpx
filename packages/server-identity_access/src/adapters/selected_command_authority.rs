@@ -214,3 +214,53 @@ async fn inspect_stock(
         Some(current.selection().assignment().version),
     )?)
 }
+
+/// Revalidate an opaque selected actor in its original SERIALIZABLE unit.
+/// This is used for security evidence after source-level denial; it grants no
+/// source read/write permission and accepts no caller-created Actor projection.
+pub async fn require_selected_actor_current(
+    c: &mut PgConnection,
+    context: &AuthorizedWorkContext,
+    now: i64,
+) -> Result<(), Error> {
+    if context.selected_unit.as_ref() != Some(&selected_unit(c).await?) {
+        return Err(changed());
+    }
+    context.require_current_time(now)?;
+    let request = context.selected_request.as_ref().ok_or_else(changed)?;
+    let facts = current_authority_facts(c, request, now).await?;
+    let mut current = authorize_effective_work(
+        request,
+        &WorkAuthorizationRequest {
+            permission: "records.read".into(),
+            module: None,
+            destination: "services/field-service".into(),
+            api: true,
+        },
+        facts,
+        permission_catalog()?,
+        work_module_catalog()?,
+        now,
+    )?;
+    current.expires_at = current.expires_at.min(context.expires_at());
+    if !super::authorized_work::same_authority(context, &current) || {
+        let a = context.selection().workspace();
+        let b = current.selection().workspace();
+        (
+            &a.company_id,
+            &a.branch_id,
+            &a.department_id,
+            &a.branch_slug,
+            &a.department_slug,
+        ) != (
+            &b.company_id,
+            &b.branch_id,
+            &b.department_id,
+            &b.branch_slug,
+            &b.department_slug,
+        )
+    } {
+        return Err(changed());
+    }
+    Ok(())
+}

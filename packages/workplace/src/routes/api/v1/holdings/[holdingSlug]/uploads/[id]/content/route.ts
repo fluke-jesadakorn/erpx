@@ -1,3 +1,5 @@
+import {nativeFieldFamily} from '../../../../../../../../lib/native-field-family';
+import {fieldFileWriterOwner} from '@erpx/server-files/public/field-file-writer-owner';
 import type { RouteContext } from "@erpx/contracts/next-routes";
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import {appAttachmentSources} from "@erpx/server-files/public/app-attachment-sources";
@@ -32,6 +34,10 @@ export async function PUT(
         "ATTACHMENTS_READ_ONLY",
         "Attachment intake is disabled during rollback. Existing clean bound evidence remains readable.",
       );
+    if(await fieldFileWriterOwner(actor,{kind:"upload",id})==="field") {
+      const bytes=await readBoundedUploadBody(request,Number(request.headers.get("content-length")));
+      return await nativeFieldFamily(request,actor,{route:{kind:"upload",intentId:id},body:new Uint8Array(bytes),contentType:request.headers.get("content-type")??""});
+    }
     operation = "open_resources";
     const { write, files } = await holdingResources(actor.holdingId);
     operation = "load_reservation";

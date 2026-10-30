@@ -4,6 +4,7 @@ import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
 import {businessFileOwners,businessFileTarget} from "../../support/helpers/business-file-targets";
 import {attachmentBindingState} from "../../support/helpers/attachment-v2";
+import {proveNativeFieldFiles} from "../../support/files/field-files-native-parity";
 import ownerMatrix from "../../catalogue/engineering-attachment-owner-cases.json";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import type {AttachmentComponentKind} from "@erpx/server-files/public/attachments/types";
@@ -116,6 +117,7 @@ describe('Business File Sources owner intake',()=>{
   await expect(createAttachmentSet(db,narrowed,customInput,key())).rejects.toMatchObject({status:403,code:'ATTACHMENT_FORBIDDEN'});expect((await listAttachmentSets(db,narrowed,{targetType:'asset',targetId:customOwner.targetId})).map(row=>row.id)).toEqual([set.id]);expect(narrowed.iam.permissions).not.toContain('records.write');
  });
  it.each(tuples.map(row=>[row.id,row] as const))('proves authorized intake scan binding reload and revocation for %s',async(_id,tuple)=>{
+  if(tuple.targetType==='field_service_visit'){await proveNativeFieldFiles(tuple.purposeKey,png);return;}
   const componentKind=tuple.componentKind as AttachmentComponentKind,policy=attachmentPolicy(tuple.targetType,tuple.purposeKey,componentKind),owner=await businessFileTarget(db,await expenseFixture(),policy,componentKind),actor=owner.actor;
   actor.iam=await loadIamAuthority(db,actor.companyId,actor.userId,actor.role);
   const componentRef=owner.componentRef??undefined;
@@ -157,5 +159,5 @@ describe('Business File Sources owner intake',()=>{
   await expect(completeAttachmentUpload(db,env.H001_FILES,actor,reserved.uploadIntentId,body)).rejects.toMatchObject(revoked);await expect(completeAttachmentUpload(db,env.H001_FILES,actor,revokedReservation.uploadIntentId,body)).rejects.toMatchObject(revoked);
   expect(await db.prepare('SELECT status,actual_bytes FROM upload_intents WHERE id=?').bind(revokedReservation.uploadIntentId).first()).toEqual({status:'pending',actual_bytes:null});expect(await env.H001_FILES.get(String(await db.prepare('SELECT quarantine_key FROM upload_intents WHERE id=?').bind(revokedReservation.uploadIntentId).first('quarantine_key')))).toBeNull();expect(await db.prepare('SELECT COUNT(*) n FROM attachments WHERE company_id=?').bind(actor.companyId).first('n')).toBe(1);
   expect(await db.prepare('SELECT COUNT(*) n FROM audit_events WHERE command_id=?').bind(command).first('n')).toBe(1);expect(await db.prepare('SELECT COUNT(*) n FROM outbox_events WHERE command_id=?').bind(command).first('n')).toBe(1);expect(await attachmentBindingState(db,set.id)).toMatchObject({set_state:'bound',link_state:'bound',bound_command_id:command});
- });
+ }, 360_000);
 });

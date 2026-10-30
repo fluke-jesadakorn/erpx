@@ -12,7 +12,7 @@ verification-roots = ["../../fixtures/field_service/service-count-generic-action
 
 [features]
 default = ["existing-business"]
-field-service = ["dep:erpx-server-platform-administration", "dep:erpx-server-pms", "dep:erpx-server-records", "dep:erpx-server-organization", "dep:erpx-server-quality", "dep:erpx-server-field-service", "dep:erpx-server-support", "dep:erpx-server-assets", "dep:erpx-server-collaboration", "dep:erpx-server-commerce", "dep:erpx-server-inventory", "dep:erpx-server-people-payroll", "dep:erpx-server-workflow", "dep:erpx-server-identity-access", "dep:erpx-server-files", "dep:erpx-server-finance", "dep:erpx-server-commercial"]
+field-service = ["dep:erpx-server-manage-erpx", "dep:erpx-server-platform-administration", "dep:erpx-server-pms", "dep:erpx-server-records", "dep:erpx-server-organization", "dep:erpx-server-quality", "dep:erpx-server-field-service", "dep:erpx-server-support", "dep:erpx-server-assets", "dep:erpx-server-collaboration", "dep:erpx-server-commerce", "dep:erpx-server-inventory", "dep:erpx-server-people-payroll", "dep:erpx-server-workflow", "dep:erpx-server-identity-access", "dep:erpx-server-files", "dep:erpx-server-finance", "dep:erpx-server-commercial"]
 field-service-http = ["field-service"]
 existing-business = ["field-service", "dep:erpx-server-organization", "dep:erpx-server-quality", "dep:erpx-server-field-service", "dep:erpx-server-support", "dep:erpx-server-assets", "dep:erpx-server-collaboration", "dep:erpx-server-commerce", "dep:erpx-server-inventory", "dep:erpx-server-maintenance", "dep:erpx-server-people-payroll", "dep:erpx-server-workflow", "dep:erpx-server-identity-access", "dep:erpx-server-legal", "dep:erpx-server-files", "dep:erpx-server-finance", "dep:erpx-server-commercial", "dep:erpx-server-platform-administration", "dep:erpx-server-pms"]
 module-example = []
@@ -33,6 +33,7 @@ name = "erpx-server"
 path = "src/main.rs"
 
 [dependencies]
+erpx-server-manage-erpx = { workspace = true, optional = true }
 erpx-server-organization = { workspace = true, optional = true }
 erpx-server-quality = { workspace = true, optional = true }
 erpx-server-field-service = { workspace = true, optional = true }
@@ -303,3 +304,28 @@ required-features = ["field-service-http"]
 name = "service_count_worker_cli_postgres"
 path = "../../tests/integration/field_service/rust-service-count-worker-cli-postgres.test.rs"
 required-features = ["private-field-api"]
+
+[[test]]
+name = "field_files_intake_http_postgres"
+path = "../../tests/integration/field_service/rust-files-intake-http-postgres.test.rs"
+required-features = ["field-service-http", "existing-business"]
+
+[[example]]
+name = "export-field-service-attachment-intake-contracts"
+path = "../../scripts/docs/export-field-service-attachment-intake-contracts.rs"
+required-features = ["contracts"]
+
+[[test]]
+name = "files_reservation_postgres"
+path = "../../tests/integration/field_service/rust-files-reservation-postgres.test.rs"
+required-features = ["field-service", "business-http"]
+
+[[test]]
+name = "field_files_private_api_provider"
+path = "../../tests/provider/files/rust-field-files-private-api-provider.test.rs"
+required-features = ["private-field-api", "files-scan-worker"]
+
+[[example]]
+name = "field_files_vitest_held_provider"
+path = "../../tests/support/files/rust-field-files-vitest-held-provider.rs"
+required-features = ["private-field-api", "files-scan-worker"]

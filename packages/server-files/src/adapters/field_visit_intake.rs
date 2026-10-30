@@ -121,6 +121,17 @@ async fn list_membership<A: FieldIntakeAuthority>(
     Ok(ids)
 }
 
+/// Metadata-only selection before source authorization. An empty Company-scoped
+/// list reveals no Field source facts and preserves the existing empty-list
+/// contract; nonempty results still require a current owner proof.
+pub async fn field_set_query_has_rows(c:&mut PgConnection,actor:&AuthorizedWorkContext,input:&crate::public::field_visit_intake::FieldSetListRequest,read_only:bool)->Result<bool,Error>{
+    unit(c).await?;
+    actor.require_permission("records.read")?;
+    if input.target_type!="field_service_visit" {return Err(changed());}
+    Ok(sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM attachment_sets WHERE company_id=$1 AND target_type='field_service_visit' AND target_id=$2 AND (state='bound' OR (NOT $3 AND state='draft' AND created_by=$4)) AND ($5::text IS NULL OR purpose_key=$5) AND ($6::text IS NULL OR component_kind=$6) AND ($7::bigint IS NULL OR expected_target_version=$7))")
+        .bind(actor.selection().workspace().company_id.as_str()).bind(&input.target_id).bind(read_only).bind(actor.user_id().as_str()).bind(input.purpose_key.as_deref().filter(|s|!s.is_empty())).bind(input.component_kind.as_deref().filter(|s|!s.is_empty())).bind(input.expected_target_version.filter(|v|*v!=0)).fetch_one(c).await?)
+}
+
 /// List the current actor's drafts and bound Field sets under a current read proof.
 pub async fn list_field_sets<A: FieldIntakeAuthority>(
     c: &mut PgConnection,
