@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-30T20:41:38.215887+00:00",
+  "sourceCommit": "443623c863c09d5a8a89cd239a97b3a85784b8b9",
+  "integrationTarget": "codex/rust-backend-migration",
+  "scope": "Shared minimal Parts/Count runtime only; no Files feature or whole-owner claim",
+  "sourceFiles": {
+    "scripts/testing/fixtures/service-count-container-qualification.py": "d62528f2470eb72f739e9350b25edd4d7cb4916031c7b71f8efdca032e850cce",
+    "scripts/testing/fixtures/service-count-container-scenario.mjs": "f14e373194a8a9c48fa87d941d31e11d3294540abb53c479281de493f22e94bc",
+    "ops/containers/service-count-native.Dockerfile": "6bd90dc14f1168a14b44ff15767f5a6b8c9dd8df1aa92d76c6bb7af7cbf3072e",
+    "ops/containers/service-count-native.Dockerfile.dockerignore": "81a1563369570ce31404ec8503a0b86c0605b4513b1ee7e7112754af2bd9640c",
+    "ops/containers/service-count-native.compose.yaml": "c0c694eeffcfda02e3b66bbeac113475696f6642e25c4b383a76a712979e91b8",
+    "ops/containers/service-count-fixture.Dockerfile": "f6cd8fe35608ef4b3e8aac2d533f7da6fcc4d72bfb654a0bd310bef109c5d861",
+    "scripts/testing/fixtures/service-count-container-account.mjs": "4e5c9c8e8cf0452ecfaaf76a254dcb7645297119fbee9596c02bcd0179f2fea7"
+  },
+  "runtimeImage": "sha256:024812ee1bcb85971a419f870a5984666a1682b12e8bb2bd084f4e966fbe3372",
+  "runtimeBytes": 16958478,
+  "testFixtureImage": "sha256:a2d36e58fe7b78314304a41319e6a4d2c518fe503aec83fc52807b66adbcde6d",
+  "architecture": "arm64",
+  "nativeBinarySha256": "3970dd0d9591280d66d46f24133dab25a209ddfc9f46f11430424da510848989",
+  "checks": {
+    "normalAccountSSO": true,
+    "initialReferencesEmpty": true,
+    "nativePartsMappingAndMasterCountSourceLinks": true,
+    "draftCountAndSelectedReadback": true,
+    "realWorkerAckReceiptCheckpoint": true,
+    "runtimeUid": 65532,
+    "readOnlyRootfs": true,
+    "capDrop": [
+      "ALL"
+    ],
+    "noNewPrivileges": true,
+    "normalOwnedExits": [
+      0,
+      0,
+      0
+    ],
+    "ownedCleanupComplete": true,
+    "healthStatus": 200,
+    "readinessStatus": 503,
+    "localTools": "Python compile, Node syntax, diff checks and independent tool/receipt review pass; final documentation checks recorded before commit."
+  },
+  "memorySnapshotMiB": {
+    "api": 4.801,
+    "worker": 3.43
+  },
+  "privateEvidence": [
+    {
+      "path": ".scratch/dev/parts-container-443-evidence.json",
+      "sha256": "d3d1f754920510b1a912019c4099eebfce23bf49b8e4fba0d503e28379268622",
+      "bytes": 4397,
+      "preservedPrivateCopy": ".scratch/dev/service-parts-container-accepted-evidence/d3d1f754920510b1a912019c4099eebfce23bf49b8e4fba0d503e28379268622.json"
+    }
+  ],
+  "limitations": [
+    "ARM64 only; no AMD64 or sustained performance acceptance.",
+    "No Count approve/post claim in this container run; separate Rust browser evidence covers that functional journey.",
+    "No Files feature/tool coverage or combined broader API replacement; qualified Files images retained separately.",
+    "No new crash/fault matrix; normal owned teardown only.",
+    "Exact disposable PostgreSQL leases; no installed production-role qualification, Tunnel cutover, frontend production image, deployment or publication.",
+    "Full Field16, workflow/owner migration, encrypted restore/rollback and final integration gates remain open.",
+    "Hosted CI unavailable; no hosted success status fabricated."
+  ],
+  "integrationStatusAtRecording": "Actual local build/run qualified; scoped PR pending."
+}

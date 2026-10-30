@@ -1,5 +1,7 @@
 # Native Service Count containers
 
+The later [Parts/Count runtime qualification](service-parts-containers.md) records the shared image rebuilt after native Parts writer closure; earlier measurements below remain source-bound historical observations.
+
 This container scope follows [the native Count delivery](rust-service-count-delivery.md), merged through [PR #5](https://github.com/fluke-jesadakorn/erpx/pull/5) into `codex/rust-backend-migration`. It contains the qualified Rust private API and shared Count projection worker. It does not claim a complete ERPX production deployment or complete contributor onboarding.
 
 ## Runtime boundary

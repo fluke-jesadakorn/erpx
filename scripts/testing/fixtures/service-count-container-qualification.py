@@ -27,6 +27,7 @@ class Case:
   self.env=os.environ.copy(); self.env['DOCKER_HOST']=args.docker_host
   self.resources=[]; self.shutdown={}; self.started=time.monotonic(); self.temp=tempfile.TemporaryDirectory(prefix='erpx-count-qual-'); self.case=Path(self.temp.name); self.case.chmod(0o700)
   self.sources={name:ROOT/'scripts/testing/fixtures'/name for name in ['service-count-container-qualification.py','service-count-container-account.mjs','service-count-container-scenario.mjs']}
+  self.sources.update({name:ROOT/'ops/containers'/name for name in ['service-count-native.Dockerfile','service-count-native.Dockerfile.dockerignore','service-count-fixture.Dockerfile','service-count-native.compose.yaml']})
   self.source_hashes={}
   for name,path in self.sources.items():
    data=path.read_bytes();self.source_hashes[name]=hashlib.sha256(data).hexdigest();target=self.case/name;target.write_bytes(data);target.chmod(0o600)
@@ -66,7 +67,8 @@ class Case:
    image=json.loads(r.stdout)[0];identity=image['Id'];self.images[key]=identity;setattr(self.args,key,identity);metadata[key]=image
   fixture,runtime=metadata['fixture_image'],metadata['runtime_image'];fl=fixture['Config'].get('Labels') or {};rl=runtime['Config'].get('Labels') or {};revision=rl.get('org.opencontainers.image.revision');arch=runtime['Architecture']
   if not re.fullmatch(r'[0-9a-f]{40}',self.args.expected_source) or revision!=self.args.expected_source or fl.get('org.opencontainers.image.revision')!=revision or fixture['Architecture']!=arch or fl.get('org.erpx.target-architecture')!=arch or rl.get('org.erpx.target-architecture')!=arch:raise RuntimeError('fixture/runtime image revision or architecture mismatch')
-  self.image_revision=revision;self.image_arch=arch
+  self.image_revision=revision;self.image_arch=arch;self.image_sizes={key:value['Size'] for key,value in metadata.items()}
+  if runtime['Config'].get('User')!='65532:65532':raise RuntimeError('runtime image user mismatch')
   for kind in ('fixture','runtime'):
    if metadata[kind+'_image']['Config'].get('Volumes'):raise RuntimeError('inspection image must not declare anonymous volumes')
    name=self.remember('container',self.prefix+'-inspect-'+kind);image=self.images[kind+'_image'];self.docker('create','--name',name,'--label',f'{LABEL}={self.ident}','--network','none',image)
@@ -152,13 +154,18 @@ class Case:
   scenario=self.remember('container',self.prefix+'-scenario-'+persona)
   result=self.docker('run','--rm','--name',scenario,'--label',f'{LABEL}={self.ident}','--network',f'container:{pg}','--user','65532:65532','--mount',f'type=volume,src={volume},dst=/case',self.args.client_image,'node','/case/scenario.mjs',persona,check=False)
   if result.returncode:
-   codes=re.findall(r'(?:NATIVE_[A-Za-z0-9_/?-]+|COUNT_SELECTION_NOT_PREPARABLE|COUNT_CREATE_READBACK_INVALID|NATIVE_SELECTED_CONTEXT_MISMATCH)',result.stderr.decode(errors='replace'));raise RuntimeError('native '+persona+' scenario failed: '+(codes[-1] if codes else 'CLIENT_FAILURE'))
+   codes=re.findall(r'(?:NATIVE_[A-Za-z0-9_/?-]+|PARTS_[A-Z_]+|COUNT_SELECTION_NOT_PREPARABLE|COUNT_CREATE_READBACK_INVALID|NATIVE_SELECTED_CONTEXT_MISMATCH)',result.stderr.decode(errors='replace'));raise RuntimeError('native '+persona+' scenario failed: '+(codes[-1] if codes else 'CLIENT_FAILURE'))
  def run_worker(self,state):
-  pg,seed,volume=state['postgres'],state['seed'],state['volume'];result=self.case/'count-result.json';self.docker('cp',f'{seed}:/case/count-result.json',str(result));result.chmod(0o600);count=json.loads(result.read_text())['id']
-  if not re.fullmatch(r'count-[A-Za-z0-9_-]{1,128}',count):raise RuntimeError('invalid synthetic Count identity')
+  pg,seed,volume=state['postgres'],state['seed'],state['volume'];result=self.case/'count-result.json';self.docker('cp',f'{seed}:/case/count-result.json',str(result));result.chmod(0o600);count_data=json.loads(result.read_text());count=count_data['id']
+  finance=self.case/'finance-setup.json';self.docker('cp',f'{seed}:/case/finance-setup.json',str(finance));finance.chmod(0o600);setup=json.loads(finance.read_text())
+  if not re.fullmatch(r'count-[A-Za-z0-9_-]{1,128}',count) or count_data['companyId']!='company' or count_data['version']!=1 or setup.get('initialReferencesEmpty') is not True or setup.get('mappingConfigured') is not True:raise RuntimeError('invalid synthetic Parts or Count receipt')
+  for identifier in (count_data['warehouseId'],count_data['productId'],setup['chartId']):
+   if not re.fullmatch(r'[A-Za-z0-9_-]{1,128}',identifier):raise RuntimeError('invalid synthetic Parts receipt identity')
   worker=self.remember('container',self.prefix+'-worker');self.docker('run','-d','--name',worker,'--label',f'{LABEL}={self.ident}','--network',f'container:{pg}','--user','65532:65532','--read-only','--cap-drop','ALL','--security-opt','no-new-privileges:true','--tmpfs','/tmp:rw,noexec,nosuid,size=16777216','--mount',f'type=volume,src={volume},dst=/case,readonly',self.args.runtime_image,'service-count-worker','--development-config','/case/runtime.json')
   write=state['config']['holdings'][0]['database']['url'].split('/')[3].split('?')[0];read=state['readDatabase']
   def query(db,sql):return self.docker('exec','-i',pg,'psql','-XAt','-v','ON_ERROR_STOP=1','-U','postgres','-d',db,data=sql.encode()).stdout.decode().strip()
+  sources=query(write,f"SELECT (EXISTS(SELECT 1 FROM finance_charts WHERE id='{setup['chartId']}' AND company_id='company') AND EXISTS(SELECT 1 FROM commerce_service_parts_posting_sources WHERE company_id='company') AND EXISTS(SELECT 1 FROM commerce_warehouses WHERE id='{count_data['warehouseId']}' AND company_id='company') AND EXISTS(SELECT 1 FROM commerce_products WHERE id='{count_data['productId']}' AND company_id='company') AND EXISTS(SELECT 1 FROM inventory_service_initial_physical_sources WHERE count_id='{count}' AND company_id='company' AND warehouse_id='{count_data['warehouseId']}' AND product_id='{count_data['productId']}' AND chart_id='{setup['chartId']}'))::text;")
+  if sources!='true':raise RuntimeError('persisted Parts and Count sources missing')
   for _ in range(100):
    result=query(write,f"SELECT count(*) FROM outbox_events WHERE aggregate_type='inventory_count' AND aggregate_id='{count}' AND event_type='inventory.count.create' AND aggregate_version=1 AND processed_at IS NOT NULL AND last_error IS NULL;")
    if result=='1':break
@@ -174,7 +181,7 @@ class Case:
   for label,name in [('api',state['api']),('worker',worker)]:
    raw=self.docker('inspect','--format','{{json .HostConfig}}',name).stdout;cfg=json.loads(raw);hardening[label]={'readOnlyRootfs':cfg['ReadonlyRootfs'],'capDrop':cfg['CapDrop'],'securityOpt':cfg['SecurityOpt'],'tmpfs':cfg['Tmpfs']}
    if not cfg['ReadonlyRootfs'] or 'ALL' not in cfg['CapDrop'] or 'no-new-privileges:true' not in cfg['SecurityOpt'] or '/tmp' not in cfg['Tmpfs']:raise RuntimeError('runtime hardening mismatch')
-  return {'countCreated':True,'outboxAcknowledged':True,'matchingReceiptCount':1,'checkpointCount':1,'stats':[json.loads(line) for line in stats],'hardening':hardening}
+  return {'initialFinanceReferencesEmpty':True,'nativePartsMappingReadback':True,'nativePartsMastersAndCountSourcesPersisted':True,'countCreated':True,'outboxAcknowledged':True,'matchingReceiptCount':1,'checkpointCount':1,'stats':[json.loads(line) for line in stats],'hardening':hardening}
 
 def main()->None:
  parser=argparse.ArgumentParser();parser.add_argument('--docker-host',required=True);parser.add_argument('--postgres-image',required=True);parser.add_argument('--fixture-image',required=True);parser.add_argument('--runtime-image',required=True);parser.add_argument('--client-image',required=True);parser.add_argument('--seed-binary',default='/usr/local/bin/native-field-service-development');parser.add_argument('--evidence',required=True);parser.add_argument('--expected-source',required=True);args=parser.parse_args()
@@ -188,7 +195,7 @@ def main()->None:
  finally:case.cleanup()
  if evidence is not None:
   evidence['gracefulExits']=case.shutdown;evidence['caseLabel']=case.ident;evidence['cleanupComplete']=True
-  case.verify_sources();evidence['images']=case.images;evidence['expectedSource']=args.expected_source;evidence['imageRevision']=case.image_revision;evidence['imageArchitecture']=case.image_arch;evidence['nativeBinarySha256']=case.binary_hash;evidence['fixtureHoldingReadMigrations']=case.migrations;evidence['qualificationSourceSha256Before']=case.source_hashes;evidence['qualificationSourceSha256After']={name:hashlib.sha256(path.read_bytes()).hexdigest() for name,path in case.sources.items()}
+  case.verify_sources();evidence['images']=case.images;evidence['imageSizesBytes']=case.image_sizes;evidence['expectedSource']=args.expected_source;evidence['imageRevision']=case.image_revision;evidence['imageArchitecture']=case.image_arch;evidence['nativeBinarySha256']=case.binary_hash;evidence['fixtureHoldingReadMigrations']=case.migrations;evidence['qualificationSourceSha256Before']=case.source_hashes;evidence['qualificationSourceSha256After']={name:hashlib.sha256(path.read_bytes()).hexdigest() for name,path in case.sources.items()}
   path=Path(args.evidence);path.parent.mkdir(parents=True,exist_ok=True);fd=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
   with os.fdopen(fd,'w') as out:json.dump(evidence,out,indent=2)
   print('native Service Count container qualification passed; evidence saved')
