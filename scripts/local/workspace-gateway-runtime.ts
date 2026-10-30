@@ -3,10 +3,10 @@ import { createServer, request as httpRequest, type IncomingMessage, type Server
 import { connect } from "node:net";
 import { PassThrough, type Duplex } from "node:stream";
 import { spawn, type ChildProcess } from "node:child_process";
-import { createWriteStream, readFileSync, mkdirSync, writeFileSync, renameSync, existsSync } from "node:fs";
+import { createWriteStream, readFileSync, mkdirSync, writeFileSync, renameSync, existsSync, readlinkSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
-import { recoverGatewayApps, type ProcessIdentity } from "./app-process-leases";
+import { recoverGatewayApps, inspectProcessIdentity, assertRetiredLeasePortsAvailable, type ProcessIdentity, type PidNamespace } from "./app-process-leases";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { appDefinitions, appDirectory, appForHost, unregisteredDevelopmentProductHost } from "@erpx/contracts/apps";
 import {holdingRoutingEnabled,holdingHostForHost,contributorExactOrigin,contributorOriginProfile,originProfile} from '@erpx/feature-runtime/lib/holding-hosts';
@@ -47,23 +47,29 @@ for (const [id,port] of assignedPorts) {
 }
 const logs = resolve(repository, ".scratch/dev/apps"); mkdirSync(logs, { recursive: true, mode: 0o700 });
 function processIdentity(pid: number): ProcessIdentity | null {
-  try {
+  return inspectProcessIdentity(pid, () => {
     const command = execFileSync("ps", ["-p", String(pid), "-o", "command="], {encoding:"utf8",stdio:["ignore","pipe","ignore"]}).trim();
     const started = execFileSync("ps", ["-p", String(pid), "-o", "lstart="], {encoding:"utf8",stdio:["ignore","pipe","ignore"]}).trim();
     const cwd = execFileSync("lsof", ["-a", "-p", String(pid), "-d", "cwd", "-Fn"], {encoding:"utf8",stdio:["ignore","pipe","ignore"]}).split("\n").find(line=>line.startsWith("n"))?.slice(1);
     if (!command || !started || !cwd) throw new Error("PROCESS_IDENTITY_UNAVAILABLE");
     return {command,cwd,started};
-  } catch (error) {
-    try { process.kill(pid,0); } catch (probe) { if ((probe as NodeJS.ErrnoException).code === "ESRCH") return null; }
-    throw error;
-  }
+  }, processId => {process.kill(processId,0);});
 }
-const priorLease=resolve(logs,"leases.json");
-if(existsSync(priorLease)) await recoverGatewayApps(JSON.parse(readFileSync(priorLease,"utf8")),repository,{
+function currentPidNamespace(): PidNamespace | undefined {
+  if (process.platform !== 'linux') return undefined;
+  try { const bootId=readFileSync('/proc/sys/kernel/random/boot_id','utf8').trim(),namespace=readlinkSync('/proc/self/ns/pid'); return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(bootId)&&/^pid:\[\d+\]$/.test(namespace)?{bootId,namespace}:undefined; }
+  catch { return undefined; } // Unproven namespace retains strict PID checks.
+}
+const pidNamespace=currentPidNamespace(), priorLease=resolve(logs,"leases.json");
+if(existsSync(priorLease)) {
+ const previous=JSON.parse(readFileSync(priorLease,"utf8"));
+ const oldNamespace=await recoverGatewayApps(previous,repository,{
   identity:processIdentity,
   stop:pid=>{process.kill(pid,"SIGTERM");},
   waitForExit:async pid=>{const deadline=Date.now()+30_000;while(processIdentity(pid)){if(Date.now()>deadline)throw new Error("OWNED_APP_SHUTDOWN_TIMEOUT");await new Promise(done=>setTimeout(done,100));}},
-},assignedPorts);
+ },assignedPorts,pidNamespace);
+ if(oldNamespace) await assertRetiredLeasePortsAvailable(previous,options.port,async port=>hasPortListener(port)||await listenerExists(port));
+}
 // A routing preview changes the selected implementation, never host/session authority.
 const preview = randomBytes(24).toString("hex");
 if(options.preview!==false)writeFileSync(resolve(logs, "preview.json"), JSON.stringify({ token: preview, scope: "development-routing-only" }) + "\n", { mode: 0o600 });
@@ -93,7 +99,7 @@ function listenerExists(port: number): Promise<boolean> {
 }
 function leases() {
   const temporary = resolve(logs, `leases-${process.pid}.tmp`), target = resolve(logs, "leases.json");
-  writeFileSync(temporary, JSON.stringify({ version: 2, gatewayPid: process.pid, root: repository,
+  writeFileSync(temporary, JSON.stringify({ version: pidNamespace ? 3 : 2, ...(pidNamespace ? {pidNamespace} : {}), gatewayPid: process.pid, root: repository,
     apps: [...running.values()].map(app => ({ id: app.id, pid: app.child.pid, port: app.port, identity: app.identity })) }, null, 2) + "\n", { mode: 0o600 });
   renameSync(temporary, target);
 }
