@@ -636,3 +636,22 @@ it("isolates the service-only Sales catalogue across every product/shared host a
     for (const host of hosts) expect(productPageAllowed(host, page), `${host}:${page}`).toBe(host === "sales");
   }
 });
+
+
+it('admits only declared account-switcher routes and methods',()=>{
+ for(const host of ['apps','admin','finance','people','pos','pms'] as const){
+  for(const path of ['/account/continue','/api/v1/account/switcher-context']){
+   expect(productPageAllowed(host,path,'GET')).toBe(true);
+   expect(productPageAllowed(host,path,'HEAD')).toBe(true);
+   expect(productPageAllowed(host,path,'POST')).toBe(false);
+  }
+  expect(productPageAllowed(host,'/api/v1/account/role-selection','POST')).toBe(true);
+  expect(productPageAllowed(host,'/api/v1/account/role-selection','GET')).toBe(false);
+  if(host!=='pos'&&host!=='pms')expect(productPageAllowed(host,'/account/continue/extra','GET')).toBe(false);
+ }
+ for(const host of ['booking','portal','legal-portal','forms'] as const){
+  expect(productPageAllowed(host,'/account/continue','GET')).toBe(false);
+  expect(productPageAllowed(host,'/api/v1/account/switcher-context','GET')).toBe(false);
+  expect(productPageAllowed(host,'/api/v1/account/role-selection','POST')).toBe(false);
+ }
+});

@@ -22,13 +22,13 @@ import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 
 function worker() {
-  const handlers: Record<string, (event: any) => void> = {};
-  const shown: any[] = [];
+  const handlers: Record<string, (event: unknown) => void> = {};
+  const shown: { data: { path: string } }[] = [];
   const opened: string[] = [];
   const self = {
     location: { origin: "https://acme.jesadakorn.com" },
-    registration: { showNotification: async (_title: string, options: unknown) => { shown.push(options); } },
-    addEventListener: (name: string, handler: (event: any) => void) => { handlers[name] = handler; },
+    registration: { showNotification: async (_title: string, options: { data: { path: string } }) => { shown.push(options); } },
+    addEventListener: (name: string, handler: (event: unknown) => void) => { handlers[name] = handler; },
   };
   runInNewContext(readFileSync("public/erpx-push-sw.js", "utf8"), {
     self, URL, clients: { matchAll: async () => [], openWindow: async (url: string) => { opened.push(url); } },
