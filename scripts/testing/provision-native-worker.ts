@@ -1,7 +1,7 @@
 /** Explicit source build into a NEW user-owned Linux prefix. Never apt/brew/sudo. */
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, writeFileSync, writeSync } from 'node:fs';
+import { closeSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, realpathSync, writeFileSync, writeSync } from 'node:fs';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sources from '../../fixtures/files/native-toolchain/sources.json';
@@ -54,17 +54,35 @@ export async function provisionNativeWorker(prefix: string, root: string, enviro
   const receiptDirectory = join(root, '.scratch/dev/test-suites/native-worker'); mkdirSync(receiptDirectory, { recursive: true, mode: 0o700 });
   const receiptFile = join(receiptDirectory, 'provision.json');
   const ninja = sources.ninja[process.arch as 'x64' | 'arm64'];
-  const artifacts = [sources.vips, sources.meson, ninja];
+  const artifacts = [sources.vips, sources.lcms, sources.meson, ninja];
   const receipt: Record<string, unknown> = { version: 1, platform: process.platform, architecture: process.arch, prefix, work, status: 'prepared', compiler, pythonVersion, packageVersions, artifacts, mesonOptions: sources.mesonOptions, jobs: sources.buildJobs, runtimeCodecQualified: false, aptVersionsAreObservedNotArtifactPinned: true };
   const save = () => writeFileSync(receiptFile, JSON.stringify(receipt, null, 2) + '\n', { mode: 0o600 }); save();
-  const execute = async (command: string, argv: string[]) => { if (await runNativeBuildChild(command, argv, selected, root) !== 0) throw Error('NATIVE_WORKER_PROVISION_COMMAND_FAILED'); };
+  const execute = async (command: string, argv: string[], cwd = root) => { if (await runNativeBuildChild(command, argv, selected, cwd) !== 0) throw Error('NATIVE_WORKER_PROVISION_COMMAND_FAILED'); };
   try {
     for (const artifact of artifacts) await download(artifact, work);
     receipt.sourceHashesVerified = true; save();
+    const lcmsArchive = join(work, sources.lcms.file);
+    const lcmsNames = observation(tar, ['-tzf', lcmsArchive], selected, root).split('\n');
+    if (!lcmsNames.length || lcmsNames.some(name => !name.startsWith('lcms2-2.19.1/') || name.split('/').includes('..') || name.startsWith('/'))) throw Error('NATIVE_WORKER_ARCHIVE_LAYOUT_INVALID');
+    await execute(tar, ['-xzf', lcmsArchive, '--no-same-owner', '--no-same-permissions', '-C', work]);
+    const lcms = join(work, 'lcms2-2.19.1');
+    await execute(join(lcms, 'configure'), [`--prefix=${prefix}`, '--disable-static', '--without-jpeg', '--without-tiff'], lcms);
+    await execute(nativeTool('make', undefined, selected), ['-C', lcms, '-j', String(sources.buildJobs)]);
+    await execute(nativeTool('make', undefined, selected), ['-C', lcms, 'install']);
+    // Upstream's 2.19.1 release intentionally reports 2.19 in its pkg-config file.
+    if (observation(pkgConfig, ['--modversion', 'lcms2'], selected, root) !== '2.19') throw Error('NATIVE_WORKER_LCMS_VERSION_MISMATCH');
+    mkdirSync(join(prefix, 'share/licenses/lcms2'), { recursive: true, mode: 0o755 });
+    copyFileSync(join(lcms, 'LICENSE'), join(prefix, 'share/licenses/lcms2/LICENSE'));
     const archive = join(work, sources.vips.file);
     const names = observation(tar, ['-tJf', archive], selected, root).split('\n');
     if (!names.length || names.some(name => !name.startsWith('vips-8.18.7/') || name.split('/').includes('..') || name.startsWith('/'))) throw Error('NATIVE_WORKER_ARCHIVE_LAYOUT_INVALID');
     await execute(tar, ['-xJf', archive, '--no-same-owner', '--no-same-permissions', '-C', work]);
+    // Keep the pinned LCMS beside libvips discoverable by the ELF loader even
+    // when the caller's environment and system library configuration differ.
+    const vipsMeson = join(work, 'vips-8.18.7/libvips/meson.build');
+    const mesonSource = readFileSync(vipsMeson, 'utf8'), marker = "    gnu_symbol_visibility: 'hidden',";
+    if (mesonSource.split(marker).length !== 2) throw Error('NATIVE_WORKER_VIPS_PATCH_LAYOUT_INVALID');
+    writeFileSync(vipsMeson, mesonSource.replace(marker, "    install_rpath: '$ORIGIN',\n" + marker));
     const venv = join(work, 'build-tools'); await execute(python, ['-m', 'venv', venv]);
     const pinnedRequirements = join(work, 'requirements.txt');
     writeFileSync(pinnedRequirements, `meson==1.12.1 --hash=sha256:${sources.meson.sha256}\nninja==1.13.2 --hash=sha256:${ninja.sha256}\n`, { mode: 0o600 });
@@ -74,6 +92,12 @@ export async function provisionNativeWorker(prefix: string, root: string, enviro
     await execute(meson, ['setup', build, join(work, 'vips-8.18.7'), '--prefix', prefix, '--wrap-mode=nodownload', ...sources.mesonOptions]);
     await execute(meson, ['compile', '-C', build, '-j', String(sources.buildJobs)]);
     await execute(meson, ['install', '-C', build, '--no-rebuild']);
+    const library = join(prefix, 'lib/libvips.so.42');
+    const dynamic = observation(nativeTool('readelf', undefined, selected), ['-d', library], selected, root);
+    if (!/\(RUNPATH\)[^\n]*\[\$ORIGIN\]/.test(dynamic)) throw Error('NATIVE_WORKER_VIPS_RUNPATH_INVALID');
+    const resolved = /liblcms2\.so\.2\s+=>\s+(.+?)\s+\(0x/.exec(observation(nativeTool('ldd', undefined, selected), [library], selected, root))?.[1];
+    if (!resolved || realpathSync(resolved) !== realpathSync(join(prefix, 'lib/liblcms2.so.2'))) throw Error('NATIVE_WORKER_LCMS_RESOLUTION_INVALID');
+    receipt.vipsInstallRunpath = '$ORIGIN'; receipt.lcmsResolvedInsidePrefix = true;
     receipt.buildOptions = JSON.parse(observation(meson, ['introspect', build, '--buildoptions'], selected, root));
     const verified = inspectNativeWorkerPrerequisites({ ...selected, ERPX_NATIVE_VIPS_PREFIX: prefix, ERPX_NATIVE_PKG_CONFIG_BIN: pkgConfig, ERPX_CARGO_BIN: environment.ERPX_CARGO_BIN, ERPX_RUSTC_BIN: environment.ERPX_RUSTC_BIN }, root);
     receipt.observation = verified.observation; receipt.status = 'succeeded';

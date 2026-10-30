@@ -7,7 +7,7 @@ use erpx_server_runtime::public::owned_process::{
 };
 use libvips::{
     VipsApp, VipsImage,
-    ops::{self, Access, FailOn, IccTransformOptions, Intent, Interpretation, ResizeOptions},
+    ops::{self, Access, IccTransformOptions, Intent, Interpretation, ResizeOptions},
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -265,26 +265,21 @@ fn render_image(app: &VipsApp, file: &str, media: PreviewSourceMedia) -> Result<
             factor /= 2;
         }
         if factor > 1 {
-            image = ops::jpegload_with_opts(
-                file,
-                &ops::JpegloadOptions {
-                    shrink: factor,
-                    access: Access::Sequential,
-                    fail_on: FailOn::Warning,
-                    ..Default::default()
-                },
+            // The generated libvips binding passes the loader's output-only
+            // flags property as an input vararg, which can crash on Linux.
+            // The filename is a fixed private name and factor is computed above.
+            image = VipsImage::new_from_file_access(
+                &format!("{file}[shrink={factor},fail_on=warning]"),
+                Access::Sequential,
+                false,
             )
             .map_err(|_| Failure::DecoderRejected)?;
         }
     } else if media == PreviewSourceMedia::Webp && shrink > 1. {
-        image = ops::webpload_with_opts(
-            file,
-            &ops::WebploadOptions {
-                scale: 1. / shrink,
-                access: Access::Sequential,
-                fail_on: FailOn::Warning,
-                ..Default::default()
-            },
+        image = VipsImage::new_from_file_access(
+            &format!("{file}[scale={},fail_on=warning]", 1. / shrink),
+            Access::Sequential,
+            false,
         )
         .map_err(|_| Failure::DecoderRejected)?;
     }

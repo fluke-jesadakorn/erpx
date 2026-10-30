@@ -10,6 +10,13 @@
     "bytes": 25425084,
     "sourceMetadata": "https://api.github.com/repos/libvips/libvips/releases/tags/v8.18.7"
   },
+  "lcms": {
+    "file": "lcms2-2.19.1.tar.gz",
+    "url": "https://github.com/mm2/Little-CMS/releases/download/lcms2.19.1/lcms2-2.19.1.tar.gz",
+    "sha256": "bfc54f7bab59fbc921012014a8032e4cba4abd46db47d46b76416a8c0b2815c8",
+    "bytes": 5728743,
+    "sourceMetadata": "https://api.github.com/repos/mm2/Little-CMS/releases/tags/lcms2.19.1"
+  },
   "meson": {
     "file": "meson-1.12.1-py3-none-any.whl",
     "url": "https://files.pythonhosted.org/packages/57/99/36cd25f9598eef70db97577440a70a360af505f6f01c2338a18d1556079c/meson-1.12.1-py3-none-any.whl",
