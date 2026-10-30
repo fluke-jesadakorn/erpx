@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-30T03:44:00.841241+00:00",
+  "updatedAt": "2026-10-30T09:01:33.951992+00:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Complete bounded Rust capability with frontend/dependencies, one writer and immediate legacy implementation withdrawal; scoped PR integration target codex/rust-backend-migration only; Docker that completed capability next before the following migration bundle; Dev Container grows only with qualified Rust/Docker scope. Development requires another maintainer instruction.",
   "catalogue": {
@@ -2045,12 +2045,21 @@
     "capabilityDeliveries": [
       {
         "id": "service-initial-physical-stock-count",
-        "status": "native capability verified after legacy withdrawal; scoped integration PR pending",
+        "status": "native capability merged; scoped ARM64 Docker qualification complete",
         "branch": "codex/service-initial-stock-capability",
         "integrationTarget": "codex/rust-backend-migration",
         "rust": "Normal-authentication candidate journey passed native setup/create, generic update and Flow saveDefault, submit, independent approval/post and real worker drain. Post-retirement generic Count GET/SSR and Flow GET explicitly reach Rust and render the posted record. This closes the bounded Count capability only, not a complete Field catalogue workflow or owner.",
-        "docker": "Not started for this capability; waits for complete native behavior and implementation withdrawal.",
-        "mergedPullRequest": null,
+        "docker": "Shared distroless non-root ARM64 runtime built/run and qualified: 16,942,946 uncompressed bytes. Actual isolated Account/SSO, native setup/Count create/read and native worker projection/ack passed under read-only/capability-drop policy. Source/recipe provenance checked. Scoped delivery branch codex/service-count-container-runtime targets migration only; AMD64, production configuration and full Dev Container onboarding remain unqualified.",
+        "mergedPullRequest": {
+          "number": 5,
+          "url": "https://github.com/fluke-jesadakorn/erpx/pull/5",
+          "target": "codex/rust-backend-migration",
+          "mergeCommit": "f6be90f743fa149713bc488f06c0cfbbaf1041a7",
+          "candidateCommit": "c48bae82408173dc235a7836b4b3da96a1245f1c",
+          "tree": "047e30380b0f4117ee3b0222b20c62dcd56e7964",
+          "baseCommit": "26833f92888a77e7076ea562c28a82362ae39907",
+          "verified": "Remote merge SHA and both parents verified; merge tree equals locally checked capability candidate. Development remains fce92bf47917402423add1dfbc269c7f47158548."
+        },
         "legacyRemoved": [
           "Service initial-stock BFF selection/read/create/actions/Flow fallback branches and imports.",
           "Service initial-stock SSR legacy workspace/Flow fallback branches and imports.",
@@ -2102,8 +2111,8 @@
           }
         ],
         "blockers": [
-          "Final frozen candidate architecture/catalogue/docs/structure/lint/secret/reference checks and independent review before scoped PR merge.",
-          "Build/run and measure minimal shared non-root Rust API/worker Docker support after native capability integration; current leased-development configuration is not production activation."
+          "Production configuration/provisioning, AMD64 qualification and full Dev Container fresh setup/HMR remain separate gates.",
+          "Other Field dependencies and complete owner/catalogue workflows remain open; no development merge or production activation is authorized."
         ],
         "checks": {
           "frontend": "Service entry suites 98 cases; existing Count Next entry 4; update SDK/adapter suites 80; shared Flow uncertain-retry state 5. Counts overlap and are not workflow completion. Actual post-retirement browser journey remains required.",
@@ -2120,7 +2129,13 @@
           "genericDetail": "Typed native generic detail matches complete retained TS response for untracked and lot Counts in draft/cancelled states; safe numbers/null/current stock/lot fields, scope denials and no effects pass. Equal-timestamp history ties retain unspecified ordering. Native audit adds receipt/Company/record-type isolation for colliding record IDs; deliberate security correction is tested separately. Inventory facts target1/1 and assembled private admission1/1 pass."
         },
         "retestReason": "New generic detail projection, post-retirement import/build graph, native Flow read dispatch and later-progress retry correction changed affected source. Reran selected HTTP PostgreSQL, actual browser read continuation, historical oracle, live fence, typecheck and focused controllers; unrelated source-matched evidence reused.",
-        "elapsedClosedBundle": null
+        "elapsedClosedBundle": {
+          "from": "2026-10-30T11:50:41+07:00",
+          "to": "2026-10-30T15:37:19+07:00",
+          "approximateWallMinutes": 226.6,
+          "meaning": "Observed interval from first scoped revision/retirement checkpoint to native capability PR merge, including investigation, reviews and waiting. Not active coding time, complete Field bundle duration, or whole-goal forecast."
+        },
+        "containerEvidence": "docs/testing/evidence/2026-10-30-service-count-containers.json"
       }
     ]
   },
