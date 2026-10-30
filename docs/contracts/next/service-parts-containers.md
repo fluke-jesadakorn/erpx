@@ -35,4 +35,4 @@ The [receipt](../../testing/evidence/2026-10-31-service-parts-containers.json) b
 - [x] Normal SSO and initially empty native Parts/master/Count lifecycle and exact source links pass.
 - [x] Actual worker acknowledgement/projection and health/readiness semantics pass.
 - [x] Hardened processes, normal graceful exits and owned resource cleanup pass.
-- [ ] Independent review/final local checks and scoped PR merge into the migration branch; verify remote SHA.
+- [x] Independent review/final local checks and scoped [PR #13](https://github.com/fluke-jesadakorn/erpx/pull/13) merge at `1f71a96fbccddbd8b2a8c5e29b7734dd6661c880`; remote SHA verified.

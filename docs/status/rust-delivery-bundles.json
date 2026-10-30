@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-31",
+  "updatedAt": "2026-10-30T22:03:39.444693+00:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Complete bounded Rust capability with frontend/dependencies, one writer and immediate legacy implementation withdrawal; scoped PR integration target codex/rust-backend-migration only; Docker that completed capability next before the following migration bundle; Dev Container grows only with qualified Rust/Docker scope. Development requires another maintainer instruction.",
   "catalogue": {
@@ -2304,7 +2304,7 @@
       },
       {
         "id": "service-parts-native-writer-closure",
-        "status": "Rust functional/native writer closure merged; Docker in progress",
+        "status": "Rust and Docker merged; bounded contributor environment qualified, scoped PR pending",
         "branch": "codex/service-parts-native-closure",
         "integrationTarget": "codex/rust-backend-migration",
         "contract": "docs/contracts/next/service-parts-native-closure.md",
@@ -2323,7 +2323,7 @@
           "ProductEntry authority read for Identity/WorkProjection until equivalent native entry migration"
         ],
         "docker": {
-          "status": "Fresh ARM64 image build/run locally qualified; scopedPR pending",
+          "status": "Merged; fresh ARM64 shared runtime locally qualified",
           "branch": "codex/service-parts-container",
           "sourceCodeCommit": "443623c863c09d5a8a89cd239a97b3a85784b8b9",
           "recipe": "ops/containers/service-count-native.Dockerfile",
@@ -2333,8 +2333,17 @@
           "contract": "docs/contracts/next/service-parts-containers.md",
           "evidence": "docs/testing/evidence/2026-10-31-service-parts-containers.json",
           "checklist": {
-            "closed": 5,
+            "closed": 6,
             "total": 6
+          },
+          "sourceCommit": "6061de068b834abf18e688d22e07704be4e1ccce",
+          "mergeCommit": "1f71a96fbccddbd8b2a8c5e29b7734dd6661c880",
+          "pullRequest": "https://github.com/fluke-jesadakorn/erpx/pull/13",
+          "elapsedClosedBundle": {
+            "startedAt": "2026-10-31T03:34:39+07:00",
+            "mergedAt": "2026-10-31T03:55:17+07:00",
+            "wallSeconds": 1238,
+            "includesWaits": true
           }
         },
         "currentEvidence": {
@@ -2352,8 +2361,8 @@
         ],
         "evidence": "docs/testing/evidence/2026-10-31-service-parts-native-closure.json",
         "blockers": [
-          "Actual rebuilt Parts/Count container runtime qualification and scopedPR.",
-          "Field16 colddevHMR and selected-Company releaseSSR engineering/nativelease bridge remain separate open Field blockers."
+          "Scoped Dev Container PR integration.",
+          "Field16 cold development HMR and selected-Company releaseSSR engineering/native lease bridge remain open."
         ],
         "sourceCommit": "9fe6478f4e5692b34a2e855c5df3857fc9f8d3ea",
         "pullRequest": "https://github.com/fluke-jesadakorn/erpx/pull/12",
@@ -2363,6 +2372,18 @@
           "mergedAt": "2026-10-31T03:34:39+07:00",
           "wallSeconds": 3529,
           "includesWaits": true
+        },
+        "devContainer": {
+          "status": "Bounded local qualification passed; scoped PR pending",
+          "branch": "codex/service-parts-devcontainer",
+          "sourceCodeCommit": "1f71a96fbccddbd8b2a8c5e29b7734dd6661c880",
+          "contract": "docs/contracts/next/service-parts-devcontainer.md",
+          "evidence": "docs/testing/evidence/2026-10-31-service-parts-devcontainer.json",
+          "checklist": {
+            "closed": 7,
+            "total": 8
+          },
+          "scope": "Existing mapping confirmation, masters and draft Count; actual HMR/cache/restart. Cold warnings retained; no complete Field or releaseSSR claim."
         }
       }
     ]

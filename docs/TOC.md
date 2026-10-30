@@ -17,6 +17,7 @@ Reviewed 2026-10-29. This is the single entry point. The [production plan](produ
 - [Field Files contributor lifecycle, persistent objects and source-edit qualification](contracts/next/field-files-devcontainer.md).
 - [Service Parts preparation native writer closure and admission checklist](contracts/next/service-parts-native-closure.md).
 - [Shared minimal native Parts/Count image and local runtime qualification](contracts/next/service-parts-containers.md).
+- [Service Parts contributor container qualification and limitations](contracts/next/service-parts-devcontainer.md).
 - [Native Service Count container boundary and qualification](contracts/next/rust-service-count-containers.md).
 - [Service Count outbox ownership and recovery](contracts/next/rust-service-count-outbox.md).
 - [Native private business HTTP component contract](contracts/next/rust-business-http.md) and [development session/SSR boundary](contracts/next/rust-private-session-api.md).
