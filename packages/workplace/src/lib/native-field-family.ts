@@ -76,6 +76,12 @@ export function createFieldFamilyBridge(raw:string,transport:Transport=direct){c
  if(input.route.kind==='upload'&&(result.status!==202||!validUpload(v.data,input.route.intentId)))return fail(503,'NATIVE_ATTACHMENT_RESPONSE_INVALID');
  return Response.json(v,{status:result.status,headers:{'Cache-Control':'private, no-store'}});
  };}
+/** UI visibility only; every native request still performs its own current authority checks. */
+export function nativeFieldFamilyVisible(holdingSlug:string,holdingId:string,host:string|null):boolean {
+ const raw=process.env.ERPX_NATIVE_FIELD_ATTACHMENT_CONFIG;if(!raw||process.env.NODE_ENV==='production')return false;
+ const target=config(raw).holdings.find(h=>h.holdingSlug===holdingSlug);
+ return !!target?.fieldFamily&&target.holdingId===holdingId&&new URL(target.origin).host===host;
+}
 export function nativeFieldFamily(request:Request,actor:WorkContext,input:Input){const raw=process.env.ERPX_NATIVE_FIELD_ATTACHMENT_CONFIG;if(!raw||process.env.NODE_ENV==='production')return fail(503,'NATIVE_FIELD_FILES_NOT_CONFIGURED');return createFieldFamilyBridge(raw)(request,actor,input);}
 
 /** Existing bind/withdraw contracts retain their context-bearing native replies. */

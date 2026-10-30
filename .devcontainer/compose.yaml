@@ -3,10 +3,12 @@
 name: erpx-dev-${ERPX_DEV_WORKSPACE_KEY:?Set ERPX_DEV_WORKSPACE_KEY}
 services:
   workspace:
+    image: erpx-opensource-dev-toolchain-files-lcms2191:local
     working_dir: /workspace/erpx
     ports:
       - "127.0.0.1:3443:3443"
     volumes:
+      - native-files:/workspace/erpx-native-files
       - source:/workspace/erpx
       - node-modules:/workspace/erpx/node_modules
       - cargo-target:/workspace/erpx/target
@@ -30,6 +32,8 @@ services:
 volumes:
   local-ca:
     name: erpx-dev-${ERPX_DEV_WORKSPACE_KEY:?Set ERPX_DEV_WORKSPACE_KEY}-local-ca
+  native-files:
+    name: erpx-dev-${ERPX_DEV_WORKSPACE_KEY:?Set ERPX_DEV_WORKSPACE_KEY}-native-files
   source:
     name: erpx-dev-${ERPX_DEV_WORKSPACE_KEY:?Set ERPX_DEV_WORKSPACE_KEY}-source
   node-modules:

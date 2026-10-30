@@ -1,6 +1,6 @@
 /** Private native leases for the already-provisioned, keyed contributor cluster. */
 import { randomBytes } from 'node:crypto';
-import { closeSync, existsSync, openSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, chownSync, closeSync, existsSync, lstatSync, mkdirSync, openSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { Pool } from 'pg';
 
 const bindings = ['CONTROL_DB', 'CONTROL_READ_DB', ...['H001', 'H002', 'H003'].flatMap(id => [`${id}_DB`, `${id}_READ_DB`])];
@@ -95,7 +95,9 @@ export async function writeNativeConfiguration(config: string, state: Leases) {
     } finally { await pool.end(); }
   }
   const holdings=[['h001','acme'],['h002','northstar'],['h003','erpx']].map(([id,slug],i)=>({holdingId:id,slug,host:`${id === 'h003' ? 'erpx-internal' : slug}.erpx.localhost:3443`,writeBinding:`H00${i+1}_DB`,readBinding:`H00${i+1}_READ_DB`,filesBinding:`H00${i+1}_FILES`,database:database(`H00${i+1}_DB`),readDatabase:database(`H00${i+1}_READ_DB`)}));
-  const document={version:1,mode:'development',transport:'direct-loopback',listen:'127.0.0.1:44817',accountHost:'account.erpx.localhost:3443',requireEmailVerification:true,passwordWorkers:2,maximumRequests:16,requestTimeoutMs:5000,control:database('CONTROL_DB'),holdings,fieldServiceReads:[{holdingId:'h001',companyId:'acme-co'}],fieldServicePartsPostingSetups:['h001'],fieldServicePartsPrerequisites:['h001'],fieldServiceStockSetups:['h001'],fieldServiceInitialCounts:[{holdingId:'h001',filesEnabled:true,filesReadOnly:false,uploadsFrozen:false}],accountBootstrap:true};
+  const filesRoot='/workspace/erpx-native-files', temporaryRoot='/run/erpx-native-files-tmp';
+  for (const path of [filesRoot,temporaryRoot]) { mkdirSync(path,{recursive:true,mode:0o700}); const info=lstatSync(path); if(!info.isDirectory()||info.isSymbolicLink())throw Error('NATIVE_FILES_DIRECTORY_INVALID'); chownSync(path,65532,65532); chmodSync(path,0o700); }
+  const document={version:1,mode:'development',transport:'direct-loopback',listen:'127.0.0.1:44817',accountHost:'account.erpx.localhost:3443',requireEmailVerification:true,passwordWorkers:2,maximumRequests:16,requestTimeoutMs:5000,control:database('CONTROL_DB'),holdings,fieldServiceReads:[{holdingId:'h001',companyId:'acme-co'}],fieldServicePartsPostingSetups:['h001'],fieldServicePartsPrerequisites:['h001'],fieldServiceStockSetups:['h001'],fieldServiceWorkspaceReads:['h001'],fieldServiceDetailReads:['h001'],fieldAttachmentLinks:[{holdingId:'h001',mode:'enabled'}],fieldAttachmentBinds:[{holdingId:'h001',mode:'enabled'}],fieldFilesPolicy:{mode:'enabled',uploadsFrozen:false},fieldFilesProviders:{targets:[{holdingId:'h001',companyId:'acme-co',filesBinding:'H001_FILES',filesRoot,temporaryRoot,previewBinary:'/run/erpx-native/bin/erpx-render-preview',heifConvert:'/usr/bin/heif-convert',pdftoppm:'/usr/bin/pdftoppm',clamavSocket:'/run/erpx-scanner/clamd.sock',clamavDatabaseDirectory:'/run/erpx-clamav-definitions',maximumDefinitionAgeMs:86400000,commandTimeoutMs:5000,scanTimeoutMs:30000,concurrentScans:1}]},fieldServiceInitialCounts:[{holdingId:'h001',filesEnabled:true,filesReadOnly:false,uploadsFrozen:false}],accountBootstrap:true};
   writeAtomic(`${config}/private-api.json`,document);
   writeAtomic(`${config}/worker.json`,document);
   writeAtomic(`${config}/dev-container-credentials.json`, { maker:{email:'mali@erpx.dev',password:'Mali-ERPX-2026!'}, reviewer:{email:'nisa@erpx.dev',password:'Nisa-ERPX-2026!'} });

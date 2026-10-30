@@ -2,6 +2,7 @@ import 'server-only';
 import {Agent,request} from 'node:http';
 import {Readable} from 'node:stream';
 import {headers} from 'next/headers';
+import {contributorExactOrigin} from '@erpx/feature-runtime/lib/holding-hosts';
 import type {FieldServiceWorkspaceResponse,FieldServiceOrderDetailResponse} from '@erpx/contracts/field-service-reserve';
 import type {FieldWorkspace,FieldDetail} from '../../lib/workspace';
 import type {ReserveContext} from '../../lib/native-reserve-command';
@@ -22,7 +23,7 @@ function configuration(raw:string):Settings {
  let base:URL;try{base=new URL(v.privateBaseUrl);}catch{return fail('NATIVE_SERVICE_CONFIGURATION_INVALID');}
  const port=Number(base.port),reserved=[3000,3001,3100,3101,3103,5432,5433,5435,8080];
  if(base.protocol!=='http:'||!['127.0.0.1','[::1]'].includes(base.hostname)||!base.port||reserved.includes(port)||port>=3200&&port<=3299||base.username||base.password||v.privateBaseUrl!==base.origin)return fail('NATIVE_SERVICE_CONFIGURATION_INVALID');
- const hosts=new Set<string>(),slugs=new Set<string>();for(const h of v.holdings){if(!obj(h)||typeof h.origin!=='string'||typeof h.holdingSlug!=='string'||!/^[a-z0-9_-]{1,128}$/.test(h.holdingSlug)||!text(h.holdingId)||new TextEncoder().encode(h.holdingId as string).length>200)return fail('NATIVE_SERVICE_CONFIGURATION_INVALID');let origin:URL;try{origin=new URL(h.origin);}catch{return fail('NATIVE_SERVICE_CONFIGURATION_INVALID');}if(origin.protocol!=='https:'||h.origin!==origin.origin||origin.port||origin.username||origin.password||!origin.hostname.includes('.')||!origin.hostname.split('.').every(p=>/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(p))||hosts.has(origin.host)||slugs.has(h.holdingSlug))return fail('NATIVE_SERVICE_CONFIGURATION_INVALID');hosts.add(origin.host);slugs.add(h.holdingSlug);}
+ const hosts=new Set<string>(),slugs=new Set<string>();for(const h of v.holdings){if(!obj(h)||typeof h.origin!=='string'||typeof h.holdingSlug!=='string'||!/^[a-z0-9_-]{1,128}$/.test(h.holdingSlug)||!text(h.holdingId)||new TextEncoder().encode(h.holdingId as string).length>200)return fail('NATIVE_SERVICE_CONFIGURATION_INVALID');let origin:URL;try{origin=new URL(h.origin);}catch{return fail('NATIVE_SERVICE_CONFIGURATION_INVALID');}if(origin.protocol!=='https:'||h.origin!==origin.origin||(origin.port&&contributorExactOrigin(origin.host)!==origin.origin)||origin.username||origin.password||!origin.hostname.includes('.')||!origin.hostname.split('.').every(p=>/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(p))||hosts.has(origin.host)||slugs.has(h.holdingSlug))return fail('NATIVE_SERVICE_CONFIGURATION_INVALID');hosts.add(origin.host);slugs.add(h.holdingSlug);}
  return v as Settings;
 }
 function workspace(value:unknown,actor:ReserveContext):FieldWorkspace {

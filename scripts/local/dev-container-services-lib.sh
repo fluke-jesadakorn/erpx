@@ -8,10 +8,23 @@ services_compose() {
   fi
 }
 services_up() {
-    # This Dockerfile copies only from pinned base stages. Send no live source
-    # context (including ignored data) when preparing a first contributor image.
-    if ! docker image inspect erpx-opensource-dev-toolchain:local >/dev/null 2>&1; then
-      docker build -t erpx-opensource-dev-toolchain:local - < "$root/.devcontainer/Dockerfile"
+    tool_image=erpx-opensource-dev-toolchain:local
+    if [ "$services_workspace_mode" = true ]; then tool_image=erpx-opensource-dev-toolchain-files-lcms2191:local; fi
+    # Stream only the pinned toolchain recipe and its source manifest; never send
+    # the checkout or its ignored data as a Docker build context.
+    if ! docker image inspect "$tool_image" >/dev/null 2>&1; then
+      context=$(mktemp -d "${TMPDIR:-/tmp}/erpx-contributor-build.XXXXXXXX") || exit 1
+      mkdir -p "$context/scripts/testing" "$context/fixtures/files/native-toolchain"
+      cp "$root/.devcontainer/Dockerfile" "$context/Dockerfile"
+      for file in provision-native-worker.ts native-worker-toolchain.ts native-worker-link-flags.ts cargo-build-profile.ts; do cp "$root/scripts/testing/$file" "$context/scripts/testing/$file"; done
+      cp "$root/fixtures/files/native-toolchain/sources.json" "$context/fixtures/files/native-toolchain/sources.json"
+      if ! COPYFILE_DISABLE=1 docker build -t "$tool_image" "$context"; then rm -rf "$context"; exit 1; fi
+      rm -rf "$context"
+    fi
+    # Reject orphaned persistent stores before any listener check or creation.
+    # Repeat the check at the creation boundary to cover concurrent changes.
+    if ! docker volume inspect "${project}_secrets" >/dev/null 2>&1; then
+      if docker volume inspect "${project}-native-files" >/dev/null 2>&1 || docker volume inspect "${project}-postgres" >/dev/null 2>&1 || docker volume inspect "${project}-source" >/dev/null 2>&1 || docker volume inspect "${project}-local-ca" >/dev/null 2>&1; then echo MISSING_LEASE_WITH_EXISTING_DATA >&2; exit 1; fi
     fi
     if [ "$services_workspace_mode" = true ]; then
       # Never adopt or stop another checkout's HTTPS listener. Docker also
@@ -30,20 +43,28 @@ services_up() {
     [ "$free_kib" -ge 65011712 ] || { echo 'HOST_DISK_SPACE_BELOW_SERVICE_HEADROOM' >&2; exit 1; }
     # The named volume contains only locally generated disposable credentials.
     if docker volume inspect "${project}_secrets" >/dev/null 2>&1; then
-      docker run --rm --network=none -e ERPX_DEV_WORKSPACE_KEY -v "${project}_secrets:/secrets:ro" erpx-opensource-dev-toolchain:local sh -ec 'test -f /secrets/workspace-key && test "$(cat /secrets/workspace-key)" = "$ERPX_DEV_WORKSPACE_KEY" && test "$(stat -c %a /secrets/workspace-key)" = 600 && test -s /secrets/postgres && test -s /secrets/test-admin' || { echo WORKSPACE_LEASE_MISMATCH >&2; exit 1; }
+      docker run --rm --network=none -e ERPX_DEV_WORKSPACE_KEY -v "${project}_secrets:/secrets:ro" "$tool_image" sh -ec 'test -f /secrets/workspace-key && test "$(cat /secrets/workspace-key)" = "$ERPX_DEV_WORKSPACE_KEY" && test "$(stat -c %a /secrets/workspace-key)" = 600 && test -s /secrets/postgres && test -s /secrets/test-admin' || { echo WORKSPACE_LEASE_MISMATCH >&2; exit 1; }
     else
       # Never adopt an existing database volume when its secret lease is absent.
-      if docker volume inspect "${project}-postgres" >/dev/null 2>&1 || docker volume inspect "${project}-source" >/dev/null 2>&1 || docker volume inspect "${project}-local-ca" >/dev/null 2>&1; then echo MISSING_LEASE_WITH_EXISTING_DATA >&2; exit 1; fi
+      if docker volume inspect "${project}-native-files" >/dev/null 2>&1 || docker volume inspect "${project}-postgres" >/dev/null 2>&1 || docker volume inspect "${project}-source" >/dev/null 2>&1 || docker volume inspect "${project}-local-ca" >/dev/null 2>&1; then echo MISSING_LEASE_WITH_EXISTING_DATA >&2; exit 1; fi
       docker volume create "${project}_secrets" >/dev/null
-      docker run --rm --network=none -e ERPX_DEV_WORKSPACE_KEY -v "${project}_secrets:/secrets" erpx-opensource-dev-toolchain:local sh -ec 'umask 077; printf "%s\n" "$ERPX_DEV_WORKSPACE_KEY" > /secrets/workspace-key'
+      docker run --rm --network=none -e ERPX_DEV_WORKSPACE_KEY -v "${project}_secrets:/secrets" "$tool_image" sh -ec 'umask 077; printf "%s\n" "$ERPX_DEV_WORKSPACE_KEY" > /secrets/workspace-key'
     fi
-    docker run --rm --network=none -v "${project}_secrets:/secrets" erpx-opensource-dev-toolchain:local sh -ec 'umask 077; test -s /secrets/postgres || openssl rand -hex 32 > /secrets/postgres; test -s /secrets/test-admin || openssl rand -hex 32 > /secrets/test-admin; printf "postgresql://erpx_test_admin:%s@127.0.0.1:5432/postgres" "$(cat /secrets/test-admin)" > /secrets/test-admin-url'
+    docker run --rm --network=none -v "${project}_secrets:/secrets" "$tool_image" sh -ec 'umask 077; test -s /secrets/postgres || openssl rand -hex 32 > /secrets/postgres; test -s /secrets/test-admin || openssl rand -hex 32 > /secrets/test-admin; printf "postgresql://erpx_test_admin:%s@127.0.0.1:5432/postgres" "$(cat /secrets/test-admin)" > /secrets/test-admin-url'
     if [ "$services_workspace_mode" = true ]; then
       # Only the tiny configuration image is rebuilt; source edits never
       # rebuild the toolchain or application images.
       services_compose build https
     fi
     services_compose up -d
+    if [ "$services_workspace_mode" = true ]; then
+      # Scanner definitions contain public signatures; grant search/read only to
+      # its existing group, which is the native worker's sole supplemental group.
+      attempt=0
+      until services_compose exec -T -u 1000 scanner sh -ec 'test "$(stat -c %u:%g /var/lib/clamav)" = 1000:1000; chmod 0750 /var/lib/clamav'; do
+        attempt=$((attempt+1)); [ "$attempt" -lt 30 ] || { echo SCANNER_DEFINITIONS_ACCESS_UNAVAILABLE >&2; exit 1; }; sleep 1
+      done
+    fi
     services_compose exec -T postgres sh -ec '
       tries=0
       until pg_isready -h 127.0.0.1 -U postgres -d postgres >/dev/null; do
