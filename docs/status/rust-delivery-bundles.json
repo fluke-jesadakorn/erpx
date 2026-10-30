@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-30T09:01:33.951992+00:00",
+  "updatedAt": "2026-10-30T11:35:13.277513+00:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Complete bounded Rust capability with frontend/dependencies, one writer and immediate legacy implementation withdrawal; scoped PR integration target codex/rust-backend-migration only; Docker that completed capability next before the following migration bundle; Dev Container grows only with qualified Rust/Docker scope. Development requires another maintainer instruction.",
   "catalogue": {
@@ -2135,7 +2135,18 @@
           "approximateWallMinutes": 226.6,
           "meaning": "Observed interval from first scoped revision/retirement checkpoint to native capability PR merge, including investigation, reviews and waiting. Not active coding time, complete Field bundle duration, or whole-goal forecast."
         },
-        "containerEvidence": "docs/testing/evidence/2026-10-30-service-count-containers.json"
+        "containerEvidence": "docs/testing/evidence/2026-10-30-service-count-containers.json",
+        "devContainer": {
+          "status": "locally qualified scoped delivery",
+          "sourceCommit": "c6764f1fe877338b5bb3d2185658d9e8fed27af2",
+          "pullRequest": "https://github.com/fluke-jesadakorn/erpx/pull/7",
+          "integrationTarget": "codex/rust-backend-migration",
+          "scope": "Account/Apps/Acme Service Count contributor onboarding on macOS ARM64 owned Colima; transitional dependencies explicit",
+          "evidence": "docs/testing/evidence/2026-10-30-service-count-devcontainer.json",
+          "checks": "Fresh official CLI initialize/bootstrap/start/exec, normal HTTPS Company/role, native Count+worker source-equivalent proof, hydrated source-edit HMR, Rust incremental cache, actual Webpack disk reuse after namespace restart, private-key/lease/volume-preserving stale-lock recover, targeted329 unit cases and local quality checks.",
+          "retained": "Shared TypeScript readers, UI preference owner/transaction checks and unrelated legacy jobs; no removed Count fallback restored. Full Field/owner and whole-system counts unchanged.",
+          "remaining": "Other apps/Holdings/platforms, production configuration, full owner migration and wider role-chooser console diagnostics remain separate gates."
+        }
       }
     ]
   },
