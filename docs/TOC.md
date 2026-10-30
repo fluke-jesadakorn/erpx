@@ -14,6 +14,7 @@ Reviewed 2026-10-29. This is the single entry point. The [production plan](produ
 - [Field visit Files candidate ownership and remaining gates](contracts/next/field-visit-files-native.md).
 - [Native preview platform parity and portable color-management dependency](contracts/next/native-preview-platform-parity.md).
 - [Field Files native images, explicit Compose inputs and local qualification](contracts/next/field-files-native-container.md).
+- [Field Files contributor lifecycle, persistent objects and source-edit qualification](contracts/next/field-files-devcontainer.md).
 - [Native Service Count container boundary and qualification](contracts/next/rust-service-count-containers.md).
 - [Service Count outbox ownership and recovery](contracts/next/rust-service-count-outbox.md).
 - [Native private business HTTP component contract](contracts/next/rust-business-http.md) and [development session/SSR boundary](contracts/next/rust-private-session-api.md).

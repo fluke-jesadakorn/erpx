@@ -33,6 +33,7 @@ try {
   if(!matches(result))throw Error('CONTRIBUTOR_SERVICE_GRANT_CONFLICT');
  }
  const definitions=[
+  {id:'contributor_files_maker',name:'Synthetic Field Files maker',user:'usr_mali',modules:['field_service'],permissions:['records.read','records.write','module.field_service.read'],scopes:['holding']},
   {id:'contributor_count_maker',name:'Synthetic Count maker',user:'usr_mali',modules:['inventory','field_service'],permissions:['records.read','inventory.read','inventory.prepare','workflow.warehouse_manager','organization.manage','module.inventory.read','module.field_service.read'],scopes:['holding','branch']},
   {id:'contributor_count_reviewer',name:'Synthetic Count reviewer',user:'usr_nisa',modules:['finance','inventory','field_service'],permissions:['finance.read','finance.write','finance.approve','inventory.read','inventory.approve','workflow.finance_approver','module.finance.read','module.inventory.read','module.field_service.read','records.read'],scopes:['holding']},
  ];
@@ -55,6 +56,19 @@ try {
   const existing=await db.prepare('SELECT user_id,role,modules_json,company_id,scope_kind,revoked_at FROM assignments WHERE id=?').bind(assignment).first<Record<string,unknown>>();
   if(existing && (existing.user_id!==d.user||existing.role!==d.id||existing.modules_json!==modules||existing.company_id!=='acme-co'||existing.scope_kind!=='holding'||existing.revoked_at!==null))throw Error('CONTRIBUTOR_SERVICE_ASSIGNMENT_CONFLICT');
   await db.prepare("INSERT INTO assignments(id,user_id,role,modules_json,company_id,valid_from,valid_until,version,scope_kind) VALUES(?,?,?,?,?,0,?,1,'holding') ON CONFLICT DO NOTHING").bind(assignment,d.user,d.id,modules,'acme-co',4102444800000).run();
+ }
+ const existingVisit=await db.prepare('SELECT company_id,branch_id,ticket_id,agreement_id,technician_id FROM field_service_orders WHERE id=?').bind('contributor-field-visit').first<Record<string,unknown>>();
+ if(existingVisit && (existingVisit.company_id!=='acme-co'||existingVisit.branch_id!=='bangkok'||existingVisit.ticket_id!=='contributor-field-ticket'||existingVisit.agreement_id!=='contributor-field-agreement'||existingVisit.technician_id!=='usr_mali'))throw Error('CONTRIBUTOR_FIELD_VISIT_CONFLICT');
+ if(!existingVisit){
+  const now=Date.now();
+  await db.transaction(async tx=>{
+   await tx.prepare("INSERT INTO finance_parties(id,company_id,kind,code,name,currency,created_at,updated_at) VALUES('contributor-field-customer','acme-co','customer','FIELD-DEMO','Synthetic Field customer','THB',?,?)").bind(now,now).run();
+   await tx.prepare("INSERT INTO field_service_agreements(id,company_id,branch_id,customer_id,title,start_date,end_date,currency,visit_rate_minor,status,created_by,reviewed_by,reviewed_at,version,created_at,updated_at) VALUES('contributor-field-agreement','acme-co','bangkok','contributor-field-customer','Synthetic Field agreement','2026-01-01','2099-12-31','THB',10000,'active','usr_mali','usr_nisa',?,2,?,?)").bind(now,now,now).run();
+   await tx.prepare("INSERT INTO field_service_agreement_events(id,agreement_id,version,action,actor_id,reason,status,created_at) VALUES('contributor-field-agreement-review','contributor-field-agreement',2,'activate','usr_nisa','Synthetic independent approval','active',?)").bind(now).run();
+   await tx.prepare("INSERT INTO support_tickets(id,company_id,branch_id,order_id,customer_id,title,issue,owner_id,due_date,created_by,created_at,updated_at,source_kind,service_agreement_id,service_order_id,service_order_version) VALUES('contributor-field-ticket','acme-co','bangkok',NULL,'contributor-field-customer','Synthetic Field visit','Synthetic Field file intake','usr_mali',to_char(to_timestamp(?::bigint/1000.0) AT TIME ZONE 'UTC','YYYY-MM-DD'),'usr_mali',?,?,'field_service','contributor-field-agreement','contributor-field-visit',3)").bind(now,now,now).run();
+   await tx.prepare("INSERT INTO field_service_orders(id,company_id,branch_id,ticket_id,ticket_version,agreement_id,agreement_version,issue,site,technician_id,scheduled_at,status,created_by,version,created_at,updated_at) VALUES('contributor-field-visit','acme-co','bangkok','contributor-field-ticket',1,'contributor-field-agreement',2,'Synthetic Field file intake','Synthetic site','usr_mali',?,'in_visit','usr_mali',3,?,?)").bind(now,now,now).run();
+   await tx.prepare("INSERT INTO field_service_order_events(id,order_id,version,action,actor_id,reason,status,technician_id,scheduled_at,details_json,created_at) VALUES('contributor-field-visit-start','contributor-field-visit',3,'start','usr_mali','Synthetic contributor visit','in_visit','usr_mali',?,'{}',?)").bind(now,now).run();
+  });
  }
  console.log('CONTRIBUTOR_SERVICE_DEMO_READY');
 } finally { await fixture.dispose(); }

@@ -135,7 +135,7 @@
         "evidenceFlows": [
           "field-service-initial-count-native"
         ],
-        "acceptanceBoundary": "Bounded Count entry/selection/lifecycle/Flow/Finance proof; default runtime/writer withdrawal and exact-candidate integration remain items12–15/18."
+        "acceptanceBoundary": "Bounded Count entry/selection/lifecycle/Flow/Finance proof; default runtime/writer withdrawal and exact-candidate integration remain items12\u201315/18."
       },
       {
         "number": 10,
@@ -660,7 +660,7 @@
           "writeFootprint": "Field Order/event, start timestamp, Support projection, notice and Workflow effects",
           "authorityAndIsolation": "Current selected actor, module, Company/scope and purpose-specific purchase/source witnesses; no selector grants authority.",
           "isolationStatus": "BLOCKED: native selection is a disposable nonproduction opt-in, while retained TypeScript and internal compatibility writers are not globally fenced.",
-          "withdrawalFence": "Retain dispatched→in_visit rules and current actor; fence legacy start with exact retry.",
+          "withdrawalFence": "Retain dispatched\u2192in_visit rules and current actor; fence legacy start with exact retry.",
           "status": "qualified bounded opt-in; no owner cutover",
           "commandOperation": "field.order.start"
         },
@@ -718,7 +718,7 @@
           "writeFootprint": "Field Order/event, Support projection, notice and Workflow receipt/audit/outbox",
           "authorityAndIsolation": "Current selected actor, module, Company/scope and purpose-specific purchase/source witnesses; no selector grants authority.",
           "isolationStatus": "BLOCKED: native selection is a disposable nonproduction opt-in, while retained TypeScript and internal compatibility writers are not globally fenced.",
-          "withdrawalFence": "Retain exception→in_visit semantics and current actor; fence legacy resume.",
+          "withdrawalFence": "Retain exception\u2192in_visit semantics and current actor; fence legacy resume.",
           "status": "qualified bounded opt-in; no owner cutover",
           "commandOperation": "field.order.resume"
         },
@@ -2150,7 +2150,7 @@
       },
       {
         "id": "field-visit-files-intake",
-        "status": "Rust merged; Docker locally qualified scoped candidate",
+        "status": "Rust and Docker merged; Dev Container locally qualified scoped candidate",
         "branch": "codex/field-files-delivery",
         "integrationTarget": "codex/rust-backend-migration",
         "scope": [
@@ -2162,7 +2162,7 @@
         "contract": "docs/contracts/next/field-visit-files-native.md",
         "rust": "Merged locally verified native Files capability; actual provider/browser and same-database history/business assertions pass, with immediate legacy retirement. No complete catalogue workflow or owner increment.",
         "docker": {
-          "status": "Fresh default ARM64 build/runtime qualified; scoped PR pending",
+          "status": "Merged; fresh default ARM64 build/runtime qualified",
           "sourceCodeCommit": "168420994b9b335bf0a470b67f96bb2e44a38ff4",
           "apiImage": "sha256:a52da2d54afc5762a809e8a573b90118c4d2ae6645bc5c87b9c2b72ab012cca0",
           "apiBytes": 46438599,
@@ -2170,11 +2170,17 @@
           "workerBytes": 64260485,
           "contract": "docs/contracts/next/field-files-native-container.md",
           "evidence": "docs/testing/evidence/2026-10-31-field-files-native-container.json",
-          "scope": "Isolated exact leased development resources; not installed production roles or public gateway cutover. ARM64 only."
+          "scope": "Isolated exact leased development resources; not installed production roles or public gateway cutover. ARM64 only.",
+          "pullRequest": "https://github.com/fluke-jesadakorn/erpx/pull/10",
+          "mergeCommit": "c57bed200830a8073a887fffb198b28fa0f02f46",
+          "checklist": {
+            "closed": 8,
+            "total": 8
+          }
         },
         "legacyRemoved": [
           "Field-only attachment-purchases/attachment-read/attachments-policy-facts/attachments-service-facts adapter/public pairs and exports",
-          "Files↔Field unused TypeScript workspace dependencies",
+          "Files\u2194Field unused TypeScript workspace dependencies",
           "Optional native transport selector wrappers, presenter/client ID-selector props and selector APIs"
         ],
         "legacyRemovalStatus": "Removed from the TS build/runtime graph; actual persisted markers fence direct and alternate legacy reads inside owned units. Non-Field shared consumers remain.",
@@ -2189,8 +2195,7 @@
           }
         ],
         "blockers": [
-          "Scoped Docker PR integration on the source-bound local candidate.",
-          "Independent review/final guards and scoped PR for the declared Field Files Dev Container extension."
+          "Final source-bound Dev Container documentation checks and scoped PR integration."
         ],
         "checks": [
           "Source-bound local TypeScript/Clippy/lint/catalogue/architecture/structure/docs/generated input checks and independent review passed. SharedFiles34; ownership/Portal handoff6; focusedfrontend30; real scanner/browser/business/nativeIO proofs. No hostedCIstatus."
@@ -2215,6 +2220,15 @@
           "pullRequest": "https://github.com/fluke-jesadakorn/erpx/pull/9",
           "mergeCommit": "168420994b9b335bf0a470b67f96bb2e44a38ff4",
           "evidence": "docs/testing/evidence/2026-10-31-native-preview-linux-parity.json"
+        },
+        "devContainer": {
+          "status": "Fresh ARM64 repository and official Dev Containers CLI lifecycle locally qualified; scoped PR pending",
+          "branch": "codex/field-files-devcontainer",
+          "sourceCodeCommit": "168420994b9b335bf0a470b67f96bb2e44a38ff4",
+          "image": "sha256:51011e0a57507d315dcbee3907cced145dc1f6055166aed402dbd070f930e570",
+          "contract": "docs/contracts/next/field-files-devcontainer.md",
+          "evidence": "docs/testing/evidence/2026-10-31-field-files-devcontainer.json",
+          "scope": "Acme Account/Apps/Service, native Count and Field visit Files; keyed Linux volumes, macOS ARM64 only. No public Tunnel cutover."
         }
       }
     ]
@@ -2280,7 +2294,7 @@
       "id": "holding-product-entry-native-session",
       "kind": "entry-evidence",
       "status": "flow-complete",
-      "scope": "Normal native session rootchooser and genuine Company/role→existing FieldService ownerlanding; notnativeApps/list or fullIdentitymigration",
+      "scope": "Normal native session rootchooser and genuine Company/role\u2192existing FieldService ownerlanding; notnativeApps/list or fullIdentitymigration",
       "sourceIdentity": "71adc86a55674997a6aba6ebf682a3ecfae594eb",
       "evidenceRef": ".scratch/dev/sol-terra-pilot/execution-state.json (completedFlows entry holding-product-entry-native-session)",
       "durableContractRefs": []
@@ -2334,7 +2348,7 @@
       "id": "field-service-visit-start",
       "kind": "business-flow-evidence",
       "status": "flow-complete",
-      "scope": "ActualSchedule→Dispatch→Start nativeactions withtypedownerafterimages,currentauthority/HR/settlement andnativeeventreadback",
+      "scope": "ActualSchedule\u2192Dispatch\u2192Start nativeactions withtypedownerafterimages,currentauthority/HR/settlement andnativeeventreadback",
       "sourceIdentity": "ca05ec43dedfc456989916a261e5bb1a8672dcc1",
       "evidenceRef": ".scratch/dev/sol-terra-pilot/execution-state.json (completedFlows entry field-service-visit-start)",
       "durableContractRefs": []
@@ -2343,7 +2357,7 @@
       "id": "field-service-visit-complete",
       "kind": "business-flow-evidence",
       "status": "flow-complete",
-      "scope": "Actual Complete visit drawer→native owner transaction→typed immutable completion confirmation; release remaining reservations and enforce posted cost journals",
+      "scope": "Actual Complete visit drawer\u2192native owner transaction\u2192typed immutable completion confirmation; release remaining reservations and enforce posted cost journals",
       "sourceIdentity": "dcecbe8105cde770431ca328743075b9d6f00e69",
       "evidenceRef": ".scratch/dev/sol-terra-pilot/execution-state.json (completedFlows entry field-service-visit-complete)",
       "durableContractRefs": []
@@ -2352,7 +2366,7 @@
       "id": "field-service-visit-exception-resume",
       "kind": "business-flow-evidence",
       "status": "flow-complete",
-      "scope": "ActualException→Resume drawers use nativeatomicService/Support/Collaboration/Workflow andkey-onlyimmutableconfirmation",
+      "scope": "ActualException\u2192Resume drawers use nativeatomicService/Support/Collaboration/Workflow andkey-onlyimmutableconfirmation",
       "sourceIdentity": "57a5e6ae8a52e4310d2eb2e88a45c6a2ccde6e4d",
       "evidenceRef": ".scratch/dev/sol-terra-pilot/execution-state.json (completedFlows entry field-service-visit-exception-resume)",
       "durableContractRefs": []
@@ -2361,7 +2375,7 @@
       "id": "field-service-order-cancel",
       "kind": "business-flow-evidence",
       "status": "flow-complete",
-      "scope": "ActualCancel drawer→Rustatomiccancellation/reservationrelease→receipt-boundnativeconfirmation",
+      "scope": "ActualCancel drawer\u2192Rustatomiccancellation/reservationrelease\u2192receipt-boundnativeconfirmation",
       "sourceIdentity": "0caa110c35f1eeec8294a145b5970a81aec85244",
       "evidenceRef": ".scratch/dev/sol-terra-pilot/execution-state.json (completedFlows entry field-service-order-cancel)",
       "durableContractRefs": []
@@ -2388,7 +2402,7 @@
       "id": "field-service-raw-physical-scope-interop",
       "kind": "interop-evidence",
       "status": "interop-complete",
-      "scope": "Actual210bytebranch/dept/Customer/selectedAsset together: Agreementcreate→genuineReview→Request+existingticketOrder/replays/readbacks→nativeSchedule/Reserve/Dispatch/Start→Issue/nativeproof→genuineFinancecostworkspace/post/replay. No historicaltransition substitution.",
+      "scope": "Actual210bytebranch/dept/Customer/selectedAsset together: Agreementcreate\u2192genuineReview\u2192Request+existingticketOrder/replays/readbacks\u2192nativeSchedule/Reserve/Dispatch/Start\u2192Issue/nativeproof\u2192genuineFinancecostworkspace/post/replay. No historicaltransition substitution.",
       "sourceIdentity": "e3953e3e731a62cc83ed6ed88075c5f58b8e0359",
       "evidenceRef": ".scratch/dev/sol-terra-pilot/execution-state.json (completedFlows entry field-service-raw-physical-scope-interop)",
       "durableContractRefs": []
@@ -2555,7 +2569,7 @@
       "effects": "One posted Countv4/source/line/stock/ledger; 2000milli/600minor; one nonopening posted journal with debit Inventory1200=600 and credit variance5400=600; distinct canonical maker/reviewer. Each of22 command receipts has one command-owned audit and outbox effect; total audit rows25 include other activity.",
       "retry": "Two native201 observations with identical body/key/context hashes; first committed reply dropped, second delivered; one Count create effect.",
       "durationMs": 57568,
-      "durationBoundary": "Bounded fresh setup→Count browser journey, not full Field bundle or labor/finish estimate.",
+      "durationBoundary": "Bounded fresh setup\u2192Count browser journey, not full Field bundle or labor/finish estimate.",
       "limitations": [
         "Integrated run retains intentional response-loss503 and10ERR_ABORTED navigation events; not clean Company-entry acceptance. Fresh final posted readback has zero page/console/request errors.",
         "Default native selection, legacy HTTP/internal/jobs fences, Files/Records, full six Field workflows and exact candidate gates remain open.",

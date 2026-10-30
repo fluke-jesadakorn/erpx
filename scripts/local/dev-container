@@ -43,7 +43,7 @@ case "$command" in
     if [ "$command" = recover ]; then
       # Explicit bounded recovery of this leased namespace, never a PID guess.
       docker volume inspect "${project}_secrets" >/dev/null 2>&1 || { echo WORKSPACE_LEASE_REQUIRED >&2; exit 1; }
-      docker run --rm --network=none -e ERPX_DEV_WORKSPACE_KEY -v "${project}_secrets:/secrets:ro" erpx-opensource-dev-toolchain:local sh -ec 'test -f /secrets/workspace-key && test "$(cat /secrets/workspace-key)" = "$ERPX_DEV_WORKSPACE_KEY" && test "$(stat -c %a /secrets/workspace-key)" = 600' || { echo WORKSPACE_LEASE_MISMATCH >&2; exit 1; }
+      docker run --rm --network=none -e ERPX_DEV_WORKSPACE_KEY -v "${project}_secrets:/secrets:ro" erpx-opensource-dev-toolchain-files-lcms2191:local sh -ec 'test -f /secrets/workspace-key && test "$(cat /secrets/workspace-key)" = "$ERPX_DEV_WORKSPACE_KEY" && test "$(stat -c %a /secrets/workspace-key)" = 600' || { echo WORKSPACE_LEASE_MISMATCH >&2; exit 1; }
       compose down
     fi
     services_workspace_mode=true
@@ -81,8 +81,8 @@ case "$command" in
   down) compose down ;;
   reset)
     docker volume inspect "${project}_secrets" >/dev/null 2>&1 || { echo WORKSPACE_LEASE_REQUIRED >&2; exit 1; }
-    docker run --rm --network=none -e ERPX_DEV_WORKSPACE_KEY -v "${project}_secrets:/secrets:ro" erpx-opensource-dev-toolchain:local sh -ec 'test -f /secrets/workspace-key && test "$(cat /secrets/workspace-key)" = "$ERPX_DEV_WORKSPACE_KEY" && test "$(stat -c %a /secrets/workspace-key)" = 600' || { echo WORKSPACE_LEASE_MISMATCH >&2; exit 1; }
-    for suffix in source postgres scanner-socket scanner-definitions local-ca node26.11.1-bun1.4.3-modules rust1.99.1-target rust1.99.1-registry rust1.99.1-git bun1.4.3-cache; do
+    docker run --rm --network=none -e ERPX_DEV_WORKSPACE_KEY -v "${project}_secrets:/secrets:ro" erpx-opensource-dev-toolchain-files-lcms2191:local sh -ec 'test -f /secrets/workspace-key && test "$(cat /secrets/workspace-key)" = "$ERPX_DEV_WORKSPACE_KEY" && test "$(stat -c %a /secrets/workspace-key)" = 600' || { echo WORKSPACE_LEASE_MISMATCH >&2; exit 1; }
+    for suffix in native-files source postgres scanner-socket scanner-definitions local-ca node26.11.1-bun1.4.3-modules rust1.99.1-target rust1.99.1-registry rust1.99.1-git bun1.4.3-cache; do
       volume="${project}-${suffix}"
       if docker volume inspect "$volume" >/dev/null 2>&1; then
         owner=$(docker volume inspect --format '{{ index .Labels "com.docker.compose.project" }}' "$volume")
@@ -90,7 +90,7 @@ case "$command" in
       fi
     done
     compose down
-    for suffix in source postgres scanner-socket scanner-definitions local-ca node26.11.1-bun1.4.3-modules rust1.99.1-target rust1.99.1-registry rust1.99.1-git bun1.4.3-cache; do
+    for suffix in native-files source postgres scanner-socket scanner-definitions local-ca node26.11.1-bun1.4.3-modules rust1.99.1-target rust1.99.1-registry rust1.99.1-git bun1.4.3-cache; do
       volume="${project}-${suffix}"; if docker volume inspect "$volume" >/dev/null 2>&1; then docker volume rm "$volume" >/dev/null; fi
     done
     docker volume rm "${project}_secrets" >/dev/null

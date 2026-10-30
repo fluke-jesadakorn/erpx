@@ -66,4 +66,4 @@ This is a container checklist, separate from the full Field/workflow/owner regis
 - [x] The unchanged 22-case preview corpus passes on the exact default worker image.
 - [x] Normal teardown and nonzero-service failure teardown preserve ownership and failure reporting.
 - [x] Independent review and targeted local source/documentation checks pass; hosted CI success is not asserted.
-- [ ] Scoped PR merges into `codex/rust-backend-migration` and its remote SHA is verified.
+- [x] [PR #10](https://github.com/fluke-jesadakorn/erpx/pull/10) merged into `codex/rust-backend-migration` at `c57bed200830a8073a887fffb198b28fa0f02f46`; remote SHA verified.

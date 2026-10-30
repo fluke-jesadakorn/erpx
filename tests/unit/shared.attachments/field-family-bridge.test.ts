@@ -1,7 +1,7 @@
 import {describe,it,expect,vi} from 'vitest';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import {createHash} from 'node:crypto';
-import {createFieldFamilyBridge} from '../../../packages/workplace/src/lib/native-field-family';
+import {createFieldFamilyBridge,nativeFieldFamilyVisible} from '../../../packages/workplace/src/lib/native-field-family';
 const actor={holdingSlug:'acme',holdingId:'h',companyId:'c',assignmentId:'a',authority:{revision:1,assignmentVersion:2},iam:{},scope:{kind:'holding'}} as unknown as WorkContext;
 const config=JSON.stringify({privateBaseUrl:'http://127.0.0.1:44817',timeoutMs:1000,holdings:[{origin:'https://acme.example.com',holdingSlug:'acme',holdingId:'h',fieldFamily:true}]});
 const req=()=>new Request('https://acme.example.com/api',{headers:{host:'acme.example.com',cookie:'test=one','x-erpx-context-company':'c','x-erpx-context-assignment':'a','x-erpx-context-revision':'1','x-erpx-context-assignment-version':'2'}});
@@ -61,4 +61,9 @@ describe('Field family bridge',()=>{
   for(const query of ['?targetId=order&targetId=other&expectedTargetVersion=3&expectedTargetVersion=4','?targetId=order&expectedTargetVersion=0','?targetId=order&expectedTargetVersion=junk','?targetId=order&expectedTargetVersion=0x3']){transport.mockResolvedValueOnce(json({data:[set]},200));expect((await bridge(req(),actor,{route:{kind:'list',query}})).status).toBe(200);}
   const body=new TextEncoder().encode(JSON.stringify({targetType:'field_service_visit',targetId:'order',componentKind:'record',componentRef:'  ',purposeKey:'site_photo',expectedTargetVersion:3}));transport.mockResolvedValueOnce(json({data:set},201));expect((await bridge(req(),actor,{route:{kind:'create'},body})).status).toBe(201);
  });
+});
+
+it('shows the native Field surface only for its exact configured Holding and host',()=>{
+ const local=JSON.stringify({privateBaseUrl:'http://127.0.0.1:44817',timeoutMs:1000,holdings:[{origin:'https://acme.erpx.localhost:3443',holdingSlug:'acme',holdingId:'h001',fieldFamily:true}]});
+ try {vi.stubEnv('NODE_ENV','development');vi.stubEnv('NEXT_PUBLIC_ERPX_DEV_ORIGIN_PROFILE','container-localhost');vi.stubEnv('ERPX_NATIVE_FIELD_ATTACHMENT_CONFIG',local);expect(nativeFieldFamilyVisible('acme','h001','acme.erpx.localhost:3443')).toBe(true);expect(nativeFieldFamilyVisible('acme','h002','acme.erpx.localhost:3443')).toBe(false);expect(nativeFieldFamilyVisible('acme','h001','acme.erpx.localhost:3444')).toBe(false);vi.stubEnv('NODE_ENV','production');expect(nativeFieldFamilyVisible('acme','h001','acme.erpx.localhost:3443')).toBe(false);}finally{vi.unstubAllEnvs();}
 });

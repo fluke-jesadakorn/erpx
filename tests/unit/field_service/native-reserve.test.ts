@@ -443,3 +443,15 @@ it('native Count and parts setup accept only exact explicitly enabled contributo
  for(const f of check('https://acme.erpx.localhost:3443','acme.erpx.localhost:3444'))expect(f).toThrow();
  vi.stubEnv('NODE_ENV','production');for(const f of check('https://acme.erpx.localhost:3443','acme.erpx.localhost:3443'))expect(f).toThrow();
 });
+
+
+it('native Service workspace accepts only exact explicitly enabled contributor origins',async()=>{
+ const {createNativeServiceWorkspaceReader}=await import('../../../packages/feature-field_service/src/adapters/server/native-workspace');
+ const make=(origin:string)=>JSON.stringify({privateBaseUrl:'http://127.0.0.1:44816',timeoutMs:3000,holdings:[{origin,holdingSlug:'acme',holdingId:'h001'}]});
+ try {
+  vi.stubEnv('NODE_ENV','development');vi.stubEnv('NEXT_PUBLIC_ERPX_DEV_ORIGIN_PROFILE','container-localhost');
+  expect(()=>createNativeServiceWorkspaceReader(make('https://acme.erpx.localhost:3443'))).not.toThrow();
+  for(const origin of ['http://acme.erpx.localhost:3443','https://acme.erpx.localhost:3444','https://x.acme.erpx.localhost:3443'])expect(()=>createNativeServiceWorkspaceReader(make(origin))).toThrow();
+  vi.stubEnv('NODE_ENV','production');expect(()=>createNativeServiceWorkspaceReader(make('https://acme.erpx.localhost:3443'))).toThrow();
+ } finally {vi.unstubAllEnvs();}
+});

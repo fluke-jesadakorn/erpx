@@ -1,3 +1,6 @@
+import {headers} from 'next/headers';
+import {AttachmentFeatureProvider} from '@erpx/feature-files/components/attachment-feature-context';
+import {nativeFieldFamilyVisible} from '../../../../../../lib/native-field-family';
 import {serviceDetailRouteId} from '@erpx/feature-field_service/lib/workspace';
 import {nativeServiceDetail,NativeServiceWorkspaceError} from '@erpx/feature-field_service/public/native-workspace';
 import {ApiError} from '@erpx/server-runtime/public/http';
@@ -34,16 +37,8 @@ export default async function Page({
     return pageError(e,holdingSlug);
   });
   const x=data.order;
-  return (
-    <PageContent as="div" className="ui-page-content">
-      <Link href={canonicalUiHref(`${base}/field-service`)}>Field service</Link>
-      <h1>{String(x.ticket_title)}</h1>
-      <p>
-        {String(x.customer_name)} · {String(x.site)} · {String(x.status)} ·
-        technician {String(x.technician_name ?? x.technician_id)}
-      </p>
-      <FieldServiceConsole base={base} detail={data} nativeReserve={process.env.ERPX_NATIVE_FIELD_SERVICE_RESERVE_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_ISSUE_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_VISIT_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_VISIT_COMPLETION_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_VISIT_RECOVERY_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_CANCEL_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_BILLING_CONFIG === undefined ? undefined : {billing:process.env.ERPX_NATIVE_FIELD_SERVICE_BILLING_CONFIG !== undefined,cancel:process.env.ERPX_NATIVE_FIELD_SERVICE_CANCEL_CONFIG !== undefined,visitRecovery:process.env.ERPX_NATIVE_FIELD_SERVICE_VISIT_RECOVERY_CONFIG !== undefined,visitCompletion:process.env.ERPX_NATIVE_FIELD_SERVICE_VISIT_COMPLETION_CONFIG !== undefined,visit:process.env.ERPX_NATIVE_FIELD_SERVICE_VISIT_CONFIG !== undefined,reserve:process.env.ERPX_NATIVE_FIELD_SERVICE_RESERVE_CONFIG !== undefined,issue:process.env.ERPX_NATIVE_FIELD_SERVICE_ISSUE_CONFIG !== undefined,context}} />
-      <RecordDocumentPanel appearance="standard"
+  const nativeFiles=nativeFieldFamilyVisible(holdingSlug,a.holdingId,(await headers()).get('host'));
+  const panel=(<RecordDocumentPanel appearance="standard"
         base={base}
         targetType="field_service_visit"
         targetId={String(x.id)}
@@ -56,7 +51,17 @@ export default async function Page({
           {key:"signed_job_sheet",label:"Signed job sheet",description:"Attach the customer-confirmed or signed job sheet."},
           {key:"exception_evidence",label:"Exception evidence",description:"Attach evidence supporting an access, safety, scope, or service exception."},
         ]}
-      />
+      />);
+  return (
+    <PageContent as="div" className="ui-page-content">
+      <Link href={canonicalUiHref(`${base}/field-service`)}>Field service</Link>
+      <h1>{String(x.ticket_title)}</h1>
+      <p>
+        {String(x.customer_name)} · {String(x.site)} · {String(x.status)} ·
+        technician {String(x.technician_name ?? x.technician_id)}
+      </p>
+      <FieldServiceConsole base={base} detail={data} nativeReserve={process.env.ERPX_NATIVE_FIELD_SERVICE_RESERVE_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_ISSUE_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_VISIT_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_VISIT_COMPLETION_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_VISIT_RECOVERY_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_CANCEL_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_BILLING_CONFIG === undefined ? undefined : {billing:process.env.ERPX_NATIVE_FIELD_SERVICE_BILLING_CONFIG !== undefined,cancel:process.env.ERPX_NATIVE_FIELD_SERVICE_CANCEL_CONFIG !== undefined,visitRecovery:process.env.ERPX_NATIVE_FIELD_SERVICE_VISIT_RECOVERY_CONFIG !== undefined,visitCompletion:process.env.ERPX_NATIVE_FIELD_SERVICE_VISIT_COMPLETION_CONFIG !== undefined,visit:process.env.ERPX_NATIVE_FIELD_SERVICE_VISIT_CONFIG !== undefined,reserve:process.env.ERPX_NATIVE_FIELD_SERVICE_RESERVE_CONFIG !== undefined,issue:process.env.ERPX_NATIVE_FIELD_SERVICE_ISSUE_CONFIG !== undefined,context}} />
+      {nativeFiles?<AttachmentFeatureProvider mode="enabled">{panel}</AttachmentFeatureProvider>:panel}
       <Card as="section" appearance="standard" className="ui-panel">
         <h2>Parts</h2>
         {data.parts.map((p) => (

@@ -22,7 +22,8 @@ const env:NodeJS.ProcessEnv={NODE_ENV:'development',PATH:'/usr/local/bin:/usr/bi
 const nativeBase='http://127.0.0.1:44817', holdingOrigins=['acme','northstar','erpx-internal'].map(id=>`https://${id}.erpx.localhost:3443`);
 env.ERPX_NATIVE_ACCOUNT_SESSION_CONFIG=JSON.stringify({privateBaseUrl:nativeBase,accountOrigin:'https://account.erpx.localhost:3443',holdingOrigins,timeoutMs:10000});
 const nativeCount=JSON.stringify({privateBaseUrl:nativeBase,timeoutMs:10000,holdings:[{origin:holdingOrigins[0],holdingSlug:'acme',holdingId:'h001'}]});
-for(const name of ['ERPX_NATIVE_FIELD_SERVICE_INITIAL_COUNT_CONFIG','ERPX_NATIVE_FIELD_SERVICE_PARTS_SETUP_CONFIG','ERPX_NATIVE_FIELD_SERVICE_PREREQUISITES_CONFIG','ERPX_NATIVE_FIELD_SERVICE_STOCK_SETUP_CONFIG'])env[name]=nativeCount;
+env.ERPX_NATIVE_FIELD_ATTACHMENT_CONFIG=JSON.stringify({privateBaseUrl:nativeBase,timeoutMs:10000,holdings:[{origin:holdingOrigins[0],holdingSlug:'acme',holdingId:'h001',fieldFamily:true}]});
+for(const name of ['ERPX_NATIVE_FIELD_SERVICE_WORKSPACE_CONFIG','ERPX_NATIVE_FIELD_SERVICE_DETAIL_CONFIG','ERPX_NATIVE_FIELD_SERVICE_INITIAL_COUNT_CONFIG','ERPX_NATIVE_FIELD_SERVICE_PARTS_SETUP_CONFIG','ERPX_NATIVE_FIELD_SERVICE_PREREQUISITES_CONFIG','ERPX_NATIVE_FIELD_SERVICE_STOCK_SETUP_CONFIG'])env[name]=nativeCount;
 function assertOwnedGateway(){
  const pids=execFileSync('lsof',['-nP','-tiTCP:3100','-sTCP:LISTEN'],{encoding:'utf8'}).trim().split(/\s+/).filter(Boolean);if(!pids.length)throw Error('DEVELOPMENT_PORT_OWNER_UNAVAILABLE:3100');
  for(const pid of pids){const cwd=execFileSync('lsof',['-a','-p',pid,'-d','cwd','-Fn'],{encoding:'utf8'}).split('\n').find(line=>line.startsWith('n'))?.slice(1),command=execFileSync('ps',['-p',pid,'-o','args='],{encoding:'utf8'});if(cwd!==root||!command.includes(`${root}/.scratch/dev/gateway.mjs`))throw Error('DEVELOPMENT_PORT_OCCUPIED_BY_ANOTHER_PROJECT:3100');}

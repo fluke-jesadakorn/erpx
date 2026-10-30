@@ -1,5 +1,5 @@
 {
-  "name": "ERPX Service Count development",
+  "name": "ERPX Service Count and Field Files development",
   "dockerComposeFile": [
     "../ops/containers/development-services.compose.yaml",
     "compose.yaml"
