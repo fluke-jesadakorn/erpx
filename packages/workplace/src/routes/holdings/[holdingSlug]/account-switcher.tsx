@@ -13,6 +13,7 @@ import { useHydrated } from "@erpx/ui/components/use-hydrated";
 import { useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, LogIn, LogOut, Plus, UserRound } from "lucide-react";
 import styles from "@erpx/workplace/components/account.module.css";
+import {ProductAccountTrigger,useProductAccount} from '@erpx/workplace/components/product-account-provider';
 import { Appearance } from "@erpx/workplace/components/workplace-controls";
 import { leavePushSession } from "@erpx/feature-shared/lib/push-client";
 import { useContextSwitch } from "@erpx/workplace/components/context-switch-provider";
@@ -22,10 +23,7 @@ import {
   setContextSwitching,
 } from "@erpx/feature-work_projection/lib/context-switch";
 
-type DeviceSession = {
-  session: { token: string; userId: string };
-  user: { id: string; name: string; email: string; image?: string | null };
-};
+import type { DeviceAccount as DeviceSession } from "@erpx/feature-identity_access/lib/device-accounts";
 
 type Props = {
   accountNavigation?: boolean;
@@ -39,7 +37,12 @@ type Props = {
   theme: string;
 };
 
-export function AccountSwitcher({
+export function AccountSwitcher(props:Props){
+  const productAccount=useProductAccount();
+  if(productAccount)return <ProductAccountTrigger companyId={props.companyId} workspaceBase={props.workspaceBase} roleLabel={props.assignments?.find(option=>option.id===props.preferredAssignmentId)?.label??props.assignments?.find(option=>option.id===props.preferredAssignmentId)?.role.replaceAll('_',' ')}/>;
+  return <LegacyAccountSwitcher {...props}/>;
+}
+function LegacyAccountSwitcher({
   accountNavigation = false,
   appearance = "legacy",
   workspaceBase,
@@ -60,11 +63,13 @@ export function AccountSwitcher({
   const [pending, setPending] = useState("");
   const [error, setError] = useState("");
   const [sessions, setSessions] = useState<DeviceSession[]>([]);
+  const [deviceRevision, setDeviceRevision] = useState<number | null>(null);
 
   async function loadAccounts() {
-    const { authClient } = await import("@erpx/feature-identity_access/lib/auth-client");
-    const result = await authClient.multiSession.listDeviceSessions();
-    if (result.data) setSessions(result.data as DeviceSession[]);
+    const { nodeDeviceAccounts } = await import("@erpx/feature-identity_access/lib/node-device-accounts");
+    const result = await nodeDeviceAccounts.list();
+    if (result.data) { setSessions(result.data.accounts); setDeviceRevision(result.data.revision); }
+    else { setDeviceRevision(null); setError(result.error?.message ?? "Saved accounts could not be loaded."); }
   }
 
   useEffect(() => {
@@ -113,8 +118,8 @@ export function AccountSwitcher({
   }, [open, adding, appearance]);
 
   async function chooseAccount(session: DeviceSession) {
-    if (session.user.id === activeUser.id || pending || busy) return;
-    setPending(`account:${session.user.id}`);
+    if (session.current || deviceRevision === null || pending || busy) return;
+    setPending(`account:${session.handle}`);
     setError("");
     try {
       await switchContext({
@@ -123,10 +128,9 @@ export function AccountSwitcher({
         onCommitted: () => setOpen(false),
         action: async () => {
           if (workspaceBase !== "/platform") await leavePushSession(workspaceBase);
-          const { authClient } = await import("@erpx/feature-identity_access/lib/auth-client");
-          const result = await authClient.multiSession.setActive({
-            sessionToken: session.session.token,
-          });
+          const { nodeDeviceAccounts } = await import("@erpx/feature-identity_access/lib/node-device-accounts");
+          const result = await nodeDeviceAccounts.activate(session.handle, deviceRevision);
+          if (result.error?.code === "DEVICE_ACCOUNTS_CHANGED") await loadAccounts();
           if (result.error)
             throw new Error(result.error.message ?? "Account could not be selected.");
         },
@@ -150,11 +154,8 @@ export function AccountSwitcher({
         onCommitted: () => setOpen(false),
         action: async () => {
           if (workspaceBase !== "/platform") await leavePushSession(workspaceBase);
-          const { authClient } = await import("@erpx/feature-identity_access/lib/auth-client");
-          const result = await authClient.signIn.email({
-            email: String(form.get("email")),
-            password: String(form.get("password")),
-          });
+          const { nodeDeviceAccounts } = await import("@erpx/feature-identity_access/lib/node-device-accounts");
+          const result = await nodeDeviceAccounts.signIn(String(form.get("email")), String(form.get("password")), deviceRevision ?? undefined);
           if (result.error) throw new Error(result.error.message ?? "Account could not be added.");
         },
       });
@@ -227,9 +228,9 @@ export function AccountSwitcher({
     }
   }
 
-  const accounts = sessions.some((item) => item.user.id === activeUser.id)
+  const accounts = sessions.some((item) => item.current)
     ? sessions
-    : [{ session: { token: "", userId: activeUser.id }, user: activeUser }, ...sessions];
+    : [{ handle: "current-account", name: activeUser.name, email: activeUser.email, image: null, current: true }, ...sessions];
 
   const trigger = (      <Button appearance={appearance}
         variant="plain"
@@ -272,25 +273,25 @@ export function AccountSwitcher({
             <>
               <div className="account-list">
                 {accounts.map((item) => {
-                  const active = item.user.id === activeUser.id;
+                  const active = item.current;
                   return (
                     <Button appearance={appearance}
                       variant="plain"
                       type="button"
                       className={`account-option ${active ? "active" : ""}`}
                       aria-current={active ? "true" : undefined}
-                      key={item.user.id}
-                      disabled={Boolean(pending)}
+                      key={item.handle}
+                      disabled={Boolean(pending) || (!active && deviceRevision === null)}
                       onClick={() => void chooseAccount(item)}
                     >
-                      <PersonAvatar name={item.user.name} />
+                      <PersonAvatar name={item.name} />
                       <span>
-                        <strong>{item.user.name}</strong>
-                        <small>{item.user.email}</small>
+                        <strong>{item.name}</strong>
+                        <small>{item.email}</small>
                       </span>
                       {active ? (
                         <Check size={17} />
-                      ) : pending === `account:${item.user.id}` ? (
+                      ) : pending === `account:${item.handle}` ? (
                         <span className="mini-spinner" />
                       ) : (
                         <LogIn size={16} />

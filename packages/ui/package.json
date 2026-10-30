@@ -43,7 +43,8 @@
     "./components/components.css": "./src/components/components.css",
     "./components/input": "./src/components/input.tsx",
     "./components/use-hydrated": "./src/components/use-hydrated.ts",
-    "./lib/cn": "./src/lib/cn.ts"
+    "./lib/cn": "./src/lib/cn.ts",
+    "./components/interaction-suspension": "./src/components/interaction-suspension.tsx"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

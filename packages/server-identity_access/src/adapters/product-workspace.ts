@@ -1,3 +1,5 @@
+import {requestProductOrigin} from '@erpx/feature-runtime/lib/product-hosts';
+import {holdingRoutingEnabled,holdingUiUrl} from '@erpx/contracts/holding-hosts';
 import {expensePostingPrerequisitesProductEntry} from '@erpx/server-finance/public/expense-posting-prerequisites';
 import {payrollPostingPrerequisitesProductEntry} from '@erpx/server-finance/public/payroll-posting-prerequisites';
 import {peopleFinancialProductEntry} from "@erpx/server-people_payroll/public/financial-product-entry";
@@ -118,7 +120,10 @@ export async function productWorkRoleChoices(audience: Parameters<typeof product
   if (!company) throw new ApiError(404, "COMPANY_NOT_FOUND", "Select an active Company.");
   // No account/authority snapshots are exposed to the page's Client boundary.
   return { company, options: state.options.map(option => ({ assignmentId: option.assignmentId, assignmentVersion: option.assignmentVersion, label: option.label, purchasePurpose: option.purchasePurpose })),
-    revision: state.selection?.revision ?? 0, target: state.target };
+    revision: state.selection?.revision ?? 0, selectedId: state.selection?.assignment_id ?? null, target: state.target };
+}
+export async function selectProductWorkRole(audience: Parameters<typeof productWorkspaceTarget>[0], input: ProductWorkspaceInput, assignmentId: string, revision: number, version: number) {
+  return service().choose(audience, input, assignmentId, revision, version);
 }
 
 /** The owner page must repeat the entry decision on a direct URL. Reading the
@@ -146,7 +151,7 @@ export async function productWorkspaceRequest(request: Request) {
   try {
     if (!audience) return new Response("Invalid workspace", { status: 400, headers: responseHeaders });
     if (request.method === "POST") {
-      const origin = configuredProductOrigin(audience);
+      const origin = requestProductOrigin(audience,request.headers);
       if (!origin || !allowsProductWorkspaceFormOrigin(request, origin)) throw new ApiError(403, "ORIGIN_FORBIDDEN", "Choose a work role from this product.");
       if (!request.headers.get("content-type")?.startsWith("application/x-www-form-urlencoded")) throw new ApiError(415, "FORM_REQUIRED", "Submit the work role form.");
       const body = await request.text();
@@ -166,8 +171,8 @@ export async function productWorkspaceRequest(request: Request) {
     }
     if (request.method !== "GET" || !input) return new Response("Invalid workspace", { status: 400, headers: responseHeaders });
     const state = await service().read(audience, input), access = state.access;
-    const target = state.target ?? productWorkRolePath(input);
-    const response = NextResponse.redirect(new URL(target, configuredProductOrigin(audience)!), { status: 303, headers: responseHeaders });
+    const target = holdingRoutingEnabled(process.env)&&state.target?holdingUiUrl(state.target,access.scope.companyId)??state.target:state.target ?? productWorkRolePath(input);
+    const response = NextResponse.redirect(new URL(target, requestProductOrigin(audience,request.headers)!), { status: 303, headers: responseHeaders });
     response.cookies.set(`erpx_company_${access.scope.holdingId}`, access.scope.companyId, {
       secure: true, httpOnly: true, sameSite: "lax", path: "/", maxAge: 60 * 60 * 24 * 365,
     });

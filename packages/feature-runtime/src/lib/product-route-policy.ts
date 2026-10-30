@@ -6,6 +6,12 @@ import { officeApiAllowed, posStartupApiAllowed, posInitialPhysicalStockApiAllow
 /** Presentation boundaries supplement, and never replace, owner API/record policy. */
 export function productPageAllowed(host: ProductHostKey, pathname: string, method = "GET") {
   if (pathname === "/" || pathname.startsWith("/sso/")) return true;
+  // These exact shared handlers are declared by Apps, Admin and the product
+  // workspaces. Their owner still checks the current session and authority.
+  const accountSwitcherHost = host === "apps" || host === "admin" || !!product(host);
+  if (pathname === "/account/continue" || pathname === "/api/v1/account/switcher-context")
+    return accountSwitcherHost && (method === "GET" || method === "HEAD");
+  if (pathname === "/api/v1/account/role-selection") return accountSwitcherHost && method === "POST";
   if (pathname === "/public/launch") return host === "portal" || host === "legal-portal";
   if (pathname === "/legal-portal/continue") return host === "account";
   if (pathname === "/legal-portal/enroll") return host === "account" || host === "legal-portal";

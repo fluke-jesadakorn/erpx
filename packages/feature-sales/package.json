@@ -114,13 +114,15 @@
     "./routes/api/v1/holdings/[holdingSlug]/customer-identity/route": "./src/routes/api/v1/holdings/[holdingSlug]/customer-identity/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/marketing/route": "./src/routes/api/v1/holdings/[holdingSlug]/marketing/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/customer-access/route": "./src/routes/api/v1/holdings/[holdingSlug]/customer-access/route.ts",
-    "./routes/api/v1/holdings/[holdingSlug]/reports/crm-marketing/route": "./src/routes/api/v1/holdings/[holdingSlug]/reports/crm-marketing/route.ts"
+    "./routes/api/v1/holdings/[holdingSlug]/reports/crm-marketing/route": "./src/routes/api/v1/holdings/[holdingSlug]/reports/crm-marketing/route.ts",
+    "./lib/navigation": "./src/lib/navigation.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
     "lint": "eslint src"
   },
   "dependencies": {
+    "@erpx/contracts": "workspace:*",
     "@erpx/feature-commerce": "workspace:*",
     "@erpx/feature-crm": "workspace:*",
     "@erpx/feature-customer_360": "workspace:*",

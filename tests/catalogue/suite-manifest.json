@@ -670,6 +670,7 @@
         "admin"
       ],
       "packages": [
+        "@erpx/contracts",
         "@erpx/feature-shared",
         "@erpx/server-identity_access"
       ]
@@ -1411,6 +1412,7 @@
       },
       "apps": [],
       "packages": [
+        "@erpx/contracts",
         "@erpx/feature-billing",
         "@erpx/feature-records",
         "@erpx/feature-shared",
@@ -1419,9 +1421,7 @@
         "@erpx/server-manage_erpx",
         "@erpx/server-organization",
         "@erpx/server-runtime",
-        "@erpx/server-shared",
-        "@erpx/server-support",
-        "@erpx/server-talent"
+        "@erpx/server-shared"
       ]
     },
     {
@@ -1681,11 +1681,10 @@
         "forms"
       ],
       "packages": [
+        "@erpx/contracts",
         "@erpx/feature-files",
         "@erpx/feature-records",
-        "@erpx/feature-work_projection",
-        "@erpx/server-support",
-        "@erpx/server-talent"
+        "@erpx/feature-work_projection"
       ]
     },
     {
@@ -1915,6 +1914,7 @@
         "@erpx/feature-collaboration",
         "@erpx/feature-commerce",
         "@erpx/feature-crm",
+        "@erpx/feature-customer_authority",
         "@erpx/feature-ecommerce",
         "@erpx/feature-files",
         "@erpx/feature-finance",
@@ -1923,6 +1923,8 @@
         "@erpx/feature-manufacturing",
         "@erpx/feature-organization",
         "@erpx/feature-people_payroll",
+        "@erpx/feature-pms",
+        "@erpx/feature-pos",
         "@erpx/feature-quality",
         "@erpx/feature-records",
         "@erpx/feature-runtime",
@@ -1930,6 +1932,7 @@
         "@erpx/feature-shared",
         "@erpx/feature-support",
         "@erpx/feature-work_projection",
+        "@erpx/front",
         "@erpx/server-agent",
         "@erpx/server-assets",
         "@erpx/server-benefits",
@@ -2197,12 +2200,11 @@
         "forms"
       ],
       "packages": [
+        "@erpx/contracts",
         "@erpx/feature-records",
         "@erpx/feature-work_projection",
         "@erpx/server-files",
-        "@erpx/server-runtime",
-        "@erpx/server-support",
-        "@erpx/server-talent"
+        "@erpx/server-runtime"
       ]
     },
     {
@@ -2595,11 +2597,10 @@
         "forms"
       ],
       "packages": [
+        "@erpx/contracts",
         "@erpx/feature-files",
         "@erpx/feature-records",
-        "@erpx/feature-work_projection",
-        "@erpx/server-support",
-        "@erpx/server-talent"
+        "@erpx/feature-work_projection"
       ]
     },
     {
@@ -3527,13 +3528,12 @@
         "admin"
       ],
       "packages": [
+        "@erpx/contracts",
         "@erpx/feature-records",
         "@erpx/feature-work_projection",
         "@erpx/server-billing",
         "@erpx/server-manage_erpx",
-        "@erpx/server-runtime",
-        "@erpx/server-support",
-        "@erpx/server-talent"
+        "@erpx/server-runtime"
       ]
     },
     {
@@ -10691,11 +10691,10 @@
         "forms"
       ],
       "packages": [
+        "@erpx/contracts",
         "@erpx/feature-files",
         "@erpx/feature-records",
-        "@erpx/feature-work_projection",
-        "@erpx/server-support",
-        "@erpx/server-talent"
+        "@erpx/feature-work_projection"
       ]
     },
     {
@@ -15259,14 +15258,13 @@
         "people"
       ],
       "packages": [
+        "@erpx/contracts",
         "@erpx/feature-files",
         "@erpx/feature-finance",
         "@erpx/feature-people_payroll",
         "@erpx/feature-records",
         "@erpx/feature-shared",
-        "@erpx/feature-work_projection",
-        "@erpx/server-support",
-        "@erpx/server-talent"
+        "@erpx/feature-work_projection"
       ]
     },
     {
@@ -21390,12 +21388,11 @@
         "legal-portal"
       ],
       "packages": [
+        "@erpx/contracts",
         "@erpx/feature-records",
         "@erpx/feature-work_projection",
         "@erpx/server-legal",
-        "@erpx/server-runtime",
-        "@erpx/server-support",
-        "@erpx/server-talent"
+        "@erpx/server-runtime"
       ]
     },
     {
@@ -23468,21 +23465,59 @@
       "packages": [
         "@erpx/catalogue",
         "@erpx/contracts",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-finance",
         "@erpx/feature-identity_access",
+        "@erpx/feature-legal",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
         "@erpx/feature-records",
         "@erpx/feature-runtime",
+        "@erpx/feature-sales",
         "@erpx/feature-shared",
         "@erpx/feature-work_projection",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
         "@erpx/server-collaboration",
+        "@erpx/server-commerce",
         "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
         "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
         "@erpx/server-organization",
         "@erpx/server-people_payroll",
+        "@erpx/server-planning",
         "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
         "@erpx/server-runtime",
+        "@erpx/server-sales",
         "@erpx/server-shared",
         "@erpx/server-support",
         "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow",
         "@erpx/workplace"
       ]
     },
@@ -24186,11 +24221,7 @@
         "@erpx/feature-records",
         "@erpx/feature-shared",
         "@erpx/feature-work_projection",
-        "@erpx/server-commercial",
-        "@erpx/server-identity_access",
         "@erpx/server-organization",
-        "@erpx/server-support",
-        "@erpx/server-talent",
         "@erpx/ui",
         "@erpx/workplace"
       ]
@@ -28783,11 +28814,9 @@
         "@erpx/feature-work_projection",
         "@erpx/server-collaboration",
         "@erpx/server-commercial",
-        "@erpx/server-identity_access",
         "@erpx/server-inventory",
         "@erpx/server-people_payroll",
         "@erpx/server-support",
-        "@erpx/server-talent",
         "@erpx/ui",
         "@erpx/workplace"
       ]
@@ -29326,6 +29355,7 @@
         "forms"
       ],
       "packages": [
+        "@erpx/contracts",
         "@erpx/feature-work_projection"
       ]
     },
@@ -30762,6 +30792,7 @@
         "forms"
       ],
       "packages": [
+        "@erpx/contracts",
         "@erpx/feature-billing",
         "@erpx/feature-finance",
         "@erpx/feature-people_payroll",
@@ -30772,9 +30803,7 @@
         "@erpx/server-manage_erpx",
         "@erpx/server-organization",
         "@erpx/server-runtime",
-        "@erpx/server-shared",
-        "@erpx/server-support",
-        "@erpx/server-talent"
+        "@erpx/server-shared"
       ]
     },
     {
@@ -35774,6 +35803,7 @@
         "forms"
       ],
       "packages": [
+        "@erpx/contracts",
         "@erpx/feature-finance",
         "@erpx/feature-work_projection"
       ]
@@ -36134,6 +36164,7 @@
         "forms"
       ],
       "packages": [
+        "@erpx/contracts",
         "@erpx/feature-work_projection"
       ]
     },
@@ -38385,11 +38416,10 @@
         "booking"
       ],
       "packages": [
+        "@erpx/contracts",
         "@erpx/feature-records",
         "@erpx/feature-work_projection",
-        "@erpx/server-pms",
-        "@erpx/server-support",
-        "@erpx/server-talent"
+        "@erpx/server-pms"
       ]
     },
     {
@@ -45289,10 +45319,6 @@
         "@erpx/feature-records",
         "@erpx/feature-shared",
         "@erpx/feature-work_projection",
-        "@erpx/server-commercial",
-        "@erpx/server-identity_access",
-        "@erpx/server-support",
-        "@erpx/server-talent",
         "@erpx/ui",
         "@erpx/workplace"
       ]
@@ -47475,7 +47501,9 @@
         "identity_access"
       ],
       "files": [
-        "tests/unit/identity_access/product-sso.test.ts"
+        "tests/unit/identity_access/product-sso.test.ts",
+        "tests/unit/identity_access/holding-routing.test.ts",
+        "tests/unit/identity_access/holding-entry-resolution.test.ts"
       ],
       "fixture": "none",
       "requires": {
@@ -47560,7 +47588,9 @@
       ],
       "files": [
         "tests/integration/identity_access/product-sso.test.ts",
-        "tests/integration/identity_access/product-sso-auth.test.ts"
+        "tests/integration/identity_access/product-sso-auth.test.ts",
+        "tests/integration/identity_access/holding-addresses.test.ts",
+        "tests/integration/identity_access/device-accounts.test.ts"
       ],
       "fixture": "postgres",
       "requires": {

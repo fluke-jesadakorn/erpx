@@ -21,11 +21,11 @@ department(companyId:string,value:string):Promise<{ slug: string }|null>;
 branchDepartment(companyId:string,value:string,value2:string):Promise<{ slug: string; branch_slug: string }|null>;
 logoPublication(companyId:string,companyId2:string,logoPublicationId:string):Promise<{object_key:string;media_type:string}|null>;
 actorCompany(companyId:string,companyId2:string):Promise<{ slug: string }|null>;};
-export type FrontPorts={facts:FrontFacts;error(status:number,code:string,message:string):Error;isApiError(error:unknown):error is Error&{code:string};now():number;prepareSlug(slug:string):Promise<{id:string;slug:string}>;prepareHolding(id:string):Promise<void>;accountAccess(scope:HoldingWorkspaceScope):Promise<AccountAccessContext>;roles(companyId:string,ids:string[]):Promise<Map<string,{permissions:string[]}>>;selection(sessionId:string,userId:string,companyId:string):ReturnType<typeof readWorkSelection>;select(input:Parameters<typeof selectWorkRole>[1]):ReturnType<typeof selectWorkRole>;publishedBrand(companyId:string):ReturnType<typeof publishedBrandIdentity>;workspaces():Promise<(WorkspaceHoldingChoice|{kind:"platform"})[]>;currentUserId():Promise<string>;file(key:string):Promise<StoredFile|null>;origin(app:FrontAppKind):URL|null;};
+export type FrontPorts={facts:FrontFacts;error(status:number,code:string,message:string):Error;isApiError(error:unknown):error is Error&{code:string};now():number;prepareSlug(slug:string):Promise<{id:string;slug:string}>;prepareHolding(id:string):Promise<void>;accountAccess(scope:HoldingWorkspaceScope,options?:{companyId:string}):Promise<AccountAccessContext>;roles(companyId:string,ids:string[]):Promise<Map<string,{permissions:string[]}>>;selection(sessionId:string,userId:string,companyId:string):ReturnType<typeof readWorkSelection>;restore?(access:AccountAccessContext):ReturnType<typeof readWorkSelection>;select(input:Parameters<typeof selectWorkRole>[1]):ReturnType<typeof selectWorkRole>;publishedBrand(companyId:string):ReturnType<typeof publishedBrandIdentity>;workspaces():Promise<(WorkspaceHoldingChoice|{kind:"platform"})[]>;currentUserId():Promise<string>;file(key:string):Promise<StoredFile|null>;origin(app:FrontAppKind):URL|null;};
 export function createFrontAppService(ports:FrontPorts){
 async function frontRoleState(holdingSlug: string, companyId: string, app: FrontAppKind, location: string) {
   const scope = await frontScopeFromLocation(holdingSlug, companyId, location);
-  const access = await ports.accountAccess(scope);
+  const access = await ports.accountAccess(scope, { companyId });
   if (access.scope.companyId !== companyId) throw ports.error(404, "FRONT_NOT_FOUND", "This Front app is unavailable.");
   await ports.prepareHolding(access.scope.holdingId);
   const definitions = await ports.roles(companyId, access.assignments.map((item) => item.role));
@@ -41,6 +41,7 @@ async function frontRoleState(holdingSlug: string, companyId: string, app: Front
 async function ensureFrontRole(holdingSlug: string, companyId: string, app: FrontAppKind, location: string) {
   let state = await frontRoleState(holdingSlug, companyId, app, location);
   if (state.selected) return state;
+  if(ports.restore){await ports.restore(state.access);state=await frontRoleState(holdingSlug,companyId,app,location);if(state.selected)return state;}
   const assignment = state.options[0];
   if (!assignment) throw ports.error(403, "FRONT_ACCESS_DENIED", "No active assignment can open this Front workspace.");
   try {

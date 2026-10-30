@@ -456,7 +456,15 @@
     "./domain/beta-access": "./src/domain/beta-access.ts",
     "./domain/auth": "./src/domain/auth.ts",
     "./domain/mfa": "./src/domain/mfa.ts",
-    "./domain/account-access": "./src/domain/account-access.ts"
+    "./domain/account-access": "./src/domain/account-access.ts",
+    "./adapters/device-account-revocation": "./src/adapters/device-account-revocation.ts",
+    "./adapters/device-account-store": "./src/adapters/device-account-store.ts",
+    "./adapters/device-accounts": "./src/adapters/device-accounts.ts",
+    "./domain/device-account-return": "./src/domain/device-account-return.ts",
+    "./public/device-accounts": "./src/public/device-accounts.ts",
+    "./public/rules/device-account-return": "./src/public/rules/device-account-return.ts",
+    "./adapters/provider-switcher": "./src/adapters/provider-switcher.ts",
+    "./public/provider-switcher": "./src/public/provider-switcher.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

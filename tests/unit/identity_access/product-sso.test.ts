@@ -1,4 +1,4 @@
-import { expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { anonymousAccountAuthPath, bindingIsCurrent, safeProductReturnPath, sessionLifetime } from "@erpx/server-identity_access/domain/product-sso";
 import { productWorkspaceTarget } from "@erpx/server-identity_access/domain/product-workspace";
 it("restricts product Company selection to its own Office pages and preserves destination queries", () => {
@@ -62,4 +62,50 @@ it('provider context survives StrictMode setup cleanup reacquisition without a m
 });
 it('provider reacquisition rejects an old aborted acknowledgement and retains the exact uncertain selection for explicit retry',async()=>{
  const keys:string[]=[],bodies:unknown[]=[];let resolve:(value:unknown)=>void=()=>{},attempt=0;const client=createProviderContextClient(providerSeed,{read:async()=>providerSeed,write:async(input,key)=>{keys.push(key);bodies.push(input);if(attempt++===0)return new Promise(done=>{resolve=done;});return providerAfter;},key:()=> 'strict-exact-key',generation:()=>0}),pending=client.select('assigned-b');client.dispose();client.activate();resolve(providerAfter);await expect(pending).rejects.toThrow('context changed');expect(client.getSnapshot()).toMatchObject({seed:providerSeed,pending:false,retry:true});await client.retry();expect(client.getSnapshot().seed).toEqual(providerAfter);expect(keys).toEqual(['strict-exact-key','strict-exact-key']);expect(bodies).toEqual([providerContextSelection(providerSeed,'assigned-b'),providerContextSelection(providerSeed,'assigned-b')]);client.dispose();
+});
+
+describe('Node Account browser response boundary', () => {
+  it('removes the sign-in token but retains each secure cookie', async () => {
+    const { nodeAccountSignInResponse } = await import('../../../packages/workplace/src/routes/api/auth/[...all]/node-account-sign-in');
+    const headers = new Headers({'cache-control':'private, no-store','content-length':'100'});
+    headers.append('set-cookie','first=a; Secure; HttpOnly'); headers.append('set-cookie','second=b; Secure; HttpOnly');
+    const response = await nodeAccountSignInResponse(Response.json({user:{id:'fixture',name:'Fixture',email:'fixture@example.test',emailVerified:true,image:null,secret:'private'},token:'private',redirect:false,url:null},{headers}));
+    expect(await response.json()).toEqual({user:{id:'fixture',name:'Fixture',email:'fixture@example.test',emailVerified:true,image:null},redirect:false,url:null});
+    expect(response.headers.getSetCookie()).toEqual(['first=a; Secure; HttpOnly','second=b; Secure; HttpOnly']);
+    expect(response.headers.get('content-length')).toBeNull();
+  });
+  it('rejects malformed success and preserves errors without exposing cookies', async () => {
+    const { nodeAccountSignInResponse, isLegacyMultiSessionPath } = await import('../../../packages/workplace/src/routes/api/auth/[...all]/node-account-sign-in');
+    const bad = await nodeAccountSignInResponse(Response.json({user:{}},{headers:{'set-cookie':'secret=x'}}));
+    expect(bad.status).toBe(502); expect(bad.headers.getSetCookie()).toEqual([]);
+    const denied = new Response('denied',{status:401}); expect(await nodeAccountSignInResponse(denied)).toBe(denied);
+    expect(isLegacyMultiSessionPath('/api/auth/multi-session/list-device-sessions')).toBe(true);
+    expect(isLegacyMultiSessionPath('/api/auth/multi-session')).toBe(true);
+    expect(isLegacyMultiSessionPath('/api/auth/sign-in/email')).toBe(false);
+  });
+});
+
+it('Node device selection submits only an opaque handle to the exact Account origin', async () => {
+  const { nodeDeviceAccounts } = await import('../../../packages/feature-identity_access/src/lib/node-device-accounts');
+  const original = globalThis.fetch;
+  let target = '', sent: Record<string, unknown> | null = null;
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    target = String(input); sent = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    return Response.json({data:{initialized:true,revision:3,maximum:5,accounts:[{handle:'opaque',name:'Synthetic',email:'a@example.test',image:null,current:true}]}});
+  }) as typeof fetch;
+  try {
+    const result = await nodeDeviceAccounts.activate('opaque',2);
+    expect(target).toBe('https://account-dev-erpx.jesadakorn.com/api/v1/account/device-accounts/active');
+    expect(sent).toEqual({handle:'opaque',revision:2}); expect(result.data?.revision).toBe(3);
+  } finally { globalThis.fetch = original; }
+});
+
+it('removes session tokens from Node invitation sign-up responses', async () => {
+  const { nodeAccountSignUpResponse } = await import('../../../packages/workplace/src/routes/api/auth/[...all]/node-account-sign-in');
+  const user={id:'fixture',name:'Fixture',email:'fixture@example.test',emailVerified:true,image:null,secret:'private'};
+  for(const token of ['private',null]) {
+    const response=await nodeAccountSignUpResponse(Response.json({user,token},{headers:{'set-cookie':'session=x; Secure; HttpOnly'}}));
+    expect(await response.json()).toEqual({user:{id:user.id,name:user.name,email:user.email,emailVerified:true,image:null}});
+    expect(response.headers.getSetCookie()).toEqual(['session=x; Secure; HttpOnly']);
+  }
 });

@@ -93,3 +93,21 @@ it('an ordinary case list still performs no source handoff and inactive creation
  const unused=vi.fn(async():Promise<AuthorizedSourceRecord>=>{throw Error('No record should be selected');}),view=await actualSourceReportView(unused),actor=sourceReportActor(),list=await view.read({actor,base,query:{view:'support'}});expect(sourceReportNodes(list).some(node=>node.type==='SupportConsole')).toBe(false);expect(view.readSourceRecord).not.toHaveBeenCalled();
  const inactive=await actualSourceReportView(unused,false),create=await inactive.read({actor,base,query:{view:'support',new:'1'}});expect(sourceReportNodes(create).some(node=>node.type==='SupportConsole')).toBe(false);expect(inactive.readSourceRecord).not.toHaveBeenCalled();
 });
+
+import { hubHref as clientHubHref, salesCustomerAccess as clientSalesCustomerAccess, salesCustomerLegacyDestination as clientLegacyDestination } from "@erpx/feature-sales/lib/navigation";
+
+it("keeps owner and client navigation aligned across routes and permission scopes", () => {
+  for (const [route, query] of [
+    ["crm", {from: "2026-01-01"}], ["customer-followups", {orderId: "order-1"}],
+    ["support", {sourceId: "ticket-1"}], ["customer-duplicates", {}],
+    ["commerce", {view: "quote", q: "Harbor & sons"}], ["commerce", {view: "pricing"}],
+  ] as const) expect(clientLegacyDestination(base, route, query)).toBe(salesCustomerLegacyDestination(base, route, query));
+  expect(clientHubHref(base, "customers", {q: "A", cursor: "old"}, {cursor: undefined, view: "support"})).toBe(hubHref(base, "customers", {q: "A", cursor: "old"}, {cursor: undefined, view: "support"}));
+  for (const actor of [
+    {role: "employee", permissions: ["support.read"]},
+    {role: "employee", permissions: ["records.read"]},
+    {role: "employee", permissions: ["commerce.read", "commerce.sales"]},
+    {role: "employee", permissions: ["commerce.read", "commerce.sales"], departmentId: "rooms"},
+  ]) for (const apps of [undefined, ["crm", "sales", "support", "customer_authority"], ["support"]])
+    expect(clientSalesCustomerAccess(actor, apps)).toEqual(salesCustomerAccess(actor, apps));
+});

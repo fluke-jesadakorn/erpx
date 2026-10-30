@@ -4,6 +4,8 @@ Reviewed 2026-10-23. This is the single entry point. [Production plan](productio
 
 ## Current system
 
+- [Development Holding addresses and workspace paths](contracts/next/holding-addresses.md) and [ADR-051](adr/ADR-051-holding-addresses-and-workspace-paths.md)
+
 - [Product separation: registry, packages and SSO implementation boundary](contracts/next/product-separation.md), [22-host desired-state manifest](contracts/next/product-registry.generated.json), [development rollout/rollback](../ops/macos/product-development.md)
 - [Development Commercial permission-evidence checkpoint](testing/commercial-compatibility-2026-10-14.md): exact-source native/build/browser evidence; implementation-only Admin receipts and remaining acceptance
 - [Development product navigation checkpoint](testing/product-navigation-2026-10-14.md): shared dirty confirmation, fifteen Company previews, exact-source full native lane and remaining migration gates

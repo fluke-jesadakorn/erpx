@@ -107,6 +107,7 @@
     "@erpx/feature-projects": "workspace:*",
     "@erpx/feature-records": "workspace:*",
     "@erpx/feature-runtime": "workspace:*",
+    "@erpx/feature-sales": "workspace:*",
     "@erpx/feature-shared": "workspace:*",
     "@erpx/server-collaboration": "workspace:*",
     "@erpx/server-commercial": "workspace:*",

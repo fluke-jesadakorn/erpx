@@ -8,6 +8,7 @@ import { pushSettings, registerPush, removePushDevice, savePushPreferences } fro
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { frontAppForHost, frontPushLandingPath } from "@erpx/feature-shared/lib/front-host";
 import { frontCompanyBrand } from "@erpx/server-work_projection/public/front-app";
+import {holdingHostForHost,holdingUiUrl} from '@erpx/contracts/holding-hosts';
 
 export const dynamic = "force-dynamic";
 type Context = { params: Promise<{ holdingSlug:string }> };
@@ -36,8 +37,9 @@ export async function POST(request:Request,context:Context) {
         const company=await frontCompanyBrand(actor.holdingSlug,input.frontCompanySlug);
         if(!company || company.companyId!==actor.companyId)
           throw new ApiError(403,"FRONT_COMPANY_FORBIDDEN","This Front company is not your selected work company.");
-        landingPath=frontPushLandingPath(actor.scope,company.companySlug);
+        landingPath=frontPushLandingPath(actor.scope,company.companySlug,holdingHostForHost(request.headers.get('host'))?frontAppForHost(request.headers.get('host'))??undefined:undefined);
       }
+      else if(holdingHostForHost(request.headers.get('host'))){const mapped=holdingUiUrl(landingPath,actor.companyId);if(mapped){const url=new URL(mapped);landingPath=url.pathname+url.search;}}
       return response(await registerPush(write,actor,requestPublicOrigin(request),landingPath,input.subscription));
     }
     if(input?.action==="preferences")return response(await savePushPreferences(write,actor,input.preferences));

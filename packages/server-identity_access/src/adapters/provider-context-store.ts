@@ -7,7 +7,7 @@ import {loadIamAuthority,iamRole} from '@erpx/server-identity_access/adapters/ia
 import {iamDb} from '@erpx/server-identity_access/adapters/iam-db';
 import type {ProviderContextSeed,ProviderContextSelection} from '@erpx/feature-identity_access/lib/provider-context';
 
-type Actor={userId:string;sessionId:string;selectedCookie:string|null};
+type Actor={userId:string;sessionId:string;selectedCookie:string|null;audience?:string;remember?:boolean};
 type ContextRow={user_id:string;assignment_id:string;revision:number;updated_at:number};
 const digest=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 export const providerContextAccountKey=(userId:string,sessionId:string)=>digest(['provider-context-account',userId,sessionId]);
@@ -21,7 +21,7 @@ async function leases(database:SqlDatabase){
  await database.prepare('LOCK TABLE "user",session,sso_session_bindings,platform_assignments,iam_roles,iam_role_revisions,iam_members,iam_identities,iam_connections,iam_revoked_sessions,iam_emergency_sessions,account_workspace_preferences IN SHARE MODE').run();
 }
 async function sessionCurrent(database:SqlDatabase,actor:Actor){
- await assertAccountPreferenceSession(database,{...actor,audience:'admin'});
+ await assertAccountPreferenceSession(database,{...actor,audience:actor.audience??'admin'});
  if(await database.prepare(`SELECT 1 FROM iam_revoked_sessions revocation WHERE revocation.company_id='platform' AND revocation.user_id=? AND revocation.session_id IN(?,(SELECT parent_session_id FROM sso_session_bindings WHERE session_id=?))`).bind(actor.userId,actor.sessionId,actor.sessionId).first())throw new ApiError(401,'SESSION_REVOKED','Sign in again to Administration.');
 }
 async function snapshot(database:SqlDatabase,actor:Actor):Promise<ProviderContextSeed>{
@@ -57,7 +57,9 @@ export function providerContextStore(owner:TransactionalSqlDatabase,actor:Actor)
    if(input.expectedContext!==before.contextKey||input.expectedRevision!==before.revision)throw changed();
    const choice=before.choices.find(row=>row.id===input.assignmentId);if(!choice||choice.version!==input.choiceVersion)throw changed();
    const updated=before.revision===0?await database.prepare('INSERT INTO admin_provider_contexts(session_id,user_id,assignment_id,revision,updated_at) VALUES(?,?,?,1,?) ON CONFLICT(session_id) DO NOTHING RETURNING revision').bind(actor.sessionId,actor.userId,choice.id,Date.now()).first():await database.prepare('UPDATE admin_provider_contexts SET assignment_id=?,revision=revision+1,updated_at=? WHERE session_id=? AND user_id=? AND revision=? RETURNING revision').bind(choice.id,Date.now(),actor.sessionId,actor.userId,before.revision).first();
-   if(!updated)throw changed();const after=await snapshot(database,actor);
+   if(!updated)throw changed();
+   if(actor.remember)await database.prepare(`INSERT INTO account_workspace_preferences(user_id,platform_assignment_id,updated_at) VALUES(?,?,?) ON CONFLICT(user_id) DO UPDATE SET platform_assignment_id=excluded.platform_assignment_id,updated_at=excluded.updated_at`).bind(actor.userId,choice.id,Date.now()).run();
+   const after=await snapshot(database,actor);
    if(after.selectedId!==choice.id||after.revision!==before.revision+1||after.choices.find(row=>row.id===choice.id)?.version!==choice.version)throw changed();
    await database.batch([database.prepare('INSERT INTO iam_receipts(id,company_id,actor_id,request_hash,result,created_at) VALUES(?,\'platform\',?,?,?::jsonb,?)').bind(key,actor.userId,requestHash,JSON.stringify(after),Date.now()),database.prepare('INSERT INTO iam_audit(id,company_id,actor_id,assignment_id,action,target_id,evidence,created_at) VALUES(?,\'platform\',?,?,\'provider.context.selected\',?,?::jsonb,?)').bind(`provider-context:${key}`,actor.userId,choice.id,choice.id,JSON.stringify({previousAssignmentId:before.selectedId,revision:after.revision}),Date.now())]);
    await database.prepare('SET CONSTRAINTS ALL IMMEDIATE').run();if((await snapshot(database,actor)).contextKey!==after.contextKey)throw changed();return after;

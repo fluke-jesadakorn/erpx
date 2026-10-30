@@ -1,5 +1,6 @@
 import { isEngineeringVerificationOrigin } from "@erpx/server-platform_administration/public/engineering-verification";
 import { productHostForHost } from "@erpx/feature-runtime/lib/product-hosts";
+import {holdingFrontUiUrl} from '@erpx/contracts/holding-hosts';
 
 export type FrontHostApp = "pms" | "pos";
 
@@ -36,12 +37,15 @@ export function frontVisibleLocation(holding: string, company: string, location:
 export function frontPushLandingPath(
   scope: { kind: "holding" | "branch" | "department"; holdingSlug: string; branchSlug?: string; departmentSlug?: string },
   companySlug: string,
+  app?:FrontHostApp,
 ) {
   const location = scope.kind === "holding" ? ["holding"]
     : scope.kind === "branch" ? ["branches", scope.branchSlug!]
     : scope.branchSlug ? ["branches", scope.branchSlug, "departments", scope.departmentSlug!]
       : ["departments", scope.departmentSlug!];
-  return frontVisiblePath(scope.holdingSlug, companySlug, [...location, "notifications"]);
+  const path=frontVisiblePath(scope.holdingSlug, companySlug, [...location, "notifications"]),mapped=app&&holdingFrontUiUrl(path,app);
+  if(mapped){const url=new URL(mapped);return url.pathname+url.search;}
+  return path;
 }
 
 export function safeFrontReturnPath(value: string | undefined) {

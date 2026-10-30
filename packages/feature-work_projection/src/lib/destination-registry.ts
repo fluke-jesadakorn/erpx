@@ -1,6 +1,7 @@
-import {supportTicketPortalEntry} from '@erpx/server-support/public/rules/ticket-portal-entry';
+import {supportTicketPortalEntry} from '@erpx/contracts/ticket-portal-entry';
+import {holdingHostForHost,parseHoldingRoute} from '@erpx/contracts/holding-hosts';
 import { recordRoutes,recordBasePath,defaultRecordSection,type RecordKind } from "@erpx/feature-records/lib/record-route-definitions";
-import {talentHireSourceEntry,talentCandidatePrivacySourceEntry} from "@erpx/server-talent/public/rules/product-entry";
+import {talentHireSourceEntry,talentCandidatePrivacySourceEntry} from "@erpx/contracts/talent-product-entry";
 /** UI routes only. API resources and command contracts keep their owner paths. */
 export type Destination = {
   path: string;
@@ -26,7 +27,8 @@ add('people',`${people}/directory/current`,'Current',{view:'internal',status:'cu
 add('people',`${people}/directory/archived`,'Archived',{view:'internal',status:'archived'});
 add('people/organization',`${people}/organization`,'Organization');
 add('people/roster',`${people}/roster`,'Roster');
-views('people',`${people}/users-access`,'section',[['users','Users'],['organizations','External organizations'],['teams','External teams'],['roles','Roles']],{view:'users'});
+views('people',`${people}/external`,'section',[['users','Collaborators'],['organizations','External organizations'],['teams','External teams']],{view:'external'});
+add('people',`${people}/unclassified`,'Unclassified',{view:'unclassified'});
 views('people/settings',`${people}/hr-settings`,'section',[['levels','Staff levels'],['leave','Leave & overtime'],['calendars','Holiday calendars'],['pay-groups','Pay groups'],['templates','Organization templates'],['lifecycle','Lifecycle handoff']]);
 views('people/evaluation',`${people}/evaluation`,'view',[['table','Compare table'],['graph','Quadrants'],['individual','Individuals'],['cycles','Annual cycles'],['criteria','Criteria & pay bands']]);
 add('people/payroll',`${people}/payroll/dashboard`,'Dashboard');
@@ -121,7 +123,12 @@ export function sourcePath(path:string) {
  const match=Object.entries(routePrefixes).sort((a,b)=>b[1].length-a[1].length).find(([,next])=>path===next||path.startsWith(next+'/'));
  return match?match[0]+path.slice(match[1].length):path;
 }
-export function workspacePathParts(pathname:string) {
+export function workspacePathParts(pathname:string,holdingSlug?:string|null) {
+ if(!pathname.startsWith('/holdings/')&&holdingSlug!==null){
+  const holding=holdingSlug??(typeof window==='undefined'?undefined:holdingHostForHost(window.location.host)?.holdingSlug);
+  const route=holding?parseHoldingRoute(holding,pathname):null;
+  if(route?.internalPath.startsWith('/holdings/'))return workspacePathParts(route.internalPath,null);
+ }
  const match=pathname.match(/^(\/holdings\/[^/]+(?:\/branches\/[^/]+)?(?:\/departments\/[^/]+)?)(?:\/(.*))?$/);
  return match?{base:match[1],path:match[2]??''}:null;
 }
@@ -151,12 +158,14 @@ export function canonicalUiHref(href:string):string {
  const frontTab=url.searchParams.get('tab');
  if((front||standalone)&&frontTab&&['sale','kitchen','shifts','history'].includes(frontTab)) {url.pathname=(front??standalone)![1]+'/'+frontTab;url.searchParams.delete('tab');return `${absolute?url.origin:''}${url.pathname}${url.search}${url.hash}`;}
  if(url.pathname==='/platform'||url.pathname.startsWith('/platform/')) {const path=url.pathname.slice('/platform'.length).replace(/^\//,'');const platformPath=path==='home'||!path?'':path==='billing/usage'?'usage':path.startsWith('billing')?'billing'+path.slice('billing'.length):path;return canonicalUiHref(`${absolute?url.origin:''}/holdings/erpx/erpx-management${platformPath?'/'+platformPath:''}${url.search}${url.hash}`);}
- const parts=workspacePathParts(url.pathname); if(!parts||!parts.path)return href;
+ const parts=workspacePathParts(url.pathname,null); if(!parts||!parts.path)return href;
  // This typed handoff has its own exact owner page, rather than a Person
  // record whose ID happens to be the hire-handoffs path segment.
  if(talentHireSourceEntry(parts.path)||talentCandidatePrivacySourceEntry(parts.path))return href;
  const portalPath=routePath(parts.path);
  if(supportTicketPortalEntry(portalPath)){url.pathname=parts.base+'/'+portalPath;return `${absolute?url.origin:''}${url.pathname}${url.search}${url.hash}`;}
+ const legacyPeopleAccess=parts.path.match(/^people-organization\/people\/users-access(?:\/(users|organizations|teams|roles))?$/);
+ if(legacyPeopleAccess){const requestedSection=legacyPeopleAccess[1]??url.searchParams.get('section');const section=requestedSection&&['users','roles','organizations','teams'].includes(requestedSection)?requestedSection:'users';url.pathname=parts.base+'/'+(section==='users'?'administration/technology/resources/accounts':section==='roles'?'administration/technology/settings/roles':`people-organization/people/external/${section}`);for(const key of ['view','section'])url.searchParams.delete(key);return `${absolute?url.origin:''}${url.pathname}${url.search}${url.hash}`;}
  const exact=destinationForPath(parts.path),source=exact?.source??sourcePath(parts.path);
  // A canonical order path already selects its owner kind. Link, drawer and
  // product routing may normalize it again after legacy selectors were removed.
@@ -180,13 +189,14 @@ export function canonicalUiHref(href:string):string {
  if(source==='finance/invoices'&&query.new)query.kind??='receivable';
  if(source==='finance/sales'&&query.new==='invoice')query.tab='invoices';
 
+ if(source==='people'&&query.view==='users'){const section=['users','roles','organizations','teams'].includes(query.section)?query.section:'users';url.pathname=parts.base+'/'+(section==='users'?'administration/technology/resources/accounts':section==='roles'?'administration/technology/settings/roles':`people-organization/people/external/${section}`);for(const key of ['view','section'])url.searchParams.delete(key);return `${absolute?url.origin:''}${url.pathname}${url.search}${url.hash}`;}
  const iamSection=parts.path.startsWith('iam/')?parts.path.slice(4):parts.path==='iam'?'overview':source==='people/settings'&&['attributes','roles','matrix','groups','reviews','connections'].includes(query.section)?query.section:null;
- if(iamSection){if(iamSection==='my-access')return '/my-access';const normalizedIam=iamSection==='mappings'?'groups':iamSection;const route=['overview','users'].includes(normalizedIam)?'people-organization/people/users-access/users':`administration/technology/${normalizedIam==='connections'?'directory':'settings'}/${normalizedIam}`;url.pathname=parts.base+'/'+route;for(const key of ['section','view','tab'])url.searchParams.delete(key);return `${absolute?url.origin:''}${url.pathname}${url.search}${url.hash}`;}
+ if(iamSection){if(iamSection==='my-access')return '/my-access';const normalizedIam=iamSection==='mappings'?'groups':iamSection;const route=['overview','users'].includes(normalizedIam)?'administration/technology/resources/accounts':`administration/technology/${normalizedIam==='connections'?'directory':'settings'}/${normalizedIam}`;url.pathname=parts.base+'/'+route;for(const key of ['section','view','tab'])url.searchParams.delete(key);return `${absolute?url.origin:''}${url.pathname}${url.search}${url.hash}`;}
  if(source==='people'&&(query.panel==='schedule'||query.panel==='move'||query.panel==='settings'||query.view==='payroll')){const route=query.panel==='schedule'?'people-organization/people/roster':query.panel==='move'?'people-organization/people/move':query.panel==='settings'?'people-organization/people/hr-settings':'people-organization/people/payroll/dashboard';url.pathname=parts.base+'/'+route;url.searchParams.delete('panel');url.searchParams.delete('view');return `${absolute?url.origin:''}${url.pathname}${url.search}${url.hash}`;}
 
  if(source==='work'&&!query.view&&query.queue)query.view=query.queue==='all'?'all':query.queue==='completed'?'completed':query.queue==='waiting'?'waiting':'actions';
  if(Object.hasOwn(parentLabels,parts.path)&&![...url.searchParams.keys()].some(key=>['view','section','tab','step','mode','preset','record','sale','periodId','detailKind','queue'].includes(key)))return href;
- const options=destinations.filter(item=>item.source===source);
+ const options=destinations.filter(item=>item.source===source && (source!=="people" || query.view || item.selection.view!=="unclassified"));
  let selected=options.filter(item=>Object.entries(item.selection).every(([key,value])=>query[key]===value)).sort((a,b)=>Object.keys(b.selection).length-Object.keys(a.selection).length)[0];
  let selectedParent:string|undefined;
  if(!selected&&options.length){const partial=options.filter(item=>Object.entries(item.selection).every(([key,value])=>query[key]===undefined||query[key]===value));const missing=(item:Destination)=>Object.keys(item.selection).filter(key=>query[key]===undefined).length;partial.sort((a,b)=>missing(a)-missing(b));const winners=partial.filter(item=>missing(item)===missing(partial[0]));if(winners.length===1)selected=winners[0];else if(winners.length){const segments=winners[0].path.split('/');while(segments.length&&!winners.every(item=>item.path.startsWith(segments.join('/')+'/')))segments.pop();selectedParent=segments.join('/')||undefined;}}
@@ -197,11 +207,14 @@ export function canonicalUiHref(href:string):string {
  else if(!exact&&!options.length&&!selectedParent&&!Object.hasOwn(routePrefixes,source)){for(const kind of Object.keys(recordRoutes) as RecordKind[]){const definition=recordRoutes[kind].route;if(definition.includes('?')||kind==='work_flow')continue;const oldPrefix=definition.split(':id')[0],newPrefix=recordBasePath(kind,query,routePath).split(':id')[0];const rest=source.startsWith(oldPrefix)?source.slice(oldPrefix.length):parts.path.startsWith(newPrefix)?parts.path.slice(newPrefix.length):'';const [id,section,...tail]=rest.split('/');if(id&&!tail.length&&!['new','current','archived','settings','history','runs','drafts'].includes(id)){const next=kind==='project'?query.view??section??'overview':kind==='person'?query.tab??section??'profile':section??defaultRecordSection(kind);path=newPrefix+id+'/'+next;if(kind==='order'){url.searchParams.delete('view');url.searchParams.delete('kind');url.searchParams.delete('type');}if(kind==='project'){url.searchParams.delete('view');url.searchParams.delete('section');}if(kind==='person'){url.searchParams.delete('tab');url.searchParams.delete('section');}break;}}}
  const explorerKinds=['person','position','department','team','branch','company','level','unassigned'];
  const explorerKind=explorerKinds.find(kind=>typeof query[kind]==='string'&&query[kind]);
- if(source==='people'&&explorerKind&&!query.new&&!query.panel){path='people-organization/people/directory/'+explorerKind+'/'+encodeURIComponent(query[explorerKind])+'/'+(query.tab??query.section??(explorerKind==='person'?'profile':'overview')).toLowerCase().replaceAll(' ','-');for(const key of [...explorerKinds,'tab','section'])url.searchParams.delete(key);}
+ if(source==='people'&&!['external','unclassified','users'].includes(query.view)&&explorerKind&&!query.new&&!query.panel){path='people-organization/people/directory/'+explorerKind+'/'+encodeURIComponent(query[explorerKind])+'/'+(query.tab??query.section??(explorerKind==='person'?'profile':'overview')).toLowerCase().replaceAll(' ','-');for(const key of [...explorerKinds,'tab','section'])url.searchParams.delete(key);}
  if(source==='technology'&&query.view==='organization'&&explorerKind){path='administration/technology/organization/'+explorerKind+'/'+encodeURIComponent(query[explorerKind])+'/'+(query.section==='operations'?'delivery':query.section??'policies');for(const key of [...explorerKinds,'section','detail'])url.searchParams.delete(key);}
  if(query.detailKind&&query.detailId&&!recordKind){const collection=exact?.path??selected?.path??path;const nativeKind=Object.hasOwn(recordRoutes,query.detailKind)?query.detailKind as RecordKind:null;path=nativeKind?recordBasePath(nativeKind,query,routePath).replace(':id',encodeURIComponent(query.detailId))+'/'+(query.detailSection??defaultRecordSection(nativeKind)):collection+'/records/'+encodeURIComponent(query.detailKind)+'/'+encodeURIComponent(query.detailId)+'/overview';for(const key of ['detailKind','detailId','detailArgs','detailMode','detailPage'])url.searchParams.delete(key);}
 
- for(const key of new Set(options.flatMap(item=>Object.keys(item.selection))))url.searchParams.delete(key);
+ for(const key of new Set(options.flatMap(item=>Object.keys(item.selection)))){
+  if(source==='people'&&['external','unclassified'].includes(query.view)&&key==='status')continue;
+  url.searchParams.delete(key);
+ }
  url.pathname=`${parts.base}/${path}`;
  return `${absolute?url.origin:''}${url.pathname}${url.search}${url.hash}`;
 }
@@ -210,7 +223,7 @@ export function destinationTrail(base:string,path:string) {
  return segments.map((segment,index)=>{const prefix=segments.slice(0,index+1).join('/');return {href:`${base}/${prefix}`,label:destinationForPath(prefix)?.label??parentLabels[prefix]??segment.replaceAll('-',' ').replace(/^./,c=>c.toUpperCase())};});
 }
 export const parentLabels:Readonly<Record<string,string>>={
- 'people-organization':'People & organization','people-organization/people':'People','people-organization/people/directory':'Directory','people-organization/people/users-access':'Users & Access','people-organization/people/hr-settings':'HR settings','people-organization/people/evaluation':'Skills & performance','people-organization/people/payroll':'Payroll',
+ 'people-organization':'People & organization','people-organization/people':'People','people-organization/people/directory':'Employees','people-organization/people/external':'External collaborators','people-organization/people/users-access':'Users & Access','people-organization/people/hr-settings':'HR settings','people-organization/people/evaluation':'Skills & performance','people-organization/people/payroll':'Payroll',
  'customers-sales':'Customers & sales','customers-sales/sales':'Sales','customers-sales/sales/documents':'Documents','customers-sales/customers':'Customers','customers-sales/customers/reviews':'Reviews','customers-sales/customers/service':'Service',
  'purchasing':'Purchasing','inventory-quality':'Inventory & quality','projects-routines':'Projects & routines','services':'Services','services/assets':'Assets & maintenance','services/legal':'Legal','production':'Production','knowledge':'Knowledge','knowledge/handbook':'Handbook','knowledge/learning':'Learning','insights':'Insights','administration':'Administration','administration/technology':'Technology','administration/technology/resources':'Resources','administration/technology/directory':'Directory','administration/technology/settings':'Access settings','administration/approvals':'Approval routing','administration/brand':'Brand',
  'work':'My work','calendar':'Calendar','inbox':'Messages','finance':'Finance','finance/today':'Today','finance/documents':'Documents','finance/documents/sales':'Sales & collections','finance/cash':'Cash','finance/accounting':'Accounting','finance/reports':'Reports','finance/setup':'Setup','pos':'POS','pms':'Hotel PMS','erpx-management':'ERPX Management','erpx-management/billing':'Customer billing','erpx-management/iam':'Platform IAM',

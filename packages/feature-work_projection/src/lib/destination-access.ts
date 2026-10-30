@@ -1,6 +1,6 @@
 import { hasPermission } from '@erpx/feature-identity_access/lib/permissions';
 import { hasModuleAccess } from '@erpx/catalogue/module-access';
-import { salesCustomerAccess } from '@erpx/server-sales/public/rules/navigation';
+import { salesCustomerAccess } from '@erpx/feature-sales/lib/navigation';
 import type { NavigationContext } from '@erpx/feature-work_projection/lib/workplace-navigation';
 import type { Destination } from '@erpx/feature-work_projection/lib/destination-registry';
 

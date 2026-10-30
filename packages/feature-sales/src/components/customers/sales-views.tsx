@@ -11,7 +11,7 @@ import { CustomerFollowupForm } from "@erpx/feature-customer_360/components/cust
 import { SalesPricingConsole } from "@erpx/feature-sales/components/sales-pricing-console";
 import { AnalyticsReport } from "@erpx/feature-runtime/components/executive/analytics-report";
 import { OrderEditor } from "@erpx/feature-commerce/components/lazy-order-editor";
-import { queryValue, type HubQuery } from "@erpx/server-sales/public/rules/navigation";
+import { queryValue, type HubQuery } from "@erpx/feature-sales/lib/navigation";
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import {commerceSalesDocuments} from '@erpx/server-commerce/public/commerce-pages';

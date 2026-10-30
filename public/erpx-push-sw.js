@@ -3,7 +3,9 @@ self.addEventListener("push", event => {
   let data = {};
   try { data = event.data ? event.data.json() : {}; } catch { /* Generic prompt still works. */ }
   const tag = typeof data.tag === "string" && /^[0-9a-f-]{36}$/.test(data.tag) ? data.tag : "erpx-inbox";
-  const path = typeof data.path === "string" && (
+  const path = typeof data.path === "string" && !/^\/(?:api|__erpx|sso|login|launch)(?:\/|$)/.test(data.path) && (
+    /^\/(?:[a-zA-Z0-9_-]+\/)?(?:departments\/[a-zA-Z0-9_-]+\/|[a-zA-Z0-9_-]+\/)?(?:pos|pms)\/notifications(?:\?company=[a-zA-Z0-9_-]+)?$/.test(data.path) ||
+    /^\/(?:[a-zA-Z0-9_-]+\/)?(?:departments\/[a-zA-Z0-9_-]+\/|[a-zA-Z0-9_-]+\/)?work\/inbox\?tab=updates(?:&company=[a-zA-Z0-9_-]+)?$/.test(data.path) ||
     /^\/holdings\/[a-zA-Z0-9%_-]+(?:\/[^?#]*)?\/inbox\?tab=updates$/.test(data.path) ||
     /^\/[a-zA-Z0-9_-]+\/[a-zA-Z0-9_-]+\/(?:holding|branches\/[a-zA-Z0-9_-]+(?:\/departments\/[a-zA-Z0-9_-]+)?|departments\/[a-zA-Z0-9_-]+)\/notifications$/.test(data.path)
   )

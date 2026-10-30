@@ -1,3 +1,5 @@
+import { requestProductOrigin } from '@erpx/feature-runtime/lib/product-hosts';
+import { holdingRoutingEnabled } from '@erpx/contracts/holding-hosts';
 import {productAccessLabel} from '@erpx/feature-work_projection/lib/product-access-label';
 import { productEntrySsoHref, type EntryPageSearchParams } from '@erpx/server-identity_access/public/rules/page-entry-return';
 import { measureReadPhase } from "@erpx/server-runtime/public/runtime/read-metrics";
@@ -22,8 +24,8 @@ export default async function ProductEntryPage({ searchParams }: { searchParams?
   const host = productHostForHost(requestHeaders.get("host"));
   if (!host || host === "account" || host === "booking" || host === "portal" || host === "legal-portal" || host === "forms") notFound();
   const language = await preferredAccountLanguage((await cookies()).get("erpx_language")?.value === "th" ? "th" : "en");
-  const session = await (await createAuth(configuredProductOrigin(host)!)).api.getSession({ headers: requestHeaders });
-  if (!session) redirect(productEntrySsoHref(await searchParams ?? {}));
+  const session = await (await createAuth(requestProductOrigin(host, requestHeaders)!)).api.getSession({ headers: requestHeaders });
+  if (!session) redirect(holdingRoutingEnabled(process.env) ? "/sso/start?" + new URLSearchParams({next:requestHeaders.get("x-erpx-visible-path") ?? "/"}) : productEntrySsoHref(await searchParams ?? {}));
   const sharedAdmin = host === "apps" || host === "admin";
   const [products, adminChoices, provider] = await Promise.all([
     measureReadPhase("product_entry_products", () => productLaunchChoices(host === "apps" || host === "admin" ? undefined : host)),

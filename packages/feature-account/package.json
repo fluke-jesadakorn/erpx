@@ -21,7 +21,8 @@
     "./routes/reset-password/page": "./src/routes/reset-password/page.tsx",
     "./routes/activate/page": "./src/routes/activate/page.tsx",
     "./routes/account/launch/route": "./src/routes/account/launch/route.ts",
-    "./routes/my-profile/page": "./src/routes/my-profile/page.tsx"
+    "./routes/my-profile/page": "./src/routes/my-profile/page.tsx",
+    "./routes/api/v1/account/device-accounts/[[...action]]/route": "./src/routes/api/v1/account/device-accounts/[[...action]]/route.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
