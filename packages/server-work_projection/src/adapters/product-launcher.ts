@@ -1,4 +1,4 @@
-import {holdingRoutingEnabled} from '@erpx/contracts/holding-hosts';
+import {holdingRoutingEnabled, holdingFrontUiUrl} from '@erpx/feature-runtime/lib/holding-hosts';
 import {expensePostingPrerequisitesProductEntry} from '@erpx/server-finance/public/expense-posting-prerequisites';
 import {payrollPostingPrerequisitesProductEntry} from '@erpx/server-finance/public/payroll-posting-prerequisites';
 import {peopleFinancialProductEntry} from "@erpx/server-people_payroll/public/financial-product-entry";
@@ -45,6 +45,7 @@ export async function productLaunchChoices(productId?: import("@erpx/contracts/p
   const accounts = new Map<string, Promise<AccountAccessContext>>();
   return createProductLauncher({
   holdingAddresses:holdingRoutingEnabled(process.env),
+  holdingFrontUrl:holdingFrontUiUrl,
   commercialAdmissionDeferred:id=>developmentModuleAdmissionDeferred(id,process.env),
   choices: productWorkspaceChoices, moduleAccess: accountWorkModuleAccess,
   access: async (scope, options) => {

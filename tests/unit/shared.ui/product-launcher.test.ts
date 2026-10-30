@@ -374,3 +374,13 @@ it("limits a product host to the same authorized links as the complete launcher"
   expect(scoped.access.mock.calls).toEqual(complete.access.mock.calls);
   expect(await createProductLauncher(scoped)("learn")).toEqual([]);
 });
+
+it('uses the supplied Holding Front URL port for local POS choices', async () => {
+  const f = fixture();
+  f.grants.mockImplementation(async access => [grant(access.scope.companyId, 'pos')]);
+  const front = vi.fn((target: string, app: 'pos'|'pms') => `https://acme.erpx.localhost:3443/${app}?source=${encodeURIComponent(target)}`);
+  const links = await createProductLauncher({...f, holdingAddresses: true, holdingFrontUrl: front, origin: () => 'https://acme.erpx.localhost:3443'})('pos');
+  expect(links.length).toBeGreaterThan(0);
+  expect(front).toHaveBeenCalled();
+  expect(links.every(link => new URL(link.href).origin === 'https://acme.erpx.localhost:3443')).toBe(true);
+});

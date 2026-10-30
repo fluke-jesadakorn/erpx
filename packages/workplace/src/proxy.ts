@@ -12,7 +12,7 @@ import { productPageAllowed, productFrontBackofficeAllowed } from "@erpx/feature
 import { applicationUrl } from "@erpx/feature-runtime/lib/application-origins";
 import { consoleRetirementResponse } from "@erpx/feature-runtime/lib/console-retirement";
 import {prepareHoldingRequest,finishHoldingResponse,holdingRewriteUrl} from './holding-proxy';
-import {holdingRoutingEnabled,holdingHostForHost} from '@erpx/contracts/holding-hosts';
+import {holdingRoutingEnabled,holdingHostForHost} from '@erpx/feature-runtime/lib/holding-hosts';
 
 type ParsedScope = {
   holdingSlug: string;

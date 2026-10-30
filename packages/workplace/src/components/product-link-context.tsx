@@ -7,14 +7,15 @@ import type { ProductNavigationScope } from "@erpx/feature-work_projection/lib/p
 
 const Context = createContext<ProductNavigationScope & { appsHref?: string; initialPathname?:string }>({ audience: null });
 
-export function ProductLinkEnvironment({ audience, appsHref, holdingSlug, initialPathname, children }: {
+export function ProductLinkEnvironment({ audience, appsHref, holdingSlug, holdingOrigin, initialPathname, children }: {
   audience: ProductHostKey | null;
   appsHref?: string;
   holdingSlug?: string;
+  holdingOrigin?: string;
   initialPathname?:string;
   children: ReactNode;
 }) {
-  return <Context value={{ audience, appsHref, holdingSlug, initialPathname }}>{children}</Context>;
+  return <Context value={{ audience, appsHref, holdingSlug, holdingOrigin, initialPathname }}>{children}</Context>;
 }
 
 export function ProductWorkLinks({ companyId, companySlug, workspaceBase, children }: {

@@ -1,4 +1,4 @@
-import {holdingRoutingEnabled,holdingHostForHost,holdingOrigin} from '@erpx/contracts/holding-hosts';
+import {holdingRoutingEnabled,holdingHostForHost,holdingOrigin} from '@erpx/feature-runtime/lib/holding-hosts';
 import {trustedProductOrigin} from '@erpx/feature-runtime/lib/product-hosts';
 import 'server-only';
 import { NextResponse } from 'next/server';

@@ -1,5 +1,5 @@
 'use client';
-import {holdingHostForHost} from '@erpx/contracts/holding-hosts';
+import {holdingHostForHost} from '@erpx/feature-runtime/lib/holding-hosts';
 import {holdingFetch} from '@erpx/contracts/holding-fetch';
 import { verifiedFormSubmissions } from "@erpx/feature-identity_access/lib/verified-form-submit";
 import { createContext, useContext, useEffect, useId, useRef, useState, type ReactNode, type FormEvent } from 'react';

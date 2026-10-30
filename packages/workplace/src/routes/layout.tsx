@@ -1,5 +1,5 @@
 import {requestProductOrigin} from '@erpx/feature-runtime/lib/product-hosts';
-import {holdingRoutingEnabled,holdingHostForHost} from '@erpx/contracts/holding-hosts';
+import {holdingRoutingEnabled,holdingHostForHost,holdingOrigin} from '@erpx/feature-runtime/lib/holding-hosts';
 import type { LayoutProps } from "@erpx/contracts/next-routes";
 import {ProductLinkEnvironment} from "@erpx/workplace/components/product-link-context";
 import {appsEntryUrl} from "@erpx/feature-runtime/lib/application-origins";
@@ -68,7 +68,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body>
         <AttachmentFeatureProvider appearance="standard" mode={attachmentFeatureMode}>
-          <ProductLinkEnvironment audience={audience} appsHref={appsHref} holdingSlug={holding?.holdingSlug} initialPathname={holding?(await headers()).get('x-erpx-visible-path')?.split('?')[0]:undefined}><AccountPreferencesProvider appearance="standard" snapshot={snapshot}><ContextSwitchProvider appearance="standard">{accountContent}</ContextSwitchProvider></AccountPreferencesProvider></ProductLinkEnvironment>
+          <ProductLinkEnvironment audience={audience} appsHref={appsHref} holdingSlug={holding?.holdingSlug} holdingOrigin={holding?holdingOrigin(holding.holdingSlug)??undefined:undefined} initialPathname={holding?(await headers()).get('x-erpx-visible-path')?.split('?')[0]:undefined}><AccountPreferencesProvider appearance="standard" snapshot={snapshot}><ContextSwitchProvider appearance="standard">{accountContent}</ContextSwitchProvider></AccountPreferencesProvider></ProductLinkEnvironment>
         </AttachmentFeatureProvider>
       </body>
     </html>

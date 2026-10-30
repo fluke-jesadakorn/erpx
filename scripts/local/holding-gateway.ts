@@ -1,4 +1,4 @@
-import {holdingHostForHost, parseHoldingRoute, holdingPathMatches,holdingUiUrl,holdingPublicUiUrl,holdingFrontUiUrl} from '@erpx/contracts/holding-hosts';
+import {holdingHostForHost, parseHoldingRoute, holdingPathMatches,holdingUiUrl,holdingPublicUiUrl,holdingFrontUiUrl} from '@erpx/feature-runtime/lib/holding-hosts';
 import {destinationProduct, isProductHostKey, type ProductHostKey} from '@erpx/contracts/product-registry';
 import catalogue from '../architecture/workspace-app-routes.json';
 

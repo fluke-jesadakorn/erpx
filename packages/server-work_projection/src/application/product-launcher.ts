@@ -1,5 +1,4 @@
 import {expensePostingPrerequisitesLanding,expensePostingPrerequisitesPresentationAllowed} from '@erpx/server-finance/public/rules/expense-posting-prerequisites-entry';
-import {holdingFrontUiUrl} from '@erpx/contracts/holding-hosts';
 import {payrollPostingPrerequisitesLanding,payrollPostingPrerequisitesPresentationAllowed} from '@erpx/server-finance/public/rules/payroll-posting-prerequisites-entry';
 import {expenseFinancialLanding,payrollFinancialLanding,peopleFinancialPresentationAllowed,type PeopleFinancialEntry} from '@erpx/server-people_payroll/public/rules/financial-product-entry';
 import {learningWorkerStartupLanding,learningWorkerPresentationAllowed} from "@erpx/server-people_payroll/public/rules/learning-worker-startup-entry";
@@ -40,6 +39,7 @@ export function productWorkspaceCandidates(choices: readonly WorkspaceChoice[]):
 
 export function createProductLauncher(ports: {
   holdingAddresses?:boolean;
+  holdingFrontUrl?(target:string, app:"pos"|"pms"):string|null;
   commercialAdmissionDeferred?(id:ProductId):boolean;
   choices(): Promise<WorkspaceChoice[]>;
   access(scope: HoldingWorkspaceScope, options: { companyId: string }): Promise<AccountAccessContext>;
@@ -189,7 +189,7 @@ export function createProductLauncher(ports: {
           target = select.pathname + select.search;
         }
         if(ports.holdingAddresses){
-          const front=definition.id==='pos'||definition.id==='pms'?holdingFrontUiUrl(target,definition.id):null;
+          const front=definition.id==='pos'||definition.id==='pms'?ports.holdingFrontUrl?.(target,definition.id):null;
           result.push({...candidate,productId:definition.id,href:front??new URL(target,origin).href,purchasePurpose,...(sourceRecord?{sourceRecord:true as const}:{})});continue;
         }
         const href = new URL("/sso/start", origin);

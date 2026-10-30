@@ -1,11 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { appDefinition } from "@erpx/contracts/apps";
 import { holdingAwareProxy } from "@erpx/workplace/proxy";
-import {holdingRoutingEnabled,holdingHostForHost} from '@erpx/contracts/holding-hosts';
+import {holdingRoutingEnabled,holdingHostForHost,accountDevelopmentOrigin} from '@erpx/feature-runtime/lib/holding-hosts';
 
 /** Routing ownership cannot grant authentication or broaden an owner API. */
 export function appProxy(id: string) {
-  const host = id === "compat" ? null : new URL(appDefinition(id).origin).host;
+  const host = id === "compat" ? null : new URL(id === "account" && holdingRoutingEnabled(process.env) ? accountDevelopmentOrigin() : appDefinition(id).origin).host;
   return async function ownedAppProxy(request: NextRequest) {
     const health = ["/api/health", "/api/ready"].includes(request.nextUrl.pathname);
     const actual = request.headers.get("host");

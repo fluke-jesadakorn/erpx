@@ -1,9 +1,12 @@
-import {holdingHostForHost,holdingTransportPath} from './holding-hosts.ts';
+import {holdingHostForHost,holdingTransportPath,contributorExactOrigin} from './holding-hosts.ts';
 import {isProductHostKey} from './product-registry.ts';
 
 /** Client transport selects an app process; it cannot supply owner authority. */
 export function holdingFetch(input:RequestInfo|URL,init?:RequestInit):Promise<Response>{
-  if(typeof window==='undefined'||!holdingHostForHost(window.location.host))return globalThis.fetch(input,init);
+  if(typeof window==='undefined')return globalThis.fetch(input,init);
+  const {host,origin}=window.location;
+  const profile=contributorExactOrigin(host,'contributor')===origin?'contributor':'public';
+  if(!holdingHostForHost(host,profile))return globalThis.fetch(input,init);
   const app=document.documentElement.dataset.erpxApp;
   if(!app||!isProductHostKey(app))return globalThis.fetch(input,init);
   const value=typeof input==='string'?input:input instanceof URL?input.href:input.url;
