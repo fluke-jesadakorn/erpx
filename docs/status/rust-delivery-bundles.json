@@ -2150,7 +2150,7 @@
       },
       {
         "id": "field-visit-files-intake",
-        "status": "implementation candidate; not merged or accepted",
+        "status": "Rust merged; Docker locally qualified scoped candidate",
         "branch": "codex/field-files-delivery",
         "integrationTarget": "codex/rust-backend-migration",
         "scope": [
@@ -2160,8 +2160,18 @@
           "Frontend context/uncertain-command integration and legacy retirement"
         ],
         "contract": "docs/contracts/next/field-visit-files-native.md",
-        "rust": "Native provider and normal SSO/browser file journey, checked worker cleanup, shared-database business/history and native physical-I/O/retry proofs pass. Final candidate integration remains.",
-        "docker": "Not built for this capability; follow the accepted Rust capability and retirement gate. Count container qualification is separate.",
+        "rust": "Merged locally verified native Files capability; actual provider/browser and same-database history/business assertions pass, with immediate legacy retirement. No complete catalogue workflow or owner increment.",
+        "docker": {
+          "status": "Fresh default ARM64 build/runtime qualified; scoped PR pending",
+          "sourceCodeCommit": "168420994b9b335bf0a470b67f96bb2e44a38ff4",
+          "apiImage": "sha256:a52da2d54afc5762a809e8a573b90118c4d2ae6645bc5c87b9c2b72ab012cca0",
+          "apiBytes": 46438599,
+          "workerImage": "sha256:b808c1eca0f27b467b35ea235b56769f2cc2faf5f20d3ac29677ad3894be76a1",
+          "workerBytes": 64260485,
+          "contract": "docs/contracts/next/field-files-native-container.md",
+          "evidence": "docs/testing/evidence/2026-10-31-field-files-native-container.json",
+          "scope": "Isolated exact leased development resources; not installed production roles or public gateway cutover. ARM64 only."
+        },
         "legacyRemoved": [
           "Field-only attachment-purchases/attachment-read/attachments-policy-facts/attachments-service-facts adapter/public pairs and exports",
           "Files↔Field unused TypeScript workspace dependencies",
@@ -2179,14 +2189,33 @@
           }
         ],
         "blockers": [
-          "Final frozen-candidate local checks and scoped PR integration.",
-          "Docker build/run/size follows accepted Rust capability; Dev Container follows verified runtime support."
+          "Scoped Docker PR integration on the source-bound local candidate.",
+          "Independent review/final guards and scoped PR for the declared Field Files Dev Container extension."
         ],
         "checks": [
-          "Native and same-database business/history tests; actual deferred source/IAM/audit faults; real store/source retry counters; shared Files34; ownership/alternate-Portal handoff6; frontend30; local compilation/architecture/docs checks pending final recording. HostedCI not claimed."
+          "Source-bound local TypeScript/Clippy/lint/catalogue/architecture/structure/docs/generated input checks and independent review passed. SharedFiles34; ownership/Portal handoff6; focusedfrontend30; real scanner/browser/business/nativeIO proofs. No hostedCIstatus."
         ],
         "retestReason": "Native HTTP/composition, ownership, filesystem cleanup and frontend source changed; rerun only affected gates, reuse unchanged prior Count evidence.",
-        "elapsedClosedBundle": null
+        "elapsedClosedBundle": {
+          "wallSeconds": 21822,
+          "startedAt": "2026-10-30T18:43:26+07:00",
+          "mergedAt": "2026-10-31T00:47:08+07:00",
+          "includesWaits": true
+        },
+        "sourceCommit": "e4be8bddb0d499fe137fccb5e8e487a5895ad469",
+        "mergeCommit": "15a4cf28c99df361a2fe0cb2535c960bd3fb2b5f",
+        "pullRequest": "https://github.com/fluke-jesadakorn/erpx/pull/8",
+        "checklist": {
+          "closed": 8,
+          "total": 8,
+          "scope": "Rust Files capability only; not full Field18/workflow206/owner41"
+        },
+        "evidence": "docs/testing/evidence/2026-10-31-field-visit-files-native.json",
+        "linuxPreviewCorrection": {
+          "pullRequest": "https://github.com/fluke-jesadakorn/erpx/pull/9",
+          "mergeCommit": "168420994b9b335bf0a470b67f96bb2e44a38ff4",
+          "evidence": "docs/testing/evidence/2026-10-31-native-preview-linux-parity.json"
+        }
       }
     ]
   },

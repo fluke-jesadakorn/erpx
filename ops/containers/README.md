@@ -54,3 +54,7 @@ A local ARM64 Linux run is evidence for that architecture and environment, not a
 The native Count runtime has a separate shared API/worker image; it does not wrap the removed TypeScript Count backend. See [the container boundary and qualification](../../docs/contracts/next/rust-service-count-containers.md). Build through `scripts/local/build-service-count-container` from a clean committed source: it stages a tracked-only Git archive instead of sending a live checkout or operator environment to Docker. The fixture image is test-only and is built separately with `--fixture`.
 
 The optional `service-count-native.compose.yaml` requires an explicit verified image, isolated PostgreSQL network namespace and private leased configuration. It neither provisions operator databases nor changes port3100, public hosts, Cloudflared, staging or private production. This limited native runtime does not establish full Dev Container onboarding or production activation.
+
+## Native Field Files capability
+
+The shared [Field Files Dockerfile](field-files-native.Dockerfile) provides API and worker targets; [its Compose file](field-files-native.compose.yaml) uses explicit isolated configuration, data and scanner inputs. See the [runtime contract](../../docs/contracts/next/field-files-native-container.md) for build commands, actual ARM64 sizes, qualification and remaining production gates. This extends the merged Rust capability and does not package a replaced TypeScript backend.
