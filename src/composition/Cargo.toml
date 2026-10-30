@@ -283,3 +283,13 @@ required-features = ["field-service"]
 name = "field_files_intake_command_postgres"
 path = "../../tests/integration/field_service/rust-files-intake-command-postgres.test.rs"
 required-features = ["field-service"]
+
+[[test]]
+name = "field_files_intake_http_postgres"
+path = "../../tests/integration/field_service/rust-files-intake-http-postgres.test.rs"
+required-features = ["field-service-http", "existing-business"]
+
+[[example]]
+name = "export-field-service-attachment-intake-contracts"
+path = "../../scripts/docs/export-field-service-attachment-intake-contracts.rs"
+required-features = ["contracts"]

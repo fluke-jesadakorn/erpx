@@ -125,6 +125,12 @@ pub mod field_attachment_bind;
 #[cfg(feature = "field-service")]
 pub mod field_attachment_intake;
 
+#[cfg(feature = "field-service-http")]
+pub mod field_attachment_intake_http;
+
+#[cfg(feature = "field-service")]
+pub mod field_attachment_intake_contracts;
+
 #[cfg(feature = "field-service")]
 pub mod field_service_source_record;
 

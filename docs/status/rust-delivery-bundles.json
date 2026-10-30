@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-29T21:43:17.423449+00:00",
+  "updatedAt": "2026-10-30T03:44:00.841241+00:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
-  "policy": "Incremental independently mergeable capability bundles toward the unchanged full migration scope; unrelated owners and full-system final integration remain later work unless required by this bundle.",
+  "policy": "Complete bounded Rust capability with frontend/dependencies, one writer and immediate legacy implementation withdrawal; scoped PR integration target codex/rust-backend-migration only; Docker that completed capability next before the following migration bundle; Dev Container grows only with qualified Rust/Docker scope. Development requires another maintainer instruction.",
   "catalogue": {
     "path": "docs/status/product-migration-acceptance.json",
     "moduleWorkflowCount": 187,
@@ -30,7 +30,11 @@
     "statusMeaning": "partial, verified and merged are independent booleans; verified means the entire original catalogue scope is Rust-qualified, merged means that fully verified workflow has landed.",
     "currentState": "Support source-record/navigation is qualified as first-bundle blocker evidence, not an additional business flow or whole catalogue workflow.",
     "evidenceLocation": "Source identities and bounded scope are copied below from the ignored execution state; the detailed private evidence path can be cleaned or unavailable and is not a published artifact. Existing contracts are cited when directly recorded.",
-    "noDoubleCount": "Flows may support several catalogue items and multiple flows may support one item; no flow adds to the 206 denominator."
+    "noDoubleCount": "Flows may support several catalogue items and multiple flows may support one item; no flow adds to the 206 denominator.",
+    "integrationTarget": "codex/rust-backend-migration",
+    "retirementGate": "A migrated capability is not closed until its replaced routes, services, commands, jobs, selectors/fallbacks, imports/exports/configuration, obsolete tests and unused dependencies are removed, with behavioral assertions preserved. Shared retained parts need actual consumers/scope/removal conditions. No destructive schema/data/history/evidence cleanup.",
+    "containerOrder": "Rust + frontend/dependencies + legacy withdrawal and targeted checks, then Docker build/run/minimal non-root measured images for that capability, then next bundle. No TS-backend Docker substitute or automatic per-owner container.",
+    "milestoneSeparation": "Report Rust verified/enabled, legacy removed/retained consumers, post-removal checks, Docker built/run/image size, migration-branch PR/merge SHA and blockers separately; counts remain source-mapped and independent."
   },
   "firstBundle": {
     "id": "field-service-capability",

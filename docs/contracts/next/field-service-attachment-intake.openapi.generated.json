@@ -1,0 +1,440 @@
+{
+  "components": {
+    "schemas": {
+      "FieldIntakeClassification": {
+        "enum": [
+          "Public",
+          "Internal",
+          "Confidential",
+          "Restricted"
+        ],
+        "type": "string"
+      },
+      "FieldIntakeComponent": {
+        "enum": [
+          "Record",
+          "Action",
+          "Line",
+          "Event",
+          "Message",
+          "Publication"
+        ],
+        "type": "string"
+      },
+      "FieldIntakeCreateInput": {
+        "properties": {
+          "componentKind": {
+            "$ref": "#/components/schemas/FieldIntakeComponent"
+          },
+          "componentRef": {
+            "type": "string"
+          },
+          "expectedTargetVersion": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "purposeKey": {
+            "type": "string"
+          },
+          "targetId": {
+            "type": "string"
+          },
+          "targetType": {
+            "$ref": "#/components/schemas/FieldIntakeTarget"
+          }
+        },
+        "required": [
+          "targetType",
+          "targetId",
+          "componentKind",
+          "purposeKey",
+          "expectedTargetVersion"
+        ],
+        "type": "object"
+      },
+      "FieldIntakeCreateResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/FieldIntakeSet"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "type": "object"
+      },
+      "FieldIntakeError": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "type": "object"
+      },
+      "FieldIntakeErrorResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/FieldIntakeError"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "type": "object"
+      },
+      "FieldIntakeLink": {
+        "additionalProperties": false,
+        "properties": {
+          "boundAt": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "bytes": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "caption": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "expiresAt": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "filename": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "linkState": {
+            "$ref": "#/components/schemas/FieldIntakeState"
+          },
+          "mediaType": {
+            "type": "string"
+          },
+          "previewAvailable": {
+            "type": "boolean"
+          },
+          "sourceId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sourceState": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/FieldIntakeSourceState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "filename",
+          "mediaType",
+          "linkState",
+          "previewAvailable",
+          "createdAt",
+          "expiresAt",
+          "sourceId",
+          "bytes",
+          "sourceState",
+          "caption",
+          "boundAt"
+        ],
+        "type": "object"
+      },
+      "FieldIntakeListResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/FieldIntakeSet"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "type": "object"
+      },
+      "FieldIntakeSet": {
+        "additionalProperties": false,
+        "properties": {
+          "classification": {
+            "$ref": "#/components/schemas/FieldIntakeClassification"
+          },
+          "componentKind": {
+            "$ref": "#/components/schemas/FieldIntakeComponent"
+          },
+          "componentRef": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "expectedTargetVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "links": {
+            "items": {
+              "$ref": "#/components/schemas/FieldIntakeLink"
+            },
+            "type": "array"
+          },
+          "maxFiles": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "policyVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "purposeKey": {
+            "type": "string"
+          },
+          "requiredCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "state": {
+            "$ref": "#/components/schemas/FieldIntakeState"
+          },
+          "targetId": {
+            "type": "string"
+          },
+          "targetType": {
+            "$ref": "#/components/schemas/FieldIntakeTarget"
+          },
+          "updatedAt": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "targetType",
+          "targetId",
+          "componentKind",
+          "purposeKey",
+          "expectedTargetVersion",
+          "policyVersion",
+          "classification",
+          "requiredCount",
+          "maxFiles",
+          "state",
+          "createdAt",
+          "updatedAt",
+          "links",
+          "componentRef"
+        ],
+        "type": "object"
+      },
+      "FieldIntakeSourceState": {
+        "enum": [
+          "LegacyUnscanned",
+          "Quarantined",
+          "Scanning",
+          "Available",
+          "ScanError",
+          "MalwareRejected",
+          "Destroyed"
+        ],
+        "type": "string"
+      },
+      "FieldIntakeState": {
+        "enum": [
+          "Draft",
+          "Bound",
+          "Withdrawn",
+          "Expired"
+        ],
+        "type": "string"
+      },
+      "FieldIntakeTarget": {
+        "enum": [
+          "FieldVisit"
+        ],
+        "type": "string"
+      }
+    }
+  },
+  "info": {
+    "description": "",
+    "license": {
+      "identifier": "Apache-2.0",
+      "name": "Apache-2.0"
+    },
+    "title": "ERPX native Field attachment intake",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/holdings/{holding_slug}/field-service/attachment-sets": {
+      "get": {
+        "operationId": "list",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "holding_slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "targetType",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "targetId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "purposeKey",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "componentKind",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "expectedTargetVersion",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FieldIntakeListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FieldIntakeErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": []
+      },
+      "post": {
+        "operationId": "create",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "holding_slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FieldIntakeCreateInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FieldIntakeCreateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FieldIntakeErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    }
+  }
+}
