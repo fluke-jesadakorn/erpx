@@ -6,7 +6,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { createWriteStream, readFileSync, mkdirSync, writeFileSync, renameSync, existsSync, readlinkSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
-import { recoverGatewayApps, inspectProcessIdentity, assertRetiredLeasePortsAvailable, type ProcessIdentity, type PidNamespace } from "./app-process-leases";
+import { recoverGatewayApps, inspectProcessIdentity, assertRetiredLeasePortsAvailable, linuxInitStartTime, type ProcessIdentity, type PidNamespace } from "./app-process-leases";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { appDefinitions, appDirectory, appForHost, unregisteredDevelopmentProductHost } from "@erpx/contracts/apps";
 import {holdingRoutingEnabled,holdingHostForHost,contributorExactOrigin,contributorOriginProfile,originProfile} from '@erpx/feature-runtime/lib/holding-hosts';
@@ -57,7 +57,7 @@ function processIdentity(pid: number): ProcessIdentity | null {
 }
 function currentPidNamespace(): PidNamespace | undefined {
   if (process.platform !== 'linux') return undefined;
-  try { const bootId=readFileSync('/proc/sys/kernel/random/boot_id','utf8').trim(),namespace=readlinkSync('/proc/self/ns/pid'); return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(bootId)&&/^pid:\[\d+\]$/.test(namespace)?{bootId,namespace}:undefined; }
+  try { const bootId=readFileSync('/proc/sys/kernel/random/boot_id','utf8').trim(),namespace=readlinkSync('/proc/self/ns/pid'),initStartTime=linuxInitStartTime(readFileSync('/proc/1/stat','utf8')); return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(bootId)&&/^pid:\[\d+\]$/.test(namespace)&&initStartTime?{bootId,namespace,initStartTime}:undefined; }
   catch { return undefined; } // Unproven namespace retains strict PID checks.
 }
 const pidNamespace=currentPidNamespace(), priorLease=resolve(logs,"leases.json");

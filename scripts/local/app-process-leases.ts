@@ -2,7 +2,7 @@ import { appDefinitions, appDirectory } from '@erpx/contracts/apps';
 
 export type ProcessIdentity = { command: string; cwd: string; started: string };
 export type AppProcessLease = { id: string; pid: number; port: number; identity: ProcessIdentity };
-export type PidNamespace = { bootId: string; namespace: string };
+export type PidNamespace = { bootId: string; namespace: string; initStartTime?: string };
 export type GatewayProcessLease = { version: 2 | 3; root: string; gatewayPid: number; apps: AppProcessLease[]; pidNamespace?: PidNamespace };
 /** Only a confirmed absent PID converts an inspection error into absence. */
 export function inspectProcessIdentity(pid: number, read: (pid: number) => ProcessIdentity, probe: (pid: number) => void): ProcessIdentity | null {
@@ -11,7 +11,18 @@ export function inspectProcessIdentity(pid: number, read: (pid: number) => Proce
     throw error;
   }
 }
-const validNamespace = (value: PidNamespace | undefined): value is PidNamespace => !!value && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(value.bootId) && /^pid:\[\d+\]$/.test(value.namespace);
+const validNamespace = (value: PidNamespace | undefined): value is PidNamespace => !!value && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(value.bootId) && /^pid:\[\d+\]$/.test(value.namespace) && (value.initStartTime === undefined || /^[1-9][0-9]*$/.test(value.initStartTime));
+/** PID namespace init termination kills the namespace's remaining processes:
+ * https://man7.org/linux/man-pages/man7/pid_namespaces.7.html
+ * Field 22 is start time in clock ticks since boot; keep its decimal text:
+ * https://man7.org/linux/man-pages/man5/proc_pid_stat.5.html
+ * The command may contain spaces and parentheses. */
+export function linuxInitStartTime(stat: string): string | undefined {
+  const end=stat.lastIndexOf(')');
+  if (!/^1 \(/.test(stat) || end < 3 || stat[end+1] !== ' ') return undefined;
+  const value=stat.slice(end+2).trim().split(/\s+/)[19];
+  return value && /^[1-9][0-9]*$/.test(value) ? value : undefined;
+}
 export type RecoveryPorts = {
   identity(pid: number): ProcessIdentity | null;
   stop(pid: number): void;
@@ -25,7 +36,7 @@ export async function recoverGatewayApps(input: unknown, root: string, ports: Re
     throw new Error('GATEWAY_LEASE_IDENTITY_REQUIRED');
   if (lease.version !== 2 && lease.version !== 3) throw new Error('OLD_GATEWAY_LEASE_REQUIRES_MANUAL_REVIEW');
   if (lease.version === 3 && !validNamespace(lease.pidNamespace)) throw new Error('GATEWAY_PID_NAMESPACE_INVALID');
-  const oldNamespace = lease.version === 3 && validNamespace(currentNamespace) && (lease.pidNamespace!.bootId !== currentNamespace.bootId || lease.pidNamespace!.namespace !== currentNamespace.namespace);
+  const oldNamespace = lease.version === 3 && validNamespace(currentNamespace) && (lease.pidNamespace!.bootId !== currentNamespace.bootId || lease.pidNamespace!.namespace !== currentNamespace.namespace || (lease.pidNamespace!.initStartTime !== undefined && currentNamespace.initStartTime !== undefined && lease.pidNamespace!.initStartTime !== currentNamespace.initStartTime));
   if (!oldNamespace && ports.identity(lease.gatewayPid)) throw new Error('GATEWAY_LEASE_OWNER_STILL_ALIVE');
   const owned: AppProcessLease[] = [];
   const seen = new Set<number>();

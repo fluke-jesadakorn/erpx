@@ -178,7 +178,7 @@ it('keeps generated app outputs and verification edits outside the global runtim
  } finally { await rm(root,{recursive:true,force:true}); }
 });
 
-import { recoverGatewayApps, inspectProcessIdentity, assertRetiredLeasePortsAvailable, type GatewayProcessLease, type ProcessIdentity } from '../../../scripts/local/app-process-leases';
+import { recoverGatewayApps, inspectProcessIdentity, assertRetiredLeasePortsAvailable, linuxInitStartTime, type GatewayProcessLease, type ProcessIdentity } from '../../../scripts/local/app-process-leases';
 describe('development process ownership',()=>{
  const root='/owned/erpx',identity:ProcessIdentity={cwd:root,started:'Thu Oct 22 17:00:00 2026',command:`node ${root}/node_modules/next/dist/bin/next dev ${root}/apps/finance --port 3204 --hostname 127.0.0.1 --webpack`};
  const lease=():GatewayProcessLease=>({version:2,root,gatewayPid:90,apps:[{id:'finance',pid:100,port:3204,identity}]});
@@ -222,6 +222,23 @@ describe('development process ownership',()=>{
   const p=ports();await expect(recoverGatewayApps({...lease(),version:3,pidNamespace:old,root:'/foreign'},root,p,undefined,current)).rejects.toThrow('GATEWAY_LEASE_IDENTITY_REQUIRED');expect(p.stopped).toEqual([]);
   await expect(recoverGatewayApps({...lease(),version:3,pidNamespace:old,apps:[{...lease().apps[0],port:3000}]},root,p,undefined,current)).rejects.toThrow('INVALID_APP_PROCESS_LEASE');expect(p.stopped).toEqual([]);
   await expect(recoverGatewayApps({...lease(),version:3,pidNamespace:old,apps:[{...lease().apps[0],identity:{...identity,cwd:'/foreign'}}]},root,p,undefined,current)).rejects.toThrow('OWNERSHIP_CHANGED');expect(p.stopped).toEqual([]);
+ });
+ it('distinguishes reused namespace inode using the PID 1 generation',async()=>{
+  const old={bootId:'c173c94c-e11d-45ac-b9ac-8f8dbac81b63',namespace:'pid:[4026532353]',initStartTime:'183000'},current={...old,initStartTime:'193000'};
+  const p=ports(new Map([[90,identity],[100,identity]])),probe=vi.spyOn(p,'identity');
+  expect(await recoverGatewayApps({...lease(),version:3,pidNamespace:old},root,p,undefined,current)).toBe(true);
+  expect(probe).not.toHaveBeenCalled();expect(p.stopped).toEqual([]);
+  await expect(assertRetiredLeasePortsAvailable(lease(),3100,async port=>port===3204)).rejects.toThrow('APP_PORT_OCCUPIED');
+  for(const [saved,now] of [[old,old],[{bootId:old.bootId,namespace:old.namespace},current],[old,{bootId:old.bootId,namespace:old.namespace}],[old,undefined]] as const){
+   const strict=ports(new Map([[90,identity]]));await expect(recoverGatewayApps({...lease(),version:3,pidNamespace:saved},root,strict,undefined,now)).rejects.toThrow('OWNER_STILL_ALIVE');expect(strict.stopped).toEqual([]);
+  }
+  const bad=ports();await expect(recoverGatewayApps({...lease(),version:3,pidNamespace:{...old,initStartTime:'-1'}},root,bad,undefined,current)).rejects.toThrow('GATEWAY_PID_NAMESPACE_INVALID');expect(bad.stopped).toEqual([]);
+ });
+ it('parses the PID 1 start time after a command containing spaces and parentheses',()=>{
+  const fields=['S',...Array.from({length:18},(_,i)=>String(i+1)),'987654','23'];
+  expect(linuxInitStartTime(`1 (worker ) name) ${fields.join(' ')}`)).toBe('987654');
+  expect(linuxInitStartTime('1 (broken) S')).toBeUndefined();
+  expect(linuxInitStartTime(`2 (worker) ${fields.join(' ')}`)).toBeUndefined();
  });
  it('checks current and unproven namespaces with the existing strict identity rules',async()=>{
   const namespace={bootId:'11111111-1111-1111-1111-111111111111',namespace:'pid:[100]'},value={...lease(),version:3,pidNamespace:namespace};
