@@ -310,9 +310,38 @@ pub fn normalize_initial_count_action(raw: &str) -> Result<InitialCountActionInp
     })
 }
 
+/// Generic stock-count actions strip unknown object fields like the retained
+/// countActionSchema. Inspect only named fields so lone UTF-16 keys are safe.
+pub fn normalize_generic_initial_count_action(raw: &str) -> Result<InitialCountActionInput, BusinessError> {
+    let input = CommandJson::parse(raw)?;
+    let expected = prop(&input, "expectedVersion")?;
+    let mut fields = vec![format!("\"expectedVersion\":{}", expected.as_str())];
+    for name in ["attachmentSetIds", "reason"] {
+        if let Some(value) = input.property(name)? {
+            fields.push(format!("\"{name}\":{}", value.as_str()));
+        }
+    }
+    normalize_initial_count_action(&format!("{{{}}}", fields.join(",")))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn generic_action_matches_actual_zod_oracle() {
+        let oracle: serde_json::Value = serde_json::from_str(include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../fixtures/field_service/service-count-generic-action-zod-oracle.v1.json"))).unwrap();
+        let cases = oracle["cases"].as_array().unwrap();
+        assert!(cases.len() >= 12);
+        for case in cases {
+            let raw = case["raw"].as_str().unwrap();
+            match case["normalized"].as_str() {
+                Some(expected) => assert_eq!(normalize_generic_initial_count_action(raw).unwrap().normalized.as_str(), expected, "{}", case["name"]),
+                None => assert!(normalize_generic_initial_count_action(raw).is_err(), "{}", case["name"]),
+            }
+        }
+        assert!(normalize_initial_count_action(r#"{"expectedVersion":1,"unknown":true}"#).is_err());
+    }
 
     // Expected output is from the retained Zod schema under the pinned Bun.
     #[test]

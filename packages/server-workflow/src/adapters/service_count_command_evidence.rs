@@ -263,10 +263,24 @@ pub async fn verify_historical_count_command(
         return verify_historical_count_revision(c, actor, request).await;
     }
     let _ = unit(c).await?;
-    let input: serde_json::Value =
-        serde_json::from_str(request.input.as_str()).map_err(|_| changed())?;
-    let expected = input["expectedVersion"]
-        .as_i64()
+    let input = &request.input;
+    let number = |key: &str| -> Result<Option<i64>, Error> {
+        Ok(input
+            .property(key)?
+            .and_then(|v| v.as_str().parse::<i64>().ok()))
+    };
+    // node-postgres converts unpaired UTF-16 strings to the replacement
+    // character for SQL values. Keep the original CommandJson for fingerprints.
+    let text = |key: &str| -> Result<Option<String>, Error> {
+        input
+            .property(key)?
+            .map(|v| {
+                let units = v.string_utf16_units()?.ok_or_else(changed)?;
+                Ok(String::from_utf16_lossy(&units))
+            })
+            .transpose()
+    };
+    let expected = number("expectedVersion")?
         .filter(|v| *v >= 0 && *v < 9_007_199_254_740_991)
         .ok_or_else(changed)?;
     let (status, event_action, version, result_version, reason, step, decision) =
@@ -274,13 +288,12 @@ pub async fn verify_historical_count_command(
             "flow.assign" => (
                 None,
                 "assign",
-                input["recordVersion"]
-                    .as_i64()
+                number("recordVersion")?
                     .filter(|v| *v > 0)
                     .ok_or_else(changed)?,
                 if expected == 0 { 2 } else { expected + 1 },
-                input["reason"].as_str().ok_or_else(changed)?,
-                input["stepKey"].as_str(),
+                text("reason")?.ok_or_else(changed)?,
+                Some(text("stepKey")?.ok_or_else(changed)?),
                 false,
             ),
             operation => {
@@ -300,7 +313,7 @@ pub async fn verify_historical_count_command(
                     action,
                     expected + 1,
                     expected + 1,
-                    input["reason"].as_str().unwrap_or(""),
+                    text("reason")?.unwrap_or_default(),
                     None,
                     review,
                 )

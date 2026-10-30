@@ -23,6 +23,18 @@ fn action_post() {}
 fn action_reject() {}
 #[utoipa::path(post,path="/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock/{id}/cancel",params(("holding_slug"=String,Path), ("id"=String,Path)),request_body=CountActionInput,responses((status=200,body=ServiceInitialCountCommandResponse,description="Current authorized Service Count action_cancel")))]
 fn action_cancel() {}
+#[utoipa::path(post,path="/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock/{id}/stock-count/submit",params(("holding_slug"=String,Path), ("id"=String,Path)),request_body=GenericCountActionInput,responses((status=200,body=ServiceInitialCountCommandResponse,description="Generic Count submit receipt")))]
+fn generic_submit() {}
+#[utoipa::path(post,path="/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock/{id}/stock-count/approve",params(("holding_slug"=String,Path), ("id"=String,Path)),request_body=GenericCountActionInput,responses((status=200,body=ServiceInitialCountCommandResponse,description="Generic Count approve receipt")))]
+fn generic_approve() {}
+#[utoipa::path(post,path="/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock/{id}/stock-count/post",params(("holding_slug"=String,Path), ("id"=String,Path)),request_body=GenericCountActionInput,responses((status=200,body=ServiceInitialCountCommandResponse,description="Generic Count post receipt")))]
+fn generic_post() {}
+#[utoipa::path(post,path="/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock/{id}/stock-count/reject",params(("holding_slug"=String,Path), ("id"=String,Path)),request_body=GenericCountActionInput,responses((status=200,body=ServiceInitialCountCommandResponse,description="Generic Count reject receipt")))]
+fn generic_reject() {}
+#[utoipa::path(post,path="/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock/{id}/stock-count/cancel",params(("holding_slug"=String,Path), ("id"=String,Path)),request_body=GenericCountActionInput,responses((status=200,body=ServiceInitialCountCommandResponse,description="Generic Count cancel receipt")))]
+fn generic_cancel() {}
+#[utoipa::path(post,path="/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock/{id}/stock-count/flow",params(("holding_slug"=String,Path), ("id"=String,Path)),request_body=GenericCountAssignmentInput,responses((status=200,body=ServiceInitialCountCommandResponse,description="Generic Count Flow assignment receipt")))]
+fn generic_flow() {}
 #[derive(utoipa::OpenApi)]
 #[openapi(
     paths(
@@ -36,7 +48,13 @@ fn action_cancel() {}
         action_approve,
         action_post,
         action_reject,
-        action_cancel
+        action_cancel,
+        generic_submit,
+        generic_approve,
+        generic_post,
+        generic_reject,
+        generic_cancel,
+        generic_flow
     ),
     components(schemas(
         CountReadiness,
@@ -71,6 +89,8 @@ fn action_cancel() {}
         CountUpdateAllocation,
         CountActionInput,
         CountAssignmentInput,
+        GenericCountActionInput,
+        GenericCountAssignmentInput,
         FieldServiceRenderedContext
     ))
 )]
@@ -106,6 +126,18 @@ fn main() {
             update["CountUpdateAllocation"]["properties"][key] = serde_json::json!({"oneOf":[{"type":"string","format":"date"},{"type":"string","const":""}],"default":""});
         }
         update["CountUpdateLine"]["properties"]["allocations"]["default"] = serde_json::json!([]);
+        let generic = &mut value["components"]["schemas"];
+        generic["GenericCountActionInput"]["properties"]["attachmentSetIds"]["items"]["minLength"] = 1.into();
+        generic["GenericCountActionInput"]["properties"]["attachmentSetIds"]["default"] = serde_json::json!([]);
+        for name in ["GenericCountActionInput", "GenericCountAssignmentInput"] {
+            generic[name]["properties"]["reason"]["minLength"] = 3.into();
+            generic[name]["properties"]["reason"]["maxLength"] = 2000.into();
+        }
+        generic["GenericCountAssignmentInput"]["properties"]["stepKey"]["minLength"] = 1.into();
+        generic["GenericCountAssignmentInput"]["properties"]["stepKey"]["maxLength"] = 100.into();
+        generic["GenericCountAssignmentInput"]["properties"]["userId"]["minLength"] = 1.into();
+        generic["GenericCountAssignmentInput"]["properties"]["userId"]["maxLength"] = 180.into();
+        generic["GenericCountAssignmentInput"]["properties"]["saveDefault"]["default"] = false.into();
         if let Some(schemas) = value["components"]["schemas"].as_object_mut() {
             for name in [
                 "CountCreateInput",
@@ -159,6 +191,8 @@ fn main() {
         CountUpdateAllocation::decl(&config),
         CountActionInput::decl(&config),
         CountAssignmentInput::decl(&config),
+        GenericCountActionInput::decl(&config),
+        GenericCountAssignmentInput::decl(&config),
     ] {
         println!("export {declaration}");
     }

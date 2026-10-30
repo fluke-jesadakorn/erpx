@@ -263,3 +263,34 @@ pub struct CountAssignmentInput {
     )]
     pub save_default: Option<bool>,
 }
+
+/// Generic stock-count action accepts the retained stripping object projection.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct GenericCountActionInput {
+    #[cfg_attr(feature = "contracts", ts(type = "number"), schema(minimum = 1, maximum = 9007199254740991i64))]
+    pub expected_version: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "contracts", ts(optional), schema(nullable = false, max_items = 10))]
+    pub attachment_set_ids: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "contracts", ts(optional), schema(nullable = false))]
+    pub reason: Option<String>,
+}
+/// Generic Flow may update the scoped default; unknown object keys are stripped.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct GenericCountAssignmentInput {
+    pub step_key: String,
+    pub user_id: String,
+    #[cfg_attr(feature = "contracts", ts(type = "number"), schema(minimum = 0, maximum = 9007199254740991i64))]
+    pub expected_version: i64,
+    #[cfg_attr(feature = "contracts", ts(type = "number"), schema(minimum = 1, maximum = 9007199254740991i64))]
+    pub record_version: i64,
+    pub reason: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "contracts", ts(optional), schema(nullable = false))]
+    pub save_default: Option<bool>,
+}

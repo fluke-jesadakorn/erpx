@@ -495,3 +495,73 @@ async fn count_revision_evidence_checks_ordinary_ledger_without_flow_or_decision
         assert_eq!(counts, (0, 0, 0));
     }).await;
 }
+
+#[tokio::test]
+async fn assignment_default_is_scoped_retained_and_rolls_back_on_tampering() {
+    fixture::with_database(2, |pool| async move {
+        let root=Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+        let migrations=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();
+        migrate_database(&pool,MigrationTrack::HoldingWrite,&migrations).await.unwrap();
+        let unit=PgUnitOfWork::new(pool.clone());
+        let result=unit.run_once::<_,BusinessError,_>(TransactionOptions::default(),|c|Box::pin(async move {
+            lock_stock_count_flow_sources(c).await?;
+            let basis=read_stock_count_flow_basis(c,"company","count-example","branch").await?;
+            let plan=StockCountFlowAssignmentWitness::prepare_with_default(basis,&view("draft",1,0,0),StockCountFlowAssignmentRequest{step:StockCountStep::Submitted,user:"reviewer",expected_flow:0,expected_record:1,company_admin:true,actor:"maker",actor_name:"Maker",reason:"Assign review",command:"assign-default",event:"assign-default-event",now:1},true)?;
+            plan.apply(c).await?;plan.retain(c).await?;
+            sqlx::query("UPDATE flow_defaults SET primary_user_id='tamper'").execute(&mut *c).await?;
+            plan.retain(c).await?;Ok(())
+        })).await;
+        assert!(result.is_err());
+        let empty:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM flow_defaults),(SELECT count(*) FROM flow_routes),(SELECT count(*) FROM flow_events)").fetch_one(pool.raw()).await.unwrap();
+        assert_eq!(empty,(0,0,0));
+        sqlx::raw_sql("CREATE FUNCTION fixture_extra_default() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN INSERT INTO flow_defaults(revision,company_id,kind,step_key,branch_id,primary_user_id,created_by,reason,created_at) OVERRIDING SYSTEM VALUE VALUES(-1,'company','other_kind','other','another-branch','other','maker','tampered',1); RETURN NULL; END $$; CREATE TRIGGER fixture_extra_default AFTER INSERT ON flow_events FOR EACH STATEMENT EXECUTE FUNCTION fixture_extra_default()").execute(pool.raw()).await.unwrap();
+        let extra=unit.run_once::<_,BusinessError,_>(TransactionOptions::default(),|c|Box::pin(async move {
+            lock_stock_count_flow_sources(c).await?;
+            let basis=read_stock_count_flow_basis(c,"company","count-example","branch").await?;
+            let plan=StockCountFlowAssignmentWitness::prepare_with_default(basis,&view("draft",1,0,0),StockCountFlowAssignmentRequest{step:StockCountStep::Submitted,user:"reviewer",expected_flow:0,expected_record:1,company_admin:true,actor:"maker",actor_name:"Maker",reason:"Assign review",command:"assign-default",event:"assign-default-event",now:1},true)?;
+            plan.apply(c).await?;plan.retain(c).await?;Ok(())
+        })).await;assert!(extra.is_err());
+        let none:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM flow_defaults),(SELECT count(*) FROM flow_routes),(SELECT count(*) FROM flow_events)").fetch_one(pool.raw()).await.unwrap();assert_eq!(none,(0,0,0));
+        sqlx::raw_sql("DROP TRIGGER fixture_extra_default ON flow_events; DROP FUNCTION fixture_extra_default()").execute(pool.raw()).await.unwrap();
+        sqlx::raw_sql("CREATE FUNCTION fixture_extra_event() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN INSERT INTO flow_events(id,command_id,company_id,kind,record_id,step_key,action,actor_user_id,actor_name,reason,record_version,created_at) VALUES('foreign-event',NEW.command_id,'other-company','stock_count','other-count','draft','assign','maker','Maker','foreign',1,1); RETURN NULL; END $$; CREATE TRIGGER fixture_extra_event AFTER INSERT ON flow_events FOR EACH ROW WHEN (NEW.id='assign-default-event') EXECUTE FUNCTION fixture_extra_event()").execute(pool.raw()).await.unwrap();
+        let extra_event=unit.run_once::<_,BusinessError,_>(TransactionOptions::default(),|c|Box::pin(async move {
+            lock_stock_count_flow_sources(c).await?;
+            let basis=read_stock_count_flow_basis(c,"company","count-example","branch").await?;
+            let plan=StockCountFlowAssignmentWitness::prepare_with_default(basis,&view("draft",1,0,0),StockCountFlowAssignmentRequest{step:StockCountStep::Submitted,user:"reviewer",expected_flow:0,expected_record:1,company_admin:true,actor:"maker",actor_name:"Maker",reason:"Assign review",command:"assign-default",event:"assign-default-event",now:1},true)?;
+            plan.apply(c).await?;plan.retain(c).await?;Ok(())
+        })).await;assert!(extra_event.is_err());
+        let none:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM flow_defaults),(SELECT count(*) FROM flow_routes),(SELECT count(*) FROM flow_events)").fetch_one(pool.raw()).await.unwrap();assert_eq!(none,(0,0,0));
+        sqlx::raw_sql("DROP TRIGGER fixture_extra_event ON flow_events; DROP FUNCTION fixture_extra_event()").execute(pool.raw()).await.unwrap();
+        unit.run_once::<_,BusinessError,_>(TransactionOptions::default(),|c|Box::pin(async move {
+            lock_stock_count_flow_sources(c).await?;
+            let basis=read_stock_count_flow_basis(c,"company","count-example","branch").await?;
+            let plan=StockCountFlowAssignmentWitness::prepare_with_default(basis,&view("draft",1,0,0),StockCountFlowAssignmentRequest{step:StockCountStep::Submitted,user:"reviewer",expected_flow:0,expected_record:1,company_admin:true,actor:"maker",actor_name:"Maker",reason:"Assign review",command:"assign-default",event:"assign-default-event",now:1},true)?;
+            plan.apply(c).await?;plan.retain(c).await?;Ok(())
+        })).await.unwrap();
+        let row:(String,String,Option<String>,String,String)=sqlx::query_as("SELECT company_id,branch_id,department_id,step_key,primary_user_id FROM flow_defaults").fetch_one(pool.raw()).await.unwrap();
+        assert_eq!(row,("company".into(),"branch".into(),None,"submitted".into(),"reviewer".into()));
+        let route:(i64,i64)=sqlx::query_as("SELECT version,defaults_revision FROM flow_routes").fetch_one(pool.raw()).await.unwrap();assert_eq!(route,(2,0));
+    }).await;
+}
+
+#[tokio::test]
+async fn concurrent_default_assignments_serialize_against_the_same_route() {
+    fixture::with_database(3, |pool| async move {
+        let root=Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+        let migrations=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();
+        migrate_database(&pool,MigrationTrack::HoldingWrite,&migrations).await.unwrap();
+        let run=|command: &'static str, event: &'static str| {
+            let pool=pool.clone();async move {
+                PgUnitOfWork::new(pool).run_once::<_,BusinessError,_>(TransactionOptions::default(),move|c|Box::pin(async move {
+                    lock_stock_count_flow_sources(c).await?;
+                    let basis=read_stock_count_flow_basis(c,"company","count-example","branch").await?;
+                    let plan=StockCountFlowAssignmentWitness::prepare_with_default(basis,&view("draft",1,0,0),StockCountFlowAssignmentRequest{step:StockCountStep::Submitted,user:"reviewer",expected_flow:0,expected_record:1,company_admin:true,actor:"maker",actor_name:"Maker",reason:"Assign review",command,event,now:1},true)?;
+                    plan.apply(c).await?;plan.retain(c).await?;Ok(())
+                })).await
+            }
+        };
+        let (a,b)=tokio::join!(run("one","event-one"),run("two","event-two"));
+        assert_ne!(a.is_ok(),b.is_ok());
+        let counts:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM flow_defaults),(SELECT count(*) FROM flow_routes),(SELECT count(*) FROM flow_events)").fetch_one(pool.raw()).await.unwrap();assert_eq!(counts,(1,1,1));
+    }).await;
+}

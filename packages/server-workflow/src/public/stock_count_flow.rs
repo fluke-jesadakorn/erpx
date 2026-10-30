@@ -5,7 +5,7 @@ pub use crate::adapters::stock_count_flow::{
 };
 pub use crate::application::stock_count_flow::{
     StockCountFlowOwnerPorts, StockCountFlowRecord, StockCountFlowView, StockCountResolvedStep,
-    StockCountRoute, StockCountSavedStep, normalize_stock_count_assignment,
+    StockCountRoute, StockCountSavedStep, normalize_stock_count_assignment, normalize_generic_stock_count_assignment,
     resolve_stock_count_flow,
 };
 pub use crate::domain::stock_count_flow::{

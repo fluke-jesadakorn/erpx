@@ -60,3 +60,13 @@ it('Count update sends the original body, key and context through the real priva
  await nativeInitialCountRequest({baseUrl,slug:'acme',route:{kind:'update',id:'count 1'},headers,body,timeoutMs:5000});
  expect(observed.at(-1)).toEqual({method:'POST',path:'/api/v1/holdings/acme/field-service/initial-physical-stock/count%201/update',body,context:'synthetic-company',key:'original-key'});
 });
+it('generic Count action carries the original body, key and context over private HTTP',async()=>{
+ const headers=new Headers({'x-erpx-context-company':'synthetic-company','idempotency-key':'generic-action-key'}),body='{ "expectedVersion" : 3, "ignored" : {"nested":true} }';
+ await nativeInitialCountRequest({baseUrl,slug:'acme',route:{kind:'generic-action',id:'count 1',action:'approve'},headers,body,timeoutMs:5000});
+ expect(observed.at(-1)).toEqual({method:'POST',path:'/api/v1/holdings/acme/field-service/initial-physical-stock/count%201/stock-count/approve',body,context:'synthetic-company',key:'generic-action-key'});
+});
+it('generic Count Flow assignment carries original body and key over private HTTP',async()=>{
+ const headers=new Headers({'x-erpx-context-company':'synthetic-company','idempotency-key':'generic-flow-key'}),body='{ "expectedVersion":2, "saveDefault":true }';
+ await nativeInitialCountRequest({baseUrl,slug:'acme',route:{kind:'generic-assign',id:'count 1'},headers,body,timeoutMs:5000});
+ expect(observed.at(-1)).toEqual({method:'POST',path:'/api/v1/holdings/acme/field-service/initial-physical-stock/count%201/stock-count/flow',body,context:'synthetic-company',key:'generic-flow-key'});
+});

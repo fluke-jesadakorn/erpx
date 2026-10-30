@@ -103,6 +103,7 @@ pub fn field_service_reservation_read_router<C: Clock + Send + Sync + 'static>(
         .route("/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock/{id}",get(read_initial_count_record::<C>))
         .route("/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock/{id}/flow",get(read_initial_count_flow::<C>).post(assign_initial_count::<C>))
         .route("/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock/{id}/{action}",post(act_initial_count::<C>))
+        .route("/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock/{id}/stock-count/{action}",post(act_generic_initial_count::<C>))
         .route("/api/v1/holdings/{holding_slug}/field-service/parts-setup/masters/products",post(create_stock_product::<C>))
         .route("/api/v1/holdings/{holding_slug}/field-service/parts-setup/masters/warehouses",post(create_stock_warehouse::<C>))
         .route("/api/v1/holdings/{holding_slug}/field-service/parts-setup/charts",post(create_parts_chart::<C>))
@@ -1701,6 +1702,28 @@ async fn act_initial_count<C: Clock + Send + Sync + 'static>(
     )
     .await
 }
+async fn act_generic_initial_count<C: Clock + Send + Sync + 'static>(
+    state: State<Arc<ReadState<C>>>,
+    Path((slug, id, action)): Path<(String, String, String)>,
+    request: Request,
+) -> Response {
+    use crate::service_initial_physical_stock::CountAction;
+    use crate::service_initial_physical_stock_transport::ServiceInitialCountCommandRoute;
+    let route = if action == "flow" {
+        ServiceInitialCountCommandRoute::GenericAssign { id }
+    } else {
+        let action = match action.as_str() {
+            "submit" => CountAction::Submit,
+            "approve" => CountAction::Approve,
+            "post" => CountAction::Post,
+            "reject" => CountAction::Reject,
+            "cancel" => CountAction::Cancel,
+            _ => return initial_count_response::<serde_json::Value>(Err(missing().into()), false),
+        };
+        ServiceInitialCountCommandRoute::GenericAction { id, action }
+    };
+    write_initial_count(state, slug, request, route).await
+}
 async fn write_initial_count<C: Clock + Send + Sync + 'static>(
     State(state): State<Arc<ReadState<C>>>,
     slug: String,
@@ -1708,7 +1731,7 @@ async fn write_initial_count<C: Clock + Send + Sync + 'static>(
     route: crate::service_initial_physical_stock_transport::ServiceInitialCountCommandRoute,
 ) -> Response {
     use crate::service_initial_physical_stock_transport::ServiceInitialCountCommandRoute;
-    if matches!(&route, ServiceInitialCountCommandRoute::Action {id,..} | ServiceInitialCountCommandRoute::Assign {id} | ServiceInitialCountCommandRoute::Update {id} if id == "masters") {
+    if matches!(&route, ServiceInitialCountCommandRoute::Action {id,..} | ServiceInitialCountCommandRoute::Assign {id} | ServiceInitialCountCommandRoute::Update {id} | ServiceInitialCountCommandRoute::GenericAction {id,..} | ServiceInitialCountCommandRoute::GenericAssign {id} if id == "masters") {
         return initial_count_response::<serde_json::Value>(Err(missing().into()), false);
     }
     let created = matches!(

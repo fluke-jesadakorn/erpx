@@ -33,3 +33,5 @@ export type CountUpdateLine = { productId: string, countedQuantity: string, unit
 export type CountUpdateAllocation = { lotId?: string, lotCode?: string, serialNumber?: string, manufacturedDate?: string, expiryDate?: string, countedQuantity: string, unitCost?: string, };
 export type CountActionInput = { expectedVersion: number, attachmentSetIds?: Array<string>, reason?: string, };
 export type CountAssignmentInput = { stepKey: string, userId: string, expectedVersion: number, recordVersion: number, reason: string, saveDefault?: false, };
+export type GenericCountActionInput = { expectedVersion: number, attachmentSetIds?: Array<string>, reason?: string, };
+export type GenericCountAssignmentInput = { stepKey: string, userId: string, expectedVersion: number, recordVersion: number, reason: string, saveDefault?: boolean, };

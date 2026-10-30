@@ -72599,7 +72599,9 @@
         "packages/server-inventory/src/application/counts.ts",
         "scripts/testing/fixtures/service-count-legacy-update.ts",
         "scripts/testing/fixtures/generate-service-count-update-zod-oracle.ts",
-        "fixtures/field_service/service-count-update-zod-oracle.v1.json"
+        "fixtures/field_service/service-count-update-zod-oracle.v1.json",
+        "scripts/testing/fixtures/generate-service-count-generic-action-zod-oracle.ts",
+        "fixtures/field_service/service-count-generic-action-zod-oracle.v1.json"
       ],
       "apps": [
         "service"
