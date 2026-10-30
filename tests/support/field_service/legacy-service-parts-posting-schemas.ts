@@ -1,3 +1,6 @@
+// Test-only retained schema oracle; never imported by product/runtime code.
+// Exact original source: packages/server-commerce/src/domain/service-parts-posting-setup.ts
+// Original SHA-256: 081a157c081897b7a53d4815e3b70fc040d2e4199022b5ba7b5d9f30c969fefb
 import {z} from 'zod';
 import {commercePostingSetupSchema,type CommercePostingSetupConfiguration,type CommercePostingSetupChart,type CommercePostingSetupAccount} from '@erpx/server-commerce/domain/posting-setup';
 const salesDefaultsIdentity=z.object({id:z.string().min(1).max(180),version:z.number().int().positive()}).strict();

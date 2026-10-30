@@ -497,7 +497,6 @@
 @source "../../../../packages/server-commerce/src/adapters/sales-order-sources.ts";
 @source "../../../../packages/server-commerce/src/adapters/service-initial-physical-stock-sources.ts";
 @source "../../../../packages/server-commerce/src/adapters/service-parts-posting-proof.ts";
-@source "../../../../packages/server-commerce/src/adapters/service-parts-posting-sources.ts";
 @source "../../../../packages/server-commerce/src/adapters/supplier-bill-attachment-sources.ts";
 @source "../../../../packages/server-commerce/src/adapters/supplier-bill-receipts.ts";
 @source "../../../../packages/server-commerce/src/adapters/supplier-promise-version.ts";
@@ -583,7 +582,6 @@
 @source "../../../../packages/server-commerce/src/public/sales-order-sources.ts";
 @source "../../../../packages/server-commerce/src/public/service-initial-physical-stock-sources.ts";
 @source "../../../../packages/server-commerce/src/public/service-parts-posting-proof.ts";
-@source "../../../../packages/server-commerce/src/public/service-parts-posting-sources.ts";
 @source "../../../../packages/server-commerce/src/public/supplier-bill-attachment-sources.ts";
 @source "../../../../packages/server-commerce/src/public/supplier-bill-receipts.ts";
 @source "../../../../packages/server-commerce/src/public/supplier-promise-version.ts";
@@ -938,7 +936,6 @@
 @source "../../../../packages/server-finance/src/adapters/service-customer-preparation.ts";
 @source "../../../../packages/server-finance/src/adapters/service-initial-stock-journal-read.ts";
 @source "../../../../packages/server-finance/src/adapters/service-initial-stock-journal-sources.ts";
-@source "../../../../packages/server-finance/src/adapters/service-parts-prerequisites.ts";
 @source "../../../../packages/server-finance/src/adapters/service-payment-purchases.ts";
 @source "../../../../packages/server-finance/src/adapters/source-purchases.ts";
 @source "../../../../packages/server-finance/src/adapters/supplier-bill-attachment-read.ts";
@@ -1025,7 +1022,6 @@
 @source "../../../../packages/server-finance/src/domain/sales-posting-setup.ts";
 @source "../../../../packages/server-finance/src/domain/sales.ts";
 @source "../../../../packages/server-finance/src/domain/service-customer-preparation.ts";
-@source "../../../../packages/server-finance/src/domain/service-parts-prerequisites.ts";
 @source "../../../../packages/server-finance/src/domain/starter.ts";
 @source "../../../../packages/server-finance/src/domain/supplier-payment-purchase.ts";
 @source "../../../../packages/server-finance/src/domain/supply-posting-prerequisites.ts";

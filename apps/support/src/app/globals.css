@@ -683,11 +683,9 @@
 @source "../../../../packages/server-commerce/src/adapters/sales-goods-posting-setup.ts";
 @source "../../../../packages/server-commerce/src/adapters/sales-goods-posting-sources.ts";
 @source "../../../../packages/server-commerce/src/adapters/sales-order-sources.ts";
-@source "../../../../packages/server-commerce/src/adapters/service-initial-physical-stock-masters.ts";
 @source "../../../../packages/server-commerce/src/adapters/service-initial-physical-stock-sources.ts";
 @source "../../../../packages/server-commerce/src/adapters/service-parts-posting-proof.ts";
 @source "../../../../packages/server-commerce/src/adapters/service-parts-posting-setup.ts";
-@source "../../../../packages/server-commerce/src/adapters/service-parts-posting-sources.ts";
 @source "../../../../packages/server-commerce/src/adapters/supplier-bill-attachment-sources.ts";
 @source "../../../../packages/server-commerce/src/adapters/supplier-bill-receipts.ts";
 @source "../../../../packages/server-commerce/src/adapters/supplier-promise-version.ts";
@@ -707,8 +705,6 @@
 @source "../../../../packages/server-commerce/src/domain/manufacturing-posting-setup.ts";
 @source "../../../../packages/server-commerce/src/domain/posting-setup.ts";
 @source "../../../../packages/server-commerce/src/domain/sales-goods-posting-setup.ts";
-@source "../../../../packages/server-commerce/src/domain/service-initial-physical-stock-masters.ts";
-@source "../../../../packages/server-commerce/src/domain/service-parts-posting-setup.ts";
 @source "../../../../packages/server-commerce/src/public/attachment-purchases.ts";
 @source "../../../../packages/server-commerce/src/public/attachment-read.ts";
 @source "../../../../packages/server-commerce/src/public/attachments-operational-facts.ts";
@@ -792,7 +788,6 @@
 @source "../../../../packages/server-commerce/src/public/service-initial-physical-stock-sources.ts";
 @source "../../../../packages/server-commerce/src/public/service-parts-posting-proof.ts";
 @source "../../../../packages/server-commerce/src/public/service-parts-posting-setup.ts";
-@source "../../../../packages/server-commerce/src/public/service-parts-posting-sources.ts";
 @source "../../../../packages/server-commerce/src/public/supplier-bill-attachment-sources.ts";
 @source "../../../../packages/server-commerce/src/public/supplier-bill-receipts.ts";
 @source "../../../../packages/server-commerce/src/public/supplier-promise-version.ts";
@@ -1262,11 +1257,8 @@
 @source "../../../../packages/server-finance/src/adapters/sales-receipt-sources.ts";
 @source "../../../../packages/server-finance/src/adapters/sales.ts";
 @source "../../../../packages/server-finance/src/adapters/service-customer-preparation.ts";
-@source "../../../../packages/server-finance/src/adapters/service-initial-physical-stock-master-sources.ts";
 @source "../../../../packages/server-finance/src/adapters/service-initial-stock-journal-read.ts";
 @source "../../../../packages/server-finance/src/adapters/service-initial-stock-journal-sources.ts";
-@source "../../../../packages/server-finance/src/adapters/service-parts-posting-sources.ts";
-@source "../../../../packages/server-finance/src/adapters/service-parts-prerequisites.ts";
 @source "../../../../packages/server-finance/src/adapters/service-payment-purchases.ts";
 @source "../../../../packages/server-finance/src/adapters/source-purchases.ts";
 @source "../../../../packages/server-finance/src/adapters/supplier-bill-attachment-read.ts";
@@ -1392,7 +1384,6 @@
 @source "../../../../packages/server-finance/src/domain/sales-posting-setup.ts";
 @source "../../../../packages/server-finance/src/domain/sales.ts";
 @source "../../../../packages/server-finance/src/domain/service-customer-preparation.ts";
-@source "../../../../packages/server-finance/src/domain/service-parts-prerequisites.ts";
 @source "../../../../packages/server-finance/src/domain/starter.ts";
 @source "../../../../packages/server-finance/src/domain/supplier-payment-purchase.ts";
 @source "../../../../packages/server-finance/src/domain/supply-posting-prerequisites.ts";
@@ -1541,8 +1532,6 @@
 @source "../../../../packages/server-finance/src/public/sales-posting-setup.ts";
 @source "../../../../packages/server-finance/src/public/sales-receipt-read-sources.ts";
 @source "../../../../packages/server-finance/src/public/sales-receipt-sources.ts";
-@source "../../../../packages/server-finance/src/public/service-initial-physical-stock-master-sources.ts";
-@source "../../../../packages/server-finance/src/public/service-parts-posting-sources.ts";
 @source "../../../../packages/server-finance/src/public/supplier-bill-attachment-read.ts";
 @source "../../../../packages/server-finance/src/public/supplier-bill-draft-void.ts";
 @source "../../../../packages/server-finance/src/public/supplier-payment-correction-sources.ts";

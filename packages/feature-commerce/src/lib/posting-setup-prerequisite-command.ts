@@ -5,7 +5,8 @@ import {announceWorkChange} from '@erpx/feature-work_projection/lib/work-refresh
 import {commerceCommandContext,commerceFormUnchanged} from '@erpx/feature-commerce/lib/commerce-command-fetch';
 import type {PostingSetupSource} from '@erpx/feature-commerce/lib/posting-setup-command';
 import type {CommercePostingSetupView} from '@erpx/server-commerce/public/posting-setup';
-import type {SupplyPostingPrerequisitesView} from '@erpx/server-finance/public/supply-posting-prerequisites';
+import {validPostingPrerequisites,prerequisiteCharts as charts,prerequisiteAccounts as accounts} from './posting-prerequisite-read-model';
+export {validPostingPrerequisites} from './posting-prerequisite-read-model';
 
 export type PostingPrerequisiteInputs={
  charts:{name:string;baseCurrency:string;accountingBasis:string};
@@ -18,13 +19,6 @@ export type PostingPrerequisiteRequest={[Kind in PostingPrerequisiteKind]:{kind:
 const row=(value:unknown):value is Record<string,unknown>=>!!value&&typeof value==='object'&&!Array.isArray(value);
 const text=(value:unknown):value is string=>typeof value==='string'&&value.length>0;
 const key=(value:unknown)=>typeof value==='string'&&/^[a-f0-9]{64}$/.test(value);
-const charts=(value:unknown):value is SupplyPostingPrerequisitesView['charts']=>Array.isArray(value)&&value.every(item=>row(item)&&text(item.id)&&text(item.name)&&text(item.baseCurrency));
-const accounts=(value:unknown):value is SupplyPostingPrerequisitesView['accounts']=>Array.isArray(value)&&value.every(item=>row(item)&&['id','chartId','code','name','category','currency'].every(field=>text(item[field]))&&typeof item.controlKind==='string');
-export function validPostingPrerequisites(value:unknown,companyId:string):value is SupplyPostingPrerequisitesView{
- if(!row(value)||value.companyId!==companyId||typeof value.available!=='boolean'||!['canCreateChart','canCreateAccount','canCreatePeriod','canConfirmRate'].every(field=>typeof value[field]==='boolean')||!charts(value.charts)||!accounts(value.accounts)||!Array.isArray(value.periods)||!Array.isArray(value.rates))return false;
- if(!value.periods.every(item=>row(item)&&['id','name','startDate','endDate','state'].every(field=>text(item[field]))&&Number.isSafeInteger(item.version))||!value.rates.every(item=>row(item)&&['id','currency','effectiveDate','currencyPerUsd'].every(field=>text(item[field]))&&typeof item.confirmedAt==='number'&&Number.isFinite(item.confirmedAt)))return false;
- return value.available?typeof value.configured==='boolean'&&key(value.contextKey)&&(value.unavailableReason===null||value.unavailableReason==='history-requires-review'):value.configured===null&&value.contextKey===null&&['authority-required','purchase-required','history-requires-review'].includes(String(value.unavailableReason))&&value.charts.length===0&&value.accounts.length===0&&value.periods.length===0&&value.rates.length===0&&['canCreateChart','canCreateAccount','canCreatePeriod','canConfirmRate'].every(field=>value[field]===false);
-}
 const postingFields=['chartId','currency','receivableAccountId','payableAccountId','revenueAccountId','inventoryAccountId','clearingAccountId','cogsAccountId','inputTaxAccountId','outputTaxAccountId','cashAccountId'];
 export function validPostingSetupSeed(value:unknown,companyId:string):value is CommercePostingSetupView{
  if(!row(value)||value.companyId!==companyId||typeof value.available!=='boolean'||typeof value.canConfigure!=='boolean'||!charts(value.charts)||!accounts(value.accounts))return false;

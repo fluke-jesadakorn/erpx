@@ -781,6 +781,7 @@ struct PostingCommandAuthority<'a, C> {
     request: &'a WorkflowRequest,
     purchases: &'a PostingPurchases,
     purpose: CapabilityPurpose,
+    completed_receipt: Option<CurrentServicePostingReceipt>,
 }
 impl<C: Clock + Sync> PgCommandAuthority for PostingCommandAuthority<'_, C> {
     async fn lock_sources(
@@ -822,6 +823,24 @@ impl<C: Clock + Sync> PgCommandAuthority for PostingCommandAuthority<'_, C> {
         self.purchases
             .require_for(c, self.purpose, self.clock.now())
             .await?;
+        if disposition == CommandDisposition::Execute {
+            // The final ledger verification follows receipt/audit/outbox
+            // retention and precedes assertion cleanup. Capture the sealed
+            // receipt here so cleanup cannot redefine the accepted image.
+            let receipt =
+                read_service_posting_receipt(c, &self.current.selection().workspace().company_id)
+                    .await?;
+            if receipt
+                .facts()
+                .is_some_and(|facts| facts.command_id == request.key)
+            {
+                if let Some(expected) = self.completed_receipt.as_ref() {
+                    expected.require_current(c).await?;
+                } else {
+                    self.completed_receipt = Some(receipt);
+                }
+            }
+        }
         if disposition == CommandDisposition::Replay {
             let identity = RawRecordOriginRequest {
                 command_key: request.key.clone(),
@@ -1167,12 +1186,37 @@ pub async fn execute_service_posting_setup<C: Clock + Sync>(
     };
     let purchases = PostingPurchases::capture(c, current, clock.now()).await?;
     purchases.require_for(c, purpose, clock.now()).await?;
+    // A replay may use lawfully changed historical references, but its own
+    // transaction must not change those sources after admission. Capture the
+    // current owner witnesses, not the original command's historical image.
+    let replay_sources = if original.is_some() {
+        let company = &current.selection().workspace().company_id;
+        let commerce = read_service_parts_posting(c, company).await?;
+        let inventory =
+            read_service_parts_inventory_history(c, company, &commerce.facts().warehouse_ids)
+                .await?;
+        let field = read_service_parts_field_history(c, company).await?;
+        let mapping = commerce
+            .facts()
+            .mapping_json
+            .as_deref()
+            .map(serde_json::from_str::<serde_json::Value>)
+            .transpose()
+            .map_err(|_| invalid_business())?;
+        let mapping = mapping.as_ref().and_then(posting_mapping);
+        let finance = read_service_parts_posting_references(c, company, mapping.as_ref()).await?;
+        let receipt = read_service_posting_receipt(c, company).await?;
+        Some((commerce, inventory, field, finance, receipt))
+    } else {
+        None
+    };
     let mut authority = PostingCommandAuthority {
         current,
         clock,
         request: &request,
         purchases: &purchases,
         purpose,
+        completed_receipt: None,
     };
     let mut effects = PostingEffects {
         current,
@@ -1189,6 +1233,32 @@ pub async fn execute_service_posting_setup<C: Clock + Sync>(
     )
     .execute(&request, &mut effects)
     .await?;
+    // Flush after Workflow has written its receipt/audit/outbox and finished
+    // assertion cleanup. Deferred owner effects must precede the final source
+    // and authority checks, rather than first running at transaction commit.
+    sqlx::query("SET CONSTRAINTS ALL IMMEDIATE")
+        .execute(&mut *c)
+        .await?;
+    if let Some((source, plan)) = effects.plan.as_ref() {
+        plan.require_current(c, source).await?;
+    }
+    if let Some((commerce, inventory, field, finance, receipt)) = replay_sources {
+        commerce.require_current(c).await?;
+        inventory.require_current(c).await?;
+        field.require_current(c).await?;
+        finance.require_current(c).await?;
+        receipt.require_current(c).await?;
+    }
+    if !outcome.replayed {
+        authority
+            .completed_receipt
+            .as_ref()
+            .ok_or_else(invalid_business)?
+            .require_current(c)
+            .await?;
+    }
+    selected.require_current(c, clock).await?;
+    purchases.require_for(c, purpose, clock.now()).await?;
     let status = outcome
         .result
         .property("status")?

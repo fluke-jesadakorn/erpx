@@ -2150,7 +2150,7 @@
       },
       {
         "id": "field-visit-files-intake",
-        "status": "Rust and Docker merged; Dev Container locally qualified scoped candidate",
+        "status": "Rust, Docker and scoped Dev Container merged",
         "branch": "codex/field-files-delivery",
         "integrationTarget": "codex/rust-backend-migration",
         "scope": [
@@ -2194,9 +2194,7 @@
             "withdrawal": "Retain non-Field application/scanner/cleanup consumers until their own verified migrations. Field static policy metadata remains only for the engineering inventory, pending Rust-backed inventory."
           }
         ],
-        "blockers": [
-          "Final source-bound Dev Container documentation checks and scoped PR integration."
-        ],
+        "blockers": [],
         "checks": [
           "Source-bound local TypeScript/Clippy/lint/catalogue/architecture/structure/docs/generated input checks and independent review passed. SharedFiles34; ownership/Portal handoff6; focusedfrontend30; real scanner/browser/business/nativeIO proofs. No hostedCIstatus."
         ],
@@ -2222,14 +2220,67 @@
           "evidence": "docs/testing/evidence/2026-10-31-native-preview-linux-parity.json"
         },
         "devContainer": {
-          "status": "Fresh ARM64 repository and official Dev Containers CLI lifecycle locally qualified; scoped PR pending",
+          "status": "Merged; qualified fresh repository CLI and populated official CLI lifecycle",
           "branch": "codex/field-files-devcontainer",
           "sourceCodeCommit": "168420994b9b335bf0a470b67f96bb2e44a38ff4",
           "image": "sha256:51011e0a57507d315dcbee3907cced145dc1f6055166aed402dbd070f930e570",
           "contract": "docs/contracts/next/field-files-devcontainer.md",
           "evidence": "docs/testing/evidence/2026-10-31-field-files-devcontainer.json",
-          "scope": "Acme Account/Apps/Service, native Count and Field visit Files; keyed Linux volumes, macOS ARM64 only. No public Tunnel cutover."
+          "scope": "Acme Account/Apps/Service, native Count and Field visit Files; keyed Linux volumes, macOS ARM64 only. No public Tunnel cutover.",
+          "pullRequest": "https://github.com/fluke-jesadakorn/erpx/pull/11",
+          "sourceCommit": "58a7de4f40c63666964f70bd4cfc613058c0cba2",
+          "mergeCommit": "72e5b5f3b1de44e829b59f5169a85dd5ee97f62f",
+          "checklist": {
+            "closed": 8,
+            "total": 8
+          },
+          "elapsedClosedBundle": {
+            "startedAt": "2026-10-31T00:56:35+07:00",
+            "mergedAt": "2026-10-31T02:35:50+07:00",
+            "wallSeconds": 5955,
+            "includesWaits": true
+          }
         }
+      },
+      {
+        "id": "service-parts-native-writer-closure",
+        "status": "Native functional and writer closure qualified; final scoped candidate checks/integration pending",
+        "branch": "codex/service-parts-native-closure",
+        "integrationTarget": "codex/rust-backend-migration",
+        "contract": "docs/contracts/next/service-parts-native-closure.md",
+        "scope": [
+          "Mapping initialize/confirm-existing",
+          "Four Finance prerequisites",
+          "Stock product/warehouse masters and three scoped reads",
+          "Native frontend preparation; immediate scoped legacy writer retirement"
+        ],
+        "checklist": {
+          "closed": 5,
+          "total": 6
+        },
+        "retained": [
+          "Generic non-Service Finance/Commerce functions",
+          "ProductEntry authority read for Identity/WorkProjection until equivalent native entry migration"
+        ],
+        "docker": "Qualify shared runtime after Rust closure; no new owner container.",
+        "currentEvidence": {
+          "compositionSha256": "0d6f68957626eb2de736cc006f7476eac559ff0697dbd0c66e59e99babddc2d6",
+          "liveCases": "Seven actual same-lease native post-retirement live/historical cases pass, with original assertions and sequence-proven cleanup/deferred receipt rollback; sharedField16 remains open.",
+          "frontend": "Native-only Service reads; pure shared presentation validator; full typecheck and292 focused cases pass. Bounded normal-auth functional browser journeys qualify; coldField16/releaseSSR remain open.",
+          "retestReason": "Real same-database ports exposed deferred/final cleanup bugs; affected cases rerun after each composition correction. Unchanged unrelated evidence reused.",
+          "postRemoval": "Seven registered same-lease native live/historical cases plus historicalhelper1 pass;94-case oracle/UI suite, app/test typecheck, targetedESLint, compositionClippy andarchitecture/structure pass. Functional browser receipt/source reconciliation qualifies; no wholecleanjourney claim.",
+          "browser": "Normal SSO multi-actor preparation\u2192postedCount with600/600 journal and6projectionreceipts; separateconfirm-existing unchangedmapping+Supplyinactive. Functional qualification only; colddevHMRhydration remainsField16."
+        },
+        "legacyRemoved": [
+          "Commerce Service mapping/Stock workspace/master implementations and unused transaction bridge",
+          "Finance Service prerequisite/rate wrappers and unused source helpers",
+          "Three production command schema modules and associated public/package exports; exact test-only schema oracles retained"
+        ],
+        "evidence": "docs/testing/evidence/2026-10-31-service-parts-native-closure.json",
+        "blockers": [
+          "Final source-bound quality/docs/security and scopedPR merge beforeDocker.",
+          "Shared Field16 colddevelopmentHMR/streaming and separate releaseSSR classification remain outside this bounded closure; nofullFieldacceptance."
+        ]
       }
     ]
   },

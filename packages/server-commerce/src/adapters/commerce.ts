@@ -925,12 +925,6 @@ export async function createPosStartupMasterInTransaction(database:SqlDatabase,a
  return {result,money:capture.money};
 }
 
-/** Private Service-only bridge, preserving the original native master command. */
-export async function createServiceInitialPhysicalStockMasterInTransaction(database:SqlDatabase,actor:WorkContext,kind:'products'|'warehouses',input:unknown,key:string){
- const capture:ManufacturingStockMasterMoneyCapture={money:null,errorCode:'SERVICE_INITIAL_PHYSICAL_STOCK_SOURCE_CHANGED'};
- const result=await applicationFor(database,capture).saveMaster(actor,kind,null,input,key);return {result,money:capture.money};
-}
-
 /** Sales service catalogue joins the original product writer in its owned unit. */
 export async function createSalesServiceProductInTransaction(database:SqlDatabase,actor:WorkContext,input:unknown,key:string){
  const capture:ManufacturingStockMasterMoneyCapture={money:null,errorCode:'SALES_SERVICE_PRODUCT_SOURCE_CHANGED'};

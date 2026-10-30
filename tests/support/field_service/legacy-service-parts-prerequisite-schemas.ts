@@ -1,3 +1,6 @@
+// Test-only retained schema oracle; never imported by product/runtime code.
+// Exact original source: packages/server-finance/src/domain/service-parts-prerequisites.ts
+// Original SHA-256: 704ee8619e6bd82c4ae5dd040e98f1cfa4f25edc1bfcab96fee7cb91dade3daa
 import {z} from 'zod';
 import {createChartSchema,createAccountSchema,createPeriodSchema} from '@erpx/server-finance/domain/finance';
 import {manualRateSchema} from '@erpx/server-finance/domain/company-money';
