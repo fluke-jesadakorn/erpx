@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import {contributorWebpackCachePlugin} from "./scripts/local/contributor-webpack-cache.ts";
 import { realpathSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { developmentProductOrigin, productIds, sharedHostKeys } from "@erpx/contracts/product-registry";
@@ -41,6 +42,10 @@ const nextConfig: NextConfig = {
     proxyClientMaxBodySize: 11 * 1024 * 1024,
   },
   webpack(config, { dev }) {
+    if (dev && process.env.NODE_ENV === "development" && process.env.NEXT_PUBLIC_ERPX_DEV_ORIGIN_PROFILE === "container-localhost") {
+      config.plugins ??= [];
+      config.plugins.push(contributorWebpackCachePlugin());
+    }
     // The isolated release build disables Webpack's filesystem cache. Its
     // production graph includes large generated modules that overflow the
     // cache's serialized-string limit in CI; cache state does not affect output.

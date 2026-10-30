@@ -1,11 +1,21 @@
 {
-  "name": "ERPX transitional development",
-  "dockerComposeFile": ["../ops/containers/development-services.compose.yaml", "compose.yaml"],
+  "name": "ERPX Service Count development",
+  "dockerComposeFile": [
+    "../ops/containers/development-services.compose.yaml",
+    "compose.yaml"
+  ],
   "service": "workspace",
-  "runServices": ["workspace", "postgres", "scanner", "mailbox", "https"],
+  "runServices": [
+    "workspace",
+    "postgres",
+    "scanner",
+    "mailbox",
+    "https"
+  ],
   "workspaceFolder": "/workspace/erpx",
   "shutdownAction": "none",
   "overrideCommand": false,
   "postCreateCommand": "scripts/local/dev-container bootstrap",
-  "postStartCommand": "scripts/local/dev-container start"
+  "postStartCommand": "scripts/local/dev-container start",
+  "initializeCommand": "scripts/local/dev-container populate"
 }

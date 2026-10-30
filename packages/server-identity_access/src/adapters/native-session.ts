@@ -11,7 +11,7 @@ function configuration(raw: string): NativeSessionClientConfiguration {
       !Array.isArray(record.holdingOrigins) || !record.holdingOrigins.every((origin: unknown) => typeof origin === 'string')) {
     throw new NativeSessionReadError('NATIVE_SESSION_CONFIGURATION_INVALID');
   }
-  return record as NativeSessionClientConfiguration;
+  return {...record,originProfile:process.env.NODE_ENV === 'development' && process.env.NEXT_PUBLIC_ERPX_DEV_ORIGIN_PROFILE === 'container-localhost' ? 'contributor' : 'public'} as NativeSessionClientConfiguration;
 }
 
 type NativeIdentitySession = IdentitySession & {

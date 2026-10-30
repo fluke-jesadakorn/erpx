@@ -17,6 +17,15 @@ https://account.erpx.localhost:3443, https://acme.erpx.localhost:3443, https://n
 	handle @registered {
 		request_header -Forwarded
 		request_header -X-Forwarded-*
+        # Native Account and SSO share the same leased Control/Holding data as
+        # the selected Count. This exact private boundary forbids proxy metadata.
+        @native path /api/auth/sign-in/email /api/auth/get-session /api/auth/sign-out /api/v1/account/device-accounts /api/v1/account/device-accounts/initialize /api/v1/account/device-accounts/active /api/v1/account/device-accounts/sign-in /sso/start /sso/authorize /sso/callback
+        reverse_proxy @native 127.0.0.1:44817 {
+            header_up Host {http.request.hostport}
+            header_up -Forwarded
+            header_up -X-Forwarded-*
+            header_up -X-Original-Host
+        }
 		reverse_proxy 127.0.0.1:3100 {
 			header_up X-Forwarded-Proto https
 			header_up X-Forwarded-Host {http.request.hostport}

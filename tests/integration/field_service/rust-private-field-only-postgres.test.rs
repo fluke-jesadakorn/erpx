@@ -140,3 +140,97 @@ async fn assembled_private_count_routes_reject_anonymous_before_reading_body() {
   runtime.close().await;
  }).await;
 }
+
+#[tokio::test]
+async fn assembled_account_device_routes_are_exactly_admitted_on_account_host() {
+    use tower::ServiceExt;
+    account::with_system(|system| async move {
+        let mut doc = configuration::document(&system.control, &system.holdings).await;
+        doc["fieldServiceReads"] = serde_json::json!([{"holdingId":"h001","companyId":"company"}]);
+        doc["fieldServicePartsPostingSetups"] = serde_json::json!(["h001"]);
+        doc["fieldServicePartsPrerequisites"] = serde_json::json!(["h001"]);
+        doc["fieldServiceStockSetups"] = serde_json::json!(["h001"]);
+        doc["accountBootstrap"] = true.into();
+        let cfg = DevelopmentApiConfiguration::parse(&doc.to_string()).unwrap();
+        let runtime = assemble_development_api(
+            cfg,
+            system.scenario.clock.clone(),
+            Arc::new(SystemAuthenticationSecrets),
+        )
+        .await
+        .unwrap();
+        let base = "/api/v1/account/device-accounts";
+        for (method, path) in [
+            ("GET", base.to_string()),
+            ("DELETE", base.to_string()),
+            ("POST", format!("{base}/initialize")),
+            ("POST", format!("{base}/active")),
+            ("POST", format!("{base}/sign-in")),
+            ("POST", "/api/auth/sign-out".to_string()),
+        ] {
+            let req = axum::http::Request::builder()
+                .method(method)
+                .uri(&path)
+                .header("host", "account.example.test")
+                .body(axum::body::Body::empty())
+                .unwrap();
+            let response = runtime.router().oneshot(req).await.unwrap();
+            assert_ne!(
+                response.status(),
+                axum::http::StatusCode::NOT_FOUND,
+                "admitted {method} {path}"
+            );
+            let foreign = axum::http::Request::builder()
+                .method(method)
+                .uri(&path)
+                .header("host", "acme.example.test")
+                .body(axum::body::Body::empty())
+                .unwrap();
+            assert_eq!(
+                runtime.router().oneshot(foreign).await.unwrap().status(),
+                axum::http::StatusCode::NOT_FOUND,
+                "foreign {method} {path}"
+            );
+        }
+        for (method, path) in [
+            ("POST", base.to_string()),
+            ("GET", format!("{base}/initialize")),
+            ("DELETE", format!("{base}/active")),
+            ("GET", "/api/auth/sign-out".to_string()),
+            ("POST", format!("{base}/unknown")),
+        ] {
+            let req = axum::http::Request::builder()
+                .method(method)
+                .uri(&path)
+                .header("host", "account.example.test")
+                .body(axum::body::Body::empty())
+                .unwrap();
+            assert_eq!(
+                runtime.router().oneshot(req).await.unwrap().status(),
+                axum::http::StatusCode::NOT_FOUND,
+                "unsupported {method} {path}"
+            );
+        }
+        for path in [
+            base.to_string(),
+            format!("{base}/initialize"),
+            format!("{base}/active"),
+            format!("{base}/sign-in"),
+        ] {
+            let req = axum::http::Request::builder()
+                .method("OPTIONS")
+                .uri(&path)
+                .header("host", "account.example.test")
+                .header("origin", "https://account.example.test")
+                .body(axum::body::Body::empty())
+                .unwrap();
+            assert_ne!(
+                runtime.router().oneshot(req).await.unwrap().status(),
+                axum::http::StatusCode::NOT_FOUND,
+                "preflight {path}"
+            );
+        }
+        runtime.close().await;
+    })
+    .await;
+}

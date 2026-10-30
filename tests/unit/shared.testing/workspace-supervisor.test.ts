@@ -8,8 +8,19 @@ import { connect } from 'node:net';
 import { expect, it } from 'vitest';
 import { appDefinition, appIds } from '@erpx/contracts/apps';
 import { consoleWorkspaceCutoverBlockers } from '../../../scripts/local/console-workspace-cutover';
-import { startWorkspaceGateway, developmentApplicationBudget } from '../../../scripts/local/workspace-gateway-runtime';
+import { startWorkspaceGateway, developmentApplicationBudget, developmentApplicationBundler } from '../../../scripts/local/workspace-gateway-runtime';
 
+it('bounds the qualified contributor compiler without changing public or other application settings',()=>{
+ const contributor:NodeJS.ProcessEnv={NODE_ENV:'development',NEXT_PUBLIC_ERPX_DEV_ORIGIN_PROFILE:'container-localhost'};
+ for(const id of ['account','apps','service']){
+  expect(developmentApplicationBundler(id,'turbopack',contributor)).toBe('webpack');
+  expect(developmentApplicationBundler(id,'turbopack',{NODE_ENV:'development'})).toBe('turbopack');
+ }
+ expect(developmentApplicationBundler('service','turbopack',{...contributor,NODE_ENV:'production'})).toBe('turbopack');
+ expect(developmentApplicationBundler('finance','turbopack',contributor)).toBe('turbopack');
+ expect(developmentApplicationBundler('service','webpack',{NODE_ENV:'development'})).toBe('webpack');
+ expect(()=>developmentApplicationBundler('service','unknown',contributor)).toThrow('INVALID_APP_BUNDLER');
+});
 it('validates local process budgets without silently increasing resource limits',()=>{
  expect(developmentApplicationBudget(4,undefined)).toBe(4);expect(developmentApplicationBudget(4,'6')).toBe(6);
  for(const value of ['', '0','13','04','6.0','+6',' 6','NaN'])expect(()=>developmentApplicationBudget(4,value)).toThrow('INVALID_DEVELOPMENT_APP_BUDGET');

@@ -8,6 +8,11 @@ services_compose() {
   fi
 }
 services_up() {
+    # This Dockerfile copies only from pinned base stages. Send no live source
+    # context (including ignored data) when preparing a first contributor image.
+    if ! docker image inspect erpx-opensource-dev-toolchain:local >/dev/null 2>&1; then
+      docker build -t erpx-opensource-dev-toolchain:local - < "$root/.devcontainer/Dockerfile"
+    fi
     if [ "$services_workspace_mode" = true ]; then
       # Never adopt or stop another checkout's HTTPS listener. Docker also
       # performs an atomic bind, so a race after this check still fails closed.

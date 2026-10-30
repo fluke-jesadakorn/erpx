@@ -274,7 +274,7 @@ it('keeps generated app outputs and verification edits outside the global runtim
  } finally { await rm(root,{recursive:true,force:true}); }
 });
 
-import { recoverGatewayApps, type GatewayProcessLease, type ProcessIdentity } from '../../../scripts/local/app-process-leases';
+import { recoverGatewayApps, inspectProcessIdentity, assertRetiredLeasePortsAvailable, linuxInitStartTime, type GatewayProcessLease, type ProcessIdentity } from '../../../scripts/local/app-process-leases';
 describe('development process ownership',()=>{
  const root='/owned/erpx',identity:ProcessIdentity={cwd:root,started:'Thu Oct 22 17:00:00 2026',command:`node ${root}/node_modules/next/dist/bin/next dev ${root}/apps/finance --port 3204 --hostname 127.0.0.1 --webpack`};
  const lease=():GatewayProcessLease=>({version:2,root,gatewayPid:90,apps:[{id:'finance',pid:100,port:3204,identity}]});
@@ -307,6 +307,49 @@ describe('development process ownership',()=>{
  it('validates the entire lease before signaling any process',async()=>{
   const value=lease();value.apps.push({...value.apps[0],id:'people',pid:101,port:3205});
   const p=ports(new Map([[100,identity],[101,{...identity,cwd:'/foreign'}]]));await expect(recoverGatewayApps(value,root,p)).rejects.toThrow('OWNERSHIP_CHANGED');expect(p.stopped).toEqual([]);
+ });
+ it('does not inspect or signal PIDs from a proven old Linux namespace or boot',async()=>{
+  const old={bootId:'11111111-1111-1111-1111-111111111111',namespace:'pid:[100]'},current={...old,namespace:'pid:[200]'};
+  for(const now of [current,{...old,bootId:'22222222-2222-2222-2222-222222222222'}]){
+   const p=ports(new Map([[90,identity],[100,identity]]));const probe=vi.spyOn(p,'identity');
+   expect(await recoverGatewayApps({...lease(),version:3,pidNamespace:old},root,p,undefined,now)).toBe(true);
+   expect(probe).not.toHaveBeenCalled();expect(p.stopped).toEqual([]);
+  }
+  const p=ports();await expect(recoverGatewayApps({...lease(),version:3,pidNamespace:old,root:'/foreign'},root,p,undefined,current)).rejects.toThrow('GATEWAY_LEASE_IDENTITY_REQUIRED');expect(p.stopped).toEqual([]);
+  await expect(recoverGatewayApps({...lease(),version:3,pidNamespace:old,apps:[{...lease().apps[0],port:3000}]},root,p,undefined,current)).rejects.toThrow('INVALID_APP_PROCESS_LEASE');expect(p.stopped).toEqual([]);
+  await expect(recoverGatewayApps({...lease(),version:3,pidNamespace:old,apps:[{...lease().apps[0],identity:{...identity,cwd:'/foreign'}}]},root,p,undefined,current)).rejects.toThrow('OWNERSHIP_CHANGED');expect(p.stopped).toEqual([]);
+ });
+ it('distinguishes reused namespace inode using the PID 1 generation',async()=>{
+  const old={bootId:'c173c94c-e11d-45ac-b9ac-8f8dbac81b63',namespace:'pid:[4026532353]',initStartTime:'183000'},current={...old,initStartTime:'193000'};
+  const p=ports(new Map([[90,identity],[100,identity]])),probe=vi.spyOn(p,'identity');
+  expect(await recoverGatewayApps({...lease(),version:3,pidNamespace:old},root,p,undefined,current)).toBe(true);
+  expect(probe).not.toHaveBeenCalled();expect(p.stopped).toEqual([]);
+  await expect(assertRetiredLeasePortsAvailable(lease(),3100,async port=>port===3204)).rejects.toThrow('APP_PORT_OCCUPIED');
+  for(const [saved,now] of [[old,old],[{bootId:old.bootId,namespace:old.namespace},current],[old,{bootId:old.bootId,namespace:old.namespace}],[old,undefined]] as const){
+   const strict=ports(new Map([[90,identity]]));await expect(recoverGatewayApps({...lease(),version:3,pidNamespace:saved},root,strict,undefined,now)).rejects.toThrow('OWNER_STILL_ALIVE');expect(strict.stopped).toEqual([]);
+  }
+  const bad=ports();await expect(recoverGatewayApps({...lease(),version:3,pidNamespace:{...old,initStartTime:'-1'}},root,bad,undefined,current)).rejects.toThrow('GATEWAY_PID_NAMESPACE_INVALID');expect(bad.stopped).toEqual([]);
+ });
+ it('parses the PID 1 start time after a command containing spaces and parentheses',()=>{
+  const fields=['S',...Array.from({length:18},(_,i)=>String(i+1)),'987654','23'];
+  expect(linuxInitStartTime(`1 (worker ) name) ${fields.join(' ')}`)).toBe('987654');
+  expect(linuxInitStartTime('1 (broken) S')).toBeUndefined();
+  expect(linuxInitStartTime(`2 (worker) ${fields.join(' ')}`)).toBeUndefined();
+ });
+ it('checks current and unproven namespaces with the existing strict identity rules',async()=>{
+  const namespace={bootId:'11111111-1111-1111-1111-111111111111',namespace:'pid:[100]'},value={...lease(),version:3,pidNamespace:namespace};
+  for(const current of [namespace,undefined]){const p=ports(new Map([[100,{...identity,started:'foreign'}]]));await expect(recoverGatewayApps(value,root,p,undefined,current)).rejects.toThrow('OWNERSHIP_CHANGED');expect(p.stopped).toEqual([]);}
+  const p=ports(new Map([[90,identity]]));await expect(recoverGatewayApps(lease(),root,p,undefined,{...namespace,namespace:'pid:[200]'})).rejects.toThrow('OWNER_STILL_ALIVE');expect(p.stopped).toEqual([]);
+ });
+ it('refuses foreign listeners before replacing an old namespace lease',async()=>{
+  for(const busy of [3100,3204]) await expect(assertRetiredLeasePortsAvailable(lease(),3100,async port=>port===busy)).rejects.toThrow('PORT_OCCUPIED');
+  await expect(assertRetiredLeasePortsAvailable(lease(),3100,async()=>false)).resolves.toBeUndefined();
+ });
+ it('treats a disappeared process as absent and propagates other inspection failures',()=>{
+  const failure=new Error('ps failed'),read=()=>{throw failure;};
+  expect(inspectProcessIdentity(100,read,()=>{throw Object.assign(new Error('gone'),{code:'ESRCH'});})).toBeNull();
+  expect(()=>inspectProcessIdentity(100,read,()=>{})).toThrow(failure);
+  expect(()=>inspectProcessIdentity(100,read,()=>{throw Object.assign(new Error('denied'),{code:'EPERM'});})).toThrow(failure);
  });
  it('does not signal a process that has already exited',async()=>{
   const p=ports(new Map());await recoverGatewayApps(lease(),root,p);expect(p.stopped).toEqual([]);
@@ -625,4 +668,9 @@ it('binds minimal fictional cohorts to declared development hosts without changi
  expect(()=>workspaceBrowserFixtureProfile('money-people',['account','apps','legal'],false)).toThrow('EXPLICIT_WORKSPACE_FIXTURE_PROFILE_REQUIRED');
  expect(()=>workspaceBrowserFixtureProfile('public-hosts',['compat'],false)).toThrow('EXPLICIT_WORKSPACE_FIXTURE_PROFILE_REQUIRED');
  expect(()=>workspaceBrowserFixtureProfile('anything',null,false)).toThrow('WORKSPACE_FIXTURE_PROFILE_REQUIRES_WORKSPACE');
+});
+
+it('retains distinct private contributor action keys and rejects corruption or links',async()=>{
+ const {mkdtempSync,readFileSync,writeFileSync,chmodSync,unlinkSync,symlinkSync,rmSync}=await import('node:fs');const {tmpdir}=await import('node:os');const {join}=await import('node:path');const {prepareContributorActionKeys,readContributorActionKey}=await import('../../../scripts/local/contributor-action-keys');const root=mkdtempSync(join(tmpdir(),'erpx-action-keys-'));const uid=process.getuid!();
+ try{prepareContributorActionKeys(root,uid);const before=['account','apps','service'].map(id=>readFileSync(join(root,`next-actions-${id}.key`),'utf8'));expect(new Set(before).size).toBe(3);prepareContributorActionKeys(root,uid);expect(['account','apps','service'].map(id=>readFileSync(join(root,`next-actions-${id}.key`),'utf8'))).toEqual(before);const file=join(root,'next-actions-service.key');chmodSync(file,0o644);expect(()=>readContributorActionKey(root,'service',uid)).toThrow('CONTRIBUTOR_ACTION_KEY_INVALID');chmodSync(file,0o600);writeFileSync(file,'invalid');expect(()=>readContributorActionKey(root,'service',uid)).toThrow('CONTRIBUTOR_ACTION_KEY_INVALID');unlinkSync(file);symlinkSync(join(root,'next-actions-account.key'),file);expect(()=>readContributorActionKey(root,'service',uid)).toThrow('CONTRIBUTOR_ACTION_KEY_INVALID');}finally{rmSync(root,{recursive:true,force:true});}
 });

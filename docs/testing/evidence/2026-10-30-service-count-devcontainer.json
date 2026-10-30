@@ -1,0 +1,188 @@
+{
+  "scope": "Service Count contributor environment; Account/Apps/Service on macOS ARM64 owned Colima; not full Field/owner or production acceptance",
+  "sourceCommit": "c6764f1fe877338b5bb3d2185658d9e8fed27af2",
+  "integrationBase": "68f4a5d19cb0267def94b3ce4eb186df7321c290",
+  "sourceSha256": {
+    ".devcontainer/Caddyfile": "80671d070caff1749146e1d112069a9c5147da0a1a174b45b02e6f5455d5244e",
+    ".devcontainer/devcontainer.json": "fed96585c920d4658aa8e4057c89dd70c82ac3855c7ab105a80443f1bff304c0",
+    "next.config.ts": "33185c487c487af3fd66a877877fe6c2101d5d861f1e583b478aa376f9da66a0",
+    "packages/feature-field_service/src/adapters/server/native-initial-count.ts": "121a18862d762ef82cda7a127d5ae7024af88bd0e2fd6acbd08c2f7ec39ee83a",
+    "packages/feature-field_service/src/adapters/server/native-parts-setup.ts": "7842d7dcac30c2d53c006817b4465dec70c951fc90804307eb5ebf2ec8967bba",
+    "packages/native-sdk/src/session.ts": "d7da59b6fce667c9b179aa826bd0a66719369b9ed6b9a464bd20eb4d7fb5f3bf",
+    "packages/server-identity_access/src/adapters/account-preferences.ts": "221c9f9d5f1e4414d9e2219e2470e764686b236b3ce4faaaa037d242849d24f6",
+    "packages/server-identity_access/src/adapters/native-session.ts": "92ae92108706c9bbef54bdde9797dce672bed3ba8bdb0a5ce1291c82300807ee",
+    "scripts/local/app-process-leases.ts": "e25bf47a4a1706d5e314b7bb8b24bd257bee40941e2dbbca282d95f201152a69",
+    "scripts/local/contributor-action-keys.ts": "86bf350b4c6a673e56524516d226f6f68567c2e65b559997875597c6226b800c",
+    "scripts/local/contributor-webpack-cache.ts": "587380c54e81de1334a09bdb503847f054496bc9b37164cf4e952a078c007b80",
+    "scripts/local/dev-container": "ac0e1036fc71aa4a40191b395065bb78348b199c370732fec1947b0ccd877e36",
+    "scripts/local/dev-container-bootstrap.ts": "de73faf5f651ac55781326b9ac677a3f147d6f0c27d4b562a6826bde73817f16",
+    "scripts/local/dev-container-native-start.ts": "386aceec88e263c3f1b7bf2ccf80834da9c04b7b104b33f9b5795076ef3ca3fb",
+    "scripts/local/dev-container-native.ts": "40e6c3f55e9aca229962f54b8e159136c4d012df638d4f470a1431af2cbb9b31",
+    "scripts/local/dev-container-seed.ts": "ba8738b7ddd028a33f27ffdd70fe66759bd33f248ae96bf127c749bbb97ac215",
+    "scripts/local/dev-container-services-lib.sh": "ab62c0676006738e90668c8e47edee2a53ebce0fcd6aaa9493a949d026d1125b",
+    "scripts/local/dev-container-start.ts": "361b2111ca435d6ca195b75992cea7a83fd1a0296a704fe80c6a7c6ac9213eba",
+    "scripts/local/dev-container-verify-fk.ts": "8e247cc728bd38e471ce80d2977fe6c2c25ac1e7e8886d49d444731ec6bd020d",
+    "scripts/local/workspace-gateway-runtime.ts": "aa1e65ccee0ccf4b7a9a130cc50f6c6ff417cda8a919501dbc4801c72a73c38f",
+    "scripts/seed/contributor-finance-demo.ts": "1822e189dfe20d9f0a93fab7fefb52cb281daab44ae8beac808d822950fab834",
+    "scripts/seed/contributor-service-demo.ts": "a56d6a39efe176d0baf570eb783713d8e8709dd89e2d69c0b3a8ecabb2cdc345",
+    "scripts/testing/fixtures/dev-container-lease-qualification.sh": "fc8490a89c0e64fc549ed97f7fe2093ccfa6d948e05cfb6dbd1a6b9938d2d3b2",
+    "scripts/testing/fixtures/dev-container-lease-qualification.ts": "197fd3d5da5a33be9a40de5a0a54c35119d4a3d29af6e0086803c3770f93587a",
+    "scripts/testing/fixtures/dev-container-service-qualification-db.mjs": "08167f409a87b1774218c52fc2108200ec4719dc35c0c90b06b8a494ac9cbd2f",
+    "scripts/testing/fixtures/dev-container-service-qualification.mjs": "9edb24ea2835a232345260ed8a472d7cfcf23695f80f35b0c7ac0a639f081f2f",
+    "scripts/testing/fixtures/dev-container-service-qualification.py": "5a3351dfe4d68fce71ca37f5bea590378de8a62609ecb5d132898d5da77903ee",
+    "src/composition/src/private_development_api.rs": "a57e448913529557bfa7e5e6313d9666422ec537938f6165fd8e09b191a57166",
+    "tests/catalogue/suite-manifest.json": "ea47cbcdf7f060e2e3b9b367c97d5821393b46f887fc7bd81f0f55969930c079",
+    "tests/integration/field_service/rust-private-field-only-postgres.test.rs": "dc6ff2c65f341299ee9bc72b71838822b6ae3cc7145b12b78dacbf8b72c93985",
+    "tests/unit/field_service/native-reserve.test.ts": "2e89c951133379ac5510c215e0ea1650fbfd0383d8f0b9b479f5a0ab27ba35e9",
+    "tests/unit/identity_access/account-preferences-client.test.ts": "11a3c9b33259148dbb89652cbb5d7cb2142907f97e793f8c443d62fb83af1deb",
+    "tests/unit/identity_access/account-preferences-native-boundary.test.ts": "803671e16ab09400d7d602ea810877615c8f93487713fca467fe7f9a36386b46",
+    "tests/unit/identity_access/native-session-server.test.ts": "01d131ea73b729af4ce4f898227dda8a08327352cb72eb714475010f13dc3f51",
+    "tests/unit/shared.testing/workspace-graph.test.ts": "3f9ed5832ec207f0409ef44f32ce174473328c47a69ecadb341374be441aeb79",
+    "tests/unit/shared.testing/workspace-supervisor.test.ts": "047a6bfeaa8ac3cd3a3e6ac19e9bfcfcb87ee26bbd9845282ac88970279fdea4"
+  },
+  "checks": {
+    "localAffectedUnits": {
+      "files": 11,
+      "cases": 329,
+      "passed": true
+    },
+    "typecheck": true,
+    "targetedLint": true,
+    "catalogue": true,
+    "architecture": true,
+    "structure": true,
+    "documentation": true,
+    "postgres": "Assembled native Account method/host admission and actual isolated lease recovery/24 role logins/partition-aware FK regression passed; original Count business gates reused by matching source."
+  },
+  "freshPublishedSourceCli": {
+    "version": "0.90.0",
+    "workspaceKey": "service-count-cli-final-arm64",
+    "sourceCommit": "c6764f1fe877338b5bb3d2185658d9e8fed27af2",
+    "sourceOverlay": false,
+    "freshSourceDataDependencyAndCompilerVolumes": true,
+    "initializeCommand": true,
+    "postCreateBootstrapAndSeed": true,
+    "postStartSelectedApps": true,
+    "exec": true,
+    "browser": {
+      "normalAccountSso": true,
+      "explicitAcmeCompanyAndMakerRole": true,
+      "serviceHmrFrames": 25,
+      "sourceRestored": true,
+      "pageErrors": 0,
+      "consoleDiagnostics": 3,
+      "consoleMeaning": "On role chooser: React pre-mount state warning and two404 development resource requests. Retained, not a clean-whole-UI claim."
+    },
+    "recovery": {
+      "kind": "deliberately stale private start lock, not SIGKILL",
+      "startFailedClosed": true,
+      "keyedRecoverPassed": true,
+      "workspaceContainerReplaced": true,
+      "sourceCommitAndDatabaseLeaseAndActionKeyDigestsUnchanged": true,
+      "namedVolumeNamesAndCreationTimesUnchanged": true,
+      "foreignKeyAuditErrors": 0
+    }
+  },
+  "initialCase": {
+    "sourceMode": "fresh volumes on integration base plus recorded checksummed deltas; final source equivalence checked before activation",
+    "frozenDependencyInstallSeconds": 144.16,
+    "nativeCountDraftAndWorker": true,
+    "countDate": "2026-09-30",
+    "countVersion": 1,
+    "normalAuthentication": true,
+    "newWarehouseAndProduct": true,
+    "nativeWorkerProjectionReceiptCount": 1,
+    "nativeWorkerCheckpointCount": 1,
+    "nextHmr": {
+      "framesAfterEdit": 37,
+      "restoredSource": true,
+      "pageErrors": 0,
+      "consoleErrors": 0,
+      "stableCountReadbackSeconds": 10
+    },
+    "rustCacheSeconds": {
+      "coldNativeStartupBuild": 27.0,
+      "warm": 0.143,
+      "sourceEdit": 2.832,
+      "sourceRestore": 2.417
+    },
+    "webpackAfterNamespaceRestart": [
+      {
+        "compiler": "server",
+        "cachedModules": 247,
+        "builtModules": 0
+      },
+      {
+        "compiler": "server",
+        "cachedModules": 433,
+        "builtModules": 0
+      },
+      {
+        "compiler": "client",
+        "cachedModules": 190,
+        "builtModules": 0
+      }
+    ],
+    "actionKeys": {
+      "distinctPerApp": 3,
+      "privateMode": "0600",
+      "digestsPreserved": true,
+      "appEnvironmentMatchesOwnKey": true,
+      "rawValuesPublished": false
+    }
+  },
+  "runtimeImages": {
+    "contributorToolchainArchitecture": "arm64",
+    "contributorToolchainBytes": 666486851,
+    "priorQualifiedProductionImageBytes": 16942946,
+    "priorDockerDelivery": "https://github.com/fluke-jesadakorn/erpx/pull/6",
+    "productionImageNotRebuiltOrPublishedByThisDelivery": true
+  },
+  "retestReasons": [
+    "New native contributor origin/auth/config dependencies",
+    "Actual bootstrap interruption/role CONNECT and partitioned-FK audit failures",
+    "Namespace/PID reuse and private lock recovery changes",
+    "Pinned compiler restart behavior; hydrate-gated HMR locator correction",
+    "Docker ephemeral action encryption keys invalidated restart cache; per-app persisted keys required",
+    "One final clean published-source CLI setup replaces accumulated source overlays"
+  ],
+  "migrationCountsUnchanged": {
+    "fieldChecklistComplete": 7,
+    "fieldChecklistTotal": 18,
+    "workflowsPartial": 13,
+    "workflowsVerified": 0,
+    "workflowsMerged": 0,
+    "workflowDenominator": 206,
+    "ownersComplete": 0,
+    "ownerDenominator": 41
+  },
+  "limitations": [
+    "Only Acme Service Count and the stated contributor entrypoints are qualified; other Holdings/apps/platforms are not implicitly supported.",
+    "Shared TypeScript readers, Work Projection workspace preferences and unrelated jobs remain; removed TypeScript Count code is not restored.",
+    "Global Rust readiness remains503 RUST_MIGRATION_INCOMPLETE.",
+    "Initial failed attempts and diagnostics are retained privately; a final zero-error HMR run does not qualify all Field UI/browser behavior.",
+    "No staging, private-production change, Tunnel cutover, development merge, release or image publication.",
+    "The keyed recovery proof injects a stale lock; it does not claim a full SIGKILL fault matrix or editor GUI attachment."
+  ],
+  "deliveryPullRequest": "https://github.com/fluke-jesadakorn/erpx/pull/7",
+  "integrationTarget": "codex/rust-backend-migration",
+  "privateReceiptSha256": {
+    "worker-proof.json": "091cbe1dd3e20569e6fda9677e2637fc2d40b530622dec79b6d400ea6c3ae6c1",
+    "webpack-hmr-full.json": "dacd51900b451bd50a5e5a6729d45118aabd1cb1ba166fa6c32beab7dae11f49",
+    "cli-final-hmr.json": "d76325e92e78a5981c5f402c57dfa3f6538efa9024f3cd1fbec0cd88a47aa6fd",
+    "action-cache-early.jsonl": "c56a2b78a5e0f72839d2f92214f9e4989f7f15e659b848a46c7c5f1840bc053c",
+    "preferences-check.json": "ab609ad307554ecf9a9a0f711a7cad7bfebac4607f9f971b66e9fddf0bc0a100",
+    "final-cli-up.jsonl": "bf77a37d2e690ac6629747bc326d9e65b21c6626498344c5c3f40ae76c8d0c1e",
+    "final-recover.log": "61c4e8fdea1ffbab111677041c0ff854da6cf7cfa759e20b04005ff698c00a7a",
+    "final-stale-lock.log": "22e560401c209741158495229f62cf7b91791bc929b9e0baff83b4e1d14463b7",
+    "final-recovery-before.txt": "2e33065e78043da64b93e4ff4a5c5553171d9244a82625e137b6165ea1566348",
+    "final-recovery-after.txt": "2e33065e78043da64b93e4ff4a5c5553171d9244a82625e137b6165ea1566348",
+    "final-volumes-before.txt": "75e6c6e67ee6be3363b216a7c3f8aeaf485fba8fcbc4b3a80ddf6da445ebea24",
+    "final-volumes-after.txt": "75e6c6e67ee6be3363b216a7c3f8aeaf485fba8fcbc4b3a80ddf6da445ebea24"
+  },
+  "observedInterval": {
+    "from": "2026-10-30T16:58:22+07:00",
+    "throughQualification": "2026-10-30T11:35:13.275418+00:00",
+    "meaning": "First scoped case volume creation through final clean-source CLI/recovery qualification; includes investigations and waiting, excludes earlier foundations, and is not a whole-goal estimate."
+  }
+}

@@ -54,7 +54,7 @@ describe('Identity application native session selection',()=>{
   try{process.env.ERPX_NATIVE_ACCOUNT_SESSION_CONFIG=JSON.stringify(configuration);const native=vi.fn(()=>async(headers:Pick<Headers,'get'>)=>{captured=headers;return session();});
    const result=await createIdentitySession({headers:async()=>incoming(),authenticate:createIdentitySessionAuthenticator(legacy,native)})();
    expect(result.session).toEqual({session:{id:'session-alpha',userId:'alpha',expiresAt:new Date('2026-10-27T12:00:00Z'),createdAt:new Date('2026-10-27T11:00:00Z'),updatedAt:new Date('2026-10-27T11:00:00Z')},user:{id:'alpha',name:'Synthetic alpha',email:'alpha@example.test',emailVerified:true,image:null}});
-   expect(captured?.get('cookie')).toBe('__Host-erpx-product=opaque-test-only');expect(legacy).not.toHaveBeenCalled();expect(native).toHaveBeenCalledWith(configuration);expect(result.session).not.toHaveProperty('actor');expect(result.session.session).not.toHaveProperty('token');
+   expect(captured?.get('cookie')).toBe('__Host-erpx-product=opaque-test-only');expect(legacy).not.toHaveBeenCalled();expect(native).toHaveBeenCalledWith({...configuration,originProfile:'public'});expect(result.session).not.toHaveProperty('actor');expect(result.session.session).not.toHaveProperty('token');
   }finally{if(previous===undefined)delete process.env.ERPX_NATIVE_ACCOUNT_SESSION_CONFIG;else process.env.ERPX_NATIVE_ACCOUNT_SESSION_CONFIG=previous;}
  });
  it('uses legacy only when unconfigured; malformed config, null and native failures never fall back',async()=>{
@@ -67,4 +67,17 @@ describe('Identity application native session selection',()=>{
    const failed=createIdentitySessionAuthenticator(legacy,()=>async()=>{throw new NativeSessionReadError('NATIVE_SESSION_UNAVAILABLE',503);});await expect(failed('https://acme.example.test',incoming())).rejects.toMatchObject({code:'NATIVE_SESSION_UNAVAILABLE',status:503});expect(legacy).not.toHaveBeenCalled();
   }finally{if(previous===undefined)delete process.env.ERPX_NATIVE_ACCOUNT_SESSION_CONFIG;else process.env.ERPX_NATIVE_ACCOUNT_SESSION_CONFIG=previous;}
  });
+});
+
+it('requires an explicit contributor profile for exact local authorities',async()=>{
+ const local={...configuration,accountOrigin:'https://account.erpx.localhost:3443',holdingOrigins:['https://acme.erpx.localhost:3443','https://northstar.erpx.localhost:3443','https://erpx-internal.erpx.localhost:3443'],originProfile:'contributor' as const};
+ const send=vi.fn<NativeSessionFetch>(async()=>json(null));const read=createNativeSessionClient(local,send);for(const host of ['account.erpx.localhost:3443','acme.erpx.localhost:3443','northstar.erpx.localhost:3443','erpx-internal.erpx.localhost:3443'])expect(await read(incoming(host))).toBeNull();
+ await expect(read(incoming('acme.erpx.localhost:3444'))).rejects.toMatchObject({code:'NATIVE_SESSION_AUTHORITY_INVALID'});
+ for(const origin of ['http://acme.erpx.localhost:3443','https://acme.erpx.localhost:3444','https://x.acme.erpx.localhost:3443','https://acme.erpx.localhost','https://account.erpx.localhost:3443'])expect(()=>createNativeSessionClient({...local,holdingOrigins:[origin]},send)).toThrow(NativeSessionReadError);
+ expect(()=>createNativeSessionClient({...local,originProfile:'public'},send)).toThrow(NativeSessionReadError);
+});
+it('derives native session profile only from trusted development configuration',async()=>{
+ const {createIdentitySessionAuthenticator}=await import('../../../packages/server-identity_access/src/adapters/native-session');const client=vi.fn((config:unknown)=>{void config;return async()=>null;}),legacy=vi.fn(async()=>null);
+ try{vi.stubEnv('ERPX_NATIVE_ACCOUNT_SESSION_CONFIG',JSON.stringify({...configuration,originProfile:'contributor'}));vi.stubEnv('NEXT_PUBLIC_ERPX_DEV_ORIGIN_PROFILE','container-localhost');vi.stubEnv('NODE_ENV','production');await createIdentitySessionAuthenticator(legacy,client)(undefined,incoming());expect(client.mock.calls.at(-1)?.[0]).toMatchObject({originProfile:'public'});vi.stubEnv('NODE_ENV','development');await createIdentitySessionAuthenticator(legacy,client)(undefined,incoming());expect(client.mock.calls.at(-1)?.[0]).toMatchObject({originProfile:'contributor'});}
+ finally{vi.unstubAllEnvs();}
 });

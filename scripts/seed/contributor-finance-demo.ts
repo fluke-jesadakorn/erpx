@@ -20,7 +20,7 @@ function matchesGrant(value: unknown): boolean {
 }
 function privateFile(path: string) { if (!existsSync(path) || (statSync(path).mode & 0o077) !== 0) throw Error('CONTRIBUTOR_PRIVATE_FILE_REQUIRED'); return readFileSync(path, 'utf8').trim(); }
 function assertFixture() {
-  if (process.platform !== 'linux' || !existsSync('/.dockerenv') || resolve(process.cwd()) !== root || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(key) || privateFile('/run/erpx-secrets/workspace-key') !== key || !statSync(`${root}/.git`).isDirectory() || !statSync(`${root}/.runtime/dev-container-bootstrap.lock`).isDirectory()) throw Error('CONTRIBUTOR_WORKSPACE_REQUIRED');
+  if (process.platform !== 'linux' || !existsSync('/.dockerenv') || resolve(process.cwd()) !== root || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(key) || privateFile('/run/erpx-secrets/workspace-key') !== key || !statSync(`${root}/.git`).isDirectory() || !statSync('/run/erpx-contributor-bootstrap.lock').isDirectory()) throw Error('CONTRIBUTOR_WORKSPACE_REQUIRED');
   if (readdirSync(root).some(name => (name === '.env' || name.startsWith('.env.')) && name !== '.env.example') || process.env.ERPX_ENVIRONMENT !== 'local' || process.env.NODE_ENV === 'production' || ![`${config}/databases.json`, `${config}/databases-jobs.json`].includes(process.env.ERPX_DATABASE_MANIFEST ?? '')) throw Error('CONTRIBUTOR_ENVIRONMENT_REQUIRED');
   const sourceId = privateFile(`${root}/.git/erpx-container-source-id`), phase = JSON.parse(privateFile(`${config}/bootstrap-phase.json`));
   if (!/^[a-f0-9]{64}$/.test(sourceId) || phase.key !== key || phase.sourceId !== sourceId || !['seed-pending','complete'].includes(phase.phase)) throw Error('CONTRIBUTOR_SOURCE_PHASE_REQUIRED');
@@ -28,7 +28,7 @@ function assertFixture() {
   for (const [file, role] of [['databases.json','app'], ['databases-jobs.json','jobs']] as const) {
     const manifest = JSON.parse(privateFile(`${config}/${file}`));
     const url = new URL(manifest.databases.H001_DB), username = `erpx_dev_h001_write_${role}`;
-    if (!['postgres:','postgresql:'].includes(url.protocol) || url.hostname !== '127.0.0.1' || url.port !== '5432' || url.pathname !== '/erpx_dev_h001_write' || url.username !== username || url.search || url.hash || !/^[a-f0-9]{64}$/.test(roles[username]) || url.password !== roles[username]) throw Error('CONTRIBUTOR_DATABASE_REQUIRED');
+    if (!['postgres:','postgresql:'].includes(url.protocol) || url.hostname !== '127.0.0.1' || url.port !== '5432' || url.pathname !== `/${existsSync(`${config}/native-leases.json`) ? (JSON.parse(privateFile(`${config}/native-leases.json`)).entries as Array<{binding:string;newName:string}>).find(entry => entry.binding === 'H001_DB')?.newName : 'erpx_dev_h001_write'}` || url.username !== username || url.search || url.hash || !/^[a-f0-9]{64}$/.test(roles[username]) || url.password !== roles[username]) throw Error('CONTRIBUTOR_DATABASE_REQUIRED');
   }
 }
 assertFixture();

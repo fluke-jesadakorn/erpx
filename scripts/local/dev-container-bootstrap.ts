@@ -1,5 +1,5 @@
 /** Bootstrap only the keyed, disposable contributor container; never an operator workspace. */
-import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmdirSync, statSync, writeFileSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, renameSync, rmdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { randomBytes } from 'node:crypto';
 
@@ -8,7 +8,7 @@ const root = '/workspace/erpx';
 const data = `${root}/.runtime/local`;
 const config = `${data}/config`;
 const lease = '/run/erpx-secrets/workspace-key';
-if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(key) || process.platform !== 'linux' || !existsSync('/.dockerenv') || resolve(process.cwd()) !== root || !existsSync(`${root}/.git`)) throw new Error('ISOLATED_KEYED_WORKSPACE_REQUIRED');
+if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(key) || process.platform !== 'linux' || process.getuid?.() !== 0 || !existsSync('/.dockerenv') || resolve(process.cwd()) !== root || !existsSync(`${root}/.git`)) throw new Error('ISOLATED_KEYED_WORKSPACE_REQUIRED');
 for (const name of readdirSync(root)) if ((name === '.env' || name.startsWith('.env.')) && name !== '.env.example') throw new Error('WORKSPACE_ENV_FILES_FORBIDDEN');
 for (const name of Object.keys(process.env)) if ((name.startsWith('ERPX_') && name !== 'ERPX_DEV_WORKSPACE_KEY') || name === 'DATABASE_URL' || name === 'BETTER_AUTH_SECRET') throw new Error('EXTERNAL_RUNTIME_ENVIRONMENT_FORBIDDEN');
 if (Bun.version !== '1.4.3' || (await Bun.$`/usr/local/bin/node --version`.text()).trim() !== 'v26.11.1') throw new Error('PINNED_TOOLCHAIN_REQUIRED');
@@ -17,7 +17,8 @@ if (hasLease && (readFileSync(lease, 'utf8').trim() !== key || (statSync(lease).
 if (!hasLease) throw new Error('WORKSPACE_LEASE_REQUIRED_USE_HOST_BOOTSTRAP');
 if (!statSync(`${root}/.git`).isDirectory()) throw new Error('INDEPENDENT_SOURCE_CLONE_REQUIRED');
 mkdirSync(`${root}/.runtime`, { recursive: true, mode: 0o700 });
-const lock = `${root}/.runtime/dev-container-bootstrap.lock`;
+// Container-private lock remains held after a crash until keyed recovery replaces the namespace.
+const lock = '/run/erpx-contributor-bootstrap.lock';
 try { mkdirSync(lock, { mode: 0o700 }); } catch (error) {
   if ((error as NodeJS.ErrnoException).code === 'EEXIST') throw new Error('BOOTSTRAP_LOCK_HELD_OR_STALE');
   throw error;
@@ -37,6 +38,12 @@ try {
   const result = await pool.query<{ present: boolean }>("SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname LIKE 'erpx\\_dev\\_%' ESCAPE '\\') OR EXISTS (SELECT 1 FROM pg_database WHERE datname LIKE 'erpx\\_dev\\_%' ESCAPE '\\') AS present");
   existing = result.rows[0]?.present === true;
 } finally { await pool.end(); }
+let nativeState: Awaited<ReturnType<typeof import('./dev-container-native').prepareNativeLeases>> | undefined;
+if (existing && existsSync(`${config}/native-leases.json`)) {
+  if ((statSync(`${config}/native-leases.json`).mode & 0o077) !== 0) throw Error('PRIVATE_CONFIG_REQUIRED');
+  nativeState = JSON.parse(readFileSync(`${config}/native-leases.json`, 'utf8'));
+  if (!nativeState || !Array.isArray(nativeState.entries)) throw Error('NATIVE_LEASE_MANIFEST_INVALID');
+}
 const files = ['provisioning.json', 'databases.json', 'databases-jobs.json', 'databases-migrations.json'];
 const present = files.map(name => existsSync(`${config}/${name}`));
 if (existing !== present.every(Boolean) || (!existing && present.some(Boolean))) throw new Error('INCOMPLETE_PROVISIONING_STATE');
@@ -51,7 +58,7 @@ if (existing) {
       const url = new URL(manifest.databases[binding]);
       const database = `erpx_dev_${binding.toLowerCase().replace(/_db$/, '').replace(/_read$/, '_read').replace(/^(h00[1-3])$/, '$1_write')}`;
       const role = `${database}_${kind}`;
-      if (!['postgres:', 'postgresql:'].includes(url.protocol) || url.hostname !== '127.0.0.1' || url.port !== '5432' || url.search || url.hash || url.pathname !== `/${database}` || url.username !== role || typeof roles[role] !== 'string' || !/^[a-f0-9]{64}$/.test(roles[role] as string) || url.password !== roles[role]) throw new Error('INVALID_PERSISTED_MANIFEST');
+      if (!['postgres:', 'postgresql:'].includes(url.protocol) || url.hostname !== '127.0.0.1' || url.port !== '5432' || url.search || url.hash || ![`/${database}`, ...(nativeState ? [`/${nativeState.entries.find(entry => entry.binding === binding)?.newName}`] : [])].includes(url.pathname) || url.username !== role || typeof roles[role] !== 'string' || !/^[a-f0-9]{64}$/.test(roles[role] as string) || url.password !== roles[role]) throw new Error('INVALID_PERSISTED_MANIFEST');
     }
   }
 }
@@ -60,9 +67,11 @@ const phasePath = `${config}/bootstrap-phase.json`;
 type Phase = { key: string; sourceId: string; phase: 'seed-pending' | 'complete' };
 let phase: Phase;
 function writePhase(value: Phase) {
-  const temp = `${phasePath}.tmp`;
-  writeFileSync(temp, JSON.stringify(value), { mode: 0o600, flag: 'wx' });
-  renameSync(temp, phasePath);
+  const temp = `${phasePath}.${randomBytes(16).toString('hex')}.tmp`;
+  const fd = openSync(temp, 'wx', 0o600);
+  let renamed = false;
+  try { writeFileSync(fd, JSON.stringify(value)); closeSync(fd); renameSync(temp, phasePath); renamed = true; }
+  finally { if (!renamed) { try { closeSync(fd); } catch { /* already closed */ } unlinkSync(temp); } }
 }
 if (existing) {
   if (!existsSync(sourceIdPath) || !existsSync(phasePath) || (statSync(sourceIdPath).mode & 0o077) !== 0 || (statSync(phasePath).mode & 0o077) !== 0) throw new Error('BOOTSTRAP_PHASE_REQUIRED');
@@ -77,6 +86,7 @@ if (existing) {
   phase = { key, sourceId, phase: 'seed-pending' };
   writePhase(phase);
 }
+if (nativeState) nativeState = await (await import('./dev-container-native')).prepareNativeLeases(config, key, phase.sourceId, admin.href);
 const env: Record<string, string> = { PATH: process.env.PATH ?? '/usr/local/bin:/usr/bin:/bin', HOME: '/root', ERPX_NODE_BIN: '/usr/local/bin/node', ERPX_BUN_BIN: '/usr/local/bin/bun', ERPX_ENVIRONMENT: 'local', ERPX_DATA_DIR: data, ERPX_DATABASE_MANIFEST: `${config}/databases.json`, ERPX_PUBLIC_ORIGIN: 'http://localhost:3100', ERPX_DEV_WORKSPACE_KEY: key };
 const authSecretPath = `${config}/bootstrap-auth-secret`;
 if (existing && !existsSync(authSecretPath)) throw new Error('EXISTING_AUTH_SECRET_REQUIRED');
@@ -98,7 +108,15 @@ else {
   for (const step of ['local', 'identity', 'commerce', 'staff']) await run(['bun', '--no-env-file', '--conditions=react-server', 'scripts/local/dev-container-seed.ts', step]);
 }
 await run(['bun', '--no-env-file', '--conditions=react-server', 'scripts/local/dev-container-seed.ts', 'contributor-finance']);
+await run(['bun', '--no-env-file', '--conditions=react-server', 'scripts/local/dev-container-seed.ts', 'contributor-service']);
 await run(['bun', '--no-env-file', '--conditions=react-server', 'scripts/local/dev-container-seed.ts', 'verify']);
+if (!nativeState) {
+  const native = await import('./dev-container-native');
+  nativeState = await native.prepareNativeLeases(config, key, phase.sourceId, admin.href);
+}
+const native = await import('./dev-container-native');
+await native.prepareSyntheticCredentials(nativeState, phase.phase === 'seed-pending');
+await native.writeNativeConfiguration(config, nativeState);
 if (phase.phase === 'seed-pending') writePhase({ ...phase, phase: 'complete' });
 console.log('BOOTSTRAP_COMPLETE: isolated transitional development data; application and HTTPS unverified');
 } finally { rmdirSync(lock); }

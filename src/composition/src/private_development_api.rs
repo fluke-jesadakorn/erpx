@@ -2142,9 +2142,24 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         };
     let bootstrap = state.account_bootstrap
         && match (request.method(), request.uri().path()) {
-            (&axum::http::Method::POST, "/api/auth/sign-in/email") => {
-                host == state.policy.account_host
-            }
+            (&axum::http::Method::POST, "/api/auth/sign-in/email" | "/api/auth/sign-out")
+            | (
+                &axum::http::Method::GET | &axum::http::Method::DELETE,
+                "/api/v1/account/device-accounts",
+            )
+            | (
+                &axum::http::Method::POST,
+                "/api/v1/account/device-accounts/initialize"
+                | "/api/v1/account/device-accounts/active"
+                | "/api/v1/account/device-accounts/sign-in",
+            )
+            | (
+                &axum::http::Method::OPTIONS,
+                "/api/v1/account/device-accounts"
+                | "/api/v1/account/device-accounts/initialize"
+                | "/api/v1/account/device-accounts/active"
+                | "/api/v1/account/device-accounts/sign-in",
+            ) => host == state.policy.account_host,
             (&axum::http::Method::GET, "/sso/authorize") => host == state.policy.account_host,
             (&axum::http::Method::GET, "/sso/start" | "/sso/callback") => state
                 .finance_targets

@@ -3,11 +3,12 @@ import { createServer, request as httpRequest, type IncomingMessage, type Server
 import { connect } from "node:net";
 import { PassThrough, type Duplex } from "node:stream";
 import { spawn, type ChildProcess } from "node:child_process";
-import { createWriteStream, readFileSync, mkdirSync, writeFileSync, renameSync, existsSync } from "node:fs";
+import { createWriteStream, readFileSync, mkdirSync, writeFileSync, renameSync, existsSync, readlinkSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
-import { recoverGatewayApps, type ProcessIdentity } from "./app-process-leases";
+import { recoverGatewayApps, inspectProcessIdentity, assertRetiredLeasePortsAvailable, linuxInitStartTime, type ProcessIdentity, type PidNamespace } from "./app-process-leases";
 import { randomBytes, timingSafeEqual } from "node:crypto";
+import {readContributorActionKey, type ContributorActionApp} from "./contributor-action-keys";
 import { appDefinitions, appDirectory, appForHost, unregisteredDevelopmentProductHost } from "@erpx/contracts/apps";
 import {holdingRoutingEnabled,holdingHostForHost,contributorExactOrigin,contributorOriginProfile,originProfile} from '@erpx/feature-runtime/lib/holding-hosts';
 import {holdingGatewayApp,holdingGatewayLocation} from './holding-gateway';
@@ -20,6 +21,15 @@ export function developmentApplicationBudget(configured:number,override:string|u
  if(override===undefined)return configured;
  if(!/^(?:[1-9]|1[0-2])$/.test(override))throw new Error('INVALID_DEVELOPMENT_APP_BUDGET');
  return Number(override);
+}
+
+/** The qualified contributor trio uses Webpack: the pinned Turbopack runtime
+ * emitted repeated restart updates after a preserved-cache container restart.
+ * Public/native profiles and unqualified apps retain their configured compiler. */
+export function developmentApplicationBundler(id:string,configured:string,environment:NodeJS.ProcessEnv){
+ if(!["webpack","turbopack"].includes(configured))throw new Error("INVALID_APP_BUNDLER");
+ const contributor=environment.NODE_ENV==='development'&&environment.NEXT_PUBLIC_ERPX_DEV_ORIGIN_PROFILE==='container-localhost';
+ return contributor&&["account","apps","service"].includes(id)?"webpack":configured;
 }
 
 export type WorkspaceGatewaySettings = { version: number; activeApps: string[]; maxApps: number; idleMinutes: number; bundlers: Record<string, string>; defaultBundler: string };
@@ -47,23 +57,29 @@ for (const [id,port] of assignedPorts) {
 }
 const logs = resolve(repository, ".scratch/dev/apps"); mkdirSync(logs, { recursive: true, mode: 0o700 });
 function processIdentity(pid: number): ProcessIdentity | null {
-  try {
+  return inspectProcessIdentity(pid, () => {
     const command = execFileSync("ps", ["-p", String(pid), "-o", "command="], {encoding:"utf8",stdio:["ignore","pipe","ignore"]}).trim();
     const started = execFileSync("ps", ["-p", String(pid), "-o", "lstart="], {encoding:"utf8",stdio:["ignore","pipe","ignore"]}).trim();
     const cwd = execFileSync("lsof", ["-a", "-p", String(pid), "-d", "cwd", "-Fn"], {encoding:"utf8",stdio:["ignore","pipe","ignore"]}).split("\n").find(line=>line.startsWith("n"))?.slice(1);
     if (!command || !started || !cwd) throw new Error("PROCESS_IDENTITY_UNAVAILABLE");
     return {command,cwd,started};
-  } catch (error) {
-    try { process.kill(pid,0); } catch (probe) { if ((probe as NodeJS.ErrnoException).code === "ESRCH") return null; }
-    throw error;
-  }
+  }, processId => {process.kill(processId,0);});
 }
-const priorLease=resolve(logs,"leases.json");
-if(existsSync(priorLease)) await recoverGatewayApps(JSON.parse(readFileSync(priorLease,"utf8")),repository,{
+function currentPidNamespace(): PidNamespace | undefined {
+  if (process.platform !== 'linux') return undefined;
+  try { const bootId=readFileSync('/proc/sys/kernel/random/boot_id','utf8').trim(),namespace=readlinkSync('/proc/self/ns/pid'),initStartTime=linuxInitStartTime(readFileSync('/proc/1/stat','utf8')); return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(bootId)&&/^pid:\[\d+\]$/.test(namespace)&&initStartTime?{bootId,namespace,initStartTime}:undefined; }
+  catch { return undefined; } // Unproven namespace retains strict PID checks.
+}
+const pidNamespace=currentPidNamespace(), priorLease=resolve(logs,"leases.json");
+if(existsSync(priorLease)) {
+ const previous=JSON.parse(readFileSync(priorLease,"utf8"));
+ const oldNamespace=await recoverGatewayApps(previous,repository,{
   identity:processIdentity,
   stop:pid=>{process.kill(pid,"SIGTERM");},
   waitForExit:async pid=>{const deadline=Date.now()+30_000;while(processIdentity(pid)){if(Date.now()>deadline)throw new Error("OWNED_APP_SHUTDOWN_TIMEOUT");await new Promise(done=>setTimeout(done,100));}},
-},assignedPorts);
+ },assignedPorts,pidNamespace);
+ if(oldNamespace) await assertRetiredLeasePortsAvailable(previous,options.port,async port=>hasPortListener(port)||await listenerExists(port));
+}
 // A routing preview changes the selected implementation, never host/session authority.
 const preview = randomBytes(24).toString("hex");
 if(options.preview!==false)writeFileSync(resolve(logs, "preview.json"), JSON.stringify({ token: preview, scope: "development-routing-only" }) + "\n", { mode: 0o600 });
@@ -93,7 +109,7 @@ function listenerExists(port: number): Promise<boolean> {
 }
 function leases() {
   const temporary = resolve(logs, `leases-${process.pid}.tmp`), target = resolve(logs, "leases.json");
-  writeFileSync(temporary, JSON.stringify({ version: 2, gatewayPid: process.pid, root: repository,
+  writeFileSync(temporary, JSON.stringify({ version: pidNamespace ? 3 : 2, ...(pidNamespace ? {pidNamespace} : {}), gatewayPid: process.pid, root: repository,
     apps: [...running.values()].map(app => ({ id: app.id, pid: app.child.pid, port: app.port, identity: app.identity })) }, null, 2) + "\n", { mode: 0o600 });
   renameSync(temporary, target);
 }
@@ -116,11 +132,16 @@ async function acquire(id: string, startupAttempt = 0): Promise<RunningApp> {
   }
   if (hasPortListener(port) || await listenerExists(port)) throw new Error(`APP_PORT_OCCUPIED:${id}:${port}`);
   if (stopping) throw new Error("DEVELOPMENT_STOPPING");
-  const bundler = config.bundlers[id] ?? config.defaultBundler;
-  if (!["webpack", "turbopack"].includes(bundler)) throw new Error("INVALID_APP_BUNDLER");
+  const bundler = developmentApplicationBundler(id, config.bundlers[id] ?? config.defaultBundler, environment);
   const log = createWriteStream(resolve(logs, `${id}.log`), { flags: "a", mode: 0o600 });
+  const childEnvironment={...environment};
+  const contributor=environment.NODE_ENV==='development'&&environment.NEXT_PUBLIC_ERPX_DEV_ORIGIN_PROFILE==='container-localhost';
+  if(contributor&&['account','apps','service'].includes(id)){
+    const selectedKey=readContributorActionKey(resolve(repository,'.runtime/local/config'),id as ContributorActionApp);
+    childEnvironment.NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=selectedKey;
+  }
   const child = spawn(node!, [resolve(repository, "node_modules/next/dist/bin/next"), "dev", resolve(repository, appDirectory(id)), "--port", String(port), "--hostname", "127.0.0.1", `--${bundler}`], {
-    cwd: repository, stdio: ["ignore", "pipe", "pipe"], env: { ...environment, NODE_ENV: "development",
+    cwd: repository, stdio: ["ignore", "pipe", "pipe"], env: { ...childEnvironment, NODE_ENV: "development",
       ERPX_APP_ID: id, ERPX_APP_PORT: String(port), ERPX_PROCESS_ROLE: "app", ERPX_REPOSITORY_ROOT: repository,
       ERPX_DEV_PG_POOL_MAX: "1", ERPX_CONTROL_PG_POOL_MAX: "2",
       NODE_OPTIONS: `--max-old-space-size=${id === "compat" ? "16384" : environment.ERPX_DEV_APP_HEAP_MIB ?? "4096"}` },

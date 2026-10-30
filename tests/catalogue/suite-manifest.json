@@ -64498,6 +64498,7 @@
       },
       "id": "identity_access.native-session-server.unit",
       "files": [
+        "tests/unit/identity_access/account-preferences-native-boundary.test.ts",
         "tests/unit/identity_access/native-session-server.test.ts"
       ],
       "verificationInputs": [
@@ -64508,6 +64509,7 @@
         "packages/feature-runtime/src/public/server.ts",
         "packages/native-sdk/package.json",
         "packages/native-sdk/src/session.ts",
+        "packages/server-identity_access/src/adapters/account-preferences.ts",
         "packages/server-identity_access/src/adapters/authorization.ts",
         "packages/server-identity_access/src/adapters/native-session.ts",
         "scripts/docs/export-account-contracts.rs",
