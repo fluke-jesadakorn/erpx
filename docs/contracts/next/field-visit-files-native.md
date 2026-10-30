@@ -1,6 +1,6 @@
 # Field visit Files capability boundary
 
-This is the current implementation boundary, not an acceptance receipt. The candidate is on `codex/field-files-delivery`, based on migration integration commit `97dc43337f3500086305832edcc7f7bd3d73adaf`. Its only authorized PR target is `codex/rust-backend-migration`. No complete catalogue workflow or owner is closed by the component evidence below.
+This is the bounded Rust capability boundary. [PR #8](https://github.com/fluke-jesadakorn/erpx/pull/8) merged candidate `e4be8bddb0d499fe137fccb5e8e487a5895ad469` into `codex/rust-backend-migration` at `15a4cf28c99df361a2fe0cb2535c960bd3fb2b5f`. Docker support continues on `codex/field-files-docker`; the authorized integration target remains the migration branch. No complete catalogue workflow or owner is closed by the component evidence below.
 
 ## Scope and ownership
 
@@ -36,7 +36,7 @@ Native scanners exclusively claim persisted Field sources; the legacy scanner ex
 
 The native draft/orphan cleanup worker is mounted with checked transaction phases. Targeted component proofs cover cancellation guards, staged-publication crash recovery, binding changes, and reference races; they do not claim a real process-kill recovery test. It must retain bound/historical evidence, audit, migration history, receipts, and publication history. Retention review, legal preservation, and destruction of retained sources are separate capabilities; they must stay explicitly parked under native ownership rather than silently falling back to legacy deletion.
 
-The same-database business/history regressions and immediate Field-only legacy retirement have passed targeted verification. Final local checks and the scoped PR merge remain delivery gates. Its Docker and Dev Container support follows that accepted Rust capability. The shared Count image and contributor environment already delivered do not qualify the new Files runtime.
+The same-database business/history regressions and immediate Field-only legacy retirement have passed targeted verification. Final local checks passed and the scoped PR merged; Docker and Dev Container qualification remain the next delivery gates. Its Docker and Dev Container support follows that accepted Rust capability. The shared Count image and contributor environment already delivered do not qualify the new Files runtime.
 
 ## Current evidence limits
 
@@ -58,7 +58,7 @@ This checklist is separate from the full Field 18-item checklist and the 206-wor
 - [x] Original purchase, compatibility, withdrawal/history and no-charge settlement assertions run with native Files on the same leased database; native owner tests retain physical-I/O and retry observations.
 - [x] Replaced Field-only TS implementation, selectors and unused dependencies are removed; shared consumers remain explicit.
 - [x] Final frozen-candidate local checks and independent review are recorded.
-- [ ] Scoped PR is merged into `codex/rust-backend-migration` and remote SHA verified.
+- [x] Scoped PR is merged into `codex/rust-backend-migration` and remote SHA verified.
 
 The initial fresh browser run recorded a one-time role-chooser React warning and two resource404 messages without their stacks/URLs. The explicit warm chooser and isolated cold visit did not reproduce them. Do not call that original console clean, infer whole-Field hydration acceptance, or discard its evidence. The complete Field Company-selection gate remains separate.
 
@@ -71,3 +71,5 @@ Unused presenter/client ID-selector props, public selector APIs, optional runtim
 Shared Files application/repository, scanner and cleanup code still serves non-Field owners and excludes Field-owned resources. The static Field policy rows in `packages/server-files/src/domain/attachments/policy.ts` remain declarative inventory for the engineering matrix, not an authorization or writer implementation. Remove those rows only when that inventory consumes the Rust contract directly. Remove other owners' shared logic only with their own verified migrations. Database rows, audit, receipts, migrations, publication history and earlier evidence remain intact.
 
 The source-bound [local verification receipt](../../testing/evidence/2026-10-31-field-visit-files-native.json) records the changed-source manifest and evidence limits.
+
+The completed Rust capability checklist is **8/8**. Its branch-to-merge wall interval was 21,822 seconds (2026-10-30 18:43:26 to 2026-10-31 00:47:08, Asia/Bangkok), including waits; this is not an active-engineering-time estimate. The full Field checklist remains 7/18, workflows remain 13 partial/0 verified/0 merged of 206, and owners remain 0/41.
