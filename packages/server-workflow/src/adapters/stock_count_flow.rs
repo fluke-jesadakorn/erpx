@@ -532,7 +532,9 @@ impl StockCountFlowAssignmentWitness {
             self.default_revision.set(revision).map_err(|_| changed())?;
         }
         let reason = format!("{} → {}", self.reason, self.person.name);
-        sqlx::query("INSERT INTO flow_events(id,command_id,company_id,kind,record_id,step_key,action,actor_user_id,actor_name,reason,record_version,created_at) VALUES($1,$2,$3,'stock_count',$4,$5,'assign',$6,$7,$8,$9,$10)").bind(&self.event).bind(&self.command).bind(&self.basis.company).bind(&self.basis.count).bind(self.step.key()).bind(&self.actor).bind(&self.actor_name).bind(reason).bind(self.record_version).bind(self.now).execute(c).await?;
+        sqlx::query("INSERT INTO flow_events(id,command_id,company_id,kind,record_id,step_key,action,actor_user_id,actor_name,reason,record_version,created_at) VALUES($1,$2,$3,'stock_count',$4,$5,'assign',$6,$7,$8,$9,$10)").bind(&self.event).bind(&self.command).bind(&self.basis.company).bind(&self.basis.count).bind(self.step.key()).bind(&self.actor).bind(&self.actor_name).bind(reason).bind(self.record_version).bind(self.now).execute(c).await.map_err(|error| {
+            if error.as_database_error().is_some_and(|db| db.code().as_deref()==Some("23514") && db.constraint()==Some("flow_assignment_event_cardinality")) { changed() } else { error.into() }
+        })?;
         Ok(())
     }
     pub async fn retain(&self, c: &mut PgConnection) -> Result<(), Error> {

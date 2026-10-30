@@ -529,7 +529,7 @@ async fn assignment_default_is_scoped_retained_and_rolls_back_on_tampering() {
             let basis=read_stock_count_flow_basis(c,"company","count-example","branch").await?;
             let plan=StockCountFlowAssignmentWitness::prepare_with_default(basis,&view("draft",1,0,0),StockCountFlowAssignmentRequest{step:StockCountStep::Submitted,user:"reviewer",expected_flow:0,expected_record:1,company_admin:true,actor:"maker",actor_name:"Maker",reason:"Assign review",command:"assign-default",event:"assign-default-event",now:1},true)?;
             plan.apply(c).await?;plan.retain(c).await?;Ok(())
-        })).await;assert!(extra_event.is_err());
+        })).await;assert!(matches!(extra_event,Err(PgTransactionError::Business(e)) if e.code=="FLOW_PRIMARY_REQUIRED"));
         let none:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM flow_defaults),(SELECT count(*) FROM flow_routes),(SELECT count(*) FROM flow_events)").fetch_one(pool.raw()).await.unwrap();assert_eq!(none,(0,0,0));
         sqlx::raw_sql("DROP TRIGGER fixture_extra_event ON flow_events; DROP FUNCTION fixture_extra_event()").execute(pool.raw()).await.unwrap();
         unit.run_once::<_,BusinessError,_>(TransactionOptions::default(),|c|Box::pin(async move {

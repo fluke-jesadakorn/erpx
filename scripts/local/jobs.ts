@@ -1,3 +1,4 @@
+import {serviceCountOutboxQuarantine} from '@erpx/server-inventory/public/service-count-outbox-predicate';
 import { getRuntime, closeRuntime } from "@erpx/server-runtime/adapters/runtime/env";
 import { activeSlots, maintenance, runOne, scheduledWork, expenseAiWork, directoryWork, billingWork, pmsWork, posQueueWork, legalWork, supportWork,customerNotificationWork,attachmentWork } from "@erpx/server-runtime/adapters/runtime/jobs";
 import { attachmentRuntimeReadiness } from "@erpx/server-files/public/attachments/readiness";
@@ -67,7 +68,7 @@ try {
     try {
       if(!await maintenance(env.ERPX_DATA_DIR)) {
         if(Date.now()-scheduledAt>=120_000){await scheduledWork(env);scheduledAt=Date.now();}
-        for(const slot of await activeSlots(env)){if(stopping)break;await runOne(env,slot.id);}
+        for(const slot of await activeSlots(env)){if(stopping)break;await runOne(env,slot.id,undefined,serviceCountOutboxQuarantine);}
       }
     } catch(error) {console.error(JSON.stringify({event:'jobs_iteration_failed',code:error instanceof Error?error.name:'UnknownError'}));}
     if(!stopping)await new Promise(resolve=>setTimeout(resolve,1000));

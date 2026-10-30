@@ -1,6 +1,27 @@
 {
   "components": {
     "schemas": {
+      "BTreeMap": {
+        "additionalProperties": {
+          "description": "Generic Inventory row contract retains its scalar column names.",
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "format": "int64",
+              "type": "integer"
+            },
+            {
+              "default": null
+            }
+          ]
+        },
+        "propertyNames": {
+          "type": "string"
+        },
+        "type": "object"
+      },
       "CountActionInput": {
         "additionalProperties": false,
         "properties": {
@@ -457,6 +478,61 @@
           "status"
         ],
         "type": "object"
+      },
+      "CountGenericDetail": {
+        "properties": {
+          "count": {
+            "$ref": "#/components/schemas/BTreeMap"
+          },
+          "decisions": {
+            "items": {
+              "$ref": "#/components/schemas/BTreeMap"
+            },
+            "type": "array"
+          },
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/BTreeMap"
+            },
+            "type": "array"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/BTreeMap"
+            },
+            "type": "array"
+          },
+          "lotLines": {
+            "items": {
+              "$ref": "#/components/schemas/BTreeMap"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "count",
+          "lines",
+          "lotLines",
+          "history",
+          "decisions"
+        ],
+        "type": "object"
+      },
+      "CountGenericValue": {
+        "anyOf": null,
+        "description": "Generic Inventory row contract retains its scalar column names.",
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "format": "int64",
+            "type": "integer"
+          },
+          {
+            "default": null
+          }
+        ]
       },
       "CountLineInput": {
         "additionalProperties": false,
@@ -1172,6 +1248,9 @@
           },
           {
             "$ref": "#/components/schemas/CountFlow"
+          },
+          {
+            "$ref": "#/components/schemas/CountGenericDetail"
           }
         ]
       },
@@ -1586,6 +1665,42 @@
               }
             },
             "description": "Current authorized Service Count action_reject"
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock/{id}/stock-count": {
+      "get": {
+        "operationId": "generic_detail",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "holding_slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceInitialCountReadResponse"
+                }
+              }
+            },
+            "description": "Current authorized generic Service Count detail"
           }
         },
         "tags": []

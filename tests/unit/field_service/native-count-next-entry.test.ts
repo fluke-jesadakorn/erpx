@@ -22,6 +22,7 @@ vi.mock('@erpx/server-inventory/public/service-initial-physical-stock-count', ()
 
 import { GET, POST } from '../../../packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/initial-physical-stock/[[...path]]/route';
 import Page from '../../../packages/feature-service/src/routes/holdings/[holdingSlug]/services/field-service/settings/initial-stock/page';
+import {serviceCountCommand} from '../../../packages/workplace/src/lib/service-count-native-command';
 
 const nativeContext = { userId:'worker', holdingId:'holding', companyId:'company', branchId:null, departmentId:null, branchSlug:null, departmentSlug:null, assignmentId:'grant', assignmentVersion:3, revision:7, role:'worker', assignmentScopeKind:'holding', modules:['field_service'], permissions:['inventory.read','inventory.prepare'] };
 const actor = { ...nativeContext, authority: { assignmentVersion:3, revision:7 }, iam: { permissions:nativeContext.permissions }, scope: { kind:'holding' }, assignmentScope:'holding' };
@@ -37,8 +38,9 @@ beforeAll(async () => {
     observed.push({ method:request.method!, path:request.url!, body:Buffer.concat(chunks).toString(), company:request.headers['x-erpx-context-company'] as string | undefined, assignment:request.headers['x-erpx-context-assignment'] as string | undefined, revision:request.headers['x-erpx-context-revision'] as string | undefined, assignmentVersion:request.headers['x-erpx-context-assignment-version'] as string | undefined, key:request.headers['idempotency-key'] as string | undefined });
     response.setHeader('content-type', 'application/json');
     if (outage) { response.statusCode = 503; response.end(JSON.stringify({error:{code:'OWNER_UNAVAILABLE'}})); return; }
-    if (request.method === 'POST') response.statusCode = 201;
-    response.end(JSON.stringify({ context:{...nativeContext, expiresAt:Date.now()+60_000}, data:request.method === 'POST' ? {id:'count-original-key',status:'draft',version:1} : view }));
+    const update=request.url?.endsWith('/count-a/update');
+    if (request.method === 'POST') response.statusCode = update ? 200 : 201;
+    response.end(JSON.stringify({ context:{...nativeContext, expiresAt:Date.now()+60_000}, data:request.method === 'POST' ? update ? {id:'count-a',status:'draft',version:4} : {id:'count-original-key',status:'draft',version:1} : view }));
   });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();
@@ -86,4 +88,13 @@ it('selected native failures do not fall back to the retained Count owner', asyn
   await expect(Page({params,searchParams:Promise.resolve({warehouseId:'wh'})})).rejects.toMatchObject({status:503,code:'OWNER_UNAVAILABLE'});
   expect(observed).toHaveLength(2);
   expect(mocks.retained).not.toHaveBeenCalled();
+});
+
+it('generic Service native helper forwards raw update after captured context checks',async()=>{
+ const incoming=headers(),raw='{ "expectedVersion":3, "unknown":{"x":1} }',request=new Request('https://acme.example.test/api/v1/holdings/acme/stock-counts/count-a',{method:'POST',headers:incoming,body:raw});
+ const result=await serviceCountCommand(request,actor as never,'acme',{kind:'update',id:'count-a'},'original-key');expect(result.data).toEqual({id:'count-a',status:'draft',version:4});expect(result.raw).toBe(raw);expect(observed[0]).toMatchObject({method:'POST',path:'/api/v1/holdings/acme/field-service/initial-physical-stock/count-a/update',body:raw,key:'original-key',company:'company',assignment:'grant',revision:'7',assignmentVersion:'3'});
+});
+it('generic Service native helper rejects missing config or stale context before reading body',async()=>{
+ const raw='{ "expectedVersion":3 }',missing=headers();missing.delete('x-erpx-context-assignment-version');const stale=new Request('https://acme.example.test/api',{method:'POST',headers:missing,body:raw});await expect(serviceCountCommand(stale,actor as never,'acme',{kind:'update',id:'count-a'},'key')).rejects.toMatchObject({status:409,code:'WORK_CONTEXT_CHANGED'});expect(stale.bodyUsed).toBe(false);
+ vi.stubEnv('ERPX_NATIVE_FIELD_SERVICE_INITIAL_COUNT_CONFIG',undefined);const request=new Request('https://acme.example.test/api',{method:'POST',headers:headers(),body:raw});await expect(serviceCountCommand(request,actor as never,'acme',{kind:'update',id:'count-a'},'key')).rejects.toMatchObject({status:503,code:'NATIVE_INITIAL_COUNT_UNAVAILABLE'});expect(request.bodyUsed).toBe(false);expect(observed).toHaveLength(0);
 });

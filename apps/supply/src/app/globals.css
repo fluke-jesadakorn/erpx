@@ -50,6 +50,9 @@
 @source "../../../../packages/feature-crm/src/lib/command-fetch.ts";
 @source "../../../../packages/feature-ecommerce/src/components/ecommerce-console.tsx";
 @source "../../../../packages/feature-ecommerce/src/lib/purchase-controls.ts";
+@source "../../../../packages/feature-field_service/src/adapters/server/native-initial-count.ts";
+@source "../../../../packages/feature-field_service/src/lib/initial-physical-stock-count-command.ts";
+@source "../../../../packages/feature-field_service/src/public/native-initial-count.ts";
 @source "../../../../packages/feature-files/src/application/field-bind.ts";
 @source "../../../../packages/feature-files/src/application/field-withdrawal.ts";
 @source "../../../../packages/feature-files/src/components/attachment-feature-context.tsx";
@@ -311,6 +314,7 @@
 @source "../../../../packages/feature-shared/src/lib/destination-router.ts";
 @source "../../../../packages/feature-shared/src/lib/destination-search.ts";
 @source "../../../../packages/feature-shared/src/lib/executive/numbers.ts";
+@source "../../../../packages/feature-shared/src/lib/flow.ts";
 @source "../../../../packages/feature-shared/src/lib/front-host.ts";
 @source "../../../../packages/feature-shared/src/lib/front-language.ts";
 @source "../../../../packages/feature-shared/src/lib/home-rich-content.ts";
@@ -455,6 +459,7 @@
 @source "../../../../packages/feature-work_projection/src/public/client.ts";
 @source "../../../../packages/front/src/components/front-error.tsx";
 @source "../../../../packages/front/src/components/front-language.tsx";
+@source "../../../../packages/native-sdk/src/field-service-initial-count.ts";
 @source "../../../../packages/native-sdk/src/session.ts";
 @source "../../../../packages/server-agent/src/adapters/agent-governance.ts";
 @source "../../../../packages/server-agent/src/adapters/ai-gateway.ts";
@@ -2111,7 +2116,6 @@
 @source "../../../../packages/server-inventory/src/domain/reorder-policies.ts";
 @source "../../../../packages/server-inventory/src/domain/reorder-quantity.ts";
 @source "../../../../packages/server-inventory/src/domain/service-initial-physical-stock-count-entry.ts";
-@source "../../../../packages/server-inventory/src/domain/service-initial-physical-stock-count.ts";
 @source "../../../../packages/server-inventory/src/domain/transfers.ts";
 @source "../../../../packages/server-inventory/src/domain/transit.ts";
 @source "../../../../packages/server-inventory/src/public/attachment-read.ts";
@@ -4012,6 +4016,9 @@
 @source "../../../../packages/workplace/src/components/workspace-menu.tsx";
 @source "../../../../packages/workplace/src/entries/workspace.tsx";
 @source "../../../../packages/workplace/src/holding-proxy.ts";
+@source "../../../../packages/workplace/src/lib/flow-assignment-command.ts";
+@source "../../../../packages/workplace/src/lib/service-count-native-command.ts";
+@source "../../../../packages/workplace/src/lib/service-count-native-read.ts";
 @source "../../../../packages/workplace/src/proxy.ts";
 @source "../../../../packages/workplace/src/routes/api/health/route.ts";
 @source "../../../../packages/workplace/src/routes/api/ready/route.ts";
@@ -4035,6 +4042,7 @@
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/calendar/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/commerce/[...path]/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/companies/active/route.ts";
+@source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/flows/[kind]/[id]/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/media-publications/[publicationId]/approve/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/media-publications/[publicationId]/revoke/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/media-publications/order/route.ts";

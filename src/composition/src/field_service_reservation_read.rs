@@ -476,6 +476,17 @@ impl<C: Clock + Send + Sync + 'static> FieldServiceReservationReadService<C> {
             clock,
         }
     }
+    pub fn registered_setup_companies(&self) -> bool {
+        #[cfg(feature = "field-service-http")]
+        { self.config.initial_count.is_some() }
+        #[cfg(not(feature = "field-service-http"))]
+        { false }
+    }
+    fn setup_company_ownership(&self) -> crate::service_company_ownership::ServiceCompanyOwnership {
+        if self.registered_setup_companies() {
+            crate::service_company_ownership::ServiceCompanyOwnership::RegisteredHolding
+        } else { self.config.company.clone().into() }
+    }
     pub fn company_id(&self) -> &CompanyId {
         &self.config.company
     }
@@ -502,7 +513,7 @@ impl<C: Clock + Send + Sync + 'static> FieldServiceReservationReadService<C> {
             request,
             crate::service_initial_physical_stock_transport::ServiceInitialCountTarget {
                 holding: self.config.holding.clone(),
-                company: self.config.company.clone(),
+                company: crate::service_company_ownership::ServiceCompanyOwnership::RegisteredHolding,
                 clock: self.clock.clone(),
                 environment: environment.clone(),
                 files_features: files_features.clone(),
@@ -534,7 +545,7 @@ impl<C: Clock + Send + Sync + 'static> FieldServiceReservationReadService<C> {
             request,
             crate::service_initial_physical_stock_transport::ServiceInitialCountTarget {
                 holding: self.config.holding.clone(),
-                company: self.config.company.clone(),
+                company: crate::service_company_ownership::ServiceCompanyOwnership::RegisteredHolding,
                 clock: self.clock.clone(),
                 environment: environment.clone(),
                 files_features: files_features.clone(),
@@ -562,7 +573,7 @@ impl<C: Clock + Send + Sync + 'static> FieldServiceReservationReadService<C> {
             request,
             crate::service_parts_posting_setup::ServicePostingTarget {
                 holding: self.config.holding.clone(),
-                company: self.config.company.clone(),
+                company: self.setup_company_ownership(),
                 clock: self.clock.clone(),
                 environment:
                     crate::service_parts_posting_setup::ServicePostingEnvironment::Development,
@@ -589,7 +600,7 @@ impl<C: Clock + Send + Sync + 'static> FieldServiceReservationReadService<C> {
             request,
             crate::service_parts_posting_setup::ServicePostingTarget {
                 holding: self.config.holding.clone(),
-                company: self.config.company.clone(),
+                company: self.setup_company_ownership(),
                 clock: self.clock.clone(),
                 environment:
                     crate::service_parts_posting_setup::ServicePostingEnvironment::Development,
@@ -617,7 +628,7 @@ impl<C: Clock + Send + Sync + 'static> FieldServiceReservationReadService<C> {
             request,
             crate::service_parts_posting_setup::ServicePostingTarget {
                 holding: self.config.holding.clone(),
-                company: self.config.company.clone(),
+                company: self.setup_company_ownership(),
                 clock: self.clock.clone(),
                 environment:
                     crate::service_parts_posting_setup::ServicePostingEnvironment::Development,
@@ -645,7 +656,7 @@ impl<C: Clock + Send + Sync + 'static> FieldServiceReservationReadService<C> {
             request,
             crate::service_parts_posting_setup::ServicePostingTarget {
                 holding: self.config.holding.clone(),
-                company: self.config.company.clone(),
+                company: self.setup_company_ownership(),
                 clock: self.clock.clone(),
                 environment:
                     crate::service_parts_posting_setup::ServicePostingEnvironment::Development,
@@ -673,7 +684,7 @@ impl<C: Clock + Send + Sync + 'static> FieldServiceReservationReadService<C> {
             request,
             crate::service_parts_posting_setup::ServicePostingTarget {
                 holding: self.config.holding.clone(),
-                company: self.config.company.clone(),
+                company: self.setup_company_ownership(),
                 clock: self.clock.clone(),
                 environment:
                     crate::service_parts_posting_setup::ServicePostingEnvironment::Development,
@@ -702,7 +713,7 @@ impl<C: Clock + Send + Sync + 'static> FieldServiceReservationReadService<C> {
             request,
             crate::service_parts_posting_setup::ServicePostingTarget {
                 holding: self.config.holding.clone(),
-                company: self.config.company.clone(),
+                company: self.setup_company_ownership(),
                 clock: self.clock.clone(),
                 environment:
                     crate::service_parts_posting_setup::ServicePostingEnvironment::Development,

@@ -1,3 +1,6 @@
+import {serviceCountWriterOwner} from '@erpx/server-inventory/public/service-initial-physical-stock-count';
+import {serviceCountCommand,serviceCountFlow} from '../../../../../../../../lib/service-count-native-command';
+import {nativeInitialCountContext} from '@erpx/feature-field_service/public/native-initial-count';
 import {financeDocumentFlow} from "@erpx/server-finance/public/record-presentation";
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import {withFinanceFlowAssignment} from "@erpx/server-finance/public/document-purchases";
@@ -11,9 +14,14 @@ import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-orig
 
 type Context = {params:Promise<{holdingSlug:string;kind:string;id:string}>};
 const schema = z.object({stepKey:z.string().min(1).max(100),userId:z.string().min(1).max(180),expectedVersion:z.number().int().nonnegative(),recordVersion:z.number().int().positive(),reason:z.string().trim().min(3).max(2000),saveDefault:z.boolean().default(false)});
-export async function GET(_request:Request, context:Context) {
+export async function GET(request:Request, context:Context) {
   try {
     const p = await context.params, kind = z.enum(flowKinds).parse(p.kind), actor = await requireWorkContext(p.holdingSlug);
+    if(kind==='stock_count'&&await serviceCountWriterOwner(actor,p.id)==='service'){
+      const captured=nativeInitialCountContext(actor);
+      if(!captured)throw new ApiError(409,'WORK_CONTEXT_CHANGED','The work context changed.');
+      return Response.json(canonicalDestinationLinks({data:await serviceCountFlow(request,actor,p.holdingSlug,p.id,captured)}),{headers:{'Cache-Control':'private, no-store'}});
+    }
     const db = await requireFlowAccess(actor,kind,p.id);
     return Response.json(canonicalDestinationLinks({data:await (kind==="invoice"||kind==="journal"?financeDocumentFlow(actor,kind,p.id):resolveFlow(db,actor,kind,p.id))}),{headers:{"Cache-Control":"private, no-store"}});
   } catch (error) { return errorResponse(error); }
@@ -23,6 +31,11 @@ export async function POST(request:Request, context:Context) {
     if (request.headers.get("origin") && request.headers.get("origin") !== requestPublicOrigin(request)) throw new ApiError(403,"ORIGIN_FORBIDDEN","Use the application origin.");
     const p = await context.params, kind = z.enum(flowKinds).parse(p.kind), actor = await requireWorkContext(p.holdingSlug);
     const key = request.headers.get("Idempotency-Key"); if (!key) throw new ApiError(422,"COMMAND_KEY_REQUIRED","Idempotency-Key is required.");
+    if(kind==='stock_count'&&await serviceCountWriterOwner(actor,p.id)==='service'){
+      const command=await serviceCountCommand(request,actor,p.holdingSlug,{kind:'generic-assign',id:p.id},key);
+      const flow=await serviceCountFlow(request,actor,p.holdingSlug,p.id,command.context);
+      return Response.json(canonicalDestinationLinks({data:flow,command:{id:command.data.id,version:command.data.version}}),{headers:{"Cache-Control":"private, no-store","X-ERPX-Native-Count":"1"}});
+    }
     const db = await requireFlowAccess(actor,kind,p.id);
     const input=schema.parse(await request.json());
     if(kind==="invoice"||kind==="journal")await withFinanceFlowAssignment(actor,key,tx=>assignFlowPrimary(tx??db,actor,kind,p.id,input,key),{kind,id:p.id});

@@ -1278,13 +1278,15 @@ where
     }
     let expected_holding = holding.clone();
     let expected_company = company.clone();
-    let callbacks=SelectedTransportCallbacks::<_,ReadIngress,ReadDenial,_>::new::<ServicePrerequisitesReadResponse>(move|selected:&SelectedWorkIngress<'_>|->SelectedIngressFuture<ReadIngress,ReadDenial>{let result=selected.read_context().map(|selected|ReadIngress{selected,holding:expected_holding.clone(),company:expected_company.clone()}).map_err(ReadDenial::Ingress);Box::pin(async move{result})},read_denied,move|c,current,input:ReadIngress|{let clock=clock.clone();Box::pin(async move{if current.holding_id()!=&input.holding||current.selection().workspace().company_id!=input.company{return Err(BusinessError::new(FailureKind::Forbidden,"SERVICE_POSTING_SCOPE_REQUIRED","Use the current Company.").into());}let rendered=context(current)?;let data=read_service_prerequisites(c,current,clock.as_ref(),environment).await?;Ok(Ok(bounded_prerequisite_response(data,rendered)?))})});
+    let current_ownership = company.clone();
+    let request_ownership = company.clone();
+    let callbacks=SelectedTransportCallbacks::<_,ReadIngress,ReadDenial,_>::new::<ServicePrerequisitesReadResponse>(move|selected:&SelectedWorkIngress<'_>|->SelectedIngressFuture<ReadIngress,ReadDenial>{let result=selected.read_context().and_then(|selected|{let company=expected_company.selected(&expected_holding,&selected)?;Ok(ReadIngress{selected,holding:expected_holding.clone(),company})}).map_err(ReadDenial::Ingress);Box::pin(async move{result})},read_denied,move|c,current,input:ReadIngress|{let clock=clock.clone();let ownership=current_ownership.clone();Box::pin(async move{ownership.current(&input.holding,current)?;if current.holding_id()!=&input.holding||current.selection().workspace().company_id!=input.company{return Err(BusinessError::new(FailureKind::Forbidden,"SERVICE_POSTING_SCOPE_REQUIRED","Use the current Company.").into());}let rendered=context(current)?;let data=read_service_prerequisites(c,current,clock.as_ref(),environment).await?;Ok(Ok(bounded_prerequisite_response(data,rendered)?))})});
     match authorizer
         .execute_with_selected_transport_ingress_deferred(
             host,
             proof,
             move || {
-                let mut request = request()?;
+                let mut request = request_ownership.request(request()?)?;
                 request.mutation = false;
                 Ok(request)
             },
@@ -1341,9 +1343,10 @@ where
         return Err(invalid().into());
     }
     let ServicePrerequisiteTransportCommand { key, body, kind } = command;
+    let request_ownership = company.clone();
     let body = Arc::new(tokio::sync::Mutex::new(Some(body)));
     let cached = Arc::new(tokio::sync::OnceCell::new());
-    let callbacks=SelectedTransportCallbacks::<_,(String,NormalizedPrerequisiteCommand),BusinessError,_>::new::<ServicePrerequisiteCommandResponse>(move|_:&SelectedWorkIngress<'_>|->SelectedIngressFuture<(String,NormalizedPrerequisiteCommand),BusinessError>{let body=body.clone();let cached=cached.clone();let key=key.clone();Box::pin(async move{let key=key?;if key.is_empty(){return Err(BusinessError::invalid("COMMAND_KEY_REQUIRED","Idempotency-Key is required."));}let bytes=cached.get_or_init(||async{let body=body.lock().await.take()?;axum::body::to_bytes(body,2*1024*1024).await.ok().map(|v|v.to_vec())}).await.as_ref().ok_or_else(wire_invalid)?;let text=String::from_utf8_lossy(bytes);let text=text.strip_prefix('\u{feff}').unwrap_or(&text);let json=CommandJson::parse(text).map_err(|_|BusinessError::invalid("INVALID_JSON","Use valid JSON."))?;let input=normalize_service_prerequisite(&json,kind_name(kind))?;Ok((key,input))})},|_,error|Err(error),move|c,current,(key,input):(String,NormalizedPrerequisiteCommand)|{let clock=clock.clone();let holding=holding.clone();let company=company.clone();Box::pin(async move{if current.holding_id()!=&holding||current.selection().workspace().company_id!=company{return Err(BusinessError::new(FailureKind::Forbidden,"SERVICE_POSTING_SCOPE_REQUIRED","Use the current Company.").into());}let rendered=context(current)?;let result=execute_service_prerequisite(c,current,clock.as_ref(),&key,&input).await?;ensure_command_reply_bound(&result.result,&rendered)?;Ok(Ok(ServicePrerequisiteCommandResponse{data:result.result,context:rendered}))})});
+    let callbacks=SelectedTransportCallbacks::<_,(String,NormalizedPrerequisiteCommand),BusinessError,_>::new::<ServicePrerequisiteCommandResponse>(move|_:&SelectedWorkIngress<'_>|->SelectedIngressFuture<(String,NormalizedPrerequisiteCommand),BusinessError>{let body=body.clone();let cached=cached.clone();let key=key.clone();Box::pin(async move{let key=key?;if key.is_empty(){return Err(BusinessError::invalid("COMMAND_KEY_REQUIRED","Idempotency-Key is required."));}let bytes=cached.get_or_init(||async{let body=body.lock().await.take()?;axum::body::to_bytes(body,2*1024*1024).await.ok().map(|v|v.to_vec())}).await.as_ref().ok_or_else(wire_invalid)?;let text=String::from_utf8_lossy(bytes);let text=text.strip_prefix('\u{feff}').unwrap_or(&text);let json=CommandJson::parse(text).map_err(|_|BusinessError::invalid("INVALID_JSON","Use valid JSON."))?;let input=normalize_service_prerequisite(&json,kind_name(kind))?;Ok((key,input))})},|_,error|Err(error),move|c,current,(key,input):(String,NormalizedPrerequisiteCommand)|{let clock=clock.clone();let holding=holding.clone();let company=company.clone();Box::pin(async move{company.current(&holding,current)?;let rendered=context(current)?;let result=execute_service_prerequisite(c,current,clock.as_ref(),&key,&input).await?;ensure_command_reply_bound(&result.result,&rendered)?;Ok(Ok(ServicePrerequisiteCommandResponse{data:result.result,context:rendered}))})});
     let permission = if kind == ServicePrerequisiteKind::Rate {
         "finance.approve"
     } else {
@@ -1354,7 +1357,7 @@ where
             host,
             proof,
             move || {
-                let mut request = request()?;
+                let mut request = request_ownership.request(request()?)?;
                 request.mutation = true;
                 Ok(request)
             },

@@ -288,3 +288,18 @@ required-features = ["field-service"]
 name = "service_initial_count_update_postgres"
 path = "../../tests/integration/field_service/rust-service-initial-count-update-postgres.test.rs"
 required-features = ["field-service-http", "existing-business"]
+
+[[test]]
+name = "service_count_outbox_postgres"
+path = "../../tests/integration/workflow/rust-service-count-outbox-postgres.test.rs"
+required-features = ["field-service"]
+
+[[test]]
+name = "service_count_company_postgres"
+path = "../../tests/integration/field_service/rust-service-count-company-postgres.test.rs"
+required-features = ["field-service-http"]
+
+[[test]]
+name = "service_count_worker_cli_postgres"
+path = "../../tests/integration/field_service/rust-service-count-worker-cli-postgres.test.rs"
+required-features = ["private-field-api"]

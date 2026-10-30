@@ -20,11 +20,11 @@ import {runtimeLegalJobHealthEffects} from "@erpx/server-legal/public/runtime-jo
 import {runtimeBetaSlotActive} from "@erpx/server-manage_erpx/public/runtime-active-slot-source";
 
 export type PendingEvent = RuntimePendingEvent;
-export async function claimJob(db: SqlDatabase, now = Date.now()): Promise<PendingEvent | null> {
-  return runtimeJobEffects(db).claim(randomUUID(),now+90_000,now,now);
+export async function claimJob(db: SqlDatabase, now = Date.now(), excludedSourceSql?: string): Promise<PendingEvent | null> {
+  return runtimeJobEffects(db,excludedSourceSql).claim(randomUUID(),now+90_000,now,now);
 }
-export async function runOne(env: JobEnv, holdingId: string, handler = project): Promise<boolean> {
-  const { write } = registeredResources(env, holdingId), row = await claimJob(write);
+export async function runOne(env: JobEnv, holdingId: string, handler = project, excludedSourceSql?: string): Promise<boolean> {
+  const { write } = registeredResources(env, holdingId), row = await claimJob(write, Date.now(), excludedSourceSql);
   if (!row) return false;
   const renewal = setInterval(() => {
     void runtimeJobEffects(write).renew(Date.now()+90_000,row.id,row.lease_token).catch(() => {});

@@ -50,3 +50,7 @@ path = "../../tests/integration/inventory/rust-service-initial-physical-count-po
 [[test]]
 name = "service_initial_count_revision_postgres"
 path = "../../tests/integration/inventory/rust-service-initial-count-revision-postgres.test.rs"
+
+[[test]]
+name = "service_count_generic_facts_postgres"
+path = "../../tests/integration/inventory/rust-service-count-generic-facts-postgres.test.rs"

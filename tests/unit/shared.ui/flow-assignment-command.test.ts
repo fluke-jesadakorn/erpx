@@ -39,3 +39,19 @@ it('does not signal save or shared refresh when the original form disconnects',a
  const request=api.submit('/api/flow/detached','stock_count','count-a',2,{recordVersion:4},{form,formEditVersion:'original'});Object.assign(form,{isConnected:false});resolve(response());
  expect(await request).toEqual({unchanged:false});expect(dispatch.mock.calls.some(call=>['erpx:record-command-saved','erpx:work-changed'].includes(call[0].type))).toBe(false);
 });
+it('requires the native POST command receipt even when readback is plausible',async()=>{
+ browser();let good=false;const send=vi.fn(async()=>Response.json({data:flow,...(good?{command:{id:'count-a',version:3}}:{})},{headers:{'x-erpx-native-count':'1'}}));const api=createFlowAssignmentCommands(send,()=>({...identity}),()=> 'native-flow-key');
+ await expect(api.submit('/api/flow/native','stock_count','count-a',2,{recordVersion:4})).rejects.toThrow('receipt');expect(api.pending('/api/flow/native')).not.toBeNull();good=true;expect(await api.retry('/api/flow/native')).toEqual({unchanged:true});
+});
+it('accepts an exact native retry after later reassignment and record progress only with the original receipt',async()=>{
+ browser();let calls=0;const requests:{body:BodyInit|null|undefined;key:string|null}[]=[];
+ const send=vi.fn(async(_endpoint:RequestInfo|URL,init?:RequestInit)=>{requests.push({body:init?.body,key:new Headers(init?.headers).get('idempotency-key')});if(++calls===1)throw Error('lost');return Response.json({data:{...flow,version:5,recordVersion:6},command:{id:'count-a',version:calls===2?4:3}},{headers:{'x-erpx-native-count':'1'}});});
+ const api=createFlowAssignmentCommands(send,()=>({...identity}),()=> 'later-progress-key'),input={stepKey:'approve',userId:'person',expectedVersion:2,recordVersion:4,reason:'Original',saveDefault:true};
+ await expect(api.submit('/api/flow/later-progress','stock_count','count-a',2,input)).rejects.toThrow('lost');
+ await expect(api.retry('/api/flow/later-progress')).rejects.toThrow('receipt');expect(api.pending('/api/flow/later-progress')).not.toBeNull();
+ expect(await api.retry('/api/flow/later-progress')).toEqual({unchanged:true});expect(requests).toEqual(Array(3).fill({body:JSON.stringify(input),key:'later-progress-key'}));
+});
+it('keeps ordinary Flow strict when readback has advanced',async()=>{
+ browser();const api=createFlowAssignmentCommands(vi.fn(async()=>Response.json({data:{...flow,version:5,recordVersion:6}})),()=>({...identity}),()=> 'ordinary-progress-key');
+ await expect(api.submit('/api/flow/ordinary-progress','stock_count','count-a',2,{recordVersion:4})).rejects.toThrow('not acknowledged');
+});

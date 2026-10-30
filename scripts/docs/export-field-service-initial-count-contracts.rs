@@ -5,6 +5,8 @@ use ts_rs::{Config, TS};
 fn workspace() {}
 #[utoipa::path(get,path="/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock/{id}",params(("holding_slug"=String,Path), ("id"=String,Path)),responses((status=200,body=ServiceInitialCountReadResponse,description="Current authorized Service Count record")))]
 fn record() {}
+#[utoipa::path(get,path="/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock/{id}/stock-count",params(("holding_slug"=String,Path), ("id"=String,Path)),responses((status=200,body=ServiceInitialCountReadResponse,description="Current authorized generic Service Count detail")))]
+fn generic_detail() {}
 #[utoipa::path(get,path="/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock/{id}/flow",params(("holding_slug"=String,Path), ("id"=String,Path)),responses((status=200,body=ServiceInitialCountReadResponse,description="Current authorized Service Count flow")))]
 fn flow() {}
 #[utoipa::path(post,path="/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock",params(("holding_slug"=String,Path)),request_body=CountCreateInput,responses((status=201,body=ServiceInitialCountCommandResponse,description="Current authorized Service Count create")))]
@@ -39,6 +41,7 @@ fn generic_flow() {}
 #[openapi(
     paths(
         workspace,
+        generic_detail,
         record,
         flow,
         create,
@@ -66,6 +69,8 @@ fn generic_flow() {}
         CountDecision,
         CountRecord,
         CountWorkspace,
+        CountGenericDetail,
+        CountGenericValue,
         CountFlowPerson,
         CountFlowStep,
         CountFlowHistory,
@@ -107,6 +112,9 @@ fn main() {
             serde_json::json!({"type":"integer","const":0});
         value["components"]["schemas"]["CountAssignmentInput"]["properties"]["saveDefault"] =
             serde_json::json!({"type":"boolean","const":false});
+        if let Some(variants)=value["components"]["schemas"]["CountGenericValue"]["anyOf"].as_array_mut() {
+            for variant in variants { if variant["type"] == "integer" { variant["minimum"]=(-9007199254740991i64).into(); variant["maximum"]=9007199254740991i64.into(); } }
+        }
         let update = &mut value["components"]["schemas"];
         update["CountUpdateInput"]["properties"]["warehouseId"]["minLength"] = 1.into();
         update["CountUpdateInput"]["properties"]["countDate"]["format"] = "date".into();
@@ -168,6 +176,8 @@ fn main() {
         CountDecision::decl(&config),
         CountRecord::decl(&config),
         CountWorkspace::decl(&config),
+        CountGenericValue::decl(&config),
+        CountGenericDetail::decl(&config),
         CountFlowPerson::decl(&config),
         CountFlowStep::decl(&config),
         CountFlowHistory::decl(&config),

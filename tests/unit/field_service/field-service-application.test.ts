@@ -198,10 +198,11 @@ it('Service saved receipt and explicit original retry remain available inside th
 import {AccountPreferencesContext} from '@erpx/feature-identity_access/components/account-preferences-context';
 import {decimalToUnits,unitsToDecimal} from '@erpx/feature-finance/lib/finance-money';
 import type {FlowView} from '@erpx/feature-shared/lib/flow';
-import {serviceInitialPhysicalStockCountSchema} from '@erpx/server-inventory/domain/service-initial-physical-stock-count';
+import {initialPhysicalStockCountSchema as serviceInitialPhysicalStockCountSchema} from '@erpx/server-inventory/domain/initial-physical-stock-count';
 import type {z} from 'zod';
 import type {ServiceInitialPhysicalCountAction,ServiceInitialPhysicalCountDecision,ServiceInitialPhysicalCountInput as CountUiInput,ServiceInitialPhysicalCountView as CountUiView,ServiceInitialPhysicalCountProductInput,ServiceInitialPhysicalCountWarehouseInput,ServiceInitialPhysicalCountSelection} from '@erpx/feature-field_service/lib/initial-physical-stock-count-command';
-import type {ServiceInitialPhysicalStockCountAction as CountOwnerAction,ServiceInitialPhysicalStockCountInput as CountOwnerInput,ServiceInitialPhysicalStockCountView as CountOwnerView,serviceInitialPhysicalStockCountActionSchema as countOwnerActionSchema,serviceInitialPhysicalStockCountSelectionSchema as countOwnerSelectionSchema} from '@erpx/server-inventory/public/service-initial-physical-stock-count';
+import type {InitialPhysicalStockCountAction as CountOwnerAction,initialPhysicalStockCountActionSchema as countOwnerActionSchema,initialPhysicalStockCountSelectionSchema as countOwnerSelectionSchema} from '@erpx/server-inventory/domain/initial-physical-stock-count';
+import type {CountCreateInput as CountOwnerInput,CountWorkspace as CountOwnerView} from '@erpx/contracts/field-service-initial-count';
 import type {serviceInitialPhysicalStockProductSchema as stockOwnerProductSchema,serviceInitialPhysicalStockWarehouseSchema as stockOwnerWarehouseSchema} from '@erpx/server-commerce/public/service-initial-physical-stock-masters';
 it('Count frontend exchange remains structurally compatible with the retained owner port',()=>{
  expectTypeOf<CountUiInput>().toEqualTypeOf<CountOwnerInput>();expectTypeOf<CountUiView>().toMatchTypeOf<CountOwnerView>();expectTypeOf<CountOwnerView>().toMatchTypeOf<CountUiView>();expectTypeOf<ServiceInitialPhysicalCountAction>().toEqualTypeOf<CountOwnerAction>();
@@ -212,11 +213,11 @@ it('Count frontend exchange remains structurally compatible with the retained ow
 vi.mock('next/navigation',()=>({useRouter:()=>({push:vi.fn(),replace:vi.fn(),refresh:vi.fn()}),usePathname:()=>'/holdings/acme/services/field-service/settings/initial-stock',useSearchParams:()=>new URLSearchParams()}));
 const source:import("@erpx/feature-field_service/lib/initial-physical-stock-count-command").ServiceInitialPhysicalCountSource={base:'/holdings/acme',companyId:'company',recordId:null,contextKey:'a'.repeat(64),recordVersion:null,flowVersion:null};
 const input:import("@erpx/feature-field_service/lib/initial-physical-stock-count-command").ServiceInitialPhysicalCountInput={expectedVersion:0,contextKey:source.contextKey!,input:{warehouseId:'warehouse',countDate:'2026-09-02',reason:'Signed original physical-count evidence',lines:[{productId:'product',countedQuantity:'2',unitCost:'6',allocations:[]}]}};
-const view:import("@erpx/server-inventory/public/service-initial-physical-stock-count").ServiceInitialPhysicalStockCountView={companyId:'company',available:true,currency:'THB',documentCurrency:'USD',contextKey:source.contextKey,unavailableReason:null,canPrepare:true,canCreateWarehouse:true,canCreateProduct:true,selection:{warehouseId:'warehouse',productId:'product',countDate:'2026-09-02'},readiness:{schemaAvailable:true,postingConfigured:true,varianceAccountAvailable:true,postingPeriodAvailable:true},branches:[{id:'branch',name:'Actual native branch'}],warehouses:[{id:'warehouse',name:'Actual native warehouse',branchId:'branch'}],products:[{id:'product',sku:'ACTUAL-GOODS',name:'Actual stock item',unit:'each',trackingMode:'none'}],record:null};
+const view:import("@erpx/contracts/field-service-initial-count").CountWorkspace={companyId:'company',available:true,currency:'THB',documentCurrency:'USD',contextKey:source.contextKey,unavailableReason:null,canPrepare:true,canCreateWarehouse:true,canCreateProduct:true,selection:{warehouseId:'warehouse',productId:'product',countDate:'2026-09-02'},readiness:{schemaAvailable:true,postingConfigured:true,varianceAccountAvailable:true,postingPeriodAvailable:true},branches:[{id:'branch',name:'Actual native branch'}],warehouses:[{id:'warehouse',name:'Actual native warehouse',branchId:'branch'}],products:[{id:'product',sku:'ACTUAL-GOODS',name:'Actual stock item',unit:'each',trackingMode:'none'}],record:null};
 function prepared(key:string){return {id:`count-${key}`,status:'draft',version:1};}
 import {ServiceInitialPhysicalStockCount} from '@erpx/feature-field_service/components/initial-physical-stock-count';
 import {createServiceInitialPhysicalStockCountCommands,readServiceInitialPhysicalStockCount,validServiceInitialPhysicalStockCountView,type ServiceInitialPhysicalCountSource,type ServiceInitialPhysicalCountInput} from '@erpx/feature-field_service/lib/initial-physical-stock-count-command';
-import type {ServiceInitialPhysicalStockCountView} from '@erpx/server-inventory/public/service-initial-physical-stock-count';
+import type {CountWorkspace as ServiceInitialPhysicalStockCountView} from '@erpx/contracts/field-service-initial-count';
 import EmptyServiceInitialStockSlot from '@erpx/feature-service/routes/holdings/[holdingSlug]/@record/services/field-service/settings/initial-stock/page';
 import EmptyServiceInitialStockRecordSlot from '@erpx/feature-service/routes/holdings/[holdingSlug]/@record/services/field-service/settings/initial-stock/[id]/page';
 const partsStockSource:ServiceInitialPhysicalCountSource={...source},partsStockInput:ServiceInitialPhysicalCountInput={...input};
@@ -328,7 +329,7 @@ it('Service parts confirmed original receipt keeps its key when the current owne
 
 
 import {ApiError,errorResponse} from '@erpx/server-runtime/public/http';
-import {serviceInitialPhysicalStockCountActionSchema,serviceInitialPhysicalStockCountSelectionSchema,serviceInitialPhysicalStockCountFlowSchema} from '@erpx/server-inventory/domain/service-initial-physical-stock-count';
+import {initialPhysicalStockCountActionSchema as serviceInitialPhysicalStockCountActionSchema,initialPhysicalStockCountSelectionSchema as serviceInitialPhysicalStockCountSelectionSchema,initialPhysicalStockCountFlowSchema as serviceInitialPhysicalStockCountFlowSchema} from '@erpx/server-inventory/domain/initial-physical-stock-count';
 type PartsRouteContext={params:Promise<{holdingSlug:string;path?:string[]}>};
 type PartsRouteHandler=(request:Request,context:PartsRouteContext)=>Promise<Response>;
 async function actualPartsController(count=false,native?:{fail?:boolean;prereq?:boolean;stock?:boolean}){

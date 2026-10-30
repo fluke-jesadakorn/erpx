@@ -89,6 +89,8 @@ struct HoldingDocument {
     read_binding: String,
     files_binding: String,
     database: DatabaseDocument,
+    #[serde(default)]
+    read_database: Option<DatabaseDocument>,
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -189,6 +191,7 @@ struct HoldingConfiguration {
     host: String,
     registration: ConfiguredAccountHolding,
     database: LeasedDevelopmentDatabase,
+    read_database: Option<LeasedDevelopmentDatabase>,
 }
 /// Only a bounded explicit parser can construct this configuration. Debug never
 /// exposes database credentials, key material, cookies or private file contents.
@@ -303,6 +306,16 @@ impl DevelopmentApiConfiguration {
             let database =
                 LeasedDevelopmentDatabase::parse(&h.database.url, &h.database.lease_token)
                     .map_err(|_| "EXACT_LEASED_API_DATABASE_REQUIRED")?;
+            let read_database = match h.read_database {
+                Some(read) => {
+                    if !tokens.insert(read.lease_token.clone()) {
+                        return Err("DISTINCT_EXACT_API_HOLDINGS_REQUIRED");
+                    }
+                    Some(LeasedDevelopmentDatabase::parse(&read.url, &read.lease_token)
+                        .map_err(|_| "EXACT_LEASED_API_DATABASE_REQUIRED")?)
+                }
+                None => None,
+            };
             origins.push(HoldingOrigin {
                 origin: format!("https://{}", h.host),
                 host: h.host.clone(),
@@ -318,6 +331,7 @@ impl DevelopmentApiConfiguration {
                     files_binding: h.files_binding,
                 },
                 database,
+                read_database,
             });
         }
         let expected_ids = if contributor { BTreeSet::from(["h001".to_owned(), "h002".to_owned(), "h003".to_owned()]) } else { BTreeSet::from(["h001".to_owned(), "h002".to_owned()]) };
@@ -1999,10 +2013,14 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             ["", "api", "v1", "holdings", slug, "field-service", "initial-physical-stock"])
         | (&axum::http::Method::GET,
             ["", "api", "v1", "holdings", slug, "field-service", "initial-physical-stock", _])
+        | (&axum::http::Method::GET,
+            ["", "api", "v1", "holdings", slug, "field-service", "initial-physical-stock", _, "stock-count"])
         | (&axum::http::Method::GET | &axum::http::Method::POST,
             ["", "api", "v1", "holdings", slug, "field-service", "initial-physical-stock", _, "flow"])
         | (&axum::http::Method::POST,
-            ["", "api", "v1", "holdings", slug, "field-service", "initial-physical-stock", _, "submit" | "approve" | "post" | "reject" | "cancel"])
+            ["", "api", "v1", "holdings", slug, "field-service", "initial-physical-stock", _, "update" | "submit" | "approve" | "post" | "reject" | "cancel"])
+        | (&axum::http::Method::POST,
+            ["", "api", "v1", "holdings", slug, "field-service", "initial-physical-stock", _, "stock-count", "flow" | "submit" | "approve" | "post" | "reject" | "cancel"])
             => state.service_initial_count_targets.contains(&(host.to_owned(), (*slug).to_owned())),
         _ => false,
     };
@@ -2238,4 +2256,68 @@ pub async fn run_development_api_file(
         .await;
     runtime.close().await;
     result.map_err(|_| "PRIVATE_API_HTTP_FAILED")
+}
+
+
+/// The scoped worker uses the same reviewed Holding registry as the API. Each
+/// projection database is explicit, separately leased and HoldingRead-migrated.
+pub async fn run_service_count_worker_file(
+    path: &Path,
+    shutdown: impl std::future::Future<Output = ()> + Send + 'static,
+) -> Result<(), &'static str> {
+    let config = DevelopmentApiConfiguration::from_file(path)?;
+    if config.field_service_initial_counts.is_empty() { return Err("COUNT_WORKER_TARGET_REQUIRED"); }
+    for holding in &config.holdings {
+        if config.field_service_initial_counts.contains_key(&holding.registration.holding_id)
+            && holding.read_database.is_none() { return Err("COUNT_WORKER_DISTINCT_READ_DATABASE_REQUIRED"); }
+    }
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+    let control_files = load_migrations(&root, MigrationTrack::Control).await.map_err(|_| "COUNT_WORKER_SCHEMA_UNAVAILABLE")?;
+    let write_files = load_migrations(&root, MigrationTrack::HoldingWrite).await.map_err(|_| "COUNT_WORKER_SCHEMA_UNAVAILABLE")?;
+    let read_files = load_migrations(&root, MigrationTrack::HoldingRead).await.map_err(|_| "COUNT_WORKER_SCHEMA_UNAVAILABLE")?;
+    let limits = PoolLimits { max_connections: 3, acquire_timeout: Duration::from_secs(5) };
+    let control = config.control.connect(limits).await.map_err(|_| "COUNT_WORKER_DATABASE_UNAVAILABLE")?;
+    let mut opened = vec![control.clone()];
+    let mut worker_names = Vec::<String>::new();
+    let run_id = uuid::Uuid::new_v4().simple().to_string();
+    let result = async {
+        verify_current_migration_inventory(&control, MigrationTrack::Control, &control_files).await.map_err(|_| "COUNT_WORKER_SCHEMA_MISMATCH")?;
+        let registry = config.holdings_registry.clone();
+        PgRequestLease::new(control.clone()).run(move |c| Box::pin(async move {
+            lock_holding_binding_sources(c).await?;
+            registry.verify_startup(c).await
+        })).await.map_err(|_| "COUNT_WORKER_BINDINGS_MISMATCH")?;
+        let mut pairs = Vec::new();
+        for holding in &config.holdings {
+            if !config.field_service_initial_counts.contains_key(&holding.registration.holding_id) { continue; }
+            let write_name = format!("erpx-count-{run_id}-w-{}", holding.registration.holding_id.as_str());
+            let read_name = format!("erpx-count-{run_id}-r-{}", holding.registration.holding_id.as_str());
+            let write = holding.database.connect_named(limits, &write_name).await.map_err(|_| "COUNT_WORKER_DATABASE_UNAVAILABLE")?;
+            opened.push(write.clone());
+            worker_names.push(write_name);
+            let read = holding.read_database.as_ref().ok_or("COUNT_WORKER_DISTINCT_READ_DATABASE_REQUIRED")?
+                .connect_named(limits, &read_name).await.map_err(|_| "COUNT_WORKER_DATABASE_UNAVAILABLE")?;
+            opened.push(read.clone());
+            worker_names.push(read_name);
+            verify_current_migration_inventory(&write, MigrationTrack::HoldingWrite, &write_files).await.map_err(|_| "COUNT_WORKER_SCHEMA_MISMATCH")?;
+            verify_current_migration_inventory(&read, MigrationTrack::HoldingRead, &read_files).await.map_err(|_| "COUNT_WORKER_SCHEMA_MISMATCH")?;
+            pairs.push((write.raw().clone(), read.raw().clone()));
+        }
+        crate::service_count_worker::run(pairs, shutdown).await;
+        Ok(())
+    }.await;
+    // A dropped SQLx future can leave a backend waiting on a table lock. Cancel
+    // only queries carrying this unguessable worker-run identity, using Control
+    // so an occupied Holding pool cannot prevent shutdown. Never terminate a
+    // backend or cancel another process's query.
+    if !worker_names.is_empty() {
+        let cancelled = tokio::time::timeout(Duration::from_secs(2),
+            sqlx::query("SELECT pg_cancel_backend(pid) FROM pg_stat_activity WHERE application_name=ANY($1) AND usename=current_user AND backend_type='client backend' AND state='active' AND pid<>pg_backend_pid()")
+                .bind(&worker_names).fetch_all(control.raw())).await;
+        if !matches!(cancelled, Ok(Ok(_))) { return Err("COUNT_WORKER_QUERY_CANCEL_FAILED"); }
+    }
+    tokio::time::timeout(Duration::from_secs(2), async {
+        for pool in opened { pool.close().await; }
+    }).await.map_err(|_| "COUNT_WORKER_CLOSE_TIMEOUT")?;
+    result
 }

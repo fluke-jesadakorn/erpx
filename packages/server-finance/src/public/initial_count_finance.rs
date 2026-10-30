@@ -8,6 +8,6 @@ pub use crate::adapters::initial_count_posting::{
     RetainedInitialCountPosting, prepare_initial_count_posting,
 };
 pub use crate::adapters::initial_count_readiness::{
-    CurrentInitialCountReadiness, read_initial_count_readiness,
+    CurrentInitialCountReadiness, read_initial_count_readiness, read_service_count_display_currency,
 };
 pub use crate::domain::initial_count_variance::{VarianceLine, variance_lines};

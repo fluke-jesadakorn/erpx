@@ -1269,7 +1269,7 @@ pub struct ServicePostingCommandResponse {
 /// view when an otherwise current actor lacks Finance read permission.
 pub struct ServicePostingTarget<C> {
     pub holding: HoldingId,
-    pub company: CompanyId,
+    pub company: crate::service_company_ownership::ServiceCompanyOwnership,
     pub clock: Arc<C>,
     pub environment: ServicePostingEnvironment,
 }
@@ -1296,12 +1296,15 @@ where
     }
     let expected_holding = holding.clone();
     let expected_company = company.clone();
+    let current_ownership = company.clone();
+    let request_ownership = company.clone();
     let callbacks=SelectedTransportCallbacks::<_,ServicePostingReadIngress,ServicePostingReadDenial,_>::new::<ServicePostingReadResponse>(
         move|selected:&SelectedWorkIngress<'_>|->SelectedIngressFuture<ServicePostingReadIngress,ServicePostingReadDenial>{
-            let result=selected.read_context().map(|selected|ServicePostingReadIngress{selected,holding:expected_holding.clone(),company:expected_company.clone()}).map_err(ServicePostingReadDenial::Ingress);
+            let result=selected.read_context().and_then(|selected|{let company=expected_company.selected(&expected_holding,&selected)?;Ok(ServicePostingReadIngress{selected,holding:expected_holding.clone(),company})}).map_err(ServicePostingReadDenial::Ingress);
             Box::pin(async move{result})
         },service_posting_read_denied,
-        move|c,current,input:ServicePostingReadIngress|{let clock=clock.clone();Box::pin(async move{
+        move|c,current,input:ServicePostingReadIngress|{let clock=clock.clone();let ownership=current_ownership.clone();Box::pin(async move{
+            ownership.current(&input.holding,current)?;
             if current.holding_id()!=&input.holding||current.selection().workspace().company_id!=input.company {return Err(BusinessError::new(FailureKind::Forbidden,"SERVICE_POSTING_SCOPE_REQUIRED","Use the current Company.").into());}
             let context=crate::field_service_reservation_read::context(current)?;
             let data=read_service_posting_setup(c,current,clock.as_ref(),environment).await?;
@@ -1312,7 +1315,7 @@ where
             host,
             proof,
             move || {
-                let mut request = request()?;
+                let mut request = request_ownership.request(request()?)?;
                 request.mutation = false;
                 Ok(request)
             },
@@ -1365,6 +1368,7 @@ where
     if environment != ServicePostingEnvironment::Development {
         return Err(invalid());
     }
+    let request_ownership = company.clone();
     let body = Arc::new(tokio::sync::Mutex::new(Some(body)));
     let cached = Arc::new(tokio::sync::OnceCell::new());
     let callbacks = SelectedTransportCallbacks::<
@@ -1413,16 +1417,7 @@ where
             let holding = holding.clone();
             let company = company.clone();
             Box::pin(async move {
-                if current.holding_id() != &holding
-                    || current.selection().workspace().company_id != company
-                {
-                    return Err(BusinessError::new(
-                        FailureKind::Forbidden,
-                        "SERVICE_POSTING_SCOPE_REQUIRED",
-                        "Use the current Company.",
-                    )
-                    .into());
-                }
+                company.current(&holding, current)?;
                 let context = crate::field_service_reservation_read::context(current)?;
                 let outcome = execute_service_posting_setup(
                     c,
@@ -1445,7 +1440,7 @@ where
             host,
             proof,
             move || {
-                let mut request = request()?;
+                let mut request = request_ownership.request(request()?)?;
                 request.mutation = true;
                 Ok(request)
             },

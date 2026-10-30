@@ -14,10 +14,10 @@ export function renderedFlowContext():Context {
  if(!node?.isConnected||node.dataset.workStale==='true'||!user||!company||!assignment||!revision||!assignmentVersion)throw Object.assign(Error('Return to the original work context before assigning an owner.'),{code:'WORK_CONTEXT_CHANGED'});
  return {user,company,assignment,revision,assignmentVersion};
 }
-const validView=(value:unknown,attempt:Attempt):boolean=>{
+const validView=(value:unknown,attempt:Attempt,native:boolean):boolean=>{
  if(!value||typeof value!=='object'||Array.isArray(value))return false;
  const view=value as Record<string,unknown>;
- return view.kind===attempt.kind&&view.recordId===attempt.recordId&&Number.isSafeInteger(view.version)&&view.version===Math.max(1,attempt.flowVersion)+1&&view.recordVersion===attempt.recordVersion&&Array.isArray(view.steps)&&Array.isArray(view.history)&&typeof view.canManage==='boolean'&&typeof view.canAct==='boolean';
+ return view.kind===attempt.kind&&view.recordId===attempt.recordId&&Number.isSafeInteger(view.version)&&Number.isSafeInteger(view.recordVersion)&&Number(view.version)>=0&&Number(view.recordVersion)>0&&(native||(view.version===Math.max(1,attempt.flowVersion)+1&&view.recordVersion===attempt.recordVersion))&&Array.isArray(view.steps)&&Array.isArray(view.history)&&typeof view.canManage==='boolean'&&typeof view.canAct==='boolean';
 };
 /** Retain the exact request after an unknown result, including across remounts. */
 export function createFlowAssignmentCommands(send:typeof workFetch=workFetch,context:()=>Context=renderedFlowContext,newKey:()=>string=()=>crypto.randomUUID()){
@@ -32,7 +32,9 @@ export function createFlowAssignmentCommands(send:typeof workFetch=workFetch,con
    const response=await send(attempt.endpoint,{method:'POST',headers,body:attempt.body},attempt.completion(),'caller');
    const envelope=await response.json().catch(()=>null);
    if(!response.ok){uncertain=alreadyUncertain||response.status>=500||[401,403,409].includes(response.status);throw Error(envelope?.error?.message??'Assignment failed.');}
-   if(!validView(envelope?.data,attempt))throw Error('The owner assignment was not acknowledged. Retry the original request.');
+   const native=response.headers.get('x-erpx-native-count')==='1';
+   if(!validView(envelope?.data,attempt,native))throw Error('The owner assignment was not acknowledged. Retry the original request.');
+   if(native&&(!envelope?.command||envelope.command.id!==attempt.recordId||envelope.command.version!==Math.max(1,attempt.flowVersion)+1))throw Error('The original owner assignment receipt was not acknowledged. Retry the original request.');
    assertCurrent();if(stamp(current())!==stamp(attempt.context))throw Error('Return to the original work context before retrying.');
    attempts.delete(scope(attempt.endpoint,attempt.context));uncertain=false;
    const completion=attempt.completion(),unchanged=!attempt.hadCompletion||!!completion&&completion.form.isConnected&&completion.form.getAttribute('data-erpx-edit-version')===completion.formEditVersion;

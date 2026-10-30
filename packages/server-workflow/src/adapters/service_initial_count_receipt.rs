@@ -130,3 +130,24 @@ async fn capture(
         digest: Some(r.try_get("digest")?),
     })
 }
+
+/// Bounded factual audit projection for an already validated original Count.
+/// People display names and current actor authority belong to outer composition.
+pub async fn read_service_count_generic_audit(
+    c: &mut PgConnection,
+    receipt: &CurrentServiceInitialCountReceipt,
+) -> Result<serde_json::Value, Error> {
+    receipt.require_current(c).await?;
+    let facts = receipt.facts().ok_or_else(changed)?;
+    let rows: Vec<(String,String,i64,String)> = sqlx::query_as("SELECT a.id,a.action,a.created_at,a.actor_id FROM audit_events a JOIN command_receipts r ON r.command_id=a.command_id AND r.record_id=a.record_id AND r.operation=a.action AND r.actor_id=a.actor_id AND r.authority_json::jsonb->>'assignmentId'=a.assignment_id WHERE a.record_id=$1 AND r.authority_json::jsonb->>'companyId'=$2 AND a.record_type IN ('inventory_count','flow_assign') ORDER BY a.created_at DESC LIMIT 501")
+        .bind(&facts.record_id).bind(&facts.company_id).fetch_all(&mut *c).await?;
+    if rows.len() > 500 {
+        return Err(invalid());
+    }
+    let value = serde_json::Value::Array(rows.into_iter().map(|(id,action,created_at,actor_id)| serde_json::json!({"id":id,"action":action,"created_at":created_at,"actor_id":actor_id})).collect());
+    if value.to_string().len() > 2 * 1024 * 1024 {
+        return Err(invalid());
+    }
+    receipt.require_current(c).await?;
+    Ok(value)
+}

@@ -70,3 +70,9 @@ it('generic Count Flow assignment carries original body and key over private HTT
  await nativeInitialCountRequest({baseUrl,slug:'acme',route:{kind:'generic-assign',id:'count 1'},headers,body,timeoutMs:5000});
  expect(observed.at(-1)).toEqual({method:'POST',path:'/api/v1/holdings/acme/field-service/initial-physical-stock/count%201/stock-count/flow',body,context:'synthetic-company',key:'generic-flow-key'});
 });
+
+it('reads the generic Count detail from the finite native route with selected Company context', async () => {
+ const headers=new Headers({'x-erpx-context-company':'synthetic-company'});
+ await nativeInitialCountRequest({baseUrl,slug:'acme',route:{kind:'generic-detail',id:'count 1'},headers,timeoutMs:5000});
+ expect(observed.at(-1)).toMatchObject({method:'GET',path:'/api/v1/holdings/acme/field-service/initial-physical-stock/count%201/stock-count',body:'',context:'synthetic-company'});
+});

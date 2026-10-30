@@ -15612,22 +15612,59 @@
       "packages": [
         "@erpx/catalogue",
         "@erpx/contracts",
+        "@erpx/feature-account",
+        "@erpx/feature-admin",
+        "@erpx/feature-agent",
+        "@erpx/feature-apps",
+        "@erpx/feature-assets",
+        "@erpx/feature-benefits",
         "@erpx/feature-billing",
+        "@erpx/feature-booking",
+        "@erpx/feature-brand",
         "@erpx/feature-collaboration",
         "@erpx/feature-commerce",
+        "@erpx/feature-commercial",
+        "@erpx/feature-crm",
+        "@erpx/feature-customer_360",
         "@erpx/feature-customer_authority",
+        "@erpx/feature-ecommerce",
+        "@erpx/feature-field_service",
+        "@erpx/feature-files",
         "@erpx/feature-finance",
+        "@erpx/feature-forms",
+        "@erpx/feature-iam",
         "@erpx/feature-identity_access",
+        "@erpx/feature-inventory",
+        "@erpx/feature-learn",
+        "@erpx/feature-learning",
         "@erpx/feature-legal",
+        "@erpx/feature-legal-portal",
+        "@erpx/feature-maintenance",
+        "@erpx/feature-manufacturing",
+        "@erpx/feature-marketing",
+        "@erpx/feature-operations",
         "@erpx/feature-organization",
+        "@erpx/feature-people",
         "@erpx/feature-people_payroll",
+        "@erpx/feature-platform_administration",
         "@erpx/feature-pms",
+        "@erpx/feature-portal",
         "@erpx/feature-pos",
+        "@erpx/feature-procurement",
+        "@erpx/feature-projects",
+        "@erpx/feature-quality",
         "@erpx/feature-records",
+        "@erpx/feature-recruit",
         "@erpx/feature-runtime",
         "@erpx/feature-sales",
+        "@erpx/feature-service",
         "@erpx/feature-shared",
+        "@erpx/feature-supply",
+        "@erpx/feature-support",
+        "@erpx/feature-talent",
         "@erpx/feature-work_projection",
+        "@erpx/feature-workflow",
+        "@erpx/front",
         "@erpx/native-sdk",
         "@erpx/server-agent",
         "@erpx/server-assets",
@@ -15670,20 +15707,37 @@
         "@erpx/server-talent",
         "@erpx/server-work_projection",
         "@erpx/server-workflow",
-        "@erpx/ui"
+        "@erpx/ui",
+        "@erpx/workplace"
       ],
       "postgres": {
-        "mode": "template",
+        "mode": "raw",
         "slots": [
           "CONTROL_DB",
+          "CONTROL_READ_DB",
           "H001_DB",
-          "H001_READ_DB"
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
         ],
-        "migratedSlots": [
-          "CONTROL_DB",
-          "H001_DB"
-        ]
-      }
+        "migratedSlots": []
+      },
+      "verificationInputs": [
+        "tests/config/vitest.integration.config.mts",
+        "tests/support/field_service/legacy-count-oracle.ts",
+        "tests/support/field_service/legacy-count-oracle-plugin.ts",
+        "fixtures/inventory/legacy-count-oracle/PROVENANCE.md",
+        "fixtures/inventory/legacy-count-oracle/COVERAGE.md",
+        "fixtures/inventory/legacy-count-oracle/inventory-counts.ts.snapshot",
+        "fixtures/inventory/legacy-count-oracle/count-purchases.ts.snapshot",
+        "fixtures/inventory/legacy-count-oracle/flow-routing.ts.snapshot",
+        "fixtures/inventory/legacy-count-oracle/service-initial-physical-stock-count-source.ts.snapshot",
+        "fixtures/inventory/legacy-count-oracle/service-initial-physical-stock-count-source-sql.ts.snapshot",
+        "fixtures/inventory/legacy-count-oracle/service-initial-physical-stock-count.ts.snapshot",
+        "fixtures/inventory/legacy-count-oracle/service-initial-physical-stock-count-domain.ts.snapshot"
+      ]
     },
     {
       "id": "shared.attachments.file-orphan-preservation.integration",
@@ -39275,7 +39329,9 @@
         "packages/feature-service/src/routes/holdings/[holdingSlug]/@record/services/field-service/[id]/page.tsx",
         "packages/feature-service/src/routes/holdings/[holdingSlug]/@record/services/field-service/[id]/[recordSection]/page.tsx",
         "packages/server-field_service/src/adapters/native-work.ts",
-        "packages/server-field_service/src/public/native-work.ts"
+        "packages/server-field_service/src/public/native-work.ts",
+        "packages/contracts/src/field-service-initial-count.generated.ts",
+        "packages/server-inventory/src/domain/initial-physical-stock-count.ts"
       ]
     },
     {
@@ -49451,6 +49507,7 @@
         "@erpx/feature-billing",
         "@erpx/feature-collaboration",
         "@erpx/feature-commerce",
+        "@erpx/feature-field_service",
         "@erpx/feature-files",
         "@erpx/feature-finance",
         "@erpx/feature-identity_access",
@@ -71807,9 +71864,10 @@
         "rust-toolchain.toml",
         "src/composition/Cargo.toml",
         "tests/support/rust-postgres.rs",
-        "packages/server-inventory/src/adapters/service-initial-physical-stock-count.ts",
-        "packages/server-inventory/src/domain/service-initial-physical-stock-count.ts",
-        "packages/server-inventory/src/application/counts.ts"
+        "packages/server-inventory/src/application/counts.ts",
+        "fixtures/inventory/legacy-count-oracle/COVERAGE.md",
+        "packages/server-inventory/src/adapters/count-attachment-purchases.ts",
+        "migrations/postgres/holding-write/1077_service_count_runtime_ownership.sql"
       ],
       "apps": [
         "service"
@@ -72594,14 +72652,31 @@
         "rust-toolchain.toml",
         "src/composition/Cargo.toml",
         "tests/support/rust-postgres.rs",
-        "packages/server-inventory/src/adapters/service-initial-physical-stock-count.ts",
-        "packages/server-inventory/src/domain/service-initial-physical-stock-count.ts",
         "packages/server-inventory/src/application/counts.ts",
         "scripts/testing/fixtures/service-count-legacy-update.ts",
         "scripts/testing/fixtures/generate-service-count-update-zod-oracle.ts",
         "fixtures/field_service/service-count-update-zod-oracle.v1.json",
         "scripts/testing/fixtures/generate-service-count-generic-action-zod-oracle.ts",
-        "fixtures/field_service/service-count-generic-action-zod-oracle.v1.json"
+        "fixtures/field_service/service-count-generic-action-zod-oracle.v1.json",
+        "fixtures/inventory/legacy-count-oracle/PROVENANCE.md",
+        "fixtures/inventory/legacy-count-oracle/count-purchases.ts.snapshot",
+        "fixtures/inventory/legacy-count-oracle/flow-routing.ts.snapshot",
+        "fixtures/inventory/legacy-count-oracle/inventory-counts.ts.snapshot",
+        "fixtures/inventory/legacy-count-oracle/service-initial-physical-stock-count-source.ts.snapshot",
+        "scripts/testing/fixtures/service-count-live-race.ts",
+        "scripts/testing/fixtures/service-count-job-claim.ts",
+        "packages/server-inventory/src/adapters/count-attachment-purchases.ts",
+        "migrations/postgres/holding-write/1077_service_count_runtime_ownership.sql",
+        "scripts/docs/generate-service-count-outbox-predicate.ts",
+        "fixtures/inventory/legacy-count-oracle/COVERAGE.md",
+        "fixtures/inventory/legacy-count-oracle/service-initial-physical-stock-count-source-sql.ts.snapshot",
+        "fixtures/inventory/legacy-count-oracle/service-initial-physical-stock-count.ts.snapshot",
+        "fixtures/inventory/legacy-count-oracle/service-initial-physical-stock-count-domain.ts.snapshot",
+        "packages/server-inventory/src/public/service_count_outbox.rs",
+        "packages/server-inventory/src/public/service_count_outbox_eligible.sql",
+        "packages/server-inventory/src/public/service_count_outbox_quarantine.sql",
+        "packages/server-inventory/src/public/service_count_outbox_ambiguous.sql",
+        "packages/server-inventory/src/public/service-count-outbox-predicate.generated.ts"
       ],
       "apps": [
         "service"
@@ -72665,7 +72740,8 @@
         "@erpx/server-talent",
         "@erpx/server-work_projection",
         "@erpx/server-workflow",
-        "@erpx/ui"
+        "@erpx/ui",
+        "@erpx/workplace"
       ],
       "postgres": {
         "mode": "raw",
@@ -72762,6 +72838,604 @@
         "@erpx/ui",
         "@erpx/workplace"
       ]
+    },
+    {
+      "id": "inventory.service-count-native-writer-fence.integration",
+      "lane": "integration",
+      "owner": "inventory",
+      "modules": [
+        "inventory",
+        "field_service"
+      ],
+      "files": [
+        "tests/integration/inventory/service-count-native-writer-fence.test.ts"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Protect actual Holding transaction admission and immutable Service Count ownership without widening other Count writers."
+      },
+      "apps": [
+        "supply",
+        "service"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-finance",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-legal",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/native-sdk",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow"
+      ],
+      "postgres": {
+        "mode": "template",
+        "slots": [
+          "CONTROL_DB",
+          "H001_DB",
+          "H001_READ_DB"
+        ],
+        "migratedSlots": [
+          "H001_DB"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-inventory/src/adapters/inventory-counts.ts",
+        "packages/server-inventory/src/adapters/count-purchases.ts",
+        "packages/server-inventory/src/adapters/service-initial-physical-stock-count-source.ts",
+        "packages/server-inventory/src/adapters/count-attachment-purchases.ts",
+        "packages/server-inventory/src/public/service-initial-physical-stock-count.ts",
+        "migrations/postgres/holding-write/1077_service_count_runtime_ownership.sql"
+      ]
+    },
+    {
+      "id": "workflow.rust-service-count-outbox-postgres.integration",
+      "lane": "integration",
+      "owner": "workflow",
+      "modules": [
+        "field_service",
+        "inventory"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Service Count projection ownership, lease recovery and read projection atomicity must not overlap the retained generic worker."
+      },
+      "files": [
+        "tests/integration/workflow/rust-service-count-outbox-postgres.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-service",
+        "targets": [
+          "service_count_outbox_postgres"
+        ],
+        "features": [
+          "field-service"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "src/composition/Cargo.toml",
+        "tests/support/rust-postgres.rs",
+        "packages/server-inventory/src/public/service_count_outbox_eligible.sql",
+        "packages/server-inventory/src/public/service_count_outbox_quarantine.sql",
+        "scripts/testing/fixtures/service-count-job-claim.ts",
+        "scripts/docs/generate-service-count-outbox-predicate.ts",
+        "migrations/postgres/holding-write/1077_service_count_runtime_ownership.sql",
+        "packages/server-inventory/src/public/service_count_outbox.rs",
+        "packages/server-inventory/src/public/service_count_outbox_ambiguous.sql",
+        "packages/server-inventory/src/public/service-count-outbox-predicate.generated.ts"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      },
+      "apps": [
+        "supply",
+        "service"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-field_service",
+        "@erpx/feature-finance",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-legal",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-service",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/native-sdk",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow",
+        "@erpx/ui",
+        "@erpx/workplace"
+      ]
+    },
+    {
+      "id": "field_service.rust-service-count-company-postgres.integration",
+      "lane": "integration",
+      "owner": "field_service",
+      "modules": [
+        "field_service"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Registered Holding Count and required setup must isolate real selected Account Companies, reject stale or cross-Holding proof, and not depend on one bootstrap Company."
+      },
+      "files": [
+        "tests/integration/field_service/rust-service-count-company-postgres.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-service",
+        "targets": [
+          "service_count_company_postgres"
+        ],
+        "features": [
+          "field-service-http"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "src/composition/Cargo.toml",
+        "tests/support/rust-postgres.rs",
+        "packages/server-inventory/src/adapters/service-initial-physical-stock-count.ts",
+        "packages/server-inventory/src/application/counts.ts",
+        "scripts/testing/fixtures/service-count-legacy-update.ts",
+        "scripts/testing/fixtures/generate-service-count-update-zod-oracle.ts",
+        "fixtures/field_service/service-count-update-zod-oracle.v1.json",
+        "scripts/testing/fixtures/generate-service-count-generic-action-zod-oracle.ts",
+        "fixtures/field_service/service-count-generic-action-zod-oracle.v1.json",
+        "fixtures/inventory/legacy-count-oracle/PROVENANCE.md",
+        "fixtures/inventory/legacy-count-oracle/count-purchases.ts.snapshot",
+        "fixtures/inventory/legacy-count-oracle/flow-routing.ts.snapshot",
+        "fixtures/inventory/legacy-count-oracle/inventory-counts.ts.snapshot",
+        "fixtures/inventory/legacy-count-oracle/service-initial-physical-stock-count-source.ts.snapshot"
+      ],
+      "apps": [
+        "service"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-field_service",
+        "@erpx/feature-finance",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-legal",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-service",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/native-sdk",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow",
+        "@erpx/ui"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      }
+    },
+    {
+      "id": "field_service.rust-service-count-worker-cli-postgres.integration",
+      "lane": "integration",
+      "owner": "field_service",
+      "modules": [
+        "field_service"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Scoped native worker CLI must validate separate leased write/read databases and actually drain/recover without starting an HTTP listener."
+      },
+      "files": [
+        "tests/integration/field_service/rust-service-count-worker-cli-postgres.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-service",
+        "targets": [
+          "service_count_worker_cli_postgres"
+        ],
+        "features": [
+          "private-field-api"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "src/composition/Cargo.toml",
+        "tests/support/rust-postgres.rs",
+        "packages/server-inventory/src/adapters/service-initial-physical-stock-count.ts",
+        "packages/server-inventory/src/application/counts.ts",
+        "scripts/testing/fixtures/service-count-legacy-update.ts",
+        "scripts/testing/fixtures/generate-service-count-update-zod-oracle.ts",
+        "fixtures/field_service/service-count-update-zod-oracle.v1.json",
+        "scripts/testing/fixtures/generate-service-count-generic-action-zod-oracle.ts",
+        "fixtures/field_service/service-count-generic-action-zod-oracle.v1.json",
+        "fixtures/inventory/legacy-count-oracle/PROVENANCE.md",
+        "fixtures/inventory/legacy-count-oracle/count-purchases.ts.snapshot",
+        "fixtures/inventory/legacy-count-oracle/flow-routing.ts.snapshot",
+        "fixtures/inventory/legacy-count-oracle/inventory-counts.ts.snapshot",
+        "fixtures/inventory/legacy-count-oracle/service-initial-physical-stock-count-source.ts.snapshot"
+      ],
+      "apps": [
+        "service"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-field_service",
+        "@erpx/feature-finance",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-legal",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-service",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/native-sdk",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow",
+        "@erpx/ui"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      }
+    },
+    {
+      "id": "inventory.rust-service-count-generic-facts-postgres.integration",
+      "lane": "integration",
+      "owner": "inventory",
+      "modules": [
+        "inventory",
+        "field_service"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Service generic detail preserves Inventory-owned stock/lot values and source-bound transaction authority."
+      },
+      "files": [
+        "tests/integration/inventory/rust-service-count-generic-facts-postgres.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-inventory",
+        "targets": [
+          "service_count_generic_facts_postgres"
+        ],
+        "features": []
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-inventory/Cargo.toml",
+        "packages/server-inventory/src/adapters/service_count_generic_detail.rs",
+        "packages/server-inventory/src/public/service_count_generic_detail.rs",
+        "packages/server-inventory/src/adapters/service_initial_physical_count.rs",
+        "tests/support/rust-postgres.rs"
+      ],
+      "apps": [
+        "supply",
+        "service"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-finance",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-legal",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/native-sdk",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow",
+        "@erpx/workplace"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      }
     }
   ]
 }

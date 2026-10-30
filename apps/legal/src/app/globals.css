@@ -1923,7 +1923,6 @@
 @source "../../../../packages/server-inventory/src/domain/reorder-policies.ts";
 @source "../../../../packages/server-inventory/src/domain/reorder-quantity.ts";
 @source "../../../../packages/server-inventory/src/domain/service-initial-physical-stock-count-entry.ts";
-@source "../../../../packages/server-inventory/src/domain/service-initial-physical-stock-count.ts";
 @source "../../../../packages/server-inventory/src/domain/transfers.ts";
 @source "../../../../packages/server-inventory/src/domain/transit.ts";
 @source "../../../../packages/server-inventory/src/public/attachment-read.ts";
