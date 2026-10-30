@@ -152,6 +152,14 @@
       ],
       "requires": [
         {
+          "name": "erpx-server-identity-access::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-workflow::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
           "name": "erpx-server-runtime::public",
           "range": ">=0.1.0, <0.2.0"
         },

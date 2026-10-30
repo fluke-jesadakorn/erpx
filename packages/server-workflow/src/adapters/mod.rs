@@ -9,3 +9,5 @@ pub(crate) mod service_initial_count_receipt;
 pub(crate) mod service_count_setup_receipt;
 pub(crate) mod service_count_decision_evidence;
 pub(crate) mod service_count_command_evidence;
+
+pub(crate) mod field_intake_command_evidence;

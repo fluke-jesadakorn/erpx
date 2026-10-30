@@ -27,3 +27,5 @@ pub(crate) mod field_visit_link;
 
 pub(crate) mod field_visit_bind;
 pub(crate) mod count_submission;
+
+pub(crate) mod field_visit_intake;

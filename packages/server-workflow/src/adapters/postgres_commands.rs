@@ -511,7 +511,7 @@ fn validate(command: &WorkflowRequest) -> Result<(), BusinessError> {
     }
     Ok(())
 }
-fn validate_key(key: &str) -> Result<(), BusinessError> {
+pub fn validate_key(key: &str) -> Result<(), BusinessError> {
     if !(8..=180).contains(&key.len())
         || !key
             .bytes()

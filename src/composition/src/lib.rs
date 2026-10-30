@@ -123,6 +123,9 @@ pub mod field_attachment;
 pub mod field_attachment_bind;
 
 #[cfg(feature = "field-service")]
+pub mod field_attachment_intake;
+
+#[cfg(feature = "field-service")]
 pub mod field_service_source_record;
 
 pub mod module_assembly;
@@ -153,3 +156,6 @@ pub mod service_initial_physical_stock;
 pub mod service_initial_physical_stock_transport;
 #[cfg(feature = "field-service")]
 pub mod service_initial_physical_stock_contracts;
+
+#[cfg(feature = "field-service")]
+pub mod field_attachment_intake_command;

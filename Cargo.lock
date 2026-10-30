@@ -738,8 +738,10 @@ dependencies = [
 name = "erpx-server-files"
 version = "0.1.0"
 dependencies = [
+ "erpx-server-identity-access",
  "erpx-server-runtime",
  "erpx-server-shared",
+ "erpx-server-workflow",
  "hex",
  "libvips",
  "nix",

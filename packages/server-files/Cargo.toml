@@ -20,6 +20,8 @@ uuid.workspace = true
 libvips = { workspace = true, optional = true }
 erpx-server-shared.workspace = true
 erpx-server-runtime.workspace = true
+erpx-server-identity-access.workspace = true
+erpx-server-workflow.workspace = true
 sqlx.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -100,3 +102,7 @@ path = "../../tests/integration/files/rust-count-submission-postgres.test.rs"
 [[test]]
 name = "count_submission"
 path = "../../tests/unit/files/rust-count-submission.test.rs"
+
+[[test]]
+name = "field_visit_intake_policy"
+path = "../../tests/unit/files/rust-field-visit-intake-policy.test.rs"

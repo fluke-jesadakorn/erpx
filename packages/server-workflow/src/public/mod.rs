@@ -9,3 +9,5 @@ pub mod service_initial_count_receipt;
 pub mod service_count_setup_receipt;
 pub mod service_count_decision_evidence;
 pub mod service_count_command_evidence;
+
+pub mod field_intake_command_evidence;

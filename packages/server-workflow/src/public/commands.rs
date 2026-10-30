@@ -1,6 +1,6 @@
 pub use crate::adapters::postgres_commands::{
     CommandDisposition, CommandOutcome, PgCommandAuthority, PgCommandLedger, PgOwnerCommandEffects,
-    SourceOrderedWorkflowRequest, WorkflowOutput, WorkflowRequest,
+    SourceOrderedWorkflowRequest, WorkflowOutput, WorkflowRequest, validate_key,
 };
 pub use crate::application::commands::{
     CommandActor, CommandEventScope, CommandField, WorkAuthority, command_fingerprint,
