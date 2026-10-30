@@ -222,7 +222,7 @@ it('keeps original Console self links when central Account routing is disabled a
 
 import {readFileSync} from 'node:fs';
 import ts from 'typescript';
-import {holdingHostForHost,holdingTransportPath} from '@erpx/contracts/holding-hosts';
+import {holdingHostForHost,holdingTransportPath,contributorExactOrigin} from '@erpx/contracts/holding-hosts';
 import {isProductHostKey} from '@erpx/contracts/product-registry';
 import type {AccountProfile} from '@erpx/server-identity_access/public/account-preferences';
 import {accountProfileAcknowledgement,accountProfilePreferenceEvent,accountProfileResponseCurrent,observeAccountProfileWitness,type AccountProfileWitness} from '@erpx/feature-identity_access/lib/account-profile-client';
@@ -245,7 +245,7 @@ function accountOwnerCallable(source:string,name:string,kind:'function'|'variabl
  * Each handler fixture owns browser ports; globals and production code stay intact. */
 function actualHoldingFetch(windowPort:unknown,documentPort:unknown,transport:unknown):typeof import('@erpx/contracts/holding-fetch').holdingFetch {
  const source=readFileSync(new URL('../../../packages/contracts/src/holding-fetch.ts',import.meta.url),'utf8');
- return accountOwnerCallable(source,'holdingFetch','function',{window:windowPort,document:documentPort,globalThis:{fetch:transport},holdingHostForHost,holdingTransportPath,isProductHostKey}) as typeof import('@erpx/contracts/holding-fetch').holdingFetch;
+ return accountOwnerCallable(source,'holdingFetch','function',{window:windowPort,document:documentPort,globalThis:{fetch:transport},holdingHostForHost,holdingTransportPath,contributorExactOrigin,isProductHostKey}) as typeof import('@erpx/contracts/holding-fetch').holdingFetch;
 }
 const profileOwnerSource=()=>readFileSync(new URL("../../../packages/feature-identity_access/src/components/account-profile-form.tsx",import.meta.url),'utf8');
 const preferenceProviderSource=()=>readFileSync(new URL("../../../packages/feature-identity_access/src/components/account-preferences-provider.tsx",import.meta.url),'utf8');

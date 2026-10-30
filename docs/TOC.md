@@ -55,6 +55,7 @@ Reviewed 2026-10-29. This is the single entry point. The [production plan](produ
 
 ERPX has15 products,21 active application workspaces and33 modules. `apps/compat` is retained non-product compatibility source. Development has three exact Holding hosts plus central Account; application identities are distinct from public host registrations.
 
+- [Service Count contributor Dev Container](contracts/next/service-count-devcontainer.md): scoped Linux-volume onboarding, HTTPS, native runtime and cache/recovery lifecycle
 - [Start and verify](../README.md), [developer instructions](../AGENTS.md), [local fictional seed](local-seed.md)
 - [Holding addresses and workspace paths](contracts/next/holding-addresses.md), [ADR-051](adr/ADR-051-holding-addresses-and-workspace-paths.md), [development operations](../ops/macos/holding-development.md), [live infrastructure receipt](../ops/macos/holding-development-live.json)
 - [Independent apps, packages and SSO](contracts/next/product-separation.md), [generated product/host manifest](contracts/next/product-registry.generated.json), [Apps Feed and retired Work decision](adr/ADR-050-apps-feed-and-work-retirement.md)

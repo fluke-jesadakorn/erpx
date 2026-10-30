@@ -8,6 +8,7 @@ import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
 import { BusinessRuleError } from "@erpx/server-shared/index";
 import { sessionFromRequest } from "@erpx/server-identity_access/adapters/auth";
+import { createIdentitySessionAuthenticator } from "./native-session";
 import { assertAccountPreferenceSession } from "@erpx/server-identity_access/adapters/account-preference-session";
 import { accountPreferenceKey } from "@erpx/server-identity_access/adapters/account-preference-key";
 import { consoleOrigin } from "@erpx/feature-runtime/lib/erpx-hosts";
@@ -61,7 +62,7 @@ export async function accountProfileRequest(request: Request) {
     if (!origin || productHostForHost(request.headers.get("host")) !== "account") throw new ApiError(404, "NOT_FOUND", "Not found.");
     if (!["GET", "PATCH"].includes(request.method)) return new Response("Method not allowed", { status: 405, headers: { ...responseHeaders, Allow: "GET, PATCH" } });
     if (request.method === "PATCH" && request.headers.get("origin") !== origin) throw new ApiError(403, "ORIGIN_FORBIDDEN", "Use ERPX Account to change your settings.");
-    const session = await sessionFromRequest(request);
+    const session = await createIdentitySessionAuthenticator(() => sessionFromRequest(request))(requestPublicOrigin(request), request.headers);
     if (!session) throw new ApiError(401, "SIGN_IN_REQUIRED", "Sign in to edit your account.");
     const expectedKey = new URL(request.url).searchParams.get("accountKey");
     if (expectedKey !== null && expectedKey !== accountPreferenceKey(session.user.id))
@@ -101,7 +102,7 @@ export async function accountPreferencesRequest(request: Request) {
     if (!["GET", "PATCH"].includes(request.method)) return new Response("Method not allowed", { status: 405, headers: { ...headers, Allow: "GET, PATCH" } });
     if (request.method === "PATCH" && request.headers.get("origin") !== origin)
       throw new ApiError(403, "ORIGIN_FORBIDDEN", "Change these settings from the current application.");
-    const session = await sessionFromRequest(request);
+    const session = await createIdentitySessionAuthenticator(() => sessionFromRequest(request))(requestPublicOrigin(request), request.headers);
     if (!session) throw new ApiError(401, "SIGN_IN_REQUIRED", "Sign in to save your preferences.");
     const owner = env.CONTROL_DB as PostgresDatabase, key = accountPreferenceKey(session.user.id);
     if (request.method === "GET") {

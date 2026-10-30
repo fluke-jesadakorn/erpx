@@ -11,6 +11,7 @@ const steps={
  commerce:()=>import('../seed/seed-commerce'),
  staff:()=>import('../seed/seed-staff-work'),
  'contributor-finance':()=>import('../seed/contributor-finance-demo'),
+ 'contributor-service':()=>import('../seed/contributor-service-demo'),
  verify:()=>import('../seed/verify-seed-local'),
 } as const;
 const name=process.argv[2];if(process.argv.length!==3||!name||!Object.hasOwn(steps,name))throw Error('EXACT_LOCAL_SEED_STEP_REQUIRED');

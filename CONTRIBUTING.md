@@ -14,7 +14,7 @@ Use the versions pinned by the repository: Bun 1.4.3, Node.js 26.11.1, PostgreSQ
 
 Create private local configuration from `.env.example`, replace secret placeholders with generated values, and use separate disposable development databases. Examples are not deployment credentials. Keep provider adapters disabled or use their documented synthetic test adapters when no provider account is available. Do not use an operator's saved credentials, production data, private manifests or live provider account to make a public contribution pass.
 
-The Docker and Dev Container quickstart is a later delivery milestone; it is not available merely because the community files exist. Existing operator-specific instructions describe that installation and must not be treated as prerequisites for every contributor.
+For the qualified Rust Service Count, use the scoped [Dev Container quickstart](docs/contracts/next/service-count-devcontainer.md). It declares tested host, exact HTTPS origins, synthetic accounts, runtime ownership and remaining transitional dependencies. Other applications are not implicitly qualified. Existing operator-specific instructions describe that installation and are not prerequisites for contributors.
 
 Ports `3000`, `3001` and `8080` belong to other projects. The development gateway uses `3100`; app processes use `3200`–`3299`. Inspect existing listeners before starting anything and reuse a healthy authorized process. Staging and production changes require their own explicit scope.
 

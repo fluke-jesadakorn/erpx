@@ -2,6 +2,7 @@ import 'server-only';
 import { Agent, request } from 'node:http';
 import { Readable } from 'node:stream';
 import type { AccountSessionResponse } from '@erpx/contracts/account-auth';
+import {contributorExactOrigin, accountDevelopmentOrigin} from '@erpx/contracts/holding-hosts';
 
 /** Explicit private transport and HTTPS public authority are separate contexts. */
 export type NativeSessionClientConfiguration = Readonly<{
@@ -9,6 +10,7 @@ export type NativeSessionClientConfiguration = Readonly<{
   accountOrigin: string;
   holdingOrigins: readonly string[];
   timeoutMs: number;
+  originProfile?: 'public' | 'contributor';
 }>;
 export class NativeSessionReadError extends Error {
   readonly code: string;
@@ -22,10 +24,11 @@ export class NativeSessionReadError extends Error {
 }
 const fail = (code: string, status?: number): never => { throw new NativeSessionReadError(code, status); };
 const protectedPorts = new Set([3000, 3001, 3100, 3101, 3103, 5432, 5433, 5435, 8080]);
-function exactOrigin(value: string): URL {
+function exactOrigin(value: string, profile: 'public' | 'contributor'): URL {
   let url: URL;
   try { url = new URL(value); } catch { return fail('NATIVE_SESSION_CONFIGURATION_INVALID'); }
-  if (url.protocol !== 'https:' || url.username || url.password || url.port || url.pathname !== '/' || url.search || url.hash
+  const contributor = contributorExactOrigin(url.host, profile) === value;
+  if (url.protocol !== 'https:' || url.username || url.password || (url.port && !contributor) || url.pathname !== '/' || url.search || url.hash
     || url.hostname.length > 253 || !url.hostname.includes('.') || !url.hostname.split('.').every(part => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(part)))
     return fail('NATIVE_SESSION_CONFIGURATION_INVALID');
   if (value !== url.origin) return fail('NATIVE_SESSION_CONFIGURATION_INVALID');
@@ -108,7 +111,10 @@ export function createNativeSessionClient(configuration: NativeSessionClientConf
   const url = endpoint(configuration.privateBaseUrl);
   if (!Number.isInteger(configuration.timeoutMs) || configuration.timeoutMs < 250 || configuration.timeoutMs > 30000
     || configuration.holdingOrigins.length < 1 || configuration.holdingOrigins.length > 64) return fail('NATIVE_SESSION_CONFIGURATION_INVALID');
-  const origins = [configuration.accountOrigin, ...configuration.holdingOrigins].map(exactOrigin);
+  const profile=configuration.originProfile ?? 'public';
+  if (profile !== 'public' && profile !== 'contributor') return fail('NATIVE_SESSION_CONFIGURATION_INVALID');
+  const origins = [configuration.accountOrigin, ...configuration.holdingOrigins].map(value => exactOrigin(value,profile));
+  if (profile === 'contributor' && (configuration.accountOrigin !== accountDevelopmentOrigin(profile) || origins.slice(1).some(origin => contributorExactOrigin(origin.host, profile) !== origin.origin || origin.origin === configuration.accountOrigin))) return fail('NATIVE_SESSION_CONFIGURATION_INVALID');
   const hosts = new Set(origins.map(origin => origin.host));
   if (hosts.size !== origins.length) return fail('NATIVE_SESSION_CONFIGURATION_INVALID');
   const timeoutMs = configuration.timeoutMs;

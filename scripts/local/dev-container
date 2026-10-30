@@ -6,20 +6,21 @@ case "${ERPX_DEV_WORKSPACE_KEY:-}" in
   ''|*[!a-z0-9-]*|-*|*-) echo 'Set ERPX_DEV_WORKSPACE_KEY to a unique lowercase checkout-and-architecture key.' >&2; exit 2 ;;
 esac
 command=${1:-}; [ "$#" -gt 0 ] && shift || true
-app=finance
+app=service
 app_seen=false
 case "$command" in
-  up|start)
+  up|start|recover)
     for option in "$@"; do case "$option" in --app=*) [ "$app_seen" = false ] || { echo "Only one application may be selected." >&2; exit 2; }; app_seen=true; app=${option#--app=} ;; *) echo 'Use --app=<application>.' >&2; exit 2;; esac; done
     case "$app" in ''|*[!a-z0-9-]*) echo 'Invalid application ID.' >&2; exit 2;; esac
     ;;
-  bootstrap|down|populate|certificate) [ "$#" -eq 0 ] || exit 2 ;;
+  bootstrap|down|populate|certificate|restart-native) [ "$#" -eq 0 ] || exit 2 ;;
   reset) [ "$#" -eq 1 ] && [ "$1" = "--confirm=$ERPX_DEV_WORKSPACE_KEY" ] || { echo 'Reset requires --confirm=<exact-workspace-key>.' >&2; exit 2; } ;;
-  *) echo 'Usage: ERPX_DEV_WORKSPACE_KEY=<checkout-architecture> scripts/local/dev-container up|start [--app=<id>] | populate | bootstrap | certificate | down | reset --confirm=<key>' >&2; exit 2 ;;
+  *) echo 'Usage: ERPX_DEV_WORKSPACE_KEY=<checkout-architecture> scripts/local/dev-container up|start|recover [--app=<id>] | populate | bootstrap | certificate | down | reset --confirm=<key>' >&2; exit 2 ;;
 esac
 if [ -f /.dockerenv ]; then
   cd /workspace/erpx
   case "$command" in
+    restart-native) exec env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/root ERPX_DEV_WORKSPACE_KEY="$ERPX_DEV_WORKSPACE_KEY" bun --no-env-file scripts/local/dev-container-start.ts --restart-native ;;
     bootstrap) exec env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/root ERPX_DEV_WORKSPACE_KEY="$ERPX_DEV_WORKSPACE_KEY" bun --no-env-file scripts/local/dev-container-bootstrap.ts ;;
     start) if [ "$app_seen" = true ]; then exec env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/root ERPX_DEV_WORKSPACE_KEY="$ERPX_DEV_WORKSPACE_KEY" bun --no-env-file scripts/local/dev-container-start.ts "--app=$app"; else exec env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/root ERPX_DEV_WORKSPACE_KEY="$ERPX_DEV_WORKSPACE_KEY" bun --no-env-file scripts/local/dev-container-start.ts; fi ;;
     *) echo 'Run service lifecycle commands on the host.' >&2; exit 2 ;;
@@ -38,7 +39,13 @@ export DOCKER_CONFIG COMPOSE_DISABLE_ENV_FILE=1 DOCKER_HOST="unix://$socket"
 project="erpx-dev-$ERPX_DEV_WORKSPACE_KEY"
 compose() { docker-compose --project-directory "$root/ops/containers" -p "$project" -f "$root/ops/containers/development-services.compose.yaml" -f "$root/.devcontainer/compose.yaml" "$@"; }
 case "$command" in
-  up|populate)
+  up|populate|recover)
+    if [ "$command" = recover ]; then
+      # Explicit bounded recovery of this leased namespace, never a PID guess.
+      docker volume inspect "${project}_secrets" >/dev/null 2>&1 || { echo WORKSPACE_LEASE_REQUIRED >&2; exit 1; }
+      docker run --rm --network=none -e ERPX_DEV_WORKSPACE_KEY -v "${project}_secrets:/secrets:ro" erpx-opensource-dev-toolchain:local sh -ec 'test -f /secrets/workspace-key && test "$(cat /secrets/workspace-key)" = "$ERPX_DEV_WORKSPACE_KEY" && test "$(stat -c %a /secrets/workspace-key)" = 600' || { echo WORKSPACE_LEASE_MISMATCH >&2; exit 1; }
+      compose down
+    fi
     services_workspace_mode=true
     . "$root/scripts/local/dev-container-services-lib.sh"
     services_up
@@ -62,12 +69,13 @@ case "$command" in
         rm "$root/.erpx-source-copy-incomplete"
       ' sh "$source_url" "$source_ref"
     fi
-    if [ "$command" = up ]; then
+    if [ "$command" = up ] || [ "$command" = recover ]; then
       compose exec -T workspace scripts/local/dev-container bootstrap
       compose exec -T workspace scripts/local/dev-container start "--app=$app"
     fi
     ;;
   bootstrap) compose exec -T workspace scripts/local/dev-container bootstrap ;;
+  restart-native) compose exec -T workspace scripts/local/dev-container restart-native ;;
   certificate) compose exec -T https cat /data/caddy/pki/authorities/local/root.crt ;;
   start) if [ "$app_seen" = true ]; then compose exec -T workspace scripts/local/dev-container start "--app=$app"; else compose exec -T workspace scripts/local/dev-container start; fi ;;
   down) compose down ;;

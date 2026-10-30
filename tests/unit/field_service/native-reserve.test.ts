@@ -433,3 +433,13 @@ it('validates generic Count detail identity, Company, row scalars and read conte
  for(const bad of [{...data,count:{...data.count,id:'other'}},{...data,count:{...data.count,company_id:'other'}},{...data,lines:[{id:'line',bad:{}}]},{...data,lines:[{id:'line',version:Number.MAX_SAFE_INTEGER+1}]}])await expect(nativeInitialCount(incoming,'acme',actor,{kind:'generic-detail',id:'count-a'},undefined,undefined,async()=>({status:200,body:{context,data:bad}}))).rejects.toMatchObject({code:'NATIVE_INITIAL_COUNT_RESPONSE_INVALID'});
  await expect(nativeInitialCount(incoming,'acme',actor,{kind:'generic-detail',id:'count-a'},undefined,undefined,async()=>({status:200,body:{context:{...context,companyId:'other'},data}}))).rejects.toMatchObject({code:'WORK_CONTEXT_CHANGED'});
 });
+
+it('native Count and parts setup accept only exact explicitly enabled contributor origins',async()=>{
+ const {nativePartsSetupSelected}=await import('../../../packages/feature-field_service/src/adapters/server/native-parts-setup');
+ const make=(origin:string)=>JSON.stringify({privateBaseUrl:'http://127.0.0.1:44816',timeoutMs:3000,holdings:[{origin,holdingSlug:'acme',holdingId:'holding'}]});
+ const check=(origin:string,host:string)=>{vi.stubEnv('ERPX_NATIVE_FIELD_SERVICE_INITIAL_COUNT_CONFIG',make(origin));vi.stubEnv('ERPX_NATIVE_FIELD_SERVICE_PARTS_SETUP_CONFIG',make(origin));const h=new Headers({host});return [()=>nativeInitialCountSelected(h,'acme',actor),()=>nativePartsSetupSelected(h,'acme',actor)];};
+ vi.stubEnv('NODE_ENV','development');vi.stubEnv('NEXT_PUBLIC_ERPX_DEV_ORIGIN_PROFILE','container-localhost');for(const f of check('https://acme.erpx.localhost:3443','acme.erpx.localhost:3443'))expect(f()).toBe(true);
+ for(const origin of ['http://acme.erpx.localhost:3443','https://acme.erpx.localhost:3444','https://x.acme.erpx.localhost:3443'])for(const f of check(origin,'acme.erpx.localhost:3443'))expect(f).toThrow();
+ for(const f of check('https://acme.erpx.localhost:3443','acme.erpx.localhost:3444'))expect(f).toThrow();
+ vi.stubEnv('NODE_ENV','production');for(const f of check('https://acme.erpx.localhost:3443','acme.erpx.localhost:3443'))expect(f).toThrow();
+});
