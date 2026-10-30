@@ -12,6 +12,7 @@ Reviewed 2026-10-29. This is the single entry point. The [production plan](produ
 - [Native Workflow command ledger and receipt compatibility](contracts/next/rust-workflow-migration.md).
 - [Service Count delivery boundary and legacy withdrawal](contracts/next/rust-service-count-delivery.md).
 - [Field visit Files candidate ownership and remaining gates](contracts/next/field-visit-files-native.md).
+- [Native preview platform parity and portable color-management dependency](contracts/next/native-preview-platform-parity.md).
 - [Native Service Count container boundary and qualification](contracts/next/rust-service-count-containers.md).
 - [Service Count outbox ownership and recovery](contracts/next/rust-service-count-outbox.md).
 - [Native private business HTTP component contract](contracts/next/rust-business-http.md) and [development session/SSR boundary](contracts/next/rust-private-session-api.md).

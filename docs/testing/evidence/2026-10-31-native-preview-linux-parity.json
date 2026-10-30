@@ -1,0 +1,74 @@
+{
+  "version": 1,
+  "date": "2026-10-31",
+  "scope": "Native preview scaled-loaders and portable Linux color-management dependency parity; no owner/workflow completion or production release.",
+  "baseCommit": "15a4cf28c99df361a2fe0cb2535c960bd3fb2b5f",
+  "source": {
+    "packages/server-files/src/adapters/preview_engine.rs": "353a1f58aa04aa55e0646c1a5497449caa2be1b73c746705c629008b876524ce",
+    "fixtures/files/native-toolchain/sources.json": "a1213eccf0000d441c91f11dee997a5328bfd12ef7225c06f6a72f5a2b54d057",
+    "scripts/testing/provision-native-worker.ts": "eecba2271b8c5794c10598e2c4f10fb332adfa13081f392fc33e53905cd8b9ce"
+  },
+  "sourceSnapshotDescriptor": ".scratch/dev/field-files-docker/source-identity-origin",
+  "sourceSnapshotKey": "95de40d372a2fa4ba383796f29ca8bcb5569c599",
+  "failuresFound": {
+    "scaledImages": "Actual Linux child exited139 in generated scaled JPEG/WebP loader varargs; exact same C option-list control and backtrace isolated the output flags argument.",
+    "cmyk": "Linux LCMS2.16 produced RGB8,117,182 and90-byteWebP; replacing only LCMS with2.19.1 produced retained RGB8,118,181 and exact88-byteWebP.",
+    "dependencyLookup": "Rust executable RUNPATH is non-transitive; installed libvips requires its own relativeRUNPATH to resolve the pinnedLCMS beside it."
+  },
+  "changes": [
+    "Use safe private-filename loader options for computed JPEG shrink/WebP scale, retaining Sequential and fail_on=warning.",
+    "Verify and build official checksum-pinned LCMS2.19.1 source before libvips, retaining its license.",
+    "Apply one exact-context library install_rpath:$ORIGIN patch to checksum-verified libvips source; fail unless readelf and clean-environment dependency resolution confirm the pinned prefix."
+  ],
+  "assertions": "Original retainedB0 corpus and all byte/media/dimension/rejection assertions remain unchanged.",
+  "verified": {
+    "hostProviderCorpus": 22,
+    "hostPreviewUnitCases": 4,
+    "toolchainUnitCases": 18,
+    "linuxRuntimeCorpus": 22,
+    "linuxRuntime": "Actual ARM64 worker through an explicit verification-only library overlay; UID65532, read-onlyroot, default renderer restrictions, no loader override.",
+    "provisioner": "Clean fresh Linux provision-only build; exactRUNPATH/noLDenv resolution checked internally and independently.",
+    "clippy": "Rust1.99.1 ARM64 release Fileslibrary preview-provider with -Dwarnings, networkdisabled, existingcompiledbuilder.",
+    "review": "Sol: no remaining actionable findings in the bounded3filedelta after transitive dependency lookup correction."
+  },
+  "limits": [
+    "Finalruntime proof uses an explicit library overlay on alreadycompiledRust; a fresh complete Dockerfile build remains a separateDockerdelivery gate.",
+    "ARM64 execution only; noAMD64 qualification inferred.",
+    "This is preview rendering parity, not LegalPDFsignature/conformance acceptance.",
+    "APT dependency versions are observed rather than fully artifact-pinned; exactLCMSrelease is established by archive hash, notpkg-config2.19 orencodedCMM2190 alone."
+  ],
+  "privateLogs": {
+    ".scratch/dev/native-preview-correction-evidence/cb58fb8beef29a60c35277604b8c04edfb758f117f07ed02af2c3cb73f3ea24c.log": {
+      "sha256": "cb58fb8beef29a60c35277604b8c04edfb758f117f07ed02af2c3cb73f3ea24c",
+      "originalLog": ".scratch/dev/field-files-docker/preview-host-patched.log"
+    },
+    ".scratch/dev/native-preview-correction-evidence/3888aae83baf3e6cc901556e43632e36d128143328c02cec0458b0ec0627a1a6.log": {
+      "sha256": "3888aae83baf3e6cc901556e43632e36d128143328c02cec0458b0ec0627a1a6",
+      "originalLog": ".scratch/dev/field-files-docker/preview-unit-patched.log"
+    },
+    ".scratch/dev/native-preview-correction-evidence/7e7ae669d2db638f077394e1aaa5bd8dbd640a8b81bba86339f49103b51841c2.log": {
+      "sha256": "7e7ae669d2db638f077394e1aaa5bd8dbd640a8b81bba86339f49103b51841c2",
+      "originalLog": ".scratch/dev/field-files-docker/native-toolchain-unit.log"
+    },
+    ".scratch/dev/native-preview-correction-evidence/46998b321b655e7e41c4a2849cfbc4fcebfda1568a9694a717618701ee704056.log": {
+      "sha256": "46998b321b655e7e41c4a2849cfbc4fcebfda1568a9694a717618701ee704056",
+      "originalLog": ".scratch/dev/field-files-docker/files-release-clippy.log"
+    },
+    ".scratch/dev/native-preview-correction-evidence/e591316f2591de50128ea546fc7098cf743ca523cec81d41418116e2445ad898.log": {
+      "sha256": "e591316f2591de50128ea546fc7098cf743ca523cec81d41418116e2445ad898",
+      "originalLog": ".scratch/dev/field-files-docker/origin-provision-build.log"
+    },
+    ".scratch/dev/native-preview-correction-evidence/074437c822ae7bdd1f21b5a3ef180ca00847839afebfc9754a5f5e44eec9f71a.log": {
+      "sha256": "074437c822ae7bdd1f21b5a3ef180ca00847839afebfc9754a5f5e44eec9f71a",
+      "originalLog": ".scratch/dev/field-files-docker/preview-corpus-origin-original.log"
+    }
+  },
+  "counts": {
+    "workflowPartial": 13,
+    "workflowVerified": 0,
+    "workflowMerged": 0,
+    "workflowTotal": 206,
+    "ownersComplete": 0,
+    "ownersTotal": 41
+  }
+}
