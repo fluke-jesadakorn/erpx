@@ -1,0 +1,61 @@
+#!/bin/sh
+# Build only from a tracked Git snapshot. No live checkout enters Docker.
+set -eu
+umask 077
+root=$(git rev-parse --show-toplevel)
+cd "$root"
+ref=HEAD
+explicit_ref=false
+fixture=false
+worktree_recipe=false
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --ref) [ "$#" -ge 2 ] || { echo 'Missing --ref value' >&2; exit 2; }; ref=$2; explicit_ref=true; shift 2 ;;
+    --fixture) fixture=true; shift ;;
+    --recipe-worktree) worktree_recipe=true; shift ;;
+    *) echo 'Usage: build-service-count-container [--ref COMMIT] [--fixture] [--recipe-worktree]' >&2; exit 2 ;;
+  esac
+done
+if [ "$worktree_recipe" = true ] && [ "$explicit_ref" = false ]; then
+  echo '--recipe-worktree requires an explicit --ref; uncommitted source is excluded.' >&2; exit 2
+fi
+if [ "$explicit_ref" = false ] && [ -n "$(git status --porcelain --untracked-files=normal)" ]; then
+  echo 'Checkout is dirty; use --ref to build a tracked commit explicitly.' >&2; exit 1
+fi
+sha=$(git rev-parse --verify --end-of-options "$ref^{commit}")
+case "$sha" in *[!0-9a-f]*|'') echo 'Invalid commit identity' >&2; exit 1;; esac
+[ "${#sha}" -eq 40 ] || { echo 'Invalid commit identity' >&2; exit 1; }
+socket="$HOME/.colima/erpx-opensource-dev/docker.sock"
+[ -S "$socket" ] || { echo 'Owned Colima socket unavailable' >&2; exit 1; }
+docker_owned() { DOCKER_HOST="unix://$socket" docker "$@"; }
+case "$(docker_owned info --format '{{.Architecture}}')" in
+  aarch64|arm64) arch=arm64 ;;
+  x86_64|amd64) arch=amd64 ;;
+  *) echo 'Unsupported Docker architecture' >&2; exit 1 ;;
+esac
+stage=$(mktemp -d "${TMPDIR:-/tmp}/erpx-count-container.XXXXXXXX")
+trap 'rm -rf "$stage"' EXIT HUP INT TERM
+# These are the only source roots used by the Rust workspace and seed fixture.
+git archive "$sha" Cargo.toml Cargo.lock rust-toolchain.toml packages src/composition contracts migrations/postgres docs/status scripts/seed tests/support fixtures | tar -x -C "$stage"
+for name in service-count-native.Dockerfile service-count-native.Dockerfile.dockerignore service-count-fixture.Dockerfile; do
+  if [ "$worktree_recipe" = true ]; then
+    cp "$root/ops/containers/$name" "$stage/$name"
+  else
+    git show "$sha:ops/containers/$name" > "$stage/$name"
+  fi
+done
+cp "$stage/service-count-native.Dockerfile.dockerignore" "$stage/.dockerignore"
+printf 'Source commit: %s\nArchitecture: %s\n' "$sha" "$arch"
+for name in service-count-native.Dockerfile service-count-native.Dockerfile.dockerignore service-count-fixture.Dockerfile; do
+  printf '%s SHA-256: ' "$name"
+  shasum -a 256 "$stage/$name" | awk '{print $1}'
+done
+[ "$worktree_recipe" = false ] || echo 'Recipe selected from current worktree; source remains the archived commit.'
+# The legacy builder uses content-addressed layers; the source key and platform
+# are build arguments so its reusable builder layer has an explicit identity.
+docker_owned build --target build --build-arg "TARGETARCH=$arch" --build-arg "ERPX_SOURCE_KEY=$sha" -f "$stage/service-count-native.Dockerfile" -t erpx-service-count-build:local "$stage"
+docker_owned build --build-arg "TARGETARCH=$arch" --build-arg "ERPX_SOURCE_KEY=$sha" -f "$stage/service-count-native.Dockerfile" -t erpx-service-count-runtime:local "$stage"
+if [ "$fixture" = true ]; then
+  docker_owned image inspect erpx-local-verification:local >/dev/null 2>&1 || { echo 'Local verification image required for fixture target.' >&2; exit 1; }
+  docker_owned build --build-arg "TARGETARCH=$arch" --build-arg "ERPX_SOURCE_KEY=$sha" -f "$stage/service-count-fixture.Dockerfile" -t erpx-service-count-fixture:local "$stage"
+fi
