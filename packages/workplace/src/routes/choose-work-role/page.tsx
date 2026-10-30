@@ -44,7 +44,7 @@ export default async function ProductWorkRolePage({ searchParams }: {
         <p>{th ? "เลือกบทบาทที่จะใช้ในพื้นที่ทำงานนี้" : "Choose the role to use in this workspace."}</p>
         {query.notice === "access-changed" && <InlineNotice tone="warning">{th ? "สิทธิ์หรือบทบาทเปลี่ยนไป โปรดตรวจรายการล่าสุดและเลือกอีกครั้ง" : "Your access or selected role changed. Review the current choices and choose again."}</InlineNotice>}
         <div className={styles.grid}>{data.options.map(option => <Card appearance="standard" key={option.assignmentId}>
-          <form method="post" action="/launch"><Stack>
+          <form method="post" action={"/launch?" + new URLSearchParams({ app: audience })}><Stack>
             <input type="hidden" name="companyId" value={input.companyId} />
             <input type="hidden" name="next" value={input.target} />
             <input type="hidden" name="assignmentId" value={option.assignmentId} />

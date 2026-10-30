@@ -1,5 +1,5 @@
 import {NextRequest,NextResponse} from 'next/server';
-import {holdingRoutingEnabled,holdingHostForHost,parseHoldingRoute,holdingUiUrl,holdingPathMatches,internalWorkspaceBase} from '@erpx/contracts/holding-hosts';
+import {holdingRoutingEnabled,holdingHostForHost,parseHoldingRoute,holdingUiUrl,holdingPathMatches,internalWorkspaceBase} from '@erpx/feature-runtime/lib/holding-hosts';
 import {product} from '@erpx/contracts/product-registry';
 import {holdingBindingBySlug,holdingResources} from '@erpx/server-runtime/public/runtime';
 import {workspaceRouteCompany} from '@erpx/server-organization/public/workspace-route-company';

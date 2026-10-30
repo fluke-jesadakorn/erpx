@@ -1,5 +1,5 @@
 import {supportTicketPortalEntry} from '@erpx/contracts/ticket-portal-entry';
-import {holdingHostForHost,parseHoldingRoute} from '@erpx/contracts/holding-hosts';
+import {holdingHostForHost,parseHoldingRoute,contributorExactOrigin} from '@erpx/contracts/holding-hosts';
 import { recordRoutes,recordBasePath,defaultRecordSection,type RecordKind } from "@erpx/feature-records/lib/record-route-definitions";
 import {talentHireSourceEntry,talentCandidatePrivacySourceEntry} from "@erpx/contracts/talent-product-entry";
 /** UI routes only. API resources and command contracts keep their owner paths. */
@@ -125,7 +125,7 @@ export function sourcePath(path:string) {
 }
 export function workspacePathParts(pathname:string,holdingSlug?:string|null) {
  if(!pathname.startsWith('/holdings/')&&holdingSlug!==null){
-  const holding=holdingSlug??(typeof window==='undefined'?undefined:holdingHostForHost(window.location.host)?.holdingSlug);
+  const holding=holdingSlug??(typeof window==='undefined'?undefined:holdingHostForHost(window.location.host,contributorExactOrigin(window.location.host,'contributor')===window.location.origin?'contributor':'public')?.holdingSlug);
   const route=holding?parseHoldingRoute(holding,pathname):null;
   if(route?.internalPath.startsWith('/holdings/'))return workspacePathParts(route.internalPath,null);
  }

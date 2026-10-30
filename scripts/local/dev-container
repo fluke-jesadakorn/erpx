@@ -1,0 +1,91 @@
+#!/bin/sh
+# Contributor lifecycle for the explicitly keyed isolated development workspace.
+set -eu
+root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
+case "${ERPX_DEV_WORKSPACE_KEY:-}" in
+  ''|*[!a-z0-9-]*|-*|*-) echo 'Set ERPX_DEV_WORKSPACE_KEY to a unique lowercase checkout-and-architecture key.' >&2; exit 2 ;;
+esac
+command=${1:-}; [ "$#" -gt 0 ] && shift || true
+app=finance
+app_seen=false
+case "$command" in
+  up|start)
+    for option in "$@"; do case "$option" in --app=*) [ "$app_seen" = false ] || { echo "Only one application may be selected." >&2; exit 2; }; app_seen=true; app=${option#--app=} ;; *) echo 'Use --app=<application>.' >&2; exit 2;; esac; done
+    case "$app" in ''|*[!a-z0-9-]*) echo 'Invalid application ID.' >&2; exit 2;; esac
+    ;;
+  bootstrap|down|populate|certificate) [ "$#" -eq 0 ] || exit 2 ;;
+  reset) [ "$#" -eq 1 ] && [ "$1" = "--confirm=$ERPX_DEV_WORKSPACE_KEY" ] || { echo 'Reset requires --confirm=<exact-workspace-key>.' >&2; exit 2; } ;;
+  *) echo 'Usage: ERPX_DEV_WORKSPACE_KEY=<checkout-architecture> scripts/local/dev-container up|start [--app=<id>] | populate | bootstrap | certificate | down | reset --confirm=<key>' >&2; exit 2 ;;
+esac
+if [ -f /.dockerenv ]; then
+  cd /workspace/erpx
+  case "$command" in
+    bootstrap) exec env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/root ERPX_DEV_WORKSPACE_KEY="$ERPX_DEV_WORKSPACE_KEY" bun --no-env-file scripts/local/dev-container-bootstrap.ts ;;
+    start) if [ "$app_seen" = true ]; then exec env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/root ERPX_DEV_WORKSPACE_KEY="$ERPX_DEV_WORKSPACE_KEY" bun --no-env-file scripts/local/dev-container-start.ts "--app=$app"; else exec env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/root ERPX_DEV_WORKSPACE_KEY="$ERPX_DEV_WORKSPACE_KEY" bun --no-env-file scripts/local/dev-container-start.ts; fi ;;
+    *) echo 'Run service lifecycle commands on the host.' >&2; exit 2 ;;
+  esac
+fi
+socket="$HOME/.colima/erpx-opensource-dev/docker.sock"
+[ -S "$socket" ] || { echo 'OWNED_CONTAINER_ENGINE_REQUIRED' >&2; exit 1; }
+unset DOCKER_CONTEXT DOCKER_TLS_VERIFY DOCKER_CERT_PATH
+. "$root/scripts/local/dev-container-lifecycle-lock.sh"
+acquire_lifecycle_lock
+DOCKER_CONFIG=
+trap '[ -z "$DOCKER_CONFIG" ] || rm -rf -- "$DOCKER_CONFIG"; release_lifecycle_lock' EXIT
+DOCKER_CONFIG=$(mktemp -d "${TMPDIR:-/tmp}/erpx-container-cli.XXXXXXXX")
+trap 'exit 1' HUP INT TERM
+export DOCKER_CONFIG COMPOSE_DISABLE_ENV_FILE=1 DOCKER_HOST="unix://$socket"
+project="erpx-dev-$ERPX_DEV_WORKSPACE_KEY"
+compose() { docker-compose --project-directory "$root/ops/containers" -p "$project" -f "$root/ops/containers/development-services.compose.yaml" -f "$root/.devcontainer/compose.yaml" "$@"; }
+case "$command" in
+  up|populate)
+    services_workspace_mode=true
+    . "$root/scripts/local/dev-container-services-lib.sh"
+    services_up
+    compose exec -T workspace sh -ec 'test ! -e /workspace/erpx/.erpx-source-copy-incomplete' || { echo SOURCE_COPY_INCOMPLETE >&2; exit 1; }
+    if ! compose exec -T workspace sh -ec 'test -d /workspace/erpx/.git'; then
+      source_url=${ERPX_DEV_SOURCE_URL:-$(git -C "$root" remote get-url origin)}
+      case "$source_url" in https://*/*) ;; *) echo 'A credential-free HTTPS source URL is required.' >&2; exit 2;; esac
+      case "$source_url" in *[!A-Za-z0-9:/._~-]*) echo 'Source URL must not contain credentials, query, fragment or whitespace.' >&2; exit 2;; esac
+      source_ref=${ERPX_DEV_SOURCE_REF:-$(git -C "$root" rev-parse HEAD)}
+      case "$source_ref" in ''|-*|*[!A-Za-z0-9/._-]*|*..*) echo 'An explicit safe source ref is required.' >&2; exit 2;; esac
+      compose exec -T workspace sh -ec '
+        root=/workspace/erpx
+        if find "$root" -mindepth 1 -maxdepth 1 ! -name node_modules ! -name target -print -quit | grep -q .; then echo SOURCE_VOLUME_NOT_EMPTY >&2; exit 1; fi
+        tmp=$(mktemp -d /workspace/erpx-clone.XXXXXXXX)
+        trap '\''rm -rf -- "$tmp"'\'' EXIT HUP INT TERM
+        mkdir "$tmp/home"
+        env -i PATH=/usr/local/bin:/usr/bin:/bin HOME="$tmp/home" GIT_CONFIG_NOSYSTEM=1 GIT_TERMINAL_PROMPT=0 git -c credential.helper= -c core.askPass=/bin/false clone --no-checkout -- "$1" "$tmp/source"
+        env -i PATH=/usr/local/bin:/usr/bin:/bin HOME="$tmp/home" GIT_CONFIG_NOSYSTEM=1 GIT_TERMINAL_PROMPT=0 git -C "$tmp/source" -c credential.helper= -c core.askPass=/bin/false checkout --force --detach "$2"
+        (umask 077; : > "$root/.erpx-source-copy-incomplete")
+        cp -a "$tmp/source/." "$root/"
+        rm "$root/.erpx-source-copy-incomplete"
+      ' sh "$source_url" "$source_ref"
+    fi
+    if [ "$command" = up ]; then
+      compose exec -T workspace scripts/local/dev-container bootstrap
+      compose exec -T workspace scripts/local/dev-container start "--app=$app"
+    fi
+    ;;
+  bootstrap) compose exec -T workspace scripts/local/dev-container bootstrap ;;
+  certificate) compose exec -T https cat /data/caddy/pki/authorities/local/root.crt ;;
+  start) if [ "$app_seen" = true ]; then compose exec -T workspace scripts/local/dev-container start "--app=$app"; else compose exec -T workspace scripts/local/dev-container start; fi ;;
+  down) compose down ;;
+  reset)
+    docker volume inspect "${project}_secrets" >/dev/null 2>&1 || { echo WORKSPACE_LEASE_REQUIRED >&2; exit 1; }
+    docker run --rm --network=none -e ERPX_DEV_WORKSPACE_KEY -v "${project}_secrets:/secrets:ro" erpx-opensource-dev-toolchain:local sh -ec 'test -f /secrets/workspace-key && test "$(cat /secrets/workspace-key)" = "$ERPX_DEV_WORKSPACE_KEY" && test "$(stat -c %a /secrets/workspace-key)" = 600' || { echo WORKSPACE_LEASE_MISMATCH >&2; exit 1; }
+    for suffix in source postgres scanner-socket scanner-definitions local-ca node26.11.1-bun1.4.3-modules rust1.99.1-target rust1.99.1-registry rust1.99.1-git bun1.4.3-cache; do
+      volume="${project}-${suffix}"
+      if docker volume inspect "$volume" >/dev/null 2>&1; then
+        owner=$(docker volume inspect --format '{{ index .Labels "com.docker.compose.project" }}' "$volume")
+        [ "$owner" = "$project" ] || { echo WORKSPACE_VOLUME_OWNER_MISMATCH >&2; exit 1; }
+      fi
+    done
+    compose down
+    for suffix in source postgres scanner-socket scanner-definitions local-ca node26.11.1-bun1.4.3-modules rust1.99.1-target rust1.99.1-registry rust1.99.1-git bun1.4.3-cache; do
+      volume="${project}-${suffix}"; if docker volume inspect "$volume" >/dev/null 2>&1; then docker volume rm "$volume" >/dev/null; fi
+    done
+    docker volume rm "${project}_secrets" >/dev/null
+    echo 'Removed only the confirmed keyed development project volumes.'
+    ;;
+esac

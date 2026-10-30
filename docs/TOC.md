@@ -4,6 +4,8 @@ Reviewed 2026-10-23. This is the single entry point. [Production plan](productio
 
 ## Current system
 
+- [Contributor container setup](../ops/containers/README.md) (transitional candidate; qualification pending)
+
 - [Development Holding addresses and workspace paths](contracts/next/holding-addresses.md) and [ADR-051](adr/ADR-051-holding-addresses-and-workspace-paths.md)
 
 - [Product separation: registry, packages and SSO implementation boundary](contracts/next/product-separation.md), [22-host desired-state manifest](contracts/next/product-registry.generated.json), [development rollout/rollback](../ops/macos/product-development.md)

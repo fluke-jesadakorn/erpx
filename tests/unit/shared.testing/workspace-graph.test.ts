@@ -178,7 +178,7 @@ it('keeps generated app outputs and verification edits outside the global runtim
  } finally { await rm(root,{recursive:true,force:true}); }
 });
 
-import { recoverGatewayApps, type GatewayProcessLease, type ProcessIdentity } from '../../../scripts/local/app-process-leases';
+import { recoverGatewayApps, inspectProcessIdentity, assertRetiredLeasePortsAvailable, type GatewayProcessLease, type ProcessIdentity } from '../../../scripts/local/app-process-leases';
 describe('development process ownership',()=>{
  const root='/owned/erpx',identity:ProcessIdentity={cwd:root,started:'Thu Oct 22 17:00:00 2026',command:`node ${root}/node_modules/next/dist/bin/next dev ${root}/apps/finance --port 3204 --hostname 127.0.0.1 --webpack`};
  const lease=():GatewayProcessLease=>({version:2,root,gatewayPid:90,apps:[{id:'finance',pid:100,port:3204,identity}]});
@@ -211,6 +211,32 @@ describe('development process ownership',()=>{
  it('validates the entire lease before signaling any process',async()=>{
   const value=lease();value.apps.push({...value.apps[0],id:'people',pid:101,port:3205});
   const p=ports(new Map([[100,identity],[101,{...identity,cwd:'/foreign'}]]));await expect(recoverGatewayApps(value,root,p)).rejects.toThrow('OWNERSHIP_CHANGED');expect(p.stopped).toEqual([]);
+ });
+ it('does not inspect or signal PIDs from a proven old Linux namespace or boot',async()=>{
+  const old={bootId:'11111111-1111-1111-1111-111111111111',namespace:'pid:[100]'},current={...old,namespace:'pid:[200]'};
+  for(const now of [current,{...old,bootId:'22222222-2222-2222-2222-222222222222'}]){
+   const p=ports(new Map([[90,identity],[100,identity]]));const probe=vi.spyOn(p,'identity');
+   expect(await recoverGatewayApps({...lease(),version:3,pidNamespace:old},root,p,undefined,now)).toBe(true);
+   expect(probe).not.toHaveBeenCalled();expect(p.stopped).toEqual([]);
+  }
+  const p=ports();await expect(recoverGatewayApps({...lease(),version:3,pidNamespace:old,root:'/foreign'},root,p,undefined,current)).rejects.toThrow('GATEWAY_LEASE_IDENTITY_REQUIRED');expect(p.stopped).toEqual([]);
+  await expect(recoverGatewayApps({...lease(),version:3,pidNamespace:old,apps:[{...lease().apps[0],port:3000}]},root,p,undefined,current)).rejects.toThrow('INVALID_APP_PROCESS_LEASE');expect(p.stopped).toEqual([]);
+  await expect(recoverGatewayApps({...lease(),version:3,pidNamespace:old,apps:[{...lease().apps[0],identity:{...identity,cwd:'/foreign'}}]},root,p,undefined,current)).rejects.toThrow('OWNERSHIP_CHANGED');expect(p.stopped).toEqual([]);
+ });
+ it('checks current and unproven namespaces with the existing strict identity rules',async()=>{
+  const namespace={bootId:'11111111-1111-1111-1111-111111111111',namespace:'pid:[100]'},value={...lease(),version:3,pidNamespace:namespace};
+  for(const current of [namespace,undefined]){const p=ports(new Map([[100,{...identity,started:'foreign'}]]));await expect(recoverGatewayApps(value,root,p,undefined,current)).rejects.toThrow('OWNERSHIP_CHANGED');expect(p.stopped).toEqual([]);}
+  const p=ports(new Map([[90,identity]]));await expect(recoverGatewayApps(lease(),root,p,undefined,{...namespace,namespace:'pid:[200]'})).rejects.toThrow('OWNER_STILL_ALIVE');expect(p.stopped).toEqual([]);
+ });
+ it('refuses foreign listeners before replacing an old namespace lease',async()=>{
+  for(const busy of [3100,3204]) await expect(assertRetiredLeasePortsAvailable(lease(),3100,async port=>port===busy)).rejects.toThrow('PORT_OCCUPIED');
+  await expect(assertRetiredLeasePortsAvailable(lease(),3100,async()=>false)).resolves.toBeUndefined();
+ });
+ it('treats a disappeared process as absent and propagates other inspection failures',()=>{
+  const failure=new Error('ps failed'),read=()=>{throw failure;};
+  expect(inspectProcessIdentity(100,read,()=>{throw Object.assign(new Error('gone'),{code:'ESRCH'});})).toBeNull();
+  expect(()=>inspectProcessIdentity(100,read,()=>{})).toThrow(failure);
+  expect(()=>inspectProcessIdentity(100,read,()=>{throw Object.assign(new Error('denied'),{code:'EPERM'});})).toThrow(failure);
  });
  it('does not signal a process that has already exited',async()=>{
   const p=ports(new Map());await recoverGatewayApps(lease(),root,p);expect(p.stopped).toEqual([]);

@@ -41,6 +41,8 @@ Development starts at [ERPX Apps](https://apps-dev-erpx.jesadakorn.com/). All22 
 
 The rich local dataset and demo personas are documented in [docs/local-seed.md](docs/local-seed.md).
 
+See [Contributor container setup](ops/containers/README.md) for the transitional isolated contributor environment and its qualification status.
+
 ## Structure
 
 - `apps/<id>/`: app-owned routes, layouts, handlers, config, route types and build output; no imports from another app. `apps/compat` retains non-product compatibility source. The authorized development Console cutover is active; its pages/APIs return404 and health/ready reads use Account. Product hosts use their own applications. Apps keeps the stable `apps` host/CLI identity in `apps/launcher/`.

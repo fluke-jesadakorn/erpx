@@ -320,6 +320,7 @@
 @source "../../../../packages/feature-runtime/src/lib/database-pool-policy.ts";
 @source "../../../../packages/feature-runtime/src/lib/erpx-hosts.ts";
 @source "../../../../packages/feature-runtime/src/lib/executive/canvas-domain.ts";
+@source "../../../../packages/feature-runtime/src/lib/holding-hosts.ts";
 @source "../../../../packages/feature-runtime/src/lib/holding-registry.ts";
 @source "../../../../packages/feature-runtime/src/lib/product-api-policy.ts";
 @source "../../../../packages/feature-runtime/src/lib/product-hosts.ts";

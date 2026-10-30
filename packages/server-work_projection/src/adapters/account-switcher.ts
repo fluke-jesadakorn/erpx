@@ -1,4 +1,4 @@
-import {holdingHostForHost,holdingRoutingEnabled,parseHoldingRoute,holdingUiUrl,holdingFrontUiUrl} from '@erpx/contracts/holding-hosts';
+import {holdingHostForHost,holdingRoutingEnabled,parseHoldingRoute,holdingUiUrl,holdingFrontUiUrl} from '@erpx/feature-runtime/lib/holding-hosts';
 import {requestProductOrigin,ssoAudienceForHost} from '@erpx/feature-runtime/lib/product-hosts';
 import 'server-only';
 import { NextResponse } from 'next/server';

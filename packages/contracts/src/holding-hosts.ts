@@ -6,21 +6,34 @@ export const holdingHosts = [
   { holdingId: 'h002', holdingSlug: 'northstar', hostname: 'northstar.jesadakorn.com', environment:'development' },
   { holdingId: 'h003', holdingSlug: 'erpx', hostname: 'erpx-internal.jesadakorn.com', environment:'development' },
 ] as const;
-export type HoldingHost = typeof holdingHosts[number];
+const contributorHoldingHosts = [
+  { holdingId: 'h001', holdingSlug: 'acme', hostname: 'acme.erpx.localhost:3443', environment:'development' },
+  { holdingId: 'h002', holdingSlug: 'northstar', hostname: 'northstar.erpx.localhost:3443', environment:'development' },
+  { holdingId: 'h003', holdingSlug: 'erpx', hostname: 'erpx-internal.erpx.localhost:3443', environment:'development' },
+] as const;
+/** Origin choice is supplied by the outer runtime; this module has no ambient state. */
+export type OriginProfile = 'public' | 'contributor';
+export function activeHoldingHosts(profile: OriginProfile = 'public') { return profile === 'contributor' ? contributorHoldingHosts : holdingHosts; }
+export function accountDevelopmentOrigin(profile: OriginProfile = 'public') { return profile === 'contributor' ? 'https://account.erpx.localhost:3443' : 'https://account-dev-erpx.jesadakorn.com'; }
+export function contributorExactOrigin(host: string | null | undefined, profile: OriginProfile = 'public') {
+  if (profile !== 'contributor' || !host) return null;
+  return host === 'account.erpx.localhost:3443' || contributorHoldingHosts.some(entry => entry.hostname === host) ? `https://${host}` : null;
+}
+export type HoldingHost = typeof holdingHosts[number] | typeof contributorHoldingHosts[number];
 export function holdingRoutingEnabled(env: Record<string, string | undefined>) {
   return env.ERPX_HOLDING_ROUTING === 'enabled' && env.ERPX_ENVIRONMENT === 'local'
     && env.ERPX_PRODUCT_ENVIRONMENT === 'development';
 }
-export function holdingHostForHost(host: string | null | undefined): HoldingHost | undefined {
-  return holdingHosts.find(entry => entry.hostname === host);
+export function holdingHostForHost(host: string | null | undefined, profile: OriginProfile = 'public'): HoldingHost | undefined {
+  return activeHoldingHosts(profile).find(entry => entry.hostname === host);
 }
-export function holdingHostForSlug(slug: string) { return holdingHosts.find(entry => entry.holdingSlug === slug); }
-export function holdingOrigin(slug: string) {
-  const entry = holdingHostForSlug(slug); return entry ? `https://${entry.hostname}` : null;
+export function holdingHostForSlug(slug: string, profile: OriginProfile = 'public') { return activeHoldingHosts(profile).find(entry => entry.holdingSlug === slug); }
+export function holdingOrigin(slug: string, profile: OriginProfile = 'public') {
+  const entry = holdingHostForSlug(slug, profile); return entry ? `https://${entry.hostname}` : null;
 }
 export function futureHoldingOrigin(slug: string) { return `https://${slug}.erpx.com`; }
-export function holdingAudience(host: string | null | undefined) {
-  const entry = holdingHostForHost(host); return entry ? `holding:${entry.environment}:${entry.holdingId}:${entry.hostname}` : null;
+export function holdingAudience(host: string | null | undefined, profile: OriginProfile = 'public') {
+  const entry = holdingHostForHost(host, profile); return entry ? `holding:${entry.environment}:${entry.holdingId}:${entry.hostname}` : null;
 }
 const appKeys = [...productIds, ...sharedHostKeys.filter(key => key !== 'account')];
 const publicRoots: Record<string, ProductHostKey> = { book: 'booking', 'customer-portal': 'portal', 'legal-portal': 'legal-portal', forms: 'forms' };
@@ -87,11 +100,11 @@ export function holdingPathMatches(holdingSlug: string, pathname: string) {
   return !match || match[1] === holdingSlug;
 }
 /** Translate an owner URL without changing its query, fragment, or record identity. */
-export function holdingUiUrl(value: string, company?: string): string | null {
+export function holdingUiUrl(value: string, company?: string, profile: OriginProfile = 'public'): string | null {
   const url = new URL(value, 'https://owner.invalid');
   const match = url.pathname.match(/^\/holdings\/([^/]+)(?:\/branches\/([^/]+))?(?:\/departments\/([^/]+))?(?:\/(.*))?$/);
   if (!match) return null;
-  const [, holding, branch, department, destination = 'home'] = match, origin = holdingOrigin(holding);
+  const [, holding, branch, department, destination = 'home'] = match, origin = holdingOrigin(holding, profile);
   if (!origin) return null;
   const app: ProductHostKey | undefined = /^(administration|erpx-management)(?:\/|$)/.test(destination) ? 'admin' : destinationProduct(destination);
   if (!app) return null;
@@ -103,15 +116,15 @@ export function holdingUiUrl(value: string, company?: string): string | null {
 }
 export function holdingTransportPath(app: ProductHostKey, path: string) { return `/__erpx/${app}${path.startsWith('/') ? path : '/' + path}`; }
 
-export function holdingPublicUiUrl(value:string){
+export function holdingPublicUiUrl(value:string,profile: OriginProfile = 'public'){
   const url=new URL(value,'https://owner.invalid'),match=url.pathname.match(/^\/(book|customer-portal|legal-portal|forms)\/([^/]+)(.*)$/);
-  if(!match)return null;const origin=holdingOrigin(match[2]);if(!origin)return null;
+  if(!match)return null;const origin=holdingOrigin(match[2],profile);if(!origin)return null;
   return origin+'/'+match[1]+match[3]+url.search+url.hash;
 }
-export function holdingFrontUiUrl(value:string,app:'pos'|'pms'){
+export function holdingFrontUiUrl(value:string,app:'pos'|'pms',profile: OriginProfile = 'public'){
   const url=new URL(value,'https://owner.invalid');
   const match=url.pathname.match(/^\/(?:front\/)?([^/]+)\/([^/]+)\/(?:pos\/|pms\/)?(holding|branches\/([^/]+)(?:\/departments\/([^/]+))?|departments\/([^/]+))(?:\/(.*))?$/);
-  if(!match)return null;const [,holding,company,location,branch,department,directDepartment,tail='']=match,origin=holdingOrigin(holding);if(!origin)return null;
+  if(!match)return null;const [,holding,company,location,branch,department,directDepartment,tail='']=match,origin=holdingOrigin(holding,profile);if(!origin)return null;
   if(location==='holding')url.searchParams.set('company',company);
   return origin+'/'+[branch??(directDepartment?'departments':''),department??directDepartment,app,tail].filter(Boolean).join('/')+url.search+url.hash;
 }

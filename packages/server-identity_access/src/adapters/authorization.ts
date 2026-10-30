@@ -1,5 +1,5 @@
 import{requestedHoldingScope}from '@erpx/server-identity_access/public/requested-holding-scope';
-import {holdingHostForHost,holdingRoutingEnabled} from '@erpx/contracts/holding-hosts';
+import {holdingHostForHost,holdingRoutingEnabled} from '@erpx/feature-runtime/lib/holding-hosts';
 export{requestedHoldingScope};
 import {providerContextSelectedAssignment} from '@erpx/server-identity_access/adapters/provider-context-selection';
 import {productHostForHost} from '@erpx/feature-runtime/lib/product-hosts';

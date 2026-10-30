@@ -80,3 +80,48 @@ it('retires former product hosts only for the explicit Holding profile', async (
   expect(unregisteredDevelopmentProductHost('finance-dev-erpx.jesadakorn.com')).toBe(false);
   expect(appForHost('account-dev-erpx.jesadakorn.com',enabled)?.id).toBe('account');
 });
+
+it('restricts the contributor profile to its four exact localhost origins', async () => {
+  const {activeHoldingHosts, accountDevelopmentOrigin, contributorExactOrigin} = await import('@erpx/contracts/holding-hosts');
+  const hosts = ['account.erpx.localhost:3443', 'acme.erpx.localhost:3443', 'northstar.erpx.localhost:3443', 'erpx-internal.erpx.localhost:3443'];
+  expect(accountDevelopmentOrigin('contributor')).toBe(`https://${hosts[0]}`);
+  expect(activeHoldingHosts('contributor').map(item => item.hostname)).toEqual(hosts.slice(1));
+  for (const host of hosts) {
+    expect(contributorExactOrigin(host, 'contributor')).toBe(`https://${host}`);
+    expect(contributorExactOrigin(host)).toBeNull();
+  }
+  for (const host of ['acme.erpx.localhost', 'acme.erpx.localhost:443', 'acme.erpx.localhost:3443.evil.test', 'unknown.erpx.localhost:3443'])
+    expect(contributorExactOrigin(host, 'contributor')).toBeNull();
+  expect(holdingHostForHost(hosts[1])).toBeUndefined();
+  expect(holdingHostForHost(hosts[1], 'contributor')?.holdingId).toBe('h001');
+  expect(holdingUiUrl('/holdings/acme/finance/documents', 'acme-co', 'contributor')).toBe('https://acme.erpx.localhost:3443/finance?company=acme-co');
+});
+
+it('preserves request data when routing exact contributor browser API calls', async () => {
+  const {holdingFetch} = await import('@erpx/contracts/holding-fetch');
+  const fetchMock = vi.fn<(...args: Parameters<typeof fetch>) => ReturnType<typeof fetch>>(async () => new Response('ok'));
+  vi.stubGlobal('fetch', fetchMock);
+  vi.stubGlobal('window', {location: {host: 'acme.erpx.localhost:3443', origin: 'https://acme.erpx.localhost:3443', href: 'https://acme.erpx.localhost:3443/finance'}});
+  vi.stubGlobal('document', {documentElement: {dataset: {erpxApp: 'finance'}}});
+  const request = new Request('https://acme.erpx.localhost:3443/api/v1/payments?x=1', {method: 'POST', headers: {'content-type': 'text/plain', 'idempotency-key': 'key-123'}, body: 'raw-body'});
+  await holdingFetch(request);
+  const routed = fetchMock.mock.calls[0][0] as Request;
+  expect(routed.url).toBe('https://acme.erpx.localhost:3443/__erpx/finance/api/v1/payments?x=1');
+  expect(routed.method).toBe('POST');
+  expect(routed.headers.get('idempotency-key')).toBe('key-123');
+  expect(routed.headers.get('content-type')).toBe('text/plain');
+  expect(await routed.text()).toBe('raw-body');
+  await holdingFetch('/api/v1/payments', {method: 'POST', headers: {'idempotency-key': 'key-456'}, body: 'raw-init'});
+  expect(String(fetchMock.mock.calls[1][0])).toBe('https://acme.erpx.localhost:3443/__erpx/finance/api/v1/payments');
+  expect(fetchMock.mock.calls[1][1]).toMatchObject({body: 'raw-init', headers: {'idempotency-key': 'key-456'}});
+  vi.stubGlobal('window', {location: {host: 'unknown.erpx.localhost:3443', origin: 'https://unknown.erpx.localhost:3443', href: 'https://unknown.erpx.localhost:3443/finance'}});
+  await holdingFetch('/api/v1/payments');
+  expect(fetchMock.mock.calls[2][0]).toBe('/api/v1/payments');
+});
+
+it('maps Holding navigation using the explicitly supplied local origin', () => {
+  const scope = {audience: 'finance' as const, holdingSlug: 'acme', holdingOrigin: 'https://acme.erpx.localhost:3443', companySlug: 'acme-co'};
+  expect(productNavigationHref('/holdings/acme/finance/reports/company', scope)).toEqual({href: 'https://acme.erpx.localhost:3443/finance/reports/company?company=acme-co', handoff: false});
+  expect(productNavigationHref('/bangkok/people', scope)).toEqual({href: 'https://acme.erpx.localhost:3443/bangkok/people', handoff: true});
+  expect(productNavigationHref('/holdings/acme/finance/reports/company', {...scope, holdingOrigin: 'https://acme.erpx.localhost:3443.evil.test'}).href).toBe('https://acme.jesadakorn.com/finance/reports/company?company=acme-co');
+});

@@ -1,6 +1,6 @@
 import { developmentProductOrigin, isProductHostKey, productIds, sharedHostKeys, type ProductHostKey } from "@erpx/server-commercial/public/product-registry";
 import { safeProductReturnPath } from "@erpx/server-identity_access/public/rules/product-sso";
-import {holdingRoutingEnabled,holdingHostForHost,holdingOrigin,holdingUiUrl,holdingAudience,holdingPublicUiUrl,holdingFrontUiUrl} from '@erpx/contracts/holding-hosts';
+import {holdingRoutingEnabled,holdingHostForHost,holdingOrigin,holdingUiUrl,holdingAudience,accountDevelopmentOrigin,holdingPublicUiUrl,holdingFrontUiUrl} from '@erpx/feature-runtime/lib/holding-hosts';
 
 export type ProductHostConfiguration = { routing: boolean; sso: boolean; environment: "development" | null };
 export function productHostConfiguration(): ProductHostConfiguration {
@@ -14,7 +14,7 @@ export function productHostConfiguration(): ProductHostConfiguration {
 export function productHostForHost(host: string | null, config = productHostConfiguration()): ProductHostKey | null {
   if (!host || !config.routing || !config.sso || config.environment !== "development") return null;
   if (holdingRoutingEnabled(process.env)) {
-    if (host === new URL(developmentProductOrigin('account')).host) return 'account';
+    if (host === new URL(accountDevelopmentOrigin()).host) return 'account';
     return holdingHostForHost(host) && isProductHostKey(process.env.ERPX_APP_ID ?? '') ? process.env.ERPX_APP_ID as ProductHostKey : null;
   }
   for (const key of [...productIds, ...sharedHostKeys]) if (new URL(developmentProductOrigin(key)).host === host) return key;
@@ -29,7 +29,7 @@ export function trustedProductOrigin(value: string, config = productHostConfigur
 }
 export function configuredProductOrigin(key: string, config = productHostConfiguration(), holdingSlug?: string): string | null {
   if (holdingRoutingEnabled(process.env) && key !== 'account') return holdingSlug && config.routing && config.sso && config.environment === 'development' ? holdingOrigin(holdingSlug) : null;
-  return isProductHostKey(key) ? trustedProductOrigin(developmentProductOrigin(key), config) : null;
+  return isProductHostKey(key) ? trustedProductOrigin(key === 'account' && holdingRoutingEnabled(process.env) ? accountDevelopmentOrigin() : developmentProductOrigin(key), config) : null;
 }
 export function requestProductOrigin(key: string, headers: Pick<Headers, 'get'>): string | null {
   const holding = holdingRoutingEnabled(process.env) && holdingHostForHost(headers.get('host'));
