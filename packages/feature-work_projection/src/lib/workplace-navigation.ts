@@ -1,6 +1,6 @@
 import {destinationAvailable} from '@erpx/feature-work_projection/lib/destination-access';
 import { productOfficeNavigation } from "@erpx/feature-work_projection/lib/product-office-navigation";
-import type { ProductHostKey } from "@erpx/server-commercial/public/rules/product-registry";
+import type { ProductHostKey } from "@erpx/contracts/product-registry";
 import {hasModuleAccess} from "@erpx/catalogue/module-access";
 import {destinations, parentLabels, canonicalUiHref, destinationForPath, destinationTrail, selectionForPath, sourcePath} from '@erpx/feature-work_projection/lib/destination-registry';
 import {sectionWorkspaceTopics,legacyWorkspaceDestination} from "@erpx/feature-work_projection/lib/section-workspaces";
@@ -10,7 +10,7 @@ import { workViews, workViewAvailable, type WorkViewAvailability } from "@erpx/f
 import { adminSections, type AdminSection } from "@erpx/feature-shared/lib/administration";
 import { iamSections } from "@erpx/feature-identity_access/lib/iam";
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
-import { salesCustomerAccess, salesCustomerLegacyDestination } from "@erpx/server-sales/public/rules/navigation";
+import { salesCustomerAccess, salesCustomerLegacyDestination } from "@erpx/feature-sales/lib/navigation";
 import { peopleIamDestination } from "@erpx/feature-people_payroll/lib/people-iam-navigation";
 import { financeDestinationForRoute, financeNavigation, financeRootItems, financeSidebarId } from "@erpx/feature-finance/lib/finance-navigation";
 import { workplaceCategories, workplaceModuleDestinations, workplaceStartActions, type WorkplaceCategoryId, type AiSupport } from "@erpx/feature-work_projection/lib/workplace-catalogue";

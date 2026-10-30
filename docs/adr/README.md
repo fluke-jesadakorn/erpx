@@ -67,3 +67,5 @@ Historical Rust terms and dated rollout evidence in older decisions apply to tha
 - [ADR-048 — Ticket-bound Support Portal](ADR-048-ticket-bound-support-portal.md)
 
 - [ADR-049 — Product app workspaces and development verification](ADR-049-product-app-workspaces-and-development-verification.md)
+
+- [ADR-051 — Development Holding addresses and workspace paths](ADR-051-holding-addresses-and-workspace-paths.md)

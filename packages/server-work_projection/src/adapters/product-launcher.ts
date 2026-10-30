@@ -1,3 +1,4 @@
+import {holdingRoutingEnabled} from '@erpx/contracts/holding-hosts';
 import {expensePostingPrerequisitesProductEntry} from '@erpx/server-finance/public/expense-posting-prerequisites';
 import {payrollPostingPrerequisitesProductEntry} from '@erpx/server-finance/public/payroll-posting-prerequisites';
 import {peopleFinancialProductEntry} from "@erpx/server-people_payroll/public/financial-product-entry";
@@ -43,6 +44,7 @@ export async function productLaunchChoices(productId?: import("@erpx/contracts/p
   // explicit node/lineage validation for each requested scope. Never global.
   const accounts = new Map<string, Promise<AccountAccessContext>>();
   return createProductLauncher({
+  holdingAddresses:holdingRoutingEnabled(process.env),
   commercialAdmissionDeferred:id=>developmentModuleAdmissionDeferred(id,process.env),
   choices: productWorkspaceChoices, moduleAccess: accountWorkModuleAccess,
   access: async (scope, options) => {
@@ -72,7 +74,7 @@ export async function productLaunchChoices(productId?: import("@erpx/contracts/p
   manufacturingInitialPhysicalStockCountEntry:async(access,assignment)=>manufacturingInitialPhysicalStockCountProductEntry((await holdingResources(access.scope.holdingId)).write,{companyId:access.scope.companyId,branchId:"branchId" in access.scope?access.scope.branchId:null,departmentId:access.scope.kind==="department"?access.scope.departmentId:null,userId:access.userId,assignmentId:assignment.id,assignmentVersion:assignment.version!,role:assignment.role,sessionId:access.sessionId},{}),
   initialPhysicalStockCountEntry:async(access,assignment)=>initialPhysicalStockCountProductEntry((await holdingResources(access.scope.holdingId)).write,{companyId:access.scope.companyId,branchId:"branchId" in access.scope?access.scope.branchId:null,departmentId:access.scope.kind==="department"?access.scope.departmentId:null,userId:access.userId,assignmentId:assignment.id,assignmentVersion:assignment.version!,role:assignment.role,sessionId:access.sessionId},{}),
   companySlug: async access => (await frontActiveCompanies((await holdingResources(access.scope.holdingId)).write, [access.scope.companyId]))[0]?.slug ?? null,
-  origin: configuredProductOrigin,
+  origin: (id,slug)=>configuredProductOrigin(id,undefined,slug),
   denied: error => error instanceof ApiError && [401, 403, 404].includes(error.status) || error instanceof Error && ["FORBIDDEN", "WORKSPACE_NOT_FOUND", "COMPANY_REQUIRED"].includes(error.message),
   now: Date.now,
   })(productId);

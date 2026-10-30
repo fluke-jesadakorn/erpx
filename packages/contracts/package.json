@@ -14,7 +14,18 @@
     "./social-post-entry": "./src/social-post-entry.ts",
     "./command-flow": "./src/command-flow.ts",
     "./ownership": "./src/ownership.ts",
-    "./development-module-admission": "./src/development-module-admission.ts"
+    "./development-module-admission": "./src/development-module-admission.ts",
+    "./holding-hosts": "./src/holding-hosts.ts",
+    "./holding-fetch": "./src/holding-fetch.ts",
+    "./account-navigation": "./src/account-navigation.ts",
+    "./admin-workspace": "./src/admin-workspace.ts",
+    "./account-workspace": "./src/account-workspace.ts",
+    "./public-surface-entry": "./src/public-surface-entry.ts",
+    "./ticket-portal-entry": "./src/ticket-portal-entry.ts",
+    "./talent-product-entry": "./src/talent-product-entry.ts",
+    "./workspace-scope": "./src/workspace-scope.ts",
+    "./safe-return-path": "./src/safe-return-path.ts",
+    "./sales-navigation": "./src/sales-navigation.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

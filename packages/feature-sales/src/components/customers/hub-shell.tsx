@@ -1,7 +1,7 @@
 import Link from "@erpx/workplace/components/workspace-link";
 import type { ReactNode } from "react";
 import { PageContent } from "@erpx/ui/components/foundation";
-import { hubHref, salesViews, customersViews, type HubQuery } from "@erpx/server-sales/public/rules/navigation";
+import { hubHref, salesViews, customersViews, type HubQuery } from "@erpx/feature-sales/lib/navigation";
 import styles from "@erpx/feature-sales/components/customers/hub.module.css";
 import {canonicalUiHref} from "@erpx/feature-work_projection/lib/destination-registry";
 

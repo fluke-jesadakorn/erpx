@@ -13,7 +13,7 @@ import { multiSession } from "better-auth/plugins";
 import { runtimeEnv } from "../../../../packages/server-runtime/src/public/runtime";
 import { queueAccountRecovery, recordAccountRecoveryCompleted, } from "@erpx/server-identity_access/public/account-recovery";
 import { createHash } from "node:crypto";
-import { configuredProductOrigin, productHostForHost, trustedProductOrigin } from "@erpx/feature-runtime/lib/product-hosts";
+import { configuredProductOrigin, ssoAudienceForHost, trustedProductOrigin } from "@erpx/feature-runtime/lib/product-hosts";
 import { productSsoStore } from "@erpx/server-identity_access/adapters/product-sso-store";
 import { productSessionCookie, ssoOrigins } from "@erpx/server-identity_access/adapters/product-sso-context";
 type AuthRuntime = Awaited<ReturnType<typeof runtimeEnv>>;
@@ -25,6 +25,13 @@ const ordinaryAuthFactories = new WeakMap<AuthRuntime, {
 }>();
 type VerificationDeliveryTracker={attempted:boolean;failed:boolean;pending:Promise<void>|null};
 const invitationVerificationDeliveries=new WeakMap<object,VerificationDeliveryTracker>();
+const credentialSessionReaders = new WeakMap<object, unknown>();
+/** Only the Account-owned device adapter uses the original signed-cookie read.
+ * Ordinary consumers must keep the audience and active-browser checks. */
+export async function accountCredentialSession(headers: Headers) {
+    const auth = await createAuth(configuredProductOrigin('account')!);
+    return (credentialSessionReaders.get(auth) as typeof auth.api.getSession)({ headers });
+}
 export async function invitationVerificationOutcome(auth:object):Promise<'not-attempted'|'sent'|'failed'>{
     const tracker=invitationVerificationDeliveries.get(auth);
     if(!tracker?.attempted)return 'not-attempted';
@@ -38,9 +45,9 @@ export async function createAuth(requestOrigin?: string, directoryId?: string, i
     const policy = authPolicy({ local, defaultOrigin: env.BETTER_AUTH_URL, pmsOrigin: process.env.ERPX_FRONT_PMS_ORIGIN, posOrigin: process.env.ERPX_FRONT_POS_ORIGIN, beta, invitationEmail }, requestOrigin);
     const productOrigin = trustedProductOrigin(requestOrigin ?? "");
     if (productOrigin) {
-        const audience = productHostForHost(new URL(productOrigin).host)!;
+        const audience = ssoAudienceForHost(new URL(productOrigin).host)!;
         policy.baseURL = productOrigin;
-        policy.cookiePrefix = `erpx-${audience}`;
+        policy.cookiePrefix = audience.startsWith('holding:') ? 'erpx-holding' : `erpx-${audience}`;
         policy.trustedOrigins = [productOrigin];
         policy.disableSignUp = !(audience==='account'&&invitationEmail);
     }
@@ -74,7 +81,7 @@ export async function createAuth(requestOrigin?: string, directoryId?: string, i
 }
 async function buildAuth(env: AuthRuntime, local: boolean, policy: ReturnType<typeof authPolicy>, directoryId?: string, invitationEmail?: string) {
     const { baseURL, cookiePrefix } = policy;
-    const audience = productHostForHost(new URL(baseURL).host);
+    const audience = ssoAudienceForHost(new URL(baseURL).host);
     const sso = audience ? productSsoStore(env.CONTROL_DB as PostgresDatabase, "development", ssoOrigins()) : null;
     const verificationDelivery:VerificationDeliveryTracker|undefined=invitationEmail?{attempted:false,failed:false,pending:null}:undefined;
     const auth = betterAuth({
@@ -124,9 +131,10 @@ async function buildAuth(env: AuthRuntime, local: boolean, policy: ReturnType<ty
     if(verificationDelivery)invitationVerificationDeliveries.set(auth,verificationDelivery);
     if (audience && sso) {
         const getSession = auth.api.getSession;
+        if (audience === 'account') credentialSessionReaders.set(auth, getSession);
         Object.assign(auth.api, { getSession: async (input: { headers: Headers }) => {
             // The request must still belong to this exact factory's audience.
-            if (configuredProductOrigin(audience) !== baseURL || productHostForHost(input.headers.get("host")) !== audience) return null;
+            if (ssoOrigins()[audience] !== baseURL || ssoAudienceForHost(input.headers.get("host")) !== audience) return null;
             if (audience !== "account") return sso.session(productSessionCookie(input.headers), audience);
             const session = await getSession(input);
             return session && await sso.centralIsCurrent(session.session.id) ? session : null;

@@ -8,7 +8,7 @@ import { SupportConsole } from "@erpx/feature-support/components/support-console
 import { CustomerIdentityConsole } from "@erpx/feature-customer_360/components/customer-identity-console";
 import { CustomerDuplicateConsole } from "@erpx/feature-customer_360/components/customer-duplicate-console";
 import { CustomerAccessConsole } from "@erpx/feature-customer_360/components/customer-access-console";
-import { customerReviews, hubHref, queryValue, type HubQuery } from "@erpx/server-sales/public/rules/navigation";
+import { customerReviews, hubHref, queryValue, type HubQuery } from "@erpx/feature-sales/lib/navigation";
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import {commerceOverview} from '@erpx/server-commerce/public/commerce';

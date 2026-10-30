@@ -1,47 +1,10 @@
 import { canonicalUiHref } from "@erpx/feature-work_projection/lib/destination-registry";
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import type { PermissionActor } from "@erpx/feature-identity_access/lib/iam";
-
-export type HubQuery = Record<string, string | string[] | undefined>;
-export type SalesView = "today" | "pipeline" | "documents" | "pricing" | "reports";
-export type CustomersView = "directory" | "contacts" | "support" | "reviews";
-export type CustomerReview = "identity" | "duplicates" | "access";
-export const salesViews = [["today", "Today"], ["pipeline", "Pipeline"], ["documents", "Sales documents"]] as const;
-export const customersViews = [["directory", "Customers"], ["contacts", "Prospects & contacts"], ["support", "Service"]] as const;
-export const customerReviews = [["identity", "Identity changes"], ["duplicates", "Duplicates"], ["access", "Customer access"]] as const;
-export function queryValue(query: HubQuery, key: string, fallback = "") {
-  return typeof query[key] === "string" ? query[key] : fallback;
-}
-export function hubHref(base: string, hub: "sales" | "customers", query: HubQuery = {}, changes: HubQuery = {}) {
-  const params = new URLSearchParams();
-  for (const [key, value] of Object.entries({ ...query, ...changes })) if (typeof value === "string") params.set(key, value);
-  return canonicalUiHref(`${base}/${hub}${params.size ? `?${params}` : ""}`);
-}
+import { salesCustomerAccessPolicy, salesNavigationRoutes } from "@erpx/contracts/sales-navigation";
+export { salesViews, customersViews, customerReviews, queryValue } from "@erpx/contracts/sales-navigation";
+export type { HubQuery, SalesView, CustomersView, CustomerReview } from "@erpx/contracts/sales-navigation";
+export const { hubHref, salesCustomerLegacyDestination } = salesNavigationRoutes(canonicalUiHref);
 export function salesCustomerAccess(actor: PermissionActor & { branchId?: string | null; departmentId?: string | null }, apps?: readonly string[]) {
-  const enabled = (id: string) => !apps || apps.includes(id);
-  const read = hasPermission(actor, "commerce.read"), crm = read && enabled("crm"), sales = read && enabled("sales");
-  return {
-    today: crm || sales, pipeline: crm, documents: sales,
-    pricing: sales && hasPermission(actor, "commerce.sales") && !actor.branchId && !actor.departmentId,
-    reports: crm,
-    directory: read && (enabled("crm") || enabled("sales") || enabled("customer_360")), contacts: crm,
-    support: enabled("support") && (hasPermission(actor, "support.read") || hasPermission(actor, "records.read")),
-    reviews: enabled("customer_authority") && read && hasPermission(actor, "commerce.sales"),
-  };
+  return salesCustomerAccessPolicy({commerceRead: hasPermission(actor, "commerce.read"), commerceSales: hasPermission(actor, "commerce.sales"), supportRead: hasPermission(actor, "support.read"), recordsRead: hasPermission(actor, "records.read")}, actor, apps);
 }
-/** Only list routes move. Canonical owner records and commands remain stable. */
-export function salesCustomerLegacyDestination(base: string, route: string, query: HubQuery) {
-  const q = { ...query };
-  if (route === "crm") return hubHref(base, "sales", q, { view: q.from || q.to ? "reports" : "pipeline" });
-  if (route === "customer-followups") return hubHref(base, "sales", q, { view: "today", kind: "followups", owner: "team", status: "all", ...(q.orderId ? { new: "1" } : {}) });
-  if (route === "support") return hubHref(base, "customers", q, { view: "support", ...(q.orderId || q.sourceId ? { new: "1" } : {}) });
-  const review = ({ "customer-identity": "identity", "customer-duplicates": "duplicates", "customer-access": "access" } as const)[route as "customer-identity"];
-  if (review) return hubHref(base, "customers", q, { view: "reviews", review, ...(q.orderId ? { new: "1" } : {}) });
-  if (route !== "commerce") return null;
-  const view = queryValue(q, "view", "sales");
-  if (view === "parties" && queryValue(q, "kind", "customer") === "customer") return hubHref(base, "customers", q, { view: "directory", kind: undefined });
-  if (view === "pricing") return null;
-  if (view === "sales" || view === "quote") return hubHref(base, "sales", q, { view: "documents", type: view });
-  return null;
-}
-

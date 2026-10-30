@@ -1,3 +1,5 @@
+import {ssoAudienceForHost} from '@erpx/feature-runtime/lib/product-hosts';
+import {requestProductOrigin} from '@erpx/feature-runtime/lib/product-hosts';
 import "server-only";
 import { configuredProductOrigin, productHostForHost } from "@erpx/feature-runtime/lib/product-hosts";
 import { runtimeEnv } from "../../../../packages/server-runtime/src/public/runtime";
@@ -94,7 +96,7 @@ export async function accountPreferencesRequest(request: Request) {
     const origin = requestPublicOrigin(request);
     const known = [consoleOrigin()?.origin, new URL(env.BETTER_AUTH_URL).origin,
       ...[process.env.ERPX_FRONT_POS_ORIGIN, process.env.ERPX_FRONT_PMS_ORIGIN].filter((value): value is string => !!value).map(value => new URL(value).origin)];
-    if (!(audience ? configuredProductOrigin(audience) === origin : known.includes(origin)) || new URL(origin).host !== request.headers.get("host"))
+    if (!(audience ? requestProductOrigin(audience,request.headers) === origin : known.includes(origin)) || new URL(origin).host !== request.headers.get("host"))
       throw new ApiError(404, "NOT_FOUND", "Not found.");
     if (!["GET", "PATCH"].includes(request.method)) return new Response("Method not allowed", { status: 405, headers: { ...headers, Allow: "GET, PATCH" } });
     if (request.method === "PATCH" && request.headers.get("origin") !== origin)
@@ -112,7 +114,7 @@ export async function accountPreferencesRequest(request: Request) {
     if (new TextEncoder().encode(body).length > 2048) throw new ApiError(413, "REQUEST_TOO_LARGE", "This request is too large.");
     let input: unknown;
     try { input = JSON.parse(body); } catch { throw new ApiError(422, "INVALID_JSON", "Submit valid preferences."); }
-    const preference = await createAccountPreferencePatch(commandPorts(owner, { userId: session.user.id, sessionId: session.session.id, audience }))(input);
+    const preference = await createAccountPreferencePatch(commandPorts(owner, { userId: session.user.id, sessionId: session.session.id, audience:ssoAudienceForHost(request.headers.get('host')) }))(input);
     return Response.json({ data: { key, preference } }, { headers });
   } catch (failure) {
     const error = failure instanceof BusinessRuleError ? new ApiError(failure.status, failure.code, failure.message) : failure;

@@ -527,3 +527,33 @@ it("opens an original password recovery token on Account without requiring or cr
   expect(await db.prepare("SELECT value FROM verification WHERE identifier=?").bind(`reset-password:${token}`).first("value")).toBe(owner);
   expect((await GET(request(issuer, "/api/auth/list-sessions"))).status).toBe(401);
 });
+
+it('selects a real Company role with a Holding-bound child session and rejects a foreign Holding',async()=>{
+  await applyMigrations(env.H001_DB,env.STAFF_TEST_MIGRATIONS);
+  const {seedExpenseCompany}=await import('../../../fixtures/expenses/company');
+  const company=await seedExpenseCompany(env.H001_DB,env.H001_FILES),person=await profileAccount(company.owner.userId);
+  await env.H001_DB.prepare("UPDATE assignments SET modules_json='[\"finance\"]' WHERE id=? AND user_id=?").bind(company.owner.assignmentId,person.id).run();
+  const {packageGrantStore}=await import('@erpx/server-commercial/public/package-grants');
+  const store=packageGrantStore(env.H001_DB,{authorize:async()=>({userId:'fixture-provider'}),obligations:async()=>{throw Error('FIXTURE_WITHDRAWAL_FORBIDDEN');}});
+  await store.apply({idempotencyKey:randomUUID(),expectedVersion:0,grant:{companyId:company.company,packageId:'finance',packageVersion:1,state:'active',startsAt:0,endsAt:null,version:1,reason:'Isolated role-selection fixture',evidence:'test:holding-role-selection'}});
+  const keys=['ERPX_HOLDING_ROUTING','ERPX_APP_ID'] as const, previous=Object.fromEntries(keys.map(key=>[key,process.env[key]]));
+  const bindings=personalHoldingBindings.value;personalHoldingBindings.value=[{id:'h001',slug:'acme',displayName:'Acme'}];
+  process.env.ERPX_HOLDING_ROUTING='enabled';process.env.ERPX_APP_ID='finance';
+  try{
+    const origin='https://acme.jesadakorn.com', {productSsoRequest}=await import('@erpx/server-identity_access/public/product-sso');
+    const start=await productSsoRequest(request(origin,'/sso/start?next=%2Ffinance'),'start');expect(start.status).toBe(303);
+    const authUrl=new URL(start.headers.get('location')!),approved=await productSsoRequest(request(issuer,authUrl.pathname+authUrl.search,person.cookie),'authorize');expect(approved.status).toBe(303);
+    const callbackUrl=new URL(approved.headers.get('location')!),callback=await productSsoRequest(request(origin,callbackUrl.pathname+callbackUrl.search,cookies(start)),'callback');expect(callback.status).toBe(303);
+    const childCookie=cookies(callback), {switcherContextRequest,roleSelectionRequest}=await import('@erpx/server-work_projection/public/account-switcher');
+    const contextReq=request(origin,'/api/v1/account/switcher-context',childCookie);providerRequestHeaders.value=contextReq.headers;
+    const context=await switcherContextRequest(contextReq);expect(context.status).toBe(200);
+    const first=(await context.json()).data,workspace=first.workspaces.find((entry:{companyId:string;productId:string})=>entry.companyId===company.company&&entry.productId==='finance');expect(workspace).toBeTruthy();
+    const detailReq=request(origin,'/api/v1/account/switcher-context?'+new URLSearchParams({workspace:workspace.key}),childCookie);providerRequestHeaders.value=detailReq.headers;
+    const detail=await switcherContextRequest(detailReq);expect(detail.status).toBe(200);const state=(await detail.json()).data,role=state.roles.find((entry:{id:string})=>entry.id===company.owner.assignmentId);expect(role).toBeTruthy();
+    const body={workspaceKey:workspace.key,assignmentId:role.id,revision:state.revision,version:role.version,accountKey:person.id};
+    const selection=request(origin,'/api/v1/account/role-selection',childCookie,'POST',body);providerRequestHeaders.value=selection.headers;
+    expect((await roleSelectionRequest(selection)).status).toBe(200);
+    const foreign=request('https://northstar.jesadakorn.com','/api/v1/account/role-selection',childCookie,'POST',body);providerRequestHeaders.value=foreign.headers;
+    expect((await roleSelectionRequest(foreign)).status).not.toBe(200);
+  }finally{personalHoldingBindings.value=bindings;providerRequestHeaders.value=new Headers();for(const key of keys){if(previous[key]===undefined)delete process.env[key];else process.env[key]=previous[key];}}
+});

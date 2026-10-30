@@ -178,7 +178,10 @@
         "src/app/api/mcp/executive/route.ts",
         "src/app/page.tsx",
         "src/app/login/page.tsx",
-        "src/app/api/v1/holdings/[holdingSlug]/beta/[[...path]]/route.ts"
+        "src/app/api/v1/holdings/[holdingSlug]/beta/[[...path]]/route.ts",
+        "src/app/account/continue/route.ts",
+        "src/app/api/v1/account/role-selection/route.ts",
+        "src/app/api/v1/account/switcher-context/route.ts"
       ]
     },
     {
@@ -370,7 +373,10 @@
         "src/app/front/[holdingSlug]/[companySlug]/[app]/holding/front-desk/records/[recordKind]/[id]/[recordSection]/page.tsx",
         "src/app/front/[holdingSlug]/[companySlug]/[app]/holding/front-desk/page.tsx",
         "src/app/front/[holdingSlug]/[companySlug]/[app]/front-desk/page.tsx",
-        "src/app/login/page.tsx"
+        "src/app/login/page.tsx",
+        "src/app/account/continue/route.ts",
+        "src/app/api/v1/account/role-selection/route.ts",
+        "src/app/api/v1/account/switcher-context/route.ts"
       ]
     },
     {
@@ -647,7 +653,10 @@
         "src/app/front/[holdingSlug]/[companySlug]/[app]/holding/front-desk/records/[recordKind]/[id]/[recordSection]/page.tsx",
         "src/app/front/[holdingSlug]/[companySlug]/[app]/holding/front-desk/page.tsx",
         "src/app/front/[holdingSlug]/[companySlug]/[app]/front-desk/page.tsx",
-        "src/app/login/page.tsx"
+        "src/app/login/page.tsx",
+        "src/app/account/continue/route.ts",
+        "src/app/api/v1/account/role-selection/route.ts",
+        "src/app/api/v1/account/switcher-context/route.ts"
       ]
     },
     {
@@ -986,7 +995,10 @@
         "src/app/api/ready/route.ts",
         "src/app/api/health/route.ts",
         "src/app/page.tsx",
-        "src/app/login/page.tsx"
+        "src/app/login/page.tsx",
+        "src/app/account/continue/route.ts",
+        "src/app/api/v1/account/role-selection/route.ts",
+        "src/app/api/v1/account/switcher-context/route.ts"
       ]
     },
     {
@@ -1168,7 +1180,10 @@
         "src/app/api/ready/route.ts",
         "src/app/api/health/route.ts",
         "src/app/page.tsx",
-        "src/app/login/page.tsx"
+        "src/app/login/page.tsx",
+        "src/app/account/continue/route.ts",
+        "src/app/api/v1/account/role-selection/route.ts",
+        "src/app/api/v1/account/switcher-context/route.ts"
       ]
     },
     {
@@ -1332,7 +1347,10 @@
         "src/app/api/ready/route.ts",
         "src/app/api/health/route.ts",
         "src/app/page.tsx",
-        "src/app/login/page.tsx"
+        "src/app/login/page.tsx",
+        "src/app/account/continue/route.ts",
+        "src/app/api/v1/account/role-selection/route.ts",
+        "src/app/api/v1/account/switcher-context/route.ts"
       ]
     },
     {
@@ -1480,7 +1498,10 @@
         "src/app/api/ready/route.ts",
         "src/app/api/health/route.ts",
         "src/app/page.tsx",
-        "src/app/login/page.tsx"
+        "src/app/login/page.tsx",
+        "src/app/account/continue/route.ts",
+        "src/app/api/v1/account/role-selection/route.ts",
+        "src/app/api/v1/account/switcher-context/route.ts"
       ]
     },
     {
@@ -1569,7 +1590,10 @@
         "src/app/api/ready/route.ts",
         "src/app/api/health/route.ts",
         "src/app/page.tsx",
-        "src/app/login/page.tsx"
+        "src/app/login/page.tsx",
+        "src/app/account/continue/route.ts",
+        "src/app/api/v1/account/role-selection/route.ts",
+        "src/app/api/v1/account/switcher-context/route.ts"
       ]
     },
     {
@@ -1650,7 +1674,10 @@
         "src/app/api/ready/route.ts",
         "src/app/api/health/route.ts",
         "src/app/page.tsx",
-        "src/app/login/page.tsx"
+        "src/app/login/page.tsx",
+        "src/app/account/continue/route.ts",
+        "src/app/api/v1/account/role-selection/route.ts",
+        "src/app/api/v1/account/switcher-context/route.ts"
       ]
     },
     {
@@ -1731,7 +1758,10 @@
         "src/app/api/ready/route.ts",
         "src/app/api/health/route.ts",
         "src/app/page.tsx",
-        "src/app/login/page.tsx"
+        "src/app/login/page.tsx",
+        "src/app/account/continue/route.ts",
+        "src/app/api/v1/account/role-selection/route.ts",
+        "src/app/api/v1/account/switcher-context/route.ts"
       ]
     },
     {
@@ -1815,7 +1845,10 @@
         "src/app/api/ready/route.ts",
         "src/app/api/health/route.ts",
         "src/app/page.tsx",
-        "src/app/login/page.tsx"
+        "src/app/login/page.tsx",
+        "src/app/account/continue/route.ts",
+        "src/app/api/v1/account/role-selection/route.ts",
+        "src/app/api/v1/account/switcher-context/route.ts"
       ]
     },
     {
@@ -1913,7 +1946,10 @@
         "src/app/api/ready/route.ts",
         "src/app/api/health/route.ts",
         "src/app/page.tsx",
-        "src/app/login/page.tsx"
+        "src/app/login/page.tsx",
+        "src/app/account/continue/route.ts",
+        "src/app/api/v1/account/role-selection/route.ts",
+        "src/app/api/v1/account/switcher-context/route.ts"
       ]
     },
     {
@@ -1993,7 +2029,10 @@
         "src/app/api/ready/route.ts",
         "src/app/api/health/route.ts",
         "src/app/page.tsx",
-        "src/app/login/page.tsx"
+        "src/app/login/page.tsx",
+        "src/app/account/continue/route.ts",
+        "src/app/api/v1/account/role-selection/route.ts",
+        "src/app/api/v1/account/switcher-context/route.ts"
       ]
     },
     {
@@ -2128,7 +2167,10 @@
         "src/app/api/ready/route.ts",
         "src/app/api/health/route.ts",
         "src/app/page.tsx",
-        "src/app/login/page.tsx"
+        "src/app/login/page.tsx",
+        "src/app/account/continue/route.ts",
+        "src/app/api/v1/account/role-selection/route.ts",
+        "src/app/api/v1/account/switcher-context/route.ts"
       ]
     },
     {
@@ -2219,7 +2261,10 @@
         "src/app/api/ready/route.ts",
         "src/app/api/health/route.ts",
         "src/app/page.tsx",
-        "src/app/login/page.tsx"
+        "src/app/login/page.tsx",
+        "src/app/account/continue/route.ts",
+        "src/app/api/v1/account/role-selection/route.ts",
+        "src/app/api/v1/account/switcher-context/route.ts"
       ]
     },
     {
@@ -2238,7 +2283,10 @@
         "src/app/api/auth/[...all]/route.ts",
         "src/app/api/health/route.ts",
         "src/app/page.tsx",
-        "src/app/login/page.tsx"
+        "src/app/login/page.tsx",
+        "src/app/account/continue/route.ts",
+        "src/app/api/v1/account/role-selection/route.ts",
+        "src/app/api/v1/account/switcher-context/route.ts"
       ]
     },
     {
@@ -2276,7 +2324,9 @@
         "src/app/account/launch/route.ts",
         "src/app/my-profile/page.tsx",
         "src/app/page.tsx",
-        "src/app/login/page.tsx"
+        "src/app/login/page.tsx",
+        "src/app/account/device-return/route.ts",
+        "src/app/api/v1/account/device-accounts/[[...action]]/route.ts"
       ]
     },
     {
@@ -2538,7 +2588,10 @@
         "src/app/api/ready/route.ts",
         "src/app/api/health/route.ts",
         "src/app/page.tsx",
-        "src/app/login/page.tsx"
+        "src/app/login/page.tsx",
+        "src/app/account/continue/route.ts",
+        "src/app/api/v1/account/role-selection/route.ts",
+        "src/app/api/v1/account/switcher-context/route.ts"
       ]
     },
     {

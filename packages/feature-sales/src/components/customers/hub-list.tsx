@@ -1,7 +1,7 @@
 import Link from "@erpx/workplace/components/workspace-link";
 import type { ReactNode } from "react";
 import { ActionLink, Button, Select, Table, TableFrame, TextInput } from "@erpx/ui/components/foundation";
-import { hubHref, queryValue, type HubQuery } from "@erpx/server-sales/public/rules/navigation";
+import { hubHref, queryValue, type HubQuery } from "@erpx/feature-sales/lib/navigation";
 import { HubForm } from "@erpx/feature-sales/components/customers/hub-form";
 import styles from "@erpx/feature-sales/components/customers/hub.module.css";
 

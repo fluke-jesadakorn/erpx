@@ -729,7 +729,9 @@
     "./routes/login/page": "./src/routes/login/page.tsx",
     "./routes/onboarding/page": "./src/routes/onboarding/page.tsx",
     "./routes/global-error": "./src/routes/global-error.tsx",
-    "./routes/not-found": "./src/routes/not-found.tsx"
+    "./routes/not-found": "./src/routes/not-found.tsx",
+    "./components/product-account-provider": "./src/components/product-account-provider.tsx",
+    "./components/product-account.module.css": "./src/components/product-account.module.css"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

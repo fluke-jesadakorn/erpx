@@ -13,7 +13,7 @@ import type { crmIdentities } from "@erpx/server-crm/public/crm-identities";
 import { HubPagination, HubSegments } from "@erpx/feature-sales/components/customers/hub-shell";
 import { HubFilters, HubTable, hubPage } from "@erpx/feature-sales/components/customers/hub-list";
 import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
-import { queryValue, type HubQuery } from "@erpx/server-sales/public/rules/navigation";
+import { queryValue, type HubQuery } from "@erpx/feature-sales/lib/navigation";
 import styles from "@erpx/feature-sales/components/customers/hub.module.css";
 
 export function CRMIdentityConsole({

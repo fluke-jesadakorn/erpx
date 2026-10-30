@@ -2,7 +2,8 @@
 
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { X } from "lucide-react";
-import { useRef, useState, useEffect, type ReactNode } from "react";
+import { useRef, useState, useEffect, useContext, type ReactNode } from "react";
+import { InteractionSuspension } from "@erpx/ui/components/interaction-suspension";
 import type { UiAppearance } from "@erpx/ui/components/appearance";
 import { cn } from "@erpx/ui/lib/cn";
 import { buttonVariants } from "@erpx/ui/components/button-variants";
@@ -65,12 +66,14 @@ export function Dialog({
   "data-testid"?: string;
 }) {
   const popup = useRef<HTMLDivElement>(null);
+  const identitySuspended = useContext(InteractionSuspension);
+  const paused = suspended || identitySuspended;
   const embedded = useEmbeddedRecord();
   const workspace = useWorkspaceOverlay();
   useWorkspaceEditor(open && presentation === "form-drawer" && workspaceRole === "editor");
   const [hasOpened, setHasOpened] = useState(retainFormContents && open);
   if (retainFormContents && open && !hasOpened) setHasOpened(true);
-  const keepFormMounted = retainFormContents && (presentation === "form-drawer" || presentation === "fullscreen") && hasOpened;
+  const keepFormMounted = identitySuspended && open || retainFormContents && (presentation === "form-drawer" || presentation === "fullscreen") && hasOpened;
   // Embedded editors retain their existing explicit-discard behavior.
   if (embedded && !workspace.active && presentation === "form-drawer") return open ? <EmbeddedForm title={title} onClose={onClose} dismissDisabled={dismissDisabled}>{children}</EmbeddedForm> : null;
   const panel = presentation !== "default";
@@ -86,7 +89,7 @@ export function Dialog({
   };
   return (
     <DialogPrimitive.Root
-      open={open}
+      open={open && !identitySuspended}
       disablePointerDismissal={dismissDisabled}
       onOpenChange={(next, details) => {
         if (!next) {
@@ -99,14 +102,14 @@ export function Dialog({
     >
       <DialogPrimitive.Portal keepMounted={keepFormMounted}>
         <DialogPrimitive.Backdrop
-          hidden={suspended || !open}
+          hidden={paused || !open}
           data-slot="dialog-backdrop"
           className="fixed inset-0 z-[80] bg-slate-950/60"
         />
-        <DialogPrimitive.Viewport style={suspended || !open?{display:"none"}:undefined} hidden={suspended || !open} className="pointer-events-none fixed inset-0 z-[80] flex overflow-y-auto">
+        <DialogPrimitive.Viewport inert={paused} style={paused || !open?{display:"none"}:undefined} hidden={paused || !open} className="pointer-events-none fixed inset-0 z-[80] flex overflow-y-auto">
           <DialogPrimitive.Popup
             id={id}
-            aria-hidden={suspended || !open || undefined}
+            aria-hidden={paused || !open || undefined}
             ref={popup}
             data-slot="dialog"
             data-presentation={presentation}

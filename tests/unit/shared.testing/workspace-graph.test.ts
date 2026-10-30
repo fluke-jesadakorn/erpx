@@ -1,4 +1,4 @@
-import{workspaceBrowserFixtureProfile}from '../../../scripts/testing/development-host-profile';
+import{workspaceBrowserFixtureProfile,workspaceHoldingProfile,workspaceBrowserOrigins,assertWorkspaceHoldingBinding}from '../../../scripts/testing/development-host-profile';
 import{firstRouteCompile,firstRouteEnsure}from '../../../scripts/performance/route-compile-metrics';
 import{runtimeOwnerCycles}from '../../../scripts/architecture/owner-cycles';
 import { mkdtemp, mkdir, writeFile, rm, realpath } from 'node:fs/promises';
@@ -516,4 +516,18 @@ it('binds minimal fictional cohorts to declared development hosts without changi
  expect(()=>workspaceBrowserFixtureProfile('money-people',['account','apps','legal'],false)).toThrow('EXPLICIT_WORKSPACE_FIXTURE_PROFILE_REQUIRED');
  expect(()=>workspaceBrowserFixtureProfile('public-hosts',['compat'],false)).toThrow('EXPLICIT_WORKSPACE_FIXTURE_PROFILE_REQUIRED');
  expect(()=>workspaceBrowserFixtureProfile('anything',null,false)).toThrow('WORKSPACE_FIXTURE_PROFILE_REQUIRES_WORKSPACE');
+});
+
+
+it('Holding browser profile is explicit, isolated and keeps legacy origins unchanged',()=>{
+ const apps=['account','apps','finance','people'];
+ expect(workspaceHoldingProfile(undefined,apps,true,'engineering',3104)).toBe(false);
+ expect(workspaceHoldingProfile('1',apps,true,'engineering',3104)).toBe(true);
+ expect(()=>assertWorkspaceHoldingBinding(true,false)).toThrow('HOLDING_BROWSER_PROFILE_CHANGED');
+ expect(()=>assertWorkspaceHoldingBinding(false,true)).toThrow('HOLDING_BROWSER_PROFILE_CHANGED');
+ expect(()=>assertWorkspaceHoldingBinding(true,'true')).toThrow('HOLDING_BROWSER_PROFILE_CHANGED');
+ expect(()=>assertWorkspaceHoldingBinding(false,undefined)).not.toThrow();
+ for(const args of [['0',apps,true,'engineering',3104],['1',apps,false,'engineering',3104],['1',apps,true,'booking',3104],['1',apps,true,'engineering',3102],['1',['account'],true,'engineering',3104]] as const) expect(()=>workspaceHoldingProfile(...args)).toThrow('EXPLICIT_HOLDING_BROWSER_PROFILE_REQUIRED');
+ expect(workspaceBrowserOrigins(apps,true)).toEqual(['https://acme.jesadakorn.com','https://northstar.jesadakorn.com','https://erpx-internal.jesadakorn.com','https://account-dev-erpx.jesadakorn.com','https://console-dev-erpx.jesadakorn.com','https://finance-dev-erpx.jesadakorn.com']);
+ expect(workspaceBrowserOrigins(['compat'],false)).toEqual(['https://console-dev-erpx.jesadakorn.com']);
 });

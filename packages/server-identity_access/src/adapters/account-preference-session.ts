@@ -1,6 +1,7 @@
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { ApiError } from "@erpx/server-runtime/public/http";
+import { deviceSessionSelected } from '@erpx/server-identity_access/adapters/device-account-store';
 import { bindingIsCurrent, type SsoSessionBinding } from "@erpx/server-identity_access/domain/product-sso";
 
 type Binding = { session_id: string; audience: string; environment: string; parent_session_id: string | null; authenticated_at: number; absolute_expires_at: number };
@@ -27,7 +28,7 @@ export async function assertAccountPreferenceSession(transaction: SqlDatabase,
   if (!current || current.parent_session_id !== (parentId ?? null)) throw invalid();
   if (actor.audience === "account") {
     const now = clock();
-    if (parentId || !bindingIsCurrent(binding(current), "account", "development", now) || new Date(session.expires_at).getTime() <= now) throw invalid();
+    if (parentId || !bindingIsCurrent(binding(current), "account", "development", now) || new Date(session.expires_at).getTime() <= now || !await deviceSessionSelected(transaction, actor.sessionId)) throw invalid();
     return;
   }
   if (!parentId) throw invalid();

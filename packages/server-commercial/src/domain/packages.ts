@@ -59,7 +59,8 @@ export function canonicalPackageGrant(grant: CompanyPackageGrant): CompanyPackag
   return { companyId: grant.companyId, packageId: grant.packageId, packageVersion: grant.packageVersion, state: grant.state,
     startsAt: grant.startsAt, endsAt: grant.endsAt, version: grant.version, reason: grant.reason, evidence: grant.evidence };
 }
-export type CapabilityPurpose = "new-work" | "settle-existing" | "history";
+import type {CapabilityPurpose} from "@erpx/contracts/product-registry";
+export type {CapabilityPurpose} from "@erpx/contracts/product-registry";
 export type CompanyPackageHistoryRight = {
   companyId: string;
   packageId: string;

@@ -1,7 +1,6 @@
 import "server-only";
 import { NextResponse } from "next/server";
-import { configuredProductOrigin, productHostForHost } from "@erpx/feature-runtime/lib/product-hosts";
-import type { ProductHostKey } from "@erpx/contracts/product-registry";
+import { configuredProductOrigin, ssoAudienceForHost, trustedProductOrigin } from "@erpx/feature-runtime/lib/product-hosts";
 import { runtimeEnv } from "../../../../packages/server-runtime/src/public/runtime";
 import type { PostgresDatabase } from "@erpx/server-runtime/public/runtime/postgres";
 import { productSsoStore } from "@erpx/server-identity_access/adapters/product-sso-store";
@@ -17,12 +16,12 @@ export async function runtimeProductSsoStore() {
   return productSsoStore(env.CONTROL_DB as PostgresDatabase, "development", ssoOrigins());
 }
 function destinationResponse(destination: URL) { return NextResponse.redirect(destination, { status: 303, headers: responseHeaders }); }
-function host(request: Request): ProductHostKey | null { return productHostForHost(request.headers.get("host")); }
+function host(request: Request) { return ssoAudienceForHost(request.headers.get("host")); }
 
 export async function productSsoRequest(request: Request, action: string) {
   const audience = host(request), accountOrigin = configuredProductOrigin("account");
   if (!audience || !accountOrigin) return new Response("Not found", { status: 404, headers: responseHeaders });
-  const url = new URL(request.url), origin = configuredProductOrigin(audience)!;
+  const url = new URL(request.url), origin = ssoOrigins()[audience];
   if (request.method !== "GET") return new Response("Method not allowed", { status: 405, headers: { ...responseHeaders, Allow: "GET" } });
   const store = await runtimeProductSsoStore();
   try {
@@ -69,7 +68,7 @@ export async function productSsoRequest(request: Request, action: string) {
 export async function productSignOut(request: Request) {
   const audience = host(request);
   if (!audience) return null;
-  const origin = configuredProductOrigin(audience)!;
+  const origin = trustedProductOrigin(`https://${request.headers.get('host')}`)!;
   if (request.method !== "POST" || request.headers.get("origin") !== origin) return new Response("Invalid origin", { status: 403, headers: responseHeaders });
   const { createAuth } = await import("@erpx/server-identity_access/adapters/auth");
   const session = await (await createAuth(origin)).api.getSession({ headers: request.headers });

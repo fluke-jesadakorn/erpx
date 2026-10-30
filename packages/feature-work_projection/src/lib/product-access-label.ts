@@ -1,4 +1,4 @@
-import type {CapabilityPurpose} from '@erpx/server-commercial/public/rules/packages';
+import type {CapabilityPurpose} from '@erpx/contracts/product-registry';
 /** Entry purpose controls admission; source work still has its own action policy. */
 export function productAccessLabel(access:{purchasePurpose:CapabilityPurpose;sourceRecord?:boolean},language:'th'|'en'):string|undefined{
  if(access.sourceRecord)return language==='th'?'เฉพาะงานที่ได้รับสิทธิ์':'Authorized work';

@@ -78,3 +78,6 @@ export function validateProductRegistry(moduleIds: readonly string[]) {
   for (const entry of products) if (!entry.destinations.some(prefix => entry.landing === prefix || entry.landing.startsWith(prefix + "/"))) problems.push(`invalid-landing:${entry.id}`);
   return problems;
 }
+
+/** Purpose of a purchased capability in presentation and owner policy. */
+export type CapabilityPurpose = "new-work" | "settle-existing" | "history";

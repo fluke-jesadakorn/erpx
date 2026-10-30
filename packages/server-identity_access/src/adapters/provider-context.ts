@@ -1,3 +1,5 @@
+import {ssoAudienceForHost} from '@erpx/feature-runtime/lib/product-hosts';
+import {requestProductOrigin} from '@erpx/feature-runtime/lib/product-hosts';
 import 'server-only';
 import {headers} from 'next/headers';
 import {NextResponse} from 'next/server';
@@ -15,22 +17,22 @@ import type {ProviderContextSeed} from '@erpx/feature-identity_access/lib/provid
 
 const responseHeaders={'Cache-Control':'private, no-store','Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff'};
 const selection=z.object({accountKey:z.string().regex(/^[a-f0-9]{64}$/),expectedContext:z.string().regex(/^[a-f0-9]{64}$/),expectedRevision:z.number().int().nonnegative().safe(),assignmentId:z.string().min(1).max(128),choiceVersion:z.string().regex(/^[a-f0-9]{64}$/)}).strict();
-function requireAdmin(requestHeaders:Headers){if(!configuredProductOrigin('admin')||productHostForHost(requestHeaders.get('host'))!=='admin')throw new ApiError(404,'NOT_FOUND','Not found.');}
+function requireAdmin(requestHeaders:Headers){if(!requestProductOrigin('admin',requestHeaders)||productHostForHost(requestHeaders.get('host'))!=='admin')throw new ApiError(404,'NOT_FOUND','Not found.');}
 function owned(database:SqlDatabase){if(!isTransactionalSqlDatabase(database))throw new ApiError(503,'PROVIDER_CONTEXT_TRANSACTION_REQUIRED','Platform selection requires its complete fresh Control transaction.');return database;}
 function readyError(error:unknown){let cause=error;for(let depth=0;depth<5&&cause&&typeof cause==='object';depth++){const item=cause as {code?:string;cause?:unknown};if(item.code==='42P01')return new ApiError(503,'PROVIDER_CONTEXT_NOT_READY','Administration context selection is not ready.');cause=item.cause;}return error;}
 /** Minimal Server seed; no actor, modules, policy, session or grant snapshot. */
 export async function currentProviderContext():Promise<ProviderContextSeed>{
  const requestHeaders=await headers();requireAdmin(requestHeaders);const {session}=await currentSession(),owner=(await runtimeEnv()).CONTROL_DB;
- try{return await providerContextStore(owned(owner),{userId:session.user.id,sessionId:session.session.id,selectedCookie:cookieValue(requestHeaders.get('cookie'),'erpx_assignment_platform')}).read();}catch(error){throw readyError(error);}
+ try{return await providerContextStore(owned(owner),{userId:session.user.id,sessionId:session.session.id,selectedCookie:cookieValue(requestHeaders.get('cookie'),'erpx_assignment_platform'),audience:ssoAudienceForHost(requestHeaders.get('host'))??undefined}).read();}catch(error){throw readyError(error);}
 }
 export async function providerContextRequest(request:Request){
  try{
-  requireAdmin(request.headers);const origin=configuredProductOrigin('admin')!;
+  requireAdmin(request.headers);const origin=requestProductOrigin('admin',request.headers)!;
   if(requestPublicOrigin(request)!==origin)throw new ApiError(404,'NOT_FOUND','Not found.');
   if(!['GET','POST'].includes(request.method))return new Response('Method not allowed',{status:405,headers:{...responseHeaders,Allow:'GET, POST'}});
   if(request.method==='POST'&&request.headers.get('origin')!==origin)throw new ApiError(403,'ORIGIN_FORBIDDEN','Choose a Platform role from the current Administration application.');
   const session=await sessionFromRequest(request);if(!session)throw new ApiError(401,'SIGN_IN_REQUIRED','Sign in to Administration.');
-  const store=providerContextStore(owned((await runtimeEnv()).CONTROL_DB),{userId:session.user.id,sessionId:session.session.id,selectedCookie:cookieValue(request.headers.get('cookie'),'erpx_assignment_platform')});
+  const store=providerContextStore(owned((await runtimeEnv()).CONTROL_DB),{userId:session.user.id,sessionId:session.session.id,selectedCookie:cookieValue(request.headers.get('cookie'),'erpx_assignment_platform'),audience:ssoAudienceForHost(request.headers.get('host'))??undefined});
   if(request.method==='GET'){
    const seed=await store.read(),accountKey=new URL(request.url).searchParams.get('accountKey');if(accountKey!==null&&accountKey!==seed.accountKey)throw new ApiError(409,'PROVIDER_CONTEXT_CHANGED','Your account changed. Reload Administration.');return NextResponse.json({data:seed},{headers:responseHeaders});
   }

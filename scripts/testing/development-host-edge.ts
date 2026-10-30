@@ -7,7 +7,7 @@ import { chmod, lstat, mkdtemp, readFile, realpath, writeFile } from 'node:fs/pr
 import { join, resolve } from 'node:path';
 import { hasPortListener } from '../local/port-listeners';
 import { appDefinition } from '@erpx/contracts/apps';
-import { workspaceBrowserApps } from './development-host-profile';
+import { workspaceBrowserApps, workspaceBrowserOrigins, assertWorkspaceHoldingBinding } from './development-host-profile';
 
 export type DevelopmentHostEdgeInput = { root: string; run: string; sourceFingerprint: string; entryApp: string };
 const hash = (value: string | Buffer) => createHash('sha256').update(value).digest('hex');
@@ -21,6 +21,8 @@ export async function startDevelopmentHostEdge(input: DevelopmentHostEdgeInput) 
   const state = JSON.parse(await readFile(join(directory, 'state.json'), 'utf8'));
   const runtimeBytes = await readFile(join(directory, 'workspace-runtime.json')), runtime = JSON.parse(runtimeBytes.toString());
   const apps = workspaceBrowserApps(JSON.stringify(state.workspaceApps));
+  assertWorkspaceHoldingBinding(state.workspaceHoldingProfile === true,state.workspaceHoldingProfile);
+  assertWorkspaceHoldingBinding(state.workspaceHoldingProfile === true,runtime.holdingProfile);
   assert(Boolean(runtime.consoleRetired)===Boolean(state.workspaceConsoleRetired),'DEVELOPMENT_CONSOLE_PROFILE_CHANGED');
   assert((runtime.fixtureProfile??null)===(state.workspaceFixtureProfile??null),'WORKSPACE_FIXTURE_PROFILE_CHANGED');
   assert(apps && state.run === input.run && state.prefix === `erpx_browser_${input.run}` && state.executionMode === 'development-smoke' && state.ready && !state.release && !state.diagnostic && state.port === 3104 && state.sourceFingerprint === input.sourceFingerprint, 'DEVELOPMENT_HOST_FIXTURE_STATE_REQUIRED');
@@ -33,7 +35,7 @@ export async function startDevelopmentHostEdge(input: DevelopmentHostEdgeInput) 
     const url = new URL(manifest.databases[binding]);
     return url.hostname === '127.0.0.1' && url.port === '5432' && url.username === 'erpx_test_admin' && url.pathname === `/erpx_browser_${input.run}_${binding.toLowerCase()}`;
   }), 'DEVELOPMENT_HOST_OWNED_DATABASES_REQUIRED');
-  const origins = apps[0] === 'compat' ? ['https://console-dev-erpx.jesadakorn.com'] : apps.map(id => appDefinition(id).origin);
+  const origins = workspaceBrowserOrigins(apps,Boolean(state.workspaceHoldingProfile));
   assert(apps.includes(input.entryApp), 'DEVELOPMENT_HOST_ENTRY_APP_REQUIRED');
   assert(JSON.stringify([...runtime.origins].sort()) === JSON.stringify([...origins].sort()), 'DEVELOPMENT_HOST_ORIGIN_REGISTER_CHANGED');
   const hosts = origins.map(origin => new URL(origin).host);
@@ -104,7 +106,7 @@ export async function startDevelopmentHostEdge(input: DevelopmentHostEdgeInput) 
   await new Promise<void>((done, reject) => { proxy.once('error', reject); proxy.listen(3102, '127.0.0.1', () => done()); });
   const address = proxy.address() as AddressInfo;
   assert(address.address === '127.0.0.1' && address.port === 3102, 'DEVELOPMENT_HOST_ACTUAL_PROXY_REQUIRED');
-  const lease = { schema: 'erpx-development-host-edge/v1', acceptance: false, run: input.run, pid: process.pid, port: 3102, upstream: 3104, origins, apps, fixtureProfile:state.workspaceFixtureProfile, consoleRetired:Boolean(state.workspaceConsoleRetired), spki, certificate: { path: certificatePath, sha256: hash(certificateBytes) }, runtime: { path: join(directory, 'workspace-runtime.json'), sha256: hash(runtimeBytes) }, sourceFingerprint: input.sourceFingerprint };
+  const lease = { schema: 'erpx-development-host-edge/v1', acceptance: false, run: input.run, pid: process.pid, port: 3102, upstream: 3104, origins, apps, fixtureProfile:state.workspaceFixtureProfile, holdingProfile:Boolean(state.workspaceHoldingProfile), consoleRetired:Boolean(state.workspaceConsoleRetired), spki, certificate: { path: certificatePath, sha256: hash(certificateBytes) }, runtime: { path: join(directory, 'workspace-runtime.json'), sha256: hash(runtimeBytes) }, sourceFingerprint: input.sourceFingerprint };
   try { await writeFile(leasePath, JSON.stringify(lease, null, 2) + '\n', { mode: 0o600 }); } catch (error) { for (const socket of sockets) socket.destroy(); await new Promise<void>(done => proxy.close(() => done())); throw error; }
   let closing: Promise<void> | undefined;
   return { leasePath, lease, refusals, close() { return closing ??= (async () => { for (const socket of sockets) socket.destroy(); await new Promise<void>(done => proxy.close(() => done())); await writeFile(join(directory, 'workspace-edge-result.json'), JSON.stringify({ acceptance: false, refusals, closed: true }, null, 2) + '\n', { mode: 0o600 }); })(); } };

@@ -68,7 +68,10 @@
     "./lib/management-workspace-command": "./src/lib/management-workspace-command.ts",
     "./lib/organization-access-command": "./src/lib/organization-access-command.ts",
     "./lib/auth-client": "./src/lib/auth-client.ts",
-    "./lib/account-security": "./src/lib/account-security.ts"
+    "./lib/account-security": "./src/lib/account-security.ts",
+    "./lib/device-accounts": "./src/lib/device-accounts.ts",
+    "./lib/verified-form-submit": "./src/lib/verified-form-submit.ts",
+    "./lib/node-device-accounts": "./src/lib/node-device-accounts.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

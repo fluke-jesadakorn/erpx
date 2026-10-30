@@ -132,6 +132,7 @@
   },
   "dependencies": {
     "@erpx/catalogue": "workspace:*",
+    "@erpx/contracts": "workspace:*",
     "@erpx/feature-identity_access": "workspace:*",
     "@erpx/feature-people_payroll": "workspace:*",
     "@erpx/feature-runtime": "workspace:*",

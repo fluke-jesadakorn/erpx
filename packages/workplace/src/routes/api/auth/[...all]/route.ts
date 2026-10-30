@@ -5,6 +5,9 @@ import { frontAppForHost, safeFrontReturnPath } from "@erpx/feature-shared/lib/f
 import { productHostForHost } from "@erpx/feature-runtime/lib/product-hosts";
 import { productSignOut } from "@erpx/server-identity_access/public/product-sso";
 import { anonymousAccountAuthPath } from "@erpx/server-identity_access/public/product-sso";
+import { accountEmailSignIn, accountAuthenticationRequest, synchronizeAccountAuth } from '@erpx/server-identity_access/public/device-accounts';
+
+import { isLegacyMultiSessionPath, nodeAccountSignInResponse, nodeAccountSignUpResponse } from './node-account-sign-in';
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +30,7 @@ async function frontCallbackAllowed(request: Request) {
 }
 
 export async function GET(request: Request) {
+  if (isLegacyMultiSessionPath(new URL(request.url).pathname)) return new Response("Not found", {status:404, headers:{"Cache-Control":"private, no-store"}});
   const audience = productHostForHost(request.headers.get("host"));
   if (audience && new URL(request.url).pathname === "/api/auth/get-session") {
     const session = await (await createAuth(requestPublicOrigin(request))).api.getSession({ headers: request.headers });
@@ -37,17 +41,22 @@ export async function GET(request: Request) {
   if (denied) return denied;
   if (!await frontCallbackAllowed(request)) return new Response("Invalid return path", { status: 400 });
   const callback = new URL(request.url).pathname.match(/\/callback\/directory-([a-f0-9-]{36})$/i);
-  try{return await (await createAuth(requestPublicOrigin(request),callback?.[1])).handler(request);}catch(e){return errorResponse(e);}
+  try{const response=await (await createAuth(requestPublicOrigin(request),callback?.[1])).handler(audience==='account'?await accountAuthenticationRequest(request):request);return audience==='account'?await synchronizeAccountAuth(request,response):response;}catch(e){return errorResponse(e);}
 }
 
 export async function POST(request: Request) {
+  if (isLegacyMultiSessionPath(new URL(request.url).pathname)) return new Response("Not found", {status:404, headers:{"Cache-Control":"private, no-store"}});
   const audience = productHostForHost(request.headers.get("host"));
   if (audience && new URL(request.url).pathname === "/api/auth/sign-out") return (await productSignOut(request))!;
   if (audience && audience !== "account") return new Response("Not found", { status: 404 });
+  if (audience === 'account' && new URL(request.url).pathname === '/api/auth/sign-in/email') {
+    if(request.headers.get('origin')!==requestPublicOrigin(request)) return new Response('Invalid origin',{status:403});
+    try{return await nodeAccountSignInResponse(await accountEmailSignIn(request));}catch(error){return errorResponse(error);}
+  }
   const denied = await accountSessionDenied(request);
   if (denied) return denied;
   if (!await frontCallbackAllowed(request)) return new Response("Invalid return path", { status: 400 });
   let directoryId: string | undefined;
   if(new URL(request.url).pathname.endsWith("/sign-in/social")){const body=await request.clone().json().catch(()=>null);const provider=body?.provider; if(typeof provider==="string"&&/^directory-[a-f0-9-]{36}$/i.test(provider))directoryId=provider.slice(10);}
-  try{return await (await createAuth(requestPublicOrigin(request),directoryId)).handler(request);}catch(e){return errorResponse(e);}
+  try{const response=await (await createAuth(requestPublicOrigin(request),directoryId)).handler(audience==='account'?await accountAuthenticationRequest(request):request); const synced=audience==='account'?await synchronizeAccountAuth(request,response):response; return audience==='account'&&new URL(request.url).pathname==='/api/auth/sign-up/email'?await nodeAccountSignUpResponse(synced):synced;}catch(e){return errorResponse(e);}
 }
