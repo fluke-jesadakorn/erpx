@@ -1,0 +1,110 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-30T22:03:39.442926+00:00",
+  "sourceCommit": "1f71a96fbccddbd8b2a8c5e29b7734dd6661c880",
+  "integrationTarget": "codex/rust-backend-migration",
+  "scope": "ARM64 contributor Service Parts existing-mapping confirmation, stock masters and draft Count; not complete Field or zero-reference Finance setup",
+  "sourceFiles": {
+    ".devcontainer/devcontainer.json": "89ce21b79edeb863278a418eaf0505f8d021f9cb0e7a239c246e5efd7882ef89",
+    "scripts/testing/fixtures/dev-container-service-qualification.py": "31dc71be4e5f31f8d6248686e3bf870621fcdabdeaf042c3b1055201b1afe730",
+    "scripts/testing/fixtures/dev-container-service-qualification.mjs": "73486d1432834de8e2e011d5eb5c105e0c8e299db1309d5c99f375952adbae21"
+  },
+  "freshGuestOverlay": {
+    ".devcontainer/devcontainer.json": "89ce21b79edeb863278a418eaf0505f8d021f9cb0e7a239c246e5efd7882ef89",
+    "scripts/testing/fixtures/dev-container-service-qualification.py": "31dc71be4e5f31f8d6248686e3bf870621fcdabdeaf042c3b1055201b1afe730",
+    "scripts/testing/fixtures/dev-container-service-qualification.mjs": "9edb24ea2835a232345260ed8a472d7cfcf23695f80f35b0c7ac0a639f081f2f",
+    "scripts/testing/fixtures/dev-container-service-qualification-db.mjs": "08167f409a87b1774218c52fc2108200ec4719dc35c0c90b06b8a494ac9cbd2f"
+  },
+  "workspaceImage": "sha256:51011e0a57507d315dcbee3907cced145dc1f6055166aed402dbd070f930e570",
+  "checks": {
+    "freshRepositoryLifecycle": true,
+    "migrateSeed": true,
+    "selectedAccountAppsService": true,
+    "normalSSOExistingMappingMastersDraftCount": true,
+    "realWorkerAckReceiptCheckpoint": true,
+    "sourceEditHMRAndRestoration": true,
+    "nativeIncrementalEditAndRestoration": true,
+    "restartDataKeysAndCachePersistence": true,
+    "officialCLI": "0.90.0 up reused populated exact namespace; initialize/postCreate/postStart and exact-container exec passed",
+    "hostDiagnosticsAfterCLI": "Normal SSO/readback; zero captured page/console/HTTP/WebSocket errors"
+  },
+  "timingsMilliseconds": {
+    "nativeColdBootstrap": 32802,
+    "firstRecheck": 320,
+    "warm": 235,
+    "edited": 4289,
+    "restored": 3125
+  },
+  "privateEvidence": [
+    {
+      "path": ".scratch/dev/service-parts-dev-qualification/evidence/result.json",
+      "sha256": "58e3d2105d1de598af7b7c3d370d9748dc38889aab91a31ea2ae5ab12599a5df",
+      "bytes": 7339,
+      "preservedPrivateCopy": ".scratch/dev/service-parts-dev-accepted-evidence/58e3d2105d1de598af7b7c3d370d9748dc38889aab91a31ea2ae5ab12599a5df.json"
+    },
+    {
+      "path": ".scratch/dev/service-parts-dev-qualification/evidence/rust-cold-start.json",
+      "sha256": "f826b435fdad1a3b289a43512f28812e3f97bf8942cb816cf7654d34c12ca664",
+      "bytes": 136,
+      "preservedPrivateCopy": ".scratch/dev/service-parts-dev-accepted-evidence/f826b435fdad1a3b289a43512f28812e3f97bf8942cb816cf7654d34c12ca664.json"
+    },
+    {
+      "path": ".scratch/dev/service-parts-dev-qualification/evidence/worker-proof.json",
+      "sha256": "753b084c1da549261fe4de2cb463cda9b326bea81ec789badcd867e98b47a60f",
+      "bytes": 151,
+      "preservedPrivateCopy": ".scratch/dev/service-parts-dev-accepted-evidence/753b084c1da549261fe4de2cb463cda9b326bea81ec789badcd867e98b47a60f.json"
+    },
+    {
+      "path": ".scratch/dev/service-parts-dev-qualification/evidence/browser-create.json",
+      "sha256": "4f4dae38de1b2598450fe4dc55fc2e81eb8ba41145a94d65088e21fee00ec171",
+      "bytes": 4158,
+      "preservedPrivateCopy": ".scratch/dev/service-parts-dev-accepted-evidence/4f4dae38de1b2598450fe4dc55fc2e81eb8ba41145a94d65088e21fee00ec171.json"
+    },
+    {
+      "path": ".scratch/dev/service-parts-dev-qualification/evidence/browser-readback.json",
+      "sha256": "752fbd715cbb61c7d9c30157a341839a2f6b43872a2fd5dd90adb657b9836677",
+      "bytes": 908,
+      "preservedPrivateCopy": ".scratch/dev/service-parts-dev-accepted-evidence/752fbd715cbb61c7d9c30157a341839a2f6b43872a2fd5dd90adb657b9836677.json"
+    },
+    {
+      "path": ".scratch/dev/service-parts-dev-qualification/evidence/browser-diagnostic-readback.json",
+      "sha256": "2f554c939b10d6f3797717a27b9a53f46e475dc236fd38df2db34c8a756ad309",
+      "bytes": 664,
+      "preservedPrivateCopy": ".scratch/dev/service-parts-dev-accepted-evidence/2f554c939b10d6f3797717a27b9a53f46e475dc236fd38df2db34c8a756ad309.json"
+    },
+    {
+      "path": ".scratch/dev/service-parts-dev-qualification/evidence/browser-after-cli-readback.json",
+      "sha256": "2f554c939b10d6f3797717a27b9a53f46e475dc236fd38df2db34c8a756ad309",
+      "bytes": 664,
+      "preservedPrivateCopy": ".scratch/dev/service-parts-dev-accepted-evidence/2f554c939b10d6f3797717a27b9a53f46e475dc236fd38df2db34c8a756ad309.json"
+    },
+    {
+      "path": ".scratch/dev/service-parts-dev-qualification/evidence/official-cli-up.jsonl",
+      "sha256": "a182bd5230654036062749b935d323b90709fee8c79804fc085a685dd788c6f9",
+      "bytes": 364,
+      "preservedPrivateCopy": ".scratch/dev/service-parts-dev-accepted-evidence/a182bd5230654036062749b935d323b90709fee8c79804fc085a685dd788c6f9.jsonl"
+    },
+    {
+      "path": ".scratch/dev/service-parts-dev-qualification/evidence/official-cli-up.stderr",
+      "sha256": "c2de2d33591c720e159e7b3c5e8c9a8c61498f2a2846efef06af131804ff929d",
+      "bytes": 30345,
+      "preservedPrivateCopy": ".scratch/dev/service-parts-dev-accepted-evidence/c2de2d33591c720e159e7b3c5e8c9a8c61498f2a2846efef06af131804ff929d.stderr"
+    },
+    {
+      "path": ".scratch/dev/service-parts-dev-qualification/evidence/official-cli-exec-2.out",
+      "sha256": "13c6c441693815e82796485bb48d23009f5cf022e5afe4b76a7e04cc61381d9e",
+      "bytes": 57,
+      "preservedPrivateCopy": ".scratch/dev/service-parts-dev-accepted-evidence/13c6c441693815e82796485bb48d23009f5cf022e5afe4b76a7e04cc61381d9e.out"
+    }
+  ],
+  "limitations": [
+    "Full guest run used the recorded earlier MJS overlay; final host-only diagnostics upgrade was exercised by warm readback and after official CLI, not retroactively claimed in guest.",
+    "Cold create retained two React premount warnings and two unclassified404 errors; restart retained one premount warning. Field16 is open.",
+    "Initial runner paused for disk floor; timeout during pause preserved. Supported same-case resume completed without replaying business commands.",
+    "No Count approve/post or zero-reference Finance setup claim in this Dev run.",
+    "No fresh official CLI-created namespace or editor GUI claim; fresh setup uses repository CLI.",
+    "Linux ARM64 on macOS only; no AMD64, public Tunnel cutover, complete system or production qualification.",
+    "Engineering bridge WIP is excluded; hosted CI unavailable and no success status fabricated."
+  ],
+  "integrationStatusAtRecording": "Local qualification and bounded independent source review passed; scoped PR pending."
+}

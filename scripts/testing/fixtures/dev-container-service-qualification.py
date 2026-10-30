@@ -165,7 +165,7 @@ class Case:
   cold=self.guest('cat','/workspace/erpx/.scratch/dev/native-build.log');metadata=self.guest('cat','/workspace/erpx/.scratch/dev/native-build.json');private(self.evidence/'rust-cold-start.log',cold);private(self.evidence/'rust-cold-start.json',metadata)
   if b'Compiling erpx-service ' not in cold:raise RuntimeError('COLD_RUST_BUILD_EVIDENCE_REQUIRED')
   target='src/composition/src/service_initial_physical_stock_contracts.rs';original=self.guest('cat','/workspace/erpx/'+target);baseline=digest(original)
-  cmd=['sh','-ec','cd /workspace/erpx && export CARGO_TARGET_DIR="/workspace/erpx/target/dev-native-$(node -p process.arch)-rust1991" CARGO_PROFILE_DEV_DEBUG=0 CARGO_INCREMENTAL=1 && cargo build --locked -v -p erpx-service --no-default-features --features private-field-api --bin erpx-server']
+  cmd=['sh','-ec','cd /workspace/erpx && export CARGO_TARGET_DIR="/workspace/erpx/target/dev-native-$(node -p process.arch)-rust1991" CARGO_PROFILE_DEV_DEBUG=0 CARGO_INCREMENTAL=1 PKG_CONFIG_PATH=/opt/erpx-vips/lib/pkgconfig LD_LIBRARY_PATH=/opt/erpx-vips/lib && cargo build --locked -v -p erpx-service --no-default-features --features private-field-api,files-scan-worker --bin erpx-server']
   def build(name,require_compilation):
    begin=time.monotonic();out=self.guest(*cmd,timeout=1800);private(self.evidence/name,out)
    compiling=b'Compiling erpx-service ' in out
