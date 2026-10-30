@@ -23,7 +23,7 @@
     "workflowsVerified": 0,
     "workflowsMerged": 0,
     "ownersComplete": 0,
-    "bundleChecklistComplete": 7,
+    "bundleChecklistComplete": 8,
     "bundleChecklistTotal": 18
   },
   "evidencePolicy": {
@@ -121,11 +121,13 @@
         "number": 8,
         "id": "parts-setup",
         "description": "Migrate or otherwise deliver actual Commerce parts posting setup and Finance chart/account/period/FX prerequisites with their current authority, pages and commands.",
-        "status": "incomplete",
+        "status": "complete",
         "evidenceFlows": [
           "field-service-parts-mapping-initialize-retry",
           "field-service-finance-prerequisites-native"
-        ]
+        ],
+        "evidenceRef": "docs/testing/evidence/2026-10-31-service-parts-native-closure.json",
+        "meaning": "Bounded actual native preparation/master reads and commands with immediate legacy writer retirement; full Field16 and workflows remain open."
       },
       {
         "number": 9,
@@ -295,28 +297,38 @@
         "routes": [
           "packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/parts-setup/[[...path]]/route.ts",
           "packages/server-commerce/src/adapters/service-parts-posting-setup.ts",
-          "packages/server-finance/src/adapters/service-parts-prerequisites.ts"
+          "src/composition/src/service_parts_posting_setup.rs",
+          "src/composition/src/service_parts_prerequisite_setup.rs",
+          "src/composition/src/service_stock_setup.rs",
+          "packages/feature-field_service/src/adapters/server/native-parts-setup.ts"
         ],
-        "current": "Retained TypeScript owner pages, posting setup and prerequisite mutations remain active; Field issue evidence does not migrate these setup capabilities.",
-        "withdrawal": "Deliver and qualify Commerce/Finance owner setup flows and fence their retained writers; maintain distinct actor and purchase authority."
+        "current": "PR12 native Parts setup/prerequisites/masters and reads qualified; replaced TS writers/fallback removed. ProductEntry authority remains a scoped shared read.",
+        "withdrawal": "Retained generic non-Service and ProductEntry consumers require separate migrations; no duplicate scoped setup writer remains."
       },
       {
         "surface": "Initial physical stock",
         "routes": [
           "packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/initial-physical-stock/[[...path]]/route.ts",
-          "packages/server-inventory/src/adapters/service-initial-physical-stock-count.ts"
+          "packages/server-inventory/src/adapters/service-initial-physical-stock-count.ts",
+          "src/composition/src/service_initial_physical_stock.rs",
+          "src/composition/src/service_initial_physical_stock_transport.rs",
+          "src/composition/src/service_initial_physical_stock_command.rs",
+          "src/composition/src/service_initial_physical_stock_read.rs",
+          "src/composition/src/service_initial_physical_stock_flow.rs"
         ],
-        "current": "Retained Inventory-owned count workflow and Finance/Flow dependencies remain active.",
-        "withdrawal": "Qualify the actual lifecycle and fence old owner commands, retaining Inventory stock, Finance Money and workflow effects."
+        "current": "PR5 native Service Count create/lifecycle/Flow and generic GET/SSR; required writer/fallback retirement and native projection partition qualified. PR12 normal-auth setup\u2192postedCount evidence supplements it.",
+        "withdrawal": "Retain only named generic non-Service count and shared ProductEntry/source-policy readers, with persisted Service family exclusion."
       },
       {
         "surface": "Field visit Files",
         "routes": [
-          "packages/server-files/src/application/attachments/service.ts",
-          "packages/server-field_service/src/adapters/attachment-purchases.ts"
+          "src/composition/src/field_attachment_intake_http.rs",
+          "src/composition/src/field_upload_http.rs",
+          "src/composition/src/field_attachment_bind.rs",
+          "src/composition/src/field_files_cleanup_worker.rs"
         ],
-        "current": "Draft withdraw and record bind have native qualified slices; genuine stage/upload/scan, content and remaining Files lifecycle retain TypeScript paths.",
-        "withdrawal": "Assign each actual File route and worker to one owner, preserve real scan/byte provenance, and fence any superseded writer without bypassing Field guards."
+        "current": "PR8 native Field visit list/create/reserve/upload/status/content/withdraw/record.bind, real scan and draft/orphan cleanup qualified; TS Field business paths fenced. Link-existing remains unavailable, attestation not applicable, old compatibility auto-bind fenced.",
+        "withdrawal": "Retain shared non-Field owners/static policy metadata. Historical compatibility sets bind through the native record.bind operation; no old Field writer fallback."
       },
       {
         "surface": "Support, Work and Records",
@@ -335,14 +347,14 @@
           "packages/server-runtime/src/adapters/runtime/jobs.ts",
           "packages/server-files/src/adapters/attachments/service.ts"
         ],
-        "current": "Retained TypeScript job dispatcher and file scanning/provider paths remain; native private HTTP evidence is not a production runtime cutover.",
-        "withdrawal": "Identify the exact Field-dependent jobs and ownership, preserve processing/authority/retry semantics, and fence replaced workers before activating another writer."
+        "current": "Native Count projector and Field Files scan/draft-orphan partitions qualified; TS jobs remain only for their other source/event families. Scoped images do not activate the installed public gateway or complete every Field job.",
+        "withdrawal": "Keep exact persisted source/event partition fences and live authority/retry guards; migrate other Field-dependent and non-Field jobs with their actual consumers."
       }
     ],
     "ownershipLedger": {
-      "version": 1,
+      "version": 2,
       "purpose": "Actual per-route, command and job ownership for the first Field bundle. A qualified disposable opt-in does not fence any retained direct or compatibility writer.",
-      "snapshot": "Current working source, including bounded-qualified source/navigation/Retry; default cutover and integrated acceptance remain open; not a deployed production observation.",
+      "snapshot": "Migration source through PR5/8/12 and recorded scoped qualification; installed public development/private production runtime is not changed by this registry. Other Field scopes remain open.",
       "invariant": "Before bundle activation or merge, assign one authoritative owner for each required Company/scope and prove the legacy route, internal callers and workers are fenced or safely retained. Production old service and its database are separate and untouched.",
       "entries": [
         {
@@ -1150,22 +1162,23 @@
             "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-sets/route.ts",
             "packages/server-files/src/application/attachments/service.ts",
             "packages/server-files/src/adapters/attachments/service.ts",
-            "packages/server-field_service/src/adapters/attachment-purchases.ts"
+            "src/composition/src/field_attachment_intake_http.rs",
+            "packages/server-files/src/adapters/field_visit_intake.rs"
           ],
-          "activeLegacyImplementation": [
-            "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-sets/route.ts",
-            "packages/server-files/src/application/attachments/service.ts",
-            "packages/server-files/src/adapters/attachments/service.ts",
-            "packages/server-field_service/src/adapters/attachment-purchases.ts"
+          "activeLegacyImplementation": [],
+          "activeNativeImplementation": [
+            "src/composition/src/field_attachment_intake_http.rs",
+            "packages/server-files/src/adapters/field_visit_intake.rs"
           ],
-          "activeNativeImplementation": [],
-          "selector": "Retained Files path; current Company/Field visit filters.",
+          "selector": "Canonical persisted Field visit family/target lineage and exact Holding/host transport; native failure or missing config has no TS fallback.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "No business mutation.",
           "authorityAndIsolation": "Current selected actor and actual Field purpose/source/Company/scope; selector IDs are transport hints only.",
-          "isolationStatus": "OPEN: scope and current authority are checked, but production/default owner selection and cross-path equivalence are not proven.",
-          "withdrawalFence": "Prove same current source/access scope before replacing reader.",
-          "status": "retained TypeScript path; migration/retention decision open"
+          "isolationStatus": "Single native Field-family business/access-audit writer; direct, alternate and mixed-lineage TS paths fail closed. Installed runtime activation is separate.",
+          "withdrawalFence": "Retain named non-Field shared consumers/static policy metadata; source history, pins and receipts remain. No native outage fallback.",
+          "status": "merged native Field-family capability",
+          "evidenceRef": "docs/testing/evidence/2026-10-31-field-visit-files-native.json",
+          "retainedSharedConsumers": "Shared Files implementation for non-Field owners only; TS BFF paths are transport, not an alternate Field business writer."
         },
         {
           "id": "files.field.set-create",
@@ -1176,22 +1189,23 @@
             "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-sets/route.ts",
             "packages/server-files/src/application/attachments/service.ts",
             "packages/server-files/src/adapters/attachments/service.ts",
-            "packages/server-field_service/src/adapters/attachment-purchases.ts"
+            "src/composition/src/field_attachment_intake_command.rs",
+            "packages/server-files/src/adapters/field_visit_intake.rs"
           ],
-          "activeLegacyImplementation": [
-            "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-sets/route.ts",
-            "packages/server-files/src/application/attachments/service.ts",
-            "packages/server-files/src/adapters/attachments/service.ts",
-            "packages/server-field_service/src/adapters/attachment-purchases.ts"
+          "activeLegacyImplementation": [],
+          "activeNativeImplementation": [
+            "src/composition/src/field_attachment_intake_command.rs",
+            "packages/server-files/src/adapters/field_visit_intake.rs"
           ],
-          "activeNativeImplementation": [],
-          "selector": "Retained Files path; current Company/Field visit and key.",
+          "selector": "Canonical persisted Field visit family/target lineage and exact Holding/host transport; native failure or missing config has no TS fallback.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Files draft set, event and applicable owner receipt.",
           "authorityAndIsolation": "Current selected actor and actual Field purpose/source/Company/scope; selector IDs are transport hints only.",
-          "isolationStatus": "BLOCKED: retained TypeScript is active; no native replacement or explicit single-owner retention/fence proof is established. An active second writer is not inferred.",
-          "withdrawalFence": "Deliver or explicitly retain single authoritative Files set creation with actual Field version guard; fence alternate writers.",
-          "status": "retained TypeScript path; migration/retention decision open"
+          "isolationStatus": "Single native Field-family business/access-audit writer; direct, alternate and mixed-lineage TS paths fail closed. Installed runtime activation is separate.",
+          "withdrawalFence": "Retain named non-Field shared consumers/static policy metadata; source history, pins and receipts remain. No native outage fallback.",
+          "status": "merged native Field-family capability",
+          "evidenceRef": "docs/testing/evidence/2026-10-31-field-visit-files-native.json",
+          "retainedSharedConsumers": "Shared Files implementation for non-Field owners only; TS BFF paths are transport, not an alternate Field business writer."
         },
         {
           "id": "files.field.reserve-file",
@@ -1202,22 +1216,23 @@
             "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-sets/[setId]/files/route.ts",
             "packages/server-files/src/application/attachments/service.ts",
             "packages/server-files/src/adapters/attachments/service.ts",
-            "packages/server-field_service/src/adapters/attachment-purchases.ts"
+            "src/composition/src/field_attachment_intake_command.rs",
+            "packages/server-files/src/adapters/field_visit_upload_reservation.rs"
           ],
-          "activeLegacyImplementation": [
-            "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-sets/[setId]/files/route.ts",
-            "packages/server-files/src/application/attachments/service.ts",
-            "packages/server-files/src/adapters/attachments/service.ts",
-            "packages/server-field_service/src/adapters/attachment-purchases.ts"
+          "activeLegacyImplementation": [],
+          "activeNativeImplementation": [
+            "src/composition/src/field_attachment_intake_command.rs",
+            "packages/server-files/src/adapters/field_visit_upload_reservation.rs"
           ],
-          "activeNativeImplementation": [],
-          "selector": "Retained Files path; current set/Company and key.",
+          "selector": "Canonical persisted Field visit family/target lineage and exact Holding/host transport; native failure or missing config has no TS fallback.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Files upload intent/link and related events.",
           "authorityAndIsolation": "Current selected actor and actual Field purpose/source/Company/scope; selector IDs are transport hints only.",
-          "isolationStatus": "BLOCKED: retained TypeScript is active; no native replacement or explicit single-owner retention/fence proof is established. An active second writer is not inferred.",
-          "withdrawalFence": "Ensure one Files reservation owner and preserve exact set/version/source guards.",
-          "status": "retained TypeScript path; migration/retention decision open"
+          "isolationStatus": "Single native Field-family business/access-audit writer; direct, alternate and mixed-lineage TS paths fail closed. Installed runtime activation is separate.",
+          "withdrawalFence": "Retain named non-Field shared consumers/static policy metadata; source history, pins and receipts remain. No native outage fallback.",
+          "status": "merged native Field-family capability",
+          "evidenceRef": "docs/testing/evidence/2026-10-31-field-visit-files-native.json",
+          "retainedSharedConsumers": "Shared Files implementation for non-Field owners only; TS BFF paths are transport, not an alternate Field business writer."
         },
         {
           "id": "files.field.upload-complete",
@@ -1228,22 +1243,23 @@
             "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/uploads/[id]/content/route.ts",
             "packages/server-files/src/application/attachments/service.ts",
             "packages/server-files/src/adapters/attachments/service.ts",
-            "packages/server-field_service/src/adapters/attachment-purchases.ts"
+            "src/composition/src/field_upload_http.rs",
+            "packages/server-files/src/adapters/field_visit_upload_completion.rs"
           ],
-          "activeLegacyImplementation": [
-            "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/uploads/[id]/content/route.ts",
-            "packages/server-files/src/application/attachments/service.ts",
-            "packages/server-files/src/adapters/attachments/service.ts",
-            "packages/server-field_service/src/adapters/attachment-purchases.ts"
+          "activeLegacyImplementation": [],
+          "activeNativeImplementation": [
+            "src/composition/src/field_upload_http.rs",
+            "packages/server-files/src/adapters/field_visit_upload_completion.rs"
           ],
-          "activeNativeImplementation": [],
-          "selector": "Retained Files upload path and actual private byte store.",
+          "selector": "Canonical persisted Field visit family/target lineage and exact Holding/host transport; native failure or missing config has no TS fallback.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Quarantine bytes, attachment/upload/link facts, scan job and Files evidence.",
           "authorityAndIsolation": "Current selected actor and actual Field purpose/source/Company/scope; selector IDs are transport hints only.",
-          "isolationStatus": "BLOCKED: retained TypeScript is active; no native replacement or explicit single-owner retention/fence proof is established. An active second writer is not inferred.",
-          "withdrawalFence": "Prove real byte persistence/quarantine/scan and prevent competing completion writers.",
-          "status": "retained TypeScript path; migration/retention decision open"
+          "isolationStatus": "Single native Field-family business/access-audit writer; direct, alternate and mixed-lineage TS paths fail closed. Installed runtime activation is separate.",
+          "withdrawalFence": "Retain named non-Field shared consumers/static policy metadata; source history, pins and receipts remain. No native outage fallback.",
+          "status": "merged native Field-family capability",
+          "evidenceRef": "docs/testing/evidence/2026-10-31-field-visit-files-native.json",
+          "retainedSharedConsumers": "Shared Files implementation for non-Field owners only; TS BFF paths are transport, not an alternate Field business writer."
         },
         {
           "id": "files.field.link-existing",
@@ -1253,23 +1269,18 @@
           "handlerRefs": [
             "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-sets/[setId]/links/route.ts",
             "packages/server-files/src/application/attachments/service.ts",
-            "packages/server-files/src/adapters/attachments/service.ts",
-            "packages/server-field_service/src/adapters/attachment-purchases.ts"
+            "packages/server-files/src/adapters/attachments/service.ts"
           ],
-          "activeLegacyImplementation": [
-            "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-sets/[setId]/links/route.ts",
-            "packages/server-files/src/application/attachments/service.ts",
-            "packages/server-files/src/adapters/attachments/service.ts",
-            "packages/server-field_service/src/adapters/attachment-purchases.ts"
-          ],
+          "activeLegacyImplementation": [],
           "activeNativeImplementation": [],
-          "selector": "Retained Files path with real source/set and key.",
+          "selector": "Persisted Field family is fenced at the shared TS owner guard.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Files draft link and events.",
           "authorityAndIsolation": "Current selected actor and actual Field purpose/source/Company/scope; selector IDs are transport hints only.",
-          "isolationStatus": "BLOCKED: retained TypeScript is active; no native replacement or explicit single-owner retention/fence proof is established. An active second writer is not inferred.",
-          "withdrawalFence": "Retain source authority and one writer; do not substitute a source label.",
-          "status": "retained TypeScript path; migration/retention decision open"
+          "isolationStatus": "FENCED: Field link-existing returns503 FIELD_FILES_NATIVE_REQUIRED; no native link-existing capability is claimed.",
+          "withdrawalFence": "Retain link-existing for actual non-Field consumers only; implement and qualify a native Field capability before enabling it.",
+          "status": "Field path unavailable; native feature remains outside the delivered upload scope",
+          "retainedSharedConsumers": "Shared Files implementation for non-Field owners only; TS BFF paths are transport, not an alternate Field business writer."
         },
         {
           "id": "files.field.sanitization-attestation",
@@ -1279,23 +1290,18 @@
           "handlerRefs": [
             "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-sets/[setId]/sanitization-attestation/route.ts",
             "packages/server-files/src/application/attachments/service.ts",
-            "packages/server-files/src/adapters/attachments/service.ts",
-            "packages/server-field_service/src/adapters/attachment-purchases.ts"
+            "packages/server-files/src/adapters/attachments/service.ts"
           ],
-          "activeLegacyImplementation": [
-            "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-sets/[setId]/sanitization-attestation/route.ts",
-            "packages/server-files/src/application/attachments/service.ts",
-            "packages/server-files/src/adapters/attachments/service.ts",
-            "packages/server-field_service/src/adapters/attachment-purchases.ts"
-          ],
+          "activeLegacyImplementation": [],
           "activeNativeImplementation": [],
-          "selector": "Retained Files policy-specific path; applicability to Field record journey must be verified.",
+          "selector": "Field purpose has no sanitization-attestation policy.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Files attestation event when the owner policy requires it.",
           "authorityAndIsolation": "Current selected actor and actual Field purpose/source/Company/scope; selector IDs are transport hints only.",
-          "isolationStatus": "BLOCKED: retained TypeScript is active; no native replacement or explicit single-owner retention/fence proof is established. An active second writer is not inferred.",
-          "withdrawalFence": "Establish applicability and fence any duplicate attestation writer; do not invent an attestation requirement.",
-          "status": "retained TypeScript path; migration/retention decision open"
+          "isolationStatus": "NOT APPLICABLE: Field requests return422 ATTACHMENT_ATTESTATION_NOT_APPLICABLE; no native migration claim.",
+          "withdrawalFence": "Retain only IAM review/migration, Company release/provisioning and People provisioning policies until their owner migrations.",
+          "status": "shared non-Field sanitized-system-evidence policies retained",
+          "retainedSharedConsumers": "Shared Files implementation for non-Field owners only; TS BFF paths are transport, not an alternate Field business writer."
         },
         {
           "id": "files.field.link-status",
@@ -1306,27 +1312,25 @@
             "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-links/[linkId]/status/route.ts",
             "packages/server-files/src/application/attachments/service.ts",
             "packages/server-files/src/adapters/attachments/service.ts",
-            "packages/server-field_service/src/adapters/attachment-purchases.ts",
             "src/composition/src/field_attachment.rs",
-            "src/composition/src/field_service_reservation_read_http.rs"
+            "src/composition/src/field_service_reservation_read_http.rs",
+            "src/composition/src/field_attachment_intake_http.rs",
+            "packages/server-files/src/adapters/field_visit_upload_status.rs"
           ],
-          "activeLegacyImplementation": [
-            "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-links/[linkId]/status/route.ts",
-            "packages/server-files/src/application/attachments/service.ts",
-            "packages/server-files/src/adapters/attachments/service.ts",
-            "packages/server-field_service/src/adapters/attachment-purchases.ts"
-          ],
+          "activeLegacyImplementation": [],
           "activeNativeImplementation": [
-            "src/composition/src/field_attachment.rs",
-            "src/composition/src/field_service_reservation_read_http.rs"
+            "src/composition/src/field_attachment_intake_http.rs",
+            "packages/server-files/src/adapters/field_visit_upload_status.rs"
           ],
-          "selector": "ERPX_NATIVE_FIELD_ATTACHMENT_CONFIG exact link selection; private fieldAttachmentLinks enabled/read-only; otherwise retained path.",
+          "selector": "Canonical persisted Field visit family/target lineage and exact Holding/host transport; native failure or missing config has no TS fallback.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Conditional Files access-event audit; source-null behavior preserved.",
           "authorityAndIsolation": "Current selected actor and actual Field purpose/source/Company/scope; selector IDs are transport hints only.",
-          "isolationStatus": "BLOCKED: this read may write Files access-audit events; assign and prove one authoritative audit path before cutover.",
-          "withdrawalFence": "Qualify status/audit and source guards, then disable retained reader for the selected scope.",
-          "status": "qualified bounded opt-in; no owner cutover"
+          "isolationStatus": "Single native Field-family business/access-audit writer; direct, alternate and mixed-lineage TS paths fail closed. Installed runtime activation is separate.",
+          "withdrawalFence": "Retain named non-Field shared consumers/static policy metadata; source history, pins and receipts remain. No native outage fallback.",
+          "status": "merged native Field-family capability",
+          "evidenceRef": "docs/testing/evidence/2026-10-31-field-visit-files-native.json",
+          "retainedSharedConsumers": "Shared Files implementation for non-Field owners only; TS BFF paths are transport, not an alternate Field business writer."
         },
         {
           "id": "files.field.content",
@@ -1337,22 +1341,23 @@
             "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-links/[linkId]/content/route.ts",
             "packages/server-files/src/application/attachments/service.ts",
             "packages/server-files/src/adapters/attachments/service.ts",
-            "packages/server-field_service/src/adapters/attachment-purchases.ts"
+            "src/composition/src/field_attachment_intake_http.rs",
+            "packages/server-files/src/adapters/field_visit_upload_content.rs"
           ],
-          "activeLegacyImplementation": [
-            "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-links/[linkId]/content/route.ts",
-            "packages/server-files/src/application/attachments/service.ts",
-            "packages/server-files/src/adapters/attachments/service.ts",
-            "packages/server-field_service/src/adapters/attachment-purchases.ts"
+          "activeLegacyImplementation": [],
+          "activeNativeImplementation": [
+            "src/composition/src/field_attachment_intake_http.rs",
+            "packages/server-files/src/adapters/field_visit_upload_content.rs"
           ],
-          "activeNativeImplementation": [],
-          "selector": "Retained Files/Field source read and byte store.",
+          "selector": "Canonical persisted Field visit family/target lineage and exact Holding/host transport; native failure or missing config has no TS fallback.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Actual private content/preview read and applicable access audit.",
           "authorityAndIsolation": "Current selected actor and actual Field purpose/source/Company/scope; selector IDs are transport hints only.",
-          "isolationStatus": "BLOCKED: this read may write Files access-audit events; assign and prove one authoritative audit path before cutover.",
-          "withdrawalFence": "Preserve byte access, scan status and audit before any reader withdrawal.",
-          "status": "retained TypeScript path; migration/retention decision open"
+          "isolationStatus": "Single native Field-family business/access-audit writer; direct, alternate and mixed-lineage TS paths fail closed. Installed runtime activation is separate.",
+          "withdrawalFence": "Retain named non-Field shared consumers/static policy metadata; source history, pins and receipts remain. No native outage fallback.",
+          "status": "merged native Field-family capability",
+          "evidenceRef": "docs/testing/evidence/2026-10-31-field-visit-files-native.json",
+          "retainedSharedConsumers": "Shared Files implementation for non-Field owners only; TS BFF paths are transport, not an alternate Field business writer."
         },
         {
           "id": "files.field.withdraw",
@@ -1363,28 +1368,24 @@
             "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-links/[linkId]/withdraw/route.ts",
             "packages/server-files/src/application/attachments/service.ts",
             "packages/server-files/src/adapters/attachments/service.ts",
-            "packages/server-field_service/src/adapters/attachment-purchases.ts",
             "src/composition/src/field_attachment.rs",
-            "src/composition/src/field_service_reservation_read_http.rs"
+            "src/composition/src/field_service_reservation_read_http.rs",
+            "src/composition/src/field_attachment.rs"
           ],
-          "activeLegacyImplementation": [
-            "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-links/[linkId]/withdraw/route.ts",
-            "packages/server-files/src/application/attachments/service.ts",
-            "packages/server-files/src/adapters/attachments/service.ts",
-            "packages/server-field_service/src/adapters/attachment-purchases.ts"
-          ],
+          "activeLegacyImplementation": [],
           "activeNativeImplementation": [
-            "src/composition/src/field_attachment.rs",
-            "src/composition/src/field_service_reservation_read_http.rs"
+            "src/composition/src/field_attachment.rs"
           ],
-          "selector": "ERPX_NATIVE_FIELD_ATTACHMENT_CONFIG exact link IDs; private fieldAttachmentLinks enabled.",
+          "selector": "Canonical persisted Field visit family/target lineage and exact Holding/host transport; native failure or missing config has no TS fallback.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Files link state and one withdrawal event; separate subsequent canonical status/access read.",
           "authorityAndIsolation": "Current selected actor and actual Field purpose/source/Company/scope; selector IDs are transport hints only.",
-          "isolationStatus": "BLOCKED: native selection is a disposable nonproduction opt-in, while retained TypeScript and internal compatibility writers are not globally fenced.",
-          "withdrawalFence": "Fence all legacy direct/compat withdrawal writers for the same Company/link, preserve current actor and replay/status failure semantics.",
-          "status": "qualified bounded opt-in; no owner cutover",
-          "commandOperation": "Files link.withdrawn event; no invented Workflow receipt"
+          "isolationStatus": "Single native Field-family business/access-audit writer; direct, alternate and mixed-lineage TS paths fail closed. Installed runtime activation is separate.",
+          "withdrawalFence": "Retain named non-Field shared consumers/static policy metadata; source history, pins and receipts remain. No native outage fallback.",
+          "status": "merged native Field-family capability",
+          "commandOperation": "Files link.withdrawn event; no invented Workflow receipt",
+          "evidenceRef": "docs/testing/evidence/2026-10-31-field-visit-files-native.json",
+          "retainedSharedConsumers": "Shared Files implementation for non-Field owners only; TS BFF paths are transport, not an alternate Field business writer."
         },
         {
           "id": "files.field.bind",
@@ -1395,28 +1396,26 @@
             "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-sets/[setId]/bind/route.ts",
             "packages/server-files/src/application/attachments/service.ts",
             "packages/server-files/src/adapters/attachments/service.ts",
-            "packages/server-field_service/src/adapters/attachment-purchases.ts",
+            "src/composition/src/field_attachment_bind.rs",
+            "packages/server-files/src/adapters/field_visit_bind.rs",
             "src/composition/src/field_attachment_bind.rs",
             "packages/server-files/src/adapters/field_visit_bind.rs"
           ],
-          "activeLegacyImplementation": [
-            "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-sets/[setId]/bind/route.ts",
-            "packages/server-files/src/application/attachments/service.ts",
-            "packages/server-files/src/adapters/attachments/service.ts",
-            "packages/server-field_service/src/adapters/attachment-purchases.ts"
-          ],
+          "activeLegacyImplementation": [],
           "activeNativeImplementation": [
             "src/composition/src/field_attachment_bind.rs",
             "packages/server-files/src/adapters/field_visit_bind.rs"
           ],
-          "selector": "ERPX_NATIVE_FIELD_ATTACHMENT_BIND_CONFIG exact set IDs; private fieldAttachmentBinds enabled.",
+          "selector": "Canonical persisted Field visit family/target lineage and exact Holding/host transport; native failure or missing config has no TS fallback.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Files set/links/event, Field version/event, Support projection and Workflow receipt/audit/outbox atomically.",
           "authorityAndIsolation": "Current selected actor and actual Field purpose/source/Company/scope; selector IDs are transport hints only.",
-          "isolationStatus": "BLOCKED: native selection is a disposable nonproduction opt-in, while retained TypeScript and internal compatibility writers are not globally fenced.",
-          "withdrawalFence": "Fence retained bind and compatibility/internal writers for the same set and Company, preserving actual scan manifest and exact replay.",
-          "status": "qualified bounded opt-in; no owner cutover",
-          "commandOperation": "attachment.record.bind"
+          "isolationStatus": "Single native Field-family business/access-audit writer; direct, alternate and mixed-lineage TS paths fail closed. Installed runtime activation is separate.",
+          "withdrawalFence": "Retain named non-Field shared consumers/static policy metadata; source history, pins and receipts remain. No native outage fallback.",
+          "status": "merged native Field-family capability",
+          "commandOperation": "attachment.record.bind",
+          "evidenceRef": "docs/testing/evidence/2026-10-31-field-visit-files-native.json",
+          "retainedSharedConsumers": "Shared Files implementation for non-Field owners only; TS BFF paths are transport, not an alternate Field business writer."
         },
         {
           "id": "files.field.compat-bind",
@@ -1425,23 +1424,18 @@
           "logicalOwner": "Files, with Field visit authority",
           "handlerRefs": [
             "packages/server-files/src/adapters/attachments/service.ts",
-            "packages/server-files/src/application/attachments/service.ts",
-            "packages/server-field_service/src/adapters/attachment-purchases.ts"
+            "packages/server-files/src/application/attachments/service.ts"
           ],
-          "activeLegacyImplementation": [
-            "packages/server-files/src/adapters/attachments/service.ts",
-            "packages/server-files/src/application/attachments/service.ts",
-            "packages/server-files/src/adapters/attachments/service.ts",
-            "packages/server-field_service/src/adapters/attachment-purchases.ts"
-          ],
+          "activeLegacyImplementation": [],
           "activeNativeImplementation": [],
-          "selector": "Retained compatibility adapter; not disabled by selecting the native public bind route.",
+          "selector": "Legacy compatibility auto-bind is fenced for persisted Field family.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Files binding and applicable Field version/receipt effects.",
           "authorityAndIsolation": "Current selected actor and actual Field purpose/source/Company/scope; selector IDs are transport hints only.",
-          "isolationStatus": "BLOCKED: retained TypeScript is active; no native replacement or explicit single-owner retention/fence proof is established. An active second writer is not inferred.",
-          "withdrawalFence": "Identify every actual internal caller and fence or migrate it before Field bind ownership changes.",
-          "status": "retained TypeScript path; migration/retention decision open"
+          "isolationStatus": "FENCED: old internal Field compatibility entry is unavailable. Native attachment.record.bind accepts verified historical compatibility-shaped sets; it is a different operation.",
+          "withdrawalFence": "Keep actual non-Field upload auto-bind consumers; preserve historical sets and their native record.bind provenance.",
+          "status": "old Field operation fenced; non-Field auto-bind retained",
+          "retainedSharedConsumers": "Shared Files implementation for non-Field owners only; TS BFF paths are transport, not an alternate Field business writer."
         },
         {
           "id": "setup.command.initialize",
@@ -1450,22 +1444,26 @@
           "logicalOwner": "Commerce",
           "handlerRefs": [
             "packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/parts-setup/[[...path]]/route.ts",
-            "packages/server-commerce/src/adapters/service-parts-posting-setup.ts",
-            "packages/server-finance/src/adapters/service-parts-prerequisites.ts"
+            "src/composition/src/service_parts_posting_setup.rs",
+            "src/composition/src/service_parts_prerequisite_setup.rs",
+            "src/composition/src/service_stock_setup.rs",
+            "packages/feature-field_service/src/adapters/server/native-parts-setup.ts"
           ],
-          "activeLegacyImplementation": [
-            "packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/parts-setup/[[...path]]/route.ts",
-            "packages/server-commerce/src/adapters/service-parts-posting-setup.ts",
-            "packages/server-finance/src/adapters/service-parts-prerequisites.ts"
+          "activeLegacyImplementation": [],
+          "activeNativeImplementation": [
+            "src/composition/src/service_parts_posting_setup.rs",
+            "src/composition/src/service_parts_prerequisite_setup.rs",
+            "src/composition/src/service_stock_setup.rs",
+            "packages/feature-field_service/src/adapters/server/native-parts-setup.ts"
           ],
-          "activeNativeImplementation": [],
-          "selector": "Retained setup route only; actual selected actor, Company/scope, key and owner permissions/purchases.",
+          "selector": "Native required for the Service family within exact registered Holding/Company and configured transport; absent configuration fails503, never chooses a retired TS writer.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Commerce posting setup and related owner/Workflow facts",
           "authorityAndIsolation": "Commerce or Finance actual owner guards and source facts.",
-          "isolationStatus": "BLOCKED: retained TypeScript is active; no native replacement or explicit single-owner retention/fence proof is established. An active second writer is not inferred.",
-          "withdrawalFence": "Migrate or explicitly retain a single owner for this command; test existing settings, replay and owner authorization before fencing any replacement writer.",
-          "status": "retained TypeScript; required bundle setup gap"
+          "isolationStatus": "Single native scoped business/audit writer; actual selected authority, replay and same-unit rollback qualified. Source integration is distinct from installed environment activation.",
+          "withdrawalFence": "Retain actual generic non-Service and ProductEntry/source-proof readers only; retire those with their own consumers. Preserve all stored data, migration history and receipts.",
+          "status": "merged scoped native owner; legacy business implementation removed",
+          "evidenceRef": "docs/testing/evidence/2026-10-31-service-parts-native-closure.json"
         },
         {
           "id": "setup.command.existing",
@@ -1474,22 +1472,26 @@
           "logicalOwner": "Commerce",
           "handlerRefs": [
             "packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/parts-setup/[[...path]]/route.ts",
-            "packages/server-commerce/src/adapters/service-parts-posting-setup.ts",
-            "packages/server-finance/src/adapters/service-parts-prerequisites.ts"
+            "src/composition/src/service_parts_posting_setup.rs",
+            "src/composition/src/service_parts_prerequisite_setup.rs",
+            "src/composition/src/service_stock_setup.rs",
+            "packages/feature-field_service/src/adapters/server/native-parts-setup.ts"
           ],
-          "activeLegacyImplementation": [
-            "packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/parts-setup/[[...path]]/route.ts",
-            "packages/server-commerce/src/adapters/service-parts-posting-setup.ts",
-            "packages/server-finance/src/adapters/service-parts-prerequisites.ts"
+          "activeLegacyImplementation": [],
+          "activeNativeImplementation": [
+            "src/composition/src/service_parts_posting_setup.rs",
+            "src/composition/src/service_parts_prerequisite_setup.rs",
+            "src/composition/src/service_stock_setup.rs",
+            "packages/feature-field_service/src/adapters/server/native-parts-setup.ts"
           ],
-          "activeNativeImplementation": [],
-          "selector": "Retained setup route only; actual selected actor, Company/scope, key and owner permissions/purchases.",
+          "selector": "Native required for the Service family within exact registered Holding/Company and configured transport; absent configuration fails503, never chooses a retired TS writer.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "confirmation of existing posting settings and Workflow facts",
           "authorityAndIsolation": "Commerce or Finance actual owner guards and source facts.",
-          "isolationStatus": "BLOCKED: retained TypeScript is active; no native replacement or explicit single-owner retention/fence proof is established. An active second writer is not inferred.",
-          "withdrawalFence": "Migrate or explicitly retain a single owner for this command; test existing settings, replay and owner authorization before fencing any replacement writer.",
-          "status": "retained TypeScript; required bundle setup gap"
+          "isolationStatus": "Single native scoped business/audit writer; actual selected authority, replay and same-unit rollback qualified. Source integration is distinct from installed environment activation.",
+          "withdrawalFence": "Retain actual generic non-Service and ProductEntry/source-proof readers only; retire those with their own consumers. Preserve all stored data, migration history and receipts.",
+          "status": "merged scoped native owner; legacy business implementation removed",
+          "evidenceRef": "docs/testing/evidence/2026-10-31-service-parts-native-closure.json"
         },
         {
           "id": "setup.command.charts",
@@ -1498,22 +1500,26 @@
           "logicalOwner": "Finance",
           "handlerRefs": [
             "packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/parts-setup/[[...path]]/route.ts",
-            "packages/server-commerce/src/adapters/service-parts-posting-setup.ts",
-            "packages/server-finance/src/adapters/service-parts-prerequisites.ts"
+            "src/composition/src/service_parts_posting_setup.rs",
+            "src/composition/src/service_parts_prerequisite_setup.rs",
+            "src/composition/src/service_stock_setup.rs",
+            "packages/feature-field_service/src/adapters/server/native-parts-setup.ts"
           ],
-          "activeLegacyImplementation": [
-            "packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/parts-setup/[[...path]]/route.ts",
-            "packages/server-commerce/src/adapters/service-parts-posting-setup.ts",
-            "packages/server-finance/src/adapters/service-parts-prerequisites.ts"
+          "activeLegacyImplementation": [],
+          "activeNativeImplementation": [
+            "src/composition/src/service_parts_posting_setup.rs",
+            "src/composition/src/service_parts_prerequisite_setup.rs",
+            "src/composition/src/service_stock_setup.rs",
+            "packages/feature-field_service/src/adapters/server/native-parts-setup.ts"
           ],
-          "activeNativeImplementation": [],
-          "selector": "Retained setup route only; actual selected actor, Company/scope, key and owner permissions/purchases.",
+          "selector": "Native required for the Service family within exact registered Holding/Company and configured transport; absent configuration fails503, never chooses a retired TS writer.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Finance chart and Workflow facts",
           "authorityAndIsolation": "Commerce or Finance actual owner guards and source facts.",
-          "isolationStatus": "BLOCKED: retained TypeScript is active; no native replacement or explicit single-owner retention/fence proof is established. An active second writer is not inferred.",
-          "withdrawalFence": "Migrate or explicitly retain a single owner for this command; test existing settings, replay and owner authorization before fencing any replacement writer.",
-          "status": "retained TypeScript; required bundle setup gap"
+          "isolationStatus": "Single native scoped business/audit writer; actual selected authority, replay and same-unit rollback qualified. Source integration is distinct from installed environment activation.",
+          "withdrawalFence": "Retain actual generic non-Service and ProductEntry/source-proof readers only; retire those with their own consumers. Preserve all stored data, migration history and receipts.",
+          "status": "merged scoped native owner; legacy business implementation removed",
+          "evidenceRef": "docs/testing/evidence/2026-10-31-service-parts-native-closure.json"
         },
         {
           "id": "setup.command.accounts",
@@ -1522,22 +1528,26 @@
           "logicalOwner": "Finance",
           "handlerRefs": [
             "packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/parts-setup/[[...path]]/route.ts",
-            "packages/server-commerce/src/adapters/service-parts-posting-setup.ts",
-            "packages/server-finance/src/adapters/service-parts-prerequisites.ts"
+            "src/composition/src/service_parts_posting_setup.rs",
+            "src/composition/src/service_parts_prerequisite_setup.rs",
+            "src/composition/src/service_stock_setup.rs",
+            "packages/feature-field_service/src/adapters/server/native-parts-setup.ts"
           ],
-          "activeLegacyImplementation": [
-            "packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/parts-setup/[[...path]]/route.ts",
-            "packages/server-commerce/src/adapters/service-parts-posting-setup.ts",
-            "packages/server-finance/src/adapters/service-parts-prerequisites.ts"
+          "activeLegacyImplementation": [],
+          "activeNativeImplementation": [
+            "src/composition/src/service_parts_posting_setup.rs",
+            "src/composition/src/service_parts_prerequisite_setup.rs",
+            "src/composition/src/service_stock_setup.rs",
+            "packages/feature-field_service/src/adapters/server/native-parts-setup.ts"
           ],
-          "activeNativeImplementation": [],
-          "selector": "Retained setup route only; actual selected actor, Company/scope, key and owner permissions/purchases.",
+          "selector": "Native required for the Service family within exact registered Holding/Company and configured transport; absent configuration fails503, never chooses a retired TS writer.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Finance account and Workflow facts",
           "authorityAndIsolation": "Commerce or Finance actual owner guards and source facts.",
-          "isolationStatus": "BLOCKED: retained TypeScript is active; no native replacement or explicit single-owner retention/fence proof is established. An active second writer is not inferred.",
-          "withdrawalFence": "Migrate or explicitly retain a single owner for this command; test existing settings, replay and owner authorization before fencing any replacement writer.",
-          "status": "retained TypeScript; required bundle setup gap"
+          "isolationStatus": "Single native scoped business/audit writer; actual selected authority, replay and same-unit rollback qualified. Source integration is distinct from installed environment activation.",
+          "withdrawalFence": "Retain actual generic non-Service and ProductEntry/source-proof readers only; retire those with their own consumers. Preserve all stored data, migration history and receipts.",
+          "status": "merged scoped native owner; legacy business implementation removed",
+          "evidenceRef": "docs/testing/evidence/2026-10-31-service-parts-native-closure.json"
         },
         {
           "id": "setup.command.periods",
@@ -1546,22 +1556,26 @@
           "logicalOwner": "Finance",
           "handlerRefs": [
             "packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/parts-setup/[[...path]]/route.ts",
-            "packages/server-commerce/src/adapters/service-parts-posting-setup.ts",
-            "packages/server-finance/src/adapters/service-parts-prerequisites.ts"
+            "src/composition/src/service_parts_posting_setup.rs",
+            "src/composition/src/service_parts_prerequisite_setup.rs",
+            "src/composition/src/service_stock_setup.rs",
+            "packages/feature-field_service/src/adapters/server/native-parts-setup.ts"
           ],
-          "activeLegacyImplementation": [
-            "packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/parts-setup/[[...path]]/route.ts",
-            "packages/server-commerce/src/adapters/service-parts-posting-setup.ts",
-            "packages/server-finance/src/adapters/service-parts-prerequisites.ts"
+          "activeLegacyImplementation": [],
+          "activeNativeImplementation": [
+            "src/composition/src/service_parts_posting_setup.rs",
+            "src/composition/src/service_parts_prerequisite_setup.rs",
+            "src/composition/src/service_stock_setup.rs",
+            "packages/feature-field_service/src/adapters/server/native-parts-setup.ts"
           ],
-          "activeNativeImplementation": [],
-          "selector": "Retained setup route only; actual selected actor, Company/scope, key and owner permissions/purchases.",
+          "selector": "Native required for the Service family within exact registered Holding/Company and configured transport; absent configuration fails503, never chooses a retired TS writer.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Finance period and Workflow facts",
           "authorityAndIsolation": "Commerce or Finance actual owner guards and source facts.",
-          "isolationStatus": "BLOCKED: retained TypeScript is active; no native replacement or explicit single-owner retention/fence proof is established. An active second writer is not inferred.",
-          "withdrawalFence": "Migrate or explicitly retain a single owner for this command; test existing settings, replay and owner authorization before fencing any replacement writer.",
-          "status": "retained TypeScript; required bundle setup gap"
+          "isolationStatus": "Single native scoped business/audit writer; actual selected authority, replay and same-unit rollback qualified. Source integration is distinct from installed environment activation.",
+          "withdrawalFence": "Retain actual generic non-Service and ProductEntry/source-proof readers only; retire those with their own consumers. Preserve all stored data, migration history and receipts.",
+          "status": "merged scoped native owner; legacy business implementation removed",
+          "evidenceRef": "docs/testing/evidence/2026-10-31-service-parts-native-closure.json"
         },
         {
           "id": "setup.command.rates",
@@ -1570,22 +1584,26 @@
           "logicalOwner": "Finance",
           "handlerRefs": [
             "packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/parts-setup/[[...path]]/route.ts",
-            "packages/server-commerce/src/adapters/service-parts-posting-setup.ts",
-            "packages/server-finance/src/adapters/service-parts-prerequisites.ts"
+            "src/composition/src/service_parts_posting_setup.rs",
+            "src/composition/src/service_parts_prerequisite_setup.rs",
+            "src/composition/src/service_stock_setup.rs",
+            "packages/feature-field_service/src/adapters/server/native-parts-setup.ts"
           ],
-          "activeLegacyImplementation": [
-            "packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/parts-setup/[[...path]]/route.ts",
-            "packages/server-commerce/src/adapters/service-parts-posting-setup.ts",
-            "packages/server-finance/src/adapters/service-parts-prerequisites.ts"
+          "activeLegacyImplementation": [],
+          "activeNativeImplementation": [
+            "src/composition/src/service_parts_posting_setup.rs",
+            "src/composition/src/service_parts_prerequisite_setup.rs",
+            "src/composition/src/service_stock_setup.rs",
+            "packages/feature-field_service/src/adapters/server/native-parts-setup.ts"
           ],
-          "activeNativeImplementation": [],
-          "selector": "Retained setup route only; actual selected actor, Company/scope, key and owner permissions/purchases.",
+          "selector": "Native required for the Service family within exact registered Holding/Company and configured transport; absent configuration fails503, never chooses a retired TS writer.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Finance FX rate confirmation and Workflow facts",
           "authorityAndIsolation": "Commerce or Finance actual owner guards and source facts.",
-          "isolationStatus": "BLOCKED: retained TypeScript is active; no native replacement or explicit single-owner retention/fence proof is established. An active second writer is not inferred.",
-          "withdrawalFence": "Migrate or explicitly retain a single owner for this command; test existing settings, replay and owner authorization before fencing any replacement writer.",
-          "status": "retained TypeScript; required bundle setup gap"
+          "isolationStatus": "Single native scoped business/audit writer; actual selected authority, replay and same-unit rollback qualified. Source integration is distinct from installed environment activation.",
+          "withdrawalFence": "Retain actual generic non-Service and ProductEntry/source-proof readers only; retire those with their own consumers. Preserve all stored data, migration history and receipts.",
+          "status": "merged scoped native owner; legacy business implementation removed",
+          "evidenceRef": "docs/testing/evidence/2026-10-31-service-parts-native-closure.json"
         },
         {
           "id": "setup.command.masters.products",
@@ -1594,22 +1612,26 @@
           "logicalOwner": "Commerce",
           "handlerRefs": [
             "packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/parts-setup/[[...path]]/route.ts",
-            "packages/server-commerce/src/adapters/service-parts-posting-setup.ts",
-            "packages/server-finance/src/adapters/service-parts-prerequisites.ts"
+            "src/composition/src/service_parts_posting_setup.rs",
+            "src/composition/src/service_parts_prerequisite_setup.rs",
+            "src/composition/src/service_stock_setup.rs",
+            "packages/feature-field_service/src/adapters/server/native-parts-setup.ts"
           ],
-          "activeLegacyImplementation": [
-            "packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/parts-setup/[[...path]]/route.ts",
-            "packages/server-commerce/src/adapters/service-parts-posting-setup.ts",
-            "packages/server-finance/src/adapters/service-parts-prerequisites.ts"
+          "activeLegacyImplementation": [],
+          "activeNativeImplementation": [
+            "src/composition/src/service_parts_posting_setup.rs",
+            "src/composition/src/service_parts_prerequisite_setup.rs",
+            "src/composition/src/service_stock_setup.rs",
+            "packages/feature-field_service/src/adapters/server/native-parts-setup.ts"
           ],
-          "activeNativeImplementation": [],
-          "selector": "Retained setup route only; actual selected actor, Company/scope, key and owner permissions/purchases.",
+          "selector": "Native required for the Service family within exact registered Holding/Company and configured transport; absent configuration fails503, never chooses a retired TS writer.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Commerce product/master and Workflow facts",
           "authorityAndIsolation": "Commerce or Finance actual owner guards and source facts.",
-          "isolationStatus": "BLOCKED: retained TypeScript is active; no native replacement or explicit single-owner retention/fence proof is established. An active second writer is not inferred.",
-          "withdrawalFence": "Migrate or explicitly retain a single owner for this command; test existing settings, replay and owner authorization before fencing any replacement writer.",
-          "status": "retained TypeScript; required bundle setup gap"
+          "isolationStatus": "Single native scoped business/audit writer; actual selected authority, replay and same-unit rollback qualified. Source integration is distinct from installed environment activation.",
+          "withdrawalFence": "Retain actual generic non-Service and ProductEntry/source-proof readers only; retire those with their own consumers. Preserve all stored data, migration history and receipts.",
+          "status": "merged scoped native owner; legacy business implementation removed",
+          "evidenceRef": "docs/testing/evidence/2026-10-31-service-parts-native-closure.json"
         },
         {
           "id": "setup.command.masters.warehouses",
@@ -1618,22 +1640,26 @@
           "logicalOwner": "Commerce",
           "handlerRefs": [
             "packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/parts-setup/[[...path]]/route.ts",
-            "packages/server-commerce/src/adapters/service-parts-posting-setup.ts",
-            "packages/server-finance/src/adapters/service-parts-prerequisites.ts"
+            "src/composition/src/service_parts_posting_setup.rs",
+            "src/composition/src/service_parts_prerequisite_setup.rs",
+            "src/composition/src/service_stock_setup.rs",
+            "packages/feature-field_service/src/adapters/server/native-parts-setup.ts"
           ],
-          "activeLegacyImplementation": [
-            "packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/parts-setup/[[...path]]/route.ts",
-            "packages/server-commerce/src/adapters/service-parts-posting-setup.ts",
-            "packages/server-finance/src/adapters/service-parts-prerequisites.ts"
+          "activeLegacyImplementation": [],
+          "activeNativeImplementation": [
+            "src/composition/src/service_parts_posting_setup.rs",
+            "src/composition/src/service_parts_prerequisite_setup.rs",
+            "src/composition/src/service_stock_setup.rs",
+            "packages/feature-field_service/src/adapters/server/native-parts-setup.ts"
           ],
-          "activeNativeImplementation": [],
-          "selector": "Retained setup route only; actual selected actor, Company/scope, key and owner permissions/purchases.",
+          "selector": "Native required for the Service family within exact registered Holding/Company and configured transport; absent configuration fails503, never chooses a retired TS writer.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Commerce warehouse/master and Workflow facts",
           "authorityAndIsolation": "Commerce or Finance actual owner guards and source facts.",
-          "isolationStatus": "BLOCKED: retained TypeScript is active; no native replacement or explicit single-owner retention/fence proof is established. An active second writer is not inferred.",
-          "withdrawalFence": "Migrate or explicitly retain a single owner for this command; test existing settings, replay and owner authorization before fencing any replacement writer.",
-          "status": "retained TypeScript; required bundle setup gap"
+          "isolationStatus": "Single native scoped business/audit writer; actual selected authority, replay and same-unit rollback qualified. Source integration is distinct from installed environment activation.",
+          "withdrawalFence": "Retain actual generic non-Service and ProductEntry/source-proof readers only; retire those with their own consumers. Preserve all stored data, migration history and receipts.",
+          "status": "merged scoped native owner; legacy business implementation removed",
+          "evidenceRef": "docs/testing/evidence/2026-10-31-service-parts-native-closure.json"
         },
         {
           "id": "setup.read",
@@ -1642,22 +1668,26 @@
           "logicalOwner": "Commerce and Finance",
           "handlerRefs": [
             "packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/parts-setup/[[...path]]/route.ts",
-            "packages/server-commerce/src/adapters/service-parts-posting-setup.ts",
-            "packages/server-finance/src/adapters/service-parts-prerequisites.ts"
+            "src/composition/src/service_parts_posting_setup.rs",
+            "src/composition/src/service_parts_prerequisite_setup.rs",
+            "src/composition/src/service_stock_setup.rs",
+            "packages/feature-field_service/src/adapters/server/native-parts-setup.ts"
           ],
-          "activeLegacyImplementation": [
-            "packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/parts-setup/[[...path]]/route.ts",
-            "packages/server-commerce/src/adapters/service-parts-posting-setup.ts",
-            "packages/server-finance/src/adapters/service-parts-prerequisites.ts"
+          "activeLegacyImplementation": [],
+          "activeNativeImplementation": [
+            "src/composition/src/service_parts_posting_setup.rs",
+            "src/composition/src/service_parts_prerequisite_setup.rs",
+            "src/composition/src/service_stock_setup.rs",
+            "packages/feature-field_service/src/adapters/server/native-parts-setup.ts"
           ],
-          "activeNativeImplementation": [],
-          "selector": "Retained route only; selected current actor and actual Commerce/Finance scope.",
+          "selector": "Native required for the Service family within exact registered Holding/Company and configured transport; absent configuration fails503, never chooses a retired TS writer.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "No business write.",
           "authorityAndIsolation": "Actual owner permissions and purchase checks.",
-          "isolationStatus": "OPEN: scope and current authority are checked, but production/default owner selection and cross-path equivalence are not proven.",
-          "withdrawalFence": "Prove complete setup rendering and source data under the eventual owner.",
-          "status": "retained TypeScript; required bundle setup gap"
+          "isolationStatus": "Single native scoped business/audit writer; actual selected authority, replay and same-unit rollback qualified. Source integration is distinct from installed environment activation.",
+          "withdrawalFence": "Retain actual generic non-Service and ProductEntry/source-proof readers only; retire those with their own consumers. Preserve all stored data, migration history and receipts.",
+          "status": "merged scoped native owner; legacy business implementation removed",
+          "evidenceRef": "docs/testing/evidence/2026-10-31-service-parts-native-closure.json"
         },
         {
           "id": "stock.command.prepare",
@@ -1666,26 +1696,28 @@
           "logicalOwner": "Inventory with Commerce, Finance and Workflow",
           "handlerRefs": [
             "packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/initial-physical-stock/[[...path]]/route.ts",
-            "packages/server-inventory/src/adapters/service-initial-physical-stock-count.ts"
+            "src/composition/src/service_initial_physical_stock.rs",
+            "src/composition/src/service_initial_physical_stock_transport.rs",
+            "src/composition/src/service_initial_physical_stock_command.rs",
+            "src/composition/src/service_initial_physical_stock_read.rs",
+            "src/composition/src/service_initial_physical_stock_flow.rs"
           ],
-          "activeLegacyImplementation": [
-            "packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/initial-physical-stock/[[...path]]/route.ts",
-            "packages/server-inventory/src/adapters/service-initial-physical-stock-count.ts"
+          "activeLegacyImplementation": [],
+          "activeNativeImplementation": [
+            "src/composition/src/service_initial_physical_stock.rs",
+            "src/composition/src/service_initial_physical_stock_transport.rs",
+            "src/composition/src/service_initial_physical_stock_command.rs",
+            "src/composition/src/service_initial_physical_stock_read.rs",
+            "src/composition/src/service_initial_physical_stock_flow.rs"
           ],
-          "activeNativeImplementation": [],
-          "selector": "Retained count route; selected actor, Company/scope, command key and actual owner purchase/Flow guards.",
+          "selector": "Native required for the Service family within exact registered Holding/Company and configured transport; absent configuration fails503, never chooses a retired TS writer.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Inventory count/Flow and, for post, owner stock and Finance effects as applicable.",
           "authorityAndIsolation": "Inventory owns the count; Finance/Workflow effects retain their own authority.",
-          "isolationStatus": "BLOCKED: retained TypeScript remains authoritative; native candidate is unmounted. Qualify its full delivery and fence all replaced route/internal/job writers before activation. No second active writer is introduced.",
-          "withdrawalFence": "Deliver or explicitly retain exactly one authoritative count prepare writer and prove current source/replay/rollback before fencing any replacement.",
-          "status": "retained TypeScript; required bundle setup gap",
-          "candidateNativeImplementation": [
-            "src/composition/src/service_initial_physical_stock.rs",
-            "src/composition/src/service_initial_physical_stock_sources.rs",
-            "src/composition/src/service_initial_physical_stock_create.rs"
-          ],
-          "candidateStatus": "Unmounted/default-off native coordinator with independent review accepted after historical receipt/result and Flow replay corrections; real Account/PostgreSQL tracked and untracked journeys pass. Frontend interaction model has no server-owner imports. No native HTTP/SDK/Next Count journey or legacy writer fence yet; historical decision digest has format and linked-identity checks, not reconstructed byte integrity."
+          "isolationStatus": "Single native scoped business/audit writer; actual selected authority, replay and same-unit rollback qualified. Source integration is distinct from installed environment activation.",
+          "withdrawalFence": "Retain actual generic non-Service and ProductEntry/source-proof readers only; retire those with their own consumers. Preserve all stored data, migration history and receipts.",
+          "status": "merged scoped native owner; legacy business implementation removed",
+          "evidenceRef": "docs/testing/evidence/2026-10-30-service-count-devcontainer.json"
         },
         {
           "id": "stock.command.submit",
@@ -1694,26 +1726,28 @@
           "logicalOwner": "Inventory with Commerce, Finance and Workflow",
           "handlerRefs": [
             "packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/initial-physical-stock/[[...path]]/route.ts",
-            "packages/server-inventory/src/adapters/service-initial-physical-stock-count.ts"
+            "src/composition/src/service_initial_physical_stock.rs",
+            "src/composition/src/service_initial_physical_stock_transport.rs",
+            "src/composition/src/service_initial_physical_stock_command.rs",
+            "src/composition/src/service_initial_physical_stock_read.rs",
+            "src/composition/src/service_initial_physical_stock_flow.rs"
           ],
-          "activeLegacyImplementation": [
-            "packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/initial-physical-stock/[[...path]]/route.ts",
-            "packages/server-inventory/src/adapters/service-initial-physical-stock-count.ts"
+          "activeLegacyImplementation": [],
+          "activeNativeImplementation": [
+            "src/composition/src/service_initial_physical_stock.rs",
+            "src/composition/src/service_initial_physical_stock_transport.rs",
+            "src/composition/src/service_initial_physical_stock_command.rs",
+            "src/composition/src/service_initial_physical_stock_read.rs",
+            "src/composition/src/service_initial_physical_stock_flow.rs"
           ],
-          "activeNativeImplementation": [],
-          "selector": "Retained count route; selected actor, Company/scope, command key and actual owner purchase/Flow guards.",
+          "selector": "Native required for the Service family within exact registered Holding/Company and configured transport; absent configuration fails503, never chooses a retired TS writer.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Inventory count/Flow and, for post, owner stock and Finance effects as applicable.",
           "authorityAndIsolation": "Inventory owns the count; Finance/Workflow effects retain their own authority.",
-          "isolationStatus": "BLOCKED: retained TypeScript remains authoritative; native candidate is unmounted. Qualify its full delivery and fence all replaced route/internal/job writers before activation. No second active writer is introduced.",
-          "withdrawalFence": "Deliver or explicitly retain exactly one authoritative count submit writer and prove current source/replay/rollback before fencing any replacement.",
-          "status": "retained TypeScript; required bundle setup gap",
-          "candidateNativeImplementation": [
-            "src/composition/src/service_initial_physical_stock.rs",
-            "src/composition/src/service_initial_physical_stock_sources.rs",
-            "src/composition/src/service_initial_physical_stock_action.rs"
-          ],
-          "candidateStatus": "Unmounted/default-off native coordinator with independent review accepted after historical receipt/result and Flow replay corrections; real Account/PostgreSQL tracked and untracked journeys pass. Frontend interaction model has no server-owner imports. No native HTTP/SDK/Next Count journey or legacy writer fence yet; historical decision digest has format and linked-identity checks, not reconstructed byte integrity."
+          "isolationStatus": "Single native scoped business/audit writer; actual selected authority, replay and same-unit rollback qualified. Source integration is distinct from installed environment activation.",
+          "withdrawalFence": "Retain actual generic non-Service and ProductEntry/source-proof readers only; retire those with their own consumers. Preserve all stored data, migration history and receipts.",
+          "status": "merged scoped native owner; legacy business implementation removed",
+          "evidenceRef": "docs/testing/evidence/2026-10-30-service-count-devcontainer.json"
         },
         {
           "id": "stock.command.approve",
@@ -1722,26 +1756,28 @@
           "logicalOwner": "Inventory with Commerce, Finance and Workflow",
           "handlerRefs": [
             "packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/initial-physical-stock/[[...path]]/route.ts",
-            "packages/server-inventory/src/adapters/service-initial-physical-stock-count.ts"
+            "src/composition/src/service_initial_physical_stock.rs",
+            "src/composition/src/service_initial_physical_stock_transport.rs",
+            "src/composition/src/service_initial_physical_stock_command.rs",
+            "src/composition/src/service_initial_physical_stock_read.rs",
+            "src/composition/src/service_initial_physical_stock_flow.rs"
           ],
-          "activeLegacyImplementation": [
-            "packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/initial-physical-stock/[[...path]]/route.ts",
-            "packages/server-inventory/src/adapters/service-initial-physical-stock-count.ts"
+          "activeLegacyImplementation": [],
+          "activeNativeImplementation": [
+            "src/composition/src/service_initial_physical_stock.rs",
+            "src/composition/src/service_initial_physical_stock_transport.rs",
+            "src/composition/src/service_initial_physical_stock_command.rs",
+            "src/composition/src/service_initial_physical_stock_read.rs",
+            "src/composition/src/service_initial_physical_stock_flow.rs"
           ],
-          "activeNativeImplementation": [],
-          "selector": "Retained count route; selected actor, Company/scope, command key and actual owner purchase/Flow guards.",
+          "selector": "Native required for the Service family within exact registered Holding/Company and configured transport; absent configuration fails503, never chooses a retired TS writer.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Inventory count/Flow and, for post, owner stock and Finance effects as applicable.",
           "authorityAndIsolation": "Inventory owns the count; Finance/Workflow effects retain their own authority.",
-          "isolationStatus": "BLOCKED: retained TypeScript remains authoritative; native candidate is unmounted. Qualify its full delivery and fence all replaced route/internal/job writers before activation. No second active writer is introduced.",
-          "withdrawalFence": "Deliver or explicitly retain exactly one authoritative count approve writer and prove current source/replay/rollback before fencing any replacement.",
-          "status": "retained TypeScript; required bundle setup gap",
-          "candidateNativeImplementation": [
-            "src/composition/src/service_initial_physical_stock.rs",
-            "src/composition/src/service_initial_physical_stock_sources.rs",
-            "src/composition/src/service_initial_physical_stock_action.rs"
-          ],
-          "candidateStatus": "Unmounted/default-off native coordinator with independent review accepted after historical receipt/result and Flow replay corrections; real Account/PostgreSQL tracked and untracked journeys pass. Frontend interaction model has no server-owner imports. No native HTTP/SDK/Next Count journey or legacy writer fence yet; historical decision digest has format and linked-identity checks, not reconstructed byte integrity."
+          "isolationStatus": "Single native scoped business/audit writer; actual selected authority, replay and same-unit rollback qualified. Source integration is distinct from installed environment activation.",
+          "withdrawalFence": "Retain actual generic non-Service and ProductEntry/source-proof readers only; retire those with their own consumers. Preserve all stored data, migration history and receipts.",
+          "status": "merged scoped native owner; legacy business implementation removed",
+          "evidenceRef": "docs/testing/evidence/2026-10-30-service-count-devcontainer.json"
         },
         {
           "id": "stock.command.post",
@@ -1750,26 +1786,28 @@
           "logicalOwner": "Inventory with Commerce, Finance and Workflow",
           "handlerRefs": [
             "packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/initial-physical-stock/[[...path]]/route.ts",
-            "packages/server-inventory/src/adapters/service-initial-physical-stock-count.ts"
+            "src/composition/src/service_initial_physical_stock.rs",
+            "src/composition/src/service_initial_physical_stock_transport.rs",
+            "src/composition/src/service_initial_physical_stock_command.rs",
+            "src/composition/src/service_initial_physical_stock_read.rs",
+            "src/composition/src/service_initial_physical_stock_flow.rs"
           ],
-          "activeLegacyImplementation": [
-            "packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/initial-physical-stock/[[...path]]/route.ts",
-            "packages/server-inventory/src/adapters/service-initial-physical-stock-count.ts"
+          "activeLegacyImplementation": [],
+          "activeNativeImplementation": [
+            "src/composition/src/service_initial_physical_stock.rs",
+            "src/composition/src/service_initial_physical_stock_transport.rs",
+            "src/composition/src/service_initial_physical_stock_command.rs",
+            "src/composition/src/service_initial_physical_stock_read.rs",
+            "src/composition/src/service_initial_physical_stock_flow.rs"
           ],
-          "activeNativeImplementation": [],
-          "selector": "Retained count route; selected actor, Company/scope, command key and actual owner purchase/Flow guards.",
+          "selector": "Native required for the Service family within exact registered Holding/Company and configured transport; absent configuration fails503, never chooses a retired TS writer.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Inventory count/Flow and, for post, owner stock and Finance effects as applicable.",
           "authorityAndIsolation": "Inventory owns the count; Finance/Workflow effects retain their own authority.",
-          "isolationStatus": "BLOCKED: retained TypeScript remains authoritative; native candidate is unmounted. Qualify its full delivery and fence all replaced route/internal/job writers before activation. No second active writer is introduced.",
-          "withdrawalFence": "Deliver or explicitly retain exactly one authoritative count post writer and prove current source/replay/rollback before fencing any replacement.",
-          "status": "retained TypeScript; required bundle setup gap",
-          "candidateNativeImplementation": [
-            "src/composition/src/service_initial_physical_stock.rs",
-            "src/composition/src/service_initial_physical_stock_sources.rs",
-            "src/composition/src/service_initial_physical_stock_action.rs"
-          ],
-          "candidateStatus": "Unmounted/default-off native coordinator with independent review accepted after historical receipt/result and Flow replay corrections; real Account/PostgreSQL tracked and untracked journeys pass. Frontend interaction model has no server-owner imports. No native HTTP/SDK/Next Count journey or legacy writer fence yet; historical decision digest has format and linked-identity checks, not reconstructed byte integrity."
+          "isolationStatus": "Single native scoped business/audit writer; actual selected authority, replay and same-unit rollback qualified. Source integration is distinct from installed environment activation.",
+          "withdrawalFence": "Retain actual generic non-Service and ProductEntry/source-proof readers only; retire those with their own consumers. Preserve all stored data, migration history and receipts.",
+          "status": "merged scoped native owner; legacy business implementation removed",
+          "evidenceRef": "docs/testing/evidence/2026-10-30-service-count-devcontainer.json"
         },
         {
           "id": "stock.command.reject",
@@ -1778,26 +1816,28 @@
           "logicalOwner": "Inventory with Commerce, Finance and Workflow",
           "handlerRefs": [
             "packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/initial-physical-stock/[[...path]]/route.ts",
-            "packages/server-inventory/src/adapters/service-initial-physical-stock-count.ts"
+            "src/composition/src/service_initial_physical_stock.rs",
+            "src/composition/src/service_initial_physical_stock_transport.rs",
+            "src/composition/src/service_initial_physical_stock_command.rs",
+            "src/composition/src/service_initial_physical_stock_read.rs",
+            "src/composition/src/service_initial_physical_stock_flow.rs"
           ],
-          "activeLegacyImplementation": [
-            "packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/initial-physical-stock/[[...path]]/route.ts",
-            "packages/server-inventory/src/adapters/service-initial-physical-stock-count.ts"
+          "activeLegacyImplementation": [],
+          "activeNativeImplementation": [
+            "src/composition/src/service_initial_physical_stock.rs",
+            "src/composition/src/service_initial_physical_stock_transport.rs",
+            "src/composition/src/service_initial_physical_stock_command.rs",
+            "src/composition/src/service_initial_physical_stock_read.rs",
+            "src/composition/src/service_initial_physical_stock_flow.rs"
           ],
-          "activeNativeImplementation": [],
-          "selector": "Retained count route; selected actor, Company/scope, command key and actual owner purchase/Flow guards.",
+          "selector": "Native required for the Service family within exact registered Holding/Company and configured transport; absent configuration fails503, never chooses a retired TS writer.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Inventory count/Flow and, for post, owner stock and Finance effects as applicable.",
           "authorityAndIsolation": "Inventory owns the count; Finance/Workflow effects retain their own authority.",
-          "isolationStatus": "BLOCKED: retained TypeScript remains authoritative; native candidate is unmounted. Qualify its full delivery and fence all replaced route/internal/job writers before activation. No second active writer is introduced.",
-          "withdrawalFence": "Deliver or explicitly retain exactly one authoritative count reject writer and prove current source/replay/rollback before fencing any replacement.",
-          "status": "retained TypeScript; required bundle setup gap",
-          "candidateNativeImplementation": [
-            "src/composition/src/service_initial_physical_stock.rs",
-            "src/composition/src/service_initial_physical_stock_sources.rs",
-            "src/composition/src/service_initial_physical_stock_action.rs"
-          ],
-          "candidateStatus": "Unmounted/default-off native coordinator with independent review accepted after historical receipt/result and Flow replay corrections; real Account/PostgreSQL tracked and untracked journeys pass. Frontend interaction model has no server-owner imports. No native HTTP/SDK/Next Count journey or legacy writer fence yet; historical decision digest has format and linked-identity checks, not reconstructed byte integrity."
+          "isolationStatus": "Single native scoped business/audit writer; actual selected authority, replay and same-unit rollback qualified. Source integration is distinct from installed environment activation.",
+          "withdrawalFence": "Retain actual generic non-Service and ProductEntry/source-proof readers only; retire those with their own consumers. Preserve all stored data, migration history and receipts.",
+          "status": "merged scoped native owner; legacy business implementation removed",
+          "evidenceRef": "docs/testing/evidence/2026-10-30-service-count-devcontainer.json"
         },
         {
           "id": "stock.command.cancel",
@@ -1806,26 +1846,28 @@
           "logicalOwner": "Inventory with Commerce, Finance and Workflow",
           "handlerRefs": [
             "packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/initial-physical-stock/[[...path]]/route.ts",
-            "packages/server-inventory/src/adapters/service-initial-physical-stock-count.ts"
+            "src/composition/src/service_initial_physical_stock.rs",
+            "src/composition/src/service_initial_physical_stock_transport.rs",
+            "src/composition/src/service_initial_physical_stock_command.rs",
+            "src/composition/src/service_initial_physical_stock_read.rs",
+            "src/composition/src/service_initial_physical_stock_flow.rs"
           ],
-          "activeLegacyImplementation": [
-            "packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/initial-physical-stock/[[...path]]/route.ts",
-            "packages/server-inventory/src/adapters/service-initial-physical-stock-count.ts"
+          "activeLegacyImplementation": [],
+          "activeNativeImplementation": [
+            "src/composition/src/service_initial_physical_stock.rs",
+            "src/composition/src/service_initial_physical_stock_transport.rs",
+            "src/composition/src/service_initial_physical_stock_command.rs",
+            "src/composition/src/service_initial_physical_stock_read.rs",
+            "src/composition/src/service_initial_physical_stock_flow.rs"
           ],
-          "activeNativeImplementation": [],
-          "selector": "Retained count route; selected actor, Company/scope, command key and actual owner purchase/Flow guards.",
+          "selector": "Native required for the Service family within exact registered Holding/Company and configured transport; absent configuration fails503, never chooses a retired TS writer.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Inventory count/Flow and, for post, owner stock and Finance effects as applicable.",
           "authorityAndIsolation": "Inventory owns the count; Finance/Workflow effects retain their own authority.",
-          "isolationStatus": "BLOCKED: retained TypeScript remains authoritative; native candidate is unmounted. Qualify its full delivery and fence all replaced route/internal/job writers before activation. No second active writer is introduced.",
-          "withdrawalFence": "Deliver or explicitly retain exactly one authoritative count cancel writer and prove current source/replay/rollback before fencing any replacement.",
-          "status": "retained TypeScript; required bundle setup gap",
-          "candidateNativeImplementation": [
-            "src/composition/src/service_initial_physical_stock.rs",
-            "src/composition/src/service_initial_physical_stock_sources.rs",
-            "src/composition/src/service_initial_physical_stock_action.rs"
-          ],
-          "candidateStatus": "Unmounted/default-off native coordinator with independent review accepted after historical receipt/result and Flow replay corrections; real Account/PostgreSQL tracked and untracked journeys pass. Frontend interaction model has no server-owner imports. No native HTTP/SDK/Next Count journey or legacy writer fence yet; historical decision digest has format and linked-identity checks, not reconstructed byte integrity."
+          "isolationStatus": "Single native scoped business/audit writer; actual selected authority, replay and same-unit rollback qualified. Source integration is distinct from installed environment activation.",
+          "withdrawalFence": "Retain actual generic non-Service and ProductEntry/source-proof readers only; retire those with their own consumers. Preserve all stored data, migration history and receipts.",
+          "status": "merged scoped native owner; legacy business implementation removed",
+          "evidenceRef": "docs/testing/evidence/2026-10-30-service-count-devcontainer.json"
         },
         {
           "id": "stock.command.assign-flow",
@@ -1834,26 +1876,28 @@
           "logicalOwner": "Inventory with Commerce, Finance and Workflow",
           "handlerRefs": [
             "packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/initial-physical-stock/[[...path]]/route.ts",
-            "packages/server-inventory/src/adapters/service-initial-physical-stock-count.ts"
+            "src/composition/src/service_initial_physical_stock.rs",
+            "src/composition/src/service_initial_physical_stock_transport.rs",
+            "src/composition/src/service_initial_physical_stock_command.rs",
+            "src/composition/src/service_initial_physical_stock_read.rs",
+            "src/composition/src/service_initial_physical_stock_flow.rs"
           ],
-          "activeLegacyImplementation": [
-            "packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/initial-physical-stock/[[...path]]/route.ts",
-            "packages/server-inventory/src/adapters/service-initial-physical-stock-count.ts"
+          "activeLegacyImplementation": [],
+          "activeNativeImplementation": [
+            "src/composition/src/service_initial_physical_stock.rs",
+            "src/composition/src/service_initial_physical_stock_transport.rs",
+            "src/composition/src/service_initial_physical_stock_command.rs",
+            "src/composition/src/service_initial_physical_stock_read.rs",
+            "src/composition/src/service_initial_physical_stock_flow.rs"
           ],
-          "activeNativeImplementation": [],
-          "selector": "Retained count route; selected actor, Company/scope, command key and actual owner purchase/Flow guards.",
+          "selector": "Native required for the Service family within exact registered Holding/Company and configured transport; absent configuration fails503, never chooses a retired TS writer.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Inventory count/Flow and, for post, owner stock and Finance effects as applicable.",
           "authorityAndIsolation": "Inventory owns the count; Finance/Workflow effects retain their own authority.",
-          "isolationStatus": "BLOCKED: retained TypeScript remains authoritative; native candidate is unmounted. Qualify its full delivery and fence all replaced route/internal/job writers before activation. No second active writer is introduced.",
-          "withdrawalFence": "Deliver or explicitly retain exactly one authoritative count assign-flow writer and prove current source/replay/rollback before fencing any replacement.",
-          "status": "retained TypeScript; required bundle setup gap",
-          "candidateNativeImplementation": [
-            "src/composition/src/service_initial_physical_stock.rs",
-            "src/composition/src/service_initial_physical_stock_sources.rs",
-            "src/composition/src/service_initial_physical_stock_action.rs"
-          ],
-          "candidateStatus": "Unmounted/default-off native coordinator with independent review accepted after historical receipt/result and Flow replay corrections; real Account/PostgreSQL tracked and untracked journeys pass. Frontend interaction model has no server-owner imports. No native HTTP/SDK/Next Count journey or legacy writer fence yet; historical decision digest has format and linked-identity checks, not reconstructed byte integrity."
+          "isolationStatus": "Single native scoped business/audit writer; actual selected authority, replay and same-unit rollback qualified. Source integration is distinct from installed environment activation.",
+          "withdrawalFence": "Retain actual generic non-Service and ProductEntry/source-proof readers only; retire those with their own consumers. Preserve all stored data, migration history and receipts.",
+          "status": "merged scoped native owner; legacy business implementation removed",
+          "evidenceRef": "docs/testing/evidence/2026-10-30-service-count-devcontainer.json"
         },
         {
           "id": "stock.read",
@@ -1862,26 +1906,28 @@
           "logicalOwner": "Inventory with Commerce and Finance",
           "handlerRefs": [
             "packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/initial-physical-stock/[[...path]]/route.ts",
-            "packages/server-inventory/src/adapters/service-initial-physical-stock-count.ts"
+            "src/composition/src/service_initial_physical_stock.rs",
+            "src/composition/src/service_initial_physical_stock_transport.rs",
+            "src/composition/src/service_initial_physical_stock_command.rs",
+            "src/composition/src/service_initial_physical_stock_read.rs",
+            "src/composition/src/service_initial_physical_stock_flow.rs"
           ],
-          "activeLegacyImplementation": [
-            "packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/initial-physical-stock/[[...path]]/route.ts",
-            "packages/server-inventory/src/adapters/service-initial-physical-stock-count.ts"
+          "activeLegacyImplementation": [],
+          "activeNativeImplementation": [
+            "src/composition/src/service_initial_physical_stock.rs",
+            "src/composition/src/service_initial_physical_stock_transport.rs",
+            "src/composition/src/service_initial_physical_stock_command.rs",
+            "src/composition/src/service_initial_physical_stock_read.rs",
+            "src/composition/src/service_initial_physical_stock_flow.rs"
           ],
-          "activeNativeImplementation": [],
-          "selector": "Retained count route with actual selection and source scope.",
+          "selector": "Native required for the Service family within exact registered Holding/Company and configured transport; absent configuration fails503, never chooses a retired TS writer.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "No business write.",
           "authorityAndIsolation": "Selected current actor and owner source rights.",
-          "isolationStatus": "BLOCKED: retained TypeScript remains authoritative; native candidate is unmounted. Qualify its full delivery and fence all replaced route/internal/job writers before activation. No second active writer is introduced.",
-          "withdrawalFence": "Preserve actual count selection, state and Flow before changing the reader.",
-          "status": "retained TypeScript; required bundle setup gap",
-          "candidateNativeImplementation": [
-            "src/composition/src/service_initial_physical_stock.rs",
-            "src/composition/src/service_initial_physical_stock_sources.rs",
-            "src/composition/src/service_initial_physical_stock_read.rs"
-          ],
-          "candidateStatus": "Unmounted/default-off native coordinator with independent review accepted after historical receipt/result and Flow replay corrections; real Account/PostgreSQL tracked and untracked journeys pass. Frontend interaction model has no server-owner imports. No native HTTP/SDK/Next Count journey or legacy writer fence yet; historical decision digest has format and linked-identity checks, not reconstructed byte integrity."
+          "isolationStatus": "Single native scoped business/audit writer; actual selected authority, replay and same-unit rollback qualified. Source integration is distinct from installed environment activation.",
+          "withdrawalFence": "Retain actual generic non-Service and ProductEntry/source-proof readers only; retire those with their own consumers. Preserve all stored data, migration history and receipts.",
+          "status": "merged scoped native owner; legacy business implementation removed",
+          "evidenceRef": "docs/testing/evidence/2026-10-30-service-count-devcontainer.json"
         },
         {
           "id": "finance.field-cost-post",
@@ -1980,15 +2026,21 @@
             "packages/server-files/src/application/attachments/service.ts"
           ],
           "activeNativeImplementation": [
-            "src/composition/src/files_scan_native.rs"
+            "src/composition/src/files_scan_worker.rs",
+            "src/composition/src/files_scan_native.rs",
+            "src/composition/src/files_system_scan.rs",
+            "src/composition/src/field_files_cleanup_worker.rs",
+            "packages/server-files/src/adapters/field_visit_upload_cleanup.rs"
           ],
-          "selector": "Retained runtime loops active Holding resource slots; the Rust scanner is a component, not an established default worker cutover.",
+          "selector": "Canonical persisted lineage plus native claim/lease and provider authority, not an opt-in hint alone.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Scan attempts/source status, preview bytes/ledger/events and draft cleanup.",
           "authorityAndIsolation": "Real Files source, provider and durable job ownership; no inferred scanner result.",
-          "isolationStatus": "BLOCKED: native selection is a disposable nonproduction opt-in, while retained TypeScript and internal compatibility writers are not globally fenced.",
-          "withdrawalFence": "Inventory all runners for the same Holding/Company, select one scan/cleanup worker and prove lease/retry/bytes before disabling or replacing the other.",
-          "status": "retained runner; worker ownership not proven"
+          "isolationStatus": "Partitioned single ownership qualified for native Field scan and expired-draft/orphan cleanup; TS scan claim/settlement/cleanup excludes Field lineage, pins and claims.",
+          "withdrawalFence": "Preserve non-Field consumers and all history/retention obligations; no Field claim or settlement fallback.",
+          "status": "merged native Field partition; non-Field TS worker retained",
+          "partitionScope": "Persisted Field-owned source/upload/set lineage in exact configured Holding/Company providers uses native Field worker. Non-Field sources retain TS attachmentWork. Retained-source destruction is a separate capability.",
+          "evidenceRef": "docs/testing/evidence/2026-10-31-field-visit-files-native.json"
         },
         {
           "id": "inventory.reservation-alerts",
@@ -2029,18 +2081,26 @@
             "packages/server-workflow/src/adapters/job-projector.ts",
             "packages/server-runtime/src/adapters/runtime/jobs.ts"
           ],
-          "activeNativeImplementation": [],
-          "selector": "Retained registered Holding resources and actual durable event messages; native Field command writes outbox but is not a projector cutover.",
+          "activeNativeImplementation": [
+            "src/composition/src/service_count_worker.rs",
+            "packages/server-workflow/src/adapters/service_count_outbox.rs",
+            "packages/server-inventory/src/public/service_count_outbox_quarantine.sql",
+            "packages/server-inventory/src/public/service_count_outbox_eligible.sql",
+            "packages/server-inventory/src/public/service_count_outbox_ambiguous.sql"
+          ],
+          "selector": "Canonical Service Count outbox quarantine/eligible lineage predicates; TS claims exclude this partition.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Workflow projection, notices or related consumer effects selected by actual event.",
           "authorityAndIsolation": "Workflow source and current registered Holding ownership.",
-          "isolationStatus": "BLOCKED: retained TypeScript is active; no native replacement or explicit single-owner retention/fence proof is established. An active second writer is not inferred.",
-          "withdrawalFence": "Prove exactly one projector/consumer for the same event and preserve ordering/retry before changing job ownership.",
-          "status": "retained projector; job ownership not proven"
+          "isolationStatus": "Single native Service Count projection receipt/checkpoint/ack owner; no TS fallback or duplicate source writer. No Work item or notice projection is claimed.",
+          "withdrawalFence": "Retain TS projection for its other event families until separately migrated; preserve audit/outbox/receipt history.",
+          "status": "merged native Service Count partition; other events retain TS",
+          "partitionScope": "Registered leased Holding write/read pairs: ServiceCount-marked inventory.count.* and stock_count flow.assign events quarantined for native ownership; malformed/ambiguous events stay quarantined/retry. Other Workflow/Work/Collaboration event consumers remain TS.",
+          "evidenceRef": "docs/testing/evidence/2026-10-31-service-parts-native-closure.json"
         }
       ],
       "entryCount": 62,
-      "blockedWriteEntryCount": 46
+      "blockedWriteEntryCount": 19
     },
     "capabilityDeliveries": [
       {
@@ -2244,7 +2304,7 @@
       },
       {
         "id": "service-parts-native-writer-closure",
-        "status": "Native functional and writer closure qualified; final scoped candidate checks/integration pending",
+        "status": "Rust functional/native writer closure merged; Docker in progress",
         "branch": "codex/service-parts-native-closure",
         "integrationTarget": "codex/rust-backend-migration",
         "contract": "docs/contracts/next/service-parts-native-closure.md",
@@ -2255,14 +2315,28 @@
           "Native frontend preparation; immediate scoped legacy writer retirement"
         ],
         "checklist": {
-          "closed": 5,
+          "closed": 6,
           "total": 6
         },
         "retained": [
           "Generic non-Service Finance/Commerce functions",
           "ProductEntry authority read for Identity/WorkProjection until equivalent native entry migration"
         ],
-        "docker": "Qualify shared runtime after Rust closure; no new owner container.",
+        "docker": {
+          "status": "Fresh ARM64 image build/run locally qualified; scopedPR pending",
+          "branch": "codex/service-parts-container",
+          "sourceCodeCommit": "443623c863c09d5a8a89cd239a97b3a85784b8b9",
+          "recipe": "ops/containers/service-count-native.Dockerfile",
+          "scope": "Shared minimal native API/Count worker image; no new owner container or TS backend substitute.",
+          "runtimeImage": "sha256:024812ee1bcb85971a419f870a5984666a1682b12e8bb2bd084f4e966fbe3372",
+          "runtimeBytes": 16958478,
+          "contract": "docs/contracts/next/service-parts-containers.md",
+          "evidence": "docs/testing/evidence/2026-10-31-service-parts-containers.json",
+          "checklist": {
+            "closed": 5,
+            "total": 6
+          }
+        },
         "currentEvidence": {
           "compositionSha256": "0d6f68957626eb2de736cc006f7476eac559ff0697dbd0c66e59e99babddc2d6",
           "liveCases": "Seven actual same-lease native post-retirement live/historical cases pass, with original assertions and sequence-proven cleanup/deferred receipt rollback; sharedField16 remains open.",
@@ -2278,9 +2352,18 @@
         ],
         "evidence": "docs/testing/evidence/2026-10-31-service-parts-native-closure.json",
         "blockers": [
-          "Final source-bound quality/docs/security and scopedPR merge beforeDocker.",
-          "Shared Field16 colddevelopmentHMR/streaming and separate releaseSSR classification remain outside this bounded closure; nofullFieldacceptance."
-        ]
+          "Actual rebuilt Parts/Count container runtime qualification and scopedPR.",
+          "Field16 colddevHMR and selected-Company releaseSSR engineering/nativelease bridge remain separate open Field blockers."
+        ],
+        "sourceCommit": "9fe6478f4e5692b34a2e855c5df3857fc9f8d3ea",
+        "pullRequest": "https://github.com/fluke-jesadakorn/erpx/pull/12",
+        "mergeCommit": "443623c863c09d5a8a89cd239a97b3a85784b8b9",
+        "elapsedClosedBundle": {
+          "startedAt": "2026-10-31T02:35:50+07:00",
+          "mergedAt": "2026-10-31T03:34:39+07:00",
+          "wallSeconds": 3529,
+          "includesWaits": true
+        }
       }
     ]
   },
