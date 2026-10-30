@@ -9,6 +9,8 @@ fn record() {}
 fn flow() {}
 #[utoipa::path(post,path="/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock",params(("holding_slug"=String,Path)),request_body=CountCreateInput,responses((status=201,body=ServiceInitialCountCommandResponse,description="Current authorized Service Count create")))]
 fn create() {}
+#[utoipa::path(post,path="/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock/{id}/update",params(("holding_slug"=String,Path), ("id"=String,Path)),request_body=CountUpdateInput,responses((status=200,body=ServiceInitialCountCommandResponse,description="Service Count draft update receipt")))]
+fn update() {}
 #[utoipa::path(post,path="/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock/{id}/flow",params(("holding_slug"=String,Path), ("id"=String,Path)),request_body=CountAssignmentInput,responses((status=200,body=ServiceInitialCountCommandResponse,description="Current authorized Service Count assign")))]
 fn assign() {}
 #[utoipa::path(post,path="/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock/{id}/submit",params(("holding_slug"=String,Path), ("id"=String,Path)),request_body=CountActionInput,responses((status=200,body=ServiceInitialCountCommandResponse,description="Current authorized Service Count action_submit")))]
@@ -28,6 +30,7 @@ fn action_cancel() {}
         record,
         flow,
         create,
+        update,
         assign,
         action_submit,
         action_approve,
@@ -63,6 +66,9 @@ fn action_cancel() {}
         CountDraftInput,
         CountLineInput,
         CountAllocationInput,
+        CountUpdateInput,
+        CountUpdateLine,
+        CountUpdateAllocation,
         CountActionInput,
         CountAssignmentInput,
         FieldServiceRenderedContext
@@ -76,10 +82,30 @@ fn main() {
         let mut document = Document::openapi();
         document.info.title = "ERPX native Service initial physical Count".into();
         let mut value = serde_json::to_value(document).unwrap();
+        value["paths"]["/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock/{id}/update"]["post"]["requestBody"]["description"] = serde_json::json!("The private ingress accepts at most 2 MiB. Unknown object keys are stripped by the legacy-compatible update projection.");
         value["components"]["schemas"]["CountCreateInput"]["properties"]["expectedVersion"] =
             serde_json::json!({"type":"integer","const":0});
         value["components"]["schemas"]["CountAssignmentInput"]["properties"]["saveDefault"] =
             serde_json::json!({"type":"boolean","const":false});
+        let update = &mut value["components"]["schemas"];
+        update["CountUpdateInput"]["properties"]["warehouseId"]["minLength"] = 1.into();
+        update["CountUpdateInput"]["properties"]["countDate"]["format"] = "date".into();
+        update["CountUpdateInput"]["properties"]["reason"]["minLength"] = 5.into();
+        update["CountUpdateInput"]["properties"]["reason"]["maxLength"] = 2000.into();
+        update["CountUpdateLine"]["properties"]["productId"]["minLength"] = 1.into();
+        update["CountUpdateAllocation"]["properties"]["lotId"]["minLength"] = 1.into();
+        for (key, maximum) in [("lotCode", 100), ("serialNumber", 160)] {
+            update["CountUpdateAllocation"]["properties"][key]["minLength"] = 1.into();
+            update["CountUpdateAllocation"]["properties"][key]["maxLength"] = maximum.into();
+        }
+        for name in ["CountUpdateLine", "CountUpdateAllocation"] {
+            update[name]["properties"]["countedQuantity"]["pattern"] = r"^\d{1,12}(\.\d{1,3})?$".into();
+            update[name]["properties"]["unitCost"]["pattern"] = r"^\d{1,12}(\.\d{1,2})?$".into();
+        }
+        for key in ["manufacturedDate", "expiryDate"] {
+            update["CountUpdateAllocation"]["properties"][key] = serde_json::json!({"oneOf":[{"type":"string","format":"date"},{"type":"string","const":""}],"default":""});
+        }
+        update["CountUpdateLine"]["properties"]["allocations"]["default"] = serde_json::json!([]);
         if let Some(schemas) = value["components"]["schemas"].as_object_mut() {
             for name in [
                 "CountCreateInput",
@@ -128,6 +154,9 @@ fn main() {
         CountDraftInput::decl(&config),
         CountLineInput::decl(&config),
         CountAllocationInput::decl(&config),
+        CountUpdateInput::decl(&config),
+        CountUpdateLine::decl(&config),
+        CountUpdateAllocation::decl(&config),
         CountActionInput::decl(&config),
         CountAssignmentInput::decl(&config),
     ] {

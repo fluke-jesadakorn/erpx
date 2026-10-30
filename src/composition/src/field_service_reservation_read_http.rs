@@ -1676,6 +1676,12 @@ async fn act_initial_count<C: Clock + Send + Sync + 'static>(
     request: Request,
 ) -> Response {
     use crate::service_initial_physical_stock::CountAction;
+    if action == "update" {
+        return write_initial_count(
+            state, slug, request,
+            crate::service_initial_physical_stock_transport::ServiceInitialCountCommandRoute::Update { id },
+        ).await;
+    }
     let action = match action.as_str() {
         "submit" => CountAction::Submit,
         "approve" => CountAction::Approve,
@@ -1702,7 +1708,7 @@ async fn write_initial_count<C: Clock + Send + Sync + 'static>(
     route: crate::service_initial_physical_stock_transport::ServiceInitialCountCommandRoute,
 ) -> Response {
     use crate::service_initial_physical_stock_transport::ServiceInitialCountCommandRoute;
-    if matches!(&route, ServiceInitialCountCommandRoute::Action {id,..} | ServiceInitialCountCommandRoute::Assign {id} if id == "masters") {
+    if matches!(&route, ServiceInitialCountCommandRoute::Action {id,..} | ServiceInitialCountCommandRoute::Assign {id} | ServiceInitialCountCommandRoute::Update {id} if id == "masters") {
         return initial_count_response::<serde_json::Value>(Err(missing().into()), false);
     }
     let created = matches!(

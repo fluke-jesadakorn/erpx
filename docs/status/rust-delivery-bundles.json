@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-29T21:43:17.423449+00:00",
+  "updatedAt": "2026-10-30T03:44:00.841241+00:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
-  "policy": "Incremental independently mergeable capability bundles toward the unchanged full migration scope; unrelated owners and full-system final integration remain later work unless required by this bundle.",
+  "policy": "Complete bounded Rust capability with frontend/dependencies, one writer and immediate legacy implementation withdrawal; scoped PR integration target codex/rust-backend-migration only; Docker that completed capability next before the following migration bundle; Dev Container grows only with qualified Rust/Docker scope. Development requires another maintainer instruction.",
   "catalogue": {
     "path": "docs/status/product-migration-acceptance.json",
     "moduleWorkflowCount": 187,
@@ -30,7 +30,20 @@
     "statusMeaning": "partial, verified and merged are independent booleans; verified means the entire original catalogue scope is Rust-qualified, merged means that fully verified workflow has landed.",
     "currentState": "Support source-record/navigation is qualified as first-bundle blocker evidence, not an additional business flow or whole catalogue workflow.",
     "evidenceLocation": "Source identities and bounded scope are copied below from the ignored execution state; the detailed private evidence path can be cleaned or unavailable and is not a published artifact. Existing contracts are cited when directly recorded.",
-    "noDoubleCount": "Flows may support several catalogue items and multiple flows may support one item; no flow adds to the 206 denominator."
+    "noDoubleCount": "Flows may support several catalogue items and multiple flows may support one item; no flow adds to the 206 denominator.",
+    "integrationTarget": "codex/rust-backend-migration",
+    "retirementGate": "A migrated capability is not closed until its replaced routes, services, commands, jobs, selectors/fallbacks, imports/exports/configuration, obsolete tests and unused dependencies are removed, with behavioral assertions preserved. Shared retained parts need actual consumers/scope/removal conditions. No destructive schema/data/history/evidence cleanup.",
+    "containerOrder": "Rust + frontend/dependencies + legacy withdrawal and targeted checks, then Docker build/run/minimal non-root measured images for that capability, then next bundle. No TS-backend Docker substitute or automatic per-owner container.",
+    "milestoneSeparation": "Report Rust verified/enabled, legacy removed/retained consumers, post-removal checks, Docker built/run/image size, migration-branch PR/merge SHA and blockers separately; counts remain source-mapped and independent.",
+    "preRemovalGate": [
+      "API, internal callers, jobs and retries use the Rust owner in the declared scope.",
+      "Frontend uses Rust and the actual normal-authentication journey passes.",
+      "Authorization, transactions, idempotency, audit/outbox and error behavior pass.",
+      "Reference and consumer inventory establishes no required user of the replaced implementation."
+    ],
+    "removalTiming": "Remove replaced implementation in the capability PR or its immediate explicitly dependent cleanup PR, before the capability Docker runtime/build graph and before counting it closed; do not accumulate cleanup until the final migration.",
+    "postRemovalGate": "Verify targeted regressions, remaining references, dependency boundaries and runtime ownership on the latest post-removal candidate. Source deletion invalidates affected evidence only; unrelated source-matched evidence is reused.",
+    "protectedHistory": "Implementation removal never authorizes dropping tables, data, audit, migration history, receipts or prior evidence."
   },
   "firstBundle": {
     "id": "field-service-capability",
@@ -2028,7 +2041,74 @@
       ],
       "entryCount": 62,
       "blockedWriteEntryCount": 46
-    }
+    },
+    "capabilityDeliveries": [
+      {
+        "id": "service-initial-physical-stock-count",
+        "status": "in-progress; not enabled or delivery-qualified",
+        "branch": "codex/service-initial-stock-capability",
+        "integrationTarget": "codex/rust-backend-migration",
+        "rust": "Native generic draft revision has selected Account/real PostgreSQL and mounted private HTTP evidence, including a receipt written by the actual TypeScript writer. Public generic dispatch and the one-writer cutover are not enabled.",
+        "docker": "Not started for this capability; waits for complete native behavior and implementation withdrawal.",
+        "mergedPullRequest": null,
+        "legacyRemoved": [
+          "Service initial-stock BFF selection/read/create/actions/Flow fallback branches and imports.",
+          "Service initial-stock SSR legacy workspace/Flow fallback branches and imports.",
+          "Service Parts BFF and SSR Commerce/Finance setup fallback branches and imports."
+        ],
+        "legacyRemovalStatus": "Source changes only; frontend targeted suites passed. This is not withdrawal of the backend writer and is not a passed runtime cutover.",
+        "retained": [
+          {
+            "source": "packages/server-inventory/src/adapters/service-initial-physical-stock-count.ts",
+            "consumers": [
+              "Current direct integration behavioral tests",
+              "Identity product-workspace Service Count product-entry authority"
+            ],
+            "scope": "Legacy writer functions are not yet removed; product-entry authority is a distinct live read.",
+            "withdrawal": "Establish native parity including generic draft update and generic Flow behavior, replace required callers, migrate assertions and pass the normal-authentication candidate journey; then delete replaced functions, preserving or replacing the narrow product-entry read."
+          },
+          {
+            "source": "packages/server-inventory/src/adapters/service-initial-physical-stock-count-source-sql.ts",
+            "consumers": [
+              "Count and attachment purchase/source authorization",
+              "Service package obligations",
+              "Finance source lineage",
+              "Inventory projections and Workflow/Files source guards"
+            ],
+            "scope": "Persisted provenance and historical source identity; not a replacement business writer.",
+            "withdrawal": "Retain while these explicit historical/source-policy consumers exist; migrate equivalent owner interfaces with their respective capabilities. Never delete stored marker/source history."
+          },
+          {
+            "source": "packages/server-inventory/src/adapters/inventory-counts.ts",
+            "consumers": [
+              "Ordinary Supply counts",
+              "Sales initial count",
+              "Manufacturing initial count",
+              "POS initial count"
+            ],
+            "scope": "Shared generic implementation remains required for non-Service counts.",
+            "withdrawal": "Remove only the replaced Service-specific writer path in this bundle; migrate other consumers in their own bundles."
+          }
+        ],
+        "blockers": [
+          "Native generic Flow saveDefault parity, including scoped defaults and required purchase gates.",
+          "Pre-transaction public generic dispatch, current shared Count/Flow reads and actual normal-authentication frontend journey.",
+          "Transaction-attested legacy writer fence and cross-runtime birth/update/Flow race proof; then immediate replaced implementation withdrawal while preserving required shared consumers and behavioral assertions.",
+          "Generic outbox claim/drain, projection receipt/checkpoint and applicable notification/push ownership: current TS projector does not execute Count commands but remains a real runtime consumer.",
+          "Explicit supported input/history/image bounds and post-removal candidate qualification before Docker."
+        ],
+        "checks": {
+          "frontend": "Service entry suites 98 cases; existing Count Next entry 4; update SDK/adapter suites 80; shared Flow uncertain-retry state 5. Counts overlap and are not workflow completion. Actual post-retirement browser journey remains required.",
+          "postgres": "Selected Account and mounted private HTTP suite 2/2, including actual TS-written receipt replay, concurrent same-key native revision, later cancellation/replay, missing audit/outbox, prepare permission/nonpreparer, Supply draining and late rollback. Inventory-only revision 1/1 and Workflow update evidence 1/1 pass. These do not prove cross-runtime writer-fence races or final capability closure.",
+          "typecheck": "Current full application/test typecheck passes. Architecture, structure, catalogue and documentation checks pass; final post-removal candidate must pass again.",
+          "browser": "Existing Count journey evidence retained by source; no new cutover/post-removal browser pass claimed.",
+          "normalization": "17 actual Zod oracle vectors; 3 Rust normalization tests pass, including unknown UTF-16 property names. Original constructor authority property order was independently confirmed for the actual legacy writer fixture.",
+          "contracts": "Rust-owned update DTO/OpenAPI/TypeScript generation and --check pass; selected private-field-api build without existing-business passes."
+        },
+        "retestReason": "New revision transaction/evidence, selected HTTP transport, legacy replay fixture, update SDK and shared Flow attempt handling changed their source and require their targeted checks. Unrelated unchanged evidence is reused.",
+        "elapsedClosedBundle": null
+      }
+    ]
   },
   "qualifiedEvidence": [
     {

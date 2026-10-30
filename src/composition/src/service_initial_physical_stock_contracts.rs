@@ -167,6 +167,58 @@ pub struct CountAllocationInput {
     #[cfg_attr(feature = "contracts", ts(optional), schema(nullable = false))]
     pub unit_cost: Option<String>,
 }
+/// Generic Count editor update accepts the legacy Zod projection: unknown keys
+/// are ignored and optional line allocations and allocation dates are defaulted.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct CountUpdateInput {
+    pub warehouse_id: String,
+    pub count_date: String,
+    pub reason: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "contracts", ts(optional, type = "number"), schema(nullable = false, minimum = 1, maximum = 9007199254740991i64))]
+    pub expected_version: Option<i64>,
+    #[cfg_attr(feature = "contracts", schema(min_items = 1, max_items = 50))]
+    pub lines: Vec<CountUpdateLine>,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct CountUpdateLine {
+    pub product_id: String,
+    pub counted_quantity: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "contracts", ts(optional), schema(nullable = false))]
+    pub unit_cost: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "contracts", ts(optional), schema(nullable = false, max_items = 500))]
+    pub allocations: Option<Vec<CountUpdateAllocation>>,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct CountUpdateAllocation {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "contracts", ts(optional), schema(nullable = false))]
+    pub lot_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "contracts", ts(optional), schema(nullable = false))]
+    pub lot_code: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "contracts", ts(optional), schema(nullable = false))]
+    pub serial_number: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "contracts", ts(optional), schema(nullable = false))]
+    pub manufactured_date: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "contracts", ts(optional), schema(nullable = false))]
+    pub expiry_date: Option<String>,
+    pub counted_quantity: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "contracts", ts(optional), schema(nullable = false))]
+    pub unit_cost: Option<String>,
+}
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]

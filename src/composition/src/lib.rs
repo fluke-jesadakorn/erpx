@@ -151,6 +151,8 @@ mod service_initial_physical_stock_create;
 #[cfg(feature = "field-service")]
 mod service_initial_physical_stock_action;
 #[cfg(feature = "field-service")]
+pub mod service_initial_physical_stock_update;
+#[cfg(feature = "field-service")]
 pub mod service_initial_physical_stock;
 #[cfg(feature = "field-service-http")]
 pub mod service_initial_physical_stock_transport;

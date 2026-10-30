@@ -14,3 +14,4 @@ pub(crate) mod field_service_detail;
 pub(crate) mod service_parts_posting;
 pub(crate) mod service_initial_physical_count;
 pub(crate) mod service_initial_count_decision;
+pub(crate) mod service_initial_count_revision;

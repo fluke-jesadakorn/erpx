@@ -404,9 +404,11 @@ impl PgOwnerCommandEffects for PlannedLedgerFixture<'_> {
     ) -> Result<WorkflowOutput, Error> {
         let output = WorkflowOutput {
             version: 2,
-            result: CommandJson::parse(
-                r#"{"id":"count-fixture","status":"approved","version":2}"#,
-            )?,
+            result: CommandJson::parse(if request.operation == "inventory.count.update" {
+                r#"{"id":"count-fixture","status":"draft","version":2}"#
+            } else {
+                r#"{"id":"count-fixture","status":"approved","version":2}"#
+            })?,
             event_scope: None,
         };
         self.plan=Some(erpx_server_workflow::public::service_count_command_evidence::plan_count_command_evidence(c,actor,request,&output,self.clock).await?);
@@ -448,4 +450,48 @@ async fn planned_count_command_rejects_corruption_before_retaining_ledger_rows()
   })).await;assert!(matches!(result,Err(PgTransactionError::Business(e)) if e.code=="SERVICE_INITIAL_PHYSICAL_STOCK_SOURCE_CHANGED"));
   let counts:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM command_receipts WHERE command_id='count-evidence-fixture'),(SELECT count(*) FROM audit_events WHERE command_id='count-evidence-fixture'),(SELECT count(*) FROM outbox_events WHERE command_id='count-evidence-fixture')").fetch_one(pool.raw()).await.unwrap();assert_eq!(counts,(0,0,0));
  }).await;
+}
+
+#[tokio::test]
+async fn count_revision_evidence_checks_ordinary_ledger_without_flow_or_decision() {
+    use erpx_server_workflow::public::service_count_command_evidence::{
+        CountCommandClock, CountCommandGeneratedIds, verify_historical_count_command,
+    };
+    fixture::with_database(2, |pool| async move {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+        let migrations = load_migrations(root, MigrationTrack::HoldingWrite).await.unwrap();
+        migrate_database(&pool, MigrationTrack::HoldingWrite, &migrations).await.unwrap();
+        let result = PgUnitOfWork::new(pool.clone()).run::<(), BusinessError, _>(
+            TransactionOptions::default(), |c| Box::pin(async move {
+                let request = WorkflowRequest {
+                    key: "count-revision-evidence".into(),
+                    operation: "inventory.count.update".into(),
+                    record_id: "count-fixture".into(),
+                    input: CommandJson::parse(r#"{"expectedVersion":1,"reason":"Count revision"}"#)?,
+                };
+                let generated = CountCommandGeneratedIds::default();
+                let clock = CountCommandClock::sample(&ClockFixture)?;
+                let mut raw_ids = IdFixture;
+                let mut ids = generated.wrap(&mut raw_ids);
+                let mut authority = FixtureAuthority;
+                let mut effects = PlannedLedgerFixture { generated: &generated, clock, plan: None };
+                PgCommandLedger::new(CompanyId::new("company")?, c, &mut authority, &clock, &mut ids)
+                    .execute(&request, &mut effects).await?;
+                verify_historical_count_command(c, &fixture_actor(), &request, "branch", None).await?;
+                let wrong = WorkflowRequest { input: CommandJson::parse(r#"{"expectedVersion":2,"reason":"Count revision"}"#)?, key:request.key.clone(), operation:request.operation.clone(), record_id:request.record_id.clone() };
+                assert!(verify_historical_count_command(c, &fixture_actor(), &wrong, "branch", None).await.is_err());
+                let omitted = WorkflowRequest { input: CommandJson::parse(r#"{"reason":"Count revision"}"#)?, key:request.key.clone(), operation:request.operation.clone(), record_id:request.record_id.clone() };
+                assert!(verify_historical_count_command(c, &fixture_actor(), &omitted, "branch", None).await.is_err());
+                let mut wrong_actor = fixture_actor(); wrong_actor.role = "company_owner".into();
+                assert!(verify_historical_count_command(c, &wrong_actor, &request, "branch", None).await.is_err());
+                let events: (i64, i64) = sqlx::query_as("SELECT (SELECT count(*) FROM flow_events WHERE command_id=$1),(SELECT count(*) FROM decision_evidence WHERE command_id=$1)")
+                    .bind(&request.key).fetch_one(&mut *c).await?;
+                assert_eq!(events, (0, 0));
+                Err(BusinessError::invalid("ROLLBACK_EVIDENCE_FIXTURE", "Do not retain synthetic Count evidence").into())
+            })).await;
+        assert!(matches!(result, Err(PgTransactionError::Business(e)) if e.code == "ROLLBACK_EVIDENCE_FIXTURE"));
+        let counts: (i64, i64, i64) = sqlx::query_as("SELECT (SELECT count(*) FROM command_receipts WHERE command_id='count-revision-evidence'),(SELECT count(*) FROM audit_events WHERE command_id='count-revision-evidence'),(SELECT count(*) FROM outbox_events WHERE command_id='count-revision-evidence')")
+            .fetch_one(pool.raw()).await.unwrap();
+        assert_eq!(counts, (0, 0, 0));
+    }).await;
 }

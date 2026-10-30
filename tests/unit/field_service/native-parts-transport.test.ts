@@ -6,12 +6,12 @@ import { nativePartsPrerequisiteRequest, nativePartsStockRequest, nativePartsSet
 vi.mock('server-only', () => ({}));
 
 let server: Server, baseUrl: string;
-const observed: Array<{ method: string; path: string; body: string; context: string | undefined }> = [];
+const observed: Array<{ method: string; path: string; body: string; context: string | undefined; key?: string }> = [];
 beforeAll(async () => {
   server = createServer(async (request, response) => {
     const chunks: Buffer[] = [];
     for await (const chunk of request) chunks.push(Buffer.from(chunk));
-    observed.push({ method: request.method!, path: request.url!, body: Buffer.concat(chunks).toString(), context: request.headers['x-erpx-context-company'] as string | undefined });
+    observed.push({ method: request.method!, path: request.url!, body: Buffer.concat(chunks).toString(), context: request.headers['x-erpx-context-company'] as string | undefined, ...(request.headers['idempotency-key'] ? {key: request.headers['idempotency-key'] as string} : {}) });
     response.writeHead(200, { 'content-type': 'application/json' });
     response.end('{"data":{"id":"synthetic-receipt","version":1}}');
   });
@@ -53,4 +53,10 @@ it('Count transport forwards raw selection query and action body to the exact ro
  const headers=new Headers({'x-erpx-context-company':'synthetic-company'}),body='{ "expectedVersion" : 2 }';
  await nativeInitialCountRequest({baseUrl,slug:'acme',route:{kind:'record',id:'count 1',query:'?unknown=one&unknown=two'},headers,timeoutMs:5000});expect(observed.at(-1)).toMatchObject({method:'GET',path:'/api/v1/holdings/acme/field-service/initial-physical-stock/count%201?unknown=one&unknown=two'});
  await nativeInitialCountRequest({baseUrl,slug:'acme',route:{kind:'action',id:'count 1',action:'approve'},headers,body,timeoutMs:5000});expect(observed.at(-1)).toMatchObject({method:'POST',path:'/api/v1/holdings/acme/field-service/initial-physical-stock/count%201/approve',body,context:'synthetic-company'});
+});
+
+it('Count update sends the original body, key and context through the real private HTTP transport',async()=>{
+ const headers=new Headers({'x-erpx-context-company':'synthetic-company','idempotency-key':'original-key'}),body='{ "expectedVersion" : 2, "reason" : "Original" }';
+ await nativeInitialCountRequest({baseUrl,slug:'acme',route:{kind:'update',id:'count 1'},headers,body,timeoutMs:5000});
+ expect(observed.at(-1)).toEqual({method:'POST',path:'/api/v1/holdings/acme/field-service/initial-physical-stock/count%201/update',body,context:'synthetic-company',key:'original-key'});
 });

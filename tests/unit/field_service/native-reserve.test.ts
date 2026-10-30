@@ -401,3 +401,12 @@ it('accepts only exact contributor Holding authorities in the opt-in native brid
   vi.stubEnv('NODE_ENV','production');vi.stubEnv('ERPX_NATIVE_FIELD_SERVICE_RESERVE_CONFIG',JSON.stringify({privateBaseUrl:'http://127.0.0.1:44999',timeoutMs:1000,holdings:[{origin:'https://acme.erpx.localhost:3443',holdingSlug:'acme',holdingId:'h001'}]}));await expect(nativeReservePost(request(),'acme',input)).rejects.toThrow('NATIVE_SERVICE_CONFIGURATION_INVALID');
  } finally {vi.unstubAllEnvs();}
 });
+
+it('Count update validates the exact receipt and never substitutes missing command context',async()=>{
+ config();const incoming=headers(),context={...actor,expiresAt:Date.now()+60000},raw='{ "expectedVersion":3, "reason":"Original" }',seen:NativeCountTransportInput[]=[];
+ const send=async(input:NativeCountTransportInput)=>{seen.push(input);return {status:200,body:{context,data:{id:'count-a',status:'draft',version:4}}};};
+ expect(await nativeInitialCount(incoming,'acme',actor,{kind:'update',id:'count-a'},raw,'original-key',send)).toEqual({id:'count-a',status:'draft',version:4});
+ expect(seen[0]).toMatchObject({method:'POST',suffix:'/count-a/update',body:raw});expect(seen[0].headers.get('idempotency-key')).toBe('original-key');
+ for(const name of ['x-erpx-context-company','x-erpx-context-assignment','x-erpx-context-revision','x-erpx-context-assignment-version']){const missing=new Headers(incoming);missing.delete(name);await expect(nativeInitialCount(missing,'acme',actor,{kind:'update',id:'count-a'},raw,'original-key',send)).rejects.toMatchObject({code:'WORK_CONTEXT_CHANGED',status:409});}expect(seen).toHaveLength(1);
+ for(const data of [{id:'other',status:'draft',version:4},{id:'count-a',status:'posted',version:4},{id:'count-a',status:'draft',version:5},{id:'count-a',status:'draft',version:4,journalId:null}]) await expect(nativeInitialCount(incoming,'acme',actor,{kind:'update',id:'count-a'},raw,'original-key',async()=>({status:200,body:{context,data}}))).rejects.toMatchObject({code:'NATIVE_INITIAL_COUNT_RESPONSE_INVALID'});
+});
