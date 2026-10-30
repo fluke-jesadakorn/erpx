@@ -11,3 +11,4 @@ pub(crate) mod service_count_decision_evidence;
 pub(crate) mod service_count_command_evidence;
 
 pub(crate) mod field_intake_command_evidence;
+pub(crate) mod service_count_outbox;

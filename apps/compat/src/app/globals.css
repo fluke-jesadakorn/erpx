@@ -2922,7 +2922,6 @@
 @source "../../../../packages/server-commerce/src/public/sales-order-sources.ts";
 @source "../../../../packages/server-commerce/src/public/sales-package-sources.ts";
 @source "../../../../packages/server-commerce/src/public/sales-service-products.ts";
-@source "../../../../packages/server-commerce/src/public/service-initial-physical-stock-masters.ts";
 @source "../../../../packages/server-commerce/src/public/service-initial-physical-stock-sources.ts";
 @source "../../../../packages/server-commerce/src/public/service-parts-posting-proof.ts";
 @source "../../../../packages/server-commerce/src/public/service-parts-posting-setup.ts";
@@ -4492,7 +4491,6 @@
 @source "../../../../packages/server-inventory/src/domain/reorder-policies.ts";
 @source "../../../../packages/server-inventory/src/domain/reorder-quantity.ts";
 @source "../../../../packages/server-inventory/src/domain/service-initial-physical-stock-count-entry.ts";
-@source "../../../../packages/server-inventory/src/domain/service-initial-physical-stock-count.ts";
 @source "../../../../packages/server-inventory/src/domain/transfers.ts";
 @source "../../../../packages/server-inventory/src/domain/transit.ts";
 @source "../../../../packages/server-inventory/src/public/attachment-read.ts";
@@ -7298,6 +7296,9 @@
 @source "../../../../packages/workplace/src/components/workspace-link.tsx";
 @source "../../../../packages/workplace/src/components/workspace-menu.tsx";
 @source "../../../../packages/workplace/src/holding-proxy.ts";
+@source "../../../../packages/workplace/src/lib/flow-assignment-command.ts";
+@source "../../../../packages/workplace/src/lib/service-count-native-command.ts";
+@source "../../../../packages/workplace/src/lib/service-count-native-read.ts";
 @source "../../../../packages/workplace/src/proxy.ts";
 @source "../../../../packages/workplace/src/routes/access/page.tsx";
 @source "../../../../packages/workplace/src/routes/activate/activation-form.tsx";

@@ -103,6 +103,8 @@ pub fn field_service_reservation_read_router<C: Clock + Send + Sync + 'static>(
         .route("/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock/{id}",get(read_initial_count_record::<C>))
         .route("/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock/{id}/flow",get(read_initial_count_flow::<C>).post(assign_initial_count::<C>))
         .route("/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock/{id}/{action}",post(act_initial_count::<C>))
+        .route("/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock/{id}/stock-count/{action}",post(act_generic_initial_count::<C>))
+        .route("/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock/{id}/stock-count",get(read_initial_count_generic_detail::<C>))
         .route("/api/v1/holdings/{holding_slug}/field-service/parts-setup/masters/products",post(create_stock_product::<C>))
         .route("/api/v1/holdings/{holding_slug}/field-service/parts-setup/masters/warehouses",post(create_stock_warehouse::<C>))
         .route("/api/v1/holdings/{holding_slug}/field-service/parts-setup/charts",post(create_parts_chart::<C>))
@@ -148,11 +150,12 @@ async fn read_stock_setup<C: Clock + Send + Sync + 'static>(
         let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
         let captured = CapturedHoldingMutation::capture(&headers, branch, department);
         let company = target.service.company_id().clone();
+        let registered_company = target.service.registered_setup_companies();
         target
             .service
             .stock_setup(host, inbound.into_proof(), move || {
                 scope?;
-                captured.resolve_read(company)
+                if registered_company { captured.resolve_rendered_read() } else { captured.resolve_read(company) }
             })
             .await
     }
@@ -291,11 +294,12 @@ async fn read_parts_prerequisites<C: Clock + Send + Sync + 'static>(
         let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
         let captured = CapturedHoldingMutation::capture(&headers, branch, department);
         let company = target.service.company_id().clone();
+        let registered_company = target.service.registered_setup_companies();
         target
             .service
             .parts_prerequisites(host, inbound.into_proof(), move || {
                 scope?;
-                captured.resolve_read(company)
+                if registered_company { captured.resolve_rendered_read() } else { captured.resolve_read(company) }
             })
             .await
     }
@@ -491,11 +495,12 @@ async fn read_parts_posting<C: Clock + Send + Sync + 'static>(
         let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
         let captured = CapturedHoldingMutation::capture(&headers, branch, department);
         let company = target.service.company_id().clone();
+        let registered_company = target.service.registered_setup_companies();
         target
             .service
             .parts_posting_setup(host, inbound.into_proof(), move || {
                 scope?;
-                captured.resolve_read(company)
+                if registered_company { captured.resolve_rendered_read() } else { captured.resolve_read(company) }
             })
             .await
     }
@@ -1575,6 +1580,12 @@ async fn read_initial_count_record<C: Clock + Send + Sync + 'static>(
     )
     .await
 }
+async fn read_initial_count_generic_detail<C: Clock + Send + Sync + 'static>(
+    state: State<Arc<ReadState<C>>>, Path((slug,id)): Path<(String,String)>,
+    axum::extract::RawQuery(query): axum::extract::RawQuery, headers: HeaderMap,
+) -> Response {
+    read_initial_count(state,slug,headers,crate::service_initial_physical_stock_transport::ServiceInitialCountReadRoute::GenericDetail{id,query}).await
+}
 async fn read_initial_count_flow<C: Clock + Send + Sync + 'static>(
     state: State<Arc<ReadState<C>>>,
     Path((slug, id)): Path<(String, String)>,
@@ -1599,7 +1610,7 @@ async fn read_initial_count<C: Clock + Send + Sync + 'static>(
     route: crate::service_initial_physical_stock_transport::ServiceInitialCountReadRoute,
 ) -> Response {
     use crate::service_initial_physical_stock_transport::ServiceInitialCountReadRoute;
-    if matches!(&route, ServiceInitialCountReadRoute::Record {id,..} | ServiceInitialCountReadRoute::Flow {id,..} if id == "masters") {
+    if matches!(&route, ServiceInitialCountReadRoute::Record {id,..} | ServiceInitialCountReadRoute::Flow {id,..} | ServiceInitialCountReadRoute::GenericDetail {id,..} if id == "masters") {
         return initial_count_response::<serde_json::Value>(Err(missing().into()), false);
     }
     let result = async {
@@ -1625,7 +1636,7 @@ async fn read_initial_count<C: Clock + Send + Sync + 'static>(
         let scope = state.scopes.slugs(&headers);
         let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
         let captured = CapturedHoldingMutation::capture(&headers, branch, department);
-        let company = target.service.company_id().clone();
+
         target
             .service
             .initial_count_read(
@@ -1633,7 +1644,7 @@ async fn read_initial_count<C: Clock + Send + Sync + 'static>(
                 inbound.into_proof(),
                 move || {
                     scope?;
-                    captured.resolve_read(company)
+                    captured.resolve_rendered_read()
                 },
                 route,
             )
@@ -1676,6 +1687,12 @@ async fn act_initial_count<C: Clock + Send + Sync + 'static>(
     request: Request,
 ) -> Response {
     use crate::service_initial_physical_stock::CountAction;
+    if action == "update" {
+        return write_initial_count(
+            state, slug, request,
+            crate::service_initial_physical_stock_transport::ServiceInitialCountCommandRoute::Update { id },
+        ).await;
+    }
     let action = match action.as_str() {
         "submit" => CountAction::Submit,
         "approve" => CountAction::Approve,
@@ -1695,6 +1712,28 @@ async fn act_initial_count<C: Clock + Send + Sync + 'static>(
     )
     .await
 }
+async fn act_generic_initial_count<C: Clock + Send + Sync + 'static>(
+    state: State<Arc<ReadState<C>>>,
+    Path((slug, id, action)): Path<(String, String, String)>,
+    request: Request,
+) -> Response {
+    use crate::service_initial_physical_stock::CountAction;
+    use crate::service_initial_physical_stock_transport::ServiceInitialCountCommandRoute;
+    let route = if action == "flow" {
+        ServiceInitialCountCommandRoute::GenericAssign { id }
+    } else {
+        let action = match action.as_str() {
+            "submit" => CountAction::Submit,
+            "approve" => CountAction::Approve,
+            "post" => CountAction::Post,
+            "reject" => CountAction::Reject,
+            "cancel" => CountAction::Cancel,
+            _ => return initial_count_response::<serde_json::Value>(Err(missing().into()), false),
+        };
+        ServiceInitialCountCommandRoute::GenericAction { id, action }
+    };
+    write_initial_count(state, slug, request, route).await
+}
 async fn write_initial_count<C: Clock + Send + Sync + 'static>(
     State(state): State<Arc<ReadState<C>>>,
     slug: String,
@@ -1702,7 +1741,7 @@ async fn write_initial_count<C: Clock + Send + Sync + 'static>(
     route: crate::service_initial_physical_stock_transport::ServiceInitialCountCommandRoute,
 ) -> Response {
     use crate::service_initial_physical_stock_transport::ServiceInitialCountCommandRoute;
-    if matches!(&route, ServiceInitialCountCommandRoute::Action {id,..} | ServiceInitialCountCommandRoute::Assign {id} if id == "masters") {
+    if matches!(&route, ServiceInitialCountCommandRoute::Action {id,..} | ServiceInitialCountCommandRoute::Assign {id} | ServiceInitialCountCommandRoute::Update {id} | ServiceInitialCountCommandRoute::GenericAction {id,..} | ServiceInitialCountCommandRoute::GenericAssign {id} if id == "masters") {
         return initial_count_response::<serde_json::Value>(Err(missing().into()), false);
     }
     let created = matches!(

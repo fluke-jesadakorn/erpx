@@ -4,7 +4,7 @@ import {Readable} from 'node:stream';
 import type {ServiceInitialCountReadResponse,ServiceInitialCountCommandResponse} from '@erpx/contracts/field-service-initial-count';
 
 /** Selection and authorization belong to the caller; transport never retries. */
-export type NativeCountRoute={kind:'selection';query?:string}|{kind:'record';id:string;query?:string}|{kind:'flow';id:string;query?:string}|{kind:'create'}|{kind:'action';id:string;action:'submit'|'approve'|'post'|'reject'|'cancel'}|{kind:'assign';id:string};
+export type NativeCountRoute={kind:'selection';query?:string}|{kind:'record';id:string;query?:string}|{kind:'flow';id:string;query?:string}|{kind:'generic-detail';id:string}|{kind:'create'}|{kind:'update';id:string}|{kind:'action';id:string;action:'submit'|'approve'|'post'|'reject'|'cancel'}|{kind:'generic-action';id:string;action:'submit'|'approve'|'post'|'reject'|'cancel'}|{kind:'assign';id:string}|{kind:'generic-assign';id:string};
 export type NativeCountRequest={baseUrl:string;slug:string;route:NativeCountRoute;headers:Headers;timeoutMs:number;body?:string};
 export type NativeCountReply={status:number;body:unknown};
 export type NativeCountTypedResponse=ServiceInitialCountReadResponse|ServiceInitialCountCommandResponse;
@@ -20,8 +20,12 @@ export async function nativeInitialCountRequest(input:NativeCountRequest,transpo
   case 'selection':suffix=querySuffix(route.query);method='GET';break;
   case 'record':suffix=`/${idPath(route.id)}${querySuffix(route.query)}`;method='GET';break;
   case 'flow':suffix=`/${idPath(route.id)}/flow${querySuffix(route.query)}`;method='GET';break;
+  case 'generic-detail':suffix=`/${idPath(route.id)}/stock-count`;method='GET';break;
   case 'create':suffix='';method='POST';break;
+  case 'update':suffix=`/${idPath(route.id)}/update`;method='POST';break;
+  case 'generic-assign':suffix=`/${idPath(route.id)}/stock-count/flow`;method='POST';break;
   case 'assign':suffix=`/${idPath(route.id)}/flow`;method='POST';break;
+  case 'generic-action':if(!actions.has(route.action))throw Error('NATIVE_INITIAL_COUNT_REQUEST_INVALID');suffix=`/${idPath(route.id)}/stock-count/${route.action}`;method='POST';break;
   case 'action':if(!actions.has(route.action))throw Error('NATIVE_INITIAL_COUNT_REQUEST_INVALID');suffix=`/${idPath(route.id)}/${route.action}`;method='POST';break;
   default:throw Error('NATIVE_INITIAL_COUNT_REQUEST_INVALID');
  }

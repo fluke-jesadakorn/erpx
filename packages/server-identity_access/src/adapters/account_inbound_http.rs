@@ -136,6 +136,13 @@ impl CapturedHoldingMutation {
         request.mutation = false;
         Ok(request)
     }
+    /// Native Holding-wide capabilities require the complete rendered selection;
+    /// the authorizer resolves its Company inside the registered Holding database.
+    pub fn resolve_rendered_read(self) -> Result<HoldingWorkspaceRequest, BusinessError> {
+        let mut value = self.resolve()?;
+        value.mutation = false;
+        Ok(value)
+    }
     pub fn resolve(self) -> Result<HoldingWorkspaceRequest, BusinessError> {
         if self.invalid {
             return Err(changed());

@@ -177,7 +177,6 @@
     "./domain/landed-costs": "./src/domain/landed-costs.ts",
     "./domain/manufacturing-initial-physical-stock-count": "./src/domain/manufacturing-initial-physical-stock-count.ts",
     "./domain/reorder-policies": "./src/domain/reorder-policies.ts",
-    "./domain/service-initial-physical-stock-count": "./src/domain/service-initial-physical-stock-count.ts",
     "./domain/manufacturing-initial-physical-stock-count-entry": "./src/domain/manufacturing-initial-physical-stock-count-entry.ts",
     "./domain/initial-physical-stock-count-entry": "./src/domain/initial-physical-stock-count-entry.ts",
     "./domain/reorder-quantity": "./src/domain/reorder-quantity.ts",
@@ -187,7 +186,8 @@
     "./domain/consumption-input": "./src/domain/consumption-input.ts",
     "./domain/pos-initial-physical-stock-count-entry": "./src/domain/pos-initial-physical-stock-count-entry.ts",
     "./domain/reservation-alerts": "./src/domain/reservation-alerts.ts",
-    "./domain/transit": "./src/domain/transit.ts"
+    "./domain/transit": "./src/domain/transit.ts",
+    "./public/service-count-outbox-predicate": "./src/public/service-count-outbox-predicate.generated.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

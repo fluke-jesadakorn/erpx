@@ -19,7 +19,6 @@ export const serviceInitialPhysicalStockCountSourceRows=`SELECT c.id,c.company_i
  AND (SELECT count(*) FROM inventory_count_lines actual WHERE actual.count_id=c.id)=1`;
 
 export const serviceInitialPhysicalStockMarkedRows=`SELECT record_id id,authority_json::jsonb->>'companyId' company_id FROM command_receipts WHERE operation='inventory.count.create' AND jsonb_exists(result_json::jsonb,'${serviceInitialPhysicalStockMarker}')`;
-
 /** Full private receipt/native lineage, with absence witnesses. No1062 relation is queried. */
 export const serviceInitialPhysicalStockSourceImages=`SELECT c.id,c.company_id,c.journal_id,
  jsonb_build_object('count',to_jsonb(c),'lines',(SELECT jsonb_agg(to_jsonb(l) ORDER BY l.id) FROM inventory_count_lines l WHERE l.count_id=c.id),

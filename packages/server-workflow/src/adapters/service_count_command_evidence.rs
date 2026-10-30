@@ -122,6 +122,7 @@ pub async fn plan_count_command_evidence(
     if !matches!(
         request.operation.as_str(),
         "inventory.count.create"
+            | "inventory.count.update"
             | "inventory.count.submit"
             | "inventory.count.approve"
             | "inventory.count.post"
@@ -258,11 +259,28 @@ pub async fn verify_historical_count_command(
     posted_journal: Option<&str>,
 ) -> Result<(), Error> {
     use crate::application::commands::CommandField;
+    if request.operation == "inventory.count.update" {
+        return verify_historical_count_revision(c, actor, request).await;
+    }
     let _ = unit(c).await?;
-    let input: serde_json::Value =
-        serde_json::from_str(request.input.as_str()).map_err(|_| changed())?;
-    let expected = input["expectedVersion"]
-        .as_i64()
+    let input = &request.input;
+    let number = |key: &str| -> Result<Option<i64>, Error> {
+        Ok(input
+            .property(key)?
+            .and_then(|v| v.as_str().parse::<i64>().ok()))
+    };
+    // node-postgres converts unpaired UTF-16 strings to the replacement
+    // character for SQL values. Keep the original CommandJson for fingerprints.
+    let text = |key: &str| -> Result<Option<String>, Error> {
+        input
+            .property(key)?
+            .map(|v| {
+                let units = v.string_utf16_units()?.ok_or_else(changed)?;
+                Ok(String::from_utf16_lossy(&units))
+            })
+            .transpose()
+    };
+    let expected = number("expectedVersion")?
         .filter(|v| *v >= 0 && *v < 9_007_199_254_740_991)
         .ok_or_else(changed)?;
     let (status, event_action, version, result_version, reason, step, decision) =
@@ -270,13 +288,12 @@ pub async fn verify_historical_count_command(
             "flow.assign" => (
                 None,
                 "assign",
-                input["recordVersion"]
-                    .as_i64()
+                number("recordVersion")?
                     .filter(|v| *v > 0)
                     .ok_or_else(changed)?,
                 if expected == 0 { 2 } else { expected + 1 },
-                input["reason"].as_str().ok_or_else(changed)?,
-                input["stepKey"].as_str(),
+                text("reason")?.ok_or_else(changed)?,
+                Some(text("stepKey")?.ok_or_else(changed)?),
                 false,
             ),
             operation => {
@@ -296,7 +313,7 @@ pub async fn verify_historical_count_command(
                     action,
                     expected + 1,
                     expected + 1,
-                    input["reason"].as_str().unwrap_or(""),
+                    text("reason")?.unwrap_or_default(),
                     None,
                     review,
                 )
@@ -364,6 +381,57 @@ pub async fn verify_historical_count_command(
         .bind(authority.as_str()).bind(result).bind(actor.assignment_id.as_str()).bind(aggregate).bind(version)
         .bind(payload.as_str()).bind(actor.company_id.as_str()).bind(event_action).bind(reason).bind(step).bind(status).bind(decision)
         .fetch_one(c).await?;
+    if !ok {
+        return Err(changed());
+    }
+    Ok(())
+}
+
+/// Generic draft revision has ordinary command evidence, but no decision or
+/// Flow event. Never infer its historical output from the current Count status.
+async fn verify_historical_count_revision(
+    c: &mut PgConnection,
+    actor: &CommandActor,
+    request: &WorkflowRequest,
+) -> Result<(), Error> {
+    let _ = unit(c).await?;
+    // Inspect only this normalized scalar: valid unknown/stripped UTF-16 data
+    // must not be reparsed through serde_json's stricter string representation.
+    let expected = request
+        .input
+        .property("expectedVersion")?
+        .and_then(|v| v.as_str().parse::<i64>().ok())
+        .filter(|v| *v > 0 && *v < 9_007_199_254_740_991)
+        .ok_or_else(changed)?;
+    let version = expected + 1;
+    let result = serde_json::json!({"id":request.record_id,"status":"draft","version":version});
+    let scope = CommandEventScope::from(actor);
+    let payload = actor.outbox_payload(&request.record_id, version, Some("draft"), &scope)?;
+    let authority = actor.receipt_authority()?;
+    let hash = command_fingerprint(
+        actor,
+        &request.operation,
+        &request.record_id,
+        &request.input,
+    )?;
+    let ok: bool = sqlx::query_scalar(r#"
+      SELECT EXISTS(SELECT 1 FROM command_receipts r WHERE r.command_id=$1
+        AND octet_length(to_jsonb(r)::text)<=2097152 AND r.operation='inventory.count.update' AND r.record_id=$2
+        AND r.actor_id=$3 AND r.request_hash=$4 AND (r.authority_json::jsonb - 'iam')=($5::text::jsonb - 'iam')
+        AND r.result_json::jsonb=$6::jsonb AND r.created_at BETWEEN 0 AND 9007199254740991
+        AND (SELECT count(*) FROM audit_events a WHERE a.command_id=$1)=1
+        AND EXISTS(SELECT 1 FROM audit_events a WHERE a.command_id=$1 AND octet_length(to_jsonb(a)::text)<=2097152
+          AND a.actor_id=$3 AND a.assignment_id=$7 AND a.action='inventory.count.update' AND a.record_type='inventory_count'
+          AND a.record_id=$2 AND a.record_version=$8 AND a.purpose='inventory.count.update' AND a.authority_json=r.authority_json AND a.created_at=r.created_at)
+        AND (SELECT count(*) FROM outbox_events o WHERE o.command_id=$1)=1
+        AND EXISTS(SELECT 1 FROM outbox_events o WHERE o.command_id=$1 AND octet_length(to_jsonb(o)::text)<=2097152
+          AND o.event_type='inventory.count.update' AND o.aggregate_type='inventory_count' AND o.aggregate_id=$2 AND o.aggregate_version=$8
+          AND o.payload_json::jsonb=jsonb_set($9::text::jsonb,'{authority}',r.authority_json::jsonb - ARRAY['companyId','branchId','departmentId','scopeKind','scopeNodeId']) AND o.created_at=r.created_at)
+        AND NOT EXISTS(SELECT 1 FROM flow_events f WHERE f.command_id=$1)
+        AND NOT EXISTS(SELECT 1 FROM decision_evidence d WHERE d.command_id=$1))
+    "#).bind(&request.key).bind(&request.record_id).bind(actor.user_id.as_str()).bind(hash)
+        .bind(authority.as_str()).bind(result).bind(actor.assignment_id.as_str()).bind(version)
+        .bind(payload.as_str()).fetch_one(c).await?;
     if !ok {
         return Err(changed());
     }

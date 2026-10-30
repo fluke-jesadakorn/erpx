@@ -401,3 +401,35 @@ it('accepts only exact contributor Holding authorities in the opt-in native brid
   vi.stubEnv('NODE_ENV','production');vi.stubEnv('ERPX_NATIVE_FIELD_SERVICE_RESERVE_CONFIG',JSON.stringify({privateBaseUrl:'http://127.0.0.1:44999',timeoutMs:1000,holdings:[{origin:'https://acme.erpx.localhost:3443',holdingSlug:'acme',holdingId:'h001'}]}));await expect(nativeReservePost(request(),'acme',input)).rejects.toThrow('NATIVE_SERVICE_CONFIGURATION_INVALID');
  } finally {vi.unstubAllEnvs();}
 });
+
+it('Count update validates the exact receipt and never substitutes missing command context',async()=>{
+ config();const incoming=headers(),context={...actor,expiresAt:Date.now()+60000},raw='{ "expectedVersion":3, "reason":"Original" }',seen:NativeCountTransportInput[]=[];
+ const send=async(input:NativeCountTransportInput)=>{seen.push(input);return {status:200,body:{context,data:{id:'count-a',status:'draft',version:4}}};};
+ expect(await nativeInitialCount(incoming,'acme',actor,{kind:'update',id:'count-a'},raw,'original-key',send)).toEqual({id:'count-a',status:'draft',version:4});
+ expect(seen[0]).toMatchObject({method:'POST',suffix:'/count-a/update',body:raw});expect(seen[0].headers.get('idempotency-key')).toBe('original-key');
+ for(const name of ['x-erpx-context-company','x-erpx-context-assignment','x-erpx-context-revision','x-erpx-context-assignment-version']){const missing=new Headers(incoming);missing.delete(name);await expect(nativeInitialCount(missing,'acme',actor,{kind:'update',id:'count-a'},raw,'original-key',send)).rejects.toMatchObject({code:'WORK_CONTEXT_CHANGED',status:409});}expect(seen).toHaveLength(1);
+ for(const data of [{id:'other',status:'draft',version:4},{id:'count-a',status:'posted',version:4},{id:'count-a',status:'draft',version:5},{id:'count-a',status:'draft',version:4,journalId:null}]) await expect(nativeInitialCount(incoming,'acme',actor,{kind:'update',id:'count-a'},raw,'original-key',async()=>({status:200,body:{context,data}}))).rejects.toMatchObject({code:'NATIVE_INITIAL_COUNT_RESPONSE_INVALID'});
+});
+it('generic Count action retains captured context and validates the original receipt',async()=>{
+ config();const incoming=headers(),context={...actor,expiresAt:Date.now()+60000},raw='{ "expectedVersion":3, "unknown":{"nested":true} }',seen:NativeCountTransportInput[]=[];
+ const send=async(input:NativeCountTransportInput)=>{seen.push(input);return {status:200,body:{context,data:{id:'count-a',status:'approved',version:4,journalId:null}}};};
+ expect(await nativeInitialCount(incoming,'acme',actor,{kind:'generic-action',id:'count-a',action:'approve'},raw,'generic-key',send)).toEqual({id:'count-a',status:'approved',version:4,journalId:null});
+ expect(seen[0]).toMatchObject({method:'POST',suffix:'/count-a/stock-count/approve',body:raw});expect(seen[0].headers.get('idempotency-key')).toBe('generic-key');
+ const missing=new Headers(incoming);missing.delete('x-erpx-context-assignment-version');await expect(nativeInitialCount(missing,'acme',actor,{kind:'generic-action',id:'count-a',action:'approve'},raw,'generic-key',send)).rejects.toMatchObject({code:'WORK_CONTEXT_CHANGED',status:409});expect(seen).toHaveLength(1);
+ await expect(nativeInitialCount(incoming,'acme',actor,{kind:'generic-action',id:'count-a',action:'approve'},raw,'generic-key',async()=>({status:200,body:{context,data:{id:'count-a',status:'approved',version:5,journalId:null}}}))).rejects.toMatchObject({code:'NATIVE_INITIAL_COUNT_RESPONSE_INVALID'});
+});
+it('generic Count assignment preserves saveDefault and validates context and receipt',async()=>{
+ config();const incoming=headers(),context={...actor,expiresAt:Date.now()+60000},raw='{ "expectedVersion":2, "recordVersion":3, "saveDefault":true }',seen:NativeCountTransportInput[]=[];
+ const send=async(input:NativeCountTransportInput)=>{seen.push(input);return {status:200,body:{context,data:{id:'count-a',version:3}}};};
+ expect(await nativeInitialCount(incoming,'acme',actor,{kind:'generic-assign',id:'count-a'},raw,'flow-key',send)).toEqual({id:'count-a',version:3});expect(seen[0]).toMatchObject({method:'POST',suffix:'/count-a/stock-count/flow',body:raw});expect(seen[0].headers.get('idempotency-key')).toBe('flow-key');
+ for(const name of ['x-erpx-context-company','x-erpx-context-assignment','x-erpx-context-revision','x-erpx-context-assignment-version']){const missing=new Headers(incoming);missing.delete(name);await expect(nativeInitialCount(missing,'acme',actor,{kind:'generic-assign',id:'count-a'},raw,'flow-key',send)).rejects.toMatchObject({code:'WORK_CONTEXT_CHANGED',status:409});}expect(seen).toHaveLength(1);
+ for(const data of [{id:'count-b',version:3},{id:'count-a',version:4},{id:'count-a',version:3,status:'draft'}])await expect(nativeInitialCount(incoming,'acme',actor,{kind:'generic-assign',id:'count-a'},raw,'flow-key',async()=>({status:200,body:{context,data}}))).rejects.toMatchObject({code:'NATIVE_INITIAL_COUNT_RESPONSE_INVALID'});
+});
+
+it('validates generic Count detail identity, Company, row scalars and read context',async()=>{
+ config();const incoming=headers(),context={...actor,expiresAt:Date.now()+60000},data={count:{id:'count-a',company_id:'company',number:'COUNT-1',warehouse_id:'wh',warehouse_name:'Warehouse',currency:'THB',count_date:'2026-10-30',reason:'Count',status:'draft',created_by:'worker',prepared_by:'worker',version:2,net_value_minor:900,review_reason:null,journal_id:null},lines:[{id:'line',product_id:'product',sku:'P',description:'Part',unit:'each',tracking_mode:'none',snapshot_quantity_milli:0,snapshot_value_minor:0,snapshot_version:0,counted_quantity_milli:3000,counted_value_minor:900,current_version:0}],lotLines:[],history:[],decisions:[]};
+ const seen:NativeCountTransportInput[]=[];const send=async(input:NativeCountTransportInput)=>{seen.push(input);return {status:200,body:{context,data}};};
+ expect(await nativeInitialCount(incoming,'acme',actor,{kind:'generic-detail',id:'count-a'},undefined,undefined,send)).toEqual(data);expect(seen[0]).toMatchObject({method:'GET',suffix:'/count-a/stock-count'});expect(seen[0].headers.get('x-erpx-context-company')).toBe('company');
+ for(const bad of [{...data,count:{...data.count,id:'other'}},{...data,count:{...data.count,company_id:'other'}},{...data,lines:[{id:'line',bad:{}}]},{...data,lines:[{id:'line',version:Number.MAX_SAFE_INTEGER+1}]}])await expect(nativeInitialCount(incoming,'acme',actor,{kind:'generic-detail',id:'count-a'},undefined,undefined,async()=>({status:200,body:{context,data:bad}}))).rejects.toMatchObject({code:'NATIVE_INITIAL_COUNT_RESPONSE_INVALID'});
+ await expect(nativeInitialCount(incoming,'acme',actor,{kind:'generic-detail',id:'count-a'},undefined,undefined,async()=>({status:200,body:{context:{...context,companyId:'other'},data}}))).rejects.toMatchObject({code:'WORK_CONTEXT_CHANGED'});
+});

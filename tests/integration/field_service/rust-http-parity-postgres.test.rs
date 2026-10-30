@@ -1608,26 +1608,46 @@ async fn service_posting_setup_selected_actor_without_finance_gets_unavailable_v
     };
     account::with_system(|system| async move {
         let p = setup_workspace(system).await;
+        for company in [
+            CompanyId::new("company").unwrap().into(),
+            erpx_service::service_company_ownership::ServiceCompanyOwnership::RegisteredHolding,
+        ] {
+            let result = read_selected_service_posting_setup(
+                &p.review.authorizer,
+                "acme.example.test",
+                p.review.maker.clone(),
+                {
+                    let selection = p.selection.clone();
+                    move || Ok(selection)
+                },
+                ServicePostingTarget {
+                    holding: HoldingId::new("h001").unwrap(),
+                    company,
+                    clock: p.review.system.scenario.clock.clone(),
+                    environment: ServicePostingEnvironment::Development,
+                },
+            )
+            .await
+            .unwrap();
+            assert!(!result.data.available);
+            assert_eq!(result.data.unavailable_reason, Some("authority-required"));
+            assert_eq!(result.data.company_id, "company");
+        }
+        let mut missing_capture = p.selection.clone();
+        missing_capture.expected = None;
         let result = read_selected_service_posting_setup(
             &p.review.authorizer,
             "acme.example.test",
             p.review.maker.clone(),
-            {
-                let selection = p.selection.clone();
-                move || Ok(selection)
-            },
+            move || Ok(missing_capture),
             ServicePostingTarget {
                 holding: HoldingId::new("h001").unwrap(),
-                company: CompanyId::new("company").unwrap(),
+                company: erpx_service::service_company_ownership::ServiceCompanyOwnership::RegisteredHolding,
                 clock: p.review.system.scenario.clock.clone(),
                 environment: ServicePostingEnvironment::Development,
             },
-        )
-        .await
-        .unwrap();
-        assert!(!result.data.available);
-        assert_eq!(result.data.unavailable_reason, Some("authority-required"));
-        assert_eq!(result.data.company_id, "company");
+        ).await;
+        assert!(result.is_err(), "registered Holding requires the captured selected context");
     })
     .await;
 }

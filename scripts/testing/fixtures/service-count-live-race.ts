@@ -1,0 +1,24 @@
+/** Isolated live legacy writer race; the runtime seam supplies the genuine
+ * disposable PostgreSQL owner, whose transaction attestation remains active. */
+import {createInterface} from 'node:readline';
+import {resolve} from 'node:path';
+import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
+const lines=createInterface({input:process.stdin,crlfDelay:Infinity})[Symbol.asyncIterator]();
+const first=await lines.next();if(first.done)throw Error('RACE_REQUEST_REQUIRED');
+const request=JSON.parse(first.value) as {database:string;actor:WorkContext;key:string;body:unknown;mode?:'create'|'update'|'flow'|'stale'|'stale-update'|'stale-flow'|'files'|'files-tamper'|'generic-detail';id?:string};
+const token=/^erpx_dev_rust_([a-f0-9]{32})$/.exec(request.database)?.[1];if(!token)throw Error('OWNED_TEST_DATABASE_REQUIRED');
+const admin=process.env.ERPX_TEST_ADMIN_URL;if(!admin)throw Error('TEST_ADMIN_REQUIRED');
+const url=new URL(admin);if((url.protocol!=='postgresql:'&&url.protocol!=='postgres:')||url.hostname!=='127.0.0.1'||url.port!=='5432'||url.username!=='erpx_test_admin'||url.pathname!=='/postgres')throw Error('LOCAL_TEST_ADMIN_REQUIRED');url.pathname=`/${request.database}`;
+Bun.plugin({name:'test-runtime-owner',setup(build){
+ build.module('server-only',()=>({exports:{},loader:'object'}));
+ build.module(resolve('packages/server-runtime/src/adapters/runtime.ts'),()=>({exports:{holdingResources:async()=>({write:owner}),runtimeEnv:()=>{throw Error('TEST_RUNTIME_ENV_UNUSED');},isHoldingId:()=>false,holdingMigrationDatabase:()=>{throw Error('TEST_RUNTIME_UNUSED');},holdingBindingBySlug:()=>{throw Error('TEST_RUNTIME_UNUSED');},defaultHoldingBinding:()=>{throw Error('TEST_RUNTIME_UNUSED');},activeHoldingBindings:()=>{throw Error('TEST_RUNTIME_UNUSED');}},loader:'object'}));
+}});
+const {PostgresDatabase}=await import('@erpx/server-runtime/adapters/runtime/postgres');
+const owner=new PostgresDatabase({connectionString:url.href,max:2});
+try{
+ const lease=await owner.prepare("SELECT pg_get_userbyid(datdba)::text owner,shobj_description(oid,'pg_database') lease FROM pg_database WHERE datname=?").bind(request.database).first<{owner:string;lease:string|null}>();if(lease?.owner!=='erpx_test_admin'||lease.lease!==`erpx-rust-test:${token}`)throw Error('OWNED_TEST_LEASE_REQUIRED');
+ const {inventoryCountApplication,countSchema}=await import('@erpx/server-inventory/adapters/inventory-counts');
+ process.stdout.write('READY\n');const start=await lines.next();if(start.done||start.value!=='GO')throw Error('RACE_START_REQUIRED');
+ try{if(request.mode==='generic-detail'){const {countDetail}=await import('@erpx/server-inventory/adapters/inventory-counts');process.stdout.write(JSON.stringify(await countDetail(request.actor,request.id!)));}else if(request.mode==='flow'){const {assignFlowPrimary}=await import('@erpx/server-workflow/public/flow-routing');await assignFlowPrimary(owner,request.actor,'stock_count',request.id!,request.body as Parameters<typeof assignFlowPrimary>[4],request.key);}else await owner.transaction(async tx=>{if(request.mode?.startsWith('stale')){const {serviceCountPersistedMarker}=await import('@erpx/server-inventory/adapters/service-initial-physical-stock-count-source');if(await serviceCountPersistedMarker(tx,request.id??`count-${request.key}`))throw Error('RACE_SOURCE_ALREADY_PRESENT');process.stdout.write('SNAPSHOT\n');const finish=await lines.next();if(finish.done||finish.value!=='COMMIT')throw Error('RACE_COMMIT_REQUIRED');}if(request.mode==='files'||request.mode==='files-tamper'){const p=await import('@erpx/server-inventory/adapters/count-attachment-purchases');const scope=await p.countAttachmentPurchaseScope(tx,request.actor,'stock_count',request.id!,'history');if(!scope?.serviceWitness||scope.posWitness)throw Error('SERVICE_SCOPE_REQUIRED');if(request.mode==='files-tamper')scope.serviceWitness='{}';await tx.batch(await p.countAttachmentSourceReadLocks(tx,[scope]));const boundary=await p.countAttachmentCommandBoundary(tx,[scope]);if(!boundary)throw Error('SERVICE_BOUNDARY_REQUIRED');await tx.batch(boundary.before);await tx.batch(boundary.after);return;}if(request.mode==='stale-flow'){const {assignFlowPrimary}=await import('@erpx/server-workflow/public/flow-routing');return assignFlowPrimary(tx,request.actor,'stock_count',request.id!,request.body as Parameters<typeof assignFlowPrimary>[4],request.key);}return inventoryCountApplication(tx).saveCount(request.actor,request.mode==='update'||request.mode==='stale-update'?request.id!:null,countSchema.parse(request.body),request.key);});if(request.mode!=='generic-detail')process.stdout.write('{"outcome":"created"}');}
+ catch(error){process.stdout.write(JSON.stringify({outcome:'denied',code:typeof error==='object'&&error!==null&&'code' in error?String(error.code):error instanceof Error&&/^[A-Z_]+$/.test(error.message)?error.message:'UNKNOWN'}));}
+}finally{await owner.pool.end();}

@@ -911,13 +911,15 @@ where
     }
     let expected_holding = holding.clone();
     let expected_company = company.clone();
-    let callbacks=SelectedTransportCallbacks::<_,StockReadIngress,StockReadDenial,_>::new::<ServiceStockReadResponse>(move|selected:&SelectedWorkIngress<'_>|->SelectedIngressFuture<StockReadIngress,StockReadDenial>{let result=selected.read_context().map(|selected|StockReadIngress{selected,holding:expected_holding.clone(),company:expected_company.clone()}).map_err(StockReadDenial::Ingress);Box::pin(async move{result})},stock_read_denied,move|c,current,input:StockReadIngress|{let clock=clock.clone();Box::pin(async move{if current.holding_id()!=&input.holding||current.selection().workspace().company_id!=input.company{return Err(BusinessError::new(FailureKind::Forbidden,"SERVICE_POSTING_SCOPE_REQUIRED","Use the current Company.").into());}let response=ServiceStockReadResponse{data:read_service_stock_workspace(c,current,clock.as_ref()).await?,context:context(current)?};serde_json::to_writer(&mut crate::field_service_reservation_read::ReplyBudget(0),&response).map_err(|_|changed())?;Ok(Ok(response))})});
+    let current_ownership = company.clone();
+    let request_ownership = company.clone();
+    let callbacks=SelectedTransportCallbacks::<_,StockReadIngress,StockReadDenial,_>::new::<ServiceStockReadResponse>(move|selected:&SelectedWorkIngress<'_>|->SelectedIngressFuture<StockReadIngress,StockReadDenial>{let result=selected.read_context().and_then(|selected|{let company=expected_company.selected(&expected_holding,&selected)?;Ok(StockReadIngress{selected,holding:expected_holding.clone(),company})}).map_err(StockReadDenial::Ingress);Box::pin(async move{result})},stock_read_denied,move|c,current,input:StockReadIngress|{let clock=clock.clone();let ownership=current_ownership.clone();Box::pin(async move{ownership.current(&input.holding,current)?;if current.holding_id()!=&input.holding||current.selection().workspace().company_id!=input.company{return Err(BusinessError::new(FailureKind::Forbidden,"SERVICE_POSTING_SCOPE_REQUIRED","Use the current Company.").into());}let response=ServiceStockReadResponse{data:read_service_stock_workspace(c,current,clock.as_ref()).await?,context:context(current)?};serde_json::to_writer(&mut crate::field_service_reservation_read::ReplyBudget(0),&response).map_err(|_|changed())?;Ok(Ok(response))})});
     match authorizer
         .execute_with_selected_transport_ingress_deferred(
             host,
             proof,
             move || {
-                let mut r = request()?;
+                let mut r = request_ownership.request(request()?)?;
                 r.mutation = false;
                 Ok(r)
             },
@@ -966,15 +968,16 @@ where
         return Err(changed().into());
     }
     let ServiceStockTransportCommand { key, body, kind } = command;
+    let request_ownership = company.clone();
     let body = Arc::new(tokio::sync::Mutex::new(Some(body)));
     let cached = Arc::new(tokio::sync::OnceCell::new());
-    let callbacks=SelectedTransportCallbacks::<_,(String,NormalizedServiceStockMaster),BusinessError,_>::new::<ServiceStockCommandResponse>(move|_:&SelectedWorkIngress<'_>|->SelectedIngressFuture<(String,NormalizedServiceStockMaster),BusinessError>{let body=body.clone();let cached=cached.clone();let key=key.clone();Box::pin(async move{let key=key?;if key.is_empty(){return Err(BusinessError::invalid("COMMAND_KEY_REQUIRED","Idempotency-Key is required."));}let bytes=cached.get_or_init(||async{let body=body.lock().await.take()?;axum::body::to_bytes(body,2*1024*1024).await.ok().map(|v|v.to_vec())}).await.as_ref().ok_or_else(wire)?;let text=String::from_utf8_lossy(bytes);let text=text.strip_prefix('\u{feff}').unwrap_or(&text);let json=CommandJson::parse(text).map_err(|_|BusinessError::invalid("INVALID_JSON","Use valid JSON."))?;let input=normalize_service_stock_master(&json,kind)?;Ok((key,input))})},|_,error|Err(error),move|c,current,(key,input):(String,NormalizedServiceStockMaster)|{let clock=clock.clone();let holding=holding.clone();let company=company.clone();Box::pin(async move{if current.holding_id()!=&holding||current.selection().workspace().company_id!=company{return Err(BusinessError::new(FailureKind::Forbidden,"SERVICE_POSTING_SCOPE_REQUIRED","Use the current Company.").into());}let rendered=context(current)?;let result=execute_service_stock_master(c,current,clock.as_ref(),&key,&input).await?;let size=result.result.as_str().len().saturating_add(serde_json::to_vec(&rendered).map_err(|_|changed())?.len()).saturating_add(20);if size>2*1024*1024{return Err(changed().into());}Ok(Ok(ServiceStockCommandResponse{data:result.result,context:rendered}))})});
+    let callbacks=SelectedTransportCallbacks::<_,(String,NormalizedServiceStockMaster),BusinessError,_>::new::<ServiceStockCommandResponse>(move|_:&SelectedWorkIngress<'_>|->SelectedIngressFuture<(String,NormalizedServiceStockMaster),BusinessError>{let body=body.clone();let cached=cached.clone();let key=key.clone();Box::pin(async move{let key=key?;if key.is_empty(){return Err(BusinessError::invalid("COMMAND_KEY_REQUIRED","Idempotency-Key is required."));}let bytes=cached.get_or_init(||async{let body=body.lock().await.take()?;axum::body::to_bytes(body,2*1024*1024).await.ok().map(|v|v.to_vec())}).await.as_ref().ok_or_else(wire)?;let text=String::from_utf8_lossy(bytes);let text=text.strip_prefix('\u{feff}').unwrap_or(&text);let json=CommandJson::parse(text).map_err(|_|BusinessError::invalid("INVALID_JSON","Use valid JSON."))?;let input=normalize_service_stock_master(&json,kind)?;Ok((key,input))})},|_,error|Err(error),move|c,current,(key,input):(String,NormalizedServiceStockMaster)|{let clock=clock.clone();let holding=holding.clone();let company=company.clone();Box::pin(async move{company.current(&holding,current)?;let rendered=context(current)?;let result=execute_service_stock_master(c,current,clock.as_ref(),&key,&input).await?;let size=result.result.as_str().len().saturating_add(serde_json::to_vec(&rendered).map_err(|_|changed())?.len()).saturating_add(20);if size>2*1024*1024{return Err(changed().into());}Ok(Ok(ServiceStockCommandResponse{data:result.result,context:rendered}))})});
     match authorizer
         .execute_with_selected_transport_ingress_deferred(
             host,
             proof,
             move || {
-                let mut r = request()?;
+                let mut r = request_ownership.request(request()?)?;
                 r.mutation = true;
                 Ok(r)
             },

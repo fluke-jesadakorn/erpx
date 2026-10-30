@@ -63,10 +63,20 @@ impl LeasedDevelopmentDatabase {
         })
     }
     pub async fn connect(&self, limits: PoolLimits) -> Result<DatabasePool, PersistenceError> {
+        self.connect_named(limits, "erpx-leased-development-worker").await
+    }
+    /// A generated process identity permits cancellation of only this worker's
+    /// queries at shutdown; it changes neither endpoint nor lease authority.
+    pub async fn connect_named(&self, limits: PoolLimits, application: &str) -> Result<DatabasePool, PersistenceError> {
+        if application.is_empty() || application.len() > 63 || !application.bytes().all(|c| c.is_ascii_alphanumeric() || matches!(c, b'-' | b'_' | b'/')) {
+            return Err(PersistenceError::new("DEVELOPMENT_WORKER_IDENTITY_INVALID"));
+        }
         if limits.max_connections > 3 {
             return Err(PersistenceError::new("DEVELOPMENT_WORKER_POOL_LIMIT"));
         }
-        let pool = connect_pool(&self.configuration, limits).await?;
+        let mut configuration = self.configuration.clone();
+        configuration.options = configuration.options.application_name(application);
+        let pool = connect_pool(&configuration, limits).await?;
         let result=async{
             let row=sqlx::query("SELECT current_database() database,current_user::text role,session_user::text session_role,pg_get_userbyid(d.datdba)::text owner,shobj_description(d.oid,'pg_database') lease,r.rolsuper,r.rolcreaterole FROM pg_database d JOIN pg_roles r ON r.rolname=current_user WHERE d.datname=current_database()").fetch_one(pool.raw()).await?;
             if row.try_get::<String,_>("database")?!=self.database||row.try_get::<String,_>("role")?!="erpx_test_admin"||row.try_get::<String,_>("session_role")?!="erpx_test_admin"||row.try_get::<String,_>("owner")?!="erpx_test_admin"||row.try_get::<Option<String>,_>("lease")?.as_deref()!=Some(self.lease.as_str())||row.try_get::<bool,_>("rolsuper")?||row.try_get::<bool,_>("rolcreaterole")?{

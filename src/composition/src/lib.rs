@@ -133,6 +133,10 @@ pub mod module_assembly;
 mod module_example;
 
 #[cfg(feature = "field-service")]
+pub mod service_company_ownership;
+#[cfg(feature = "field-service")]
+pub mod service_count_worker;
+#[cfg(feature = "field-service")]
 pub mod service_stock_setup;
 #[cfg(feature = "field-service")]
 mod service_initial_physical_stock_sources;
@@ -150,6 +154,8 @@ mod service_initial_physical_stock_record;
 mod service_initial_physical_stock_create;
 #[cfg(feature = "field-service")]
 mod service_initial_physical_stock_action;
+#[cfg(feature = "field-service")]
+pub mod service_initial_physical_stock_update;
 #[cfg(feature = "field-service")]
 pub mod service_initial_physical_stock;
 #[cfg(feature = "field-service-http")]

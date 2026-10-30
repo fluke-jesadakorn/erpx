@@ -1,6 +1,7 @@
 //! Unmounted selected-Account transport for the Service initial Count.
 //! The caller supplies trusted environment and Files policy; request data grants nothing.
 use crate::field_service_reservation_read::{context, selected_read_context};
+use crate::service_company_ownership::ServiceCompanyOwnership;
 use crate::service_initial_physical_stock::*;
 use erpx_server_identity_access::public::{
     DeviceProof,
@@ -34,7 +35,7 @@ fn changed() -> BusinessError {
 #[derive(Clone)]
 pub struct ServiceInitialCountTarget<C> {
     pub holding: HoldingId,
-    pub company: CompanyId,
+    pub company: ServiceCompanyOwnership,
     pub clock: Arc<C>,
     pub environment: ServiceInitialPhysicalStockEnvironment,
     pub files_features: CountBindingFeatures,
@@ -44,9 +45,13 @@ pub enum ServiceInitialCountReadRoute {
     Selection { query: Option<String> },
     Record { id: String, query: Option<String> },
     Flow { id: String, query: Option<String> },
+    GenericDetail { id: String, query: Option<String> },
 }
 pub enum ServiceInitialCountCommandRoute {
     Create,
+    GenericAction { id: String, action: CountAction },
+    GenericAssign { id: String },
+    Update { id: String },
     Action { id: String, action: CountAction },
     Assign { id: String },
 }
@@ -117,9 +122,9 @@ fn no_query(query: &Option<String>) -> Result<(), BusinessError> {
 fn scope(
     current: &erpx_server_identity_access::public::effective_authority::AuthorizedWorkContext,
     holding: &HoldingId,
-    company: &CompanyId,
+    company: &ServiceCompanyOwnership,
 ) -> Result<(), BusinessError> {
-    if current.holding_id() != holding || &current.selection().workspace().company_id != company {
+    if company.current(holding, current).is_err() {
         Err(BusinessError::new(
             FailureKind::Forbidden,
             "SERVICE_INITIAL_PHYSICAL_STOCK_SCOPE_REQUIRED",
@@ -177,7 +182,11 @@ fn read_denied(
     error: BusinessError,
 ) -> Result<CountReadDenial, BusinessError> {
     if error.code != "PERMISSION_REQUIRED"
-        || matches!(input.route, ServiceInitialCountReadRoute::Flow { .. })
+        || matches!(
+            input.route,
+            ServiceInitialCountReadRoute::Flow { .. }
+                | ServiceInitialCountReadRoute::GenericDetail { .. }
+        )
     {
         return Err(error);
     }
@@ -244,13 +253,14 @@ where
     let sources = environment.sources();
     let expected_holding = holding.clone();
     let expected_company = company.clone();
-    let callbacks=SelectedTransportCallbacks::<_,CountReadIngress,CountReadDenial,_>::new::<ServiceInitialCountReadResponse>(move|selected:&SelectedWorkIngress<'_>|->SelectedIngressFuture<CountReadIngress,CountReadDenial>{let route=route.clone();let holding=expected_holding.clone();let company=expected_company.clone();let selected=selected.read_context().map_err(CountReadDenial::Ingress);Box::pin(async move{let selected=selected?;match &route {ServiceInitialCountReadRoute::Selection{query}=>{selection(query.as_deref()).map_err(CountReadDenial::Ingress)?;},ServiceInitialCountReadRoute::Record{id,query}|ServiceInitialCountReadRoute::Flow{id,query}=>{no_query(query).map_err(CountReadDenial::Ingress)?;if id.is_empty(){return Err(CountReadDenial::Ingress(invalid()));}}};Ok(CountReadIngress{route,selected,holding,company})})},read_denied,move|c,current,input:CountReadIngress|{let clock=clock.clone();let env=environment.clone();let holding=holding.clone();let company=company.clone();Box::pin(async move{scope(current,&holding,&company)?;let data=match input.route {ServiceInitialCountReadRoute::Selection{query}=>{let value=read_initial_count_selection(c,current,clock.as_ref(),selection(query.as_deref())?,&env).await?;ServiceInitialCountReadData::Workspace(checked(serde_json::to_value(value).map_err(|_|changed())?)?)},ServiceInitialCountReadRoute::Record{id,..}=>{let value=read_initial_count_workspace_record(c,current,clock.as_ref(),&id,&env).await?;ServiceInitialCountReadData::Workspace(checked(serde_json::to_value(value).map_err(|_|changed())?)?)},ServiceInitialCountReadRoute::Flow{id,..}=>ServiceInitialCountReadData::Flow(checked(read_service_initial_count_flow(c,current,clock.as_ref(),&id,&env).await?)?)};let response=ServiceInitialCountReadResponse{data,context:context(current)?};bounded(&response)?;Ok(Ok(response))})});
+    let request_company = company.clone();
+    let callbacks=SelectedTransportCallbacks::<_,CountReadIngress,CountReadDenial,_>::new::<ServiceInitialCountReadResponse>(move|selected:&SelectedWorkIngress<'_>|->SelectedIngressFuture<CountReadIngress,CountReadDenial>{let route=route.clone();let holding=expected_holding.clone();let company=expected_company.clone();let selected=selected.read_context().map_err(CountReadDenial::Ingress);Box::pin(async move{let selected=selected?;let company=company.selected(&holding,&selected).map_err(CountReadDenial::Ingress)?;match &route {ServiceInitialCountReadRoute::Selection{query}=>{selection(query.as_deref()).map_err(CountReadDenial::Ingress)?;},ServiceInitialCountReadRoute::Record{id,query}|ServiceInitialCountReadRoute::Flow{id,query}|ServiceInitialCountReadRoute::GenericDetail{id,query}=>{no_query(query).map_err(CountReadDenial::Ingress)?;if id.is_empty(){return Err(CountReadDenial::Ingress(invalid()));}}};Ok(CountReadIngress{route,selected,holding,company})})},read_denied,move|c,current,input:CountReadIngress|{let clock=clock.clone();let env=environment.clone();let holding=holding.clone();let company=company.clone();Box::pin(async move{scope(current,&holding,&company)?;if current.selection().workspace().company_id!=input.company{return Err(changed().into());}let data=match input.route {ServiceInitialCountReadRoute::Selection{query}=>{let value=read_initial_count_selection(c,current,clock.as_ref(),selection(query.as_deref())?,&env).await?;ServiceInitialCountReadData::Workspace(checked(serde_json::to_value(value).map_err(|_|changed())?)?)},ServiceInitialCountReadRoute::Record{id,..}=>{let value=read_initial_count_workspace_record(c,current,clock.as_ref(),&id,&env).await?;ServiceInitialCountReadData::Workspace(checked(serde_json::to_value(value).map_err(|_|changed())?)?)},ServiceInitialCountReadRoute::GenericDetail{id,..}=>ServiceInitialCountReadData::GenericDetail(checked(crate::service_initial_physical_stock_record::read_service_count_generic_detail(c,current,clock.as_ref(),&id,&env).await?)?),ServiceInitialCountReadRoute::Flow{id,..}=>ServiceInitialCountReadData::Flow(checked(read_service_initial_count_flow(c,current,clock.as_ref(),&id,&env).await?)?)};let response=ServiceInitialCountReadResponse{data,context:context(current)?};bounded(&response)?;Ok(Ok(response))})});
     match authorizer
         .execute_with_selected_transport_ingress_deferred(
             host,
             proof,
             move || {
-                let mut r = request()?;
+                let mut r = request_company.request(request()?)?;
                 r.mutation = false;
                 Ok(r)
             },
@@ -275,6 +285,8 @@ impl IdentifierSource for CountIds {
 #[derive(Clone)]
 enum ParsedCommand {
     Create(InitialCountCreate),
+    GenericAssign(String, erpx_server_workflow::public::commands::CommandJson),
+    Update(String, String),
     Action(String, CountAction, InitialCountActionInput),
     Assign(String, erpx_server_workflow::public::commands::CommandJson),
 }
@@ -302,13 +314,14 @@ where
     let body = Arc::new(tokio::sync::Mutex::new(Some(body)));
     let cached = Arc::new(tokio::sync::OnceCell::new());
     let route = Arc::new(route);
-    let callbacks=SelectedTransportCallbacks::<_,(String,ParsedCommand),BusinessError,_>::new::<ServiceInitialCountCommandResponse>(move|_:&SelectedWorkIngress<'_>|->SelectedIngressFuture<(String,ParsedCommand),BusinessError>{let body=body.clone();let cached=cached.clone();let key=key.clone();let route=route.clone();Box::pin(async move{let key=key?;if key.is_empty(){return Err(BusinessError::invalid("COMMAND_KEY_REQUIRED","Idempotency-Key is required."));}let bytes=cached.get_or_init(||async{let body=body.lock().await.take()?;axum::body::to_bytes(body,2*1024*1024).await.ok().map(|b|b.to_vec())}).await.as_ref().ok_or_else(invalid)?;let raw=String::from_utf8_lossy(bytes);let raw=raw.strip_prefix('\u{feff}').unwrap_or(&raw);erpx_server_workflow::public::commands::CommandJson::parse(raw).map_err(|_|BusinessError::invalid("INVALID_JSON","Use valid JSON."))?;let parsed=match route.as_ref(){ServiceInitialCountCommandRoute::Create=>ParsedCommand::Create(normalize_initial_count_create(raw)?),ServiceInitialCountCommandRoute::Action{id,action}=>{if id.is_empty(){return Err(invalid());}ParsedCommand::Action(id.clone(),*action,normalize_initial_count_action(raw)?)},ServiceInitialCountCommandRoute::Assign{id}=>{if id.is_empty(){return Err(invalid());}ParsedCommand::Assign(id.clone(),normalize_stock_count_assignment(raw)?)} };Ok((key,parsed))})},|_,e|Err(e),move|c,current,(key,parsed):(String,ParsedCommand)|{let files_features=files_features.clone();let clock=clock.clone();let env=environment.clone();let holding=holding.clone();let company=company.clone();Box::pin(async move{scope(current,&holding,&company)?;let data=match parsed {ParsedCommand::Create(input)=>{let value=create_service_initial_count(c,current,clock.as_ref(),&mut CountIds,&key,&input,&env).await?;ServiceInitialCountCommandData::Create(checked(value)?)},ParsedCommand::Action(id,action,input)=>{let value=execute_service_count_action(c,current,clock.as_ref(),&mut CountIds,ServiceCountActionCommand{key:&key,id:&id,action,input:&input,files_features},&env).await?;ServiceInitialCountCommandData::Action(checked(value)?)},ParsedCommand::Assign(id,input)=>{let value=assign_service_count_flow(c,current,clock.as_ref(),&mut CountIds,ServiceCountAssignmentCommand{key:&key,id:&id,input:&input},&env).await?;ServiceInitialCountCommandData::Assign(checked(value)?)}};let response=ServiceInitialCountCommandResponse{data,context:context(current)?};bounded(&response)?;Ok(Ok(response))})});
+    let request_company = company.clone();
+    let callbacks=SelectedTransportCallbacks::<_,(String,ParsedCommand),BusinessError,_>::new::<ServiceInitialCountCommandResponse>(move|_:&SelectedWorkIngress<'_>|->SelectedIngressFuture<(String,ParsedCommand),BusinessError>{let body=body.clone();let cached=cached.clone();let key=key.clone();let route=route.clone();Box::pin(async move{let key=key?;if key.is_empty(){return Err(BusinessError::invalid("COMMAND_KEY_REQUIRED","Idempotency-Key is required."));}let bytes=cached.get_or_init(||async{let body=body.lock().await.take()?;axum::body::to_bytes(body,2*1024*1024).await.ok().map(|b|b.to_vec())}).await.as_ref().ok_or_else(invalid)?;let raw=String::from_utf8_lossy(bytes);let raw=raw.strip_prefix('\u{feff}').unwrap_or(&raw);erpx_server_workflow::public::commands::CommandJson::parse(raw).map_err(|_|BusinessError::invalid("INVALID_JSON","Use valid JSON."))?;let parsed=match route.as_ref(){ServiceInitialCountCommandRoute::Create=>ParsedCommand::Create(normalize_initial_count_create(raw)?),ServiceInitialCountCommandRoute::GenericAction{id,action}=>{if id.is_empty(){return Err(invalid());}ParsedCommand::Action(id.clone(),*action,normalize_generic_initial_count_action(raw)?)},ServiceInitialCountCommandRoute::GenericAssign{id}=>{if id.is_empty(){return Err(invalid());}ParsedCommand::GenericAssign(id.clone(),normalize_generic_stock_count_assignment(raw)?)},ServiceInitialCountCommandRoute::Update{id}=>{if id.is_empty(){return Err(invalid());}crate::service_initial_physical_stock_update::normalize_service_count_update(raw)?;ParsedCommand::Update(id.clone(),raw.to_owned())},ServiceInitialCountCommandRoute::Action{id,action}=>{if id.is_empty(){return Err(invalid());}ParsedCommand::Action(id.clone(),*action,normalize_initial_count_action(raw)?)},ServiceInitialCountCommandRoute::Assign{id}=>{if id.is_empty(){return Err(invalid());}ParsedCommand::Assign(id.clone(),normalize_stock_count_assignment(raw)?)} };Ok((key,parsed))})},|_,e|Err(e),move|c,current,(key,parsed):(String,ParsedCommand)|{let files_features=files_features.clone();let clock=clock.clone();let env=environment.clone();let holding=holding.clone();let company=company.clone();Box::pin(async move{scope(current,&holding,&company)?;let data=match parsed {ParsedCommand::Create(input)=>{let value=create_service_initial_count(c,current,clock.as_ref(),&mut CountIds,&key,&input,&env).await?;ServiceInitialCountCommandData::Create(checked(value)?)},ParsedCommand::Update(id,raw)=>{let value=crate::service_initial_physical_stock_update::execute_service_initial_count_update(c,current,clock.as_ref(),&mut CountIds,crate::service_initial_physical_stock_update::ServiceCountUpdateCommand{key:&key,id:&id,raw:&raw},&env).await?;ServiceInitialCountCommandData::Create(checked(value)?)},ParsedCommand::Action(id,action,input)=>{let value=execute_service_count_action(c,current,clock.as_ref(),&mut CountIds,ServiceCountActionCommand{key:&key,id:&id,action,input:&input,files_features},&env).await?;ServiceInitialCountCommandData::Action(checked(value)?)},ParsedCommand::GenericAssign(id,input)=>{let value=assign_generic_service_count_flow(c,current,clock.as_ref(),&mut CountIds,ServiceCountAssignmentCommand{key:&key,id:&id,input:&input},&env).await?;ServiceInitialCountCommandData::Assign(checked(value)?)},ParsedCommand::Assign(id,input)=>{let value=assign_service_count_flow(c,current,clock.as_ref(),&mut CountIds,ServiceCountAssignmentCommand{key:&key,id:&id,input:&input},&env).await?;ServiceInitialCountCommandData::Assign(checked(value)?)}};let response=ServiceInitialCountCommandResponse{data,context:context(current)?};bounded(&response)?;Ok(Ok(response))})});
     match authorizer
         .execute_with_selected_transport_ingress_deferred(
             host,
             proof,
             move || {
-                let mut r = request()?;
+                let mut r = request_company.request(request()?)?;
                 r.mutation = true;
                 Ok(r)
             },

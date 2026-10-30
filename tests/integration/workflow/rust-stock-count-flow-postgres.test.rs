@@ -404,9 +404,11 @@ impl PgOwnerCommandEffects for PlannedLedgerFixture<'_> {
     ) -> Result<WorkflowOutput, Error> {
         let output = WorkflowOutput {
             version: 2,
-            result: CommandJson::parse(
-                r#"{"id":"count-fixture","status":"approved","version":2}"#,
-            )?,
+            result: CommandJson::parse(if request.operation == "inventory.count.update" {
+                r#"{"id":"count-fixture","status":"draft","version":2}"#
+            } else {
+                r#"{"id":"count-fixture","status":"approved","version":2}"#
+            })?,
             event_scope: None,
         };
         self.plan=Some(erpx_server_workflow::public::service_count_command_evidence::plan_count_command_evidence(c,actor,request,&output,self.clock).await?);
@@ -448,4 +450,118 @@ async fn planned_count_command_rejects_corruption_before_retaining_ledger_rows()
   })).await;assert!(matches!(result,Err(PgTransactionError::Business(e)) if e.code=="SERVICE_INITIAL_PHYSICAL_STOCK_SOURCE_CHANGED"));
   let counts:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM command_receipts WHERE command_id='count-evidence-fixture'),(SELECT count(*) FROM audit_events WHERE command_id='count-evidence-fixture'),(SELECT count(*) FROM outbox_events WHERE command_id='count-evidence-fixture')").fetch_one(pool.raw()).await.unwrap();assert_eq!(counts,(0,0,0));
  }).await;
+}
+
+#[tokio::test]
+async fn count_revision_evidence_checks_ordinary_ledger_without_flow_or_decision() {
+    use erpx_server_workflow::public::service_count_command_evidence::{
+        CountCommandClock, CountCommandGeneratedIds, verify_historical_count_command,
+    };
+    fixture::with_database(2, |pool| async move {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+        let migrations = load_migrations(root, MigrationTrack::HoldingWrite).await.unwrap();
+        migrate_database(&pool, MigrationTrack::HoldingWrite, &migrations).await.unwrap();
+        let result = PgUnitOfWork::new(pool.clone()).run::<(), BusinessError, _>(
+            TransactionOptions::default(), |c| Box::pin(async move {
+                let request = WorkflowRequest {
+                    key: "count-revision-evidence".into(),
+                    operation: "inventory.count.update".into(),
+                    record_id: "count-fixture".into(),
+                    input: CommandJson::parse(r#"{"expectedVersion":1,"reason":"Count revision"}"#)?,
+                };
+                let generated = CountCommandGeneratedIds::default();
+                let clock = CountCommandClock::sample(&ClockFixture)?;
+                let mut raw_ids = IdFixture;
+                let mut ids = generated.wrap(&mut raw_ids);
+                let mut authority = FixtureAuthority;
+                let mut effects = PlannedLedgerFixture { generated: &generated, clock, plan: None };
+                PgCommandLedger::new(CompanyId::new("company")?, c, &mut authority, &clock, &mut ids)
+                    .execute(&request, &mut effects).await?;
+                verify_historical_count_command(c, &fixture_actor(), &request, "branch", None).await?;
+                let wrong = WorkflowRequest { input: CommandJson::parse(r#"{"expectedVersion":2,"reason":"Count revision"}"#)?, key:request.key.clone(), operation:request.operation.clone(), record_id:request.record_id.clone() };
+                assert!(verify_historical_count_command(c, &fixture_actor(), &wrong, "branch", None).await.is_err());
+                let omitted = WorkflowRequest { input: CommandJson::parse(r#"{"reason":"Count revision"}"#)?, key:request.key.clone(), operation:request.operation.clone(), record_id:request.record_id.clone() };
+                assert!(verify_historical_count_command(c, &fixture_actor(), &omitted, "branch", None).await.is_err());
+                let mut wrong_actor = fixture_actor(); wrong_actor.role = "company_owner".into();
+                assert!(verify_historical_count_command(c, &wrong_actor, &request, "branch", None).await.is_err());
+                let events: (i64, i64) = sqlx::query_as("SELECT (SELECT count(*) FROM flow_events WHERE command_id=$1),(SELECT count(*) FROM decision_evidence WHERE command_id=$1)")
+                    .bind(&request.key).fetch_one(&mut *c).await?;
+                assert_eq!(events, (0, 0));
+                Err(BusinessError::invalid("ROLLBACK_EVIDENCE_FIXTURE", "Do not retain synthetic Count evidence").into())
+            })).await;
+        assert!(matches!(result, Err(PgTransactionError::Business(e)) if e.code == "ROLLBACK_EVIDENCE_FIXTURE"));
+        let counts: (i64, i64, i64) = sqlx::query_as("SELECT (SELECT count(*) FROM command_receipts WHERE command_id='count-revision-evidence'),(SELECT count(*) FROM audit_events WHERE command_id='count-revision-evidence'),(SELECT count(*) FROM outbox_events WHERE command_id='count-revision-evidence')")
+            .fetch_one(pool.raw()).await.unwrap();
+        assert_eq!(counts, (0, 0, 0));
+    }).await;
+}
+
+#[tokio::test]
+async fn assignment_default_is_scoped_retained_and_rolls_back_on_tampering() {
+    fixture::with_database(2, |pool| async move {
+        let root=Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+        let migrations=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();
+        migrate_database(&pool,MigrationTrack::HoldingWrite,&migrations).await.unwrap();
+        let unit=PgUnitOfWork::new(pool.clone());
+        let result=unit.run_once::<_,BusinessError,_>(TransactionOptions::default(),|c|Box::pin(async move {
+            lock_stock_count_flow_sources(c).await?;
+            let basis=read_stock_count_flow_basis(c,"company","count-example","branch").await?;
+            let plan=StockCountFlowAssignmentWitness::prepare_with_default(basis,&view("draft",1,0,0),StockCountFlowAssignmentRequest{step:StockCountStep::Submitted,user:"reviewer",expected_flow:0,expected_record:1,company_admin:true,actor:"maker",actor_name:"Maker",reason:"Assign review",command:"assign-default",event:"assign-default-event",now:1},true)?;
+            plan.apply(c).await?;plan.retain(c).await?;
+            sqlx::query("UPDATE flow_defaults SET primary_user_id='tamper'").execute(&mut *c).await?;
+            plan.retain(c).await?;Ok(())
+        })).await;
+        assert!(result.is_err());
+        let empty:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM flow_defaults),(SELECT count(*) FROM flow_routes),(SELECT count(*) FROM flow_events)").fetch_one(pool.raw()).await.unwrap();
+        assert_eq!(empty,(0,0,0));
+        sqlx::raw_sql("CREATE FUNCTION fixture_extra_default() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN INSERT INTO flow_defaults(revision,company_id,kind,step_key,branch_id,primary_user_id,created_by,reason,created_at) OVERRIDING SYSTEM VALUE VALUES(-1,'company','other_kind','other','another-branch','other','maker','tampered',1); RETURN NULL; END $$; CREATE TRIGGER fixture_extra_default AFTER INSERT ON flow_events FOR EACH STATEMENT EXECUTE FUNCTION fixture_extra_default()").execute(pool.raw()).await.unwrap();
+        let extra=unit.run_once::<_,BusinessError,_>(TransactionOptions::default(),|c|Box::pin(async move {
+            lock_stock_count_flow_sources(c).await?;
+            let basis=read_stock_count_flow_basis(c,"company","count-example","branch").await?;
+            let plan=StockCountFlowAssignmentWitness::prepare_with_default(basis,&view("draft",1,0,0),StockCountFlowAssignmentRequest{step:StockCountStep::Submitted,user:"reviewer",expected_flow:0,expected_record:1,company_admin:true,actor:"maker",actor_name:"Maker",reason:"Assign review",command:"assign-default",event:"assign-default-event",now:1},true)?;
+            plan.apply(c).await?;plan.retain(c).await?;Ok(())
+        })).await;assert!(extra.is_err());
+        let none:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM flow_defaults),(SELECT count(*) FROM flow_routes),(SELECT count(*) FROM flow_events)").fetch_one(pool.raw()).await.unwrap();assert_eq!(none,(0,0,0));
+        sqlx::raw_sql("DROP TRIGGER fixture_extra_default ON flow_events; DROP FUNCTION fixture_extra_default()").execute(pool.raw()).await.unwrap();
+        sqlx::raw_sql("CREATE FUNCTION fixture_extra_event() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN INSERT INTO flow_events(id,command_id,company_id,kind,record_id,step_key,action,actor_user_id,actor_name,reason,record_version,created_at) VALUES('foreign-event',NEW.command_id,'other-company','stock_count','other-count','draft','assign','maker','Maker','foreign',1,1); RETURN NULL; END $$; CREATE TRIGGER fixture_extra_event AFTER INSERT ON flow_events FOR EACH ROW WHEN (NEW.id='assign-default-event') EXECUTE FUNCTION fixture_extra_event()").execute(pool.raw()).await.unwrap();
+        let extra_event=unit.run_once::<_,BusinessError,_>(TransactionOptions::default(),|c|Box::pin(async move {
+            lock_stock_count_flow_sources(c).await?;
+            let basis=read_stock_count_flow_basis(c,"company","count-example","branch").await?;
+            let plan=StockCountFlowAssignmentWitness::prepare_with_default(basis,&view("draft",1,0,0),StockCountFlowAssignmentRequest{step:StockCountStep::Submitted,user:"reviewer",expected_flow:0,expected_record:1,company_admin:true,actor:"maker",actor_name:"Maker",reason:"Assign review",command:"assign-default",event:"assign-default-event",now:1},true)?;
+            plan.apply(c).await?;plan.retain(c).await?;Ok(())
+        })).await;assert!(matches!(extra_event,Err(PgTransactionError::Business(e)) if e.code=="FLOW_PRIMARY_REQUIRED"));
+        let none:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM flow_defaults),(SELECT count(*) FROM flow_routes),(SELECT count(*) FROM flow_events)").fetch_one(pool.raw()).await.unwrap();assert_eq!(none,(0,0,0));
+        sqlx::raw_sql("DROP TRIGGER fixture_extra_event ON flow_events; DROP FUNCTION fixture_extra_event()").execute(pool.raw()).await.unwrap();
+        unit.run_once::<_,BusinessError,_>(TransactionOptions::default(),|c|Box::pin(async move {
+            lock_stock_count_flow_sources(c).await?;
+            let basis=read_stock_count_flow_basis(c,"company","count-example","branch").await?;
+            let plan=StockCountFlowAssignmentWitness::prepare_with_default(basis,&view("draft",1,0,0),StockCountFlowAssignmentRequest{step:StockCountStep::Submitted,user:"reviewer",expected_flow:0,expected_record:1,company_admin:true,actor:"maker",actor_name:"Maker",reason:"Assign review",command:"assign-default",event:"assign-default-event",now:1},true)?;
+            plan.apply(c).await?;plan.retain(c).await?;Ok(())
+        })).await.unwrap();
+        let row:(String,String,Option<String>,String,String)=sqlx::query_as("SELECT company_id,branch_id,department_id,step_key,primary_user_id FROM flow_defaults").fetch_one(pool.raw()).await.unwrap();
+        assert_eq!(row,("company".into(),"branch".into(),None,"submitted".into(),"reviewer".into()));
+        let route:(i64,i64)=sqlx::query_as("SELECT version,defaults_revision FROM flow_routes").fetch_one(pool.raw()).await.unwrap();assert_eq!(route,(2,0));
+    }).await;
+}
+
+#[tokio::test]
+async fn concurrent_default_assignments_serialize_against_the_same_route() {
+    fixture::with_database(3, |pool| async move {
+        let root=Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+        let migrations=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();
+        migrate_database(&pool,MigrationTrack::HoldingWrite,&migrations).await.unwrap();
+        let run=|command: &'static str, event: &'static str| {
+            let pool=pool.clone();async move {
+                PgUnitOfWork::new(pool).run_once::<_,BusinessError,_>(TransactionOptions::default(),move|c|Box::pin(async move {
+                    lock_stock_count_flow_sources(c).await?;
+                    let basis=read_stock_count_flow_basis(c,"company","count-example","branch").await?;
+                    let plan=StockCountFlowAssignmentWitness::prepare_with_default(basis,&view("draft",1,0,0),StockCountFlowAssignmentRequest{step:StockCountStep::Submitted,user:"reviewer",expected_flow:0,expected_record:1,company_admin:true,actor:"maker",actor_name:"Maker",reason:"Assign review",command,event,now:1},true)?;
+                    plan.apply(c).await?;plan.retain(c).await?;Ok(())
+                })).await
+            }
+        };
+        let (a,b)=tokio::join!(run("one","event-one"),run("two","event-two"));
+        assert_ne!(a.is_ok(),b.is_ok());
+        let counts:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM flow_defaults),(SELECT count(*) FROM flow_routes),(SELECT count(*) FROM flow_events)").fetch_one(pool.raw()).await.unwrap();assert_eq!(counts,(1,1,1));
+    }).await;
 }

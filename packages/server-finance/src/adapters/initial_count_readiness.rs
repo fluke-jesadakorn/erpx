@@ -178,3 +178,13 @@ async fn capture(
         basis,
     })
 }
+
+/// Current chart display currency for a validated Commerce mapping. A factual
+/// projection only; outer composition retains mapping and Company authority.
+pub async fn read_service_count_display_currency(c: &mut PgConnection, company: &CompanyId, chart: &str) -> Result<Option<String>, Error> {
+    unit(c).await?;
+    let value: Option<String> = sqlx::query_scalar("SELECT base_currency FROM finance_charts WHERE company_id=$1 AND id=$2")
+        .bind(company.as_str()).bind(chart).fetch_optional(&mut *c).await?;
+    if value.as_ref().is_some_and(|v| v.len()>100) { return Err(limit()); }
+    Ok(value)
+}

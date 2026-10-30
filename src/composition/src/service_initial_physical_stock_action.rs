@@ -1271,12 +1271,31 @@ pub async fn execute_service_count_action<
     serde_json::from_str(outcome.result.as_str()).map_err(|_| changed().into())
 }
 
+struct GenericDefaultSupply {
+    catalogue: erpx_server_commercial::public::purchases::CommercialCatalogue,
+    witness: erpx_server_commercial::public::purchases::PurchaseWitness,
+}
+impl GenericDefaultSupply {
+    async fn capture<C: Clock>(c: &mut PgConnection, current: &AuthorizedWorkContext, clock: &C) -> Result<Self, Error> {
+        use erpx_server_commercial::public::purchases::{current_package_catalogue, PgCompanyPurchaseReader, PurchaseRequest, PackageEnforcementMode};
+        let catalogue=current_package_catalogue()?;
+        let mut reader=PgCompanyPurchaseReader::new(current.holding_id().clone(),current.selection().workspace().company_id.clone(),c,&catalogue);
+        let observed=reader.inspect(&PurchaseRequest{capabilities:vec!["supply.counts".into()],purpose:CapabilityPurpose::NewWork,mode:PackageEnforcementMode::Enforced},clock.now()).await?;
+        observed.require_allowed()?;
+        Ok(Self{catalogue,witness:observed.witness})
+    }
+    async fn require<C: Clock>(&self,c:&mut PgConnection,current:&AuthorizedWorkContext,clock:&C)->Result<(),Error>{
+        let mut reader=erpx_server_commercial::public::purchases::PgCompanyPurchaseReader::new(current.holding_id().clone(),current.selection().workspace().company_id.clone(),c,&self.catalogue);
+        reader.revalidate(&self.witness,clock.now()).await?.require_allowed()?;Ok(())
+    }
+}
 struct AssignmentOwner<'a, C> {
     source: ServiceCountRecordSource<'a>,
     current: &'a AuthorizedWorkContext,
     clock: &'a C,
     now: i64,
     purpose: CapabilityPurpose,
+    supply: Option<GenericDefaultSupply>,
     plan: erpx_server_workflow::public::stock_count_flow::StockCountFlowAssignmentWitness,
     names: Vec<(String, String)>,
     applied: std::sync::OnceLock<()>,
@@ -1295,6 +1314,7 @@ impl<C: Clock> AssignmentOwner<'_, C> {
         Ok(())
     }
     async fn before(&self, c: &mut PgConnection) -> Result<(), Error> {
+        if let Some(supply)=&self.supply { supply.require(c,self.current,self.clock).await?; }
         self.name_current(c).await?;
         self.source.require_current(c, self.clock).await?;
         self.source
@@ -1307,6 +1327,7 @@ impl<C: Clock> AssignmentOwner<'_, C> {
             .await
     }
     async fn after(&self, c: &mut PgConnection) -> Result<(), Error> {
+        if let Some(supply)=&self.supply { supply.require(c,self.current,self.clock).await?; }
         self.name_current(c).await?;
         self.source.require_current(c, self.clock).await?;
         self.source
@@ -1501,14 +1522,21 @@ pub async fn assign_service_count_flow<
     command: ServiceCountAssignmentCommand<'_>,
     environment:&crate::service_initial_physical_stock_sources::ServiceInitialPhysicalStockEnvironment,
 ) -> Result<serde_json::Value, Error> {
+    assign_service_count_flow_inner(c, current, clock, ids, command, environment, false).await
+}
+
+/// Generic stock_count route, with its legacy save-default semantics.
+pub async fn assign_generic_service_count_flow<C: Clock + Sync, I: erpx_server_shared::public::IdentifierSource>(c: &mut PgConnection, current: &AuthorizedWorkContext, clock: &C, ids: &mut I, command: ServiceCountAssignmentCommand<'_>, environment: &crate::service_initial_physical_stock_sources::ServiceInitialPhysicalStockEnvironment) -> Result<serde_json::Value, Error> {
+    assign_service_count_flow_inner(c, current, clock, ids, command, environment, true).await
+}
+
+async fn assign_service_count_flow_inner<C: Clock + Sync, I: erpx_server_shared::public::IdentifierSource>(c: &mut PgConnection, current: &AuthorizedWorkContext, clock: &C, ids: &mut I, command: ServiceCountAssignmentCommand<'_>, environment: &crate::service_initial_physical_stock_sources::ServiceInitialPhysicalStockEnvironment, generic: bool) -> Result<serde_json::Value, Error> {
     let ServiceCountAssignmentCommand { key, id, input } = command;
     let suffix = input
         .as_str()
         .strip_prefix("{\"kind\":\"stock_count\",")
         .ok_or_else(changed)?;
-    let checked = erpx_server_workflow::public::stock_count_flow::normalize_stock_count_assignment(
-        &format!("{{{suffix}"),
-    )?;
+    let checked = if generic { erpx_server_workflow::public::stock_count_flow::normalize_generic_stock_count_assignment(&format!("{{{suffix}"))? } else { erpx_server_workflow::public::stock_count_flow::normalize_stock_count_assignment(&format!("{{{suffix}"))? };
     if &checked != input {
         return Err(changed().into());
     }
@@ -1532,6 +1560,13 @@ pub async fn assign_service_count_flow<
             clock.now(),
         )
         .await?;
+    let property = |key: &str| input.property(key).map_err(Error::from)?.ok_or_else(|| Error::from(changed()));
+    let text_value = |key: &str| -> Result<String, Error> { let units=property(key)?.string_utf16_units()?.ok_or_else(changed)?; Ok(String::from_utf16_lossy(&units)) };
+    let step_text=text_value("stepKey")?;
+    let user=text_value("userId")?;
+    let reason=text_value("reason")?;
+    let save_default = match property("saveDefault")?.as_str() { "true" => true, "false" => false, _ => return Err(changed().into()) };
+    let supply = if generic && save_default { Some(GenericDefaultSupply::capture(c,current,clock).await?) } else { None };
     let request = WorkflowRequest {
         key: key.into(),
         operation: "flow.assign".into(),
@@ -1545,6 +1580,9 @@ pub async fn assign_service_count_flow<
         purchases: &purchases,
         purpose: ServiceCountAuthorityPurpose::Read,
     };
+    // Legacy flow_defaults rows have no command identifier. Historical replay
+    // therefore verifies retained receipt/evidence and current authority; only
+    // fresh assignments can bind their exact inserted default row.
     if let Some(outcome) = PgCommandLedger::new(
         current.selection().workspace().company_id.clone(),
         c,
@@ -1558,23 +1596,21 @@ pub async fn assign_service_count_flow<
     )
     .await?
     {
+        if let Some(supply)=&supply { supply.require(c,current,clock).await?; }
         module.require_current(c).await?;
         return serde_json::from_str(outcome.result.as_str()).map_err(|_| changed().into());
     }
-    let data: serde_json::Value = serde_json::from_str(input.as_str()).map_err(|_| changed())?;
-    if data["kind"] != "stock_count" || data["saveDefault"] != false {
+    if text_value("kind")? != "stock_count" || (!generic && save_default) {
         return Err(changed().into());
     }
-    let step = StockCountStep::parse(text(&data, "stepKey")?).ok_or_else(changed)?;
-    let user = text(&data, "userId")?;
-    let reason = text(&data, "reason")?;
-    let flow_version = data["expectedVersion"].as_i64().ok_or_else(changed)?;
-    let record_version = data["recordVersion"].as_i64().ok_or_else(changed)?;
+    let step = StockCountStep::parse(&step_text).ok_or_else(changed)?;
+    let flow_version = property("expectedVersion")?.as_str().parse::<i64>().map_err(|_| changed())?;
+    let record_version = property("recordVersion")?.as_str().parse::<i64>().map_err(|_| changed())?;
     let source =
         read_service_count_record(c, current, clock, id, ServiceCountAuthorityPurpose::Read)
             .await?;
     let record = &source.flow.view.record;
-    let purpose = if step == StockCountStep::Draft
+    let purpose = if save_default || step == StockCountStep::Draft
         || ["draft", "rejected"].contains(&record.status.as_str())
     {
         CapabilityPurpose::NewWork
@@ -1593,22 +1629,23 @@ pub async fn assign_service_count_flow<
     let basis = read_stock_count_flow_basis(c, &record.company_id, id, &record.branch_id).await?;
     let now = clock.now().get();
     let event = ids.next().as_str().to_owned();
-    let plan = StockCountFlowAssignmentWitness::prepare(
+    let plan = StockCountFlowAssignmentWitness::prepare_with_default(
         basis,
         &source.flow.view,
         StockCountFlowAssignmentRequest {
             step,
-            user,
+            user: &user,
             expected_flow: flow_version,
             expected_record: record_version,
             company_admin: source.authority.company_admin(),
             actor: current.user_id().as_str(),
             actor_name,
-            reason,
+            reason: &reason,
             command: key,
             event: &event,
             now,
         },
+        save_default,
     )?;
     let notification_id = ids.next().as_str().to_owned();
     let ledger_clock =
@@ -1622,6 +1659,7 @@ pub async fn assign_service_count_flow<
         clock,
         now,
         purpose,
+        supply,
         plan,
         names,
         applied: std::sync::OnceLock::new(),

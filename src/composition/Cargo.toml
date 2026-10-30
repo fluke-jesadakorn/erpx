@@ -8,7 +8,7 @@ publish.workspace = true
 autotests = false
 
 [package.metadata.erpx]
-verification-roots = ["../../scripts/docs/export-field-service-initial-count-contracts.rs", "../../scripts/docs/generate-field-service-initial-count-contracts.ts", "../../packages/contracts/src/field-service-initial-count.generated.ts", "../../docs/contracts/next/field-service-initial-count.openapi.generated.json", "../../scripts/docs/export-directory-source-contracts.rs", "../../scripts/docs/generate-directory-source-contracts.ts", "../../packages/contracts/src/directory-source-admin.generated.ts", "../../docs/contracts/next/directory-source-admin.openapi.generated.json", "../../scripts/testing/fixtures/generate-directory-review-reason-oracle.ts", "../../tests/support/files/system-scan-facts.rs", "../../tests/support/files/files-held-tool.rs", "../../scripts/docs/export-finance-journal-read-contracts.rs", "../../scripts/docs/generate-finance-journal-read-contracts.ts", "../../packages/contracts/src/finance-journal-read.generated.ts", "../../docs/contracts/next/finance-journal-read.openapi.generated.json", "../../tests/support/finance/native-journal-client.mjs", "../../fixtures/field_service/rust-http", "../../scripts/testing/fixtures/generate-field-service-http-oracle.mjs", "../../scripts/testing/fixtures/generate-field-service-http-source-probes.mjs", "../../scripts/testing/fixtures/generate-field-service-http-schema-oracle.mjs", "../../packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/route.ts", "../../packages/server-runtime/src/adapters/http.ts", "../../packages/server-shared/src/domain/error.ts", "../../packages/server-shared/src/domain/consumption-lot.ts", "../../packages/server-field_service/src/domain/service.ts", "../../packages/server-field_service/src/application/service.ts", "../../packages/server-field_service/src/adapters/service.ts", "../../packages/server-field_service/src/adapters/purchases.ts", "../../packages/server-field_service/src/domain/package-commands.ts", "../../packages/server-workflow/src/application/commands.ts", "../../packages/server-workflow/src/domain/commands.ts", "../../packages/feature-identity_access/src/lib/guest-account-compat.ts", "../../packages/server-manage_erpx/src/adapters/public-origin.ts", "../../packages/server-manage_erpx/src/domain/public-origin.ts", "../../packages/feature-field_service/src/lib/command.ts", "../../packages/feature-work_projection/src/lib/work-fetch.ts", "../../packages/contracts/src/holding-fetch.ts"]
+verification-roots = ["../../fixtures/field_service/service-count-generic-action-zod-oracle.v1.json", "../../scripts/testing/fixtures/generate-service-count-generic-action-zod-oracle.ts", "../../scripts/testing/fixtures/generate-service-count-update-zod-oracle.ts", "../../fixtures/field_service/service-count-update-zod-oracle.v1.json", "../../scripts/docs/export-field-service-initial-count-contracts.rs", "../../scripts/docs/generate-field-service-initial-count-contracts.ts", "../../packages/contracts/src/field-service-initial-count.generated.ts", "../../docs/contracts/next/field-service-initial-count.openapi.generated.json", "../../scripts/docs/export-directory-source-contracts.rs", "../../scripts/docs/generate-directory-source-contracts.ts", "../../packages/contracts/src/directory-source-admin.generated.ts", "../../docs/contracts/next/directory-source-admin.openapi.generated.json", "../../scripts/testing/fixtures/generate-directory-review-reason-oracle.ts", "../../tests/support/files/system-scan-facts.rs", "../../tests/support/files/files-held-tool.rs", "../../scripts/docs/export-finance-journal-read-contracts.rs", "../../scripts/docs/generate-finance-journal-read-contracts.ts", "../../packages/contracts/src/finance-journal-read.generated.ts", "../../docs/contracts/next/finance-journal-read.openapi.generated.json", "../../tests/support/finance/native-journal-client.mjs", "../../fixtures/field_service/rust-http", "../../scripts/testing/fixtures/generate-field-service-http-oracle.mjs", "../../scripts/testing/fixtures/generate-field-service-http-source-probes.mjs", "../../scripts/testing/fixtures/generate-field-service-http-schema-oracle.mjs", "../../packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/route.ts", "../../packages/server-runtime/src/adapters/http.ts", "../../packages/server-shared/src/domain/error.ts", "../../packages/server-shared/src/domain/consumption-lot.ts", "../../packages/server-field_service/src/domain/service.ts", "../../packages/server-field_service/src/application/service.ts", "../../packages/server-field_service/src/adapters/service.ts", "../../packages/server-field_service/src/adapters/purchases.ts", "../../packages/server-field_service/src/domain/package-commands.ts", "../../packages/server-workflow/src/application/commands.ts", "../../packages/server-workflow/src/domain/commands.ts", "../../packages/feature-identity_access/src/lib/guest-account-compat.ts", "../../packages/server-manage_erpx/src/adapters/public-origin.ts", "../../packages/server-manage_erpx/src/domain/public-origin.ts", "../../packages/feature-field_service/src/lib/command.ts", "../../packages/feature-work_projection/src/lib/work-fetch.ts", "../../packages/contracts/src/holding-fetch.ts"]
 
 [features]
 default = ["existing-business"]
@@ -283,3 +283,23 @@ required-features = ["field-service"]
 name = "field_files_intake_command_postgres"
 path = "../../tests/integration/field_service/rust-files-intake-command-postgres.test.rs"
 required-features = ["field-service"]
+
+[[test]]
+name = "service_initial_count_update_postgres"
+path = "../../tests/integration/field_service/rust-service-initial-count-update-postgres.test.rs"
+required-features = ["field-service-http", "existing-business"]
+
+[[test]]
+name = "service_count_outbox_postgres"
+path = "../../tests/integration/workflow/rust-service-count-outbox-postgres.test.rs"
+required-features = ["field-service"]
+
+[[test]]
+name = "service_count_company_postgres"
+path = "../../tests/integration/field_service/rust-service-count-company-postgres.test.rs"
+required-features = ["field-service-http"]
+
+[[test]]
+name = "service_count_worker_cli_postgres"
+path = "../../tests/integration/field_service/rust-service-count-worker-cli-postgres.test.rs"
+required-features = ["private-field-api"]

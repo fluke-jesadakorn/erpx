@@ -20,6 +20,10 @@ pub struct CurrentInitialCountInventoryHistory {
     history: InitialCountInventoryHistory,
 }
 impl CurrentInitialCountInventoryHistory {
+    /// The exact pair and optional excluded Count bound to this witness.
+    pub fn selection(&self) -> (&str, &str, Option<&str>) {
+        (&self.warehouse, &self.product, self.except_count.as_deref())
+    }
     pub fn data(&self) -> &InitialCountInventoryHistory {
         &self.history
     }

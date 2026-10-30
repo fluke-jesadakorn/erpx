@@ -2,11 +2,11 @@
 //! run inside the genuine selected Holding authorizer unit, using these source
 //! fences before its first snapshot. This facade grants no actor authority.
 pub use crate::service_initial_physical_stock_action::{
-    ServiceCountActionCommand, ServiceCountAssignmentCommand, assign_service_count_flow,
+    ServiceCountActionCommand, ServiceCountAssignmentCommand, assign_service_count_flow, assign_generic_service_count_flow,
     execute_service_count_action,
 };
 pub use crate::service_initial_physical_stock_command::{
-    InitialCountActionInput, InitialCountCreate, normalize_initial_count_action,
+    InitialCountActionInput, InitialCountCreate, normalize_initial_count_action, normalize_generic_initial_count_action,
     normalize_initial_count_create,
 };
 pub use crate::service_initial_physical_stock_create::create_service_initial_count;
@@ -24,7 +24,7 @@ use erpx_server_identity_access::public::{
 pub use erpx_server_inventory::public::service_initial_physical_count::CountAction;
 use erpx_server_runtime::public::postgres::PgTransactionError;
 use erpx_server_shared::public::{BusinessError, Clock};
-pub use erpx_server_workflow::public::stock_count_flow::normalize_stock_count_assignment;
+pub use erpx_server_workflow::public::stock_count_flow::{normalize_stock_count_assignment, normalize_generic_stock_count_assignment};
 use sqlx::PgConnection;
 /// Read the witnessed original record and its current user-facing action flags.
 pub async fn read_service_initial_count<C: Clock>(

@@ -1,9 +1,14 @@
 import 'server-only';
 import {nativeInitialCountRequest,type NativeCountRoute,type NativeCountTransport} from '@erpx/native-sdk/field-service-initial-count';
-import type {ServiceInitialCountReadResponse,ServiceInitialCountCommandResponse} from '@erpx/contracts/field-service-initial-count';
+import type {ServiceInitialCountReadResponse,ServiceInitialCountCommandResponse,CountGenericDetail} from '@erpx/contracts/field-service-initial-count';
 import {validServiceInitialPhysicalStockCountView,type ServiceInitialPhysicalCountView} from '../../lib/initial-physical-stock-count-command';
 import type {FlowView} from '@erpx/feature-shared/lib/flow';
 import type {ReserveContext} from '../../lib/native-reserve-command';
+import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
+export function nativeInitialCountContext(actor:WorkContext):ReserveContext|undefined {
+ if(!actor.authority||!actor.iam)return undefined;
+ return {userId:actor.userId,holdingId:actor.holdingId,companyId:actor.companyId,branchId:actor.branchId,departmentId:actor.departmentId,branchSlug:actor.scope.kind==='holding'?null:actor.scope.branchSlug??null,departmentSlug:actor.scope.kind==='department'?actor.scope.departmentSlug:null,assignmentId:actor.assignmentId,assignmentVersion:actor.authority.assignmentVersion,revision:actor.authority.revision,role:actor.role,assignmentScopeKind:actor.assignmentScope,modules:[...actor.modules],permissions:[...actor.iam.permissions]};
+}
 type Target={origin:string;holdingSlug:string;holdingId:string};
 type Settings={privateBaseUrl:string;timeoutMs:number;holdings:Target[]};
 export class NativeInitialCountError extends Error {constructor(readonly code:string,readonly status=502){super('The native Service initial Count is unavailable.');}}
@@ -26,6 +31,17 @@ function validatedContext(value:unknown,actor:ReserveContext){if(!object(value))
 const text=(v:unknown):v is string=>typeof v==='string'&&v.length>0;
 const nullable=(v:unknown)=>v===null||text(v);
 const integer=(v:unknown)=>typeof v==='number'&&Number.isSafeInteger(v)&&v>=0;
+function validGenericDetail(value:unknown,id:string,companyId:string):value is CountGenericDetail {
+ const row=(v:unknown):v is Record<string,string|number|null>=>object(v)&&Object.values(v).every(x=>x===null||typeof x==='string'||typeof x==='number'&&Number.isSafeInteger(x));
+ const fields=(v:Record<string,string|number|null>,names:readonly string[])=>names.every(name=>Object.hasOwn(v,name));
+ const requiredText=(v:Record<string,string|number|null>,names:readonly string[])=>names.every(name=>typeof v[name]==='string');
+ const requiredNumber=(v:Record<string,string|number|null>,names:readonly string[])=>names.every(name=>typeof v[name]==='number'&&Number.isSafeInteger(v[name]));
+ if(!object(value)||!row(value.count)||value.count.id!==id||value.count.company_id!==companyId||!requiredText(value.count,['id','company_id','number','warehouse_id','warehouse_name','currency','count_date','reason','status','created_by','prepared_by'])||!requiredNumber(value.count,['version','net_value_minor'])||!fields(value.count,['review_reason','journal_id']))return false;
+ if(!Array.isArray(value.lines)||!value.lines.every(v=>row(v)&&requiredText(v,['id','product_id','sku','description','unit','tracking_mode'])&&requiredNumber(v,['snapshot_quantity_milli','snapshot_value_minor','snapshot_version','counted_quantity_milli','counted_value_minor','current_version'])))return false;
+ if(!Array.isArray(value.lotLines)||!value.lotLines.every(v=>row(v)&&requiredText(v,['id','count_line_id'])&&requiredNumber(v,['snapshot_quantity_milli','snapshot_value_minor','snapshot_version','counted_quantity_milli','counted_value_minor','current_version'])&&fields(v,['lot_code','serial_number','source_lot_id'])))return false;
+ if(!Array.isArray(value.history)||!value.history.every(v=>row(v)&&requiredText(v,['id','action','actor_name'])&&requiredNumber(v,['created_at'])))return false;
+ return Array.isArray(value.decisions)&&value.decisions.every(v=>row(v)&&requiredText(v,['id','action','actor_name','reason'])&&requiredNumber(v,['created_at','reviewed_version']));
+}
 function validFlow(value:unknown,id:string):value is FlowView{
  if(!object(value)||value.kind!=='stock_count'||value.recordId!==id||!integer(value.recordVersion)||Number(value.recordVersion)<1||!integer(value.version)||!integer(value.defaultsRevision)||!text(value.state)||typeof value.canAct!=='boolean'||typeof value.canManage!=='boolean'||!nullable(value.blocker))return false;
  const person=(p:unknown)=>object(p)&&text(p.userId)&&text(p.name)&&nullable(p.teamId)&&typeof p.teamName==='string';
@@ -33,25 +49,27 @@ function validFlow(value:unknown,id:string):value is FlowView{
  return Array.isArray(value.steps)&&value.steps.every(step)&&(value.current===null||step(value.current))&&(value.next===null||step(value.next))&&Array.isArray(value.history)&&value.history.every(h=>object(h)&&text(h.action)&&text(h.actorName)&&typeof h.at==='number'&&Number.isSafeInteger(h.at)&&typeof h.reason==='string'&&typeof h.step==='string');
 }
 export function nativeInitialCountSelected(headers:Pick<Headers,'get'>,slug:string,actor:ReserveContext|undefined):boolean{return !!selected(process.env.ERPX_NATIVE_FIELD_SERVICE_INITIAL_COUNT_CONFIG,headers,slug,actor);}
-export type NativeInitialCountReadRoute=Extract<NativeCountRoute,{kind:'selection'|'record'|'flow'}>;
-export type NativeInitialCountCommandRoute=Extract<NativeCountRoute,{kind:'create'|'action'|'assign'}>;
+export type NativeInitialCountReadRoute=Extract<NativeCountRoute,{kind:'selection'|'record'|'flow'|'generic-detail'}>;
+export type NativeInitialCountCommandRoute=Extract<NativeCountRoute,{kind:'create'|'update'|'action'|'generic-action'|'assign'|'generic-assign'}>;
 export function nativeInitialCount(incoming:Pick<Headers,'get'>,slug:string,actor:ReserveContext|undefined,route:Extract<NativeInitialCountReadRoute,{kind:'selection'|'record'}>,body?:undefined,key?:undefined,transport?:NativeCountTransport):Promise<ServiceInitialPhysicalCountView|undefined>;
 export function nativeInitialCount(incoming:Pick<Headers,'get'>,slug:string,actor:ReserveContext|undefined,route:Extract<NativeInitialCountReadRoute,{kind:'flow'}>,body?:undefined,key?:undefined,transport?:NativeCountTransport):Promise<FlowView|undefined>;
-export function nativeInitialCount(incoming:Pick<Headers,'get'>,slug:string,actor:ReserveContext|undefined,route:NativeInitialCountReadRoute,body?:undefined,key?:undefined,transport?:NativeCountTransport):Promise<ServiceInitialPhysicalCountView|FlowView|undefined>;
+export function nativeInitialCount(incoming:Pick<Headers,'get'>,slug:string,actor:ReserveContext|undefined,route:Extract<NativeInitialCountReadRoute,{kind:'generic-detail'}>,body?:undefined,key?:undefined,transport?:NativeCountTransport):Promise<CountGenericDetail|undefined>;
+export function nativeInitialCount(incoming:Pick<Headers,'get'>,slug:string,actor:ReserveContext|undefined,route:NativeInitialCountReadRoute,body?:undefined,key?:undefined,transport?:NativeCountTransport):Promise<ServiceInitialPhysicalCountView|FlowView|CountGenericDetail|undefined>;
 export function nativeInitialCount(incoming:Pick<Headers,'get'>,slug:string,actor:ReserveContext|undefined,route:NativeInitialCountCommandRoute,body:string,key:string,transport?:NativeCountTransport):Promise<Record<string,unknown>|undefined>;
-export async function nativeInitialCount(incoming:Pick<Headers,'get'>,slug:string,actor:ReserveContext|undefined,route:NativeCountRoute,body?:string,key?:string,transport?:NativeCountTransport):Promise<ServiceInitialPhysicalCountView|FlowView|Record<string,unknown>|undefined>{
+export async function nativeInitialCount(incoming:Pick<Headers,'get'>,slug:string,actor:ReserveContext|undefined,route:NativeCountRoute,body?:string,key?:string,transport?:NativeCountTransport):Promise<ServiceInitialPhysicalCountView|FlowView|CountGenericDetail|Record<string,unknown>|undefined>{
  const choice=selected(process.env.ERPX_NATIVE_FIELD_SERVICE_INITIAL_COUNT_CONFIG,incoming,slug,actor);if(!choice)return undefined;if(!actor)return fail('WORK_CONTEXT_CHANGED',409);
- const command=route.kind==='create'||route.kind==='action'||route.kind==='assign',headers=new Headers({host:new URL(choice.target.origin).host,accept:'application/json','cache-control':'no-cache'}),cookie=incoming.get('cookie');if(cookie){if(new TextEncoder().encode(cookie).length>8192)return fail('NATIVE_INITIAL_COUNT_COOKIE_LIMIT');headers.set('cookie',cookie);}
+ const command=route.kind==='create'||route.kind==='update'||route.kind==='action'||route.kind==='generic-action'||route.kind==='assign'||route.kind==='generic-assign',headers=new Headers({host:new URL(choice.target.origin).host,accept:'application/json','cache-control':'no-cache'}),cookie=incoming.get('cookie');if(cookie){if(new TextEncoder().encode(cookie).length>8192)return fail('NATIVE_INITIAL_COUNT_COOKIE_LIMIT');headers.set('cookie',cookie);}
  for(const [name,value] of [['x-erpx-context-company',actor.companyId],['x-erpx-context-assignment',actor.assignmentId],['x-erpx-context-revision',String(actor.revision)],['x-erpx-context-assignment-version',String(actor.assignmentVersion)]] as const){const captured=incoming.get(name);if(command&&captured!==value)return fail('WORK_CONTEXT_CHANGED',409);headers.set(name,command?captured!:value);}
  if(actor.branchSlug)headers.set('x-erpx-workspace-branch',actor.branchSlug);if(actor.departmentSlug)headers.set('x-erpx-workspace-department',actor.departmentSlug);
  if(command){if(!key||body===undefined)return fail('NATIVE_INITIAL_COUNT_KEY_REQUIRED',422);const origin=incoming.get('origin');if(origin){if(origin!==choice.target.origin)return fail('ORIGIN_FORBIDDEN',403);headers.set('origin',origin);}headers.set('idempotency-key',key);headers.set('content-type','application/json');}
  let response:Awaited<ReturnType<typeof nativeInitialCountRequest>>;try{response=await nativeInitialCountRequest({baseUrl:choice.config.privateBaseUrl,timeoutMs:choice.config.timeoutMs,slug,route,headers,...(command?{body}: {})},transport);}catch{return fail('NATIVE_INITIAL_COUNT_UNAVAILABLE',503);}
  if(response.status!==(route.kind==='create'?201:200)){if(object(response.body)&&object(response.body.error)&&typeof response.body.error.code==='string'&&response.body.error.code.length<=100&&response.status>=400&&response.status<=599)return fail(response.body.error.code,response.status);return fail('NATIVE_INITIAL_COUNT_UNAVAILABLE',503);}
  if(!object(response.body))return fail('NATIVE_INITIAL_COUNT_RESPONSE_INVALID');validatedContext(response.body.context,actor);const data=response.body.data;
- if(!command){const typed=response.body as unknown as ServiceInitialCountReadResponse;if(route.kind==='flow'){if(!validFlow(typed.data,route.id))return fail('NATIVE_INITIAL_COUNT_RESPONSE_INVALID');return typed.data;}if(!validServiceInitialPhysicalStockCountView(typed.data,actor.companyId)||route.kind==='record'&&typed.data.available&&typed.data.record?.id!==route.id)return fail('NATIVE_INITIAL_COUNT_RESPONSE_INVALID');return typed.data;}
+ if(!command){if(route.kind==='generic-detail'){if(!validGenericDetail(data,route.id,actor.companyId))return fail('NATIVE_INITIAL_COUNT_RESPONSE_INVALID');return data;}const typed=response.body as unknown as ServiceInitialCountReadResponse;if(route.kind==='flow'){if(!validFlow(typed.data,route.id))return fail('NATIVE_INITIAL_COUNT_RESPONSE_INVALID');return typed.data;}if(!validServiceInitialPhysicalStockCountView(typed.data,actor.companyId)||route.kind==='record'&&typed.data.available&&typed.data.record?.id!==route.id)return fail('NATIVE_INITIAL_COUNT_RESPONSE_INVALID');return typed.data;}
  let input:unknown;try{input=JSON.parse(body!);}catch{return fail('NATIVE_INITIAL_COUNT_REQUEST_INVALID',422);}if(!object(input)||!object(data))return fail('NATIVE_INITIAL_COUNT_RESPONSE_INVALID');
  if(route.kind==='create'){if(Object.keys(data).sort().join(',')!=='id,status,version'||data.id!==`count-${key}`||data.status!=='draft'||data.version!==1)return fail('NATIVE_INITIAL_COUNT_RESPONSE_INVALID');}
- else if(route.kind==='assign'){if(Object.keys(data).sort().join(',')!=='id,version'||data.id!==route.id||!integer(input.expectedVersion)||!integer(data.version)||data.version!==(Number(input.expectedVersion)||1)+1)return fail('NATIVE_INITIAL_COUNT_RESPONSE_INVALID');}
+ else if(route.kind==='update'){if(Object.keys(data).sort().join(',')!=='id,status,version'||data.id!==route.id||data.status!=='draft'||!integer(input.expectedVersion)||!integer(data.version)||data.version!==Number(input.expectedVersion)+1)return fail('NATIVE_INITIAL_COUNT_RESPONSE_INVALID');}
+ else if(route.kind==='assign'||route.kind==='generic-assign'){if(Object.keys(data).sort().join(',')!=='id,version'||data.id!==route.id||!integer(input.expectedVersion)||!integer(data.version)||data.version!==(Number(input.expectedVersion)||1)+1)return fail('NATIVE_INITIAL_COUNT_RESPONSE_INVALID');}
  else {const statuses={submit:'submitted',approve:'approved',post:'posted',reject:'rejected',cancel:'cancelled'} as const;if(Object.keys(data).sort().join(',')!=='id,journalId,status,version'||data.id!==route.id||data.status!==statuses[route.action]||!integer(input.expectedVersion)||!integer(data.version)||data.version!==Number(input.expectedVersion)+1||!nullable(data.journalId))return fail('NATIVE_INITIAL_COUNT_RESPONSE_INVALID');}
  const typed=response.body as unknown as ServiceInitialCountCommandResponse;return typed.data;
 }

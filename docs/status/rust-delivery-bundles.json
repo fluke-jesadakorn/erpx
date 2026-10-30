@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-29T21:43:17.423449+00:00",
+  "updatedAt": "2026-10-30T03:44:00.841241+00:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
-  "policy": "Incremental independently mergeable capability bundles toward the unchanged full migration scope; unrelated owners and full-system final integration remain later work unless required by this bundle.",
+  "policy": "Complete bounded Rust capability with frontend/dependencies, one writer and immediate legacy implementation withdrawal; scoped PR integration target codex/rust-backend-migration only; Docker that completed capability next before the following migration bundle; Dev Container grows only with qualified Rust/Docker scope. Development requires another maintainer instruction.",
   "catalogue": {
     "path": "docs/status/product-migration-acceptance.json",
     "moduleWorkflowCount": 187,
@@ -30,7 +30,20 @@
     "statusMeaning": "partial, verified and merged are independent booleans; verified means the entire original catalogue scope is Rust-qualified, merged means that fully verified workflow has landed.",
     "currentState": "Support source-record/navigation is qualified as first-bundle blocker evidence, not an additional business flow or whole catalogue workflow.",
     "evidenceLocation": "Source identities and bounded scope are copied below from the ignored execution state; the detailed private evidence path can be cleaned or unavailable and is not a published artifact. Existing contracts are cited when directly recorded.",
-    "noDoubleCount": "Flows may support several catalogue items and multiple flows may support one item; no flow adds to the 206 denominator."
+    "noDoubleCount": "Flows may support several catalogue items and multiple flows may support one item; no flow adds to the 206 denominator.",
+    "integrationTarget": "codex/rust-backend-migration",
+    "retirementGate": "A migrated capability is not closed until its replaced routes, services, commands, jobs, selectors/fallbacks, imports/exports/configuration, obsolete tests and unused dependencies are removed, with behavioral assertions preserved. Shared retained parts need actual consumers/scope/removal conditions. No destructive schema/data/history/evidence cleanup.",
+    "containerOrder": "Rust + frontend/dependencies + legacy withdrawal and targeted checks, then Docker build/run/minimal non-root measured images for that capability, then next bundle. No TS-backend Docker substitute or automatic per-owner container.",
+    "milestoneSeparation": "Report Rust verified/enabled, legacy removed/retained consumers, post-removal checks, Docker built/run/image size, migration-branch PR/merge SHA and blockers separately; counts remain source-mapped and independent.",
+    "preRemovalGate": [
+      "API, internal callers, jobs and retries use the Rust owner in the declared scope.",
+      "Frontend uses Rust and the actual normal-authentication journey passes.",
+      "Authorization, transactions, idempotency, audit/outbox and error behavior pass.",
+      "Reference and consumer inventory establishes no required user of the replaced implementation."
+    ],
+    "removalTiming": "Remove replaced implementation in the capability PR or its immediate explicitly dependent cleanup PR, before the capability Docker runtime/build graph and before counting it closed; do not accumulate cleanup until the final migration.",
+    "postRemovalGate": "Verify targeted regressions, remaining references, dependency boundaries and runtime ownership on the latest post-removal candidate. Source deletion invalidates affected evidence only; unrelated source-matched evidence is reused.",
+    "protectedHistory": "Implementation removal never authorizes dropping tables, data, audit, migration history, receipts or prior evidence."
   },
   "firstBundle": {
     "id": "field-service-capability",
@@ -122,7 +135,7 @@
         "evidenceFlows": [
           "field-service-initial-count-native"
         ],
-        "acceptanceBoundary": "Bounded Count entry/selection/lifecycle/Flow/Finance proof; default runtime/writer withdrawal and exact-candidate integration remain items12\u201315/18."
+        "acceptanceBoundary": "Bounded Count entry/selection/lifecycle/Flow/Finance proof; default runtime/writer withdrawal and exact-candidate integration remain items12–15/18."
       },
       {
         "number": 10,
@@ -647,7 +660,7 @@
           "writeFootprint": "Field Order/event, start timestamp, Support projection, notice and Workflow effects",
           "authorityAndIsolation": "Current selected actor, module, Company/scope and purpose-specific purchase/source witnesses; no selector grants authority.",
           "isolationStatus": "BLOCKED: native selection is a disposable nonproduction opt-in, while retained TypeScript and internal compatibility writers are not globally fenced.",
-          "withdrawalFence": "Retain dispatched\u2192in_visit rules and current actor; fence legacy start with exact retry.",
+          "withdrawalFence": "Retain dispatched→in_visit rules and current actor; fence legacy start with exact retry.",
           "status": "qualified bounded opt-in; no owner cutover",
           "commandOperation": "field.order.start"
         },
@@ -705,7 +718,7 @@
           "writeFootprint": "Field Order/event, Support projection, notice and Workflow receipt/audit/outbox",
           "authorityAndIsolation": "Current selected actor, module, Company/scope and purpose-specific purchase/source witnesses; no selector grants authority.",
           "isolationStatus": "BLOCKED: native selection is a disposable nonproduction opt-in, while retained TypeScript and internal compatibility writers are not globally fenced.",
-          "withdrawalFence": "Retain exception\u2192in_visit semantics and current actor; fence legacy resume.",
+          "withdrawalFence": "Retain exception→in_visit semantics and current actor; fence legacy resume.",
           "status": "qualified bounded opt-in; no owner cutover",
           "commandOperation": "field.order.resume"
         },
@@ -2028,7 +2041,88 @@
       ],
       "entryCount": 62,
       "blockedWriteEntryCount": 46
-    }
+    },
+    "capabilityDeliveries": [
+      {
+        "id": "service-initial-physical-stock-count",
+        "status": "native capability verified after legacy withdrawal; scoped integration PR pending",
+        "branch": "codex/service-initial-stock-capability",
+        "integrationTarget": "codex/rust-backend-migration",
+        "rust": "Normal-authentication candidate journey passed native setup/create, generic update and Flow saveDefault, submit, independent approval/post and real worker drain. Post-retirement generic Count GET/SSR and Flow GET explicitly reach Rust and render the posted record. This closes the bounded Count capability only, not a complete Field catalogue workflow or owner.",
+        "docker": "Not started for this capability; waits for complete native behavior and implementation withdrawal.",
+        "mergedPullRequest": null,
+        "legacyRemoved": [
+          "Service initial-stock BFF selection/read/create/actions/Flow fallback branches and imports.",
+          "Service initial-stock SSR legacy workspace/Flow fallback branches and imports.",
+          "Service Parts BFF and SSR Commerce/Finance setup fallback branches and imports.",
+          "Service Count workspace/create/actions/Flow implementation and transaction wrapper.",
+          "Service-only schema/type aliases, domain module and package export; obsolete current-implementation test imports replaced without assertion removal.",
+          "Service generic Count detail and Flow GET/SSR dispatch to legacy readers; ordinary mixed-owner readers remain explicit dependencies."
+        ],
+        "legacyRemovalStatus": "Replaced production Service implementation removed. Historical interoperability source is stored byte-identically as non-executable .ts.snapshot test resources behind fixed test-only loaders and SHA-256 checks. Post-removal native/controller/historical and real browser checks pass; final metadata-sensitive candidate checks and PR review remain.",
+        "retained": [
+          {
+            "source": "packages/server-inventory/src/adapters/service-initial-physical-stock-count.ts",
+            "consumers": [
+              "Identity product-workspace Service Count product-entry authority"
+            ],
+            "scope": "Narrow ProductEntry authority read only; workspace/create/actions/Flow and replacement transaction implementation removed.",
+            "withdrawal": "Replace the separate Identity product entry projection with equivalent native owner authority; it does not execute migrated Count commands."
+          },
+          {
+            "source": "packages/server-inventory/src/adapters/service-initial-physical-stock-count-source-sql.ts",
+            "consumers": [
+              "Count and attachment purchase/source authorization",
+              "Service package obligations",
+              "Finance source lineage",
+              "Inventory projections and Workflow/Files source guards"
+            ],
+            "scope": "Persisted provenance and historical source identity; not a replacement business writer.",
+            "withdrawal": "Retain while these explicit historical/source-policy consumers exist; migrate equivalent owner interfaces with their respective capabilities. Never delete stored marker/source history."
+          },
+          {
+            "source": "packages/server-inventory/src/adapters/inventory-counts.ts",
+            "consumers": [
+              "Ordinary Supply counts",
+              "Sales initial count",
+              "Manufacturing initial count",
+              "POS initial count"
+            ],
+            "scope": "Shared generic implementation remains required for non-Service commands and mixed-owner list/options/projections. Service detail GET/SSR uses the native compatible detail DTO; TS Service writes are fenced in concrete owner transactions.",
+            "withdrawal": "Remove only the replaced Service-specific writer path in this bundle; migrate other consumers in their own bundles."
+          },
+          {
+            "source": "packages/server-runtime/src/adapters/runtime/jobs.ts and packages/server-workflow/src/adapters/job-projector.ts",
+            "consumers": [
+              "Generic outbox drain and projection receipt/checkpoint for Count and flow.assign",
+              "Unmigrated event families and other owner jobs"
+            ],
+            "scope": "Legacy runtime excludes the Inventory-owned native Service Count subset and ambiguous colliding Flow events. Other event families remain legacy; Count Work reads remain source-composed.",
+            "withdrawal": "Migrate each remaining event family separately. Native Count worker commits distinct HoldingRead receipt/checkpoint before write-side acknowledgment; absent worker never enables fallback."
+          }
+        ],
+        "blockers": [
+          "Final frozen candidate architecture/catalogue/docs/structure/lint/secret/reference checks and independent review before scoped PR merge.",
+          "Build/run and measure minimal shared non-root Rust API/worker Docker support after native capability integration; current leased-development configuration is not production activation."
+        ],
+        "checks": {
+          "frontend": "Service entry suites 98 cases; existing Count Next entry 4; update SDK/adapter suites 80; shared Flow uncertain-retry state 5. Counts overlap and are not workflow completion. Actual post-retirement browser journey remains required.",
+          "postgres": "Selected Account and mounted private HTTP suite 2/2, including actual TS-written receipt replay, concurrent same-key native revision, later cancellation/replay, missing audit/outbox, prepare permission/nonpreparer, Supply draining and late rollback. Inventory-only revision 1/1 and Workflow update evidence 1/1 pass. These do not prove cross-runtime writer-fence races or final capability closure.",
+          "typecheck": "Current full application/test typecheck passes. Architecture, structure, catalogue and documentation checks pass; final post-removal candidate must pass again.",
+          "browser": "Fresh normal Account/SSO setup/create + lost response exact retry, generic Supply draft update + exact retry, Flow saveDefault with canonical acknowledgment, submit/independent approve/post passed. SQL: one source/count/line, 3000 milliunits/900 minor units, balanced journal, unique audit/outbox/default and complete1077 fence correspondence. After retirement, actual Supply SSR, generic detail GET and Flow GET returned posted record and observer confirmed native endpoints. Four disposable databases and owned listeners cleaned.",
+          "normalization": "17 actual Zod oracle vectors; 3 Rust normalization tests pass, including unknown UTF-16 property names. Original constructor authority property order was independently confirmed for the actual legacy writer fixture.",
+          "contracts": "Rust-owned update DTO/OpenAPI/TypeScript generation and --check pass; selected private-field-api build without existing-business passes.",
+          "genericFlow": "13/13 Workflow PostgreSQL cases and 2/2 selected Account/HTTP cases pass: actual TS saveDefault receipt replay, fresh native default and exact retry, draining Supply replay denial, lower-revision/other-scope default and cross-record/Company same-command event rollback, lone-surrogate native reason retry. Historical defaults have no command linkage and retain the original receipt-authoritative replay contract; do not infer individual historical default-row provenance. Exact command retry after later reassignment/record progress now returns current valid Flow with original canonical command acknowledgment; focused client/controller21/21 pass. Ordinary Flow keeps its exact-version rule.",
+          "genericAction": "15 actual Zod vectors and targeted Rust normalization pass; generic action/Flow SDK and adapter suites pass 84 cases. Generated contracts/check and full typecheck pass before final source checks.",
+          "companyOwnership": "Real Account/SSO PostgreSQL case passes across two Companies in one Holding: Count and Parts reads/writes bind selected Company; foreign, stale, missing-context and revoked selection deny without effects. Synthetic posting prerequisites are explicitly distinguished from setup acceptance.",
+          "writerFence": "Actual concrete Holding transaction authority; native/marker ownership before replay and effects. Inventory fence 3/3, native selected Account 2/2 including stale-snapshot legacy create/update/Flow races, ordinary Inventory 16/16 and selected actual POS first stocked sale pass. Unrelated POS cases are filtered, not claimed passed.",
+          "worker": "Native source-aware claimant and separate HoldingRead projection pass 6/6 PostgreSQL cases; actual TS claimant exclusion is checked against native claim. CLI 1/1 proves startup, missing-read rejection, processing, idle and blocked-SQL bounded SIGTERM without cancelling independent blocker. Production activation is not claimed. Actual browser-case native CLI drained eight Count/Flow events: exact outbox ID/receipt set equality, all acknowledged without errors, one observed checkpoint; completed Count has no active Work item. Graceful shutdown and owned read database cleanup confirmed.",
+          "genericDetail": "Typed native generic detail matches complete retained TS response for untracked and lot Counts in draft/cancelled states; safe numbers/null/current stock/lot fields, scope denials and no effects pass. Equal-timestamp history ties retain unspecified ordering. Native audit adds receipt/Company/record-type isolation for colliding record IDs; deliberate security correction is tested separately. Inventory facts target1/1 and assembled private admission1/1 pass."
+        },
+        "retestReason": "New generic detail projection, post-retirement import/build graph, native Flow read dispatch and later-progress retry correction changed affected source. Reran selected HTTP PostgreSQL, actual browser read continuation, historical oracle, live fence, typecheck and focused controllers; unrelated source-matched evidence reused.",
+        "elapsedClosedBundle": null
+      }
+    ]
   },
   "qualifiedEvidence": [
     {
@@ -2091,7 +2185,7 @@
       "id": "holding-product-entry-native-session",
       "kind": "entry-evidence",
       "status": "flow-complete",
-      "scope": "Normal native session rootchooser and genuine Company/role\u2192existing FieldService ownerlanding; notnativeApps/list or fullIdentitymigration",
+      "scope": "Normal native session rootchooser and genuine Company/role→existing FieldService ownerlanding; notnativeApps/list or fullIdentitymigration",
       "sourceIdentity": "71adc86a55674997a6aba6ebf682a3ecfae594eb",
       "evidenceRef": ".scratch/dev/sol-terra-pilot/execution-state.json (completedFlows entry holding-product-entry-native-session)",
       "durableContractRefs": []
@@ -2145,7 +2239,7 @@
       "id": "field-service-visit-start",
       "kind": "business-flow-evidence",
       "status": "flow-complete",
-      "scope": "ActualSchedule\u2192Dispatch\u2192Start nativeactions withtypedownerafterimages,currentauthority/HR/settlement andnativeeventreadback",
+      "scope": "ActualSchedule→Dispatch→Start nativeactions withtypedownerafterimages,currentauthority/HR/settlement andnativeeventreadback",
       "sourceIdentity": "ca05ec43dedfc456989916a261e5bb1a8672dcc1",
       "evidenceRef": ".scratch/dev/sol-terra-pilot/execution-state.json (completedFlows entry field-service-visit-start)",
       "durableContractRefs": []
@@ -2154,7 +2248,7 @@
       "id": "field-service-visit-complete",
       "kind": "business-flow-evidence",
       "status": "flow-complete",
-      "scope": "Actual Complete visit drawer\u2192native owner transaction\u2192typed immutable completion confirmation; release remaining reservations and enforce posted cost journals",
+      "scope": "Actual Complete visit drawer→native owner transaction→typed immutable completion confirmation; release remaining reservations and enforce posted cost journals",
       "sourceIdentity": "dcecbe8105cde770431ca328743075b9d6f00e69",
       "evidenceRef": ".scratch/dev/sol-terra-pilot/execution-state.json (completedFlows entry field-service-visit-complete)",
       "durableContractRefs": []
@@ -2163,7 +2257,7 @@
       "id": "field-service-visit-exception-resume",
       "kind": "business-flow-evidence",
       "status": "flow-complete",
-      "scope": "ActualException\u2192Resume drawers use nativeatomicService/Support/Collaboration/Workflow andkey-onlyimmutableconfirmation",
+      "scope": "ActualException→Resume drawers use nativeatomicService/Support/Collaboration/Workflow andkey-onlyimmutableconfirmation",
       "sourceIdentity": "57a5e6ae8a52e4310d2eb2e88a45c6a2ccde6e4d",
       "evidenceRef": ".scratch/dev/sol-terra-pilot/execution-state.json (completedFlows entry field-service-visit-exception-resume)",
       "durableContractRefs": []
@@ -2172,7 +2266,7 @@
       "id": "field-service-order-cancel",
       "kind": "business-flow-evidence",
       "status": "flow-complete",
-      "scope": "ActualCancel drawer\u2192Rustatomiccancellation/reservationrelease\u2192receipt-boundnativeconfirmation",
+      "scope": "ActualCancel drawer→Rustatomiccancellation/reservationrelease→receipt-boundnativeconfirmation",
       "sourceIdentity": "0caa110c35f1eeec8294a145b5970a81aec85244",
       "evidenceRef": ".scratch/dev/sol-terra-pilot/execution-state.json (completedFlows entry field-service-order-cancel)",
       "durableContractRefs": []
@@ -2199,7 +2293,7 @@
       "id": "field-service-raw-physical-scope-interop",
       "kind": "interop-evidence",
       "status": "interop-complete",
-      "scope": "Actual210bytebranch/dept/Customer/selectedAsset together: Agreementcreate\u2192genuineReview\u2192Request+existingticketOrder/replays/readbacks\u2192nativeSchedule/Reserve/Dispatch/Start\u2192Issue/nativeproof\u2192genuineFinancecostworkspace/post/replay. No historicaltransition substitution.",
+      "scope": "Actual210bytebranch/dept/Customer/selectedAsset together: Agreementcreate→genuineReview→Request+existingticketOrder/replays/readbacks→nativeSchedule/Reserve/Dispatch/Start→Issue/nativeproof→genuineFinancecostworkspace/post/replay. No historicaltransition substitution.",
       "sourceIdentity": "e3953e3e731a62cc83ed6ed88075c5f58b8e0359",
       "evidenceRef": ".scratch/dev/sol-terra-pilot/execution-state.json (completedFlows entry field-service-raw-physical-scope-interop)",
       "durableContractRefs": []
@@ -2366,7 +2460,7 @@
       "effects": "One posted Countv4/source/line/stock/ledger; 2000milli/600minor; one nonopening posted journal with debit Inventory1200=600 and credit variance5400=600; distinct canonical maker/reviewer. Each of22 command receipts has one command-owned audit and outbox effect; total audit rows25 include other activity.",
       "retry": "Two native201 observations with identical body/key/context hashes; first committed reply dropped, second delivered; one Count create effect.",
       "durationMs": 57568,
-      "durationBoundary": "Bounded fresh setup\u2192Count browser journey, not full Field bundle or labor/finish estimate.",
+      "durationBoundary": "Bounded fresh setup→Count browser journey, not full Field bundle or labor/finish estimate.",
       "limitations": [
         "Integrated run retains intentional response-loss503 and10ERR_ABORTED navigation events; not clean Company-entry acceptance. Fresh final posted readback has zero page/console/request errors.",
         "Default native selection, legacy HTTP/internal/jobs fences, Files/Records, full six Field workflows and exact candidate gates remain open.",

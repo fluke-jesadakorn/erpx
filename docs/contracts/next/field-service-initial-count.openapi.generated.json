@@ -1,6 +1,27 @@
 {
   "components": {
     "schemas": {
+      "BTreeMap": {
+        "additionalProperties": {
+          "description": "Generic Inventory row contract retains its scalar column names.",
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "format": "int64",
+              "type": "integer"
+            },
+            {
+              "default": null
+            }
+          ]
+        },
+        "propertyNames": {
+          "type": "string"
+        },
+        "type": "object"
+      },
       "CountActionInput": {
         "additionalProperties": false,
         "properties": {
@@ -458,6 +479,61 @@
         ],
         "type": "object"
       },
+      "CountGenericDetail": {
+        "properties": {
+          "count": {
+            "$ref": "#/components/schemas/BTreeMap"
+          },
+          "decisions": {
+            "items": {
+              "$ref": "#/components/schemas/BTreeMap"
+            },
+            "type": "array"
+          },
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/BTreeMap"
+            },
+            "type": "array"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/BTreeMap"
+            },
+            "type": "array"
+          },
+          "lotLines": {
+            "items": {
+              "$ref": "#/components/schemas/BTreeMap"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "count",
+          "lines",
+          "lotLines",
+          "history",
+          "decisions"
+        ],
+        "type": "object"
+      },
+      "CountGenericValue": {
+        "anyOf": null,
+        "description": "Generic Inventory row contract retains its scalar column names.",
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "format": "int64",
+            "type": "integer"
+          },
+          {
+            "default": null
+          }
+        ]
+      },
       "CountLineInput": {
         "additionalProperties": false,
         "properties": {
@@ -737,6 +813,130 @@
         ],
         "type": "string"
       },
+      "CountUpdateAllocation": {
+        "properties": {
+          "countedQuantity": {
+            "pattern": "^\\d{1,12}(\\.\\d{1,3})?$",
+            "type": "string"
+          },
+          "expiryDate": {
+            "default": "",
+            "oneOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "const": "",
+                "type": "string"
+              }
+            ]
+          },
+          "lotCode": {
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          },
+          "lotId": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "manufacturedDate": {
+            "default": "",
+            "oneOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "const": "",
+                "type": "string"
+              }
+            ]
+          },
+          "serialNumber": {
+            "maxLength": 160,
+            "minLength": 1,
+            "type": "string"
+          },
+          "unitCost": {
+            "pattern": "^\\d{1,12}(\\.\\d{1,2})?$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "countedQuantity"
+        ],
+        "type": "object"
+      },
+      "CountUpdateInput": {
+        "description": "Generic Count editor update accepts the legacy Zod projection: unknown keys\nare ignored and optional line allocations and allocation dates are defaulted.",
+        "properties": {
+          "countDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/CountUpdateLine"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "type": "array"
+          },
+          "reason": {
+            "maxLength": 2000,
+            "minLength": 5,
+            "type": "string"
+          },
+          "warehouseId": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "warehouseId",
+          "countDate",
+          "reason",
+          "lines"
+        ],
+        "type": "object"
+      },
+      "CountUpdateLine": {
+        "properties": {
+          "allocations": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/CountUpdateAllocation"
+            },
+            "maxItems": 500,
+            "type": "array"
+          },
+          "countedQuantity": {
+            "pattern": "^\\d{1,12}(\\.\\d{1,3})?$",
+            "type": "string"
+          },
+          "productId": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "unitCost": {
+            "pattern": "^\\d{1,12}(\\.\\d{1,2})?$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "productId",
+          "countedQuantity"
+        ],
+        "type": "object"
+      },
       "CountWarehouse": {
         "properties": {
           "branchId": {
@@ -940,6 +1140,79 @@
         ],
         "type": "object"
       },
+      "GenericCountActionInput": {
+        "description": "Generic stock-count action accepts the retained stripping object projection.",
+        "properties": {
+          "attachmentSetIds": {
+            "default": [],
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 10,
+            "type": "array"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "reason": {
+            "maxLength": 2000,
+            "minLength": 3,
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedVersion"
+        ],
+        "type": "object"
+      },
+      "GenericCountAssignmentInput": {
+        "description": "Generic Flow may update the scoped default; unknown object keys are stripped.",
+        "properties": {
+          "expectedVersion": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "reason": {
+            "maxLength": 2000,
+            "minLength": 3,
+            "type": "string"
+          },
+          "recordVersion": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "saveDefault": {
+            "default": false,
+            "type": "boolean"
+          },
+          "stepKey": {
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          },
+          "userId": {
+            "maxLength": 180,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "stepKey",
+          "userId",
+          "expectedVersion",
+          "recordVersion",
+          "reason"
+        ],
+        "type": "object"
+      },
       "ServiceInitialCountCommandData": {
         "oneOf": [
           {
@@ -975,6 +1248,9 @@
           },
           {
             "$ref": "#/components/schemas/CountFlow"
+          },
+          {
+            "$ref": "#/components/schemas/CountGenericDetail"
           }
         ]
       },
@@ -1394,6 +1670,318 @@
         "tags": []
       }
     },
+    "/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock/{id}/stock-count": {
+      "get": {
+        "operationId": "generic_detail",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "holding_slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceInitialCountReadResponse"
+                }
+              }
+            },
+            "description": "Current authorized generic Service Count detail"
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock/{id}/stock-count/approve": {
+      "post": {
+        "operationId": "generic_approve",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "holding_slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenericCountActionInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceInitialCountCommandResponse"
+                }
+              }
+            },
+            "description": "Generic Count approve receipt"
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock/{id}/stock-count/cancel": {
+      "post": {
+        "operationId": "generic_cancel",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "holding_slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenericCountActionInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceInitialCountCommandResponse"
+                }
+              }
+            },
+            "description": "Generic Count cancel receipt"
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock/{id}/stock-count/flow": {
+      "post": {
+        "operationId": "generic_flow",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "holding_slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenericCountAssignmentInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceInitialCountCommandResponse"
+                }
+              }
+            },
+            "description": "Generic Count Flow assignment receipt"
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock/{id}/stock-count/post": {
+      "post": {
+        "operationId": "generic_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "holding_slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenericCountActionInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceInitialCountCommandResponse"
+                }
+              }
+            },
+            "description": "Generic Count post receipt"
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock/{id}/stock-count/reject": {
+      "post": {
+        "operationId": "generic_reject",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "holding_slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenericCountActionInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceInitialCountCommandResponse"
+                }
+              }
+            },
+            "description": "Generic Count reject receipt"
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock/{id}/stock-count/submit": {
+      "post": {
+        "operationId": "generic_submit",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "holding_slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenericCountActionInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceInitialCountCommandResponse"
+                }
+              }
+            },
+            "description": "Generic Count submit receipt"
+          }
+        },
+        "tags": []
+      }
+    },
     "/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock/{id}/submit": {
       "post": {
         "operationId": "action_submit",
@@ -1435,6 +2023,53 @@
               }
             },
             "description": "Current authorized Service Count action_submit"
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock/{id}/update": {
+      "post": {
+        "operationId": "update",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "holding_slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CountUpdateInput"
+              }
+            }
+          },
+          "description": "The private ingress accepts at most 2 MiB. Unknown object keys are stripped by the legacy-compatible update projection.",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceInitialCountCommandResponse"
+                }
+              }
+            },
+            "description": "Service Count draft update receipt"
           }
         },
         "tags": []

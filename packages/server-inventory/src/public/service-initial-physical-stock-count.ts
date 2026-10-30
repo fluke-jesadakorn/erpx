@@ -1,3 +1,3 @@
-export {serviceInitialPhysicalStockCountWorkspace,prepareServiceInitialPhysicalStockCount,transitionServiceInitialPhysicalStockCount,serviceInitialPhysicalStockCountProductEntry,serviceInitialPhysicalStockCountFlow,assignServiceInitialPhysicalStockCountFlow} from '@erpx/server-inventory/adapters/service-initial-physical-stock-count';
-export {serviceInitialPhysicalStockCountSchema,serviceInitialPhysicalStockCountActionSchema,serviceInitialPhysicalStockCountSelectionSchema,serviceInitialPhysicalStockCountFlowSchema} from '@erpx/server-inventory/domain/service-initial-physical-stock-count';
-export type {ServiceInitialPhysicalStockCountView,ServiceInitialPhysicalStockCountRecord,ServiceInitialPhysicalStockCountAction,ServiceInitialPhysicalStockCountInput,ServiceInitialPhysicalStockCountResult} from '@erpx/server-inventory/domain/service-initial-physical-stock-count';
+export {serviceInitialPhysicalStockCountProductEntry} from '@erpx/server-inventory/adapters/service-initial-physical-stock-count';
+
+export {serviceCountWriterOwner} from '@erpx/server-inventory/adapters/service-initial-physical-stock-count-source';

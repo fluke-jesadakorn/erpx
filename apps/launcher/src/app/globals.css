@@ -2300,7 +2300,6 @@
 @source "../../../../packages/server-inventory/src/domain/reorder-policies.ts";
 @source "../../../../packages/server-inventory/src/domain/reorder-quantity.ts";
 @source "../../../../packages/server-inventory/src/domain/service-initial-physical-stock-count-entry.ts";
-@source "../../../../packages/server-inventory/src/domain/service-initial-physical-stock-count.ts";
 @source "../../../../packages/server-inventory/src/domain/transfers.ts";
 @source "../../../../packages/server-inventory/src/domain/transit.ts";
 @source "../../../../packages/server-inventory/src/public/attachment-read.ts";
@@ -4461,6 +4460,7 @@
 @source "../../../../packages/workplace/src/components/workspace-menu.tsx";
 @source "../../../../packages/workplace/src/entries/workspace.tsx";
 @source "../../../../packages/workplace/src/holding-proxy.ts";
+@source "../../../../packages/workplace/src/lib/flow-assignment-command.ts";
 @source "../../../../packages/workplace/src/proxy.ts";
 @source "../../../../packages/workplace/src/routes/api/auth/[...all]/contributor-auth-response.ts";
 @source "../../../../packages/workplace/src/routes/api/auth/[...all]/route.ts";

@@ -106,3 +106,37 @@ async fn field_only_private_listener_enforces_config_and_current_authority() {
     })
     .await;
 }
+
+#[tokio::test]
+async fn assembled_private_count_routes_reject_anonymous_before_reading_body() {
+ use std::sync::atomic::{AtomicUsize,Ordering};
+ use tower::ServiceExt;
+ struct Held(Arc<AtomicUsize>);
+ impl tokio::io::AsyncRead for Held {
+  fn poll_read(self:std::pin::Pin<&mut Self>,_:&mut std::task::Context<'_>,_:&mut tokio::io::ReadBuf<'_>)->std::task::Poll<std::io::Result<()>> {self.0.fetch_add(1,Ordering::SeqCst);std::task::Poll::Pending}
+ }
+ account::with_system(|system|async move{
+  let mut doc=configuration::document(&system.control,&system.holdings).await;
+  doc["fieldServiceReads"]=serde_json::json!([{"holdingId":"h001","companyId":"company"}]);
+  doc["fieldServiceInitialCounts"]=serde_json::json!([{"holdingId":"h001","filesEnabled":false,"filesReadOnly":false,"uploadsFrozen":false}]);
+  let cfg=DevelopmentApiConfiguration::parse(&doc.to_string()).unwrap();
+  let runtime=assemble_development_api(cfg,system.scenario.clock.clone(),Arc::new(SystemAuthenticationSecrets)).await.unwrap();
+  let base="/api/v1/holdings/acme/field-service/initial-physical-stock";
+  let mut paths=vec![format!("{base}/id/update")];
+  for action in ["flow","submit","approve","post","reject","cancel"] {paths.push(format!("{base}/id/stock-count/{action}"));}
+  for path in paths {
+   let polls=Arc::new(AtomicUsize::new(0));let body=axum::body::Body::from_stream(tokio_util::codec::FramedRead::new(Held(polls.clone()),tokio_util::codec::BytesCodec::new()));
+   let request=axum::http::Request::builder().method("POST").uri(&path).header("host","acme.example.test").header("idempotency-key","held").body(body).unwrap();
+   let response=tokio::time::timeout(std::time::Duration::from_secs(5),runtime.router().oneshot(request)).await.unwrap().unwrap();
+   assert_eq!(response.status(),axum::http::StatusCode::UNAUTHORIZED,"{path}");assert_eq!(polls.load(Ordering::SeqCst),0,"{path}");
+  }
+  let detail=format!("{base}/id/stock-count");
+  let request=axum::http::Request::builder().method("GET").uri(&detail).header("host","acme.example.test").body(axum::body::Body::empty()).unwrap();
+  let response=runtime.router().oneshot(request).await.unwrap();assert_eq!(response.status(),axum::http::StatusCode::UNAUTHORIZED,"{detail}");
+  for (method,path) in [("POST",detail),("POST",format!("{base}/id/stock-count/unknown")),("GET",format!("{base}/id/update")),("DELETE",format!("{base}/id/stock-count/flow"))] {
+   let request=axum::http::Request::builder().method(method).uri(&path).header("host","acme.example.test").body(axum::body::Body::empty()).unwrap();
+   let response=runtime.router().oneshot(request).await.unwrap();assert_eq!(response.status(),axum::http::StatusCode::NOT_FOUND,"{method} {path}");
+  }
+  runtime.close().await;
+ }).await;
+}

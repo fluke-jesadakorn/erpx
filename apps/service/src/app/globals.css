@@ -734,7 +734,6 @@
 @source "../../../../packages/server-commerce/src/public/records-source-facts.ts";
 @source "../../../../packages/server-commerce/src/public/sales-goods-posting-sources.ts";
 @source "../../../../packages/server-commerce/src/public/sales-order-sources.ts";
-@source "../../../../packages/server-commerce/src/public/service-initial-physical-stock-masters.ts";
 @source "../../../../packages/server-commerce/src/public/service-initial-physical-stock-sources.ts";
 @source "../../../../packages/server-commerce/src/public/service-parts-posting-proof.ts";
 @source "../../../../packages/server-commerce/src/public/service-parts-posting-setup.ts";
@@ -1870,7 +1869,6 @@
 @source "../../../../packages/server-inventory/src/domain/reorder-policies.ts";
 @source "../../../../packages/server-inventory/src/domain/reorder-quantity.ts";
 @source "../../../../packages/server-inventory/src/domain/service-initial-physical-stock-count-entry.ts";
-@source "../../../../packages/server-inventory/src/domain/service-initial-physical-stock-count.ts";
 @source "../../../../packages/server-inventory/src/domain/transfers.ts";
 @source "../../../../packages/server-inventory/src/domain/transit.ts";
 @source "../../../../packages/server-inventory/src/public/attachment-read.ts";
