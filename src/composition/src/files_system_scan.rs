@@ -3,7 +3,7 @@
 //! No Person, saved parent or created_by permission is invented for scanning.
 use erpx_server_files::public::attachment_scan::{
     AttachmentScanEvidence, AttachmentScanFailure, AttachmentScanScope, AttachmentScanSettlement,
-    AttachmentScanTransactions, PreparedAttachmentScan, claim_attachment_scan,
+    AttachmentScanTransactions, PreparedAttachmentScan, claim_attachment_scan, claim_field_attachment_scan,
     fail_current_attachment_scan, prepare_current_attachment_scan, retain_current_attachment_scan,
 };
 use erpx_server_identity_access::public::{
@@ -16,7 +16,7 @@ use erpx_server_runtime::public::postgres::{
     verify_current_migration_inventory,
 };
 use erpx_server_shared::public::{BusinessError, Clock, FailureKind, IdentifierSource, RecordId};
-use sqlx::PgConnection;
+use sqlx::{Connection, PgConnection};
 use std::{
     collections::{BTreeMap, BTreeSet},
     path::Path,
@@ -39,6 +39,8 @@ pub struct DevelopmentFilesScanConfiguration {
     files_binding: String,
 }
 impl DevelopmentFilesScanConfiguration {
+    /// Trusted scope data for duplicate configuration checks; not authority.
+    pub fn scope(&self) -> &AttachmentScanScope { &self.scope }
     pub fn new(
         control: LeasedDevelopmentDatabase,
         mut reviewed_write_databases: BTreeMap<String, LeasedDevelopmentDatabase>,
@@ -144,15 +146,91 @@ struct State<C> {
 /// no current authority between phases and exposes no raw pool or credential.
 pub struct DevelopmentFilesScanTransactions<C> {
     state: Arc<State<C>>,
+    field_only: bool,
 }
 impl<C> Clone for DevelopmentFilesScanTransactions<C> {
     fn clone(&self) -> Self {
         Self {
             state: self.state.clone(),
+            field_only: self.field_only,
         }
     }
 }
 impl<C: Clock + Send + Sync + 'static> DevelopmentFilesScanTransactions<C> {
+    pub fn field_only(mut self) -> Self { self.field_only = true; self }
+    /// Persist a bounded fairness cursor before attempting an untrusted source.
+    /// This returns data only; the subsequent claim reacquires every witness.
+    pub async fn next_field_candidate(&self) -> Result<Option<RecordId>, Error> {
+        let company=self.state.scope.company_id.as_str().to_owned();
+        let now=self.state.clock.now().get();
+        self.phase(move |c| {
+            let company=company.clone();
+            Box::pin(async move {
+                sqlx::query("INSERT INTO field_file_scan_cursor(company_id,after_created_at,after_job_id) VALUES($1,-9223372036854775808,'') ON CONFLICT(company_id) DO NOTHING").bind(&company).execute(&mut *c).await?;
+                let (at,id):(i64,String)=sqlx::query_as("SELECT after_created_at,after_job_id FROM field_file_scan_cursor WHERE company_id=$1 FOR UPDATE").bind(&company).fetch_one(&mut *c).await?;
+                let query="SELECT j.created_at,j.id,j.attachment_id FROM attachment_scan_attempts j JOIN attachments a ON a.id=j.attachment_id WHERE a.company_id=$1 AND j.state IN ('pending','running') AND j.created_at<=$2 AND (j.claim_until IS NULL OR j.claim_until<$2) AND erpx_files_field_attachment_owned(j.attachment_id) AND (j.created_at,j.id)>($3,$4) ORDER BY j.created_at,j.id LIMIT 1";
+                let mut candidate:Option<(i64,String,String)>=sqlx::query_as(query).bind(&company).bind(now).bind(at).bind(&id).fetch_optional(&mut *c).await?;
+                if candidate.is_none() { candidate=sqlx::query_as(query).bind(&company).bind(now).bind(i64::MIN).bind("").fetch_optional(&mut *c).await?; }
+                let Some((created,job,source))=candidate else{return Ok(None)};
+                sqlx::query("UPDATE field_file_scan_cursor SET after_created_at=$2,after_job_id=$3 WHERE company_id=$1").bind(&company).bind(created).bind(&job).execute(&mut *c).await?;
+                Ok(RecordId::new(source).ok())
+            })
+        }).await
+    }
+
+    /// Run one database-only cleanup phase against the current leased Holding.
+    /// The callback may be retried on a serialization failure or deadlock and
+    /// must therefore never perform filesystem or other external effects. The
+    /// scope is trusted configuration, not a source or Company authorization:
+    /// the Files owner must still validate its complete persisted lineage.
+    pub async fn run_field_cleanup_phase<T, F>(&self, work: F) -> Result<T, Error>
+    where
+        T: Send + 'static,
+        F: for<'a> Fn(&'a mut PgConnection, &'a AttachmentScanScope) -> PgWorkFuture<'a, T, BusinessError>
+            + Clone + Send + Sync + 'static,
+    {
+        let scope = self.state.scope.clone();
+        self.phase(move |connection| {
+            let scope = scope.clone();
+            let work = work.clone();
+            Box::pin(async move {
+                require_field_cleanup_company(connection, &scope.company_id).await?;
+                work(connection, &scope).await
+            })
+        }).await
+    }
+
+    /// Holds the verified Control binding and all reference tables through one
+    /// non-replayed filesystem operation. READ COMMITTED gives the callback a
+    /// fresh snapshot after any wait for conflicting writers has completed.
+    async fn field_cleanup_physical<T, F>(&self, work: F) -> Result<T, Error>
+    where
+        T: Send + 'static,
+        F: for<'a> FnOnce(&'a mut PgConnection, &'a erpx_server_shared::public::CompanyId) -> PgWorkFuture<'a, T, BusinessError> + Send + 'static,
+    {
+        let state = self.state.clone();
+        self.state.control.run(move |control| Box::pin(async move {
+            lock_holding_binding_sources(control).await?;
+            state.control_identity.require_current(control).await?;
+            let binding = state.registry.read_current(control, &state.audience).await?;
+            if binding.holding_id() != &state.scope.holding_id || binding.write_binding() != state.write_binding {
+                return Err(unavailable().into());
+            }
+            let mut connection = state.holding_pool.raw().acquire().await?;
+            let mut tx = connection.begin_with("BEGIN ISOLATION LEVEL READ COMMITTED").await?;
+            state.holding_identity.require_current(&mut tx).await?;
+            // Deterministic order; SHARE conflicts with all INSERT/UPDATE/DELETE.
+            sqlx::query("LOCK TABLE attachment_links, attachment_sets, attachment_storage_ledger, attachments, field_upload_object_cleanup_claims, field_upload_publication_pins, upload_intents IN SHARE MODE")
+                .execute(&mut *tx).await?;
+            state.holding_identity.require_current(&mut tx).await?;
+            require_field_cleanup_company(&mut tx, &state.scope.company_id).await?;
+            let result = work(&mut tx, &state.scope.company_id).await?;
+            tx.commit().await?;
+            binding.require_current(control).await?;
+            Ok(result)
+        })).await
+    }
+
     pub fn files_binding(&self) -> &str {
         &self.state.files_binding
     }
@@ -276,6 +354,7 @@ pub async fn assemble_development_files_scan<C: Clock + Send + Sync + 'static>(
     match result {
         Ok((control_identity, holding_identity, control_schema, holding_schema)) => {
             Ok(DevelopmentFilesScanTransactions {
+                field_only: false,
                 state: Arc::new(State {
                     control: PgRequestLease::new(control.clone()),
                     holding: PgUnitOfWork::new(holding.clone()),
@@ -302,6 +381,21 @@ pub async fn assemble_development_files_scan<C: Clock + Send + Sync + 'static>(
     }
 }
 
+impl<C: Clock + Send + Sync + 'static> erpx_server_files::public::field_visit_upload::FieldCleanupTransactions for DevelopmentFilesScanTransactions<C> {
+    async fn metadata<T, F>(&self, work: F) -> Result<T, Error>
+    where T: Send + 'static,
+          F: for<'a> Fn(&'a mut PgConnection, &'a erpx_server_shared::public::CompanyId) -> PgWorkFuture<'a, T, BusinessError> + Clone + Send + Sync + 'static,
+    {
+        self.run_field_cleanup_phase(move |c, scope| work(c, &scope.company_id)).await
+    }
+    async fn physical<T, F>(&self, work: F) -> Result<T, Error>
+    where T: Send + 'static,
+          F: for<'a> FnOnce(&'a mut PgConnection, &'a erpx_server_shared::public::CompanyId) -> PgWorkFuture<'a, T, BusinessError> + Send + 'static,
+    {
+        self.field_cleanup_physical(work).await
+    }
+}
+
 impl<C: Clock + Send + Sync + 'static> AttachmentScanTransactions
     for DevelopmentFilesScanTransactions<C>
 {
@@ -313,20 +407,20 @@ impl<C: Clock + Send + Sync + 'static> AttachmentScanTransactions
         let filter = source_filter.map(RecordId::new).transpose()?;
         let scope = self.state.scope.clone();
         let clock = self.state.clock.clone();
+        let field_only = self.field_only;
         self.phase(move |c| {
             let filter = filter.clone();
             let scope = scope.clone();
             let clock = clock.clone();
             Box::pin(async move {
-                let Some(claim) = claim_attachment_scan(
+                let claim = if field_only { claim_field_attachment_scan(
                     c,
                     &scope,
                     filter.as_ref(),
                     clock.as_ref(),
                     &mut Identifiers,
-                )
-                .await?
-                else {
+                ).await? } else { claim_attachment_scan(c,&scope,filter.as_ref(),clock.as_ref(),&mut Identifiers).await? };
+                let Some(claim) = claim else {
                     return Ok(None);
                 };
                 prepare_current_attachment_scan(c, claim, clock.as_ref())
@@ -409,6 +503,13 @@ impl IdentifierSource for Identifiers {
         RecordId::new(uuid::Uuid::new_v4().to_string()).expect("generated UUID")
     }
 }
+async fn require_field_cleanup_company(c: &mut PgConnection, company: &erpx_server_shared::public::CompanyId) -> Result<(), Error> {
+    let current: Option<String> = sqlx::query_scalar("SELECT id FROM organization_nodes WHERE id=$1 AND company_id=$1 AND kind='company' AND status='active' FOR SHARE")
+        .bind(company.as_str()).fetch_optional(&mut *c).await?;
+    if current.is_none() { return Err(unavailable().into()) }
+    Ok(())
+}
+
 fn unavailable() -> BusinessError {
     BusinessError::new(
         FailureKind::Unavailable,

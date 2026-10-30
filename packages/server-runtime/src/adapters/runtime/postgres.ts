@@ -226,6 +226,35 @@ export class PostgresDatabase implements SqlDatabase {
     try { return await action(new SessionDatabase(client)); }
     finally { client.release(); }
   }
+  /** Acquire object locks before taking the snapshot; never replay external I/O. */
+  async withObjectLocks<T>(company: string, keys: string[], action: (tx: SqlDatabase) => Promise<T>): Promise<T> {
+    const ordered=[...new Set(keys)].sort();
+    if(!company || company.length>200 || !ordered.length || ordered.length>100 || ordered.some(key=>!key || key.length>4096)) throw new Error('INVALID_OBJECT_LOCK_SET');
+    const client=await this.pool.connect();const held:string[]=[];let discard=false;let inTransaction=false;let priorTimeout:string|undefined;
+    try {
+      priorTimeout=(await client.query<{value:string}>("SELECT current_setting('lock_timeout') AS value")).rows[0]?.value;
+      if(!priorTimeout)throw new Error('OBJECT_LOCK_TIMEOUT_UNAVAILABLE');
+      await client.query("SELECT set_config('lock_timeout','10s',false)");
+      for(const key of ordered) {
+        const lock=`attachment-object:${company}:${key}`;
+        try {await client.query('SELECT pg_advisory_lock(hashtextextended($1,0))',[lock]);held.push(lock);} catch(error) {discard=true;throw error;}
+      }
+      await client.query('BEGIN ISOLATION LEVEL SERIALIZABLE');inTransaction=true;
+      const tx=new TransactionDatabase(client);const ownership={pool:this.pool,active:true};transactionOwners.set(tx,ownership);
+      try {const result=await action(tx);ownership.active=false;await client.query('COMMIT');inTransaction=false;return result;}
+      finally {ownership.active=false;}
+    } catch(error) {
+      if(inTransaction)try{await client.query('ROLLBACK');inTransaction=false;}catch{discard=true;}
+      throw error;
+    } finally {
+      for(const lock of discard ? [] : held.reverse())try {
+        const unlocked=await client.query<{released:boolean}>('SELECT pg_advisory_unlock(hashtextextended($1,0)) AS released',[lock]);
+        if(unlocked.rows[0]?.released!==true)discard=true;
+      } catch {discard=true;}
+      if(!discard && priorTimeout)try {await client.query("SELECT set_config('lock_timeout',$1,false)",[priorTimeout]);}catch{discard=true;}
+      client.release(discard);
+    }
+  }
   /** Reads and derived writes share the same snapshot; retry the entire calculation. */
   async transaction<T>(action: (tx: SqlDatabase) => Promise<T>,options?:{sessionLock:{namespace:string;key:string};preferIndexedReads?:boolean;pipelineBatches?:boolean}): Promise<T> {
     const lock=options?.sessionLock;

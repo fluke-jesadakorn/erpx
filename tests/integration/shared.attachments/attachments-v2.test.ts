@@ -15,7 +15,6 @@ vi.mock("@erpx/server-files/public/attachments/preview",()=>({
 }));
 
 import { attachmentContent,attachmentDestructionEligibility,attachmentLinkStatus,approveAttachmentPublication,bindCompatibilityAttachmentSet,bindRecordAttachmentSet,cleanupAttachmentDrafts,createAttachmentPublication,createAttachmentSet,drainAttachmentScans,linkExistingAttachment,listAttachmentPublications,listAttachmentSets,prepareAttachmentBinding,publicAttachmentPublication,reorderAttachmentPublications,reserveAttachmentFile,revokeAttachmentPublication,scanAttachmentNow,completeAttachmentUpload,withdrawAttachmentLink } from "@erpx/server-files/public/attachments/service";
-import { attachmentPolicy } from "@erpx/server-files/public/attachments/policy";
 import {postView,publishPost,savePostDraft,type PostContent} from '@erpx/server-collaboration/public/social-home';
 import { listBrandProfiles } from "@erpx/server-brand/public/branding";
 import { backfillLegacyAttachments,backfillSpecializedAttachments,reconcileAttachmentStorage } from "@erpx/server-files/public/attachments/migration";
@@ -814,6 +813,23 @@ describe("canonical attachment lifecycle",()=>{
     for(const marker of markers)expect(restored.missingLedger).not.toContain(marker);
     await expect(db.prepare("UPDATE attachment_storage_ledger SET bytes=bytes+1 WHERE attachment_id=?").bind(source.sourceId).run()).rejects.toThrow(/ATTACHMENT_STORAGE_IMMUTABLE/);
   });
+  it("serializes a legacy upload against concurrent Field lineage birth before bytes are written",async()=>{
+    const set=await createAttachmentSet(db,actorA,{targetType:"product",targetId:productA,componentKind:"record",purposeKey:"specification",expectedTargetVersion:1},key());
+    const reserved=await reserveAttachmentFile(db,actorA,set.id,{filename:"race.png",mediaType:"image/png",bytes:png.byteLength},key());
+    const sourceId=`attachment-${reserved.uploadIntentId}`;
+    let entered!:()=>void,release!:()=>void;const putEntered=new Promise<void>(resolve=>{entered=resolve;}),continuePut=new Promise<void>(resolve=>{release=resolve;});let puts=0;
+    const files=new Proxy(env.H001_FILES,{get(target,property,receiver){if(property==='put')return async(...args:Parameters<typeof target.put>)=>{puts++;entered();await continuePut;return target.put(...args);};const value=Reflect.get(target,property,receiver);return typeof value==='function'?value.bind(target):value;}});
+    const body=png.buffer.slice(png.byteOffset,png.byteOffset+png.byteLength),upload=completeAttachmentUpload(db,files,actorA,reserved.uploadIntentId,body);
+    await putEntered;
+    const lineage=db.prepare("UPDATE upload_intents SET owner_type='field_service_visit' WHERE id=?").bind(reserved.uploadIntentId).run();
+    try {
+      let blocked=false;for(let i=0;i<100&&!blocked;i++){blocked=Boolean((await db.prepare("SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock' AND query LIKE '%UPDATE upload_intents SET owner_type=%') AS blocked").first<{blocked:boolean}>())?.blocked);if(!blocked)await new Promise(resolve=>setTimeout(resolve,25));}
+      expect(blocked).toBe(true);
+    } finally {release();}
+    const result=await upload;await lineage;expect(result.sourceId).toBe(sourceId);expect(puts).toBe(1);
+    expect(await db.prepare("SELECT erpx_files_field_attachment_owned(?) owned").bind(sourceId).first('owned')).toBe(true);
+  });
+
 });
 
 

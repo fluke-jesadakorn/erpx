@@ -39,14 +39,35 @@ import {
   reserveAttachmentFile,
   uploadAttachmentBytes,
   validateGenericAttachment,
+  validateFieldAttachment,
   withdrawAttachmentLink,
 } from "@erpx/feature-files/lib/attachment-client";
 import {fieldWithdrawalScope,pendingFieldWithdrawal,registerFieldWithdrawalOwner,retryFieldWithdrawal,submitFieldWithdrawal,subscribeFieldWithdrawal} from "@erpx/feature-files/lib/native-field-withdraw";
 import {pendingFieldBind,registerFieldBindOwner,retryFieldBind,submitFieldBind,subscribeFieldBind} from "@erpx/feature-files/lib/native-field-bind";
+import {watchFieldContentContext} from '../application/field-content-lifetime';
+import {createFieldUploadAttempt} from '../application/field-upload-attempt';
+import {workFetch} from '@erpx/feature-work_projection/lib/work-fetch';
+import {captureWorkCommandContext} from '@erpx/feature-work_projection/lib/command-context';
+import {contextGeneration,contextIsSwitching} from '@erpx/feature-work_projection/lib/context-switch';
 import { attachmentStateLabel, canMutateAttachmentDraft } from "@erpx/feature-files/lib/attachment-state";
 import { canMutateAttachments, useAttachmentFeatureMode } from "@erpx/feature-files/components/attachment-feature-context";
 import styles from "@erpx/feature-files/components/attachment-panel.module.css";
 import { type UiAppearance } from "@erpx/ui/components/foundation";
+
+const fieldUpload = createFieldUploadAttempt<File>({
+    context:()=>{const node=document.querySelector<HTMLElement>('[data-work-revision]');if(!node)return null;const fields=[node.dataset.workUser,node.dataset.workRevision,node.dataset.workCompany,node.dataset.workAssignment,node.dataset.workAssignmentVersion];return {identity:JSON.stringify(fields),generation:contextGeneration(),valid:node.isConnected&&node.dataset.workStale!=='true'&&!contextIsSwitching()&&fields.every(Boolean)};},
+    key:()=>crypto.randomUUID(),
+    reserve:a=>reserveAttachmentFile(a.base,a.setId,JSON.parse(a.body),a.key,'caller'),
+    upload:(a,r)=>uploadAttachmentBytes(r.uploadUrl,a.file,a.mediaType,'caller'),
+    terminalRejection:(error,phase)=>error instanceof AttachmentApiError&&((phase==='reserve'&&error.status===422&&['ATTACHMENT_MEDIA_TYPE','ATTACHMENT_SIZE','ATTACHMENT_METADATA','ATTACHMENT_SUPERSEDES_INVALID'].includes(error.code??''))||(phase==='upload'&&((error.status===422&&['UPLOAD_SIZE','UPLOAD_TYPE'].includes(error.code??''))||(error.status===404&&error.code==='UPLOAD_NOT_FOUND')))),
+});
+
+function FieldPrivateContent({base,link,variant,appearance}:{base:string;link:AttachmentLinkDto;variant:'preview'|'original';appearance:UiAppearance}){
+ const [url,setUrl]=useState<string|null>(null),[failure,setFailure]=useState('');
+ useEffect(()=>{if(variant!=='preview')return;let alive=true,created:string|undefined;const controller=new AbortController(),assertContext=captureWorkCommandContext();const invalidate=()=>{alive=false;controller.abort();if(created){URL.revokeObjectURL(created);created=undefined;}setUrl(null);setFailure('Preview unavailable after the work context changed.');};const unwatch=watchFieldContentContext(window,invalidate);void workFetch(attachmentContentUrl(base,link.id,variant),{cache:'no-store',signal:controller.signal}).then(async r=>{if(!r.ok)throw Error('Preview unavailable.');const blob=await r.blob();assertContext();if(!alive)return;created=URL.createObjectURL(blob);setUrl(created);}).catch(()=>{if(alive)setFailure('Preview unavailable.');});return()=>{alive=false;controller.abort();if(created)URL.revokeObjectURL(created);unwatch();};},[base,link.id,variant]);
+ async function download(){setFailure('');try{const assertContext=captureWorkCommandContext(),response=await workFetch(attachmentContentUrl(base,link.id,'original'),{cache:'no-store'});if(!response.ok)throw Error('Download unavailable.');const blob=await response.blob();assertContext();const objectUrl=URL.createObjectURL(blob),anchor=document.createElement('a');anchor.href=objectUrl;anchor.download=link.filename;anchor.click();window.setTimeout(()=>URL.revokeObjectURL(objectUrl),1000);}catch{setFailure('Download unavailable.');}}
+ return <span>{variant==='preview'?(url?<a href={url} target="_blank" rel="noreferrer"><Image src={url} alt={`Sanitized preview of ${link.filename}`} width={52} height={52} unoptimized /></a>:<span role="status">{failure||'Loading preview…'}</span>):<Button appearance={appearance} type="button" onClick={()=>void download()} aria-label={`Download ${link.filename}`}><Download aria-hidden size={15}/></Button>}{variant==='original'&&failure&&<span role="alert">{failure}</span>}</span>;
+}
 
 type LocalLink = AttachmentLinkDto & {
   localState?: "reserving" | "uploading" | "waiting";
@@ -88,8 +109,6 @@ export type AttachmentPanelProps = {
   readOnly?: boolean;
   showHistory?: boolean;
   allowOriginalDownload?: boolean;
-  nativeWithdrawIds?: readonly string[];
-  nativeBindIds?: readonly string[];
 };
 
 const active = (link: LocalLink) => !["withdrawn", "expired"].includes(link.linkState);
@@ -191,8 +210,6 @@ function AttachmentPanelContent({ appearance = "legacy",
   readOnly = false,
   showHistory = false,
   allowOriginalDownload = true,
-  nativeWithdrawIds = [],
-  nativeBindIds = [],
 }: (AttachmentPanelProps) & { appearance?: UiAppearance }) {
   const router = useRouter();
   const inputId = useId();
@@ -201,6 +218,7 @@ function AttachmentPanelContent({ appearance = "legacy",
   const mounted = useRef(true);
   const createKey = useRef(crypto.randomUUID());
   const bindKey = useRef<{ setId: string; key: string } | null>(null);
+  const [,setFieldUploadRevision]=useState(0);
   const retryUploads = useRef(
     new Map<string, { uploadUrl: string; file: File; mediaType: string }>(),
   );
@@ -219,6 +237,7 @@ function AttachmentPanelContent({ appearance = "legacy",
   const [withdrawReason, setWithdrawReason] = useState("");
   const withdrawReasonRef=useRef("");
   const withdrawalScope=fieldWithdrawalScope(base,targetType,targetId,componentKind,componentRef??null,purposeKey);
+  const fieldUploadPending=!!fieldUpload.pending(withdrawalScope);
   const [,setWithdrawalRevision]=useState(0);
   useEffect(()=>{const unregister=registerFieldWithdrawalOwner(withdrawalScope,()=>({setId:setRef.current?.id??null}));const unsubscribe=subscribeFieldWithdrawal(withdrawalScope,()=>setWithdrawalRevision(v=>v+1));return()=>{unsubscribe();unregister();};},[withdrawalScope,expectedTargetVersion]);
   const pendingWithdrawal=pendingFieldWithdrawal(withdrawalScope);
@@ -234,7 +253,7 @@ function AttachmentPanelContent({ appearance = "legacy",
       if (mounted.current) setBusy(active);
       // Keep the owner guard active while an upload still has an in-memory
       // File available for explicit retry, even after the active request ends.
-      onActivityChange?.(active || retryUploads.current.size > 0 || !!pendingFieldWithdrawal(withdrawalScope) || !!pendingFieldBind(withdrawalScope));
+      onActivityChange?.(active || retryUploads.current.size > 0 || !!fieldUpload.pending(withdrawalScope) || !!pendingFieldWithdrawal(withdrawalScope) || !!pendingFieldBind(withdrawalScope));
     },
     [onActivityChange,withdrawalScope],
   );
@@ -465,7 +484,7 @@ function AttachmentPanelContent({ appearance = "legacy",
 
   const addFiles = useCallback(
     async (selected: File[]) => {
-      if (!draftMutable || interactionDisabled || busyRef.current || !selected.length) return;
+      if (!draftMutable || interactionDisabled || busyRef.current || fieldUploadPending || !selected.length) return;
       setError("");
       const remaining = maxFiles - activeLinks.length;
       if (selected.length > remaining) {
@@ -473,7 +492,7 @@ function AttachmentPanelContent({ appearance = "legacy",
         return;
       }
       const invalid = selected
-        .map((file) => ({ file, error: validateGenericAttachment(file) }))
+        .map((file) => ({ file, error: targetType==='field_service_visit'?validateFieldAttachment(file,purposeKey):validateGenericAttachment(file) }))
         .find((item) => item.error);
       if (invalid) {
         setError(`${invalid.file.name}: ${invalid.error}`);
@@ -500,6 +519,14 @@ function AttachmentPanelContent({ appearance = "legacy",
           setLinks((current) => [...current, optimistic]);
           let currentLinkId = optimisticId;
           try {
+            if(targetType==='field_service_visit'){
+              const metadata={filename:file.name,mediaType,bytes:file.size,...(caption.trim()?{caption:caption.trim()}:{})};
+              const result=await fieldUpload.submit({scope:withdrawalScope,base,setId:destination.id,body:JSON.stringify(metadata),file,mediaType});
+              const linkId=result.reservation.attachmentLinkId;currentLinkId=linkId;
+              setLinks(current=>current.map(item=>item.id===optimisticId?{...optimistic,id:linkId,localState:'waiting'}:item));
+              setFieldUploadRevision(v=>v+1);invalidateSanitizationAttestation();void poll(linkId).catch(cause=>patchLink(linkId,{localState:undefined,localError:cause instanceof Error?cause.message:'Unable to refresh scan status.'}));
+              continue;
+            }
             const reservation = await reserveAttachmentFile(
               base,
               destination.id,
@@ -543,6 +570,7 @@ function AttachmentPanelContent({ appearance = "legacy",
               }),
             );
           } catch (cause) {
+            if(targetType==='field_service_visit'){setFieldUploadRevision(v=>v+1);if(!fieldUpload.pending(withdrawalScope)&&currentLinkId===optimisticId){setLinks(current=>current.filter(item=>item.id!==optimisticId));void load();}}
             const message =
               cause instanceof Error
                 ? cause.message
@@ -555,9 +583,10 @@ function AttachmentPanelContent({ appearance = "legacy",
               ),
             );
             setError(`${file.name}: ${message}`);
+            if(targetType==='field_service_visit'&&fieldUpload.pending(withdrawalScope))break;
           }
         }
-        setCaption("");
+        if(!fieldUpload.pending(withdrawalScope))setCaption(current=>current===caption?"":current);
       } catch (cause) {
         if (
           cause instanceof AttachmentApiError &&
@@ -573,18 +602,30 @@ function AttachmentPanelContent({ appearance = "legacy",
     [
       activeLinks.length,
       base,
-      busy,
       caption,
       draftMutable,
+      fieldUploadPending,
+      targetType,
+      purposeKey,
+      withdrawalScope,
       ensureSet,
       invalidateSanitizationAttestation,
       interactionDisabled,
       maxFiles,
+      load,
       patchLink,
       poll,
       setActivity,
     ],
   );
+
+  async function retryFieldUpload(){
+    if(!fieldUploadPending||interactionDisabled||busyRef.current)return;
+    setActivity(true);setError('');
+    try{const result=await fieldUpload.retry(withdrawalScope);setFieldUploadRevision(v=>v+1);await load();void poll(result.reservation.attachmentLinkId);}
+    catch(cause){setFieldUploadRevision(v=>v+1);setError(cause instanceof Error?cause.message:'Unable to confirm the original upload.');}
+    finally{setActivity(false);}
+  }
 
   async function retryUpload(linkId: string) {
     const pending = retryUploads.current.get(linkId);
@@ -625,7 +666,7 @@ function AttachmentPanelContent({ appearance = "legacy",
   }
   async function withdraw() {
     if (!draftMutable || interactionDisabled || busyRef.current || !withdrawId || withdrawReason.trim().length < 3) return;
-    const id=withdrawId,draftReason=withdrawReason,reason=draftReason.trim(),selected=nativeWithdrawIds.includes(id);
+    const id=withdrawId,draftReason=withdrawReason,reason=draftReason.trim(),selected=(targetType==='field_service_visit');
     setActivity(true);setError("");
     try {
       const status=selected?await submitFieldWithdrawal({scope:withdrawalScope,base,linkId:id,setId:setRef.current?.id??'',reason,draftReason}):await withdrawAttachmentLink(base,id,reason,crypto.randomUUID());
@@ -634,7 +675,7 @@ function AttachmentPanelContent({ appearance = "legacy",
     finally{setActivity(false);}
   }
   async function retryWithdrawal() {
-    const pending=pendingFieldWithdrawal(withdrawalScope);if(!pending||interactionDisabled||busyRef.current||!nativeWithdrawIds.includes(pending.linkId))return;
+    const pending=pendingFieldWithdrawal(withdrawalScope);if(!pending||interactionDisabled||busyRef.current||!(targetType==='field_service_visit'))return;
     setActivity(true);setError("");try{const status=await retryFieldWithdrawal(withdrawalScope);await applyWithdrawal(status,pending.draftReason);}catch(cause){if(mounted.current)setError(cause instanceof Error?cause.message:"Unable to confirm the original withdrawal.");}finally{setActivity(false);}
   }
 
@@ -680,11 +721,11 @@ function AttachmentPanelContent({ appearance = "legacy",
     setActivity(true);setError("");
     try {
       if (bindKey.current?.setId !== set.id) bindKey.current={setId:set.id,key:crypto.randomUUID()};
-      const result=nativeBindIds.includes(set.id)?await submitFieldBind({scope:withdrawalScope,base,setId:set.id,expectedVersion:expectedTargetVersion}):await bindRecordAttachmentSet(base,set.id,expectedTargetVersion,bindKey.current.key);
+      const result=(targetType==='field_service_visit')?await submitFieldBind({scope:withdrawalScope,base,setId:set.id,expectedVersion:expectedTargetVersion}):await bindRecordAttachmentSet(base,set.id,expectedTargetVersion,bindKey.current.key);
       await applyBind(result);
     } catch(cause){setError(cause instanceof Error?cause.message:"Unable to lock these files to the record.");}finally{setActivity(false);}
   }
-  async function retryBind(){const pending=pendingFieldBind(withdrawalScope);if(!pending||interactionDisabled||busyRef.current||!nativeBindIds.includes(pending.setId))return;setActivity(true);setError("");try{const result=await retryFieldBind(withdrawalScope);await applyBind(result);}catch(cause){if(mounted.current)setError(cause instanceof Error?cause.message:"Unable to confirm the original file binding.");}finally{setActivity(false);}}
+  async function retryBind(){const pending=pendingFieldBind(withdrawalScope);if(!pending||interactionDisabled||busyRef.current||!(targetType==='field_service_visit'))return;setActivity(true);setError("");try{const result=await retryFieldBind(withdrawalScope);await applyBind(result);}catch(cause){if(mounted.current)setError(cause instanceof Error?cause.message:"Unable to confirm the original file binding.");}finally{setActivity(false);}}
 
   if (checking || gateUnavailable) return null;
 
@@ -833,8 +874,9 @@ function AttachmentPanelContent({ appearance = "legacy",
         </div>
       )}
 
-      {pendingBind && <InlineNotice tone="warning">The original file binding awaits confirmation. Your newer entries are retained. <Button appearance={appearance} type="button" disabled={interactionDisabled||busy||!nativeBindIds.includes(pendingBind.setId)} onClick={()=>void retryBind()}>Retry original file binding</Button></InlineNotice>}
-      {pendingWithdrawal && <InlineNotice tone="warning">The original file withdrawal awaits confirmation. Your newer entries are retained. <Button appearance={appearance} type="button" disabled={interactionDisabled||busy||!nativeWithdrawIds.includes(pendingWithdrawal.linkId)} onClick={()=>void retryWithdrawal()}>Retry original withdrawal</Button></InlineNotice>}
+      {fieldUploadPending && <InlineNotice tone="warning">The original file upload awaits confirmation. <Button appearance={appearance} type="button" disabled={interactionDisabled||busy} onClick={()=>void retryFieldUpload()}>Retry original upload</Button></InlineNotice>}
+      {pendingBind && <InlineNotice tone="warning">The original file binding awaits confirmation. Your newer entries are retained. <Button appearance={appearance} type="button" disabled={interactionDisabled||busy||!(targetType==='field_service_visit')} onClick={()=>void retryBind()}>Retry original file binding</Button></InlineNotice>}
+      {pendingWithdrawal && <InlineNotice tone="warning">The original file withdrawal awaits confirmation. Your newer entries are retained. <Button appearance={appearance} type="button" disabled={interactionDisabled||busy||!(targetType==='field_service_visit')} onClick={()=>void retryWithdrawal()}>Retry original withdrawal</Button></InlineNotice>}
       {error && (
         <p data-ui-appearance={appearance} className={styles.error} role="alert">
           {error}
@@ -851,7 +893,7 @@ function AttachmentPanelContent({ appearance = "legacy",
               draftMutable && link.linkState === "draft" && !link.id.startsWith("reserving:");
             return (
               <li data-ui-appearance={appearance} className={styles.file} key={link.id}>
-                {link.previewAvailable && active(link) ? (
+                {link.previewAvailable && active(link) && targetType==='field_service_visit' ? <FieldPrivateContent base={base} link={link} variant="preview" appearance={appearance}/> : link.previewAvailable && active(link) ? (
                   <a data-ui-appearance={appearance}
                     className={styles.filePreview}
                     href={attachmentContentUrl(base, link.id, "preview")}
@@ -893,7 +935,7 @@ function AttachmentPanelContent({ appearance = "legacy",
                   {link.localError && <span data-ui-appearance={appearance} role="alert">{link.localError}</span>}
                 </span>
                 <span data-ui-appearance={appearance} className={styles.fileActions}>
-                  {link.previewAvailable && active(link) && (
+                  {link.previewAvailable && active(link) && targetType!=='field_service_visit' && (
                     <UiActionAnchor appearance={appearance}
                       variant="ghost"
                       className={styles.iconAction}
@@ -906,7 +948,8 @@ function AttachmentPanelContent({ appearance = "legacy",
                       <Eye aria-hidden size={15} />
                     </UiActionAnchor>
                   )}
-                  {allowOriginalDownload && ready(link) && (
+                  {allowOriginalDownload && ready(link) && targetType==='field_service_visit' && <FieldPrivateContent base={base} link={link} variant="original" appearance={appearance}/>}
+                  {allowOriginalDownload && ready(link) && targetType!=='field_service_visit' && (
                     <UiActionAnchor appearance={appearance}
                       variant="ghost"
                       className={styles.iconAction}
@@ -1024,7 +1067,7 @@ function AttachmentPanelContent({ appearance = "legacy",
               >
                 {historicalSet.links.filter(active).map((link) => (
                   <li data-ui-appearance={appearance} className={styles.file} key={link.id}>
-                    {link.previewAvailable ? (
+                    {link.previewAvailable && targetType==='field_service_visit' ? <FieldPrivateContent base={base} link={link} variant="preview" appearance={appearance}/> : link.previewAvailable ? (
                       <a data-ui-appearance={appearance}
                         className={styles.filePreview}
                         href={attachmentContentUrl(base, link.id, "preview")}
@@ -1067,7 +1110,7 @@ function AttachmentPanelContent({ appearance = "legacy",
                       </span>
                     </span>
                     <span data-ui-appearance={appearance} className={styles.fileActions}>
-                      {link.previewAvailable && (
+                      {link.previewAvailable && targetType!=='field_service_visit' && (
                         <UiActionAnchor appearance={appearance}
                           variant="ghost"
                           className={styles.iconAction}
@@ -1080,7 +1123,8 @@ function AttachmentPanelContent({ appearance = "legacy",
                           <Eye aria-hidden size={15} />
                         </UiActionAnchor>
                       )}
-                      {allowOriginalDownload && link.sourceState === "available" && (
+                      {allowOriginalDownload && link.sourceState === 'available' && targetType==='field_service_visit' && <FieldPrivateContent base={base} link={link} variant="original" appearance={appearance}/>}
+                      {allowOriginalDownload && link.sourceState === "available" && targetType!=='field_service_visit' && (
                         <UiActionAnchor appearance={appearance}
                           variant="ghost"
                           className={styles.iconAction}

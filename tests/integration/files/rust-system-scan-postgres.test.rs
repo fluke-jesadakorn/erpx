@@ -158,3 +158,43 @@ async fn actual_deferred_after_image_mutation_rolls_back_the_whole_settlement_be
   let error=worker.fail_current(p,missing()).await;assert!(matches!(error,Err(PgTransactionError::Business(ref e))if e.code=="ATTACHMENT_SCAN_SOURCE_CHANGED"));assert_eq!(state(&s,id.as_str()).await,("scanning".into(),"running".into(),1,0));worker.close().await;
  }).await;
 }
+
+#[tokio::test]
+async fn field_candidate_cursor_survives_worker_restart_and_skips_bad_sources_without_verdicts() {
+ fixture::account::with_system(|s| async move {
+  let first=facts::seed_source_with_receipt(&s.holdings[0],"cursor-a",facts::TestOrigin::ManagedField,"text/csv",facts::bytes(),false).await;
+  let second=facts::seed_source_with_receipt(&s.holdings[0],"cursor-b",facts::TestOrigin::ManagedField,"text/csv",facts::bytes(),false).await;
+  let valid=facts::seed_source(&s.holdings[0],"cursor-c",facts::TestOrigin::ManagedField,"text/csv",facts::bytes()).await;
+  let worker=assemble_development_files_scan(config(&s,"company-owned").await,clock()).await.unwrap().field_only();
+  assert_eq!(worker.next_field_candidate().await.unwrap().unwrap(),first);
+  assert!(worker.claim_and_prepare(Some(first.as_str())).await.is_err());
+  assert_eq!(worker.next_field_candidate().await.unwrap().unwrap(),second);
+  assert!(worker.claim_and_prepare(Some(second.as_str())).await.is_err());
+  worker.close().await;
+  let worker=assemble_development_files_scan(config(&s,"company-owned").await,clock()).await.unwrap().field_only();
+  assert_eq!(worker.next_field_candidate().await.unwrap().unwrap(),valid);
+  assert!(worker.claim_and_prepare(Some(valid.as_str())).await.unwrap().is_some());
+  for bad in [&first,&second] {assert_eq!(state(&s,bad.as_str()).await,("quarantined".into(),"pending".into(),1,0));}
+  worker.close().await;
+ }).await;
+}
+
+#[tokio::test]
+async fn cleanup_phase_uses_current_control_binding_and_exact_configured_company() {
+ fixture::account::with_system(|s|async move {
+  sqlx::query("INSERT INTO organization_nodes(id,kind,slug,display_name,company_id,status) VALUES('company-owned','company','cleanup-company','Cleanup Company','company-owned','active') ON CONFLICT(id) DO UPDATE SET status='active'").execute(s.holdings[0].raw()).await.unwrap();
+  let worker=assemble_development_files_scan(config(&s,"company-owned").await,clock()).await.unwrap();
+  let selected=worker.run_field_cleanup_phase(|c,scope| Box::pin(async move {
+   sqlx::query("INSERT INTO field_file_scan_cursor(company_id,after_created_at,after_job_id) VALUES($1,1,'cleanup-proof')").bind(scope.company_id.as_str()).execute(c).await?;
+   Ok(scope.company_id.as_str().to_owned())
+  })).await.unwrap();assert_eq!(selected,"company-owned");
+  sqlx::query("UPDATE holding_bindings SET status='suspended' WHERE holding_id='h001'").execute(s.control.raw()).await.unwrap();
+  let result=worker.run_field_cleanup_phase(|c,scope| Box::pin(async move {
+   sqlx::query("UPDATE field_file_scan_cursor SET after_job_id='must-not-write' WHERE company_id=$1").bind(scope.company_id.as_str()).execute(c).await?;Ok(())
+  })).await;
+  assert!(result.is_err());let value:String=sqlx::query_scalar("SELECT after_job_id FROM field_file_scan_cursor WHERE company_id='company-owned'").fetch_one(s.holdings[0].raw()).await.unwrap();assert_eq!(value,"cleanup-proof");worker.close().await;
+ }).await;
+}
+
+#[path = "../../support/files/field-cleanup-composition-tests.rs"]
+mod field_cleanup_composition_tests;

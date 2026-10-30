@@ -28,7 +28,7 @@ serde_json.workspace = true
 sha2.workspace = true
 hex.workspace = true
 tokio.workspace = true
-nix.workspace = true
+nix = { workspace = true, features = ["dir"] }
 
 [dev-dependencies]
 tempfile.workspace = true
@@ -106,3 +106,7 @@ path = "../../tests/unit/files/rust-count-submission.test.rs"
 [[test]]
 name = "field_visit_intake_policy"
 path = "../../tests/unit/files/rust-field-visit-intake-policy.test.rs"
+
+[[test]]
+name = "field_visit_upload_policy"
+path = "../../tests/unit/files/rust-field-visit-upload-policy.test.rs"

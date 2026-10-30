@@ -1,6 +1,3 @@
-import {headers} from "next/headers";
-import {nativeFieldBindIds} from "@erpx/server-files/public/attachments/native-field-bind";
-import {nativeFieldAttachmentIds} from "@erpx/server-files/public/attachments/native-field-attachment";
 import {serviceDetailRouteId} from '@erpx/feature-field_service/lib/workspace';
 import {nativeServiceDetail,NativeServiceWorkspaceError} from '@erpx/feature-field_service/public/native-workspace';
 import {ApiError} from '@erpx/server-runtime/public/http';
@@ -51,8 +48,6 @@ export default async function Page({
         targetType="field_service_visit"
         targetId={String(x.id)}
         expectedTargetVersion={Number(x.version)}
-        nativeWithdrawIds={nativeFieldAttachmentIds(a,await headers())}
-        nativeBindIds={nativeFieldBindIds(a,await headers())}
         editable={data.canEditVisitFiles??data.canWrite}
         title="Field visit files"
         purposes={[

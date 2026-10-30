@@ -1364,6 +1364,7 @@ async fn attachment_status<C: Clock + Send + Sync + 'static>(
         let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
         let captured = CapturedHoldingMutation::capture(&headers, branch, department);
         let company = target.service.company_id().clone();
+        let registered_company = target.service.registered_attachment_companies();
         if id.is_empty() || id.len() > 2 * 1024 * 1024 || id.contains('\0') {
             return Err(missing().into());
         }
@@ -1374,7 +1375,7 @@ async fn attachment_status<C: Clock + Send + Sync + 'static>(
                 inbound.into_proof(),
                 move || {
                     scope?;
-                    captured.resolve_read(company)
+                    if registered_company { captured.resolve_rendered_read() } else { captured.resolve_read(company) }
                 },
                 id,
             )
@@ -1432,6 +1433,7 @@ async fn attachment_withdraw<C: Clock + Send + Sync + 'static>(
         let captured_read = CapturedHoldingMutation::capture(&headers, branch, department);
         let scope_read = state.scopes.slugs(&headers);
         let company = target.service.company_id().clone();
+        let registered_company = target.service.registered_attachment_companies();
         let company_read = company.clone();
         if id.is_empty() || id.len() > 2 * 1024 * 1024 || id.contains('\0') {
             return Err(missing().into());
@@ -1458,7 +1460,7 @@ async fn attachment_withdraw<C: Clock + Send + Sync + 'static>(
                 proof,
                 move || {
                     scope_read?;
-                    captured_read.resolve_read(company_read)
+                    if registered_company { captured_read.resolve_rendered_read() } else { captured_read.resolve_read(company_read) }
                 },
                 id,
             )

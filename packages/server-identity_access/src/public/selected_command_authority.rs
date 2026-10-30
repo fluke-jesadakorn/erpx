@@ -4,3 +4,5 @@ pub use crate::adapters::selected_command_authority::{
 };
 
 pub use crate::application::selected_command_authority::ServicePartsAuthorityPurpose;
+
+pub use crate::adapters::selected_command_authority::require_selected_actor_current;

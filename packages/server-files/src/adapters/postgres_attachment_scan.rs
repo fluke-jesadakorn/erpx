@@ -349,12 +349,33 @@ pub async fn claim_attachment_scan(
     clock: &impl Clock,
     identifiers: &mut impl IdentifierSource,
 ) -> Result<Option<AttachmentScanClaim>, Error> {
+    claim_attachment_scan_inner(c, scope, filter, clock, identifiers, false).await
+}
+
+/// Field-only runtime claimant. Ownership is derived from stored Files lineage.
+pub async fn claim_field_attachment_scan(
+    c: &mut PgConnection,
+    scope: &AttachmentScanScope,
+    filter: Option<&RecordId>,
+    clock: &impl Clock,
+    identifiers: &mut impl IdentifierSource,
+) -> Result<Option<AttachmentScanClaim>, Error> {
+    claim_attachment_scan_inner(c, scope, filter, clock, identifiers, true).await
+}
+
+async fn claim_attachment_scan_inner(
+    c: &mut PgConnection, scope: &AttachmentScanScope, filter: Option<&RecordId>,
+    clock: &impl Clock, identifiers: &mut impl IdentifierSource, field_only: bool,
+) -> Result<Option<AttachmentScanClaim>, Error> {
     let tx = transaction(c).await?;
     let now = clock.now().get();
     let until = now.checked_add(SCAN_LEASE_MILLIS).ok_or_else(changed)?;
-    let candidate: Option<(Option<String>,Option<String>,i64)> = sqlx::query_as(
-        "SELECT CASE WHEN octet_length(j.id)<=200 THEN j.id ELSE NULL END,CASE WHEN octet_length(j.attachment_id)<=200 THEN j.attachment_id ELSE NULL END,j.attempt FROM attachment_scan_attempts j JOIN attachments a ON a.id=j.attachment_id WHERE a.company_id=$1 AND j.state IN ('pending','running') AND j.created_at<=$2 AND(j.claim_until IS NULL OR j.claim_until<$2) AND($3::text IS NULL OR a.id=$3) ORDER BY j.created_at,j.id FOR UPDATE OF j SKIP LOCKED LIMIT 1")
-        .bind(scope.company_id.as_str()).bind(now).bind(filter.map(RecordId::as_str)).fetch_optional(&mut *c).await?;
+    let mut query=sqlx::QueryBuilder::<sqlx::Postgres>::new("SELECT CASE WHEN octet_length(j.id)<=200 THEN j.id ELSE NULL END,CASE WHEN octet_length(j.attachment_id)<=200 THEN j.attachment_id ELSE NULL END,j.attempt FROM attachment_scan_attempts j JOIN attachments a ON a.id=j.attachment_id WHERE a.company_id=");
+    query.push_bind(scope.company_id.as_str()).push(" AND j.state IN ('pending','running') AND j.created_at<=").push_bind(now).push(" AND (j.claim_until IS NULL OR j.claim_until<").push_bind(now).push(")");
+    if let Some(id)=filter { query.push(" AND a.id=").push_bind(id.as_str()); }
+    if field_only { query.push(" AND erpx_files_field_attachment_owned(j.attachment_id)"); }
+    query.push(" ORDER BY j.created_at,j.id FOR UPDATE OF j SKIP LOCKED LIMIT 1");
+    let candidate: Option<(Option<String>,Option<String>,i64)> = query.build_query_as().fetch_optional(&mut *c).await?;
     let Some((job_id, source_id, attempt)) = candidate else {
         return Ok(None);
     };
@@ -366,6 +387,11 @@ pub async fn claim_attachment_scan(
         )
         .into());
     };
+    if field_only {
+        sqlx::query("SELECT erpx_files_lock_scan_lineage($1)").bind(&source_id).execute(&mut *c).await?;
+        let owned:bool=sqlx::query_scalar("SELECT erpx_files_field_attachment_owned($1)").bind(&source_id).fetch_one(&mut *c).await?;
+        if !owned { return Ok(None); }
+    }
     let token = format!("attachment-scan-lease-{}", identifiers.next().as_str());
     let updated = sqlx::query("UPDATE attachment_scan_attempts SET state='running',claimed_at=$1,claim_until=$2,lease_token=$3 WHERE id=$4")
         .bind(now).bind(until).bind(&token).bind(&job_id).execute(&mut *c).await?;

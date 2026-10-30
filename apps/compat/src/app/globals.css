@@ -493,6 +493,8 @@
 @source "../../../../packages/feature-field_service/src/public/native-parts-setup.ts";
 @source "../../../../packages/feature-field_service/src/public/native-workspace.ts";
 @source "../../../../packages/feature-files/src/application/field-bind.ts";
+@source "../../../../packages/feature-files/src/application/field-content-lifetime.ts";
+@source "../../../../packages/feature-files/src/application/field-upload-attempt.ts";
 @source "../../../../packages/feature-files/src/application/field-withdrawal.ts";
 @source "../../../../packages/feature-files/src/components/attachment-feature-context.tsx";
 @source "../../../../packages/feature-files/src/components/attachment-panel.tsx";
@@ -2263,6 +2265,7 @@
 @source "../../../../packages/front/src/components/front-sign-in-handoff.tsx";
 @source "../../../../packages/front/src/components/standard-front-access.tsx";
 @source "../../../../packages/front/src/components/standard-front-app-shell.tsx";
+@source "../../../../packages/native-sdk/src/field-service-files-routes.ts";
 @source "../../../../packages/native-sdk/src/field-service-initial-count.ts";
 @source "../../../../packages/native-sdk/src/field-service-parts.ts";
 @source "../../../../packages/native-sdk/src/session.ts";
@@ -3157,10 +3160,6 @@
 @source "../../../../packages/server-ecommerce/src/public/package-obligations.ts";
 @source "../../../../packages/server-ecommerce/src/public/package-sources.ts";
 @source "../../../../packages/server-field_service/src/adapters/agreement.ts";
-@source "../../../../packages/server-field_service/src/adapters/attachment-purchases.ts";
-@source "../../../../packages/server-field_service/src/adapters/attachment-read.ts";
-@source "../../../../packages/server-field_service/src/adapters/attachments-policy-facts.ts";
-@source "../../../../packages/server-field_service/src/adapters/attachments-service-facts.ts";
 @source "../../../../packages/server-field_service/src/adapters/executive-main-evidence-sources.ts";
 @source "../../../../packages/server-field_service/src/adapters/executive-metric-projections.ts";
 @source "../../../../packages/server-field_service/src/adapters/final-root-owner-projection-sources.ts";
@@ -3181,10 +3180,6 @@
 @source "../../../../packages/server-field_service/src/domain/package-commands.ts";
 @source "../../../../packages/server-field_service/src/domain/parts-entry.ts";
 @source "../../../../packages/server-field_service/src/domain/service.ts";
-@source "../../../../packages/server-field_service/src/public/attachment-purchases.ts";
-@source "../../../../packages/server-field_service/src/public/attachment-read.ts";
-@source "../../../../packages/server-field_service/src/public/attachments-policy-facts.ts";
-@source "../../../../packages/server-field_service/src/public/attachments-service-facts.ts";
 @source "../../../../packages/server-field_service/src/public/executive-main-evidence-sources.ts";
 @source "../../../../packages/server-field_service/src/public/executive-metric-projections.ts";
 @source "../../../../packages/server-field_service/src/public/field-service.ts";
@@ -3230,6 +3225,7 @@
 @source "../../../../packages/server-files/src/adapters/ecommerce-package-obligation-sources.ts";
 @source "../../../../packages/server-files/src/adapters/employee-evidence-read.ts";
 @source "../../../../packages/server-files/src/adapters/expense-native-effects.ts";
+@source "../../../../packages/server-files/src/adapters/field-file-writer-owner.ts";
 @source "../../../../packages/server-files/src/adapters/final-root-owner-projection-sources.ts";
 @source "../../../../packages/server-files/src/adapters/finance-owned-snapshot-sources.ts";
 @source "../../../../packages/server-files/src/adapters/finance-refund-proof-sources.ts";
@@ -3331,6 +3327,7 @@
 @source "../../../../packages/server-files/src/public/document-derivatives.ts";
 @source "../../../../packages/server-files/src/public/ecommerce-package-obligation-sources.ts";
 @source "../../../../packages/server-files/src/public/expense-native-effects.ts";
+@source "../../../../packages/server-files/src/public/field-file-writer-owner.ts";
 @source "../../../../packages/server-files/src/public/final-root-owner-projection-sources.ts";
 @source "../../../../packages/server-files/src/public/finance-owned-snapshot-sources.ts";
 @source "../../../../packages/server-files/src/public/finance-refund-proof-sources.ts";
@@ -7296,7 +7293,9 @@
 @source "../../../../packages/workplace/src/components/workspace-link.tsx";
 @source "../../../../packages/workplace/src/components/workspace-menu.tsx";
 @source "../../../../packages/workplace/src/holding-proxy.ts";
+@source "../../../../packages/workplace/src/lib/bounded-json-body.ts";
 @source "../../../../packages/workplace/src/lib/flow-assignment-command.ts";
+@source "../../../../packages/workplace/src/lib/native-field-family.ts";
 @source "../../../../packages/workplace/src/lib/service-count-native-command.ts";
 @source "../../../../packages/workplace/src/lib/service-count-native-read.ts";
 @source "../../../../packages/workplace/src/proxy.ts";

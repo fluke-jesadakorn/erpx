@@ -125,6 +125,14 @@ pub mod field_attachment_bind;
 #[cfg(feature = "field-service")]
 pub mod field_attachment_intake;
 
+#[cfg(feature = "field-service-http")]
+pub mod field_attachment_intake_http;
+#[cfg(feature = "field-service-http")]
+pub mod field_upload_http;
+
+#[cfg(feature = "field-service")]
+pub mod field_attachment_intake_contracts;
+
 #[cfg(feature = "field-service")]
 pub mod field_service_source_record;
 
@@ -165,3 +173,12 @@ pub mod service_initial_physical_stock_contracts;
 
 #[cfg(feature = "field-service")]
 pub mod field_attachment_intake_command;
+
+#[cfg(feature = "files-scan-worker")]
+pub mod files_scan_worker;
+
+#[cfg(feature = "files-scan-worker")]
+pub mod field_files_runtime_configuration;
+
+#[cfg(feature = "files-scan-worker")]
+pub mod field_files_cleanup_worker;

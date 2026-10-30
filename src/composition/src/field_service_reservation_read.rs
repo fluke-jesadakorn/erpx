@@ -297,6 +297,7 @@ pub struct FieldServiceReservationReadConfiguration {
     workspace: bool,
     attachment: Option<bool>,
     attachment_bind: Option<bool>,
+    attachment_companies: Option<std::collections::BTreeSet<CompanyId>>,
     work: bool,
     source_record: Option<crate::field_service_source_record::SourceRecordMode>,
     detail: bool,
@@ -340,6 +341,7 @@ impl FieldServiceReservationReadConfiguration {
             workspace: false,
             attachment: None,
             attachment_bind: None,
+            attachment_companies: None,
             work: false,
             source_record: None,
             detail: false,
@@ -410,6 +412,13 @@ impl FieldServiceReservationReadConfiguration {
     pub fn with_attachments(mut self, read_only: bool) -> Self {
         self.attachment = Some(read_only);
         self
+    }
+    pub fn with_field_attachment_companies(mut self, companies: std::collections::BTreeSet<CompanyId>) -> Self {
+        self.attachment_companies = Some(companies);
+        self
+    }
+    fn attachment_company_allowed(&self, company: &CompanyId) -> bool {
+        self.attachment_companies.as_ref().map_or(company == &self.company, |allowed| allowed.contains(company))
     }
     pub fn with_workspace(mut self) -> Self {
         self.workspace = true;
@@ -490,6 +499,7 @@ impl<C: Clock + Send + Sync + 'static> FieldServiceReservationReadService<C> {
     pub fn company_id(&self) -> &CompanyId {
         &self.config.company
     }
+    pub fn registered_attachment_companies(&self) -> bool { self.config.attachment_companies.is_some() }
     #[cfg(feature = "field-service-http")]
     pub async fn initial_count_read<Input>(
         &self,
@@ -1231,10 +1241,10 @@ impl<C: Clock + Send + Sync + 'static> FieldServiceReservationReadService<C> {
             .config
             .attachment
             .ok_or_else(|| BusinessError::new(FailureKind::NotFound, "NOT_FOUND", "Not found."))?;
-        let company = self.config.company.clone();
+        let input_config = self.config.clone();
         let input = move || {
             let mut v = input()?;
-            if v.company_id != company {
+            if !input_config.attachment_company_allowed(&v.company_id) {
                 return Err(denied());
             }
             v.mutation = false;
@@ -1260,7 +1270,7 @@ impl<C: Clock + Send + Sync + 'static> FieldServiceReservationReadService<C> {
                     let id = id.clone();
                     Box::pin(async move {
                         if current.holding_id() != &config.holding
-                            || current.selection().workspace().company_id != config.company
+                            || !config.attachment_company_allowed(&current.selection().workspace().company_id)
                         {
                             return Err(denied().into());
                         }
@@ -1269,7 +1279,7 @@ impl<C: Clock + Send + Sync + 'static> FieldServiceReservationReadService<C> {
                             &crate::field_attachment::AttachmentContext {
                                 actor: current,
                                 holding: &config.holding,
-                                company: &config.company,
+                                company: &current.selection().workspace().company_id,
                                 catalogue: &config.catalogue,
                                 clock: clock.as_ref(),
                             },
@@ -1294,10 +1304,10 @@ impl<C: Clock + Send + Sync + 'static> FieldServiceReservationReadService<C> {
     where
         Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
     {
-        let company = self.config.company.clone();
+        let input_config = self.config.clone();
         let input = move || {
             let mut v = input()?;
-            if v.company_id != company {
+            if !input_config.attachment_company_allowed(&v.company_id) {
                 return Err(denied());
             }
             v.mutation = true;
@@ -1312,11 +1322,11 @@ impl<C: Clock + Send + Sync + 'static> FieldServiceReservationReadService<C> {
             host,proof,input,(WorkAuthorizationRequest{permission:"records.write".into(),module:Some("field_service".into()),destination:"service/orders".into(),api:true},crate::field_attachment::FieldAttachmentSources),
             erpx_server_identity_access::public::effective_authority::SelectedTransportCallbacks::<_,String,BusinessError,_>::new::<()>(
               move |selected:&erpx_server_identity_access::public::effective_authority::SelectedWorkIngress<'_>| -> erpx_server_identity_access::public::effective_authority::SelectedIngressFuture<String,BusinessError> {
-                let valid=selected.holding_id()==&ingress_config.holding && selected.company_id()==&ingress_config.company;let read_only=ingress_config.attachment!=Some(false);let body=body.clone();let cached=cached.clone();
+                let valid=selected.holding_id()==&ingress_config.holding && ingress_config.attachment_company_allowed(selected.company_id());let read_only=ingress_config.attachment!=Some(false);let body=body.clone();let cached=cached.clone();
                 Box::pin(async move {if !valid{return Err(denied())}let bytes=cached.get_or_init(||async{let body=body.lock().await.take()?;axum::body::to_bytes(body,2*1024*1024).await.ok().map(|b|b.to_vec())}).await.as_ref().ok_or_else(||BusinessError::new(FailureKind::InvalidInput,"VALIDATION_FAILED","A withdrawal reason is required."))?;let reason=crate::field_attachment::normalize_reason(bytes)?;if read_only{return Err(BusinessError::new(FailureKind::Unavailable,"ATTACHMENTS_READ_ONLY","Attachment intake is disabled during rollback. Existing clean bound evidence remains readable."))}Ok(reason)})
               },
               |_reason:&String,error:BusinessError|Err(error),
-              move|c,current,reason:String|{let config=config.clone();let clock=clock.clone();let id=id.clone();let key=key.clone();Box::pin(async move {if current.holding_id()!=&config.holding||current.selection().workspace().company_id!=config.company{return Err(denied().into())}current.require_permission("records.read")?;crate::field_attachment::withdraw(c,&crate::field_attachment::AttachmentContext{actor:current,holding:&config.holding,company:&config.company,catalogue:&config.catalogue,clock:clock.as_ref()},&id,&key,&reason).await?;Ok(Ok(()))})}
+              move|c,current,reason:String|{let config=config.clone();let clock=clock.clone();let id=id.clone();let key=key.clone();Box::pin(async move {if current.holding_id()!=&config.holding||!config.attachment_company_allowed(&current.selection().workspace().company_id){return Err(denied().into())}current.require_permission("records.read")?;crate::field_attachment::withdraw(c,&crate::field_attachment::AttachmentContext{actor:current,holding:&config.holding,company:&current.selection().workspace().company_id,catalogue:&config.catalogue,clock:clock.as_ref()},&id,&key,&reason).await?;Ok(Ok(()))})}
             )
         ).await?;
         result.map_err(Into::into)
@@ -1333,10 +1343,10 @@ impl<C: Clock + Send + Sync + 'static> FieldServiceReservationReadService<C> {
     where
         Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
     {
-        let company = self.config.company.clone();
+        let input_config = self.config.clone();
         let input = move || {
             let mut v = input()?;
-            if v.company_id != company {
+            if !input_config.attachment_company_allowed(&v.company_id) {
                 return Err(denied());
             }
             v.mutation = true;
@@ -1349,9 +1359,9 @@ impl<C: Clock + Send + Sync + 'static> FieldServiceReservationReadService<C> {
         let cached = Arc::new(tokio::sync::OnceCell::<Option<Vec<u8>>>::new());
         let result=self.authorizer.execute_with_selected_transport_ingress_deferred(host,proof,input,(WorkAuthorizationRequest{permission:"records.read".into(),module:Some("field_service".into()),destination:"service/orders".into(),api:true},crate::field_attachment_bind::BindSources),
          erpx_server_identity_access::public::effective_authority::SelectedTransportCallbacks::<_,i64,BusinessError,_>::new::<crate::field_attachment::FieldAttachmentBindResponse>(
-         move|selected:&erpx_server_identity_access::public::effective_authority::SelectedWorkIngress<'_>| -> erpx_server_identity_access::public::effective_authority::SelectedIngressFuture<i64,BusinessError>{let valid=selected.holding_id()==&ingress_config.holding&&selected.company_id()==&ingress_config.company;let read_only=ingress_config.attachment_bind!=Some(false);let body=body.clone();let cached=cached.clone();Box::pin(async move{if !valid{return Err(denied())}let bytes=cached.get_or_init(||async{let body=body.lock().await.take()?;axum::body::to_bytes(body,2*1024*1024).await.ok().map(|v|v.to_vec())}).await.as_ref().ok_or_else(||BusinessError::invalid("VALIDATION_FAILED","Invalid record document bind."))?;let version=crate::field_attachment_bind::normalize_version(bytes)?;if read_only{return Err(BusinessError::new(FailureKind::Unavailable,"ATTACHMENTS_READ_ONLY","Attachment intake is disabled during rollback. Existing clean bound evidence remains readable."))}Ok(version)})},
+         move|selected:&erpx_server_identity_access::public::effective_authority::SelectedWorkIngress<'_>| -> erpx_server_identity_access::public::effective_authority::SelectedIngressFuture<i64,BusinessError>{let valid=selected.holding_id()==&ingress_config.holding&&ingress_config.attachment_company_allowed(selected.company_id());let read_only=ingress_config.attachment_bind!=Some(false);let body=body.clone();let cached=cached.clone();Box::pin(async move{if !valid{return Err(denied())}let bytes=cached.get_or_init(||async{let body=body.lock().await.take()?;axum::body::to_bytes(body,2*1024*1024).await.ok().map(|v|v.to_vec())}).await.as_ref().ok_or_else(||BusinessError::invalid("VALIDATION_FAILED","Invalid record document bind."))?;let version=crate::field_attachment_bind::normalize_version(bytes)?;if read_only{return Err(BusinessError::new(FailureKind::Unavailable,"ATTACHMENTS_READ_ONLY","Attachment intake is disabled during rollback. Existing clean bound evidence remains readable."))}Ok(version)})},
          |_version:&i64,error:BusinessError|Err(error),
-         move|c,current,expected:i64|{let config=config.clone();let clock=clock.clone();let id=id.clone();let key=key.clone();Box::pin(async move{if current.holding_id()!=&config.holding||current.selection().workspace().company_id!=config.company{return Err(denied().into())}let ctx=crate::field_attachment::AttachmentContext{actor:current,holding:&config.holding,company:&config.company,catalogue:&config.catalogue,clock:clock.as_ref()};Ok(Ok(crate::field_attachment_bind::bind(c,&ctx,&id,&key,expected).await?))})}
+         move|c,current,expected:i64|{let config=config.clone();let clock=clock.clone();let id=id.clone();let key=key.clone();Box::pin(async move{if current.holding_id()!=&config.holding||!config.attachment_company_allowed(&current.selection().workspace().company_id){return Err(denied().into())}let ctx=crate::field_attachment::AttachmentContext{actor:current,holding:&config.holding,company:&current.selection().workspace().company_id,catalogue:&config.catalogue,clock:clock.as_ref()};Ok(Ok(crate::field_attachment_bind::bind(c,&ctx,&id,&key,expected).await?))})}
        )).await?;
         result.map_err(Into::into)
     }

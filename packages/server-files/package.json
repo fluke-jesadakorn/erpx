@@ -213,7 +213,9 @@
     "./domain/attachments/portal-collaboration-policy": "./src/domain/attachments/portal-collaboration-policy.ts",
     "./domain/streamed-file": "./src/domain/streamed-file.ts",
     "./domain/upload-validation": "./src/domain/upload-validation.ts",
-    "./public/attachments/native-field-bind": "./src/public/attachments/native-field-bind.ts"
+    "./public/attachments/native-field-bind": "./src/public/attachments/native-field-bind.ts",
+    "./adapters/field-file-writer-owner": "./src/adapters/field-file-writer-owner.ts",
+    "./public/field-file-writer-owner": "./src/public/field-file-writer-owner.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
@@ -235,7 +237,6 @@
     "@erpx/server-customer_360": "workspace:*",
     "@erpx/server-customer_authority": "workspace:*",
     "@erpx/server-ecommerce": "workspace:*",
-    "@erpx/server-field_service": "workspace:*",
     "@erpx/server-finance": "workspace:*",
     "@erpx/server-identity_access": "workspace:*",
     "@erpx/server-inventory": "workspace:*",

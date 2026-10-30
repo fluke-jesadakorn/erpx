@@ -298,3 +298,19 @@ async fn actual_held_decoder_lease_reclaim_and_caller_cancellation_retain_no_sta
         .await;
     }
 }
+
+#[tokio::test]
+async fn field_runtime_loop_probes_real_providers_scans_and_shuts_down_without_open_transactions() {
+ use erpx_service::field_attachment_intake_command::FieldIntakeProviderReadiness;
+ use erpx_service::files_scan_worker::{FieldFilesScanTarget,assemble_field_files_scan_workers,run_field_files_scan_workers};
+ fixture::account::with_system(|s|async move {
+  let p=Providers::new();let bytes=include_bytes!("../../../fixtures/files/preview/png-alpha.input");
+  let id=facts::seed_source(&s.holdings[0],"field-runtime",facts::TestOrigin::ManagedField,"image/png",bytes).await;p.original("field-runtime",bytes);
+  let workers=assemble_field_files_scan_workers(vec![FieldFilesScanTarget{databases:config(&s,"company-owned").await,providers:p.configuration(false)}],time()).await.unwrap();
+  let status=workers[0].probe().await.unwrap();assert!(status.scanner_ready&&status.preview_ready&&status.scanner_enabled);
+  let (stop,shutdown)=tokio::sync::oneshot::channel::<()>();let task=tokio::spawn(run_field_files_scan_workers(workers,async move{let _=shutdown.await;}));
+  let mut available=false;for _ in 0..300 {let state:String=sqlx::query_scalar("SELECT source_state FROM attachments WHERE id=$1").bind(id.as_str()).fetch_one(s.holdings[0].raw()).await.unwrap();if state=="available" {available=true;break;}tokio::time::sleep(Duration::from_millis(100)).await;}
+  assert!(available,"real Field scanner did not settle");stop.send(()).unwrap();tokio::time::timeout(Duration::from_secs(10),task).await.unwrap().unwrap();
+  let effects:(String,i64,i64)=sqlx::query_as("SELECT source_state,(SELECT count(*) FROM attachment_storage_ledger WHERE attachment_id=a.id AND variant='preview'),(SELECT count(*) FROM attachment_events WHERE attachment_id=a.id AND action='scan.available') FROM attachments a WHERE id=$1").bind(id.as_str()).fetch_one(s.holdings[0].raw()).await.unwrap();assert_eq!(effects,("available".into(),1,1));no_transactions(&s).await;p.no_preview_temporaries();
+ }).await;
+}

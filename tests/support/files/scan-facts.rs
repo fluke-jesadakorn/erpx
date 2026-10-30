@@ -56,6 +56,7 @@ pub async fn migrate(pool: &DatabasePool) {
 }
 pub enum TestOrigin {
     Managed,
+    ManagedField,
     Legacy,
     Specialized,
 }
@@ -96,7 +97,8 @@ pub async fn seed_source_with_receipt(
         details,
         detected,
     ) = match origin {
-        TestOrigin::Managed => {
+        TestOrigin::Managed | TestOrigin::ManagedField => {
+            let owner = if matches!(origin, TestOrigin::ManagedField) { "field_service_visit" } else { "expense_claim" };
             let upload = format!("upload-{name}");
             (
                 format!("attachment-{upload}"),
@@ -104,7 +106,7 @@ pub async fn seed_source_with_receipt(
                 format!("set-{name}"),
                 format!("link-{name}"),
                 format!("origin-{name}"),
-                "expense_claim",
+                owner,
                 "receipt",
                 "receipt",
                 "file.quarantined",

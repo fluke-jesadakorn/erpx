@@ -11,8 +11,9 @@ use erpx_server_identity_access::public::effective_authority::WorkAuthorizationR
 use erpx_server_runtime::public::postgres::PgTransactionError;
 use erpx_server_shared::public::{BusinessError, CompanyId, HoldingId};
 use erpx_service::field_attachment_intake_command::{
-    FieldAttachmentIntakeCommand, FieldAttachmentIntakeCommandSources, FieldSetCommandResponse,
-    execute_field_attachment_intake,
+    FieldAttachmentIntakeCommand, FieldAttachmentIntakeCommandSources,
+    FieldIntakeProviderReadiness, FieldIntakeProviderStatus, FieldSetCommandResponse,
+    execute_field_attachment_intake, execute_field_attachment_intake_with_live_readiness,
 };
 use std::sync::Arc;
 
@@ -39,6 +40,17 @@ async fn execute_as(
     selection: erpx_server_identity_access::public::work_context::HoldingWorkspaceRequest,
     company_id: &str,
 ) -> Result<FieldSetCommandResponse, PgTransactionError<BusinessError>> {
+    execute_with_provider(p, key, purpose, device, selection, company_id, None).await
+}
+async fn execute_with_provider(
+    p: &facts::Parts,
+    key: &str,
+    purpose: &str,
+    device: erpx_server_identity_access::public::DeviceProof,
+    selection: erpx_server_identity_access::public::work_context::HoldingWorkspaceRequest,
+    company_id: &str,
+    provider: Option<Arc<dyn FieldIntakeProviderReadiness>>,
+) -> Result<FieldSetCommandResponse, PgTransactionError<BusinessError>> {
     let company_id = company_id.to_owned();
     let key = key.to_owned();
     let purpose = purpose.to_owned();
@@ -64,6 +76,7 @@ async fn execute_as(
                 let clock = clock.clone();
                 let catalogue = catalogue.clone();
                 let company_id = company_id.clone();
+                let provider = provider.clone();
                 Box::pin(async move {
                     let holding = HoldingId::new("h001").unwrap();
                     let company = CompanyId::new(company_id).unwrap();
@@ -73,31 +86,79 @@ async fn execute_as(
                         component_kind: "record".into(),
                         component_ref: None,
                         purpose_key: purpose,
-                        expected_target_version: 3,
+                        expected_target_version: if key == "provider-stale" { 2 } else { 3 },
                     };
                     let availability = FieldIntakeAvailability {
                         uploads_frozen: false,
                         scanner_ready: true,
                         preview_ready: true,
                     };
-                    execute_field_attachment_intake(
-                        c,
-                        FieldAttachmentIntakeCommand {
-                            actor,
-                            holding: &holding,
-                            company: &company,
-                            catalogue: &catalogue,
-                            clock: clock.as_ref(),
-                            input: &input,
-                            key: &key,
-                            availability: &availability,
-                        },
-                    )
-                    .await
+                    let command = FieldAttachmentIntakeCommand {
+                        actor,
+                        holding: &holding,
+                        company: &company,
+                        catalogue: &catalogue,
+                        clock: clock.as_ref(),
+                        input: &input,
+                        key: &key,
+                        availability: &availability,
+                    };
+                    if let Some(provider) = provider {
+                        execute_field_attachment_intake_with_live_readiness(
+                            c,
+                            command,
+                            provider.as_ref(),
+                        )
+                        .await
+                    } else {
+                        execute_field_attachment_intake(c, command).await
+                    }
                 })
             },
         )
         .await
+}
+
+struct BrokenProvider(std::sync::atomic::AtomicUsize);
+impl FieldIntakeProviderReadiness for BrokenProvider {
+    fn probe(
+        &self,
+    ) -> std::pin::Pin<
+        Box<
+            dyn std::future::Future<Output = Result<FieldIntakeProviderStatus, BusinessError>>
+                + Send
+                + '_,
+        >,
+    > {
+        self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        Box::pin(async {
+            Ok(FieldIntakeProviderStatus {
+                scanner_enabled: true,
+                scanner_ready: false,
+                preview_ready: true,
+            })
+        })
+    }
+}
+#[tokio::test]
+async fn readiness_is_deferred_past_recorded_replay_but_required_for_fresh_and_reuse() {
+    facts::account::with_system(|system| async move {
+        let p = facts::setup_workspace(system).await;
+        let first = execute(&p, "provider-original", "site_photo").await.unwrap();
+        let provider = Arc::new(BrokenProvider(std::sync::atomic::AtomicUsize::new(0)));
+        let run = |key, purpose| execute_with_provider(&p, key, purpose, p.review.maker.clone(), p.selection.clone(), "company", Some(provider.clone()));
+        let replay = run("provider-original", "site_photo").await.unwrap();
+        assert!(replay.replayed); assert_eq!(replay.data, first.data);
+        assert_eq!(provider.0.load(std::sync::atomic::Ordering::SeqCst), 0);
+        assert!(matches!(run("provider-stale", "site_photo").await, Err(PgTransactionError::Business(e)) if e.code == "ATTACHMENT_TARGET_CHANGED"));
+        assert_eq!(provider.0.load(std::sync::atomic::Ordering::SeqCst), 0);
+        for (key, purpose) in [("provider-reuse", "site_photo"), ("provider-fresh", "technician_report")] {
+            assert!(matches!(run(key, purpose).await, Err(PgTransactionError::Business(e)) if e.code == "ATTACHMENT_SCANNER_UNAVAILABLE"));
+        }
+        assert_eq!(provider.0.load(std::sync::atomic::Ordering::SeqCst), 2);
+        let counts: (i64,i64,i64,i64) = sqlx::query_as("SELECT (SELECT count(*) FROM attachment_sets WHERE target_id='issue-order'),(SELECT count(*) FROM attachment_events WHERE action='set.native-origin'),(SELECT count(*) FROM audit_events WHERE action='attachment.set.create'),(SELECT count(*) FROM outbox_events WHERE event_type='attachment.set.create')").fetch_one(p.pool().raw()).await.unwrap();
+        assert_eq!(counts, (1,1,1,1));
+    }).await;
 }
 
 #[tokio::test]
@@ -190,7 +251,8 @@ async fn true_legacy_receipt_replays_without_synthetic_workflow_evidence() {
         let id=format!("attachment-set-{}",&hash[..32]);
         sqlx::query("INSERT INTO attachment_sets(id,company_id,branch_id,target_type,target_id,component_kind,purpose_key,expected_target_version,policy_version,classification,audience_json,created_by,created_at,updated_at) VALUES($1,'company','branch','field_service_visit','issue-order','record','site_photo',3,1,'internal','{}','fixture-a',1,1)").bind(&id).execute(p.pool().raw()).await.unwrap();
         sqlx::query("INSERT INTO attachment_events(id,company_id,set_id,actor_id,action,details_json,created_at) VALUES('legacy-event','company',$1,'fixture-a','set.created','{\"compatibilityAdapter\":false}',1)").bind(&id).execute(p.pool().raw()).await.unwrap();
-        let value=execute(&p,"legacy-create","site_photo").await.unwrap();assert!(value.replayed);assert_eq!(value.data["id"],id);
+        let provider=Arc::new(BrokenProvider(std::sync::atomic::AtomicUsize::new(0)));
+        let value=execute_with_provider(&p,"legacy-create","site_photo",p.review.maker.clone(),p.selection.clone(),"company",Some(provider.clone())).await.unwrap();assert!(value.replayed);assert_eq!(value.data["id"],id);assert_eq!(provider.0.load(std::sync::atomic::Ordering::SeqCst),0);
         let counts:(i64,i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM command_receipts WHERE command_id='legacy-create'),(SELECT count(*) FROM audit_events WHERE command_id='legacy-create'),(SELECT count(*) FROM outbox_events WHERE command_id='legacy-create'),(SELECT count(*) FROM attachment_events WHERE action='set.native-origin')").fetch_one(p.pool().raw()).await.unwrap();assert_eq!(counts,(0,0,0,0));
     }).await;
 }
@@ -217,6 +279,9 @@ async fn new_session_and_read_only_role_replay_but_other_users_get_their_own_key
         let mut selected=p.selection.clone();selected.expected=Some(ExpectedWorkSelection{revision:9,assignment_id:AssignmentId::new("field-readonly-a").unwrap(),assignment_version:4});
         let replay=execute_as(&p,"shared-wire-key","site_photo",new_device.clone(),selected.clone(),"company").await.unwrap();assert!(replay.replayed);assert_eq!(replay.data,first.data);
         assert!(matches!(execute_as(&p,"new-readonly-key","site_photo",new_device.clone(),selected.clone(),"company").await,Err(PgTransactionError::Business(e)) if e.code=="PERMISSION_REQUIRED"));
+        let unavailable=Arc::new(BrokenProvider(std::sync::atomic::AtomicUsize::new(0)));
+        assert!(matches!(execute_with_provider(&p,"readonly-provider","site_photo",new_device.clone(),selected.clone(),"company",Some(unavailable.clone())).await,Err(PgTransactionError::Business(e)) if e.code=="PERMISSION_REQUIRED"));
+        assert_eq!(unavailable.0.load(std::sync::atomic::Ordering::SeqCst),0);
         assert!(matches!(execute_as(&p,"shared-wire-key","site_photo",new_device,selected,"other-company").await,Err(PgTransactionError::Business(e)) if e.code=="SERVICE_ATTACHMENT_CHANGED"));
         facts::setup_agreement_review_facts(&p,now).await;
         sqlx::query("UPDATE active_work_contexts SET assignment_id='agreement-reviewer-b',assignment_version=3,revision=9 WHERE user_id='fixture-b'").execute(p.pool().raw()).await.unwrap();

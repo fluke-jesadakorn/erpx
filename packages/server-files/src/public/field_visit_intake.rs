@@ -35,7 +35,7 @@ pub trait FieldIntakeAuthority {
 
 pub use crate::adapters::field_visit_intake::{CurrentFieldIntake, prepare_field_intake};
 
-pub use crate::adapters::field_visit_intake::list_field_sets;
+pub use crate::adapters::field_visit_intake::{list_field_sets,field_set_query_has_rows};
 pub use crate::domain::field_visit_intake::{
     FieldSetListRequest, FieldSetRequest, classification, component_ref, field_set_command_id,
     field_set_id, validate_component_ref,

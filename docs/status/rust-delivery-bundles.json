@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-30T11:35:13.277513+00:00",
+  "updatedAt": "2026-10-31",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Complete bounded Rust capability with frontend/dependencies, one writer and immediate legacy implementation withdrawal; scoped PR integration target codex/rust-backend-migration only; Docker that completed capability next before the following migration bundle; Dev Container grows only with qualified Rust/Docker scope. Development requires another maintainer instruction.",
   "catalogue": {
@@ -2147,6 +2147,46 @@
           "retained": "Shared TypeScript readers, UI preference owner/transaction checks and unrelated legacy jobs; no removed Count fallback restored. Full Field/owner and whole-system counts unchanged.",
           "remaining": "Other apps/Holdings/platforms, production configuration, full owner migration and wider role-chooser console diagnostics remain separate gates."
         }
+      },
+      {
+        "id": "field-visit-files-intake",
+        "status": "implementation candidate; not merged or accepted",
+        "branch": "codex/field-files-delivery",
+        "integrationTarget": "codex/rust-backend-migration",
+        "scope": [
+          "Four Field visit record purposes",
+          "Native set/intake/upload/status/content/bind/withdraw",
+          "Native scan and required draft/orphan recovery",
+          "Frontend context/uncertain-command integration and legacy retirement"
+        ],
+        "contract": "docs/contracts/next/field-visit-files-native.md",
+        "rust": "Native provider and normal SSO/browser file journey, checked worker cleanup, shared-database business/history and native physical-I/O/retry proofs pass. Final candidate integration remains.",
+        "docker": "Not built for this capability; follow the accepted Rust capability and retirement gate. Count container qualification is separate.",
+        "legacyRemoved": [
+          "Field-only attachment-purchases/attachment-read/attachments-policy-facts/attachments-service-facts adapter/public pairs and exports",
+          "Files↔Field unused TypeScript workspace dependencies",
+          "Optional native transport selector wrappers, presenter/client ID-selector props and selector APIs"
+        ],
+        "legacyRemovalStatus": "Removed from the TS build/runtime graph; actual persisted markers fence direct and alternate legacy reads inside owned units. Non-Field shared consumers remain.",
+        "retained": [
+          {
+            "source": "packages/server-files/src/application/attachments/service.ts",
+            "consumers": [
+              "Non-Field Files owners"
+            ],
+            "scope": "Shared non-Field implementation with persisted Field writer and cleanup exclusion.",
+            "withdrawal": "Retain non-Field application/scanner/cleanup consumers until their own verified migrations. Field static policy metadata remains only for the engineering inventory, pending Rust-backed inventory."
+          }
+        ],
+        "blockers": [
+          "Final frozen-candidate local checks and scoped PR integration.",
+          "Docker build/run/size follows accepted Rust capability; Dev Container follows verified runtime support."
+        ],
+        "checks": [
+          "Native and same-database business/history tests; actual deferred source/IAM/audit faults; real store/source retry counters; shared Files34; ownership/alternate-Portal handoff6; frontend30; local compilation/architecture/docs checks pending final recording. HostedCI not claimed."
+        ],
+        "retestReason": "Native HTTP/composition, ownership, filesystem cleanup and frontend source changed; rerun only affected gates, reuse unchanged prior Count evidence.",
+        "elapsedClosedBundle": null
       }
     ]
   },

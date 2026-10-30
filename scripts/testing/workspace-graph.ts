@@ -55,7 +55,7 @@ function workspaceSourceInventory(root:string){
     return readdirSync(resolve(root, directory), { withFileTypes: true }).flatMap(entry => {
       const file = `${directory}/${entry.name}`;
       if (privateWorkspacePath(file) || entry.isDirectory() && entry.name === 'target' && existsSync(resolve(root,directory,'Cargo.toml'))) return [];
-      return entry.isDirectory() && !ignored.has(entry.name) ? visit(file)
+      return entry.isDirectory() && !ignored.has(entry.name) && !entry.name.startsWith(".next-") ? visit(file)
         : (entry.isFile() || entry.isSymbolicLink()) && !["next-env.d.ts", "next.config.compiled.js"].includes(entry.name) ? [file] : [];
     });
   }

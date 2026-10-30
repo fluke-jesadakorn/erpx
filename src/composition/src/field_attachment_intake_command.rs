@@ -26,6 +26,19 @@ use erpx_server_workflow::public::{
     },
 };
 use sqlx::PgConnection;
+use std::{future::Future, pin::Pin};
+/// Trusted runtime probe, sampled only for a fresh command after replay checks.
+pub trait FieldIntakeProviderReadiness: Send + Sync {
+    fn probe(
+        &self,
+    ) -> Pin<Box<dyn Future<Output = Result<FieldIntakeProviderStatus, BusinessError>> + Send + '_>>;
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FieldIntakeProviderStatus {
+    pub scanner_enabled: bool,
+    pub scanner_ready: bool,
+    pub preview_ready: bool,
+}
 type Error = PgTransactionError<BusinessError>;
 fn changed() -> BusinessError {
     BusinessError::new(
@@ -158,7 +171,8 @@ struct Effects<'a, C> {
     ctx: &'a AttachmentContext<'a, C>,
     input: &'a FieldSetRequest,
     key: &'a str,
-    availability: &'a FieldIntakeAvailability,
+    availability: FieldIntakeAvailability,
+    readiness: Option<&'a dyn FieldIntakeProviderReadiness>,
     source: &'a SourceOrderedWorkflowRequest,
     clock: FieldIntakeCommandClock,
     ids: &'a FieldIntakeCommandGeneratedIds,
@@ -208,13 +222,35 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for Effects<'_, C> {
             now,
         )
         .await?;
+        if write.scope().version != self.input.expected_target_version {
+            return Err(BusinessError::new(
+                FailureKind::Conflict,
+                "ATTACHMENT_TARGET_CHANGED",
+                "The record changed. Refresh before adding files.",
+            )
+            .into());
+        }
+        erpx_server_files::public::field_visit_intake::validate_component_ref(
+            erpx_server_files::public::field_visit_intake::component_ref(
+                self.input.component_ref.as_deref(),
+            ),
+        )?;
+        if let Some(readiness) = self.readiness {
+            let status = readiness.probe().await.map_err(|_| BusinessError::new(
+                FailureKind::Unavailable,
+                "ATTACHMENT_SCANNER_UNAVAILABLE",
+                "File intake is unavailable until the malware scanner and current signatures are ready.",
+            ))?;
+            self.availability.scanner_ready = status.scanner_enabled && status.scanner_ready;
+            self.availability.preview_ready = status.preview_ready;
+        }
         let plan = prepare_field_set_creation(
             c,
             &read,
             Some(&write),
             self.input,
             self.key,
-            self.availability,
+            &self.availability,
             now,
         )
         .await?;
@@ -409,6 +445,20 @@ pub async fn execute_field_attachment_intake<C: Clock + Sync>(
     c: &mut PgConnection,
     command: FieldAttachmentIntakeCommand<'_, C>,
 ) -> Result<FieldSetCommandResponse, Error> {
+    execute_inner(c, command, None).await
+}
+pub async fn execute_field_attachment_intake_with_live_readiness<C: Clock + Sync>(
+    c: &mut PgConnection,
+    command: FieldAttachmentIntakeCommand<'_, C>,
+    readiness: &dyn FieldIntakeProviderReadiness,
+) -> Result<FieldSetCommandResponse, Error> {
+    execute_inner(c, command, Some(readiness)).await
+}
+async fn execute_inner<C: Clock + Sync>(
+    c: &mut PgConnection,
+    command: FieldAttachmentIntakeCommand<'_, C>,
+    readiness: Option<&dyn FieldIntakeProviderReadiness>,
+) -> Result<FieldSetCommandResponse, Error> {
     let FieldAttachmentIntakeCommand {
         actor,
         holding,
@@ -483,7 +533,8 @@ pub async fn execute_field_attachment_intake<C: Clock + Sync>(
         ctx: &ctx,
         input,
         key,
-        availability,
+        availability: availability.clone(),
+        readiness,
         source: &ordered,
         clock: fixed,
         ids: &generated,
