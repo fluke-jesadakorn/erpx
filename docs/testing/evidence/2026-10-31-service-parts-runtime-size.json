@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-31T01:31:22.397277+00:00",
+  "supplements": "docs/testing/evidence/2026-10-31-service-parts-containers.json",
+  "image": "sha256:024812ee1bcb85971a419f870a5984666a1682b12e8bb2bd084f4e966fbe3372",
+  "dockerInspectSizeFieldBytes": 16958478,
+  "rootfsRegularFileBytes": 55510844,
+  "method": "Streamed docker export of a never-started isolated read-only container; SHA-256 each regular file; sum its tar logical size. Owned container removed. No image rebuild or service change.",
+  "correction": "The prior Docker inspect Size observation is preserved but must not be described as total uncompressed filesystem size. These metrics measure different things; directory/block overhead, shared storage and registry transfer are not inferred.",
+  "privateEvidence": {
+    "path": ".scratch/dev/parts-runtime-filesystem-inventory.json",
+    "sha256": "afc583f40a571a29f1c5cea6ec3d105d3d27e3ec479142ff5fa10dda93caae82",
+    "bytes": 359713,
+    "preservedPrivateCopy": ".scratch/dev/service-parts-container-accepted-evidence/afc583f40a571a29f1c5cea6ec3d105d3d27e3ec479142ff5fa10dda93caae82.json"
+  },
+  "limitations": [
+    "ARM64 only, unchanged qualified runtime; no new functional journey or benchmark.",
+    "Ingredient file inventory is not a completed licensed SBOM."
+  ]
+}
