@@ -24,25 +24,30 @@ async function keyFor(id:string,bundler:string){
  return {runtime,key:hash.digest('hex'),modules};
 }
 /** Build from a private source copy: Next may rewrite next-env and route types. */
-export async function buildIsolatedApp(id:string,bundler='webpack'){
+export async function buildIsolatedApp(id:string,bundler='webpack',engineering?:{caseRoot:string;buildSource:string;nonce:string}){
  if(!['webpack','turbopack'].includes(bundler))throw new Error('UNKNOWN_APP_BUNDLER');
+ if(engineering&&(id!=='service'||bundler!=='webpack'))throw new Error('ENGINEERING_SERVICE_WEBPACK_REQUIRED');
+ const engineeringValidation=engineering?await import('../testing/engineering/immutable-app-vendor'):undefined;
+ const engineeringBefore=engineering&&engineeringValidation?await engineeringValidation.validateImmutableAppVendor(root,engineering.caseRoot,resolve(engineering.buildSource),engineering.nonce):undefined;
  await preparePdfAssets();
- const app=appDefinition(id),identity=await keyFor(id,bundler),directory=join(root,'.scratch/dev/workspace-builds',id,identity.key),snapshot=join(directory,'source');
+ const app=appDefinition(id),identity=await keyFor(id,bundler),directory=join(root,'.scratch/dev/workspace-builds',id,identity.key),snapshot=engineering?resolve(engineering.buildSource):join(directory,'source');
  await mkdir(directory,{recursive:true,mode:0o700});const lock=join(directory,'build.lock');let handle;
  try{handle=await open(lock,'wx',0o600);}catch(error){if((error as NodeJS.ErrnoException).code!=='EEXIST')throw error;const owner=JSON.parse(await readFile(lock,'utf8'));if(owner.root!==root||owner.id!==id||owner.key!==identity.key)throw new Error('APP_BUILD_LOCK_IDENTITY_CHANGED');try{process.kill(owner.pid,0);throw new Error('APP_BUILD_ALREADY_RUNNING');}catch(error){if((error as NodeJS.ErrnoException).code!=='ESRCH')throw error;}await rm(lock);handle=await open(lock,'wx',0o600);}
  await handle.writeFile(JSON.stringify({root,id,key:identity.key,pid:process.pid})+'\n');await handle.close();
  let child:ReturnType<typeof Bun.spawn>|undefined,interrupted=false;const stop=(signal:'SIGINT'|'SIGTERM')=>{interrupted=true;child?.kill(signal);};const onInt=()=>stop('SIGINT'),onTerm=()=>stop('SIGTERM');process.on('SIGINT',onInt);process.on('SIGTERM',onTerm);
  try{
   const output=join(root,app.directory,'.build'),receiptPath=join(output,'artifact.json');
-  if(existsSync(receiptPath)){
+  if(!engineering&&existsSync(receiptPath)){
    let receipt;try{receipt=JSON.parse(await readFile(receiptPath,'utf8'));}catch{/* A damaged receipt is a cache miss. */}
    if(receipt?.schema==='erpx-app-artifact/v2'&&receipt.app===id&&receipt.buildFingerprint===identity.key&&receipt.acceptance===false&&await verifyAppArtifact(output,receipt)){
     console.log(`APP_BUILD_CACHE_HIT:${id}:${identity.key.slice(0,12)}`);return;
    }
   }
-  await rm(snapshot,{recursive:true,force:true});await mkdir(snapshot,{recursive:true});
-  const inputs=[app.directory,'packages','src','public','scripts','fixtures','migrations','tests/support','tests/catalogue','tests/config','ops/macos','package.json','bun.lock','tsconfig.base.json','tsconfig.json','next.config.ts','next-env.d.ts','postcss.config.mjs','node_modules'];
-  for(const name of inputs)if(existsSync(join(root,name)))await cp(join(root,name),join(snapshot,name),copyOptions);
+  if(!engineering){
+   await rm(snapshot,{recursive:true,force:true});await mkdir(snapshot,{recursive:true});
+   const inputs=[app.directory,'packages','src','public','scripts','fixtures','migrations','tests/support','tests/catalogue','tests/config','ops/macos','package.json','bun.lock','tsconfig.base.json','tsconfig.json','next.config.ts','next-env.d.ts','postcss.config.mjs','node_modules'];
+   for(const name of inputs)if(existsSync(join(root,name)))await cp(join(root,name),join(snapshot,name),copyOptions);
+  }
   if(interrupted)throw new Error("APP_BUILD_INTERRUPTED");
   if((await keyFor(id,bundler)).key!==identity.key)throw new Error("APP_SOURCE_CHANGED_DURING_SNAPSHOT");
   await composeUiModules(root,snapshot,identity.modules.enabled);
@@ -62,6 +67,7 @@ export async function buildIsolatedApp(id:string,bundler='webpack'){
   }
   if(!passed||interrupted)throw new Error(`ISOLATED_APP_BUILD_FAILED:${id}`);
   const current=await keyFor(id,bundler);if(current.key!==identity.key)throw new Error('APP_RUNTIME_SOURCE_CHANGED_DURING_BUILD');
+  if(engineering&&engineeringValidation){const after=await engineeringValidation.validateImmutableAppVendor(root,engineering.caseRoot,snapshot,engineering.nonce);if(JSON.stringify(after)!==JSON.stringify(engineeringBefore))throw new Error('ENGINEERING_VENDOR_CHANGED_DURING_BUILD');}
   const compiled=join(snapshot,app.directory,'.build');if(!existsSync(join(compiled,'standalone',app.directory,'server.js')))throw new Error('APP_STANDALONE_ARTIFACT_REQUIRED');
   await rm(output,{recursive:true,force:true});await cp(compiled,output,{recursive:true,verbatimSymlinks:true,mode:constants.COPYFILE_FICLONE,filter:path=>{const name=relative(compiled,path);return name!=='cache'&&!name.startsWith('cache/');}});
   const standalone=join(output,'standalone'),standaloneApp=join(standalone,app.directory);

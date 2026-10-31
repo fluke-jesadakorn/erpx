@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-30T22:05:41.923896+00:00",
+  "updatedAt": "2026-10-31T01:54:02.246713+00:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Complete bounded Rust capability with frontend/dependencies, one writer and immediate legacy implementation withdrawal; scoped PR integration target codex/rust-backend-migration only; Docker that completed capability next before the following migration bundle; Dev Container grows only with qualified Rust/Docker scope. Development requires another maintainer instruction.",
   "catalogue": {
@@ -240,7 +240,8 @@
     "mergeBlockers": [
       "All incomplete firstBundle checklist entries covering the actual Field scope and required dependencies, before the final merge action itself.",
       "Hosted free quota is exhausted; user authorizes equivalent isolated local verification with actual source/platform/prerequisites and unchanged checks. Prior non-started jobs remain historical failures, not passes. Run40824122229 on2f7116d93 had12 Field and5 Manufacturing failures before cancellation; run40832243680 onf24696bc stopped on3 unit harness failures, now corrected locally. Actual integration causes remain unresolved.",
-      "Known first-Company hydration mismatch and incomplete modularity proof."
+      "Known first-Company hydration mismatch and incomplete modularity proof.",
+      "Observed Field shell header/title overlaps body in actual compiled Count screenshot; UI correction and real layout regression required. No clean visual claim."
     ],
     "nextBundleBacklog": [
       "Unrelated owners and their catalogue workflows, except dependencies required by the Field journey.",
@@ -5306,6 +5307,30 @@
       "verification": "Actual isolated Linux: original26 selected cases plus Sales cancellation and focused Maintenance editor,6085 unit tests,affectedMaintenancePG and source-equivalent priorPG,requiredquality/review/secretscans. No hosted success fabricated.",
       "remainingLimitation": "Older full Maintenance engineering journey fails at retired entry404 before editor; backlog. Existing development deferrals unchanged; no release acceptance.",
       "measuredCheckpointToMerge": "Approximately6h52m from first scoped checkpoint758add63565096c380e4f9fe77a4d1d9d1541197 to merge; includes investigation/waiting, not complete Field duration."
+    },
+    {
+      "id": "native-engineering-compiled-service",
+      "status": "Bounded local qualification and independent review passed; scoped PR pending",
+      "branch": "codex/native-engineering-cohort",
+      "integrationTarget": "codex/rust-backend-migration",
+      "contract": "docs/contracts/next/native-engineering-service-ssr.md",
+      "evidence": "docs/testing/evidence/2026-10-31-native-engineering-service-ssr.json",
+      "checklist": {
+        "closed": 7,
+        "total": 8
+      },
+      "scope": "Isolated8nativeleases and realcompiledService admission/SSO/Parts/masters/draftCount/readback. Account/Apps retaineddev; not a newbusinessowner completion.",
+      "retained": [
+        "BetterAuth/Drizzle/rawIAM/migration originalboundaries; typed engineering units bounded",
+        "Generic unmigrated business TS consumers unchanged; no new business legacy retirement in this tooling delivery"
+      ],
+      "limitations": [
+        "GlobalServicehealth503/degradedTSattachments/jobs",
+        "Visibleheaderoverlap andcoldField16remainopen",
+        "NoCountpost/projector/newDockerimage/publicTunnelcutover/AMD64/fullworkflowowner claim",
+        "Normalorderedcleanup only; abruptsignal/activeconnectionfaultmatrix unqualified"
+      ],
+      "nextFieldScope": "Fix verified shell header overlap, then native Field-linked Collaboration consuming Records guards; checklist11 still requires Operations/recursive paths."
     }
   ]
 }

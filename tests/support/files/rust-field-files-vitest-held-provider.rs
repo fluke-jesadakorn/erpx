@@ -3,6 +3,8 @@
 #[allow(dead_code)]
 #[path = "../runtime/private-session-config.rs"]
 mod configuration;
+#[path = "rust-field-engineering-cohort.rs"]
+mod engineering_cohort;
 #[allow(dead_code, unused_imports)]
 #[path = "../field_service/parts.rs"]
 mod facts;
@@ -38,17 +40,35 @@ async fn main() {
         tokio::select! {_=term.recv()=>{},_=interrupt.recv()=>{}};
         let _ = shutdown_tx.send(true);
     });
+    if std::env::var_os("ERPX_FIELD_ENGINEERING_ROSTER").is_some() {
+        assert!(
+            std::env::var_os("ERPX_FIELD_FILES_BROWSER_PROFILE").is_some(),
+            "engineering cohort requires browser profile"
+        );
+        let (system, pools) = engineering_cohort::open().await;
+        run_fixture(
+            system,
+            Some([pools[3].clone(), pools[5].clone()]),
+            Some(&pools),
+            shutdown_rx,
+        )
+        .await;
+        for pool in pools {
+            pool.close().await;
+        }
+        return;
+    }
     facts::account::with_system(|system| async move {
         if std::env::var_os("ERPX_FIELD_FILES_BROWSER_PROFILE").is_some() {
             facts::account::database::with_database(3, move |read1| async move {
                 facts::account::database::with_database(3, move |read2| async move {
-                    run_fixture(system, Some([read1, read2]), shutdown_rx).await
+                    run_fixture(system, Some([read1, read2]), None, shutdown_rx).await
                 })
                 .await;
             })
             .await;
         } else {
-            run_fixture(system, None, shutdown_rx).await;
+            run_fixture(system, None, None, shutdown_rx).await;
         }
     })
     .await;
@@ -57,6 +77,7 @@ async fn main() {
 async fn run_fixture(
     system: facts::account::System,
     reads: Option<[erpx_server_runtime::public::postgres::DatabasePool; 2]>,
+    engineering: Option<&[erpx_server_runtime::public::postgres::DatabasePool]>,
     mut shutdown: tokio::sync::watch::Receiver<bool>,
 ) {
     if *shutdown.borrow() {
@@ -105,7 +126,10 @@ async fn run_fixture(
     let mut sessions = serde_json::Map::new();
     let mut browser_actors = serde_json::Map::new();
     if mixed {
-        assert!(reads.is_none() || std::env::var_os("ERPX_FIELD_PARTS_MIXED_PROFILE").is_some(), "browser mixed profile requires Parts");
+        assert!(
+            reads.is_none() || std::env::var_os("ERPX_FIELD_PARTS_MIXED_PROFILE").is_some(),
+            "browser mixed profile requires Parts"
+        );
         let seed_path = format!(
             "{}.seed",
             std::env::var("ERPX_FIELD_FILES_FIXTURE_OUTPUT").unwrap()
@@ -163,7 +187,10 @@ async fn run_fixture(
                 sqlx::query("INSERT INTO account(id,\"accountId\",\"providerId\",issuer,\"userId\",password,\"createdAt\",\"updatedAt\") VALUES($1,$1,'credential','local:credential',$1,$2,$3,$3)").bind(user).bind(&password).bind(now).execute(p.review.system.control.raw()).await.unwrap();
             }
             if reads.is_some() {
-                browser_actors.insert(label.to_owned(), serde_json::json!({"email":email,"password":facts::account::fixture::PASSWORD}));
+                browser_actors.insert(
+                    label.to_owned(),
+                    serde_json::json!({"email":email,"password":facts::account::fixture::PASSWORD}),
+                );
             }
             let central = facts::account::login(&p.review.system, &email, None).await;
             let child =
@@ -202,14 +229,16 @@ async fn run_fixture(
     }
 
     let parts_mixed = std::env::var_os("ERPX_FIELD_PARTS_MIXED_PROFILE").is_some();
-    assert!(!parts_mixed || mixed, "parts profile requires a mixed lease");
+    assert!(
+        !parts_mixed || mixed,
+        "parts profile requires a mixed lease"
+    );
     let read_company = if parts_mixed {
         mixed_company.as_deref().unwrap()
     } else {
         "company"
     };
-    doc["fieldServiceReads"] =
-        serde_json::json!([{"holdingId":"h001","companyId":read_company}]);
+    doc["fieldServiceReads"] = serde_json::json!([{"holdingId":"h001","companyId":read_company}]);
     if parts_mixed {
         doc["fieldServicePartsPostingSetups"] = serde_json::json!(["h001"]);
         doc["fieldServicePartsPrerequisites"] = serde_json::json!(["h001"]);
@@ -270,6 +299,11 @@ async fn run_fixture(
     }
     if let Some(ref pools) = reads {
         private["browser"] = serde_json::json!({"control":configuration::database(&p.review.system.control).await,"holding1":configuration::database(&p.review.system.holdings[0]).await,"holding2":configuration::database(&p.review.system.holdings[1]).await,"holding1Read":configuration::database(&pools[0]).await,"holding2Read":configuration::database(&pools[1]).await,"maker":{"email":"a@example.test","password":facts::account::fixture::PASSWORD},"companyId":"company","orderId":"issue-order","privateConfiguration":config_path});
+        if let Some(cohort) = engineering {
+            private["browser"]["controlRead"] = configuration::database(&cohort[1]).await;
+            private["browser"]["holding3"] = configuration::database(&cohort[6]).await;
+            private["browser"]["holding3Read"] = configuration::database(&cohort[7]).await;
+        }
         if mixed {
             private["browser"]["companyId"] = mixed_company.as_deref().unwrap().into();
             private["browser"]["actors"] = browser_actors.into();

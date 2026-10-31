@@ -1,5 +1,5 @@
 import {beforeAll,afterAll,beforeEach,afterEach,expect,it,vi} from 'vitest';
-import {mkdir,writeFile,rm,readFile} from 'node:fs/promises';
+import {chmod,mkdir,writeFile,rm,readFile} from 'node:fs/promises';
 import {createHash,randomBytes} from 'node:crypto';
 import {join,resolve} from 'node:path';
 import {Pool} from 'pg';
@@ -133,3 +133,35 @@ it('does not memoize Company enablement or expiry inside a request that reused t
   expect(await isolatedEngineeringVerification(db,'enabled')).toBe(false);
  });}finally{await enrollEngineeringVerification(db,enrollment());}
 });
+
+it('rejects unfenced native leases and requires the exact private eight-database roster',async()=>{
+ const nativeRun=randomBytes(6).toString('hex'),nativeDirectory=resolve('.runtime/browser',nativeRun);
+ await mkdir(join(nativeDirectory,'release'),{recursive:true,mode:0o700});
+ const releaseBytes=JSON.stringify({'server.js':'b'.repeat(64)}),digest=createHash('sha256').update(releaseBytes).digest('hex');
+ await writeFile(join(nativeDirectory,'release/release-files.json'),releaseBytes);
+ await writeFile(join(nativeDirectory,'release/release.json'),JSON.stringify({sourceFingerprint:source,softwareVersion:version,fileManifestSha256:digest}));
+ const {createNativeEngineeringCohort}=await import('../../../scripts/testing/engineering/native-cohort');
+ const cohort=await createNativeEngineeringCohort({directory:nativeDirectory,run:nativeRun,sourceFingerprint:source,fileManifestSha256:digest,adminUrl:process.env.ERPX_TEST_ADMIN_URL!});
+ const path=join(nativeDirectory,'engineering-attestation.json'),rosterPath=join(nativeDirectory,'native-engineering-leases.json');
+ const attestation={scope:'isolated-engineering',run:nativeRun,sourceFingerprint:source,softwareVersion:version,fileManifestSha256:digest,nativeLeaseSha256:cohort.rosterSha256};
+ await writeFile(path,JSON.stringify(attestation),{mode:0o600});
+ const nativeDb=new PostgresDatabase({connectionString:cohort.databases.H001_DB!,max:2});
+ try{
+  await applyMigrations(nativeDb,env.STAFF_TEST_MIGRATIONS);await nativeDb.prepare("INSERT INTO organization_nodes(id,kind,slug,display_name,company_id) VALUES('native-company','company','native-company','Native synthetic','native-company')").run();
+  vi.stubEnv('ERPX_ENGINEERING_VERIFICATION_RUN',nativeRun);vi.stubEnv('ERPX_DATA_DIR',nativeDirectory);vi.stubEnv('ERPX_DATABASE_MANIFEST',join(nativeDirectory,'databases.json'));vi.stubEnv('BETTER_AUTH_SECRET','isolated-engineering-bootstrap-secret-32-characters');vi.stubEnv('ERPX_PUBLIC_ORIGIN','http://127.0.0.1:3104');vi.stubEnv('ERPX_MARKETING_ORIGIN','');vi.stubEnv('ERPX_FRONT_PMS_ORIGIN','');vi.stubEnv('ERPX_FRONT_POS_ORIGIN','');
+  vi.stubEnv('ERPX_MIGRATION_DATABASE_MANIFEST','');delete process.env.ERPX_MIGRATION_DATABASE_MANIFEST;
+  expect(getRuntime().ERPX_ENVIRONMENT).toBe('local');await closeRuntime();
+  const request={run:nativeRun,sourceFingerprint:source,softwareVersion:version,fileManifestSha256:digest,companyIds:['native-company']};
+  // A bare native lease on the shared test cluster receives no catalog grants
+  // and must never acquire engineering authorization. The same-unit COMMENT
+  // contention, expiry and file-drift checks run in the dedicated network-none
+  // 8-DB driver tests/support/runtime/native-engineering-platform-probe.ts.
+  expect(()=>enrollEngineeringVerification(nativeDb,request)).toThrow('NATIVE_ENGINEERING_FENCE_REQUIRED');
+  await expect(isolatedEngineeringVerification(nativeDb,'native-company')).rejects.toThrow('NATIVE_ENGINEERING_FENCE_REQUIRED');
+  const roster=await readFile(rosterPath),changed=JSON.parse(roster.toString());changed.entries[2].oid+=1000000;
+  await writeFile(rosterPath,JSON.stringify(changed),{mode:0o600});expect(engineeringVerificationContext()).toBeNull();expect(await isolatedEngineeringVerification(nativeDb,'native-company')).toBe(false);
+  await writeFile(rosterPath,roster);await chmod(rosterPath,0o644);expect(engineeringVerificationContext()).toBeNull();await chmod(rosterPath,0o600);expect(engineeringVerificationContext()).not.toBeNull();
+  const originalManifest=await readFile(join(nativeDirectory,'databases.json'));try{const swapped=JSON.parse(originalManifest.toString());[swapped.databases.H001_DB,swapped.databases.H002_DB]=[swapped.databases.H002_DB,swapped.databases.H001_DB];await writeFile(join(nativeDirectory,'databases.json'),JSON.stringify(swapped));expect(()=>getRuntime()).toThrow('ENGINEERING_DATABASE_MANIFEST_MISMATCH');}finally{await writeFile(join(nativeDirectory,'databases.json'),originalManifest);}
+
+ }finally{await closeRuntime();await nativeDb.close();await cohort.cleanup();await rm(nativeDirectory,{recursive:true,force:true});}
+},120000);
