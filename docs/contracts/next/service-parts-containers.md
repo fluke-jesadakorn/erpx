@@ -9,12 +9,13 @@ The fresh ARM64 build from that exact Git archive produces one distroless, non-r
 | Observation | Value |
 | --- | --- |
 | Image identity | `sha256:024812ee1bcb85971a419f870a5984666a1682b12e8bb2bd084f4e966fbe3372` |
-| Docker inspect uncompressed bytes | 16,958,478 |
+| Docker inspect `Size` field bytes | 16,958,478 |
+| Exported root filesystem regular-file bytes | 55,510,844 |
 | Native binary SHA-256 in runtime and test fixture | `3970dd0d9591280d66d46f24133dab25a209ddfc9f46f11430424da510848989` |
 | Runtime UID/GID | 65532/65532 |
 | API/worker memory at the captured instant | 4.801/3.43 MiB |
 
-Size is the measured runtime image, not a compressed registry transfer or builder/fixture size. The toolchain and test fixture are separate. These point observations do not establish sustained performance or deployment sizing. AMD64 remains unqualified. The runtime has the native binary and migration inventory; it contains no Node/Bun/Python business backend. The Dockerfile and Compose are unchanged; only the existing qualification is strengthened.
+The inspect field and exported logical file total are separate measurements. The inspect field must not be labeled the entire uncompressed filesystem; the [supplemental size receipt](../../testing/evidence/2026-10-31-service-parts-runtime-size.json) corrects that earlier description without changing the original evidence. Neither metric establishes registry transfer bytes, allocated/shared storage, directory overhead or builder/fixture size. The toolchain and test fixture are separate. These point observations do not establish sustained performance or deployment sizing. AMD64 remains unqualified. The runtime has the native binary and migration inventory; it contains no Node/Bun/Python business backend. The Dockerfile and Compose are unchanged; only the existing qualification is strengthened.
 
 Actual isolated qualification passes normal Account/SSO, empty initial Finance references and mapping, native chart/account/period/rate preparation, mapping readback, warehouse/product creation and selected draft Count creation/readback. PostgreSQL proves those exact chart/master receipt IDs link to the persisted Count source. The real worker acknowledges its outbox event and writes the matching HoldingRead receipt/checkpoint. This container run does not claim Count approve/post; that complete functional journey has separate source-bound browser/PostgreSQL evidence in the Rust delivery.
 

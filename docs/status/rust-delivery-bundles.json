@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-30T22:03:39.444693+00:00",
+  "updatedAt": "2026-10-30T22:05:41.923896+00:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Complete bounded Rust capability with frontend/dependencies, one writer and immediate legacy implementation withdrawal; scoped PR integration target codex/rust-backend-migration only; Docker that completed capability next before the following migration bundle; Dev Container grows only with qualified Rust/Docker scope. Development requires another maintainer instruction.",
   "catalogue": {
@@ -2109,7 +2109,7 @@
         "branch": "codex/service-initial-stock-capability",
         "integrationTarget": "codex/rust-backend-migration",
         "rust": "Normal-authentication candidate journey passed native setup/create, generic update and Flow saveDefault, submit, independent approval/post and real worker drain. Post-retirement generic Count GET/SSR and Flow GET explicitly reach Rust and render the posted record. This closes the bounded Count capability only, not a complete Field catalogue workflow or owner.",
-        "docker": "Shared distroless non-root ARM64 runtime built/run and qualified: 16,942,946 uncompressed bytes. Actual isolated Account/SSO, native setup/Count create/read and native worker projection/ack passed under read-only/capability-drop policy. Source/recipe provenance checked. Scoped delivery branch codex/service-count-container-runtime targets migration only; AMD64, production configuration and full Dev Container onboarding remain unqualified.",
+        "docker": "Shared distroless non-root ARM64 runtime built/run and qualified: Docker inspect Size16,942,946 bytes; uncompressed filesystem total not established. Actual isolated Account/SSO, native setup/Count create/read and native worker projection/ack passed under read-only/capability-drop policy. Source/recipe provenance checked. Scoped delivery branch codex/service-count-container-runtime targets migration only; AMD64, production configuration and full Dev Container onboarding remain unqualified.",
         "mergedPullRequest": {
           "number": 5,
           "url": "https://github.com/fluke-jesadakorn/erpx/pull/5",
@@ -2304,7 +2304,7 @@
       },
       {
         "id": "service-parts-native-writer-closure",
-        "status": "Rust and Docker merged; bounded contributor environment qualified, scoped PR pending",
+        "status": "Rust, shared Docker and bounded contributor environment merged; Field integration remains open",
         "branch": "codex/service-parts-native-closure",
         "integrationTarget": "codex/rust-backend-migration",
         "contract": "docs/contracts/next/service-parts-native-closure.md",
@@ -2344,6 +2344,12 @@
             "mergedAt": "2026-10-31T03:55:17+07:00",
             "wallSeconds": 1238,
             "includesWaits": true
+          },
+          "sizeMetrics": {
+            "dockerInspectSizeFieldBytes": 16958478,
+            "rootfsRegularFileBytes": 55510844,
+            "supplementalEvidence": "docs/testing/evidence/2026-10-31-service-parts-runtime-size.json",
+            "caveat": "Inspect Size is not labeled whole uncompressed filesystem; logical file total excludes directory/block overhead."
           }
         },
         "currentEvidence": {
@@ -2361,8 +2367,8 @@
         ],
         "evidence": "docs/testing/evidence/2026-10-31-service-parts-native-closure.json",
         "blockers": [
-          "Scoped Dev Container PR integration.",
-          "Field16 cold development HMR and selected-Company releaseSSR engineering/native lease bridge remain open."
+          "Field16 cold HMR and native engineering-cohort compiled SSR/normal SSO remain unqualified.",
+          "Records transactional consumers and remaining Field closure remain open."
         ],
         "sourceCommit": "9fe6478f4e5692b34a2e855c5df3857fc9f8d3ea",
         "pullRequest": "https://github.com/fluke-jesadakorn/erpx/pull/12",
@@ -2374,16 +2380,25 @@
           "includesWaits": true
         },
         "devContainer": {
-          "status": "Bounded local qualification passed; scoped PR pending",
+          "status": "Merged; bounded local contributor qualification",
           "branch": "codex/service-parts-devcontainer",
           "sourceCodeCommit": "1f71a96fbccddbd8b2a8c5e29b7734dd6661c880",
           "contract": "docs/contracts/next/service-parts-devcontainer.md",
           "evidence": "docs/testing/evidence/2026-10-31-service-parts-devcontainer.json",
           "checklist": {
-            "closed": 7,
+            "closed": 8,
             "total": 8
           },
-          "scope": "Existing mapping confirmation, masters and draft Count; actual HMR/cache/restart. Cold warnings retained; no complete Field or releaseSSR claim."
+          "scope": "Existing mapping confirmation, masters and draft Count; actual HMR/cache/restart. Cold warnings retained; no complete Field or releaseSSR claim.",
+          "sourceCommit": "0778242709fc4f08c6794af012cef80b690d820a",
+          "pullRequest": "https://github.com/fluke-jesadakorn/erpx/pull/14",
+          "mergeCommit": "fff8fe9494f8581027d759a1fa3d68274622fdb1",
+          "elapsedClosedBundle": {
+            "startedAt": "2026-10-31T03:55:17+07:00",
+            "mergedAt": "2026-10-31T05:04:58+07:00",
+            "wallSeconds": 4181,
+            "includesWaits": true
+          }
         }
       }
     ]

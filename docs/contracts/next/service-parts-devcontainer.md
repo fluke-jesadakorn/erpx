@@ -27,4 +27,4 @@ This is existing-mapping confirmation and draft Count qualification. It does not
 - [x] Restart persistence of data, keys, source and caches.
 - [x] Populated official CLI lifecycle and exact-container execution.
 - [x] Source-bound evidence, known cold diagnostics and independent bounded review.
-- [ ] Final documentation checks and scoped PR merge into the migration branch, with remote SHA verification.
+- [x] Final documentation checks and scoped [PR #14](https://github.com/fluke-jesadakorn/erpx/pull/14) merge at `fff8fe9494f8581027d759a1fa3d68274622fdb1`, with remote SHA verification.
