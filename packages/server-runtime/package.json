@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./domain/native-engineering-roster": "./src/domain/native-engineering-roster.ts",
+    "./public/native-engineering-roster": "./src/public/native-engineering-roster.ts",
     "./adapters/identity-management-binding-facts": "./src/adapters/identity-management-binding-facts.ts",
     "./adapters/final-root-owner-projection-sources": "./src/adapters/final-root-owner-projection-sources.ts",
     "./adapters/application-request": "./src/adapters/application-request.ts",

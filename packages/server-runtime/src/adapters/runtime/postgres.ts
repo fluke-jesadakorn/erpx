@@ -5,11 +5,29 @@ import { currentReadMetrics, recordReadPoolWait, recordReadQuery, recordReadLock
 
 const instrumented = Symbol.for('erpx.postgres.readMetrics');
 const transactionOwnership = Symbol.for('erpx.postgres.transactionOwnership');
-type TransactionOwnership = { pool: Pool; active: boolean };
-const runtimeGlobal = globalThis as typeof globalThis & { [transactionOwnership]?: WeakMap<SqlDatabase, TransactionOwnership> };
+const nativeFenceOwnership = Symbol.for('erpx.postgres.nativeEngineeringFence');
+const nativeEngineeringMarker='/*erpx-native-engineering-fence*/';
+type NativeEngineeringFence={current:()=>boolean};
+type TransactionOwnership={pool:Pool;active:boolean};
+/** Strip PostgreSQL whitespace and nested comments before classifying controls. */
+function nativeEngineeringLeading(sql:string):string{
+ let i=0;
+ while(i<sql.length){
+  if(/\s/.test(sql[i]!)){i++;continue;}
+  if(sql.startsWith('--',i)){const end=sql.indexOf('\n',i+2);i=end<0?sql.length:end+1;continue;}
+  if(sql.startsWith('/*',i)){let depth=1;i+=2;while(i<sql.length&&depth){if(sql.startsWith('/*',i)){depth++;i+=2;}else if(sql.startsWith('*/',i)){depth--;i+=2;}else i++;}if(depth)throw new Error('NATIVE_ENGINEERING_QUERY_UNSUPPORTED');continue;}
+  break;
+ }
+ return sql.slice(i);
+}
+
+
+const runtimeGlobal = globalThis as typeof globalThis & { [transactionOwnership]?: WeakMap<SqlDatabase, TransactionOwnership>; [nativeFenceOwnership]?: WeakSet<PoolClient> };
 // A retained pool and an active callback keep their identity across dev reloads.
 // Raw client adapters and pinned sessions never receive this capability.
 const transactionOwners = runtimeGlobal[transactionOwnership] ??= new WeakMap<SqlDatabase, TransactionOwnership>();
+// Instrumented clients can outlive a module reload, just like transaction owners.
+const nativeFencedClients = runtimeGlobal[nativeFenceOwnership] ??= new WeakSet<PoolClient>();
 // Waiting for a local aggregate must not occupy every pool connection.
 // These empty promises schedule capacity only: the PostgreSQL session lock,
 // scoped owner row lock and SERIALIZABLE snapshot still authorize each write.
@@ -47,6 +65,18 @@ function instrumentClient(client: PoolClient) {
   Object.defineProperty(marked, instrumented, { value: true });
   const original = client.query;
   client.query = function(this: PoolClient, ...input: unknown[]) {
+    const queryText=typeof input[0]==='string'?input[0]:input[0]&&typeof input[0]==='object'&&'text' in input[0]?String(input[0].text):'';
+    // Fenced units own their transaction boundary. PostgreSQL's extended
+    // protocol rejects compound commands, including those hidden by quoting;
+    // callers cannot commit early and bypass the final attestation check.
+    if(nativeFencedClients.has(this)){
+      const leading=nativeEngineeringLeading(queryText);
+      if(/^(?:BEGIN|START|COMMIT|END|ROLLBACK|ABORT|SAVEPOINT|RELEASE|PREPARE|EXECUTE|DISCARD|RESET)\b/i.test(leading)||(/^SET\b/i.test(leading)&&!/^SET\s+(?:CONSTRAINTS\b|LOCAL\s+enable_seqscan\s*=\s*off\s*;?\s*$)/i.test(leading)))throw new Error('NATIVE_ENGINEERING_TRANSACTION_CONTROL_UNSUPPORTED');
+      if(typeof input[0]==='string')input[0]={text:input[0],queryMode:'extended'};
+      else if(input[0]&&typeof input[0]==='object'&&'text' in input[0]&&!('submit' in input[0]))input[0]={...input[0],queryMode:'extended'};
+      else throw new Error('NATIVE_ENGINEERING_QUERY_UNSUPPORTED');
+    }
+    if(queryText.includes(nativeEngineeringMarker)&&!nativeFencedClients.has(this))throw new Error('NATIVE_ENGINEERING_FENCE_REQUIRED');
     const scope = currentReadMetrics();
     if (!scope) return Reflect.apply(original, this, input);
     const started = performance.now();
@@ -190,14 +220,15 @@ class Statement implements SqlStatement {
     const { sql, args } = this.compiled();
     return client.query(sql, args);
   }
-  async all<T = Record<string, unknown>>() { const start = performance.now(); return result<T>(await this.execute(this.database.pool), start); }
+  private query(){return this.database instanceof PostgresDatabase && this.database.hasNativeEngineeringFence()?this.database.nativeEngineeringStatement(client=>this.execute(client),/^\s*SELECT\b/i.test(this.sql)&&this.sql.includes(nativeEngineeringMarker)&&!/\bFOR\s+(?:(?:NO\s+KEY|KEY)\s+)?(?:UPDATE|SHARE)\b/i.test(this.sql)):this.execute(this.database.pool);}
+  async all<T = Record<string, unknown>>() { const start = performance.now(); return result<T>(await this.query(), start); }
   run<T = Record<string, unknown>>() { return this.all<T>(); }
   async first<T = Record<string, unknown>>(column?: string): Promise<T | null> {
-    const row = (await this.execute(this.database.pool)).rows[0];
+    const row = (await this.query()).rows[0];
     return row === undefined ? null : column === undefined ? row as T : row[column] as T;
   }
   async raw<T = unknown[]>(options?: { columnNames?: boolean }): Promise<T[]> {
-    const query = await this.execute(this.database.pool);
+    const query = await this.query();
     const names = query.fields.map(field => field.name);
     const rows = query.rows.map(row => names.map(name => row[name]));
     return (options?.columnNames ? [names, ...rows] : rows) as T[];
@@ -205,7 +236,7 @@ class Statement implements SqlStatement {
 }
 export class PostgresDatabase implements SqlDatabase {
   readonly pool: Pool;
-  constructor(config: PoolConfig) {
+  constructor(config: PoolConfig, private readonly nativeEngineeringFence?:NativeEngineeringFence) {
     this.pool = new Pool({ pipeline: true, max: 1, idleTimeoutMillis: 30_000, connectionTimeoutMillis: 5_000,
       // These pools serve bounded OLTP reads/writes. Complex authorization predicates
       // can trigger expensive LLVM compilation before returning a handful of rows.
@@ -215,6 +246,21 @@ export class PostgresDatabase implements SqlDatabase {
     this.pool.on('error', () => console.error(JSON.stringify({ event: 'database_connection_error' })));
   }
   prepare(sql: string) { return new Statement(this, sql); }
+  hasNativeEngineeringFence(){return !!this.nativeEngineeringFence;}
+  private async startNativeEngineeringFence(client:PoolClient,readOnly=false){
+    if(!this.nativeEngineeringFence)return;
+    await client.query('LOCK TABLE pg_catalog.pg_database, pg_catalog.pg_shdescription IN SHARE MODE');
+    if(readOnly)await client.query('SET TRANSACTION READ ONLY');
+    if(!this.nativeEngineeringFence.current())throw new Error('NATIVE_ENGINEERING_ATTESTATION_CHANGED');
+    nativeFencedClients.add(client);
+  }
+  private finishNativeEngineeringFence(client:PoolClient){
+    if(this.nativeEngineeringFence&&!this.nativeEngineeringFence.current())throw new Error('NATIVE_ENGINEERING_ATTESTATION_CHANGED');
+    nativeFencedClients.delete(client);
+  }
+  async nativeEngineeringStatement<T>(action:(client:PoolClient)=>Promise<T>,readOnly:boolean):Promise<T>{
+    const client=await this.pool.connect();try{await client.query('BEGIN ISOLATION LEVEL SERIALIZABLE READ WRITE');await this.startNativeEngineeringFence(client,readOnly);const value=await action(client);this.finishNativeEngineeringFence(client);await client.query('COMMIT');return value;}catch(error){nativeFencedClients.delete(client);await client.query('ROLLBACK').catch(()=>{});throw error;}finally{client.release();}
+  }
   assertActiveTransaction(database: SqlDatabase) {
     const ownership = transactionOwners.get(database);
     if (!ownership?.active || ownership.pool !== this.pool) throw new Error('TRANSACTION_NOT_ACTIVE_OR_OWNED');
@@ -222,6 +268,7 @@ export class PostgresDatabase implements SqlDatabase {
   /** Pin a connection for a session advisory lock without holding a transaction
    * across external work. Each batch still commits independently on this client. */
   async withSession<T>(action: (session: SqlDatabase) => Promise<T>): Promise<T> {
+    if(this.nativeEngineeringFence)throw new Error('NATIVE_ENGINEERING_SESSION_UNSUPPORTED');
     const client = await this.pool.connect();
     try { return await action(new SessionDatabase(client)); }
     finally { client.release(); }
@@ -239,11 +286,12 @@ export class PostgresDatabase implements SqlDatabase {
         const lock=`attachment-object:${company}:${key}`;
         try {await client.query('SELECT pg_advisory_lock(hashtextextended($1,0))',[lock]);held.push(lock);} catch(error) {discard=true;throw error;}
       }
-      await client.query('BEGIN ISOLATION LEVEL SERIALIZABLE');inTransaction=true;
+      await client.query('BEGIN ISOLATION LEVEL SERIALIZABLE');inTransaction=true;await this.startNativeEngineeringFence(client);
       const tx=new TransactionDatabase(client);const ownership={pool:this.pool,active:true};transactionOwners.set(tx,ownership);
-      try {const result=await action(tx);ownership.active=false;await client.query('COMMIT');inTransaction=false;return result;}
+      try {const result=await action(tx);ownership.active=false;this.finishNativeEngineeringFence(client);await client.query('COMMIT');inTransaction=false;return result;}
       finally {ownership.active=false;}
     } catch(error) {
+      nativeFencedClients.delete(client);
       if(inTransaction)try{await client.query('ROLLBACK');inTransaction=false;}catch{discard=true;}
       throw error;
     } finally {
@@ -271,19 +319,19 @@ export class PostgresDatabase implements SqlDatabase {
           // Prefer fine-grained indexed predicate locks for an owner's selected
           // transaction. PostgreSQL can still scan when no indexed path exists;
           // SET LOCAL cannot leak this preference through the pooled connection.
-          await client.query(options?.preferIndexedReads
-            ? 'BEGIN ISOLATION LEVEL SERIALIZABLE; SET LOCAL enable_seqscan=off'
-            : 'BEGIN ISOLATION LEVEL SERIALIZABLE');
+          await client.query('BEGIN ISOLATION LEVEL SERIALIZABLE');
+          await this.startNativeEngineeringFence(client);
+          if(options?.preferIndexedReads)await client.query('SET LOCAL enable_seqscan=off');
           const tx = new TransactionDatabase(client, options?.pipelineBatches);
           const ownership = { pool: this.pool, active: true };
           transactionOwners.set(tx, ownership);
           let value: T;
           try { value = await action(tx); }
           finally { ownership.active = false; }
-          await client.query('COMMIT');
+          this.finishNativeEngineeringFence(client);await client.query('COMMIT');
           return value;
         } catch (error) {
-          await client.query('ROLLBACK').catch(() => {});
+          nativeFencedClients.delete(client);await client.query('ROLLBACK').catch(() => {});
           recordReadTransactionRetry(error,attempt < 3);
           if (attempt >= 3 || !['40001', '40P01'].includes((error as { code?: string }).code ?? '')) throw error;
         } finally {
@@ -303,14 +351,15 @@ export class PostgresDatabase implements SqlDatabase {
       const client = await this.pool.connect();
       try {
         await client.query('BEGIN ISOLATION LEVEL SERIALIZABLE');
+        await this.startNativeEngineeringFence(client);
         const results: SqlResult<T>[] = [];
         for (const statement of statements as Statement[]) {
           const start = performance.now();
           results.push(result<T>(await statement.execute(client), start));
         }
-        await client.query('COMMIT'); return results;
+        this.finishNativeEngineeringFence(client);await client.query('COMMIT'); return results;
       } catch (error) {
-        await client.query('ROLLBACK').catch(() => {});
+        nativeFencedClients.delete(client);await client.query('ROLLBACK').catch(() => {});
         recordReadTransactionRetry(error,attempt < 3);
         if (attempt >= 3 || !['40001', '40P01'].includes((error as { code?: string }).code ?? '')) throw error;
       } finally { client.release(); }
@@ -318,6 +367,7 @@ export class PostgresDatabase implements SqlDatabase {
     }
   }
   async exec(sql: string) {
+    if(this.nativeEngineeringFence)throw new Error('NATIVE_ENGINEERING_EXEC_UNSUPPORTED');
     const start = performance.now(), results = await this.pool.query(sql);
     return { count: Array.isArray(results) ? results.length : 1, duration: performance.now() - start };
   }
