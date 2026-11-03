@@ -3329,11 +3329,10 @@ async fn run_outbox_worker_file(path:&Path,shutdown:impl std::future::Future<Out
     if field {
         if !config.field_service_source_record_reads.values().any(|m|matches!(m,crate::field_service_source_record::SourceRecordMode::Enforced)){return Err("FIELD_WORKER_ENFORCED_SOURCE_TARGET_REQUIRED");}
     } else if config.field_service_initial_counts.is_empty(){return Err("COUNT_WORKER_TARGET_REQUIRED");}
-    if let Some(target)=&retry {
-        if !field||!config.holdings.iter().any(|h|h.registration.holding_id==target.holding)
-            ||!matches!(config.field_service_source_record_reads.get(&target.holding),Some(crate::field_service_source_record::SourceRecordMode::Enforced)){
-            return Err("FIELD_RETRY_ENFORCED_HOLDING_REQUIRED");
-        }
+    if let Some(target)=&retry
+        && (!field||!config.holdings.iter().any(|h|h.registration.holding_id==target.holding)
+            ||!matches!(config.field_service_source_record_reads.get(&target.holding),Some(crate::field_service_source_record::SourceRecordMode::Enforced))){
+        return Err("FIELD_RETRY_ENFORCED_HOLDING_REQUIRED");
     }
     // Startup and admission share the same explicit Holding partition. A
     // registered but shadow/disabled Holding must never be drained implicitly.

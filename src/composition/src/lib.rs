@@ -248,6 +248,7 @@ pub mod field_push_worker;
 
 #[cfg(feature="field-service")]
 pub mod field_reservation_alerts;
+pub mod inventory_reservation_alerts;
 
 #[cfg(feature="field-service")]
 pub mod native_work_roles;

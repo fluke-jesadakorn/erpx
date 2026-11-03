@@ -373,3 +373,8 @@ required-features = ["existing-business"]
 name = "support_evidence_command_postgres"
 path = "../../tests/integration/support/rust-support-evidence-command-postgres.test.rs"
 required-features = ["existing-business"]
+
+[[test]]
+name = "inventory_reservation_alerts_postgres"
+path = "../../tests/integration/inventory/rust-inventory-reservation-alerts-postgres.test.rs"
+required-features = ["private-field-api"]

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-03T20:43:44+00:00",
+  "updatedAt": "2026-11-03T20:59:19+00:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -19,8 +19,8 @@
     "qualifiedBusinessFlows": 30,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 5,
-    "workflowsVerified": 13,
+    "workflowsPartial": 4,
+    "workflowsVerified": 14,
     "workflowsMerged": 13,
     "ownersComplete": 1,
     "bundleChecklistComplete": 18,
@@ -3097,6 +3097,17 @@
       "durableContractRefs": [
         "docs/contracts/next/apps.md"
       ]
+    },
+    {
+      "id": "inventory-reservation-alerts",
+      "kind": "business-flow-evidence",
+      "status": "flow-complete",
+      "scope": "Native scheduled Sales/Manufacturing reservation alerts: expiring/expired, idempotency, source guards, production rollout and persisted staff notifications.",
+      "sourceIdentity": "546d1525c8178141357c7c5c1ff060d0f542c8dd",
+      "evidenceRef": "docs/testing/evidence/2026-11-04-inventory-reservation-alerts.json",
+      "durableContractRefs": [
+        "docs/contracts/next/inventory.md"
+      ]
     }
   ],
   "workflows": [
@@ -3952,17 +3963,18 @@
       "kind": "module",
       "owner": "inventory",
       "scope": "Reservations",
-      "partial": true,
-      "verified": false,
+      "partial": false,
+      "verified": true,
       "merged": false,
       "evidenceFlows": [
         "field-service-reserve-part",
         "field-service-issue-part",
         "field-service-visit-complete",
-        "field-service-order-cancel"
+        "field-service-order-cancel",
+        "inventory-reservation-alerts"
       ],
       "sourceRef": "packages/server-inventory/src/public/inventory-reservation-alerts.ts",
-      "gap": "Only Field-scoped reservation and release effects are evidenced; other reservation sources and Inventory owner remain open."
+      "gap": "Verified native Sales and Manufacturing reservation alert job with expiring/expired phases, idempotent notifications, source status/quantity guards and the inventory production rollout gate. Existing Field reservation release/consume effects remain covered; POS reservations are a separate source. The Inventory owner remains partial for availability and issues/movements."
     },
     {
       "id": "inventory/feature-stock-register",
