@@ -122,7 +122,7 @@ impl FieldServicePurchases {
                         now,
                     )
                     .await?
-                    .require_allowed().map_err(|_| BusinessError::new(FailureKind::Conflict,"PACKAGE_CAPABILITY_CHANGED","Package access changed. Reload and review before retrying."))?
+                    .require_allowed().map_err(|error| if error.code == "COMMERCIAL_PURCHASE_CHANGED" { BusinessError::new(FailureKind::Conflict,"PACKAGE_CAPABILITY_CHANGED","Package access changed. Reload and review before retrying.") } else { error })?
                     .clone(),
             );
         }

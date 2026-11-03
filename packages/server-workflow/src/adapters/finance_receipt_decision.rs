@@ -1,7 +1,8 @@
 //! Workflow-owned controlled Finance payment review decisions on the original unit.
-use crate::application::commands::CommandActor;
+use crate::{application::commands::CommandActor, domain::command_json::CommandJson};
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::{BusinessError, FailureKind};
+use sha2::{Digest, Sha256};
 use sqlx::{Connection, PgConnection};
 type Error = PgTransactionError<BusinessError>;
 type Unit = (String, i32, String, String);
@@ -117,6 +118,23 @@ impl PlannedFinanceReceiptDecision {
         }
         Ok(())
     }
+}
+
+/// The ordered pre-action receipt lines and lot lines are canonicalized with
+/// ECMAScript JSON.stringify before the SHA-256 digest is recorded.
+pub fn finance_receipt_decision_digest(
+    reason: &str,
+    lines: &str,
+    lot_lines: &str,
+) -> Result<String, BusinessError> {
+    let reason = CommandJson::from_serializable(&reason)?;
+    let body = CommandJson::parse(&format!(
+        "{{\"reason\":{},\"lines\":{},\"lotLines\":{}}}",
+        reason.as_str(),
+        lines,
+        lot_lines
+    ))?;
+    Ok(hex::encode(Sha256::digest(body.as_str().as_bytes())))
 }
 
 #[cfg(test)]
