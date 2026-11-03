@@ -1,0 +1,168 @@
+{
+  "version": 1,
+  "date": "2026-11-03",
+  "status": "local scoped Rust candidate qualified; PR integration pending",
+  "capability": "field-integrated-exact-candidate",
+  "integrationTarget": "codex/rust-backend-migration",
+  "sourceCommit": "fabe2d8f2",
+  "codeCommit": "2e8133bb1",
+  "transport": {
+    "browser": "Chromium 1248 on the host",
+    "relay": "loopback CONNECT relay over docker exec stdio into the finite cohort",
+    "isolation": "cohort keeps --network none, no published ports, registered-host allowlist",
+    "auth": "normal Account sign-in, SSO, Company and role selection; no cookie injection"
+  },
+  "journey": {
+    "agreement": {
+      "draftVersion": 1,
+      "activeVersion": 2,
+      "status": "active"
+    },
+    "request": {
+      "id": "service-order-d31931f0-c0d6-4a39-a23f-968271f315c4",
+      "ticketId": "ticket-d31931f0-c0d6-4a39-a23f-968271f315c4",
+      "status": "scheduled"
+    },
+    "visit": [
+      "dispatch",
+      "start",
+      "exception",
+      "resume",
+      "complete"
+    ],
+    "billingRelease": {
+      "status": "billed",
+      "version": 7
+    },
+    "billing": {
+      "invoiceId": "field-invoice-cdc4ad75-3b97-431b-8b93-47246517671f",
+      "amountMinor": 10000,
+      "currency": "THB"
+    },
+    "invoicePost": {
+      "journalId": "journal-d25657dc-ec30-444a-9e91-d626712c643d"
+    },
+    "paymentCreate": {
+      "id": "pay-7ce82acb-da25-4e9a-920f-990daf2c43ce",
+      "status": "draft",
+      "version": 1
+    },
+    "paymentApprove": {
+      "status": "approved",
+      "version": 2
+    },
+    "paymentRelease": {
+      "status": "released",
+      "version": 3
+    },
+    "bankImport": {
+      "id": "statement-8023783c-8481-4111-b703-560121433981"
+    },
+    "paymentConfirm": {
+      "status": "settled",
+      "version": 4,
+      "journalId": "journal-b98752c2-0a34-4fa8-9b88-3aeea344dd62",
+      "netBankMinor": 10000
+    },
+    "paymentReadback": {
+      "status": "settled",
+      "version": 4,
+      "allocations": 1
+    },
+    "invoiceFinal": {
+      "status": "paid",
+      "outstanding": 0,
+      "total": 10000
+    },
+    "workReadback": {
+      "status": 200,
+      "rows": 16,
+      "fieldRows": 11,
+      "orderLinked": true
+    },
+    "supportOwnerPage": {
+      "status": 200,
+      "finalUrl": "https://acme.jesadakorn.com/service/support/ticket-d31931f0-c0d6-4a39-a23f-968271f315c4"
+    },
+    "pageErrors": [],
+    "consoleErrors": [
+      "reviewer: Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+      "technician: Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+      "technician: Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+      "manager: Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+      "owner: Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+      "serviceReviewer: Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+      "owner: Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+      "owner: Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+      "technician: Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+      "manager: Failed to load resource: the server responded with a status of 502 ()",
+      "owner: Failed to load resource: the server responded with a status of 502 ()",
+      "reviewer: Failed to load resource: the server responded with a status of 502 ()",
+      "serviceReviewer: Failed to load resource: the server responded with a status of 502 ()",
+      "technician: Failed to load resource: the server responded with a status of 502 ()",
+      "owner: Fetch API cannot load chrome-error://chromewebdata/__erpx/service/api/v1/holdings/acme/work/summary. URL scheme \"chrome-error\" is not supported.",
+      "owner: Failed to load resource: the server responded with a status of 502 ()"
+    ],
+    "consoleErrorNote": "16 transient 502 resource loads occurred while the finite cohort dev apps restarted; every functional step retried and passed and pageErrors stayed 0. Work/Support readback was re-run on the same order after the apps recovered."
+  },
+  "persisted": {
+    "payment": {
+      "id": "pay-7ce82acb-da25-4e9a-920f-990daf2c43ce",
+      "status": "settled",
+      "version": 4
+    },
+    "bankTransaction": {
+      "id": "bankrow-8023783c-8481-4111-b703-560121433981-0",
+      "matchStatus": "matched",
+      "version": 2,
+      "amountMinor": 10000
+    },
+    "allocationCount": 1,
+    "allocationMinor": 10000,
+    "invoice": {
+      "status": "paid",
+      "outstandingMinor": 0
+    },
+    "journal": {
+      "id": "journal-b98752c2-0a34-4fa8-9b88-3aeea344dd62",
+      "status": "posted",
+      "debitMinor": 10000,
+      "creditMinor": 10000,
+      "balanced": true
+    }
+  },
+  "nativeChecks": [
+    {
+      "suite": "finance.rust-service-invoice-posting.unit",
+      "result": "10 passed; controlled receipt three-person identity and ordered fresh decisions"
+    },
+    {
+      "suite": "field_service.rust-http-parity-postgres.integration",
+      "result": "40/41 passed in the suite run; the remaining case passed alone (PostgreSQL connection slots, not an assertion)"
+    },
+    {
+      "suite": "field_service.rust-files-intake-command-postgres.integration + files scan",
+      "result": "24/25 passed; the deadlock-retry case passed alone (parallel-suite flake)"
+    },
+    {
+      "suite": "collaboration.rust-field-collaboration-selected-postgres.integration",
+      "result": "selected Records actor and fully covered invoice cases pass; the latter needs RUST_MIN_STACK=16 MiB in the local debug runner"
+    },
+    {
+      "suite": "operations.rust-field-exceptions.unit",
+      "result": "10 passed"
+    },
+    {
+      "suite": "support + records source guards",
+      "result": "Support 61 unit + 9 integration, Records 29 generic Field denial passed"
+    }
+  ],
+  "limits": [
+    "Local scoped candidate evidence, not owner/workflow acceptance.",
+    "The Support owner page returns 200 but the local canonical redirect renders the Field workspace; the native Support read is 403 PACKAGE_REQUIRED because the fixture Company has no Support package purchase. The persisted case is closed with source_kind=field_service and the matching order.",
+    "No parts were consumed by this visit; stock readback is covered by the separate native stock/count cases, not this journey.",
+    "Checklist 12, 13, 16, 17 and 18 plus the scoped PR remain open.",
+    "The single journey run recorded 16 transient 502 console messages from dev-app restarts; the core steps still passed, and Work/Support readback was re-run separately on the same order."
+  ],
+  "privateEvidence": ".scratch/dev/field-browser-journey-v2-result-final.json"
+}
