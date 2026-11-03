@@ -30,6 +30,7 @@ type Error = PgTransactionError<BusinessError>;
 pub struct InventoryAvailabilityResponse {
     pub data: Vec<AvailabilityRow>,
     pub context: FieldServiceRenderedContext,
+    pub currency: String,
 }
 
 #[derive(Clone)]
@@ -125,9 +126,30 @@ impl<C: Clock + Send + Sync + 'static> InventoryAvailabilityReadService<C> {
                             .as_ref()
                             .map(|value| value.as_str());
                         let data = read_availability(c, company.as_str(), branch).await?;
+                        let chart: Option<String> = sqlx::query_scalar(
+                            "SELECT base_currency FROM finance_charts WHERE company_id=$1 AND status='active' ORDER BY id LIMIT 1",
+                        )
+                        .bind(company.as_str())
+                        .fetch_optional(&mut *c)
+                        .await?;
+                        let currency = match chart {
+                            Some(value) => value,
+                            None => sqlx::query_scalar(
+                                "SELECT default_currency FROM company_money_settings WHERE company_id=$1",
+                            )
+                            .bind(company.as_str())
+                            .fetch_optional(&mut *c)
+                            .await?
+                            .ok_or_else(|| BusinessError::new(
+                                FailureKind::Unavailable,
+                                "INVENTORY_AVAILABILITY_CURRENCY_REQUIRED",
+                                "The Inventory valuation currency is unavailable.",
+                            ))?,
+                        };
                         Ok(InventoryAvailabilityResponse {
                             data,
                             context: context(current)?,
+                            currency,
                         })
                     })
                 },

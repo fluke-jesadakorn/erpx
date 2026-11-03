@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-03T21:00:25+00:00",
+  "updatedAt": "2026-11-03T21:45:14+00:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -19,8 +19,8 @@
     "qualifiedBusinessFlows": 30,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 4,
-    "workflowsVerified": 14,
+    "workflowsPartial": 3,
+    "workflowsVerified": 15,
     "workflowsMerged": 14,
     "ownersComplete": 1,
     "bundleChecklistComplete": 18,
@@ -3119,6 +3119,17 @@
       "durableContractRefs": [
         "docs/contracts/next/inventory.md"
       ]
+    },
+    {
+      "id": "inventory-availability-read",
+      "kind": "business-flow-evidence",
+      "status": "flow-complete",
+      "scope": "Native Inventory availability read: domain formula, serializable PostgreSQL projection, private HTTP route, Next transport, purchase/CAS authority, desktop/mobile stock page.",
+      "sourceIdentity": "inventory-availability-read",
+      "evidenceRef": "docs/testing/evidence/2026-11-04-inventory-availability-read.json",
+      "durableContractRefs": [
+        "docs/contracts/next/inventory.md"
+      ]
     }
   ],
   "workflows": [
@@ -3957,17 +3968,19 @@
       "kind": "module",
       "owner": "inventory",
       "scope": "Availability",
-      "partial": true,
-      "verified": false,
+      "partial": false,
+      "verified": true,
       "merged": false,
       "evidenceFlows": [
         "field-service-reserve-part",
         "field-service-issue-part",
         "field-service-order-detail-read",
-        "field-service-raw-physical-scope-interop"
+        "field-service-raw-physical-scope-interop",
+        "inventory-availability-read",
+        "inventory-availability-browser"
       ],
       "sourceRef": "packages/server-commerce/src/public/commerce.ts",
-      "gap": "Only Field-scoped availability/stock witnesses are evidenced; Inventory owner and other availability paths remain open."
+      "gap": "Verified native Inventory availability read across the Company and optional branch scope: on hand, active reservations, quarantine, in-transit, derived available and chart valuation currency, with current authority, rendered-context CAS and inventory.stock-core purchase. Desktop and mobile stock pages render the native row even when Commerce posting setup is absent."
     },
     {
       "id": "inventory/reservations",

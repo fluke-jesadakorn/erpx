@@ -22,14 +22,15 @@ const context={...actor,userId:'user-1',holdingId:'h001',companyId:'company',bra
 const row={warehouseId:'w',productId:'p',sku:'SKU',name:'Product',unit:'pcs',trackingMode:'none',
   warehouseName:'Warehouse',quantityMilli:10000,reservedMilli:3000,quarantinedMilli:2000,
   inTransitMilli:1500,availableMilli:7000,valueMinor:1000,version:1};
-const ok=()=>new Response(JSON.stringify({context,data:[row]}),{status:200,headers:{'content-type':'application/json'}});
+const ok=()=>new Response(JSON.stringify({context,data:[row],currency:'THB'}),{status:200,headers:{'content-type':'application/json'}});
 
 describe('native Inventory availability transport',()=>{
  it('forwards the configured Holding with the original session and CAS',async()=>{
   const transport=vi.fn().mockResolvedValue(ok());
   const read=createNativeInventoryAvailabilityReader(config(),transport);
-  const rows=await read(headers(),'acme',actor);
-  expect(rows).toEqual([{warehouse_id:'w',product_id:'p',sku:'SKU',name:'Product',unit:'pcs',
+  const result=await read(headers(),'acme',actor);
+  expect(result.currency).toBe('THB');
+  expect(result.rows).toEqual([{warehouse_id:'w',product_id:'p',sku:'SKU',name:'Product',unit:'pcs',
     tracking_mode:'none',warehouse_name:'Warehouse',quantity_milli:10000,reserved_milli:3000,
     quarantined_milli:2000,in_transit_milli:1500,available_milli:7000,value_minor:1000,version:1}]);
   const [url,out]=transport.mock.calls[0];
@@ -57,10 +58,10 @@ describe('native Inventory availability transport',()=>{
  });
 
  it('rejects a changed rendered context or a derived availability mismatch',async()=>{
-  const changed=vi.fn().mockResolvedValue(new Response(JSON.stringify({context:{...context,revision:8},data:[row]}),{status:200,headers:{'content-type':'application/json'}}));
+  const changed=vi.fn().mockResolvedValue(new Response(JSON.stringify({context:{...context,revision:8},data:[row],currency:'THB'}),{status:200,headers:{'content-type':'application/json'}}));
   await expect(createNativeInventoryAvailabilityReader(config(),changed)(headers(),'acme',actor))
     .rejects.toMatchObject({code:'NATIVE_INVENTORY_AVAILABILITY_CONTEXT_CHANGED'});
-  const mismatch=vi.fn().mockResolvedValue(new Response(JSON.stringify({context,data:[{...row,availableMilli:9999}]}),{status:200,headers:{'content-type':'application/json'}}));
+  const mismatch=vi.fn().mockResolvedValue(new Response(JSON.stringify({context,data:[{...row,availableMilli:9999}],currency:'THB'}),{status:200,headers:{'content-type':'application/json'}}));
   await expect(createNativeInventoryAvailabilityReader(config(),mismatch)(headers(),'acme',actor))
     .rejects.toMatchObject({code:'NATIVE_INVENTORY_AVAILABILITY_RESPONSE_INVALID'});
  });

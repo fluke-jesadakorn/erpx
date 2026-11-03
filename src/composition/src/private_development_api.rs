@@ -2410,6 +2410,13 @@ async fn assemble_checked(
                 config.holdings.iter().find(|h| &h.registration.holding_id == holding_id).map(|h| (h.host.clone(), h.registration.slug.clone()))
             })
             .collect(),
+        inventory_availability_targets: config
+            .inventory_availability_reads
+            .keys()
+            .filter_map(|holding_id| {
+                config.holdings.iter().find(|h| &h.registration.holding_id == holding_id).map(|h| (h.host.clone(), h.registration.slug.clone()))
+            })
+            .collect(),
         account_bootstrap: config.account_bootstrap,
     });
     Ok(CheckedAssembly { router:router.layer(middleware::from_fn_with_state(state,boundary)), #[cfg(feature="files-scan-worker")] files_workers })
@@ -2461,6 +2468,7 @@ struct Boundary {
     support_session_targets: BTreeSet<(String, String)>,
     support_sla_targets: BTreeSet<(String, String)>,
     support_evidence_targets: BTreeSet<(String, String)>,
+    inventory_availability_targets: BTreeSet<(String, String)>,
     account_bootstrap: bool,
 }
 enum BoundaryDenial {
@@ -3141,10 +3149,17 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
                 .contains(&(host.to_owned(), (*slug).to_owned())),
             _ => false,
         };
+    let inventory_availability = request.method() == axum::http::Method::GET
+        && match request.uri().path().split('/').collect::<Vec<_>>().as_slice() {
+            ["", "api", "v1", "holdings", slug, "inventory", "availability"] => state
+                .inventory_availability_targets
+                .contains(&(host.to_owned(), (*slug).to_owned())),
+            _ => false,
+        };
     if !(matches!(
         request.uri().path(),
         "/api/auth/get-session" | "/api/health" | "/api/ready"
-    ) || account_mfa || service_packages || field_work_roles || field_operations || field_support || field_collaboration || field_inbox_state || support_ticket || support_incident || support_session || support_sla || support_evidence || finance_workspace
+    ) || account_mfa || service_packages || field_work_roles || field_operations || field_support || field_collaboration || field_inbox_state || support_ticket || support_incident || support_session || support_sla || support_evidence || inventory_availability || finance_workspace
         || finance_invoice_runtime
         || finance_field_journal_flow
         || finance_invoice_post

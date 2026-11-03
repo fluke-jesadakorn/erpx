@@ -3,6 +3,7 @@ export {
   nativeInventoryAvailability,
   nativeInventoryAvailabilityFromHeaders,
   NativeAvailabilityError,
+  type NativeAvailability,
   type NativeAvailabilityContext,
   type NativeAvailabilityRow,
 } from '../adapters/server/native-availability';

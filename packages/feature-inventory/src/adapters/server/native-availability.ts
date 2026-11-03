@@ -18,6 +18,11 @@ export type NativeAvailabilityContext = {
   departmentSlug?: string;
 };
 
+export type NativeAvailability = {
+  rows: NativeAvailabilityRow[];
+  currency: string;
+};
+
 export type NativeAvailabilityRow = {
   warehouse_id: string;
   product_id: string;
@@ -206,7 +211,7 @@ function row(value: unknown): NativeAvailabilityRow {
 function validate(
   value: unknown,
   actor: NativeAvailabilityContext,
-): NativeAvailabilityRow[] {
+): NativeAvailability {
   if (!object(value) || !object(value.context) || !Array.isArray(value.data)) {
     return fail('NATIVE_INVENTORY_AVAILABILITY_RESPONSE_INVALID');
   }
@@ -224,10 +229,10 @@ function validate(
   ) {
     return fail('NATIVE_INVENTORY_AVAILABILITY_CONTEXT_CHANGED');
   }
-  if (value.data.length > 1000) {
+  if (value.data.length > 1000 || !text(value.currency, 3) || value.currency.length !== 3) {
     return fail('NATIVE_INVENTORY_AVAILABILITY_RESPONSE_INVALID');
   }
-  return value.data.map(row);
+  return {rows: value.data.map(row), currency: value.currency};
 }
 
 export function createNativeInventoryAvailabilityReader(raw: string, transport: Transport = direct) {
@@ -236,7 +241,7 @@ export function createNativeInventoryAvailabilityReader(raw: string, transport: 
     incoming: Pick<Headers, 'get'>,
     slug: string,
     actor: NativeAvailabilityContext,
-  ): Promise<NativeAvailabilityRow[]> => {
+  ): Promise<NativeAvailability> => {
     const host = incoming.get('host');
     const target = config.holdings.find(
       (holding) => new URL(holding.origin).host === host && holding.holdingSlug === slug,
@@ -293,7 +298,7 @@ export async function nativeInventoryAvailability(
   actor: NativeAvailabilityContext | undefined,
   incoming: Pick<Headers, 'get'>,
   holdingSlug: string,
-): Promise<NativeAvailabilityRow[] | undefined> {
+): Promise<NativeAvailability | undefined> {
   const raw = process.env.ERPX_NATIVE_INVENTORY_AVAILABILITY_CONFIG;
   if (raw === undefined) return undefined;
   if (!actor) return fail('NATIVE_INVENTORY_AVAILABILITY_CONTEXT_CHANGED');
@@ -303,6 +308,6 @@ export async function nativeInventoryAvailability(
 export async function nativeInventoryAvailabilityFromHeaders(
   actor: NativeAvailabilityContext | undefined,
   holdingSlug: string,
-): Promise<NativeAvailabilityRow[] | undefined> {
+): Promise<NativeAvailability | undefined> {
   return nativeInventoryAvailability(actor, await headers(), holdingSlug);
 }
