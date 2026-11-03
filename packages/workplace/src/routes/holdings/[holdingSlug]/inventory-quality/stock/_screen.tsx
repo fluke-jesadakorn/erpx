@@ -23,7 +23,7 @@ import { redirect } from "next/navigation";
 import { salesCustomerLegacyDestination } from "@erpx/server-sales/public/rules/navigation";
 
 import { InventoryReorderConsole } from "@erpx/feature-inventory/components/inventory-reorder-console";
-import { nativeInventoryAvailabilityFromHeaders } from "@erpx/feature-inventory/lib/native-availability";
+import { nativeInventoryAvailabilityFromHeaders, nativeInventoryMovementsFromHeaders } from "@erpx/feature-inventory/lib/native-availability";
 
 import { frontWorkspaceHref } from "@erpx/server-work_projection/public/front-app";
 import { RecordDocumentPanel } from "@erpx/feature-files/components/record-document-panel";
@@ -78,6 +78,25 @@ export default async function CommercePage({ params, searchParams, }: {
         : undefined,
       holdingSlug,
     ).catch((error) => pageError(error, holdingSlug));
+    const nativeMovements = await nativeInventoryMovementsFromHeaders(
+      actor.authority && actor.iam
+        ? {
+            userId: actor.userId,
+            holdingId: actor.holdingId,
+            holdingSlug,
+            companyId: actor.companyId,
+            branchId: actor.branchId,
+            departmentId: actor.departmentId,
+            assignmentId: actor.assignmentId,
+            revision: actor.authority.revision,
+            assignmentVersion: actor.authority.assignmentVersion,
+            branchSlug: actor.scope.kind === "holding" ? undefined : actor.scope.branchSlug ?? undefined,
+            departmentSlug: actor.scope.kind === "department" ? actor.scope.departmentSlug ?? undefined : undefined,
+          }
+        : undefined,
+      holdingSlug,
+      typeof search.movementCursor === "string" ? search.movementCursor : undefined,
+    ).catch((error) => pageError(error, holdingSlug));
     let data: Awaited<ReturnType<typeof commercePage>>;
     try {
       data = await commercePage(actor, { ...search, view, kind: partyKind });
@@ -105,6 +124,12 @@ export default async function CommercePage({ params, searchParams, }: {
       }
     }
     const stockRows = nativeStock?.rows ?? data.stock;
+    const movementRows = nativeMovements?.rows ?? data.moves;
+    const movementPage = nativeMovements
+      ? nativeMovements.nextCursor
+        ? { items: movementRows, nextCursor: nativeMovements.nextCursor, previousCursor: null }
+        : null
+      : data.movementPage;
     const requestData = search.request
         ? await (await commercePresentationQueries(actor.holdingId)).employeeRequestDetail(actor, search.request).catch((error) => pageError(error, holdingSlug))
         : null;
@@ -290,7 +315,7 @@ export default async function CommercePage({ params, searchParams, }: {
             </AttachmentFeatureSurface>
             <FeatureWidget appearance="standard" id="operations-sales-movement-history" title="Movement history">
               <Card as="section" appearance="standard" className="ui-panel">
-                {data.moves.map((m) => (<Link className="ui-record-item" key={String(m.id)} href={String(m.source_type).startsWith("pos_")
+                {movementRows.map((m) => (<Link className="ui-record-item" key={String(m.id)} href={String(m.source_type).startsWith("pos_")
                     ? `${frontPosHref ?? canonicalUiHref(`${base}/pos`)}?movement=${m.id}`
                     : m.source_type === "pms"
                         ? canonicalUiHref(`${base}/pms/inventory?property=${m.source_id}`)
@@ -309,7 +334,7 @@ export default async function CommercePage({ params, searchParams, }: {
                       {String(m.order_number)} · {String(m.fulfillment_date)}
                     </span>
                   </Link>))}
-                {data.movementPage && (<ListPagination {...data.movementPage} cursorName="movementCursor" query={search} count={data.movementPage.items.length}/>)}
+                {movementPage && (<ListPagination {...movementPage} cursorName="movementCursor" query={search} count={movementPage.items.length}/>)}
               </Card>
             </FeatureWidget>
           </>)}

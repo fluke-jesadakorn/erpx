@@ -383,3 +383,8 @@ required-features = ["private-field-api"]
 name = "inventory_availability_read_postgres"
 path = "../../tests/integration/inventory/rust-inventory-availability-read-postgres.test.rs"
 required-features = ["private-field-api"]
+
+[[test]]
+name = "inventory_movements_postgres"
+path = "../../tests/integration/inventory/rust-inventory-movements-postgres.test.rs"
+required-features = ["private-field-api"]

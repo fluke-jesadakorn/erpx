@@ -1,3 +1,4 @@
+pub(crate) mod movement_read;
 pub(crate) mod availability_read;
 pub(crate) mod postgres_consumption;
 pub(crate) mod postgres_consumption_finance;

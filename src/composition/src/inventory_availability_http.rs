@@ -7,7 +7,7 @@ use crate::{
 };
 use axum::{
     Json, Router,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::{HeaderMap, HeaderValue, StatusCode, header},
     response::{IntoResponse, Response},
     routing::get,
@@ -64,11 +64,101 @@ pub fn inventory_availability_http_router<C: Clock + Send + Sync + 'static>(
             "/api/v1/holdings/{holding_slug}/inventory/availability",
             get(read::<C>),
         )
+        .route(
+            "/api/v1/holdings/{holding_slug}/inventory/movements",
+            get(read_movements::<C>),
+        )
         .with_state(Arc::new(ReadState {
             policy,
             scopes,
             targets: configured,
         })))
+}
+
+#[derive(serde::Deserialize)]
+struct MovementQuery {
+    cursor: Option<String>,
+}
+
+async fn read_movements<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path(slug): Path<String>,
+    Query(query): Query<MovementQuery>,
+    headers: HeaderMap,
+) -> Response {
+    let result = async {
+        if query
+            .cursor
+            .as_deref()
+            .is_some_and(|value| value.is_empty() || value.len() > 400 || value.chars().any(char::is_control))
+        {
+            return Err(BusinessError::invalid(
+                "INVENTORY_MOVEMENT_CURSOR_INVALID",
+                "Use the cursor from the current movement page.",
+            )
+            .into());
+        }
+        let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
+        let target = selected_company_target(&state.targets, host, &slug, &headers)?;
+        let inbound = parse_inbound_account_request(&state.policy, &headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(missing().into());
+        }
+        if unique_request_header(&headers, "origin")?
+            .is_some_and(|value| value != inbound.expected_origin())
+        {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            )
+            .into());
+        }
+        let (branch, department) = state.scopes.slugs(&headers)?.clone();
+        let captured = CapturedHoldingMutation::capture(&headers, branch, department);
+        let company = target.service.company_id().clone();
+        target
+            .service
+            .read_movements(
+                host,
+                inbound.into_proof(),
+                move || captured.resolve_read(company),
+                query.cursor,
+            )
+            .await
+    }
+    .await;
+    let mut response = match result {
+        Ok(data) => Json(data).into_response(),
+        Err(PgTransactionError::Business(error)) => {
+            let status = match error.kind {
+                FailureKind::InvalidInput => StatusCode::UNPROCESSABLE_ENTITY,
+                FailureKind::Unauthenticated => StatusCode::UNAUTHORIZED,
+                FailureKind::Forbidden => StatusCode::FORBIDDEN,
+                FailureKind::NotFound => StatusCode::NOT_FOUND,
+                FailureKind::Conflict => StatusCode::CONFLICT,
+                FailureKind::Unavailable => StatusCode::SERVICE_UNAVAILABLE,
+            };
+            let body = Json(serde_json::json!({
+                "error": {"code": error.code, "message": error.message}
+            }))
+            .into_response();
+            let mut response = Response::new(body.into_body());
+            *response.status_mut() = status;
+            response
+        }
+        Err(_) => StatusCode::SERVICE_UNAVAILABLE.into_response(),
+    };
+    for (name, value) in [
+        (header::CACHE_CONTROL, "private, no-store"),
+        (header::REFERRER_POLICY, "no-referrer"),
+        (header::X_CONTENT_TYPE_OPTIONS, "nosniff"),
+    ] {
+        response
+            .headers_mut()
+            .insert(name, HeaderValue::from_static(value));
+    }
+    response
 }
 
 async fn read<C: Clock + Send + Sync + 'static>(

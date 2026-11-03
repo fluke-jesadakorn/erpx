@@ -23,6 +23,28 @@ export type NativeAvailability = {
   currency: string;
 };
 
+export type NativeMovementRow = {
+  id: string;
+  warehouse_id: string;
+  product_id: string;
+  sku: string;
+  warehouse_name: string;
+  quantity_milli: number;
+  value_minor: number;
+  movement_date: string;
+  source_type: string;
+  source_id: string;
+  order_id: string;
+  order_number: string;
+  fulfillment_date: string;
+  created_at: number;
+};
+
+export type NativeMovements = {
+  rows: NativeMovementRow[];
+  nextCursor: string | null;
+};
+
 export type NativeAvailabilityRow = {
   warehouse_id: string;
   product_id: string;
@@ -235,6 +257,152 @@ function validate(
   return {rows: value.data.map(row), currency: value.currency};
 }
 
+function movementRow(value: unknown): NativeMovementRow {
+  if (
+    !object(value) ||
+    !text(value.id) ||
+    !text(value.warehouseId) ||
+    !text(value.productId) ||
+    typeof value.sku !== 'string' ||
+    typeof value.warehouseName !== 'string' ||
+    typeof value.quantityMilli !== 'number' ||
+    !Number.isSafeInteger(value.quantityMilli) ||
+    typeof value.valueMinor !== 'number' ||
+    !Number.isSafeInteger(value.valueMinor) ||
+    typeof value.movementDate !== 'string' ||
+    !text(value.sourceType) ||
+    typeof value.sourceId !== 'string' ||
+    typeof value.orderNumber !== 'string' ||
+    typeof value.fulfillmentDate !== 'string' ||
+    !integer(value.createdAt)
+  ) {
+    return fail('NATIVE_INVENTORY_MOVEMENT_RESPONSE_INVALID');
+  }
+  return {
+    id: value.id,
+    warehouse_id: value.warehouseId,
+    product_id: value.productId,
+    sku: value.sku,
+    warehouse_name: value.warehouseName,
+    quantity_milli: value.quantityMilli,
+    value_minor: value.valueMinor,
+    movement_date: value.movementDate,
+    source_type: value.sourceType,
+    source_id: value.sourceId,
+    order_id: value.sourceId,
+    order_number: value.orderNumber,
+    fulfillment_date: value.fulfillmentDate,
+    created_at: value.createdAt,
+  };
+}
+
+function validateMovements(
+  value: unknown,
+  actor: NativeAvailabilityContext,
+): NativeMovements {
+  if (!object(value) || !object(value.context) || !Array.isArray(value.data)) {
+    return fail('NATIVE_INVENTORY_MOVEMENT_RESPONSE_INVALID');
+  }
+  const context = value.context;
+  if (
+    context.userId !== actor.userId ||
+    context.holdingId !== actor.holdingId ||
+    context.companyId !== actor.companyId ||
+    context.branchId !== actor.branchId ||
+    context.departmentId !== actor.departmentId ||
+    context.assignmentId !== actor.assignmentId ||
+    context.revision !== actor.revision ||
+    context.assignmentVersion !== actor.assignmentVersion ||
+    !integer(context.expiresAt, 1)
+  ) {
+    return fail('NATIVE_INVENTORY_MOVEMENT_CONTEXT_CHANGED');
+  }
+  if (value.data.length > 50) {
+    return fail('NATIVE_INVENTORY_MOVEMENT_RESPONSE_INVALID');
+  }
+  const next = value.nextCursor;
+  if (next !== null && (typeof next !== 'string' || next.length === 0 || next.length > 400)) {
+    return fail('NATIVE_INVENTORY_MOVEMENT_RESPONSE_INVALID');
+  }
+  return {rows: value.data.map(movementRow), nextCursor: next as string | null};
+}
+
+function requestHeaders(
+  incoming: Pick<Headers, 'get'>,
+  actor: NativeAvailabilityContext,
+): {host: string; headers: Headers} | NativeAvailabilityError {
+  const host = incoming.get('host');
+  const out = new Headers({host: host!, accept: 'application/json', 'cache-control': 'no-cache'});
+  const cookie = incoming.get('cookie');
+  if (cookie) {
+    if (new TextEncoder().encode(cookie).length > 8192) {
+      return new NativeAvailabilityError('NATIVE_INVENTORY_AVAILABILITY_COOKIE_LIMIT');
+    }
+    out.set('cookie', cookie);
+  }
+  const origin = incoming.get('origin');
+  if (origin) out.set('origin', origin);
+  out.set('x-erpx-context-company', actor.companyId);
+  out.set('x-erpx-context-assignment', actor.assignmentId);
+  out.set('x-erpx-context-revision', String(actor.revision));
+  out.set('x-erpx-context-assignment-version', String(actor.assignmentVersion));
+  if (actor.branchSlug) out.set('x-erpx-workspace-branch', actor.branchSlug);
+  if (actor.departmentSlug) out.set('x-erpx-workspace-department', actor.departmentSlug);
+  return {host: host!, headers: out};
+}
+
+export function createNativeInventoryMovementsReader(raw: string, transport: Transport = direct) {
+  const config = configuration(raw);
+  return async (
+    incoming: Pick<Headers, 'get'>,
+    slug: string,
+    actor: NativeAvailabilityContext,
+    cursor?: string,
+  ): Promise<NativeMovements> => {
+    const host = incoming.get('host');
+    const target = config.holdings.find(
+      (holding) => new URL(holding.origin).host === host && holding.holdingSlug === slug,
+    );
+    if (!target || target.holdingId !== actor.holdingId) {
+      return fail('NATIVE_INVENTORY_MOVEMENT_AUTHORITY_INVALID');
+    }
+    const built = requestHeaders(incoming, actor);
+    if (built instanceof NativeAvailabilityError) throw built;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), config.timeoutMs);
+    try {
+      const url = new URL(
+        `/api/v1/holdings/${encodeURIComponent(slug)}/inventory/movements`,
+        config.privateBaseUrl,
+      );
+      if (cursor !== undefined) {
+        if (cursor.length === 0 || cursor.length > 400) {
+          return fail('NATIVE_INVENTORY_MOVEMENT_CURSOR_INVALID');
+        }
+        url.searchParams.set('cursor', cursor);
+      }
+      const response = await transport(url, built.headers, controller.signal);
+      if (response.redirected || response.status !== 200) {
+        void response.body?.cancel().catch(() => undefined);
+        return fail('NATIVE_INVENTORY_MOVEMENT_UNAVAILABLE', response.status);
+      }
+      if (response.headers.get('content-type')?.split(';')[0] !== 'application/json') {
+        return fail('NATIVE_INVENTORY_MOVEMENT_RESPONSE_INVALID');
+      }
+      return validateMovements(await response.json(), actor);
+    } catch (error) {
+      if (error instanceof NativeAvailabilityError) throw error;
+      return fail(
+        controller.signal.aborted
+          ? 'NATIVE_INVENTORY_MOVEMENT_ABORTED'
+          : 'NATIVE_INVENTORY_MOVEMENT_UNAVAILABLE',
+      );
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+}
+
 export function createNativeInventoryAvailabilityReader(raw: string, transport: Transport = direct) {
   const config = configuration(raw);
   return async (
@@ -310,4 +478,15 @@ export async function nativeInventoryAvailabilityFromHeaders(
   holdingSlug: string,
 ): Promise<NativeAvailability | undefined> {
   return nativeInventoryAvailability(actor, await headers(), holdingSlug);
+}
+
+export async function nativeInventoryMovementsFromHeaders(
+  actor: NativeAvailabilityContext | undefined,
+  holdingSlug: string,
+  cursor?: string,
+): Promise<NativeMovements | undefined> {
+  const raw = process.env.ERPX_NATIVE_INVENTORY_AVAILABILITY_CONFIG;
+  if (raw === undefined) return undefined;
+  if (!actor) return fail('NATIVE_INVENTORY_MOVEMENT_CONTEXT_CHANGED');
+  return createNativeInventoryMovementsReader(raw)(await headers(), holdingSlug, actor, cursor);
 }
