@@ -11,7 +11,6 @@ import {
   key,
 } from "../../support/helpers/expense-fixture";
 import {createHash} from 'node:crypto';
-import {LocalFileStore} from '@erpx/server-runtime/adapters/runtime/filesystem';
 import type {PostgresDatabase} from '@erpx/server-runtime/adapters/runtime/postgres';
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
@@ -27,18 +26,6 @@ beforeAll(async () => {
 beforeEach(async () => {
 db=expenseDb;
 });
-/** Recreate the pre-existing legacy source shape from the original compatibility fixture. */
-async function mixedHistoricalFile(native:NativeFieldFixture,id:string,purposeKey:string,version:number,compatibility:boolean,body:Buffer){
- const token=key(),setId=`test-attachment-set-${token}`,sourceId=`test-attachment-source-${token}`,linkId=`test-attachment-link-${token}`,uploadId=`test-upload-${token}`,objectKey=`test/attachments/${token}`,checksum=createHash('sha256').update(body).digest('hex'),now=Date.now();
- await new LocalFileStore(native.store).put(objectKey,body,{httpMetadata:{contentType:'application/pdf'}});
- await db.batch([
-  db.prepare("INSERT INTO upload_intents(id,owner_type,owner_id,purpose,original_name,media_type,declared_bytes,actual_bytes,checksum_sha256,staging_key,final_key,status,created_by,expires_at,created_at,updated_at,owner_version,company_id,detected_media_type) VALUES(?,'field_service_visit',?,?,'evidence.pdf','application/pdf',?,?,?,?,?,'ready',?,?,?,?,?,?,'application/pdf')").bind(uploadId,id,purposeKey,body.length,body.length,checksum,`test/staging/${token}`,objectKey,f.claimant.userId,now+900000,now,now,version,f.company),
-  db.prepare("INSERT INTO attachments(id,upload_id,owner_type,owner_id,purpose,object_key,revision,original_name,media_type,bytes,checksum_sha256,created_by,created_at,company_id,detected_media_type,source_state,scanned_at,scanner_definition_at) VALUES(?,?,'field_service_visit',?,?,?,1,'evidence.pdf','application/pdf',?,?,?, ?,?,'application/pdf','available',?,?)").bind(sourceId,uploadId,id,purposeKey,objectKey,body.length,checksum,f.claimant.userId,now,f.company,now,now),
-  db.prepare("INSERT INTO attachment_sets(id,company_id,branch_id,department_id,target_type,target_id,component_kind,component_ref,purpose_key,expected_target_version,policy_version,classification,audience_json,required_count,max_files,state,created_by,created_at,updated_at) VALUES(?,?,NULL,NULL,'field_service_visit',?,'record',NULL,?,?,1,'internal','{}',0,10,'draft',?,?,?)").bind(setId,f.company,id,purposeKey,version,f.claimant.userId,now,now),
-  db.prepare("INSERT INTO attachment_links(id,set_id,attachment_id,state,created_by,created_at,expires_at) VALUES(?,?,?,'draft',?,?,?)").bind(linkId,setId,sourceId,f.claimant.userId,now,now+7*86400000),
-  ...(compatibility?[db.prepare("INSERT INTO attachment_events(id,company_id,set_id,actor_id,action,details_json,created_at) VALUES(?,?,?,?,'set.created',?,?)").bind(`test-attachment-event-${token}`,f.company,setId,f.claimant.userId,JSON.stringify({compatibilityAdapter:true}),now)]:[]),
- ]);return {setId,sourceId,linkId,bytes:body};
-}
 // Original visit-completion/evidence assertions now execute through the native
 // normal-auth PostgreSQL case native_field_executive_evidence_keeps_cursor_audit_and_source_rollback.
 // Its report wire values/forbidden-module contract remain in runtime-executive-services.test.ts.
@@ -334,7 +321,7 @@ async function zeroLedgerServicePartsCompany() {
   // Normal packageStore is an explicit isolated provider fixture port, never
   // installed Commercial authority or normal Company onboarding acceptance.
   const store=packageGrantStore(db,{authorize:async()=>({userId:'isolated-Service-parts-provider'}),obligations:async()=>{throw Error('Service parts fixture cannot withdraw');}});
-  async function purchase(){for(const packageId of ['service','service-parts-assets']){if(await db.prepare("SELECT state FROM company_package_grants WHERE company_id=? AND package_id=?").bind(company,packageId).first('state')==='active')continue;await store.apply({expectedVersion:0,idempotencyKey:key(),grant:{companyId:company,packageId,packageVersion:1,state:'active',startsAt:0,endsAt:null,version:1,reason:'Declared native Service-only parts startup',evidence:'test:Service-parts-fresh-Company'}});}}
+  async function purchase(){for(const packageId of ['service','service-parts-assets']){if(await db.prepare("SELECT state FROM company_package_grants WHERE company_id=? AND package_id=?").bind(company,packageId).first<string>('state')==='active')continue;await store.apply({expectedVersion:0,idempotencyKey:key(),grant:{companyId:company,packageId,packageVersion:1,state:'active',startsAt:0,endsAt:null,version:1,reason:'Declared native Service-only parts startup',evidence:'test:Service-parts-fresh-Company'}});}}
   vi.stubEnv('ERPX_SERVICE_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_SUPPORT_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_COMMERCE_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_FINANCE_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');
   for(const person of [owner,reviewer,manager,serviceReviewer,technician]){const {loadIamAuthority}=await import('@erpx/server-identity_access/public/iam-store');person.iam=await loadIamAuthority(db,company,person.userId,person.role);}
   return {company,branch,department,owner,reviewer,manager,serviceReviewer,technician,counts,purchase,store,actor};
