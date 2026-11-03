@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Apps all-Company/Branch/Department product selection verified; the Apps owner still has three unstarted workflows",
+  "capability": "apps-product-selection",
+  "base": "3083db9ca94a8c27fab70b04b0c2f76d63ad4171",
+  "branch": "codex/apps-product-selection-cutover",
+  "sourceCommit": "c359d3f0595d46c50d10db0d84e4ea8c7a256c09",
+  "changes": [
+    "packages/server-work_projection/src/adapters/product-launcher.ts: recovery workspace links skip an unavailable native binding (401/403/404) instead of blanking the Apps product entry; unexpected failures still surface"
+  ],
+  "matrix": {
+    "suite": "shared.ui.product-launcher.unit",
+    "tests": "61/61 across the product launcher and apps launcher files",
+    "allProducts": "Every commercial base package (work/apps, pos, pms, finance, people, sales, supply, assets, projects, recruit, learn, support, service, legal, manufacturing) produces a choice in every authorized Company holding/branch/department scope.",
+    "withdrawal": "Denying one Company removes only that Company's choices; restoring it returns all four scopes without a client hint.",
+    "scope": "c1/holding, c1/branch, c1/department, c2/department"
+  },
+  "browser": {
+    "desktop": {
+      "viewport": "1280x900",
+      "before": {
+        "url": "https://acme.jesadakorn.com/support",
+        "product": "Helpdesk",
+        "company": "Synthetic Field Service Operations and Independent Customer Equipment Maintenance",
+        "tileCount": 6
+      },
+      "apps": {
+        "url": "https://acme.jesadakorn.com/apps",
+        "workspaces": [
+          "Synthetic Acme",
+          "Native services branch",
+          "Native Service parts team"
+        ]
+      },
+      "withdrawn": {
+        "url": "https://acme.jesadakorn.com/support",
+        "body": "No products have both available purchase/history rights and current workspace access.",
+        "productTiles": 0
+      },
+      "restored": {
+        "url": "https://acme.jesadakorn.com/support",
+        "product": "Helpdesk",
+        "tileCount": 6
+      },
+      "pageErrors": 0,
+      "consoleErrors": 0
+    },
+    "note": "The browser used normal Account email/password sign-in. The owner assignment was revoked in PostgreSQL for the withdrawal step and restored afterwards; no client Company hint was supplied."
+  },
+  "limits": [
+    "The all-product/all-scope proof is the launcher projection matrix; the browser verifies the Helpdesk entry, the Apps workspace Company/branch/department list, assignment withdrawal and restoration.",
+    "Front products (POS/Hotel) still require their own apps for a click-through; the launcher matrix verifies their selection hrefs and Company slug hydration.",
+    "The Apps owner remains open: company executive/MCP, single-product direct entry and dirty product switch are separate workflows."
+  ]
+}

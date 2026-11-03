@@ -14,6 +14,7 @@ import { productOfficeLanding, productDestinationAvailable } from "@erpx/server-
 import { commercialPackages } from "@erpx/server-commercial/domain/packages";
 import {developmentModuleAdmissionDeferred} from '@erpx/contracts/development-module-admission';
 import {productIds} from '@erpx/contracts/product-registry';
+import {products} from '@erpx/server-commercial/public/rules/product-registry';
 
 const choices = (): WorkspaceChoice[] => [buildWorkspaceHoldingChoice("acme", "Acme Holding", [
   { companyId: "c1", companyName: "Company One", scopeKind: "holding", scopeNodeId: null },
@@ -71,6 +72,42 @@ it("enumerates every Company and inherited Branch/Department without promoting a
   expect(candidates.map(candidate => `${candidate.companyId}/${candidate.scope.kind}`)).toEqual(["c1/holding", "c1/branch", "c1/department", "c2/department"]);
   expect(productWorkspaceCandidates([{ kind: "platform", label: "Platform", destination: "/platform" }])).toEqual([]);
 });
+it("enumerates every commercial base product across every authorized Company and inherited location", async () => {
+  const f = fixture();
+  const base = commercialPackages.filter(definition => definition.kind === "base");
+  const modules = [...new Set([...base.flatMap(definition => products.find(product => product.id === definition.productId)?.modules ?? []), "operations"])];
+  const permissions = [...new Set([...builtInPermissions("holding_owner"), ...base.flatMap(definition => [definition.productId + ".read", definition.productId + ".write"])])];
+  f.grants.mockImplementation(async access => base.map(definition => grant(access.scope.companyId, definition.id)));
+  f.moduleAccess.mockResolvedValue({
+    modulesByAssignment: new Map([["role", modules]]),
+    presentationModulesByAssignment: new Map([["role", modules]]),
+    permissionsByAssignment: new Map([["role", permissions]]),
+    beta: false,
+  });
+  const links = await f.launch();
+  const seen = new Set(links.map(link => link.productId));
+  for (const definition of base) expect(seen.has(definition.productId), definition.productId).toBe(true);
+  expect([...new Set(links.map(link => `${link.companyId}/${link.scope.kind}`))].sort()).toEqual([
+    "c1/branch", "c1/department", "c1/holding", "c2/department",
+  ]);
+});
+
+it("withdraws only the denied Company's default authority and restores it without a client hint", async () => {
+  const f = fixture();
+  const original = f.access.getMockImplementation()!;
+  f.access.mockImplementation(async (scope, options) => {
+    if (options.companyId === "c2") throw new Error("FORBIDDEN");
+    return original(scope, options);
+  });
+  const withdrawn = await f.launch();
+  expect(withdrawn).toHaveLength(3);
+  expect(new Set(withdrawn.map(link => link.companyId))).toEqual(new Set(["c1"]));
+  f.access.mockImplementation(original);
+  const restored = await f.launch();
+  expect(restored).toHaveLength(4);
+  expect(new Set(restored.map(link => link.companyId))).toEqual(new Set(["c1", "c2"]));
+});
+
 it("checks explicit Company authority for every scope and caches only the grant read per Company in one render", async () => {
   const f = fixture(), links = await f.launch();
   expect(links).toHaveLength(4);
