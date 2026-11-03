@@ -2456,7 +2456,7 @@
         "noSecretsOrScratchPaths": true,
         "generatedFilesAreBuildInputsOnly": true
       },
-      "head": "7025a1fb3"
+      "head": "7025a1fb3 (code head; later evidence-only commits do not change the classification)"
     }
   },
   "qualifiedEvidence": [
