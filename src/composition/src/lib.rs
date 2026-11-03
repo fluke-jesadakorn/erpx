@@ -282,6 +282,10 @@ mod finance_field_journal_files_bind;
 pub mod finance_field_files_intake_command;
 
 #[cfg(feature = "existing-business")]
+pub mod support_incident_command;
+#[cfg(feature = "existing-business")]
+pub mod support_incident_http;
+#[cfg(feature = "existing-business")]
 pub mod support_ticket_command;
 #[cfg(feature = "existing-business")]
 pub mod support_ticket_http;
