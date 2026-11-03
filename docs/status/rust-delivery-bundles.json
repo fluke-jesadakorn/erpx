@@ -3169,7 +3169,7 @@
       "kind": "business-flow-evidence",
       "status": "flow-complete",
       "scope": "Native Finance journal list: chart references, status/cursor pagination, embedded initial-stock purchase filter with TS sync test, HTTP/Next transport and desktop/mobile journal workspace.",
-      "sourceIdentity": "finance-journal-list-native",
+      "sourceIdentity": "0106a8c41c93dd152ec802599934974107336051",
       "evidenceRef": "docs/testing/evidence/2026-11-04-finance-journal-list-native.json",
       "durableContractRefs": [
         "docs/contracts/next/rust-finance-journal-detail.md"

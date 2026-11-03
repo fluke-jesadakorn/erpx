@@ -5,7 +5,7 @@
   "capability": "finance-journal-list-native",
   "base": "a773ccbf57fbcb95064192c660333c7d5f37fd3d",
   "branch": "codex/finance-journal-list-native",
-  "sourceCommit": "pending",
+  "sourceCommit": "0106a8c41c93dd152ec802599934974107336051",
   "implementation": {
     "adapter": "packages/server-finance/src/adapters/journal_list.rs",
     "filter": "packages/server-finance/src/adapters/initial_stock_journal_filter.sql",
@@ -40,8 +40,22 @@
       "url": "https://acme.jesadakorn.com/zero-service-parts-d0f627fa-f317-440f-ab49-34173813570e-branch/finance/accounting/journals",
       "journalCount": 20,
       "firstRows": [
-        ["J-99816371-b5da-4ef5-8a8a-c8131eac327e", "2026-11-03", "payment", "THB 100.00", "THB 100.00", "posted"],
-        ["J-ae7f2355-37d1-48dc-8099-053b9bf5471c", "2026-11-03", "invoice", "THB 100.00", "THB 100.00", "posted"]
+        [
+          "J-99816371-b5da-4ef5-8a8a-c8131eac327e",
+          "2026-11-03",
+          "payment",
+          "THB 100.00",
+          "THB 100.00",
+          "posted"
+        ],
+        [
+          "J-ae7f2355-37d1-48dc-8099-053b9bf5471c",
+          "2026-11-03",
+          "invoice",
+          "THB 100.00",
+          "THB 100.00",
+          "posted"
+        ]
       ],
       "pageErrors": 0,
       "consoleErrors": 7
@@ -51,7 +65,14 @@
       "url": "https://acme.jesadakorn.com/zero-service-parts-d0f627fa-f317-440f-ab49-34173813570e-branch/finance/accounting/journals",
       "journalCount": 20,
       "firstRows": [
-        ["J-99816371-b5da-4ef5-8a8a-c8131eac327e", "2026-11-03", "payment", "THB 100.00", "THB 100.00", "posted"]
+        [
+          "J-99816371-b5da-4ef5-8a8a-c8131eac327e",
+          "2026-11-03",
+          "payment",
+          "THB 100.00",
+          "THB 100.00",
+          "posted"
+        ]
       ],
       "pageErrors": 0,
       "consoleErrors": 4
