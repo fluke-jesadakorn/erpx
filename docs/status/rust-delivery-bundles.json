@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-03T13:06:40+00:00",
+  "updatedAt": "2026-11-03T13:58:15+00:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -16,7 +16,7 @@
     "interpretation": "The 206 items are catalogue workflows, not the number of bounded flows. Each listed ID occurs once below. A partial item has supporting qualified slices, not whole-workflow verification."
   },
   "counts": {
-    "qualifiedBusinessFlows": 29,
+    "qualifiedBusinessFlows": 30,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
     "workflowsPartial": 13,
@@ -2834,6 +2834,18 @@
       "evidenceRef": "docs/testing/evidence/2026-11-03-field-cold-hydration.json",
       "durableContractRefs": [
         "docs/contracts/next/native-engineering-service-ssr.md"
+      ]
+    },
+    {
+      "id": "field-private-production-runtime",
+      "kind": "business-flow-evidence",
+      "status": "flow-complete",
+      "scope": "Private production Field runtime: explicit durable production configuration, production-api/production-worker commands, production Account authority and migration checks, authenticated Field workspace 200; Field dependency/count worker supervision. The Files scan worker remains development-bound.",
+      "sourceIdentity": "1371cb762",
+      "evidenceRef": "docs/testing/evidence/2026-11-03-field-production-runtime.json",
+      "durableContractRefs": [
+        "docs/contracts/next/rust-runtime.md",
+        "docs/contracts/next/rust-field-service-http.md"
       ]
     }
   ],

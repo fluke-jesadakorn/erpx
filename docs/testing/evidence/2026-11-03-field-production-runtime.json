@@ -1,0 +1,74 @@
+{
+  "version": 1,
+  "date": "2026-11-03",
+  "status": "production API and Field worker supervisor implemented; checklist 13 remains open for the Files scan worker",
+  "capability": "field-private-production-runtime",
+  "integrationTarget": "codex/rust-backend-migration",
+  "sourceCommit": "1371cb762",
+  "implemented": {
+    "productionConfiguration": {
+      "type": "DevelopmentApiConfiguration::parse_production",
+      "requirements": [
+        "mode=production and environment=production",
+        "direct-loopback transport",
+        "durable postgres URLs on 127.0.0.1:5432 with no query/socket options",
+        "no lease tokens",
+        "real Account security keyring",
+        "package lifecycle secret with enforced source-record targets",
+        "email verification enabled",
+        "Account bootstrap disabled",
+        "loopback listener (3101 permitted for the private service)"
+      ],
+      "evidence": "tests/unit/identity_access/rust-private-development-api.test.rs::production_configuration_requires_durable_loopback_databases_and_real_authority"
+    },
+    "commands": [
+      "erpx-server production-api --production-config /absolute/private.json",
+      "erpx-server production-worker --production-config /absolute/private.json"
+    ],
+    "assembly": "assemble_production_api mounts the same owner routers as development, including the Field HTTP routes, with real Account authority and migration inventory checks.",
+    "jobs": "run_production_workers_file supervises the Field dependency/outbox worker and any configured initial-count worker, restarting a stopped worker after a bounded delay and shutting down gracefully. The Field push provider runs inside the dependency worker.",
+    "migration": "migrations/postgres/control/0044_configured_account_environments.sql replaces the three development-only Account SSO environment CHECK constraints with a bounded environment label; existing development rows remain valid."
+  },
+  "checks": [
+    {
+      "suite": "field_service.rust-private-field-only-postgres.integration",
+      "result": "4 passed / 0 failed",
+      "criticalCase": "production_runtime_mounts_field_routes_with_durable_databases: production document, production Account binding, authenticated GET /api/v1/holdings/acme/field-service/workspace = 200"
+    },
+    {
+      "suite": "identity_access.rust-private-development-api.unit",
+      "result": "10 passed / 0 failed including production parser negatives and assembly profile rejection"
+    },
+    {
+      "suite": "field_service.field-service.integration",
+      "result": "8 passed / 0 failed including the registered full workflow case"
+    },
+    {
+      "suite": "field_service.rust-parts-command-postgres.integration",
+      "result": "35 passed / 0 failed"
+    },
+    {
+      "suite": "field_service.rust-http-parity-postgres.integration",
+      "result": "40/41 in the suite run; the remaining case passed alone (PostgreSQL connection slots)"
+    },
+    {
+      "suite": "shared.persistence.rust-migration-inventory-postgres.integration",
+      "result": "2 passed / 0 failed"
+    },
+    {
+      "suite": "typecheck / structure / architecture / docs",
+      "result": "passed"
+    }
+  ],
+  "remainingGap": {
+    "code": "PRODUCTION_FILES_SCAN_WORKER_REQUIRED",
+    "reason": "The native Files scan worker (DevelopmentFilesScanConfiguration) still validates the disposable leased development database identity (erpx_dev_rust_<token>, erpx_test_admin, lease comment). A durable production database cannot satisfy it. The production worker supervisor therefore rejects a configured Field Files provider instead of silently omitting the scan job.",
+    "effect": "A production Field journey that includes Files cannot yet run its scan job, so checklist 13 is not complete.",
+    "notWeakened": "No identity check was bypassed and no development test was relaxed."
+  },
+  "limits": [
+    "Local scoped evidence, not owner/workflow acceptance.",
+    "The installed production service on 3101 was not started, stopped or changed.",
+    "Checklist 13, 7, 17 and 18 plus the scoped PR remain open."
+  ]
+}
