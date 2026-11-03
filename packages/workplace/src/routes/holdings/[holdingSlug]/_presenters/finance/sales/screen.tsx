@@ -16,6 +16,7 @@ import { firstPageSearchValues, type PageSearchParams } from "@erpx/feature-shar
 import { minorToDecimal } from "@erpx/feature-finance/lib/finance-money";
 import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import {salesWorkspace,salesDefaultsWorkspace} from '@erpx/server-finance/public/sales';
+import { nativeSalesInvoiceList } from "@erpx/feature-finance/lib/native-sales-invoice-list";
 import { financePurchaseControls } from "@erpx/server-finance/public/purchases";
 import { financeSalesInvoiceNewWorkAllowed } from "@erpx/server-finance/public/rules/purchase-controls";
 import {commerceOverview} from '@erpx/server-commerce/public/commerce';
@@ -25,7 +26,48 @@ import styles from "@erpx/feature-finance/components/sales-workspace.module.css"
 export const dynamic = "force-dynamic";
 export default async function SalesPage({ params, searchParams }: { params: Promise<{ holdingSlug: string }>; searchParams: Promise<PageSearchParams> }) {
   const { holdingSlug } = await params, actor = await requireWorkContext(holdingSlug), base = workspaceBase(publicScope(actor)), search = firstPageSearchValues(await searchParams);
-  const data = await salesWorkspace(actor, search).catch(error => pageError(error, holdingSlug));
+  const nativeInvoices = search.tab === "invoices"
+    ? await nativeSalesInvoiceList(
+        actor.authority && actor.iam
+          ? {
+              userId: actor.userId,
+              holdingId: actor.holdingId,
+              holdingSlug,
+              companyId: actor.companyId,
+              branchId: actor.branchId,
+              departmentId: actor.departmentId,
+              assignmentId: actor.assignmentId,
+              role: actor.role,
+              assignmentScope: actor.assignmentScope,
+              scope:
+                actor.scope.kind === "holding"
+                  ? { kind: "holding" }
+                  : actor.scope.kind === "branch"
+                    ? { kind: "branch", branchSlug: actor.scope.branchSlug ?? "" }
+                    : {
+                        kind: "department",
+                        branchSlug: actor.scope.branchSlug ?? undefined,
+                        departmentSlug: actor.scope.departmentSlug ?? "",
+                      },
+              authority: { revision: actor.authority.revision, assignmentVersion: actor.authority.assignmentVersion },
+              modules: actor.modules,
+              iam: { permissions: actor.iam.permissions },
+            }
+          : undefined,
+        holdingSlug,
+        {
+          tab: "invoices",
+          q: search.q,
+          status: search.status,
+          startDate: search.startDate,
+          endDate: search.endDate,
+          currency: search.currency,
+          queue: search.queue,
+          cursor: search.cursor,
+        },
+      ).catch(error => pageError(error, holdingSlug))
+    : undefined;
+  const data = nativeInvoices ?? (await salesWorkspace(actor, search).catch(error => pageError(error, holdingSlug)));
   const tab = data.query.tab, local = !!actor.branchId || !!actor.departmentId;
   const setup = !local ? await salesDefaultsWorkspace(actor) : null;
   const approved = setup?.editions.filter(row => setup.usableDefaults.includes(row.id)) ?? [];

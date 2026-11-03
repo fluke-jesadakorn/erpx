@@ -1,0 +1,75 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Native Finance sales-invoice list verified on desktop and mobile; the generic sales-invoice workspace remains partial for create and receipt auxiliaries",
+  "capability": "finance-sales-invoice-list-native",
+  "base": "37ec90b000ef3059c541ebf69cfc2776ec049b58",
+  "branch": "codex/finance-sales-invoice-list-native",
+  "sourceCommit": "pending",
+  "implementation": {
+    "adapter": "packages/server-finance/src/adapters/sales_invoice_list.rs",
+    "public": "packages/server-finance/src/public/sales_invoice_list.rs",
+    "composition": "src/composition/src/finance_journal_detail.rs (sales_invoice_list)",
+    "http": "src/composition/src/finance_journal_detail_http.rs",
+    "transport": "packages/feature-finance/src/adapters/server/native-sales-invoice-list.ts",
+    "page": "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/finance/sales/screen.tsx"
+  },
+  "behavior": {
+    "list": "source-neutral finance_invoices kind=receivable joined to finance_parties, with the TS-compatible page_key/id cursor",
+    "summary": "awaiting and overdue per currency for posted/partially_paid invoices",
+    "received": "settled receipt payments with posted journals, scoped by the original Commerce invoice lineage",
+    "filters": "tab, search, status, start/end date, currency and awaiting/overdue queue",
+    "scope": "Company scope by default; branch/department scope only through the original commerce_fulfillments/commerce_orders lineage",
+    "authority": "current Account/Holding authority, rendered-context CAS, finance.read and module.finance.read",
+    "atomicity": "serializable read with source share locks",
+    "cursor": "base64url JSON {key,id,reverse,scope}; scope hash matches the Work Projection list-page contract (30 rows, descending)"
+  },
+  "checks": {
+    "postgres": "finance.rust-sales-invoice-list-postgres.integration 3/3",
+    "cases": [
+      "summary awaiting 8,000 and overdue 5,000 THB; received 2,000 THB",
+      "newest-first rows with party name, invoice number and status",
+      "posted filter and overdue queue filter",
+      "search by invoice number",
+      "another Company sees no rows; branch scope excludes unlinked invoices",
+      "31+3 rows paginate 30 then 4 with a valid next cursor",
+      "stale rendered-context CAS is rejected",
+      "HTTP list with real cookie/CAS returns rows; a non-invoices tab is 422"
+    ],
+    "transport": "finance.native-sales-invoice-list-transport.unit 3/3",
+    "gates": "cargo clippy private-field-api, typecheck, structure, architecture, docs, catalogue (33 modules, 788 suites), rust-runtime-foundation 6/6",
+    "regressions": "finance.rust-journal-list-postgres 2/2; finance journal detail 1/1"
+  },
+  "browser": {
+    "desktop": {
+      "viewport": "1280x900",
+      "url": "https://acme.jesadakorn.com/zero-service-parts-d0f627fa-f317-440f-ab49-34173813570e-branch/finance/documents/sales/invoices",
+      "summary": ["Awaiting payment THB 100.00", "Overdue THB 0.00", "Received —"],
+      "row": ["FS-service-order-21320834-d3db-4872-9c12-6a8807cae8ef", "Candidate native customer", "2026-11-03", "posted", "THB 100.00", "THB 100.00", "View details"],
+      "pageErrors": 0,
+      "consoleErrors": 5
+    },
+    "mobile": {
+      "viewport": "390x844",
+      "url": "https://acme.jesadakorn.com/zero-service-parts-d0f627fa-f317-440f-ab49-34173813570e-branch/finance/documents/sales/invoices",
+      "summary": ["Awaiting payment THB 100.00", "Overdue THB 0.00", "Received —"],
+      "row": ["FS-service-order-21320834-d3db-4872-9c12-6a8807cae8ef", "Candidate native customer", "2026-11-03", "posted", "THB 100.00", "THB 100.00", "View details"],
+      "pageErrors": 0,
+      "consoleErrors": 5
+    },
+    "nativeProof": "With the private native API stopped, the same page rendered 0 rows and 'Temporarily unavailable'; after restarting the API the linked invoice row and THB summary returned. This distinguishes the native read from the legacy salesWorkspace path.",
+    "persisted": {
+      "invoice": "field-invoice-60fa5749-3e26-46aa-9357-b74949504e9d",
+      "invoiceNumber": "FS-service-order-21320834-d3db-4872-9c12-6a8807cae8ef",
+      "status": "posted",
+      "outstandingMinor": 10000,
+      "scope": "branch zero-service-parts-d0f627fa-f317-440f-ab49-34173813570e-branch via commerce_fulfillments/commerce_orders"
+    }
+  },
+  "limits": [
+    "The generic sales-invoice workspace remains partial: standalone create, customer-receipt detail/export/issue and the sales defaults/settings reads are still TS.",
+    "The native list is source-neutral over finance_invoices but the browser exercised one Field-origin invoice linked to the branch; Company-scope rows are covered by PostgreSQL.",
+    "The Finance app logs React hydration console warnings; pageErrors stay 0.",
+    "The page falls back to salesWorkspace only when ERPX_NATIVE_FINANCE_JOURNAL_CONFIG is absent."
+  ]
+}
