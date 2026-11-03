@@ -380,7 +380,7 @@ impl Purchases {
                 reader
                     .inspect(&inspect(CapabilityPurpose::NewWork), now)
                     .await?
-                    .require_allowed().map_err(|error| if error.code == "COMMERCIAL_PURCHASE_CHANGED" { BusinessError::new(FailureKind::Conflict,"PACKAGE_CAPABILITY_CHANGED","Package access changed. Reload and review before retrying.") } else { error })?
+                    .require_allowed().map_err(|error| if matches!(error.code, "PACKAGE_DRAINING" | "COMMERCIAL_PURCHASE_CHANGED") { BusinessError::new(FailureKind::Conflict,"PACKAGE_CAPABILITY_CHANGED","Package access changed. Reload and review before retrying.") } else { error })?
                     .clone(),
             )
         } else {
