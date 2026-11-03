@@ -353,3 +353,8 @@ required-features = ["contracts", "field-service-http"]
 name = "support_ticket_command_postgres"
 path = "../../tests/integration/support/rust-support-ticket-command-postgres.test.rs"
 required-features = ["existing-business"]
+
+[[test]]
+name = "support_incident_command_postgres"
+path = "../../tests/integration/support/rust-support-incident-command-postgres.test.rs"
+required-features = ["existing-business"]
