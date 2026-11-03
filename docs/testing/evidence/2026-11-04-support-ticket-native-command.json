@@ -3,9 +3,9 @@
   "date": "2026-11-04",
   "status": "Support ticket native writer and HTTP ingress proven on leased PostgreSQL; owner workflow remains open",
   "capability": "support-tickets-native-command",
-  "base": "85c6821270a64bb1faae75318776d9d14414c0b8",
+  "base": "4857abf81c8ffdc1757799c51e07bfaf9b7fe22b",
   "branch": "codex/support-tickets-owner-cutover",
-  "sourceCommit": "4a0d56c71",
+  "sourceCommit": "23514d3d5",
   "scope": {
     "workflow": "support/tickets",
     "writer": "Support owns support_tickets, support_ticket_events and staff_notifications; Workflow owns the command receipt/audit/outbox; Commercial supplies the support.tickets purchase witness; Identity supplies current Account/Holding authority; Records/Assets/POS/PMS supply typed source witnesses.",

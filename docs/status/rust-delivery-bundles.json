@@ -2949,7 +2949,7 @@
       "kind": "component-evidence",
       "status": "partial",
       "scope": "Support ticket native writer, HTTP ingress and Next transport on leased PostgreSQL; Support owner and browser journey remain open.",
-      "sourceIdentity": "4a0d56c71",
+      "sourceIdentity": "23514d3d5",
       "evidenceRef": "docs/testing/evidence/2026-11-04-support-ticket-native-command.json",
       "durableContractRefs": [
         "docs/contracts/next/support.md"
