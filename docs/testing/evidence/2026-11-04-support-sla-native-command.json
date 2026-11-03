@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Native Support SLA watch qualified; attachments remain separate",
+  "capability": "support-sla-native-command",
+  "base": "8cef73ea8aba282235aec46e00e654baa1429104",
+  "branch": "codex/support-sla-owner-cutover",
+  "sourceCommit": "sla-cutover",
+  "runtime": {
+    "cohort": "7bb9e96af7a9",
+    "account": "normal Account email/password sign-in at account-dev-erpx.jesadakorn.com",
+    "host": "https://acme.jesadakorn.com",
+    "supportApp": "apps/support on 127.0.0.1:3285 with ERPX_NATIVE_SUPPORT_SLA_CONFIG",
+    "nativeWriter": "private-api on 127.0.0.1:44993 with supportSlaWrites for h001/company",
+    "drainJob": "erpx-server support-sla-drain --once --development-config /case/support-native-private.json",
+    "tickets": ["session-browser-ticket", "sla-browser-ticket-2"]
+  },
+  "businessTime": {
+    "implementation": "packages/server-support/src/domain/business_time.rs",
+    "database": "jiff 0.2.35 with the bundled IANA timezone database",
+    "algorithm": "exact minute windows; a partial first minute contributes only its remainder; 366-day horizon",
+    "tests": "3/3 in erpx-server-support: working-day addition, holiday skip, elapsed minutes, invalid calendar/horizon"
+  },
+  "command": {
+    "postgres": "support.rust-support-sla-command-postgres.integration 3/3",
+    "cases": [
+      "create a policy, reject self-approval with INDEPENDENT_APPROVER_REQUIRED, approve as an independent Company manager",
+      "attach the approved policy to an open ticket, starting the clock and bumping the ticket version",
+      "drain a breached clock twice: exactly one alert and idempotent notifications",
+      "acknowledge the alert once with an eligible manager and persisted reason/version",
+      "native ticket start keeps the clock running; resolve stops it and the event carries the clock",
+      "retire the approved policy for future cases",
+      "draft policy, stale policy version and ineligible actions rejected before any write",
+      "HTTP create and approve with the real cookie/CAS and id stripping before strict parsing",
+      "seven command receipts, audit and outbox rows for create/approve/attach/ack/start/resolve/retire"
+    ]
+  },
+  "browser": {
+    "desktop": {
+      "viewport": "1280x900",
+      "policy": "support-policy-60b635c8-c2d4-4e32-b754-66d5cf8f0f40",
+      "ticket": "session-browser-ticket",
+      "alert": "support-breach-session-browser-ticket",
+      "steps": [
+        {"action": "create-policy", "status": 200, "version": 1},
+        {"action": "approve-policy", "status": 200, "version": 2},
+        {"action": "attach-clock", "status": 200, "ticketVersion": 2},
+        {"action": "acknowledge", "status": 200, "alertVersion": 2}
+      ],
+      "persisted": {
+        "policy": {"status": "approved", "version": 2, "createdBy": "service-reviewer", "approvedBy": "owner"},
+        "ticket": {"status": "open", "version": 2, "clock": "running"},
+        "alert": {"sourceVersion": 2, "version": 2, "acknowledgedBy": "owner"},
+        "receipts": 4,
+        "audit": 4,
+        "outbox": 4
+      },
+      "pageErrors": 0,
+      "consoleErrors": 1
+    },
+    "mobile": {
+      "viewport": "390x844",
+      "policy": "support-policy-bbe6564b-bcad-48b9-804a-908591f23faf",
+      "ticket": "sla-browser-ticket-2",
+      "alert": "support-breach-sla-browser-ticket-2",
+      "steps": [
+        {"action": "create-policy", "status": 200, "version": 1},
+        {"action": "approve-policy", "status": 200, "version": 2},
+        {"action": "attach-clock", "status": 200, "ticketVersion": 2},
+        {"action": "acknowledge", "status": 200, "alertVersion": 2}
+      ],
+      "persisted": {
+        "policy": {"status": "approved", "version": 2, "createdBy": "service-reviewer", "approvedBy": "owner"},
+        "ticket": {"status": "open", "version": 2, "clock": "running"},
+        "alert": {"sourceVersion": 2, "version": 2, "acknowledgedBy": "owner"}
+      },
+      "pageErrors": 0,
+      "consoleErrors": 1
+    },
+    "ui": "The manager drafts the policy on /support/sla; an independent manager approves it; the approved target is attached from the ticket detail; the native drain CLI detects the breached clock; the manager acknowledges the alert on /support/sla."
+  },
+  "limits": [
+    "Attachments remain a separate Support workflow.",
+    "The browser breach used a fixture time advance of sla_clock_json.dueAt; the drain itself is the native CLI.",
+    "Policy retirement is PostgreSQL-tested; the browser journey exercises create, approve, attach and acknowledge.",
+    "The ticket resolve clock stop is PostgreSQL-tested; the browser journey attaches and observes the running clock.",
+    "The Support app logs React hydration console warnings; pageErrors stay 0."
+  ]
+}

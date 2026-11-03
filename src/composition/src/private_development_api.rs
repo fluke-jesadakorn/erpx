@@ -27,6 +27,8 @@ use crate::{
     support_incident_http::{SupportIncidentHttpTarget, support_incident_http_router},
     support_session_command::SupportSessionCommand,
     support_session_http::{SupportSessionHttpTarget, support_session_http_router},
+    support_sla_command::{SupportSlaCommand, drain_support_sla},
+    support_sla_http::{SupportSlaHttpTarget, support_sla_http_router},
     support_ticket_command::SupportTicketCommand,
     support_ticket_http::{SupportTicketHttpTarget, support_ticket_http_router},
 };
@@ -189,6 +191,8 @@ struct ConfigurationDocument {
     #[serde(default)]
     support_session_writes: Vec<FinanceReadDocument>,
     #[serde(default)]
+    support_sla_writes: Vec<FinanceReadDocument>,
+    #[serde(default)]
     field_service_reads: Vec<FinanceReadDocument>,
     #[serde(default)]
     field_service_workspace_reads: Vec<String>,
@@ -281,6 +285,7 @@ pub struct DevelopmentApiConfiguration {
     support_ticket_writes: Vec<(HoldingId, CompanyId)>,
     support_incident_writes: Vec<(HoldingId, CompanyId)>,
     support_session_writes: Vec<(HoldingId, CompanyId)>,
+    support_sla_writes: Vec<(HoldingId, CompanyId)>,
     field_service_reads: BTreeMap<HoldingId, BTreeSet<CompanyId>>,
     field_service_workspace_reads: BTreeSet<HoldingId>,
     field_service_parts_posting_setups: BTreeSet<HoldingId>,
@@ -1008,6 +1013,21 @@ impl DevelopmentApiConfiguration {
             }
             support_session_writes.push((holding, company));
         }
+        let mut support_sla_writes = Vec::new();
+        for target in doc.support_sla_writes {
+            let holding = HoldingId::new(&target.holding_id)
+                .map_err(|_| "PRIVATE_API_SUPPORT_SLA_CONFIGURATION_INVALID")?;
+            let company = CompanyId::new(&target.company_id)
+                .map_err(|_| "PRIVATE_API_SUPPORT_SLA_CONFIGURATION_INVALID")?;
+            if !holdings.iter().any(|h| h.registration.holding_id == holding)
+                || support_sla_writes
+                    .iter()
+                    .any(|(h, c)| h == &holding && c == &company)
+            {
+                return Err("PRIVATE_API_SUPPORT_SLA_CONFIGURATION_INVALID");
+            }
+            support_sla_writes.push((holding, company));
+        }
         Ok(Self {
             profile,
             environment,
@@ -1036,6 +1056,7 @@ impl DevelopmentApiConfiguration {
             support_ticket_writes,
             support_incident_writes,
             support_session_writes,
+            support_sla_writes,
             field_service_reads,
             field_service_workspace_reads,
             field_service_parts_posting_setups,
@@ -2035,6 +2056,51 @@ async fn assemble_checked(
             .map_err(|_| "PRIVATE_API_SUPPORT_TICKET_CONFIGURATION_INVALID")?,
         );
     }
+    if !config.support_sla_writes.is_empty() {
+        let catalogue = Arc::new(
+            current_package_catalogue()
+                .map_err(|_| "PRIVATE_API_SUPPORT_SLA_CONFIGURATION_INVALID")?,
+        );
+        let mut targets = Vec::new();
+        for (holding_id, company) in &config.support_sla_writes {
+            let index = config
+                .holdings
+                .iter()
+                .position(|h| &h.registration.holding_id == holding_id)
+                .ok_or("PRIVATE_API_SUPPORT_SLA_CONFIGURATION_INVALID")?;
+            let holding = &config.holdings[index];
+            let authorizer = Arc::new(
+                HoldingWorkAuthorizer::new(
+                    pools[0].clone(),
+                    pools[index + 1].clone(),
+                    holding_id.clone(),
+                    (*config.policy).clone(),
+                    clock.clone(),
+                    config.holdings_registry.clone(),
+                )
+                .map_err(|_| "PRIVATE_API_SUPPORT_SLA_CONFIGURATION_INVALID")?,
+            );
+            targets.push(SupportSlaHttpTarget {
+                host: holding.host.clone(),
+                holding_slug: holding.registration.slug.clone(),
+                command: Arc::new(SupportSlaCommand {
+                    authorizer,
+                    holding: holding_id.clone(),
+                    company: company.clone(),
+                    catalogue: catalogue.clone(),
+                    clock: Arc::new(SharedClock(clock.clone())),
+                }),
+            });
+        }
+        router = router.merge(
+            support_sla_http_router(
+                config.policy.clone(),
+                Arc::new(FieldServiceReadScopeHeaders),
+                targets,
+            )
+            .map_err(|_| "PRIVATE_API_SUPPORT_SLA_CONFIGURATION_INVALID")?,
+        );
+    }
     if !config.support_session_writes.is_empty() {
         let catalogue = Arc::new(
             current_package_catalogue()
@@ -2193,6 +2259,13 @@ async fn assemble_checked(
                 config.holdings.iter().find(|h| &h.registration.holding_id == holding_id).map(|h| (h.host.clone(), h.registration.slug.clone()))
             })
             .collect(),
+        support_sla_targets: config
+            .support_sla_writes
+            .iter()
+            .filter_map(|(holding_id, _)| {
+                config.holdings.iter().find(|h| &h.registration.holding_id == holding_id).map(|h| (h.host.clone(), h.registration.slug.clone()))
+            })
+            .collect(),
         account_bootstrap: config.account_bootstrap,
     });
     Ok(CheckedAssembly { router:router.layer(middleware::from_fn_with_state(state,boundary)), #[cfg(feature="files-scan-worker")] files_workers })
@@ -2242,6 +2315,7 @@ struct Boundary {
     support_ticket_targets: BTreeSet<(String, String)>,
     support_incident_targets: BTreeSet<(String, String)>,
     support_session_targets: BTreeSet<(String, String)>,
+    support_sla_targets: BTreeSet<(String, String)>,
     account_bootstrap: bool,
 }
 enum BoundaryDenial {
@@ -2908,10 +2982,17 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
                 .contains(&(host.to_owned(), (*slug).to_owned())),
             _ => false,
         };
+    let support_sla = request.method() == axum::http::Method::POST
+        && match request.uri().path().split('/').collect::<Vec<_>>().as_slice() {
+            ["", "api", "v1", "holdings", slug, "support", "sla"] => state
+                .support_sla_targets
+                .contains(&(host.to_owned(), (*slug).to_owned())),
+            _ => false,
+        };
     if !(matches!(
         request.uri().path(),
         "/api/auth/get-session" | "/api/health" | "/api/ready"
-    ) || account_mfa || service_packages || field_work_roles || field_operations || field_support || field_collaboration || field_inbox_state || support_ticket || support_incident || support_session || finance_workspace
+    ) || account_mfa || service_packages || field_work_roles || field_operations || field_support || field_collaboration || field_inbox_state || support_ticket || support_incident || support_session || support_sla || finance_workspace
         || finance_invoice_runtime
         || finance_field_journal_flow
         || finance_invoice_post
@@ -2941,6 +3022,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             || support_ticket
             || support_incident
             || support_session
+            || support_sla
             || finance_field_journal_flow
         || finance_invoice_post
             || finance_receipt_review
@@ -3003,6 +3085,56 @@ fn private(mut response: Response) -> Response {
 /// Explicit CLI assembly only. This does not install or select the native API
 /// for any gateway/Next process, and the mandatory configuration remains leased
 /// disposable Development configuration even when this feature is compiled.
+/// One native Support SLA drain over the configured Holding databases. The
+/// caller supplies a reviewed development configuration; no HTTP route or TS
+/// worker is involved.
+pub async fn run_support_sla_drain_file(path: &Path) -> Result<String, &'static str> {
+    let configuration = DevelopmentApiConfiguration::from_file(path)?;
+    let limits = PoolLimits {
+        max_connections: 3,
+        acquire_timeout: Duration::from_secs(5),
+    };
+    let control = configuration
+        .control
+        .connect(limits)
+        .await
+        .map_err(|_| "PRIVATE_API_DATABASE_UNAVAILABLE")?;
+    let mut pools = vec![control];
+    for holding in &configuration.holdings {
+        pools.push(
+            holding
+                .database
+                .connect(limits)
+                .await
+                .map_err(|_| "PRIVATE_API_DATABASE_UNAVAILABLE")?,
+        );
+    }
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|_| "SUPPORT_SLA_CLOCK_UNAVAILABLE")?
+        .as_millis() as i64;
+    let mut total = 0_i64;
+    for (holding_id, company) in &configuration.support_sla_writes {
+        let index = configuration
+            .holdings
+            .iter()
+            .position(|h| &h.registration.holding_id == holding_id)
+            .ok_or("PRIVATE_API_SUPPORT_SLA_CONFIGURATION_INVALID")?;
+        let mut tx = pools[index + 1]
+            .raw()
+            .begin()
+            .await
+            .map_err(|_| "PRIVATE_API_DATABASE_UNAVAILABLE")?;
+        total += drain_support_sla(&mut tx, company, now)
+            .await
+            .map_err(|_| "SUPPORT_SLA_DRAIN_FAILED")?;
+        tx.commit()
+            .await
+            .map_err(|_| "PRIVATE_API_DATABASE_UNAVAILABLE")?;
+    }
+    Ok(format!(r#"{{"drained":{total}}}"#))
+}
+
 pub async fn run_development_api_file(
     path: &Path,
     shutdown: impl std::future::Future<Output = ()> + Send + 'static,

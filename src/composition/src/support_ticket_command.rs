@@ -21,6 +21,7 @@ use erpx_server_shared::public::{
     BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId, IdentifierSource, RecordId,
     TimestampMillis,
 };
+use erpx_server_support::public::sla::{advance_clock, clock_value, parse_clock};
 use erpx_server_support::public::ticket::{
     SourceKind, TicketActor, TicketChange, TicketChangePlan, TicketCreate, TicketPermissions,
     TicketSnapshot, TicketStatus, plan_change, plan_create,
@@ -536,6 +537,7 @@ enum Prepared {
         row: TicketRow,
         plan: TicketChangePlan,
         source: Option<PreparedLeafSource>,
+        clock_json: Option<String>,
     },
 }
 
@@ -722,6 +724,15 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for Effects<'_, C> {
             erpx_server_support::public::ticket::TicketPlan::Change(plan) => plan,
             _ => return Err(changed().into()),
         };
+        let clock_json = row
+            ._sla_clock_json
+            .as_deref()
+            .map(|raw| {
+                let clock = parse_clock(raw)?;
+                let next = advance_clock(&clock, plan.action, plan.event_at)?;
+                clock_value(&next)
+            })
+            .transpose()?;
         let result = TicketResult {
             id: id.to_owned(),
             status: plan.status.as_str().to_owned(),
@@ -732,6 +743,7 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for Effects<'_, C> {
             row,
             plan,
             source,
+            clock_json,
         });
         Ok(WorkflowOutput {
             version: result.version,
@@ -758,6 +770,7 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for Effects<'_, C> {
                 row,
                 plan,
                 source,
+                clock_json,
             } => {
                 if let Some(source) = source.as_ref() {
                     let context = SourceRecordContext {
@@ -776,6 +789,7 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for Effects<'_, C> {
                     &row,
                     &plan,
                     self.actor.user_id.as_str(),
+                    clock_json.as_deref(),
                 )
                 .await?;
             }
@@ -999,6 +1013,7 @@ async fn apply_change(
     row: &TicketRow,
     plan: &TicketChangePlan,
     actor_id: &str,
+    clock_json: Option<&str>,
 ) -> Result<(), Error> {
     let resetting = matches!(plan.action, "reopen" | "reject-resolution");
     let blocked = if plan.status == TicketStatus::WaitingCustomer {
@@ -1116,12 +1131,26 @@ async fn apply_change(
             .execute(&mut *c)
             .await?;
     }
+    if let Some(clock) = clock_json {
+        sqlx::query("UPDATE support_tickets SET sla_clock_json=$1::jsonb WHERE id=$2")
+            .bind(clock)
+            .bind(&plan.id)
+            .execute(&mut *c)
+            .await?;
+    }
+    let evidence = match clock_json {
+        Some(clock) => serde_json::json!({
+            "action": plan.action,
+            "clock": serde_json::from_str::<serde_json::Value>(clock).map_err(|_| changed())?,
+        }),
+        None => serde_json::json!({"action": plan.action}),
+    };
     sqlx::query("INSERT INTO support_ticket_events(id,ticket_id,version,action,actor_id,reason,owner_id,due_date,status,created_at,evidence_json) SELECT $1,id,version,$2,$3,$4,owner_id,due_date,status,updated_at,$5::jsonb FROM support_tickets WHERE id=$6")
         .bind(format!("ticket-event-{key}"))
         .bind(plan.action)
         .bind(actor_id)
         .bind(&plan.reason)
-        .bind(serde_json::to_string(&serde_json::json!({"action":plan.action})).map_err(|_| changed())?)
+        .bind(serde_json::to_string(&evidence).map_err(|_| changed())?)
         .bind(&plan.id)
         .execute(&mut *c)
         .await?;

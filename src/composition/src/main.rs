@@ -38,6 +38,21 @@ pub async fn run_cli(arguments: impl IntoIterator<Item = String>) -> Result<(), 
             .await
             .map_err(str::to_owned)
         }
+        #[cfg(feature = "private-field-api")]
+        [command, once, option, path]
+            if command == "support-sla-drain"
+                && once == "--once"
+                && option == "--development-config" =>
+        {
+            let outcome =
+                erpx_service::private_development_api::run_support_sla_drain_file(
+                    std::path::Path::new(path),
+                )
+                .await
+                .map_err(str::to_owned)?;
+            println!("{outcome}");
+            Ok(())
+        }
         #[cfg(feature = "production-api")]
         [command, option, path]
             if command == "production-api" && option == "--production-config" =>
@@ -136,7 +151,7 @@ pub async fn run_cli(arguments: impl IntoIterator<Item = String>) -> Result<(), 
             }
             if cfg!(feature = "private-field-api") {
                 usage.push_str(
-                    " | erpx-server private-api --development-config /absolute/private.json",
+                    " | erpx-server private-api --development-config /absolute/private.json | erpx-server support-sla-drain --once --development-config /absolute/private.json",
                 );
             }
             if cfg!(feature = "production-api") {
