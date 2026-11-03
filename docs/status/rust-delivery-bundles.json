@@ -3059,7 +3059,7 @@
       "kind": "business-flow-evidence",
       "status": "flow-complete",
       "scope": "Native Support evidence bind/revoke with Files set/link/attachment state, legal hold, evidence lock, ticket version/event, PostgreSQL and desktop/mobile browser evidence.",
-      "sourceIdentity": "support-evidence-owner-cutover",
+      "sourceIdentity": "260d1df0bfc714bd6e9b66b00d81489728697a34",
       "evidenceRef": "docs/testing/evidence/2026-11-04-support-evidence-native-command.json",
       "durableContractRefs": [
         "docs/contracts/next/support.md"

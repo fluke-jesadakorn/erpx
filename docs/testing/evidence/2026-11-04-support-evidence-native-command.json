@@ -5,14 +5,17 @@
   "capability": "support-evidence-native-command",
   "base": "12606c52948c14dd0f7ea003e6e0fb6580137b29",
   "branch": "codex/support-evidence-owner-cutover",
-  "sourceCommit": "evidence-cutover",
+  "sourceCommit": "260d1df0bfc714bd6e9b66b00d81489728697a34",
   "runtime": {
     "cohort": "7bb9e96af7a9",
     "account": "normal Account email/password sign-in at account-dev-erpx.jesadakorn.com",
     "host": "https://acme.jesadakorn.com",
     "supportApp": "apps/support on 127.0.0.1:3285 with ERPX_NATIVE_SUPPORT_EVIDENCE_CONFIG and ERPX_ATTACHMENTS_V2=true",
     "nativeWriter": "private-api on 127.0.0.1:44993 with supportEvidenceWrites for h001/company",
-    "tickets": ["session-browser-ticket-3", "session-browser-ticket-4"]
+    "tickets": [
+      "session-browser-ticket-3",
+      "session-browser-ticket-4"
+    ]
   },
   "command": {
     "postgres": "support.rust-support-evidence-command-postgres.integration 3/3",
@@ -34,10 +37,25 @@
       "set": "evidence-set-b3",
       "attachment": "evidence-attachment-b3",
       "steps": [
-        {"action": "bind-evidence", "status": 200, "ticketVersion": 2},
-        {"action": "revoke-evidence", "status": 200, "ticketVersion": 3}
+        {
+          "action": "bind-evidence",
+          "status": 200,
+          "ticketVersion": 2
+        },
+        {
+          "action": "revoke-evidence",
+          "status": 200,
+          "ticketVersion": 3
+        }
       ],
-      "persisted": {"set": "bound", "attachment": "revoked", "events": ["attachment-bind:2", "attachment-revoke:3"]},
+      "persisted": {
+        "set": "bound",
+        "attachment": "revoked",
+        "events": [
+          "attachment-bind:2",
+          "attachment-revoke:3"
+        ]
+      },
       "pageErrors": 0,
       "consoleErrors": 2
     },
@@ -47,10 +65,25 @@
       "set": "evidence-set-b4",
       "attachment": "evidence-attachment-b4",
       "steps": [
-        {"action": "bind-evidence", "status": 200, "ticketVersion": 2},
-        {"action": "revoke-evidence", "status": 200, "ticketVersion": 3}
+        {
+          "action": "bind-evidence",
+          "status": 200,
+          "ticketVersion": 2
+        },
+        {
+          "action": "revoke-evidence",
+          "status": 200,
+          "ticketVersion": 3
+        }
       ],
-      "persisted": {"set": "bound", "attachment": "revoked", "events": ["attachment-bind:2", "attachment-revoke:3"]},
+      "persisted": {
+        "set": "bound",
+        "attachment": "revoked",
+        "events": [
+          "attachment-bind:2",
+          "attachment-revoke:3"
+        ]
+      },
       "pageErrors": 0,
       "consoleErrors": 2
     },
