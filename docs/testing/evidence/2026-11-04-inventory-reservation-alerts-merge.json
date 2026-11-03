@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Native Sales/Manufacturing reservation alerts merged; Inventory owner remains partial",
+  "capability": "inventory-reservation-alerts-merge",
+  "integrationTarget": "codex/rust-backend-migration",
+  "pullRequest": {
+    "number": 32,
+    "url": "https://github.com/fluke-jesadakorn/erpx/pull/32",
+    "state": "MERGED",
+    "mergedAt": "2026-11-03T21:00:08Z",
+    "base": "bfac81852bafc2e68ad543d94558dca70de4e4e6",
+    "head": "b8d389977331d2ea6d87092f5f2f93e124c336ea",
+    "mergeCommit": "b7758107006b9fca5bc96bfdbaba854040054c34",
+    "mergeMethod": "merge commit"
+  },
+  "scope": {
+    "workflow": "inventory/reservations",
+    "changedFiles": 10,
+    "job": "src/composition/src/inventory_reservation_alerts.rs",
+    "worker": "src/composition/src/field_dependency_worker.rs",
+    "test": "tests/integration/inventory/rust-inventory-reservation-alerts-postgres.test.rs"
+  },
+  "verification": {
+    "postgres": "inventory.rust-inventory-reservation-alerts-postgres.integration 2/2",
+    "fieldCollaboration": "29/29 with RUST_MIN_STACK=8388608",
+    "gates": "cargo clippy private-field-api, typecheck, structure, architecture, docs, catalogue (33 modules, 781 suites)"
+  },
+  "register": {
+    "ownersComplete": 1,
+    "ownersTotal": 41,
+    "workflowsVerified": 14,
+    "workflowsPartial": 4,
+    "workflowsMerged": 14,
+    "workflowsTotal": 206
+  },
+  "limits": [
+    "POS reservations remain a separate source and are not included.",
+    "The new job is a scheduled notification producer; existing Field/stock reservation user paths remain the browser evidence.",
+    "The Inventory owner remains partial for availability and issues/movements."
+  ]
+}
