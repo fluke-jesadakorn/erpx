@@ -3125,7 +3125,7 @@
       "kind": "business-flow-evidence",
       "status": "flow-complete",
       "scope": "Native Inventory availability read: domain formula, serializable PostgreSQL projection, private HTTP route, Next transport, purchase/CAS authority, desktop/mobile stock page.",
-      "sourceIdentity": "inventory-availability-read",
+      "sourceIdentity": "0c7a991e7c626048961501bbfa9b362b88a57c2b",
       "evidenceRef": "docs/testing/evidence/2026-11-04-inventory-availability-read.json",
       "durableContractRefs": [
         "docs/contracts/next/inventory.md"

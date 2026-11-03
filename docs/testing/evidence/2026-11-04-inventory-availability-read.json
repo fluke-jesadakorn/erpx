@@ -5,7 +5,7 @@
   "capability": "inventory-availability-read",
   "base": "d18678e85a3b5127187cb30cb307b1ca9e7cb6d9",
   "branch": "codex/inventory-availability-read",
-  "sourceCommit": "pending",
+  "sourceCommit": "0c7a991e7c626048961501bbfa9b362b88a57c2b",
   "implementation": {
     "domain": "packages/server-inventory/src/domain/availability.rs",
     "adapter": "packages/server-inventory/src/adapters/availability_read.rs",
@@ -39,7 +39,17 @@
     "desktop": {
       "viewport": "1280x900",
       "url": "https://acme.jesadakorn.com/zero-service-parts-d0f627fa-f317-440f-ab49-34173813570e-branch/supply/inventory-quality/stock",
-      "row": ["BROWSER-P · Browser stock product", "Browser warehouse", "None", "10 pcs", "3", "0", "0", "7", "10.00"],
+      "row": [
+        "BROWSER-P · Browser stock product",
+        "Browser warehouse",
+        "None",
+        "10 pcs",
+        "3",
+        "0",
+        "0",
+        "7",
+        "10.00"
+      ],
       "currency": "THB",
       "pageErrors": 0,
       "consoleErrors": 1
@@ -47,7 +57,17 @@
     "mobile": {
       "viewport": "390x844",
       "url": "https://acme.jesadakorn.com/zero-service-parts-d0f627fa-f317-440f-ab49-34173813570e-branch/supply/inventory-quality/stock",
-      "row": ["BROWSER-P · Browser stock product", "Browser warehouse", "None", "10 pcs", "3", "0", "0", "7", "10.00"],
+      "row": [
+        "BROWSER-P · Browser stock product",
+        "Browser warehouse",
+        "None",
+        "10 pcs",
+        "3",
+        "0",
+        "0",
+        "7",
+        "10.00"
+      ],
       "currency": "THB",
       "pageErrors": 0,
       "consoleErrors": 1
