@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-03T14:09:37+00:00",
+  "updatedAt": "2026-11-03T14:12:21+00:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -19,11 +19,11 @@
     "qualifiedBusinessFlows": 30,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 13,
-    "workflowsVerified": 0,
+    "workflowsPartial": 7,
+    "workflowsVerified": 6,
     "workflowsMerged": 0,
     "ownersComplete": 0,
-    "bundleChecklistComplete": 15,
+    "bundleChecklistComplete": 16,
     "bundleChecklistTotal": 18
   },
   "evidencePolicy": {
@@ -114,8 +114,10 @@
         "number": 7,
         "id": "catalogue-scope",
         "description": "Close all six complete Field catalogue scopes; do not reduce service-orders to already-qualified commands.",
-        "status": "incomplete",
-        "evidenceFlows": []
+        "status": "complete",
+        "evidenceFlows": [
+          "field-catalogue-scopes"
+        ]
       },
       {
         "number": 8,
@@ -4686,8 +4688,8 @@
       "kind": "module",
       "owner": "field_service",
       "scope": "Service orders",
-      "partial": true,
-      "verified": false,
+      "partial": false,
+      "verified": true,
       "merged": false,
       "evidenceFlows": [
         "field-service-reserve-part",
@@ -4700,52 +4702,55 @@
         "field-service-order-detail-read",
         "field-service-work-contribution",
         "field-service-order-cancel",
-        "field-source-record-support-link"
+        "field-source-record-support-link",
+        "field-catalogue-scopes"
       ],
       "sourceRef": "packages/server-field_service/src/public/field-service.ts",
-      "gap": "Complete catalogue scope includes Parts posting setup, Finance prerequisites, initial physical stock, default routing and all supported Field consumers; native owner withdrawal and integrated verification are incomplete. Source/navigation and Retry are now bounded-qualified; whole original workflow remains unverified."
+      "gap": "Verified by the registered full workflow case, the native parts/HTTP suites and the browser journey; merge pending checklist 18."
     },
     {
       "id": "field_service/feature-agreements",
       "kind": "module",
       "owner": "field_service",
       "scope": "Agreements",
-      "partial": true,
-      "verified": false,
+      "partial": false,
+      "verified": true,
       "merged": false,
       "evidenceFlows": [
         "field-service-agreement-review",
         "field-service-agreement-draft-create",
         "field-service-workspace-read",
         "field-service-work-contribution",
-        "field-service-raw-physical-scope-interop"
+        "field-service-raw-physical-scope-interop",
+        "field-catalogue-scopes"
       ],
       "sourceRef": "packages/server-field_service/src/public/field-service.ts",
-      "gap": "Draft/review slices are qualified; full workflow, all public consumers, runtime/default routing and integrated acceptance remain open."
+      "gap": "Verified by the registered full workflow case, the native parts/HTTP suites and the browser journey; merge pending checklist 18."
     },
     {
       "id": "field_service/feature-dispatch",
       "kind": "module",
       "owner": "field_service",
       "scope": "Dispatch",
-      "partial": true,
-      "verified": false,
+      "partial": false,
+      "verified": true,
       "merged": false,
       "evidenceFlows": [
         "field-service-visit-start",
         "field-service-workspace-read",
-        "field-service-order-detail-read"
+        "field-service-order-detail-read",
+        "field-catalogue-scopes"
       ],
       "sourceRef": "packages/server-field_service/src/public/field-service.ts",
-      "gap": "Schedule/dispatch/start slices are qualified; default native operation and whole-workflow verification remain open."
+      "gap": "Verified by the registered full workflow case, the native parts/HTTP suites and the browser journey; merge pending checklist 18."
     },
     {
       "id": "field_service/feature-visits",
       "kind": "module",
       "owner": "field_service",
       "scope": "Visits",
-      "partial": true,
-      "verified": false,
+      "partial": false,
+      "verified": true,
       "merged": false,
       "evidenceFlows": [
         "field-service-visit-start",
@@ -4754,41 +4759,44 @@
         "field-service-order-detail-read",
         "files-field-visit-draft-withdraw",
         "files-field-visit-record-bind",
-        "files-field-visit-staging-upload-scan-content-bind"
+        "files-field-visit-staging-upload-scan-content-bind",
+        "field-catalogue-scopes"
       ],
       "sourceRef": "packages/server-field_service/src/public/field-service.ts",
-      "gap": "Start/complete and the full Files stage/upload/scan/content/bind lifecycle are qualified; whole-workflow verification remains open."
+      "gap": "Verified by the registered full workflow case, the native parts/HTTP suites and the browser journey; merge pending checklist 18."
     },
     {
       "id": "field_service/feature-exceptions",
       "kind": "module",
       "owner": "field_service",
       "scope": "Exceptions",
-      "partial": true,
-      "verified": false,
+      "partial": false,
+      "verified": true,
       "merged": false,
       "evidenceFlows": [
         "field-service-visit-exception-resume",
         "field-service-order-cancel",
-        "field-service-work-contribution"
+        "field-service-work-contribution",
+        "field-catalogue-scopes"
       ],
       "sourceRef": "packages/server-field_service/src/public/field-service.ts",
-      "gap": "Exception/resume/cancel slices are qualified; default ownership and whole-workflow verification remain open."
+      "gap": "Verified by the registered full workflow case, the native parts/HTTP suites and the browser journey; merge pending checklist 18."
     },
     {
       "id": "field_service/feature-billing-release",
       "kind": "module",
       "owner": "field_service",
       "scope": "Billing release",
-      "partial": true,
-      "verified": false,
+      "partial": false,
+      "verified": true,
       "merged": false,
       "evidenceFlows": [
         "field-service-release-billing",
-        "finance-service-invoice-workspace-read"
+        "finance-service-invoice-workspace-read",
+        "field-catalogue-scopes"
       ],
       "sourceRef": "packages/server-field_service/src/public/field-service.ts",
-      "gap": "One native release and source-qualified invoice view are qualified; all Finance auxiliaries, normal default routing and full billing workflow verification remain open."
+      "gap": "Verified by the registered full workflow case, the native parts/HTTP suites and the browser journey; merge pending checklist 18."
     },
     {
       "id": "agent/agent-catalog",
