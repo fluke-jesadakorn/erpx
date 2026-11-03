@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Native Finance standalone sales-invoice create verified on desktop and mobile; the sales-invoice workspace remains partial for receipt/defaults auxiliaries",
+  "capability": "finance-sales-invoice-create-native",
+  "base": "c9fe99bc2e88d5860084c4bbd1afc2fffa8dfc0b",
+  "branch": "codex/finance-sales-invoice-create-native",
+  "sourceCommit": "pending",
+  "implementation": {
+    "adapter": "packages/server-finance/src/adapters/sales_invoice_create.rs",
+    "public": "packages/server-finance/src/public/sales_invoice_create.rs",
+    "composition": "src/composition/src/finance_journal_detail.rs (create_sales_invoice)",
+    "http": "src/composition/src/finance_journal_detail_http.rs",
+    "transport": "packages/feature-finance/src/adapters/server/native-sales-invoice-create.ts",
+    "nextRoute": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts",
+    "editor": "packages/feature-finance/src/components/sales-controls.tsx (existing SalesInvoiceEditor)"
+  },
+  "behavior": {
+    "defaults": "the current approved finance_sales_defaults for the Company and currency are locked FOR SHARE and revalidated against active chart/accounts",
+    "accounts": "trade receivable control, revenue category and output VAT liability accounts must be active, distinct, on one chart and in the invoice currency",
+    "lines": "1..100 service lines; quantity at three decimals, unit price at two decimals, one half-up rounding per line and per tax line; header totals equal the line sums",
+    "number": "erpx_sales_document_number(company,'INV',invoiceDate) allocates the next document number under its own row lock",
+    "invoice": "finance_invoices kind=receivable, source_type=standalone, line_mode=native_lines, line_revision=1, status=draft, version=1",
+    "money": "money_transaction_snapshots draft:v1 stores the total in Company minor units and its USD equivalent from the confirmed manual rate, with the rate id and fallback flag",
+    "command": "two command_receipts (finance.invoice.create for <key>-invoice and finance.sales-invoice.prepare for <key>) with the Work command fingerprint, audit_events and outbox_events",
+    "authority": "current Account/Holding authority, rendered-context CAS, finance.write, module.finance.read, Company scope only and finance.accounting or finance.sales-posting new-work purchase",
+    "atomicity": "serializable read with defaults/accounts/party/chart/rate share locks and the number-sequence writer lock"
+  },
+  "checks": {
+    "postgres": "finance.rust-sales-invoice-create-postgres.integration 3/3",
+    "cases": [
+      "approved defaults, two service lines and exact half-up totals (32,000 subtotal / 2,240 VAT / 34,240 total)",
+      "invoice header, native line revision, USD Money snapshot, two receipts, audit and outbox rows",
+      "exact replay returns the retained result without a second invoice; a different request under the same key is 409",
+      "branch scope is rejected; missing output VAT is 422; missing approved defaults is 409",
+      "HTTP POST with the real cookie, CAS and Idempotency-Key returns 201; a missing key is 422"
+    ],
+    "regressions": "finance.rust-sales-invoice-list-postgres 3/3; finance.rust-journal-list-postgres 2/2",
+    "gates": "cargo clippy private-field-api, typecheck, structure, architecture, docs, catalogue (33 modules, 789 suites), rust-runtime-foundation 6/6, finance unit transport suites 4/4"
+  },
+  "browser": {
+    "desktop": {
+      "viewport": "1280x900",
+      "url": "https://acme.jesadakorn.com/finance/documents/sales/invoices?company=zero-service-parts-d0f627fa-f317-440f-ab49-34173813570e&new=invoice",
+      "form": "Browser customer; 1 x 125.00 THB at 7% VAT; completion evidence entered and confirmed",
+      "postStatus": 200,
+      "result": {
+        "id": "invoice-60b7fdd5-4394-4595-8970-39ec44fda6fb-invoice",
+        "number": "INV-2026-000001",
+        "total": "133.75",
+        "status": "draft",
+        "version": 1
+      },
+      "pageErrors": 0,
+      "consoleErrors": 4
+    },
+    "mobile": {
+      "viewport": "390x844",
+      "url": "https://acme.jesadakorn.com/finance/documents/sales/invoices?company=zero-service-parts-d0f627fa-f317-440f-ab49-34173813570e&new=invoice",
+      "form": "Browser customer; 1 x 125.00 THB at 7% VAT; completion evidence entered and confirmed",
+      "postStatus": 200,
+      "result": {
+        "id": "invoice-0d960428-bd82-4841-a74b-fd128c8add0e-invoice",
+        "number": "INV-2026-000002",
+        "total": "133.75",
+        "status": "draft",
+        "version": 1
+      },
+      "pageErrors": 0,
+      "consoleErrors": 11
+    },
+    "listReadback": "The desktop and mobile Sales invoices list showed the created INV-2026-000001 first with Browser customer, 2026-11-04, draft, THB 133.75 outstanding. After the mobile create, the database held INV-2026-000002 as the newest draft.",
+    "nativeProof": "With the private native API stopped, the page rendered 'Temporarily unavailable'; after restarting the API the native list and created invoice rows returned."
+  },
+  "persisted": {
+    "invoices": [
+      {"id": "invoice-60b7fdd5-4394-4595-8970-39ec44fda6fb-invoice", "number": "INV-2026-000001", "totalMinor": 13375, "lineMode": "native_lines", "originKind": "native_line"},
+      {"id": "invoice-0d960428-bd82-4841-a74b-fd128c8add0e-invoice", "number": "INV-2026-000002", "totalMinor": 13375, "lineMode": "native_lines", "originKind": "native_line"}
+    ],
+    "money": "amount_units 13375, usd_units 382 at THB 35/USD, currency_scale 2, used_latest_fallback false",
+    "receipts": "each invoice has finance.invoice.create and finance.sales-invoice.prepare receipts plus matching audit_events and outbox_events"
+  },
+  "limits": [
+    "The generic sales-invoice workspace remains partial: customer-receipt detail/export/issue and sales defaults/settings are still TS; edit and void of standalone drafts are not part of this slice.",
+    "The browser create used one service line per invoice; multi-line and tax rounding are covered by PostgreSQL.",
+    "The Finance app logs React hydration console warnings; pageErrors stay 0.",
+    "The Next catch-all route returned 200 to the browser while the native HTTP route returns 201; the client accepts both as success and the native writer persisted the invoice."
+  ]
+}

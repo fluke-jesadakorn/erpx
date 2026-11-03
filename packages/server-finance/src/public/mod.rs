@@ -97,3 +97,5 @@ pub mod service_package_settlement;
 pub mod journal_list;
 
 pub mod sales_invoice_list;
+
+pub mod sales_invoice_create;

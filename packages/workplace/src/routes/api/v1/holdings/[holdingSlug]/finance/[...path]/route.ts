@@ -1,7 +1,7 @@
 import {nativeFieldJournalWorkspaceReadback,nativeFieldJournalLegacyUnavailable} from '@erpx/feature-finance/public/server';
 import {nativeServicePaymentReadback,nativeServiceInvoiceReadback} from '@erpx/feature-finance/public/server';
 import {isNativeServicePaymentRequest,nativeServicePaymentCommand} from '@erpx/feature-finance/public/server';
-import { nativeServiceNoCharge,nativeServiceInvoicePost, nativeJournalEdit, nativeJournalEditReadback, nativeJournalCreate, nativeJournalCreateReadback, nativeJournalPost, nativeJournalPostReadback, nativeJournalReverse, nativeJournalReverseReadback } from "@erpx/feature-finance/public/server";
+import { nativeServiceNoCharge,nativeServiceInvoicePost, nativeJournalEdit, nativeJournalEditReadback, nativeJournalCreate, nativeJournalCreateReadback, nativeJournalPost, nativeJournalPostReadback, nativeJournalReverse, nativeJournalReverseReadback, nativeSalesInvoiceCreate } from "@erpx/feature-finance/public/server";
 import {expensePostingPrerequisites,createExpensePostingChart,createExpensePostingAccount,createExpensePostingPeriod,confirmExpensePostingRate,expensePostingPrerequisiteConfirmation,expensePostingChartSchema,expensePostingAccountSchema,expensePostingPeriodSchema,expensePostingRateSchema,expensePostingPrerequisiteConfirmationSchema} from '@erpx/server-finance/public/expense-posting-prerequisites';
 import {expensePostingSetup,initializeExpensePostingSetup,expensePostingSetupSchema} from '@erpx/server-commerce/public/expense-posting-setup';
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
@@ -225,6 +225,10 @@ export async function POST(request: Request, context: FinanceRouteContext) {
       if (response) return response;
       const actor=requirePermission(await requireWorkContext(holdingSlug),"finance.read");
       const field=await nativeFieldJournalLegacyUnavailable(request,actor,holdingSlug,parts[1]);if(field)return field;
+    }
+    if (parts.length === 2 && parts[0] === "sales" && parts[1] === "invoices") {
+      const response = await nativeSalesInvoiceCreate(request, holdingSlug);
+      if (response) return response;
     }
     if (parts.length === 3 && parts[0] === "invoices" && parts[2] === "post") {
       const response = await nativeServiceInvoicePost(request, holdingSlug, parts[1]);
