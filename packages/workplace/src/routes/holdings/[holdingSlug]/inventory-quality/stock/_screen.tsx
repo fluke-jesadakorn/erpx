@@ -16,11 +16,14 @@ import {commercePage,commercePermissions} from '@erpx/server-commerce/public/com
 import { canApproveCounts, canPrepareCounts, canReadCounts } from "@erpx/server-inventory/public/inventory-counts";
 import { listInventoryReorderPolicies } from "@erpx/server-inventory/public/inventory-reorder-policies";
 import { pageError } from "@erpx/server-work_projection/public/page-error";
+import { ApiError } from "@erpx/server-runtime/public/http";
 import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { salesCustomerLegacyDestination } from "@erpx/server-sales/public/rules/navigation";
 
 import { InventoryReorderConsole } from "@erpx/feature-inventory/components/inventory-reorder-console";
+import { nativeInventoryAvailabilityFromHeaders } from "@erpx/feature-inventory/lib/native-availability";
 
 import { frontWorkspaceHref } from "@erpx/server-work_projection/public/front-app";
 import { RecordDocumentPanel } from "@erpx/feature-files/components/record-document-panel";
@@ -57,7 +60,51 @@ export default async function CommercePage({ params, searchParams, }: {
     if (destination)
         redirect(destination);
     ;
-    const data = await commercePage(actor, { ...search, view, kind: partyKind }).catch((error) => pageError(error, holdingSlug));
+    const nativeStock = await nativeInventoryAvailabilityFromHeaders(
+      actor.authority && actor.iam
+        ? {
+            userId: actor.userId,
+            holdingId: actor.holdingId,
+            holdingSlug,
+            companyId: actor.companyId,
+            branchId: actor.branchId,
+            departmentId: actor.departmentId,
+            assignmentId: actor.assignmentId,
+            revision: actor.authority.revision,
+            assignmentVersion: actor.authority.assignmentVersion,
+            branchSlug: actor.scope.kind === "holding" ? undefined : actor.scope.branchSlug ?? undefined,
+            departmentSlug: actor.scope.kind === "department" ? actor.scope.departmentSlug ?? undefined : undefined,
+          }
+        : undefined,
+      holdingSlug,
+    ).catch((error) => pageError(error, holdingSlug));
+    let data: Awaited<ReturnType<typeof commercePage>>;
+    try {
+      data = await commercePage(actor, { ...search, view, kind: partyKind });
+    } catch (error) {
+      // Stock availability is an Inventory read and must not depend on Commerce
+      // posting setup. When the native availability source is configured, the
+      // stock view renders from it even if order posting is not configured.
+      if (nativeStock && error instanceof ApiError && error.code === "COMMERCE_SETUP_REQUIRED") {
+        data = {
+          orders: [],
+          products: [],
+          parties: [],
+          warehouses: [],
+          stock: [],
+          moves: [],
+          nodes: [],
+          currency: nativeStock.currency,
+          page: undefined,
+          movementPage: null,
+          options: null,
+          inTransit: [],
+        } as unknown as typeof data;
+      } else {
+        return pageError(error, holdingSlug);
+      }
+    }
+    const stockRows = nativeStock?.rows ?? data.stock;
     const requestData = search.request
         ? await (await commercePresentationQueries(actor.holdingId)).employeeRequestDetail(actor, search.request).catch((error) => pageError(error, holdingSlug))
         : null;
@@ -178,7 +225,7 @@ export default async function CommercePage({ params, searchParams, }: {
                       </tr>
                     </thead>
                     <tbody>
-                      {data.stock.map((s) => {
+                      {stockRows.map((s) => {
                 const available = Math.max(0, Number(s.quantity_milli) -
                     Math.max(Number(s.reserved_milli ?? 0), Number(s.quarantined_milli ?? 0)));
                 return (<tr key={`${s.warehouse_id}-${s.product_id}`}>
@@ -200,7 +247,7 @@ export default async function CommercePage({ params, searchParams, }: {
                     </tbody>
                   </Table>
                 </TableFrame>
-                {!data.stock.length && (<p className="muted">
+                {!stockRows.length && (<p className="muted">
                     Receive a purchase order or record and approve a physical count to establish
                     stock.
                   </p>)}

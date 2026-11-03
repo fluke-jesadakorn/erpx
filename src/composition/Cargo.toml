@@ -378,3 +378,8 @@ required-features = ["existing-business"]
 name = "inventory_reservation_alerts_postgres"
 path = "../../tests/integration/inventory/rust-inventory-reservation-alerts-postgres.test.rs"
 required-features = ["private-field-api"]
+
+[[test]]
+name = "inventory_availability_read_postgres"
+path = "../../tests/integration/inventory/rust-inventory-availability-read-postgres.test.rs"
+required-features = ["private-field-api"]
