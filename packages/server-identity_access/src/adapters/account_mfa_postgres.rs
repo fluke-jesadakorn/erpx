@@ -1,3 +1,4 @@
+use crate::domain::environment::valid_environment;
 use super::account_holding_bindings::ConfiguredHoldingRegistry;
 use super::{
     account_mfa_crypto::AccountMfaKeyring,
@@ -78,7 +79,7 @@ impl PostgresAccountMfa {
         clock: Arc<dyn Clock + Send + Sync>,
         holdings: Arc<ConfiguredHoldingRegistry>,
     ) -> Result<Self, BusinessError> {
-        if environment != "development" {
+        if !valid_environment(&environment) {
             return Err(BusinessError::invalid(
                 "ACCOUNT_ENVIRONMENT_UNAVAILABLE",
                 "The Account environment is not enabled.",
@@ -276,7 +277,7 @@ pub async fn require_fresh_mfa_in_transaction(
     now: i64,
     holdings: &ConfiguredHoldingRegistry,
 ) -> TxResult<FreshMfaProof> {
-    if environment != "development" {
+    if !valid_environment(&environment) {
         return Err(signed_out().into());
     }
     let result:TxResult<_>=async{

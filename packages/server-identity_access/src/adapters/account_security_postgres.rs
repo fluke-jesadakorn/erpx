@@ -1,3 +1,4 @@
+use crate::domain::environment::valid_environment;
 use super::account_holding_bindings::ConfiguredHoldingRegistry;
 use super::account_mfa_crypto::AccountMfaKeyring;
 use super::{
@@ -129,7 +130,7 @@ impl PostgresAccountSecurity {
         keys: Arc<AccountMfaKeyring>,
         holdings: Arc<ConfiguredHoldingRegistry>,
     ) -> Result<Self, BusinessError> {
-        if environment != "development" {
+        if !valid_environment(&environment) {
             return Err(BusinessError::invalid(
                 "ACCOUNT_ENVIRONMENT_UNAVAILABLE",
                 "The Account environment is not enabled.",
@@ -226,7 +227,7 @@ impl AccountSecurityRepository for PostgresAccountSecurity {
                                 session_id: actor.id,
                             };
                             let image = source(connection, &actor, &[]).await?;
-                            Ok(seed(&image, &actor, clock.now().get())?)
+                            Ok(seed(&image, &actor, clock.now().get(), &environment)?)
                         })
                     })
                     .await,
@@ -249,7 +250,7 @@ impl AccountSecurityRepository for PostgresAccountSecurity {
         leases(connection).await?;
         let fresh=require_fresh_mfa_in_transaction(connection,&proof,&RequestAudience::Account,&environment,keys,clock.now().get(),&holdings).await?;
         let actor=Actor{user_id:fresh.user_id().into(),session_id:fresh.session_id().into()};
-        let before=source(connection,&actor,&[]).await?;let initial=seed(&before,&actor,clock.now().get())?;
+        let before=source(connection,&actor,&[]).await?;let initial=seed(&before,&actor,clock.now().get(),&environment)?;
         if input.account_key!=initial.account_key{return Err(changed().into());}
         let hash=digest(&("account.sessions.revoke",&actor,&input))?;
         let receipt=sqlx::query("SELECT CASE WHEN octet_length(company_id)<=128 THEN company_id END company_id,CASE WHEN octet_length(actor_id)<=128 THEN actor_id END actor_id,CASE WHEN octet_length(request_hash)<=128 THEN request_hash END request_hash,CASE WHEN octet_length(result::text)<=4096 THEN result END result FROM iam_receipts WHERE id=$1").bind(&key).fetch_optional(&mut *connection).await?;
@@ -266,7 +267,7 @@ impl AccountSecurityRepository for PostgresAccountSecurity {
             let handle=input.family.as_deref().ok_or_else(changed)?;
             let mut parent=None;for s in &own{if family_handle(&actor,&s.id)?==handle&&initial.families.iter().any(|f|f.handle==handle){parent=Some(s.id.clone());break;}}
             let parent=parent.ok_or_else(||BusinessError::new(FailureKind::NotFound,"ACCOUNT_FAMILY_NOT_FOUND","This sign-in is no longer available."))?;
-            let ids=before.sessions.iter().filter(|s|s.id==parent||before.bindings.iter().any(|b|b.session_id==s.id&&b.parent_session_id.as_deref()==Some(parent.as_str())&&b.environment=="development")).map(|s|s.id.clone()).collect::<Vec<_>>();
+            let ids=before.sessions.iter().filter(|s|s.id==parent||before.bindings.iter().any(|b|b.session_id==s.id&&b.parent_session_id.as_deref()==Some(parent.as_str())&&b.environment==environment)).map(|s|s.id.clone()).collect::<Vec<_>>();
             if ids.iter().any(|id|!own.iter().any(|s|&s.id==id)){return Err(changed().into());}ids
         }else{own.iter().map(|s|s.id.clone()).collect::<Vec<_>>()};
         invalidate(connection,&before,&ids,invalidation.as_ref()).await?;

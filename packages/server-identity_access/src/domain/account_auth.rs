@@ -1,3 +1,4 @@
+use super::environment::valid_environment;
 use erpx_server_shared::public::{BusinessError, FailureKind};
 use std::collections::BTreeSet;
 
@@ -283,7 +284,7 @@ impl AccountPolicy {
         }
         if self.account_origin != format!("https://{}", self.account_host)
             || !(exact_host(&self.account_host) || contributor)
-            || self.environment != "development"
+            || !valid_environment(&self.environment)
         {
             return Err(BusinessError::invalid(
                 "INVALID_ACCOUNT_AUTHORITY",
