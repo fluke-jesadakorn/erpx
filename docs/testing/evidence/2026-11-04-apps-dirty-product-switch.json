@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Dirty product switch guard verified on desktop",
+  "capability": "apps-dirty-product-switch",
+  "base": "0c5f8520734cbcb98925aab99c02c0cae03739aa",
+  "branch": "codex/apps-dirty-product-switch-evidence",
+  "sourceCommit": "pending",
+  "surface": {
+    "component": "packages/workplace/src/components/product-navigation-boundary.tsx",
+    "dirtyRegistry": "packages/feature-work_projection/src/lib/context-switch.ts",
+    "noCodeChange": true
+  },
+  "browser": {
+    "desktop": {
+      "viewport": "1280x900",
+      "url": "https://acme.jesadakorn.com/zero-service-parts-d0f627fa-f317-440f-ab49-34173813570e-branch/finance/accounting/journals?new=1",
+      "dirtyMarker": "data-work-dirty=true after editing the journal memo",
+      "switchLink": "Feed (data-product-switch)",
+      "dialog": "Leave unsaved work? Your changes on this page have not been saved. Leaving will discard them. Keep editing / Discard and leave",
+      "urlBefore": "…/finance/accounting/journals?new=1",
+      "urlDuring": "…/finance/accounting/journals?new=1",
+      "urlAfterKeep": "…/finance/accounting/journals?new=1",
+      "dialogAfterKeep": 0,
+      "pageErrors": 0,
+      "consoleErrors": 4
+    },
+    "mobile": {
+      "status": "not claimed",
+      "reason": "The 390px sidebar keeps the Feed link inside the collapsed Apps and account dialog; the current probe selector could not reach the visible link. No mobile claim is made."
+    }
+  },
+  "checks": {
+    "unit": "shared.work.calendar-services.unit 40/40 covers the product-navigation boundary; shared.work.shortcut-readiness.unit 40/41 with one pre-existing mock gap (@erpx/ui/components/use-hydrated) unrelated to this surface.",
+    "gates": "docs:check, catalogue (33 modules, 786 suites)"
+  },
+  "limits": [
+    "The guard is client-side; no Rust writer is involved.",
+    "Only desktop browser evidence is claimed.",
+    "The unrelated shortcut-readiness mock gap is left unchanged."
+  ]
+}
