@@ -256,6 +256,7 @@ impl erpx_server_identity_access::public::effective_authority::HoldingWorkSource
     }
 }
 #[derive(Debug)]
+#[allow(clippy::large_enum_variant)]
 enum MetadataDenial {
     Unavailable(erpx_server_identity_access::public::effective_authority::SelectedContextRead),
     Error(BusinessError),

@@ -6,6 +6,7 @@ use erpx_server_commercial::public::purchases::{
     CapabilityPurpose, PackageEnforcementMode, PgCompanyPurchaseReader, PurchaseRequest,
     PurchaseWitness,
 };
+#[allow(clippy::large_enum_variant)]
 enum Leaf {
     Asset(erpx_server_assets::public::record_source::CurrentRecordSource),
     Pos(erpx_server_pos::public::record_source::CurrentRecordSource),

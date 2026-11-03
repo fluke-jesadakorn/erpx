@@ -59,7 +59,7 @@ pub async fn stage_operations_notification(
     now: i64,
 ) -> Result<RetainedOperationsNotification, Error> {
     let unit = unit(c).await?;
-    if recipient.is_empty() || record.is_empty() || version < 1 || version > 9_007_199_254_740_991 {
+    if recipient.is_empty() || record.is_empty() || !(1..=9_007_199_254_740_991).contains(&version) {
         return Err(changed());
     }
     let id = format!("operations-notice-{}", key.as_str());

@@ -9,6 +9,7 @@ pub struct FieldOperationsSetup {
     pub id: Option<String>,
     pub body: Value,
 }
+#[allow(clippy::large_enum_variant)]
 enum Plan {
     Draft {
         before: CurrentPolicyArea,
@@ -643,7 +644,7 @@ where
  }
  let people=erpx_server_people_payroll::public::field_service_workspace::read_service_workspace_people(c,&target.company,vec![],true).await?;
  let members=erpx_server_identity_access::public::collaboration_candidates::read_operations_candidates(c,&target.company,people.data().iter().filter(|p|p.eligible).map(|p|p.user_id.clone()).collect(),target.clock.now()).await?;
- let picker:Vec<Value>=people.data().iter().filter(|p|p.eligible&&members.users().contains(&p.user_id)).map(|p|json!({"id":p.user_id,"name":p.name})).collect();
+ let picker:Vec<Value>=people.data().iter().filter(|p|p.eligible&&members.eligible_users().contains(&p.user_id)).map(|p|json!({"id":p.user_id,"name":p.name})).collect();
  let typed=exceptions.iter().cloned().map(serde_json::from_value::<Exception>).collect::<Result<Vec<_>,_>>().map_err(|_|changed())?;
  let same_people=read_service_workspace_authority(c,ServiceWorkspaceAuthorityRequest{company:target.company.clone(),actor:current.user_id().as_str().into(),assignments:vec![],same_people:typed.iter().flat_map(|r|std::iter::once(r.owner_id.clone()).chain(r.resolved_by.clone())).collect()},target.clock.now()).await?;
  let same=|user:&str|same_people.data().same_people.iter().any(|v|v.user_id==user&&v.same_person);

@@ -214,6 +214,7 @@ impl<C: erpx_server_shared::public::Clock + Sync>
         self.inner.retain(c, preview).await
     }
 }
+#[allow(clippy::too_many_arguments)]
 pub async fn apply_service_package_batch<C: erpx_server_shared::public::Clock + Sync>(
     holding_connection: &mut PgConnection,
     control_connection: &mut PgConnection,

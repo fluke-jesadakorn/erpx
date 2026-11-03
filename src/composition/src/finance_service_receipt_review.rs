@@ -238,6 +238,7 @@ impl<C: Clock + Send + Sync> PgOwnerCommandEffects for Effects<'_, C> {
             .await
     }
 }
+#[allow(clippy::too_many_arguments)]
 pub async fn execute_service_receipt_review<C, F, P>(
     authorizer: &HoldingWorkAuthorizer,
     host: &str,

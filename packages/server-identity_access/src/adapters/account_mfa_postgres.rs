@@ -277,7 +277,7 @@ pub async fn require_fresh_mfa_in_transaction(
     now: i64,
     holdings: &ConfiguredHoldingRegistry,
 ) -> TxResult<FreshMfaProof> {
-    if !valid_environment(&environment) {
+    if !valid_environment(environment) {
         return Err(signed_out().into());
     }
     let result:TxResult<_>=async{

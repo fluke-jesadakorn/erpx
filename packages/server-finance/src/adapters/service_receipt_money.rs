@@ -153,6 +153,7 @@ impl RetainedServiceReceiptMoney {
         Ok(())
     }
 }
+#[allow(clippy::too_many_arguments)]
 pub async fn prepare_service_receipt_money(
     c: &mut PgConnection,
     company: &CompanyId,
@@ -174,6 +175,7 @@ pub async fn prepare_service_receipt_money(
     )
     .await
 }
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn prepare_receipt_money_kind(
     c: &mut PgConnection,
     company: &CompanyId,

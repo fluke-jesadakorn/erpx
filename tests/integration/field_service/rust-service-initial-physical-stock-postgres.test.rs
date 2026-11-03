@@ -1,3 +1,4 @@
+#![allow(clippy::duplicate_mod)]
 //! Actual Account/selected Holding unit and Workflow receipt. The prior Service
 //! setup is an explicitly synthetic committed prerequisite, not a setup test.
 #[allow(dead_code)]

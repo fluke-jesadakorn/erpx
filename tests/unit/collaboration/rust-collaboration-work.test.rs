@@ -368,19 +368,19 @@ fn native_action_work_retains_ineligible_owner_and_terminal_behavior() {
         updated_at: 1,
     };
     let own = action_work(&r, "owner", false);
-    assert_eq!(own.can_act, true);
+    assert!(own.can_act);
     assert_eq!(own.relationships, vec!["assigned"]);
     r.owner_eligible = 0;
     let ineligible = action_work(&r, "owner", false);
-    assert_eq!(ineligible.can_act, false);
+    assert!(!ineligible.can_act);
     assert_eq!(ineligible.queue, "waiting");
     assert!(ineligible.blocker.is_some());
-    assert_eq!(action_work(&r, "reviewer", true).can_act, true);
+    assert!(action_work(&r, "reviewer", true).can_act);
     for status in ["completed", "cancelled"] {
         r.status = status.into();
         let w = action_work(&r, "reviewer", true);
         assert_eq!(w.queue, "completed");
-        assert_eq!(w.can_act, false);
+        assert!(!w.can_act);
     }
 }
 

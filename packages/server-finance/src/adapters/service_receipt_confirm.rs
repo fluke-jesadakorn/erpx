@@ -250,10 +250,10 @@ impl PreparedServiceReceiptConfirm {
         {
             return Err(changed());
         }
-        if let Some(fx) = fx {
-            if fx.actor() != &self.actor || fx.draft() != self.fx.as_ref().ok_or_else(changed)? {
-                return Err(changed());
-            }
+        if let Some(fx) = fx
+            && (fx.actor() != &self.actor || fx.draft() != self.fx.as_ref().ok_or_else(changed)?)
+        {
+            return Err(changed());
         }
         let at = clock.now().get();
         if !(0..=9_007_199_254_740_991).contains(&at) {
@@ -359,7 +359,7 @@ impl PreparedServiceReceiptConfirm {
             c,
             retained.plan.actor.company_id.as_str(),
             &retained.plan.payment_id,
-            &[retained.plan.input.bank_transaction_id.clone()],
+            std::slice::from_ref(&retained.plan.input.bank_transaction_id),
         )
         .await?;
         Ok(retained)

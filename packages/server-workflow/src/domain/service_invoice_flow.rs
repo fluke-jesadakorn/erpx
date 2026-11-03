@@ -2,6 +2,8 @@
 //! These rendering decisions grant no Finance write permission.
 use serde_json::Value;
 fn string(value: &str) -> Value { Value::String(value.to_owned()) }
+// The renderer is the fixed public contract for the invoice/journal Flow.
+#[allow(clippy::too_many_arguments)]
 pub fn service_invoice_flow_view(
     record: &Value,
     version: i64,

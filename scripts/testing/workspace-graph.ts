@@ -25,7 +25,7 @@ function workingRetirementPresence(root:string):Set<string>{
 const resourcePrefix = 'resource-input:';
 export function workspaceInputFile(file: string) { return file.startsWith(resourcePrefix) ? file.slice(resourcePrefix.length) : file; }
 const sourceExtension = /\.(?:[cm]?[jt]sx?|rs|json|css|mjs|md|mdx|yml|yaml|py|sh|plist|toml|html|sql)$/;
-const workspaceDirectories = ["apps", "packages", "src", "scripts", "tests", "fixtures", "public", "docs", ".github", "ops", "migrations"];
+const workspaceDirectories = ["apps", "packages", "src", "scripts", "tests", "fixtures", "public", "docs", ".github", "ops", "migrations", "contracts"];
 const rootInputs = new Set(["next.config.ts", "tsconfig.base.json", "tsconfig.json", "postcss.config.mjs", "package.json", "bun.lock", ".env.example", "eslint.config.mjs", "README.md", "AGENTS.md", "CONTEXT.md", "CONTRACT_POLICY.md", "LICENSE", "NOTICE", "LICENSING.md", "CONTRIBUTING.md", "SECURITY.md", "CODE_OF_CONDUCT.md", "GOVERNANCE.md", ".bun-version", ".node-version", "bunfig.toml", "turbo.json", ".gitignore", ".gitattributes", ...cargoRootInputs]);
 // Next metadata and app public assets are inputs even when no JS imports them.
 // A public symlink is inventoried as its target text; never traverse its target.

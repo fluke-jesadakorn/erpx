@@ -691,6 +691,7 @@ impl IdentifierSource for Ids {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn execute_selected_field_operations_http<C, Input>(
     authorizer: &erpx_server_identity_access::public::effective_authority::HoldingWorkAuthorizer,
     host: &str,
@@ -728,7 +729,7 @@ where
             if current.holding_id()!=&target.holding || current.selection().workspace().company_id!=target.company {return Err(BusinessError::new(FailureKind::Forbidden,"OPERATIONS_SCOPE_REQUIRED","Use the current Company.").into());}
             let result=if let Some(id)=id{execute(c,current,&target,FieldOperationsTransition{id,key,body:raw}).await?}else{
                 let id=raw.get("id").map(|v|v.as_str().filter(|v|!v.is_empty()).map(str::to_owned).ok_or_else(||BusinessError::invalid("OPERATIONS_INPUT_INVALID","Provide a valid Operations id."))).transpose()?;
-                if raw["entity"]=="policy"||id.is_none(){setup::execute_setup(c,current,&target,FieldOperationsSetup{key,id,body:raw}).await?}else{execute(c,current,&target,FieldOperationsTransition{id:id.expect("checked"),key,body:raw}).await?}
+                if raw["entity"]=="policy"||id.is_none(){setup::execute_setup(c,current,&target,FieldOperationsSetup{key,id,body:raw}).await?}else{let id=id.ok_or_else(||BusinessError::invalid("OPERATIONS_INPUT_INVALID","Provide a valid Operations id."))?;execute(c,current,&target,FieldOperationsTransition{id,key,body:raw}).await?}
             };
             Ok(Ok(serde_json::json!({"data":result,"context":crate::field_service_reservation_read::context(current)?})))
         })});

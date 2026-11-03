@@ -253,7 +253,7 @@ pub async fn verify_session_in_transaction(
     now: i64,
     holdings: &ConfiguredHoldingRegistry,
 ) -> Result<Option<AccountSession>, PgTransactionError<BusinessError>> {
-    if !valid_environment(&environment) {
+    if !valid_environment(environment) {
         return Err(BusinessError::invalid(
             "ACCOUNT_ENVIRONMENT_UNAVAILABLE",
             "This Account binding environment is not enabled.",

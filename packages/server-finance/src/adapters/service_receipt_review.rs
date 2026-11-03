@@ -7,6 +7,7 @@ use serde_json::Value;
 use sqlx::{Connection, PgConnection};
 type Error = PgTransactionError<BusinessError>;
 type Unit = (String, i32, String, String);
+#[allow(clippy::cmp_owned)]
 fn changed() -> Error {
     BusinessError::new(
         FailureKind::Conflict,
@@ -26,6 +27,7 @@ async fn unit(c: &mut PgConnection) -> Result<Unit, Error> {
     }
     Ok(sqlx::query_as("SELECT current_database(),pg_backend_pid(),pg_current_xact_id()::text,pg_postmaster_start_time()::text").fetch_one(c).await?)
 }
+#[allow(clippy::cmp_owned)]
 async fn image(c: &mut PgConnection, company: &str, id: &str) -> Result<(Value, String), Error> {
     let payment:Option<Option<Value>>=sqlx::query_scalar("SELECT CASE WHEN octet_length(to_jsonb(p)::text)<=65536 THEN to_jsonb(p) END FROM finance_payments p WHERE company_id=$1 AND id=$2 AND kind='receipt' FOR UPDATE")
         .bind(company).bind(id).fetch_optional(&mut *c).await?;
@@ -40,7 +42,7 @@ async fn image(c: &mut PgConnection, company: &str, id: &str) -> Result<(Value, 
         .bind(company).bind(id).fetch_optional(&mut *c).await?;
     let money_text = money.flatten().ok_or_else(changed)?;
     let money: Value = serde_json::from_str(&money_text).map_err(|_| changed())?;
-    if money["currency"] != row["currency"]
+    if money.get("currency") != row.get("currency")
         || money["currency_scale"].as_i64() != Some(2)
         || money["amount_units"].to_string() != row["amount_minor"].to_string()
         || money["usd_units"].as_i64().is_some_and(|v| v < 0)
@@ -67,6 +69,7 @@ impl CurrentServiceReceiptReview {
         }
         Ok(())
     }
+#[allow(clippy::too_many_arguments)]
     pub async fn apply(
         self,
         c: &mut PgConnection,

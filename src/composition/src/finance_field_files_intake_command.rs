@@ -241,6 +241,7 @@ impl<C: Clock + Send + Sync, A: FieldIntakeAuthority + Sync, S: HoldingWorkSourc
 }
 /// Authorization is provided by the surrounding native Account coordinator.
 /// This function never opens/commits a transaction or discovers providers.
+#[allow(clippy::too_many_arguments)]
 pub async fn create_finance_payment_proof_set<C: Clock + Send + Sync>(
     c: &mut PgConnection,
     current: &AuthorizedWorkContext,
@@ -272,6 +273,7 @@ pub async fn create_finance_payment_proof_set<C: Clock + Send + Sync>(
     )
     .await
 }
+#[allow(clippy::too_many_arguments)]
 pub async fn create_finance_field_journal_support_set<C: Clock + Send + Sync>(
     c: &mut PgConnection,
     current: &AuthorizedWorkContext,
@@ -302,6 +304,7 @@ pub async fn create_finance_field_journal_support_set<C: Clock + Send + Sync>(
     )
     .await
 }
+#[allow(clippy::too_many_arguments)]
 async fn create_finance_intake_set<
     C: Clock + Send + Sync,
     A: FieldIntakeAuthority + Sync,

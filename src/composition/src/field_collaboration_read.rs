@@ -237,7 +237,7 @@ async fn read<C: Clock + Send + Sync>(
         people: people
             .data()
             .iter()
-            .filter(|p| p.eligible && candidates.users().contains(&p.user_id))
+            .filter(|p| p.eligible && candidates.eligible_users().contains(&p.user_id))
             .map(|p| json!({"id":p.user_id,"name":p.name}))
             .collect(),
         source_types: vec!["field_service_order", "support_ticket"],

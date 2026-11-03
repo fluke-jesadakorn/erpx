@@ -1,6 +1,8 @@
 //! Pure Field journal routing presentation. No authority or database access.
 use serde_json::Value;
 fn string(value: &str) -> Value { Value::String(value.to_owned()) }
+// The renderer is the fixed public contract for the invoice/journal Flow.
+#[allow(clippy::too_many_arguments)]
 pub fn field_journal_flow_view(
     record:&Value,version:i64,revision:i64,history:&[Value],
     candidates:Vec<Value>,selected:Option<String>,actor:&str,

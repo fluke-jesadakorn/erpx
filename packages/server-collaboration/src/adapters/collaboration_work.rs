@@ -417,10 +417,10 @@ impl CurrentCollaborationEffects {
         {
             return Err(changed());
         }
-        if let Some(id) = &self.notice_id {
-            if owned_image(c, "staff_notifications", id).await? != self.notice_image {
-                return Err(changed());
-            }
+        if let Some(id) = &self.notice_id
+            && owned_image(c, "staff_notifications", id).await? != self.notice_image
+        {
+            return Err(changed());
         }
         Ok(())
     }
@@ -620,14 +620,13 @@ pub async fn retain_effects(
     {
         return Err(changed());
     }
-    if let Some(owner) = owner {
-        if text(&event, "owner_id")? != owner
+    if let Some(owner) = owner
+        && (text(&event, "owner_id")? != owner
             || event.get("due_at").and_then(Value::as_i64) != due
             || text(&row_value, "owner_id")? != owner
-            || row_value.get("due_at").and_then(Value::as_i64) != due
-        {
-            return Err(changed());
-        }
+            || row_value.get("due_at").and_then(Value::as_i64) != due)
+    {
+        return Err(changed());
     }
     let notice_image = if let Some(id) = &notice_id {
         let raw = owned_image(c, "staff_notifications", id)

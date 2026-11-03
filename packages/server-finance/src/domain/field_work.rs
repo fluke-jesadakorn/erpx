@@ -25,7 +25,10 @@ pub fn field_financial_work_item(kind:&str,record:&Value,flow:&Value,actor:&str,
     let current=&flow["current"];
     let action=if current.is_null(){"No pending action"}else{current["action"].as_str().ok_or_else(changed)?};
     let setup=blocker.is_some()&&current["primary"].is_null();
-    let mut relationships=Vec::new();if own{relationships.push("requested");}if can_act{relationships.push("assigned");}
+    let relationships: Vec<&str> = [(own, "requested"), (can_act, "assigned")]
+        .into_iter()
+        .filter_map(|(keep, value)| keep.then_some(value))
+        .collect();
     let mut item = serde_json::Map::new();
     item.insert("id".into(), Value::String(id.into()));
     item.insert("type".into(), Value::String(kind.into()));

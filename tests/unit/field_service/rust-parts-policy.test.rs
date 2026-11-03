@@ -336,7 +336,7 @@ mod tests {
     fn retained_application_work_assertions_keep_read_only_and_revoked_actors_waiting() {
         let agreement = json!({"id":"agreement","status":"draft","created_by":"creator","asset_id":null,"requires_asset_capability":0,"can_review":1,"title":"Reviewed plan","customer_name":"Customer","start_date":"2026-10-01","end_date":"2026-10-31","updated_at":42});
         let order = json!({"id":"order","status":"in_visit","technician_id":"technician","created_by":"creator","completed_by":null,"technician_eligible":0,"can_review":0,"asset_id":null,"requires_asset_capability":0,"independent_billing":1,"scheduled_at":100,"exception_reason":null,"ticket_title":"Reported issue","site":"Customer site","customer_name":"Customer","updated_at":42});
-        let items = field_service_work_items(&[agreement], &[order.clone()], "technician", &[], WorkRights {can_write:true,can_review:false,can_parts:true,settle:true}).unwrap();
+        let items = field_service_work_items(&[agreement], std::slice::from_ref(&order), "technician", &[], WorkRights {can_write:true,can_review:false,can_parts:true,settle:true}).unwrap();
         assert_eq!((items[0].queue.as_str(),items[0].can_act),("waiting",false));
         assert_eq!((items[1].queue.as_str(),items[1].can_act),("waiting",false));
         assert_eq!(items[1].blocker.as_ref().and_then(|b|b.as_deref()),Some("Assigned technician is no longer eligible; reviewer reassignment is required"));

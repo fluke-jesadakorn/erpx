@@ -69,6 +69,8 @@ fn authority() -> BusinessError {
 /// The provider-entry Holding is exact composition configuration, never a
 /// request body. READ COMMITTED plus retained source locks prevents borrowing a
 /// pre-lock SERIALIZABLE snapshot for current Control authority.
+// Fixed platform authority contract; callers supply the full current proof set.
+#[allow(clippy::too_many_arguments)]
 pub async fn verify_platform_commercial_authority(
     c: &mut PgConnection,
     host: &str,
@@ -128,6 +130,8 @@ async fn prepare_sources(c: &mut PgConnection) -> Result<(), Error> {
 /// Resolve the normal per-session provider selection, then the existing
 /// assignment cookie hint / saved preference / first current assignment. Hints
 /// select an owned current assignment and never supply principal or permission.
+// Fixed platform authority contract; callers supply the full current proof set.
+#[allow(clippy::too_many_arguments)]
 pub async fn verify_current_platform_commercial_authority(
     c: &mut PgConnection,
     host: &str,

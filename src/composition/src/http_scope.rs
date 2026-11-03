@@ -19,9 +19,7 @@ pub(crate) fn selected_company_target<'a,T>(
     use erpx_server_shared::public::FailureKind;
     let missing=||BusinessError::new(FailureKind::NotFound,"NOT_FOUND","Not found.");
     let requested=unique_request_header(headers,"x-erpx-context-company")?;
-    if let Some(company)=requested{
-        if let Some(target)=targets.get(&(host.into(),holding.into(),company.into())) { return Ok(target); }
-    }
+    if let Some(target)=requested.and_then(|company|targets.get(&(host.into(),holding.into(),company.into()))){ return Ok(target); }
     let mut candidates=targets.iter().filter(|((h,s,_),_)|h==host&&s==holding);
     let (_,target)=candidates.next().ok_or_else(missing)?;
     if candidates.next().is_some(){

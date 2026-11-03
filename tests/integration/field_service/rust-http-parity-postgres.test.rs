@@ -119,6 +119,7 @@ async fn send(
     (status, serde_json::from_str(&raw).unwrap())
 }
 
+#[allow(dead_code)]
 async fn send_as(
     router: &axum::Router,
     cookie: &str,

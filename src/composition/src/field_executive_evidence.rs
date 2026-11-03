@@ -180,11 +180,11 @@ async fn read<C: Clock + Send + Sync>(
             .map_err(|_| invalid())?;
         items.push(json!({"id":id,"label":id,"summary":format!("{} · {timestamp} UTC",row["status"].as_str().ok_or_else(invalid)?),"status":row["status"],"version":version,"href":format!("/field-service/{}",encode(id))}));
     }
-    let data = if record.is_some() {
+    let data = if let Some(record) = record {
         let mut item = visible[0].clone();
         item.as_object_mut().ok_or_else(invalid)?.insert(
             "href".into(),
-            json!(format!("/field-service/{}", encode(record.unwrap()))),
+            json!(format!("/field-service/{}", encode(record))),
         );
         json!({"provider":PROVIDER,"metric":METRIC,"fields":FIELDS,"record":item,"queryHash":query_hash})
     } else {

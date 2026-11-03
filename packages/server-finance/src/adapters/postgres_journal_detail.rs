@@ -367,10 +367,10 @@ impl CurrentFieldServiceJournalDetail {
         {
             return Err(denied());
         }
-        if let Some(expected) = &self.invoice_source {
-            if invoice_journal_link(c, &self.actor, &self.id).await?.as_ref() != Some(expected) {
-                return Err(denied());
-            }
+        if let Some(expected) = &self.invoice_source
+            && invoice_journal_link(c, &self.actor, &self.id).await?.as_ref() != Some(expected)
+        {
+            return Err(denied());
         }
         Ok(())
     }

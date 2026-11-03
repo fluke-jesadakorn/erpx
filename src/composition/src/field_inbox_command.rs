@@ -284,6 +284,7 @@ async fn execute<C: Clock + Send + Sync>(
     }
     Ok(json!({"data":result,"context":crate::field_service_reservation_read::context(current)?}))
 }
+#[allow(clippy::too_many_arguments)]
 pub async fn execute_selected_field_inbox_http<C, Input>(
     authorizer: &HoldingWorkAuthorizer,
     host: &str,

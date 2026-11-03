@@ -51,6 +51,7 @@ pub struct NativeServiceCompany {pub id:String,pub slug:String,pub name:String,p
 #[serde(rename_all="camelCase")]
 #[cfg_attr(feature="contracts",derive(ts_rs::TS,utoipa::ToSchema))]
 pub struct NativeServiceCompanies {pub companies:Vec<NativeServiceCompany>,pub can_apply:bool}
+#[allow(clippy::too_many_arguments)]
 pub fn service_package_router<C: Clock + Send + Sync + 'static>(
     control: DatabasePool,
     policy: Arc<AccountPolicy>,
@@ -361,8 +362,8 @@ fn assignment_hint(headers: &HeaderMap) -> Result<Option<String>, BusinessError>
         .unwrap_or("")
         .split(';')
     {
-        if let Some((key, value)) = item.trim().split_once('=') {
-            if key == "erpx_assignment_platform" {
+        if let Some((key, value)) = item.trim().split_once('=')
+            && key == "erpx_assignment_platform" {
                 if found.is_some() {
                     return Err(invalid());
                 }
@@ -374,7 +375,6 @@ fn assignment_hint(headers: &HeaderMap) -> Result<Option<String>, BusinessError>
                         .1
                         .into_owned(),
                 );
-            }
         }
     }
     Ok(found)

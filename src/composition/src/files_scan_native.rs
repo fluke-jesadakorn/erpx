@@ -85,10 +85,12 @@ impl<C: Clock + Send + Sync + 'static> NativeFilesScanWorker<C> {
         )
         .await
     }
+#[allow(dead_code)]
     pub(crate) fn cleanup_worker(&self,writer:erpx_server_files::public::field_visit_upload::LocalFieldQuarantineWriter)->Result<crate::field_files_cleanup_worker::FieldFilesCleanupWorker<C>,BusinessError>{
         if !self.field_only {return Err(unavailable());}
         Ok(crate::field_files_cleanup_worker::FieldFilesCleanupWorker::new(self.transactions.clone(),writer,self.clock.clone()))
     }
+    #[allow(dead_code)]
     pub(crate) fn cleanup_scope(&self)->&erpx_server_files::public::attachment_scan::AttachmentScanScope {self.transactions.scope()}
     pub fn request_shutdown(&self) {
         self.stopping.store(true, Ordering::Release);

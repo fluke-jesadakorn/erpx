@@ -243,6 +243,8 @@ pub async fn read_field_exception_view(
 
 /// Create only Operations rows/events. The enclosing application retains the
 /// actual Records source, published policy, recipient and Workflow witnesses.
+// Fixed Field policy contract; callers supply the complete current proof set.
+#[allow(clippy::too_many_arguments)]
 pub async fn open_field_exception(
     c: &mut PgConnection,
     company: &CompanyId,

@@ -33,7 +33,7 @@ pub struct CurrentCollaborationCandidates {
     require_write: bool,
 }
 impl CurrentCollaborationCandidates {
-    pub fn users(&self) -> &[String] {
+    pub fn eligible_users(&self) -> &[String] {
         &self.eligible
     }
     pub async fn require_current(

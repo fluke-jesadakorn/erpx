@@ -12,13 +12,11 @@ pub fn initial_work_role(
     if has_current_row {
         return InitialWorkRole::PreserveCurrent;
     }
-    if let Some(preference) = preference {
-        if let Some(assignment) = assignments.iter().find(|a| *a == preference) {
-            return InitialWorkRole::Select {
-                assignment: assignment.clone(),
-                restoring: true,
-            };
-        }
+    if let Some(assignment) = preference.and_then(|preference| assignments.iter().find(|a| *a == preference)) {
+        return InitialWorkRole::Select {
+            assignment: assignment.clone(),
+            restoring: true,
+        };
     }
     if purpose == WorkRoleInitialization::InitializeWorkspace
         && assignments.len() == 1

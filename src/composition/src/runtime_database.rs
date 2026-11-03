@@ -10,6 +10,7 @@ use std::fmt;
 #[derive(Clone)]
 pub(crate) enum RuntimeDatabase {
     Leased(LeasedDevelopmentDatabase),
+    #[allow(dead_code)]
     Durable {
         configuration: DatabaseConfig,
         identity: (String, String),
@@ -27,6 +28,7 @@ impl RuntimeDatabase {
             Self::Durable { configuration, .. } => connect_pool(configuration, limits).await,
         }
     }
+    #[allow(dead_code)]
     pub(crate) async fn connect_named(
         &self,
         limits: PoolLimits,

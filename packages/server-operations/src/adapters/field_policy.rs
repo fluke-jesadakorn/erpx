@@ -138,6 +138,8 @@ pub async fn draft_policy(
     }
     Ok(after)
 }
+// Fixed Field policy contract; callers supply the complete current proof set.
+#[allow(clippy::too_many_arguments)]
 pub async fn review_policy_area(
     c: &mut PgConnection,
     before: &CurrentPolicyArea,

@@ -432,7 +432,7 @@ async fn current_native_account_unit_blocks_switch_then_rejects_its_retired_chil
   let switch={let auth=system.scenario.auth.clone();tokio::spawn(async move{auth.select(&b,handle,2).await})};
   let waiting=tokio::time::timeout(std::time::Duration::from_secs(5),async{loop{
    let waiting:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_locks WHERE relation='session'::regclass AND mode='ExclusiveLock' AND NOT granted AND database=(SELECT oid FROM pg_database WHERE datname=current_database()))").fetch_one(system.control.raw()).await.unwrap();
-   if waiting{break true;}if switch.is_finished(){break false;}tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+   if waiting{break true;}else if switch.is_finished(){break false;}else{tokio::time::sleep(std::time::Duration::from_millis(10)).await;}
   }}).await.unwrap_or(false);
   let premature=switch.is_finished();release.notify_one();
   assert_eq!(held.await.unwrap().unwrap(),"committed-under-original-account");assert!(switch.await.unwrap().is_ok());assert!(waiting&&!premature,"native session writer must wait for the borrowed Account unit");

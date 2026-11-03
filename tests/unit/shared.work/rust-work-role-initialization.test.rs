@@ -51,7 +51,7 @@ fn new_session_restores_only_the_actual_original_assignment_version() {
             WorkRoleInitialization::InitializeWorkspace,
             false,
             Some(&current),
-            &[current.clone()],
+            std::slice::from_ref(&current),
             &[]
         ),
         InitialWorkRole::Select {
@@ -79,8 +79,8 @@ fn one_eligible_scope_does_not_silently_choose_between_multiple_account_grants()
             WorkRoleInitialization::InitializeWorkspace,
             false,
             None,
-            &[a.clone()],
-            &[a.clone()]
+            std::slice::from_ref(&a),
+            std::slice::from_ref(&a)
         ),
         InitialWorkRole::Select {
             assignment: a,
@@ -97,8 +97,8 @@ fn listing_role_options_restores_a_saved_role_but_never_auto_selects_a_fresh_rol
             WorkRoleInitialization::RestoreSaved,
             false,
             None,
-            &[a.clone()],
-            &[a.clone()]
+            std::slice::from_ref(&a),
+            std::slice::from_ref(&a)
         ),
         InitialWorkRole::Unselected
     );
@@ -107,8 +107,8 @@ fn listing_role_options_restores_a_saved_role_but_never_auto_selects_a_fresh_rol
             WorkRoleInitialization::RestoreSaved,
             false,
             Some(&a),
-            &[a.clone()],
-            &[a.clone()]
+            std::slice::from_ref(&a),
+            std::slice::from_ref(&a)
         ),
         InitialWorkRole::Select {
             assignment: a,

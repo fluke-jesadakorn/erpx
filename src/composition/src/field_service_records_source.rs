@@ -49,6 +49,7 @@ impl HoldingWorkSourcePreparation for FieldCollaborationSources {
 /// Every retained owner proof belongs to the caller's serializable unit.
 /// Field-managed Support cases have no recursive source_record_json by schema;
 /// their service_order_id is navigation, not an extra visibility requirement.
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum PreparedRecordsSource {
     Field(PreparedFieldSourceRecord),
     Support {

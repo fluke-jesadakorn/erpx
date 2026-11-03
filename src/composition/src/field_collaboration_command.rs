@@ -410,6 +410,7 @@ impl<C: Clock + Send + Sync, I: IdentifierSource + Send> CollaborationUnit for U
 /// Normalization and receipt identity are constructed together, so HTTP callers
 /// cannot pair one mutation with another input fingerprint. Still unmounted
 /// until the native Field journey and retirement gates pass.
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn execute<C: Clock + Sync + Send, I: IdentifierSource + Send>(
     c: &mut PgConnection,
     current: &AuthorizedWorkContext,

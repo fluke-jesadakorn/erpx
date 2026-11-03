@@ -264,7 +264,7 @@ impl ServiceInvoiceFlowAssignment {
             .execute(&mut *c)
             .await?;
         let r = &self.route;
-        let affected=sqlx::query("INSERT INTO flow_routes(company_id,kind,record_id,version,defaults_revision,steps_json,created_at)VALUES($1,'invoice',$2,$3,$4,$5,$6) ON CONFLICT(company_id,kind,record_id) DO UPDATE SET version=EXCLUDED.version,steps_json=EXCLUDED.steps_json WHERE flow_routes.version=$7").bind(&self.before.company.as_str()).bind(&self.before.id).bind(r["version"].as_i64().ok_or_else(changed)?).bind(self.before.revision).bind(r["steps_json"].as_str().ok_or_else(changed)?).bind(r["created_at"].as_i64().ok_or_else(changed)?).bind(self.before.version()?).execute(&mut *c).await?.rows_affected();
+        let affected=sqlx::query("INSERT INTO flow_routes(company_id,kind,record_id,version,defaults_revision,steps_json,created_at)VALUES($1,'invoice',$2,$3,$4,$5,$6) ON CONFLICT(company_id,kind,record_id) DO UPDATE SET version=EXCLUDED.version,steps_json=EXCLUDED.steps_json WHERE flow_routes.version=$7").bind(self.before.company.as_str()).bind(&self.before.id).bind(r["version"].as_i64().ok_or_else(changed)?).bind(self.before.revision).bind(r["steps_json"].as_str().ok_or_else(changed)?).bind(r["created_at"].as_i64().ok_or_else(changed)?).bind(self.before.version()?).execute(&mut *c).await?.rows_affected();
         if affected != 1 {
             return Err(changed());
         }

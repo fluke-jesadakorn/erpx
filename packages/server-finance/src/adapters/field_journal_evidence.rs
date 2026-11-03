@@ -69,8 +69,7 @@ pub async fn prepare_field_journal_evidence_version<A: PgFieldJournalEvidenceAut
     if before["source_type"] != "field_service_parts"
         || before["version"].as_i64() != Some(expected)
         || expected < 1
-        || now < 0
-        || now > 9_007_199_254_740_991
+        || !(0..=9_007_199_254_740_991).contains(&now)
     {
         return Err(changed().into());
     }

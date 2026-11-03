@@ -129,7 +129,7 @@ impl PreparedServiceReceiptBank {
             || quote(
                 c,
                 &self.actor.company_id,
-                &self.masters.0["currency"].as_str().ok_or_else(changed)?,
+                self.masters.0["currency"].as_str().ok_or_else(changed)?,
             )
             .await?
                 != self.quotes.0

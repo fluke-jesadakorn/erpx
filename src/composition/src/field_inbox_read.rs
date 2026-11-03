@@ -55,10 +55,12 @@ pub struct FieldInboxReadResponse {
     pub data: Vec<Value>,
     pub context: FieldServiceRenderedContext,
 }
+#[allow(clippy::large_enum_variant)]
 enum ReadIssue {
     Invalid(BusinessError),
     NoPermission(FieldServiceRenderedContext),
 }
+#[allow(clippy::large_enum_variant)]
 fn limited() -> BusinessError {
     BusinessError::new(
         FailureKind::Unavailable,
@@ -68,11 +70,13 @@ fn limited() -> BusinessError {
 }
 /// Current source witnesses for the finite Field notification partition. The
 /// outer composition calls owner interfaces; Collaboration never writes them.
+#[allow(clippy::large_enum_variant)]
 enum InboxOwnerWitness {
     Direct,
     Operations(erpx_server_operations::public::field_exceptions::CurrentFieldException),
     Collaboration(erpx_server_collaboration::public::collaboration_work::CurrentCollaborationRow),
 }
+#[allow(clippy::large_enum_variant)]
 enum InboxSourceWitness<'a> {
     Record(PreparedRecordsSource),
     Invoice(crate::finance_service_invoice_history::CurrentServiceInvoiceHistory),
