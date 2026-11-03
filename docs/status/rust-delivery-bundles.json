@@ -3213,7 +3213,7 @@
       "kind": "business-flow-evidence",
       "status": "flow-complete",
       "scope": "Native Finance sales-invoice list: finance_invoices summary/overdue/received, status/search/queue/date filters, TS-compatible cursor pagination, branch/Company scope, CAS and HTTP/Next transport.",
-      "sourceIdentity": "finance-sales-invoice-list-native",
+      "sourceIdentity": "9755f6ba757e3c8be0b38d64c7bdd0a5b22ee58b",
       "evidenceRef": "docs/testing/evidence/2026-11-04-finance-sales-invoice-list-native.json",
       "durableContractRefs": [
         "docs/contracts/next/rust-finance-journal-detail.md"
