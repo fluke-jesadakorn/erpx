@@ -9,6 +9,7 @@ autotests=false
 [dependencies]
 erpx-server-shared.workspace=true
 erpx-server-runtime.workspace=true
+jiff = { version = "=0.2.35", default-features = false, features = ["std", "tzdb-bundle-always"] }
 sqlx.workspace=true
 
 serde.workspace=true
