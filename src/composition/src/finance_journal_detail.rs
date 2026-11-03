@@ -5,13 +5,14 @@ use erpx_server_commercial::public::purchases::{
     CapabilityPurpose, CommercialCatalogue, PackageEnforcementMode, PgCompanyPurchaseReader,
     PurchaseRequest, lock_commercial_authority_sources,
 };
-use erpx_server_finance::public::{FinanceActor, journal_detail::*, journal_list::*, journal_workspace::*, sales_invoice_list::*};
+use erpx_server_finance::public::{FinanceActor, journal_detail::*, journal_list::*, journal_workspace::*, sales_invoice_create::*, sales_invoice_list::*};
 use erpx_server_identity_access::public::{
     DeviceProof,
     effective_authority::{
         AuthorizedWorkContext, HoldingWorkAuthorizer, HoldingWorkSourcePreparation,
         WorkAuthorizationRequest,
     },
+    command_metadata::project_command_iam,
     work_context::{HoldingWorkspaceRequest, WorkScopeKind},
 };
 use erpx_server_people_payroll::public::finance_journal_names::{
@@ -19,7 +20,8 @@ use erpx_server_people_payroll::public::finance_journal_names::{
 };
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{
-    BusinessError, Clock, CompanyId, FailureKind, HoldingId, RecordId, TimestampMillis, UserId,
+    BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId, RecordId,
+    TimestampMillis, UserId,
 };
 use serde::Serialize;
 use sqlx::PgConnection;
@@ -120,6 +122,11 @@ pub struct FinanceSalesInvoiceListReadResponse {
     pub data: SalesInvoiceList,
     pub context: FinanceRenderedWorkContext,
 }
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+pub struct FinanceSalesInvoiceCreateResponse {
+    pub data: SalesInvoiceCreateResult,
+}
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 pub struct FinanceServiceInvoiceWorkspaceResponse {
@@ -158,6 +165,86 @@ impl HoldingWorkSourcePreparation for ServiceInvoiceReadSources {
         })
     }
 }
+fn command_actor(
+    current: &AuthorizedWorkContext,
+) -> Result<SalesInvoiceCommandActor, BusinessError> {
+    let selection = current.selection();
+    let workspace = selection.workspace();
+    let assignment = selection.assignment();
+    let iam = serde_json::to_value(project_command_iam(current)?)
+        .map_err(|_| BusinessError::new(
+            FailureKind::Unavailable,
+            "COMMAND_IAM_METADATA_UNAVAILABLE",
+            "The current command authority metadata is unavailable.",
+        ))?;
+    let object = iam.as_object().ok_or_else(|| {
+        BusinessError::new(
+            FailureKind::Unavailable,
+            "COMMAND_IAM_METADATA_UNAVAILABLE",
+            "The current command authority metadata is unavailable.",
+        )
+    })?;
+    let mut iam_json = String::from("{");
+    iam_json.push_str("\"personUserIds\":");
+    iam_json.push_str(&object.get("person_user_ids").cloned().unwrap_or(serde_json::json!([])).to_string());
+    iam_json.push_str(",\"emergencyUntil\":");
+    iam_json.push_str(&object.get("emergency_until").cloned().unwrap_or(serde_json::Value::Null).to_string());
+    iam_json.push_str(",\"roleRevision\":");
+    iam_json.push_str(&object.get("role_revision").cloned().unwrap_or(serde_json::json!(0)).to_string());
+    iam_json.push_str(",\"identityVersion\":");
+    iam_json.push_str(&object.get("identity_version").cloned().unwrap_or(serde_json::json!(0)).to_string());
+    iam_json.push_str(",\"permissions\":");
+    iam_json.push_str(&object.get("permissions").cloned().unwrap_or(serde_json::json!([])).to_string());
+    if let Some(value) = object.get("hr_appointment_version") {
+        iam_json.push_str(",\"hrAppointmentVersion\":");
+        iam_json.push_str(&value.to_string());
+    }
+    iam_json.push_str(",\"grantablePermissions\":");
+    iam_json.push_str(&object.get("grantable_permissions").cloned().unwrap_or(serde_json::json!([])).to_string());
+    iam_json.push_str(",\"principalId\":");
+    iam_json.push_str(&object.get("principal_id").cloned().unwrap_or(serde_json::json!("")).to_string());
+    iam_json.push_str(",\"personId\":");
+    iam_json.push_str(&object.get("person_id").cloned().unwrap_or(serde_json::Value::Null).to_string());
+    iam_json.push_str(",\"freshUntil\":");
+    iam_json.push_str(&object.get("fresh_until").cloned().unwrap_or(serde_json::Value::Null).to_string());
+    iam_json.push('}');
+    Ok(SalesInvoiceCommandActor {
+        user_id: current.user_id().as_str().into(),
+        assignment_id: assignment.id.as_str().into(),
+        role: assignment.role.clone(),
+        session_id: current.session_id().as_str().into(),
+        revision: selection.revision(),
+        assignment_version: assignment.version,
+        company_id: workspace.company_id.as_str().into(),
+        branch_id: workspace.branch_id.as_ref().map(|value| value.as_str().into()),
+        department_id: workspace.department_id.as_ref().map(|value| value.as_str().into()),
+        scope_kind: match assignment.scope_kind {
+            WorkScopeKind::Holding => "holding",
+            WorkScopeKind::Branch => "branch",
+            WorkScopeKind::Department => "department",
+        }
+        .into(),
+        scope_node_id: assignment
+            .scope_node_id
+            .as_ref()
+            .map(|value| value.as_str().into())
+            .unwrap_or_default(),
+        iam_json,
+    })
+}
+
+#[derive(Clone)]
+struct SalesInvoiceCreateSources;
+impl HoldingWorkSourcePreparation for SalesInvoiceCreateSources {
+    fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async move {
+            lock_commercial_authority_sources(c).await?;
+            lock_sales_invoice_create_sources(c).await?;
+            Ok(())
+        })
+    }
+}
+
 #[derive(Clone)]
 struct SalesInvoiceListSources;
 impl HoldingWorkSourcePreparation for SalesInvoiceListSources {
@@ -549,6 +636,112 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
                             data,
                             context: rendered(current)?,
                         })
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn create_sales_invoice<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        command: CommandKey,
+        body: SalesInvoiceCreateInput,
+    ) -> Result<FinanceSalesInvoiceCreateResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let company = self.configuration.company.clone();
+        let input = move || {
+            let mut request = input()?;
+            if request.company_id != company {
+                return Err(scope());
+            }
+            request.mutation = true;
+            Ok(request)
+        };
+        let configuration = self.configuration.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                input,
+                WorkAuthorizationRequest {
+                    permission: "finance.write".into(),
+                    module: Some("finance".into()),
+                    destination: "finance/sales".into(),
+                    api: true,
+                },
+                SalesInvoiceCreateSources,
+                move |c, current| {
+                    let configuration = configuration.clone();
+                    let clock = clock.clone();
+                    let command = command.clone();
+                    let body = body.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &configuration.holding
+                            || current.selection().workspace().company_id != configuration.company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("finance.write")?;
+                        current.require_permission("module.finance.read")?;
+                        let workspace = current.selection().workspace();
+                        if workspace.branch_id.is_some() || workspace.department_id.is_some() {
+                            return Err(BusinessError::new(
+                                FailureKind::Forbidden,
+                                "COMPANY_SCOPE_REQUIRED",
+                                "Use a Company Finance assignment for sales configuration.",
+                            )
+                            .into());
+                        }
+                        let now = clock.now();
+                        let mut allowed = false;
+                        let mut denied = None;
+                        for capability in ["finance.accounting", "finance.sales-posting"] {
+                            let mut reader = PgCompanyPurchaseReader::new(
+                                current.holding_id().clone(),
+                                configuration.company.clone(),
+                                c,
+                                &configuration.purchases,
+                            );
+                            let inspection = reader
+                                .inspect(
+                                    &PurchaseRequest {
+                                        capabilities: vec![capability.into()],
+                                        purpose: CapabilityPurpose::NewWork,
+                                        mode: PackageEnforcementMode::Enforced,
+                                    },
+                                    now,
+                                )
+                                .await?;
+                            match inspection.require_allowed() {
+                                Ok(_) => {
+                                    allowed = true;
+                                    break;
+                                }
+                                Err(error) => {
+                                    denied.get_or_insert(error);
+                                }
+                            }
+                        }
+                        if !allowed {
+                            return Err(denied
+                                .unwrap_or_else(|| {
+                                    BusinessError::new(
+                                        FailureKind::Forbidden,
+                                        "PACKAGE_REQUIRED",
+                                        "The Company purchase does not permit this capability purpose.",
+                                    )
+                                })
+                                .into());
+                        }
+                        let actor = command_actor(current)?;
+                        let data = create_sales_invoice(c, &actor, &command, &body, now.get()).await?;
+                        Ok(FinanceSalesInvoiceCreateResponse { data })
                     })
                 },
             )
