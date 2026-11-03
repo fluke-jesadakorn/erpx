@@ -99,7 +99,7 @@ async fn support_ticket_create_triage_start_resolve_confirm_and_replay() {
             holding: HoldingId::new("h001").unwrap(),
             company: CompanyId::new("company").unwrap(),
             catalogue: Arc::new(current_package_catalogue().unwrap()),
-            clock: p.system.scenario.clock.clone(),
+            clock: Arc::new(TestClock(p.system.scenario.clock.clone())),
         };
         let create_wire = CommandJson::parse(
             r#"{"kind":"general","title":"Printer offline","issue":"The front desk printer is offline."}"#,
@@ -681,6 +681,79 @@ async fn support_ticket_create_triage_start_resolve_confirm_and_replay() {
         assert_eq!(source["kind"], "asset");
         assert_eq!(source["id"], "support-asset");
         assert_eq!(source["version"], 1);
+
+        // Two managers race the same triage; exactly one commits and the other
+        // observes the changed version before any write.
+        command
+            .create(
+                "acme.example.test",
+                p.maker.clone(),
+                || Ok(selection("support-fixture-a")),
+                SupportTicketCreate::General {
+                    title: "Concurrent triage".into(),
+                    issue: "Only one manager may triage this report.".into(),
+                },
+                CommandJson::parse(
+                    r#"{"kind":"general","title":"Concurrent triage","issue":"Only one manager may triage this report."}"#,
+                )
+                .unwrap(),
+                CommandKey::new("support-race-create").unwrap(),
+            )
+            .await
+            .unwrap();
+        let triage_wire = || {
+            CommandJson::parse(
+                r#"{"action":"triage","expectedVersion":1,"reason":"Race to triage","ownerId":"fixture-a","dueDate":"2026-11-10"}"#,
+            )
+            .unwrap()
+        };
+        let first = command.clone();
+        let second = command.clone();
+        let (a, b) = tokio::join!(
+            first.change(
+                "acme.example.test",
+                p.reviewer.clone(),
+                || Ok(selection("support-fixture-b")),
+                "ticket-support-race-create".into(),
+                TicketChange::Triage {
+                    expected_version: 1,
+                    reason: "Race to triage".into(),
+                    owner_id: "fixture-a".into(),
+                    due_date: "2026-11-10".into(),
+                },
+                triage_wire(),
+                CommandKey::new("support-race-a").unwrap(),
+            ),
+            second.change(
+                "acme.example.test",
+                p.reviewer.clone(),
+                || Ok(selection("support-fixture-b")),
+                "ticket-support-race-create".into(),
+                TicketChange::Triage {
+                    expected_version: 1,
+                    reason: "Race to triage".into(),
+                    owner_id: "fixture-a".into(),
+                    due_date: "2026-11-10".into(),
+                },
+                triage_wire(),
+                CommandKey::new("support-race-b").unwrap(),
+            )
+        );
+        assert_eq!(usize::from(a.is_ok()) + usize::from(b.is_ok()), 1);
+        let conflict = a.err().or_else(|| b.err()).unwrap();
+        match conflict {
+            PgTransactionError::Business(error) => {
+                assert_eq!(error.code, "SUPPORT_STATE_CHANGED")
+            }
+            _ => panic!("the losing triage must be a business conflict"),
+        }
+        let raced: (i64, i64) = sqlx::query_as(
+            "SELECT version,(SELECT count(*) FROM support_ticket_events e WHERE e.ticket_id=t.id AND e.action='triage') FROM support_tickets t WHERE t.id='ticket-support-race-create'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(raced, (2, 1));
     })
     .await;
 }
@@ -782,7 +855,7 @@ async fn support_ticket_http_route_accepts_real_session_and_rendered_context() {
                 r#"{"kind":"general","title":"HTTP printer offline","issue":"The front desk printer is offline over HTTP."}"#,
             ))
             .unwrap();
-        let response = router.oneshot(request).await.unwrap();
+        let response = router.clone().oneshot(request).await.unwrap();
         assert_eq!(response.status(), 200);
         let body = to_bytes(response.into_body(), 64 * 1024).await.unwrap();
         let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
@@ -796,6 +869,88 @@ async fn support_ticket_http_route_accepts_real_session_and_rendered_context() {
         .await
         .unwrap();
         assert_eq!(status, "triage");
+
+        let send = |key: Option<&'static str>,
+                    origin: Option<&'static str>,
+                    company: &'static str,
+                    assignment: &'static str,
+                    cookie: Option<String>| {
+            let router = router.clone();
+            async move {
+                let mut request = Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/holdings/acme/support")
+                    .header("host", "acme.example.test")
+                    .header("x-erpx-context-company", company)
+                    .header("x-erpx-context-assignment", assignment)
+                    .header("x-erpx-context-revision", "7")
+                    .header("x-erpx-context-assignment-version", "3")
+                    .header("content-type", "application/json");
+                if let Some(key) = key {
+                    request = request.header("idempotency-key", key);
+                }
+                if let Some(origin) = origin {
+                    request = request.header("origin", origin);
+                }
+                if let Some(cookie) = cookie {
+                    request = request.header("cookie", cookie);
+                }
+                let response = router
+                    .oneshot(
+                        request
+                            .body(Body::from(
+                                r#"{"kind":"general","title":"Rejected request","issue":"This request must be rejected."}"#,
+                            ))
+                            .unwrap(),
+                    )
+                    .await
+                    .unwrap();
+                response.status().as_u16()
+            }
+        };
+        let cookie = format!("__Host-erpx-product={}", p.maker_token.expose());
+        assert_eq!(
+            send(
+                Some("http-origin"),
+                Some("https://evil.example.test"),
+                "company",
+                "support-fixture-a",
+                Some(cookie.clone())
+            )
+            .await,
+            403
+        );
+        assert_eq!(
+            send(None, None, "company", "support-fixture-a", Some(cookie.clone())).await,
+            422
+        );
+        assert_eq!(
+            send(
+                Some("http-cas"),
+                None,
+                "company",
+                "support-fixture-b",
+                Some(cookie.clone())
+            )
+            .await,
+            409
+        );
+        assert_eq!(
+            send(Some("http-company"), None, "other", "support-fixture-a", Some(cookie.clone()))
+                .await,
+            404
+        );
+        assert_eq!(
+            send(Some("http-no-session"), None, "company", "support-fixture-a", None).await,
+            401
+        );
+        let rejected: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM support_tickets WHERE id IN ('ticket-http-origin','ticket-http-cas','ticket-http-company','ticket-http-no-session')",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(rejected, 0);
     })
     .await;
 }
