@@ -1,3 +1,4 @@
+pub(crate) mod availability;
 pub(crate) mod consumption;
 pub(crate) mod valuation;
 

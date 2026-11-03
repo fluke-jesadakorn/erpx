@@ -26,3 +26,5 @@ pub mod service_count_generic_detail;
 pub mod reservation_alerts;
 
 pub mod service_package_settlement;
+
+pub mod availability_read;

@@ -23,6 +23,10 @@ use crate::{
         FieldServiceReadScopeHeaders, FieldServiceReservationReadTarget,
         field_service_reservation_read_router,
     },
+    inventory_availability_http::{
+        InventoryAvailabilityHttpTarget, inventory_availability_http_router,
+    },
+    inventory_availability_read::InventoryAvailabilityReadService,
     support_incident_command::SupportIncidentCommand,
     support_incident_http::{SupportIncidentHttpTarget, support_incident_http_router},
     support_evidence_command::SupportEvidenceCommand,
@@ -199,6 +203,8 @@ struct ConfigurationDocument {
     #[serde(default)]
     field_service_reads: Vec<FinanceReadDocument>,
     #[serde(default)]
+    inventory_availability_reads: Vec<FinanceReadDocument>,
+    #[serde(default)]
     field_service_workspace_reads: Vec<String>,
     #[serde(default)]
     field_service_parts_posting_setups: Vec<String>,
@@ -292,6 +298,7 @@ pub struct DevelopmentApiConfiguration {
     support_sla_writes: Vec<(HoldingId, CompanyId)>,
     support_evidence_writes: Vec<(HoldingId, CompanyId)>,
     field_service_reads: BTreeMap<HoldingId, BTreeSet<CompanyId>>,
+    inventory_availability_reads: BTreeMap<HoldingId, BTreeSet<CompanyId>>,
     field_service_workspace_reads: BTreeSet<HoldingId>,
     field_service_parts_posting_setups: BTreeSet<HoldingId>,
     field_service_parts_prerequisites: BTreeSet<HoldingId>,
@@ -648,6 +655,22 @@ impl DevelopmentApiConfiguration {
                 || !field_service_reads.entry(holding).or_default().insert(company)
             {
                 return Err("PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID");
+            }
+        }
+        let mut inventory_availability_reads: BTreeMap<HoldingId, BTreeSet<CompanyId>> =
+            BTreeMap::new();
+        for read in doc.inventory_availability_reads {
+            let holding = HoldingId::new(&read.holding_id)
+                .map_err(|_| "PRIVATE_API_INVENTORY_AVAILABILITY_CONFIGURATION_INVALID")?;
+            let company = CompanyId::new(&read.company_id)
+                .map_err(|_| "PRIVATE_API_INVENTORY_AVAILABILITY_CONFIGURATION_INVALID")?;
+            if !ids.contains(&read.holding_id)
+                || !inventory_availability_reads
+                    .entry(holding)
+                    .or_default()
+                    .insert(company)
+            {
+                return Err("PRIVATE_API_INVENTORY_AVAILABILITY_CONFIGURATION_INVALID");
             }
         }
         let mut field_attachment_links = BTreeMap::new();
@@ -1079,6 +1102,7 @@ impl DevelopmentApiConfiguration {
             support_sla_writes,
             support_evidence_writes,
             field_service_reads,
+            inventory_availability_reads,
             field_service_workspace_reads,
             field_service_parts_posting_setups,
             field_service_parts_prerequisites,
@@ -2016,6 +2040,53 @@ async fn assemble_checked(
             )
             .map_err(|_| "PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID")?,
         );
+        if !config.inventory_availability_reads.is_empty() {
+            let catalogue = Arc::new(
+                current_package_catalogue()
+                    .map_err(|_| "PRIVATE_API_INVENTORY_AVAILABILITY_CONFIGURATION_INVALID")?,
+            );
+            let mut targets = Vec::new();
+            for (holding_id, companies) in &config.inventory_availability_reads {
+                let index = config
+                    .holdings
+                    .iter()
+                    .position(|h| &h.registration.holding_id == holding_id)
+                    .ok_or("PRIVATE_API_INVENTORY_AVAILABILITY_CONFIGURATION_INVALID")?;
+                let holding = &config.holdings[index];
+                let authorizer = Arc::new(
+                    HoldingWorkAuthorizer::new(
+                        pools[0].clone(),
+                        pools[index + 1].clone(),
+                        holding_id.clone(),
+                        (*config.policy).clone(),
+                        clock.clone(),
+                        config.holdings_registry.clone(),
+                    )
+                    .map_err(|_| "PRIVATE_API_INVENTORY_AVAILABILITY_CONFIGURATION_INVALID")?,
+                );
+                for company in companies {
+                    targets.push(InventoryAvailabilityHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        service: Arc::new(InventoryAvailabilityReadService {
+                            authorizer: authorizer.clone(),
+                            holding: holding_id.clone(),
+                            company: company.clone(),
+                            catalogue: catalogue.clone(),
+                            clock: Arc::new(SharedClock(clock.clone())),
+                        }),
+                    });
+                }
+            }
+            router = router.merge(
+                inventory_availability_http_router(
+                    config.policy.clone(),
+                    Arc::new(FieldServiceReadScopeHeaders),
+                    targets,
+                )
+                .map_err(|_| "PRIVATE_API_INVENTORY_AVAILABILITY_CONFIGURATION_INVALID")?,
+            );
+        }
         router = router.merge(crate::native_work_roles_http::native_work_roles_router(
             config.policy.clone(), config.holdings_registry.clone(), Arc::new(FieldServiceReadScopeHeaders),
             Arc::new(SharedClock(clock.clone())), work_roles,

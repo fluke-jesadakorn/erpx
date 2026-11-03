@@ -17,10 +17,12 @@ import { canApproveCounts, canPrepareCounts, canReadCounts } from "@erpx/server-
 import { listInventoryReorderPolicies } from "@erpx/server-inventory/public/inventory-reorder-policies";
 import { pageError } from "@erpx/server-work_projection/public/page-error";
 import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { salesCustomerLegacyDestination } from "@erpx/server-sales/public/rules/navigation";
 
 import { InventoryReorderConsole } from "@erpx/feature-inventory/components/inventory-reorder-console";
+import { nativeInventoryAvailabilityFromHeaders } from "@erpx/feature-inventory/lib/native-availability";
 
 import { frontWorkspaceHref } from "@erpx/server-work_projection/public/front-app";
 import { RecordDocumentPanel } from "@erpx/feature-files/components/record-document-panel";
@@ -58,6 +60,25 @@ export default async function CommercePage({ params, searchParams, }: {
         redirect(destination);
     ;
     const data = await commercePage(actor, { ...search, view, kind: partyKind }).catch((error) => pageError(error, holdingSlug));
+    const nativeStock = await nativeInventoryAvailabilityFromHeaders(
+      actor.authority && actor.iam
+        ? {
+            userId: actor.userId,
+            holdingId: actor.holdingId,
+            holdingSlug,
+            companyId: actor.companyId,
+            branchId: actor.branchId,
+            departmentId: actor.departmentId,
+            assignmentId: actor.assignmentId,
+            revision: actor.authority.revision,
+            assignmentVersion: actor.authority.assignmentVersion,
+            branchSlug: actor.scope.kind === "holding" ? undefined : actor.scope.branchSlug ?? undefined,
+            departmentSlug: actor.scope.kind === "department" ? actor.scope.departmentSlug ?? undefined : undefined,
+          }
+        : undefined,
+      holdingSlug,
+    ).catch((error) => pageError(error, holdingSlug));
+    const stockRows = nativeStock ?? data.stock;
     const requestData = search.request
         ? await (await commercePresentationQueries(actor.holdingId)).employeeRequestDetail(actor, search.request).catch((error) => pageError(error, holdingSlug))
         : null;
@@ -178,7 +199,7 @@ export default async function CommercePage({ params, searchParams, }: {
                       </tr>
                     </thead>
                     <tbody>
-                      {data.stock.map((s) => {
+                      {stockRows.map((s) => {
                 const available = Math.max(0, Number(s.quantity_milli) -
                     Math.max(Number(s.reserved_milli ?? 0), Number(s.quarantined_milli ?? 0)));
                 return (<tr key={`${s.warehouse_id}-${s.product_id}`}>
@@ -200,7 +221,7 @@ export default async function CommercePage({ params, searchParams, }: {
                     </tbody>
                   </Table>
                 </TableFrame>
-                {!data.stock.length && (<p className="muted">
+                {!stockRows.length && (<p className="muted">
                     Receive a purchase order or record and approve a physical count to establish
                     stock.
                   </p>)}

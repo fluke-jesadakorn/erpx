@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Native Inventory availability read implemented and PostgreSQL/transport tested; browser page verification is blocked by the development cohort",
+  "capability": "inventory-availability-read",
+  "base": "d18678e85a3b5127187cb30cb307b1ca9e7cb6d9",
+  "branch": "codex/inventory-availability-read",
+  "sourceCommit": "327a8abfc6db7442640fef4444eb3af5d6f65e85",
+  "implementation": {
+    "domain": "packages/server-inventory/src/domain/availability.rs",
+    "adapter": "packages/server-inventory/src/adapters/availability_read.rs",
+    "composition": "src/composition/src/inventory_availability_read.rs",
+    "http": "src/composition/src/inventory_availability_http.rs",
+    "transport": "packages/feature-inventory/src/adapters/server/native-availability.ts",
+    "page": "packages/workplace/src/routes/holdings/[holdingSlug]/inventory-quality/stock/_screen.tsx"
+  },
+  "behavior": {
+    "facts": "commerce_stock joined to commerce_products/commerce_warehouses with inventory_active_reservations, inventory_quarantined_quantity and in-transit lines",
+    "available": "max(0, on_hand - max(reserved, quarantined)); in-transit is reported separately",
+    "scope": "current Account/Holding authority, rendered-context CAS, inventory.read, inventory.stock-core purchase, Company and optional branch scope",
+    "atomicity": "serializable read with source share locks"
+  },
+  "checks": {
+    "postgres": "inventory.rust-inventory-availability-read-postgres.integration 3/3",
+    "cases": [
+      "owner facts: on hand, active reservation, whole-stock quarantine, in-transit and value",
+      "branch scope filters to the selected branch",
+      "another Company sees no rows",
+      "stale rendered-context CAS is rejected",
+      "missing inventory.stock-core purchase is rejected",
+      "HTTP read with the real cookie/CAS returns context and rows; a foreign origin is 403"
+    ],
+    "unit": "inventory.native-inventory-availability-transport.unit 4/4",
+    "domain": "erpx-server-inventory availability 2/2",
+    "gates": "cargo clippy private-field-api, typecheck, structure, architecture, docs, catalogue (33 modules, 783 suites), rust-runtime-foundation 6/6"
+  },
+  "browser": {
+    "status": "blocked",
+    "attempted": "Normal Account sign-in, supply workspace selection (holding and branch) and the stock page through the existing 7bb9e96af7a9 cohort.",
+    "blockers": [
+      "The supply Next dev process is repeatedly OOM-killed in the cohort container while compiling the stock route (cgroup oom_kill 11).",
+      "The branch-scoped supply page redirects to /access?reason=conflict because the selected session scope and the requested branch scope do not match; the /access route is not mounted in the supply app and returns 404/502."
+    ],
+    "notClaimed": "No browser page, desktop/mobile, hydration or readback evidence is claimed for this workflow."
+  },
+  "limits": [
+    "inventory/availability remains partial until the browser journey is run on a healthy supply app with a matching selected workspace.",
+    "No PR was opened and the workflow was not merged.",
+    "The stock page falls back to the existing commercePage stock rows when ERPX_NATIVE_INVENTORY_AVAILABILITY_CONFIG is absent."
+  ]
+}
