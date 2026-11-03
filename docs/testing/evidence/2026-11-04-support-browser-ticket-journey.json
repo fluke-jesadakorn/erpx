@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Native Support ticket writer qualified in a desktop and mobile browser for the employee-report lifecycle; manager UI path and other Support workflows remain open",
+  "capability": "support-tickets-browser-journey",
+  "base": "4857abf81c8ffdc1757799c51e07bfaf9b7fe22b",
+  "branch": "codex/support-tickets-owner-cutover",
+  "sourceCommit": "d966fee29 plus the route/boundary fix committed with this evidence",
+  "runtime": {
+    "cohort": "7bb9e96af7a9",
+    "account": "normal Account email/password sign-in at account-dev-erpx.jesadakorn.com",
+    "host": "https://acme.jesadakorn.com",
+    "supportApp": "apps/support on 127.0.0.1:3285 with the cohort native session and ERPX_NATIVE_SUPPORT_TICKET_CONFIG",
+    "nativeWriter": "private-api on 127.0.0.1:44993 with supportTicketWrites for h001/company",
+    "gateway": "owned cohort gateway on 3445 with /support, /__erpx/support, /support/cases and /api/v1/holdings/acme/support routed to the Support app",
+    "transport": "browser -> cohort relay 44994 -> gateway 3445 -> Support app 3285 -> native writer 44993"
+  },
+  "journeys": [
+    {
+      "viewport": "desktop 1280x900",
+      "ticket": "ticket-9be304ed-9763-4181-8484-a8666d171e95",
+      "steps": [
+        {"action": "create", "status": 200, "state": "triage", "version": 1},
+        {"action": "edit-report", "status": 200, "state": "triage", "version": 2},
+        {"action": "add-information", "status": 200, "state": "triage", "version": 3},
+        {"action": "withdraw-report", "status": 200, "state": "cancelled", "version": 4}
+      ],
+      "persisted": {"status": "cancelled", "version": 4, "events": ["report:1", "edit-report:2", "add-information:3", "withdraw-report:4"]},
+      "pageErrors": 0,
+      "consoleErrors": 3
+    },
+    {
+      "viewport": "mobile 390x844",
+      "ticket": "ticket-b608d22f-115f-45ab-a3bb-8d446da61a88",
+      "steps": [
+        {"action": "create", "status": 200, "state": "triage", "version": 1},
+        {"action": "edit-report", "status": 200, "state": "triage", "version": 2},
+        {"action": "add-information", "status": 200, "state": "triage", "version": 3},
+        {"action": "withdraw-report", "status": 200, "state": "cancelled", "version": 4}
+      ],
+      "persisted": {"status": "cancelled", "version": 4, "events": ["report:1", "edit-report:2", "add-information:3", "withdraw-report:4"]},
+      "pageErrors": 0,
+      "consoleErrors": 3
+    }
+  ],
+  "fixes": [
+    "The HTTP route strips the browser-supplied ticket id before strict TicketChange deserialization; the PostgreSQL HTTP test now covers a change request with id and asserts version 2.",
+    "The assembled private API boundary admits POST /api/v1/holdings/{slug}/support only for the configured supportTicketWrites target; the direct router test alone did not exercise this boundary."
+  ],
+  "limits": [
+    "The manager triage/start/resolve/confirm UI path was not completed in the browser: the cohort serviceReviewer can list the ticket but the detail route redirects to the list. The native PostgreSQL test covers manager triage, owner start/resolve and independent manager confirm-general with persisted receipts/audit/outbox.",
+    "The browser journey used a general report. Order-backed create with a customer-note confirmation and typed asset source are PostgreSQL-tested only.",
+    "The Support owner remains open: SLA watch, incidents, sessions, capabilities and attachments are separate native workflows.",
+    "The Support app logs three React hydration console warnings per navigation; pageErrors stay 0. The warnings are not caused by the native writer and are recorded rather than hidden."
+  ],
+  "next": "Resolve the manager detail-route visibility in the cohort, run the full manager/owner browser lifecycle, then close or formally scope the remaining Support workflows before the scoped PR."
+}

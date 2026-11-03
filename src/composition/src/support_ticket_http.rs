@@ -125,11 +125,15 @@ async fn post_ticket<C: Clock + Clone + Send + Sync + 'static>(
         let key = CommandKey::new(key)?;
         let proof = inbound.into_proof();
         let outcome = if value["action"].is_string() {
-            let input: TicketChange = serde_json::from_value(value.clone()).map_err(|_| {
-                BusinessError::invalid("SUPPORT_INPUT_INVALID", "Provide a valid action.")
-            })?;
             let id = value["id"].as_str().ok_or_else(|| {
                 BusinessError::invalid("SUPPORT_INPUT_INVALID", "Provide the ticket id.")
+            })?;
+            let mut change = value.clone();
+            if let Some(object) = change.as_object_mut() {
+                object.remove("id");
+            }
+            let input: TicketChange = serde_json::from_value(change).map_err(|_| {
+                BusinessError::invalid("SUPPORT_INPUT_INVALID", "Provide a valid action.")
             })?;
             let id = id.to_owned();
             target

@@ -870,6 +870,41 @@ async fn support_ticket_http_route_accepts_real_session_and_rendered_context() {
         .unwrap();
         assert_eq!(status, "triage");
 
+        // The browser sends the ticket id with the action; the route must strip
+        // it before strict TicketChange deserialization.
+        let change = Request::builder()
+            .method("POST")
+            .uri("/api/v1/holdings/acme/support")
+            .header("host", "acme.example.test")
+            .header("cookie", format!("__Host-erpx-product={}", p.maker_token.expose()))
+            .header("origin", "https://acme.example.test")
+            .header("idempotency-key", "http-change-1")
+            .header("x-erpx-context-company", "company")
+            .header("x-erpx-context-assignment", "support-fixture-a")
+            .header("x-erpx-context-revision", "7")
+            .header("x-erpx-context-assignment-version", "3")
+            .header("content-type", "application/json")
+            .body(Body::from(
+                r#"{"id":"ticket-http-create-1","action":"edit-report","expectedVersion":1,"title":"HTTP printer offline corrected","issue":"Corrected over HTTP.","reason":"Correct the report"}"#,
+            ))
+            .unwrap();
+        let change_response = router.clone().oneshot(change).await.unwrap();
+        assert_eq!(change_response.status(), 200);
+        let change_body = to_bytes(change_response.into_body(), 64 * 1024)
+            .await
+            .unwrap();
+        let change_value: serde_json::Value = serde_json::from_slice(&change_body).unwrap();
+        assert_eq!(change_value["data"]["status"], "triage");
+        assert_eq!(change_value["data"]["version"], 2);
+        let corrected: (String, i64) = sqlx::query_as(
+            "SELECT title,version FROM support_tickets WHERE id='ticket-http-create-1'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(corrected.0, "HTTP printer offline corrected");
+        assert_eq!(corrected.1, 2);
+
         let send = |key: Option<&'static str>,
                     origin: Option<&'static str>,
                     company: &'static str,

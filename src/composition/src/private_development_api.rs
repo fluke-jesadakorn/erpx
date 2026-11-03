@@ -2040,6 +2040,13 @@ async fn assemble_checked(
         service_billing_targets,
         service_agreement_review_targets,
         service_agreement_create_targets,
+        support_ticket_targets: config
+            .support_ticket_writes
+            .iter()
+            .filter_map(|(holding_id, _)| {
+                config.holdings.iter().find(|h| &h.registration.holding_id == holding_id).map(|h| (h.host.clone(), h.registration.slug.clone()))
+            })
+            .collect(),
         account_bootstrap: config.account_bootstrap,
     });
     Ok(CheckedAssembly { router:router.layer(middleware::from_fn_with_state(state,boundary)), #[cfg(feature="files-scan-worker")] files_workers })
@@ -2086,6 +2093,7 @@ struct Boundary {
     service_billing_targets: BTreeSet<(String, String)>,
     service_agreement_review_targets: BTreeSet<(String, String)>,
     service_agreement_create_targets: BTreeSet<(String, String)>,
+    support_ticket_targets: BTreeSet<(String, String)>,
     account_bootstrap: bool,
 }
 enum BoundaryDenial {
@@ -2731,10 +2739,17 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
                 .any(|(target_host, _)| target_host == host),
             _ => false,
         };
+    let support_ticket = request.method() == axum::http::Method::POST
+        && match request.uri().path().split('/').collect::<Vec<_>>().as_slice() {
+            ["", "api", "v1", "holdings", slug, "support"] => state
+                .support_ticket_targets
+                .contains(&(host.to_owned(), (*slug).to_owned())),
+            _ => false,
+        };
     if !(matches!(
         request.uri().path(),
         "/api/auth/get-session" | "/api/health" | "/api/ready"
-    ) || account_mfa || service_packages || field_work_roles || field_operations || field_support || field_collaboration || field_inbox_state || finance_workspace
+    ) || account_mfa || service_packages || field_work_roles || field_operations || field_support || field_collaboration || field_inbox_state || support_ticket || finance_workspace
         || finance_invoice_runtime
         || finance_field_journal_flow
         || finance_invoice_post
@@ -2761,6 +2776,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             || field_evidence
             || field_collaboration_write
             || field_operations
+            || support_ticket
             || finance_field_journal_flow
         || finance_invoice_post
             || finance_receipt_review
