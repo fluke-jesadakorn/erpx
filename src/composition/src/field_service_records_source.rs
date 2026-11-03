@@ -12,7 +12,7 @@ use sqlx::PgConnection;
 
 type Error = PgTransactionError<BusinessError>;
 mod recursive;
-use recursive::PreparedLeafSource;
+pub(crate) use recursive::PreparedLeafSource;
 /// All participating sources are fenced before the first selected IAM
 /// snapshot, following the existing Finance/Commercial/Collaboration/Support/
 /// Assets/People/IAM/Field order. Workflow's row-share preparation preserves
@@ -331,4 +331,14 @@ pub(crate) async fn prepare_assignee<C: Clock>(
         people,
         eligible,
     })
+}
+
+/// Validate a typed POS/PMS/Asset Support origin in the caller's unit and retain
+/// the exact owner witness for the command's final retention.
+pub(crate) async fn prepare_support_origin<C: Clock>(
+    c: &mut PgConnection,
+    context: &SourceRecordContext<'_, C>,
+    reference: &SourceReference,
+) -> Result<PreparedLeafSource, Error> {
+    recursive::prepare(c, context, reference).await
 }

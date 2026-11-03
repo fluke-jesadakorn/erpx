@@ -292,6 +292,7 @@ mod tests {
             source_kind: SourceKind::General,
             status: TicketStatus::Open,
             owner_id: Some("agent".into()),
+            due_date: Some("2026-11-10".into()),
             resolved_by: None,
             created_by: "reporter".into(),
             confirmation_note_id: None,

@@ -277,6 +277,7 @@ pub struct TicketSnapshot {
     pub source_kind: SourceKind,
     pub status: TicketStatus,
     pub owner_id: Option<String>,
+    pub due_date: Option<String>,
     pub resolved_by: Option<String>,
     pub created_by: String,
     pub confirmation_note_id: Option<String>,
@@ -317,6 +318,7 @@ pub struct TicketChangePlan {
     pub version: i64,
     pub resolved_by: Option<String>,
     pub confirmation_note_id: Option<String>,
+    pub confirmation_note_version: Option<i64>,
     pub reason: String,
     pub event_at: i64,
 }
@@ -567,12 +569,13 @@ pub fn plan_change(
             action: input.action(),
             status,
             owner_id: snapshot.owner_id.clone(),
-            due_date: None,
+            due_date: snapshot.due_date.clone(),
             title,
             issue,
             version: snapshot.version + 1,
             resolved_by: snapshot.resolved_by.clone(),
             confirmation_note_id: snapshot.confirmation_note_id.clone(),
+            confirmation_note_version: None,
             reason,
             event_at: now,
         }));
@@ -673,18 +676,16 @@ pub fn plan_change(
     if matches!(
         input,
         TicketChange::Confirm { .. } | TicketChange::ConfirmGeneral { .. }
-    ) {
-        if owner.is_some_and(|owner| actor.same_person(owner))
-            || snapshot
-                .resolved_by
-                .as_deref()
-                .is_some_and(|resolver| actor.same_person(resolver))
-        {
-            return Err(forbidden(
-                "INDEPENDENT_CONFIRMATION_REQUIRED",
-                "Another support manager must review this resolution.",
-            ));
-        }
+    ) && (owner.is_some_and(|owner| actor.same_person(owner))
+        || snapshot
+            .resolved_by
+            .as_deref()
+            .is_some_and(|resolver| actor.same_person(resolver)))
+    {
+        return Err(forbidden(
+            "INDEPENDENT_CONFIRMATION_REQUIRED",
+            "Another support manager must review this resolution.",
+        ));
     }
     let (owner_id, due_date, title, issue, confirmation_note_id) = match input {
         TicketChange::Triage {
@@ -707,7 +708,7 @@ pub fn plan_change(
             version(*note_version)?;
             (
                 snapshot.owner_id.clone(),
-                None,
+                snapshot.due_date.clone(),
                 None,
                 None,
                 Some(text(note_id, "SUPPORT_NOTE_INVALID", 1, 200)?),
@@ -715,7 +716,7 @@ pub fn plan_change(
         }
         _ => (
             snapshot.owner_id.clone(),
-            None,
+            snapshot.due_date.clone(),
             None,
             None,
             snapshot.confirmation_note_id.clone(),
@@ -737,6 +738,10 @@ pub fn plan_change(
             snapshot.resolved_by.clone()
         },
         confirmation_note_id,
+        confirmation_note_version: match input {
+            TicketChange::Confirm { note_version, .. } => Some(*note_version),
+            _ => None,
+        },
         reason,
         event_at: now,
     }))
@@ -803,8 +808,6 @@ pub fn work_items(
                 "completed"
             } else if can_act {
                 "todo"
-            } else if triage || review {
-                "waiting"
             } else {
                 "waiting"
             };
@@ -873,6 +876,7 @@ mod tests {
             source_kind: source,
             status,
             owner_id: Some("agent".into()),
+            due_date: Some("2026-11-10".into()),
             resolved_by: None,
             created_by: "reporter".into(),
             confirmation_note_id: None,
