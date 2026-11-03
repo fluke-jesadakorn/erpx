@@ -4,7 +4,7 @@
   "status": "six Field catalogue scopes verified; merge pending checklist 18",
   "capability": "field-catalogue-scopes",
   "integrationTarget": "codex/rust-backend-migration",
-  "sourceCommit": "1642f1532",
+  "sourceCommit": "78b6b210a",
   "workflows": [
     {
       "id": "field_service/service-orders",

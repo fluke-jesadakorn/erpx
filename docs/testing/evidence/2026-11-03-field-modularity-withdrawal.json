@@ -4,7 +4,7 @@
   "status": "Field bundle modularity and withdrawal conditions verified; merge pending checklist 18",
   "capability": "field-modularity-withdrawal",
   "integrationTarget": "codex/rust-backend-migration",
-  "sourceCommit": "1c703a844",
+  "sourceCommit": "c47d7ce1b",
   "boundaries": {
     "portableCore": "shared.architecture.rust-architecture.unit 7/7: domain/application layers reject adapter/effect backdoors, unapproved macros, path overrides and unexamined conditional contract metadata.",
     "ownership": "shared.architecture.architecture-boundaries.unit 38/38: canonical module registry, one owner per source, portable rules, SQL/persistence/Next/env/clock/transport exclusion, and contract metadata fully examined.",

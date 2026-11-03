@@ -1,10 +1,10 @@
 {
   "version": 1,
   "date": "2026-11-03",
-  "status": "private production Field runtime qualified; checklist 13 closed",
+  "status": "production API and worker runtime implemented; Finance production composition remains unavailable, so checklist 13 is reopened",
   "capability": "field-private-production-runtime",
   "integrationTarget": "codex/rust-backend-migration",
-  "sourceCommit": "1371cb762",
+  "sourceCommit": "78b6b210a",
   "implemented": {
     "productionConfiguration": {
       "type": "DevelopmentApiConfiguration::parse_production",
@@ -17,7 +17,8 @@
         "package lifecycle secret with enforced source-record targets",
         "email verification enabled",
         "Account bootstrap disabled",
-        "loopback listener (3101 permitted for the private service)"
+        "loopback listener (3101 permitted for the private service)",
+        "rejects any Finance capability with FINANCE_PRODUCTION_COMPOSITION_UNAVAILABLE"
       ],
       "evidence": "tests/unit/identity_access/rust-private-development-api.test.rs::production_configuration_requires_durable_loopback_databases_and_real_authority"
     },
@@ -27,7 +28,7 @@
     ],
     "assembly": "assemble_production_api mounts the same owner routers as development, including the Field HTTP routes, with real Account authority and migration inventory checks.",
     "jobs": "run_production_workers_file supervises the Field dependency/outbox worker, the configured Files scan worker and any configured initial-count worker, restarting a stopped worker after a bounded delay and shutting down gracefully. The Field push provider runs inside the dependency worker.",
-    "migration": "migrations/postgres/control/0044_configured_account_environments.sql replaces the three development-only Account SSO environment CHECK constraints with a bounded environment label; existing development rows remain valid.",
+    "migration": "migrations/postgres/control/0044_configured_account_environments.sql drops only the three known inline environment checks, adds a named bounded check and is idempotent; the production runtime test exercises a production session binding.",
     "filesWorker": "The native Files scan worker now accepts RuntimeDatabase selections. Leased development databases keep the disposable lease identity checks; durable production databases validate the exact configured database name and role instead. The production supervisor no longer omits or rejects a configured Field Files provider."
   },
   "checks": [
@@ -64,12 +65,23 @@
       "suite": "files.rust-field-files-private-api.provider",
       "result": "2 passed / 0 failed",
       "criticalCase": "production_files_worker_accepts_durable_databases: the native Files scan worker assembles from a production configuration with durable databases and runs until shutdown"
+    },
+    {
+      "suite": "identity_access.rust-private-development-api.unit",
+      "result": "11 passed / 0 failed",
+      "criticalCase": "production_configuration_rejects_finance_composition: Finance journal reads and Field receipt writes are rejected with FINANCE_PRODUCTION_COMPOSITION_UNAVAILABLE"
     }
   ],
   "limits": [
     "Local scoped evidence, not owner/workflow acceptance.",
     "The installed production service on 3101 was not started, stopped or changed.",
+    "Finance production composition is unavailable; the production API rejects Finance-configured documents.",
     "The worker supervisor restart path is exercised by the worker shutdown path; a forced crash-restart is not simulated.",
-    "Checklist 7, 17 and 18 plus the scoped PR remain open."
-  ]
+    "Checklist 13 and 18 remain open."
+  ],
+  "remainingGap": {
+    "code": "FINANCE_PRODUCTION_COMPOSITION_UNAVAILABLE",
+    "reason": "Finance still fails closed for production composition. The production parser rejects any Finance capability instead of mounting Finance with development semantics, so the Field billing/receipt journey is not deployable in production.",
+    "effect": "Checklist 13 remains open until the Finance production release/Company acceptance ports exist."
+  }
 }
