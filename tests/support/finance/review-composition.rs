@@ -95,7 +95,8 @@ pub fn reverse() -> JournalReviewInput {
 pub fn business<T>(result: Result<T, Error>, code: &str) {
     match result {
         Err(PgTransactionError::Business(e)) => assert_eq!(e.code, code),
-        _ => panic!("expected current business denial {code}"),
+        Err(PgTransactionError::Persistence(e)) => panic!("expected current business denial {code}, got persistence {e:?}"),
+        Ok(_) => panic!("expected current business denial {code}, got success"),
     }
 }
 pub async fn setup(system: System) -> Prepared {
