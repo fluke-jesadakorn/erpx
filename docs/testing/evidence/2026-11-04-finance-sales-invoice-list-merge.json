@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Native Finance sales-invoice list read merged; the generic sales-invoice workspace remains partial",
+  "capability": "finance-sales-invoice-list-merge",
+  "integrationTarget": "codex/rust-backend-migration",
+  "pullRequest": {
+    "number": 42,
+    "url": "https://github.com/fluke-jesadakorn/erpx/pull/42",
+    "state": "MERGED",
+    "mergedAt": "2026-11-03T23:00:48Z",
+    "base": "37ec90b000ef3059c541ebf69cfc2776ec049b58",
+    "head": "95a9eed1c52063955b2bccc28841db3c0701a104",
+    "mergeCommit": "4e5359fb3472e6647155743ccb069149278c3776",
+    "mergeMethod": "merge commit"
+  },
+  "scope": {
+    "workflow": "finance:sales-invoice-workspace",
+    "slice": "sales invoice list read",
+    "changedFiles": 19,
+    "adapter": "packages/server-finance/src/adapters/sales_invoice_list.rs",
+    "http": "src/composition/src/finance_journal_detail_http.rs",
+    "transport": "packages/feature-finance/src/adapters/server/native-sales-invoice-list.ts",
+    "page": "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/finance/sales/screen.tsx"
+  },
+  "verification": {
+    "postgres": "finance.rust-sales-invoice-list-postgres.integration 3/3",
+    "transport": "finance.native-sales-invoice-list-transport.unit 3/3",
+    "regressions": "finance.rust-journal-list-postgres 2/2; finance journal detail 1/1",
+    "gates": "cargo clippy private-field-api, typecheck, structure, architecture, docs, catalogue (33 modules, 788 suites), rust-runtime-foundation 6/6",
+    "browser": "Desktop and mobile branch pages: Awaiting payment THB 100.00, Overdue THB 0.00, linked posted invoice row; native API stopped -> 0 rows and Temporarily unavailable; restart -> row restored."
+  },
+  "register": {
+    "ownersComplete": 1,
+    "ownersTotal": 41,
+    "workflowsVerified": 18,
+    "workflowsPartial": 1,
+    "workflowsMerged": 18,
+    "workflowsTotal": 206,
+    "workflowState": "finance:sales-invoice-workspace remains partial for standalone create and receipt/defaults auxiliaries"
+  },
+  "limits": [
+    "Only the list read is native; standalone invoice create, customer-receipt detail/export/issue and sales defaults/settings remain TS.",
+    "The browser exercised one Field-origin invoice linked to the branch; Company-scope rows are PostgreSQL-tested.",
+    "The Finance app logs React hydration console warnings; pageErrors stay 0."
+  ]
+}
