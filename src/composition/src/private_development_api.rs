@@ -2531,6 +2531,9 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         ["","api","v1","holdings",slug,"finance","journals"] if request.method()==axum::http::Method::GET => {
             state.finance_targets.contains(&(host.to_owned(),(*slug).to_owned()))
         }
+        ["","api","v1","holdings",slug,"finance","sales","invoices"] if request.method()==axum::http::Method::GET => {
+            state.finance_targets.contains(&(host.to_owned(),(*slug).to_owned()))
+        }
         ["","api","v1","holdings",slug,"finance","field-work"] if request.method()==axum::http::Method::GET => {
             let key=(host.to_owned(),(*slug).to_owned());
             state.finance_targets.contains(&key)&&state.finance_service_invoice_targets.contains(&key)

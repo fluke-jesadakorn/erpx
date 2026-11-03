@@ -70402,6 +70402,59 @@
         "rust-toolchain.toml",
         "src/composition/Cargo.toml"
       ]
+    },
+    {
+      "id": "finance.rust-sales-invoice-list-postgres.integration",
+      "lane": "integration",
+      "owner": "finance",
+      "modules": [
+        "finance"
+      ],
+      "files": [
+        "tests/integration/finance/rust-sales-invoice-list-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "PostgreSQL-backed native sales-invoice list assertions retain summary/overdue/received facts, branch/Company scope, cursor pagination, status/search filters, CAS and HTTP admission in the PR baseline."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-service",
+        "targets": [
+          "sales_invoice_list_postgres"
+        ],
+        "features": [
+          "private-field-api"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "src/composition/Cargo.toml"
+      ]
+    },
+    {
+      "id": "finance.native-sales-invoice-list-transport.unit",
+      "lane": "unit",
+      "owner": "finance",
+      "modules": [
+        "finance"
+      ],
+      "files": [
+        "tests/unit/finance/native-sales-invoice-list-transport.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "framework": "vitest"
     }
   ]
 }

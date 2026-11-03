@@ -5,7 +5,7 @@ use erpx_server_commercial::public::purchases::{
     CapabilityPurpose, CommercialCatalogue, PackageEnforcementMode, PgCompanyPurchaseReader,
     PurchaseRequest, lock_commercial_authority_sources,
 };
-use erpx_server_finance::public::{FinanceActor, journal_detail::*, journal_list::*, journal_workspace::*};
+use erpx_server_finance::public::{FinanceActor, journal_detail::*, journal_list::*, journal_workspace::*, sales_invoice_list::*};
 use erpx_server_identity_access::public::{
     DeviceProof,
     effective_authority::{
@@ -114,6 +114,12 @@ pub struct FinanceJournalListReadResponse {
     pub data: JournalList,
     pub context: FinanceRenderedWorkContext,
 }
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+pub struct FinanceSalesInvoiceListReadResponse {
+    pub data: SalesInvoiceList,
+    pub context: FinanceRenderedWorkContext,
+}
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 pub struct FinanceServiceInvoiceWorkspaceResponse {
@@ -152,6 +158,17 @@ impl HoldingWorkSourcePreparation for ServiceInvoiceReadSources {
         })
     }
 }
+#[derive(Clone)]
+struct SalesInvoiceListSources;
+impl HoldingWorkSourcePreparation for SalesInvoiceListSources {
+    fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async move {
+            lock_sales_invoice_list_sources(c).await?;
+            Ok(())
+        })
+    }
+}
+
 #[derive(Clone)]
 struct JournalListPreparation;
 impl HoldingWorkSourcePreparation for JournalListPreparation {
@@ -529,6 +546,69 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
                         )
                         .await?;
                         Ok(FinanceJournalListReadResponse {
+                            data,
+                            context: rendered(current)?,
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn sales_invoice_list<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        query: SalesInvoiceListQuery,
+    ) -> Result<FinanceSalesInvoiceListReadResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let company = self.configuration.company.clone();
+        let input = move || {
+            let mut request = input()?;
+            if request.company_id != company {
+                return Err(scope());
+            }
+            request.mutation = false;
+            Ok(request)
+        };
+        let configuration = self.configuration.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                input,
+                WorkAuthorizationRequest {
+                    permission: "finance.read".into(),
+                    module: Some("finance".into()),
+                    destination: "finance/invoices".into(),
+                    api: true,
+                },
+                SalesInvoiceListSources,
+                move |c, current| {
+                    let configuration = configuration.clone();
+                    let query = query.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &configuration.holding
+                            || current.selection().workspace().company_id != configuration.company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("finance.read")?;
+                        current.require_permission("module.finance.read")?;
+                        lock_sales_invoice_list_sources(c).await?;
+                        let workspace = current.selection().workspace();
+                        let data = read_sales_invoice_list(
+                            c,
+                            configuration.company.as_str(),
+                            workspace.branch_id.as_ref().map(|value| value.as_str()),
+                            workspace.department_id.as_ref().map(|value| value.as_str()),
+                            &query,
+                        )
+                        .await?;
+                        Ok(FinanceSalesInvoiceListReadResponse {
                             data,
                             context: rendered(current)?,
                         })

@@ -92,6 +92,10 @@ pub fn finance_journal_read_router<C: Clock + Send + Sync + 'static>(
             get(list::<C>),
         )
         .route(
+            "/api/v1/holdings/{holding_slug}/finance/sales/invoices",
+            get(sales_invoice_list::<C>),
+        )
+        .route(
             "/api/v1/holdings/{holding_slug}/finance/journals/{id}",
             get(detail::<C>),
         )
@@ -205,6 +209,122 @@ async fn workspace<C: Clock + Send + Sync + 'static>(
 ) -> Response {
     read(state, slug, id, headers, true).await
 }
+async fn sales_invoice_list<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path(slug): Path<String>,
+    headers: HeaderMap,
+    RawQuery(raw): RawQuery,
+) -> Response {
+    let result = async {
+        let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
+        let target = crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
+        let inbound = parse_inbound_account_request(&state.policy, &headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(missing().into());
+        }
+        if unique_request_header(&headers, "origin")?
+            .is_some_and(|value| value != inbound.expected_origin())
+        {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            )
+            .into());
+        }
+        let mut tab = "invoices".to_owned();
+        let mut q = String::new();
+        let mut status = String::new();
+        let mut start_date = None;
+        let mut end_date = None;
+        let mut currency = None;
+        let mut queue = None;
+        let mut cursor = None;
+        let mut seen = std::collections::BTreeSet::new();
+        for (key, value) in url::form_urlencoded::parse(raw.as_deref().unwrap_or("").as_bytes()) {
+            if value.len() > 2000 || value.chars().any(char::is_control) || !seen.insert(key.to_string()) {
+                return Err(BusinessError::invalid(
+                    "FINANCE_SALES_QUERY_INVALID",
+                    "Use the sales invoice list filters.",
+                )
+                .into());
+            }
+            match key.as_ref() {
+                "tab" if !value.is_empty() => tab = value.into_owned(),
+                "q" => q = value.into_owned(),
+                "status" => status = value.into_owned(),
+                "startDate" if !value.is_empty() => start_date = Some(value.into_owned()),
+                "endDate" if !value.is_empty() => end_date = Some(value.into_owned()),
+                "currency" if !value.is_empty() => currency = Some(value.into_owned()),
+                "queue" if !value.is_empty() => queue = Some(value.into_owned()),
+                "cursor" if !value.is_empty() => cursor = Some(value.into_owned()),
+                _ => {
+                    return Err(BusinessError::invalid(
+                        "FINANCE_SALES_QUERY_INVALID",
+                        "Use the sales invoice list filters.",
+                    )
+                    .into())
+                }
+            }
+        }
+        let query = erpx_server_finance::public::sales_invoice_list::SalesInvoiceListQuery {
+            tab,
+            q,
+            status,
+            start_date,
+            end_date,
+            cursor,
+            currency,
+            queue,
+        };
+        let scope = state.scopes.slugs(&headers);
+        let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
+        let captured = CapturedHoldingMutation::capture(&headers, branch, department);
+        let company = target.service.company_id().clone();
+        let proof = inbound.into_proof();
+        let input = move || {
+            scope?;
+            captured.resolve_read(company)
+        };
+        target
+            .service
+            .sales_invoice_list(host, proof, input, query)
+            .await
+    }
+    .await;
+    let mut response = match result {
+        Ok(reply) => Json(reply).into_response(),
+        Err(PgTransactionError::Business(error)) => {
+            let status = match error.kind {
+                FailureKind::InvalidInput => StatusCode::UNPROCESSABLE_ENTITY,
+                FailureKind::Unauthenticated => StatusCode::UNAUTHORIZED,
+                FailureKind::Forbidden => StatusCode::FORBIDDEN,
+                FailureKind::NotFound => StatusCode::NOT_FOUND,
+                FailureKind::Conflict => StatusCode::CONFLICT,
+                FailureKind::Unavailable => StatusCode::SERVICE_UNAVAILABLE,
+            };
+            let body = Json(serde_json::json!({
+                "error": {"code": error.code, "message": error.message}
+            }))
+            .into_response();
+            let mut response = Response::new(body.into_body());
+            *response.status_mut() = status;
+            response
+        }
+        Err(_) => StatusCode::SERVICE_UNAVAILABLE.into_response(),
+    };
+    for (name, value) in [
+        (header::CACHE_CONTROL, "private, no-store"),
+        (header::REFERRER_POLICY, "no-referrer"),
+        (header::X_CONTENT_TYPE_OPTIONS, "nosniff"),
+    ] {
+        response
+            .headers_mut()
+            .insert(name, HeaderValue::from_static(value));
+    }
+    response
+}
+
 async fn list<C: Clock + Send + Sync + 'static>(
     State(state): State<Arc<ReadState<C>>>,
     Path(slug): Path<String>,

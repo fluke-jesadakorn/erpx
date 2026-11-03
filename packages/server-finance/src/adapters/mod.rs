@@ -1,3 +1,4 @@
+pub(crate) mod sales_invoice_list;
 pub(crate) mod journal_list;
 pub(crate) mod postgres_journal;
 pub(crate) mod postgres_journal_facts;

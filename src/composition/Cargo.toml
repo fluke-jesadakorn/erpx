@@ -393,3 +393,8 @@ required-features = ["private-field-api"]
 name = "journal_list_postgres"
 path = "../../tests/integration/finance/rust-journal-list-postgres.test.rs"
 required-features = ["private-field-api"]
+
+[[test]]
+name = "sales_invoice_list_postgres"
+path = "../../tests/integration/finance/rust-sales-invoice-list-postgres.test.rs"
+required-features = ["private-field-api"]

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-03T22:38:22+00:00",
+  "updatedAt": "2026-11-03T22:59:46+00:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -3207,6 +3207,17 @@
       "durableContractRefs": [
         "docs/contracts/next/apps.md"
       ]
+    },
+    {
+      "id": "finance-sales-invoice-list-native",
+      "kind": "business-flow-evidence",
+      "status": "flow-complete",
+      "scope": "Native Finance sales-invoice list: finance_invoices summary/overdue/received, status/search/queue/date filters, TS-compatible cursor pagination, branch/Company scope, CAS and HTTP/Next transport.",
+      "sourceIdentity": "9755f6ba757e3c8be0b38d64c7bdd0a5b22ee58b",
+      "evidenceRef": "docs/testing/evidence/2026-11-04-finance-sales-invoice-list-native.json",
+      "durableContractRefs": [
+        "docs/contracts/next/rust-finance-journal-detail.md"
+      ]
     }
   ],
   "workflows": [
@@ -5607,10 +5618,12 @@
       "merged": false,
       "evidenceFlows": [
         "finance-service-invoice-workspace-read",
-        "field-service-release-billing"
+        "field-service-release-billing",
+        "finance-sales-invoice-list-native",
+        "finance-sales-invoice-list-browser"
       ],
       "sourceRef": "packages/server-finance/src/adapters/sales.ts",
-      "gap": "Only source-qualified Field Service invoice detail is evidenced; generic invoice families and auxiliaries remain open."
+      "gap": "The native sales-invoice list (summary, overdue, received, filters and cursor pagination across finance_invoices) is evidenced. Standalone invoice create, customer-receipt detail/export/issue and sales defaults/settings remain TS; generic families/auxiliaries are still open."
     },
     {
       "id": "apps:all-company-branch-department-product-selection",

@@ -95,3 +95,5 @@ pub mod field_journal_evidence;
 pub mod service_package_settlement;
 
 pub mod journal_list;
+
+pub mod sales_invoice_list;
