@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Native Finance standalone sales-invoice create merged; the sales-invoice workspace remains partial",
+  "capability": "finance-sales-invoice-create-merge",
+  "integrationTarget": "codex/rust-backend-migration",
+  "pullRequest": {
+    "number": 44,
+    "url": "https://github.com/fluke-jesadakorn/erpx/pull/44",
+    "state": "MERGED",
+    "mergedAt": "2026-11-03T23:29:55Z",
+    "base": "c9fe99bc2e88d5860084c4bbd1afc2fffa8dfc0b",
+    "head": "4617b39fbeef693816e757994ebb0d248b8bf7e8",
+    "mergeCommit": "943ea9597f2a272c4ed18d0dea89f4c37862011a",
+    "mergeMethod": "merge commit"
+  },
+  "scope": {
+    "workflow": "finance:sales-invoice-workspace",
+    "slice": "standalone sales-invoice create",
+    "changedFiles": 16,
+    "adapter": "packages/server-finance/src/adapters/sales_invoice_create.rs",
+    "http": "src/composition/src/finance_journal_detail_http.rs",
+    "transport": "packages/feature-finance/src/adapters/server/native-sales-invoice-create.ts",
+    "nextRoute": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts"
+  },
+  "verification": {
+    "postgres": "finance.rust-sales-invoice-create-postgres.integration 3/3",
+    "regressions": "finance.rust-sales-invoice-list-postgres 3/3; finance.rust-journal-list-postgres 2/2",
+    "gates": "cargo clippy private-field-api, typecheck, structure, architecture, docs, catalogue (33 modules, 789 suites), rust-runtime-foundation 6/6, finance unit transport suites 4/4",
+    "browser": "Desktop INV-2026-000001 and mobile INV-2026-000002, Browser customer, THB 125.00 + 7% VAT = THB 133.75, draft/version 1; list showed the created invoice first; pageErrors 0."
+  },
+  "register": {
+    "ownersComplete": 1,
+    "ownersTotal": 41,
+    "workflowsVerified": 18,
+    "workflowsPartial": 1,
+    "workflowsMerged": 18,
+    "workflowsTotal": 206,
+    "workflowState": "finance:sales-invoice-workspace remains partial for customer-receipt detail/export/issue, sales defaults/settings and standalone edit/void"
+  },
+  "limits": [
+    "Only standalone create is native in this slice; the receipt/defaults auxiliaries and edit/void remain TS.",
+    "The browser create used one service line per invoice; multi-line/tax rounding is PostgreSQL-tested.",
+    "The Finance app logs React hydration console warnings; pageErrors stay 0."
+  ]
+}
