@@ -26,6 +26,7 @@ pub const MIGRATION_SURFACES: [MigrationSurface; 6] = [
 pub enum MigrationPhase {
     Pending,
     Foundation,
+    Partial,
     Conformance,
     Active,
     NotApplicable,

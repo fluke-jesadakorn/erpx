@@ -41,7 +41,28 @@ pub struct DevelopmentFilesScanConfiguration {
 impl DevelopmentFilesScanConfiguration {
     /// Trusted scope data for duplicate configuration checks; not authority.
     pub fn scope(&self) -> &AttachmentScanScope { &self.scope }
-    pub(crate) fn new(
+    /// Disposable development constructor retained for the existing Files
+    /// scan tests and fixtures.
+    pub fn new(
+        control: erpx_server_runtime::public::postgres::LeasedDevelopmentDatabase,
+        reviewed_write_databases: BTreeMap<
+            String,
+            erpx_server_runtime::public::postgres::LeasedDevelopmentDatabase,
+        >,
+        registry: Arc<ConfiguredHoldingRegistry>,
+        scope: AttachmentScanScope,
+    ) -> Result<Self, BusinessError> {
+        Self::from_runtime(
+            RuntimeDatabase::Leased(control),
+            reviewed_write_databases
+                .into_iter()
+                .map(|(binding, database)| (binding, RuntimeDatabase::Leased(database)))
+                .collect(),
+            registry,
+            scope,
+        )
+    }
+    pub(crate) fn from_runtime(
         control: RuntimeDatabase,
         mut reviewed_write_databases: BTreeMap<String, RuntimeDatabase>,
         registry: Arc<ConfiguredHoldingRegistry>,

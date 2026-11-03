@@ -98,7 +98,7 @@ pub(super) async fn assemble(
             return Err("FIELD_FILES_CONFIGURATION_INVALID");
         }
         entry.2.push(scan_targets.len());
-        let databases = DevelopmentFilesScanConfiguration::new(
+        let databases = DevelopmentFilesScanConfiguration::from_runtime(
             config.control.clone(),
             reviewed.clone(),
             config.holdings_registry.clone(),
