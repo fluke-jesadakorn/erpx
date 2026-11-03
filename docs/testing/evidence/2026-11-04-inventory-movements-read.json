@@ -5,7 +5,7 @@
   "capability": "inventory-movements-read",
   "base": "3547db50c30b9bc55181758414330d8c9941c990",
   "branch": "codex/inventory-movements-read",
-  "sourceCommit": "pending",
+  "sourceCommit": "d55c5e8b0f425955c156f04b92d1e4aa3392ac88",
   "implementation": {
     "domain": "packages/server-inventory/src/domain/movement.rs",
     "adapter": "packages/server-inventory/src/adapters/movement_read.rs",
@@ -37,20 +37,36 @@
     "desktop": {
       "viewport": "1280x900",
       "url": "https://acme.jesadakorn.com/zero-service-parts-d0f627fa-f317-440f-ab49-34173813570e-branch/supply/inventory-quality/stock",
-      "movementHistory": ["BROWSER-P 0.5 units · Browser warehouse · POS-BROWSER-2 · 2026-11-04", "BROWSER-P -2 units · Browser warehouse · POS-BROWSER-1 · 2026-11-04"],
+      "movementHistory": [
+        "BROWSER-P 0.5 units · Browser warehouse · POS-BROWSER-2 · 2026-11-04",
+        "BROWSER-P -2 units · Browser warehouse · POS-BROWSER-1 · 2026-11-04"
+      ],
       "pageErrors": 0,
       "consoleErrors": 1
     },
     "mobile": {
       "viewport": "390x844",
       "url": "https://acme.jesadakorn.com/zero-service-parts-d0f627fa-f317-440f-ab49-34173813570e-branch/supply/inventory-quality/stock",
-      "movementHistory": ["BROWSER-P 0.5 units · Browser warehouse · POS-BROWSER-2 · 2026-11-04", "BROWSER-P -2 units · Browser warehouse · POS-BROWSER-1 · 2026-11-04"],
+      "movementHistory": [
+        "BROWSER-P 0.5 units · Browser warehouse · POS-BROWSER-2 · 2026-11-04",
+        "BROWSER-P -2 units · Browser warehouse · POS-BROWSER-1 · 2026-11-04"
+      ],
       "pageErrors": 0,
       "consoleErrors": 1
     },
     "persisted": {
-      "sale": {"id": "browser-move-sale", "kind": "sale", "sourceNumber": "POS-BROWSER-1", "quantityMilli": -2000},
-      "return": {"id": "browser-move-return", "kind": "return", "sourceNumber": "POS-BROWSER-2", "quantityMilli": 500}
+      "sale": {
+        "id": "browser-move-sale",
+        "kind": "sale",
+        "sourceNumber": "POS-BROWSER-1",
+        "quantityMilli": -2000
+      },
+      "return": {
+        "id": "browser-move-return",
+        "kind": "return",
+        "sourceNumber": "POS-BROWSER-2",
+        "quantityMilli": 500
+      }
     }
   },
   "limits": [

@@ -3147,7 +3147,7 @@
       "kind": "business-flow-evidence",
       "status": "flow-complete",
       "scope": "Native Inventory movement history: all-source projection, cursor pagination, branch/Company scope, HTTP/Next transport and desktop/mobile stock page.",
-      "sourceIdentity": "inventory-movements-read",
+      "sourceIdentity": "d55c5e8b0f425955c156f04b92d1e4aa3392ac88",
       "evidenceRef": "docs/testing/evidence/2026-11-04-inventory-movements-read.json",
       "durableContractRefs": [
         "docs/contracts/next/inventory.md"
