@@ -4,8 +4,8 @@
   "status": "local scoped Rust candidate qualified; PR integration pending",
   "capability": "field-integrated-exact-candidate",
   "integrationTarget": "codex/rust-backend-migration",
-  "sourceCommit": "78b6b210a",
-  "codeCommit": "78b6b210a",
+  "sourceCommit": "3d4b5630b",
+  "codeCommit": "5738b2382",
   "transport": {
     "browser": "Chromium 1248 on the host",
     "relay": "loopback CONNECT relay over docker exec stdio into the finite cohort",
@@ -19,9 +19,9 @@
       "status": "active"
     },
     "request": {
-      "id": "service-order-4139f038-82b7-4a39-b726-c22aa49b9dad",
+      "id": "service-order-56d03660-36c8-4e34-8086-c772d236e3a1",
       "status": "scheduled",
-      "ticketId": "ticket-4139f038-82b7-4a39-b726-c22aa49b9dad"
+      "ticketId": "ticket-56d03660-36c8-4e34-8086-c772d236e3a1"
     },
     "visit": [
       "dispatch",
@@ -35,15 +35,15 @@
       "version": 7
     },
     "billing": {
-      "invoiceId": "field-invoice-0238bde7-9ee4-47b0-818e-beaabeceae83",
+      "invoiceId": "field-invoice-6ae70680-d3e0-42e1-b213-d6da24c074e2",
       "amountMinor": 10000,
       "currency": "THB"
     },
     "invoicePost": {
-      "journalId": "journal-05769b83-6dc7-42ff-8214-7647d5212219"
+      "journalId": "journal-526ae010-89bd-419d-90ee-d85a52a6468d"
     },
     "paymentCreate": {
-      "id": "pay-4302de61-dad9-4e50-a051-9995543ad182",
+      "id": "pay-4fc8d0ee-2eef-41b9-9cb7-32074411a9a6",
       "status": "draft",
       "version": 1
     },
@@ -56,13 +56,13 @@
       "version": 3
     },
     "bankImport": {
-      "id": "statement-c0d85218-e299-4954-b2f1-5136a09721a1",
-      "settlementPaymentId": "pay-4302de61-dad9-4e50-a051-9995543ad182"
+      "id": "statement-7731f30f-6d11-407e-93c6-1f4cddb187bf",
+      "settlementPaymentId": "pay-4fc8d0ee-2eef-41b9-9cb7-32074411a9a6"
     },
     "paymentConfirm": {
       "status": "settled",
       "version": 4,
-      "journalId": "journal-7f3f09d5-182c-4229-b476-008f6cf666a2",
+      "journalId": "journal-9a38273c-c70f-44e0-a632-cf54ed4f799d",
       "netBankMinor": 10000
     },
     "paymentReadback": {
@@ -77,28 +77,26 @@
     },
     "workReadback": {
       "status": 200,
-      "rows": 17,
-      "fieldRows": 12,
+      "rows": 19,
+      "fieldRows": 14,
       "orderLinked": true
     },
     "supportOwnerPage": {
       "status": 200,
-      "finalUrl": "https://acme.jesadakorn.com/service/support/ticket-4139f038-82b7-4a39-b726-c22aa49b9dad"
+      "finalUrl": "https://acme.jesadakorn.com/service/support/ticket-56d03660-36c8-4e34-8086-c772d236e3a1"
     },
     "pageErrors": [],
-    "consoleErrors": [
-      "owner: %o\n\n%s Error: The native work role selection is unavailable.\n    at fail (about://React/Server/webpack-internal:///(rsc)/../../packages/server-identity_access/s"
-    ],
-    "consoleErrorNote": "The final-candidate run recorded one transient native work-role 503 console error; the journey retried and every functional step passed, and pageErrors stayed 0."
+    "consoleErrors": [],
+    "consoleErrorNote": "The scoped-HEAD run recorded zero console and page errors."
   },
   "persisted": {
     "payment": {
-      "id": "pay-4302de61-dad9-4e50-a051-9995543ad182",
+      "id": "pay-4fc8d0ee-2eef-41b9-9cb7-32074411a9a6",
       "status": "settled",
       "version": 4
     },
     "bankTransaction": {
-      "id": "bankrow-c0d85218-e299-4954-b2f1-5136a09721a1-0",
+      "id": "bankrow-7731f30f-6d11-407e-93c6-1f4cddb187bf-0",
       "matchStatus": "matched",
       "version": 2,
       "amountMinor": 10000
@@ -111,7 +109,7 @@
       "total": 10000
     },
     "journal": {
-      "id": "journal-7f3f09d5-182c-4229-b476-008f6cf666a2",
+      "id": "journal-9a38273c-c70f-44e0-a632-cf54ed4f799d",
       "status": "posted",
       "debitMinor": 10000,
       "creditMinor": 10000,
@@ -146,10 +144,10 @@
   ],
   "limits": [
     "Local scoped evidence, not owner/workflow acceptance.",
-    "The final-candidate run recorded one transient native work-role 503 console error; every functional step passed and pageErrors stayed 0.",
+    "The scoped-HEAD run recorded zero console and page errors.",
     "The Support owner page returns 200 but the local canonical redirect renders the Field workspace; the native Support read is 403 PACKAGE_REQUIRED because the fixture Company has no Support package purchase.",
     "No parts were consumed by this visit; stock readback is covered by the separate native stock/count cases.",
     "Finance production composition is explicitly out of scope for this bundle; the production parser fails closed. Checklist 18 (scoped PR/merge) remains open."
   ],
-  "privateEvidence": ".scratch/dev/field-browser-journey-v2-result-final2.json"
+  "privateEvidence": ".scratch/dev/field-browser-journey-v2-result-scoped-head-2.json"
 }
