@@ -9,7 +9,7 @@ const env={PATH:'/usr/local/bin:/usr/bin:/bin',HOME:'/tmp',NODE_ENV:'development
 // The owner journey uses development transports; the separately compiled
 // Service artifact remains compile evidence, not a production activation.
 if(fieldOwner){
- for(const name of ['WORKSPACE','DETAIL','INITIAL_COUNT','PARTS_SETUP','PREREQUISITES','STOCK_SETUP','AGREEMENT_CREATE','AGREEMENT_REVIEW','REQUEST','ORDER_CREATE','VISIT','RESERVE','ISSUE','VISIT_COMPLETION','VISIT_RECOVERY','CANCEL','BILLING'])env[`ERPX_NATIVE_FIELD_SERVICE_${name}_CONFIG`]=finance;
+ for(const name of ['WORKSPACE','DETAIL','INITIAL_COUNT','PARTS_SETUP','PREREQUISITES','STOCK_SETUP','AGREEMENT_CREATE','AGREEMENT_REVIEW','REQUEST','ORDER_CREATE','VISIT','RESERVE','ISSUE','VISIT_COMPLETION','VISIT_RECOVERY','CANCEL','BILLING','SOURCE_RECORD'])env[`ERPX_NATIVE_FIELD_SERVICE_${name}_CONFIG`]=finance;
 }
 const selected=process.env.ERPX_NATIVE_COHORT_APPS?.split(',');
 if(selected&&(!fieldOwner||!selected.includes('account')||!selected.includes('service')&&!selected.includes('finance')||new Set(selected).size!==selected.length||selected.some(app=>!['account','apps','finance','service'].includes(app))))throw Error('FINITE_FIELD_COHORT_APPS_REQUIRED');
