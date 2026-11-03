@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "date": "2026-11-03",
+  "status": "production transport opt-in and compiled Field header verified; checklist 18 remains blocked by Finance production composition",
+  "capability": "field-production-transport-and-header",
+  "integrationTarget": "codex/rust-backend-migration",
+  "sourceCommit": "2996f14b5",
+  "transport": {
+    "policy": "packages/native-sdk/src/loopback.ts",
+    "rules": [
+      "loopback only",
+      "3101 admitted only when the native configuration sets production:true",
+      "3000/3001/3100/3103/5432/5433/5435/8080 and 3200-3299 stay closed",
+      "no username/password/path/query/fragment in the private base URL"
+    ],
+    "appliedTo": [
+      "native session transport",
+      "native work-role/holding transport",
+      "Field files bridge and Field files command",
+      "Field workspace, parts setup, initial count and reserve transports",
+      "native Field intake/parts/count low-level transports (high-level parsers gate 3101)"
+    ],
+    "tests": {
+      "identity_access.native-session-server.unit": "31 passed / 0 failed",
+      "field_service.application.unit": "201 passed / 0 failed",
+      "field_service.native-attachment-intake-sdk.unit + native-count-next-entry.unit": "11 passed / 0 failed",
+      "typecheck": "passed"
+    }
+  },
+  "header": {
+    "url": "https://acme.jesadakorn.com/service/settings/initial-stock?company=zero-service-parts-d0f627fa-f317-440f-ab49-34173813570e",
+    "status": 200,
+    "headings": [
+      "Service initial physical stock count",
+      "Review actual physical-count sources"
+    ],
+    "metrics": {
+      "header": {"top": 0, "bottom": 68, "left": 260, "right": 1280, "height": 68},
+      "main": {"top": 68, "bottom": 871.546875, "left": 260, "right": 1280, "height": 803.546875},
+      "title": {"top": 98, "bottom": 138.796875, "left": 285, "right": 1255, "height": 40.796875},
+      "scrollHeight": 900,
+      "innerHeight": 900
+    },
+    "result": "No header/title/body overlap: the fixed header ends at 68, main starts at 68, and the title starts at 98. Long Company/user labels truncate with ellipsis instead of overlapping.",
+    "privateScreenshot": ".scratch/dev/field-header-current.png"
+  },
+  "limits": [
+    "Local scoped evidence, not owner/workflow acceptance.",
+    "Checklist 13 remains open: Finance production composition is unavailable and the production parser fails closed for Finance capabilities.",
+    "Checklist 18 remains blocked by the mixed-scope branch and the Finance production gap; no PR/merge exists."
+  ]
+}

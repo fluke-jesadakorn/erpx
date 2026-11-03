@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-03T15:43:45+00:00",
+  "updatedAt": "2026-11-03T15:59:02+00:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -260,7 +260,6 @@
       "Finance production composition remains unavailable; the production API rejects Finance-configured documents, so Field billing/receipts are not deployable in production.",
       "The branch is mixed-scope versus origin/codex/rust-backend-migration (including POS/PMS/login changes); a scoped Field PR must be reconstructed before merge.",
       "Hosted free quota is exhausted; user authorizes equivalent isolated local verification with actual source/platform/prerequisites and unchanged checks. Prior non-started jobs remain historical failures, not passes. Run40824122229 on2f7116d93 had12 Field and5 Manufacturing failures before cancellation; run40832243680 onf24696bc stopped on3 unit harness failures, now corrected locally. Actual integration causes remain unresolved.",
-      "Observed Field shell header/title overlaps body in actual compiled Count screenshot; UI correction and real layout regression required. No clean visual claim.",
       "Aggressive owner candidate: Operations native policy/open/read/lifecycle and Next frontend wiring are implemented with local HTTP/PostgreSQL component checks. Field HTTP/SSR/Work fallbacks are removed; legacy Operations Field-only policy/open writers and lists are partitioned. Finish generic Records consumer partition (native Support→POS/Asset/PMS same-unit reader is component-tested), normal-browser My actions qualification, worker CLI activation and Field Files/scheduled-event coverage (outbox projection and database claim fence are component-tested), remaining legacy public/notification/evidence readers and Finance customer setup; then freeze and verify all six normal-browser journeys. No fallback restoration or owner closure from component tests."
     ],
     "nextBundleBacklog": [
@@ -2864,6 +2863,18 @@
       "durableContractRefs": [
         "docs/contracts/next/rust-runtime.md",
         "docs/adr/ADR-052-rust-backend-and-domain-aligned-frontend.md"
+      ]
+    },
+    {
+      "id": "field-production-transport-and-header",
+      "kind": "architecture-component-evidence",
+      "status": "flow-complete",
+      "scope": "Explicit production opt-in for the 3101 private runtime across native session/work-role/Field transports, and a compiled Field Count header layout check with no overlap.",
+      "sourceIdentity": "2996f14b5",
+      "evidenceRef": "docs/testing/evidence/2026-11-03-field-production-transport-and-header.json",
+      "durableContractRefs": [
+        "docs/contracts/next/rust-runtime.md",
+        "docs/contracts/next/field-visit-files-native.md"
       ]
     }
   ],
