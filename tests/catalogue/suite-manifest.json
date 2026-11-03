@@ -48227,7 +48227,7 @@
         "reason": "Development dependency selection exercises this suite when affected; historical PR metadata is retained only for older receipt readers."
       },
       "serial": {
-        "reason": "Owns the exclusive isolated gateway listener3104 and disposable process-fixture app ports3290–3291."
+        "reason": "Owns the exclusive isolated gateway listener3104 and disposable process-fixture app ports3290\u20133291."
       },
       "verificationInputs": [
         "scripts/local/dev.ts",
@@ -70115,6 +70115,42 @@
         "@erpx/server-runtime",
         "@erpx/server-support",
         "@erpx/server-talent"
+      ]
+    },
+    {
+      "id": "inventory.rust-inventory-reservation-alerts-postgres.integration",
+      "lane": "integration",
+      "owner": "inventory",
+      "modules": [
+        "inventory"
+      ],
+      "files": [
+        "tests/integration/inventory/rust-inventory-reservation-alerts-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "PostgreSQL-backed native inventory reservation alert assertions retain Sales/Manufacturing source scope, expiry phases, idempotency, production rollout and company isolation regression in the PR baseline."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-service",
+        "targets": [
+          "inventory_reservation_alerts_postgres"
+        ],
+        "features": [
+          "private-field-api"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "src/composition/Cargo.toml"
       ]
     }
   ]

@@ -54,10 +54,11 @@ pub(crate) async fn run(
     shutdown: impl std::future::Future<Output = ()> + Send,
 ) {
     let (q, e) = predicates();
-    let writes = pairs.iter().map(|(write, _)| write.clone()).collect();
+    let writes: Vec<PgPool> = pairs.iter().map(|(write, _)| write.clone()).collect();
     tokio::select! {
         _=shutdown=>{},
         _=crate::service_count_worker::run_with_scope(pairs,std::future::pending(),ProjectionScope{quarantine:&q,eligible:&e,ambiguous:"FALSE"})=>{},
-        _=crate::field_reservation_alerts::run(writes)=>{},
+        _=crate::field_reservation_alerts::run(writes.clone())=>{},
+        _=crate::inventory_reservation_alerts::run(writes)=>{},
     }
 }
