@@ -327,4 +327,3 @@ impl FieldJournalFlowAssignment {
         Ok(())
     }
 }
-

@@ -10,4 +10,3 @@ export function safeProductReturnPath(value: string | null | undefined) {
   for (const key of ["code", "state", "token", "session_token", "_rsc"]) url.searchParams.delete(key);
   return url.pathname + url.search;
 }
-
