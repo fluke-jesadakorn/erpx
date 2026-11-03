@@ -1,0 +1,67 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Native Finance journal list verified with the embedded initial-stock purchase filter",
+  "capability": "finance-journal-list-native",
+  "base": "a773ccbf57fbcb95064192c660333c7d5f37fd3d",
+  "branch": "codex/finance-journal-list-native",
+  "sourceCommit": "pending",
+  "implementation": {
+    "adapter": "packages/server-finance/src/adapters/journal_list.rs",
+    "filter": "packages/server-finance/src/adapters/initial_stock_journal_filter.sql",
+    "composition": "src/composition/src/finance_journal_detail.rs (list)",
+    "http": "src/composition/src/finance_journal_detail_http.rs",
+    "transport": "packages/feature-finance/src/adapters/server/native-journal-list.ts",
+    "page": "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/finance/accounting/screen.tsx"
+  },
+  "behavior": {
+    "charts": "current Company charts with the approved statutory chart or Operations ledger preference",
+    "accounts": "chart-scoped accounts",
+    "periods": "Company periods",
+    "dimensions": "active dimension definitions and values for the editor",
+    "journals": "chart/status filtered finance_journals with debit/credit/line_count and created_at:id cursor pagination",
+    "initialStock": "the exact owner initialPhysicalStockFinanceJournalFilter SQL is embedded and exercised by the list query; the TS sync test proves byte identity",
+    "authority": "current Account/Holding authority, rendered-context CAS, finance.read, module.finance.read and finance.accounting purchase"
+  },
+  "checks": {
+    "postgres": "finance.rust-journal-list-postgres.integration 2/2",
+    "cases": [
+      "chart references, accounts, periods and dimensions for the current Company",
+      "draft/opening journals listed; posted filter returns none",
+      "initial-stock filter executes on every row (normal journals pass NOT marked)",
+      "HTTP list with real cookie/CAS returns chart and journal rows; stale CAS is 409"
+    ],
+    "sync": "finance.initial-stock-journal-filter.unit 1/1: embedded 46,233-character SQL equals initialPhysicalStockFinanceJournalFilter('j','now_ms')",
+    "gates": "cargo clippy private-field-api, typecheck, structure, architecture, docs, catalogue (33 modules, 786 suites), rust-runtime-foundation 6/6"
+  },
+  "browser": {
+    "desktop": {
+      "viewport": "1280x900",
+      "url": "https://acme.jesadakorn.com/zero-service-parts-d0f627fa-f317-440f-ab49-34173813570e-branch/finance/accounting/journals",
+      "journalCount": 20,
+      "firstRows": [
+        ["J-99816371-b5da-4ef5-8a8a-c8131eac327e", "2026-11-03", "payment", "THB 100.00", "THB 100.00", "posted"],
+        ["J-ae7f2355-37d1-48dc-8099-053b9bf5471c", "2026-11-03", "invoice", "THB 100.00", "THB 100.00", "posted"]
+      ],
+      "pageErrors": 0,
+      "consoleErrors": 7
+    },
+    "mobile": {
+      "viewport": "390x844",
+      "url": "https://acme.jesadakorn.com/zero-service-parts-d0f627fa-f317-440f-ab49-34173813570e-branch/finance/accounting/journals",
+      "journalCount": 20,
+      "firstRows": [
+        ["J-99816371-b5da-4ef5-8a8a-c8131eac327e", "2026-11-03", "payment", "THB 100.00", "THB 100.00", "posted"]
+      ],
+      "pageErrors": 0,
+      "consoleErrors": 4
+    },
+    "nativeProof": "With the private native API stopped, the same page rendered zero rows and a native Finance read error; after restarting the API the 20-row list returned. This distinguishes the native read from the legacy ledgerWorkspace path."
+  },
+  "limits": [
+    "Source-specific journal posting commands (POS, manufacturing, payroll, etc.) remain with their owning modules; the manual and Field-origin writers are already native.",
+    "The initial-stock filter is embedded generated SQL kept in sync by a unit test; a future Finance owner change must update the SQL file and the test together.",
+    "The page falls back to ledgerWorkspace only when ERPX_NATIVE_FINANCE_JOURNAL_CONFIG is absent.",
+    "The Finance app logs React hydration console warnings; pageErrors stay 0."
+  ]
+}

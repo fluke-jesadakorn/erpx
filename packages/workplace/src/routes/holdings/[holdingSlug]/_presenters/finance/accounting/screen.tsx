@@ -12,6 +12,7 @@ import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import { ledgerWorkspace } from "@erpx/server-finance/public/ledger";
+import { nativeJournalList } from "@erpx/feature-finance/lib/native-journal-list";
 import { pageError } from "@erpx/server-work_projection/public/page-error";
 import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
 import { FilterBar } from "@erpx/ui/components/foundation";
@@ -27,9 +28,39 @@ export default async function AccountingPage({
   const actor = await requireWorkContext((await params).holdingSlug),
     base = workspaceBase(publicScope(actor)),
     query = await searchParams;
-  const data = await ledgerWorkspace(actor, query.chart, query).catch((error) =>
+  const native = await nativeJournalList(
+    actor.authority && actor.iam
+      ? {
+          userId: actor.userId,
+          holdingId: actor.holdingId,
+          holdingSlug: actor.holdingSlug,
+          companyId: actor.companyId,
+          branchId: actor.branchId,
+          departmentId: actor.departmentId,
+          assignmentId: actor.assignmentId,
+          role: actor.role,
+          assignmentScope: actor.assignmentScope,
+          scope:
+            actor.scope.kind === "holding"
+              ? { kind: "holding" }
+              : actor.scope.kind === "branch"
+                ? { kind: "branch", branchSlug: actor.scope.branchSlug ?? "" }
+                : {
+                    kind: "department",
+                    branchSlug: actor.scope.branchSlug ?? undefined,
+                    departmentSlug: actor.scope.departmentSlug ?? "",
+                  },
+          authority: { revision: actor.authority.revision, assignmentVersion: actor.authority.assignmentVersion },
+          modules: actor.modules,
+          iam: { permissions: actor.iam.permissions },
+        }
+      : undefined,
+    actor.holdingSlug,
+    { chart: query.chart, status: query.status, cursor: query.cursor },
+  ).catch((error) => pageError(error, actor.holdingSlug));
+  const data = native ?? (await ledgerWorkspace(actor, query.chart, query).catch((error) =>
     pageError(error, actor.holdingSlug),
-  );
+  ));
   return (
     <FeaturePage className="ui-page-content" data-source="live">
       <FinanceWorkspace actor={actor}

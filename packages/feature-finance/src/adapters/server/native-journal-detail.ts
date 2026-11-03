@@ -108,6 +108,6 @@ function createRead<T>(configuration:NativeFinanceReadConfiguration,transport:Na
  };
 }
 /** Fresh bounded GET socket; bypasses patched fetch/HMR and all ambient proxies. */
-function directHttp(url:URL,headers:Headers,signal:AbortSignal):Promise<Response>{
+export function directHttp(url:URL,headers:Headers,signal:AbortSignal):Promise<Response>{
  return new Promise((resolve,reject)=>{const agent=new Agent({keepAlive:false,maxSockets:1,maxTotalSockets:1,proxyEnv:{} as import('node:http').ProxyEnv});const outgoing=request(url,{method:'GET',agent,headers:Object.fromEntries(headers),signal,maxHeaderSize:8192},incoming=>{incoming.once('close',()=>agent.destroy());try{const status=incoming.statusCode??502;if(status!==200){incoming.destroy();resolve(new Response(null,{status:status>=200&&status<=599?status:502}));return;}const values=new Headers();for(let i=0;i<incoming.rawHeaders.length;i+=2)values.append(incoming.rawHeaders[i]!,incoming.rawHeaders[i+1]!);resolve(new Response(Readable.toWeb(incoming) as unknown as ReadableStream<Uint8Array>,{status,headers:values}));}catch(error){incoming.destroy();agent.destroy();reject(error);}});outgoing.once('error',error=>{agent.destroy();reject(error);});outgoing.end();});
 }
