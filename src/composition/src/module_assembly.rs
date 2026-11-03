@@ -26,6 +26,7 @@ const BUSINESS: &[&str] = &[
     "erpx-server-records",
     "erpx-server-operations",
     "erpx-server-support",
+    "erpx-server-work-projection",
     "erpx-server-workflow",
     "erpx-existing-business-composition",
 ];
@@ -50,6 +51,7 @@ const FIELD: &[&str] = &[
     "erpx-server-records",
     "erpx-server-operations",
     "erpx-server-support",
+    "erpx-server-work-projection",
     "erpx-server-workflow",
     "erpx-field-service-composition",
 ];

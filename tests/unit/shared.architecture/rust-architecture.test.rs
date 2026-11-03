@@ -114,9 +114,12 @@ fn contract_metadata_is_fully_examined_and_cannot_hide_effects_or_other_attribut
         "ts(optional)",
         "ts(type = \"number\")",
         "ts(type = \"number | null\")",
+        "ts(type = \"0\")",
+        "ts(type = \"\\\"customer\\\"\")",
         "ts(optional, type = \"number | null\")",
         "schema(value_type = Option<i64>, minimum = 1, maximum = 9_007_199_254_740_991_i64)",
         "schema(value_type = i64, minimum = 1, maximum = 9_007_199_254_740_991_i64)",
+        "schema(value_type = i64, minimum = -9_007_199_254_740_991_i64, maximum = 9_007_199_254_740_991_i64)",
     ] {
         let source =
             format!("#[cfg_attr(feature = \"contracts\", {attr})] struct Item {{ value: i64 }}");

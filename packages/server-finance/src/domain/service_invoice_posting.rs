@@ -177,11 +177,8 @@ pub fn validate_service_invoice_post_request(
     };
     if period.is_empty()
         || date.len() != 10
-        || time::Date::parse(
-            date,
-            time::macros::format_description!("[year]-[month]-[day]"),
-        )
-        .is_err()
+        || !time::format_description::parse_borrowed::<2>("[year]-[month]-[day]")
+            .is_ok_and(|format| time::Date::parse(date, &format).is_ok())
         || version.is_some_and(|v| !(1..=9_007_199_254_740_991).contains(&v))
         || fx.is_some_and(|s| !decimal(s))
         || attachments.len() > 20

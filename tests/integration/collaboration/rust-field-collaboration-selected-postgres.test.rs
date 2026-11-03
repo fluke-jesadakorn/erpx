@@ -3117,7 +3117,7 @@ async fn retired_generic_field_records_preserve_history_and_block_all_writers() 
         let history:serde_json::Value=sqlx::query_scalar("SELECT jsonb_agg(to_jsonb(m) ORDER BY name) FROM erpx_migrations m").fetch_one(pool.raw()).await.unwrap();
         migrate_database(&pool,MigrationTrack::HoldingWrite,&files).await.unwrap();
         let after:serde_json::Value=sqlx::query_scalar("SELECT jsonb_agg(to_jsonb(w) ORDER BY module_id,id) FROM workspace_records w").fetch_one(pool.raw()).await.unwrap();assert_eq!(before,after);
-        let retained:serde_json::Value=sqlx::query_scalar("SELECT jsonb_agg(to_jsonb(m) ORDER BY name) FROM erpx_migrations m WHERE name<>$1").bind(files[current].name()).fetch_one(pool.raw()).await.unwrap();assert_eq!(retained,history);
+        let retained:serde_json::Value=sqlx::query_scalar("SELECT jsonb_agg(to_jsonb(m) ORDER BY name) FROM erpx_migrations m WHERE name<$1").bind(files[current].name()).fetch_one(pool.raw()).await.unwrap();assert_eq!(retained,history);
         for sql in [
             "INSERT INTO workspace_records(module_id,id,section_id,title,fields_json,company_id,created_by,updated_by,created_at,updated_at)VALUES('field_service','new-legacy-field-document','orders','Rejected legacy creation','[]','company','historical','historical',1,2)",
             "UPDATE workspace_records SET title='Rejected legacy update' WHERE module_id='field_service'",

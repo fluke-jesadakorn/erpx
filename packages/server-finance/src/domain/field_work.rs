@@ -1,6 +1,6 @@
 //! Pure Work contribution for the Field invoice and spare-cost capabilities.
 use erpx_server_shared::public::{BusinessError, FailureKind};
-use serde_json::{Value, json};
+use serde_json::Value;
 
 fn changed() -> BusinessError {
     BusinessError::new(FailureKind::Conflict,"FINANCE_WORK_SOURCE_CHANGED","The original financial workflow changed.")
@@ -26,12 +26,23 @@ pub fn field_financial_work_item(kind:&str,record:&Value,flow:&Value,actor:&str,
     let action=if current.is_null(){"No pending action"}else{current["action"].as_str().ok_or_else(changed)?};
     let setup=blocker.is_some()&&current["primary"].is_null();
     let mut relationships=Vec::new();if own{relationships.push("requested");}if can_act{relationships.push("assigned");}
-    Ok(Some(json!({
-        "id":id,"type":kind,"actionKind":"work","title":record[title_key].as_str().ok_or_else(changed)?,
-        "detail":action,"href":href,"status":state,"updatedAt":record[at_key].as_i64().ok_or_else(changed)?,
-        "queue":if can_act{"todo"}else if !current.is_null(){"waiting"}else{"completed"},
-        "flow":flow,"canAct":can_act,"category":if setup{"setup"}else{"operational"},
-        "setupReason":blocker,"relationships":relationships,"nextAction":action,"blocker":blocker,
-        "responsibleQueue":if current.is_null(){String::new()}else if let Some(name)=current["primary"]["name"].as_str(){format!("{} / {name}",current["teamName"].as_str().ok_or_else(changed)?)}else{current["teamName"].as_str().ok_or_else(changed)?.into()},
-    })))
+    let mut item = serde_json::Map::new();
+    item.insert("id".into(), Value::String(id.into()));
+    item.insert("type".into(), Value::String(kind.into()));
+    item.insert("actionKind".into(), Value::String("work".into()));
+    item.insert("title".into(), Value::String(record[title_key].as_str().ok_or_else(changed)?.into()));
+    item.insert("detail".into(), Value::String(action.into()));
+    item.insert("href".into(), Value::String(href));
+    item.insert("status".into(), Value::String(state.into()));
+    item.insert("updatedAt".into(), Value::from(record[at_key].as_i64().ok_or_else(changed)?));
+    item.insert("queue".into(), Value::String(if can_act {"todo"} else if !current.is_null() {"waiting"} else {"completed"}.into()));
+    item.insert("flow".into(), flow.clone());
+    item.insert("canAct".into(), Value::Bool(can_act));
+    item.insert("category".into(), Value::String(if setup {"setup"} else {"operational"}.into()));
+    item.insert("setupReason".into(), blocker.map_or(Value::Null, |value| Value::String(value.into())));
+    item.insert("relationships".into(), Value::Array(relationships.into_iter().map(|value| Value::String(value.into())).collect()));
+    item.insert("nextAction".into(), Value::String(action.into()));
+    item.insert("blocker".into(), blocker.map_or(Value::Null, |value| Value::String(value.into())));
+    item.insert("responsibleQueue".into(), Value::String(if current.is_null() { String::new() } else if let Some(name) = current["primary"]["name"].as_str() { format!("{} / {name}", current["teamName"].as_str().ok_or_else(changed)?) } else { current["teamName"].as_str().ok_or_else(changed)?.into() }));
+    Ok(Some(Value::Object(item)))
 }

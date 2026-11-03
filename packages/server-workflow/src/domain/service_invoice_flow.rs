@@ -1,6 +1,7 @@
 //! Finite Field invoice routing, with current participants supplied by owners.
 //! These rendering decisions grant no Finance write permission.
-use serde_json::{Value, json};
+use serde_json::Value;
+fn string(value: &str) -> Value { Value::String(value.to_owned()) }
 pub fn service_invoice_flow_view(
     record: &Value,
     version: i64,
@@ -66,19 +67,46 @@ pub fn service_invoice_flow_view(
         } else {
             "upcoming"
         };
-        steps.push(json!({"key":keys[index],"action":actions[index],"role":role_names[index],"allowedRoles":if index==0{vec!["finance_approver","holding_owner"]}else{vec!["treasury"]},"teamName":primary.and_then(|p|p["teamName"].as_str()).map(str::to_owned).unwrap_or_else(||role_names[index].replace('_'," ")),"primary":primary,"candidates":pool,"status":status,"blocker":blocker}));
+        let team_name=primary.and_then(|p|p["teamName"].as_str()).map(str::to_owned).unwrap_or_else(||role_names[index].replace('_'," "));
+        let mut step=serde_json::Map::new();
+        step.insert("key".into(),string(keys[index]));
+        step.insert("action".into(),string(actions[index]));
+        step.insert("role".into(),string(role_names[index]));
+        step.insert("allowedRoles".into(),Value::Array(if index==0{vec![string("finance_approver"),string("holding_owner")]}else{vec![string("treasury")]}));
+        step.insert("teamName".into(),Value::String(team_name));
+        step.insert("primary".into(),primary.cloned().unwrap_or(Value::Null));
+        step.insert("candidates".into(),Value::Array(pool.clone()));
+        step.insert("status".into(),string(status));
+        step.insert("blocker".into(),blocker.map_or(Value::Null,string));
+        steps.push(Value::Object(step));
     }
     let index = steps.iter().position(|s| s["status"] == "current");
     let step = index.map(|i| &steps[i]);
     let blocker = if terminal {
         Value::Null
     } else if let Some(reason) = record["blocked_reason"].as_str().filter(|s| !s.is_empty()) {
-        json!(reason)
+        string(reason)
     } else {
         step.map(|s| s["blocker"].clone())
-            .unwrap_or_else(|| json!("This document requires routing repair before proceeding."))
+            .unwrap_or_else(|| string("This document requires routing repair before proceeding."))
     };
     let can_act = blocker.is_null()
         && index.is_some_and(|i| roles[i] && steps[i]["primary"]["userId"].as_str() == Some(actor));
-    json!({"kind":"invoice","recordId":record["id"],"recordVersion":record["version"],"version":version,"defaultsRevision":revision,"state":state,"steps":steps,"current":step,"next":index.and_then(|i|steps.get(i+1)),"canAct":can_act,"canManage":can_manage,"blocker":blocker,"history":history})
+    let next = index.and_then(|i| steps.get(i + 1)).cloned().unwrap_or(Value::Null);
+    let current = step.cloned().unwrap_or(Value::Null);
+    let mut view = serde_json::Map::new();
+    view.insert("kind".into(), string("invoice"));
+    view.insert("recordId".into(), record["id"].clone());
+    view.insert("recordVersion".into(), record["version"].clone());
+    view.insert("version".into(), Value::from(version));
+    view.insert("defaultsRevision".into(), Value::from(revision));
+    view.insert("state".into(), string(state));
+    view.insert("steps".into(), Value::Array(steps));
+    view.insert("current".into(), current);
+    view.insert("next".into(), next);
+    view.insert("canAct".into(), Value::Bool(can_act));
+    view.insert("canManage".into(), Value::Bool(can_manage));
+    view.insert("blocker".into(), blocker);
+    view.insert("history".into(), Value::Array(history.to_vec()));
+    Value::Object(view)
 }

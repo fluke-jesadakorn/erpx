@@ -190,9 +190,6 @@ pub fn validate_service_receipt_confirmation(
 /// The retained receipt REST date is an exact ISO calendar day.
 pub fn valid_service_receipt_date(value: &str) -> bool {
     value.len() == 10
-        && time::Date::parse(
-            value,
-            time::macros::format_description!("[year]-[month]-[day]"),
-        )
-        .is_ok()
+        && time::format_description::parse_borrowed::<2>("[year]-[month]-[day]")
+            .is_ok_and(|format| time::Date::parse(value, &format).is_ok())
 }

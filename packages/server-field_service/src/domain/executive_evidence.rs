@@ -64,8 +64,8 @@ pub fn date(v: &str) -> Result<i64, BusinessError> {
     if v.len() != 10 {
         return Err(invalid());
     }
-    let date = time::Date::parse(v, time::macros::format_description!("[year]-[month]-[day]"))
-        .map_err(|_| invalid())?;
+    let format = time::format_description::parse_borrowed::<2>("[year]-[month]-[day]").map_err(|_| invalid())?;
+    let date = time::Date::parse(v, &format).map_err(|_| invalid())?;
     Ok(date.midnight().assume_utc().unix_timestamp() * 1000)
 }
 fn optional_string<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<String>, D::Error> {

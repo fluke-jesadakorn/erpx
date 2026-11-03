@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "date": "2026-11-03",
+  "status": "Field bundle modularity and withdrawal conditions verified; merge pending checklist 18",
+  "capability": "field-modularity-withdrawal",
+  "integrationTarget": "codex/rust-backend-migration",
+  "sourceCommit": "1c703a844",
+  "boundaries": {
+    "portableCore": "shared.architecture.rust-architecture.unit 7/7: domain/application layers reject adapter/effect backdoors, unapproved macros, path overrides and unexamined conditional contract metadata.",
+    "ownership": "shared.architecture.architecture-boundaries.unit 38/38: canonical module registry, one owner per source, portable rules, SQL/persistence/Next/env/clock/transport exclusion, and contract metadata fully examined.",
+    "frontend": "shared.architecture.frontend-boundaries.unit passed.",
+    "composition": "shared.architecture.rust-composition.unit passed."
+  },
+  "withdrawal": {
+    "fieldOnlyClosure": "shared.architecture.rust-module-assembly.unit 5/5: the Field-only selection reports its actual closure without other business owners, and the real outer router keeps core health/ready and optional routes.",
+    "buildTimeRegistration": "shared.runtime.ui-module-registration.unit 2/2: explicit ON/OFF module selection changes the snapshot fingerprint, removes the route when disabled, and rejects unknown app/module selections.",
+    "runtimeInventory": "shared.architecture.rust-runtime-foundation.unit 6/6: the active owner register parses, partial phases stay pending, and active metadata cannot substitute for source-registered owners."
+  },
+  "fixesInThisCandidate": [
+    "ownership.json capability sources now point at the current Rust files and the retired Collaboration work-ui-staff-facts entries are gone",
+    "Rust-only business owners may expose src/lib.rs instead of a legacy TS forwarding index",
+    "MigrationPhase accepts the partial value the active register already uses",
+    "the module catalog registers erpx-server-work-projection and both Field and business closures include it",
+    "domain cores no longer use json! or time::macros::format_description; contract metadata uses only fully examined forms"
+  ],
+  "limits": [
+    "Local scoped evidence, not owner acceptance or merge.",
+    "Checklist 18 (independent review and merge) remains open."
+  ]
+}

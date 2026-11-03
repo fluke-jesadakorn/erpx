@@ -63,7 +63,12 @@ fn examined_contract_attribute(attribute: &syn::Attribute) -> bool {
                 input.parse::<syn::Token![type]>()?;
                 input.parse::<syn::Token![=]>()?;
                 let value = input.parse::<syn::LitStr>()?.value();
-                return Ok(matches!(value.as_str(), "number" | "number | null") && input.is_empty());
+                // Exact literal types used by the reviewed owner contracts.
+                // Arbitrary unions/expressions stay rejected.
+                return Ok(matches!(
+                    value.as_str(),
+                    "number" | "number | null" | "0" | "\"customer\""
+                ) && input.is_empty());
             }
             if input.parse::<syn::Ident>()? != "optional" {
                 return Ok(false);
@@ -121,6 +126,9 @@ fn examined_contract_attribute(attribute: &syn::Attribute) -> bool {
                         }
                     }
                     "minimum" | "maximum" => {
+                        // Signed bounds are explicit integer literals; no
+                        // expression or call is admitted.
+                        let _negative = input.parse::<syn::Token![-]>().is_ok();
                         input.parse::<syn::LitInt>()?;
                     }
                     _ => return Ok(false),

@@ -642,6 +642,30 @@
       "requiresEvents": []
     },
     {
+      "id": "erpx-server-work-projection",
+      "version": "0.1.0",
+      "group": "existing-business",
+      "provides": [
+        {
+          "name": "erpx-server-work-projection::public",
+          "version": "0.1.0",
+          "source": "packages/server-work_projection/src/public/mod.rs"
+        }
+      ],
+      "requires": [
+        {
+          "name": "erpx-server-runtime::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-shared::public",
+          "range": ">=0.1.0, <0.2.0"
+        }
+      ],
+      "events": [],
+      "requiresEvents": []
+    },
+    {
       "id": "erpx-existing-business-composition",
       "version": "0.1.0",
       "group": "existing-business",
@@ -745,6 +769,10 @@
         },
         {
           "name": "erpx-server-pos::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-work-projection::public",
           "range": ">=0.1.0, <0.2.0"
         }
       ],
