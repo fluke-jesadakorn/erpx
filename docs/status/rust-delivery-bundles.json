@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-03T20:14:04+00:00",
+  "updatedAt": "2026-11-03T20:15:16+00:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -21,7 +21,7 @@
     "additionalInteropEvidence": 2,
     "workflowsPartial": 6,
     "workflowsVerified": 11,
-    "workflowsMerged": 10,
+    "workflowsMerged": 11,
     "ownersComplete": 0,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -3042,6 +3042,17 @@
       "durableContractRefs": [
         "docs/contracts/next/support.md"
       ]
+    },
+    {
+      "id": "support-sla-merge",
+      "kind": "business-flow-evidence",
+      "status": "flow-complete",
+      "scope": "Support SLA watch merged to codex/rust-backend-migration: native policy/clock/drain/alert writer, business-time calendar, ticket-clock advancement, PostgreSQL and desktop/mobile browser evidence.",
+      "sourceIdentity": "e882717ac",
+      "evidenceRef": "docs/testing/evidence/2026-11-04-support-sla-merge.json",
+      "durableContractRefs": [
+        "docs/contracts/next/support.md"
+      ]
     }
   ],
   "workflows": [
@@ -3499,13 +3510,16 @@
       "scope": "SLA watch",
       "partial": false,
       "verified": true,
-      "merged": false,
+      "merged": true,
       "evidenceFlows": [
         "support-sla-native-command",
-        "support-sla-browser-journey"
+        "support-sla-browser-journey",
+        "support-sla-merge"
       ],
       "sourceRef": "packages/server-support/src/public/support-sla.ts",
-      "gap": "Verified native Support SLA watch. Company policy draft/independent approve/retire, approved-target attach, business-time clock, native drain job, idempotent alerts and manager acknowledgement are proven on leased PostgreSQL and desktop/mobile browsers. Attachments remain a separate workflow."
+      "gap": "Verified native Support SLA watch. Company policy draft/independent approve/retire, approved-target attach, business-time clock, native drain job, idempotent alerts and manager acknowledgement are proven on leased PostgreSQL and desktop/mobile browsers. Attachments remain a separate workflow.",
+      "mergeCommit": "e882717ac01a067b02b0b678dded0ae605efc533",
+      "pullRequest": 26
     },
     {
       "id": "support/incidents",
