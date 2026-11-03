@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-03T16:49:56+00:00",
+  "updatedAt": "2026-11-03T19:07:28+00:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -19,8 +19,8 @@
     "qualifiedBusinessFlows": 30,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 7,
-    "workflowsVerified": 6,
+    "workflowsPartial": 6,
+    "workflowsVerified": 7,
     "workflowsMerged": 6,
     "ownersComplete": 0,
     "bundleChecklistComplete": 18,
@@ -2943,6 +2943,39 @@
         "docs/contracts/next/rust-runtime.md",
         "docs/contracts/next/finance.md"
       ]
+    },
+    {
+      "id": "support-ticket-native-command",
+      "kind": "component-evidence",
+      "status": "partial",
+      "scope": "Support ticket native writer, HTTP ingress and Next transport on leased PostgreSQL; Support owner and browser journey remain open.",
+      "sourceIdentity": "23514d3d5",
+      "evidenceRef": "docs/testing/evidence/2026-11-04-support-ticket-native-command.json",
+      "durableContractRefs": [
+        "docs/contracts/next/support.md"
+      ]
+    },
+    {
+      "id": "support-tickets-browser-journey",
+      "kind": "browser-flow-evidence",
+      "status": "partial",
+      "scope": "Desktop and mobile browser qualification of the native Support writer: general lifecycle create/triage/start/resolve/independent confirm-general (closed v5 with five events and five receipts/audit/outbox) and employee report create/edit/add/withdraw (cancelled v4 with four events).",
+      "sourceIdentity": "a128f0d56 + lifecycle evidence",
+      "evidenceRef": "docs/testing/evidence/2026-11-04-support-browser-ticket-journey.json",
+      "durableContractRefs": [
+        "docs/contracts/next/support.md"
+      ]
+    },
+    {
+      "id": "support-ticket-order-browser",
+      "kind": "browser-flow-evidence",
+      "status": "flow-complete",
+      "scope": "Desktop browser order-backed Support ticket: create from a sales order, accept, resolve and independently confirm with a customer contact note; persisted closed v4 with the note and four events.",
+      "sourceIdentity": "f6792c11c + order evidence",
+      "evidenceRef": "docs/testing/evidence/2026-11-04-support-order-browser-journey.json",
+      "durableContractRefs": [
+        "docs/contracts/next/support.md"
+      ]
     }
   ],
   "workflows": [
@@ -3371,8 +3404,8 @@
       "kind": "module",
       "owner": "support",
       "scope": "Tickets",
-      "partial": true,
-      "verified": false,
+      "partial": false,
+      "verified": true,
       "merged": false,
       "evidenceFlows": [
         "field-service-request-create",
@@ -3382,10 +3415,13 @@
         "field-service-visit-exception-resume",
         "field-service-order-cancel",
         "field-service-release-billing",
-        "field-source-record-support-link"
+        "field-source-record-support-link",
+        "support-ticket-native-command",
+        "support-tickets-browser-journey",
+        "support-ticket-order-browser"
       ],
-      "sourceRef": "packages/server-support/src/public/support.ts",
-      "gap": "Only Field-origin creation and projection effects are evidenced; Support ticket owner, other ticket sources and full Support workflow remain open. Source/navigation and Retry are now bounded-qualified; whole original workflow remains unverified."
+      "sourceRef": "packages/server-support/src/public/ticket.rs",
+      "gap": "Verified native Support ticket workflow. General lifecycle and employee-report lifecycle are browser-qualified on desktop and mobile; order-backed customer-note confirmation is browser-qualified on desktop. PostgreSQL covers general, order-backed, asset-source, employee, independence, concurrency, replay, receipt/audit/outbox and HTTP negatives. Asset visibility negative remains a read-layer case and the Support owner remains partial for SLA watch, incidents, sessions, capabilities and attachments."
     },
     {
       "id": "support/sla-watch",

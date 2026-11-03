@@ -18,9 +18,13 @@ enum Leaf {
 pub(crate) struct PreparedLeafSource {
     source: Leaf,
     purchase: PurchaseWitness,
+    record: erpx_server_records::public::source_record::SourceRecord,
 }
 impl PreparedLeafSource {
-    pub(super) async fn require_current<C: Clock>(
+    pub(crate) fn record(&self) -> &erpx_server_records::public::source_record::SourceRecord {
+        &self.record
+    }
+    pub(crate) async fn require_current<C: Clock>(
         &self,
         c: &mut PgConnection,
         ctx: &SourceRecordContext<'_, C>,
@@ -168,5 +172,6 @@ pub(super) async fn prepare<C: Clock>(
     Ok(PreparedLeafSource {
         source,
         purchase: purchase.witness,
+        record,
     })
 }

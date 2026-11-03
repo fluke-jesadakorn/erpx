@@ -348,3 +348,8 @@ required-features = ["private-field-api"]
 name = "export-commercial-service-contracts"
 path = "../../scripts/docs/export-commercial-service-contracts.rs"
 required-features = ["contracts", "field-service-http"]
+
+[[test]]
+name = "support_ticket_command_postgres"
+path = "../../tests/integration/support/rust-support-ticket-command-postgres.test.rs"
+required-features = ["existing-business"]

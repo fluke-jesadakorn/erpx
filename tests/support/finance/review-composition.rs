@@ -27,6 +27,7 @@ pub type TestClock = account::fixture::MutableClock;
 pub struct Prepared {
     pub system: System,
     pub maker: DeviceProof,
+    pub maker_token: erpx_server_identity_access::public::OpaqueSecret,
     pub reviewer: DeviceProof,
     pub reviewer_token: erpx_server_identity_access::public::OpaqueSecret,
     pub reviewer_central: PresentedSecrets,
@@ -169,6 +170,7 @@ async fn setup_with_references(
     .unwrap();
     Prepared {
         maker: proof(&maker.token),
+        maker_token: maker.token.clone(),
         reviewer: proof(&reviewer.token),
         reviewer_token: reviewer.token,
         maker_selection: selection("fixture-a"),
