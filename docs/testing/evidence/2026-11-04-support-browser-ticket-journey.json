@@ -5,7 +5,7 @@
   "capability": "support-tickets-browser-journey",
   "base": "4857abf81c8ffdc1757799c51e07bfaf9b7fe22b",
   "branch": "codex/support-tickets-owner-cutover",
-  "sourceCommit": "d966fee29 plus the route/boundary fix committed with this evidence",
+  "sourceCommit": "0436a9255",
   "runtime": {
     "cohort": "7bb9e96af7a9",
     "account": "normal Account email/password sign-in at account-dev-erpx.jesadakorn.com",
@@ -20,12 +20,41 @@
       "viewport": "desktop 1280x900",
       "ticket": "ticket-9be304ed-9763-4181-8484-a8666d171e95",
       "steps": [
-        {"action": "create", "status": 200, "state": "triage", "version": 1},
-        {"action": "edit-report", "status": 200, "state": "triage", "version": 2},
-        {"action": "add-information", "status": 200, "state": "triage", "version": 3},
-        {"action": "withdraw-report", "status": 200, "state": "cancelled", "version": 4}
+        {
+          "action": "create",
+          "status": 200,
+          "state": "triage",
+          "version": 1
+        },
+        {
+          "action": "edit-report",
+          "status": 200,
+          "state": "triage",
+          "version": 2
+        },
+        {
+          "action": "add-information",
+          "status": 200,
+          "state": "triage",
+          "version": 3
+        },
+        {
+          "action": "withdraw-report",
+          "status": 200,
+          "state": "cancelled",
+          "version": 4
+        }
       ],
-      "persisted": {"status": "cancelled", "version": 4, "events": ["report:1", "edit-report:2", "add-information:3", "withdraw-report:4"]},
+      "persisted": {
+        "status": "cancelled",
+        "version": 4,
+        "events": [
+          "report:1",
+          "edit-report:2",
+          "add-information:3",
+          "withdraw-report:4"
+        ]
+      },
       "pageErrors": 0,
       "consoleErrors": 3
     },
@@ -33,12 +62,41 @@
       "viewport": "mobile 390x844",
       "ticket": "ticket-b608d22f-115f-45ab-a3bb-8d446da61a88",
       "steps": [
-        {"action": "create", "status": 200, "state": "triage", "version": 1},
-        {"action": "edit-report", "status": 200, "state": "triage", "version": 2},
-        {"action": "add-information", "status": 200, "state": "triage", "version": 3},
-        {"action": "withdraw-report", "status": 200, "state": "cancelled", "version": 4}
+        {
+          "action": "create",
+          "status": 200,
+          "state": "triage",
+          "version": 1
+        },
+        {
+          "action": "edit-report",
+          "status": 200,
+          "state": "triage",
+          "version": 2
+        },
+        {
+          "action": "add-information",
+          "status": 200,
+          "state": "triage",
+          "version": 3
+        },
+        {
+          "action": "withdraw-report",
+          "status": 200,
+          "state": "cancelled",
+          "version": 4
+        }
       ],
-      "persisted": {"status": "cancelled", "version": 4, "events": ["report:1", "edit-report:2", "add-information:3", "withdraw-report:4"]},
+      "persisted": {
+        "status": "cancelled",
+        "version": 4,
+        "events": [
+          "report:1",
+          "edit-report:2",
+          "add-information:3",
+          "withdraw-report:4"
+        ]
+      },
       "pageErrors": 0,
       "consoleErrors": 3
     }
