@@ -3015,7 +3015,7 @@
       "kind": "business-flow-evidence",
       "status": "flow-complete",
       "scope": "Native Support session/capability command, HTTP ingress and Next transport; PostgreSQL request/approve/issue/revoke/replay/negative cases and desktop/mobile browser lifecycles with capability-gated context.",
-      "sourceIdentity": "346aea46a5c8305af7cf16e74713dc7fe618f0b1",
+      "sourceIdentity": "3d926fda89c4b38a65646f73deecbd56d6db1223",
       "evidenceRef": "docs/testing/evidence/2026-11-04-support-session-capability-native-command.json",
       "durableContractRefs": [
         "docs/contracts/next/support.md"

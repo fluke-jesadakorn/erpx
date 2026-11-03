@@ -5,7 +5,7 @@
   "capability": "support-session-capability-native-command",
   "base": "ca53be7ce1ec4e929de7095d1d1f0bbffe64f6fe",
   "branch": "codex/support-sessions-owner-cutover",
-  "sourceCommit": "346aea46a5c8305af7cf16e74713dc7fe618f0b1",
+  "sourceCommit": "3d926fda89c4b38a65646f73deecbd56d6db1223",
   "runtime": {
     "cohort": "7bb9e96af7a9",
     "account": "normal Account email/password sign-in at account-dev-erpx.jesadakorn.com",
