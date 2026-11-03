@@ -3,7 +3,10 @@ import {createElement as h,Fragment,type ReactNode} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import {ApiError} from '@erpx/server-runtime/public/http';
-const mocks=vi.hoisted(()=>({host:'finance-dev-erpx.jesadakorn.com',source:vi.fn(),access:vi.fn(),quality:vi.fn(),legal:vi.fn(),fullFinance:vi.fn()}));
+const mocks=vi.hoisted(()=>({host:'finance-dev-erpx.jesadakorn.com',source:vi.fn(),access:vi.fn(),quality:vi.fn(),legal:vi.fn(),fullFinance:vi.fn(),nativeInvoice:vi.fn(),nativePayment:vi.fn(),preview:vi.fn()}));
+vi.mock('../../../packages/feature-finance/src/adapters/server/native-service-invoice',()=>({nativeServiceInvoiceWorkspace:mocks.nativeInvoice}));
+vi.mock('../../../packages/feature-finance/src/adapters/server/native-service-payment',()=>({nativeServicePaymentWorkspace:mocks.nativePayment}));
+vi.mock('@erpx/server-finance/public/document-posting-preview',()=>({documentPostingPreview:mocks.preview}));
 vi.mock('next/headers',()=>({headers:async()=>new Headers({host:mocks.host,'x-product-host':'finance'})}));
 vi.mock('next/navigation',()=>({usePathname:()=>'/holdings/acme/finance/setup/thai-tax',useSearchParams:()=>new URLSearchParams(),useRouter:()=>({refresh:vi.fn(),push:vi.fn(),replace:vi.fn()})}));
 vi.mock("@erpx/server-identity_access/public/authorization",()=>({requireWorkContext:async()=>actor,publicScope:(value:WorkContext)=>value.scope}));
@@ -30,7 +33,7 @@ import {FinanceSourceDocumentBackdrop} from '@erpx/feature-finance/components/so
 import {RecordDetailBoundary} from '@erpx/feature-records/components/record-detail-boundary';
 import {qualityProductPresentationOptions} from '@erpx/server-quality/public/product-presentation-request';
 import LegalSetupPage from '@erpx/workplace/routes/holdings/[holdingSlug]/_presenters/finance/thai-tax/screen';
-beforeEach(()=>{mocks.host='finance-dev-erpx.jesadakorn.com';mocks.source.mockReset();mocks.access.mockReset();mocks.quality.mockReset();mocks.legal.mockReset();mocks.fullFinance.mockReset();vi.stubEnv('ERPX_PRODUCT_ROUTING','enabled');vi.stubEnv('ERPX_PRODUCT_SSO','enabled');vi.stubEnv('ERPX_PRODUCT_ENVIRONMENT','development');vi.stubEnv('ERPX_ENVIRONMENT','local');});
+beforeEach(()=>{mocks.host='finance-dev-erpx.jesadakorn.com';mocks.source.mockReset();mocks.access.mockReset();mocks.quality.mockReset();mocks.legal.mockReset();mocks.fullFinance.mockReset();mocks.nativeInvoice.mockReset();mocks.nativePayment.mockReset();mocks.preview.mockReset();vi.stubEnv('ERPX_PRODUCT_ROUTING','enabled');vi.stubEnv('ERPX_PRODUCT_SSO','enabled');vi.stubEnv('ERPX_PRODUCT_ENVIRONMENT','development');vi.stubEnv('ERPX_ENVIRONMENT','local');});
 afterEach(()=>vi.unstubAllEnvs());
 it('routes the invoice alias through the shared Sales presenter and forces the invoice tab',async()=>{
  const Screen=vi.fn(async({params,searchParams}:InvoicePageProps)=>{const {holdingSlug}=await params,query=await searchParams;return h('main',{'data-holding':holdingSlug,'data-tab':query.tab,'data-search':query.q});}),page=await actualFinanceInvoiceAliasPage(Screen),props:InvoicePageProps={params:Promise.resolve({holdingSlug:'acme'}),searchParams:Promise.resolve({tab:'receipts',q:'customer'})};
@@ -212,4 +215,26 @@ it('journal page guards use the same one-time owner identity as the actual Journ
   const slot=await page(true,sectioned,{...common,RecordDetailBoundary,Owner:vi.fn()}),element=await slot(props);expect(element?.props.target.id).toBe(ownerId);expect(element?.props.children.props.p.id).toBe(routeId);
   mocks.access.mockRejectedValueOnce(new ApiError(404,'FINANCE_RECORD_NOT_FOUND','Unavailable'));const denied=renderToStaticMarkup(await RecordDetailBoundary({holdingSlug:'acme',target:element!.props.target,children:h('p',null,'Private detail')}));expect(mocks.access).toHaveBeenLastCalledWith(actor,'journal',ownerId,{strictProduct:true});expect(denied).toContain('This record is unavailable in your current workspace.');expect(denied).not.toContain('Private detail');
  }
+});
+
+it('renders native Field invoice and payment backdrops without querying legacy Finance presentation',async()=>{
+ for(const kind of ['invoice','payment'] as const){
+  if(kind==='invoice')mocks.nativeInvoice.mockResolvedValue({sourceOnly:true,invoice:{invoice_number:'NATIVE-FIELD-INVOICE',invoice_date:'2026-11-01',status:'posted',version:2}});
+  else mocks.nativePayment.mockResolvedValue({nativeSourceOnly:true,payment:{payment_number:'NATIVE-FIELD-RECEIPT',payment_date:'2026-11-01',status:'settled',version:4}});
+  const html=renderToStaticMarkup(await FinanceSourceDocumentBackdrop({holdingSlug:'acme',kind,id:'native-document'}));expect(html).toContain(kind==='invoice'?'NATIVE-FIELD-INVOICE':'NATIVE-FIELD-RECEIPT');expect(html).not.toContain('current-assignment');
+ }
+ expect(mocks.source).not.toHaveBeenCalled();expect(mocks.access).not.toHaveBeenCalled();
+});
+it('uses the native captured source-only decision for Field drawer close without a legacy authorization query',async()=>{
+ for(const kind of ['invoice','payment'] as const){
+  if(kind==='invoice')mocks.nativeInvoice.mockResolvedValue({sourceOnly:true});else mocks.nativePayment.mockResolvedValue({nativeSourceOnly:true});
+  const html=renderToStaticMarkup(await RecordDetailBoundary({holdingSlug:'acme',target:{kind,id:'native-document'},children:h('p',null,'Native detail')}));expect(html).toContain('data-close-href="https://apps-dev-erpx.jesadakorn.com/sso/start?next=%2F"');expect(html).toContain('Native detail');
+ }
+ expect(mocks.access).not.toHaveBeenCalled();
+});
+
+it('renders native GL amounts without invoking the retained TS calculation',async()=>{
+ const {DocumentPostingPreview}=await import('@erpx/feature-finance/components/document-posting-preview');
+ const html=renderToStaticMarkup(await DocumentPostingPreview({actor,kind:'invoice',id:'native-field',preview:{state:'ready',posted:false,accounts:[{id:'ar',code:'1100',name:'Receivable'},{id:'sales',code:'4100',name:'Sales'}],lines:[{id:'ar',debit:10000,credit:0},{id:'sales',debit:0,credit:10000}],debit:10000,credit:10000}}));
+ expect(html).toContain('GL preview');expect(html).toContain('1100');expect(html).toContain('4100');expect(html).toContain('100.00');expect(mocks.preview).not.toHaveBeenCalled();
 });

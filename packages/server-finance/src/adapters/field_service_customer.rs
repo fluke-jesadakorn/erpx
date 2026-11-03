@@ -74,7 +74,7 @@ async fn read(
             .ok_or_else(invalid)?,
     }))
 }
-async fn unit(c: &mut PgConnection) -> Result<Unit, Error> {
+pub(super) async fn unit(c: &mut PgConnection) -> Result<Unit, Error> {
     if !c.is_in_transaction() {
         return Err(invalid());
     }

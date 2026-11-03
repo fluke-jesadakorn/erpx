@@ -5,3 +5,5 @@ pub(crate) mod migration_inventory;
 #[cfg(feature = "owned-process")]
 pub(crate) mod owned_process;
 pub(crate) mod postgres;
+
+pub(crate) mod executive_access;

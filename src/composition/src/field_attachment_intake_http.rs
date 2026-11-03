@@ -71,6 +71,15 @@ fn component(value: &str) -> bool {
 /// Validate after selected Account ingress and before any Files SQL.
 /// Unknown JSON fields are ignored, matching the original Zod object schema.
 pub fn parse_create(body: &[u8]) -> Result<FieldSetRequest, BusinessError> {
+    parse_create_for_owner(
+        body,
+        erpx_server_files::public::field_visit_intake::IntakeOwner::FieldVisit,
+    )
+}
+pub(crate) fn parse_create_for_owner(
+    body: &[u8],
+    owner: erpx_server_files::public::field_visit_intake::IntakeOwner,
+) -> Result<FieldSetRequest, BusinessError> {
     let mut value: serde_json::Value = serde_json::from_slice(body).map_err(|_| invalid())?;
     let object = value.as_object_mut().ok_or_else(invalid)?;
     if object.get("componentRef").is_some_and(|v| v.is_null()) {
@@ -85,7 +94,7 @@ pub fn parse_create(body: &[u8]) -> Result<FieldSetRequest, BusinessError> {
         *number = serde_json::Value::from(n as i64);
     }
     let input: FieldSetRequest = serde_json::from_value(value).map_err(|_| invalid())?;
-    if input.target_type != "field_service_visit"
+    if input.target_type != owner.target_type()
         || !valid_len(&input.target_id, 1, 180)
         || !component(&input.component_kind)
         || input
@@ -111,10 +120,19 @@ pub struct FieldIntakeListQuery {
     pub expected_target_version: Option<i64>,
 }
 pub fn validate_list(query: FieldIntakeListQuery) -> Result<FieldSetListRequest, BusinessError> {
+    validate_list_for_owner(
+        query,
+        erpx_server_files::public::field_visit_intake::IntakeOwner::FieldVisit,
+    )
+}
+fn validate_list_for_owner(
+    query: FieldIntakeListQuery,
+    owner: erpx_server_files::public::field_visit_intake::IntakeOwner,
+) -> Result<FieldSetListRequest, BusinessError> {
     if query.target_type.is_empty() || query.target_id.is_empty() {
         return Err(target_required());
     }
-    if query.target_type != "field_service_visit" {
+    if query.target_type != owner.target_type() {
         return Err(invalid());
     }
     Ok(FieldSetListRequest {
@@ -397,9 +415,9 @@ fn decoded(s: &str) -> String {
     String::from_utf8_lossy(&out).into_owned()
 }
 #[derive(Clone)]
-struct ListIngress {
-    request: FieldSetListRequest,
-    never_matches: bool,
+pub(crate) struct ListIngress {
+    pub(crate) request: FieldSetListRequest,
+    pub(crate) never_matches: bool,
 }
 fn js_number(raw: &str) -> f64 {
     let s = erpx_server_files::public::field_visit_intake::component_ref(Some(raw)).unwrap_or("");
@@ -442,6 +460,15 @@ fn js_number(raw: &str) -> f64 {
     s.parse::<f64>().unwrap_or(f64::NAN)
 }
 fn query(raw: Option<&str>) -> Result<ListIngress, BusinessError> {
+    query_for_owner(
+        raw,
+        erpx_server_files::public::field_visit_intake::IntakeOwner::FieldVisit,
+    )
+}
+pub(crate) fn query_for_owner(
+    raw: Option<&str>,
+    owner: erpx_server_files::public::field_visit_intake::IntakeOwner,
+) -> Result<ListIngress, BusinessError> {
     if raw.is_some_and(|s| s.len() > 2 * 1024 * 1024) {
         return Err(invalid());
     }
@@ -467,13 +494,16 @@ fn query(raw: Option<&str>) -> Result<ListIngress, BusinessError> {
     let version = number
         .filter(|n| !n.is_nan() && *n != 0.0 && !never_matches)
         .map(|n| n as i64);
-    let request = validate_list(FieldIntakeListQuery {
-        target_type: take("targetType").unwrap_or_default(),
-        target_id: take("targetId").unwrap_or_default(),
-        purpose_key: take("purposeKey"),
-        component_kind: take("componentKind"),
-        expected_target_version: version,
-    })?;
+    let request = validate_list_for_owner(
+        FieldIntakeListQuery {
+            target_type: take("targetType").unwrap_or_default(),
+            target_id: take("targetId").unwrap_or_default(),
+            purpose_key: take("purposeKey"),
+            component_kind: take("componentKind"),
+            expected_target_version: version,
+        },
+        owner,
+    )?;
     Ok(ListIngress {
         request,
         never_matches,

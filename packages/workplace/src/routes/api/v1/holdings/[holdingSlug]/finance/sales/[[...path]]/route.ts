@@ -1,3 +1,4 @@
+import {nativeServiceCustomerReceiptReadback} from '@erpx/feature-finance/public/server';
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import { z } from "zod";
 import { requireWorkContext } from "@erpx/server-identity_access/public/authorization";
@@ -11,6 +12,10 @@ export async function GET(request: Request, context: Context) {
   try {
     const { holdingSlug, path = [] } = await context.params;
     const actor = requirePermission(await requireWorkContext(holdingSlug), "finance.read");
+    if(path[0]==='receipts'&&path[1]&&(path.length===2||path.length===3&&path[2]==='export')){
+      const native=await nativeServiceCustomerReceiptReadback(request,actor,holdingSlug,path[1],path[2]==='export');
+      if(native)return native;
+    }
     if (!path.length) return Response.json(canonicalDestinationLinks({ data: await salesWorkspace(actor, Object.fromEntries(new URL(request.url).searchParams)) }), { headers });
     if (path[0] === "defaults" && path.length === 1) return Response.json(canonicalDestinationLinks({ data: await salesDefaultsWorkspace(actor) }), { headers });
     if (path[0] === "receipts" && path[1] && path.length === 2) return Response.json(canonicalDestinationLinks({ data: await customerReceiptDetail(actor, path[1]) }), { headers });

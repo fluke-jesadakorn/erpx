@@ -43,4 +43,4 @@ No additional business legacy implementation is replaced here. Existing Parts/Co
 - [x] Actual fixture/scanner/enrollment and normal SSO into compiled Service.
 - [x] Native Parts/masters/draft Count,17 reconciled results and separate readback.
 - [x] Independent bounded review, normal owned cleanup and contributor restoration.
-- [ ] Final candidate documentation/catalogue checks, scoped PR merge into migration and remote SHA verification.
+- [x] Final candidate documentation/catalogue checks and [PR #16](https://github.com/fluke-jesadakorn/erpx/pull/16) merge at `a8bcd2b9a298cc0aa9bb3e51b579dbd76093e6da`; remote SHA, parents and candidate tree verified.

@@ -215,7 +215,8 @@
     "./domain/upload-validation": "./src/domain/upload-validation.ts",
     "./public/attachments/native-field-bind": "./src/public/attachments/native-field-bind.ts",
     "./adapters/field-file-writer-owner": "./src/adapters/field-file-writer-owner.ts",
-    "./public/field-file-writer-owner": "./src/public/field-file-writer-owner.ts"
+    "./public/field-file-writer-owner": "./src/public/field-file-writer-owner.ts",
+    "./public/field-outbox-predicate": "./src/public/field-outbox-predicate.generated.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

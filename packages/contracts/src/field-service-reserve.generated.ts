@@ -1,5 +1,26 @@
 // Generated from the Rust Field Service reservation contracts. Do not edit by hand.
 // Regenerate: bun scripts/docs/generate-field-service-reserve-contracts.ts
+export type NativeAccountPreferences = { holdingId: string, holdingSlug: string, holdingName: string, userId: string, sessionId: string, workspace: AccountWorkspacePreference | null, company: AccountCompanyPreference | null, };
+export type AccountWorkspacePreference = { workspacePath: string | null, platformAssignmentId: string | null, };
+export type AccountCompanyPreference = { companyId: string, };
+export type NativeAccountCompanies = { holdingId: string, sessionId: string, userId: string, name: string, email: string, expiresAt: number, companies: Array<AccountCompanyChoice>, };
+export type AccountCompanyChoice = { id: string, slug: string, name: string, };
+export type NativeWorkRoleState = { holdingName: string, holdingId: string, companyId: string, userId: string, sessionId: string, expiresAt: number, companyName: string, companySlug: string, branchName: string | null, departmentName: string | null, workspaces: Array<AccountWorkspaceChoice>, context: NativeWorkPresentation | null, options: Array<NativeWorkRoleOption>, selection: AccountWorkSelection | null, valid: boolean, branchId: string | null, departmentId: string | null, branchSlug: string | null, departmentSlug: string | null, };
+export type NativeWorkPresentation = { iam: NativeIamPresentation, modules: Array<string>, beta: boolean, expiresAt: number, };
+export type NativeIamPresentation = { roleRevision: number, identityVersion: number, permissions: Array<string>, grantablePermissions: Array<string>, principalId: string, personId: string | null, personUserIds: Array<string>, hrAppointmentVersion: number | null, emergencyUntil: number | null, freshUntil: number | null, };
+export type AccountWorkspaceChoice = { kind: "holding" | "branch" | "department", id: string, label: string, branchSlug: string | null, departmentSlug: string | null, inherited: boolean, };
+export type NativeWorkRoleOption = { id: string, version: number, role: string, companyId: string, branchId: string | null, modules: Array<string>, scopeKind: "holding" | "branch" | "department", scopeNodeId: string | null, label: string, validUntil: number, branchSlug: string | null, departmentSlug: string | null, };
+export type AccountWorkSelection = { assignmentId: string | null, assignmentVersion: number | null, revision: number, expiresAt: number, };
+export type ServiceCustomerInput = { expectedVersion: 0, contextKey: string, input: ServiceCustomerParty, };
+export type ServiceCustomerParty = { kind: "customer", code: string, name: string, currency: string, taxRegistration?: string, paymentTermsDays: number, creditLimit: string, };
+export type ServiceCustomerResult = { id: string, creditLimitMinor: number, kind: "customer", code: string, name: string, currency: string, taxRegistration?: string, paymentTermsDays: number, creditLimit: string, };
+export type ServiceCustomerCurrency = { code: string, name: string, };
+export type ServiceCustomerReference = { id: string, code: string, name: string, currency: string, };
+export type ServiceCustomerPreparation = { companyId: string, available: boolean, contextKey: string | null, canCreate: boolean, currencies: Array<ServiceCustomerCurrency>, customers: Array<ServiceCustomerReference>, unavailableReason: "authority-required" | "purchase-required" | null, };
+export type ServiceCustomerReadResponse = { data: ServiceCustomerPreparation, context: FieldServiceRenderedContext, };
+export type ServiceCustomerConfirmation = { commandId: string, companyId: string, id: string, kind: "customer", status: "active" | "blocked", code: string, name: string, currency: string, };
+export type ServiceCustomerCreateResponse = { data: ServiceCustomerResult, context: FieldServiceRenderedContext, };
+export type ServiceCustomerConfirmationResponse = { data: ServiceCustomerConfirmation, context: FieldServiceRenderedContext, };
 export type ServiceStockWorkspace = { companyId: string, available: boolean, schemaAvailable: boolean, sourceReady: boolean, currency: string | null, canCreateWarehouse: boolean, canCreateProduct: boolean, branches: Array<ServiceStockBranch>, unavailableReason: string | null, };
 export type ServiceStockBranch = { id: string, name: string, };
 export type ServiceStockReadResponse = { data: ServiceStockWorkspace, context: FieldServiceRenderedContext, };
@@ -29,7 +50,7 @@ export type ServicePostingView = { companyId: string, available: boolean, schema
 export type ServicePostingResult = { id: string, status: string, version: number, };
 export type ServicePostingReadResponse = { data: ServicePostingView, context: FieldServiceRenderedContext, };
 export type ServicePostingCommandResponse = { data: ServicePostingResult, context: FieldServiceRenderedContext, };
-export type FieldServiceSourceRecord = { id: string, companyId: string, branchId: string | null, departmentId: string | null, version: number, title: string, status: string, };
+export type FieldServiceSourceRecord = { id: string, companyId: string, branchId: string | null, departmentId: string | null, version: number, title: string, status: string, scheduledAt: number | null, visitCompletedAt: number | null, };
 export type FieldServiceSourceRecordResponse = { data: FieldServiceSourceRecord, context: FieldServiceRenderedContext, };
 export type FieldServiceDetailSpares = { stock: Array<Record<string, string | number | null>>, lots: Array<Record<string, string | number | null>>, };
 export type FieldServiceOrderDetail = { order: Record<string, string | number | null>, spares: FieldServiceDetailSpares, parts: Array<Record<string, string | number | null>>, consumptions: Array<Record<string, string | number | null>>, history: Array<Record<string, string | number | null>>, billing: Record<string, string | number | boolean | null> | null, canEditVisitFiles: boolean, agreements: Array<Record<string, string | number | null>>, orders: Array<Record<string, string | number | null>>, customers: Array<Record<string, string | number | null>>, assets: Array<Record<string, string | number | null>>, tickets: Array<Record<string, string | number | null>>, people: Array<Record<string, string | number | null>>, nodes: Array<Record<string, string | number | null>>, referenceScope: FieldServiceWorkspaceScope, workspaceKey: string, canWrite: boolean, canCreateAgreement: boolean, canCreateOrder: boolean, canUseParts: boolean, canUseAssetReferences: boolean, };

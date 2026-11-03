@@ -21,6 +21,13 @@ serde_json.workspace = true
 sqlx.workspace = true
 sha2.workspace = true
 hex.workspace = true
+base64.workspace = true
+ring.workspace = true
+ts-rs = { workspace = true, optional = true }
+utoipa = { workspace = true, optional = true }
+
+[features]
+contracts = ["dep:ts-rs", "dep:utoipa"]
 
 [dev-dependencies]
 tokio.workspace = true

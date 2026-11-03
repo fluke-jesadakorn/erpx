@@ -11,7 +11,8 @@
     "./components/routine-template-editor": "./src/components/routine-template-editor.tsx",
     "./components/use-routine-command": "./src/components/use-routine-command.ts",
     "./lib/routine-purchase-controls": "./src/lib/routine-purchase-controls.ts",
-    "./lib/routine-command": "./src/lib/routine-command.ts"
+    "./lib/routine-command": "./src/lib/routine-command.ts",
+    "./lib/operations-work-model": "./src/lib/operations-work-model.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

@@ -1,5 +1,5 @@
 // Generated from the Rust Field attachment intake contracts. Do not edit.
-export type FieldIntakeTarget = "field_service_visit";
+export type FieldIntakeTarget = "field_service_visit" | "finance_payment" | "finance_journal";
 
 export type FieldIntakeComponent = "record" | "action" | "line" | "event" | "message" | "publication";
 

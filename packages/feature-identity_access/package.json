@@ -76,7 +76,8 @@
     "./lib/verified-form-submit": "./src/lib/verified-form-submit.ts",
     "./application/account-security-port": "./src/application/account-security-port.ts",
     "./adapters/http/account-security": "./src/adapters/http/account-security.ts",
-    "./public/client": "./src/public/client.ts"
+    "./public/client": "./src/public/client.ts",
+    "./lib/device-account-return": "./src/lib/device-account-return.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

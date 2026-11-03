@@ -5,11 +5,7 @@ import type {ServiceInitialCountReadResponse,ServiceInitialCountCommandResponse,
 import {validServiceInitialPhysicalStockCountView,type ServiceInitialPhysicalCountView} from '../../lib/initial-physical-stock-count-command';
 import type {FlowView} from '@erpx/feature-shared/lib/flow';
 import type {ReserveContext} from '../../lib/native-reserve-command';
-import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
-export function nativeInitialCountContext(actor:WorkContext):ReserveContext|undefined {
- if(!actor.authority||!actor.iam)return undefined;
- return {userId:actor.userId,holdingId:actor.holdingId,companyId:actor.companyId,branchId:actor.branchId,departmentId:actor.departmentId,branchSlug:actor.scope.kind==='holding'?null:actor.scope.branchSlug??null,departmentSlug:actor.scope.kind==='department'?actor.scope.departmentSlug:null,assignmentId:actor.assignmentId,assignmentVersion:actor.authority.assignmentVersion,revision:actor.authority.revision,role:actor.role,assignmentScopeKind:actor.assignmentScope,modules:[...actor.modules],permissions:[...actor.iam.permissions]};
-}
+export {nativeActorContext as nativeInitialCountContext} from '../../lib/native-actor-context';
 type Target={origin:string;holdingSlug:string;holdingId:string};
 type Settings={privateBaseUrl:string;timeoutMs:number;holdings:Target[]};
 export class NativeInitialCountError extends Error {constructor(readonly code:string,readonly status=502){super('The native Service initial Count is unavailable.');}}

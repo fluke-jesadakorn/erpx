@@ -29,7 +29,7 @@ impl std::fmt::Display for JournalError {
 }
 impl std::error::Error for JournalError {}
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct JournalLineInput {

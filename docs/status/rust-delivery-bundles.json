@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-31T01:54:02.246713+00:00",
+  "updatedAt": "2026-10-31T02:11:45.188416+00:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
-  "policy": "Complete bounded Rust capability with frontend/dependencies, one writer and immediate legacy implementation withdrawal; scoped PR integration target codex/rust-backend-migration only; Docker that completed capability next before the following migration bundle; Dev Container grows only with qualified Rust/Docker scope. Development requires another maintainer instruction.",
+  "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
     "path": "docs/status/product-migration-acceptance.json",
     "moduleWorkflowCount": 187,
@@ -137,7 +137,7 @@
         "evidenceFlows": [
           "field-service-initial-count-native"
         ],
-        "acceptanceBoundary": "Bounded Count entry/selection/lifecycle/Flow/Finance proof; default runtime/writer withdrawal and exact-candidate integration remain items12\u201315/18."
+        "acceptanceBoundary": "Bounded Count entry/selection/lifecycle/Flow/Finance proof; default runtime/writer withdrawal and exact-candidate integration remain items12–15/18."
       },
       {
         "number": 10,
@@ -241,7 +241,8 @@
       "All incomplete firstBundle checklist entries covering the actual Field scope and required dependencies, before the final merge action itself.",
       "Hosted free quota is exhausted; user authorizes equivalent isolated local verification with actual source/platform/prerequisites and unchanged checks. Prior non-started jobs remain historical failures, not passes. Run40824122229 on2f7116d93 had12 Field and5 Manufacturing failures before cancellation; run40832243680 onf24696bc stopped on3 unit harness failures, now corrected locally. Actual integration causes remain unresolved.",
       "Known first-Company hydration mismatch and incomplete modularity proof.",
-      "Observed Field shell header/title overlaps body in actual compiled Count screenshot; UI correction and real layout regression required. No clean visual claim."
+      "Observed Field shell header/title overlaps body in actual compiled Count screenshot; UI correction and real layout regression required. No clean visual claim.",
+      "Aggressive owner candidate: Operations native policy/open/read/lifecycle and Next frontend wiring are implemented with local HTTP/PostgreSQL component checks. Field HTTP/SSR/Work fallbacks are removed; legacy Operations Field-only policy/open writers and lists are partitioned. Finish generic Records consumer partition (native Support→POS/Asset/PMS same-unit reader is component-tested), normal-browser My actions qualification, worker CLI activation and Field Files/scheduled-event coverage (outbox projection and database claim fence are component-tested), remaining legacy public/notification/evidence readers and Finance customer setup; then freeze and verify all six normal-browser journeys. No fallback restoration or owner closure from component tests."
     ],
     "nextBundleBacklog": [
       "Unrelated owners and their catalogue workflows, except dependencies required by the Field journey.",
@@ -266,7 +267,7 @@
           "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/field-service/screen.tsx",
           "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/field-service/[id]/screen.tsx"
         ],
-        "current": "Native read is separately opted in and qualified under documented bounds; retained TypeScript paths remain the default.",
+        "current": "Candidate native-only SSR/API reads; missing configuration is unavailable503. Shared customer preparation and other retained dependencies still need native closure; no final browser acceptance.",
         "withdrawal": "Route all required Field scopes to the selected native owner and prove current context, historical continuity and no legacy fallback before removing the retained path."
       },
       {
@@ -290,7 +291,7 @@
           "complete",
           "release-billing"
         ],
-        "current": "The listed branches have bounded native flow evidence behind explicit private/Next opt-ins. Public dispatch still retains TypeScript for unselected cases.",
+        "current": "Candidate dispatch always enters the finite native command bridge; unsupported/unconfigured operations are503 and no legacy command is called. Bounded native proofs remain preserved; full owner browser/jobserverification pending.",
         "withdrawal": "Preserve shared dispatch precedence, authorization, receipt/replay and cross-owner atomicity; fence each legacy mutation when its corresponding native branch becomes authoritative."
       },
       {
@@ -317,7 +318,7 @@
           "src/composition/src/service_initial_physical_stock_read.rs",
           "src/composition/src/service_initial_physical_stock_flow.rs"
         ],
-        "current": "PR5 native Service Count create/lifecycle/Flow and generic GET/SSR; required writer/fallback retirement and native projection partition qualified. PR12 normal-auth setup\u2192postedCount evidence supplements it.",
+        "current": "PR5 native Service Count create/lifecycle/Flow and generic GET/SSR; required writer/fallback retirement and native projection partition qualified. PR12 normal-auth setup→postedCount evidence supplements it.",
         "withdrawal": "Retain only named generic non-Service count and shared ProductEntry/source-policy readers, with persisted Service family exclusion."
       },
       {
@@ -338,7 +339,7 @@
           "packages/server-field_service/src/adapters/records-source-facts.ts",
           "packages/server-support/src/adapters/support.ts"
         ],
-        "current": "Field Work contribution is native under opt-in; Support source read/navigation and outage Retry have qualified bounded evidence; full integration remains pending. Records source-guard mutations retain same-unit TypeScript paths.",
+        "current": "Native Field Support/Collaboration and Operations HTTP/Next wiring implemented. Field Work fallback/cache removed. Legacy Operations Field partitions fenced; Field Operations My actions remains explicitly unavailable until native Work composition. Recursive same-unit Records and remaining notification/evidence readers remain open.",
         "withdrawal": "Qualify every required source consumer and keep transactional guards local to the owner unit; an HTTP read or Work projection is not a guard."
       },
       {
@@ -348,7 +349,7 @@
           "packages/server-runtime/src/adapters/runtime/jobs.ts",
           "packages/server-files/src/adapters/attachments/service.ts"
         ],
-        "current": "Native Count projector and Field Files scan/draft-orphan partitions qualified; TS jobs remain only for their other source/event families. Scoped images do not activate the installed public gateway or complete every Field job.",
+        "current": "Native Count projector and Field Files workers retain their qualified subsets. General Field/Collaboration/Operations outbox projection is not covered by the Count worker and still requires native projection plus the matching legacy claim fence. Installed public runtime is unchanged.",
         "withdrawal": "Keep exact persisted source/event partition fences and live authority/retry guards; migrate other Field-dependent and non-Field jobs with their actual consumers."
       }
     ],
@@ -378,11 +379,11 @@
             "src/composition/src/field_service_parts/http_transport.rs",
             "src/composition/src/field_service_parts/request.rs"
           ],
-          "selector": "Next ERPX_NATIVE_FIELD_SERVICE_REQUEST_CONFIG; private fieldServiceRequests, with Field Company binding. Unconfigured shared POST branches call the retained TypeScript service; configured branches route through the corresponding private Holding/Company native target, with actual current authorization and fail-closed selected transport.",
+          "selector": "Candidate shared Field POST always dispatches through its finite native bridge. Corresponding private/Next capability configuration is required; missing or unsupported capability is503. No legacy shared-POST writer fallback remains.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Field Order, Support ticket/event, Collaboration notice, Workflow receipt/audit/outbox",
           "authorityAndIsolation": "Current selected actor, module, Company/scope and purpose-specific purchase/source witnesses; no selector grants authority.",
-          "isolationStatus": "BLOCKED: native selection is a disposable nonproduction opt-in, while retained TypeScript and internal compatibility writers are not globally fenced.",
+          "isolationStatus": "BLOCKED for owner delivery: HTTP dispatch is native-only in the candidate, but remaining public/internal legacy readers/writers, jobs and complete frozen browser journeys have not all been retired/qualified.",
           "withdrawalFence": "NewWork plus current Field and Support/Customer/Agreement/conditional Asset authority; retire the old request writer only after replay and atomic projection continuity are proven.",
           "status": "qualified bounded opt-in; no owner cutover",
           "commandOperation": "field.order.request"
@@ -407,11 +408,11 @@
             "src/composition/src/field_service_parts/http_transport.rs",
             "src/composition/src/field_service_parts/create_order.rs"
           ],
-          "selector": "Next ERPX_NATIVE_FIELD_SERVICE_ORDER_CREATE_CONFIG; private fieldServiceOrderCreates, with Field Company binding. Unconfigured shared POST branches call the retained TypeScript service; configured branches route through the corresponding private Holding/Company native target, with actual current authorization and fail-closed selected transport.",
+          "selector": "Candidate shared Field POST always dispatches through its finite native bridge. Corresponding private/Next capability configuration is required; missing or unsupported capability is503. No legacy shared-POST writer fallback remains.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Field Order/event, Collaboration notice, Workflow receipt/audit/outbox; existing Support ticket is not claimed",
           "authorityAndIsolation": "Current selected actor, module, Company/scope and purpose-specific purchase/source witnesses; no selector grants authority.",
-          "isolationStatus": "BLOCKED: native selection is a disposable nonproduction opt-in, while retained TypeScript and internal compatibility writers are not globally fenced.",
+          "isolationStatus": "BLOCKED for owner delivery: HTTP dispatch is native-only in the candidate, but remaining public/internal legacy readers/writers, jobs and complete frozen browser journeys have not all been retired/qualified.",
           "withdrawalFence": "Current ticket/Agreement/customer/technician and selected authority; fence old create writer while preserving multiple valid orders and exact retry.",
           "status": "qualified bounded opt-in; no owner cutover",
           "commandOperation": "field.order.create"
@@ -436,11 +437,11 @@
             "src/composition/src/field_service_parts/http_transport.rs",
             "src/composition/src/field_service_parts/agreement_create.rs"
           ],
-          "selector": "Next ERPX_NATIVE_FIELD_SERVICE_AGREEMENT_CREATE_CONFIG; private fieldServiceAgreementCreates, with Field Company binding. Unconfigured shared POST branches call the retained TypeScript service; configured branches route through the corresponding private Holding/Company native target, with actual current authorization and fail-closed selected transport.",
+          "selector": "Candidate shared Field POST always dispatches through its finite native bridge. Corresponding private/Next capability configuration is required; missing or unsupported capability is503. No legacy shared-POST writer fallback remains.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Agreement/event, Finance visit-rate FX Money snapshot, Workflow receipt/audit/outbox",
           "authorityAndIsolation": "Current selected actor, module, Company/scope and purpose-specific purchase/source witnesses; no selector grants authority.",
-          "isolationStatus": "BLOCKED: native selection is a disposable nonproduction opt-in, while retained TypeScript and internal compatibility writers are not globally fenced.",
+          "isolationStatus": "BLOCKED for owner delivery: HTTP dispatch is native-only in the candidate, but remaining public/internal legacy readers/writers, jobs and complete frozen browser journeys have not all been retired/qualified.",
           "withdrawalFence": "Preserve Finance Money, current source/scope, zero/FX and replay before fencing TypeScript create.",
           "status": "qualified bounded opt-in; no owner cutover",
           "commandOperation": "field.agreement.create"
@@ -465,11 +466,11 @@
             "src/composition/src/field_service_parts/http_transport.rs",
             "src/composition/src/field_service_parts/agreement_review.rs"
           ],
-          "selector": "Next ERPX_NATIVE_FIELD_SERVICE_AGREEMENT_REVIEW_CONFIG; private fieldServiceAgreementReviews, with Field Company binding. Unconfigured shared POST branches call the retained TypeScript service; configured branches route through the corresponding private Holding/Company native target, with actual current authorization and fail-closed selected transport.",
+          "selector": "Candidate shared Field POST always dispatches through its finite native bridge. Corresponding private/Next capability configuration is required; missing or unsupported capability is503. No legacy shared-POST writer fallback remains.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Agreement status/version/review event, Workflow receipt/audit/outbox",
           "authorityAndIsolation": "Current selected actor, module, Company/scope and purpose-specific purchase/source witnesses; no selector grants authority.",
-          "isolationStatus": "BLOCKED: native selection is a disposable nonproduction opt-in, while retained TypeScript and internal compatibility writers are not globally fenced.",
+          "isolationStatus": "BLOCKED for owner delivery: HTTP dispatch is native-only in the candidate, but remaining public/internal legacy readers/writers, jobs and complete frozen browser journeys have not all been retired/qualified.",
           "withdrawalFence": "Current independent eligible reviewer, NewWork and actual current source; fence legacy activation and preserve retry.",
           "status": "qualified bounded opt-in; no owner cutover",
           "commandOperation": "field.agreement.activate"
@@ -494,11 +495,11 @@
             "src/composition/src/field_service_parts/http_transport.rs",
             "src/composition/src/field_service_parts/agreement_review.rs"
           ],
-          "selector": "Next ERPX_NATIVE_FIELD_SERVICE_AGREEMENT_REVIEW_CONFIG; private fieldServiceAgreementReviews, with Field Company binding. Unconfigured shared POST branches call the retained TypeScript service; configured branches route through the corresponding private Holding/Company native target, with actual current authorization and fail-closed selected transport.",
+          "selector": "Candidate shared Field POST always dispatches through its finite native bridge. Corresponding private/Next capability configuration is required; missing or unsupported capability is503. No legacy shared-POST writer fallback remains.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Agreement status/version/review event, Workflow receipt/audit/outbox",
           "authorityAndIsolation": "Current selected actor, module, Company/scope and purpose-specific purchase/source witnesses; no selector grants authority.",
-          "isolationStatus": "BLOCKED: native selection is a disposable nonproduction opt-in, while retained TypeScript and internal compatibility writers are not globally fenced.",
+          "isolationStatus": "BLOCKED for owner delivery: HTTP dispatch is native-only in the candidate, but remaining public/internal legacy readers/writers, jobs and complete frozen browser journeys have not all been retired/qualified.",
           "withdrawalFence": "Current independent eligible reviewer and SettleExisting; fence legacy rejection and preserve retry.",
           "status": "qualified bounded opt-in; no owner cutover",
           "commandOperation": "field.agreement.reject"
@@ -523,11 +524,11 @@
             "src/composition/src/field_service_parts/http_transport.rs",
             "src/composition/src/field_service_parts/agreement_review.rs"
           ],
-          "selector": "Next ERPX_NATIVE_FIELD_SERVICE_AGREEMENT_REVIEW_CONFIG; private fieldServiceAgreementReviews, with Field Company binding. Unconfigured shared POST branches call the retained TypeScript service; configured branches route through the corresponding private Holding/Company native target, with actual current authorization and fail-closed selected transport.",
+          "selector": "Candidate shared Field POST always dispatches through its finite native bridge. Corresponding private/Next capability configuration is required; missing or unsupported capability is503. No legacy shared-POST writer fallback remains.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Agreement status/version/review event, Workflow receipt/audit/outbox",
           "authorityAndIsolation": "Current selected actor, module, Company/scope and purpose-specific purchase/source witnesses; no selector grants authority.",
-          "isolationStatus": "BLOCKED: native selection is a disposable nonproduction opt-in, while retained TypeScript and internal compatibility writers are not globally fenced.",
+          "isolationStatus": "BLOCKED for owner delivery: HTTP dispatch is native-only in the candidate, but remaining public/internal legacy readers/writers, jobs and complete frozen browser journeys have not all been retired/qualified.",
           "withdrawalFence": "Current independent reviewer, SettleExisting and no active orders; fence legacy retirement and preserve source/retry.",
           "status": "qualified bounded opt-in; no owner cutover",
           "commandOperation": "field.agreement.retire"
@@ -552,11 +553,11 @@
             "src/composition/src/field_service_parts/http_transport.rs",
             "src/composition/src/field_service_parts/command.rs"
           ],
-          "selector": "Next ERPX_NATIVE_FIELD_SERVICE_RESERVE_CONFIG; private fieldServiceReservations, with Field Company binding. Unconfigured shared POST branches call the retained TypeScript service; configured branches route through the corresponding private Holding/Company native target, with actual current authorization and fail-closed selected transport.",
+          "selector": "Candidate shared Field POST always dispatches through its finite native bridge. Corresponding private/Next capability configuration is required; missing or unsupported capability is503. No legacy shared-POST writer fallback remains.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Field Order/event and reservation, Inventory reservation/stock-version effects, Collaboration notice, Workflow receipt/audit/outbox",
           "authorityAndIsolation": "Current selected actor, module, Company/scope and purpose-specific purchase/source witnesses; no selector grants authority.",
-          "isolationStatus": "BLOCKED: native selection is a disposable nonproduction opt-in, while retained TypeScript and internal compatibility writers are not globally fenced.",
+          "isolationStatus": "BLOCKED for owner delivery: HTTP dispatch is native-only in the candidate, but remaining public/internal legacy readers/writers, jobs and complete frozen browser journeys have not all been retired/qualified.",
           "withdrawalFence": "Current stock/Quality and selected Field authority with purchase history/settlement; fence legacy reserve while preserving one receipt and atomic stock version.",
           "status": "qualified bounded opt-in; no owner cutover",
           "commandOperation": "field.order.reserve-part"
@@ -581,11 +582,11 @@
             "src/composition/src/field_service_parts/http_transport.rs",
             "src/composition/src/field_service_parts/command.rs"
           ],
-          "selector": "Next ERPX_NATIVE_FIELD_SERVICE_ISSUE_CONFIG; private fieldServiceIssues, with Field Company binding. Unconfigured shared POST branches call the retained TypeScript service; configured branches route through the corresponding private Holding/Company native target, with actual current authorization and fail-closed selected transport.",
+          "selector": "Candidate shared Field POST always dispatches through its finite native bridge. Corresponding private/Next capability configuration is required; missing or unsupported capability is503. No legacy shared-POST writer fallback remains.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Field Order/event and reservation counters, Inventory consumption/lots/cost, Commerce stock, Finance cost journal/Money, notice and Workflow effects",
           "authorityAndIsolation": "Current selected actor, module, Company/scope and purpose-specific purchase/source witnesses; no selector grants authority.",
-          "isolationStatus": "BLOCKED: native selection is a disposable nonproduction opt-in, while retained TypeScript and internal compatibility writers are not globally fenced.",
+          "isolationStatus": "BLOCKED for owner delivery: HTTP dispatch is native-only in the candidate, but remaining public/internal legacy readers/writers, jobs and complete frozen browser journeys have not all been retired/qualified.",
           "withdrawalFence": "Preserve actual source-qualified Finance/Inventory lineage, allocation, readback and rollback before disabling the legacy issue writer.",
           "status": "qualified bounded opt-in; no owner cutover",
           "commandOperation": "field.order.issue-part"
@@ -610,11 +611,11 @@
             "src/composition/src/field_service_parts/http_transport.rs",
             "src/composition/src/field_service_parts/visit.rs"
           ],
-          "selector": "Next ERPX_NATIVE_FIELD_SERVICE_VISIT_CONFIG; private fieldServiceVisits, with Field Company binding. Unconfigured shared POST branches call the retained TypeScript service; configured branches route through the corresponding private Holding/Company native target, with actual current authorization and fail-closed selected transport.",
+          "selector": "Candidate shared Field POST always dispatches through its finite native bridge. Corresponding private/Next capability configuration is required; missing or unsupported capability is503. No legacy shared-POST writer fallback remains.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Field Order/event, Support projection, Collaboration notification and Workflow receipt/audit/outbox",
           "authorityAndIsolation": "Current selected actor, module, Company/scope and purpose-specific purchase/source witnesses; no selector grants authority.",
-          "isolationStatus": "BLOCKED: native selection is a disposable nonproduction opt-in, while retained TypeScript and internal compatibility writers are not globally fenced.",
+          "isolationStatus": "BLOCKED for owner delivery: HTTP dispatch is native-only in the candidate, but remaining public/internal legacy readers/writers, jobs and complete frozen browser journeys have not all been retired/qualified.",
           "withdrawalFence": "Current assigned eligible technician or reviewer and scheduled technician facts; fence legacy schedule after source/version/retry proof.",
           "status": "qualified bounded opt-in; no owner cutover",
           "commandOperation": "field.order.schedule"
@@ -639,11 +640,11 @@
             "src/composition/src/field_service_parts/http_transport.rs",
             "src/composition/src/field_service_parts/visit.rs"
           ],
-          "selector": "Next ERPX_NATIVE_FIELD_SERVICE_VISIT_CONFIG; private fieldServiceVisits, with Field Company binding. Unconfigured shared POST branches call the retained TypeScript service; configured branches route through the corresponding private Holding/Company native target, with actual current authorization and fail-closed selected transport.",
+          "selector": "Candidate shared Field POST always dispatches through its finite native bridge. Corresponding private/Next capability configuration is required; missing or unsupported capability is503. No legacy shared-POST writer fallback remains.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Field Order/event, Support projection, Collaboration notification and Workflow receipt/audit/outbox",
           "authorityAndIsolation": "Current selected actor, module, Company/scope and purpose-specific purchase/source witnesses; no selector grants authority.",
-          "isolationStatus": "BLOCKED: native selection is a disposable nonproduction opt-in, while retained TypeScript and internal compatibility writers are not globally fenced.",
+          "isolationStatus": "BLOCKED for owner delivery: HTTP dispatch is native-only in the candidate, but remaining public/internal legacy readers/writers, jobs and complete frozen browser journeys have not all been retired/qualified.",
           "withdrawalFence": "Current selected authority, reservation and source checks; fence legacy dispatch with exact retry and Support projection.",
           "status": "qualified bounded opt-in; no owner cutover",
           "commandOperation": "field.order.dispatch"
@@ -668,12 +669,12 @@
             "src/composition/src/field_service_parts/http_transport.rs",
             "src/composition/src/field_service_parts/visit.rs"
           ],
-          "selector": "Next ERPX_NATIVE_FIELD_SERVICE_VISIT_CONFIG; private fieldServiceVisits, with Field Company binding. Unconfigured shared POST branches call the retained TypeScript service; configured branches route through the corresponding private Holding/Company native target, with actual current authorization and fail-closed selected transport.",
+          "selector": "Candidate shared Field POST always dispatches through its finite native bridge. Corresponding private/Next capability configuration is required; missing or unsupported capability is503. No legacy shared-POST writer fallback remains.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Field Order/event, start timestamp, Support projection, notice and Workflow effects",
           "authorityAndIsolation": "Current selected actor, module, Company/scope and purpose-specific purchase/source witnesses; no selector grants authority.",
-          "isolationStatus": "BLOCKED: native selection is a disposable nonproduction opt-in, while retained TypeScript and internal compatibility writers are not globally fenced.",
-          "withdrawalFence": "Retain dispatched\u2192in_visit rules and current actor; fence legacy start with exact retry.",
+          "isolationStatus": "BLOCKED for owner delivery: HTTP dispatch is native-only in the candidate, but remaining public/internal legacy readers/writers, jobs and complete frozen browser journeys have not all been retired/qualified.",
+          "withdrawalFence": "Retain dispatched→in_visit rules and current actor; fence legacy start with exact retry.",
           "status": "qualified bounded opt-in; no owner cutover",
           "commandOperation": "field.order.start"
         },
@@ -697,11 +698,11 @@
             "src/composition/src/field_service_parts/http_transport.rs",
             "src/composition/src/field_service_parts/visit.rs"
           ],
-          "selector": "Next ERPX_NATIVE_FIELD_SERVICE_VISIT_RECOVERY_CONFIG; private fieldServiceVisitRecoveries, with Field Company binding. Unconfigured shared POST branches call the retained TypeScript service; configured branches route through the corresponding private Holding/Company native target, with actual current authorization and fail-closed selected transport.",
+          "selector": "Candidate shared Field POST always dispatches through its finite native bridge. Corresponding private/Next capability configuration is required; missing or unsupported capability is503. No legacy shared-POST writer fallback remains.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Field Order/event, Support projection, notice and Workflow receipt/audit/outbox",
           "authorityAndIsolation": "Current selected actor, module, Company/scope and purpose-specific purchase/source witnesses; no selector grants authority.",
-          "isolationStatus": "BLOCKED: native selection is a disposable nonproduction opt-in, while retained TypeScript and internal compatibility writers are not globally fenced.",
+          "isolationStatus": "BLOCKED for owner delivery: HTTP dispatch is native-only in the candidate, but remaining public/internal legacy readers/writers, jobs and complete frozen browser journeys have not all been retired/qualified.",
           "withdrawalFence": "Retain actual current actor and exception reason; no Inventory/Finance mutation; fence legacy exception.",
           "status": "qualified bounded opt-in; no owner cutover",
           "commandOperation": "field.order.exception"
@@ -726,12 +727,12 @@
             "src/composition/src/field_service_parts/http_transport.rs",
             "src/composition/src/field_service_parts/visit.rs"
           ],
-          "selector": "Next ERPX_NATIVE_FIELD_SERVICE_VISIT_RECOVERY_CONFIG; private fieldServiceVisitRecoveries, with Field Company binding. Unconfigured shared POST branches call the retained TypeScript service; configured branches route through the corresponding private Holding/Company native target, with actual current authorization and fail-closed selected transport.",
+          "selector": "Candidate shared Field POST always dispatches through its finite native bridge. Corresponding private/Next capability configuration is required; missing or unsupported capability is503. No legacy shared-POST writer fallback remains.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Field Order/event, Support projection, notice and Workflow receipt/audit/outbox",
           "authorityAndIsolation": "Current selected actor, module, Company/scope and purpose-specific purchase/source witnesses; no selector grants authority.",
-          "isolationStatus": "BLOCKED: native selection is a disposable nonproduction opt-in, while retained TypeScript and internal compatibility writers are not globally fenced.",
-          "withdrawalFence": "Retain exception\u2192in_visit semantics and current actor; fence legacy resume.",
+          "isolationStatus": "BLOCKED for owner delivery: HTTP dispatch is native-only in the candidate, but remaining public/internal legacy readers/writers, jobs and complete frozen browser journeys have not all been retired/qualified.",
+          "withdrawalFence": "Retain exception→in_visit semantics and current actor; fence legacy resume.",
           "status": "qualified bounded opt-in; no owner cutover",
           "commandOperation": "field.order.resume"
         },
@@ -755,11 +756,11 @@
             "src/composition/src/field_service_parts/http_transport.rs",
             "src/composition/src/field_service_parts/visit.rs"
           ],
-          "selector": "Next ERPX_NATIVE_FIELD_SERVICE_CANCEL_CONFIG; private fieldServiceOrderCancellations, with Field Company binding. Unconfigured shared POST branches call the retained TypeScript service; configured branches route through the corresponding private Holding/Company native target, with actual current authorization and fail-closed selected transport.",
+          "selector": "Candidate shared Field POST always dispatches through its finite native bridge. Corresponding private/Next capability configuration is required; missing or unsupported capability is503. No legacy shared-POST writer fallback remains.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Field Order/event, remaining reservation release and stock-version effects, Support projection, notice and Workflow effects",
           "authorityAndIsolation": "Current selected actor, module, Company/scope and purpose-specific purchase/source witnesses; no selector grants authority.",
-          "isolationStatus": "BLOCKED: native selection is a disposable nonproduction opt-in, while retained TypeScript and internal compatibility writers are not globally fenced.",
+          "isolationStatus": "BLOCKED for owner delivery: HTTP dispatch is native-only in the candidate, but remaining public/internal legacy readers/writers, jobs and complete frozen browser journeys have not all been retired/qualified.",
           "withdrawalFence": "Preserve posted-cost gate, all remaining reservations and retained exception reason; fence legacy cancel.",
           "status": "qualified bounded opt-in; no owner cutover",
           "commandOperation": "field.order.cancel"
@@ -784,11 +785,11 @@
             "src/composition/src/field_service_parts/http_transport.rs",
             "src/composition/src/field_service_parts/visit.rs"
           ],
-          "selector": "Next ERPX_NATIVE_FIELD_SERVICE_VISIT_COMPLETION_CONFIG; private fieldServiceVisitCompletions, with Field Company binding. Unconfigured shared POST branches call the retained TypeScript service; configured branches route through the corresponding private Holding/Company native target, with actual current authorization and fail-closed selected transport.",
+          "selector": "Candidate shared Field POST always dispatches through its finite native bridge. Corresponding private/Next capability configuration is required; missing or unsupported capability is503. No legacy shared-POST writer fallback remains.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Field Order/event with labor/evidence/confirmation, reservation release and stock-version effects, Support projection, notice and Workflow effects",
           "authorityAndIsolation": "Current selected actor, module, Company/scope and purpose-specific purchase/source witnesses; no selector grants authority.",
-          "isolationStatus": "BLOCKED: native selection is a disposable nonproduction opt-in, while retained TypeScript and internal compatibility writers are not globally fenced.",
+          "isolationStatus": "BLOCKED for owner delivery: HTTP dispatch is native-only in the candidate, but remaining public/internal legacy readers/writers, jobs and complete frozen browser journeys have not all been retired/qualified.",
           "withdrawalFence": "Retain actual posted-cost gate and no extra Finance actor grant; fence legacy completion after full cross-owner replay/rollback proof.",
           "status": "qualified bounded opt-in; no owner cutover",
           "commandOperation": "field.order.complete"
@@ -813,11 +814,11 @@
             "src/composition/src/field_service_parts/http_transport.rs",
             "src/composition/src/field_service_parts/visit.rs"
           ],
-          "selector": "Next ERPX_NATIVE_FIELD_SERVICE_BILLING_CONFIG; private fieldServiceBillingReleases, with Field Company binding. Unconfigured shared POST branches call the retained TypeScript service; configured branches route through the corresponding private Holding/Company native target, with actual current authorization and fail-closed selected transport.",
+          "selector": "Candidate shared Field POST always dispatches through its finite native bridge. Corresponding private/Next capability configuration is required; missing or unsupported capability is503. No legacy shared-POST writer fallback remains.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Field billing release/order/event, Finance draft invoice and two Money snapshots, Support closure, Collaboration and Workflow effects",
           "authorityAndIsolation": "Current selected actor, module, Company/scope and purpose-specific purchase/source witnesses; no selector grants authority.",
-          "isolationStatus": "BLOCKED: native selection is a disposable nonproduction opt-in, while retained TypeScript and internal compatibility writers are not globally fenced.",
+          "isolationStatus": "BLOCKED for owner delivery: HTTP dispatch is native-only in the candidate, but remaining public/internal legacy readers/writers, jobs and complete frozen browser journeys have not all been retired/qualified.",
           "withdrawalFence": "Preserve independent eligible reviewer, all actual completion actors, pricing/source facts and Finance owner effects before fencing legacy billing.",
           "status": "qualified bounded opt-in; no owner cutover",
           "commandOperation": "field.order.release-billing"
@@ -915,28 +916,24 @@
           "routeOrTrigger": "GET /field-service/orders/{id}/source-record",
           "logicalOwner": "Field Service",
           "handlerRefs": [
-            "packages/server-field_service/src/adapters/service.ts",
-            "packages/server-field_service/src/adapters/record-purchases.ts",
+            "packages/server-records/src/adapters/source-record-policy.ts",
             "src/composition/src/field_service_source_record.rs",
             "src/composition/src/field_service_reservation_read_http.rs",
             "packages/server-field_service/src/adapters/native-source-record.ts"
           ],
-          "activeLegacyImplementation": [
-            "packages/server-field_service/src/adapters/service.ts",
-            "packages/server-field_service/src/adapters/record-purchases.ts"
-          ],
+          "activeLegacyImplementation": [],
           "activeNativeImplementation": [
             "src/composition/src/field_service_source_record.rs",
             "src/composition/src/field_service_reservation_read_http.rs",
             "packages/server-field_service/src/adapters/native-source-record.ts"
           ],
-          "selector": "Next ERPX_NATIVE_FIELD_SERVICE_SOURCE_RECORD_CONFIG; private fieldServiceSourceRecordReads; source-record additionally has trusted disabled/shadow/enforced mode.",
+          "selector": "Native configuration controls availability only; missing configuration returns503. Records no longer falls back to the deleted TS Field source adapter. Enforced native source mode remains required for owner acceptance.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "No business mutation; source-record shadow may emit scoped purchase telemetry.",
           "authorityAndIsolation": "Selected current read/module/company/scope; purchase and lineage as appropriate.",
           "isolationStatus": "OPEN: scope and current authority are checked, but production/default owner selection and cross-path equivalence are not proven.",
-          "withdrawalFence": "Prove the complete relevant read scope and no unintended legacy fallback before withdrawing retained reader.",
-          "status": "Bounded source read/navigation and outage Retry qualified; default/runtime withdrawal and integrated acceptance remain open."
+          "withdrawalFence": "No TS Field reader fallback; direct same-unit TS consumers fail503 and must migrate to native Records ports.",
+          "status": "Candidate native-only read; retired TS adapter/public export and fallback. Existing bounded native source evidence retained; complete owner journey and consumer cutover remain open."
         },
         {
           "id": "field.receipt.reserve",
@@ -1990,27 +1987,33 @@
           "routeOrTrigger": "Records source guard consumed inside Support/Collaboration/Operations command",
           "logicalOwner": "Records and consuming owner with Field source",
           "handlerRefs": [
-            "packages/server-field_service/src/adapters/records-source-facts.ts",
             "packages/server-records/src/application/source-record-policy.ts",
             "packages/server-support/src/adapters/support.ts",
             "packages/server-collaboration/src/adapters/collaboration-work.ts",
-            "packages/server-operations/src/adapters/operations-exceptions.ts"
+            "packages/server-operations/src/adapters/operations-exceptions.ts",
+            "packages/server-records/src/adapters/source-record-policy.ts",
+            "packages/server-records/src/application/source_record.rs",
+            "src/composition/src/field_service_records_source.rs",
+            "src/composition/src/field_collaboration_command.rs"
           ],
           "activeLegacyImplementation": [
-            "packages/server-field_service/src/adapters/records-source-facts.ts",
             "packages/server-records/src/application/source-record-policy.ts",
             "packages/server-support/src/adapters/support.ts",
             "packages/server-collaboration/src/adapters/collaboration-work.ts",
             "packages/server-operations/src/adapters/operations-exceptions.ts"
           ],
-          "activeNativeImplementation": [],
-          "selector": "Provided database transaction; current selected actor, Company, version and purchase source; no native HTTP substitution.",
+          "activeNativeImplementation": [
+            "packages/server-records/src/application/source_record.rs",
+            "src/composition/src/field_service_records_source.rs",
+            "src/composition/src/field_collaboration_command.rs"
+          ],
+          "selector": "Field-linked provided-DB reads/guards in TS fail FIELD_RECORD_SOURCE_NATIVE_UNIT_REQUIRED503. No HTTP substitution. Native selected Collaboration administration uses the actual Records/source-owner witness in its retained transaction.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Participates in consuming owner mutation and its Workflow assertions.",
           "authorityAndIsolation": "Same-unit Field source/version and current authority are required.",
-          "isolationStatus": "BLOCKED: retained TypeScript is active; no native replacement or explicit single-owner retention/fence proof is established. An active second writer is not inferred.",
-          "withdrawalFence": "Retain or migrate these same-unit guards with each actual consuming writer; fence old caller only after equivalent atomic proof.",
-          "status": "retained TypeScript; required source guard gap"
+          "isolationStatus": "Field source guard is removed/fenced in TS. Native Collaboration, Support readback and Operations policy/open/lifecycle HTTP/Next components are implemented and locally checked. Recursive Records/Support, My actions and remaining same-unit consumers remain incomplete.",
+          "withdrawalFence": "Deleted Field SQL adapter/public export. Remaining owner implementations serve other kinds; migrate Field-dependent consumers to native same-unit ports before making them available.",
+          "status": "Field blocker: local native HTTP/Next components checked; recursive consumers, jobs and owner/browser closure pending."
         },
         {
           "id": "files.scan-and-cleanup",
@@ -2087,16 +2090,18 @@
             "packages/server-workflow/src/adapters/service_count_outbox.rs",
             "packages/server-inventory/src/public/service_count_outbox_quarantine.sql",
             "packages/server-inventory/src/public/service_count_outbox_eligible.sql",
-            "packages/server-inventory/src/public/service_count_outbox_ambiguous.sql"
+            "packages/server-inventory/src/public/service_count_outbox_ambiguous.sql",
+            "src/composition/src/field_dependency_worker.rs",
+            "migrations/postgres/holding-write/1080_native_field_outbox_runtime.sql"
           ],
           "selector": "Canonical Service Count outbox quarantine/eligible lineage predicates; TS claims exclude this partition.",
           "environmentAndCompanyScope": "Private native targets are explicit nonproduction Holding and configured Field Company; Next transport is server-only per Holding/host where configured. Retained paths use selected Holding/Company and their own owner authorization. Installed production and its database are separate and untouched.",
           "writeFootprint": "Workflow projection, notices or related consumer effects selected by actual event.",
           "authorityAndIsolation": "Workflow source and current registered Holding ownership.",
-          "isolationStatus": "Single native Service Count projection receipt/checkpoint/ack owner; no TS fallback or duplicate source writer. No Work item or notice projection is claimed.",
+          "isolationStatus": "PARTIAL: owner-classified Field/Operations/Collaboration projector plus native database claim/ack fence pass local PostgreSQL component checks. Legacy launcher excludes identical owner predicates; raw unfiltered legacy native-event updates are rejected. Count recovery/idempotency/concurrency regressions pass. CLI activation, Files event families and scheduled/provider job coverage remain unqualified; not whole Field job retirement.",
           "withdrawalFence": "Retain TS projection for its other event families until separately migrated; preserve audit/outbox/receipt history.",
           "status": "merged native Service Count partition; other events retain TS",
-          "partitionScope": "Registered leased Holding write/read pairs: ServiceCount-marked inventory.count.* and stock_count flow.assign events quarantined for native ownership; malformed/ambiguous events stay quarantined/retry. Other Workflow/Work/Collaboration event consumers remain TS.",
+          "partitionScope": "Registered leased Holding write/read pairs: ServiceCount-marked inventory.count.* and stock_count flow.assign events quarantined for native ownership; malformed/ambiguous events stay quarantined/retry. Other Workflow/Work/Collaboration event consumers remain TS. Remaining Field/Operations/Collaboration event families are included in the unconverted partition; the native Count worker is not their implementation.",
           "evidenceRef": "docs/testing/evidence/2026-10-31-service-parts-native-closure.json"
         }
       ],
@@ -2241,7 +2246,7 @@
         },
         "legacyRemoved": [
           "Field-only attachment-purchases/attachment-read/attachments-policy-facts/attachments-service-facts adapter/public pairs and exports",
-          "Files\u2194Field unused TypeScript workspace dependencies",
+          "Files↔Field unused TypeScript workspace dependencies",
           "Optional native transport selector wrappers, presenter/client ID-selector props and selector APIs"
         ],
         "legacyRemovalStatus": "Removed from the TS build/runtime graph; actual persisted markers fence direct and alternate legacy reads inside owned units. Non-Field shared consumers remain.",
@@ -2359,7 +2364,7 @@
           "frontend": "Native-only Service reads; pure shared presentation validator; full typecheck and292 focused cases pass. Bounded normal-auth functional browser journeys qualify; coldField16/releaseSSR remain open.",
           "retestReason": "Real same-database ports exposed deferred/final cleanup bugs; affected cases rerun after each composition correction. Unchanged unrelated evidence reused.",
           "postRemoval": "Seven registered same-lease native live/historical cases plus historicalhelper1 pass;94-case oracle/UI suite, app/test typecheck, targetedESLint, compositionClippy andarchitecture/structure pass. Functional browser receipt/source reconciliation qualifies; no wholecleanjourney claim.",
-          "browser": "Normal SSO multi-actor preparation\u2192postedCount with600/600 journal and6projectionreceipts; separateconfirm-existing unchangedmapping+Supplyinactive. Functional qualification only; colddevHMRhydration remainsField16."
+          "browser": "Normal SSO multi-actor preparation→postedCount with600/600 journal and6projectionreceipts; separateconfirm-existing unchangedmapping+Supplyinactive. Functional qualification only; colddevHMRhydration remainsField16."
         },
         "legacyRemoved": [
           "Commerce Service mapping/Stock workspace/master implementations and unused transaction bridge",
@@ -2465,7 +2470,7 @@
       "id": "holding-product-entry-native-session",
       "kind": "entry-evidence",
       "status": "flow-complete",
-      "scope": "Normal native session rootchooser and genuine Company/role\u2192existing FieldService ownerlanding; notnativeApps/list or fullIdentitymigration",
+      "scope": "Normal native session rootchooser and genuine Company/role→existing FieldService ownerlanding; notnativeApps/list or fullIdentitymigration",
       "sourceIdentity": "71adc86a55674997a6aba6ebf682a3ecfae594eb",
       "evidenceRef": ".scratch/dev/sol-terra-pilot/execution-state.json (completedFlows entry holding-product-entry-native-session)",
       "durableContractRefs": []
@@ -2519,7 +2524,7 @@
       "id": "field-service-visit-start",
       "kind": "business-flow-evidence",
       "status": "flow-complete",
-      "scope": "ActualSchedule\u2192Dispatch\u2192Start nativeactions withtypedownerafterimages,currentauthority/HR/settlement andnativeeventreadback",
+      "scope": "ActualSchedule→Dispatch→Start nativeactions withtypedownerafterimages,currentauthority/HR/settlement andnativeeventreadback",
       "sourceIdentity": "ca05ec43dedfc456989916a261e5bb1a8672dcc1",
       "evidenceRef": ".scratch/dev/sol-terra-pilot/execution-state.json (completedFlows entry field-service-visit-start)",
       "durableContractRefs": []
@@ -2528,7 +2533,7 @@
       "id": "field-service-visit-complete",
       "kind": "business-flow-evidence",
       "status": "flow-complete",
-      "scope": "Actual Complete visit drawer\u2192native owner transaction\u2192typed immutable completion confirmation; release remaining reservations and enforce posted cost journals",
+      "scope": "Actual Complete visit drawer→native owner transaction→typed immutable completion confirmation; release remaining reservations and enforce posted cost journals",
       "sourceIdentity": "dcecbe8105cde770431ca328743075b9d6f00e69",
       "evidenceRef": ".scratch/dev/sol-terra-pilot/execution-state.json (completedFlows entry field-service-visit-complete)",
       "durableContractRefs": []
@@ -2537,7 +2542,7 @@
       "id": "field-service-visit-exception-resume",
       "kind": "business-flow-evidence",
       "status": "flow-complete",
-      "scope": "ActualException\u2192Resume drawers use nativeatomicService/Support/Collaboration/Workflow andkey-onlyimmutableconfirmation",
+      "scope": "ActualException→Resume drawers use nativeatomicService/Support/Collaboration/Workflow andkey-onlyimmutableconfirmation",
       "sourceIdentity": "57a5e6ae8a52e4310d2eb2e88a45c6a2ccde6e4d",
       "evidenceRef": ".scratch/dev/sol-terra-pilot/execution-state.json (completedFlows entry field-service-visit-exception-resume)",
       "durableContractRefs": []
@@ -2546,7 +2551,7 @@
       "id": "field-service-order-cancel",
       "kind": "business-flow-evidence",
       "status": "flow-complete",
-      "scope": "ActualCancel drawer\u2192Rustatomiccancellation/reservationrelease\u2192receipt-boundnativeconfirmation",
+      "scope": "ActualCancel drawer→Rustatomiccancellation/reservationrelease→receipt-boundnativeconfirmation",
       "sourceIdentity": "0caa110c35f1eeec8294a145b5970a81aec85244",
       "evidenceRef": ".scratch/dev/sol-terra-pilot/execution-state.json (completedFlows entry field-service-order-cancel)",
       "durableContractRefs": []
@@ -2573,7 +2578,7 @@
       "id": "field-service-raw-physical-scope-interop",
       "kind": "interop-evidence",
       "status": "interop-complete",
-      "scope": "Actual210bytebranch/dept/Customer/selectedAsset together: Agreementcreate\u2192genuineReview\u2192Request+existingticketOrder/replays/readbacks\u2192nativeSchedule/Reserve/Dispatch/Start\u2192Issue/nativeproof\u2192genuineFinancecostworkspace/post/replay. No historicaltransition substitution.",
+      "scope": "Actual210bytebranch/dept/Customer/selectedAsset together: Agreementcreate→genuineReview→Request+existingticketOrder/replays/readbacks→nativeSchedule/Reserve/Dispatch/Start→Issue/nativeproof→genuineFinancecostworkspace/post/replay. No historicaltransition substitution.",
       "sourceIdentity": "e3953e3e731a62cc83ed6ed88075c5f58b8e0359",
       "evidenceRef": ".scratch/dev/sol-terra-pilot/execution-state.json (completedFlows entry field-service-raw-physical-scope-interop)",
       "durableContractRefs": []
@@ -2740,7 +2745,7 @@
       "effects": "One posted Countv4/source/line/stock/ledger; 2000milli/600minor; one nonopening posted journal with debit Inventory1200=600 and credit variance5400=600; distinct canonical maker/reviewer. Each of22 command receipts has one command-owned audit and outbox effect; total audit rows25 include other activity.",
       "retry": "Two native201 observations with identical body/key/context hashes; first committed reply dropped, second delivered; one Count create effect.",
       "durationMs": 57568,
-      "durationBoundary": "Bounded fresh setup\u2192Count browser journey, not full Field bundle or labor/finish estimate.",
+      "durationBoundary": "Bounded fresh setup→Count browser journey, not full Field bundle or labor/finish estimate.",
       "limitations": [
         "Integrated run retains intentional response-loss503 and10ERR_ABORTED navigation events; not clean Company-entry acceptance. Fresh final posted readback has zero page/console/request errors.",
         "Default native selection, legacy HTTP/internal/jobs fences, Files/Records, full six Field workflows and exact candidate gates remain open.",
@@ -5310,13 +5315,13 @@
     },
     {
       "id": "native-engineering-compiled-service",
-      "status": "Bounded local qualification and independent review passed; scoped PR pending",
+      "status": "Merged; bounded isolated compiled-Service qualification",
       "branch": "codex/native-engineering-cohort",
       "integrationTarget": "codex/rust-backend-migration",
       "contract": "docs/contracts/next/native-engineering-service-ssr.md",
       "evidence": "docs/testing/evidence/2026-10-31-native-engineering-service-ssr.json",
       "checklist": {
-        "closed": 7,
+        "closed": 8,
         "total": 8
       },
       "scope": "Isolated8nativeleases and realcompiledService admission/SSO/Parts/masters/draftCount/readback. Account/Apps retaineddev; not a newbusinessowner completion.",
@@ -5330,7 +5335,18 @@
         "NoCountpost/projector/newDockerimage/publicTunnelcutover/AMD64/fullworkflowowner claim",
         "Normalorderedcleanup only; abruptsignal/activeconnectionfaultmatrix unqualified"
       ],
-      "nextFieldScope": "Fix verified shell header overlap, then native Field-linked Collaboration consuming Records guards; checklist11 still requires Operations/recursive paths."
+      "nextFieldScope": "Fix verified shell header overlap, then native Field-linked Collaboration consuming Records guards; checklist11 still requires Operations/recursive paths.",
+      "pullRequest": "https://github.com/fluke-jesadakorn/erpx/pull/16",
+      "sourceCommit": "ad59f85db696ae431eac891eba9792bd43c586b6",
+      "mergeCommit": "a8bcd2b9a298cc0aa9bb3e51b579dbd76093e6da",
+      "measuredCheckpointToMerge": {
+        "checkpoint": "PR14 merge; earlier parallel bridge foundations excluded",
+        "startedAt": "2026-10-31T05:04:58+07:00",
+        "mergedAt": "2026-10-31T09:08:36+07:00",
+        "wallSeconds": 14618,
+        "includesWaits": true,
+        "notFullImplementationDuration": true
+      }
     }
   ]
 }

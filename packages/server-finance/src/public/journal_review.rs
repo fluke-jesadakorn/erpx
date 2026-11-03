@@ -19,6 +19,6 @@ pub use crate::domain::journal_review::{
 };
 
 pub use crate::adapters::postgres_journal_review::{
-    CurrentFieldServicePartsJournalTarget, FieldServicePartsJournalFacts,
+    CurrentFieldServicePartsJournalTarget, FieldServicePartsJournalFacts, field_service_parts_journal_label,
     inspect_field_service_parts_journal_target,
 };

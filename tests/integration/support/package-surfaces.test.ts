@@ -1,3 +1,6 @@
+import {withNativeFieldFixture} from '../../support/files/field-files-native-parity';
+import {seedExpenseCompany} from '../../../fixtures/expenses/company';
+import type {PostgresDatabase} from '@erpx/server-runtime/adapters/runtime/postgres';
 import { crmDetail, createCRMLead, getCRMLead } from "@erpx/server-crm/public/crm";
 import { createHash } from "node:crypto";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
@@ -23,8 +26,6 @@ import { ownerPackageObligations, withOwnerPackageObligations } from "@erpx/serv
 import type { CompanyPackageGrant } from "@erpx/server-commercial/public/packages";
 import { attachmentPolicy, authorizeAttachmentTarget } from "@erpx/server-files/public/attachments/policy";
 import { createAttachmentSet } from "@erpx/server-files/public/attachments/service";
-import { fieldServiceSourceTickets } from "@erpx/server-support/public/field-service-sources";
-import { fieldServiceWorkspace } from "@erpx/server-field_service/public/field-service";
 import {saveMaster,saveOrder,orderSchema} from '@erpx/server-commerce/public/commerce';
 import { requestSupportSession, changeSupportSession } from "@erpx/server-support/public/support-sessions";
 import { createSupportPolicy, changeSupportPolicy, attachSupportClock } from "@erpx/server-support/public/support-sla";
@@ -246,20 +247,7 @@ it("refuses a normal withdrawal with live work and lets the queued existing-evid
   expect(await db.prepare("SELECT version,starts_at FROM company_package_grants WHERE company_id=?").bind(f.company).first()).toEqual({version:1,starts_at:0});
 });
 
-it("keeps Service-only ticket handoff scoped without opening the Helpdesk management UI", async () => {
-  vi.stubEnv("ERPX_SUPPORT_PACKAGE_ENFORCEMENT", "disabled"); const ticket = await orderTicket();
-  f.owner.modules = ["field_service", "support"];
-  vi.stubEnv("ERPX_SUPPORT_PACKAGE_ENFORCEMENT", "enforced"); await grant("active", "service");
-  const sources = await fieldServiceSourceTickets(db, f.owner, "new-work");
-  expect(sources.map(row => row.id)).toContain(ticket.id);
-  expect((await fieldServiceWorkspace(f.owner)).tickets.map(row => row.id)).toContain(ticket.id);
-  expect(JSON.stringify(sources)).not.toMatch(/Installation details|issue|evidence|customer_name/);
-  expect(await fieldServiceSourceTickets(db, { ...f.owner, branchId: "other-branch" }, "new-work")).toEqual([]);
-  await expect(supportWorkspace(f.owner)).rejects.toMatchObject({ code: "PACKAGE_REQUIRED" });
-  await grant("draining", "service");
-  expect(await fieldServiceSourceTickets(db, f.owner, "new-work")).toEqual([]);
-  expect((await fieldServiceSourceTickets(db, f.owner, "settle-existing")).map(row => row.id)).toContain(ticket.id);
-});
+
 
 it("reads incident file authority through the supplied owner transaction without checking out another Holding connection", async () => {
   await grant("active"); const ticket = await orderTicket();
@@ -465,4 +453,47 @@ it("keeps PMS source-set projection equal to its normal reader across cached and
   const narrowed = { ...f.owner, departmentId: f.department }; expect(await ids(narrowed)).toEqual([]);
   await db.prepare("UPDATE assignments SET revoked_at=? WHERE id=?").bind(Date.now(), f.owner.assignmentId).run();
   await expect(readablePmsSource(db, f.owner, room.id)).rejects.toMatchObject({ status: 404 }); expect(await ids(f.owner)).toEqual([]);
+});
+
+
+it('reads a native managed Field case through retained Support consumers and fences its lifecycle writer',async()=>{
+ let prepared:{db:PostgresDatabase;f:Awaited<ReturnType<typeof seedExpenseCompany>>;customer:string}|undefined;
+ try{await withNativeFieldFixture(async native=>{
+  if(!prepared)throw new Error('NATIVE_SUPPORT_FIXTURE_REQUIRED');
+  const {db,f,customer}=prepared,root='/api/v1/holdings/acme/field-service';
+  vi.mocked(holdingResources).mockResolvedValue({write:db,read:db,files:env.H001_FILES});
+  const agreement=await native.requestAs<{id:string}>('owner','POST',root,{entity:'agreement',branchId:f.branch,departmentId:f.department,customerId:customer,title:'Native Support handoff',startDate:'2026-01-01',endDate:'2027-12-31',currency:'THB',visitRateMinor:2500,warrantyDiscountBps:0},key());expect(agreement.status,JSON.stringify(agreement.json)).toBe(200);
+  const review=await native.requestAs('reviewer','POST',root,{entity:'agreement',id:agreement.json.data.id,action:'activate',expectedVersion:1,reason:'Independent manager approved the native Support fixture'},key());expect(review.status,JSON.stringify(review.json)).toBe(200);
+  const created=await native.requestAs<{id:string;ticketId:string}>('owner','POST',root,{entity:'request',agreementId:agreement.json.data.id,agreementVersion:2,title:'Original managed intake',issue:'Customer needs an on-site visit',site:'Customer site',technicianId:f.claimant.userId,scheduledAt:Date.now()+60000},key());expect(created.status,JSON.stringify(created.json)).toBe(200);
+  const id=created.json.data.id,ticket=created.json.data.ticketId;
+  const schedule=await native.requestAs('owner','POST',root,{id,action:'schedule',expectedVersion:1,technicianId:f.owner.userId,scheduledAt:Date.now()+120000,reason:'Reviewed technician reassignment'},key());expect(schedule.status,JSON.stringify(schedule.json)).toBe(200);
+  expect(await db.prepare('SELECT owner_id,status,service_order_version,version FROM support_tickets WHERE id=?').bind(ticket).first()).toEqual({owner_id:f.owner.userId,status:'open',service_order_version:2,version:2});
+  const now=Date.now();await db.transaction(async tx=>{
+   await tx.prepare("INSERT INTO company_package_grants(company_id,package_id,package_version,state,starts_at,version,reason,evidence,updated_at)VALUES(?,'support',1,'active',0,1,'Native managed-case readback','Public synthetic fixture',?)").bind(f.company,now).run();
+   await tx.prepare("INSERT INTO company_package_grant_events(id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at)SELECT ?,company_id,package_id,?,'native-support-consumer',NULL,jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence),? FROM company_package_grants WHERE company_id=? AND package_id='support'").bind(key(),f.owner.userId,now,f.company).run();
+  });
+  const helpdesk={...f.owner,modules:['field_service','support']};
+  expect((await supportWorkspace(helpdesk)).items.some(row=>row.id===ticket)).toBe(true);
+  expect(await supportDetail(helpdesk,ticket)).toMatchObject({managedInFieldService:true,canWork:false,canManage:false,canReport:false,canConfirm:false,canReopen:false,slaPolicies:[]});
+  expect((await supportWork(helpdesk)).some(row=>row.id===ticket)).toBe(false);
+  expect(await supportEvidence(helpdesk,ticket)).toMatchObject({canChange:false,canShare:false});
+  const command=key();await expect(changeSupportTicket(helpdesk,ticket,{action:'cancel',expectedVersion:2,reason:'Use the Field source to cancel'},command)).rejects.toMatchObject({code:'SOURCE_WORKSPACE_REQUIRED'});
+  for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT count(*)::int n FROM ${table} WHERE command_id=?`).bind(command).first('n')).toBe(0);
+  // Explicit fixture package transition, not a Commercial Apply qualification.
+  await db.transaction(async tx=>{
+   const before=await tx.prepare("SELECT jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence) image FROM company_package_grants WHERE company_id=? AND package_id='service'").bind(f.company).first('image');
+   await tx.prepare("UPDATE company_package_grants SET state='draining',version=version+1 WHERE company_id=? AND package_id='service'").bind(f.company).run();
+   await tx.prepare("INSERT INTO company_package_grant_events(id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at)SELECT ?,company_id,package_id,?,'native-support-consumer-draining',?::jsonb,jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence),? FROM company_package_grants WHERE company_id=? AND package_id='service'").bind(key(),f.owner.userId,typeof before==='string'?before:JSON.stringify(before),Date.now(),f.company).run();
+  });
+  const cancel=await native.requestAs('owner','POST',root,{id,action:'cancel',expectedVersion:2,reason:'Customer cancelled the existing appointment'},key());expect(cancel.status,JSON.stringify(cancel.json)).toBe(200);
+  expect(await db.prepare('SELECT status,service_order_version,version FROM support_tickets WHERE id=?').bind(ticket).first()).toEqual({status:'cancelled',service_order_version:3,version:3});
+  expect((await db.prepare('SELECT action FROM support_ticket_events WHERE ticket_id=? ORDER BY version').bind(ticket).all()).results).toEqual([{action:'service-intake'},{action:'service-schedule'},{action:'service-cancel'}]);
+ },async db=>{
+  vi.mocked(holdingResources).mockResolvedValue({write:db,read:db,files:env.H001_FILES});
+  const f=await seedExpenseCompany(db,env.H001_FILES);
+  const customer=String((await saveMaster(f.owner,'parties',null,{kind:'customer',code:key(),name:'Native Support customer'},key())).id);
+  await db.exec(`INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at)VALUES('*','custom_field_parts',2,'["records.read","records.write","records.review","module.field_service.read"]','[]','["holding","branch","department"]','synthetic-support-consumer',0);UPDATE iam_roles SET published_revision=2 WHERE company_id='*' AND id='custom_field_parts'`);
+  const actors=[];for(const [label,actor]of [['owner',f.owner],['reviewer',f.tie],['technician',f.claimant]]as const){const assignmentId=await f.grant(actor,'custom_field_parts');await db.prepare('UPDATE assignments SET modules_json=? WHERE id=?').bind(JSON.stringify(['field_service']),assignmentId).run();const version=await db.prepare('SELECT version FROM assignments WHERE id=?').bind(assignmentId).first<number>('version');if(version===null)throw new Error('NATIVE_SUPPORT_ASSIGNMENT_REQUIRED');actors.push({label,userId:actor.userId,assignmentId,assignmentVersion:Number(version),role:'custom_field_parts',modules:['field_service'],branchId:null,departmentId:null});}
+  prepared={db,f,customer};return{companyId:f.company,actors};
+ },'service');}finally{vi.mocked(holdingResources).mockResolvedValue({write:env.H001_DB,read:env.H001_DB,files:env.H001_FILES});}
 });

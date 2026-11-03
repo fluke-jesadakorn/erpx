@@ -26,25 +26,46 @@ pub async fn setup(system: account::System) -> Parts {
     setup_tracking(system, "none").await
 }
 pub async fn setup_tracking(system: account::System, tracking: &str) -> Parts {
-    setup_with_grants(system, tracking, true, true, false).await
+    setup_with_grants(system, tracking, true, true, false, "THB",false).await
 }
 /// Source-order test fixture without a Service purchase or retained Service history.
 pub async fn setup_without_service_history(system: account::System) -> Parts {
-    setup_with_grants(system, "none", false, true, false).await
+    setup_with_grants(system, "none", false, true, false, "THB",false).await
 }
 pub async fn setup_without_finance_history(system: account::System) -> Parts {
-    setup_with_grants(system, "none", true, false, false).await
+    setup_with_grants(system, "none", true, false, false, "THB",false).await
+}
+/// Configure the original retained agreement before insertion, preserving its
+/// immutable currency guard while exercising actual native foreign settlement.
+pub async fn setup_without_finance_history_in_currency(system: account::System,currency:&str) -> Parts {
+    setup_with_grants(system,"none",true,false,false,currency,false).await
 }
 /// A separate realistic-size fixture for complete workspace reads; original stress fixtures remain unchanged.
+/// Retained realistic private-file source before any Service purchase. This is
+/// a historical fixture only, never a new unauthorised Field business journey.
+pub async fn setup_workspace_without_service_history(system:account::System)->Parts {
+    // The original purchase negative uses an actual bound warranty Asset.
+    setup_with_grants(system,"none",false,false,true,"THB",true).await
+}
 pub async fn setup_workspace(system: account::System) -> Parts {
-    setup_with_grants(system, "none", true, true, true).await
+    setup_with_grants(system, "none", true, true, true, "THB",false).await
 }
 /// Realistic workspace with only the base Service purchase, no parts History.
 pub async fn setup_workspace_tracking(system: account::System, tracking: &str) -> Parts {
-    setup_with_grants(system, tracking, true, true, true).await
+    setup_with_grants(system, tracking, true, true, true, "THB",false).await
 }
 pub async fn setup_workspace_without_parts(system: account::System) -> Parts {
-    let p = setup_with_grants(system, "none", false, true, true).await;
+    setup_service_only_fixture(system,true,false).await
+}
+pub async fn setup_service_only_without_finance(system: account::System) -> Parts {
+    setup_service_only_fixture(system,false,false).await
+}
+/// Retained reviewed history for masking reads, not a newly accepted journey.
+pub async fn setup_workspace_covered_without_parts(system: account::System) -> Parts {
+    setup_service_only_fixture(system,true,true).await
+}
+async fn setup_service_only_fixture(system: account::System,finance:bool,covered:bool) -> Parts {
+    let p = setup_with_grants(system, "none", false, finance, true, "THB",covered).await;
     let now = p.review.system.scenario.clock.now().get();
     let db = p.pool().raw();
     let mut tx = db.begin().await.unwrap();
@@ -53,21 +74,30 @@ pub async fn setup_workspace_without_parts(system: account::System) -> Parts {
     tx.commit().await.unwrap();
     p
 }
+pub async fn setup_without_finance_history_covered(system:account::System)->Parts{
+    // A normal covered-visit payload must also satisfy the existing bounded Files source read.
+    // The adversarial oversized issue remains in the other Parts fixtures.
+    setup_with_grants(system,"none",true,false,true,"THB",true).await
+}
 async fn setup_with_grants(
     system: account::System,
     tracking: &str,
     grants: bool,
     finance: bool,
     realistic: bool,
+    currency: &str,
+    covered:bool,
 ) -> Parts {
+    assert!(matches!(currency,"THB"|"USD"));
     assert!(matches!(tracking, "none" | "lot" | "serial"));
     let review = review::setup_with_finance(system, finance).await;
     let pool = &review.system.holdings[0];
     let now = review.system.scenario.clock.now().get();
     sqlx::raw_sql("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status)VALUES('branch','branch','north','Synthetic North','company','company','branch','active');INSERT INTO iam_roles(company_id,id,name,built_in,published_revision,status)VALUES('*','custom_field_parts','Synthetic actual Service parts operator',false,1,'active');INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at)VALUES('*','custom_field_parts',1,'[\"records.read\",\"records.write\",\"module.field_service.read\"]','[]','[\"holding\",\"branch\",\"department\"]','synthetic',0);INSERT INTO hr_people(id,user_id,company_id,legal_name,country_code,created_by,created_at,updated_at)VALUES('field-person','fixture-a','company','PRIVATE_SYNTHETIC_WORKER','TH','fixture-a',0,0);INSERT INTO hr_engagements(id,person_id,company_id,worker_type,employment_type,status,start_date,job_title,currency,created_by,created_at,updated_at)VALUES('field-engagement','field-person','company','employee','salaried','active','2100-01-01','PRIVATE_JOB','THB','fixture-a',0,0);INSERT INTO iam_members(company_id,user_id,principal_id,person_id,status,login_policy,version)VALUES('company','fixture-a','local:fixture-a','field-person','active','local',1);INSERT INTO finance_parties(id,company_id,kind,code,name,currency,created_at,updated_at)VALUES('customer','company','customer','SYNTHETIC','PRIVATE_CUSTOMER','THB',0,0);INSERT INTO finance_accounts(id,company_id,chart_id,code,name,category,currency,created_at,updated_at)VALUES('inventory','company','chart','110','Inventory','asset','THB',0,0),('expense','company','chart','510','Expense','expense','THB',0,0);INSERT INTO commerce_settings(company_id,chart_id,currency,receivable_account_id,payable_account_id,revenue_account_id,inventory_account_id,clearing_account_id,cogs_account_id,input_tax_account_id,output_tax_account_id,cash_account_id)VALUES('company','chart','USD','inventory','inventory','sales','inventory','inventory','expense','inventory','inventory','cash');INSERT INTO commerce_warehouses(id,company_id,branch_id,code,name)VALUES('warehouse','company','branch','SYNTHETIC','Synthetic warehouse');").execute(pool.raw()).await.unwrap();
+    if currency!="THB" {sqlx::query("UPDATE finance_parties SET currency=$1 WHERE id='customer'").bind(currency).execute(pool.raw()).await.unwrap();}
     let mut stock = pool.raw().begin().await.unwrap();
     sqlx::query("INSERT INTO commerce_products(id,company_id,sku,name,price_minor,tracking_mode)VALUES('product','company','SYNTHETIC','Synthetic spare',100,$1)").bind(tracking).execute(&mut*stock).await.unwrap();
-    sqlx::query("INSERT INTO commerce_stock(warehouse_id,product_id,quantity_milli,value_minor)VALUES('warehouse','product',5000,1000)").execute(&mut*stock).await.unwrap();
+    sqlx::query("INSERT INTO commerce_stock(warehouse_id,product_id,quantity_milli,value_minor)VALUES('warehouse','product',$1,$2)").bind(if covered{3000_i64}else{5000_i64}).bind(if covered{600_i64}else{1000_i64}).execute(&mut*stock).await.unwrap();
     if tracking == "lot" {
         sqlx::raw_sql("INSERT INTO inventory_lots(id,company_id,product_id,tracking_mode,lot_code,expiry_date,created_by,created_at)VALUES('lot-1','company','product','lot','L1','2026-12-31','fixture-a',0),('lot-2','company','product','lot','L2',NULL,'fixture-a',0);INSERT INTO inventory_lot_balances(lot_id,warehouse_id,quantity_milli,value_minor)VALUES('lot-1','warehouse',3000,600),('lot-2','warehouse',2000,400)").execute(&mut*stock).await.unwrap();
     } else if tracking == "serial" {
@@ -80,8 +110,14 @@ async fn setup_with_grants(
     sqlx::query("INSERT INTO assignments(id,user_id,role,modules_json,company_id,valid_from,valid_until,version,scope_kind)VALUES('field-fixture-a','fixture-a','custom_field_parts','[\"field_service\"]','company',$1,$2,3,'holding')").bind(now-1000).bind(now+3_600_000).execute(pool.raw()).await.unwrap();
     sqlx::query("UPDATE active_work_contexts SET assignment_id='field-fixture-a',revision=8,updated_at=$1 WHERE user_id='fixture-a'").bind(now).execute(pool.raw()).await.unwrap();
     let mut tx = pool.raw().begin().await.unwrap();
-    sqlx::query("INSERT INTO field_service_agreements(id,company_id,branch_id,customer_id,title,start_date,end_date,currency,visit_rate_minor,status,created_by,reviewed_by,reviewed_at,version,created_at,updated_at)VALUES('agreement','company','branch','customer','Synthetic retained agreement','2026-01-01','2027-12-31','THB',10000,'active','fixture-a','fixture-b',$1,2,$1,$1)").bind(now-100).execute(&mut*tx).await.unwrap();
+    if covered {
+        sqlx::query("INSERT INTO operational_assets(id,company_id,branch_id,code,name,category,currency,warranty_end,created_by,created_at,updated_at)VALUES('covered-asset','company','branch','COVERED','Covered asset','synthetic','THB','2099-12-31','fixture-a',0,0)").execute(&mut *tx).await.unwrap();
+    }
+    sqlx::query("INSERT INTO field_service_agreements(id,company_id,branch_id,customer_id,title,start_date,end_date,currency,visit_rate_minor,status,created_by,reviewed_by,reviewed_at,version,created_at,updated_at,asset_id,warranty_discount_bps)VALUES('agreement','company','branch','customer','Synthetic retained agreement','2026-01-01','2027-12-31',$2,10000,'active','fixture-a','fixture-b',$1,2,$1,$1,$3,$4)").bind(now-100).bind(currency).bind(covered.then_some("covered-asset")).bind(if covered{10000}else{0}).execute(&mut*tx).await.unwrap();
     sqlx::query("INSERT INTO field_service_agreement_events(id,agreement_id,version,action,actor_id,reason,status,created_at)VALUES('agreement-review','agreement',2,'activate','fixture-b','Independent synthetic approval','active',$1)").bind(now-100).execute(&mut*tx).await.unwrap();
+    if covered {
+        sqlx::query("INSERT INTO money_transaction_snapshots(company_id,source_type,source_id,amount_kind,transaction_date,currency,currency_scale,amount_units,usd_units,fx_rate_id,used_latest_fallback,captured_at)VALUES('company','field_service_agreement','agreement','visit_rate','2026-01-01','THB',2,10000,5000,'rate',false,0)").execute(&mut *tx).await.unwrap();
+    }
     // Existing historical orders intentionally use only original schema and
     // deferred triggers. No source/policy port is replaced by fixture booleans.
     for (id, status, version) in [
@@ -91,8 +127,8 @@ async fn setup_with_grants(
         let ticket = format!("ticket-{id}");
         sqlx::query("INSERT INTO support_tickets(id,company_id,branch_id,order_id,customer_id,title,issue,owner_id,due_date,created_by,created_at,updated_at,source_kind,service_agreement_id,service_order_id,service_order_version)VALUES($1,'company','branch',NULL,'customer','Synthetic retained intake',CASE WHEN $5 THEN 'Synthetic service issue' ELSE repeat('PRIVATE_ISSUE',200000) END,'fixture-a',to_char(to_timestamp(($3::bigint+60000)/1000.0)AT TIME ZONE 'UTC','YYYY-MM-DD'),'fixture-a',$3,$3,'field_service','agreement',$2,$4)")
             .bind(&ticket).bind(id).bind(now).bind(version).bind(realistic).execute(&mut*tx).await.unwrap();
-        sqlx::query("INSERT INTO field_service_orders(id,company_id,branch_id,ticket_id,ticket_version,agreement_id,agreement_version,issue,site,technician_id,scheduled_at,status,created_by,version,created_at,updated_at)VALUES($1,'company','branch',$2,1,'agreement',2,CASE WHEN $6 THEN 'Synthetic service issue' ELSE repeat('PRIVATE_ISSUE',200000) END,'PRIVATE_SITE','fixture-a',$3+60000,$4,'fixture-a',$5,$3,$3)")
-            .bind(id).bind(&ticket).bind(now).bind(status).bind(version).bind(realistic).execute(&mut*tx).await.unwrap();
+        sqlx::query("INSERT INTO field_service_orders(id,company_id,branch_id,ticket_id,ticket_version,agreement_id,agreement_version,issue,site,technician_id,scheduled_at,status,created_by,version,created_at,updated_at,asset_id)VALUES($1,'company','branch',$2,1,'agreement',2,CASE WHEN $6 THEN 'Synthetic service issue' ELSE repeat('PRIVATE_ISSUE',200000) END,'PRIVATE_SITE','fixture-a',$3+60000,$4,'fixture-a',$5,$3,$3,$7)")
+            .bind(id).bind(&ticket).bind(now).bind(status).bind(version).bind(realistic).bind(covered.then_some("covered-asset")).execute(&mut*tx).await.unwrap();
         sqlx::query("INSERT INTO field_service_order_events(id,order_id,version,action,actor_id,reason,status,technician_id,scheduled_at,details_json,created_at)VALUES($1,$2,$3,$4,'fixture-a','Synthetic historical retained event',$5,'fixture-a',$6+60000,'{}',$6)")
             .bind(format!("historical-{id}-{version}")).bind(id).bind(version).bind(if version==1{"create"}else{"start"}).bind(status).bind(now).execute(&mut*tx).await.unwrap();
     }
@@ -203,11 +239,14 @@ impl Parts {
         sqlx::query_as("SELECT(SELECT count(*)FROM command_receipts WHERE command_id=$1),(SELECT count(*)FROM audit_events WHERE command_id=$1),(SELECT count(*)FROM outbox_events WHERE command_id=$1),(SELECT count(*)FROM operational_inventory_consumptions WHERE id='operational-part-'||$1),(SELECT count(*)FROM staff_notifications WHERE id='service-order-notice-'||$1)").bind(key).fetch_one(self.pool().raw()).await.unwrap()
     }
 }
-pub async fn withdraw(p: &Parts, package: &str) {
+pub async fn withdraw(p: &Parts, package: &str) {grant_state(p,package,"inactive").await}
+pub async fn drain(p: &Parts, package: &str) {grant_state(p,package,"draining").await}
+async fn grant_state(p: &Parts, package: &str,state:&str) {
+    assert!(matches!(state,"inactive"|"draining"));
     let mut tx = p.pool().raw().begin().await.unwrap();
     let now = p.review.system.scenario.clock.now().get();
     let before:serde_json::Value=sqlx::query_scalar("SELECT jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence)FROM company_package_grants WHERE company_id='company'AND package_id=$1").bind(package).fetch_one(&mut*tx).await.unwrap();
-    sqlx::query("UPDATE company_package_grants SET state='inactive',version=version+1 WHERE company_id='company'AND package_id=$1").bind(package).execute(&mut*tx).await.unwrap();
+    sqlx::query("UPDATE company_package_grants SET state=$2,version=version+1 WHERE company_id='company'AND package_id=$1").bind(package).bind(state).execute(&mut*tx).await.unwrap();
     sqlx::query("INSERT INTO company_package_grant_events(id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at)SELECT $1,'company',package_id,'fixture-a','synthetic-withdrawal',$2,jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence),$3 FROM company_package_grants WHERE company_id='company'AND package_id=$4").bind(uuid::Uuid::new_v4().to_string()).bind(before).bind(now).bind(package).execute(&mut*tx).await.unwrap();
     tx.commit().await.unwrap();
 }
@@ -242,4 +281,36 @@ pub async fn setup_agreement_review_facts(p: &Parts, now: i64) {
         sqlx::query("INSERT INTO money_transaction_snapshots(company_id,source_type,source_id,amount_kind,transaction_date,currency,currency_scale,amount_units,usd_units,fx_rate_id,used_latest_fallback,captured_at) VALUES('company','field_service_agreement',$1,'visit_rate','2026-01-01','THB',2,10000,5000,'rate',false,$2)").bind(id).bind(now).execute(&mut *tx).await.unwrap();
     }
     tx.commit().await.unwrap();
+}
+
+// Synthetic startup policy belongs only to this owned leased test fixture.
+// Actual lifecycle preview/apply uses native Platform/MFA authority instead.
+struct InitialServiceFixturePolicy { company: erpx_server_shared::public::CompanyId }
+type GrantError=erpx_server_runtime::public::postgres::PgTransactionError<erpx_server_shared::public::BusinessError>;
+impl erpx_server_commercial::public::purchases::PgPackageGrantPolicy for InitialServiceFixturePolicy {
+ async fn prepare_sources(&mut self,c:&mut sqlx::PgConnection,input:&erpx_server_commercial::public::purchases::GrantChange)->Result<(),GrantError>{
+  let g=&input.grant;
+  assert!(g.company_id==self.company.as_str()&&matches!(g.package_id.as_str(),"service"|"service-parts-assets")&&g.package_version==1&&g.version==1&&g.state=="active"&&g.starts_at==0&&g.ends_at.is_none()&&input.expected_version==0,"only explicit fresh synthetic Service purchases");
+  erpx_server_commercial::public::purchases::lock_commercial_authority_sources(c).await?;
+  erpx_server_organization::public::lock_hierarchy_sources(c).await?;Ok(())
+ }
+ async fn authorize(&mut self,c:&mut sqlx::PgConnection,h:&erpx_server_shared::public::HoldingId,co:&erpx_server_shared::public::CompanyId)->Result<erpx_server_shared::public::UserId,GrantError>{
+  assert_eq!(h.as_str(),"h001");assert_eq!(co,&self.company);
+  let exists:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM organization_nodes WHERE id=$1 AND company_id=$1 AND kind='company' AND status='active')").bind(co.as_str()).fetch_one(c).await?;assert!(exists,"owned active synthetic Company required");
+  Ok(erpx_server_shared::public::UserId::new("isolated-Service-parts-provider")?)
+ }
+ async fn obligations(&mut self,_:&mut sqlx::PgConnection,_:&erpx_server_shared::public::CompanyId,_:&str)->Result<i64,GrantError>{
+  Err(erpx_server_shared::public::BusinessError::invalid("FIXTURE_WITHDRAWAL_FORBIDDEN","The startup fixture cannot withdraw a purchase.").into())
+ }
+}
+pub async fn seed_initial_service_purchases(p:&Parts,company:&str,include_parts:bool)->Result<(),GrantError>{
+ use erpx_server_commercial::public::purchases::*;
+ let co=erpx_server_shared::public::CompanyId::new(company).unwrap();
+ let mut unit=p.pool().raw().begin().await?;sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *unit).await?;
+ let catalogue=current_package_catalogue()?;let mut policy=InitialServiceFixturePolicy{company:co.clone()};
+ for package in ["service","service-parts-assets"].into_iter().filter(|p|include_parts||*p=="service"){
+  let input=GrantChange{expected_version:0,idempotency_key:format!("fixture-service-{}",uuid::Uuid::new_v4()),grant:CompanyPackageGrant{company_id:company.into(),package_id:package.into(),package_version:1,state:"active".into(),starts_at:0,ends_at:None,version:1,reason:"Declared native Service-only parts startup".into(),evidence:"test:Service-parts-fresh-Company".into()}};
+  PgPackageGrantCommands::new(erpx_server_shared::public::HoldingId::new("h001").unwrap(),co.clone(),&mut unit,&catalogue,&mut policy,p.review.system.scenario.clock.as_ref()).apply(&input).await?;
+ }
+ unit.commit().await?;Ok(())
 }

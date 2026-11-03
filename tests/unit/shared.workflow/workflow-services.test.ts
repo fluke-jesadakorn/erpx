@@ -123,6 +123,6 @@ test('native Field Work reconciliation keeps other owners and restricts stale Fi
  const {reconcileFieldServiceWork}=await import('@erpx/server-workflow/application/flow-work');
  const field={id:'a',type:'field_service' as const,title:'Visit',detail:'Site',href:'/field-service/a',status:'in_visit',updatedAt:1,queue:'todo' as const,canAct:true,relationships:['assigned' as const,'team' as const]};
  const other={...field,id:'other',type:'support_ticket' as const};
- const result=reconcileFieldServiceWork([field,{...field,id:'hidden'},other],{data:[{id:'a',canAct:false},{id:'hidden',canAct:true}],workflowSourceIds:['a']},'enforced');
- expect(result).toHaveLength(2);expect(result[0]).toMatchObject({id:'a',queue:'waiting',canAct:false,actionKind:'work',relationships:['team']});expect(result[1]).toEqual(other);const shadow=reconcileFieldServiceWork([field,{...field,id:'hidden'},other],{data:[{id:'a',canAct:false},{id:'hidden',canAct:true}],workflowSourceIds:['a']},'shadow');expect(shadow.map(row=>row.id)).toEqual(['a','hidden','other']);
+ const result=reconcileFieldServiceWork([field,{...field,id:'hidden'},other],{data:[{id:'a',canAct:false},{id:'hidden',canAct:true}],workflowSourceIds:['a']});
+ expect(result).toHaveLength(2);expect(result[0]).toMatchObject({id:'a',queue:'waiting',canAct:false,actionKind:'work',relationships:['team']});expect(result[1]).toEqual(other);const denied=reconcileFieldServiceWork([field,{...field,id:'hidden'},other],{data:[{id:'a',canAct:true},{id:'hidden',canAct:true}],workflowSourceIds:[]});expect(denied.map(row=>row.id)).toEqual(['other']);expect(field.canAct).toBe(true);
 });

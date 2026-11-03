@@ -67,3 +67,53 @@ it('shows the native Field surface only for its exact configured Holding and hos
  const local=JSON.stringify({privateBaseUrl:'http://127.0.0.1:44817',timeoutMs:1000,holdings:[{origin:'https://acme.erpx.localhost:3443',holdingSlug:'acme',holdingId:'h001',fieldFamily:true}]});
  try {vi.stubEnv('NODE_ENV','development');vi.stubEnv('NEXT_PUBLIC_ERPX_DEV_ORIGIN_PROFILE','container-localhost');vi.stubEnv('ERPX_NATIVE_FIELD_ATTACHMENT_CONFIG',local);expect(nativeFieldFamilyVisible('acme','h001','acme.erpx.localhost:3443')).toBe(true);expect(nativeFieldFamilyVisible('acme','h002','acme.erpx.localhost:3443')).toBe(false);expect(nativeFieldFamilyVisible('acme','h001','acme.erpx.localhost:3444')).toBe(false);vi.stubEnv('NODE_ENV','production');expect(nativeFieldFamilyVisible('acme','h001','acme.erpx.localhost:3443')).toBe(false);}finally{vi.unstubAllEnvs();}
 });
+
+describe('Finance payment Files transport',()=>{
+ const set={id:'s',targetType:'finance_payment',targetId:'payment',componentKind:'action',componentRef:'bank-confirmation',purposeKey:'payment_proof',expectedTargetVersion:3,policyVersion:1,classification:'confidential',requiredCount:1,maxFiles:10,state:'draft',createdAt:1,updatedAt:1,links:[]};
+ const body=new TextEncoder().encode(JSON.stringify({targetType:set.targetType,targetId:set.targetId,componentKind:set.componentKind,componentRef:set.componentRef,purposeKey:set.purposeKey,expectedTargetVersion:3}));
+ it('routes original create/list/reserve bytes and keys only to Finance',async()=>{
+  const transport=vi.fn().mockResolvedValueOnce(json({data:set})).mockResolvedValueOnce(json({data:[set]},200)).mockResolvedValueOnce(json({data:{uploadIntentId:'i',attachmentLinkId:'l',uploadUrl:'/api/v1/holdings/acme/finance/payment-files/uploads/i/content',expiresAt:100}}));
+  const bridge=createFieldFamilyBridge(config,transport,'finance-payment');
+  expect((await bridge(req(),actor,{route:{kind:'create'},body,key:'original'})).status).toBe(201);
+  expect(transport.mock.calls[0][0].pathname).toBe('/api/v1/holdings/acme/finance/payment-files/attachment-sets');expect(transport.mock.calls[0][3]).toBe(body);expect(transport.mock.calls[0][2].get('idempotency-key')).toBe('original');
+  expect((await bridge(req(),actor,{route:{kind:'list',query:'?targetId=payment&purposeKey=payment_proof'}})).status).toBe(200);
+  expect((await (await bridge(req(),actor,{route:{kind:'reserve',setId:'s'}})).json()).data.uploadUrl).toBe('/api/v1/holdings/acme/uploads/i/content');
+ });
+ it('rejects reciprocal owner replies and mismatched private upload routes',async()=>{
+  const transport=vi.fn(),finance=createFieldFamilyBridge(config,transport,'finance-payment'),visit=createFieldFamilyBridge(config,transport);
+  transport.mockResolvedValueOnce(json({data:set}));await expect(visit(req(),actor,{route:{kind:'create'},body})).rejects.toMatchObject({status:503});
+  for(const bad of [{...set,targetType:'field_service_visit'},{...set,purposeKey:'site_photo'},{...set,classification:'internal'},{...set,componentKind:'record'}]){transport.mockResolvedValueOnce(json({data:bad}));await expect(finance(req(),actor,{route:{kind:'create'},body})).rejects.toMatchObject({status:503});}
+  transport.mockResolvedValueOnce(json({data:{uploadIntentId:'i',attachmentLinkId:'l',uploadUrl:'/api/v1/holdings/acme/field-service/uploads/i/content',expiresAt:100}}));await expect(finance(req(),actor,{route:{kind:'reserve',setId:'s'}})).rejects.toMatchObject({status:503});
+ });
+ it('accepts only a completed withdrawal receipt and never sends Visit withdrawal through this profile',async()=>{
+  const status={linkId:'l',setId:'s',sourceId:null,sourceState:null,linkState:'withdrawn',scan:{attempts:0,lastResult:null,lastError:null,signature:null,definitionUpdatedAt:null,scannedAt:null},previewAvailable:false,bindable:false,expiresAt:100,boundAt:null,withdrawnAt:2};
+  const transport=vi.fn().mockResolvedValue(json({data:status},200)),finance=createFieldFamilyBridge(config,transport,'finance-payment');
+  expect((await finance(req(),actor,{route:{kind:'withdraw',linkId:'l'},key:'withdraw-key',body:new TextEncoder().encode('{"reason":"duplicate"}')})).status).toBe(200);
+  expect(transport.mock.calls[0][0].pathname).toBe('/api/v1/holdings/acme/finance/payment-files/attachment-links/l/withdraw');
+  transport.mockResolvedValueOnce(json({data:{...status,bindable:true}},200));await expect(finance(req(),actor,{route:{kind:'withdraw',linkId:'l'}})).rejects.toMatchObject({status:503});
+  transport.mockClear();await expect(createFieldFamilyBridge(config,transport)(req(),actor,{route:{kind:'withdraw',linkId:'l'}})).rejects.toMatchObject({status:503});expect(transport).not.toHaveBeenCalled();
+ });
+});
+
+describe('Field journal supporting-evidence transport',()=>{
+ const set={id:'s',targetType:'finance_journal',targetId:'journal',componentKind:'record',componentRef:null,purposeKey:'journal_support',expectedTargetVersion:3,policyVersion:1,classification:'confidential',requiredCount:0,maxFiles:50,state:'draft',createdAt:1,updatedAt:1,links:[]};
+ const body=new TextEncoder().encode(JSON.stringify({targetType:set.targetType,targetId:set.targetId,componentKind:set.componentKind,purposeKey:set.purposeKey,expectedTargetVersion:3}));
+ it('keeps the 50-file journal policy and rejects cross-owner receipts',async()=>{
+  const transport=vi.fn().mockResolvedValueOnce(json({data:set})),bridge=createFieldFamilyBridge(config,transport,'finance-journal');
+  expect((await bridge(req(),actor,{route:{kind:'create'},body,key:'original'})).status).toBe(201);
+  expect(transport.mock.calls[0][0].pathname).toBe('/api/v1/holdings/acme/finance/journal-files/attachment-sets');
+  for(const bad of [{...set,maxFiles:10},{...set,targetType:'finance_payment'},{...set,componentKind:'action'},{...set,purposeKey:'payment_proof'}]){transport.mockResolvedValueOnce(json({data:bad}));await expect(bridge(req(),actor,{route:{kind:'create'},body})).rejects.toMatchObject({status:503});}
+ });
+ it('validates the original bind version, current identity and purpose before acknowledging',async()=>{
+  const current={...actor,userId:'u',branchId:null,departmentId:null,role:'review',assignmentScope:'holding',modules:['finance'],iam:{permissions:['finance.read','finance.write']}} as unknown as WorkContext;
+  const context={userId:'u',holdingId:'h',companyId:'c',branchId:null,departmentId:null,branchSlug:null,departmentSlug:null,assignmentId:'a',assignmentVersion:2,revision:1,role:'review',assignmentScopeKind:'holding',modules:['finance'],permissions:['finance.read','finance.write'],expiresAt:Date.now()+60000};
+  const data={setId:'s',version:4,manifest:[{linkId:'l',sourceId:'source',purposeKey:'journal_support',checksumSha256:'a'.repeat(64),mediaType:'image/png',bytes:10}]};
+  const transport=vi.fn().mockResolvedValue(json({data,context},200)),bridge=createFieldFamilyBridge(config,transport,'finance-journal');
+  const input={route:{kind:'bind' as const,setId:'s'},body:new TextEncoder().encode('{"expectedTargetVersion":3}'),key:'retained-original-key'};
+  expect(await (await bridge(req(),current,input)).json()).toEqual({data});
+  expect(transport.mock.calls[0][2].get('idempotency-key')).toBe(input.key);expect(transport.mock.calls[0][3]).toBe(input.body);
+  transport.mockResolvedValueOnce(json({data,context:{...context,companyId:'other'}},200));await expect(bridge(req(),current,input)).rejects.toMatchObject({status:409});
+  for(const invalid of [{...data,version:5},{...data,manifest:[{...data.manifest[0],purposeKey:'payment_proof'}]},{...data,manifest:[data.manifest[0],data.manifest[0]]}]){transport.mockResolvedValueOnce(json({data:invalid,context},200));await expect(bridge(req(),current,input)).rejects.toMatchObject({status:503});}
+  transport.mockClear();await expect(createFieldFamilyBridge(config,transport,'finance-payment')(req(),current,input)).rejects.toMatchObject({status:503});expect(transport).not.toHaveBeenCalled();
+ });
+});

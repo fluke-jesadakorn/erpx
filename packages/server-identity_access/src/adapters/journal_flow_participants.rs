@@ -43,3 +43,15 @@ pub async fn current_journal_flow_principal(
         Ok(user.to_owned())
     }
 }
+
+/// Field invoice's two finite participant pools. The current People roster is
+/// supplied by composition; this owner decides current IAM eligibility only.
+pub async fn eligible_service_invoice_flow_participant(c:&mut PgConnection,company:&CompanyId,user:&str,excluded:&[String],treasury:bool)->Result<bool,Error>{
+ if !c.is_in_transaction()||excluded.len()>10{return Err(PersistenceError::new("IAM_OWNER_TRANSACTION_REQUIRED").into());}
+ let roles=if treasury{vec!["workflow.treasury"]}else{vec!["workflow.finance_approver","workflow.holding_owner"]};
+ Ok(sqlx::query_scalar("SELECT NOT EXISTS(SELECT 1 FROM unnest($3::text[]) e(user_id) WHERE e.user_id=$2 OR COALESCE(iam_same_person($2,e.user_id,$1),false)) AND EXISTS(SELECT 1 FROM assignments a WHERE a.company_id=$1 AND a.user_id=$2 AND a.scope_kind='holding' AND a.revoked_at IS NULL AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(a.user_id,a.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND a.valid_from<=floor(extract(epoch FROM clock_timestamp())*1000)::bigint AND a.valid_until>floor(extract(epoch FROM clock_timestamp())*1000)::bigint AND EXISTS(SELECT 1 FROM unnest($4::text[]) role(permission) WHERE iam_role_allows(a.role,a.company_id,role.permission)))").bind(company.as_str()).bind(user).bind(excluded).bind(roles).fetch_one(c).await?)
+}
+pub async fn service_invoice_flow_administrator(c:&mut PgConnection,current:&crate::public::effective_authority::AuthorizedWorkContext,now:i64)->Result<bool,Error>{
+ if !c.is_in_transaction(){return Err(PersistenceError::new("IAM_OWNER_TRANSACTION_REQUIRED").into());}
+ Ok(sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM assignments WHERE id=$1 AND company_id=$2 AND iam_role_allows(role,company_id,'organization.manage') AND scope_kind='holding' AND revoked_at IS NULL AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(user_id,company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_from<=$3 AND valid_until>$3)").bind(current.selection().assignment().id.as_str()).bind(current.selection().workspace().company_id.as_str()).bind(now).fetch_one(c).await?)
+}

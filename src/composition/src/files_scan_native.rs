@@ -111,7 +111,9 @@ impl<C: Clock + Send + Sync + 'static> NativeFilesScanWorker<C> {
 impl<C: Clock + Send + Sync + 'static> crate::field_attachment_intake_command::FieldIntakeProviderReadiness for NativeFilesScanWorker<C> {
     fn probe(&self) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<crate::field_attachment_intake_command::FieldIntakeProviderStatus, BusinessError>> + Send + '_>> {
         Box::pin(async move {
-            if !self.field_only || self.stopping.load(Ordering::Acquire) { return Err(unavailable()); }
+            if self.stopping.load(Ordering::Acquire) { return Err(unavailable()); }
+            // Provider readiness is source-neutral and grants no record or job
+            // authority. The transaction adapter keeps its claim partition.
             // The provider probes current ClamAV PING/VERSION and the bounded
             // preview executable/profile; these are not caller-supplied flags.
             self.sanitizer.require_ready(self.clock.as_ref()).await?;

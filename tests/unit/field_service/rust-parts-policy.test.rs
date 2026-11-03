@@ -333,6 +333,21 @@ mod tests {
     use erpx_server_field_service::public::work::*;
     use serde_json::json;
     #[test]
+    fn retained_application_work_assertions_keep_read_only_and_revoked_actors_waiting() {
+        let agreement = json!({"id":"agreement","status":"draft","created_by":"creator","asset_id":null,"requires_asset_capability":0,"can_review":1,"title":"Reviewed plan","customer_name":"Customer","start_date":"2026-10-01","end_date":"2026-10-31","updated_at":42});
+        let order = json!({"id":"order","status":"in_visit","technician_id":"technician","created_by":"creator","completed_by":null,"technician_eligible":0,"can_review":0,"asset_id":null,"requires_asset_capability":0,"independent_billing":1,"scheduled_at":100,"exception_reason":null,"ticket_title":"Reported issue","site":"Customer site","customer_name":"Customer","updated_at":42});
+        let items = field_service_work_items(&[agreement], &[order.clone()], "technician", &[], WorkRights {can_write:true,can_review:false,can_parts:true,settle:true}).unwrap();
+        assert_eq!((items[0].queue.as_str(),items[0].can_act),("waiting",false));
+        assert_eq!((items[1].queue.as_str(),items[1].can_act),("waiting",false));
+        assert_eq!(items[1].blocker.as_ref().and_then(|b|b.as_deref()),Some("Assigned technician is no longer eligible; reviewer reassignment is required"));
+        let mut completed=order;completed["status"]=json!("completed");completed["technician_eligible"]=json!(1);completed["can_review"]=json!(1);
+        for (aliases,completer) in [(vec!["technician".into()],"someone-else"),(vec![],"linked-reviewer")] {
+            completed["completed_by"]=json!(completer);
+            let work=field_service_work_items(&[],std::slice::from_ref(&completed),"linked-reviewer",&aliases,WorkRights {can_write:true,can_review:true,can_parts:true,settle:true}).unwrap();
+            assert_eq!((work[0].queue.as_str(),work[0].can_act),("waiting",false));
+        }
+    }
+    #[test]
     fn work_uses_exact_assignment_and_person_aliases_for_independence() {
         let agreement = json!({"id":"g","status":"draft","created_by":"alias","asset_id":null,"requires_asset_capability":0,"can_review":1,"title":"Plan","customer_name":"Customer","start_date":"2026-01-01","end_date":"2026-12-31","updated_at":1});
         let order = json!({"id":"o","status":"completed","technician_id":"alias","created_by":"other","completed_by":"other","technician_eligible":1,"can_review":1,"asset_id":null,"requires_asset_capability":0,"independent_billing":1,"scheduled_at":null,"exception_reason":null,"ticket_title":"Ticket","site":"Site","customer_name":"Customer","updated_at":2});
@@ -392,4 +407,48 @@ mod tests {
         assert_eq!(waiting[0].queue, "waiting");
         assert!(!waiting[0].can_act);
     }
+}
+
+#[test]
+fn retained_application_billing_uses_inclusive_warranty_floor_and_original_rate() {
+    use erpx_server_field_service::public::visit::visit_billing_price;
+    assert_eq!(visit_billing_price(10001,3333,Some("2026-10-06"),"2026-10-06"),(6667,3333,true));
+    assert_eq!(visit_billing_price(10001,3333,Some("2026-10-05"),"2026-10-06"),(10001,3333,false));
+    assert_eq!(visit_billing_price(10001,3333,None,"2026-10-06"),(10001,3333,false));
+}
+
+#[test]
+fn service_settlement_keeps_terminal_receipts_and_billing_lineage_authoritative() {
+    use erpx_server_field_service::public::package_settlement::*;
+    for state in ["retired", "rejected"] {
+        for source_valid in [false, true] {
+            for terminal_event in [false, true] {
+                let fact=agreement_settlement_fact(ServiceSettlementPackage::Base,AgreementSettlementFacts{id:"agreement",version:3,state,asset:false,source_valid,terminal_event}).unwrap();
+                assert_eq!(fact.pending,!source_valid||!terminal_event);
+            }
+        }
+    }
+    for state in ["cancelled","billed","in_visit"] {
+        for source_valid in [false,true] {
+            for terminal_event in [false,true] {
+                for billing_lineage in [false,true] {
+                    let fact=visit_settlement_fact(ServiceSettlementPackage::Base,VisitSettlementFacts{id:"visit",version:4,state,source_valid,asset:false,agreement_asset:false,reservation:false,consumption:false,outstanding_reservation:false,terminal_event,billing_lineage}).unwrap();
+                    assert_eq!(fact.pending,!source_valid||state=="in_visit"||!terminal_event||state=="billed"&&!billing_lineage);
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn a_discharged_spare_does_not_force_unrelated_base_work_to_close() {
+    use erpx_server_field_service::public::package_settlement::*;
+    for source_valid in [false,true] {
+        for outstanding_reservation in [false,true] {
+            let fact=visit_settlement_fact(ServiceSettlementPackage::PartsAssets,VisitSettlementFacts{id:"visit",version:5,state:"in_visit",source_valid,asset:false,agreement_asset:false,reservation:true,consumption:true,outstanding_reservation,terminal_event:false,billing_lineage:false}).unwrap();
+            assert_eq!(fact.pending,!source_valid||outstanding_reservation);
+        }
+    }
+    assert!(agreement_settlement_fact(ServiceSettlementPackage::PartsAssets,AgreementSettlementFacts{id:"unrelated",version:1,state:"active",asset:false,source_valid:true,terminal_event:false}).is_none());
+    assert!(visit_settlement_fact(ServiceSettlementPackage::PartsAssets,VisitSettlementFacts{id:"unrelated",version:1,state:"scheduled",source_valid:true,asset:false,agreement_asset:false,reservation:false,consumption:false,outstanding_reservation:false,terminal_event:false,billing_lineage:false}).is_none());
 }

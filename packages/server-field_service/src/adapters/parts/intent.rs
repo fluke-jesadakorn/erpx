@@ -315,6 +315,6 @@ impl RetainedFieldServiceReservationConsumption {
         Ok(())
     }
 }
-fn conflict() -> Error {
+pub(super) fn conflict() -> Error {
     BusinessError::new(FailureKind::Conflict,"CONFLICT","The record changed, a reference is unavailable, or this value already exists. Refresh and review again.").into()
 }

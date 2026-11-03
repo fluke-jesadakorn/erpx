@@ -35,7 +35,8 @@ import {
   proposeEmergency,
   applyEmergency,
 } from "@erpx/server-identity_access/public/iam-migrations";
-import { beginMfa, verifyMfa, requireFreshMfa } from "@erpx/server-identity_access/public/iam-mfa";
+import { requireFreshMfa } from "@erpx/server-identity_access/public/iam-mfa";
+import {nativeAccountHttp} from "@erpx/server-identity_access/public/native-account-http";
 import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
 import { iamCommand } from "@erpx/server-identity_access/public/iam-transactions";
 import { iamDb } from "@erpx/server-identity_access/public/iam-db";
@@ -57,6 +58,12 @@ function sameOrigin(request: Request) {
     );
 }
 export async function iamAccountApi(request: Request, path: string[]) {
+  if(path.join('/')==='mfa/enroll'||path.join('/')==='mfa/verify'){
+    // Static logical path from this owned entry, independent of the external
+    // Holding namespace. Rust owns authentication, rate/counter and writes.
+    const url=new URL(request.url);url.pathname='/api/v1/account/iam/'+path.join('/');
+    return nativeAccountHttp(new Request(url,request));
+  }
   try {
     sameOrigin(request);
     const { session } = await currentSession(),
@@ -104,15 +111,6 @@ export async function iamAccountApi(request: Request, path: string[]) {
           actor,
           emergencyRevocationInput.parse(input),
           request.headers.get("Idempotency-Key") ?? "",
-        ),
-      }));
-    if (path.join("/") === "mfa/enroll")
-      return Response.json(canonicalDestinationLinks({ data: await beginMfa(actor) }));
-    if (path.join("/") === "mfa/verify")
-      return Response.json(canonicalDestinationLinks({
-        data: await verifyMfa(
-          actor,
-          z.object({ code: z.string() }).parse(input).code,
         ),
       }));
     if (path.join("/") === "sessions/revoke") {

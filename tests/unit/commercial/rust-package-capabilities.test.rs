@@ -1,6 +1,40 @@
 use erpx_server_commercial::public::purchases::*;
 use serde::Deserialize;
 
+#[test]
+fn lifecycle_review_matches_original_node_and_rejects_changed_authority_or_request() {
+    use erpx_server_commercial::public::package_review::*;
+    let fixture:serde_json::Value=serde_json::from_str(include_str!("../../../fixtures/commercial/rust-packages/lifecycle-review.v1.json")).unwrap();
+    assert_eq!(fixture["node"],"v26.11.1");
+    let catalogue=current_package_catalogue().unwrap();
+    let actor:PackageReviewActor=serde_json::from_value(fixture["actor"].clone()).unwrap();
+    let input:GrantBatch=serde_json::from_value(fixture["input"].clone()).unwrap();
+    let signer=PackageLifecycleReviewSigner::new(fixture["secret"].as_str().unwrap()).unwrap();
+    let authority="b".repeat(64);
+    let review=signer.issue(&catalogue,actor.clone(),"h001",&input,&authority,1000).unwrap();
+    assert_eq!(review.token,fixture["review"]["token"].as_str().unwrap());
+    assert_eq!(review.expires_at,301000);
+    let claims=signer.read(&review.token,&catalogue,&actor,"h001",&input,1000).unwrap();
+    assert_eq!(serde_json::to_value(&claims).unwrap(),fixture["claims"]);
+    for changed in [PackageReviewActor{user_id:"other".into(),..actor.clone()},PackageReviewActor{session_id:"other".into(),..actor.clone()},PackageReviewActor{assignment_id:"other".into(),..actor.clone()},PackageReviewActor{role:"other".into(),..actor.clone()},PackageReviewActor{role_revision:4,..actor.clone()}]{
+        assert_eq!(signer.read(&review.token,&catalogue,&changed,"h001",&input,1000).err().unwrap().code,"PACKAGE_REVIEW_INVALID");
+    }
+    let mut changed=input.clone();changed.idempotency_key="another-reviewed-key".into();
+    assert!(signer.read(&review.token,&catalogue,&actor,"h001",&changed,1000).is_err());
+    changed=input.clone();changed.changes[0].grant.reason.push('!');
+    assert!(signer.read(&review.token,&catalogue,&actor,"h001",&changed,1000).is_err());
+    assert!(signer.read(&review.token,&catalogue,&actor,"h002",&input,1000).is_err());
+    assert!(signer.read(&review.token,&catalogue,&actor,"h001",&input,999).is_err());
+    let mut tampered=review.token.clone().into_bytes();tampered[0]=if tampered[0]==b'e'{b'f'}else{b'e'};
+    assert!(signer.read(&String::from_utf8(tampered).unwrap(),&catalogue,&actor,"h001",&input,1000).is_err());
+    let other=PackageLifecycleReviewSigner::new("different-fixture-signing-secret-minimum32").unwrap();
+    assert!(other.read(&review.token,&catalogue,&actor,"h001",&input,1000).is_err());
+    signer.assert_fresh(&claims,300999).unwrap();
+    let recovered=signer.read(&review.token,&catalogue,&actor,"h001",&input,301000).unwrap();
+    assert_eq!(signer.assert_fresh(&recovered,301000).unwrap_err().code,"PACKAGE_REVIEW_EXPIRED");
+    assert!(PackageLifecycleReviewSigner::new("short").is_err());
+}
+
 #[derive(Deserialize)]
 struct Scenario {
     grants: Vec<CompanyPackageGrant>,

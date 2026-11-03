@@ -3,17 +3,14 @@ import {holdingFetch} from '@erpx/contracts/holding-fetch';
 
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import {useProviderContext} from "@erpx/feature-identity_access/components/provider-context-boundary";
-import {providerPackageReview,captureProviderPackageCommand,acknowledgeProviderPackageCommand,type ProviderPackageCapture} from "@erpx/server-commercial/public/rules/provider-package-command";
+import {providerPackageReview,captureProviderPackageCommand,acknowledgeProviderPackageCommand,type ProviderPackageCapture} from "@erpx/feature-commercial/provider-package-command";
 import { Button, Field, TextArea, TextInput, Select, Stack, Panel, InlineNotice, Badge } from "@erpx/ui/components/foundation";
 import { DraftFormDrawer } from "@erpx/ui/components/draft-form-drawer";
 import { TimeText } from "@erpx/feature-people_payroll/components/time/time-preference-context";
 import { useHydrated } from "@erpx/ui/components/use-hydrated";
 import { contextGeneration, contextIsSwitching, registerUnsavedWork } from "@erpx/feature-work_projection/lib/context-switch";
-import type { providerCompanyPackageOverview } from "@erpx/server-commercial/public/provider-commercial";
-import type { PackageGrantBatch, PackageGrantBatchPreview } from "@erpx/server-commercial/public/package-grants";
-import type { CompanyPackageGrant } from "@erpx/server-commercial/public/rules/packages";
+import type { GrantBatch as PackageGrantBatch, GrantBatchPreview as PackageGrantBatchPreview, NativeServicePackageOverview as Snapshot, CompanyPackageGrant } from "@erpx/contracts/commercial-service";
 
-type Snapshot = Awaited<ReturnType<typeof providerCompanyPackageOverview>>;
 type Company = { id: string; name: string; slug?: string; holdingId: string; holding: string };
 type Draft = { packageId: string; packageVersion: number; state: CompanyPackageGrant["state"]; starts: string; ends: string; reason: string; evidence: string };
 type Review = { comparison: PackageGrantBatchPreview; request: PackageGrantBatch; review: { token: string; expiresAt: number } };

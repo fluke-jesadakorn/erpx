@@ -1,3 +1,5 @@
+import {fieldOnlyPolicy} from '../domain/field-ownership';
+import {hasModuleAccess} from '@erpx/catalogue/module-access';
 import "server-only";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { SqlDatabase, SqlStatement } from "@erpx/server-runtime/public/runtime/types";
@@ -24,8 +26,8 @@ function application(provided?: SqlDatabase) {
         guard4(...args) { return OperationsExceptionsIdentityAccessFacts(database).guard4(...args); },
         stageReviewQueuePolicyEffect(now: number, companyId: string, recordId: string) { return database.prepare("UPDATE operations_queue_policies SET status='retired',version=version+1,updated_at=? WHERE company_id=? AND area=(SELECT area FROM operations_queue_policies WHERE id=?) AND status='published'").bind(now, companyId, recordId); },
         stageReviewQueuePolicyEffect2(status: "published" | "rejected" | "retired", userId: string, now: number, recordId: string) { return database.prepare("UPDATE operations_queue_policies SET status=?,reviewed_by=?,version=version+1,updated_at=? WHERE id=?").bind(status, userId, now, recordId); },
-        readOperationsWorkspaceCandidatespoliciespeople(value: (string | null)[]) { return database.prepare(`SELECT e.* FROM operations_exceptions e WHERE ${scope} ORDER BY e.updated_at DESC LIMIT 200`).bind(...value).all<Exception>(); },
-        readOperationsWorkspaceCandidatespoliciespeople2(companyId: string) { return database.prepare("SELECT * FROM operations_queue_policies WHERE company_id=? ORDER BY area,revision DESC").bind(companyId).all<Row>(); },
+        readOperationsWorkspaceCandidatespoliciespeople(value: (string | null)[]) { return database.prepare(`SELECT e.* FROM operations_exceptions e WHERE ${scope} AND e.source_kind<>'field_service_order' ORDER BY e.updated_at DESC LIMIT 200`).bind(...value).all<Exception>(); },
+        readOperationsWorkspaceCandidatespoliciespeople2(companyId: string) { return database.prepare("SELECT * FROM operations_queue_policies WHERE company_id=? AND NOT (jsonb_typeof(source_kinds_json::jsonb)='array' AND source_kinds_json::jsonb<>'[]'::jsonb AND source_kinds_json::jsonb <@ '[\"field_service_order\"]'::jsonb) ORDER BY area,revision DESC").bind(companyId).all<Row>(); },
         readOperationsWorkspaceCandidatespoliciespeople3(...args) { return OperationsExceptionsIdentityAccessFacts(database).readOperationsWorkspaceCandidatespoliciespeople3(...args); },
         readOperationsExceptionDetailEffect(recordId: string) { return database.prepare("SELECT * FROM operations_exception_events WHERE exception_id=? ORDER BY version").bind(recordId).all<Row>(); },
         readOpenOperationsExceptionPolicy(policyId: string, companyId: string, policyVersion: number) { return database.prepare("SELECT * FROM operations_queue_policies WHERE id=? AND company_id=? AND version=? AND status='published'").bind(policyId, companyId, policyVersion).first<Row>(); },
@@ -70,12 +72,29 @@ async function invoke<Result>(run: () => Promise<Result>) {
         throw error;
     }
 }
-export async function reviewQueuePolicy(a: WorkContext, recordId: string, raw: unknown, key: string) { return invoke(() => application().reviewQueuePolicy(a, recordId, raw, key)); }
+export async function reviewQueuePolicy(a:WorkContext,recordId:string,raw:unknown,key:string){return invoke(async()=>{
+ requirePermission(a,'records.write');requirePermission(a,'records.review');if(!hasModuleAccess(a.modules,'operations'))throw new NativeApiError(403,'MODULE_FORBIDDEN','Operations is unavailable to the selected role.');
+ const {write}=await nativeHoldingResources(a.holdingId);const row=await write.prepare('SELECT source_kinds_json FROM operations_queue_policies WHERE id=? AND company_id=?').bind(recordId,a.companyId).first<{source_kinds_json:string}>();
+ if(row&&fieldOnlyPolicy(JSON.parse(row.source_kinds_json)))throw new NativeApiError(503,'NATIVE_FIELD_OPERATIONS_REQUIRED','Continue Field policies in Field Service.');
+ return application(write).reviewQueuePolicy(a,recordId,raw,key);
+});}
 export async function operationsWorkspace(a: WorkContext) { return invoke(() => application().operationsWorkspace(a)); }
 export async function operationsExceptionDetail(a: WorkContext, recordId: string) { return invoke(() => application().operationsExceptionDetail(a, recordId)); }
-export async function openOperationsException(a: WorkContext, raw: unknown, key: string) { return invoke(() => application().openOperationsException(a, raw, key)); }
+export async function openOperationsException(a:WorkContext,raw:unknown,key:string){return invoke(()=>{
+ requirePermission(a,'records.write');if(!hasModuleAccess(a.modules,'operations'))throw new NativeApiError(403,'MODULE_FORBIDDEN','Operations is unavailable to the selected role.');
+ if(raw&&typeof raw==='object'&&!Array.isArray(raw)&&(raw as {source?:{kind?:unknown}}).source?.kind==='field_service_order')throw new NativeApiError(503,'NATIVE_FIELD_OPERATIONS_REQUIRED','Continue Field exceptions in Field Service.');
+ return application().openOperationsException(a,raw,key);
+});}
 export async function changeOperationsException(a: WorkContext, recordId: string, raw: unknown, key: string) { return invoke(() => application().changeOperationsException(a, recordId, raw, key)); }
-export async function operationsExceptionWork(a: WorkContext): Promise<WorkItem[]> { return invoke(() => application().operationsExceptionWork(a)); }
+export async function operationsExceptionWork(a:WorkContext,nativeField?:()=>Promise<WorkItem[]>):Promise<WorkItem[]>{
+ if(!hasModuleAccess(a.modules,'operations'))return [];
+ if(!hasModuleAccess(a.modules,'field_service'))return invoke(()=>application().operationsExceptionWork(a));
+ if(!nativeField)throw new NativeApiError(503,'NATIVE_FIELD_OPERATIONS_WORK_REQUIRED','The native Field operations work source must be connected.');
+ // Legacy queries exclude Field rows. A failed native source propagates; it
+ // never falls back to a stale SQL or cached Field queue.
+ const [legacy,native]=await Promise.all([invoke(()=>application().operationsExceptionWork(a)),nativeField()]);
+ return [...legacy,...native];
+}
 export { draftQueuePolicy } from "@erpx/server-operations/adapters/queue-policy";
 function fromNativeSync<Result>(run: () => Result): Result {
     try {

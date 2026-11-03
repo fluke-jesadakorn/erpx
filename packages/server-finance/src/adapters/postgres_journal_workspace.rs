@@ -256,3 +256,22 @@ pub async fn read_field_service_journal_workspace(
         references,
     })
 }
+
+/// Read-only invoice-derived workspace. The caller must retain the returned
+/// parent through native Field invoice history before exposing this payload.
+pub async fn read_field_service_invoice_journal_workspace(
+    c:&mut PgConnection,actor:&FinanceActor,id:&RecordId,
+)->Result<Option<(String,CurrentFieldServiceJournalWorkspace)>,Error>{
+    let Some((invoice,source))=crate::public::journal_detail::read_field_service_invoice_journal_detail(c,actor,id).await? else{return Ok(None)};
+    let identity=identity(c).await?;
+    let references=references(c,actor,source.detail()).await?;
+    let detail=source.detail();
+    let data=FinanceJournalRecordWorkspace{
+        journal:detail.journal.clone(),lines:detail.lines.clone(),history:detail.history.clone(),
+        chart:references.chart.clone(),accounts:references.accounts.clone(),periods:references.periods.clone(),
+        dimensions:references.dimensions.clone(),dimension_values:references.dimension_values.clone(),
+    };
+    let result=CurrentFieldServiceJournalWorkspace{actor:actor.clone(),source,data,identity,references};
+    result.require_current(c).await?;
+    Ok(Some((invoice,result)))
+}

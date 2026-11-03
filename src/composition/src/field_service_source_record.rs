@@ -1,14 +1,18 @@
 //! Single Field source-record read with same-unit owner witnesses.
 use crate::field_service_reservation_read::{FieldServiceRenderedContext, context};
+use erpx_server_assets::public::field_service_workspace::CurrentServiceWorkspaceAssets;
 use erpx_server_commercial::public::purchases::{
     CapabilityPurpose, CommercialCatalogue, PackageEnforcementMode, PgCompanyPurchaseReader,
-    PurchaseInspection, PurchaseRequest,
+    PurchaseInspection, PurchaseRequest, PurchaseWitness,
 };
+use erpx_server_field_service::public::source_record::CurrentFieldRecordSource;
+use erpx_server_finance::public::field_service_workspace::CurrentServiceWorkspaceCustomers;
 use erpx_server_identity_access::public::effective_authority::{
     AuthorizedWorkContext, HoldingWorkSourcePreparation,
 };
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{BusinessError, Clock, CompanyId, FailureKind, HoldingId};
+use erpx_server_support::public::field_service_source_record::CurrentFieldSourceTicket;
 use serde::Serialize;
 use sqlx::PgConnection;
 type Error = PgTransactionError<BusinessError>;
@@ -80,6 +84,10 @@ pub struct FieldServiceSourceRecord {
     pub version: i64,
     pub title: String,
     pub status: String,
+    #[cfg_attr(feature = "contracts", ts(type = "number | null"))]
+    pub scheduled_at: Option<i64>,
+    #[cfg_attr(feature = "contracts", ts(type = "number | null"))]
+    pub visit_completed_at: Option<i64>,
 }
 #[derive(Clone, Debug, Serialize)]
 #[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
@@ -120,13 +128,61 @@ pub(crate) struct SourceRecordContext<'a, C> {
     pub catalogue: &'a CommercialCatalogue,
     pub clock: &'a C,
 }
-pub(crate) async fn read<C: Clock>(
+/// Owner witnesses retained by a consuming Records/Collaboration transaction.
+/// The surrounding selected-work authorizer remains responsible for the live
+/// Account, IAM and selected-context witnesses; this does not grant Field work.
+pub(crate) struct PreparedFieldSourceRecord {
+    response: FieldServiceSourceRecordResponse,
+    source: CurrentFieldRecordSource,
+    customers: Option<CurrentServiceWorkspaceCustomers>,
+    ticket: Option<CurrentFieldSourceTicket>,
+    assets: Option<CurrentServiceWorkspaceAssets>,
+    purchases: Vec<PurchaseWitness>,
+}
+impl PreparedFieldSourceRecord {
+    pub(crate) fn data(&self) -> &FieldServiceSourceRecordResponse {
+        &self.response
+    }
+    /// Call after all owner effects and deferred constraints have run, in the
+    /// same serializable unit that prepared these witnesses.
+    pub(crate) async fn require_current<C: Clock>(
+        &self,
+        c: &mut PgConnection,
+        ctx: &SourceRecordContext<'_, C>,
+    ) -> Result<(), Error> {
+        self.source.require_current(c).await?;
+        if let Some(value) = &self.customers {
+            value.require_current(c).await?;
+        }
+        if let Some(value) = &self.ticket {
+            value.require_current(c).await?;
+        }
+        if let Some(value) = &self.assets {
+            value.require_current(c).await?;
+        }
+        for purchase in &self.purchases {
+            PgCompanyPurchaseReader::new(
+                ctx.holding.clone(),
+                ctx.company.clone(),
+                c,
+                ctx.catalogue,
+            )
+            .revalidate(purchase, ctx.clock.now())
+            .await?;
+        }
+        if ctx.clock.now().get() >= ctx.actor.expires_at() {
+            return Err(missing().into());
+        }
+        Ok(())
+    }
+}
+pub(crate) async fn prepare<C: Clock>(
     c: &mut PgConnection,
     ctx: &SourceRecordContext<'_, C>,
     id: &str,
     expected: Option<f64>,
     mode: SourceRecordMode,
-) -> Result<FieldServiceSourceRecordResponse, Error> {
+) -> Result<PreparedFieldSourceRecord, Error> {
     let SourceRecordContext {
         actor,
         holding,
@@ -184,7 +240,8 @@ pub(crate) async fn read<C: Clock>(
         return Err(missing().into());
     }
 
-    let mut purchase = None;
+    let mut purchases = shadow_purchases;
+    let mut owner_witnesses = None;
     if matches!(mode, SourceRecordMode::Enforced) {
         let p = PgCompanyPurchaseReader::new(holding.clone(), company.clone(), c, catalogue)
             .inspect(
@@ -197,7 +254,7 @@ pub(crate) async fn read<C: Clock>(
             )
             .await?;
         let history = p.require_allowed().is_ok();
-        purchase = Some(p.witness);
+        purchases.push(p.witness);
         if matches!(mode, SourceRecordMode::Enforced) {
             let g = f.agreement.as_ref().ok_or_else(missing)?;
             let customers=erpx_server_finance::public::field_service_workspace::read_service_workspace_customers(c,company,false,std::slice::from_ref(&g.customer_id)).await?;
@@ -266,14 +323,10 @@ pub(crate) async fn read<C: Clock>(
                 parts_history,
                 has_asset,
             })?;
-            customers.require_current(c).await?;
-            tickets.require_current(c).await?;
-            assets.require_current(c).await?;
             if let Some(p) = part_purchase {
-                PgCompanyPurchaseReader::new(holding.clone(), company.clone(), c, catalogue)
-                    .revalidate(&p, clock.now())
-                    .await?;
+                purchases.push(p);
             }
+            owner_witnesses = Some((customers, tickets, assets));
         }
     }
     check_version(f.version, expected)?;
@@ -285,23 +338,34 @@ pub(crate) async fn read<C: Clock>(
         version: f.version,
         title: f.title.clone(),
         status: f.status.clone(),
+        scheduled_at: f.scheduled_at,
+        visit_completed_at: f.visit_completed_at,
     };
-    row.require_current(c).await?;
-    if let Some(p) = purchase {
-        PgCompanyPurchaseReader::new(holding.clone(), company.clone(), c, catalogue)
-            .revalidate(&p, clock.now())
-            .await?;
-    }
-    for p in &shadow_purchases {
-        PgCompanyPurchaseReader::new(holding.clone(), company.clone(), c, catalogue)
-            .revalidate(p, clock.now())
-            .await?;
-    }
-    if clock.now().get() >= actor.expires_at() {
-        return Err(missing().into());
-    }
-    Ok(FieldServiceSourceRecordResponse {
-        data,
-        context: context(actor)?,
+    let (customers, ticket, assets) = match owner_witnesses {
+        Some((c, t, a)) => (Some(c), Some(t), Some(a)),
+        None => (None, None, None),
+    };
+    Ok(PreparedFieldSourceRecord {
+        response: FieldServiceSourceRecordResponse {
+            data,
+            context: context(actor)?,
+        },
+        source: row,
+        customers,
+        ticket,
+        assets,
+        purchases,
     })
+}
+
+pub(crate) async fn read<C: Clock>(
+    c: &mut PgConnection,
+    ctx: &SourceRecordContext<'_, C>,
+    id: &str,
+    expected: Option<f64>,
+    mode: SourceRecordMode,
+) -> Result<FieldServiceSourceRecordResponse, Error> {
+    let prepared = prepare(c, ctx, id, expected, mode).await?;
+    prepared.require_current(c, ctx).await?;
+    Ok(prepared.response)
 }

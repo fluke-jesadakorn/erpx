@@ -1,5 +1,5 @@
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
-import { sessionFromRequest } from "@erpx/server-identity_access/public/auth";
+import { sessionFromRequest } from "@erpx/server-identity_access/public/account-session";
 import { runtimeEnv } from "@erpx/server-manage_erpx/public/cloudflare";
 import { onboard, onboardingSchema, requireVerified, onboardingView } from "@erpx/server-manage_erpx/public/beta-onboarding";
 import { betaBody } from "@erpx/server-manage_erpx/public/beta-http";

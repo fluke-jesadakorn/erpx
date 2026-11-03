@@ -8,7 +8,8 @@
     "./field-service-parts": "./src/field-service-parts.ts",
     "./field-service-initial-count": "./src/field-service-initial-count.ts",
     "./field-service-attachment-intake": "./src/field-service-attachment-intake.ts",
-    "./field-service-files-routes": "./src/field-service-files-routes.ts"
+    "./field-service-files-routes": "./src/field-service-files-routes.ts",
+    "./holding-target": "./src/holding-target.ts"
   },
   "dependencies": {
     "@erpx/contracts": "workspace:*",

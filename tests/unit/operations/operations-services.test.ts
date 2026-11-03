@@ -111,3 +111,34 @@ describe('Handover publication exact recovery and retained newer drafts',()=>{
  test('restores only the same original context endpoint and validated immutable submitted audience and source versions',async()=>{const original=createHandoverPublishCommands(async()=>{throw Error('unknown');},()=>handoverPublishKey),attempt=original.prepare('/handover',handoverPublishInput,'context',3);await expect(original.execute(attempt,()=> 'context',()=>3)).rejects.toThrow('unknown');const stored=JSON.parse(JSON.stringify(attempt)),command=createHandoverPublishCommands();expect(command.restore(stored,'/other','context')).toBeNull();expect(command.restore(stored,'/handover','other-role')).toBeNull();expect(command.restore({...stored,body:JSON.stringify({...handoverPublishInput,recipientIds:[]})},'/handover','context')).toBeNull();expect(command.restore({...stored,key:'not-native-uuid'},'/handover','context')).toBeNull();expect(command.restore(stored,'/handover','context')).toEqual({attempt,input:handoverPublishInput});expect(command.pending()).toEqual(attempt);});
  test('rejects a partial source snapshot rather than replacing the current draft or licensing missing work',()=>{const view:HandoverView={date:'2026-10-16',ownerKey:'same-owner',items:[{id:'task',title:'Task',status:'ready',href:'/staff-tasks/task',updatedAt:1,kind:'pending',sourceVersion:3,planned:false,sourceKind:'staff_task'}],defaultIds:['task'],people:[{id:'receiver',name:'Receiver'}],unavailable:false,reason:null};expect(handoverViewMatches(view)).toBe(true);expect(handoverViewMatches({...view,defaultIds:['missing']})).toBe(false);expect(handoverViewMatches({...view,items:[{...view.items[0],sourceVersion:'3'}]})).toBe(false);expect(handoverViewMatches({...view,people:[{id:'receiver'}]})).toBe(false);});
 });
+
+import {matchesOperationsReceipt} from '@erpx/feature-operations/lib/operations-work-model';
+describe('original Operations acknowledgement identity',()=>{
+ test('new policy and exception acknowledgements bind to their original key',()=>{
+  expect(matchesOperationsReceipt('{"entity":"policy"}','original',{id:'queue-policy-original',version:1,status:'draft'})).toBe(true);
+  expect(matchesOperationsReceipt('{"entity":"exception"}','original',{id:'operations-exception-original',version:1,status:'open'})).toBe(true);
+  expect(matchesOperationsReceipt('{"entity":"exception"}','original',{id:'operations-exception-later',version:1,status:'open'})).toBe(false);
+ });
+ test('late reassignment acknowledgement uses the captured previous status',()=>{
+  const body=JSON.stringify({entity:'exception',id:'original',action:'assign',expectedVersion:4});
+  const receipt={id:'original',version:5,status:'in_progress'};
+  expect(matchesOperationsReceipt(body,'key',receipt,'awaiting_review')).toBe(true);
+  expect(matchesOperationsReceipt(body,'key',receipt,'closed')).toBe(false);
+  expect(matchesOperationsReceipt(body,'key',receipt)).toBe(false);
+  expect(matchesOperationsReceipt(body,'key',{...receipt,id:'another'},'awaiting_review')).toBe(false);
+ });
+ test('policy review and lifecycle bind their exact version and outcome',()=>{
+  for(const [entity,action,status] of [['policy','publish','published'],['policy','retire','retired'],['exception','resolve','awaiting_review'],['exception','approve','resolved']]){
+   const body=JSON.stringify({entity,id:'original',action,expectedVersion:2});
+   expect(matchesOperationsReceipt(body,'key',{id:'original',version:3,status})).toBe(true);
+   expect(matchesOperationsReceipt(body,'key',{id:'original',version:2,status})).toBe(false);
+   expect(matchesOperationsReceipt(body,'key',{id:'original',version:3,status:'open'})).toBe(false);
+  }
+ });
+});
+
+import {fieldOnlyPolicy} from '../../../packages/server-operations/src/domain/field-ownership';
+test('legacy policy partition excludes only Field-only policies and retains mixed consumers',()=>{
+ expect(fieldOnlyPolicy(['field_service_order'])).toBe(true);expect(fieldOnlyPolicy(['field_service_order','field_service_order'])).toBe(true);
+ for(const kinds of [[],['support_ticket'],['field_service_order','support_ticket'],['asset','field_service_order'],null,'field_service_order'])expect(fieldOnlyPolicy(kinds)).toBe(false);
+});

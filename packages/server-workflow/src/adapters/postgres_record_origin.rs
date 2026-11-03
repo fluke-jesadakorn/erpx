@@ -395,3 +395,170 @@ pub async fn verify_raw_record_origin(
     }
     Ok(())
 }
+
+/// Bounded discovery of the actual controlled receipt creation, not a source
+/// label supplied by a caller. The consuming command retains the returned proof.
+pub async fn read_finance_receipt_creation_origin(
+    c: &mut PgConnection,
+    company: &CompanyId,
+    id: &str,
+    creator: &str,
+) -> Result<Option<(PgRawRecordOrigin, CommandJson)>, Error> {
+    require_unit(c).await?;
+    let keys: Vec<String> = sqlx::query_scalar("SELECT command_id FROM command_receipts WHERE operation='finance.payment.create' AND record_id=$1 AND actor_id=$2 AND authority_json::jsonb->>'companyId'=$3 ORDER BY command_id LIMIT 2 FOR SHARE")
+        .bind(id).bind(creator).bind(company.as_str()).fetch_all(&mut *c).await?;
+    if keys.len() != 1 {
+        return Ok(None);
+    }
+    read_raw_record_origin_result_with_limit(
+        c,
+        RawRecordOriginRequest {
+            command_key: keys[0].clone(),
+            operation: "finance.payment.create".into(),
+            record_id: id.into(),
+            creator_user_id: creator.into(),
+            company_id: company.clone(),
+        },
+        2 * 1024 * 1024,
+    )
+    .await
+}
+
+/// Retained command-origin membership for the bank statements created for one
+/// controlled receipt. This is historical evidence, not settlement permission.
+pub struct CurrentServiceReceiptBankOrigins {
+    unit: (String, i32, String, String),
+    company: CompanyId,
+    payment: String,
+    members: Vec<(String, String, String)>,
+    origins: Vec<PgRawRecordOrigin>,
+}
+async fn service_bank_unit(c: &mut PgConnection) -> Result<(String, i32, String, String), Error> {
+    require_unit(c).await?;
+    Ok(sqlx::query_as("SELECT current_database(),pg_backend_pid(),pg_current_xact_id()::text,pg_postmaster_start_time()::text").fetch_one(c).await?)
+}
+async fn service_bank_members(
+    c: &mut PgConnection,
+    company: &CompanyId,
+    payment: &str,
+) -> Result<Vec<(String, String, String)>, Error> {
+    let rows=sqlx::query_as("SELECT command_id,record_id,actor_id FROM command_receipts WHERE operation='finance.bank.import' AND authority_json::jsonb->>'companyId'=$1 AND result_json::jsonb->>'settlementPaymentId'=$2 AND result_json::jsonb->>'id'=record_id ORDER BY command_id LIMIT 10001 FOR SHARE").bind(company.as_str()).bind(payment).fetch_all(c).await?;
+    if rows.len() > 10000 {
+        return Err(PersistenceError::new("SERVICE_BANK_ORIGINS_LIMIT").into());
+    }
+    Ok(rows)
+}
+impl CurrentServiceReceiptBankOrigins {
+    pub fn statement_ids(&self) -> Vec<String> {
+        self.members.iter().map(|v| v.1.clone()).collect()
+    }
+    pub async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
+        if service_bank_unit(c).await? != self.unit
+            || service_bank_members(c, &self.company, &self.payment).await? != self.members
+        {
+            return Err(BusinessError::new(
+                FailureKind::Conflict,
+                "SERVICE_PAYMENT_SOURCE_CHANGED",
+                "The controlled receipt bank evidence changed.",
+            )
+            .into());
+        }
+        for origin in &self.origins {
+            verify_raw_record_origin(c, origin).await?;
+        }
+        Ok(())
+    }
+}
+pub async fn read_service_receipt_bank_origins(
+    c: &mut PgConnection,
+    company: &CompanyId,
+    payment: &str,
+) -> Result<CurrentServiceReceiptBankOrigins, Error> {
+    let unit = service_bank_unit(c).await?;
+    let members = service_bank_members(c, company, payment).await?;
+    let mut origins = Vec::with_capacity(members.len());
+    for (key, id, creator) in &members {
+        let (origin, result) = read_raw_record_origin_result_with_limit(
+            c,
+            RawRecordOriginRequest {
+                command_key: key.clone(),
+                operation: "finance.bank.import".into(),
+                record_id: id.clone(),
+                creator_user_id: creator.clone(),
+                company_id: company.clone(),
+            },
+            2 * 1024 * 1024,
+        )
+        .await?
+        .ok_or_else(|| {
+            BusinessError::new(
+                FailureKind::Conflict,
+                "SERVICE_PAYMENT_SOURCE_CHANGED",
+                "The controlled receipt bank evidence changed.",
+            )
+        })?;
+        let expected = payment.encode_utf16().collect::<Vec<_>>();
+        if result
+            .property("settlementPaymentId")?
+            .and_then(|v| v.string_utf16_units().ok().flatten())
+            .as_deref()
+            != Some(expected.as_slice())
+        {
+            return Err(BusinessError::new(
+                FailureKind::Conflict,
+                "SERVICE_PAYMENT_SOURCE_CHANGED",
+                "The controlled receipt bank evidence changed.",
+            )
+            .into());
+        }
+        origins.push(origin);
+    }
+    let source = CurrentServiceReceiptBankOrigins {
+        unit,
+        company: company.clone(),
+        payment: payment.into(),
+        members,
+        origins,
+    };
+    source.require_current(c).await?;
+    Ok(source)
+}
+
+/// A missing origin and a corrupt/ambiguous origin are distinct routing facts.
+/// The latter may never authorize a legacy transport fallback.
+pub async fn observe_finance_payment_creation_origin(
+    c: &mut PgConnection,
+    company: &CompanyId,
+    id: &str,
+    creator: &str,
+) -> Result<Option<(PgRawRecordOrigin, CommandJson)>, Error> {
+    require_unit(c).await?;
+    let keys:Vec<String>=sqlx::query_scalar("SELECT command_id FROM command_receipts WHERE operation='finance.payment.create' AND record_id=$1 AND actor_id=$2 AND authority_json::jsonb->>'companyId'=$3 ORDER BY command_id LIMIT 2 FOR SHARE").bind(id).bind(creator).bind(company.as_str()).fetch_all(&mut *c).await?;
+    if keys.is_empty() {
+        return Ok(None);
+    }
+    let invalid = || {
+        BusinessError::new(
+            FailureKind::Conflict,
+            "SERVICE_PAYMENT_SOURCE_CHANGED",
+            "The controlled payment creation origin is ambiguous or changed.",
+        )
+    };
+    if keys.len() != 1 {
+        return Err(invalid().into());
+    }
+    let source = read_raw_record_origin_result_with_limit(
+        c,
+        RawRecordOriginRequest {
+            command_key: keys[0].clone(),
+            operation: "finance.payment.create".into(),
+            record_id: id.into(),
+            creator_user_id: creator.into(),
+            company_id: company.clone(),
+        },
+        2 * 1024 * 1024,
+    )
+    .await?
+    .ok_or_else(invalid)?;
+    Ok(Some(source))
+}

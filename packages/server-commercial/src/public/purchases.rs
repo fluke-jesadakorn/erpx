@@ -9,6 +9,7 @@ pub use crate::application::grant_batches::{
     BatchChange, BatchReceipt, GrantBatch, GrantBatchPreview, NormalizedGrantBatch,
     PackageBatchUnit, apply_package_batch, grant_batch_digest, normalize_grant_batch,
     package_grant_revision, preview_package_batch, prospective_package_grants,
+    normalize_lifecycle_batch,
 };
 pub use crate::application::grant_commands::{
     GrantChange, GrantPreview, GrantReceipt, PackageGrantUnit, apply_package_grant,

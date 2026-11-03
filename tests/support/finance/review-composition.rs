@@ -104,6 +104,10 @@ pub async fn setup(system: System) -> Prepared {
 pub async fn setup_with_finance(system: System, finance: bool) -> Prepared {
     setup_with_references(system, finance, true, 3_600_000).await
 }
+/// Service's first customer has no Finance purchase, ledger or FX prerequisite.
+pub async fn setup_service_customer_without_finance_references(system: System) -> Prepared {
+    setup_with_references(system, false, false, 3_600_000).await
+}
 pub async fn setup_without_finance_references(system: System) -> Prepared {
     setup_with_references(system, true, false, 3_600_000).await
 }

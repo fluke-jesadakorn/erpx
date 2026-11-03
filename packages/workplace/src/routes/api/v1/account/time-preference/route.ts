@@ -1,5 +1,5 @@
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
-import {sessionFromRequest} from '@erpx/server-identity_access/public/auth';
+import {sessionFromRequest} from '@erpx/server-identity_access/public/account-session';
 import {accountTimePreference, changeAccountTimePreference} from '@erpx/server-identity_access/public/account-time-preference';
 import {ApiError, errorResponse} from '@erpx/server-runtime/public/http';
 import {requestPublicOrigin} from '@erpx/server-manage_erpx/public/public-origin';

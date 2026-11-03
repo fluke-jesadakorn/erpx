@@ -16,6 +16,17 @@ use erpx_server_field_service::public::reservation_read::{
 use erpx_server_field_service::public::visit::FieldServiceBillingRelease;
 use erpx_server_field_service::public::work::FieldServiceWorkItem;
 use erpx_server_finance::public::field_service_agreement_money::AgreementMoneyEvidence;
+use erpx_server_finance::public::{
+    ServiceCustomerInput, ServiceCustomerParty, ServiceCustomerResult,
+    field_service_customer::{ServiceCustomerCurrency, ServiceCustomerReference},
+};
+use erpx_server_identity_access::public::account_companies::AccountCompanyChoice;
+use erpx_server_identity_access::public::account_work_roles::{
+    AccountWorkSelection, AccountWorkspaceChoice,
+};
+use erpx_server_work_projection::public::account_workspace_preferences::{
+    AccountCompanyPreference, AccountWorkspacePreference,
+};
 use erpx_service::field_service_detail::{
     FieldServiceDetailSpares, FieldServiceOrderDetail, FieldServiceOrderDetailResponse,
 };
@@ -32,6 +43,15 @@ use erpx_service::field_service_source_record::{
 use erpx_service::field_service_workspace::{
     FieldServiceWorkResponse, FieldServiceWorkspace, FieldServiceWorkspaceResponse,
     FieldServiceWorkspaceScope,
+};
+use erpx_service::native_account_preferences::NativeAccountPreferences;
+use erpx_service::native_work_roles::{
+    NativeAccountCompanies, NativeIamPresentation, NativeWorkPresentation, NativeWorkRoleOption,
+    NativeWorkRoleState,
+};
+use erpx_service::service_customer_preparation::{
+    ServiceCustomerConfirmation, ServiceCustomerConfirmationResponse,
+    ServiceCustomerCreateResponse, ServiceCustomerPreparation, ServiceCustomerReadResponse,
 };
 use erpx_service::service_parts_posting_setup::{
     ServicePostingCommandResponse, ServicePostingReadResponse, ServicePostingResult,
@@ -130,9 +150,21 @@ const _: fn() = parts_stock_products;
 #[utoipa::path(post,path="/api/v1/holdings/{holding_slug}/field-service/parts-setup/masters/warehouses",params(("holding_slug"=String,Path)),request_body=ServiceStockWarehouseInput,responses((status=200,body=ServiceStockMasterResponse,description="Original scoped warehouse command receipt")))]
 fn parts_stock_warehouses() {}
 const _: fn() = parts_stock_warehouses;
+#[utoipa::path(get,path="/api/v1/holdings/{holding_slug}/field-service/customer-preparation",params(("holding_slug"=String,Path)),responses((status=200,body=ServiceCustomerReadResponse,description="Current Company Service customer preparation")))]
+fn customer_read() {}
+const _: fn() = customer_read;
+#[utoipa::path(post,path="/api/v1/holdings/{holding_slug}/field-service/customer-preparation",params(("holding_slug"=String,Path)),request_body=ServiceCustomerInput,responses((status=201,body=ServiceCustomerCreateResponse,description="Immutable original customer creation receipt")))]
+fn customer_create() {}
+const _: fn() = customer_create;
+#[utoipa::path(post,path="/api/v1/holdings/{holding_slug}/field-service/customer-preparation/confirmations",params(("holding_slug"=String,Path)),request_body=ServiceCustomerInput,responses((status=200,body=ServiceCustomerConfirmationResponse,description="Current customer status for the exact original request")))]
+fn customer_confirm() {}
+const _: fn() = customer_confirm;
 #[derive(utoipa::OpenApi)]
 #[openapi(
     paths(
+        customer_read,
+        customer_create,
+        customer_confirm,
         parts_stock_read,
         parts_stock_products,
         parts_stock_warehouses,
@@ -159,6 +191,27 @@ const _: fn() = parts_stock_warehouses;
         agreement_create_read
     ),
     components(schemas(
+        NativeAccountPreferences,
+        AccountWorkspacePreference,
+        AccountCompanyPreference,
+        NativeAccountCompanies,
+        AccountCompanyChoice,
+        NativeWorkRoleState,
+        NativeWorkPresentation,
+        NativeIamPresentation,
+        AccountWorkspaceChoice,
+        NativeWorkRoleOption,
+        AccountWorkSelection,
+        ServiceCustomerInput,
+        ServiceCustomerParty,
+        ServiceCustomerResult,
+        ServiceCustomerCurrency,
+        ServiceCustomerReference,
+        ServiceCustomerPreparation,
+        ServiceCustomerReadResponse,
+        ServiceCustomerConfirmation,
+        ServiceCustomerCreateResponse,
+        ServiceCustomerConfirmationResponse,
         ServiceStockWorkspace,
         ServiceStockBranch,
         ServiceStockReadResponse,
@@ -256,6 +309,14 @@ fn main() {
         let mut document = Document::openapi();
         document.info.title = "ERPX native Field Service reservation".into();
         let mut value = serde_json::to_value(document).unwrap();
+        value["components"]["schemas"]["ServiceCustomerParty"]["properties"]["kind"] =
+            serde_json::json!({"type":"string","const":"customer"});
+        value["components"]["schemas"]["ServiceCustomerInput"]["properties"]["expectedVersion"] =
+            serde_json::json!({"type":"integer","const":0});
+        value["components"]["schemas"]["ServiceCustomerConfirmation"]["properties"]["kind"] =
+            serde_json::json!({"type":"string","const":"customer"});
+        value["components"]["schemas"]["ServiceCustomerConfirmation"]["properties"]["status"] =
+            serde_json::json!({"type":"string","enum":["active","blocked"]});
         value["components"]["schemas"]["FieldServiceRequestInput"]["properties"]["entity"] =
             serde_json::json!({"type":"string","const":"request"});
         value["components"]["schemas"]["FieldServiceReserveInput"]["properties"]["action"] =
@@ -273,6 +334,27 @@ fn main() {
         "// Generated from the Rust Field Service reservation contracts. Do not edit by hand.\n// Regenerate: bun scripts/docs/generate-field-service-reserve-contracts.ts"
     );
     for declaration in [
+        NativeAccountPreferences::decl(&config),
+        AccountWorkspacePreference::decl(&config),
+        AccountCompanyPreference::decl(&config),
+        NativeAccountCompanies::decl(&config),
+        AccountCompanyChoice::decl(&config),
+        NativeWorkRoleState::decl(&config),
+        NativeWorkPresentation::decl(&config),
+        NativeIamPresentation::decl(&config),
+        AccountWorkspaceChoice::decl(&config),
+        NativeWorkRoleOption::decl(&config),
+        AccountWorkSelection::decl(&config),
+        ServiceCustomerInput::decl(&config),
+        ServiceCustomerParty::decl(&config),
+        ServiceCustomerResult::decl(&config),
+        ServiceCustomerCurrency::decl(&config),
+        ServiceCustomerReference::decl(&config),
+        ServiceCustomerPreparation::decl(&config),
+        ServiceCustomerReadResponse::decl(&config),
+        ServiceCustomerConfirmation::decl(&config),
+        ServiceCustomerCreateResponse::decl(&config),
+        ServiceCustomerConfirmationResponse::decl(&config),
         ServiceStockWorkspace::decl(&config),
         ServiceStockBranch::decl(&config),
         ServiceStockReadResponse::decl(&config),

@@ -24,6 +24,9 @@ async fn setup(pool: &DatabasePool) -> Arc<AccountAuthentication> {
     migrate_database(pool, MigrationTrack::Control, &files)
         .await
         .unwrap();
+    for h in fixture::holding_registry().configured() {
+        sqlx::query("INSERT INTO holding_bindings(holding_id,slug,display_name,write_binding,read_binding,files_binding)VALUES($1,$2,$2,$3,$4,$5)").bind(h.holding_id.as_str()).bind(&h.slug).bind(&h.write_binding).bind(&h.read_binding).bind(&h.files_binding).execute(pool.raw()).await.unwrap();
+    }
     let passwords = Arc::new(Argon2Passwords::new(2).unwrap());
     let hash = passwords
         .hash(Password::new_credential("synthetic-fixture-password".into()).unwrap())
@@ -266,7 +269,10 @@ async fn stale_parallel_device_commands_have_one_winner_on_a_single_connection_p
 async fn host_bound_children_require_current_parent_selection_and_active_principal() {
     database::with_database(2,|pool|async move{
   let service=setup(&pool).await;let signed=service.sign_in("a@example.test","synthetic-fixture-password".into(),&fixture::empty(),None).await.unwrap();let parent=signed.result.session.clone();let proof=remember(None,signed);let child=holding_proof(child(&pool,&parent,"guard").await);
-  assert!(service.session(&child,holding()).await.unwrap().is_some());assert!(service.session(&child,RequestAudience::Holding{audience:"holding:development:h002:foreign.example.test".into()}).await.unwrap().is_none());assert!(service.session(&child,RequestAudience::Account).await.unwrap().is_none());
+  assert!(service.session(&child,holding()).await.unwrap().is_some());// A registered foreign Holding rejects the child; an unregistered
+  // authority now has the explicit native registry NotFound contract.
+  assert!(service.session(&child,RequestAudience::Holding{audience:"holding:development:h002:northstar.example.test".into()}).await.unwrap().is_none());
+  fixture::assert_error(service.session(&child,RequestAudience::Holding{audience:"holding:development:h002:foreign.example.test".into()}).await,"HOLDING_BINDING_UNAVAILABLE");assert!(service.session(&child,RequestAudience::Account).await.unwrap().is_none());
   sqlx::query("INSERT INTO principals(id,user_id,display_name,status,created_at) VALUES('p-a','fixture-a','Synthetic A','suspended',$1)").bind(fixture::NOW).execute(pool.raw()).await.unwrap();assert!(service.session(&proof,RequestAudience::Account).await.unwrap().is_none());assert!(service.session(&child,holding()).await.unwrap().is_none());
   sqlx::query("UPDATE principals SET status='active' WHERE id='p-a'").execute(pool.raw()).await.unwrap();sqlx::query("UPDATE sso_session_bindings SET authenticated_at=$1 WHERE session_id=$2").bind(fixture::NOW+1).bind(&parent.id).execute(pool.raw()).await.unwrap();assert!(service.session(&proof,RequestAudience::Account).await.unwrap().is_none());
  }).await;

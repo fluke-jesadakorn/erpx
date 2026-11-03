@@ -674,3 +674,19 @@ it('retains distinct private contributor action keys and rejects corruption or l
  const {mkdtempSync,readFileSync,writeFileSync,chmodSync,unlinkSync,symlinkSync,rmSync}=await import('node:fs');const {tmpdir}=await import('node:os');const {join}=await import('node:path');const {prepareContributorActionKeys,readContributorActionKey}=await import('../../../scripts/local/contributor-action-keys');const root=mkdtempSync(join(tmpdir(),'erpx-action-keys-'));const uid=process.getuid!();
  try{prepareContributorActionKeys(root,uid);const before=['account','apps','service'].map(id=>readFileSync(join(root,`next-actions-${id}.key`),'utf8'));expect(new Set(before).size).toBe(3);prepareContributorActionKeys(root,uid);expect(['account','apps','service'].map(id=>readFileSync(join(root,`next-actions-${id}.key`),'utf8'))).toEqual(before);const file=join(root,'next-actions-service.key');chmodSync(file,0o644);expect(()=>readContributorActionKey(root,'service',uid)).toThrow('CONTRIBUTOR_ACTION_KEY_INVALID');chmodSync(file,0o600);writeFileSync(file,'invalid');expect(()=>readContributorActionKey(root,'service',uid)).toThrow('CONTRIBUTOR_ACTION_KEY_INVALID');unlinkSync(file);symlinkSync(join(root,'next-actions-account.key'),file);expect(()=>readContributorActionKey(root,'service',uid)).toThrow('CONTRIBUTOR_ACTION_KEY_INVALID');}finally{rmSync(root,{recursive:true,force:true});}
 });
+
+it('keeps full test-import validation strict while deriving an independent runtime build graph',()=>{
+ const files=sources();
+ files.set('packages/feature-example/package.json',JSON.stringify({exports:{'./client':'./src/client.tsx'}}));
+ files.set('packages/feature-example/src/client.tsx','export const Panel=()=>null;');
+ files.set('apps/finance/src/app/page.tsx','import "@erpx/feature-example/client";');
+ files.set('tests/integration/example/retired.test.ts','import "@erpx/feature-example/retired";');
+ expect(()=>createWorkspaceGraph(files)).toThrow('WORKSPACE_EXPORT_UNDECLARED');
+ const graph=createWorkspaceGraph(files,undefined,{runtimeOnly:true});
+ expect(graph.files.get('tests/integration/example/retired.test.ts')).toContain('retired');
+ expect(graph.apps.get('finance')).toContain('packages/feature-example/src/client.tsx');
+ files.set('apps/finance/src/app/page.tsx','import "../../../../tests/integration/example/retired.test";');
+ expect(()=>createWorkspaceGraph(files,undefined,{runtimeOnly:true})).toThrow('WORKSPACE_RUNTIME_TEST_IMPORT_FORBIDDEN');
+ files.set('apps/finance/src/app/page.tsx','import "@erpx/feature-example/retired";');
+ expect(()=>createWorkspaceGraph(files,undefined,{runtimeOnly:true})).toThrow('WORKSPACE_EXPORT_UNDECLARED');
+});

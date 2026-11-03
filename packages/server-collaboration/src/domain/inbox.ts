@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import type { SourceRecordReference } from "@erpx/feature-records/lib/source-record";
-export type InboxCategory = "work" | "calendar" | "mention" | "notice" | "system";
+import type {InboxCategory,InboxItem} from '@erpx/contracts/inbox';
+export type {InboxCategory,InboxItem} from '@erpx/contracts/inbox';
 export type InboxEventInput = {
     key: string;
     companyId: string;
@@ -13,20 +13,9 @@ export type InboxEventInput = {
     recipientIds: string[];
     createdAt?: number;
 };
-export type InboxItem = {
-    id: string;
-    eventId: string;
-    category: InboxCategory;
-    message: string;
-    href: string | null;
-    createdAt: number;
-    readAt: number | null;
-    archivedAt: number | null;
-    sourceType: string;
-    sourceId: string;
-    source?: SourceRecordReference;
-};
 export type Candidate = {
+    /** Native read model only; legacy database candidates never supply it. */
+    native_field_item?: InboxItem | null;
     id: string;
     event_id: string;
     company_id: string;

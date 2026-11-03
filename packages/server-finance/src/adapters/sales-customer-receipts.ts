@@ -40,6 +40,12 @@ async function owned<Result>(actor:WorkContext,id:string,issue:{key:string}|unde
  try{return await owner.transaction(async database=>{
   await database.batch([...financeSourceDocumentReadLeases(database,actor.companyId,true,'supplier-correction'),database.prepare('LOCK TABLE finance_customer_receipts,finance_periods IN SHARE ROW EXCLUSIVE MODE')]);
   await lockQueuedCommandAuthority(database);await lockScheduledFeatureSources(database);await database.batch(companyPurchaseReadLocks(database,actor.companyId).slice(1));
+  // Non-Field receipt readers/manual issuers remain until their owners move.
+  // Native confirmation alone issues Field copies; internal TS callers cannot
+  // read or issue them by bypassing the HTTP source selector.
+  const native=await database.prepare(`SELECT EXISTS(SELECT 1 FROM finance_customer_receipts r WHERE r.company_id=? AND r.${issue?'payment_id':'id'}=? AND erpx_finance_field_payment_owned(r.payment_id))
+    OR (? AND EXISTS(SELECT 1 FROM finance_payments p WHERE p.company_id=? AND p.id=? AND erpx_finance_field_payment_owned(p.id))) native`).bind(actor.companyId,id,!!issue,actor.companyId,id).first<{native:boolean}>();
+  if(native?.native)throw new ApiError(503,'NATIVE_FINANCE_RECEIPT_REQUIRED','Use the native Field receipt interface. Native confirmation retains its issued copy.');
   // Preserve the original read-only record-scope 404 before checking a stale
   // selected assignment. Values remain private until all final guards pass.
   // These two readers have no audit, storage IO or mutation effects.

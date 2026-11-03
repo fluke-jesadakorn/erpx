@@ -19,3 +19,26 @@ export function fieldFilesRoute(slug:string,route:FieldFilesRoute):{method:'GET'
   case 'content':if(route.variant!=='original' && route.variant!=='preview')throw Error('NATIVE_FIELD_FILES_ROUTE_INVALID');return {method:'GET',path:`${base}/attachment-links/${id(route.linkId)}/content?variant=${route.variant}`};
  }
 }
+
+export type FinancePaymentFilesRoute=FieldFilesRoute|{kind:'withdraw';linkId:string};
+/** Separate finite compiled owner namespace; the server still proves lineage. */
+export function financePaymentFilesRoute(slug:string,route:FinancePaymentFilesRoute):{method:'GET'|'POST'|'PUT';path:string}{
+ if(route.kind==='withdraw'){
+  if(!/^[a-z0-9_-]{1,128}$/.test(slug))throw Error('NATIVE_FIELD_FILES_ROUTE_INVALID');
+  return {method:'POST',path:`/api/v1/holdings/${encodeURIComponent(slug)}/finance/payment-files/attachment-links/${id(route.linkId)}/withdraw`};
+ }
+ const target=fieldFilesRoute(slug,route);
+ return {...target,path:target.path.replace('/field-service/','/finance/payment-files/')};
+}
+
+export type FinanceJournalFilesRoute=FinancePaymentFilesRoute|{kind:'bind';setId:string};
+/** Supporting evidence uses the same compiled Files protocol and a Finance-owned
+ * metadata CAS; payment proof deliberately has no standalone bind route. */
+export function financeJournalFilesRoute(slug:string,route:FinanceJournalFilesRoute):{method:'GET'|'POST'|'PUT';path:string}{
+ if(route.kind==='bind'){
+  if(!/^[a-z0-9_-]{1,128}$/.test(slug))throw Error('NATIVE_FIELD_FILES_ROUTE_INVALID');
+  return {method:'POST',path:`/api/v1/holdings/${encodeURIComponent(slug)}/finance/journal-files/attachment-sets/${id(route.setId)}/bind`};
+ }
+ const target=financePaymentFilesRoute(slug,route);
+ return {...target,path:target.path.replace('/finance/payment-files/','/finance/journal-files/')};
+}

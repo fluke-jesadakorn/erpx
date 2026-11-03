@@ -1,5 +1,5 @@
 "use client";
-import {deviceAccountReturn} from "@erpx/server-identity_access/public/rules/device-account-return";
+import {deviceAccountReturn} from "@erpx/feature-identity_access/lib/device-account-return";
 import { useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { authClient } from "@erpx/feature-identity_access/lib/auth-client";

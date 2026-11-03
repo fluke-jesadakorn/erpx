@@ -3,7 +3,7 @@ import {holdingFetch} from '@erpx/contracts/holding-fetch';
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button, Field, TextArea, TextInput, Select, Stack, Panel, InlineNotice, Badge } from "@erpx/ui/components/foundation";
 import {useProviderContext} from '@erpx/feature-identity_access/components/provider-context-boundary';
-import {providerLegacyPackageReview,captureProviderLegacyPackageCommand,acknowledgeProviderPackageCommand,type ProviderLegacyPackageReview,type ProviderPackageCapture} from '@erpx/server-commercial/public/rules/provider-package-command';
+import {providerLegacyPackageReview,captureProviderLegacyPackageCommand,acknowledgeProviderPackageCommand,type ProviderLegacyPackageReview,type ProviderPackageCapture} from '@erpx/feature-commercial/provider-package-command';
 import { contextGeneration, contextIsSwitching, registerUnsavedWork } from "@erpx/feature-work_projection/lib/context-switch";
 import styles from "@erpx/feature-commercial/components/legacy-grant-review.module.css";
 import {Dialog} from "@erpx/ui/components/dialog";

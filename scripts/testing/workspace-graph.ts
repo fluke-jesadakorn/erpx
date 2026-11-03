@@ -65,7 +65,7 @@ function workspaceSourceInventory(root:string){
   return {roots,paths:candidates.filter(file=>workspacePath(file,roots)&&(!lstatSync(resolve(root,file)).isSymbolicLink()||appResource.test(file)||declaredCargoResource(file,roots))).sort()};
 }
 export function workspaceSourcePaths(root = repositoryRoot): string[] {return workspaceSourceInventory(root).paths;}
-export function createWorkspaceGraph(files: Map<string, string>, parseSource: (file:string,source:string)=>WorkspaceSource = parseWorkspaceSource, options:{excludeStyleSources?:boolean}={}): WorkspaceGraph {
+export function createWorkspaceGraph(files: Map<string, string>, parseSource: (file:string,source:string)=>WorkspaceSource = parseWorkspaceSource, options:{excludeStyleSources?:boolean;runtimeOnly?:boolean}={}): WorkspaceGraph {
   files = new Map(files);
   const names = new Set(files.keys()), imports = new Map<string, Set<string>>(), reverse = new Map<string, Set<string>>();
   const parsed=new Map<string,WorkspaceSource>();
@@ -93,7 +93,7 @@ export function createWorkspaceGraph(files: Map<string, string>, parseSource: (f
   for (const [file, text] of [...files]) {
     const dependencies = new Set<string>();
     const reads=new Set<string>();resources.set(file,reads);
-    const syntax=/\.[cm]?[jt]sx?$/.test(file)?parseSource(file,text):undefined;
+    const syntax=/\.[cm]?[jt]sx?$/.test(file)&&!(options.runtimeOnly&&file.startsWith('tests/'))?parseSource(file,text):undefined;
     if(syntax)parsed.set(file,syntax);
     const styleImports = file.endsWith('.css') ? [...text.matchAll(/@(?:import|reference)\s+["']([^"']+)["']/g)].map(match => match[1]) : [];
     for (const specifier of syntax ? syntax.modules.map(item=>item.specifier) : styleImports) {
@@ -156,6 +156,7 @@ export function createWorkspaceGraph(files: Map<string, string>, parseSource: (f
     imports.set(file, existing);
   }
   const runtimeImports = new Map<string, Set<string>>();
+  const executableImports = new Map<string, Set<string>>();
   for (const [file, dependencies] of imports) {
     if (isCargoInput(file)) { runtimeImports.set(file, new Set()); continue; }
     const runtime = new Set(dependencies);
@@ -167,9 +168,17 @@ export function createWorkspaceGraph(files: Map<string, string>, parseSource: (f
         if(specifier.startsWith('@erpx/')){const [,owner,...subpath]=specifier.split('/'),exported=manifests.get(owner)?.exports?.[subpath.length?`./${subpath.join('/')}`:'.'];if(typeof exported==='string')target=`packages/${owner}/${exported.slice(2)}`;}
         if(target)executable.set(target,executable.get(target)===true||value);
       }
+      executableImports.set(file,new Set([...executable].filter(([,value])=>value).map(([target])=>target)));
       for(const [target,value]of executable)if(!value&&!resources.get(file)?.has(target))runtime.delete(target);
     }
     runtimeImports.set(file, runtime);
+  }
+  if(options.runtimeOnly){
+    // Compile/style derivation does not validate independent test entrypoints.
+    // Their source bytes and Cargo verification edges remain fingerprinted;
+    // a product importing test code still fails instead of hiding its imports.
+    const entries=[...names].filter(file=>/^apps\/[^/]+\/src\//.test(file));
+    for(const file of dependencyClosure({imports:executableImports},entries))if(file.startsWith('tests/'))throw new Error(`WORKSPACE_RUNTIME_TEST_IMPORT_FORBIDDEN:${file}`);
   }
   const graph: WorkspaceGraph = { files, imports, runtimeImports, reverse, appDirectories, apps: new Map() };
   for (const app of appDefinitions) {
@@ -179,16 +188,16 @@ export function createWorkspaceGraph(files: Map<string, string>, parseSource: (f
   }
   return graph;
 }
-function graphWithSourceCache(files:Map<string,string>,root:string,cacheRoot=root,excludeStyleSources=false):WorkspaceGraph{
+function graphWithSourceCache(files:Map<string,string>,root:string,cacheRoot=root,excludeStyleSources=false,runtimeOnly=false):WorkspaceGraph{
   const cache=workspaceSourceCache(root,cacheRoot);
-  try{const graph=createWorkspaceGraph(files,cache.parse,{excludeStyleSources});cache.flush();graph.sourceCache={...cache.stats};return graph;}catch(error){cache.flush();throw error;}
+  try{const graph=createWorkspaceGraph(files,cache.parse,{excludeStyleSources,runtimeOnly});cache.flush();graph.sourceCache={...cache.stats};return graph;}catch(error){cache.flush();throw error;}
 }
-export function loadWorkspaceGraph(root = repositoryRoot, options:{cacheRoot?:string;excludeStyleSources?:boolean}={}): WorkspaceGraph {
+export function loadWorkspaceGraph(root = repositoryRoot, options:{cacheRoot?:string;excludeStyleSources?:boolean;runtimeOnly?:boolean}={}): WorkspaceGraph {
   const inventory=workspaceSourceInventory(root);
   const graph = graphWithSourceCache(new Map(inventory.paths.map(file => {
     const path = resolve(root, file), symlink = lstatSync(path).isSymbolicLink();
     return [file, graphContent(file, symlink ? Buffer.from(readlinkSync(path)) : readFileSync(path), symlink,!workspacePath(file)&&declaredCargoResource(file,inventory.roots))];
-  })),root,options.cacheRoot,options.excludeStyleSources);
+  })),root,options.cacheRoot,options.excludeStyleSources,options.runtimeOnly);
   graph.retirementPresence=workingRetirementPresence(root);
   return graph;
 }

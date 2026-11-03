@@ -133,3 +133,15 @@ async fn assignment_cardinality_fences_concurrent_and_later_inserts() {
   let count:i64=sqlx::query_scalar("SELECT count(*) FROM flow_events WHERE command_id='multi'").fetch_one(pool.raw()).await.unwrap();assert_eq!(count,2);
  }).await;
 }
+
+#[tokio::test]
+async fn conflicting_projection_receipt_cannot_be_acknowledged_as_idempotent_replay(){
+ fixture::with_database(2,|read|async move{
+  let root=Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");let files=load_migrations(&root,MigrationTrack::HoldingRead).await.unwrap();migrate_database(&read,MigrationTrack::HoldingRead,&files).await.unwrap();
+  sqlx::query("INSERT INTO projection_receipts(event_id,aggregate_id,aggregate_version,applied_at)VALUES('event','other',99,1)").execute(read.raw()).await.unwrap();
+  let event=ServiceCountEvent{id:"event".into(),aggregate_id:"actual".into(),aggregate_version:2,attempts:1,lease_token:"lease".into()};
+  let mut tx=read.raw().begin().await.unwrap();assert!(project(&mut tx,&event,2).await.is_err());tx.rollback().await.unwrap();
+  let row:(String,i64)=sqlx::query_as("SELECT aggregate_id,aggregate_version FROM projection_receipts WHERE event_id='event'").fetch_one(read.raw()).await.unwrap();assert_eq!(row,("other".into(),99));
+  let checkpoints:i64=sqlx::query_scalar("SELECT count(*) FROM projection_checkpoints").fetch_one(read.raw()).await.unwrap();assert_eq!(checkpoints,0);
+ }).await;
+}

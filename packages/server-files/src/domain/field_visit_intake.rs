@@ -1,6 +1,55 @@
 //! Pure policy for native Field visit attachment sets.
 use erpx_server_shared::public::{BusinessError, FailureKind};
 
+/// Files supports finite Field-required owner contexts. Selection belongs
+/// to trusted composition authority, never to a request flag.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum IntakeOwner {
+    FieldVisit,
+    FinancePayment,
+    FieldJournal,
+}
+impl IntakeOwner {
+    pub fn target_type(self) -> &'static str {
+        match self {
+            Self::FieldVisit => "field_service_visit",
+            Self::FinancePayment => "finance_payment",
+            Self::FieldJournal => "finance_journal",
+        }
+    }
+    pub fn max_files(self)->i64{if self==Self::FieldJournal{50}else{10}}
+    pub fn supports(self, target: &str, component: &str, purpose: &str) -> bool {
+        match self {
+            Self::FieldVisit => {
+                super::field_visit_link::valid_field_purpose(target, component, purpose)
+            }
+            Self::FinancePayment => {
+                target == "finance_payment" && component == "action" && purpose == "payment_proof"
+            }
+            Self::FieldJournal => target=="finance_journal"&&component=="record"&&purpose=="journal_support",
+        }
+    }
+}
+pub fn owner_classification(
+    owner: IntakeOwner,
+    target: &str,
+    component: &str,
+    purpose: &str,
+) -> Result<&'static str, BusinessError> {
+    if owner == IntakeOwner::FieldVisit {
+        return classification(target, component, purpose);
+    }
+    if owner.supports(target, component, purpose) {
+        Ok("confidential")
+    } else {
+        Err(BusinessError::new(
+            FailureKind::InvalidInput,
+            "ATTACHMENT_POLICY_UNKNOWN",
+            "This file purpose is not registered for the selected record and context.",
+        ))
+    }
+}
+
 #[derive(Clone, Debug, serde::Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct FieldSetRequest {

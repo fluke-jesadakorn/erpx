@@ -2,8 +2,8 @@
 use super::*;
 use crate::{
     field_attachment_intake_http::{
-        FieldIntakeProviderReadiness,
-        FieldIntakeProviderStatus, FieldIntakeTarget, field_intake_router,
+        FieldIntakeProviderReadiness, FieldIntakeProviderStatus, FieldIntakeTarget,
+        field_intake_router,
     },
     field_files_runtime_configuration::parse_field_files_runtime_configuration,
     field_upload_http::{FieldUploadTarget, field_upload_router},
@@ -122,6 +122,14 @@ pub(super) async fn assemble(
             Arc::new(current_package_catalogue().map_err(|_| "FIELD_FILES_CONFIGURATION_INVALID")?);
         let mut intake = Vec::new();
         let mut uploads = Vec::new();
+        #[cfg(feature = "finance-field-write")]
+        let mut finance_uploads = Vec::new();
+        #[cfg(feature = "finance-field-write")]
+        let mut finance_configurations = Vec::new();
+        #[cfg(feature = "finance-field-write")]
+        let mut journal_uploads = Vec::new();
+        #[cfg(feature = "finance-field-write")]
+        let mut journal_configurations = Vec::new();
         let mut mounted = BTreeSet::new();
         for (holding_id, (companies, root, indices)) in grouped {
             let (i, h) = config
@@ -161,6 +169,62 @@ pub(super) async fn assemble(
             let store = LocalSanitizationStore::open(&root, 2)
                 .map_err(|_| "FIELD_FILES_STORE_UNAVAILABLE")?;
             mounted.insert((h.host.clone(), h.registration.slug.clone()));
+            #[cfg(feature = "finance-field-write")]
+            for (enabled, owner_uploads, owner_configurations) in [
+                (
+                    config
+                        .finance_field_service_receipt_writes
+                        .contains(&target.holding),
+                    &mut finance_uploads,
+                    &mut finance_configurations,
+                ),
+                (
+                    config.finance_journal_reads.contains_key(&target.holding),
+                    &mut journal_uploads,
+                    &mut journal_configurations,
+                ),
+            ] {
+                if !enabled {
+                    continue;
+                }
+                let companies = config
+                    .finance_journal_reads
+                    .get(&target.holding)
+                    .into_iter()
+                    .flatten()
+                    .filter(|company| {
+                        target
+                            .companies
+                            .as_ref()
+                            .is_some_and(|all| all.contains(*company))
+                    })
+                    .cloned()
+                    .collect::<BTreeSet<_>>();
+                if companies.is_empty() {
+                    continue;
+                }
+                for company in &companies {
+                    owner_configurations.push(
+                        crate::finance_journal_create::FinanceJournalCreateConfiguration::new(
+                            crate::finance_journal_review::FinanceJournalEnvironment::Development,
+                            target.holding.clone(),
+                            company.clone(),
+                            catalogue.clone(),
+                        )
+                        .map_err(|_| "FIELD_FILES_CONFIGURATION_INVALID")?,
+                    );
+                }
+                // One HTTP target per Holding; actual native Company selection
+                // chooses its declared configuration rather than a first match.
+                let mut owner_target = target.clone();
+                owner_target.companies = Some(companies);
+                owner_uploads.push(FieldUploadTarget {
+                    intake: Arc::new(owner_target),
+                    pool: pools[i + 1].raw().clone(),
+                    writer: writer.clone(),
+                    store: store.clone(),
+                });
+            }
             uploads.push(FieldUploadTarget {
                 intake: Arc::new(target.clone()),
                 pool: pools[i + 1].raw().clone(),
@@ -180,11 +244,43 @@ pub(super) async fn assemble(
         let b = field_upload_router(
             config.policy.clone(),
             config.holdings_registry.clone(),
-            scopes,
+            scopes.clone(),
             uploads,
         )
         .map_err(|_| "FIELD_FILES_ROUTER_INVALID")?;
-        Ok((a.merge(b), mounted))
+        let router = a.merge(b);
+        #[cfg(feature = "finance-field-write")]
+        let router = if finance_uploads.is_empty() {
+            router
+        } else {
+            router.merge(
+                crate::field_upload_http::finance_payment_upload_router(
+                    config.policy.clone(),
+                    config.holdings_registry.clone(),
+                    scopes.clone(),
+                    finance_uploads,
+                    finance_configurations,
+                )
+                .map_err(|_| "FIELD_FILES_ROUTER_INVALID")?,
+            )
+        };
+        #[cfg(feature = "finance-field-write")]
+        let router = if journal_uploads.is_empty() {
+            router
+        } else {
+            router.merge(
+                crate::field_upload_http::finance_field_journal_upload_router(
+                    config.policy.clone(),
+                    config.holdings_registry.clone(),
+                    scopes,
+                    journal_uploads,
+                    journal_configurations,
+                    config.field_attachment_binds.clone(),
+                )
+                .map_err(|_| "FIELD_FILES_ROUTER_INVALID")?,
+            )
+        };
+        Ok((router, mounted))
     })();
     match result {
         Ok((router, mounted)) => Ok((router, workers, mounted)),
@@ -224,24 +320,59 @@ pub(super) async fn run_workers(
     let result = assemble(&config, &pools, Arc::new(SystemAccountClock)).await;
     match result {
         Ok((_router, workers, _)) => {
-            let cleanup_result=(|| {
-                let raw=config.field_files_providers.as_ref().ok_or("FIELD_FILES_CONFIGURATION_INVALID")?;
-                let targets=parse_field_files_runtime_configuration(&serde_json::to_vec(raw).map_err(|_|"FIELD_FILES_CONFIGURATION_INVALID")?,&config.holdings_registry).map_err(|_|"FIELD_FILES_CONFIGURATION_INVALID")?;
-                if targets.len()!=workers.len(){return Err("FIELD_FILES_CONFIGURATION_INVALID");}
-                targets.into_iter().zip(&workers).map(|(target,worker)|{
-                    let scope=worker.cleanup_scope();
-                    if scope.holding_id!=target.holding_id||scope.company_id!=target.company_id{return Err("FIELD_FILES_CONFIGURATION_INVALID");}
-                    let h=config.holdings.iter().find(|h|h.registration.holding_id==target.holding_id).ok_or("FIELD_FILES_CONFIGURATION_INVALID")?;
-                    let root=target.providers.files_roots.get(&h.registration.files_binding).ok_or("FIELD_FILES_CONFIGURATION_INVALID")?;
-                    let writer=LocalFieldQuarantineWriter::open(root,2).map_err(|_|"FIELD_FILES_STORE_UNAVAILABLE")?;
-                    worker.cleanup_worker(writer).map_err(|_|"FIELD_FILES_CONFIGURATION_INVALID")
-                }).collect::<Result<Vec<_>,&'static str>>()
+            let cleanup_result = (|| {
+                let raw = config
+                    .field_files_providers
+                    .as_ref()
+                    .ok_or("FIELD_FILES_CONFIGURATION_INVALID")?;
+                let targets = parse_field_files_runtime_configuration(
+                    &serde_json::to_vec(raw).map_err(|_| "FIELD_FILES_CONFIGURATION_INVALID")?,
+                    &config.holdings_registry,
+                )
+                .map_err(|_| "FIELD_FILES_CONFIGURATION_INVALID")?;
+                if targets.len() != workers.len() {
+                    return Err("FIELD_FILES_CONFIGURATION_INVALID");
+                }
+                targets
+                    .into_iter()
+                    .zip(&workers)
+                    .map(|(target, worker)| {
+                        let scope = worker.cleanup_scope();
+                        if scope.holding_id != target.holding_id
+                            || scope.company_id != target.company_id
+                        {
+                            return Err("FIELD_FILES_CONFIGURATION_INVALID");
+                        }
+                        let h = config
+                            .holdings
+                            .iter()
+                            .find(|h| h.registration.holding_id == target.holding_id)
+                            .ok_or("FIELD_FILES_CONFIGURATION_INVALID")?;
+                        let root = target
+                            .providers
+                            .files_roots
+                            .get(&h.registration.files_binding)
+                            .ok_or("FIELD_FILES_CONFIGURATION_INVALID")?;
+                        let writer = LocalFieldQuarantineWriter::open(root, 2)
+                            .map_err(|_| "FIELD_FILES_STORE_UNAVAILABLE")?;
+                        worker
+                            .cleanup_worker(writer)
+                            .map_err(|_| "FIELD_FILES_CONFIGURATION_INVALID")
+                    })
+                    .collect::<Result<Vec<_>, &'static str>>()
             })();
-            let cleanup=match cleanup_result {Ok(value)=>value,Err(error)=>{
-                for worker in workers {worker.close().await;}
-                for pool in pools {pool.close().await;}
-                return Err(error);
-            }};
+            let cleanup = match cleanup_result {
+                Ok(value) => value,
+                Err(error) => {
+                    for worker in workers {
+                        worker.close().await;
+                    }
+                    for pool in pools {
+                        pool.close().await;
+                    }
+                    return Err(error);
+                }
+            };
             run_field_files_workers(workers, cleanup, shutdown).await;
             for p in pools {
                 p.close().await;

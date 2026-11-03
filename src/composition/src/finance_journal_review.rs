@@ -2,6 +2,7 @@
 //! mounts no route and cannot substitute Legal acceptance for Finance release.
 pub(crate) use crate::finance_field_service_lineage as field_service_parts;
 mod journal_post_flow;
+#[cfg(feature = "existing-business")]
 mod maintenance_parts;
 use erpx_server_commercial::public::purchases::{
     CapabilityPurpose, CommercialCatalogue, PackageEnforcementMode, PgCompanyPurchaseReader,
@@ -20,12 +21,11 @@ use erpx_server_finance::public::{
 };
 use erpx_server_identity_access::public::{
     DeviceProof,
-    command_metadata::project_command_iam,
     effective_authority::{
         AuthorizedWorkContext, HoldingWorkAuthorizer, HoldingWorkSourcePreparation,
         WorkAuthorizationRequest,
     },
-    work_context::{HoldingWorkspaceRequest, WorkScopeKind},
+    work_context::HoldingWorkspaceRequest,
 };
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{
@@ -33,9 +33,10 @@ use erpx_server_shared::public::{
     TimestampMillis, UserId,
 };
 use erpx_server_workflow::public::commands::{
-    CommandActor, CommandField, CommandJson, WorkAuthority,
+    CommandActor,
 };
 use field_service_parts::FieldServicePartsSource;
+#[cfg(feature = "existing-business")]
 use maintenance_parts::MaintenancePartsSource;
 use sqlx::PgConnection;
 use std::sync::Arc;
@@ -125,6 +126,7 @@ impl FinanceJournalConfiguration {
         lock_journal_review_sources(c).await?;
         erpx_server_inventory::public::consumption_finance::lock_consumption_finance_sources(c)
             .await?;
+        #[cfg(feature = "existing-business")]
         erpx_server_maintenance::public::finance_lineage::lock_maintenance_finance_lineage_sources(
             c,
         )
@@ -152,6 +154,9 @@ pub struct FinanceJournalReviewAdministration<C> {
     clock: Arc<C>,
 }
 impl<C: Clock + Send + Sync + 'static> FinanceJournalReviewAdministration<C> {
+    #[cfg(any(feature="business-http",feature="finance-field-write"))]
+    pub(crate) fn company_id(&self)->&CompanyId{&self.configuration.company_id}
+
     pub fn new(
         authorizer: Arc<HoldingWorkAuthorizer>,
         configuration: FinanceJournalConfiguration,
@@ -251,6 +256,7 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalReviewAdministration<C> {
                         let actor = finance_actor(current);
                         let policy = Mutex::new(CurrentFinancePolicy {
                             current,
+                            clock:clock.as_ref(),
                             configuration: &configuration,
                             source: None,
                             purchase: None,
@@ -303,58 +309,10 @@ fn scope_error() -> BusinessError {
         "Choose the current authorized Finance workspace.",
     )
 }
-pub(crate) fn finance_actor(current: &AuthorizedWorkContext) -> FinanceActor {
-    FinanceActor {
-        holding_id: current.holding_id().clone(),
-        company_id: current.selection().workspace().company_id.clone(),
-        user_id: current.user_id().clone(),
-        assignment_id: current.selection().assignment().id.clone(),
-    }
-}
-/// Shared Workflow wire projection, not an independently constructed grant.
-pub(crate) fn command_actor(
-    current: &AuthorizedWorkContext,
-) -> Result<CommandActor, BusinessError> {
-    let selected = current.selection();
-    let workspace = selected.workspace();
-    let assignment = selected.assignment();
-    Ok(CommandActor {
-        user_id: current.user_id().clone(),
-        assignment_id: assignment.id.clone(),
-        role: assignment.role.clone(),
-        company_id: workspace.company_id.clone(),
-        branch_id: workspace
-            .branch_id
-            .as_ref()
-            .map(|id| CommandField::Value(id.as_str().into()))
-            .unwrap_or(CommandField::Null),
-        department_id: workspace
-            .department_id
-            .as_ref()
-            .map(|id| CommandField::Value(id.as_str().into()))
-            .unwrap_or(CommandField::Null),
-        authority: CommandField::Value(WorkAuthority {
-            session_id: current.session_id().as_str().into(),
-            revision: selected.revision(),
-            assignment_version: assignment.version,
-        }),
-        iam: CommandField::Value(CommandJson::from_serializable(&project_command_iam(
-            current,
-        )?)?),
-        assignment_scope_kind: match assignment.scope_kind {
-            WorkScopeKind::Holding => "holding",
-            WorkScopeKind::Branch => "branch",
-            WorkScopeKind::Department => "department",
-        }
-        .into(),
-        assignment_scope_node_id: assignment
-            .scope_node_id
-            .as_ref()
-            .map(|id| id.as_str().into()),
-    })
-}
+pub(crate) use crate::finance_journal_actor::{finance_actor,command_actor};
 struct CurrentFinancePolicy<'a> {
     current: &'a AuthorizedWorkContext,
+    clock: &'a (dyn Clock+Send+Sync),
     configuration: &'a FinanceJournalConfiguration,
     source: Option<CurrentFinanceSource>,
     purchase: Option<(CapabilityPurpose, PurchaseWitness)>,
@@ -363,6 +321,7 @@ struct CurrentFinancePolicy<'a> {
 }
 enum CurrentFinanceSource {
     Owned(Box<CurrentJournalReviewScope>),
+    #[cfg(feature = "existing-business")]
     MaintenanceParts(Box<MaintenancePartsSource>),
     FieldServiceParts(Box<FieldServicePartsSource>),
 }
@@ -370,6 +329,7 @@ impl CurrentFinanceSource {
     async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
         match self {
             Self::Owned(s) => s.require_current(c).await,
+            #[cfg(feature = "existing-business")]
             Self::MaintenanceParts(s) => s.require_current(c).await,
             Self::FieldServiceParts(s) => s.require_current(c).await,
         }
@@ -388,6 +348,15 @@ impl CurrentFinancePolicy<'_> {
         self.current.require_permission("finance.write")?;
         self.current.require_permission("module.finance.read")?;
         command_actor(self.current)
+    }
+    async fn require_field_selected_current(&self,c:&mut PgConnection,now:i64)->Result<(),Error> {
+        if matches!(self.source,Some(CurrentFinanceSource::FieldServiceParts(_))) {
+            erpx_server_identity_access::public::selected_command_authority::require_selected_actor_current(c,self.current,now).await.map_err(|error|match error {
+                PgTransactionError::Business(e) if matches!(e.code,"WORK_ROLE_UNAVAILABLE"|"QUEUED_AUTHORITY_CHANGED") => BusinessError::new(FailureKind::Forbidden,"FINANCE_ACCESS_CHANGED","The current Finance authority changed before posting committed.").into(),
+                other=>other,
+            })?;
+        }
+        Ok(())
     }
     fn selected(&self, actor: &CommandActor, now: i64) -> Result<(), BusinessError> {
         if actor != &self.current(&finance_actor(self.current), now)? {
@@ -498,6 +467,9 @@ impl PgFinanceJournalReviewPolicy for CurrentFinancePolicy<'_> {
         Ok(())
     }
     async fn retain_post_flow(&mut self, c: &mut PgConnection) -> Result<(), Error> {
+        // Current Finance authority takes precedence over the derived Flow
+        // primary view after deferred effects; initial primary policy is intact.
+        self.require_field_selected_current(c,self.clock.now().get()).await?;
         if self.configuration.enforce_post_flow && self.post_command {
             self.flow
                 .as_ref()
@@ -517,7 +489,12 @@ impl PgFinanceJournalReviewPolicy for CurrentFinancePolicy<'_> {
     ) -> Result<(), Error> {
         self.selected(actor, now)?;
         match &self.source {
-            Some(source) => source.require_current(c).await?,
+            Some(source) => {
+                if matches!(source,CurrentFinanceSource::FieldServiceParts(_)) {
+                    self.require_field_selected_current(c,now).await?;
+                }
+                source.require_current(c).await?;
+            },
             None => {
                 self.source = Some(
                     match inspect_maintenance_parts_journal_target(
@@ -527,16 +504,27 @@ impl PgFinanceJournalReviewPolicy for CurrentFinancePolicy<'_> {
                     )
                     .await?
                     {
-                        Some(target) => CurrentFinanceSource::MaintenanceParts(Box::new(
-                            MaintenancePartsSource::retain(c, target).await?,
-                        )),
-                        None => match inspect_field_service_parts_journal_target(
+                        Some(target) => {
+                            #[cfg(feature = "existing-business")]
+                            { CurrentFinanceSource::MaintenanceParts(Box::new(MaintenancePartsSource::retain(c,target).await?)) }
+                            #[cfg(not(feature = "existing-business"))]
+                            { let _=target;return Err(BusinessError::new(FailureKind::Unavailable,"MAINTENANCE_RUNTIME_UNAVAILABLE","This runtime does not include Maintenance journal review.").into()); }
+                        },
+                        None => match match inspect_field_service_parts_journal_target(
                             c,
                             &finance_actor(self.current),
                             command,
-                        )
-                        .await?
-                        {
+                        ).await {
+                            Ok(target)=>target,
+                            Err(error)=>{
+                                // Preserve ordinary purchase denial for an unproved
+                                // Field source; never admit it through included rights.
+                                if matches!(&error,PgTransactionError::Business(e) if e.code=="FINANCE_JOURNAL_SOURCE_UNSUPPORTED") {
+                                    PgCompanyPurchaseReader::new(self.configuration.holding_id.clone(),self.configuration.company_id.clone(),c,&self.configuration.purchases).inspect(&PurchaseRequest{capabilities:vec!["finance.accounting".into()],purpose:CapabilityPurpose::History,mode:PackageEnforcementMode::Enforced},TimestampMillis::new(now)).await?.require_allowed()?;
+                                }
+                                return Err(error);
+                            }
+                        } {
                             Some(target) => CurrentFinanceSource::FieldServiceParts(Box::new(
                                 FieldServicePartsSource::retain(c, target).await?,
                             )),
@@ -614,6 +602,7 @@ impl PgFinanceJournalReviewPolicy for CurrentFinancePolicy<'_> {
                 Ok(_) => inspection.witness,
                 Err(base_error) => {
                     let included_capability = match &self.source {
+                        #[cfg(feature = "existing-business")]
                         Some(CurrentFinanceSource::MaintenanceParts(_)) => {
                             Some("assets.parts-costs")
                         }

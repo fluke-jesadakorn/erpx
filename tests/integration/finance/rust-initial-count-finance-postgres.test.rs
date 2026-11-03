@@ -338,3 +338,37 @@ async fn discovery_matches_retained_images_and_reports_period_readiness() {
     let no_mapping=read_initial_count_readiness(&mut tx,&h,&company,None,None,"2026-05-01").await.unwrap();assert!(no_mapping.basis().is_none());assert_eq!(no_mapping.context_image(),bun_fallback(&[]));tx.rollback().await.unwrap();
  }).await;
 }
+
+#[tokio::test]
+async fn native_service_customer_creation_keeps_the_original_reference_delta_and_full_row() {
+    use erpx_server_finance::public::{ServiceCustomerInput, field_service_customer::*};
+    fixture::with_database(2,|p|async move{
+        setup(&p).await;
+        let company=CompanyId::new("company").unwrap();
+        let input=ServiceCustomerInput::parse(&serde_json::to_vec(&serde_json::json!({"expectedVersion":0,"contextKey":"a".repeat(64),"input":{"kind":"customer","code":" SERVICE-01 ","name":"Native Service customer","currency":"thb","creditLimit":"123.450000"}})).unwrap()).unwrap();
+        let mut tx=p.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        lock_service_customer_sources(&mut tx,true).await.unwrap();
+        let refs=read_service_customer_references(&mut tx,&company).await.unwrap();
+        assert!(refs.customers().unwrap().is_empty());assert!(refs.currencies().unwrap().iter().any(|c|c.code=="THB"));assert!(!refs.currencies().unwrap().iter().any(|c|c.code=="JPY"));
+        let plan=prepare_service_customer(refs,"party-native-service".into(),input.input.clone(),100).unwrap();
+        assert_eq!(plan.result().credit_limit_minor,12345);
+        let retained=plan.persist(&mut tx).await.unwrap();assert_eq!(retained.result().party.code," SERVICE-01 ");
+        retained.require_current(&mut tx).await.unwrap();
+        // A late ordinary Finance reference edit cannot be hidden by successful
+        // customer insertion. The owner returns a typed rollback requirement.
+        sqlx::query("INSERT INTO company_currency_scales(company_id,currency,scale,configured_by,configured_at)VALUES('company','THB',2,'fixture',101)").execute(&mut *tx).await.unwrap();
+        denied(retained.require_current(&mut tx).await,"SERVICE_CUSTOMER_SOURCE_CHANGED");tx.rollback().await.unwrap();
+        let count:i64=sqlx::query_scalar("SELECT count(*) FROM finance_parties WHERE id='party-native-service'").fetch_one(p.raw()).await.unwrap();assert_eq!(count,0);
+        let mut tx=p.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        lock_service_customer_sources(&mut tx,true).await.unwrap();let refs=read_service_customer_references(&mut tx,&company).await.unwrap();
+        let retained=prepare_service_customer(refs,"party-native-service".into(),input.input.clone(),100).unwrap().persist(&mut tx).await.unwrap();retained.require_current(&mut tx).await.unwrap();tx.commit().await.unwrap();
+        let row:(String,String,i64,i64,Option<String>)=sqlx::query_as("SELECT kind,status,version,credit_limit_minor,person_id FROM finance_parties WHERE id='party-native-service'").fetch_one(p.raw()).await.unwrap();assert_eq!(row,("customer".into(),"active".into(),1,12345,None));
+        let mut tx=p.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();lock_service_customer_sources(&mut tx,true).await.unwrap();
+        let refs=read_service_customer_references(&mut tx,&company).await.unwrap();denied(prepare_service_customer(refs,"party-another-service".into(),input.input.clone(),101),"SERVICE_CUSTOMER_CODE_EXISTS");tx.rollback().await.unwrap();
+        sqlx::raw_sql("CREATE FUNCTION fixture_corrupt_service_customer()RETURNS trigger LANGUAGE plpgsql AS $$BEGIN NEW.notification_consent:='granted';RETURN NEW;END$$;CREATE TRIGGER fixture_corrupt_service_customer BEFORE INSERT ON finance_parties FOR EACH ROW EXECUTE FUNCTION fixture_corrupt_service_customer();").execute(p.raw()).await.unwrap();
+        let mut tx=p.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();lock_service_customer_sources(&mut tx,true).await.unwrap();let refs=read_service_customer_references(&mut tx,&company).await.unwrap();let mut different=input.input;different.code="TAMPER".into();
+        denied(prepare_service_customer(refs,"party-tampered-service".into(),different,102).unwrap().persist(&mut tx).await,"SERVICE_CUSTOMER_SOURCE_CHANGED");tx.rollback().await.unwrap();
+        let count:i64=sqlx::query_scalar("SELECT count(*) FROM finance_parties WHERE id='party-tampered-service'").fetch_one(p.raw()).await.unwrap();assert_eq!(count,0);
+    }).await;
+}

@@ -57,7 +57,7 @@ export async function POST(request:Request,context:Context){
         ("read" in input&&typeof input.read!=="boolean")||
         ("archived" in input&&typeof input.archived!=="boolean"))
         throw new ApiError(422,"INVALID_INBOX_STATE","Choose a read or archive state.");
-      return response(await changeInboxState(write,actor,path[1],input));
+      return response(await changeInboxState(write,actor,path[1],input,key));
     }
     throw new ApiError(404,"INBOX_RESOURCE_NOT_FOUND","Inbox resource not found.");
   }catch(error){return errorResponse(error);}

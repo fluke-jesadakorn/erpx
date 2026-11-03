@@ -1,7 +1,7 @@
 "use client";
 import {createAccountDirectoryHttpPort} from "@erpx/feature-identity_access/public/client";
 import {holdingFetch} from '@erpx/contracts/holding-fetch';
-import {deviceAccountReturn} from "@erpx/server-identity_access/public/rules/device-account-return";
+import {deviceAccountReturn} from "@erpx/feature-identity_access/lib/device-account-return";
 import { InlineNotice } from "@erpx/ui/components/foundation";
 
 import { Button, Field, TextInput } from "@erpx/ui/components/foundation";

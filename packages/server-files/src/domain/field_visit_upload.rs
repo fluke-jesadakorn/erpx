@@ -34,14 +34,26 @@ pub fn normalize_fresh_field_file(
     purpose: &str,
     value: &FieldFileReservation,
 ) -> Result<NormalizedFieldFileReservation, BusinessError> {
+    normalize_fresh_owner_file(
+        super::field_visit_intake::IntakeOwner::FieldVisit,
+        purpose,
+        value,
+    )
+}
+pub fn normalize_fresh_owner_file(
+    owner: super::field_visit_intake::IntakeOwner,
+    purpose: &str,
+    value: &FieldFileReservation,
+) -> Result<NormalizedFieldFileReservation, BusinessError> {
     let image = matches!(
         value.media_type.as_str(),
         "image/jpeg" | "image/png" | "image/webp" | "image/heic" | "image/heif"
     );
-    if !matches!(
-        purpose,
-        "site_photo" | "technician_report" | "signed_job_sheet" | "exception_evidence"
-    ) {
+    let component = match owner {
+        super::field_visit_intake::IntakeOwner::FieldVisit | super::field_visit_intake::IntakeOwner::FieldJournal => "record",
+        super::field_visit_intake::IntakeOwner::FinancePayment => "action",
+    };
+    if !owner.supports(owner.target_type(), component, purpose) {
         return Err(error(
             "ATTACHMENT_POLICY_UNKNOWN",
             "This file purpose is not registered for the selected record and context.",

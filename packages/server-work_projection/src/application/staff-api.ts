@@ -14,7 +14,8 @@ import type {changeAppointment} from '@erpx/server-organization/public/departmen
 import type {getProject,listProjects,projectSchema,saveProject} from "@erpx/server-projects/public/staff-projects";
 import type {StaffResource,StaffRequestContext} from "@erpx/server-work_projection/domain/staff-api";
 type WithoutDatabase<F> = F extends (...args:infer A)=>infer R ? A extends [unknown,...infer Tail] ? (...args:Tail)=>R:never:never;
-export type StaffApiPorts={requireWorkContext:typeof requireWorkContext;prepare(actor:WorkContext):Promise<void>;now():number;error(status:number,code:string,message:string):Error;requestPublicOrigin:typeof requestPublicOrigin;listStaffNotifications:WithoutDatabase<typeof listStaffNotifications>;
+export type StaffApiPorts={requireWorkContext:typeof requireWorkContext;prepare(actor:WorkContext):Promise<void>;now():number;error(status:number,code:string,message:string):Error;requestPublicOrigin:typeof requestPublicOrigin;markNotificationRead(actor:WorkContext,id:string,key:string,now:number):Promise<unknown>;
+listStaffNotifications:WithoutDatabase<typeof listStaffNotifications>;
 staffPeople:WithoutDatabase<typeof staffPeople>;
 activeStaff:WithoutDatabase<typeof activeStaff>;
 companyAuthority:WithoutDatabase<typeof companyAuthority>;
@@ -61,7 +62,6 @@ scheduleSchema:typeof scheduleSchema.parse;
 templateSchema:typeof templateSchema.parse;facts:{projectMembers(value:string):Promise<{results:Record<string,unknown>[]}>;
 templateSchedules(value:string,companyId:string):Promise<{results:ScheduleRow[]}>;
 approvalQueue(companyId:string,value:0 | 1):Promise<{results:Record<string,unknown>[]}>;
-notificationRead(now:number,value:string,companyId:string,userId:string):Promise<unknown>;
 headPlacement(companyId:string,value:string,personId:string):Promise<{position_id:string|null}|null>;
 betaApproval(value:string,companyId:string):Promise<Record<string,unknown>|null>;};};
 export function createStaffApiService(ports:StaffApiPorts){return async function execute(resource:StaffResource,request:Request,context:StaffRequestContext){
@@ -142,7 +142,7 @@ const {holdingSlug,path:p=[]}=await context.params;const actor=await ports.requi
           p[0] === "notifications" &&
           p[2] === "read"
         ) {
-          await ports.facts.notificationRead(ports.now(),p[1],actor.companyId,actor.userId);
+          await ports.markNotificationRead(actor,p[1],key,ports.now());
           data = { id: p[1] };
         } else if (resource === "staff" && p[0] === "levels")
           data = await ports.saveLevel(

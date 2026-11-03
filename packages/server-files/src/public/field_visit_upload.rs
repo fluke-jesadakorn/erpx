@@ -5,7 +5,8 @@ pub use crate::adapters::local_field_quarantine_writer::{
 pub use crate::domain::field_visit_upload::{
     FIELD_RESERVATION_MILLIS, FIELD_UPLOAD_MAX_BYTES, FieldFileReservation,
     NormalizedFieldFileReservation, field_reservation_replay_matches, field_upload_id,
-    field_upload_link_id, normalize_fresh_field_file, validate_field_upload_bytes,
+    field_upload_link_id, normalize_fresh_field_file, normalize_fresh_owner_file,
+    validate_field_upload_bytes,
 };
 
 pub use crate::adapters::field_visit_upload_cleanup::{

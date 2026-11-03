@@ -22,12 +22,13 @@ use erpx_server_identity_access::public::{
 use erpx_server_runtime::public::postgres::PgTransactionError;
 use erpx_server_shared::public::{BusinessError, Clock, FailureKind};
 use erpx_server_workflow::public::commands::CommandJson;
-use std::{collections::BTreeMap, future::Future, pin::Pin, sync::Arc};
+use std::{collections::{BTreeMap,BTreeSet}, future::Future, pin::Pin, sync::Arc};
 type WorkspaceInput = Box<dyn FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send>;
 type NativeResult =
     Result<Result<CommandJson, HttpIngressError>, PgTransactionError<BusinessError>>;
 type OptionalOtherPost = Option<Arc<dyn OtherPost>>;
 trait NativeAdministration: Send + Sync {
+    fn company_id(&self) -> &str;
     fn execute<'a>(
         &'a self,
         host: String,
@@ -41,6 +42,7 @@ trait NativeAdministration: Send + Sync {
 impl<W: Clock + Send + Sync + 'static, G: Clock + Send + Sync + 'static> NativeAdministration
     for FieldServicePartsAdministration<W, G>
 {
+    fn company_id(&self) -> &str { FieldServicePartsAdministration::company_id(self).as_str() }
     fn execute<'a>(
         &'a self,
         host: String,
@@ -137,7 +139,7 @@ impl FieldServiceHttpTarget {
 struct SealedNativeExecutor {
     policy: Arc<AccountPolicy>,
     scopes: Arc<dyn BusinessScopeSlugs>,
-    targets: BTreeMap<(String, String), FieldServiceHttpTarget>,
+    targets: BTreeMap<(String, String, String), FieldServiceHttpTarget>,
 }
 /// Non-generic production factory requires actual configured Holding targets.
 pub fn field_service_http_router(
@@ -158,6 +160,7 @@ pub fn field_service_http_router(
         });
     let mut registered = BTreeMap::new();
     let mut trusted = Vec::new();
+    let mut trusted_holdings = BTreeSet::new();
     for target in targets {
         let matching = policy
             .audience(&target.host)
@@ -174,18 +177,16 @@ pub fn field_service_http_router(
                 "Configure distinct actual Holding hosts and slugs.",
             ));
         };
-        let identity = (target.host.clone(), target.holding_slug.clone());
+        let identity = (target.host.clone(), target.holding_slug.clone(), target.service.company_id().to_owned());
         if !matching || registered.insert(identity.clone(), target).is_some() {
             return Err(BusinessError::invalid(
                 "FIELD_SERVICE_HTTP_CONFIGURATION_INVALID",
                 "Configure distinct actual Holding hosts and slugs.",
             ));
         }
-        trusted.push(TrustedTarget {
-            host: identity.0,
-            slug: identity.1,
-            origin,
-        });
+        if trusted_holdings.insert((identity.0.clone(),identity.1.clone())) {
+            trusted.push(TrustedTarget { host:identity.0,slug:identity.1,origin });
+        }
     }
     let executor = SealedNativeExecutor {
         policy,
@@ -208,12 +209,8 @@ impl PostExecutor for SealedNativeExecutor {
         ingress: Arc<PendingIngress>,
     ) -> Pin<Box<dyn Future<Output = PostResponse> + Send + 'a>> {
         Box::pin(async move {
-            let Some(target) = self.targets.get(&(host.clone(), slug)) else {
-                return PostResponse::error(
-                    axum::http::StatusCode::NOT_FOUND,
-                    "NOT_FOUND",
-                    "Not found.",
-                );
+            let target=match crate::http_scope::selected_company_target(&self.targets,&host,&slug,&headers) {
+                Ok(target)=>target,Err(error)=>return PostResponse::business(error),
             };
             let inbound = match parse_inbound_account_request(&self.policy, &headers) {
                 Ok(value) => value,

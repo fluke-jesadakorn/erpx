@@ -173,3 +173,51 @@ fn limited() -> Error {
     )
     .into()
 }
+
+/// Field-owned reference supplied by the native Commercial composition. Assets
+/// validates its original retained identity, without requiring disposal or an
+/// active picker entry when software is withdrawn.
+#[derive(Clone,Debug,PartialEq,Eq,serde::Serialize)]
+pub struct ServiceAssetSettlementSource {
+    pub id:String,
+    pub company_id:String,
+    pub branch_id:String,
+    pub department_id:Option<String>,
+    pub asset_id:String,
+}
+#[derive(Clone,Debug,PartialEq,Eq,serde::Serialize,serde::Deserialize)]
+pub struct ServiceAssetSettlementFact {pub id:String,pub fact:String}
+pub struct CurrentServiceAssetSettlement {
+    company:CompanyId,
+    sources:Vec<ServiceAssetSettlementSource>,
+    unit:Unit,
+    facts:Vec<ServiceAssetSettlementFact>,
+    digest:String,
+}
+pub async fn lock_service_asset_settlement(c:&mut PgConnection)->Result<(),Error>{
+    if !c.is_in_transaction(){return Err(PersistenceError::new("ASSET_TRANSACTION_REQUIRED").into());}
+    sqlx::query("LOCK TABLE operational_assets,operational_asset_events IN SHARE MODE").execute(c).await?;
+    Ok(())
+}
+async fn capture_service_asset_settlement(c:&mut PgConnection,company:&CompanyId,sources:&[ServiceAssetSettlementSource])->Result<(Vec<ServiceAssetSettlementFact>,String),Error>{
+    if sources.iter().any(|s|s.company_id!=company.as_str()){return Err(changed());}
+    let input=serde_json::to_value(sources).map_err(|_|limited())?;
+    let row=sqlx::query("WITH refs AS MATERIALIZED(SELECT * FROM jsonb_to_recordset($2::jsonb) AS r(id text,company_id text,branch_id text,department_id text,asset_id text)),facts AS(SELECT source.id,to_jsonb(source)::text fact FROM refs source LEFT JOIN operational_assets asset ON asset.id=source.asset_id AND asset.company_id=source.company_id AND asset.branch_id=source.branch_id AND (source.department_id IS NULL OR asset.department_id=source.department_id) WHERE asset.id IS NULL),snapshot AS(SELECT coalesce(jsonb_agg(to_jsonb(facts) ORDER BY id,fact),'[]'::jsonb) value FROM facts) SELECT CASE WHEN octet_length(value::text)<=2097152 THEN value::text END payload,(SELECT encode(sha256(convert_to(coalesce(string_agg(encode(sha256(convert_to(to_jsonb(a)::text,'UTF8')),'hex'),'' ORDER BY a.id),''),'UTF8')),'hex') FROM operational_assets a WHERE a.company_id=$1 AND EXISTS(SELECT 1 FROM refs r WHERE r.asset_id=a.id)) digest FROM snapshot").bind(company.as_str()).bind(input).fetch_one(c).await?;
+    let payload:Option<String>=row.try_get("payload")?;
+    let facts=serde_json::from_str(&payload.ok_or_else(limited)?).map_err(|_|limited())?;
+    Ok((facts,row.try_get("digest")?))
+}
+impl CurrentServiceAssetSettlement {
+    pub fn facts(&self)->&[ServiceAssetSettlementFact]{&self.facts}
+    pub async fn require_current(&self,c:&mut PgConnection)->Result<(),Error>{
+        if unit(c).await?!=self.unit{return Err(changed());}
+        let(facts,digest)=capture_service_asset_settlement(c,&self.company,&self.sources).await?;
+        if facts!=self.facts||digest!=self.digest{return Err(changed());}
+        Ok(())
+    }
+}
+pub async fn read_service_asset_settlement(c:&mut PgConnection,company:&CompanyId,sources:&[ServiceAssetSettlementSource])->Result<CurrentServiceAssetSettlement,Error>{
+    let unit=unit(c).await?;
+    let(facts,digest)=capture_service_asset_settlement(c,company,sources).await?;
+    Ok(CurrentServiceAssetSettlement{company:company.clone(),sources:sources.to_vec(),unit,facts,digest})
+}

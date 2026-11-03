@@ -3,6 +3,7 @@ import {isProductHandoffHref} from "@erpx/feature-work_projection/lib/product-na
 import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useHydrated } from "@erpx/ui/components/use-hydrated";
 import { contextSwitchBlockReason, hasUnsavedWork, setContextSwitching } from "@erpx/feature-work_projection/lib/context-switch";
 import { Dialog } from "@erpx/ui/components/dialog";
 import { Button } from "@erpx/ui/components/button";
@@ -10,6 +11,7 @@ import type { UiAppearance } from "@erpx/ui/components/appearance";
 
 /** Server-rendered links; only dirty-state/focus interaction belongs on the client. */
 export function ProductNavigationBoundary({ children, language = "en", appearance = "standard" }: { children: ReactNode; language?: "en" | "th"; appearance?: UiAppearance }) {
+  const hydrated = useHydrated();
   const router = useRouter();
   const [destination, setDestination] = useState<string | null>(null);
   const [blockedReason, setBlockedReason] = useState<string | null>(null);
@@ -35,7 +37,9 @@ export function ProductNavigationBoundary({ children, language = "en", appearanc
     window.addEventListener("pageshow", restored);
     return () => { window.removeEventListener("erpx:product-navigate", requested); window.removeEventListener("focus", revalidate); window.removeEventListener("pageshow", restored); };
   }, [router]);
-  return <div onClickCapture={event => {
+  // Context changes must not outrun the client guard while this server-rendered
+  // boundary is still streaming. Its dirty/uncertain checks are active on mount.
+  return <div inert={!hydrated} aria-busy={!hydrated} onClickCapture={event => {
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     const target = event.target as HTMLElement;
     const anchor = target.closest<HTMLAnchorElement>("a[data-product-switch]");

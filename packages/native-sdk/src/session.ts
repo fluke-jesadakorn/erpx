@@ -156,26 +156,64 @@ function directSessionHttp(url: URL, init: RequestInit): Promise<Response> {
     // although Readable.toWeb supplies the standard stream used by Response.
     const agent = new Agent({ keepAlive: false, maxSockets: 1, maxTotalSockets: 1, proxyEnv: {} as import('node:http').ProxyEnv });
     const outgoing = request(url, {
-      method: 'GET', agent, maxHeaderSize: 8192,
+      method: init.method ?? 'GET', agent, maxHeaderSize: 16384,
       headers: Object.fromEntries(new Headers(init.headers).entries()),
       signal: init.signal ?? undefined,
     }, incoming => {
       incoming.once('close', () => agent.destroy());
       try {
         const status = incoming.statusCode ?? 502;
-        if (status !== 200) {
-          incoming.destroy();
-          resolve(new Response(null, { status: status >= 200 && status <= 599 ? status : 502 }));
-          return;
-        }
         const headers = new Headers();
         for (let index = 0; index < incoming.rawHeaders.length; index += 2) {
           headers.append(incoming.rawHeaders[index]!, incoming.rawHeaders[index + 1]!);
         }
-        resolve(new Response(Readable.toWeb(incoming) as unknown as ReadableStream<Uint8Array>, { status, headers }));
+        for(const name of ['connection','keep-alive','transfer-encoding','upgrade','proxy-authenticate','proxy-authorization','te','trailer'])headers.delete(name);
+        resolve(new Response([204,205,304].includes(status)?null:Readable.toWeb(incoming) as unknown as ReadableStream<Uint8Array>, { status, headers }));
       } catch (error) { incoming.destroy(); agent.destroy(); reject(error); }
     });
     outgoing.once('error', error => { agent.destroy(); reject(error); });
-    outgoing.end();
+    outgoing.end(typeof init.body === 'string' ? init.body : undefined);
   });
+}
+
+/** Opaque Account/SSO ingress transport. All authentication decisions, cookies,
+ * redirects and writes come from Rust. Unsupported paths stay native404. */
+export function createNativeAccountHttpTransport(configuration:NativeSessionClientConfiguration,send:NativeSessionFetch=directSessionHttp){
+ createNativeSessionClient(configuration,send); // Reuse exact authority/private-target validation without IO.
+ const origins=[configuration.accountOrigin,...configuration.holdingOrigins],hostOrigins=new Map(origins.map(value=>[new URL(value).host,value]));
+ return async(incoming:Request):Promise<Response>=>{
+  const host=incoming.headers.get('host'),origin=incoming.headers.get('origin'),publicUrl=new URL(incoming.url);
+  if(!host||!hostOrigins.has(host))return fail('NATIVE_ACCOUNT_AUTHORITY_INVALID');
+  if(!['GET','POST','DELETE','OPTIONS'].includes(incoming.method))return new Response(null,{status:405,headers:{allow:'GET, POST, DELETE, OPTIONS'}});
+  if(!(/^\/api\/auth\/[A-Za-z0-9_/-]+$/.test(publicUrl.pathname)||/^\/api\/v1\/account\/device-accounts(?:\/(initialize|active|sign-in))?$/.test(publicUrl.pathname)||/^\/api\/v1\/account\/iam\/mfa\/(enroll|verify)$/.test(publicUrl.pathname)||/^\/sso\/(start|authorize|callback)$/.test(publicUrl.pathname)))return new Response(null,{status:404});
+  if(origin&&!origins.includes(origin)||!['GET','OPTIONS'].includes(incoming.method)&&!origin)return fail('NATIVE_ACCOUNT_ORIGIN_FORBIDDEN',403);
+  if(publicUrl.search.length>8192)return fail('NATIVE_ACCOUNT_QUERY_LIMIT',400);
+  const cookie=incoming.headers.get('cookie');if(cookie&&new TextEncoder().encode(cookie).length>8192)return fail('NATIVE_ACCOUNT_COOKIE_LIMIT',400);
+  const headers=new Headers({host,accept:incoming.headers.get('accept')??'application/json','cache-control':'no-cache'});
+  if(cookie)headers.set('cookie',cookie);if(origin)headers.set('origin',origin);
+  const contentType=incoming.headers.get('content-type');if(contentType)headers.set('content-type',contentType);
+  if(incoming.method==='OPTIONS')for(const name of ['access-control-request-method','access-control-request-headers']){const value=incoming.headers.get(name);if(value)headers.set(name,value);}
+  const controller=new AbortController(),cancel=()=>controller.abort();incoming.signal.addEventListener('abort',cancel,{once:true});if(incoming.signal.aborted)cancel();
+  const timer=setTimeout(cancel,configuration.timeoutMs);
+  try{
+   const bytes=['POST','DELETE'].includes(incoming.method)?await boundedAccountBytes(incoming.body,8192,controller.signal):null;
+   let body:string|undefined;
+   if(bytes!==null){try{body=new TextDecoder('utf-8',{fatal:true}).decode(bytes);}catch{return fail('NATIVE_ACCOUNT_BODY_INVALID',400);}}
+   const url=new URL(publicUrl.pathname+publicUrl.search,endpoint(configuration.privateBaseUrl).origin);
+   const response=await send(url,{method:incoming.method,headers,...(body===undefined?{}:{body}),redirect:'manual',cache:'no-store',credentials:'omit',signal:controller.signal});
+   if(response.redirected)return fail('NATIVE_ACCOUNT_REDIRECT_FORBIDDEN');
+   const responseBytes=await boundedAccountBytes(response.body,256*1024,controller.signal);
+   const outgoing=new Headers(response.headers);outgoing.set('cache-control','private, no-store');
+   return new Response([204,205,304].includes(response.status)?null:responseBytes,{status:response.status,headers:outgoing});
+  }catch(error){controller.abort();if(error instanceof NativeSessionReadError)throw error;return fail('NATIVE_ACCOUNT_UNAVAILABLE');}
+  finally{clearTimeout(timer);incoming.signal.removeEventListener('abort',cancel);}
+ };
+}
+async function boundedAccountBytes(body:ReadableStream<Uint8Array>|null,limit:number,signal:AbortSignal):Promise<Uint8Array<ArrayBuffer>|null>{
+ if(!body)return null;
+ const reader=body.getReader(),chunks:Uint8Array[]=[];let size=0;
+ const cancel=()=>{void reader.cancel().catch(()=>undefined);};signal.addEventListener('abort',cancel,{once:true});
+ try{for(;;){if(signal.aborted){cancel();return fail('NATIVE_ACCOUNT_ABORTED');}const r=await reader.read();if(signal.aborted)return fail('NATIVE_ACCOUNT_ABORTED');if(r.done)break;size+=r.value.byteLength;if(size>limit){await reader.cancel();return fail('NATIVE_ACCOUNT_PAYLOAD_LIMIT',413);}chunks.push(r.value);}}
+ finally{signal.removeEventListener('abort',cancel);reader.releaseLock();}
+ const bytes=new Uint8Array(size);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length;}return bytes;
 }

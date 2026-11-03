@@ -85,3 +85,54 @@ impl ConsumptionLot {
         self.balance_version
     }
 }
+
+// Portable record-source facts exchanged through owner-owned ports.
+impl SourceRecordKind {
+    pub fn parse(value: &str) -> Result<Self, BusinessError> {
+        match value {
+            "commerce_order" => Ok(Self::CommerceOrder),
+            "support_ticket" => Ok(Self::SupportTicket),
+            "field_service_order" => Ok(Self::FieldServiceOrder),
+            "staff_task" => Ok(Self::StaffTask),
+            "pos_sale" => Ok(Self::PosSale),
+            "pms_record" => Ok(Self::PmsRecord),
+            "asset" => Ok(Self::Asset),
+            "maintenance_plan" => Ok(Self::MaintenancePlan),
+            "maintenance_work" => Ok(Self::MaintenanceWork),
+            _ => Err(BusinessError::invalid(
+                "SOURCE_RECORD_INVALID",
+                "Unsupported source record.",
+            )),
+        }
+    }
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::CommerceOrder => "commerce_order",
+            Self::SupportTicket => "support_ticket",
+            Self::FieldServiceOrder => "field_service_order",
+            Self::StaffTask => "staff_task",
+            Self::PosSale => "pos_sale",
+            Self::PmsRecord => "pms_record",
+            Self::Asset => "asset",
+            Self::MaintenancePlan => "maintenance_plan",
+            Self::MaintenanceWork => "maintenance_work",
+        }
+    }
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RecordSourceReference {
+    pub kind: SourceRecordKind,
+    pub id: String,
+    pub expected_version: Option<i64>,
+}
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct RecordSourceSnapshot {
+    pub kind: SourceRecordKind,
+    pub id: String,
+    pub company_id: String,
+    pub branch_id: Option<String>,
+    pub department_id: Option<String>,
+    pub version: i64,
+    pub title: String,
+    pub status: String,
+}

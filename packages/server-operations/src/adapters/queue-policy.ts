@@ -1,3 +1,4 @@
+import {fieldOnlyPolicy} from '../domain/field-ownership';
 import { finalRootOwnerProjectionSources as identity_accessProjectionSources } from "@erpx/server-identity_access/public/final-root-owner-projection-sources";
 import { finalRootOwnerProjectionSources as organizationProjectionSources } from "@erpx/server-organization/public/final-root-owner-projection-sources";
 import "server-only";
@@ -14,8 +15,8 @@ import {createQueuePolicyApplication, type QueuePolicyPorts} from "@erpx/server-
 export async function draftQueuePolicy(a:WorkContext,raw:unknown,key:string){
 let resource:Promise<SqlDatabase>|null=null;const database=()=>resource??=(holdingResources(a.holdingId).then(x=>x.write));
 const ports:QueuePolicyPorts={clock:{now:()=>Date.now()},async authorize(){requirePermission(a,"records.write");if(!hasModuleAccess(a.modules,"operations"))throw new ApiError(403,"MODULE_FORBIDDEN","Operations is unavailable to the selected role.");requirePermission(a,"records.review");},
-async replay(key,op,id,input){return replayCommand(await database(),a,key,op,id,input);},
-async persist(command){const write=await database();const {key,operation:op,id:recordId,input,now}=command;
+async replay(key,op,id,input){if(fieldOnlyPolicy(input.sourceKinds))throw new ApiError(503,"NATIVE_FIELD_OPERATIONS_REQUIRED","Continue Field policies in Field Service.");return replayCommand(await database(),a,key,op,id,input);},
+async persist(command){if(fieldOnlyPolicy(command.sourceKinds))throw new ApiError(503,"NATIVE_FIELD_OPERATIONS_REQUIRED","Continue Field policies in Field Service.");const write=await database();const {key,operation:op,id:recordId,input,now}=command;
 return executeCommand(write,a,key,op,input,recordId,1,{id:recordId,status:"draft",version:1},[
   write.prepare(`SELECT id FROM (${organizationProjectionSources.organization_nodes}) organization_nodes WHERE id=? AND kind='company' AND status='active' FOR UPDATE`).bind(a.companyId),
   assertion(write,key,"company-policy-scope",`EXISTS(SELECT 1 FROM (${identity_accessProjectionSources.assignments}) assignments WHERE id=? AND user_id=? AND company_id=? AND scope_kind='holding' AND iam_role_allows(role,company_id,'records.review'))`,[a.assignmentId,a.userId,a.companyId]),

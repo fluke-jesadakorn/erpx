@@ -20,7 +20,7 @@ import {
 import { FinanceAiPanel } from "@erpx/feature-finance/components/finance-ai-panel";
 import styles from "@erpx/feature-finance/components/finance-workspace.module.css";
 import { FinancePurchaseProvider } from "@erpx/feature-finance/components/purchase-context";
-import { financeActionAllowed, type FinancePurchaseControls } from "@erpx/server-finance/public/rules/purchase-controls";
+import { financeActionAllowed, type FinancePurchaseControls } from "@erpx/contracts/finance-purchase-controls";
 
 const legacyActive: Record<string, string> = {
   work: "finance-overview",

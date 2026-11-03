@@ -22,3 +22,7 @@ pub mod service_initial_count_decision;
 pub mod service_initial_count_revision;
 pub mod service_count_outbox;
 pub mod service_count_generic_detail;
+
+pub mod reservation_alerts;
+
+pub mod service_package_settlement;

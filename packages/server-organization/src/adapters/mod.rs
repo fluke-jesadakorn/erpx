@@ -7,3 +7,6 @@ pub(crate) mod journal_flow_department;
 pub(crate) mod field_service_agreement;
 
 pub(crate) mod field_service_workspace;
+pub(crate) mod commercial_companies;
+
+pub(crate) mod pms_source_branch;

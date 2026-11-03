@@ -8,19 +8,21 @@ publish.workspace = true
 autotests = false
 
 [package.metadata.erpx]
-verification-roots = ["../../fixtures/field_service/service-count-generic-action-zod-oracle.v1.json", "../../scripts/testing/fixtures/generate-service-count-generic-action-zod-oracle.ts", "../../scripts/testing/fixtures/generate-service-count-update-zod-oracle.ts", "../../fixtures/field_service/service-count-update-zod-oracle.v1.json", "../../scripts/docs/export-field-service-initial-count-contracts.rs", "../../scripts/docs/generate-field-service-initial-count-contracts.ts", "../../packages/contracts/src/field-service-initial-count.generated.ts", "../../docs/contracts/next/field-service-initial-count.openapi.generated.json", "../../scripts/docs/export-directory-source-contracts.rs", "../../scripts/docs/generate-directory-source-contracts.ts", "../../packages/contracts/src/directory-source-admin.generated.ts", "../../docs/contracts/next/directory-source-admin.openapi.generated.json", "../../scripts/testing/fixtures/generate-directory-review-reason-oracle.ts", "../../tests/support/files/system-scan-facts.rs", "../../tests/support/files/files-held-tool.rs", "../../scripts/docs/export-finance-journal-read-contracts.rs", "../../scripts/docs/generate-finance-journal-read-contracts.ts", "../../packages/contracts/src/finance-journal-read.generated.ts", "../../docs/contracts/next/finance-journal-read.openapi.generated.json", "../../tests/support/finance/native-journal-client.mjs", "../../fixtures/field_service/rust-http", "../../scripts/testing/fixtures/generate-field-service-http-oracle.mjs", "../../scripts/testing/fixtures/generate-field-service-http-source-probes.mjs", "../../scripts/testing/fixtures/generate-field-service-http-schema-oracle.mjs", "../../packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/route.ts", "../../packages/server-runtime/src/adapters/http.ts", "../../packages/server-shared/src/domain/error.ts", "../../packages/server-shared/src/domain/consumption-lot.ts", "../../packages/server-field_service/src/domain/service.ts", "../../packages/server-field_service/src/application/service.ts", "../../packages/server-field_service/src/adapters/service.ts", "../../packages/server-field_service/src/adapters/purchases.ts", "../../packages/server-field_service/src/domain/package-commands.ts", "../../packages/server-workflow/src/application/commands.ts", "../../packages/server-workflow/src/domain/commands.ts", "../../packages/feature-identity_access/src/lib/guest-account-compat.ts", "../../packages/server-manage_erpx/src/adapters/public-origin.ts", "../../packages/server-manage_erpx/src/domain/public-origin.ts", "../../packages/feature-field_service/src/lib/command.ts", "../../packages/feature-work_projection/src/lib/work-fetch.ts", "../../packages/contracts/src/holding-fetch.ts"]
+verification-roots = ["../../fixtures/field_service/service-count-generic-action-zod-oracle.v1.json", "../../scripts/testing/fixtures/generate-service-count-generic-action-zod-oracle.ts", "../../scripts/testing/fixtures/generate-service-count-update-zod-oracle.ts", "../../fixtures/field_service/service-count-update-zod-oracle.v1.json", "../../scripts/docs/export-field-service-initial-count-contracts.rs", "../../scripts/docs/generate-field-service-initial-count-contracts.ts", "../../packages/contracts/src/field-service-initial-count.generated.ts", "../../docs/contracts/next/field-service-initial-count.openapi.generated.json", "../../scripts/docs/export-directory-source-contracts.rs", "../../scripts/docs/generate-directory-source-contracts.ts", "../../packages/contracts/src/directory-source-admin.generated.ts", "../../docs/contracts/next/directory-source-admin.openapi.generated.json", "../../scripts/testing/fixtures/generate-directory-review-reason-oracle.ts", "../../tests/support/files/system-scan-facts.rs", "../../tests/support/files/files-held-tool.rs", "../../scripts/docs/export-finance-journal-read-contracts.rs", "../../scripts/docs/generate-finance-journal-read-contracts.ts", "../../packages/contracts/src/finance-journal-read.generated.ts", "../../docs/contracts/next/finance-journal-read.openapi.generated.json", "../../tests/support/finance/native-journal-client.mjs", "../../fixtures/field_service/rust-http", "../../scripts/testing/fixtures/generate-field-service-http-oracle.mjs", "../../scripts/testing/fixtures/generate-field-service-http-source-probes.mjs", "../../scripts/testing/fixtures/generate-field-service-http-schema-oracle.mjs", "../../packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/route.ts", "../../packages/server-runtime/src/adapters/http.ts", "../../packages/server-shared/src/domain/error.ts", "../../packages/server-shared/src/domain/consumption-lot.ts", "../../packages/server-workflow/src/application/commands.ts", "../../packages/server-workflow/src/domain/commands.ts", "../../packages/feature-identity_access/src/lib/guest-account-compat.ts", "../../packages/server-manage_erpx/src/adapters/public-origin.ts", "../../packages/server-manage_erpx/src/domain/public-origin.ts", "../../packages/feature-field_service/src/lib/command.ts", "../../packages/feature-work_projection/src/lib/work-fetch.ts", "../../packages/contracts/src/holding-fetch.ts", "../../scripts/docs/export-commercial-service-contracts.rs", "../../scripts/docs/generate-commercial-service-contracts.ts", "../../packages/contracts/src/commercial-service.generated.ts", "../../docs/contracts/next/commercial-service.openapi.generated.json"]
 
 [features]
 default = ["existing-business"]
-field-service = ["dep:erpx-server-manage-erpx", "dep:erpx-server-platform-administration", "dep:erpx-server-pms", "dep:erpx-server-records", "dep:erpx-server-organization", "dep:erpx-server-quality", "dep:erpx-server-field-service", "dep:erpx-server-support", "dep:erpx-server-assets", "dep:erpx-server-collaboration", "dep:erpx-server-commerce", "dep:erpx-server-inventory", "dep:erpx-server-people-payroll", "dep:erpx-server-workflow", "dep:erpx-server-identity-access", "dep:erpx-server-files", "dep:erpx-server-finance", "dep:erpx-server-commercial"]
+field-service = ["dep:base64", "dep:time", "dep:erpx-server-work-projection", "dep:erpx-server-pos", "dep:erpx-server-operations", "dep:erpx-server-manage-erpx", "dep:erpx-server-platform-administration", "dep:erpx-server-pms", "dep:erpx-server-records", "dep:erpx-server-organization", "dep:erpx-server-quality", "dep:erpx-server-field-service", "dep:erpx-server-support", "dep:erpx-server-assets", "dep:erpx-server-collaboration", "dep:erpx-server-commerce", "dep:erpx-server-inventory", "dep:erpx-server-people-payroll", "dep:erpx-server-workflow", "dep:erpx-server-identity-access", "dep:erpx-server-files", "dep:erpx-server-finance", "dep:erpx-server-commercial"]
 field-service-http = ["field-service"]
-existing-business = ["field-service", "dep:erpx-server-organization", "dep:erpx-server-quality", "dep:erpx-server-field-service", "dep:erpx-server-support", "dep:erpx-server-assets", "dep:erpx-server-collaboration", "dep:erpx-server-commerce", "dep:erpx-server-inventory", "dep:erpx-server-maintenance", "dep:erpx-server-people-payroll", "dep:erpx-server-workflow", "dep:erpx-server-identity-access", "dep:erpx-server-legal", "dep:erpx-server-files", "dep:erpx-server-finance", "dep:erpx-server-commercial", "dep:erpx-server-platform-administration", "dep:erpx-server-pms"]
+existing-business = ["field-service", "finance-field-write", "dep:erpx-server-organization", "dep:erpx-server-quality", "dep:erpx-server-field-service", "dep:erpx-server-support", "dep:erpx-server-assets", "dep:erpx-server-collaboration", "dep:erpx-server-commerce", "dep:erpx-server-inventory", "dep:erpx-server-maintenance", "dep:erpx-server-people-payroll", "dep:erpx-server-workflow", "dep:erpx-server-identity-access", "dep:erpx-server-legal", "dep:erpx-server-files", "dep:erpx-server-finance", "dep:erpx-server-commercial", "dep:erpx-server-platform-administration", "dep:erpx-server-pms"]
 module-example = []
-files-scan-worker = ["existing-business", "erpx-server-files/preview-provider"]
+field-push-worker = ["field-service", "erpx-server-collaboration/push-provider"]
+files-scan-worker = ["field-service", "erpx-server-files/preview-provider"]
 directory-ldaps = ["existing-business", "erpx-server-identity-access/directory-ldaps"]
-contracts = ["existing-business", "dep:ts-rs", "dep:utoipa", "erpx-server-finance/contracts", "erpx-server-field-service/contracts"]
+contracts = ["erpx-server-commercial/contracts", "existing-business", "dep:ts-rs", "dep:utoipa", "erpx-server-finance/contracts", "erpx-server-field-service/contracts", "erpx-server-identity-access/contracts", "erpx-server-work-projection/contracts"]
 finance-field-read = ["field-service-http"]
-private-field-api = ["finance-field-read"]
+finance-field-write = ["finance-field-read"]
+private-field-api = ["finance-field-write"]
 private-development-api = ["private-field-api", "existing-business", "business-http"]
 business-http = ["existing-business", "legal-queue", "field-service-http"]
 legal-queue = ["existing-business", ]
@@ -33,6 +35,9 @@ name = "erpx-server"
 path = "src/main.rs"
 
 [dependencies]
+erpx-server-work-projection = { workspace = true, optional = true }
+erpx-server-pos = { workspace = true, optional = true }
+erpx-server-operations = { workspace = true, optional = true }
 erpx-server-manage-erpx = { workspace = true, optional = true }
 erpx-server-organization = { workspace = true, optional = true }
 erpx-server-quality = { workspace = true, optional = true }
@@ -57,11 +62,14 @@ erpx-server-finance = { workspace = true, optional = true }
 erpx-server-commercial = { workspace = true, optional = true }
 erpx-server-platform-administration = { workspace = true, optional = true }
 erpx-server-pms = { workspace = true, optional = true }
+base64 = { workspace = true, optional = true }
+time = { workspace = true, optional = true }
 sha2.workspace = true
 hex.workspace = true
 uuid.workspace = true
 sqlx.workspace = true
 axum.workspace = true
+url.workspace = true
 tokio.workspace = true
 serde_json.workspace = true
 serde.workspace = true
@@ -214,7 +222,7 @@ required-features = ["business-http"]
 [[test]]
 name = "field_service_http_parity_postgres"
 path = "../../tests/integration/field_service/rust-http-parity-postgres.test.rs"
-required-features = ["business-http"]
+required-features = ["finance-field-write"]
 
 [[example]]
 name = "native-finance-development"
@@ -329,3 +337,13 @@ required-features = ["private-field-api", "files-scan-worker"]
 name = "field_files_vitest_held_provider"
 path = "../../tests/support/files/rust-field-files-vitest-held-provider.rs"
 required-features = ["private-field-api", "files-scan-worker"]
+
+[[test]]
+name = "field_collaboration_selected_postgres"
+path = "../../tests/integration/collaboration/rust-field-collaboration-selected-postgres.test.rs"
+required-features = ["private-field-api"]
+
+[[example]]
+name = "export-commercial-service-contracts"
+path = "../../scripts/docs/export-commercial-service-contracts.rs"
+required-features = ["contracts", "field-service-http"]

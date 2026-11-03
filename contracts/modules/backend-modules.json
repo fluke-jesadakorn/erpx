@@ -34,6 +34,11 @@
           "name": "erpx-server-collaboration::public",
           "version": "0.1.0",
           "source": "packages/server-collaboration/src/public/mod.rs"
+        },
+        {
+          "name": "erpx-server-collaboration::public::field_outbox",
+          "version": "0.1.0",
+          "source": "packages/server-collaboration/src/public/field_outbox.rs"
         }
       ],
       "requires": [
@@ -116,6 +121,16 @@
           "name": "erpx-server-field-service::public::reservation_read",
           "version": "0.1.0",
           "source": "packages/server-field_service/src/public/reservation_read.rs"
+        },
+        {
+          "name": "erpx-server-field-service::public::field_outbox",
+          "version": "0.1.0",
+          "source": "packages/server-field_service/src/public/field_outbox.rs"
+        },
+        {
+          "name": "erpx-server-field-service::public::executive",
+          "version": "0.1.0",
+          "source": "packages/server-field_service/src/public/executive.rs"
         }
       ],
       "requires": [
@@ -576,6 +591,11 @@
           "name": "erpx-server-workflow::public::commands",
           "version": "0.1.0",
           "source": "packages/server-workflow/src/public/commands.rs"
+        },
+        {
+          "name": "erpx-server-workflow::public::field_outbox",
+          "version": "0.1.0",
+          "source": "packages/server-workflow/src/public/field_outbox.rs"
         }
       ],
       "requires": [
@@ -714,6 +734,18 @@
         {
           "name": "erpx-server-records::public",
           "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-manage-erpx::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-operations::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-pos::public",
+          "range": ">=0.1.0, <0.2.0"
         }
       ],
       "events": [],
@@ -807,6 +839,71 @@
         },
         {
           "name": "erpx-server-platform-administration::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-operations::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-pos::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-field-service::public::executive",
+          "range": ">=0.1.0, <0.2.0"
+        }
+      ],
+      "events": [],
+      "requiresEvents": []
+    },
+    {
+      "id": "erpx-server-operations",
+      "version": "0.1.0",
+      "group": "existing-business",
+      "provides": [
+        {
+          "name": "erpx-server-operations::public",
+          "version": "0.1.0",
+          "source": "packages/server-operations/src/public/mod.rs"
+        },
+        {
+          "name": "erpx-server-operations::public::field_outbox",
+          "version": "0.1.0",
+          "source": "packages/server-operations/src/public/field_outbox.rs"
+        }
+      ],
+      "requires": [
+        {
+          "name": "erpx-server-shared::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-runtime::public",
+          "range": ">=0.1.0, <0.2.0"
+        }
+      ],
+      "events": [],
+      "requiresEvents": []
+    },
+    {
+      "id": "erpx-server-pos",
+      "version": "0.1.0",
+      "group": "existing-business",
+      "provides": [
+        {
+          "name": "erpx-server-pos::public",
+          "version": "0.1.0",
+          "source": "packages/server-pos/src/public/mod.rs"
+        }
+      ],
+      "requires": [
+        {
+          "name": "erpx-server-runtime::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-shared::public",
           "range": ">=0.1.0, <0.2.0"
         }
       ],

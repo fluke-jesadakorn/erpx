@@ -1,6 +1,9 @@
+import {validServiceCustomerPreparation,type ServiceCustomerPreparation} from '../../lib/customer-preparation-model';
+import {validFieldOperationsWorkspace,validFieldOperationsDetailRead,matchesOperationsReceipt} from '@erpx/feature-operations/lib/operations-work-model';
+import {matchesCollaborationReceipt,validFieldCollaborationReadModel} from '@erpx/feature-collaboration/lib/collaboration-work-read-model';
 import 'server-only';
 import {contributorExactOrigin} from '@erpx/feature-runtime/lib/holding-hosts';
-import {nativePartsSetupRequest,nativePartsPrerequisiteRequest,nativePartsStockRequest,type NativePartsStockOperation,type NativePartsPrerequisiteOperation} from '@erpx/native-sdk/field-service-parts';
+import {nativeServiceCustomerPreparationRequest,nativeFieldOperationsRequest,nativeFieldSupportRequest,nativeFieldCollaborationRequest,nativePartsSetupRequest,nativePartsPrerequisiteRequest,nativePartsStockRequest,type NativePartsStockOperation,type NativePartsPrerequisiteOperation} from '@erpx/native-sdk/field-service-parts';
 import {validPostingPrerequisites} from '@erpx/feature-commerce/lib/posting-prerequisite-read-model';
 import {validServicePartsReceipt,validServicePartsStockWorkspace,type ServicePartsRequest,type ServicePartsPrerequisitesView} from '../../lib/parts-setup-command';
 import type {ServiceStockReadResponse,ServiceStockMasterResponse,ServicePrerequisitesReadResponse} from '@erpx/contracts/field-service-reserve';
@@ -80,4 +83,62 @@ export async function requiredNativePartsEntry(incoming:Pick<Headers,'get'>,slug
  const value=role==='stock'?await nativePartsStock(incoming,slug,actor,'read'):await nativePartsPrerequisites(incoming,slug,actor,'read');
  if(!value)return fail('NATIVE_PARTS_SETUP_UNAVAILABLE',503);
  return value.available;
+}
+
+async function nativeFieldRecordRead(incoming:Pick<Headers,'get'>,slug:string,actor:ReserveContext|undefined,method:'GET'|'POST',body?:string,key?:string,supportId?:string,operations:boolean|{id:string}|{customer:'read'|'create'|'confirm'}=false):Promise<unknown>{
+ const customer=typeof operations==='object'&&'customer'in operations?operations.customer:undefined;
+ const code=customer?'NATIVE_SERVICE_CUSTOMER':operations?'NATIVE_FIELD_OPERATIONS':supportId===undefined?'NATIVE_FIELD_COLLABORATION':'NATIVE_FIELD_SUPPORT';
+ const choice=selected(process.env.ERPX_NATIVE_FIELD_SERVICE_SOURCE_RECORD_CONFIG,incoming,slug,actor);if(!choice||!actor)return fail(`${code}_UNAVAILABLE`,503);
+ const headers=new Headers({host:new URL(choice.target.origin).host,accept:'application/json','cache-control':'no-cache'}),cookie=incoming.get('cookie');
+ if(cookie){if(new TextEncoder().encode(cookie).length>8192)return fail(`${code}_COOKIE_LIMIT`);headers.set('cookie',cookie);}
+ for(const [name,value]of [['x-erpx-context-company',actor.companyId],['x-erpx-context-assignment',actor.assignmentId],['x-erpx-context-revision',String(actor.revision)],['x-erpx-context-assignment-version',String(actor.assignmentVersion)]]as const){if(method==='POST'&&incoming.get(name)!==value)return fail('WORK_CONTEXT_CHANGED',409);headers.set(name,value);}
+ if(actor.branchSlug)headers.set('x-erpx-workspace-branch',actor.branchSlug);if(actor.departmentSlug)headers.set('x-erpx-workspace-department',actor.departmentSlug);
+ if(method==='POST'){if(!key)return fail('COMMAND_KEY_REQUIRED',422);if(incoming.get('origin')!==choice.target.origin)return fail('ORIGIN_FORBIDDEN',403);headers.set('origin',choice.target.origin);headers.set('idempotency-key',key);headers.set('content-type','application/json');}
+ const reply=customer
+ ?await nativeServiceCustomerPreparationRequest({baseUrl:choice.config.privateBaseUrl,slug,method,headers,body,timeoutMs:choice.config.timeoutMs,confirmation:customer==='confirm'})
+ :operations
+ ?await nativeFieldOperationsRequest({baseUrl:choice.config.privateBaseUrl,slug,method,headers,body,timeoutMs:choice.config.timeoutMs,...(typeof operations==='object'&&'id'in operations?{id:operations.id}:{})})
+ :supportId!==undefined
+ ?await nativeFieldSupportRequest({baseUrl:choice.config.privateBaseUrl,slug,headers,timeoutMs:choice.config.timeoutMs,id:supportId})
+ :await nativeFieldCollaborationRequest({baseUrl:choice.config.privateBaseUrl,slug,method,headers,body,timeoutMs:choice.config.timeoutMs});
+ if(reply.status!==(customer==='create'?201:200)){if(object(reply.body)&&object(reply.body.error)&&typeof reply.body.error.code==='string')return fail(reply.body.error.code,[401,403,404,409,422].includes(reply.status)?reply.status:503);return fail(`${code}_UNAVAILABLE`,503);}
+ if(!object(reply.body))return fail(`${code}_RESPONSE_INVALID`,503);validatedContext(reply.body.context,actor);
+ if(customer){const data=reply.body.data;
+  if(customer==='read'){if(!validServiceCustomerPreparation(data,actor.companyId))return fail(`${code}_RESPONSE_INVALID`,503);return data;}
+  if(!object(data)||typeof data.id!=='string'||!data.id.startsWith('party-')||data.kind!=='customer')return fail(`${code}_RESPONSE_INVALID`,503);
+  if(customer==='confirm'&&(data.commandId!==key||data.companyId!==actor.companyId||!['active','blocked'].includes(String(data.status))))return fail(`${code}_RESPONSE_INVALID`,503);
+  return data;
+ }
+ if(operations){const data=reply.body.data;
+  if(method==='GET'&&typeof operations==='object'&&'id'in operations){if(!validFieldOperationsDetailRead(data,actor.companyId,operations.id))return fail(`${code}_RESPONSE_INVALID`,503);return data;}
+  if(method==='GET'){if(!validFieldOperationsWorkspace(data,actor.companyId)||data.actorId!==actor.userId)return fail(`${code}_RESPONSE_INVALID`,503);return data;}
+  if(!body||!key||!object(data))return fail(`${code}_RESPONSE_INVALID`,503);let input:unknown;try{input=JSON.parse(body);}catch{return fail(`${code}_RESPONSE_INVALID`,503);}
+  if(object(input)&&input.entity!=='policy'&&['assign','prioritize'].includes(String(input.action))){if(typeof input.id!=='string'||data.id!==input.id||!Number.isSafeInteger(input.expectedVersion)||data.version!==Number(input.expectedVersion)+1||!['open','acknowledged','in_progress','escalated'].includes(String(data.status)))return fail(`${code}_RESPONSE_INVALID`,503);}
+  else if(!matchesOperationsReceipt(body,key,data))return fail(`${code}_RESPONSE_INVALID`,503);
+  return data;
+ }
+ if(supportId!==undefined){const data=reply.body.data;if(!object(data)||!object(data.row)||data.row.id!==supportId||data.row.company_id!==actor.companyId||!['field_service','sales_order','general','pos_sale','pms_record','asset'].includes(String(data.row.source_kind))||typeof data.row.title!=='string'||typeof data.row.issue!=='string'||typeof data.row.status!=='string'||!Number.isSafeInteger(data.row.version)||Number(data.row.version)<1||!Array.isArray(data.history)||data.managedInFieldService!==(data.row.source_kind==='field_service')||data.canWork!==false||data.canManage!==false||data.canReport!==false||data.canConfirm!==false)return fail('NATIVE_FIELD_SUPPORT_RESPONSE_INVALID',503);return data;}
+ if(method==='GET'){if(!validFieldCollaborationReadModel(reply.body.data))return fail(`${code}_RESPONSE_INVALID`,503);return reply.body.data;}
+ const result=reply.body.data;if(!body||!key||!matchesCollaborationReceipt(body,key,result))return fail(`${code}_RESPONSE_INVALID`,503);
+ return result;
+}
+
+export function nativeFieldCollaboration(incoming:Pick<Headers,'get'>,slug:string,actor:ReserveContext|undefined,method:'GET'|'POST',body?:string,key?:string){return nativeFieldRecordRead(incoming,slug,actor,method,body,key);}
+/** Field entry; this does not replace the generic Support workspace. */
+export function nativeFieldSupportRead(incoming:Pick<Headers,'get'>,slug:string,actor:ReserveContext|undefined,id:string){return nativeFieldRecordRead(incoming,slug,actor,'GET',undefined,undefined,id);}
+
+export type NativeFieldSupportRead={row:{id:string;title:string;issue:string;status:string;version:number};history:unknown[];managedInFieldService:boolean;canWork:false;canManage:false;canReport:false;canConfirm:false};
+export async function requiredNativeFieldSupportRead(incoming:Pick<Headers,'get'>,slug:string,actor:ReserveContext|undefined,id:string):Promise<NativeFieldSupportRead>{
+ return await nativeFieldSupportRead(incoming,slug,actor,id) as NativeFieldSupportRead;
+}
+
+export function nativeFieldOperations(incoming:Pick<Headers,'get'>,slug:string,actor:ReserveContext|undefined,method:'GET'|'POST',body?:string,key?:string){return nativeFieldRecordRead(incoming,slug,actor,method,body,key,undefined,true);}
+
+export function nativeFieldOperationsDetail(incoming:Pick<Headers,'get'>,slug:string,actor:ReserveContext|undefined,id:string){return nativeFieldRecordRead(incoming,slug,actor,'GET',undefined,undefined,undefined,{id});}
+
+export function nativeServiceCustomerPreparation(incoming:Pick<Headers,'get'>,slug:string,actor:ReserveContext|undefined,route:'read'|'create'|'confirm',body?:string,key?:string){return nativeFieldRecordRead(incoming,slug,actor,route==='read'?'GET':'POST',body,key,undefined,{customer:route});}
+export async function requiredNativeServiceCustomerPreparation(incoming:Pick<Headers,'get'>,slug:string,actor:ReserveContext|undefined):Promise<ServiceCustomerPreparation>{
+ const value=await nativeServiceCustomerPreparation(incoming,slug,actor,'read');
+ if(!actor||!validServiceCustomerPreparation(value,actor.companyId))return fail('NATIVE_SERVICE_CUSTOMER_RESPONSE_INVALID',503);
+ return value;
 }

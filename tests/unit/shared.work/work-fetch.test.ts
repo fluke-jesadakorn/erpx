@@ -292,3 +292,12 @@ it('does not confuse distinct valid identifiers that share a colon-joined contex
  context.dataset={workUser:'a',workRevision:'7',workCompany:'3',workAssignment:'c:d',workAssignmentVersion:'1',workStale:'false'};
  finish(Response.json({data:{privateDetail:'original synthetic account data'}}));await expectContextConflict(await pending);
 });
+
+import {captureWorkCommandCompletion} from '@erpx/feature-work_projection/lib/command-context';
+it('owner acknowledgement clears only the captured unchanged form',()=>{
+ let version='1';const form={isConnected:true,getAttribute:()=>version};Object.defineProperty(document,'activeElement',{configurable:true,value:{closest:()=>form}});
+ const saved:unknown[]=[];view.addEventListener('erpx:record-command-saved',e=>saved.push((e as CustomEvent).detail));
+ const complete=captureWorkCommandCompletion();version='2';complete();expect(saved).toHaveLength(0);
+ const newer=captureWorkCommandCompletion();newer();expect(saved).toEqual([{form,formEditVersion:'2'}]);
+ form.isConnected=false;newer();expect(saved).toHaveLength(1);
+});

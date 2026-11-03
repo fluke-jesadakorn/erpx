@@ -12,6 +12,7 @@ use std::{collections::BTreeSet, future::Future};
 
 #[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[cfg_attr(feature="contracts",derive(ts_rs::TS,utoipa::ToSchema))]
 pub struct BatchChange {
     #[serde(deserialize_with = "deserialize_safe_i64")]
     pub expected_version: i64,
@@ -19,11 +20,61 @@ pub struct BatchChange {
 }
 #[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[cfg_attr(feature="contracts",derive(ts_rs::TS,utoipa::ToSchema))]
 pub struct GrantBatch {
     pub company_id: String,
     pub expected_revision: String,
     pub changes: Vec<BatchChange>,
     pub idempotency_key: String,
+}
+/// Original REST schema normalization, before signing or command hashing.
+/// The lower-level owner command retains its existing normalized-input contract.
+pub fn normalize_lifecycle_batch(mut input: GrantBatch) -> Result<GrantBatch, BusinessError> {
+    let invalid = || {
+        BusinessError::invalid(
+            "VALIDATION_FAILED",
+            "Use the reviewed Company package request.",
+        )
+    };
+    let bounded = |s: &str, min, max| {
+        let n = s.encode_utf16().count();
+        n >= min && n <= max
+    };
+    if !bounded(&input.company_id, 1, 100)
+        || input.changes.is_empty()
+        || input.changes.len() > 100
+        || input.expected_revision.len() != 64
+        || !input
+            .expected_revision
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        || !bounded(&input.idempotency_key, 16, 128)
+        || !input
+            .idempotency_key
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+    {
+        return Err(invalid());
+    }
+    for change in &mut input.changes {
+        let g = &mut change.grant;
+        g.reason = crate::domain::packages::js_trim(&g.reason).into();
+        g.evidence = crate::domain::packages::js_trim(&g.evidence).into();
+        if change.expected_version < 0
+            || !bounded(&g.company_id, 1, 100)
+            || !bounded(&g.package_id, 1, 100)
+            || g.package_version < 1
+            || g.version < 1
+            || g.starts_at < 0
+            || g.ends_at.is_some_and(|v| v < 0)
+            || !matches!(g.state.as_str(), "active" | "draining" | "inactive")
+            || !bounded(&g.reason, 3, 1000)
+            || !bounded(&g.evidence, 3, 1000)
+        {
+            return Err(invalid());
+        }
+    }
+    Ok(input)
 }
 /// Field order is the original normalized JSON request, excluding its key.
 #[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
@@ -35,6 +86,7 @@ pub struct NormalizedGrantBatch {
 }
 #[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[cfg_attr(feature="contracts",derive(ts_rs::TS,utoipa::ToSchema))]
 pub struct GrantBatchPreview {
     pub company_id: String,
     pub expected_revision: String,

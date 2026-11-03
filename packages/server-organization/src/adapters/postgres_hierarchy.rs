@@ -20,6 +20,23 @@ impl<'c> PgOrganizationReader<'c> {
             connection,
         }
     }
+    /// Bounded structural workspace choices in this Company. This does not
+    /// establish permission; Identity filters the lineages against real grants.
+    pub async fn workspace_lineages(
+        &mut self,
+        company: &CompanyId,
+    ) -> Result<Vec<CompanyContext>, PgTransactionError<BusinessError>> {
+        if !self.connection.is_in_transaction() {
+            return Err(PersistenceError::new("ORGANIZATION_TRANSACTION_REQUIRED").into());
+        }
+        let rows=sqlx::query("SELECT to_jsonb(c) company,CASE WHEN n.kind='branch' THEN to_jsonb(n) ELSE to_jsonb(b) END branch,CASE WHEN n.kind='department' THEN to_jsonb(n) ELSE NULL END department FROM organization_nodes c JOIN organization_nodes n ON n.company_id=c.id AND n.status='active' AND n.kind IN('branch','department') LEFT JOIN organization_nodes b ON n.kind='department' AND b.id=n.branch_id AND b.company_id=c.id AND b.kind='branch' AND b.parent_id=c.id AND (b.branch_id IS NULL OR b.branch_id=b.id) AND b.status='active' WHERE c.id=$1 AND c.kind='company' AND c.status='active' AND ((n.kind='branch' AND n.parent_id=c.id AND (n.branch_id IS NULL OR n.branch_id=n.id)) OR (n.kind='department' AND ((n.branch_id IS NULL AND n.parent_id=c.id) OR (b.id IS NOT NULL AND n.parent_id=b.id)))) ORDER BY n.kind,n.display_name,n.id LIMIT 4001").bind(company.as_str()).fetch_all(&mut *self.connection).await?;
+        if rows.len() > 4000 {
+            return Err(unavailable().into());
+        }
+        rows.into_iter()
+            .map(|row| company_context(self.holding_id.clone(), lineage(row)?).map_err(Into::into))
+            .collect()
+    }
     /// Resolve a current owner-supplied scope ID without trusting an invented
     /// branch ID. This is structural evidence only. The caller must acquire
     /// lock_hierarchy_sources before its first policy snapshot.
@@ -115,10 +132,10 @@ impl OrganizationReadPort for PgOrganizationReader<'_> {
           LEFT JOIN organization_nodes b ON $1::text IS NOT NULL AND b.company_id=c.id AND b.parent_id=c.id AND b.kind='branch' AND b.status='active' AND b.slug=$1
           LEFT JOIN organization_nodes d ON $2::text IS NOT NULL AND d.company_id=c.id AND d.kind='department' AND d.status='active' AND d.slug=$2
            AND (($1::text IS NOT NULL AND d.branch_id=b.id AND d.parent_id=b.id) OR ($1::text IS NULL AND d.branch_id IS NULL AND d.parent_id=c.id))
-          WHERE c.kind='company' AND c.status='active' AND ($3::text IS NULL OR c.slug=$3 OR c.id=$3)
+          WHERE c.kind='company' AND c.status='active' AND ($3::text IS NULL OR ($4::text!='id' AND c.slug=$3) OR ($4::text!='slug' AND c.id=$3))
            AND ($1::text IS NULL OR b.id IS NOT NULL) AND ($2::text IS NULL OR d.id IS NOT NULL)
           ORDER BY c.id LIMIT 2")
-          .bind(query.branch_slug()).bind(query.department_slug()).bind(query.company()).fetch_all(&mut *self.connection).await?;
+          .bind(query.branch_slug()).bind(query.department_slug()).bind(query.company()).bind(query.company_match()).fetch_all(&mut *self.connection).await?;
             rows.into_iter().map(lineage).collect()
         })
     }

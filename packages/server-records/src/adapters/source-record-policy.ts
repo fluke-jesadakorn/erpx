@@ -19,7 +19,6 @@ import { createSourceRecordApplication } from '@erpx/server-records/application/
 import { sourceRecordInput, type AuthorizedSourceRecord } from '@erpx/server-records/domain/source-record-policy';
 export { sourceRecordKind, sourceRecordInput, type AuthorizedSourceRecord } from '@erpx/server-records/domain/source-record-policy';
 import { ownedRecordSource as commerceSource } from '@erpx/server-commerce/public/records-source-facts';
-import { ownedRecordSource as field_serviceSource } from '@erpx/server-field_service/public/records-source-facts';
 import {nativeSourceRecord} from '@erpx/server-field_service/public/native-source-record';
 import { ownedRecordSource as posSource } from '@erpx/server-pos/public/records-source-facts';
 import { ownedRecordSource as assetsSource } from '@erpx/server-assets/public/records-source-facts';
@@ -29,7 +28,12 @@ function application(provided?: SqlDatabase, requestedVersion?: number): ReturnT
     return createSourceRecordApplication<SqlStatement>({ clock: { now: Date.now }, prepare: async (holding) => { database = provided ?? (await holdingResources(holding)).write; }, authorize: (a, permission) => fromNativeSync(() => requirePermission(a, permission)), taskGrant: async (a, now) => !!await database.prepare(`SELECT 1 FROM (${identity_accessProjectionSources.assignments}) assignments WHERE id=? AND company_id=? AND user_id=? AND role=? AND iam_assignment_active(id,?) AND iam_principal_active(user_id,company_id,?) AND iam_role_allows(role,company_id,'records.read')`).bind(a.assignmentId, a.companyId, a.userId, a.role, now, now).first(), task: (a, id) => fromNative(() => getTask(database, a, id)), pms: (a, id) => fromNative(() => readablePmsSource(database, a, id)), pmsLink: pmsSourceLink, support: (a, id) => fromNative(() => getSupportTicket(a, id, database)), source: (a, kind, id) => {
             switch (kind) {
                 case 'commerce_order': return commerceSource(database).read(a, kind, id);
-                case 'field_service_order': return provided ? field_serviceSource(database).read(a, kind, id) : fromNative(async () => await nativeSourceRecord(a,id,requestedVersion) ?? await field_serviceSource(database).read(a,kind,id));
+                case 'field_service_order': return fromNative(async () => {
+                    if (provided) throw new BusinessRuleError(503, 'FIELD_RECORD_SOURCE_NATIVE_UNIT_REQUIRED', 'This Field-linked operation requires the native Records transaction.');
+                    const record = await nativeSourceRecord(a, id, requestedVersion);
+                    if (record === undefined) throw new BusinessRuleError(503, 'FIELD_RECORD_SOURCE_NATIVE_UNAVAILABLE', 'The native Field source is unavailable.');
+                    return record;
+                });
                 case 'pos_sale': return posSource(database).read(a, kind, id);
                 case 'asset': return assetsSource(database).read(a, kind, id);
                 case 'maintenance_plan': return maintenanceSource(database).read(a, kind, id);
@@ -38,7 +42,7 @@ function application(provided?: SqlDatabase, requestedVersion?: number): ReturnT
         }, taskGuard: (a, id, version, key, step) => taskSourceReadGuard(database, a, id, version, key, step), postGuard: async (a, id, key, step) => sourceGuard(database, key, await fromNative(() => readablePost(database, a, id)), a.userId, step), pmsGuard: (a, key, source, step) => assertion(database, key, step, `EXISTS(SELECT 1 FROM (${pmsSourcesSql}) s WHERE s.id=? AND s.company_id=? AND s.version=? AND ${pmsSourceReadableSql("s", "?::text", "?::text")})`, [source.id, a.companyId, source.version, a.userId, a.assignmentId]), supportGuards: (a, key, source, step) => fromNative(() => supportTicketSourceGuards(database, a, key, source.id, source.version, step)), sourceGuards: (a, key, source, step) => {
             switch (source.kind) {
                 case 'commerce_order': return commerceSource(database).guards(a, key, { ...source, kind: source.kind }, step);
-                case 'field_service_order': return field_serviceSource(database).guards(a, key, { ...source, kind: source.kind }, step);
+                case 'field_service_order': throw new BusinessRuleError(503, 'FIELD_RECORD_SOURCE_NATIVE_UNIT_REQUIRED', 'This Field-linked operation requires the native Records transaction.');
                 case 'pos_sale': return posSource(database).guards(a, key, { ...source, kind: source.kind }, step);
                 case 'asset': return assetsSource(database).guards(a, key, { ...source, kind: source.kind }, step);
                 case 'maintenance_plan': return maintenanceSource(database).guards(a, key, { ...source, kind: source.kind }, step);

@@ -22,8 +22,8 @@ export function useFinanceDraftClose(action: () => void, options?: { root: () =>
   const context = useContext(DraftScope);
   return () => context ? context.close(action, options?.root) : action();
 }
-export function captureFinanceForm() {
-  const form = document.activeElement?.closest<HTMLFormElement>("form[data-finance-draft]");
+export function captureFinanceForm(submittedForm?: HTMLFormElement) {
+  const form = submittedForm ?? document.activeElement?.closest<HTMLFormElement>("form[data-finance-draft]");
   return form ? { form, formEditVersion: form.getAttribute("data-erpx-edit-version") } : undefined;
 }
 export function acknowledgeFinanceForm(completion: ReturnType<typeof captureFinanceForm>) {

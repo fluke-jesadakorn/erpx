@@ -110,6 +110,7 @@ async fn source(
     value.ok_or_else(missing)
 }
 fn validate(
+    owner: crate::public::field_visit_intake::IntakeOwner,
     image: &serde_json::Value,
     user: &str,
     variant: FieldContentVariant,
@@ -122,7 +123,7 @@ fn validate(
             .ok_or_else(changed)
     };
     let state = string("linkState")?;
-    if !crate::domain::field_visit_link::valid_field_purpose(
+    if !owner.supports(
         string("targetType")?,
         string("componentKind")?,
         string("purposeKey")?,
@@ -187,7 +188,7 @@ pub async fn prepare_field_content<A: FieldIntakeAuthority>(
     let company = actor.selection().workspace().company_id.as_str();
     let user = actor.user_id().as_str();
     let image = source(c, company, link).await?;
-    let (_, input) = validate(&image, user, variant, read_only)?;
+    let (_, input) = validate(authority.owner_kind(), &image, user, variant, read_only)?;
     let target = image["targetId"].as_str().ok_or_else(changed)?;
     let guard = prepare_field_intake(c, authority, actor, target, false, now).await?;
     guard.require_current(c, now).await?;
@@ -290,7 +291,13 @@ pub async fn finish_field_content<A: FieldIntakeAuthority>(
     if image != content.witness.image {
         return Err(changed());
     }
-    let (media, _) = validate(&image, user, content.witness.variant, read_only)?;
+    let (media, _) = validate(
+        authority.owner_kind(),
+        &image,
+        user,
+        content.witness.variant,
+        read_only,
+    )?;
     let target = image["targetId"].as_str().ok_or_else(changed)?;
     let guard = prepare_field_intake(c, authority, actor, target, false, now).await?;
     let source_id = image["sourceId"].as_str().ok_or_else(changed)?;

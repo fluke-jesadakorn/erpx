@@ -2,6 +2,7 @@
 //! ownership, personal reviewer policy and purchases remain mandatory outside.
 use super::*;
 use num_bigint::BigInt;
+use erpx_server_shared::public::RecordId;
 
 pub struct FieldServicePartsJournalFacts {
     pub holding_id: HoldingId,
@@ -181,4 +182,19 @@ fn changed_source() -> WorkflowError {
         "The retained Finance parts target changed.",
     )
     .into()
+}
+
+/// Server-persisted routing hint only. A positive Field result still requires
+/// its immutable Inventory/Field/Workflow lineage on this same native unit.
+pub async fn field_service_parts_journal_label(
+    c:&mut PgConnection,actor:&FinanceActor,id:&RecordId,
+)->Result<bool,WorkflowError>{
+    current_transaction_witness(c).await.map_err(to_workflow)?;
+    let label:Option<Option<String>>=sqlx::query_scalar("SELECT CASE WHEN octet_length(source_type)<=64 THEN source_type END FROM finance_journals WHERE company_id=$1 AND id=$2 FOR SHARE")
+        .bind(actor.company_id.as_str()).bind(id.as_str()).fetch_optional(c).await?;
+    match label{
+        None=>Err(BusinessError::new(FailureKind::NotFound,"JOURNAL_NOT_FOUND","Journal not found in this company.").into()),
+        Some(None)=>Err(unsupported()),
+        Some(Some(label))=>Ok(label=="field_service_parts"),
+    }
 }

@@ -397,3 +397,46 @@ fixture::account::holding_registry(),
         system.scenario.auth.sign_in("a@example.test",fixture::PASSWORD.into(),&fixture::account::empty(),None).await.unwrap();
     }).await;
 }
+
+#[tokio::test]
+async fn current_native_account_unit_blocks_switch_then_rejects_its_retired_child_before_consumers()
+{
+    use erpx_server_identity_access::public::{
+        effective_authority::HoldingWorkSourcePreparation,
+        work_context::HoldingWorkContextInspector,
+    };
+    use erpx_server_runtime::public::postgres::PgWorkFuture;
+    use erpx_server_shared::public::{BusinessError, HoldingId};
+    #[derive(Clone)]
+    struct AccountReadSources;
+    impl HoldingWorkSourcePreparation for AccountReadSources {
+        fn prepare<'c>(
+            &'c self,
+            _c: &'c mut sqlx::PgConnection,
+        ) -> PgWorkFuture<'c, (), BusinessError> {
+            Box::pin(async { Ok(()) })
+        }
+    }
+    with_system(|system|async move{
+  let a=login(&system,"a@example.test",None).await;
+  let handle=system.scenario.auth.devices(&a).await.unwrap().accounts[0].handle.clone();
+  let b=login(&system,"b@example.test",Some(a)).await;
+  let child=child(&system,&b,ACME).await;
+  let proof=PresentedSecrets{active:Some(child.token),browser:None,saved:vec![]}.proof(&SystemAuthenticationSecrets);
+  let inspector=Arc::new(HoldingWorkContextInspector::new(system.control.clone(),system.holdings[0].clone(),HoldingId::new("h001").unwrap(),fixture::account::policy(),system.scenario.clock.clone(),fixture::account::holding_registry()).unwrap());
+  let ready=Arc::new(tokio::sync::Notify::new());let release=Arc::new(tokio::sync::Notify::new());
+  let held={let inspector=inspector.clone();let proof=proof.clone();let ready=ready.clone();let release=release.clone();tokio::spawn(async move{
+   inspector.with_holding_account("acme.example.test",proof,AccountReadSources,move |_c,account|{let ready=ready.clone();let release=release.clone();Box::pin(async move{assert_eq!(account.user_id().as_str(),"fixture-b");ready.notify_one();release.notified().await;Ok("committed-under-original-account")})}).await
+  })};
+  ready.notified().await;
+  let switch={let auth=system.scenario.auth.clone();tokio::spawn(async move{auth.select(&b,handle,2).await})};
+  let waiting=tokio::time::timeout(std::time::Duration::from_secs(5),async{loop{
+   let waiting:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_locks WHERE relation='session'::regclass AND mode='ExclusiveLock' AND NOT granted AND database=(SELECT oid FROM pg_database WHERE datname=current_database()))").fetch_one(system.control.raw()).await.unwrap();
+   if waiting{break true;}if switch.is_finished(){break false;}tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+  }}).await.unwrap_or(false);
+  let premature=switch.is_finished();release.notify_one();
+  assert_eq!(held.await.unwrap().unwrap(),"committed-under-original-account");assert!(switch.await.unwrap().is_ok());assert!(waiting&&!premature,"native session writer must wait for the borrowed Account unit");
+  let stale=inspector.with_holding_account("acme.example.test",proof,AccountReadSources,|_c,_scope|Box::pin(async move{panic!("retired child reached an Account consumer");#[allow(unreachable_code)]Ok(())})).await;
+  assert!(stale.is_err());
+ }).await;
+}

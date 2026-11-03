@@ -11,7 +11,7 @@ macro_rules! wire_enum { ($name:ident { $($variant:ident => $wire:literal),+ $(,
  #[cfg_attr(feature="contracts", derive(ts_rs::TS, utoipa::ToSchema))]
  pub enum $name { $(#[serde(rename=$wire)] $variant),+ }
 }; }
-wire_enum!(FieldIntakeTarget { FieldVisit => "field_service_visit" });
+wire_enum!(FieldIntakeTarget { FieldVisit => "field_service_visit", FinancePayment => "finance_payment", FieldJournal => "finance_journal" });
 wire_enum!(FieldIntakeComponent { Record => "record", Action => "action", Line => "line", Event => "event", Message => "message", Publication => "publication" });
 wire_enum!(FieldIntakeState { Draft => "draft", Bound => "bound", Withdrawn => "withdrawn", Expired => "expired" });
 wire_enum!(FieldIntakeClassification { Public => "public", Internal => "internal", Confidential => "confidential", Restricted => "restricted" });
@@ -131,6 +131,18 @@ pub struct FieldIntakeWireError;
 pub fn checked_field_intake_set(
     value: serde_json::Value,
 ) -> Result<serde_json::Value, FieldIntakeWireError> {
+    checked_owner_intake_set(
+        value,
+        erpx_server_files::public::field_visit_intake::IntakeOwner::FieldVisit,
+    )
+}
+pub(crate) fn checked_owner_intake_set(
+    value: serde_json::Value,
+    owner: erpx_server_files::public::field_visit_intake::IntakeOwner,
+) -> Result<serde_json::Value, FieldIntakeWireError> {
+    if value["targetType"].as_str() != Some(owner.target_type()) {
+        return Err(FieldIntakeWireError);
+    }
     const LIMIT: i64 = 9_007_199_254_740_991;
     fn safe(value: i64) -> bool {
         (-LIMIT..=LIMIT).contains(&value)

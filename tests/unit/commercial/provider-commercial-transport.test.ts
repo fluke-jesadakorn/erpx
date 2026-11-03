@@ -53,7 +53,7 @@ it("requires the normal current provider session for both snapshot and Apply", a
   expect(guarded.session).toHaveBeenCalledTimes(2);
 });
 
-import {providerPackageReview,captureProviderPackageCommand,acknowledgeProviderPackageCommand,providerLegacyPackageReview,captureProviderLegacyPackageCommand} from '@erpx/server-commercial/public/rules/provider-package-command';
+import {providerPackageReview,captureProviderPackageCommand,acknowledgeProviderPackageCommand,providerLegacyPackageReview,captureProviderLegacyPackageCommand} from '@erpx/feature-commercial/provider-package-command';
 import {createProviderCommercialPageContext} from '@erpx/server-commercial/application/provider-page-context';
 import type {PackageGrantBatch} from '@erpx/server-commercial/public/package-grants';
 const packageRequest:PackageGrantBatch={companyId:'owned-company',expectedRevision:'a'.repeat(64),idempotencyKey:'captured-request-key',changes:[{expectedVersion:3,grant:{companyId:'owned-company',packageId:'finance',packageVersion:1,state:'draining',startsAt:0,endsAt:null,version:4,reason:'Reviewed outstanding Finance work',evidence:'test:original-reviewed-source'}}]};
@@ -99,4 +99,29 @@ it('actual Commercial pages seed the minimal Provider boundary around their orig
 });
 it('actual Commercial pages preserve original host, login and Commercial denial before exposing a workflow',async()=>{
  const {default:Page}=await import('@erpx/feature-admin/routes/provider/commercial/packages/page');guarded.host.mockReturnValue('finance-dev-erpx.jesadakorn.com');await expect(Page()).rejects.toThrow('NOT_FOUND');expect(guarded.page).not.toHaveBeenCalled();guarded.host.mockReturnValue('admin-dev-erpx.jesadakorn.com');guarded.page.mockRejectedValueOnce(Error('UNAUTHENTICATED'));await expect(Page()).rejects.toThrow('REDIRECT:/sso/start?next=%2Fprovider%2Fcommercial%2Fpackages');guarded.page.mockRejectedValueOnce(Error('FORBIDDEN'));const denied=await Page();expect(pageElement(denied,'CompanyPackageManager')).toBeUndefined();expect(pageElement(denied,'ProviderContextBoundary')).toBeUndefined();
+});
+
+it('forwards Service lifecycle through exact native Holding transport without authority claims or fallback',async()=>{
+ const {createNativeServiceCommercialTransport}=await import('../../../packages/server-commercial/src/adapters/native-service-commercial');
+ const config={privateBaseUrl:'http://127.0.0.1:43117',timeoutMs:250,holdings:[{origin:'https://acme.example.test',holdingId:'h001',holdingSlug:'acme'}]};
+ const send=vi.fn(async(_input:Parameters<typeof import('@erpx/native-sdk/field-service-parts').nativeServicePackageRequest>[0])=>{void _input;return {status:200,body:{data:{receipt:{companyId:'company'}}}};});
+ const run=createNativeServiceCommercialTransport(JSON.stringify(config),send),body='{"holdingId":"h001","request":{"changes":[]},"token":"captured"}';
+ const h=new Headers({host:'acme.example.test',origin:'https://acme.example.test',cookie:'__Host-erpx-product=synthetic','content-type':'application/json','idempotency-key':'captured-service-key','x-erpx-platform-assignment':'hint','x-forwarded-host':'forged','authorization':'never-forward'});
+ expect(await run(h,'apply',{body})).toEqual({receipt:{companyId:'company'}});
+ expect(send).toHaveBeenCalledOnce();const call=send.mock.calls[0]![0];expect(call).toMatchObject({baseUrl:config.privateBaseUrl,operation:'apply',body,slug:'acme'});
+ expect([...call.headers.keys()].sort()).toEqual(['accept','content-type','cookie','host','idempotency-key','origin','x-erpx-platform-assignment']);
+ h.set('origin','https://foreign.example.test');await expect(run(h,'apply',{body})).rejects.toMatchObject({status:403,code:'ORIGIN_FORBIDDEN'});expect(send).toHaveBeenCalledOnce();
+ h.set('origin',config.holdings[0]!.origin);send.mockRejectedValueOnce(Error('offline'));
+ await expect(run(h,'apply',{body})).rejects.toMatchObject({status:503,code:'NATIVE_SERVICE_COMMERCIAL_UNAVAILABLE'});expect(send).toHaveBeenCalledTimes(2);expect(guarded.holding).not.toHaveBeenCalled();
+});
+it('fences native Service grants below legacy HTTP, receipts and internal transaction entrypoints',async()=>{
+ const {packageGrantStore}=await import('@erpx/server-commercial/public/package-grants');
+ const database={transaction:vi.fn(),assertActiveTransaction:vi.fn(),prepare:vi.fn()};
+ const authorize=vi.fn(),obligations=vi.fn(),store=packageGrantStore(database as never,{authorize,obligations});
+ for(const packageId of ['service','service-parts-assets']){
+  const grant={companyId:'company',packageId,packageVersion:1,state:'inactive' as const,startsAt:0,endsAt:null,version:2,reason:'Reviewed',evidence:'Actual source'};
+  const single={grant,expectedVersion:1,idempotencyKey:'captured-service-key'},batch={companyId:'company',expectedRevision:'a'.repeat(64),idempotencyKey:single.idempotencyKey,changes:[single]};
+  for(const call of [()=>store.preview(single),()=>store.apply(single),()=>store.batch.preview(batch),()=>store.batch.apply(batch,async()=>{}),()=>store.batch.previewIn(database as never,batch),()=>store.batch.applyIn(database as never,batch,async()=>{})])expect(call).toThrow('NATIVE_SERVICE_PACKAGE_REQUIRED');
+ }
+ expect(authorize).not.toHaveBeenCalled();expect(obligations).not.toHaveBeenCalled();expect(database.prepare).not.toHaveBeenCalled();expect(database.transaction).not.toHaveBeenCalled();expect(database.assertActiveTransaction).not.toHaveBeenCalled();
 });

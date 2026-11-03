@@ -185,7 +185,11 @@ impl PreparedAgreementReview {
         if self.input.action == crate::domain::agreement_review::AgreementReviewAction::Retire {
             let open:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM field_service_orders WHERE agreement_id=$1 AND status NOT IN ('cancelled','billed'))").bind(&self.facts.id).fetch_one(c).await?;
             if open {
-                return Err(changed());
+                return Err(BusinessError::new(
+                    FailureKind::Conflict,
+                    "CONFLICT",
+                    "The record changed, a reference is unavailable, or this value already exists. Refresh and review again.",
+                ).into());
             }
         }
         Ok(())
@@ -223,7 +227,11 @@ impl PreparedAgreementReview {
             let open: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM field_service_orders WHERE agreement_id=$1 AND status NOT IN ('cancelled','billed'))")
                 .bind(&self.facts.id).fetch_one(c).await?;
             if open {
-                return Err(changed());
+                return Err(BusinessError::new(
+                    FailureKind::Conflict,
+                    "CONFLICT",
+                    "The record changed, a reference is unavailable, or this value already exists. Refresh and review again.",
+                ).into());
             }
         }
         Ok(())

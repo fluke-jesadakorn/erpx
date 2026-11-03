@@ -21,6 +21,8 @@ pub struct FieldRecordSource {
     pub version: i64,
     pub title: String,
     pub status: String,
+    pub scheduled_at: Option<i64>,
+    pub visit_completed_at: Option<i64>,
     pub ticket_id: String,
     pub asset_id: Option<String>,
     pub agreement: Option<FieldRecordAgreement>,
@@ -68,7 +70,7 @@ async fn image(
     department: Option<&str>,
     id: &str,
 ) -> Result<(FieldRecordSource, String), Error> {
-    let r=sqlx::query("WITH source AS MATERIALIZED (SELECT o.*,to_jsonb(g) agreement FROM field_service_orders o LEFT JOIN field_service_agreements g ON g.id=o.agreement_id AND g.company_id=o.company_id WHERE o.id=$1 AND o.company_id=$2 AND ($3::text IS NULL OR o.branch_id=$3) AND ($4::text IS NULL OR o.department_id=$4)), valueset AS (SELECT jsonb_build_object('id',id,'company_id',company_id,'branch_id',branch_id,'department_id',department_id,'version',version,'title',issue,'status',status,'ticket_id',ticket_id,'asset_id',asset_id,'agreement',CASE WHEN agreement IS NULL THEN NULL ELSE jsonb_build_object('branch_id',agreement->>'branch_id','department_id',agreement->>'department_id','customer_id',agreement->>'customer_id','asset_id',agreement->>'asset_id') END) payload,to_jsonb(source) full_image FROM source) SELECT CASE WHEN octet_length(payload::text)+octet_length(full_image::text)<=2097152 THEN payload::text END payload,encode(sha256(convert_to(full_image::text,'UTF8')),'hex') digest FROM valueset").bind(id).bind(company.as_str()).bind(branch).bind(department).fetch_optional(c).await?.ok_or_else(missing)?;
+    let r=sqlx::query("WITH source AS MATERIALIZED (SELECT o.*,to_jsonb(g) agreement FROM field_service_orders o LEFT JOIN field_service_agreements g ON g.id=o.agreement_id AND g.company_id=o.company_id WHERE o.id=$1 AND o.company_id=$2 AND ($3::text IS NULL OR o.branch_id=$3) AND ($4::text IS NULL OR o.department_id=$4)), valueset AS (SELECT jsonb_build_object('id',id,'company_id',company_id,'branch_id',branch_id,'department_id',department_id,'version',version,'title',issue,'status',status,'scheduled_at',scheduled_at,'visit_completed_at',visit_completed_at,'ticket_id',ticket_id,'asset_id',asset_id,'agreement',CASE WHEN agreement IS NULL THEN NULL ELSE jsonb_build_object('branch_id',agreement->>'branch_id','department_id',agreement->>'department_id','customer_id',agreement->>'customer_id','asset_id',agreement->>'asset_id') END) payload,to_jsonb(source) full_image FROM source) SELECT CASE WHEN octet_length(payload::text)+octet_length(full_image::text)<=2097152 THEN payload::text END payload,encode(sha256(convert_to(full_image::text,'UTF8')),'hex') digest FROM valueset").bind(id).bind(company.as_str()).bind(branch).bind(department).fetch_optional(c).await?.ok_or_else(missing)?;
     let value: Option<String> = r.try_get("payload")?;
     let data = serde_json::from_str(&value.ok_or_else(changed)?).map_err(|_| changed())?;
     Ok((data, r.try_get("digest")?))

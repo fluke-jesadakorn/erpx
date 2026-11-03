@@ -10,7 +10,7 @@ vi.mock("@erpx/server-runtime/public/presentation-configuration",()=>({publicBet
 vi.mock("@erpx/feature-identity_access/lib/auth-client",()=>({authClient:{signIn:{email:vi.fn()}}}));
 import {isValidElement,type ReactNode,type ReactElement} from 'react';
 import {accountWorkspaceTarget,accountWorkspaceLoginReturn} from '@erpx/server-identity_access/public/rules/account-workspace';
-import {deviceAccountReturn,deviceDirectoryLogin} from '@erpx/server-identity_access/public/rules/device-account-return';
+import {deviceAccountReturn,deviceDirectoryLogin} from '@erpx/feature-identity_access/lib/device-account-return';
 import {accountWorkspaceRequest} from '@erpx/server-identity_access/public/account-workspace';
 import {ApiError} from '@erpx/server-runtime/public/http';
 const origin='https://account-dev-erpx.jesadakorn.com';

@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { assignmentApplies } from "@erpx/server-identity_access/public/authorization";
 import { workRoleOptions } from "@erpx/server-work_projection/public/work-role-options";
-import { selectWorkRole } from "@erpx/server-work_projection/public/work-role-store";
+import { selectNativeWorkRole } from "@erpx/server-work_projection/public/work-role-store";
 import { ApiError,errorResponse } from "@erpx/server-runtime/public/http";
 const schema=z.object({assignmentId:z.string().min(1).max(128),revision:z.number().int().nonnegative()});
 export async function GET(_request:Request,context:RouteContext<'/api/v1/holdings/[holdingSlug]/assignments/active'>){
@@ -15,8 +15,7 @@ export async function POST(request:Request,context:RouteContext<'/api/v1/holding
  const input=schema.parse(await request.json()),state=await workRoleOptions((await context.params).holdingSlug);
  const a=state.options.find(a=>a.id===input.assignmentId);
  if(!a)throw new ApiError(403,'ASSIGNMENT_UNAVAILABLE','Choose one of your active assignments.');
- const unchanged=state.selection?.assignment_id===a.id && state.selection.assignment_version===a.version && state.selection.revision===input.revision && state.selection.expires_at>Date.now();
- const selected=unchanged ? state.selection! : await selectWorkRole(state.write,{sessionId:state.access.sessionId,userId:state.access.userId,companyId:state.access.scope.companyId,assignmentId:a.id,assignmentVersion:a.version!,revision:input.revision,expiresAt:state.access.expiresAt});
+ const selected=await selectNativeWorkRole({sessionId:state.access.sessionId,userId:state.access.userId,companyId:state.access.scope.companyId,assignmentId:a.id,assignmentVersion:a.version!,revision:input.revision,expiresAt:state.access.expiresAt});
  // Role selection remembers the role itself. A workspace preference changes
  // only after the user explicitly opens that workspace.
  const response=NextResponse.json(canonicalDestinationLinks({data:{assignmentId:a.id,revision:selected.revision,href:a.href,companyId:state.access.scope.companyId,userId:state.access.userId,appliesToWorkspace:assignmentApplies(a,state.access.scope)}}),{headers:{'Cache-Control':'private, no-store'}});

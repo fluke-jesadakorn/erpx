@@ -13,9 +13,25 @@ fn upload() {}
 fn status() {}
 #[utoipa::path(get,path="/api/v1/holdings/{holding_slug}/field-service/attachment-links/{id}/content",params(("holding_slug"=String,Path),("id"=String,Path),("variant"=Option<String>,Query)),responses((status=200,body=Vec<u8>,content_type="application/octet-stream"),(status=423,body=FieldIntakeErrorResponse)))]
 fn content() {}
+// The same finite DTOs describe the Finance payment-proof profile; runtime
+// authorization and binding remain separate from Visit intake.
+#[utoipa::path(get,path="/api/v1/holdings/{holding_slug}/finance/payment-files/attachment-sets",params(("holding_slug"=String,Path),("targetType"=String,Query),("targetId"=String,Query),("purposeKey"=Option<String>,Query),("componentKind"=Option<String>,Query),("expectedTargetVersion"=Option<String>,Query)),responses((status=200,body=FieldIntakeListResponse),(status=422,body=FieldIntakeErrorResponse)))]
+fn payment_list() {}
+#[utoipa::path(post,path="/api/v1/holdings/{holding_slug}/finance/payment-files/attachment-sets",params(("holding_slug"=String,Path),("Idempotency-Key"=String,Header)),request_body=FieldIntakeCreateInput,responses((status=201,body=FieldIntakeCreateResponse),(status=422,body=FieldIntakeErrorResponse)))]
+fn payment_create() {}
+#[utoipa::path(post,path="/api/v1/holdings/{holding_slug}/finance/payment-files/attachment-sets/{id}/files",params(("holding_slug"=String,Path),("id"=String,Path),("Idempotency-Key"=String,Header)),request_body=FieldFileReserveInput,responses((status=201,body=FieldFileReservationResponse),(status=422,body=FieldIntakeErrorResponse)))]
+fn payment_reserve() {}
+#[utoipa::path(put,path="/api/v1/holdings/{holding_slug}/finance/payment-files/uploads/{id}/content",params(("holding_slug"=String,Path),("id"=String,Path),("Content-Type"=String,Header)),request_body(content=Vec<u8>,content_type="application/octet-stream"),responses((status=202,body=FieldFileUploadResponse),(status=422,body=FieldIntakeErrorResponse)))]
+fn payment_upload() {}
+#[utoipa::path(get,path="/api/v1/holdings/{holding_slug}/finance/payment-files/attachment-links/{id}/status",params(("holding_slug"=String,Path),("id"=String,Path)),responses((status=200,body=FieldFileStatusResponse)))]
+fn payment_status() {}
+#[utoipa::path(get,path="/api/v1/holdings/{holding_slug}/finance/payment-files/attachment-links/{id}/content",params(("holding_slug"=String,Path),("id"=String,Path),("variant"=Option<String>,Query)),responses((status=200,body=Vec<u8>,content_type="application/octet-stream"),(status=423,body=FieldIntakeErrorResponse)))]
+fn payment_content() {}
+#[utoipa::path(post,path="/api/v1/holdings/{holding_slug}/finance/payment-files/attachment-links/{id}/withdraw",params(("holding_slug"=String,Path),("id"=String,Path),("Idempotency-Key"=String,Header)),responses((status=200,body=FieldFileStatusResponse),(status=422,body=FieldIntakeErrorResponse)))]
+fn payment_withdraw() {}
 #[derive(utoipa::OpenApi)]
 #[openapi(
-    paths(list, create, reserve, upload, status, content),
+    paths(list, create, reserve, upload, status, content, payment_list, payment_create, payment_reserve, payment_upload, payment_status, payment_content, payment_withdraw),
     components(schemas(
         FieldIntakeTarget,
         FieldIntakeComponent,

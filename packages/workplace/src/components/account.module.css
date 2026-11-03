@@ -11,6 +11,7 @@
     color: var(--ui-ink);
     cursor: pointer;
     transition: background 0.18s ease;
+    max-width: 100%;
   }
   :global(.account-trigger):hover,
   :global(.account-trigger)[aria-expanded="true"] {
@@ -515,6 +516,20 @@
 .skin :global(.account-trigger) :global(.active-work-role) {
   display: block !important;
   max-width: 230px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skin :global(.account-trigger) :global(.user-copy) {
+  min-width: 0;
+  max-width: 180px;
+  grid-template-columns: minmax(0, 1fr);
+}
+.skin :global(.account-trigger) :global(.user-copy) > strong,
+.skin :global(.account-trigger) :global(.user-copy) > :global(.active-work-role) {
+  min-width: 0;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

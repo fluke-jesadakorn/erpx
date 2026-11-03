@@ -17,6 +17,9 @@ pub struct FieldIntakeScope {
 }
 
 pub trait FieldIntakeAuthority {
+    fn owner_kind(&self) -> IntakeOwner {
+        IntakeOwner::FieldVisit
+    }
     fn authorize<'a>(
         &'a self,
         c: &'a mut PgConnection,
@@ -35,10 +38,10 @@ pub trait FieldIntakeAuthority {
 
 pub use crate::adapters::field_visit_intake::{CurrentFieldIntake, prepare_field_intake};
 
-pub use crate::adapters::field_visit_intake::{list_field_sets,field_set_query_has_rows};
+pub use crate::adapters::field_visit_intake::{field_set_query_has_rows, list_field_sets};
 pub use crate::domain::field_visit_intake::{
-    FieldSetListRequest, FieldSetRequest, classification, component_ref, field_set_command_id,
-    field_set_id, validate_component_ref,
+    FieldSetListRequest, FieldSetRequest, IntakeOwner, classification, component_ref,
+    field_set_command_id, field_set_id, owner_classification, validate_component_ref,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -7,6 +7,7 @@ use std::collections::BTreeSet;
 
 #[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[cfg_attr(feature="contracts",derive(ts_rs::TS,utoipa::ToSchema))]
 pub struct PackageDefinition {
     pub id: String,
     #[serde(deserialize_with = "deserialize_safe_i64")]
@@ -347,6 +348,7 @@ impl CommercialCatalogue {
 const MAX_SAFE: i64 = 9_007_199_254_740_991;
 #[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[cfg_attr(feature="contracts",derive(ts_rs::TS,utoipa::ToSchema))]
 pub struct CompanyPackageGrant {
     pub company_id: String,
     pub package_id: String,
@@ -364,6 +366,7 @@ pub struct CompanyPackageGrant {
 }
 #[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[cfg_attr(feature="contracts",derive(ts_rs::TS,utoipa::ToSchema))]
 pub struct CompanyPackageHistoryRight {
     pub company_id: String,
     pub package_id: String,
@@ -446,6 +449,6 @@ fn invalid_catalogue() -> BusinessError {
 fn grant_error(code: &'static str) -> BusinessError {
     BusinessError::invalid(code, "The package grant change is invalid.")
 }
-fn js_trim(value: &str) -> &str {
+pub(crate) fn js_trim(value: &str) -> &str {
     value.trim_matches(|c:char|matches!(c,'\u{9}'..='\u{d}'|'\u{20}'|'\u{a0}'|'\u{1680}'|'\u{2000}'..='\u{200a}'|'\u{2028}'|'\u{2029}'|'\u{202f}'|'\u{205f}'|'\u{3000}'|'\u{feff}'))
 }

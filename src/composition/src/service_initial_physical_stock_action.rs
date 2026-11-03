@@ -29,6 +29,15 @@ fn changed() -> BusinessError {
         "The original Count source changed.",
     )
 }
+/// A native outbox fence can reject effect tampering before the after-image
+/// comparison. Preserve the Count conflict contract and full unit rollback;
+/// unrelated PostgreSQL check violations retain their original error.
+fn ledger_source_failure(error:Error)->Error {
+    match error {
+        PgTransactionError::Persistence(ref persistence) if persistence.code=="NATIVE_OUTBOX_RUNTIME_REQUIRED"=>changed().into(),
+        other=>other,
+    }
+}
 fn text<'a>(v: &'a serde_json::Value, key: &str) -> Result<&'a str, BusinessError> {
     v[key].as_str().ok_or_else(changed)
 }
@@ -1266,7 +1275,7 @@ pub async fn execute_service_count_action<
         &mut ledger_ids,
     )
     .execute(&request, &mut effects)
-    .await?;
+    .await.map_err(ledger_source_failure)?;
     module.require_current(c).await?;
     serde_json::from_str(outcome.result.as_str()).map_err(|_| changed().into())
 }
@@ -1686,7 +1695,8 @@ async fn assign_service_count_flow_inner<C: Clock + Sync, I: erpx_server_shared:
         &mut ledger_ids,
     )
     .execute(&request, &mut effects)
-    .await?;
+    .await
+    .map_err(ledger_source_failure)?;
     module.require_current(c).await?;
     serde_json::from_str(outcome.result.as_str()).map_err(|_| changed().into())
 }

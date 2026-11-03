@@ -8,7 +8,7 @@ mod engineering_cohort;
 #[allow(dead_code, unused_imports)]
 #[path = "../field_service/parts.rs"]
 mod facts;
-use erpx_server_identity_access::public::SystemAuthenticationSecrets;
+use erpx_server_identity_access::public::{SystemAccountClock, SystemAuthenticationSecrets};
 use erpx_service::private_development_api::{
     DevelopmentApiConfiguration, assemble_development_api, run_field_files_worker_file,
 };
@@ -31,6 +31,7 @@ impl Drop for AbortServer {
 
 #[tokio::main]
 async fn main() {
+    assert!(!std::env::var("ERPX_FIELD_SERVICE_OWNER_PROFILE").is_ok_and(|v|v=="1")||cfg!(feature="finance-field-write"),"FIELD_OWNER_PROFILE_REQUIRES_FINANCE_FIELD_WRITE");
     let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
     let mut term = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
         .expect("signal handler");
@@ -89,7 +90,11 @@ async fn run_fixture(
         .unwrap()
         .as_millis() as i64;
     system.scenario.clock.0.store(now, Ordering::SeqCst);
-    let p = facts::setup_workspace(system).await;
+    let unpurchased_history=std::env::var("ERPX_FIELD_FILES_UNPURCHASED_HISTORY").is_ok_and(|v|v=="1");
+    let p = if unpurchased_history {
+        assert!(reads.is_none(),"Unpurchased historical fixture cannot become a browser cohort");
+        facts::setup_workspace_without_service_history(system).await
+    }else{facts::setup_workspace(system).await};
     let central = facts::account::login(&p.review.system, "a@example.test", None).await;
     let child = facts::account::child(&p.review.system, &central, facts::account::ACME).await;
     sqlx::query("INSERT INTO active_work_contexts(session_id,user_id,company_id,assignment_id,assignment_version,revision,expires_at,updated_at) VALUES($1,'fixture-a','company','field-fixture-a',3,8,$2,$3)").bind(&child.result.session_id).bind(now+3_600_000).bind(now).execute(p.pool().raw()).await.unwrap();
@@ -142,6 +147,7 @@ async fn run_fixture(
         let activation: serde_json::Value =
             serde_json::from_str(&input).expect("mixed activation JSON");
         let company = activation["companyId"].as_str().expect("companyId");
+        if unpurchased_history {assert_eq!(company,"company","Historical consumer must retain the original leased Company");}
         let actors = activation["actors"].as_array().expect("actors");
         assert!(!actors.is_empty() && actors.len() <= 16);
         let exists: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM organization_nodes WHERE id=$1 AND company_id=$1 AND kind='company' AND status='active')").bind(company).fetch_one(p.pool().raw()).await.unwrap();
@@ -198,6 +204,7 @@ async fn run_fixture(
             sqlx::query("INSERT INTO active_work_contexts(session_id,user_id,company_id,assignment_id,assignment_version,revision,expires_at,updated_at) VALUES($1,$2,$3,$4,$5,8,$6,$7)").bind(&child.result.session_id).bind(user).bind(company).bind(assignment).bind(version).bind(now+3_600_000).bind(now).execute(p.pool().raw()).await.unwrap();
             sessions.insert(label.to_owned(), serde_json::json!({"cookie":format!("__Host-erpx-product={}",child.token.expose()),"companyId":company,"assignmentId":assignment,"assignmentVersion":version,"revision":8}));
         }
+        if !unpurchased_history {facts::seed_initial_service_purchases(&p,company,!std::env::var("ERPX_FIELD_FINANCE_MIXED_PROFILE").is_ok_and(|v|v=="1")).await.unwrap();}
         mixed_company = Some(company.to_owned());
     }
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -247,6 +254,47 @@ async fn run_fixture(
             doc["fieldServiceInitialCounts"] = serde_json::json!([{"holdingId":"h001","filesEnabled":true,"filesReadOnly":false,"uploadsFrozen":false}]);
         }
     }
+    // One explicit producer for mixed consumer tests; normal authentication,
+    // Company source guards and independent-person review remain authoritative.
+    if std::env::var("ERPX_FIELD_AGREEMENT_MIXED_PROFILE").is_ok_and(|v|v=="1") {
+        assert!(parts_mixed,"Agreement producer requires the owned mixed Company");
+        doc["fieldServiceAgreementCreates"] = serde_json::json!(["h001"]);
+        doc["fieldServiceAgreementReviews"] = serde_json::json!(["h001"]);
+    }
+    // Explicit existing mixed-consumer fixture: source production is native;
+    // generic Support may only read it or reject wrong-owner commands.
+    if std::env::var("ERPX_FIELD_SERVICE_MIXED_PROFILE").is_ok_and(|v|v=="1") {
+        assert!(parts_mixed,"Service producer requires the owned mixed Company");
+        for flag in ["fieldServiceRequests","fieldServiceVisits","fieldServiceOrderCancellations","fieldServiceDetailReads","fieldServiceWorkReads"] {
+            doc[flag]=serde_json::json!(["h001"]);
+        }
+        doc["fieldServiceSourceRecordReads"]=serde_json::json!([{"holdingId":"h001","mode":"enforced"}]);
+    }
+    // Retained generic Finance read consumers receive native-owned invoices
+    // and books. This finite test profile has no full Finance or Parts purchase.
+    if std::env::var("ERPX_FIELD_FINANCE_MIXED_PROFILE").is_ok_and(|v|v=="1") || (unpurchased_history && mixed) {
+        assert!(mixed && (parts_mixed || unpurchased_history),"Finance consumer requires the owned native Company");
+        for flag in ["fieldServiceVisitCompletions","fieldServiceBillingReleases","financeFieldServiceInvoiceReads","financeFieldServiceInvoicePosts","financeFieldServiceReceiptWrites"] {doc[flag]=serde_json::json!(["h001"]);}
+        doc["financeJournalReads"]=serde_json::json!([{"holdingId":"h001","companyId":read_company}]);
+        if unpurchased_history {
+            doc["fieldServiceReservations"]=serde_json::json!(["h001"]);doc["fieldServiceIssues"]=serde_json::json!(["h001"]);
+            doc["financeJournalReads"].as_array_mut().unwrap().push(serde_json::json!({"holdingId":"h001","companyId":"foreign"}));
+        }
+    }
+    // Finite native owner journey profile. Keep the previous Files/Parts-only
+    // fixture unchanged unless this explicit leased browser profile is selected.
+    if std::env::var("ERPX_FIELD_SERVICE_OWNER_PROFILE").is_ok_and(|v|v=="1") {
+        assert!(parts_mixed && reads.is_some() && engineering.is_some(),"Field owner profile requires the owned mixed native browser cohort");
+        // Projection workers must use the actual distinct Holding read lease;
+        // an HTTP-only fixture cannot establish worker activation.
+        doc["holdings"][0]["readDatabase"] =
+            configuration::database(&reads.as_ref().unwrap()[0]).await;
+        for flag in ["fieldServiceAgreementCreates","fieldServiceAgreementReviews","fieldServiceRequests","fieldServiceOrderCreates","fieldServiceVisits","fieldServiceReservations","fieldServiceIssues","fieldServiceVisitCompletions","fieldServiceVisitRecoveries","fieldServiceOrderCancellations","fieldServiceBillingReleases","fieldServiceWorkReads","financeFieldServiceInvoiceReads","financeFieldServiceInvoicePosts","financeFieldServiceReceiptWrites","financeJournalPosts","financeFieldServiceJournalPosts"] {
+            doc[flag]=serde_json::json!(["h001"]);
+        }
+        doc["fieldServiceSourceRecordReads"]=serde_json::json!([{"holdingId":"h001","mode":"enforced"}]);
+        doc["financeJournalReads"]=serde_json::json!([{"holdingId":"h001","companyId":read_company}]);
+    }
     doc["fieldAttachmentLinks"] = serde_json::json!([{"holdingId":"h001","mode":"enabled"}]);
     doc["fieldAttachmentBinds"] = serde_json::json!([{"holdingId":"h001","mode":"enabled"}]);
     doc["fieldFilesPolicy"] = serde_json::json!({"mode":"enabled","uploadsFrozen":false});
@@ -261,7 +309,9 @@ async fn run_fixture(
         .as_array_mut()
         .unwrap()
         .push(foreign_provider);
-    if let Some(ref company) = mixed_company {
+    if let Some(ref company) = mixed_company && company != "company" {
+        // The historical consumer deliberately shares the original Company;
+        // its existing provider is authoritative, never registered twice.
         let mixed_tmp = root.path().join("mixed-temporary");
         fs::create_dir(&mixed_tmp).unwrap();
         fs::set_permissions(&mixed_tmp, fs::Permissions::from_mode(0o700)).unwrap();
@@ -278,7 +328,11 @@ async fn run_fixture(
     fs::set_permissions(&config_path, fs::Permissions::from_mode(0o600)).unwrap();
     let runtime = assemble_development_api(
         DevelopmentApiConfiguration::parse(&doc.to_string()).unwrap(),
-        p.review.system.scenario.clock.clone(),
+        if std::env::var("ERPX_FIELD_SERVICE_OWNER_PROFILE").is_ok_and(|v|v=="1") {
+            Arc::new(SystemAccountClock)
+        } else {
+            p.review.system.scenario.clock.clone()
+        },
         Arc::new(SystemAuthenticationSecrets),
     )
     .await
@@ -306,6 +360,7 @@ async fn run_fixture(
         }
         if mixed {
             private["browser"]["companyId"] = mixed_company.as_deref().unwrap().into();
+            private["browser"]["fieldOwnerProfile"] = serde_json::json!(std::env::var("ERPX_FIELD_SERVICE_OWNER_PROFILE").is_ok_and(|v|v=="1"));
             private["browser"]["actors"] = browser_actors.into();
         }
     }

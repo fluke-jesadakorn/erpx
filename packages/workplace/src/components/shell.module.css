@@ -316,6 +316,21 @@
   align-items: center;
   min-width: 0;
 }
+.workspaceMenuFallback,
+.sourceWorkspace {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sourceBreadcrumb {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .workspaceSymbol {
   display: grid;
   place-items: center;
@@ -495,6 +510,19 @@
   align-items: center;
   gap: 15px;
   flex-shrink: 0;
+}
+@media (min-width: 1101px) {
+  .workspace {
+    min-width: 112px;
+  }
+  .actions {
+    min-width: 0;
+    flex-shrink: 1;
+  }
+  .actions > :global(.account-switcher) {
+    min-width: 90px;
+    flex: 0 1 auto;
+  }
 }
 .role {
   font-size: 10px;
@@ -1279,6 +1307,23 @@ a.workspaceChoice:hover {
     grid-column: 1;
     grid-row: 1;
   }
+  .workspaceMenuFallback,
+  .sourceWorkspace {
+    grid-column: 2 / -1;
+    grid-row: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .sourceBreadcrumb {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .workspaceTrigger {
     grid-column: 2;
     grid-row: 1;
@@ -1290,6 +1335,11 @@ a.workspaceChoice:hover {
   .searchButton > span,
   .searchButton kbd {
     display: none;
+  }
+  .workspace:has(.sourceWorkspace) + .actions {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    justify-self: end;
   }
   .actions {
     grid-column: 3;

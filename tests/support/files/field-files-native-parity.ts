@@ -25,12 +25,12 @@ type NativeResponse<T=NativeData>={status:number;raw:Buffer;headers:Headers;json
 type DatabaseRow={owner:string;lease:string;blocked:boolean;source_state:string;quarantine_key:string;object_key:string;variant:string;bytes:string|number;state:string;n:string|number;is_called:boolean;[key:string]:unknown};
 export type NativeFieldFixture={base:string;store:string;query:(sql:string,args?:unknown[])=>Promise<DatabaseRow[]>;request:<T=NativeData>(method:string,path:string,data?:unknown,id?:string,foreign?:boolean)=>Promise<NativeResponse<T>>;startScan:()=>void;assignmentFor:(label:string)=>string;advanceClock:()=>Promise<void>;requestAs:<T=NativeData>(label:string,method:string,path:string,data?:unknown,id?:string)=>Promise<NativeResponse<T>>;committedWriter:<T>(sql:string,args:unknown[],read:()=>Promise<T>)=>Promise<T>};
 /** One native process and owned database lease per reviewed case. */
-export async function withNativeFieldFixture<T>(run:(fixture:NativeFieldFixture)=>Promise<T>,prepareMixed?:(db:PostgresDatabase)=>Promise<MixedActivation>,profile?:'parts'):Promise<T> {
+export async function withNativeFieldFixture<T>(run:(fixture:NativeFieldFixture)=>Promise<T>,prepareMixed?:(db:PostgresDatabase)=>Promise<MixedActivation>,profile?:'parts'|'agreement'|'service'|'service-finance'|'files-history'):Promise<T> {
  const directory=await mkdtemp(join(tmpdir(),'erpx-field-parity-')), output=join(directory,'private.json'),nonce=randomUUID();
- const allowed=['PATH','HOME','NODE_ENV','TMPDIR','LANG','LC_ALL','LC_CTYPE','TZ','CARGO_HOME','RUSTUP_HOME','RUSTUP_TOOLCHAIN','CARGO_TARGET_DIR','CARGO_BUILD_TARGET','CARGO_INCREMENTAL','CARGO_PROFILE_DEV_DEBUG','CARGO_PROFILE_TEST_DEBUG','CARGO_ENCODED_RUSTFLAGS','CC','CXX','AR','CFLAGS','CXXFLAGS','LDFLAGS','PKG_CONFIG_PATH','ERPX_NATIVE_VIPS_PREFIX','ERPX_NATIVE_VIPS_LIBDIR','ERPX_TEST_ADMIN_URL','ERPX_FILES_PREVIEW_BIN'];
+ const allowed=['PATH','HOME','NODE_ENV','TMPDIR','LANG','LC_ALL','LC_CTYPE','TZ','CARGO_HOME','RUSTUP_HOME','RUSTUP_TOOLCHAIN','CARGO_TARGET_DIR','CARGO_BUILD_TARGET','CARGO_INCREMENTAL','CARGO_PROFILE_DEV_DEBUG','CARGO_PROFILE_TEST_DEBUG','CARGO_ENCODED_RUSTFLAGS','CC','CXX','AR','CFLAGS','CXXFLAGS','LDFLAGS','PKG_CONFIG_PATH','LD_LIBRARY_PATH','PKG_CONFIG_PATH_aarch64_unknown_linux_gnu','PKG_CONFIG_PATH','ERPX_NATIVE_VIPS_PREFIX','ERPX_NATIVE_VIPS_LIBDIR','ERPX_TEST_ADMIN_URL','ERPX_FILES_PREVIEW_BIN'];
  const environment=Object.fromEntries(allowed.flatMap(name=>process.env[name]===undefined?[]:[[name,process.env[name]]])) as NodeJS.ProcessEnv;
- Object.assign(environment,attachmentToolEnvironment(process.cwd()),{ERPX_FIELD_FILES_FIXTURE_OUTPUT:output,ERPX_FIELD_FILES_FIXTURE_NONCE:nonce,...(prepareMixed?{ERPX_FIELD_FILES_MIXED_PROFILE:'1'}:{}),...(profile==='parts'?{ERPX_FIELD_PARTS_MIXED_PROFILE:'1'}:{})});
- build??=promisify(execFile)('cargo',['build','--locked','-p','erpx-service','--example','field_files_vitest_held_provider','--no-default-features','--features','private-field-api,files-scan-worker'],{cwd:process.cwd(),env:environment,maxBuffer:10*1024*1024});
+ Object.assign(environment,attachmentToolEnvironment(process.cwd()),{ERPX_FIELD_FILES_FIXTURE_OUTPUT:output,ERPX_FIELD_FILES_FIXTURE_NONCE:nonce,...(prepareMixed?{ERPX_FIELD_FILES_MIXED_PROFILE:'1'}:{}),...((profile&&profile!=='files-history')?{ERPX_FIELD_PARTS_MIXED_PROFILE:'1'}:{}),...((profile==='agreement'||profile==='service'||profile==='service-finance')?{ERPX_FIELD_AGREEMENT_MIXED_PROFILE:'1'}:{}),...((profile==='service'||profile==='service-finance')?{ERPX_FIELD_SERVICE_MIXED_PROFILE:'1'}:{}),...(profile==='service-finance'?{ERPX_FIELD_FINANCE_MIXED_PROFILE:'1'}:{}),...(profile==='files-history'?{ERPX_FIELD_FILES_UNPURCHASED_HISTORY:'1'}:{})});
+ build??=promisify(execFile)('cargo',['build','--locked','-p','erpx-service','--example','field_files_vitest_held_provider','--no-default-features','--features','private-field-api,files-scan-worker,field-push-worker'],{cwd:process.cwd(),env:environment,maxBuffer:10*1024*1024});
  try{await build;}catch{await rm(directory,{recursive:true,force:true});throw new Error('Native Field fixture build failed');}
  const binary=join(process.env.CARGO_TARGET_DIR??join(process.cwd(),'target'),'debug/examples/field_files_vitest_held_provider');
  const child=spawn(binary,[],{cwd:process.cwd(),env:environment,stdio:['pipe','ignore','pipe']});
@@ -40,7 +40,7 @@ export async function withNativeFieldFixture<T>(run:(fixture:NativeFieldFixture)
  let pool:Pool|undefined,mixedDb:PostgresDatabase|undefined;
  try {
   async function readDescriptor(path:string):Promise<PrivateFixture>{
-   let value:PrivateFixture|undefined;for(let n=0;n<600;n++){try{value=JSON.parse(await readFile(path,'utf8'));break;}catch{if(spawnFailed||fixturePanicked||child.exitCode!==null)throw new Error('Native Field fixture exited during setup');await sleep(500);}}
+   let value:PrivateFixture|undefined;for(let n=0;n<600;n++){try{value=JSON.parse(await readFile(path,'utf8'));break;}catch{if(spawnFailed||fixturePanicked||child.exitCode!==null)throw new Error('Native Field fixture exited during setup: '+[...diagnostics.matchAll(/panicked at ([^\s]+\.rs:[0-9]+:[0-9]+):/g)].map(m=>m[1]).slice(0,3).join(', '));await sleep(500);}}
    if(!value)throw new Error('Native Field fixture did not become ready');const info=await stat(path);if(!info.isFile()||(info.mode&0o777)!==0o600||info.size>65536||value.nonce!==nonce)throw new Error('Invalid private fixture output');
    if(!/^[0-9a-f]{32}$/.test(value.database.leaseToken))throw new Error('Invalid native fixture lease');const url=new URL(value.database.url),admin=new URL(environment.ERPX_TEST_ADMIN_URL!);
    const invalid=[url.protocol!=='postgresql:'&&url.protocol!=='postgres:'&&'protocol',url.hostname!=='127.0.0.1'&&'host',url.port!=='5432'&&'port',url.username!=='erpx_test_admin'&&'user',url.pathname!==`/erpx_dev_rust_${value.database.leaseToken}`&&'database',url.username!==admin.username&&'admin-user',!!url.search&&'query',!!url.hash&&'fragment'].filter(Boolean);if(invalid.length)throw new Error(`Invalid native fixture database: ${invalid.join(',')}`);
@@ -132,11 +132,13 @@ export async function proveNativeFieldFiles(purposeKey:string,bytes:Buffer) {
 }
 
 /** Publish a scanned original through the actual private ingress for a native case. */
-export async function prepareNativeFieldFile(fixture:NativeFieldFixture,purposeKey:string,targetId='issue-order',expectedTargetVersion=3,foreign=false) {
+export async function prepareNativeFieldFile(fixture:NativeFieldFixture,purposeKey:string,targetId='issue-order',expectedTargetVersion=3,foreign=false,actor?:string) {
+ if(actor&&foreign)throw new Error('NATIVE_FILE_ACTOR_SCOPE_REQUIRED');
+ const request=(method:string,path:string,data?:unknown,id?:string)=>actor?fixture.requestAs(actor,method,path,data,id):fixture.request(method,path,data,id,foreign);
  const bytes=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWOQaEj4D8IMMAYAQaQH3RNNL/AAAAAASUVORK5CYII=','base64');
- const create=await fixture.request('POST',fixture.base,{targetType:'field_service_visit',targetId,componentKind:'record',purposeKey,expectedTargetVersion},key(),foreign);expect(create.status).toBe(201);
- const reserve=await fixture.request('POST',`${fixture.base}/${create.json.data.id}/files`,{filename:'native-service-evidence.png',mediaType:'image/png',bytes:bytes.length},key(),foreign);expect(reserve.status).toBe(201);
- const upload=await fixture.request('PUT',reserve.json.data.uploadUrl,bytes,key(),foreign);expect(upload.status).toBe(202);fixture.startScan();
+ const create=await request('POST',fixture.base,{targetType:'field_service_visit',targetId,componentKind:'record',purposeKey,expectedTargetVersion},key());expect(create.status).toBe(201);
+ const reserve=await request('POST',`${fixture.base}/${create.json.data.id}/files`,{filename:'native-service-evidence.png',mediaType:'image/png',bytes:bytes.length},key());expect(reserve.status).toBe(201);
+ const upload=await request('PUT',reserve.json.data.uploadUrl,bytes,key());expect(upload.status).toBe(202);fixture.startScan();
  let ready=false;for(let n=0;n<120;n++){const row=(await fixture.query('SELECT source_state FROM attachments WHERE id=$1',[upload.json.data.sourceId]))[0];if(row?.source_state==='available'){ready=true;break;}await sleep(500);}expect(ready).toBe(true);
  return {setId:create.json.data.id as string,linkId:reserve.json.data.attachmentLinkId as string,sourceId:upload.json.data.sourceId as string,bytes};
 }
@@ -175,20 +177,5 @@ export async function verifyNativeLateContentFaults(){
   }
   const retry=await request('GET',path);expect(retry.status).toBe(200);expect(retry.raw).toEqual(file.bytes);expect((await query('SELECT legal_hold,revoked_at FROM attachments WHERE id=$1',[file.sourceId]))[0]).toEqual({legal_hold:1,revoked_at:null});
   await query("UPDATE assignments SET revoked_at=1,version=version+1 WHERE id='field-fixture-a'");const revoked=await request('GET',path);expect(revoked.status).toBe(409);expect(revoked.json.error.code).toBe('WORK_ROLE_UNAVAILABLE');expect(Number((await query("SELECT count(*) n FROM attachment_access_events WHERE link_id=$1 AND outcome='allowed'",[file.linkId]))[0].n)).toBe(2);
- });
-}
-
-/** Prove the real native record bind's immutable Field and Support projection. */
-export async function verifyNativeBindProjection(){
- await withNativeFieldFixture(async fixture=>{
-  const {query,request}=fixture,file=await prepareNativeFieldFile(fixture,'technician_report','reserve-order',1),command=key(),path=`/api/v1/holdings/acme/attachment-sets/${file.setId}/bind`;
-  const result=await request('POST',path,{expectedTargetVersion:1},command);expect(result.status).toBe(200);expect((await request('POST',path,{expectedTargetVersion:1},command)).json).toEqual(result.json);
-  expect((await query('SELECT s.state set_state,l.state link_state FROM attachment_sets s JOIN attachment_links l ON l.set_id=s.id WHERE s.id=$1',[file.setId]))[0]).toEqual({set_state:'bound',link_state:'bound'});
-  expect((await query("SELECT version,status FROM field_service_orders WHERE id='reserve-order'"))[0]).toEqual({version:2,status:'scheduled'});
-  expect((await query("SELECT version,action,actor_id,status,details_json->>'attachmentCommandId' attachment_command FROM field_service_order_events WHERE id=$1",[`service-file-event-${command}`]))[0]).toEqual({version:2,action:'attach-evidence',actor_id:'fixture-a',status:'scheduled',attachment_command:command});
-  expect((await query("SELECT service_order_version,version,status FROM support_tickets WHERE id='ticket-reserve-order'"))[0]).toEqual({service_order_version:2,version:2,status:'open'});
-  expect((await query("SELECT action,actor_id FROM support_ticket_events WHERE ticket_id='ticket-reserve-order' AND version=2"))[0]).toEqual({action:'service-attach-evidence',actor_id:'fixture-a'});
-  expect(Number((await query('SELECT count(*) n FROM command_receipts WHERE command_id=$1',[command]))[0].n)).toBe(1);
-  const content=await request('GET',`/api/v1/holdings/acme/field-service/attachment-links/${file.linkId}/content?variant=original`);expect(content.status).toBe(200);expect(content.raw).toEqual(file.bytes);
  });
 }

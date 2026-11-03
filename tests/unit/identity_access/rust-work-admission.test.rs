@@ -134,3 +134,20 @@ fn catalogs_and_non_route_destinations_fail_closed() {
         assert!(!beta_destination_allowed(destination, false));
     }
 }
+
+#[test]
+fn route_permission_alternatives_preserve_exact_and_empty_denial() {
+    use erpx_server_identity_access::public::effective_authority::WorkPermissionRequirement;
+    use std::collections::BTreeSet;
+    let support = BTreeSet::from(["support.read".to_string()]);
+    let records = BTreeSet::from(["records.read".to_string()]);
+    let unrelated = BTreeSet::from(["support.write".to_string()]);
+    let either = WorkPermissionRequirement::AnyOf(vec!["support.read".into(),"records.read".into()]);
+    assert!(either.is_satisfied_by(&support));
+    assert!(either.is_satisfied_by(&records));
+    assert!(!either.is_satisfied_by(&unrelated));
+    assert!(!either.is_satisfied_by(&BTreeSet::new()));
+    assert!(!WorkPermissionRequirement::AnyOf(vec![]).is_satisfied_by(&support));
+    assert!(!WorkPermissionRequirement::from("records.read").is_satisfied_by(&support));
+    assert!(WorkPermissionRequirement::from("records.read").is_satisfied_by(&records));
+}

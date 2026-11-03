@@ -1,5 +1,5 @@
 //! Transaction-bound Field intake authority.
-use crate::public::field_visit_intake::{FieldIntakeAuthority, FieldIntakeScope};
+use crate::public::field_visit_intake::{FieldIntakeAuthority, FieldIntakeScope, IntakeOwner};
 use erpx_server_identity_access::public::effective_authority::AuthorizedWorkContext;
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::{BusinessError, FailureKind};
@@ -36,13 +36,20 @@ pub struct CurrentFieldIntake<'a, A> {
     write: bool,
     unit: Unit,
     scope: FieldIntakeScope,
+    owner: IntakeOwner,
 }
 impl<A: FieldIntakeAuthority> CurrentFieldIntake<'_, A> {
+    pub fn owner_kind(&self) -> IntakeOwner {
+        self.owner
+    }
     pub fn scope(&self) -> &FieldIntakeScope {
         &self.scope
     }
     pub async fn require_current(&self, c: &mut PgConnection, now: i64) -> Result<(), Error> {
-        if unit(c).await? != self.unit || now >= self.actor.expires_at() {
+        if unit(c).await? != self.unit
+            || now >= self.actor.expires_at()
+            || self.owner != self.authority.owner_kind()
+        {
             return Err(changed());
         }
         self.authority
@@ -66,6 +73,7 @@ pub async fn prepare_field_intake<'a, A: FieldIntakeAuthority>(
     if now >= actor.expires_at() {
         return Err(changed());
     }
+    let owner = authority.owner_kind();
     let scope = authority.authorize(c, actor, target, write).await?;
     if scope.company_id != actor.selection().workspace().company_id
         || unit(c).await? != current_unit
@@ -79,6 +87,7 @@ pub async fn prepare_field_intake<'a, A: FieldIntakeAuthority>(
         write,
         unit: current_unit,
         scope,
+        owner,
     };
     guard.require_current(c, now).await?;
     Ok(guard)
@@ -113,21 +122,28 @@ async fn list_membership<A: FieldIntakeAuthority>(
     input: &crate::public::field_visit_intake::FieldSetListRequest,
     read_only: bool,
 ) -> Result<Vec<String>, Error> {
-    let within: bool = sqlx::query_scalar("WITH selected AS MATERIALIZED (SELECT s.* FROM attachment_sets s WHERE s.company_id=$1 AND s.target_type='field_service_visit' AND s.target_id=$2 AND (s.state='bound' OR (NOT $3 AND s.state='draft' AND s.created_by=$4)) AND ($5::text IS NULL OR s.purpose_key=$5) AND ($6::text IS NULL OR s.component_kind=$6) AND ($7::bigint IS NULL OR s.expected_target_version=$7)), totals AS (SELECT count(*) sets, COALESCE(sum(octet_length(to_jsonb(s)::text)+4096 + COALESCE((SELECT sum(octet_length(to_jsonb(l)::text)+COALESCE(octet_length(to_jsonb(a)::text),0)+COALESCE(octet_length(to_jsonb(u)::text),0)+4096) FROM attachment_links l LEFT JOIN attachments a ON a.id=l.attachment_id AND a.company_id=s.company_id LEFT JOIN upload_intents u ON u.id=l.upload_intent_id AND u.company_id=s.company_id WHERE l.set_id=s.id),0) + COALESCE((SELECT sum(octet_length(to_jsonb(e)::text)+4096) FROM attachment_events e WHERE e.set_id=s.id AND e.company_id=s.company_id),0)),0) bytes, COALESCE(sum((SELECT count(*) FROM attachment_links l WHERE l.set_id=s.id)+(SELECT count(*) FROM attachment_events e WHERE e.set_id=s.id AND e.company_id=s.company_id)),0) children FROM selected s) SELECT sets<=100 AND children<=1000 AND bytes<=2097152 FROM totals").bind(guard.scope.company_id.as_str()).bind(&guard.target).bind(read_only).bind(guard.actor.user_id().as_str()).bind(input.purpose_key.as_deref().filter(|s| !s.is_empty())).bind(input.component_kind.as_deref().filter(|s| !s.is_empty())).bind(input.expected_target_version.filter(|v| *v != 0)).fetch_one(&mut *c).await?;
+    let within: bool = sqlx::query_scalar("WITH selected AS MATERIALIZED (SELECT s.* FROM attachment_sets s WHERE s.company_id=$1 AND s.target_type=$8 AND s.target_id=$2 AND (s.state='bound' OR (NOT $3 AND s.state='draft' AND s.created_by=$4)) AND ($5::text IS NULL OR s.purpose_key=$5) AND ($6::text IS NULL OR s.component_kind=$6) AND ($7::bigint IS NULL OR s.expected_target_version=$7)), totals AS (SELECT count(*) sets, COALESCE(sum(octet_length(to_jsonb(s)::text)+4096 + COALESCE((SELECT sum(octet_length(to_jsonb(l)::text)+COALESCE(octet_length(to_jsonb(a)::text),0)+COALESCE(octet_length(to_jsonb(u)::text),0)+4096) FROM attachment_links l LEFT JOIN attachments a ON a.id=l.attachment_id AND a.company_id=s.company_id LEFT JOIN upload_intents u ON u.id=l.upload_intent_id AND u.company_id=s.company_id WHERE l.set_id=s.id),0) + COALESCE((SELECT sum(octet_length(to_jsonb(e)::text)+4096) FROM attachment_events e WHERE e.set_id=s.id AND e.company_id=s.company_id),0)),0) bytes, COALESCE(sum((SELECT count(*) FROM attachment_links l WHERE l.set_id=s.id)+(SELECT count(*) FROM attachment_events e WHERE e.set_id=s.id AND e.company_id=s.company_id)),0) children FROM selected s) SELECT sets<=100 AND children<=1000 AND bytes<=2097152 FROM totals").bind(guard.scope.company_id.as_str()).bind(&guard.target).bind(read_only).bind(guard.actor.user_id().as_str()).bind(input.purpose_key.as_deref().filter(|s| !s.is_empty())).bind(input.component_kind.as_deref().filter(|s| !s.is_empty())).bind(input.expected_target_version.filter(|v| *v != 0)).bind(guard.owner.target_type()).fetch_one(&mut *c).await?;
     if !within {
         return Err(limit());
     }
-    let ids: Vec<String> = sqlx::query_scalar("SELECT id FROM attachment_sets WHERE company_id=$1 AND target_type='field_service_visit' AND target_id=$2 AND (state='bound' OR (NOT $3 AND state='draft' AND created_by=$4)) AND ($5::text IS NULL OR purpose_key=$5) AND ($6::text IS NULL OR component_kind=$6) AND ($7::bigint IS NULL OR expected_target_version=$7) ORDER BY created_at DESC,id DESC").bind(guard.scope.company_id.as_str()).bind(&guard.target).bind(read_only).bind(guard.actor.user_id().as_str()).bind(input.purpose_key.as_deref().filter(|s| !s.is_empty())).bind(input.component_kind.as_deref().filter(|s| !s.is_empty())).bind(input.expected_target_version.filter(|v| *v != 0)).fetch_all(&mut *c).await?;
+    let ids: Vec<String> = sqlx::query_scalar("SELECT id FROM attachment_sets WHERE company_id=$1 AND target_type=$8 AND target_id=$2 AND (state='bound' OR (NOT $3 AND state='draft' AND created_by=$4)) AND ($5::text IS NULL OR purpose_key=$5) AND ($6::text IS NULL OR component_kind=$6) AND ($7::bigint IS NULL OR expected_target_version=$7) ORDER BY created_at DESC,id DESC").bind(guard.scope.company_id.as_str()).bind(&guard.target).bind(read_only).bind(guard.actor.user_id().as_str()).bind(input.purpose_key.as_deref().filter(|s| !s.is_empty())).bind(input.component_kind.as_deref().filter(|s| !s.is_empty())).bind(input.expected_target_version.filter(|v| *v != 0)).bind(guard.owner.target_type()).fetch_all(&mut *c).await?;
     Ok(ids)
 }
 
 /// Metadata-only selection before source authorization. An empty Company-scoped
 /// list reveals no Field source facts and preserves the existing empty-list
 /// contract; nonempty results still require a current owner proof.
-pub async fn field_set_query_has_rows(c:&mut PgConnection,actor:&AuthorizedWorkContext,input:&crate::public::field_visit_intake::FieldSetListRequest,read_only:bool)->Result<bool,Error>{
+pub async fn field_set_query_has_rows(
+    c: &mut PgConnection,
+    actor: &AuthorizedWorkContext,
+    input: &crate::public::field_visit_intake::FieldSetListRequest,
+    read_only: bool,
+) -> Result<bool, Error> {
     unit(c).await?;
     actor.require_permission("records.read")?;
-    if input.target_type!="field_service_visit" {return Err(changed());}
+    if input.target_type != "field_service_visit" {
+        return Err(changed());
+    }
     Ok(sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM attachment_sets WHERE company_id=$1 AND target_type='field_service_visit' AND target_id=$2 AND (state='bound' OR (NOT $3 AND state='draft' AND created_by=$4)) AND ($5::text IS NULL OR purpose_key=$5) AND ($6::text IS NULL OR component_kind=$6) AND ($7::bigint IS NULL OR expected_target_version=$7))")
         .bind(actor.selection().workspace().company_id.as_str()).bind(&input.target_id).bind(read_only).bind(actor.user_id().as_str()).bind(input.purpose_key.as_deref().filter(|s|!s.is_empty())).bind(input.component_kind.as_deref().filter(|s|!s.is_empty())).bind(input.expected_target_version.filter(|v|*v!=0)).fetch_one(c).await?)
 }
@@ -141,7 +157,7 @@ pub async fn list_field_sets<A: FieldIntakeAuthority>(
     now: i64,
 ) -> Result<Vec<serde_json::Value>, Error> {
     guard.require_current(c, now).await?;
-    if input.target_type != "field_service_visit" || input.target_id != guard.target {
+    if input.target_type != guard.owner.target_type() || input.target_id != guard.target {
         return Err(changed());
     }
     let ids = list_membership(c, guard, input, read_only).await?;
@@ -149,8 +165,8 @@ pub async fn list_field_sets<A: FieldIntakeAuthority>(
     let mut images = Vec::with_capacity(ids.len());
     for id in &ids {
         let row = dto(c, guard.scope.company_id.as_str(), id).await?;
-        if !crate::domain::field_visit_link::valid_field_purpose(
-            "field_service_visit",
+        if !guard.owner.supports(
+            &input.target_type,
             row["componentKind"].as_str().unwrap_or(""),
             row["purposeKey"].as_str().unwrap_or(""),
         ) {
@@ -252,7 +268,7 @@ async fn create_field_set_inner<A: FieldIntakeAuthority>(
             "File intake is briefly paused for storage reconciliation.",
         ));
     }
-    let classification = crate::application::field_visit_intake::policy(input)?;
+    let classification = crate::application::field_visit_intake::policy(read.owner, input)?;
     if input.target_id != read.target {
         return Err(changed());
     }
@@ -311,6 +327,7 @@ async fn create_field_set_inner<A: FieldIntakeAuthority>(
     }
     let write = write.ok_or_else(changed)?;
     if !write.write
+        || write.owner != read.owner
         || write.target != read.target
         || write.unit != read.unit
         || !std::ptr::eq(write.actor, read.actor)
@@ -369,12 +386,12 @@ async fn create_field_set_inner<A: FieldIntakeAuthority>(
     } else {
         let audience =
             serde_json::json!({"classification":classification,"policyVersion":1}).to_string();
-        sqlx::query("INSERT INTO attachment_sets(id,company_id,branch_id,department_id,target_type,target_id,component_kind,component_ref,purpose_key,expected_target_version,policy_version,classification,audience_json,retention_policy_key,retention_policy_version,retain_until,destruction_mode,required_count,max_files,state,created_by,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,1,$11,$12,NULL,NULL,NULL,NULL,0,10,'draft',$13,$14,$14)").bind(&id).bind(read.scope.company_id.as_str()).bind(&write.scope.branch_id).bind(&write.scope.department_id).bind(&input.target_type).bind(&input.target_id).bind(&input.component_kind).bind(component).bind(&input.purpose_key).bind(input.expected_target_version).bind(classification).bind(audience).bind(read.actor.user_id().as_str()).bind(created_at).execute(&mut *c).await?;
+        sqlx::query("INSERT INTO attachment_sets(id,company_id,branch_id,department_id,target_type,target_id,component_kind,component_ref,purpose_key,expected_target_version,policy_version,classification,audience_json,retention_policy_key,retention_policy_version,retain_until,destruction_mode,required_count,max_files,state,created_by,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,1,$11,$12,NULL,NULL,NULL,NULL,0,$15,'draft',$13,$14,$14)").bind(&id).bind(read.scope.company_id.as_str()).bind(&write.scope.branch_id).bind(&write.scope.department_id).bind(&input.target_type).bind(&input.target_id).bind(&input.component_kind).bind(component).bind(&input.purpose_key).bind(input.expected_target_version).bind(classification).bind(audience).bind(read.actor.user_id().as_str()).bind(created_at).bind(read.owner.max_files()).execute(&mut *c).await?;
         let details=serde_json::json!({"targetType":input.target_type,"targetId":input.target_id,"purposeKey":input.purpose_key,"expectedTargetVersion":input.expected_target_version,"compatibilityAdapter":false}).to_string();
         sqlx::query("INSERT INTO attachment_events(id,company_id,set_id,actor_id,action,details_json,created_at) VALUES($1,$2,$3,$4,'set.created',$5,$6)").bind(&event_id).bind(read.scope.company_id.as_str()).bind(&id).bind(read.actor.user_id().as_str()).bind(details).bind(created_at).execute(&mut *c).await?;
         id.clone()
     };
-    let valid: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM attachment_sets s WHERE s.id=$1 AND s.company_id=$2 AND s.target_type=$3 AND s.target_id=$4 AND s.component_kind=$5 AND s.component_ref IS NOT DISTINCT FROM $6 AND s.purpose_key=$7 AND s.expected_target_version=$8 AND s.created_by=$9 AND s.state='draft' AND (($10 AND EXISTS(SELECT 1 FROM attachment_events e WHERE e.id=$11 AND e.company_id=s.company_id AND e.set_id=s.id AND e.actor_id=$9 AND e.action='set.reused' AND e.attachment_id IS NULL AND e.link_id IS NULL AND e.details_json::jsonb=jsonb_build_object('requestedSetId',$12::text) AND e.created_at=$13)) OR (NOT $10 AND s.branch_id IS NOT DISTINCT FROM $14 AND s.department_id IS NOT DISTINCT FROM $15 AND s.policy_version=1 AND s.classification=$16 AND s.audience_json::jsonb=jsonb_build_object('classification',$16::text,'policyVersion',1) AND s.retention_policy_key IS NULL AND s.retention_policy_version IS NULL AND s.retain_until IS NULL AND s.destruction_mode IS NULL AND s.required_count=0 AND s.max_files=10 AND s.created_at=$13 AND s.updated_at=$13 AND s.bound_at IS NULL AND s.bound_command_id IS NULL AND NOT EXISTS(SELECT 1 FROM attachment_links l WHERE l.set_id=s.id) AND (SELECT count(*) FROM attachment_events e WHERE e.set_id=s.id AND e.company_id=s.company_id)=1 AND EXISTS(SELECT 1 FROM attachment_events e WHERE e.id=$17 AND e.company_id=s.company_id AND e.set_id=s.id AND e.actor_id=$9 AND e.attachment_id IS NULL AND e.link_id IS NULL AND e.action='set.created' AND e.details_json::jsonb=jsonb_build_object('targetType',$3::text,'targetId',$4::text,'purposeKey',$7::text,'expectedTargetVersion',$8::bigint,'compatibilityAdapter',false) AND e.created_at=$13))))").bind(&actual).bind(read.scope.company_id.as_str()).bind(&input.target_type).bind(&input.target_id).bind(&input.component_kind).bind(component).bind(&input.purpose_key).bind(input.expected_target_version).bind(read.actor.user_id().as_str()).bind(reused).bind(format!("set-alias-{id}")).bind(&id).bind(created_at).bind(&write.scope.branch_id).bind(&write.scope.department_id).bind(classification).bind(&event_id).fetch_one(&mut *c).await?;
+    let valid: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM attachment_sets s WHERE s.id=$1 AND s.company_id=$2 AND s.target_type=$3 AND s.target_id=$4 AND s.component_kind=$5 AND s.component_ref IS NOT DISTINCT FROM $6 AND s.purpose_key=$7 AND s.expected_target_version=$8 AND s.created_by=$9 AND s.state='draft' AND (($10 AND EXISTS(SELECT 1 FROM attachment_events e WHERE e.id=$11 AND e.company_id=s.company_id AND e.set_id=s.id AND e.actor_id=$9 AND e.action='set.reused' AND e.attachment_id IS NULL AND e.link_id IS NULL AND e.details_json::jsonb=jsonb_build_object('requestedSetId',$12::text) AND e.created_at=$13)) OR (NOT $10 AND s.branch_id IS NOT DISTINCT FROM $14 AND s.department_id IS NOT DISTINCT FROM $15 AND s.policy_version=1 AND s.classification=$16 AND s.audience_json::jsonb=jsonb_build_object('classification',$16::text,'policyVersion',1) AND s.retention_policy_key IS NULL AND s.retention_policy_version IS NULL AND s.retain_until IS NULL AND s.destruction_mode IS NULL AND s.required_count=0 AND s.max_files=$18 AND s.created_at=$13 AND s.updated_at=$13 AND s.bound_at IS NULL AND s.bound_command_id IS NULL AND NOT EXISTS(SELECT 1 FROM attachment_links l WHERE l.set_id=s.id) AND (SELECT count(*) FROM attachment_events e WHERE e.set_id=s.id AND e.company_id=s.company_id)=1 AND EXISTS(SELECT 1 FROM attachment_events e WHERE e.id=$17 AND e.company_id=s.company_id AND e.set_id=s.id AND e.actor_id=$9 AND e.attachment_id IS NULL AND e.link_id IS NULL AND e.action='set.created' AND e.details_json::jsonb=jsonb_build_object('targetType',$3::text,'targetId',$4::text,'purposeKey',$7::text,'expectedTargetVersion',$8::bigint,'compatibilityAdapter',false) AND e.created_at=$13))))").bind(&actual).bind(read.scope.company_id.as_str()).bind(&input.target_type).bind(&input.target_id).bind(&input.component_kind).bind(component).bind(&input.purpose_key).bind(input.expected_target_version).bind(read.actor.user_id().as_str()).bind(reused).bind(format!("set-alias-{id}")).bind(&id).bind(created_at).bind(&write.scope.branch_id).bind(&write.scope.department_id).bind(classification).bind(&event_id).bind(read.owner.max_files()).fetch_one(&mut *c).await?;
     if !valid {
         return Err(changed());
     }
@@ -662,7 +679,7 @@ pub async fn prepare_field_set_creation<A: FieldIntakeAuthority>(
             "File intake is briefly paused for storage reconciliation.",
         ));
     }
-    crate::application::field_visit_intake::policy(input)?;
+    crate::application::field_visit_intake::policy(read.owner, input)?;
     if input.target_id != read.target {
         return Err(changed());
     }
@@ -703,6 +720,7 @@ pub async fn prepare_field_set_creation<A: FieldIntakeAuthority>(
     } else {
         let write = write.ok_or_else(changed)?;
         if !write.write
+            || write.owner != read.owner
             || write.target != read.target
             || write.unit != read.unit
             || !std::ptr::eq(write.actor, read.actor)
@@ -839,7 +857,7 @@ pub async fn recorded_field_set<A: FieldIntakeAuthority>(
             "File intake is briefly paused for storage reconciliation.",
         ));
     }
-    crate::application::field_visit_intake::policy(input)?;
+    crate::application::field_visit_intake::policy(read.owner, input)?;
     if input.target_id != read.target {
         return Err(changed());
     }

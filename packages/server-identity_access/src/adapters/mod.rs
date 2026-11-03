@@ -104,3 +104,16 @@ pub(crate) mod field_service_workspace;
 pub(crate) mod selected_command_authority;
 pub(crate) mod service_initial_count_authority;
 pub(crate) mod service_count_flow_participants;
+
+pub(crate) mod collaboration_candidates;
+
+pub(crate) mod push_session;
+
+pub(crate) mod account_work_roles;
+
+pub mod account_companies;
+
+pub mod account_control_scope;
+pub(crate) mod platform_commercial_authority;
+
+pub mod account_work_presentation;

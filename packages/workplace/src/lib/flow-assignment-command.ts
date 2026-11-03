@@ -32,7 +32,7 @@ export function createFlowAssignmentCommands(send:typeof workFetch=workFetch,con
    const response=await send(attempt.endpoint,{method:'POST',headers,body:attempt.body},attempt.completion(),'caller');
    const envelope=await response.json().catch(()=>null);
    if(!response.ok){uncertain=alreadyUncertain||response.status>=500||[401,403,409].includes(response.status);throw Error(envelope?.error?.message??'Assignment failed.');}
-   const native=response.headers.get('x-erpx-native-count')==='1';
+   const native=attempt.kind==='stock_count'&&response.headers.get('x-erpx-native-count')==='1'||attempt.kind==='invoice'&&response.headers.get('x-erpx-native-flow')==='field-invoice';
    if(!validView(envelope?.data,attempt,native))throw Error('The owner assignment was not acknowledged. Retry the original request.');
    if(native&&(!envelope?.command||envelope.command.id!==attempt.recordId||envelope.command.version!==Math.max(1,attempt.flowVersion)+1))throw Error('The original owner assignment receipt was not acknowledged. Retry the original request.');
    assertCurrent();if(stamp(current())!==stamp(attempt.context))throw Error('Return to the original work context before retrying.');

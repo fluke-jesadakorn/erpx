@@ -7,12 +7,17 @@ const state = vi.hoisted(() => ({
   native: vi.fn(),
   nativeBind: vi.fn(),
   writer: vi.fn(),
+  journalOwner:vi.fn(),
+  paymentOwner:vi.fn(),
+  journalNative:vi.fn(),
   bind: vi.fn(),
   write: { name: "holding-write" },
 }));
 
-vi.mock("@erpx/server-files/public/field-file-writer-owner",()=>({fieldFileWriterOwner:state.writer}));
+vi.mock("@erpx/server-files/public/field-file-writer-owner",()=>({fieldFileWriterOwner:state.writer,fieldJournalFileOwner:state.journalOwner,servicePaymentFileOwner:state.paymentOwner}));
 vi.mock("../../../packages/workplace/src/lib/native-field-family",()=>({
+ nativeFinanceJournalFiles:state.journalNative,
+ nativeFinancePaymentFiles:vi.fn(),
  nativeFieldFamilyCommand:async(request:Request,actor:unknown,kind:string,id:string,command:unknown)=>Response.json({data:await(kind==='bind'?state.nativeBind:state.native)(request,actor,id,command)},{headers:{'Cache-Control':'private, no-store'}}),
 }));
 vi.mock("@erpx/server-files/public/app-attachment-sources",()=>({appAttachmentSources:()=>({compatibilitySet:async()=>false})}));
@@ -41,6 +46,9 @@ import { ApiError } from "@erpx/server-runtime/public/http";
 
 beforeEach(() => {
   state.calls = [];
+  state.journalOwner.mockReset().mockResolvedValue(false);
+  state.paymentOwner.mockReset().mockResolvedValue(false);
+  state.journalNative.mockReset().mockImplementation(async()=>Response.json({data:{setId:"set-1",version:5,manifest:[]}}));
   state.writer.mockReset().mockResolvedValue("legacy");
   state.native.mockReset().mockResolvedValue(undefined);
   state.nativeBind.mockReset().mockResolvedValue(undefined);
@@ -150,4 +158,10 @@ it('selects a native Field bind and validates context and the canonical manifest
  expect(await bridge(headers,actor,'other',command)).toBeUndefined();expect(calls).toBe(0);expect(await bridge(headers,actor,'set-1',command)).toEqual(data);
  const stale=createNativeFieldBindBridge(JSON.stringify(config),async()=>Response.json({data,context:{...context,revision:8}}));await expect(stale(headers,actor,'set-1',command)).rejects.toMatchObject({status:409});
  const malformed=createNativeFieldBindBridge(JSON.stringify(config),async()=>Response.json({data:{...data,manifest:[]},context}));await expect(malformed(headers,actor,'set-1',command)).rejects.toMatchObject({status:503});
+});
+
+it('dispatches a persisted Field journal bind to Rust without invoking shared legacy business code',async()=>{
+ state.journalOwner.mockResolvedValue(true);
+ const response=await bindPost(new Request('https://dev-erpx.example.test/api/v1/holdings/acme/attachment-sets/set-1/bind',{method:'POST',headers:{'content-type':'application/json','idempotency-key':'journal-bind-001',origin:'https://dev-erpx.example.test'},body:'{"expectedTargetVersion":4}'}),{params:Promise.resolve({holdingSlug:'acme',setId:'set-1'})});
+ expect(response.status).toBe(200);expect(state.journalNative).toHaveBeenCalledOnce();expect(state.journalNative.mock.calls[0][2]).toMatchObject({route:{kind:'bind',setId:'set-1'},key:'journal-bind-001'});expect(state.bind).not.toHaveBeenCalled();expect(state.writer).not.toHaveBeenCalled();
 });

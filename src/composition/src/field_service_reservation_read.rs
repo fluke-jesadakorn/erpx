@@ -485,6 +485,68 @@ impl<C: Clock + Send + Sync + 'static> FieldServiceReservationReadService<C> {
             clock,
         }
     }
+    pub async fn operations_workspace<Input>(&self,host:&str,proof:DeviceProof,input:Input)->Result<serde_json::Value,Error>
+    where Input:FnOnce()->Result<HoldingWorkspaceRequest,BusinessError>+Send+'static{
+        if !matches!(self.config.source_record,Some(crate::field_service_source_record::SourceRecordMode::Enforced)){return Err(BusinessError::new(FailureKind::NotFound,"NOT_FOUND","Not found.").into());}
+        crate::field_operations_command::read_selected_field_operations_workspace(&self.authorizer,host,proof,input,crate::field_collaboration_command::FieldCollaborationTarget{holding:self.config.holding.clone(),company:self.config.company.clone(),clock:self.clock.clone(),catalogue:self.config.catalogue.clone()}).await
+    }
+    pub async fn operations_root_command<Input>(&self,host:&str,proof:DeviceProof,input:Input,key:Result<String,BusinessError>,body:axum::body::Body)->Result<serde_json::Value,Error>
+    where Input:FnOnce()->Result<HoldingWorkspaceRequest,BusinessError>+Send+'static{
+        if !matches!(self.config.source_record,Some(crate::field_service_source_record::SourceRecordMode::Enforced)){return Err(BusinessError::new(FailureKind::NotFound,"NOT_FOUND","Not found.").into());}
+        crate::field_operations_command::execute_selected_field_operations_http(&self.authorizer,host,proof,input,crate::field_collaboration_command::FieldCollaborationTarget{holding:self.config.holding.clone(),company:self.config.company.clone(),clock:self.clock.clone(),catalogue:self.config.catalogue.clone()},key,None,body).await
+    }
+    pub async fn operations_read<Input>(&self,host:&str,proof:DeviceProof,input:Input,id:String)->Result<serde_json::Value,Error>
+    where Input:FnOnce()->Result<HoldingWorkspaceRequest,BusinessError>+Send+'static{
+        if !matches!(self.config.source_record,Some(crate::field_service_source_record::SourceRecordMode::Enforced)){return Err(BusinessError::new(FailureKind::NotFound,"NOT_FOUND","Not found.").into());}
+        crate::field_operations_command::read_selected_field_operations(&self.authorizer,host,proof,input,crate::field_collaboration_command::FieldCollaborationTarget{holding:self.config.holding.clone(),company:self.config.company.clone(),clock:self.clock.clone(),catalogue:self.config.catalogue.clone()},id).await
+    }
+    pub async fn operations_command<Input>(&self,host:&str,proof:DeviceProof,input:Input,id:String,key:Result<String,BusinessError>,body:axum::body::Body)->Result<serde_json::Value,Error>
+    where Input:FnOnce()->Result<HoldingWorkspaceRequest,BusinessError>+Send+'static{
+        if !matches!(self.config.source_record,Some(crate::field_service_source_record::SourceRecordMode::Enforced)){return Err(BusinessError::new(FailureKind::NotFound,"NOT_FOUND","Not found.").into());}
+        crate::field_operations_command::execute_selected_field_operations_http(&self.authorizer,host,proof,input,crate::field_collaboration_command::FieldCollaborationTarget{holding:self.config.holding.clone(),company:self.config.company.clone(),clock:self.clock.clone(),catalogue:self.config.catalogue.clone()},key,Some(id),body).await
+    }
+    pub async fn support_read<Input>(&self, host: &str, proof: DeviceProof, input: Input, id: String) -> Result<crate::field_support_read::FieldSupportReadResponse, Error>
+    where Input: FnOnce()->Result<HoldingWorkspaceRequest,BusinessError>+Send+'static {
+        if !matches!(self.config.source_record,Some(crate::field_service_source_record::SourceRecordMode::Enforced)) { return Err(BusinessError::new(FailureKind::NotFound,"NOT_FOUND","Not found.").into()); }
+        crate::field_support_read::read_selected_field_support(&self.authorizer,host,proof,input,crate::field_collaboration_command::FieldCollaborationTarget{holding:self.config.holding.clone(),company:self.config.company.clone(),clock:self.clock.clone(),catalogue:self.config.catalogue.clone()},id).await
+    }
+    fn inbox_sources(&self)->crate::field_inbox_read::InboxSources {
+        #[cfg(feature="field-service-http")]
+        let initial_count=self.config.initial_count.as_ref().map(|(environment,_)|environment.clone());
+        #[cfg(not(feature="field-service-http"))]
+        let initial_count=None;
+        crate::field_inbox_read::InboxSources{initial_count}
+    }
+    pub async fn inbox_state<Input>(&self,host:&str,proof:DeviceProof,input:Input,id:String,key:Result<String,BusinessError>,body:axum::body::Body)->Result<serde_json::Value,Error>
+    where Input:FnOnce()->Result<HoldingWorkspaceRequest,BusinessError>+Send+'static {
+      if !matches!(self.config.source_record,Some(crate::field_service_source_record::SourceRecordMode::Enforced)){return Err(BusinessError::new(FailureKind::NotFound,"NOT_FOUND","Not found.").into());}
+      crate::field_inbox_command::execute_selected_field_inbox_http(&self.authorizer,host,proof,input,crate::field_collaboration_command::FieldCollaborationTarget{holding:self.config.holding.clone(),company:self.config.company.clone(),clock:self.clock.clone(),catalogue:self.config.catalogue.clone()},self.inbox_sources(),id,key,body).await
+    }
+    pub async fn executive_evidence<Input>(&self,host:&str,proof:DeviceProof,input:Input,request:erpx_server_field_service::public::executive_evidence::FieldEvidenceRequest,action:erpx_server_field_service::public::executive_evidence::EvidenceAction)->Result<crate::field_executive_read::FieldExecutiveReadResponse,Error>
+    where Input:FnOnce()->Result<HoldingWorkspaceRequest,BusinessError>+Send+'static {
+        if !matches!(self.config.source_record,Some(crate::field_service_source_record::SourceRecordMode::Enforced)){return Err(BusinessError::new(FailureKind::NotFound,"NOT_FOUND","Not found.").into());}
+        crate::field_executive_evidence::read_selected_field_evidence(&self.authorizer,host,proof,input,crate::field_collaboration_command::FieldCollaborationTarget{holding:self.config.holding.clone(),company:self.config.company.clone(),clock:self.clock.clone(),catalogue:self.config.catalogue.clone()},request,action).await
+    }
+    pub async fn executive_read<Input>(&self,host:&str,proof:DeviceProof,input:Input,query:erpx_server_field_service::public::executive::FieldExecutiveQuery)->Result<crate::field_executive_read::FieldExecutiveReadResponse,Error>
+    where Input:FnOnce()->Result<HoldingWorkspaceRequest,BusinessError>+Send+'static {
+        if !matches!(self.config.source_record,Some(crate::field_service_source_record::SourceRecordMode::Enforced)){return Err(BusinessError::new(FailureKind::NotFound,"NOT_FOUND","Not found.").into());}
+        crate::field_executive_read::read_selected_field_executive(&self.authorizer,host,proof,input,crate::field_collaboration_command::FieldCollaborationTarget{holding:self.config.holding.clone(),company:self.config.company.clone(),clock:self.clock.clone(),catalogue:self.config.catalogue.clone()},query).await
+    }
+    pub async fn inbox_candidates<Input>(&self,host:&str,proof:DeviceProof,input:Input,query:erpx_server_collaboration::public::field_inbox::FieldInboxQuery)->Result<crate::field_inbox_read::FieldInboxReadResponse,Error>
+    where Input:FnOnce()->Result<HoldingWorkspaceRequest,BusinessError>+Send+'static{
+        if !matches!(self.config.source_record,Some(crate::field_service_source_record::SourceRecordMode::Enforced)){return Err(BusinessError::new(FailureKind::NotFound,"NOT_FOUND","Not found.").into());}
+        crate::field_inbox_read::read_selected_field_inbox(&self.authorizer,host,proof,input,crate::field_collaboration_command::FieldCollaborationTarget{holding:self.config.holding.clone(),company:self.config.company.clone(),clock:self.clock.clone(),catalogue:self.config.catalogue.clone()},self.inbox_sources(),query).await
+    }
+    pub async fn collaboration_read<Input>(&self, host: &str, proof: DeviceProof, input: Input) -> Result<crate::field_collaboration_read::FieldCollaborationReadResponse, Error>
+    where Input: FnOnce()->Result<HoldingWorkspaceRequest,BusinessError>+Send+'static {
+        if !matches!(self.config.source_record,Some(crate::field_service_source_record::SourceRecordMode::Enforced)) { return Err(BusinessError::new(FailureKind::NotFound,"NOT_FOUND","Not found.").into()); }
+        crate::field_collaboration_read::read_selected_field_collaboration(&self.authorizer,host,proof,input,crate::field_collaboration_command::FieldCollaborationTarget{holding:self.config.holding.clone(),company:self.config.company.clone(),clock:self.clock.clone(),catalogue:self.config.catalogue.clone()}).await
+    }
+    pub async fn collaboration_command<Input>(&self, host:&str, proof:DeviceProof, input:Input, key:Result<String,BusinessError>, body:axum::body::Body)->Result<serde_json::Value,Error>
+    where Input:FnOnce()->Result<HoldingWorkspaceRequest,BusinessError>+Send+'static {
+        if !matches!(self.config.source_record,Some(crate::field_service_source_record::SourceRecordMode::Enforced)) { return Err(BusinessError::new(FailureKind::NotFound,"NOT_FOUND","Not found.").into()); }
+        crate::field_collaboration_command::execute_selected_field_collaboration_http(&self.authorizer,host,proof,input,crate::field_collaboration_command::FieldCollaborationTarget{holding:self.config.holding.clone(),company:self.config.company.clone(),clock:self.clock.clone(),catalogue:self.config.catalogue.clone()},key,body).await
+    }
     pub fn registered_setup_companies(&self) -> bool {
         #[cfg(feature = "field-service-http")]
         { self.config.initial_count.is_some() }
@@ -588,6 +650,62 @@ impl<C: Clock + Send + Sync + 'static> FieldServiceReservationReadService<C> {
                 environment:
                     crate::service_parts_posting_setup::ServicePostingEnvironment::Development,
             },
+        )
+        .await
+    }
+    pub async fn customer_preparation<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        request: Input,
+    ) -> Result<crate::service_customer_preparation::ServiceCustomerReadResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        if !self.config.stock_setup {
+            return Err(denied().into());
+        }
+        crate::service_customer_preparation::read_selected_service_customer(
+            &self.authorizer,
+            host,
+            proof,
+            request,
+            crate::service_parts_posting_setup::ServicePostingTarget {
+                holding: self.config.holding.clone(),
+                company: self.setup_company_ownership(),
+                clock: self.clock.clone(),
+                environment:
+                    crate::service_parts_posting_setup::ServicePostingEnvironment::Development,
+            },
+        )
+        .await
+    }
+    pub async fn customer_command<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        request: Input,
+        command: crate::service_customer_preparation::ServiceCustomerTransportCommand,
+    ) -> Result<crate::service_customer_preparation::ServiceCustomerCommandResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        if !self.config.stock_setup {
+            return Err(denied().into());
+        }
+        crate::service_customer_preparation::execute_selected_service_customer(
+            &self.authorizer,
+            host,
+            proof,
+            request,
+            crate::service_parts_posting_setup::ServicePostingTarget {
+                holding: self.config.holding.clone(),
+                company: self.setup_company_ownership(),
+                clock: self.clock.clone(),
+                environment:
+                    crate::service_parts_posting_setup::ServicePostingEnvironment::Development,
+            },
+            command,
         )
         .await
     }

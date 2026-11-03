@@ -143,3 +143,55 @@ fn changed() -> Error {
     )
     .into()
 }
+
+/// Inventory's persisted Field partition, including a journal whose Finance
+/// label was corrupted. The caller retains the original Holding transaction.
+pub async fn journal_has_field_service_consumption(
+    c:&mut PgConnection,company:&CompanyId,journal:&str,
+)->Result<bool,Error>{
+    unit(c).await?;
+    Ok(sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM operational_inventory_consumptions WHERE company_id=$1 AND journal_id=$2 AND source_kind='field_service')")
+        .bind(company.as_str()).bind(journal).fetch_one(c).await?)
+}
+
+#[derive(Clone,Debug,PartialEq,Eq,serde::Deserialize)]
+pub struct ServiceSettlementConsumption {
+    pub id:String,pub company_id:String,pub source_id:String,pub source_version:i64,
+    pub branch_id:String,pub department_id:Option<String>,pub warehouse_id:String,pub product_id:String,
+    pub journal_id:String,pub currency:String,pub quantity_milli:i64,pub value_minor:i64,pub created_by:String,pub digest:String,
+}
+/// Raw Company Field consumption references for package settlement. A valid-only
+/// Finance projection must never hide an orphan or malformed consumption.
+/// Known Field order references also retain cross-Company corrupt markers,
+/// matching the original raw presence predicate without exposing their data.
+pub struct CurrentServiceSettlementConsumptions {
+    company:CompanyId,
+    known_orders:Vec<String>,
+    unit:Unit,
+    order_ids:Vec<String>,
+    data:Vec<ServiceSettlementConsumption>,
+    digest:String,
+}
+impl CurrentServiceSettlementConsumptions {
+    pub fn order_ids(&self)->&[String]{&self.order_ids}
+    pub fn data(&self)->&[ServiceSettlementConsumption]{&self.data}
+    pub async fn require_current(&self,c:&mut PgConnection)->Result<(),Error>{
+        if unit(c).await?!=self.unit{return Err(changed());}
+        let(data,digest)=capture_service_settlement_consumptions(c,&self.company,&self.known_orders).await?;
+        if data!=self.data||digest!=self.digest{return Err(changed());}
+        Ok(())
+    }
+}
+async fn capture_service_settlement_consumptions(c:&mut PgConnection,company:&CompanyId,known_orders:&[String])->Result<(Vec<ServiceSettlementConsumption>,String),Error>{
+    let row=sqlx::query("WITH source AS MATERIALIZED(SELECT * FROM operational_inventory_consumptions WHERE source_kind='field_service' AND (company_id=$1 OR source_id=ANY($2::text[]))),snapshot AS(SELECT coalesce(jsonb_agg(jsonb_build_object('id',s.id,'company_id',s.company_id,'source_id',s.source_id,'source_version',s.source_version,'branch_id',s.branch_id,'department_id',s.department_id,'warehouse_id',s.warehouse_id,'product_id',s.product_id,'journal_id',s.journal_id,'currency',s.currency,'quantity_milli',s.quantity_milli,'value_minor',s.value_minor,'created_by',s.created_by,'digest',encode(sha256(convert_to(to_jsonb(s)::text,'UTF8')),'hex')) ORDER BY id),'[]'::jsonb) value,encode(sha256(convert_to(coalesce(string_agg(encode(sha256(convert_to(to_jsonb(s)::text,'UTF8')),'hex'),'' ORDER BY id),''),'UTF8')),'hex') digest FROM source s) SELECT CASE WHEN octet_length(value::text)<=2097152 THEN value::text END payload,digest FROM snapshot").bind(company.as_str()).bind(known_orders).fetch_one(c).await?;
+    let payload:Option<String>=row.try_get("payload")?;
+    let limited=||BusinessError::new(FailureKind::Unavailable,"SERVICE_CONSUMPTION_SETTLEMENT_LIMIT","The raw Service consumption references exceed this bounded read.");
+    let data=serde_json::from_str(&payload.ok_or_else(limited)?).map_err(|_|limited())?;
+    Ok((data,row.try_get("digest")?))
+}
+pub async fn read_service_settlement_consumptions(c:&mut PgConnection,company:&CompanyId,known_orders:&[String])->Result<CurrentServiceSettlementConsumptions,Error>{
+    let unit=unit(c).await?;
+    let(data,digest)=capture_service_settlement_consumptions(c,company,known_orders).await?;
+    let order_ids=data.iter().map(|p|p.source_id.clone()).collect();
+    Ok(CurrentServiceSettlementConsumptions{company:company.clone(),known_orders:known_orders.to_vec(),unit,order_ids,data,digest})
+}

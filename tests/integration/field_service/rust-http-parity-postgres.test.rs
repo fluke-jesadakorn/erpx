@@ -6,18 +6,20 @@
 )]
 #[path = "../../support/field_service/parts.rs"]
 mod facts;
+#[path = "../../support/field_service/service-posting.rs"]
+mod service_posting_fixture;
 use axum::{
     body::{Body, to_bytes},
     http::{HeaderMap, Request, StatusCode},
 };
 use erpx_server_commercial::public::purchases::PackageEnforcementMode;
-#[cfg(feature = "private-development-api")]
+#[cfg(feature = "private-field-api")]
 use erpx_server_identity_access::public::SystemAuthenticationSecrets;
 use erpx_server_identity_access::public::effective_authority::AuthorizedWorkContext;
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{BusinessError, Clock, CompanyId, FailureKind, HoldingId};
 use erpx_server_workflow::public::commands::CommandJson;
-#[cfg(feature = "private-development-api")]
+#[cfg(feature = "private-field-api")]
 use erpx_service::private_development_api::{
     DevelopmentApiConfiguration, assemble_development_api,
 };
@@ -373,11 +375,11 @@ async fn existing_receipt_collision_does_not_mask_missing_purchase_history() {
 }
 
 #[path = "../../support/runtime/private-session-config.rs"]
-#[cfg(feature = "private-development-api")]
+#[cfg(feature = "private-field-api")]
 mod private_configuration;
 
 #[tokio::test]
-#[cfg(feature = "private-development-api")]
+#[cfg(feature = "private-field-api")]
 async fn private_reserve_readback_is_explicit_scoped_and_receipt_bound() {
     account::with_system(|system| async move {
         let p=setup(system).await;
@@ -471,7 +473,7 @@ async fn advancing_clock_retains_early_order_witness_across_real_retry() {
 }
 
 #[tokio::test]
-#[cfg(feature = "private-development-api")]
+#[cfg(feature = "private-field-api")]
 async fn private_issue_readback_accepts_two_issues_against_historical_reservation() {
     account::with_system(|system| async move {
         let now=std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;
@@ -504,7 +506,7 @@ async fn private_issue_readback_accepts_two_issues_against_historical_reservatio
 }
 
 #[tokio::test]
-#[cfg(feature = "private-development-api")]
+#[cfg(feature = "private-field-api")]
 async fn private_issue_readback_and_finance_source_are_receipt_bound() {
     account::with_system(|system| async move {
         let p = setup(system).await;
@@ -564,12 +566,12 @@ async fn private_issue_readback_and_finance_source_are_receipt_bound() {
 }
 
 #[tokio::test]
-#[cfg(feature = "private-development-api")]
+#[cfg(feature = "private-field-api")]
 async fn private_field_cost_post_requires_qualified_source_and_real_flow_primary() {
     account::with_system(|system| async move {
         let wall=std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;
         system.scenario.clock.0.store(wall,std::sync::atomic::Ordering::SeqCst);
-        let p=setup(system).await;
+        let p=setup_without_finance_history(system).await;
         sqlx::query("UPDATE hr_engagements SET start_date='2020-01-01' WHERE id='field-engagement'").execute(p.pool().raw()).await.unwrap();
         let system=&p.review.system;
         let db=p.pool().raw();
@@ -591,6 +593,15 @@ async fn private_field_cost_post_requires_qualified_source_and_real_flow_primary
         closed.close().await;
         config["financeFieldServiceJournalPosts"]=serde_json::json!(["h001"]);
         let runtime=assemble_development_api(build(&config),system.scenario.clock.clone(),Arc::new(SystemAuthenticationSecrets)).await.unwrap();
+        // A copied source label is not a real Inventory consumption / Field
+        // event / receipt edge. Keep the original forged-source assertions on
+        // the real native read and post ingress, without granting full Finance.
+        sqlx::query("INSERT INTO finance_journals SELECT(jsonb_populate_record(NULL::finance_journals,to_jsonb(j)||jsonb_build_object('id','field-cost-forged-label','journal_number',journal_number||'-forged'))).* FROM finance_journals j WHERE j.id=$1").bind(&journal).execute(db).await.unwrap();
+        for method in ["GET","POST"] {
+            let request=Request::builder().method(method).uri(format!("/api/v1/holdings/acme/finance/journals/field-cost-forged-label{}",if method=="POST"{"/post"}else{"/workspace"})).header("host","acme.example.test").header("cookie",&cookie).header("x-erpx-context-company","company").header("x-erpx-context-assignment","finance-fixture-b").header("x-erpx-context-assignment-version","3").header("x-erpx-context-revision","7").header("idempotency-key","field-forged-label-denied").header("content-type","application/json").body(if method=="POST"{Body::from(r#"{"expectedVersion":1}"#)}else{Body::empty()}).unwrap();
+            let response=runtime.router().oneshot(request).await.unwrap();let status=response.status();let bytes=to_bytes(response.into_body(),65536).await.unwrap();assert!(status.is_client_error(),"{}",String::from_utf8_lossy(&bytes));let failure:serde_json::Value=serde_json::from_slice(&bytes).unwrap();assert_eq!(failure["error"]["code"],"PACKAGE_REQUIRED");
+        }
+        let forged_effects:(i64,i64,i64)=sqlx::query_as("SELECT(SELECT count(*) FROM command_receipts WHERE command_id='field-forged-label-denied'),(SELECT count(*) FROM audit_events WHERE command_id='field-forged-label-denied'),(SELECT count(*) FROM outbox_events WHERE command_id='field-forged-label-denied')").fetch_one(db).await.unwrap();assert_eq!(forged_effects,(0,0,0));
         let central=account::login(system,"a@example.test",None).await;let field=account::child(system,&central,account::ACME).await;let now=system.scenario.clock.now().get();sqlx::query("INSERT INTO active_work_contexts(session_id,user_id,company_id,assignment_id,assignment_version,revision,expires_at,updated_at)VALUES($1,'fixture-a','company','field-fixture-a',3,8,$2,$3)").bind(&field.result.session_id).bind(now+3_600_000).bind(now).execute(db).await.unwrap();let field_cookie=format!("__Host-erpx-product={}",field.token.expose());let exception=r#"{"id":"issue-order","action":"exception","expectedVersion":4,"reason":"Unable to continue"}"#;let result=send(&runtime.router(),&field_cookie,"cancel-posted-exception",exception).await;assert_eq!(result.0,StatusCode::OK,"{}",result.1);let cancel=r#"{"id":"issue-order","action":"cancel","expectedVersion":5,"reason":"Cancel visit"}"#;assert_ne!(send(&runtime.router(),&field_cookie,"cancel-draft-denied",cancel).await.0,StatusCode::OK);assert_eq!(p.counts("cancel-draft-denied").await,(0,0,0,0,0));
         assert_ne!(runtime.router().oneshot(post("field-bad-context","999")).await.unwrap().status(),StatusCode::OK);
         sqlx::query("UPDATE hr_engagements SET status='ended' WHERE id='field-post-engagement'").execute(db).await.unwrap();
@@ -604,6 +615,28 @@ async fn private_field_cost_post_requires_qualified_source_and_real_flow_primary
         let rollback:(String,i64,i64,i64,i64,i64,i64)=sqlx::query_as("SELECT (SELECT status FROM finance_journals WHERE id=$1),(SELECT version FROM finance_journals WHERE id=$1),(SELECT count(*) FROM flow_events WHERE command_id='field-post-rollback'),(SELECT count(*) FROM flow_routes WHERE record_id=$1),(SELECT count(*) FROM command_receipts WHERE command_id='field-post-rollback'),(SELECT count(*) FROM money_transaction_snapshots WHERE source_id=$1),(SELECT count(*) FROM outbox_events WHERE command_id='field-post-rollback')").bind(&journal).fetch_one(db).await.unwrap();
         assert_eq!(rollback,("draft".into(),1,0,0,0,0,0));
         sqlx::query("ALTER TABLE audit_events DROP CONSTRAINT field_post_reject").execute(db).await.unwrap();
+        // Only included Service + Parts history is available; no full Finance
+        // purchase may mask the original draining-source authorization case.
+        facts::drain(&p,"service").await;facts::drain(&p,"service-parts-assets").await;
+        let grants:Vec<(String,String)>=sqlx::query_as("SELECT package_id,state FROM company_package_grants WHERE company_id='company' ORDER BY package_id").fetch_all(db).await.unwrap();assert_eq!(grants,vec![("service".into(),"draining".into()),("service-parts-assets".into(),"draining".into())]);
+        // Preserve the original Field-specific deferred reservation and
+        // current Finance authority rollback cases through the native endpoint.
+        // The successful call below must reuse the same key after both faults.
+        sqlx::raw_sql("INSERT INTO commerce_products SELECT(jsonb_populate_record(NULL::commerce_products,to_jsonb(p)||jsonb_build_object('id','field-cost-other-product','sku','FIELD-COST-OTHER'))).* FROM commerce_products p WHERE p.id='product';INSERT INTO commerce_stock(warehouse_id,product_id,quantity_milli,value_minor)VALUES('warehouse','field-cost-other-product',1000,8000)").execute(db).await.unwrap();
+        let before_journal:serde_json::Value=sqlx::query_scalar("SELECT to_jsonb(j) FROM finance_journals j WHERE id=$1").bind(&journal).fetch_one(db).await.unwrap();
+        let before_reservation:serde_json::Value=sqlx::query_scalar("SELECT to_jsonb(r) FROM field_service_part_reservations r WHERE id='reserved-part'").fetch_one(db).await.unwrap();
+        let before_authority:serde_json::Value=sqlx::query_scalar("SELECT to_jsonb(a) FROM assignments a WHERE id='finance-fixture-b'").fetch_one(db).await.unwrap();
+        // SQL interpolation below is restricted to these two fixed literals.
+        for (fault,expected) in [("UPDATE field_service_part_reservations SET product_id='field-cost-other-product' WHERE id='reserved-part'","FINANCE_DOCUMENT_SOURCE_CHANGED"),("UPDATE assignments SET revoked_at=1,version=version+1 WHERE id='finance-fixture-b'","FINANCE_ACCESS_CHANGED")] {
+            let trigger=format!("CREATE SEQUENCE field_cost_final_attempt;CREATE FUNCTION field_cost_final_fault() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM nextval('field_cost_final_attempt');{fault};RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER field_cost_final_fault AFTER INSERT ON outbox_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.command_id='field-post-success') EXECUTE FUNCTION field_cost_final_fault()");sqlx::raw_sql(sqlx::AssertSqlSafe(trigger)).execute(db).await.unwrap();
+            let response=runtime.router().oneshot(post("field-post-success","7")).await.unwrap();let status=response.status();let bytes=to_bytes(response.into_body(),65536).await.unwrap();assert!(status.is_client_error(),"{}",String::from_utf8_lossy(&bytes));let failure:serde_json::Value=serde_json::from_slice(&bytes).unwrap();assert_eq!(failure["error"]["code"],expected);
+            assert!(sqlx::query_scalar::<_,bool>("SELECT is_called FROM field_cost_final_attempt").fetch_one(db).await.unwrap());
+            assert_eq!(sqlx::query_scalar::<_,serde_json::Value>("SELECT to_jsonb(j) FROM finance_journals j WHERE id=$1").bind(&journal).fetch_one(db).await.unwrap(),before_journal);
+            assert_eq!(sqlx::query_scalar::<_,serde_json::Value>("SELECT to_jsonb(r) FROM field_service_part_reservations r WHERE id='reserved-part'").fetch_one(db).await.unwrap(),before_reservation);
+            assert_eq!(sqlx::query_scalar::<_,serde_json::Value>("SELECT to_jsonb(a) FROM assignments a WHERE id='finance-fixture-b'").fetch_one(db).await.unwrap(),before_authority);
+            let effects:(i64,i64,i64,i64,i64)=sqlx::query_as("SELECT(SELECT count(*) FROM command_receipts WHERE command_id='field-post-success'),(SELECT count(*) FROM audit_events WHERE command_id='field-post-success'),(SELECT count(*) FROM outbox_events WHERE command_id='field-post-success'),(SELECT count(*) FROM money_transaction_snapshots WHERE source_id=$1),(SELECT count(*) FROM flow_events WHERE command_id='field-post-success')").bind(&journal).fetch_one(db).await.unwrap();assert_eq!(effects,(0,0,0,0,0));
+            sqlx::raw_sql("DROP TRIGGER field_cost_final_fault ON outbox_events;DROP FUNCTION field_cost_final_fault();DROP SEQUENCE field_cost_final_attempt").execute(db).await.unwrap();
+        }
         let response=runtime.router().oneshot(post("field-post-success","7")).await.unwrap();let status=response.status();let bytes=to_bytes(response.into_body(),65536).await.unwrap();assert_eq!(status,StatusCode::OK,"{}",String::from_utf8_lossy(&bytes));
         assert_eq!(runtime.router().oneshot(post("field-post-success","7")).await.unwrap().status(),StatusCode::OK);
         let facts:(String,i64,i64,i64,i64,i64,i64)=sqlx::query_as("SELECT (SELECT status FROM finance_journals WHERE id=$1),(SELECT version FROM finance_journals WHERE id=$1),(SELECT count(*) FROM flow_events WHERE command_id='field-post-success'),(SELECT count(*) FROM command_receipts WHERE command_id='field-post-success'),(SELECT count(*) FROM money_transaction_snapshots WHERE source_id=$1),(SELECT count(*) FROM audit_events WHERE command_id='field-post-success'),(SELECT count(*) FROM outbox_events WHERE command_id='field-post-success')").bind(&journal).fetch_one(db).await.unwrap();assert_eq!(facts,("posted".into(),2,1,1,1,1,1));
@@ -618,7 +651,7 @@ async fn private_field_cost_post_requires_qualified_source_and_real_flow_primary
 }
 
 #[tokio::test]
-#[cfg(feature = "private-development-api")]
+#[cfg(feature = "private-field-api")]
 async fn private_request_create_is_atomic_and_replayable() {
     account::with_system(|system|async move{
   let wall=std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;system.scenario.clock.0.store(wall,std::sync::atomic::Ordering::SeqCst);
@@ -679,7 +712,7 @@ async fn private_request_create_is_atomic_and_replayable() {
 }
 
 #[tokio::test]
-#[cfg(feature = "private-development-api")]
+#[cfg(feature = "private-field-api")]
 async fn private_request_accepts_bounded_physical_customer_reference() {
     account::with_system(|system| async move {
         let wall=std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;
@@ -703,7 +736,7 @@ async fn private_request_accepts_bounded_physical_customer_reference() {
 }
 
 #[tokio::test]
-#[cfg(feature = "private-development-api")]
+#[cfg(feature = "private-field-api")]
 async fn private_existing_ticket_create_orders_and_replays() {
     account::with_system(|system|async move{
   let wall=std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;system.scenario.clock.0.store(wall,std::sync::atomic::Ordering::SeqCst);
@@ -737,7 +770,7 @@ async fn private_existing_ticket_create_orders_and_replays() {
 }
 
 #[tokio::test]
-#[cfg(feature = "private-development-api")]
+#[cfg(feature = "private-field-api")]
 async fn long_physical_references_cross_create_parts_and_finance() {
     account::with_system(|system| async move {
         let wall=std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;
@@ -791,7 +824,7 @@ async fn long_physical_references_cross_create_parts_and_finance() {
 }
 
 #[tokio::test]
-#[cfg(feature = "private-development-api")]
+#[cfg(feature = "private-field-api")]
 async fn private_visit_authority_expiry_support_and_rollback() {
     account::with_system(|system|async move {
   let now=std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;system.scenario.clock.0.store(now,std::sync::atomic::Ordering::SeqCst);let p=setup(system).await;let system=&p.review.system;let db=p.pool().raw();sqlx::query("UPDATE hr_engagements SET start_date='2020-01-01' WHERE id='field-engagement'").execute(db).await.unwrap();
@@ -813,7 +846,7 @@ async fn private_visit_authority_expiry_support_and_rollback() {
 }
 
 #[tokio::test]
-#[cfg(feature = "private-development-api")]
+#[cfg(feature = "private-field-api")]
 async fn private_visit_exception_resume_is_atomic_and_isolated() {
     account::with_system(|system|async move{
   let now=std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;system.scenario.clock.0.store(now,std::sync::atomic::Ordering::SeqCst);let p=setup(system).await;let system=&p.review.system;let db=p.pool().raw();sqlx::query("UPDATE hr_engagements SET start_date='2020-01-01' WHERE id='field-engagement'").execute(db).await.unwrap();
@@ -838,7 +871,7 @@ async fn private_visit_exception_resume_is_atomic_and_isolated() {
 }
 
 #[tokio::test]
-#[cfg(feature = "private-development-api")]
+#[cfg(feature = "private-field-api")]
 async fn private_cancel_states_reservations_authority_and_rollback() {
     account::with_system(|system|async move{
   let now=std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;system.scenario.clock.0.store(now,std::sync::atomic::Ordering::SeqCst);let p=setup(system).await;let system=&p.review.system;let db=p.pool().raw();sqlx::query("UPDATE hr_engagements SET start_date='2020-01-01' WHERE id='field-engagement'").execute(db).await.unwrap();let central=account::login(system,"a@example.test",None).await;let child=account::child(system,&central,account::ACME).await;sqlx::query("INSERT INTO active_work_contexts(session_id,user_id,company_id,assignment_id,assignment_version,revision,expires_at,updated_at)VALUES($1,'fixture-a','company','field-fixture-a',3,8,$2,$3)").bind(&child.result.session_id).bind(now+3_600_000).bind(now).execute(db).await.unwrap();let cookie=format!("__Host-erpx-product={}",child.token.expose());
@@ -861,7 +894,7 @@ async fn private_cancel_states_reservations_authority_and_rollback() {
  }).await;
 }
 
-#[cfg(feature = "private-development-api")]
+#[cfg(feature = "private-field-api")]
 #[tokio::test]
 async fn private_agreement_review_full_transaction_and_readback() {
     account::with_system(|system| async move {
@@ -891,7 +924,7 @@ async fn private_agreement_review_full_transaction_and_readback() {
         assert_eq!(post("review-stale",&activate.replace("\"expectedVersion\":1","\"expectedVersion\":2")).await.0,StatusCode::CONFLICT);
         assert_eq!(post("review-blocked",r#"{"entity":"agreement","id":"agreement","action":"retire","expectedVersion":2,"reason":"Close Agreement"}"#).await.0,StatusCode::CONFLICT);
         sqlx::query("UPDATE iam_members SET person_id='field-person' WHERE company_id='company' AND user_id='fixture-b'").execute(db).await.unwrap();
-        assert_eq!(post("review-alias",activate).await.0,StatusCode::FORBIDDEN);
+        let alias=post("review-alias",activate).await;assert_eq!(alias.0,StatusCode::CONFLICT);assert_eq!(alias.1["error"]["code"],"CONFLICT");
         sqlx::query("UPDATE iam_members SET person_id='agreement-review-person' WHERE company_id='company' AND user_id='fixture-b'").execute(db).await.unwrap();
         sqlx::raw_sql("CREATE FUNCTION review_source_drift() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.command_id='review-drift' THEN UPDATE field_service_agreements SET title='drift' WHERE id='review-agreement'; END IF; RETURN NEW; END $$;CREATE TRIGGER review_source_drift AFTER INSERT ON command_receipts FOR EACH ROW EXECUTE FUNCTION review_source_drift()").execute(db).await.unwrap();
         assert_ne!(post("review-drift",activate).await.0,StatusCode::OK);assert_eq!(p.counts("review-drift").await,(0,0,0,0,0));
@@ -951,7 +984,7 @@ async fn private_agreement_review_full_transaction_and_readback() {
     }).await;
 }
 
-#[cfg(feature = "private-development-api")]
+#[cfg(feature = "private-field-api")]
 #[tokio::test]
 async fn private_agreement_create_money_replay_and_rollback() {
     account::with_system(|system|async move{
@@ -1013,7 +1046,7 @@ async fn private_agreement_create_money_replay_and_rollback() {
 }
 
 #[tokio::test]
-#[cfg(feature = "private-development-api")]
+#[cfg(feature = "private-field-api")]
 async fn physical_scope_agreement_to_request_order_visit_parts_and_finance() {
     account::with_system(|system|async move{
   let now=std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;system.scenario.clock.0.store(now,Ordering::SeqCst);
@@ -1114,31 +1147,9 @@ async fn physical_scope_agreement_to_request_order_visit_parts_and_finance() {
  }).await;
 }
 
-#[tokio::test]
-#[cfg(feature = "private-development-api")]
-async fn finance_service_invoice_workspace_uses_real_included_history() {
-    account::with_system(|system| async move {
-        let now=std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;
-        system.scenario.clock.0.store(now,Ordering::SeqCst);
-        let p=setup_without_finance_history(system).await;setup_agreement_review_facts(&p,now).await;
-        let system=&p.review.system;let db=p.pool().raw();
-        sqlx::raw_sql("UPDATE hr_engagements SET start_date='2020-01-01' WHERE id='field-engagement';INSERT INTO finance_accounts(id,company_id,chart_id,code,name,category,currency,is_control,control_kind,created_at,updated_at) VALUES('invoice-ar','company','chart','120','Receivable','asset','THB',1,'receivable',0,0),('invoice-revenue','company','chart','420','Revenue','revenue','THB',0,'none',0,0)").execute(db).await.unwrap();
-        let central=account::login(system,"a@example.test",None).await;let child=account::child(system,&central,account::ACME).await;sqlx::query("INSERT INTO active_work_contexts(session_id,user_id,company_id,assignment_id,assignment_version,revision,expires_at,updated_at) VALUES($1,'fixture-a','company','field-fixture-a',3,8,$2,$3)").bind(&child.result.session_id).bind(now+3_600_000).bind(now).execute(db).await.unwrap();let cookie=format!("__Host-erpx-product={}",child.token.expose());
-        let central=account::login(system,"b@example.test",None).await;let child=account::child(system,&central,account::ACME).await;sqlx::query("INSERT INTO active_work_contexts(session_id,user_id,company_id,assignment_id,assignment_version,revision,expires_at,updated_at) VALUES($1,'fixture-b','company','agreement-reviewer-b',3,8,$2,$3)").bind(&child.result.session_id).bind(now+3_600_000).bind(now).execute(db).await.unwrap();let reviewer=format!("__Host-erpx-product={}",child.token.expose());
-        let finance=format!("__Host-erpx-product={}",p.review.reviewer_token.expose());
-        let mut config=private_configuration::document(&system.control,&system.holdings).await;config["fieldServiceReads"]=serde_json::json!([{"holdingId":"h001","companyId":"company"}]);for flag in ["fieldServiceVisits","fieldServiceVisitCompletions","fieldServiceBillingReleases"]{config[flag]=serde_json::json!(["h001"]);}config["financeJournalReads"]=serde_json::json!([{"holdingId":"h001","companyId":"company"}]);config["financeFieldServiceInvoiceReads"]=serde_json::json!(["h001"]);
-        let runtime=assemble_development_api(DevelopmentApiConfiguration::parse(&config.to_string()).unwrap(),system.scenario.clock.clone(),Arc::new(SystemAuthenticationSecrets)).await.unwrap();
-        for (key,body) in [("included-dispatch",r#"{"id":"reserve-order","action":"dispatch","expectedVersion":1,"reason":"Dispatch"}"#),("included-start",r#"{"id":"reserve-order","action":"start","expectedVersion":2,"reason":"Start"}"#),("included-complete",r#"{"id":"reserve-order","action":"complete","expectedVersion":3,"laborMinutes":5,"evidence":"Actual work","customerConfirmation":"Accepted","reason":"Complete"}"#)] {let r=send(&runtime.router(),&cookie,key,body).await;assert_eq!(r.0,StatusCode::OK,"{}",r.1)}
-        let billing=r#"{"id":"reserve-order","action":"release-billing","expectedVersion":4,"reason":"Independent release"}"#;let r=send_as(&runtime.router(),&reviewer,"agreement-reviewer-b","included-billing",billing).await;assert_eq!(r.0,StatusCode::OK,"{}",r.1);
-        let get=||Request::builder().uri("/api/v1/holdings/acme/finance/invoices/field-invoice-included-billing/workspace").header("host","acme.example.test").header("cookie",&finance).body(Body::empty()).unwrap();let r=runtime.router().oneshot(get()).await.unwrap();let status=r.status();let bytes=to_bytes(r.into_body(),2*1024*1024).await.unwrap();assert_eq!(status,StatusCode::OK,"{}",String::from_utf8_lossy(&bytes));let body:serde_json::Value=serde_json::from_slice(&bytes).unwrap();assert_eq!(body["sourceOnly"],true);assert_eq!(body["data"]["source"]["releaseId"],"field-billing-included-billing");
-        // This valid persisted later status is a fixture, not a claimed native posting.
-        sqlx::query("UPDATE finance_invoices SET status='voided',version=version+1 WHERE id='field-invoice-included-billing'").execute(db).await.unwrap();let r=runtime.router().oneshot(get()).await.unwrap();let status=r.status();let bytes=to_bytes(r.into_body(),2*1024*1024).await.unwrap();assert_eq!(status,StatusCode::OK,"{}",String::from_utf8_lossy(&bytes));let body:serde_json::Value=serde_json::from_slice(&bytes).unwrap();assert_eq!(body["data"]["invoice"]["status"],"voided");
-        runtime.close().await;
-    }).await;
-}
 
 #[tokio::test]
-#[cfg(feature = "private-development-api")]
+#[cfg(feature = "private-field-api")]
 async fn private_workspace_returns_real_scoped_rows_and_references() {
     account::with_system(|system| async move {
   let now=std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;system.scenario.clock.0.store(now,Ordering::SeqCst);
@@ -1169,7 +1180,7 @@ async fn private_workspace_returns_real_scoped_rows_and_references() {
 }
 
 #[tokio::test]
-#[cfg(feature = "private-development-api")]
+#[cfg(feature = "private-field-api")]
 async fn private_workspace_rejects_oversized_historical_rows_without_truncation() {
     account::with_system(|system| async move {
   let now=std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;system.scenario.clock.0.store(now,Ordering::SeqCst);let p=setup(system).await;let system=&p.review.system;let db=p.pool().raw();let central=account::login(system,"a@example.test",None).await;let child=account::child(system,&central,account::ACME).await;sqlx::query("INSERT INTO active_work_contexts(session_id,user_id,company_id,assignment_id,assignment_version,revision,expires_at,updated_at)VALUES($1,'fixture-a','company','field-fixture-a',3,8,$2,$3)").bind(&child.result.session_id).bind(now+3_600_000).bind(now).execute(db).await.unwrap();let mut cfg=private_configuration::document(&system.control,&system.holdings).await;cfg["fieldServiceReads"]=serde_json::json!([{"holdingId":"h001","companyId":"company"}]);cfg["fieldServiceWorkspaceReads"]=serde_json::json!(["h001"]);let runtime=assemble_development_api(DevelopmentApiConfiguration::parse(&cfg.to_string()).unwrap(),system.scenario.clock.clone(),Arc::new(SystemAuthenticationSecrets)).await.unwrap();let get=Request::builder().uri("/api/v1/holdings/acme/field-service/workspace").header("host","acme.example.test").header("cookie",format!("__Host-erpx-product={}",child.token.expose())).body(Body::empty()).unwrap();let response=runtime.router().oneshot(get).await.unwrap();assert_eq!(response.status(),StatusCode::SERVICE_UNAVAILABLE);runtime.close().await;
@@ -1177,17 +1188,23 @@ async fn private_workspace_rejects_oversized_historical_rows_without_truncation(
 }
 
 #[tokio::test]
-#[cfg(feature = "private-development-api")]
+#[cfg(feature = "private-field-api")]
 async fn private_workspace_masks_assets_without_parts_history() {
     account::with_system(|system| async move {
-  let now=std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;system.scenario.clock.0.store(now,Ordering::SeqCst);let p=setup_workspace_without_parts(system).await;let system=&p.review.system;let db=p.pool().raw();
+  let now=std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;system.scenario.clock.0.store(now,Ordering::SeqCst);let p=setup_workspace_covered_without_parts(system).await;let system=&p.review.system;let db=p.pool().raw();
   sqlx::raw_sql("INSERT INTO operational_assets(id,company_id,branch_id,code,name,category,currency,created_by,created_at,updated_at) VALUES('masked-asset','company','branch','MASKED','Covered asset','equipment','THB','fixture-a',0,0); INSERT INTO field_service_agreements(id,company_id,branch_id,customer_id,asset_id,title,start_date,end_date,currency,visit_rate_minor,status,created_by,version,created_at,updated_at) VALUES('masked-agreement','company','branch','customer','masked-asset','Covered agreement','2020-01-01','2021-01-01','THB',100,'draft','fixture-a',1,0,0)").execute(db).await.unwrap();
-  let central=account::login(system,"a@example.test",None).await;let child=account::child(system,&central,account::ACME).await;sqlx::query("INSERT INTO active_work_contexts(session_id,user_id,company_id,assignment_id,assignment_version,revision,expires_at,updated_at)VALUES($1,'fixture-a','company','field-fixture-a',3,8,$2,$3)").bind(&child.result.session_id).bind(now+3_600_000).bind(now).execute(db).await.unwrap();let mut cfg=private_configuration::document(&system.control,&system.holdings).await;cfg["fieldServiceReads"]=serde_json::json!([{"holdingId":"h001","companyId":"company"}]);cfg["fieldServiceWorkspaceReads"]=serde_json::json!(["h001"]);cfg["fieldServiceWorkReads"]=serde_json::json!(["h001"]);let runtime=assemble_development_api(DevelopmentApiConfiguration::parse(&cfg.to_string()).unwrap(),system.scenario.clock.clone(),Arc::new(SystemAuthenticationSecrets)).await.unwrap();let get=Request::builder().uri("/api/v1/holdings/acme/field-service/workspace").header("host","acme.example.test").header("cookie",format!("__Host-erpx-product={}",child.token.expose())).body(Body::empty()).unwrap();let r=runtime.router().oneshot(get).await.unwrap();let status=r.status();let bytes=to_bytes(r.into_body(),2*1024*1024).await.unwrap();assert_eq!(status,StatusCode::OK,"{}",String::from_utf8_lossy(&bytes));let v:serde_json::Value=serde_json::from_slice(&bytes).unwrap();let g=v["data"]["agreements"].as_array().unwrap().iter().find(|x|x["id"]=="masked-agreement").unwrap();assert!(g["asset_id"].is_null());assert!(g["asset_code"].is_null());assert_eq!(g["requires_asset_capability"],1);assert_eq!(v["data"]["canUseAssetReferences"],false);assert!(v["data"]["assets"].as_array().unwrap().is_empty());let work=Request::builder().uri("/api/v1/holdings/acme/field-service/work").header("host","acme.example.test").header("cookie",format!("__Host-erpx-product={}",child.token.expose())).body(Body::empty()).unwrap();let r=runtime.router().oneshot(work).await.unwrap();let status=r.status();let bytes=to_bytes(r.into_body(),2*1024*1024).await.unwrap();assert_eq!(status,StatusCode::OK,"{}",String::from_utf8_lossy(&bytes));let w:serde_json::Value=serde_json::from_slice(&bytes).unwrap();assert!(w["data"].as_array().unwrap().iter().any(|i|i["id"]=="masked-agreement" && i["canAct"]==false));assert!(!w["workflowSourceIds"].as_array().unwrap().iter().any(|id|id=="masked-agreement"));runtime.close().await;
+  let central=account::login(system,"a@example.test",None).await;let child=account::child(system,&central,account::ACME).await;sqlx::query("INSERT INTO active_work_contexts(session_id,user_id,company_id,assignment_id,assignment_version,revision,expires_at,updated_at)VALUES($1,'fixture-a','company','field-fixture-a',3,8,$2,$3)").bind(&child.result.session_id).bind(now+3_600_000).bind(now).execute(db).await.unwrap();let mut cfg=private_configuration::document(&system.control,&system.holdings).await;cfg["fieldServiceReads"]=serde_json::json!([{"holdingId":"h001","companyId":"company"}]);cfg["fieldServiceWorkspaceReads"]=serde_json::json!(["h001"]);cfg["fieldServiceWorkReads"]=serde_json::json!(["h001"]);cfg["fieldServiceDetailReads"]=serde_json::json!(["h001"]);let runtime=assemble_development_api(DevelopmentApiConfiguration::parse(&cfg.to_string()).unwrap(),system.scenario.clock.clone(),Arc::new(SystemAuthenticationSecrets)).await.unwrap();let get=Request::builder().uri("/api/v1/holdings/acme/field-service/workspace").header("host","acme.example.test").header("cookie",format!("__Host-erpx-product={}",child.token.expose())).body(Body::empty()).unwrap();let r=runtime.router().oneshot(get).await.unwrap();let status=r.status();let bytes=to_bytes(r.into_body(),2*1024*1024).await.unwrap();assert_eq!(status,StatusCode::OK,"{}",String::from_utf8_lossy(&bytes));let v:serde_json::Value=serde_json::from_slice(&bytes).unwrap();let g=v["data"]["agreements"].as_array().unwrap().iter().find(|x|x["id"]=="masked-agreement").unwrap();assert!(g["asset_id"].is_null());assert!(g["asset_code"].is_null());assert_eq!(g["requires_asset_capability"],1);assert_eq!(v["data"]["canUseAssetReferences"],false);assert!(v["data"]["assets"].as_array().unwrap().is_empty());let work=Request::builder().uri("/api/v1/holdings/acme/field-service/work").header("host","acme.example.test").header("cookie",format!("__Host-erpx-product={}",child.token.expose())).body(Body::empty()).unwrap();let r=runtime.router().oneshot(work).await.unwrap();let status=r.status();let bytes=to_bytes(r.into_body(),2*1024*1024).await.unwrap();assert_eq!(status,StatusCode::OK,"{}",String::from_utf8_lossy(&bytes));let w:serde_json::Value=serde_json::from_slice(&bytes).unwrap();assert!(w["data"].as_array().unwrap().iter().any(|i|i["id"]=="masked-agreement" && i["canAct"]==false));assert!(!w["workflowSourceIds"].as_array().unwrap().iter().any(|id|id=="masked-agreement"));assert!(!v.to_string().contains("covered-asset"));
+let masked=w["data"].as_array().unwrap().iter().find(|i|i["id"]=="reserve-order").unwrap();assert_eq!(masked["canAct"],false);assert_eq!(masked["queue"],"waiting");
+let detail_request=||Request::builder().uri("/api/v1/holdings/acme/field-service/orders/reserve-order/detail").header("host","acme.example.test").header("cookie",format!("__Host-erpx-product={}",child.token.expose())).body(Body::empty()).unwrap();
+let response=runtime.router().oneshot(detail_request()).await.unwrap();let status=response.status();let bytes=to_bytes(response.into_body(),2*1024*1024).await.unwrap();assert_eq!(status,StatusCode::OK,"{}",String::from_utf8_lossy(&bytes));let detail:serde_json::Value=serde_json::from_slice(&bytes).unwrap();assert!(!detail.to_string().contains("covered-asset"));let order=&detail["data"]["order"];assert!(order["asset_id"].is_null());assert!(order["asset_code"].is_null());assert_eq!(order["can_work"],0);assert_eq!(order["can_release_billing"],0);
+let mut tx=db.begin().await.unwrap();sqlx::query("INSERT INTO company_package_grants(company_id,package_id,package_version,state,starts_at,version,reason,evidence,updated_at)VALUES('company','service-parts-assets',1,'active',0,1,'Synthetic retained-read addon approval','Synthetic public evidence',$1)").bind(now).execute(&mut *tx).await.unwrap();sqlx::query("INSERT INTO company_package_grant_events(id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at)SELECT 'masking-addon','company',package_id,'fixture-a','synthetic-masking-addon',NULL,jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence),$1 FROM company_package_grants WHERE company_id='company' AND package_id='service-parts-assets'").bind(now).execute(&mut *tx).await.unwrap();tx.commit().await.unwrap();
+let response=runtime.router().oneshot(detail_request()).await.unwrap();let status=response.status();let bytes=to_bytes(response.into_body(),2*1024*1024).await.unwrap();assert_eq!(status,StatusCode::OK,"{}",String::from_utf8_lossy(&bytes));let detail:serde_json::Value=serde_json::from_slice(&bytes).unwrap();assert_eq!(detail["data"]["order"]["asset_id"],"covered-asset");assert_eq!(detail["data"]["order"]["can_work"],1);
+runtime.close().await;
  }).await;
 }
 
 #[tokio::test]
-#[cfg(feature = "private-development-api")]
+#[cfg(feature = "private-field-api")]
 async fn private_order_detail_returns_real_parts_and_current_workspace() {
     account::with_system(|system|async move{
   let now=std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;system.scenario.clock.0.store(now,Ordering::SeqCst);let p=setup_workspace(system).await;let system=&p.review.system;let db=p.pool().raw();sqlx::query("UPDATE hr_engagements SET start_date='2020-01-01' WHERE id='field-engagement'").execute(db).await.unwrap();p.issue("detail-original-issue").await.unwrap();
@@ -1202,7 +1219,7 @@ async fn private_order_detail_returns_real_parts_and_current_workspace() {
 }
 
 #[tokio::test]
-#[cfg(feature = "private-development-api")]
+#[cfg(feature = "private-field-api")]
 async fn private_order_detail_invoice_link_requires_real_permission_and_provenance() {
     account::with_system(|system|async move{
   let now=std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;system.scenario.clock.0.store(now,Ordering::SeqCst);let p=setup_workspace(system).await;setup_agreement_review_facts(&p,now).await;let system=&p.review.system;let db=p.pool().raw();sqlx::raw_sql("UPDATE hr_engagements SET start_date='2020-01-01' WHERE id='field-engagement';INSERT INTO finance_accounts(id,company_id,chart_id,code,name,category,currency,is_control,control_kind,created_at,updated_at) VALUES('detail-ar','company','chart','120','Receivable','asset','THB',1,'receivable',0,0),('detail-revenue','company','chart','420','Revenue','revenue','THB',0,'none',0,0)").execute(db).await.unwrap();
@@ -1217,7 +1234,7 @@ async fn private_order_detail_invoice_link_requires_real_permission_and_provenan
 }
 
 #[tokio::test]
-#[cfg(feature = "private-development-api")]
+#[cfg(feature = "private-field-api")]
 async fn private_order_detail_respects_quality_holds_and_lot_choices() {
     account::with_system(|system|async move{
   let now=std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;system.scenario.clock.0.store(now,Ordering::SeqCst);let p=setup_workspace_tracking(system,"lot").await;let system=&p.review.system;let db=p.pool().raw();sqlx::query("INSERT INTO inventory_quality_holds(id,company_id,branch_id,warehouse_id,product_id,reason,due_date,created_by,created_at,updated_at,quantity_scope,lot_id,held_quantity_milli)VALUES('detail-hold','company','branch','warehouse','product','Synthetic hold','2027-12-31','fixture-a',0,0,'partial','lot-1',1000)").execute(db).await.unwrap();
@@ -1226,7 +1243,7 @@ async fn private_order_detail_respects_quality_holds_and_lot_choices() {
 }
 
 #[tokio::test]
-#[cfg(feature = "private-development-api")]
+#[cfg(feature = "private-field-api")]
 async fn private_order_detail_hides_parts_without_history_and_gates_visit_files() {
     account::with_system(|system|async move{
   let now=std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;system.scenario.clock.0.store(now,Ordering::SeqCst);let p=setup_workspace_without_parts(system).await;let system=&p.review.system;let db=p.pool().raw();
@@ -1237,7 +1254,7 @@ async fn private_order_detail_hides_parts_without_history_and_gates_visit_files(
 }
 
 #[tokio::test]
-#[cfg(feature = "private-development-api")]
+#[cfg(feature = "private-field-api")]
 async fn private_field_attachment_withdraws_historical_draft_and_replays() {
     account::with_system(|system| async move {
         let now=std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;system.scenario.clock.0.store(now,Ordering::SeqCst);
@@ -1289,13 +1306,13 @@ async fn private_field_attachment_withdraws_historical_draft_and_replays() {
 }
 
 // Component fixture: bytes and scan result are deterministic; real Clam is qualified separately.
-#[cfg(feature = "private-development-api")]
+#[cfg(feature = "private-field-api")]
 #[path = "../../support/files/scan-facts.rs"]
 #[allow(dead_code)]
 mod bind_scan_facts;
 
 #[tokio::test]
-#[cfg(feature = "private-development-api")]
+#[cfg(feature = "private-field-api")]
 async fn private_field_attachment_bind_replays_component_scanned_manifest() {
     use erpx_server_files::public::attachment_scan::*;
     use erpx_server_runtime::public::postgres::{PgUnitOfWork, TransactionOptions};
@@ -1364,6 +1381,21 @@ async fn private_field_attachment_bind_replays_component_scanned_manifest() {
         assert_eq!(runtime.router().oneshot(post("bind-retry-key",2)).await.unwrap().status(),StatusCode::CONFLICT);
         let effects:(String,String,i64,i64,i64,i64)=sqlx::query_as("SELECT s.state,l.state,o.version,t.service_order_version,(SELECT count(*) FROM field_service_order_events WHERE id='service-file-event-bind-retry-key'),(SELECT count(*) FROM attachment_events WHERE set_id=s.id AND action='set.bound') FROM attachment_sets s JOIN attachment_links l ON l.set_id=s.id JOIN field_service_orders o ON o.id=s.target_id JOIN support_tickets t ON t.id=o.ticket_id WHERE s.id='bind-set'").fetch_one(db).await.unwrap();assert_eq!(effects,("bound".into(),"bound".into(),4,4,1,1));
         let command_effects:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM command_receipts WHERE command_id='bind-retry-key' AND operation='attachment.record.bind' AND record_id='issue-order' AND actor_id='fixture-a'),(SELECT count(*) FROM audit_events WHERE command_id='bind-retry-key' AND action='attachment.record.bind' AND record_version=4),(SELECT count(*) FROM outbox_events WHERE command_id='bind-retry-key' AND event_type='attachment.record.bind' AND aggregate_version=4)").fetch_one(db).await.unwrap();assert_eq!(command_effects,(1,1,1));
+        // Real HTTP bind receipt, not the target identifier alone, admits
+        // the Files native projector and excludes every legacy claimant.
+        {
+            use erpx_server_workflow::public::service_count_outbox::{claim,eligible,complete};
+            let legacy=sqlx::query("UPDATE outbox_events SET lease_token='legacy-bind' WHERE command_id='bind-retry-key'").execute(db).await.unwrap_err();assert_eq!(legacy.as_database_error().and_then(|e|e.constraint()),Some("native_outbox_runtime_required"));
+            let mut c=db.acquire().await.unwrap();
+            let event=claim(&mut c,erpx_server_files::public::field_outbox::QUARANTINE,"native-bind",now+1).await.unwrap().unwrap();assert_eq!(event.aggregate_id,"issue-order");
+            let evidence=format!("({}) AND ({})",erpx_server_files::public::field_outbox::ELIGIBLE,erpx_server_workflow::public::field_outbox::FILES_COMMAND_EVIDENCE);
+            let mut probe=sqlx::QueryBuilder::<sqlx::Postgres>::new("SELECT (");probe.push(erpx_server_files::public::field_outbox::ELIGIBLE).push(") IS TRUE,(").push(erpx_server_workflow::public::field_outbox::FILES_COMMAND_EVIDENCE).push(") IS TRUE FROM outbox_events e WHERE e.id=").push_bind(&event.id);
+            let source_ledger:(bool,bool)=probe.build_query_as().fetch_one(&mut *c).await.unwrap();
+            assert!(eligible(&mut c,&evidence,&event).await.unwrap(),"Files/Workflow evidence: {source_ledger:?}");
+            let saved:String=sqlx::query_scalar("SELECT result_json FROM command_receipts WHERE command_id='bind-retry-key'").fetch_one(&mut *c).await.unwrap();
+            sqlx::query("UPDATE command_receipts SET result_json='{}' WHERE command_id='bind-retry-key'").execute(&mut *c).await.unwrap();assert!(!eligible(&mut c,&evidence,&event).await.unwrap());
+            sqlx::query("UPDATE command_receipts SET result_json=$1 WHERE command_id='bind-retry-key'").bind(saved).execute(&mut *c).await.unwrap();assert!(eligible(&mut c,&evidence,&event).await.unwrap());assert!(complete(&mut c,&event,now+2).await.unwrap());
+        }
         let transition=send(&runtime.router(),&cookie,"bind-later-exception",r#"{"id":"issue-order","action":"exception","expectedVersion":4,"reason":"Synthetic later progress"}"#).await;assert_eq!(transition.0,StatusCode::OK,"{}",transition.1);
         assert_eq!(runtime.router().oneshot(post("bind-retry-key",3)).await.unwrap().status(),StatusCode::OK);
         sqlx::query("INSERT INTO attachment_sets(id,company_id,branch_id,target_type,target_id,component_kind,purpose_key,expected_target_version,policy_version,classification,audience_json,state,created_by,created_at,updated_at) VALUES('bind-purchase','company','branch','field_service_visit','issue-order','record','technician_report',5,1,'confidential','{}','draft','fixture-a',$1,$1)").bind(now).execute(db).await.unwrap();
@@ -1378,7 +1410,7 @@ async fn private_field_attachment_bind_replays_component_scanned_manifest() {
 }
 
 #[tokio::test]
-#[cfg(feature = "private-development-api")]
+#[cfg(feature = "private-field-api")]
 async fn private_field_source_record_preserves_modes_and_current_scope() {
     account::with_system(|system|async move{
   let now=std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;system.scenario.clock.0.store(now,Ordering::SeqCst);
@@ -1426,7 +1458,7 @@ async fn private_field_source_record_preserves_modes_and_current_scope() {
 }
 
 #[tokio::test]
-#[cfg(feature = "private-development-api")]
+#[cfg(feature = "private-field-api")]
 async fn private_field_source_record_requires_actual_asset_history() {
     account::with_system(|system|async move{
   let now=std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;system.scenario.clock.0.store(now,Ordering::SeqCst);let p=setup_workspace_without_parts(system).await;let system=&p.review.system;let db=p.pool().raw();
@@ -1526,17 +1558,7 @@ async fn service_posting_setup_reads_actual_selected_finance_and_owner_sources()
     .await;
 }
 
-async fn service_posting_finance_fixture(system: account::System) -> review::Prepared {
-    let p = review::setup(system).await;
-    let now = p.system.scenario.clock.now().get();
-    let pool = &p.system.holdings[0];
-    sqlx::raw_sql("INSERT INTO finance_accounts(id,company_id,chart_id,code,name,category,currency,control_kind,created_at,updated_at) VALUES ('part-ar','company','chart','111','AR','asset','THB','receivable',0,0),('part-ap','company','chart','211','AP','liability','THB','payable',0,0),('part-revenue','company','chart','411','Revenue','revenue','THB','none',0,0),('part-inventory','company','chart','121','Inventory','asset','THB','none',0,0),('part-clearing','company','chart','221','Clearing','liability','THB','none',0,0),('part-cogs','company','chart','511','COGS','expense','THB','none',0,0),('part-input','company','chart','131','Input','asset','THB','none',0,0),('part-output','company','chart','231','Output','liability','THB','none',0,0),('part-cash','company','chart','141','Cash','asset','THB','bank',0,0)").execute(pool.raw()).await.unwrap();
-    let mut tx = pool.raw().begin().await.unwrap();
-    sqlx::query("INSERT INTO company_package_grants(company_id,package_id,package_version,state,starts_at,version,reason,evidence,updated_at) VALUES('company','service',1,'active',0,1,'Synthetic source','synthetic',$1),('company','service-parts-assets',1,'active',0,1,'Synthetic source','synthetic',$1)").bind(now).execute(&mut *tx).await.unwrap();
-    sqlx::query("INSERT INTO company_package_grant_events(id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at) SELECT 'setup-origin-'||package_id,company_id,package_id,'fixture-a','synthetic',NULL,jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence),$1 FROM company_package_grants WHERE company_id='company' AND package_id IN('service','service-parts-assets')").bind(now).execute(&mut *tx).await.unwrap();
-    tx.commit().await.unwrap();
-    p
-}
+use service_posting_fixture::service_posting_finance_fixture;
 
 #[tokio::test]
 async fn service_posting_setup_initializes_and_replays_actual_owner_transaction() {
@@ -1652,7 +1674,7 @@ async fn service_posting_setup_selected_actor_without_finance_gets_unavailable_v
     .await;
 }
 
-#[cfg(feature = "private-development-api")]
+#[cfg(feature = "private-field-api")]
 #[tokio::test]
 async fn service_posting_setup_private_http_selected_actor_replay_and_context() {
     account::with_system(|system| async move {
@@ -1690,7 +1712,7 @@ async fn service_posting_setup_private_http_selected_actor_replay_and_context() 
     }).await;
 }
 
-#[cfg(feature = "private-development-api")]
+#[cfg(feature = "private-field-api")]
 #[tokio::test]
 async fn service_posting_setup_private_http_confirms_existing_mapping() {
     account::with_system(|system| async move {
@@ -1840,50 +1862,6 @@ async fn service_prerequisite_read_rejects_unsafe_javascript_metadata() {
     }).await;
 }
 
-#[tokio::test]
-async fn service_prerequisite_commands_apply_replay_and_rollback_actual_owners() {
-    use erpx_server_identity_access::public::effective_authority::WorkAuthorizationRequest;
-    use erpx_service::service_parts_posting_setup::ServicePostingEnvironment;
-    use erpx_service::service_parts_prerequisite_setup::{
-        ServicePrerequisiteSources, ServicePrerequisiteWriteSources, execute_service_prerequisite,
-        normalize_service_prerequisite, read_service_prerequisites,
-    };
-    account::with_system(|system|async move {
-        let p=service_posting_finance_fixture(system).await;let clock=p.system.scenario.clock.clone();
-        let access=||WorkAuthorizationRequest{permission:"finance.read".into(),module:None,destination:"services/field-service".into(),api:true};
-        let read=||{let c=clock.clone();p.authorizer.execute_with_sources("acme.example.test",p.maker.clone(),p.maker_selection.clone(),access(),ServicePrerequisiteSources,move|db,current|{let c=c.clone();Box::pin(async move{read_service_prerequisites(db,current,c.as_ref(),ServicePostingEnvironment::Development).await})})};
-        let view=read().await.unwrap();assert!(view.can_create_chart);
-        let chart_body=format!(r#"{{"expectedVersion":0,"contextKey":"{}","input":{{"name":"New synthetic chart","baseCurrency":"thb"}}}}"#,view.context_key.unwrap());
-        let chart=normalize_service_prerequisite(&CommandJson::parse(&chart_body).unwrap(),"chart").unwrap();
-        let run=|key:&str,input:erpx_service::service_parts_prerequisite_setup::NormalizedPrerequisiteCommand|{let c=clock.clone();let key=key.to_owned();let variant=input.input.variant();p.authorizer.execute_with_sources("acme.example.test",p.maker.clone(),p.maker_selection.clone(),access(),ServicePrerequisiteWriteSources(variant),move|db,current|{let c=c.clone();let key=key.clone();let input=input.clone();Box::pin(async move{execute_service_prerequisite(db,current,c.as_ref(),&key,&input).await})})};
-        let created=run("prereq-chart",chart.clone()).await.unwrap();assert!(!created.replayed);let chart_value:serde_json::Value=serde_json::from_str(created.result.as_str()).unwrap();let chart_id=chart_value["id"].as_str().unwrap().to_owned();assert_eq!(chart_value["baseCurrency"],"THB");assert_eq!(chart_value["accountingBasis"],"IFRS");assert!(run("prereq-chart",chart.clone()).await.unwrap().replayed);
-        let changed=normalize_service_prerequisite(&CommandJson::parse(&chart_body.replace("New synthetic chart","Changed chart")).unwrap(),"chart").unwrap();assert!(matches!(run("prereq-chart",changed).await,Err(PgTransactionError::Business(e)) if e.code=="IDEMPOTENCY_CONFLICT"));
-        let view=read().await.unwrap();let account_body=format!(r#"{{"expectedVersion":0,"contextKey":"{}","input":{{"chartId":"{}","code":"121","name":"Synthetic bank","category":"asset","controlKind":"bank"}}}}"#,view.context_key.unwrap(),chart_id);
-        let account=normalize_service_prerequisite(&CommandJson::parse(&account_body).unwrap(),"account").unwrap();
-        sqlx::raw_sql("CREATE FUNCTION fixture_prereq_drift() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE finance_charts SET name='changed by trigger' WHERE id='chart'; RETURN NEW; END $$; CREATE TRIGGER fixture_prereq_drift AFTER INSERT ON finance_accounts FOR EACH ROW EXECUTE FUNCTION fixture_prereq_drift()").execute(p.system.holdings[0].raw()).await.unwrap();
-        let failed=run("prereq-rollback",account.clone()).await;assert!(matches!(failed,Err(PgTransactionError::Business(e)) if e.code=="SERVICE_PARTS_POSTING_SOURCE_CHANGED"));
-        let counts:(i64,i64,String)=sqlx::query_as("SELECT (SELECT count(*) FROM command_receipts WHERE command_id='prereq-rollback'),(SELECT count(*) FROM finance_accounts WHERE name='Synthetic bank'),(SELECT name FROM finance_charts WHERE id='chart')").fetch_one(p.system.holdings[0].raw()).await.unwrap();assert_eq!(counts,(0,0,"Primary".into()));
-        sqlx::raw_sql("DROP TRIGGER fixture_prereq_drift ON finance_accounts; DROP FUNCTION fixture_prereq_drift()").execute(p.system.holdings[0].raw()).await.unwrap();
-        sqlx::raw_sql("CREATE FUNCTION fixture_prereq_deferred_drift() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE finance_accounts SET updated_at=updated_at+1 WHERE id=NEW.id; RETURN NEW; END $$; CREATE CONSTRAINT TRIGGER fixture_prereq_deferred_drift AFTER INSERT ON finance_accounts DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fixture_prereq_deferred_drift()").execute(p.system.holdings[0].raw()).await.unwrap();
-        assert!(matches!(run("prereq-deferred-drift",account.clone()).await,Err(PgTransactionError::Business(e)) if e.code=="SERVICE_PARTS_POSTING_SOURCE_CHANGED"));let counts:(i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM command_receipts WHERE command_id='prereq-deferred-drift'),(SELECT count(*) FROM finance_accounts WHERE name='Synthetic bank')").fetch_one(p.system.holdings[0].raw()).await.unwrap();assert_eq!(counts,(0,0));
-        sqlx::raw_sql("DROP TRIGGER fixture_prereq_deferred_drift ON finance_accounts; DROP FUNCTION fixture_prereq_deferred_drift()").execute(p.system.holdings[0].raw()).await.unwrap();
-        let result=run("prereq-account",account.clone()).await.unwrap();let value:serde_json::Value=serde_json::from_str(result.result.as_str()).unwrap();assert_eq!(value["currency"],"THB");assert_eq!(value["isControl"],false);assert!(run("prereq-account",account).await.unwrap().replayed);
-        let view=read().await.unwrap();let context=view.context_key.unwrap();let period_body=format!(r#"{{"expectedVersion":0,"contextKey":"{context}","input":{{"name":"Future period","startDate":"2031-01-01","endDate":"2031-12-31"}}}}"#);let period=normalize_service_prerequisite(&CommandJson::parse(&period_body).unwrap(),"period").unwrap();
-        let stale=normalize_service_prerequisite(&CommandJson::parse(&period_body.replace(&context,&"0".repeat(64))).unwrap(),"period").unwrap();assert!(matches!(run("prereq-stale",stale).await,Err(PgTransactionError::Business(e)) if e.code=="SERVICE_PARTS_POSTING_CONTEXT_CHANGED"));
-        sqlx::raw_sql("CREATE FUNCTION fixture_prereq_iam_drift() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE assignments SET version=version+1 WHERE id='finance-fixture-a'; RETURN NEW; END $$; CREATE TRIGGER fixture_prereq_iam_drift AFTER INSERT ON finance_periods FOR EACH ROW EXECUTE FUNCTION fixture_prereq_iam_drift()").execute(p.system.holdings[0].raw()).await.unwrap();
-        assert!(matches!(run("prereq-iam-drift",period.clone()).await,Err(PgTransactionError::Business(_))));let counts:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM command_receipts WHERE command_id IN ('prereq-stale','prereq-iam-drift')),(SELECT count(*) FROM finance_periods WHERE name='Future period'),(SELECT version FROM assignments WHERE id='finance-fixture-a')").fetch_one(p.system.holdings[0].raw()).await.unwrap();assert_eq!(counts,(0,0,3));
-        sqlx::raw_sql("DROP TRIGGER fixture_prereq_iam_drift ON finance_periods; DROP FUNCTION fixture_prereq_iam_drift()").execute(p.system.holdings[0].raw()).await.unwrap();
-        let result=run("prereq-period",period.clone()).await.unwrap();let value:serde_json::Value=serde_json::from_str(result.result.as_str()).unwrap();assert_eq!(value["version"],0);assert_eq!(value["state"],"open");assert!(run("prereq-period",period).await.unwrap().replayed);
-        let view=read().await.unwrap();let rate_body=format!(r#"{{"expectedVersion":0,"contextKey":"{}","input":{{"currency":"THB","effectiveDate":"2027-01-01","currencyPerUsd":"35.125"}}}}"#,view.context_key.unwrap());let rate=normalize_service_prerequisite(&CommandJson::parse(&rate_body).unwrap(),"rate").unwrap();let result=run("prereq-rate",rate.clone()).await.unwrap();let value:serde_json::Value=serde_json::from_str(result.result.as_str()).unwrap();assert_eq!(value["currencyPerUsd"],"35.125");assert!(run("prereq-rate",rate).await.unwrap().replayed);
-        assert!(run("prereq-chart",chart.clone()).await.unwrap().replayed);
-        let counts:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM command_receipts WHERE command_id IN ('prereq-chart','prereq-account','prereq-period','prereq-rate')),(SELECT count(*) FROM audit_events WHERE command_id IN ('prereq-chart','prereq-account','prereq-period','prereq-rate')),(SELECT count(*) FROM outbox_events WHERE command_id IN ('prereq-chart','prereq-account','prereq-period','prereq-rate'))").fetch_one(p.system.holdings[0].raw()).await.unwrap();assert_eq!(counts,(4,4,4));
-        let mut draining=p.system.holdings[0].raw().begin().await.unwrap();let before:serde_json::Value=sqlx::query_scalar("SELECT jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence) FROM company_package_grants WHERE company_id='company' AND package_id='service'").fetch_one(&mut *draining).await.unwrap();
-        sqlx::query("UPDATE company_package_grants SET state='draining',version=version+1 WHERE company_id='company' AND package_id='service'").execute(&mut *draining).await.unwrap();
-        sqlx::query("INSERT INTO company_package_grant_events(id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at) SELECT 'prereq-draining','company',package_id,'fixture-a','synthetic-draining',$1,jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence),$2 FROM company_package_grants WHERE company_id='company' AND package_id='service'").bind(before).bind(clock.now().get()).execute(&mut *draining).await.unwrap();draining.commit().await.unwrap();
-        assert!(run("prereq-chart",chart).await.unwrap().replayed);let view=read().await.unwrap();assert!(!view.can_create_chart&&!view.can_confirm_rate);
-        let new_rate=format!(r#"{{"expectedVersion":0,"contextKey":"{}","input":{{"currency":"THB","effectiveDate":"2028-01-01","currencyPerUsd":"36"}}}}"#,view.context_key.unwrap());let new_rate=normalize_service_prerequisite(&CommandJson::parse(&new_rate).unwrap(),"rate").unwrap();assert!(matches!(run("prereq-draining-new",new_rate).await,Err(PgTransactionError::Business(e)) if e.kind==FailureKind::Forbidden));
-    }).await;
-}
 
 #[tokio::test]
 async fn service_prerequisite_commands_preserve_approve_only_and_legacy_authority() {
@@ -1905,7 +1883,7 @@ async fn service_prerequisite_commands_preserve_approve_only_and_legacy_authorit
     }).await;
 }
 
-#[cfg(feature = "private-development-api")]
+#[cfg(feature = "private-field-api")]
 #[tokio::test]
 async fn service_prerequisite_private_http_all_four_and_exact_replay() {
     account::with_system(|system|async move {

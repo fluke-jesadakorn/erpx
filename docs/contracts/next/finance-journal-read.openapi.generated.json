@@ -1,8 +1,8 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "ERPX native Finance journal reads",
-    "description": "Development-only unmounted detail and record-workspace component. Current finance.read/module and actual Commercial History remain required; no post/reviewer grant. First source scope admits proved Finance manual/opening/manual-root reversal records; missing foreign-owner/secondary-book facts deny. Render context is output data from the same retained authorization unit, never an input authority. No installed route/current page or release acceptance.",
+    "title": "ERPX native Finance records",
+    "description": "Native Finance journal/invoice reads and Field no-charge confirmation on explicitly configured development targets. Reads require current finance.read/module and Commercial History. Confirmation additionally requires current finance.write/approve, independent invoice responsibility, same-unit Field proof and exact receipt/audit/outbox. Render context never grants authority. Contract export alone establishes no owner or production acceptance.",
     "license": {
       "name": "Apache-2.0",
       "identifier": "Apache-2.0"
@@ -10,6 +10,95 @@
     "version": "0.1.0"
   },
   "paths": {
+    "/api/v1/holdings/{holding_slug}/finance/field-work": {
+      "get": {
+        "tags": [],
+        "operationId": "get_field_work",
+        "parameters": [
+          {
+            "name": "holding_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Source-qualified native Field invoice and spare-cost journal Work with the captured rendering context",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FinanceFieldWorkResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Current Account session required"
+          },
+          "403": {
+            "description": "Finance read denied"
+          },
+          "409": {
+            "description": "Source or selected identity changed"
+          }
+        }
+      }
+    },
+    "/api/v1/holdings/{holding_slug}/finance/invoices/{id}/confirm-no-charge": {
+      "post": {
+        "tags": [],
+        "operationId": "confirm_service_no_charge",
+        "parameters": [
+          {
+            "name": "holding_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServiceNoChargeInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Exact independently confirmed Field zero-demand receipt",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceNoChargeResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Current independent Finance reviewer required"
+          },
+          "409": {
+            "description": "Source, context, responsibility or retained proof changed"
+          }
+        }
+      }
+    },
     "/api/v1/holdings/{holding_slug}/finance/invoices/{id}/workspace": {
       "get": {
         "tags": [],
@@ -27,6 +116,15 @@
             "name": "id",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "description": "Optional payment-evidence admission: source-qualified Field receivables return PAYABLE_REQUIRED422; this never grants supplier-bill write authority",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -51,6 +149,9 @@
           },
           "404": {
             "description": "Unavailable or unsupported source"
+          },
+          "422": {
+            "description": "PAYABLE_REQUIRED for Field receivables requesting supplier-payment evidence"
           }
         }
       }
@@ -101,6 +202,101 @@
           },
           "409": {
             "description": "Supplied rendered context is stale"
+          }
+        }
+      }
+    },
+    "/api/v1/holdings/{holding_slug}/finance/journals/{id}/flow": {
+      "get": {
+        "tags": [],
+        "operationId": "get_field_journal_flow",
+        "parameters": [
+          {
+            "name": "holding_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Source-verified native Field journal Flow or explicit non-Field legacy partition; rendered context from the same authorization unit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FinanceFieldJournalFlowResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Current session required"
+          },
+          "403": {
+            "description": "Finance source history denied"
+          },
+          "409": {
+            "description": "Rendered context or source changed"
+          }
+        }
+      },
+      "post": {
+        "tags": [],
+        "operationId": "assign_field_journal_flow",
+        "parameters": [
+          {
+            "name": "holding_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FinanceFieldJournalFlowInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Exact native Field journal responsibility receipt",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FinanceFieldJournalFlowCommandResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Current Company administrator required"
+          },
+          "409": {
+            "description": "Source, responsibility or rendered context changed"
           }
         }
       }
@@ -174,6 +370,153 @@
         },
         "propertyNames": {
           "type": "string"
+        }
+      },
+      "FinanceFieldJournalFlowAccess": {
+        "type": "object",
+        "required": [
+          "sourceOnly",
+          "canPost",
+          "purchaseControls"
+        ],
+        "properties": {
+          "canPost": {
+            "type": "boolean"
+          },
+          "purchaseControls": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/FinancePurchaseAccess"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "sourceOnly": {
+            "type": "boolean"
+          }
+        }
+      },
+      "FinanceFieldJournalFlowCommandResponse": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/FinanceFieldJournalFlowResult"
+          }
+        }
+      },
+      "FinanceFieldJournalFlowInput": {
+        "type": "object",
+        "required": [
+          "stepKey",
+          "userId",
+          "expectedVersion",
+          "recordVersion",
+          "reason"
+        ],
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "recordVersion": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "saveDefault": {
+            "type": "boolean"
+          },
+          "stepKey": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          }
+        }
+      },
+      "FinanceFieldJournalFlowResponse": {
+        "type": "object",
+        "required": [
+          "runtime",
+          "context"
+        ],
+        "properties": {
+          "access": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/FinanceFieldJournalFlowAccess"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "context": {
+            "$ref": "#/components/schemas/FinanceRenderedWorkContext"
+          },
+          "data": {},
+          "runtime": {
+            "$ref": "#/components/schemas/FinanceFieldJournalFlowRuntime"
+          },
+          "workspace": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/FinanceJournalRecordWorkspace"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "FinanceFieldJournalFlowResult": {
+        "type": "object",
+        "required": [
+          "id",
+          "version"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false
+      },
+      "FinanceFieldJournalFlowRuntime": {
+        "type": "string",
+        "description": "Private native transport DTOs. They carry rendered facts, never authority.",
+        "enum": [
+          "rust",
+          "legacy"
+        ]
+      },
+      "FinanceFieldWorkResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "context"
+        ],
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/FinanceRenderedWorkContext"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
         }
       },
       "FinanceInvoiceOptions": {
@@ -344,6 +687,29 @@
           }
         ]
       },
+      "FinancePurchaseAccess": {
+        "type": "object",
+        "required": [
+          "newWork",
+          "settleExisting",
+          "history",
+          "revision"
+        ],
+        "properties": {
+          "history": {
+            "type": "boolean"
+          },
+          "newWork": {
+            "type": "boolean"
+          },
+          "revision": {
+            "type": "string"
+          },
+          "settleExisting": {
+            "type": "boolean"
+          }
+        }
+      },
       "FinanceReadInteger": {
         "type": "integer",
         "format": "int64",
@@ -484,11 +850,19 @@
           "lines",
           "lineHistory",
           "thaiDocuments",
+          "customerReceipts",
           "options",
-          "source"
+          "source",
+          "postingPreview"
         ],
         "properties": {
           "allocations": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "customerReceipts": {
             "type": "array",
             "items": {
               "type": "object"
@@ -512,6 +886,9 @@
           "options": {
             "$ref": "#/components/schemas/FinanceInvoiceOptions"
           },
+          "postingPreview": {
+            "type": "object"
+          },
           "source": {
             "$ref": "#/components/schemas/FinanceServiceInvoiceSource"
           },
@@ -528,19 +905,140 @@
         "required": [
           "data",
           "context",
-          "sourceOnly"
+          "sourceOnly",
+          "purchaseControls",
+          "sourcePurchase",
+          "canPost",
+          "flow"
         ],
         "properties": {
+          "canPost": {
+            "type": "boolean"
+          },
           "context": {
             "$ref": "#/components/schemas/FinanceRenderedWorkContext"
           },
           "data": {
             "$ref": "#/components/schemas/FinanceServiceInvoiceWorkspace"
           },
+          "flow": {
+            "type": "object"
+          },
+          "noCharge": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ServiceNoChargeControls"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "purchaseControls": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/FinancePurchaseAccess"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
           "sourceOnly": {
             "type": "boolean"
+          },
+          "sourcePurchase": {
+            "type": "object"
           }
         }
+      },
+      "ServiceNoChargeControls": {
+        "type": "object",
+        "required": [
+          "invoiceId",
+          "version",
+          "contextKey",
+          "canConfirm",
+          "confirmed"
+        ],
+        "properties": {
+          "canConfirm": {
+            "type": "boolean"
+          },
+          "confirmed": {
+            "type": "boolean"
+          },
+          "contextKey": {
+            "type": "string"
+          },
+          "invoiceId": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "ServiceNoChargeInput": {
+        "type": "object",
+        "required": [
+          "expectedVersion",
+          "contextKey",
+          "reason"
+        ],
+        "properties": {
+          "contextKey": {
+            "type": "string"
+          },
+          "expectedVersion": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "ServiceNoChargeResponse": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ServiceNoChargeResult"
+          }
+        }
+      },
+      "ServiceNoChargeResult": {
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "version",
+          "confirmationId"
+        ],
+        "properties": {
+          "confirmationId": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ServiceNoChargeStatus"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "ServiceNoChargeStatus": {
+        "type": "string",
+        "enum": [
+          "no_charge_confirmed"
+        ]
       }
     }
   }

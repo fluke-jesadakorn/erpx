@@ -1,5 +1,7 @@
 //! Inspection of the current selected grant; effective IAM permission and owner policy are separate.
-pub use crate::adapters::holding_work_context::HoldingWorkContextInspector;
+pub use crate::adapters::holding_work_context::{
+    HoldingAccountScope, HoldingAccountWorkScope, HoldingWorkContextInspector,
+};
 pub use crate::adapters::postgres_work_context::PgWorkContextReader;
 pub use crate::application::work_context::{
     CurrentWorkContextPort, WorkContextFuture, inspect_current_work_selection,

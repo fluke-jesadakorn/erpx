@@ -66,8 +66,14 @@ pub(super) fn actor(
 ) -> Result<CommandActor, BusinessError> {
     current.require_permission("records.read")?;
     current.require_permission("records.write")?;
-    if !current.modules().iter().any(|m| m == "field_service") || now.get() >= current.expires_at()
-    {
+    if !current.modules().iter().any(|m| m == "field_service") {
+        return Err(BusinessError::new(
+            FailureKind::Forbidden,
+            "MODULE_FORBIDDEN",
+            "The current assignment no longer selects Field Service.",
+        ));
+    }
+    if now.get() >= current.expires_at() {
         return Err(changed());
     }
     let s = current.selection();
@@ -189,8 +195,8 @@ impl<'a> RequestSources<'a> {
         if !technician.is_eligible() || !person.is_eligible() {
             return Err(BusinessError::new(
                 FailureKind::Conflict,
-                "FIELD_SERVICE_TECHNICIAN_UNAVAILABLE",
-                "The selected technician is unavailable.",
+                "CONFLICT",
+                "The record changed, a reference is unavailable, or this value already exists. Refresh and review again.",
             )
             .into());
         }
@@ -252,7 +258,14 @@ impl<'a> RequestSources<'a> {
     }
     async fn check(&self, c: &mut PgConnection, now: TimestampMillis) -> Result<(), Error> {
         actor(self.current, now)?;
-        self.agreement.require_current(c, self.current).await?;
+        // Initial version/eligibility errors remain Agreement-specific. A
+        // retained source changing after owner effects keeps the original
+        // direct-intake final-fence wire code, without swallowing persistence errors.
+        self.agreement.require_current(c, self.current).await.map_err(|error| match error {
+            erpx_server_runtime::public::postgres::PgTransactionError::Business(ref e)
+                if e.code == "FIELD_SERVICE_AGREEMENT_CHANGED" => changed().into(),
+            other => other,
+        })?;
         self.agreement.require_new_work(c).await?;
         self.customer.require_current(c).await?;
         if let Some(asset) = &self.asset {
@@ -367,7 +380,7 @@ impl Purchases {
                 reader
                     .inspect(&inspect(CapabilityPurpose::NewWork), now)
                     .await?
-                    .require_allowed()?
+                    .require_allowed().map_err(|_| BusinessError::new(FailureKind::Conflict,"PACKAGE_CAPABILITY_CHANGED","Package access changed. Reload and review before retrying."))?
                     .clone(),
             )
         } else {
@@ -391,12 +404,21 @@ impl Purchases {
             c,
             &self.catalogue,
         );
+        let original_wire_error = |error: Error| match error {
+            erpx_server_runtime::public::postgres::PgTransactionError::Business(ref e)
+                if e.code == "COMMERCIAL_PURCHASE_CHANGED" => BusinessError::new(
+                    FailureKind::Conflict,
+                    "PACKAGE_CAPABILITY_CHANGED",
+                    "Package access changed. Reload and review before retrying.",
+                ).into(),
+            other => other,
+        };
         reader
             .revalidate(&self.history, now)
-            .await?
+            .await.map_err(original_wire_error)?
             .require_allowed()?;
         if let Some(w) = &self.new_work {
-            reader.revalidate(w, now).await?.require_allowed()?;
+            reader.revalidate(w, now).await.map_err(original_wire_error)?.require_allowed()?;
         }
         Ok(())
     }

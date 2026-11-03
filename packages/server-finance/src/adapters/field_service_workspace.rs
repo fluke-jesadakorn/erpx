@@ -144,3 +144,41 @@ fn limited() -> Error {
     )
     .into()
 }
+
+/// Raw retained Company identities for Service package settlement. Inactive
+/// references remain visible here: a picker must not redefine a historical
+/// settlement duty. The outer consumer supplies Commercial/IAM authority.
+#[derive(Clone,Debug,PartialEq,Eq,serde::Deserialize)]
+pub struct ServiceSettlementCustomer {
+    pub id: String,
+    pub kind: String,
+    pub status: String,
+    pub currency: String,
+}
+pub struct CurrentServiceSettlementCustomers {
+    company:CompanyId,
+    ids:Vec<String>,
+    unit:Unit,
+    data:Vec<ServiceSettlementCustomer>,
+    digest:String,
+}
+impl CurrentServiceSettlementCustomers {
+    pub fn data(&self)->&[ServiceSettlementCustomer]{&self.data}
+    pub async fn require_current(&self,c:&mut PgConnection)->Result<(),Error>{
+        if unit(c).await?!=self.unit{return Err(changed());}
+        let(data,digest)=capture_service_settlement_customers(c,&self.company,&self.ids).await?;
+        if data!=self.data||digest!=self.digest{return Err(changed());}
+        Ok(())
+    }
+}
+async fn capture_service_settlement_customers(c:&mut PgConnection,company:&CompanyId,ids:&[String])->Result<(Vec<ServiceSettlementCustomer>,String),Error>{
+    let row=sqlx::query("WITH source AS MATERIALIZED(SELECT * FROM finance_parties WHERE company_id=$1 AND id=ANY($2::text[])),snapshot AS(SELECT coalesce(jsonb_agg(jsonb_build_object('id',s.id,'kind',s.kind,'status',s.status,'currency',s.currency) ORDER BY s.id),'[]'::jsonb) value,encode(sha256(convert_to(coalesce(string_agg(encode(sha256(convert_to(to_jsonb(s)::text,'UTF8')),'hex'),'' ORDER BY s.id),''),'UTF8')),'hex') digest FROM source s)SELECT CASE WHEN octet_length(value::text)<=2097152 THEN value::text END payload,digest FROM snapshot").bind(company.as_str()).bind(ids).fetch_one(c).await?;
+    let payload:Option<String>=row.try_get("payload")?;
+    let data=serde_json::from_str(&payload.ok_or_else(limited)?).map_err(|_|limited())?;
+    Ok((data,row.try_get("digest")?))
+}
+pub async fn read_service_settlement_customers(c:&mut PgConnection,company:&CompanyId,ids:&[String])->Result<CurrentServiceSettlementCustomers,Error>{
+    let unit=unit(c).await?;
+    let(data,digest)=capture_service_settlement_customers(c,company,ids).await?;
+    Ok(CurrentServiceSettlementCustomers{company:company.clone(),ids:ids.to_vec(),unit,data,digest})
+}

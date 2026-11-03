@@ -1,5 +1,5 @@
 import { developmentProductOrigin, isProductHostKey, productIds, sharedHostKeys, type ProductHostKey } from "@erpx/server-commercial/public/product-registry";
-import { safeProductReturnPath } from "@erpx/server-identity_access/public/rules/product-sso";
+import { safeProductReturnPath } from "@erpx/contracts/product-return-path";
 import {holdingRoutingEnabled,holdingHostForHost,holdingOrigin,holdingUiUrl,holdingAudience,accountDevelopmentOrigin,holdingPublicUiUrl,holdingFrontUiUrl} from '@erpx/feature-runtime/lib/holding-hosts';
 
 export type ProductHostConfiguration = { routing: boolean; sso: boolean; environment: "development" | null };

@@ -82,6 +82,14 @@ fn suspended_archived_or_cross_company_lineage_fails_closed() {
     }
 }
 #[test]
+fn cyclic_company_or_self_parented_branch_is_not_a_structural_workspace(){
+ let mut cycle=lineage();cycle.company.parent_id=Some(cycle.company.id.clone());
+ assert!(company_context(holding(),cycle).is_err());
+ let mut cycle=lineage();let id=cycle.branch.as_ref().unwrap().id.clone();cycle.branch.as_mut().unwrap().parent_id=Some(id);
+ assert!(company_context(holding(),cycle).is_err());
+}
+
+#[test]
 fn company_level_department_has_no_branch_and_reports_to_the_company() {
     let mut facts = lineage();
     facts.branch = None;
@@ -170,4 +178,15 @@ fn route_slugs_reject_paths_and_ambiguous_encoding() {
     ] {
         assert!(WorkspaceRouteQuery::new(Some(slug.into()), None, None).is_err());
     }
+}
+
+#[test]
+fn explicit_company_ids_and_slugs_cannot_be_interchanged(){
+ let mut own=lineage();own.company.slug="company-slug".into();
+ let id=WorkspaceRouteQuery::for_company_id(Some("branch".into()),Some("department".into()),CompanyId::new("company").unwrap()).unwrap();
+ let slug=WorkspaceRouteQuery::for_company_slug(Some("branch".into()),Some("department".into()),"company-slug".into()).unwrap();
+ assert!(id.matches(&own));assert!(slug.matches(&own));
+ let mut other=own.clone();other.company.id=RecordId::new("other-company").unwrap();other.company.slug="company".into();
+ assert!(!id.matches(&other));
+ let wrong_slug=WorkspaceRouteQuery::for_company_slug(Some("branch".into()),Some("department".into()),"company".into()).unwrap();assert!(!wrong_slug.matches(&own));
 }

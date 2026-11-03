@@ -13835,7 +13835,7 @@
             "packages/server-finance/src/adapters/approved-sales-posting-defaults.ts",
             "packages/server-inventory/src/adapters/service-initial-physical-stock-count.ts",
             "packages/server-inventory/src/adapters/service-initial-physical-stock-count-source.ts",
-            "packages/server-inventory/src/adapters/service-package-obligations.ts"
+            "packages/server-inventory/src/adapters/service_package_settlement.rs"
           ],
           "schema": [
             "migrations/postgres/holding-write/0226_field_service.sql",

@@ -355,6 +355,7 @@ pub struct CurrentFieldServiceJournalDetail {
     id: String,
     transaction: (String, i32, String, String),
     detail: FinanceJournalDetail,
+    invoice_source: Option<(String,String)>,
 }
 impl CurrentFieldServiceJournalDetail {
     pub fn detail(&self) -> &FinanceJournalDetail {
@@ -365,6 +366,11 @@ impl CurrentFieldServiceJournalDetail {
             || payload(c, &self.actor, &self.id).await? != self.detail
         {
             return Err(denied());
+        }
+        if let Some(expected) = &self.invoice_source {
+            if invoice_journal_link(c, &self.actor, &self.id).await?.as_ref() != Some(expected) {
+                return Err(denied());
+            }
         }
         Ok(())
     }
@@ -388,5 +394,26 @@ pub async fn read_field_service_journal_detail(
         id: id.as_str().into(),
         transaction: witness(c).await?,
         detail: payload(c, actor, id.as_str()).await?,
+        invoice_source: None,
     })
+}
+
+// A book label alone grants nothing. Retain the exact Finance-owned invoice,
+// primary journal and (for a projection) immutable book edge in this same unit.
+// Current Field lineage and purchase admission remain the composition's duty.
+async fn invoice_journal_link(c: &mut PgConnection, actor: &FinanceActor, id: &str)
+    -> Result<Option<(String,String)>, Error> {
+    Ok(sqlx::query_as("SELECT i.id,encode(sha256(convert_to(jsonb_build_array(j.id,j.company_id,j.source_type,j.source_id,j.chart_id,j.currency,j.period_id,j.status,j.version,p.id,p.company_id,p.source_type,p.source_id,p.chart_id,p.currency,p.status,p.version,i.id,i.journal_id,i.source_type,i.source_id,i.version,to_jsonb(b),r.id,r.primary_chart_id,r.secondary_chart_id,r.effective_date,r.status,r.version)::text,'UTF8')),'hex') FROM finance_journals j JOIN finance_journals p ON p.id=CASE WHEN j.source_type='book_projection' THEN j.source_id ELSE j.id END AND p.company_id=j.company_id JOIN finance_invoices i ON i.id=p.source_id AND i.journal_id=p.id AND i.company_id=p.company_id AND i.source_type='field_service' LEFT JOIN finance_book_postings b ON b.secondary_journal_id=j.id AND b.primary_journal_id=p.id AND b.company_id=j.company_id LEFT JOIN finance_book_rules r ON r.id=b.rule_id AND r.company_id=j.company_id WHERE j.company_id=$1 AND j.id=$2 AND p.source_type='invoice' AND p.status IN('posted','reversed') AND j.status IN('posted','reversed') AND (j.id=p.id OR (j.source_type='book_projection' AND b.secondary_journal_id=j.id AND j.chart_id=r.secondary_chart_id AND p.chart_id=r.primary_chart_id AND r.effective_date<=p.entry_date AND j.currency=p.currency AND j.period_id=p.period_id)) FOR SHARE OF j,p,i")
+        .bind(actor.company_id.as_str()).bind(id).fetch_optional(c).await?)
+}
+pub async fn read_field_service_invoice_journal_detail(
+    c: &mut PgConnection, actor: &FinanceActor, id: &RecordId,
+) -> Result<Option<(String,CurrentFieldServiceJournalDetail)>,Error> {
+    let Some(source)=invoice_journal_link(c,actor,id.as_str()).await? else{return Ok(None)};
+    let result=CurrentFieldServiceJournalDetail{
+        actor:actor.clone(),id:id.as_str().into(),transaction:witness(c).await?,
+        detail:payload(c,actor,id.as_str()).await?,invoice_source:Some(source.clone()),
+    };
+    result.require_current(c).await?;
+    Ok(Some((source.0,result)))
 }
