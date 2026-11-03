@@ -303,6 +303,25 @@ it('rejects configured native Field Work in production before request access',as
  finally{vi.unstubAllEnvs();}
 });
 
+it('admits loopback 3101 for native Field Work and source records only with production opt-in',async()=>{
+ const {createNativeServiceWorkReader}=await import('../../../packages/server-field_service/src/adapters/native-work');
+ const {createNativeSourceRecordReader}=await import('../../../packages/server-field_service/src/adapters/native-source-record');
+ const actor={userId:'worker',holdingId:'holding',holdingSlug:'acme',companyId:'company',branchId:null,departmentId:null,assignmentId:'grant',role:'worker',assignmentScope:'holding',scope:{kind:'holding'},authority:{revision:7,assignmentVersion:3},modules:['field_service'],iam:{permissions:['records.read']}} as unknown as import('@erpx/server-identity_access/public/authorization').WorkContext;
+ const context={userId:'worker',holdingId:'holding',companyId:'company',branchId:null as string|null,departmentId:null as string|null,branchSlug:null as string|null,departmentSlug:null as string|null,assignmentId:'grant',assignmentVersion:3,revision:7,role:'worker',assignmentScopeKind:'holding',modules:['field_service'],permissions:['records.read'],expiresAt:1800000000000};
+ const data={id:'order',companyId:'company',branchId:null,departmentId:null,version:1,title:'Site',status:'scheduled',scheduledAt:1,visitCompletedAt:null};
+ const base={privateBaseUrl:'http://127.0.0.1:3101',timeoutMs:250,holdings:[{origin:'https://acme.example.test',holdingSlug:'acme',holdingId:'holding'}]};
+ const workTransport=vi.fn(async()=>Response.json({context,data:[],workflowSourceIds:[]}));
+ const work=createNativeServiceWorkReader(JSON.stringify({...base,production:true}),workTransport);
+ await expect(work(new Headers({host:'acme.example.test'}),actor)).resolves.toMatchObject({data:[]});
+ expect(workTransport).toHaveBeenCalledOnce();
+ expect(()=>createNativeServiceWorkReader(JSON.stringify(base),workTransport)).toThrow();
+ const sourceTransport=vi.fn(async()=>Response.json({data,context}));
+ const source=createNativeSourceRecordReader(JSON.stringify({...base,production:true}),sourceTransport);
+ await expect(source(new Headers({host:'acme.example.test'}),actor,'order')).resolves.toMatchObject({id:'order'});
+ expect(sourceTransport).toHaveBeenCalledOnce();
+ expect(()=>createNativeSourceRecordReader(JSON.stringify(base),sourceTransport)).toThrow();
+});
+
 it('bypasses the shared Work cache when the native Field source is configured',async()=>{
  const {workSnapshotPorts}=await import('../../../packages/server-work_projection/src/adapters/work-items');const load=vi.fn(async()=>({items:[],unavailableSources:['Field service']}));
  try{vi.stubEnv('ERPX_NATIVE_FIELD_SERVICE_WORK_CONFIG','configured');const ports=workSnapshotPorts({} as import('@erpx/server-runtime/public/runtime/types').SqlDatabase);const result=await ports.cached({} as import('@erpx/server-identity_access/public/authorization').WorkContext,load);expect(load).toHaveBeenCalledOnce();expect(result.unavailableSources).toEqual(['Field service']);}

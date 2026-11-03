@@ -63,6 +63,29 @@ describe('Field family bridge',()=>{
  });
 });
 
+it('admits loopback 3101 only with the explicit production opt-in',async()=>{
+ const holdings=[{origin:'https://acme.example.com',holdingSlug:'acme',holdingId:'h',linkIds:[] as string[],fieldFamily:true}];
+ const base={privateBaseUrl:'http://127.0.0.1:3101',timeoutMs:1000,holdings};
+ expect(()=>createFieldFamilyBridge(JSON.stringify({...base,production:true}),vi.fn())).not.toThrow();
+ expect(()=>createFieldFamilyBridge(JSON.stringify(base),vi.fn())).toThrow();
+ const {createNativeFieldAttachmentBridge}=await import('../../../packages/server-files/src/adapters/attachments/native-field-attachment');
+ expect(()=>createNativeFieldAttachmentBridge(JSON.stringify({...base,production:true}))).not.toThrow();
+ expect(()=>createNativeFieldAttachmentBridge(JSON.stringify(base))).toThrow();
+});
+
+it('keeps production Field surface visibility on the explicit opt-in',()=>{
+ const holdings=[{origin:'https://acme.example.com',holdingSlug:'acme',holdingId:'h',fieldFamily:true}];
+ const base=JSON.stringify({privateBaseUrl:'http://127.0.0.1:3101',timeoutMs:1000,holdings});
+ try{vi.stubEnv('NODE_ENV','production');
+  vi.stubEnv('ERPX_NATIVE_FIELD_ATTACHMENT_CONFIG',JSON.stringify({privateBaseUrl:'http://127.0.0.1:3101',timeoutMs:1000,holdings,production:true}));
+  expect(nativeFieldFamilyVisible('acme','h','acme.example.com')).toBe(true);
+  vi.stubEnv('ERPX_NATIVE_FIELD_ATTACHMENT_CONFIG',base);
+  expect(nativeFieldFamilyVisible('acme','h','acme.example.com')).toBe(false);
+  vi.stubEnv('ERPX_NATIVE_FIELD_ATTACHMENT_CONFIG','{malformed');
+  expect(nativeFieldFamilyVisible('acme','h','acme.example.com')).toBe(false);
+ }finally{vi.unstubAllEnvs();}
+});
+
 it('shows the native Field surface only for its exact configured Holding and host',()=>{
  const local=JSON.stringify({privateBaseUrl:'http://127.0.0.1:44817',timeoutMs:1000,holdings:[{origin:'https://acme.erpx.localhost:3443',holdingSlug:'acme',holdingId:'h001',fieldFamily:true}]});
  try {vi.stubEnv('NODE_ENV','development');vi.stubEnv('NEXT_PUBLIC_ERPX_DEV_ORIGIN_PROFILE','container-localhost');vi.stubEnv('ERPX_NATIVE_FIELD_ATTACHMENT_CONFIG',local);expect(nativeFieldFamilyVisible('acme','h001','acme.erpx.localhost:3443')).toBe(true);expect(nativeFieldFamilyVisible('acme','h002','acme.erpx.localhost:3443')).toBe(false);expect(nativeFieldFamilyVisible('acme','h001','acme.erpx.localhost:3444')).toBe(false);vi.stubEnv('NODE_ENV','production');expect(nativeFieldFamilyVisible('acme','h001','acme.erpx.localhost:3443')).toBe(false);}finally{vi.unstubAllEnvs();}

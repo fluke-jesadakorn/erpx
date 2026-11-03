@@ -1,11 +1,11 @@
 import 'server-only';
+import {allowedPrivateLoopbackPort} from '@erpx/contracts/private-loopback';
 import {Agent,request} from 'node:http';
 import {Readable} from 'node:stream';
 
 /** Private transport only; selection and authorization remain the caller's responsibility. */
-export type NativePartsSetupRequest={baseUrl:string;slug:string;method:'GET'|'POST';existing?:boolean;headers:Headers;body?:string;timeoutMs:number};
+export type NativePartsSetupRequest={baseUrl:string;slug:string;method:'GET'|'POST';existing?:boolean;headers:Headers;body?:string;timeoutMs:number;production?:boolean};
 export type NativePartsSetupReply={status:number;body:unknown};
-const reserved=new Set([3000,3001,3100,3103,5432,5433,5435,8080]);
 export type NativePartsPrerequisiteOperation='read'|'chart'|'account'|'period'|'rate';
 export type NativePartsPrerequisiteRequest=Omit<NativePartsSetupRequest,'method'|'existing'>&{operation:NativePartsPrerequisiteOperation};
 const prerequisitePaths=new Map<NativePartsPrerequisiteOperation,string>([['read','/prerequisites'],['chart','/charts'],['account','/accounts'],['period','/periods'],['rate','/rates']]);
@@ -27,7 +27,7 @@ export async function nativePartsSetupRequest(input:NativePartsSetupRequest):Pro
 async function nativePartsTransport(input:NativePartsSetupRequest,suffix:string,resource:"parts-setup"|"collaboration"|"support"|"operations"|"customer-preparation"|"work-roles"|"inbox-candidates"|"inbox"|"executive"|"executive-evidence"|"commercial"|"invoice-payment-evidence"="parts-setup"):Promise<NativePartsSetupReply>{
  let origin:URL;try{origin=new URL(input.baseUrl);}catch{throw Error('NATIVE_PARTS_SETUP_CONFIGURATION_INVALID');}
  const port=Number(origin.port);
- if(origin.protocol!=='http:'||!['127.0.0.1','[::1]'].includes(origin.hostname)||!origin.port||reserved.has(port)||port>=3200&&port<=3299||origin.username||origin.password||origin.origin!==input.baseUrl||!Number.isSafeInteger(input.timeoutMs)||input.timeoutMs<250||input.timeoutMs>30000||!/^[a-z0-9_-]{1,128}$/.test(input.slug))throw Error('NATIVE_PARTS_SETUP_CONFIGURATION_INVALID');
+ if(origin.protocol!=='http:'||!['127.0.0.1','[::1]'].includes(origin.hostname)||!origin.port||!allowedPrivateLoopbackPort(port,input.production===true)||origin.username||origin.password||origin.origin!==input.baseUrl||!Number.isSafeInteger(input.timeoutMs)||input.timeoutMs<250||input.timeoutMs>30000||!/^[a-z0-9_-]{1,128}$/.test(input.slug))throw Error('NATIVE_PARTS_SETUP_CONFIGURATION_INVALID');
  if(input.method==='GET'&&(input.existing||input.body!==undefined)||input.body!==undefined&&(resource==='commercial'?input.body.length>200000:new TextEncoder().encode(input.body).length>65536))throw Error('NATIVE_PARTS_SETUP_REQUEST_INVALID');
  const url=new URL(resource==='commercial'?`/api/v1/platform/commercial${suffix}`:resource==='invoice-payment-evidence'?`/api/v1/holdings/${encodeURIComponent(input.slug)}/finance/invoices${suffix}`:`/api/v1/holdings/${encodeURIComponent(input.slug)}/field-service/${resource}${suffix}`,origin),controller=new AbortController(),timer=setTimeout(()=>controller.abort(),input.timeoutMs);
  try{

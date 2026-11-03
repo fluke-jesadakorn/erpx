@@ -90,7 +90,7 @@ export function createFieldFamilyBridge(raw:string,transport:Transport=direct,fa
  };}
 /** UI visibility only; every native request still performs its own current authority checks. */
 export function nativeFieldFamilyVisible(holdingSlug:string,holdingId:string,host:string|null):boolean {
- const raw=process.env.ERPX_NATIVE_FIELD_ATTACHMENT_CONFIG;if(!raw)return false;const settings=config(raw);if(process.env.NODE_ENV==='production'&&settings.production!==true)return false;
+ const raw=process.env.ERPX_NATIVE_FIELD_ATTACHMENT_CONFIG;if(!raw)return false;if(process.env.NODE_ENV==='production'){let parsed:unknown;try{parsed=JSON.parse(raw);}catch{return false;}if(!object(parsed)||parsed.production!==true)return false;}const settings=config(raw);
  const target=settings.holdings.find(h=>h.holdingSlug===holdingSlug);
  return !!target?.fieldFamily&&target.holdingId===holdingId&&new URL(target.origin).host===host;
 }

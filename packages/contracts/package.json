@@ -34,7 +34,8 @@
     "./product-return-path": "./src/product-return-path.ts",
     "./inbox": "./src/inbox.ts",
     "./finance-purchase-controls": "./src/finance-purchase-controls.ts",
-    "./commercial-service": "./src/commercial-service.generated.ts"
+    "./commercial-service": "./src/commercial-service.generated.ts",
+    "./private-loopback": "./src/private-loopback.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
