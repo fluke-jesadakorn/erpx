@@ -34,7 +34,7 @@
       "file": "tests/integration/field_service/field-service.test.ts",
       "title": "runs agreement, dispatch, parts, exception, customer sign-off and independent billing release"
     },
-    "reason": "The case is still registered under all six Field capabilities in tests/catalogue/engineering-scenarios.json, but the test was retired from the file during the native cutover. The seven current tests pass. Restoring the case requires a native full-workflow test that seeds the separate Holding read database used by the agreement source guard; the current mixed fixture seeds only the write database. A native case receipt cannot substitute because the required-case inventory accepts only vitest/playwright identities.",
+    "reason": "The case is still registered under all six Field capabilities in tests/catalogue/engineering-scenarios.json, but the test was retired from the file during the native cutover. The seven current tests pass. Restoring the case requires a native full-workflow test that seeds the separate Holding read database used by the agreement source guard; the current mixed fixture seeds only the write database. An attempted native test with the service-finance profile reached the mounted agreement route but returned 404 FIELD_SERVICE_SOURCE_NOT_FOUND for the mixed-company branch/customer, confirming the fixture gap. A native case receipt cannot substitute because the required-case inventory accepts only vitest/playwright identities.",
     "notAnAssertionFailure": true
   },
   "environment": {
