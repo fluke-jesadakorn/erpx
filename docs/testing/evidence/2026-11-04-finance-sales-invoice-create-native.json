@@ -5,7 +5,7 @@
   "capability": "finance-sales-invoice-create-native",
   "base": "c9fe99bc2e88d5860084c4bbd1afc2fffa8dfc0b",
   "branch": "codex/finance-sales-invoice-create-native",
-  "sourceCommit": "pending",
+  "sourceCommit": "4a518401c7a76682eb3406a3ed6d3f69f4975259",
   "implementation": {
     "adapter": "packages/server-finance/src/adapters/sales_invoice_create.rs",
     "public": "packages/server-finance/src/public/sales_invoice_create.rs",
@@ -74,8 +74,20 @@
   },
   "persisted": {
     "invoices": [
-      {"id": "invoice-60b7fdd5-4394-4595-8970-39ec44fda6fb-invoice", "number": "INV-2026-000001", "totalMinor": 13375, "lineMode": "native_lines", "originKind": "native_line"},
-      {"id": "invoice-0d960428-bd82-4841-a74b-fd128c8add0e-invoice", "number": "INV-2026-000002", "totalMinor": 13375, "lineMode": "native_lines", "originKind": "native_line"}
+      {
+        "id": "invoice-60b7fdd5-4394-4595-8970-39ec44fda6fb-invoice",
+        "number": "INV-2026-000001",
+        "totalMinor": 13375,
+        "lineMode": "native_lines",
+        "originKind": "native_line"
+      },
+      {
+        "id": "invoice-0d960428-bd82-4841-a74b-fd128c8add0e-invoice",
+        "number": "INV-2026-000002",
+        "totalMinor": 13375,
+        "lineMode": "native_lines",
+        "originKind": "native_line"
+      }
     ],
     "money": "amount_units 13375, usd_units 382 at THB 35/USD, currency_scale 2, used_latest_fallback false",
     "receipts": "each invoice has finance.invoice.create and finance.sales-invoice.prepare receipts plus matching audit_events and outbox_events"

@@ -3235,7 +3235,7 @@
       "kind": "business-flow-evidence",
       "status": "flow-complete",
       "scope": "Native Finance standalone sales-invoice create: approved defaults, line/tax totals, document number, invoice and line revision, USD Money snapshot, command receipts/audit/outbox, Company scope, purchase, HTTP/Next transport and desktop/mobile create.",
-      "sourceIdentity": "finance-sales-invoice-create-native",
+      "sourceIdentity": "4a518401c7a76682eb3406a3ed6d3f69f4975259",
       "evidenceRef": "docs/testing/evidence/2026-11-04-finance-sales-invoice-create-native.json",
       "durableContractRefs": [
         "docs/contracts/next/rust-finance-journal-detail.md"
