@@ -4,8 +4,8 @@
   "status": "local scoped Rust candidate qualified; PR integration pending",
   "capability": "field-integrated-exact-candidate",
   "integrationTarget": "codex/rust-backend-migration",
-  "sourceCommit": "b9d40aea5",
-  "codeCommit": "7025a1fb3",
+  "sourceCommit": "85c682127 (merged codex/rust-backend-migration)",
+  "codeCommit": "549e9540d",
   "transport": {
     "browser": "Chromium 1248 on the host",
     "relay": "loopback CONNECT relay over docker exec stdio into the finite cohort",
@@ -13,37 +13,21 @@
     "auth": "normal Account sign-in, SSO, Company and role selection; no cookie injection"
   },
   "journey": {
-    "agreement": {
-      "draftVersion": 1,
-      "activeVersion": 2,
-      "status": "active"
-    },
     "request": {
-      "id": "service-order-39fe77de-1551-4c4a-97cf-d4098a2395a6",
+      "id": "service-order-b30cfba0-c064-4c37-afd3-fce8b8eb159b",
       "status": "scheduled",
-      "ticketId": "ticket-39fe77de-1551-4c4a-97cf-d4098a2395a6"
-    },
-    "visit": [
-      "dispatch",
-      "start",
-      "exception",
-      "resume",
-      "complete"
-    ],
-    "billingRelease": {
-      "status": "billed",
-      "version": 7
+      "ticketId": "ticket-b30cfba0-c064-4c37-afd3-fce8b8eb159b"
     },
     "billing": {
-      "invoiceId": "field-invoice-81e56df5-c89b-4080-bbdf-f96b9206d8ea",
+      "invoiceId": "field-invoice-225ea5fb-0b52-47dc-b793-8503823bcc34",
       "amountMinor": 10000,
       "currency": "THB"
     },
     "invoicePost": {
-      "journalId": "journal-75acebc5-aab7-424f-bfdc-05ac0b2a47cc"
+      "journalId": "journal-ae7f2355-37d1-48dc-8099-053b9bf5471c"
     },
     "paymentCreate": {
-      "id": "pay-34a8c524-b8f2-4b8d-8a64-c22f66bdd553",
+      "id": "pay-a7bb19c2-a39a-44e3-9d21-37edcd8b9909",
       "status": "draft",
       "version": 1
     },
@@ -56,13 +40,13 @@
       "version": 3
     },
     "bankImport": {
-      "id": "statement-4b3a3ecc-0e2e-46dd-bb5d-93c2450a244b",
-      "settlementPaymentId": "pay-34a8c524-b8f2-4b8d-8a64-c22f66bdd553"
+      "id": "statement-54436a08-43dd-41e6-8876-e9e44faeae1d",
+      "settlementPaymentId": "pay-a7bb19c2-a39a-44e3-9d21-37edcd8b9909"
     },
     "paymentConfirm": {
       "status": "settled",
       "version": 4,
-      "journalId": "journal-5983fdde-83ed-40dd-8a47-517089f304a1",
+      "journalId": "journal-99816371-b5da-4ef5-8a8a-c8131eac327e",
       "netBankMinor": 10000
     },
     "paymentReadback": {
@@ -77,29 +61,26 @@
     },
     "workReadback": {
       "status": 200,
-      "rows": 20,
-      "fieldRows": 15,
+      "rows": 21,
+      "fieldRows": 16,
       "orderLinked": true
     },
     "supportOwnerPage": {
       "status": 200,
-      "finalUrl": "https://acme.jesadakorn.com/service/support/ticket-39fe77de-1551-4c4a-97cf-d4098a2395a6"
+      "finalUrl": "https://acme.jesadakorn.com/service/support/ticket-b30cfba0-c064-4c37-afd3-fce8b8eb159b"
     },
     "pageErrors": [],
-    "consoleErrors": [
-      "reviewer: %o\n\n%s Error: The native work role selection is unavailable.\n    at fail (about://React/Server/webpack-internal:///(rsc)/../../packages/server-identity_access/s",
-      "manager: %o\n\n%s Error: The native work role selection is unavailable.\n    at fail (about://React/Server/webpack-internal:///(rsc)/../../packages/server-identity_access/s"
-    ],
-    "consoleErrorNote": "The final-head run recorded two transient native work-role 503 console errors from the reviewer/manager personas; the journey retried, every functional step passed, and pageErrors stayed 0."
+    "consoleErrors": [],
+    "consoleErrorNote": "The merged-head run recorded zero console and page errors."
   },
   "persisted": {
     "payment": {
-      "id": "pay-34a8c524-b8f2-4b8d-8a64-c22f66bdd553",
+      "id": "pay-a7bb19c2-a39a-44e3-9d21-37edcd8b9909",
       "status": "settled",
       "version": 4
     },
     "bankTransaction": {
-      "id": "bankrow-4b3a3ecc-0e2e-46dd-bb5d-93c2450a244b-0",
+      "id": "bankrow-54436a08-43dd-41e6-8876-e9e44faeae1d-0",
       "matchStatus": "matched",
       "version": 2,
       "amountMinor": 10000
@@ -112,7 +93,7 @@
       "total": 10000
     },
     "journal": {
-      "id": "journal-5983fdde-83ed-40dd-8a47-517089f304a1",
+      "id": "journal-99816371-b5da-4ef5-8a8a-c8131eac327e",
       "status": "posted",
       "debitMinor": 10000,
       "creditMinor": 10000,
@@ -147,13 +128,14 @@
   ],
   "limits": [
     "Local scoped evidence, not owner/workflow acceptance.",
-    "The final-head run recorded two transient native work-role 503 console errors from the reviewer/manager personas; every functional step passed and pageErrors stayed 0.",
+    "The merged-head run recorded zero console and page errors.",
     "The Support owner page returns 200 but the local canonical redirect renders the Field workspace; the native Support read is 403 PACKAGE_REQUIRED because the fixture Company has no Support package purchase.",
     "No parts were consumed by this visit; stock readback is covered by the separate native stock/count cases.",
-    "Finance production composition is explicitly out of scope for this bundle; the production parser fails closed. Checklist 18 (scoped PR/merge) is this PR."
+    "Finance production composition is explicitly out of scope for this bundle; the production parser fails closed. The Field bundle is merged in PR #17."
   ],
-  "privateEvidence": ".scratch/dev/field-browser-journey-v2-result-final-head-2.json",
+  "privateEvidence": ".scratch/dev/field-browser-journey-v2-result-merged-head.json",
   "cohort": "7bb9e96af7a9; the isolated cohort dev apps were restarted after syncing the changed source files from the scoped HEAD. The Rust release is unchanged since 78b6b210a (no Rust delta after it).",
   "cleanupCommit": "549e9540d",
-  "cleanupNote": "549e9540d is the strict native-worker Clippy and workspace-plan cleanup. It is behaviour-preserving (allows, let-chains, from_ref, equivalent condition restructures) and is covered by the affected unit suites; the browser journey ran on the preceding code head b9d40aea5."
+  "cleanupNote": "549e9540d is the strict native-worker Clippy and workspace-plan cleanup. It is behaviour-preserving (allows, let-chains, from_ref, equivalent condition restructures) and is covered by the affected unit suites; the browser journey ran on the preceding code head b9d40aea5.",
+  "mergedHeadNote": "The journey ran on the merged source at 85c682127. The only code delta since the verified code head is 549e9540d, a behaviour-preserving Clippy/workspace-plan cleanup covered by the affected unit suites."
 }
