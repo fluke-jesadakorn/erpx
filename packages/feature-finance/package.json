@@ -360,7 +360,8 @@
     "./public/client": "./src/public/client.ts",
     "./public/contracts": "./src/public/contracts.ts",
     "./public/server": "./src/public/server.ts",
-    "./public/service-no-charge": "./src/public/service-no-charge.ts"
+    "./public/service-no-charge": "./src/public/service-no-charge.ts",
+    "./lib/native-journal-list": "./src/lib/native-journal-list.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

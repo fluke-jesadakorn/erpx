@@ -88,6 +88,10 @@ pub fn finance_journal_read_router<C: Clock + Send + Sync + 'static>(
     let field_work_routes=field_work_routes.route("/api/v1/holdings/{holding_slug}/finance/field-work",get(financial_work::<C>));
     Ok(Router::new().merge(field_work_routes)
         .route(
+            "/api/v1/holdings/{holding_slug}/finance/journals",
+            get(list::<C>),
+        )
+        .route(
             "/api/v1/holdings/{holding_slug}/finance/journals/{id}",
             get(detail::<C>),
         )
@@ -201,6 +205,111 @@ async fn workspace<C: Clock + Send + Sync + 'static>(
 ) -> Response {
     read(state, slug, id, headers, true).await
 }
+async fn list<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path(slug): Path<String>,
+    headers: HeaderMap,
+    RawQuery(raw): RawQuery,
+) -> Response {
+    let result = async {
+        let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
+        let target = crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
+        let inbound = parse_inbound_account_request(&state.policy, &headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(missing().into());
+        }
+        if unique_request_header(&headers, "origin")?
+            .is_some_and(|value| value != inbound.expected_origin())
+        {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            )
+            .into());
+        }
+        let mut chart = None;
+        let mut status = "all".to_owned();
+        let mut cursor = None;
+        for (key, value) in url::form_urlencoded::parse(raw.as_deref().unwrap_or("").as_bytes()) {
+            if value.len() > 400 || value.chars().any(char::is_control) {
+                return Err(BusinessError::invalid(
+                    "FINANCE_JOURNAL_QUERY_INVALID",
+                    "Use the journal list filters.",
+                )
+                .into());
+            }
+            match key.as_ref() {
+                "chart" if chart.is_none() && !value.is_empty() => chart = Some(value.into_owned()),
+                "status" if !value.is_empty() => status = value.into_owned(),
+                "cursor" if cursor.is_none() && !value.is_empty() => cursor = Some(value.into_owned()),
+                _ => {
+                    return Err(BusinessError::invalid(
+                        "FINANCE_JOURNAL_QUERY_INVALID",
+                        "Use the journal list filters.",
+                    )
+                    .into())
+                }
+            }
+        }
+        if status.len() > 40 {
+            return Err(BusinessError::invalid(
+                "FINANCE_JOURNAL_QUERY_INVALID",
+                "Use the journal list filters.",
+            )
+            .into());
+        }
+        let scope = state.scopes.slugs(&headers);
+        let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
+        let captured = CapturedHoldingMutation::capture(&headers, branch, department);
+        let company = target.service.company_id().clone();
+        let proof = inbound.into_proof();
+        let input = move || {
+            scope?;
+            captured.resolve_read(company)
+        };
+        target
+            .service
+            .list(host, proof, input, chart, status, cursor)
+            .await
+    }
+    .await;
+    let mut response = match result {
+        Ok(reply) => Json(reply).into_response(),
+        Err(PgTransactionError::Business(error)) => {
+            let status = match error.kind {
+                FailureKind::InvalidInput => StatusCode::UNPROCESSABLE_ENTITY,
+                FailureKind::Unauthenticated => StatusCode::UNAUTHORIZED,
+                FailureKind::Forbidden => StatusCode::FORBIDDEN,
+                FailureKind::NotFound => StatusCode::NOT_FOUND,
+                FailureKind::Conflict => StatusCode::CONFLICT,
+                FailureKind::Unavailable => StatusCode::SERVICE_UNAVAILABLE,
+            };
+            let body = Json(serde_json::json!({
+                "error": {"code": error.code, "message": error.message}
+            }))
+            .into_response();
+            let mut response = Response::new(body.into_body());
+            *response.status_mut() = status;
+            response
+        }
+        Err(_) => StatusCode::SERVICE_UNAVAILABLE.into_response(),
+    };
+    response.headers_mut().insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("private, no-store"),
+    );
+    response.headers_mut().insert(
+        header::REFERRER_POLICY,
+        HeaderValue::from_static("no-referrer"),
+    );
+    response.headers_mut().insert(
+        header::X_CONTENT_TYPE_OPTIONS,
+        HeaderValue::from_static("nosniff"),
+    );
+    response
+}
+
 async fn read<C: Clock + Send + Sync + 'static>(
     state: Arc<ReadState<C>>,
     slug: String,

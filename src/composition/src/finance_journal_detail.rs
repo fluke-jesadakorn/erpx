@@ -5,7 +5,7 @@ use erpx_server_commercial::public::purchases::{
     CapabilityPurpose, CommercialCatalogue, PackageEnforcementMode, PgCompanyPurchaseReader,
     PurchaseRequest, lock_commercial_authority_sources,
 };
-use erpx_server_finance::public::{FinanceActor, journal_detail::*, journal_workspace::*};
+use erpx_server_finance::public::{FinanceActor, journal_detail::*, journal_list::*, journal_workspace::*};
 use erpx_server_identity_access::public::{
     DeviceProof,
     effective_authority::{
@@ -108,6 +108,12 @@ pub struct FinanceJournalWorkspaceReadResponse {
     pub data: FinanceJournalRecordWorkspace,
     pub context: FinanceRenderedWorkContext,
 }
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+pub struct FinanceJournalListReadResponse {
+    pub data: JournalList,
+    pub context: FinanceRenderedWorkContext,
+}
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 pub struct FinanceServiceInvoiceWorkspaceResponse {
@@ -146,6 +152,18 @@ impl HoldingWorkSourcePreparation for ServiceInvoiceReadSources {
         })
     }
 }
+#[derive(Clone)]
+struct JournalListPreparation;
+impl HoldingWorkSourcePreparation for JournalListPreparation {
+    fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async move {
+            lock_commercial_authority_sources(c).await?;
+            lock_journal_list_sources(c).await?;
+            Ok(())
+        })
+    }
+}
+
 #[derive(Clone, Copy)]
 enum ReadKind {
     Detail,
@@ -435,6 +453,91 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
             })
         }).await
     }
+    #[allow(clippy::too_many_arguments)]
+    pub async fn list<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        chart_id: Option<String>,
+        status: String,
+        cursor: Option<String>,
+    ) -> Result<FinanceJournalListReadResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let company = self.configuration.company.clone();
+        let input = move || {
+            let mut request = input()?;
+            if request.company_id != company {
+                return Err(scope());
+            }
+            request.mutation = false;
+            Ok(request)
+        };
+        let configuration = self.configuration.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                input,
+                WorkAuthorizationRequest {
+                    permission: "finance.read".into(),
+                    module: Some("finance".into()),
+                    destination: "finance/journals".into(),
+                    api: true,
+                },
+                JournalListPreparation,
+                move |c, current| {
+                    let configuration = configuration.clone();
+                    let clock = clock.clone();
+                    let chart_id = chart_id.clone();
+                    let status = status.clone();
+                    let cursor = cursor.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &configuration.holding
+                            || current.selection().workspace().company_id != configuration.company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("finance.read")?;
+                        current.require_permission("module.finance.read")?;
+                        PgCompanyPurchaseReader::new(
+                            configuration.holding.clone(),
+                            configuration.company.clone(),
+                            c,
+                            &configuration.purchases,
+                        )
+                        .inspect(
+                            &PurchaseRequest {
+                                capabilities: vec!["finance.accounting".into()],
+                                purpose: CapabilityPurpose::History,
+                                mode: PackageEnforcementMode::Enforced,
+                            },
+                            clock.now(),
+                        )
+                        .await?
+                        .require_allowed()?;
+                        lock_journal_list_sources(c).await?;
+                        let data = read_journal_list(
+                            c,
+                            configuration.company.as_str(),
+                            chart_id.as_deref(),
+                            &status,
+                            cursor.as_deref(),
+                        )
+                        .await?;
+                        Ok(FinanceJournalListReadResponse {
+                            data,
+                            context: rendered(current)?,
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
     pub async fn read<Input>(
         &self,
         host: &str,
