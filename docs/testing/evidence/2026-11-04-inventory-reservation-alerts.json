@@ -5,7 +5,7 @@
   "capability": "inventory-reservation-alerts",
   "base": "bfac81852bafc2e68ad543d94558dca70de4e4e6",
   "branch": "codex/inventory-reservations-cutover",
-  "sourceCommit": "546d1525c8178141357c7c5c1ff060d0f542c8dd",
+  "sourceCommit": "b98e87b491b7aa140647ca68c962f2f729d7c120",
   "changes": [
     "src/composition/src/inventory_reservation_alerts.rs: native serializable sweep for Sales order and Manufacturing order reservations",
     "src/composition/src/field_dependency_worker.rs: the scheduled worker runs the Field, Sales and Manufacturing alert sources",

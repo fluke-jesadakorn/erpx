@@ -3103,7 +3103,7 @@
       "kind": "business-flow-evidence",
       "status": "flow-complete",
       "scope": "Native scheduled Sales/Manufacturing reservation alerts: expiring/expired, idempotency, source guards, production rollout and persisted staff notifications.",
-      "sourceIdentity": "546d1525c8178141357c7c5c1ff060d0f542c8dd",
+      "sourceIdentity": "b98e87b491b7aa140647ca68c962f2f729d7c120",
       "evidenceRef": "docs/testing/evidence/2026-11-04-inventory-reservation-alerts.json",
       "durableContractRefs": [
         "docs/contracts/next/inventory.md"
