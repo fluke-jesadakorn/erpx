@@ -92,7 +92,7 @@ export function createCollaborationWorkApplication<Effect>(ports: CollaborationW
             relations: visible,
             cards: visibleCards,
             people,
-            sourceTypes: sourceType.options,
+            sourceTypes: sourceType.options.filter(kind=>kind!=='field_service_order'),
             canWrite: hasPermission(a, "records.write"),
             canReview: hasPermission(a, "records.review"),
         };

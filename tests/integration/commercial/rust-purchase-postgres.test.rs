@@ -458,6 +458,50 @@ async fn preview_does_not_create_revision_or_audit_and_apply_rechecks_current_au
 
 /// Review source is an explicit synthetic fixture, not provider MFA/RFC approval.
 struct BatchReview;
+
+/// Qualifies the real Commercial review/evidence writer, still using the
+/// explicitly synthetic GrantPolicy above; not operator/MFA acceptance.
+#[tokio::test]
+async fn native_lifecycle_review_rolls_back_with_batch_and_replays_original_evidence() {
+    use erpx_server_commercial::public::package_review::*;
+    fixture::with_database(2,|pool|async move {
+        let input=setup_batch(&pool,"native-reviewed-lifecycle-001").await;
+        let catalogue=current_package_catalogue().unwrap();
+        let actor=PackageReviewActor{user_id:"synthetic-actor".into(),session_id:"fixture-session".into(),assignment_id:"fixture-assignment".into(),role:"platform_admin".into(),role_revision:1};
+        let signer=PackageLifecycleReviewSigner::new("fixture-only-secret-32-characters-minimum").unwrap();
+        let token=signer.issue(&catalogue,actor.clone(),"holding",&input,&input.expected_revision,1000).unwrap().token;
+        sqlx::raw_sql("CREATE FUNCTION reject_reviewed_fixture_grant() RETURNS trigger LANGUAGE plpgsql AS $$BEGIN IF NEW.package_id='finance-advanced' THEN RAISE EXCEPTION 'synthetic reviewed batch failure';END IF;RETURN NEW;END$$;CREATE TRIGGER reject_reviewed_fixture_grant BEFORE INSERT ON company_package_grants FOR EACH ROW EXECUTE FUNCTION reject_reviewed_fixture_grant()").execute(pool.raw()).await.unwrap();
+        for fail in [true,false] {
+            let input=input.clone();let actor=actor.clone();let token=token.clone();
+            let result=PgUnitOfWork::new(pool.clone()).run::<GrantBatchPreview,BusinessError,_>(TransactionOptions::default(),move|c|{let input=input.clone();let actor=actor.clone();let token=token.clone();Box::pin(async move {
+                let catalogue=current_package_catalogue()?;
+                let signer=PackageLifecycleReviewSigner::new("fixture-only-secret-32-characters-minimum")?;
+                let mut review=PgPackageLifecycleReview::new(&signer,&CommandClock,&catalogue,&actor,"holding",&input,&token)?;
+                let mut policy=GrantPolicy;
+                PgPackageGrantCommands::new(holding(),company(),c,&catalogue,&mut policy,&CommandClock).apply_batch(&input,&mut review).await
+            })}).await;
+            if fail {
+                assert!(result.is_err());
+                let counts:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM company_package_review_evidence),(SELECT count(*) FROM company_package_change_sets),(SELECT count(*) FROM company_package_grants WHERE package_id IN('finance','finance-advanced'))").fetch_one(pool.raw()).await.unwrap();assert_eq!(counts,(0,0,0));
+                sqlx::raw_sql("DROP TRIGGER reject_reviewed_fixture_grant ON company_package_grants;DROP FUNCTION reject_reviewed_fixture_grant()").execute(pool.raw()).await.unwrap();
+            }else{assert_eq!(result.unwrap().changes.len(),2);}
+        }
+        let original:serde_json::Value=sqlx::query_scalar("SELECT to_jsonb(e) FROM company_package_review_evidence e WHERE change_set_id=$1").bind(&input.idempotency_key).fetch_one(pool.raw()).await.unwrap();
+        assert_eq!(original["actor_id"],"synthetic-actor");assert_eq!(original["reviewed_at"],1000);assert_eq!(original["applied_at"],2000);assert_eq!(original["comparison_json"]["source"]["kind"],"package-lifecycle");assert_eq!(original["review_hash"],signer.review_hash(&token));
+        struct ExpiredClock;
+        impl Clock for ExpiredClock{fn now(&self)->TimestampMillis{now(301000)}}
+        let key=input.idempotency_key.clone();
+        PgUnitOfWork::new(pool.clone()).run::<(),BusinessError,_>(TransactionOptions::default(),move|c|{let input=input.clone();let actor=actor.clone();let token=token.clone();Box::pin(async move{
+            let catalogue=current_package_catalogue()?;
+            let signer=PackageLifecycleReviewSigner::new("fixture-only-secret-32-characters-minimum")?;
+            let mut review=PgPackageLifecycleReview::new(&signer,&ExpiredClock,&catalogue,&actor,"holding",&input,&token)?;
+            let mut policy=GrantPolicy;
+            let result=PgPackageGrantCommands::new(holding(),company(),c,&catalogue,&mut policy,&ExpiredClock).apply_batch(&input,&mut review).await?;
+            assert_eq!(result.changes.len(),2);Ok(())
+        })}).await.unwrap();
+        let retained:serde_json::Value=sqlx::query_scalar("SELECT to_jsonb(e) FROM company_package_review_evidence e WHERE change_set_id=$1").bind(&key).fetch_one(pool.raw()).await.unwrap();assert_eq!(retained,original);
+    }).await;
+}
 impl PgPackageBatchReview for BatchReview {
     async fn prepare_sources(
         &mut self,

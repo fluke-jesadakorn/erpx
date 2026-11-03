@@ -21,3 +21,6 @@ pub mod journal_flow_department;
 pub mod field_service_agreement;
 
 pub mod field_service_workspace;
+pub mod commercial_companies;
+
+pub mod pms_source_branch;

@@ -4,7 +4,7 @@ import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import type { PostgresDatabase } from "@erpx/server-runtime/public/runtime/postgres";
 import { holdingResources } from "../../../../packages/server-runtime/src/public/runtime";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import { packageGrantCommands, type PackageGrantUnit } from "@erpx/server-commercial/application/package-grants";
+import { packageGrantCommands, type PackageGrantUnit, type GrantChange } from "@erpx/server-commercial/application/package-grants";
 import { canonicalPackageGrant, type CompanyPackageGrant, type CompanyPackageHistoryRight } from "@erpx/server-commercial/domain/packages";
 import { validatePackageDependencies } from "@erpx/server-commercial/domain/package-dependencies";
 import { packageGrantBatchCommands, type PackageGrantBatch, type PackageGrantBatchPreview, type PackageGrantBatchUnit } from "@erpx/server-commercial/application/package-grant-batches";
@@ -43,6 +43,11 @@ export function packageGrantStore(db: PostgresDatabase, ports: {
   now?: () => number;
 }) {
   const now = ports.now ?? Date.now;
+  // Native Service owns every version/state, including replays. This fence is
+  // below HTTP dispatch so legacy migrations/internal callers cannot bypass it.
+  function legacyGrant(grant:CompanyPackageGrant){if(['service','service-parts-assets'].includes(grant.packageId))throw new Error('NATIVE_SERVICE_PACKAGE_REQUIRED');}
+  function legacyBatch(input:PackageGrantBatch){for(const change of input.changes)legacyGrant(change.grant);}
+
   function unit(database: SqlDatabase): PackageGrantUnit {
     return {
       authorize: companyId => ports.authorize(database, companyId),
@@ -59,6 +64,7 @@ export function packageGrantStore(db: PostgresDatabase, ports: {
       obligations: (companyId, packageId) => ports.obligations(database, companyId, packageId),
       dependencies: async grant => validatePackageDependencies(grant, await readCompanyPackageGrants(database, grant.companyId), now()),
       save: async (input, current, actorId, hash) => {
+        legacyGrant(input.grant);
         const g = input.grant, instant = now();
         await database.prepare(`INSERT INTO company_package_grants(company_id,package_id,package_version,state,starts_at,ends_at,version,reason,evidence,updated_at)
           VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(company_id,package_id) DO UPDATE SET package_version=excluded.package_version,state=excluded.state,starts_at=excluded.starts_at,
@@ -97,10 +103,16 @@ export function packageGrantStore(db: PostgresDatabase, ports: {
     };
   }
   const batch = packageGrantBatchCommands({ unit: () => batchUnit(db), transaction: action => db.transaction(async tx => { await packageWriterFence(tx).run(); await ports.beforeTransaction?.(tx); return action(batchUnit(tx, true)); }), hash });
-  return { ...commands, batch: { ...batch,
+  return { ...commands,
+    preview(input:GrantChange){legacyGrant(input.grant);return commands.preview(input);},
+    apply(input:GrantChange){legacyGrant(input.grant);return commands.apply(input);},
+    batch: { ...batch,
+    preview(input:PackageGrantBatch){legacyBatch(input);return batch.preview(input);},
+    apply(input:PackageGrantBatch,verifyPreview:(preview:PackageGrantBatchPreview)=>Promise<void>){legacyBatch(input);return batch.apply(input,verifyPreview);},
     /** Apply through normal Commercial policy/audit in an owner's existing unit.
      * The owner can validate its source lease after the receipt, before COMMIT. */
     applyIn(transaction: SqlDatabase, input: PackageGrantBatch, verifyPreview: (preview: PackageGrantBatchPreview) => Promise<void>) {
+      legacyBatch(input);
       db.assertActiveTransaction(transaction);
       return packageGrantBatchCommands({ unit: () => batchUnit(transaction), hash,
         transaction: async action => { await packageWriterFence(transaction).run(); await ports.beforeTransaction?.(transaction); return action(batchUnit(transaction, true)); },
@@ -109,6 +121,7 @@ export function packageGrantStore(db: PostgresDatabase, ports: {
     /** Read-only preview on the owner's existing snapshot. It neither checks
      * out another pool connection nor inserts a revision anchor. */
     previewIn(transaction: SqlDatabase, input: PackageGrantBatch) {
+      legacyBatch(input);
       db.assertActiveTransaction(transaction);
       return packageGrantBatchCommands({ unit: () => batchUnit(transaction), hash,
         transaction: async () => { throw new Error("PREVIEW_CANNOT_WRITE"); } }).preview(input);

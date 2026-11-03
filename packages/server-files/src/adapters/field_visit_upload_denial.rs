@@ -7,6 +7,9 @@ type Error = PgTransactionError<BusinessError>;
 /// Trusted Identity owner port; it must verify the actor is current in this
 /// exact unit without requiring successful Field source authorization.
 pub trait FieldDenialActorCurrent {
+    fn owner_kind(&self) -> crate::public::field_visit_intake::IntakeOwner {
+        crate::public::field_visit_intake::IntakeOwner::FieldVisit
+    }
     fn require_current<'a>(
         &'a self,
         c: &'a mut PgConnection,
@@ -60,7 +63,10 @@ pub async fn record_field_content_denial<A: FieldDenialActorCurrent>(
     let user = actor.user_id().as_str();
     let row:Option<(String,String,String,String,String)>=sqlx::query_as("SELECT a.id,s.target_type,s.target_id,s.component_kind,s.purpose_key FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id JOIN attachments a ON a.id=l.attachment_id AND a.company_id=s.company_id WHERE l.id=$1 AND s.company_id=$2 FOR SHARE OF l,s,a").bind(link_id).bind(company).fetch_optional(&mut *c).await?;
     let (source, target_type, target, component, purpose) = row.ok_or_else(changed)?;
-    if !crate::domain::field_visit_link::valid_field_purpose(&target_type, &component, &purpose) {
+    if !authority
+        .owner_kind()
+        .supports(&target_type, &component, &purpose)
+    {
         return Err(changed());
     }
     let id = format!("attachment-access-{}", uuid::Uuid::new_v4());

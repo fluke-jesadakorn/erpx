@@ -1,0 +1,68 @@
+{
+  "node": "v26.11.1",
+  "secret": "fixture-only-secret-32-characters-minimum",
+  "now": 1000,
+  "actor": {
+    "userId": "fixture-provider",
+    "sessionId": "fixture-admin-session",
+    "assignmentId": "fixture-platform-assignment",
+    "role": "platform_admin",
+    "roleRevision": 3
+  },
+  "input": {
+    "companyId": "fixture-company",
+    "expectedRevision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "idempotencyKey": "fixture-idempotency-key",
+    "changes": [
+      {
+        "expectedVersion": 1,
+        "grant": {
+          "companyId": "fixture-company",
+          "packageId": "service-parts-assets",
+          "packageVersion": 1,
+          "state": "draining",
+          "startsAt": 1000,
+          "endsAt": null,
+          "version": 2,
+          "reason": "Independent reviewed service — ทดสอบ",
+          "evidence": "test:review-only"
+        }
+      },
+      {
+        "expectedVersion": 1,
+        "grant": {
+          "companyId": "fixture-company",
+          "packageId": "service",
+          "packageVersion": 1,
+          "state": "draining",
+          "startsAt": 1000,
+          "endsAt": null,
+          "version": 2,
+          "reason": "Independent reviewed service — ทดสอบ",
+          "evidence": "test:review-only"
+        }
+      }
+    ]
+  },
+  "review": {
+    "token": "eyJ2ZXJzaW9uIjoxLCJob2xkaW5nSWQiOiJoMDAxIiwiY29tcGFueUlkIjoiZml4dHVyZS1jb21wYW55IiwiYWN0b3IiOnsidXNlcklkIjoiZml4dHVyZS1wcm92aWRlciIsInNlc3Npb25JZCI6ImZpeHR1cmUtYWRtaW4tc2Vzc2lvbiIsImFzc2lnbm1lbnRJZCI6ImZpeHR1cmUtcGxhdGZvcm0tYXNzaWdubWVudCIsInJvbGUiOiJwbGF0Zm9ybV9hZG1pbiIsInJvbGVSZXZpc2lvbiI6M30sInJlcXVlc3RIYXNoIjoiNzUxMTEwMmY2Y2FkZmU4ZmE1Njc5NjNmNTYwMmE1ZjQ5MjdlNWEwYWFmZDUwMDczMmEyNWJjNDFmYWJiMWM0NiIsImF1dGhvcml0eVJldmlzaW9uIjoiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYiIsImNhdGFsb2d1ZUhhc2giOiIyMDMzYWM5M2IyODAyMWQ1MmE2ZGQxZGVhNWRkYmZiM2Y5YTg5NTY0NWFjZTUwMGExOTRlYzExMzQzOTg2NWY3IiwiaXNzdWVkQXQiOjEwMDAsImV4cGlyZXNBdCI6MzAxMDAwfQ.c27qhJ3bqUAnXvm5YleRHO4L0S-hYN0zpGV4aN7Z23g",
+    "expiresAt": 301000
+  },
+  "claims": {
+    "version": 1,
+    "holdingId": "h001",
+    "companyId": "fixture-company",
+    "actor": {
+      "userId": "fixture-provider",
+      "sessionId": "fixture-admin-session",
+      "assignmentId": "fixture-platform-assignment",
+      "role": "platform_admin",
+      "roleRevision": 3
+    },
+    "requestHash": "7511102f6cadfe8fa567963f5602a5f4927e5a0aafd500732a25bc41fabb1c46",
+    "authorityRevision": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "catalogueHash": "2033ac93b28021d52a6dd1dea5ddbfb3f9a895645ace500a194ec113439865f7",
+    "issuedAt": 1000,
+    "expiresAt": 301000
+  }
+}

@@ -1,3 +1,4 @@
+import {nativeServicePaymentWorkspace} from '../adapters/server/native-service-payment';
 import {nativeServiceInvoiceWorkspace} from "../adapters/server/native-service-invoice";
 import {financeProductPresentationOptions} from "@erpx/server-finance/public/product-presentation-request";
 import "server-only";
@@ -13,7 +14,8 @@ import {StatusBadge} from "@erpx/ui/components/primitives";
 export async function FinanceSourceDocumentBackdrop({holdingSlug,kind,id}:{holdingSlug:string;kind:FinanceDocumentKind;id:string}){
  const actor=await requireWorkContext(holdingSlug);
  const native=kind==='invoice'?await nativeServiceInvoiceWorkspace(actor,holdingSlug,id):undefined;
- const record=native?(native.sourceOnly?{number:String(native.invoice.invoice_number),date:String(native.invoice.invoice_date),status:String(native.invoice.status),version:Number(native.invoice.version)}:null):await financeSourceDocumentBackdrop(actor,kind,id,await financeProductPresentationOptions()).catch(error=>pageError(error,holdingSlug));
+ const payment=kind==='payment'?await nativeServicePaymentWorkspace(actor,holdingSlug,id):undefined;
+ const record=payment?(payment.nativeSourceOnly?{number:String(payment.payment.payment_number),date:String(payment.payment.payment_date),status:String(payment.payment.status),version:Number(payment.payment.version)}:null):native?(native.sourceOnly?{number:String(native.invoice.invoice_number),date:String(native.invoice.invoice_date),status:String(native.invoice.status),version:Number(native.invoice.version)}:null):await financeSourceDocumentBackdrop(actor,kind,id,await financeProductPresentationOptions()).catch(error=>pageError(error,holdingSlug));
  if(!record)return null;
  return <FeaturePage className="ui-page-content" data-source="live" data-module="finance">
   <header className="ui-section-header"><div><p className="eyebrow">Financial source · {kind}</p><h1>{record.number}</h1></div><StatusBadge appearance="standard" status={record.status}/></header>

@@ -39,7 +39,6 @@
     "./public/packages": "./src/public/packages.ts",
     "./public/last-audit-owner-projection-sources": "./src/public/last-audit-owner-projection-sources.ts",
     "./public/rules/product-entry-capability": "./src/public/rules/product-entry-capability.ts",
-    "./public/rules/provider-package-command": "./src/public/rules/provider-package-command.ts",
     "./public/rules/legacy-packages": "./src/public/rules/legacy-packages.ts",
     "./public/rules/product-registry": "./src/public/rules/product-registry.ts",
     "./public/rules/packages": "./src/public/rules/packages.ts",
@@ -49,7 +48,6 @@
     "./application/usage": "./src/application/usage.ts",
     "./application/projection": "./src/application/projection.ts",
     "./application/package-grants": "./src/application/package-grants.ts",
-    "./application/provider-package-command": "./src/application/provider-package-command.ts",
     "./application/provider-page-context": "./src/application/provider-page-context.ts",
     "./application/seats": "./src/application/seats.ts",
     "./application/holding-usage": "./src/application/holding-usage.ts",
@@ -83,7 +81,6 @@
     "@erpx/server-customer_360": "workspace:*",
     "@erpx/server-customer_authority": "workspace:*",
     "@erpx/server-ecommerce": "workspace:*",
-    "@erpx/server-field_service": "workspace:*",
     "@erpx/server-files": "workspace:*",
     "@erpx/server-finance": "workspace:*",
     "@erpx/server-identity_access": "workspace:*",
@@ -108,6 +105,7 @@
     "@erpx/server-support": "workspace:*",
     "@erpx/server-talent": "workspace:*",
     "server-only": "0.0.1",
-    "zod": "4.6.7"
+    "zod": "4.6.7",
+    "@erpx/native-sdk": "workspace:*"
   }
 }

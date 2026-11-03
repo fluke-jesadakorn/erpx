@@ -5,3 +5,7 @@ pub(crate) mod record_identity;
 
 pub(crate) mod journal_post_flow;
 pub(crate) mod stock_count_flow;
+
+pub(crate) mod service_invoice_flow;
+
+pub(crate) mod field_journal_flow;

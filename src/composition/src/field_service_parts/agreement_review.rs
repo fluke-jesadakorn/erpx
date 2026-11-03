@@ -88,12 +88,18 @@ impl Reviewer {
         let now = database_now(c).await?;
         self.assignment.require_current(c, now).await?;
         self.person.require_current(c).await?;
-        if !self.assignment.is_eligible()
-            || !self.person.is_eligible()
-            || PgSamePersonReader::new(c)
-                .same_person(&source.facts().company_id, &self.creator, current.user_id())
-                .await?
+        if PgSamePersonReader::new(c)
+            .same_person(&source.facts().company_id, &self.creator, current.user_id())
+            .await?
         {
+            // Preserve the original Agreement review assertion's wire error.
+            return Err(BusinessError::new(
+                erpx_server_shared::public::FailureKind::Conflict,
+                "CONFLICT",
+                "The record changed, a reference is unavailable, or this value already exists. Refresh and review again.",
+            ).into());
+        }
+        if !self.assignment.is_eligible() || !self.person.is_eligible() {
             return Err(BusinessError::new(
                 erpx_server_shared::public::FailureKind::Forbidden,
                 "FIELD_SERVICE_REVIEW_REQUIRED",

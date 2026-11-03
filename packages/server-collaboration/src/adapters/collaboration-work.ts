@@ -1,4 +1,6 @@
+import {nativeFieldCollaborationCommand} from './field-command-owner';
 import 'server-only';
+import {hasModuleAccess} from '@erpx/catalogue/module-access';
 import { createHash, randomUUID } from 'node:crypto';
 import { ApiError } from '@erpx/server-runtime/public/http';
 import { holdingResources } from '../../../../packages/server-runtime/src/public/runtime';
@@ -38,12 +40,12 @@ async function exposed<T>(action: () => Promise<T>) {
 function application(db: SqlDatabase) {
     const repository: CollaborationWorkRepository<SqlStatement> = { async recordRelations(companyId: string) {
             return db
-                .prepare("SELECT * FROM collaboration_record_relations WHERE company_id=? AND status='active' ORDER BY updated_at DESC LIMIT 100")
+                .prepare("SELECT * FROM collaboration_record_relations WHERE company_id=? AND status='active' AND source_type<>'field_service_order' AND target_type<>'field_service_order' ORDER BY updated_at DESC LIMIT 100")
                 .bind(companyId)
                 .all<Row>();
         }, async actionCards(companyId: string, branchId: string | null, branchId2: string | null, departmentId: string | null, departmentId2: string | null) {
             return db
-                .prepare(`SELECT c.*,CASE WHEN ${eligible} THEN 1 ELSE 0 END owner_eligible,${peopleRead.cardOwnerName} owner_name FROM collaboration_action_cards c WHERE c.company_id=? AND (?::text IS NULL OR c.branch_id=?) AND (?::text IS NULL OR c.department_id=?) ORDER BY c.updated_at DESC LIMIT 100`)
+                .prepare(`SELECT c.*,CASE WHEN ${eligible} THEN 1 ELSE 0 END owner_eligible,${peopleRead.cardOwnerName} owner_name FROM collaboration_action_cards c WHERE c.company_id=? AND c.source_type<>'field_service_order' AND (?::text IS NULL OR c.branch_id=?) AND (?::text IS NULL OR c.department_id=?) ORDER BY c.updated_at DESC LIMIT 100`)
                 .bind(companyId, branchId, branchId2, departmentId, departmentId2)
                 .all<Card>();
         }, async actionHistory(id: string) {
@@ -110,8 +112,15 @@ function application(db: SqlDatabase) {
 export async function collaborationWorkspace(a: WorkContext) { const { write: db } = await holdingResources(a.holdingId); return exposed(() => application(db).collaborationWorkspace(a)); }
 export async function collaborationExport(a: WorkContext) { const { write: db } = await holdingResources(a.holdingId); return exposed(() => application(db).collaborationExport(a)); }
 export async function collaborationActionDetail(a: WorkContext, id: string) { const { write: db } = await holdingResources(a.holdingId); return exposed(() => application(db).collaborationActionDetail(a, id)); }
-export async function createRecordRelation(a: WorkContext, raw: unknown, key: string) { const { write: db } = await holdingResources(a.holdingId); return exposed(() => application(db).createRecordRelation(a, raw, key)); }
-export async function removeRecordRelation(a: WorkContext, id: string, expectedVersion: number, why: string, key: string) { const { write: db } = await holdingResources(a.holdingId); return exposed(() => application(db).removeRecordRelation(a, id, expectedVersion, why, key)); }
-export async function createActionCard(a: WorkContext, raw: unknown, key: string) { const { write: db } = await holdingResources(a.holdingId); return exposed(() => application(db).createActionCard(a, raw, key)); }
-export async function changeActionCard(a: WorkContext, id: string, raw: unknown, key: string) { const { write: db } = await holdingResources(a.holdingId); return exposed(() => application(db).changeActionCard(a, id, raw, key)); }
-export async function collaborationActionWork(a: WorkContext) { const { write: db } = await holdingResources(a.holdingId); return exposed(() => application(db).collaborationActionWork(a)); }
+export async function createRecordRelation(a: WorkContext, raw: unknown, key: string) { requirePermission(a,'records.write');if(!hasModuleAccess(a.modules,'collaboration'))throw new ApiError(403,'MODULE_FORBIDDEN','Collaboration is unavailable.');if(await nativeFieldCollaborationCommand(a,{...(raw&&typeof raw==='object'?raw:{}),entity:'relation'}))throw new ApiError(503,'NATIVE_FIELD_COLLABORATION_REQUIRED','Continue this command through native Field collaboration.'); const { write: db } = await holdingResources(a.holdingId); return exposed(() => application(db).createRecordRelation(a, raw, key)); }
+export async function removeRecordRelation(a: WorkContext, id: string, expectedVersion: number, why: string, key: string) { requirePermission(a,'records.write');if(!hasModuleAccess(a.modules,'collaboration'))throw new ApiError(403,'MODULE_FORBIDDEN','Collaboration is unavailable.');if(await nativeFieldCollaborationCommand(a,{entity:'relation',id}))throw new ApiError(503,'NATIVE_FIELD_COLLABORATION_REQUIRED','Continue this command through native Field collaboration.'); const { write: db } = await holdingResources(a.holdingId); return exposed(() => application(db).removeRecordRelation(a, id, expectedVersion, why, key)); }
+export async function createActionCard(a: WorkContext, raw: unknown, key: string) { requirePermission(a,'records.write');if(!hasModuleAccess(a.modules,'collaboration'))throw new ApiError(403,'MODULE_FORBIDDEN','Collaboration is unavailable.');if(await nativeFieldCollaborationCommand(a,raw))throw new ApiError(503,'NATIVE_FIELD_COLLABORATION_REQUIRED','Continue this command through native Field collaboration.'); const { write: db } = await holdingResources(a.holdingId); return exposed(() => application(db).createActionCard(a, raw, key)); }
+export async function changeActionCard(a: WorkContext, id: string, raw: unknown, key: string) { requirePermission(a,'records.write');if(!hasModuleAccess(a.modules,'collaboration'))throw new ApiError(403,'MODULE_FORBIDDEN','Collaboration is unavailable.');if(await nativeFieldCollaborationCommand(a,{id}))throw new ApiError(503,'NATIVE_FIELD_COLLABORATION_REQUIRED','Continue this command through native Field collaboration.'); const { write: db } = await holdingResources(a.holdingId); return exposed(() => application(db).changeActionCard(a, id, raw, key)); }
+export async function collaborationActionWork(a:WorkContext,nativeField?:()=>Promise<import('@erpx/feature-work_projection/lib/work-item').WorkItem[]>){
+ if(!hasModuleAccess(a.modules,'collaboration'))return [];
+ const field=hasModuleAccess(a.modules,'field_service');
+ if(field&&!nativeField)throw new ApiError(503,'NATIVE_FIELD_COLLABORATION_WORK_REQUIRED','The native Field Collaboration source must be connected.');
+ const {write:db}=await holdingResources(a.holdingId);
+ const [legacy,native]=await Promise.all([exposed(()=>application(db).collaborationActionWork(a)),field?nativeField!():Promise.resolve([])]);
+ return [...legacy,...native];
+}

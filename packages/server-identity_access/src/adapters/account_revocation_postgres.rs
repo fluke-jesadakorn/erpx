@@ -1,3 +1,4 @@
+use crate::domain::environment::valid_environment;
 use crate::{
     application::{
         account_ports::AccountFuture, account_revocation::AccountWorkContextInvalidation,
@@ -64,7 +65,7 @@ impl AccountWorkContextInvalidation for PostgresAccountWorkContextInvalidation {
             }
             // Never acknowledge a child whose owning Holding is absent/suspended.
             if children.iter().any(|child| {
-                child.environment != "development" || !seen.contains(&child.holding_id)
+                !valid_environment(&child.environment) || !seen.contains(&child.holding_id)
             }) {
                 return Err(reentry_required());
             }

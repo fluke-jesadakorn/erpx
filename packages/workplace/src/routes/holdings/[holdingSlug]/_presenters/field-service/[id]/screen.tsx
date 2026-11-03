@@ -9,7 +9,6 @@ import { RecordLink as Link } from "@erpx/feature-records/components/record-link
 import { requireWorkContext, publicScope } from "@erpx/server-identity_access/public/authorization";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { pageError } from "@erpx/server-work_projection/public/page-error";
-import { fieldServiceDetail } from "@erpx/server-field_service/public/field-service";
 import { FieldServiceConsole } from "@erpx/feature-records/components/loaders/modules--field-service-console";
 import { RecordDocumentPanel } from "@erpx/feature-records/components/loaders/attachments--record-document-panel";
 import { minorToDecimal } from "@erpx/feature-finance/lib/finance-money";
@@ -31,7 +30,7 @@ export default async function Page({
     assignmentId:a.assignmentId,assignmentVersion:a.authority.assignmentVersion,revision:a.authority.revision,
     role:a.role,assignmentScopeKind:a.assignmentScope,modules:[...a.modules],permissions:[...a.iam.permissions],
   }:undefined;
-  const data=await (async()=>await nativeServiceDetail(holdingSlug,id,context)??await fieldServiceDetail(a,id))().catch(e=>{
+  const data=await (async()=>await nativeServiceDetail(holdingSlug,id,context)??(()=>{throw new ApiError(503,"NATIVE_SERVICE_UNAVAILABLE","The native Service workspace is unavailable.");})())().catch(e=>{
     if(e instanceof NativeServiceWorkspaceError && [401,403,404,409].includes(e.status??0))return pageError(new ApiError(e.status!,e.code,'The Service order is unavailable.'),holdingSlug);
     if(e instanceof NativeServiceWorkspaceError)throw e;
     return pageError(e,holdingSlug);

@@ -1,2 +1,2 @@
 import 'server-only';
-export {nativeServiceWork,createNativeServiceWorkReader} from '../adapters/native-work';
+export {nativeServiceWork,createNativeServiceWorkReader,nativeFieldOperationsWork,nativeFieldCollaborationWork} from '../adapters/native-work';

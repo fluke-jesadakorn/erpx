@@ -669,6 +669,7 @@ version = "0.1.0"
 dependencies = [
  "erpx-server-runtime",
  "erpx-server-shared",
+ "serde",
  "serde_json",
  "sqlx",
  "tokio",
@@ -679,12 +680,19 @@ dependencies = [
 name = "erpx-server-collaboration"
 version = "0.1.0"
 dependencies = [
+ "base64 0.23.1",
  "erpx-server-runtime",
  "erpx-server-shared",
+ "reqwest",
+ "ring",
+ "rustls",
+ "serde",
  "serde_json",
  "sqlx",
  "tokio",
+ "url",
  "uuid",
+ "webpki-roots",
 ]
 
 [[package]]
@@ -703,17 +711,21 @@ dependencies = [
 name = "erpx-server-commercial"
 version = "0.1.0"
 dependencies = [
+ "base64 0.23.1",
  "erpx-server-runtime",
  "erpx-server-shared",
  "hex",
  "icu_collator",
  "icu_collator_data",
  "icu_locale",
+ "ring",
  "serde",
  "serde_json",
  "sha2 0.10.9",
  "sqlx",
  "tokio",
+ "ts-rs",
+ "utoipa",
  "uuid",
 ]
 
@@ -721,13 +733,16 @@ dependencies = [
 name = "erpx-server-field-service"
 version = "0.1.0"
 dependencies = [
+ "base64 0.23.1",
  "erpx-server-identity-access",
  "erpx-server-runtime",
  "erpx-server-shared",
  "erpx-server-workflow",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
  "sqlx",
+ "time",
  "tokio",
  "ts-rs",
  "utoipa",
@@ -833,6 +848,7 @@ dependencies = [
  "erpx-server-quality",
  "erpx-server-runtime",
  "erpx-server-shared",
+ "serde",
  "serde_json",
  "sha2 0.10.9",
  "sqlx",
@@ -895,6 +911,18 @@ dependencies = [
  "erpx-server-runtime",
  "erpx-server-shared",
  "sqlx",
+]
+
+[[package]]
+name = "erpx-server-operations"
+version = "0.1.0"
+dependencies = [
+ "erpx-server-runtime",
+ "erpx-server-shared",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tokio",
 ]
 
 [[package]]
@@ -966,6 +994,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "erpx-server-pos"
+version = "0.1.0"
+dependencies = [
+ "erpx-server-runtime",
+ "erpx-server-shared",
+ "serde_json",
+ "sqlx",
+]
+
+[[package]]
 name = "erpx-server-quality"
 version = "0.1.0"
 dependencies = [
@@ -1027,6 +1065,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "erpx-server-work-projection"
+version = "0.1.0"
+dependencies = [
+ "erpx-server-runtime",
+ "erpx-server-shared",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "ts-rs",
+ "utoipa",
+]
+
+[[package]]
 name = "erpx-server-workflow"
 version = "0.1.0"
 dependencies = [
@@ -1047,6 +1098,7 @@ name = "erpx-service"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "base64 0.23.1",
  "bytes",
  "erpx-server-assets",
  "erpx-server-collaboration",
@@ -1060,15 +1112,18 @@ dependencies = [
  "erpx-server-legal",
  "erpx-server-maintenance",
  "erpx-server-manage-erpx",
+ "erpx-server-operations",
  "erpx-server-organization",
  "erpx-server-people-payroll",
  "erpx-server-platform-administration",
  "erpx-server-pms",
+ "erpx-server-pos",
  "erpx-server-quality",
  "erpx-server-records",
  "erpx-server-runtime",
  "erpx-server-shared",
  "erpx-server-support",
+ "erpx-server-work-projection",
  "erpx-server-workflow",
  "hex",
  "ldap3_proto",
@@ -1086,6 +1141,7 @@ dependencies = [
  "tower",
  "tracing",
  "ts-rs",
+ "url",
  "utoipa",
  "uuid",
 ]

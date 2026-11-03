@@ -140,3 +140,36 @@ it('passes the exact generated Service journal identity and original post to the
  const server=createServer((req,res)=>{path=req.url!;key=String(req.headers['idempotency-key']);req.setEncoding('utf8');req.on('data',chunk=>body+=chunk);req.on('end',()=>{res.writeHead(200,{'content-type':'application/json'});res.end(JSON.stringify({data:{id,status:'posted',version:2}}));});});await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));const old=process.env.ERPX_NATIVE_FINANCE_JOURNAL_POST_CONFIG;
  try{const address=server.address();if(!address||typeof address==='string')throw Error('missing port');process.env.ERPX_NATIVE_FINANCE_JOURNAL_POST_CONFIG=JSON.stringify({...configuration,privateBaseUrl:`http://127.0.0.1:${address.port}`});const request=new Request('https://acme.example.test/api/v1/holdings/acme/finance/journals/journal-original%3Aparts/post',{method:'POST',headers:{host:'acme.example.test',cookie:'opaque','content-type':'application/json','idempotency-key':'original-key','x-erpx-context-company':'company'},body:' { "expectedVersion":1 } '});const response=await nativeJournalPost(request,'acme',id);expect(response?.status).toBe(200);expect(await response?.json()).toEqual({data:{id,status:'posted',version:2}});expect(path).toBe('/api/v1/holdings/acme/finance/journals/journal-original%3Aparts/post');expect(body).toBe(' { "expectedVersion":1 } ');expect(key).toBe('original-key');}finally{if(old===undefined)delete process.env.ERPX_NATIVE_FINANCE_JOURNAL_POST_CONFIG;else process.env.ERPX_NATIVE_FINANCE_JOURNAL_POST_CONFIG=old;await new Promise<void>((resolve,reject)=>server.close(error=>error?reject(error):resolve()));}
 });
+
+describe('native Field invoice writer dispatch',()=>{
+ it('uses a successful native source observation only; preserves body and closes errors without legacy fallback',async()=>{
+  const {createServer}=await import('node:http');const {nativeServiceInvoicePost}=await import('@erpx/feature-finance/public/server');
+  let runtime='rust',failure=false;const seen:{method?:string;path?:string;body:string;key?:string|string[]}[]=[];
+  const server=createServer((req,res)=>{let body='';req.setEncoding('utf8');req.on('data',v=>body+=v);req.on('end',()=>{seen.push({method:req.method,path:req.url,body,key:req.headers['idempotency-key']});res.writeHead(failure?503:200,{'content-type':'application/json'});res.end(JSON.stringify(failure?{error:{code:'SOURCE_UNAVAILABLE',message:'Unavailable.'}}:req.method==='GET'?{data:{id:'field-invoice-one',runtime}}:{data:{id:'field-invoice-one',status:'posted',journalId:'journal-exact-key'}}));});});
+  await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));const old=process.env.ERPX_NATIVE_FINANCE_SERVICE_INVOICE_POST_CONFIG;
+  const request=()=>new Request('https://acme.example.test/api/v1/holdings/acme/finance/invoices/field-invoice-one/post',{method:'POST',headers:{host:'acme.example.test',origin:'https://acme.example.test',cookie:'opaque','idempotency-key':'exact-key','x-erpx-context-company':'company','x-erpx-context-assignment':'grant','x-erpx-context-revision':'7','x-erpx-context-assignment-version':'3'},body:'{ "expectedVersion": 1 }'});
+  try{
+   delete process.env.ERPX_NATIVE_FINANCE_SERVICE_INVOICE_POST_CONFIG;expect((await nativeServiceInvoicePost(request(),'acme','field-invoice-one'))?.status).toBe(503);expect(seen).toHaveLength(0);
+   const address=server.address();if(!address||typeof address==='string')throw new Error('missing port');process.env.ERPX_NATIVE_FINANCE_SERVICE_INVOICE_POST_CONFIG=JSON.stringify({...configuration,privateBaseUrl:`http://127.0.0.1:${address.port}`});
+   expect((await nativeServiceInvoicePost(request(),'acme','field-invoice-one'))?.status).toBe(200);expect(seen.map(v=>v.method)).toEqual(['GET','POST']);expect(seen[1]).toMatchObject({path:'/api/v1/holdings/acme/finance/invoices/field-invoice-one/post',body:'{ "expectedVersion": 1 }',key:'exact-key'});
+   runtime='legacy';expect(await nativeServiceInvoicePost(request(),'acme','field-invoice-one')).toBeUndefined();expect(seen.map(v=>v.method)).toEqual(['GET','POST','GET']);
+   failure=true;expect((await nativeServiceInvoicePost(request(),'acme','field-invoice-one'))?.status).toBe(503);expect(seen).toHaveLength(4);
+   failure=false;runtime='unknown';expect((await nativeServiceInvoicePost(request(),'acme','field-invoice-one'))?.status).toBe(502);expect(seen).toHaveLength(5);
+  }finally{if(old===undefined)delete process.env.ERPX_NATIVE_FINANCE_SERVICE_INVOICE_POST_CONFIG;else process.env.ERPX_NATIVE_FINANCE_SERVICE_INVOICE_POST_CONFIG=old;await new Promise<void>((resolve,reject)=>server.close(e=>e?reject(e):resolve()));}
+ });
+});
+
+it('transports Field no-charge only to Rust and rejects unrelated acknowledgement fields',async()=>{
+ const {createServer}=await import('node:http');const {nativeServiceNoCharge}=await import('@erpx/feature-finance/public/server');
+ const seen:{method?:string;path?:string;body:string;key?:string|string[]}[]=[];let poisoned=false;
+ const server=createServer((req,res)=>{let body='';req.setEncoding('utf8');req.on('data',v=>body+=v);req.on('end',()=>{seen.push({method:req.method,path:req.url,body,key:req.headers['idempotency-key']});res.writeHead(200,{'content-type':'application/json'});res.end(JSON.stringify({data:poisoned?{id:'field-invoice-one',status:'paid',version:2,confirmationId:'service-no-charge-exact-key'}:{id:'field-invoice-one',status:'no_charge_confirmed',version:2,confirmationId:'service-no-charge-exact-key'}}));});});
+ await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));const old=process.env.ERPX_NATIVE_FINANCE_SERVICE_INVOICE_POST_CONFIG;
+ const body=JSON.stringify({expectedVersion:1,contextKey:'a'.repeat(64),reason:'Independent full warranty confirmation'});
+ const request=()=>new Request('https://acme.example.test/api/v1/holdings/acme/finance/invoices/field-invoice-one/confirm-no-charge',{method:'POST',headers:{host:'acme.example.test',origin:'https://acme.example.test','idempotency-key':'exact-key','x-erpx-context-company':'company'},body});
+ try{
+  delete process.env.ERPX_NATIVE_FINANCE_SERVICE_INVOICE_POST_CONFIG;expect((await nativeServiceNoCharge(request(),'acme','field-invoice-one')).status).toBe(503);expect(seen).toHaveLength(0);
+  const address=server.address();if(!address||typeof address==='string')throw Error('missing port');process.env.ERPX_NATIVE_FINANCE_SERVICE_INVOICE_POST_CONFIG=JSON.stringify({...configuration,privateBaseUrl:`http://127.0.0.1:${address.port}`});
+  expect((await nativeServiceNoCharge(request(),'acme','field-invoice-one')).status).toBe(200);expect(seen).toEqual([{method:'POST',path:'/api/v1/holdings/acme/finance/invoices/field-invoice-one/confirm-no-charge',body,key:'exact-key'}]);
+  poisoned=true;expect((await nativeServiceNoCharge(request(),'acme','field-invoice-one')).status).toBe(502);
+ }finally{if(old===undefined)delete process.env.ERPX_NATIVE_FINANCE_SERVICE_INVOICE_POST_CONFIG;else process.env.ERPX_NATIVE_FINANCE_SERVICE_INVOICE_POST_CONFIG=old;await new Promise<void>((resolve,reject)=>server.close(e=>e?reject(e):resolve()));}
+});

@@ -12,3 +12,11 @@ pub(crate) mod service_count_command_evidence;
 
 pub(crate) mod field_intake_command_evidence;
 pub(crate) mod service_count_outbox;
+
+pub(crate) mod work_role_audit;
+
+pub(crate) mod finance_receipt_decision;
+
+pub(crate) mod service_invoice_flow;
+
+pub(crate) mod field_journal_flow;

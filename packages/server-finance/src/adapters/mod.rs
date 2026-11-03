@@ -29,6 +29,7 @@ pub(crate) mod field_service_billing;
 pub(crate) mod field_service_invoice_read;
 
 pub(crate) mod field_service_workspace;
+pub(crate) mod field_work;
 
 pub(crate) mod field_service_detail;
 
@@ -39,3 +40,31 @@ pub(crate) mod stock_master_money;
 pub(crate) mod initial_count_finance;
 pub(crate) mod initial_count_posting;
 pub(crate) mod initial_count_readiness;
+
+pub(crate) mod service_customer_preparation;
+
+pub(crate) mod service_invoice_posting;
+
+pub(crate) mod service_invoice_post_wire;
+
+pub(crate) mod service_receipt_money;
+
+pub(crate) mod service_receipt;
+
+pub(crate) mod service_receipt_review;
+
+pub(crate) mod service_receipt_bank;
+
+pub(crate) mod customer_receipt;
+
+pub(crate) mod service_receipt_confirm;
+
+pub(crate) mod service_receipt_workspace;
+
+pub(crate) mod service_receipt_runtime;
+
+pub(crate) mod service_no_charge;
+
+pub mod field_journal_evidence;
+
+pub(crate) mod service_package_settlement;

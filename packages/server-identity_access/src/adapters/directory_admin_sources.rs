@@ -1,5 +1,6 @@
 //! Same original Control lease, exact-session MFA and route pins for source
 //! administration. Only the existing Work coordinator mints its IAM context.
+use crate::domain::environment::valid_environment;
 use super::{
     account_mfa_crypto::AccountMfaKeyring,
     account_mfa_postgres::{FreshMfaProof, require_fresh_mfa_in_transaction},
@@ -173,7 +174,7 @@ impl RetainedWorkControlSources for RetainedControl {
             self.route.require_current(c).await?;
             // Keep the original configured binding; a local route selector is
             // not an alternate registry or a database fallback.
-            if self.directory.environment != "development" {
+            if !valid_environment(&self.directory.environment) {
                 return Err(review_error("DIRECTORY_SOURCE_PLATFORM_UNAVAILABLE").into());
             }
             Ok(())

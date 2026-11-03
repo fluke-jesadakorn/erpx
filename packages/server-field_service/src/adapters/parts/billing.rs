@@ -72,14 +72,9 @@ impl CurrentFieldBilling {
             return Err(changed());
         }
         let dates:(String,String)=sqlx::query_as("SELECT to_char(to_timestamp($1::double precision/1000) AT TIME ZONE 'UTC','YYYY-MM-DD'),to_char(to_timestamp(($1::double precision+2592000000)/1000) AT TIME ZONE 'UTC','YYYY-MM-DD')").bind(at.get()).fetch_one(&mut *c).await?;
-        let discount = before.discount.clamp(0, 10000);
-        let applied = warranty_end.as_ref().is_some_and(|v| v >= &dates.0);
-        // Retained JS Number rounds the multiplication before Math.floor.
-        let amount = if applied {
-            ((before.rate as f64 * (10000 - discount) as f64) / 10000.0).floor() as i64
-        } else {
-            before.rate
-        };
+        let (amount, discount, applied) = crate::domain::visit::visit_billing_price(
+            before.rate, before.discount, warranty_end.as_deref(), &dates.0,
+        );
         let version = expected_version
             .checked_add(1)
             .filter(|v| *v <= 9_007_199_254_740_991)

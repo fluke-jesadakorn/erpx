@@ -290,3 +290,66 @@ fn source_kind_requires_its_own_scope_variant() {
         matches!(derive_parts_draft(&f, &config()), Err(e) if e.code == "PARTS_DRAFT_SCOPE_CHANGED")
     );
 }
+
+#[test]
+fn service_customer_preserves_original_defaults_strings_and_exact_credit_amounts() {
+    use erpx_server_finance::public::ServiceCustomerInput;
+    let wire = json!({"expectedVersion":0.0,"contextKey":"a".repeat(64),"input":{"kind":"customer","code":" C-01 ","name":" Original customer ","currency":"thb"}});
+    let parsed = ServiceCustomerInput::parse(&serde_json::to_vec(&wire).unwrap()).unwrap();
+    assert_eq!(parsed.input.code, " C-01 ");
+    assert_eq!(parsed.input.name, " Original customer ");
+    assert_eq!(parsed.input.currency, "THB");
+    assert_eq!(parsed.input.payment_terms_days, 30);
+    assert_eq!(parsed.input.credit_limit, "0");
+    assert_eq!(parsed.input.credit_minor().unwrap(), 0);
+    assert!(parsed.input.tax_registration.is_none());
+    let mut party = parsed.input;
+    for (amount, expected) in [
+        ("1.230000", 123),
+        ("-1.23", -123),
+        ("0.000000", 0),
+        ("90071992547409.91", 9_007_199_254_740_991),
+    ] {
+        party.credit_limit = amount.into();
+        assert_eq!(party.credit_minor().unwrap(), expected);
+    }
+    for amount in ["1.234", "90071992547409.92", "-90071992547409.92"] {
+        party.credit_limit = amount.into();
+        assert!(party.credit_minor().is_err());
+    }
+}
+#[test]
+fn service_customer_refuses_non_customer_unknown_null_and_invalid_wire_values() {
+    use erpx_server_finance::public::ServiceCustomerInput;
+    let base = json!({"expectedVersion":0,"contextKey":"a".repeat(64),"input":{"kind":"customer","code":"C01","name":"Customer","currency":"THB"}});
+    for (field, value) in [
+        ("kind", json!("supplier")),
+        ("taxRegistration", Value::Null),
+        ("paymentTermsDays", json!(366)),
+        ("paymentTermsDays", json!("30")),
+        ("creditLimit", json!(0)),
+        ("creditLimit", json!(" 0")),
+        ("creditLimit", json!("0.0000000")),
+        ("code", json!("😀".repeat(33))),
+        ("unexpected", json!(true)),
+    ] {
+        let mut input = base.clone();
+        input["input"][field] = value;
+        assert!(
+            ServiceCustomerInput::parse(&serde_json::to_vec(&input).unwrap()).is_err(),
+            "{field}"
+        );
+    }
+    for (field, value) in [
+        ("expectedVersion", json!(1)),
+        ("contextKey", json!("A".repeat(64))),
+        ("unexpected", json!(true)),
+    ] {
+        let mut input = base.clone();
+        input[field] = value;
+        assert!(
+            ServiceCustomerInput::parse(&serde_json::to_vec(&input).unwrap()).is_err(),
+            "{field}"
+        );
+    }
+}

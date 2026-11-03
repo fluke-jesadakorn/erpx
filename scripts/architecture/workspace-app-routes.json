@@ -815,7 +815,8 @@
         "src/app/login/page.tsx",
         "src/app/api/v1/account/switcher-context/route.ts",
         "src/app/api/v1/account/role-selection/route.ts",
-        "src/app/account/continue/route.ts"
+        "src/app/account/continue/route.ts",
+        "src/app/api/v1/holdings/[holdingSlug]/flows/[kind]/[id]/route.ts"
       ]
     },
     {

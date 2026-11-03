@@ -10,8 +10,13 @@ pub mod field_visit_link;
 pub mod count_evidence_policy;
 pub mod count_submission;
 pub mod field_visit_bind;
+pub mod record_version_receipts;
 
 
 pub mod field_visit_intake;
 
 pub mod field_visit_upload;
+
+pub mod field_outbox;
+
+pub mod payment_proof_binding;

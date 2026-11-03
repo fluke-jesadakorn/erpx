@@ -116,9 +116,20 @@ pub struct FinanceServiceInvoiceWorkspaceResponse {
     pub context: FinanceRenderedWorkContext,
     #[serde(rename = "sourceOnly")]
     pub source_only: bool,
+    #[serde(rename="purchaseControls")]
+    pub purchase_controls:std::collections::BTreeMap<String,crate::finance_presentation::FinancePurchaseAccess>,
+    #[serde(rename="sourcePurchase")]
+    #[cfg_attr(feature="contracts",ts(type="Record<string, unknown>"),schema(value_type=Object))]
+    pub source_purchase:serde_json::Value,
+    #[serde(rename="canPost")]
+    pub can_post:bool,
+    #[cfg_attr(feature="contracts",ts(type="Record<string, unknown>"),schema(value_type=Object))]
+    pub flow:serde_json::Value,
+    #[serde(rename="noCharge")]
+    pub no_charge:Option<erpx_server_finance::public::service_no_charge::ServiceNoChargeControls>,
 }
 #[derive(Clone)]
-struct ServiceInvoiceReadSources;
+pub(crate) struct ServiceInvoiceReadSources;
 impl HoldingWorkSourcePreparation for ServiceInvoiceReadSources {
     fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
         Box::pin(async move {
@@ -128,7 +139,10 @@ impl HoldingWorkSourcePreparation for ServiceInvoiceReadSources {
             .await?;
             lock_commercial_authority_sources(c).await?;
             erpx_server_workflow::public::record_origin::lock_record_origin_sources(c).await?;
-            erpx_server_field_service::public::finance_lineage::lock_field_service_invoice_finance_sources(c).await
+            erpx_server_field_service::public::finance_lineage::lock_field_service_invoice_finance_sources(c).await?;
+            erpx_server_people_payroll::public::journal_flow_people::lock_journal_flow_people_sources(c).await?;
+            erpx_server_organization::public::journal_flow_department::lock_journal_flow_department_sources(c).await?;
+            erpx_server_workflow::public::service_invoice_flow::lock_service_invoice_flow_sources(c).await
         })
     }
 }
@@ -141,17 +155,25 @@ enum ReadKind {
 struct ReadPreparation {
     kind: ReadKind,
     field_service_parts: bool,
+    field_service_invoices: bool,
 }
 impl HoldingWorkSourcePreparation for ReadPreparation {
     fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
         Box::pin(async move {
             lock_commercial_authority_sources(c).await?;
+            // Take Finance's retained writer/source gate before shared table
+            // reads so concurrent Field invoice posting cannot meet an upgrade.
+            if self.field_service_parts || self.field_service_invoices {
+                erpx_server_finance::public::journal_review::lock_journal_review_sources(c).await?;
+            }
+            if self.field_service_invoices {
+                crate::finance_service_invoice_history::lock_service_invoice_history_sources(c).await?;
+            }
             match self.kind {
                 ReadKind::Detail => lock_journal_detail_sources(c).await?,
                 ReadKind::Workspace => lock_journal_workspace_sources(c).await?,
             }
             if self.field_service_parts {
-                erpx_server_finance::public::journal_review::lock_journal_review_sources(c).await?;
                 erpx_server_inventory::public::field_service_consumption_finance::lock_consumption_finance_sources(c).await?;
                 erpx_server_field_service::public::finance_lineage::lock_field_service_parts_finance_sources(c).await?;
             }
@@ -170,17 +192,19 @@ enum ReadSource {
         Box<CurrentFieldServiceJournalWorkspace>,
         Box<crate::finance_field_service_lineage::FieldServicePartsSource>,
     ),
+    InvoiceDetail(Box<CurrentFieldServiceJournalDetail>,Box<crate::finance_service_invoice_history::CurrentServiceInvoiceHistory>),
+    InvoiceWorkspace(Box<CurrentFieldServiceJournalWorkspace>,Box<crate::finance_service_invoice_history::CurrentServiceInvoiceHistory>),
 }
 impl ReadSource {
     fn journal(&self) -> &FinanceLedgerRow {
         match self {
             Self::Detail(s) => &s.detail().journal,
             Self::Workspace(s) => &s.data().journal,
-            Self::FieldDetail(s, _) => &s.detail().journal,
-            Self::FieldWorkspace(s, _) => &s.data().journal,
+            Self::FieldDetail(s, _) | Self::InvoiceDetail(s, _) => &s.detail().journal,
+            Self::FieldWorkspace(s, _) | Self::InvoiceWorkspace(s, _) => &s.data().journal,
         }
     }
-    async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
+    async fn require_current<C:Clock>(&self, c: &mut PgConnection, ctx:&crate::field_service_source_record::SourceRecordContext<'_,C>) -> Result<(), Error> {
         match self {
             Self::Detail(s) => s.require_current(c).await,
             Self::Workspace(s) => s.require_current(c).await,
@@ -192,6 +216,8 @@ impl ReadSource {
                 s.require_current(c).await?;
                 lineage.require_current(c).await
             }
+            Self::InvoiceDetail(s,history)=>{s.require_current(c).await?;history.require_current(c,ctx).await}
+            Self::InvoiceWorkspace(s,history)=>{s.require_current(c).await?;history.require_current(c,ctx).await}
         }
     }
     fn response(
@@ -216,12 +242,12 @@ impl ReadSource {
                 names(&mut data.journal);
                 ReadResponse::Detail(FinanceJournalReadResponse { data, context })
             }
-            Self::FieldDetail(s, _) => {
+            Self::FieldDetail(s, _) | Self::InvoiceDetail(s, _) => {
                 let mut data = s.detail().clone();
                 names(&mut data.journal);
                 ReadResponse::Detail(FinanceJournalReadResponse { data, context })
             }
-            Self::FieldWorkspace(s, _) => {
+            Self::FieldWorkspace(s, _) | Self::InvoiceWorkspace(s, _) => {
                 let mut data = s.data().clone();
                 names(&mut data.journal);
                 ReadResponse::Workspace(FinanceJournalWorkspaceReadResponse { data, context })
@@ -240,7 +266,7 @@ enum ReadResponse {
     Detail(FinanceJournalReadResponse),
     Workspace(FinanceJournalWorkspaceReadResponse),
 }
-fn rendered(current: &AuthorizedWorkContext) -> Result<FinanceRenderedWorkContext, BusinessError> {
+pub(crate) fn rendered(current: &AuthorizedWorkContext) -> Result<FinanceRenderedWorkContext, BusinessError> {
     let selection = current.selection();
     let workspace = selection.workspace();
     let grant = selection.assignment();
@@ -281,6 +307,9 @@ impl std::io::Write for ReplyBudget {
         Ok(())
     }
 }
+pub(crate) fn admit_finance_transport_response(reply:&impl Serialize)->Result<(),BusinessError>{
+    serde_json::to_writer(ReplyBudget(0),reply).map_err(|_|BusinessError::new(FailureKind::Unavailable,"FINANCE_RESPONSE_LIMIT","The Finance response exceeds this bounded read."))
+}
 fn admit_reply(reply: &ReadResponse) -> Result<(), BusinessError> {
     serde_json::to_writer(ReplyBudget(0), reply).map_err(|_| {
         BusinessError::new(
@@ -302,7 +331,42 @@ pub struct FinanceJournalDetailService<C> {
     configuration: FinanceJournalReadConfiguration,
     clock: Arc<C>,
 }
+#[cfg(feature = "finance-field-write")]
+#[derive(Serialize)]
+#[serde(rename_all="camelCase")]
+#[cfg_attr(feature="contracts",derive(ts_rs::TS,utoipa::ToSchema))]
+pub struct FinanceFieldWorkResponse {
+    #[cfg_attr(feature="contracts",ts(type="Array<Record<string, unknown>>"),schema(value_type=Vec<Object>))]
+    pub data: Vec<serde_json::Value>,
+    pub context: FinanceRenderedWorkContext,
+}
+#[cfg(feature = "finance-field-write")]
+#[derive(Clone)]
+struct FieldFinanceWorkSources;
+#[cfg(feature = "finance-field-write")]
+impl HoldingWorkSourcePreparation for FieldFinanceWorkSources {
+    fn prepare<'c>(&'c self,c:&'c mut PgConnection)->PgWorkFuture<'c,(),BusinessError>{Box::pin(async move{
+        ServiceInvoiceReadSources.prepare(c).await?;
+        ReadPreparation{kind:ReadKind::Workspace,field_service_parts:true,field_service_invoices:true}.prepare(c).await?;
+        erpx_server_workflow::public::field_journal_flow::lock_field_journal_flow_sources(c).await
+    })}
+}
 impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
+    #[cfg(feature = "finance-field-write")]
+    pub async fn read_field_work<Input>(&self,host:&str,proof:DeviceProof,input:Input)->Result<FinanceFieldWorkResponse,Error>
+    where Input:FnOnce()->Result<HoldingWorkspaceRequest,BusinessError>+Send+'static {
+        if !self.configuration.field_service_parts||!self.configuration.field_service_invoices{return Err(scope().into());}
+        let config=self.configuration.clone();let clock=self.clock.clone();let company=config.company.clone();
+        self.authorizer.execute_with_sources_deferred(host,proof,move||{let mut s=input()?;if s.company_id!=company{return Err(scope());}s.mutation=false;Ok(s)},WorkAuthorizationRequest{permission:"finance.read".into(),module:Some("finance".into()),destination:"finance/work".into(),api:true},FieldFinanceWorkSources,move|c,current|{
+            let(config,clock)=(config.clone(),clock.clone());Box::pin(async move{
+                if current.holding_id()!=&config.holding||current.selection().workspace().company_id!=config.company{return Err(scope().into());}
+                let source_config=crate::finance_journal_create::FinanceJournalCreateConfiguration{holding:config.holding,company:config.company,catalogue:config.purchases};
+                let data=crate::finance_field_work::read(c,current,&source_config,clock.as_ref()).await?;
+                erpx_server_identity_access::public::selected_command_authority::require_selected_actor_current(c,current,clock.now().get()).await?;
+                let reply=FinanceFieldWorkResponse{data,context:rendered(current)?};admit_finance_transport_response(&reply)?;Ok(reply)
+            })
+        }).await
+    }
     pub fn new(
         authorizer: Arc<HoldingWorkAuthorizer>,
         configuration: FinanceJournalReadConfiguration,
@@ -323,6 +387,7 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
         proof: DeviceProof,
         input: Input,
         id: String,
+        payment_evidence: bool,
     ) -> Result<FinanceServiceInvoiceWorkspaceResponse, Error>
     where
         Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
@@ -345,19 +410,27 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
             let config=config.clone();let clock=clock.clone();let id=id.clone();Box::pin(async move {
                 if current.holding_id()!=&config.holding || current.selection().workspace().company_id!=config.company{return Err(scope().into())}
                 current.require_permission("finance.read")?;current.require_permission("module.finance.read")?;
-                let actor=FinanceActor{holding_id:config.holding.clone(),company_id:config.company.clone(),user_id:current.user_id().clone(),assignment_id:current.selection().assignment().id.clone()};
-                let finance=erpx_server_finance::public::field_service_invoice_read::read_service_invoice_workspace(c,&actor,&id).await?;
-                let src=&finance.data().source;
-                let lineage=erpx_server_field_service::public::finance_lineage::read_field_service_invoice_finance_lineage(c,erpx_server_field_service::public::finance_lineage::FieldServiceInvoiceFinanceRequest{company_id:config.company.clone(),order_id:src.order_id.clone(),release_id:src.release_id.clone(),key:src.command_key.clone(),actor_id:src.actor_id.clone(),currency:src.currency.clone(),amount_units:src.amount_units.clone(),customer_id:finance.data().invoice.get("party_id").and_then(|v|v.as_str()).ok_or_else(scope)?.into(),pricing_date:finance.data().invoice.get("invoice_date").and_then(|v|v.as_str()).ok_or_else(scope)?.into()}).await?.ok_or_else(scope)?;
-                let mut reader=PgCompanyPurchaseReader::new(config.holding.clone(),config.company.clone(),c,&config.purchases);
-                let req=|cap:&str|PurchaseRequest{capabilities:vec![cap.into()],purpose:CapabilityPurpose::History,mode:PackageEnforcementMode::Enforced};
-                let base=reader.inspect(&req("finance.accounting"),clock.now()).await?;
-                let source_only=base.require_allowed().is_err();let base_witness=base.witness.clone();let selected=if !source_only {base}else{reader.inspect(&req("finance.service-invoice"),clock.now()).await?};selected.require_allowed()?;
-                let reply=FinanceServiceInvoiceWorkspaceResponse{data:finance.data().clone(),context:rendered(current)?,source_only};
+                let source_context=crate::field_service_source_record::SourceRecordContext{actor:current,holding:&config.holding,company:&config.company,catalogue:&config.purchases,clock:clock.as_ref()};
+                let source=crate::finance_service_invoice_history::read_service_invoice_history(c,&source_context,&id).await?;
+                if payment_evidence {
+                    source.require_current(c,&source_context).await?;
+                    source.require_payment_evidence()?;
+                    return Err(BusinessError::new(FailureKind::Unavailable,"NATIVE_SUPPLIER_BILL_EVIDENCE_UNAVAILABLE","Supplier bill evidence is outside the Field invoice scope.").into());
+                }
+                let source_only=source.source_only;
+                let presentation=crate::finance_presentation::read_finance_presentation(c,&config.holding,&config.company,&config.purchases,clock.as_ref()).await?;
+                let mut data=source.data().clone();
+                // Retained Sales receipt-list scope: Field receipts are Company
+                // history; a narrowed Sales branch does not disclose this list.
+                if current.selection().workspace().branch_id.is_some()||current.selection().workspace().department_id.is_some(){data.customer_receipts.clear();}
+                let flow_record=serde_json::to_value(&data.invoice).map_err(|_|scope())?;
+                let flow=crate::finance_service_invoice_flow::read_service_invoice_flow(c,current,&flow_record,presentation.can_post_invoice(),clock.as_ref()).await?;
+                let no_charge=crate::finance_service_no_charge_read::controls(c,current,&id,presentation.service_purchase()["settleExisting"]==true,clock.as_ref()).await?;
+                let reply=FinanceServiceInvoiceWorkspaceResponse{no_charge,data,context:rendered(current)?,source_only,purchase_controls:presentation.values().clone(),source_purchase:presentation.service_purchase(),can_post:presentation.can_post_invoice(),flow:flow.view.clone()};
                 serde_json::to_writer(ReplyBudget(0),&reply).map_err(|_|BusinessError::new(FailureKind::Unavailable,"FINANCE_INVOICE_READ_LIMIT","The invoice workspace exceeds this bounded read."))?;
-                finance.require_current(c).await?;lineage.require_current(c).await?;
-                let base_current=PgCompanyPurchaseReader::new(config.holding.clone(),config.company.clone(),c,&config.purchases).revalidate(&base_witness,clock.now()).await?;if base_current.require_allowed().is_err()!=source_only{return Err(scope().into())}
-                PgCompanyPurchaseReader::new(config.holding.clone(),config.company.clone(),c,&config.purchases).revalidate(&selected.witness,clock.now()).await?.require_allowed()?;
+                source.require_current(c,&source_context).await?;
+                flow.require_current(c,current,&flow_record,presentation.can_post_invoice(),clock.as_ref()).await?;
+                presentation.require_current(c,&config.holding,&config.company,&config.purchases,clock.as_ref()).await?;
                 if clock.now().get()>=current.expires_at(){return Err(scope().into())}Ok(reply)
             })
         }).await
@@ -423,6 +496,7 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
         let preparation = ReadPreparation {
             kind,
             field_service_parts: configuration.field_service_parts,
+            field_service_invoices: configuration.field_service_invoices,
         };
         self.authorizer
             .execute_with_sources_deferred(
@@ -463,7 +537,6 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
                             clock.now(),
                         )
                         .await?;
-                        inspection.require_allowed()?;
                         let purchase = inspection.witness;
                         let actor = FinanceActor {
                             holding_id: current.holding_id().clone(),
@@ -471,12 +544,44 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
                             user_id: current.user_id().clone(),
                             assignment_id: current.selection().assignment().id.clone(),
                         };
+                        let source_context=crate::field_service_source_record::SourceRecordContext{actor:current,holding:&configuration.holding,company:&configuration.company,catalogue:&configuration.purchases,clock:clock.as_ref()};
+                        // A client label cannot choose this admission. Finance
+                        // proves the exact invoice/book edge, then the existing
+                        // same-unit Field history port proves lineage/purchase.
+                        let invoice_source=if configuration.field_service_invoices {
+                            match kind {
+                                ReadKind::Detail=>match read_field_service_invoice_journal_detail(c,&actor,&id).await?{
+                                    Some((invoice,detail))=>Some(ReadSource::InvoiceDetail(Box::new(detail),Box::new(crate::finance_service_invoice_history::read_service_invoice_history(c,&source_context,&invoice).await?))),None=>None,
+                                },
+                                ReadKind::Workspace=>match read_field_service_invoice_journal_workspace(c,&actor,&id).await?{
+                                    Some((invoice,workspace))=>Some(ReadSource::InvoiceWorkspace(Box::new(workspace),Box::new(crate::finance_service_invoice_history::read_service_invoice_history(c,&source_context,&invoice).await?))),None=>None,
+                                },
+                            }
+                        }else{None};
+                        let invoice_admission=invoice_source.is_some();
+                        let base_access=PgCompanyPurchaseReader::new(configuration.holding.clone(),configuration.company.clone(),c,&configuration.purchases).revalidate(&purchase,clock.now()).await?;
                         let target = if configuration.field_service_parts {
                             use erpx_server_finance::public::journal_review::{inspect_field_service_parts_journal_target, JournalReviewCommand, JournalReviewInput};
                             let command = JournalReviewCommand { key: erpx_server_shared::public::CommandKey::new("read-only-source")?, journal_id: id.clone(), input: JournalReviewInput::Post { expected_version: 1 } };
-                            inspect_field_service_parts_journal_target(c, &actor, &command).await?
+                            match inspect_field_service_parts_journal_target(c, &actor, &command).await {
+                                Ok(target)=>target,
+                                Err(error)=>{
+                                    // A source label alone cannot expose owner facts to
+                                    // an actor who lacks the ordinary Finance purchase.
+                                    if matches!(&error,PgTransactionError::Business(e) if e.code=="FINANCE_JOURNAL_SOURCE_UNSUPPORTED") {base_access.require_allowed()?;}
+                                    return Err(error);
+                                }
+                            }
                         } else { None };
-                        let source = if let Some(target) = target {
+                        // The existing target is only a Finance fact. Actual
+                        // Inventory/Field/receipt lineage is retained below
+                        // before any payload can leave this authorized unit.
+                        let parts_purchase=if !invoice_admission && target.is_some() && base_access.require_allowed().is_err() {
+                            let included=PgCompanyPurchaseReader::new(configuration.holding.clone(),configuration.company.clone(),c,&configuration.purchases).inspect(&PurchaseRequest{capabilities:vec!["finance.service-invoice".into(),"service.parts-assets".into()],purpose:CapabilityPurpose::History,mode:PackageEnforcementMode::Enforced},clock.now()).await?;
+                            included.require_allowed()?;Some(included.witness)
+                        }else{None};
+                        if !invoice_admission && parts_purchase.is_none(){base_access.require_allowed()?;}
+                        let source = if let Some(source)=invoice_source {source} else if let Some(target) = target {
                             match kind {
                                 ReadKind::Detail => {
                                     let detail = read_field_service_journal_detail(c, &actor, &id, &target).await?;
@@ -519,17 +624,18 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
                             },
                         );
                         admit_reply(&response)?;
-                        source.require_current(c).await?;
+                        source.require_current(c,&source_context).await?;
                         names.require_current(c).await?;
-                        PgCompanyPurchaseReader::new(
-                            configuration.holding.clone(),
-                            configuration.company.clone(),
-                            c,
-                            &configuration.purchases,
-                        )
-                        .revalidate(&purchase, TimestampMillis::new(clock.now().get()))
-                        .await?
-                        .require_allowed()?;
+                        let base=PgCompanyPurchaseReader::new(
+                            configuration.holding.clone(),configuration.company.clone(),c,&configuration.purchases,
+                        ).revalidate(&purchase, TimestampMillis::new(clock.now().get())).await?;
+                        if !invoice_admission && parts_purchase.is_none(){base.require_allowed()?;}
+                        if let Some(witness)=parts_purchase {
+                            PgCompanyPurchaseReader::new(configuration.holding.clone(),configuration.company.clone(),c,&configuration.purchases).revalidate(&witness,clock.now()).await?.require_allowed()?;
+                        }
+                        // Invoice history above also retains denied-base versus
+                        // included-Service status and its selected witness.
+
                         if clock.now().get() >= current.expires_at() {
                             return Err(scope().into());
                         }

@@ -65,7 +65,7 @@ pub fn digest(value: &impl Serialize) -> Result<String, BusinessError> {
 pub fn family_handle(actor: &Actor, parent: &str) -> Result<String, BusinessError> {
     digest(&("account-family", &actor.user_id, &actor.session_id, parent))
 }
-pub fn seed(image: &Image, actor: &Actor, now: i64) -> Result<SecuritySeed, BusinessError> {
+pub fn seed(image: &Image, actor: &Actor, now: i64, environment: &str) -> Result<SecuritySeed, BusinessError> {
     let own = image
         .sessions
         .iter()
@@ -78,7 +78,7 @@ pub fn seed(image: &Image, actor: &Actor, now: i64) -> Result<SecuritySeed, Busi
         };
         if binding.parent_session_id.is_some()
             || binding.audience != "account"
-            || binding.environment != "development"
+            || binding.environment != environment
             || binding.authenticated_at > now
             || binding.absolute_expires_at <= now
             || binding.absolute_expires_at > binding.authenticated_at.saturating_add(43_200_000)
@@ -91,7 +91,7 @@ pub fn seed(image: &Image, actor: &Actor, now: i64) -> Result<SecuritySeed, Busi
             .iter()
             .filter(|b| {
                 b.parent_session_id.as_deref() == Some(row.id.as_str())
-                    && b.environment == "development"
+                    && b.environment == environment
                     && own.iter().any(|s| s.id == b.session_id)
             })
             .map(|b| b.audience.clone())

@@ -1,8 +1,7 @@
 import {headers} from 'next/headers';
-import {requiredNativePartsEntry,NativePartsSetupError} from '@erpx/feature-field_service/public/native-parts-setup';
+import {requiredNativePartsEntry,requiredNativeServiceCustomerPreparation,NativePartsSetupError} from '@erpx/feature-field_service/public/native-parts-setup';
 import {nativeServiceWorkspace,NativeServiceWorkspaceError} from '@erpx/feature-field_service/public/native-workspace';
 import {ApiError} from '@erpx/server-runtime/public/http';
-import {serviceCustomerPreparation} from '@erpx/server-finance/public/service-customer-preparation';
 import {ServiceCustomerPreparation} from '@erpx/feature-field_service/components/customer-preparation';
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import {ServicePartsEntryLink} from "@erpx/feature-field_service/components/parts-entry-link";
@@ -11,7 +10,6 @@ import { RecordLink as Link } from "@erpx/feature-records/components/record-link
 import { requireWorkContext, publicScope } from "@erpx/server-identity_access/public/authorization";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { pageError } from "@erpx/server-work_projection/public/page-error";
-import { fieldServiceWorkspace } from "@erpx/server-field_service/public/field-service";
 import { FieldServiceConsole } from "@erpx/feature-field_service/components/field-service-console";
 import { PageContent, Card } from "@erpx/ui/components/foundation";
 export const dynamic = "force-dynamic";
@@ -29,18 +27,20 @@ export default async function Page({
     assignmentId:a.assignmentId,assignmentVersion:a.authority.assignmentVersion,revision:a.authority.revision,
     role:a.role,assignmentScopeKind:a.assignmentScope,modules:[...a.modules],permissions:[...a.iam.permissions],
   }:undefined;
-  const data=await (async()=>await nativeServiceWorkspace(holdingSlug,context)??await fieldServiceWorkspace(a))().catch(e=>{
+  const data=await (async()=>await nativeServiceWorkspace(holdingSlug,context)??(()=>{throw new ApiError(503,"NATIVE_SERVICE_UNAVAILABLE","The native Service workspace is unavailable.");})())().catch(e=>{
     if(e instanceof NativeServiceWorkspaceError && [401,403,404,409].includes(e.status??0))return pageError(new ApiError(e.status!,e.code,'The Service workspace is unavailable.'),holdingSlug);
     if(e instanceof NativeServiceWorkspaceError)throw e;
     return pageError(e,holdingSlug);
   });
   const stockRole=!a.beta&&!a.departmentId&&hasPermission(a,"inventory.read")&&hasPermission(a,"inventory.prepare"),financeRole=!a.beta&&a.scope.kind==="holding"&&!a.branchId&&!a.departmentId&&hasPermission(a,"finance.read")&&["finance.write","finance.approve"].some(permission=>hasPermission(a,permission));
   const partsSetupAvailable=stockRole||financeRole?await requiredNativePartsEntry(await headers(),holdingSlug,context,stockRole?'stock':'finance').catch(e=>pageError(e instanceof NativePartsSetupError?new ApiError(e.status,e.code,'Service parts preparation is unavailable.'):e,holdingSlug)):false;
-  const customers=await serviceCustomerPreparation(a).catch(e=>pageError(e,holdingSlug));
+  const customers=await requiredNativeServiceCustomerPreparation(await headers(),holdingSlug,context).catch(e=>pageError(e instanceof NativePartsSetupError?new ApiError(e.status,e.code,'Customer preparation is unavailable.'):e,holdingSlug));
   return (
     <PageContent as="div" className="ui-page-content">
       <Link href={canonicalUiHref(`${base}/work`)}>Work</Link>
       <h1>Field service</h1>
+      {a.modules.includes("collaboration")&&<Link href={canonicalUiHref(`${base}/field-service/collaboration`)}>Field collaboration</Link>}
+      {a.modules.includes("operations")&&<Link href={canonicalUiHref(`${base}/field-service/operations`)}>Field operational exceptions</Link>}
       <p>
         Route customer cases through agreements, dispatch, parts, visit evidence
         and independent billing release.

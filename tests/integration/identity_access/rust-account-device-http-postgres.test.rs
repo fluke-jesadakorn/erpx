@@ -282,3 +282,29 @@ async fn partial_holding_failure_never_returns_success_data_or_new_auth_cookies(
  sqlx::query("ALTER TABLE fixture_unavailable_contexts RENAME TO active_work_contexts").execute(system.holdings[1].raw()).await.unwrap();
 }).await;
 }
+
+#[tokio::test]
+async fn full_saved_cookie_slots_reauthenticate_and_recover_after_removal_or_expired_parent() {
+    fixture::with_system(|system|async move{
+  for n in 0..5{
+   let id=format!("fixture-extra-{n}");let email=format!("extra-{n}@example.test");
+   sqlx::query("INSERT INTO \"user\"(id,name,email,\"emailVerified\",\"createdAt\",\"updatedAt\") SELECT $1,$1,$2,1,\"createdAt\",\"updatedAt\" FROM \"user\" WHERE id='fixture-a'").bind(&id).bind(&email).execute(system.control.raw()).await.unwrap();
+   sqlx::query("INSERT INTO account(id,\"accountId\",\"providerId\",issuer,\"userId\",password,\"createdAt\",\"updatedAt\") SELECT $1,$1,'credential','local:credential',$1,password,\"createdAt\",\"updatedAt\" FROM account WHERE \"userId\"='fixture-a' AND \"providerId\"='credential'").bind(&id).execute(system.control.raw()).await.unwrap();
+  }
+  let router=account_auth_router(system.scenario.auth.clone());let mut jar=Jar::default();
+  let mut state=sign_in(&router,&mut jar,"a@example.test",None,ACCOUNT).await;
+  for email in ["b@example.test","extra-0@example.test","extra-1@example.test","extra-2@example.test"]{state=sign_in(&router,&mut jar,email,state["revision"].as_i64(),ACME).await;}
+  assert_eq!(state["accounts"].as_array().unwrap().len(),5);let full=state.clone();let cookies=jar.0.clone();
+  let(status,_,_)=send(&router,&mut jar,"POST",&format!("{DEVICE}/sign-in"),Some(ACME),Some(json!({"email":"extra-3@example.test","password":fixture::fixture::PASSWORD,"revision":state["revision"]}))).await;assert_eq!(status,StatusCode::CONFLICT);
+  let(status,body,_)=send(&router,&mut jar,"GET",DEVICE,Some(ACME),None).await;assert_eq!(status,StatusCode::OK);assert_eq!(body["data"],full);assert_eq!(jar.0,cookies);assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM session WHERE \"userId\"='fixture-extra-3'").fetch_one(system.control.raw()).await.unwrap(),0);
+  state=sign_in(&router,&mut jar,"a@example.test",state["revision"].as_i64(),ACCOUNT).await;assert_eq!(state["accounts"].as_array().unwrap().len(),5);
+  let b=state["accounts"].as_array().unwrap().iter().find(|a|a["email"]=="b@example.test").unwrap()["handle"].clone();
+  let(status,body,_)=send(&router,&mut jar,"DELETE",DEVICE,Some(ACME),Some(json!({"handle":b,"revision":state["revision"]}))).await;assert_eq!(status,StatusCode::OK);state=body["data"].clone();assert_eq!(jar.0.keys().filter(|k|k.starts_with(SAVED)).count(),4);
+  state=sign_in(&router,&mut jar,"extra-3@example.test",state["revision"].as_i64(),ACME).await;
+  sqlx::query("UPDATE session SET \"expiresAt\"=$1 WHERE \"userId\"='fixture-extra-0'").bind("2000-01-01T00:00:00.000Z").execute(system.control.raw()).await.unwrap();
+  state=sign_in(&router,&mut jar,"extra-4@example.test",state["revision"].as_i64(),ACCOUNT).await;assert_eq!(state["accounts"].as_array().unwrap().len(),5);assert_eq!(jar.0.keys().filter(|k|k.starts_with(SAVED)).count(),5);
+  for email in ["extra-3@example.test","extra-4@example.test"]{
+   let handle=state["accounts"].as_array().unwrap().iter().find(|a|a["email"]==email).unwrap()["handle"].clone();let(status,body,_)=send(&router,&mut jar,"POST",&format!("{DEVICE}/active"),Some(ACME),Some(json!({"handle":handle,"revision":state["revision"]}))).await;assert_eq!(status,StatusCode::OK);state=body["data"].clone();assert_eq!(state["accounts"].as_array().unwrap().iter().find(|a|a["current"]==true).unwrap()["email"],email);
+  }
+ }).await;
+}

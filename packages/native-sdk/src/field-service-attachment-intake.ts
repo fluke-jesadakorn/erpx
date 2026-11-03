@@ -1,15 +1,15 @@
 import 'server-only';
+import {allowedPrivateLoopbackPort} from '@erpx/contracts/private-loopback';
 import {Agent,request} from 'node:http';
 import {Readable} from 'node:stream';
 import type {FieldIntakeCreateResponse,FieldIntakeListResponse,FieldIntakeErrorResponse} from '@erpx/contracts/field-service-attachment-intake';
 
 /** This private transport forwards the caller's raw body and authorization headers. */
-export type NativeFieldIntakeRequest={baseUrl:string;slug:string;route:{kind:'list';query?:string}|{kind:'create'};headers:Headers;timeoutMs:number;body?:string};
+export type NativeFieldIntakeRequest={baseUrl:string;slug:string;route:{kind:'list';query?:string}|{kind:'create'};headers:Headers;timeoutMs:number;body?:string;production?:boolean};
 export type NativeFieldIntakeRawReply={status:number;body:unknown};
 export type NativeFieldIntakeReply={status:number;body:FieldIntakeListResponse|FieldIntakeCreateResponse|FieldIntakeErrorResponse};
 export type NativeFieldIntakeTransportInput=NativeFieldIntakeRequest&{method:'GET'|'POST';suffix:string};
 export type NativeFieldIntakeTransport=(input:NativeFieldIntakeTransportInput)=>Promise<NativeFieldIntakeRawReply>;
-const reserved=new Set([3000,3001,3100,3101,3103,5432,5433,5435,8080]);
 const invalid=()=>Error('NATIVE_FIELD_INTAKE_RESPONSE_INVALID');
 function object(v:unknown):v is Record<string,unknown>{return v!==null&&typeof v==='object'&&!Array.isArray(v);}
 function string(v:unknown):v is string{return typeof v==='string';}
@@ -37,7 +37,7 @@ export async function nativeFieldIntakeRequest(input:NativeFieldIntakeRequest,tr
 async function nodeTransport(input:NativeFieldIntakeTransportInput):Promise<NativeFieldIntakeRawReply>{
  let origin:URL;try{origin=new URL(input.baseUrl);}catch{throw Error('NATIVE_FIELD_INTAKE_CONFIGURATION_INVALID');}
  const port=Number(origin.port);
- if(origin.protocol!=='http:'||!['127.0.0.1','[::1]'].includes(origin.hostname)||!origin.port||reserved.has(port)||port>=3200&&port<=3299||origin.username||origin.password||origin.origin!==input.baseUrl||!Number.isSafeInteger(input.timeoutMs)||input.timeoutMs<250||input.timeoutMs>30000||!/^[a-z0-9_-]{1,128}$/.test(input.slug))throw Error('NATIVE_FIELD_INTAKE_CONFIGURATION_INVALID');
+ if(origin.protocol!=='http:'||!['127.0.0.1','[::1]'].includes(origin.hostname)||!origin.port||!allowedPrivateLoopbackPort(port,input.production===true)||origin.username||origin.password||origin.origin!==input.baseUrl||!Number.isSafeInteger(input.timeoutMs)||input.timeoutMs<250||input.timeoutMs>30000||!/^[a-z0-9_-]{1,128}$/.test(input.slug))throw Error('NATIVE_FIELD_INTAKE_CONFIGURATION_INVALID');
  if(input.method==='GET'&&(input.body!==undefined)||input.body!==undefined&&new TextEncoder().encode(input.body).length>2*1024*1024)throw Error('NATIVE_FIELD_INTAKE_REQUEST_INVALID');
  const url=new URL(`/api/v1/holdings/${encodeURIComponent(input.slug)}/field-service/attachment-sets${input.suffix}`,origin),controller=new AbortController(),timer=setTimeout(()=>controller.abort(),input.timeoutMs);
  try{

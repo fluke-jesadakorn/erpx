@@ -1,17 +1,11 @@
-import { nativeReservePost, nativeReserveReadback, nativeIssueReadback, nativeRequestReadback, nativeOrderCreateReadback, nativeVisitReadback, nativeBillingReadback, nativeAgreementReviewReadback, isBillingOrderCommand, isAgreementCreateCommand, isAgreementReviewCommand, isCancelOrderCommand, isVisitRecoveryCommand, isVisitCompletionCommand, isVisitOrderCommand, isOrderCreateCommand, isReserveOrderCommand, isIssueOrderCommand, isRequestCommand } from "./native-reserve";
+import { nativeReservePost, nativeReserveReadback, nativeIssueReadback, nativeRequestReadback, nativeOrderCreateReadback, nativeVisitReadback, nativeBillingReadback, nativeAgreementReviewReadback } from "./native-reserve";
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import { requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
 import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
-import {
-  changeAgreement,
-  changeServiceOrder,
-  createAgreement,
-  createServiceOrder,
-  createServiceRequest,
-  fieldServiceDetail,
-  fieldServiceWorkspace,
-} from "@erpx/server-field_service/public/field-service";
+import {nativeServiceWorkspace,nativeServiceDetail,NativeServiceWorkspaceError} from '@erpx/feature-field_service/public/native-workspace';
+import {partsSetupContext} from '../../../../../../lib/parts-setup-context';
+
 type C = { params: Promise<{ holdingSlug: string }> };
 const headers = { "Cache-Control": "private, no-store" };
 export async function GET(r: Request, c: C) {
@@ -94,17 +88,12 @@ export async function GET(r: Request, c: C) {
       if(native)return native;
       throw new ApiError(404,"NOT_FOUND","Service order not found.");
     }
-    const a = await requireWorkContext(slug), id = query.get("id");
-    return Response.json(
-      canonicalDestinationLinks({
-        data: id
-          ? await fieldServiceDetail(a, id)
-          : await fieldServiceWorkspace(a),
-      }),
-      { headers },
-    );
+    const actor=await requireWorkContext(slug),id=query.get("id"),context=partsSetupContext(actor);
+    const data=id?await nativeServiceDetail(slug,id,context):await nativeServiceWorkspace(slug,context);
+    if(data===undefined)throw new ApiError(503,"NATIVE_SERVICE_UNAVAILABLE","The native Service workspace is unavailable.");
+    return Response.json(canonicalDestinationLinks({data}),{headers});
   } catch (e) {
-    return errorResponse(e);
+    return errorResponse(e instanceof NativeServiceWorkspaceError?new ApiError(e.status??503,e.code,"The native Service workspace is unavailable."):e);
   }
 }
 export async function POST(r: Request, c: C) {
@@ -126,26 +115,13 @@ export async function POST(r: Request, c: C) {
         "Idempotency-Key is required.",
       );
     const holdingSlug=(await c.params).holdingSlug;
-    const a = await requireWorkContext(holdingSlug);
-    const original=process.env.ERPX_NATIVE_FIELD_SERVICE_RESERVE_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_ISSUE_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_REQUEST_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_ORDER_CREATE_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_VISIT_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_VISIT_COMPLETION_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_VISIT_RECOVERY_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_CANCEL_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_AGREEMENT_REVIEW_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_AGREEMENT_CREATE_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_BILLING_CONFIG === undefined ? undefined : r.clone();
-    let input: Awaited<ReturnType<Request["json"]>>;
-    try { input=await r.json(); } catch(error) { void original?.body?.cancel().catch(()=>undefined); throw error; }
-    if(original && (isBillingOrderCommand(input) && process.env.ERPX_NATIVE_FIELD_SERVICE_BILLING_CONFIG !== undefined || isAgreementCreateCommand(input) && process.env.ERPX_NATIVE_FIELD_SERVICE_AGREEMENT_CREATE_CONFIG !== undefined || isAgreementReviewCommand(input) && process.env.ERPX_NATIVE_FIELD_SERVICE_AGREEMENT_REVIEW_CONFIG !== undefined || isRequestCommand(input) && process.env.ERPX_NATIVE_FIELD_SERVICE_REQUEST_CONFIG !== undefined || isOrderCreateCommand(input) && process.env.ERPX_NATIVE_FIELD_SERVICE_ORDER_CREATE_CONFIG !== undefined || isVisitOrderCommand(input) && process.env.ERPX_NATIVE_FIELD_SERVICE_VISIT_CONFIG !== undefined || isVisitCompletionCommand(input) && process.env.ERPX_NATIVE_FIELD_SERVICE_VISIT_COMPLETION_CONFIG !== undefined || isVisitRecoveryCommand(input) && process.env.ERPX_NATIVE_FIELD_SERVICE_VISIT_RECOVERY_CONFIG !== undefined || isCancelOrderCommand(input) && process.env.ERPX_NATIVE_FIELD_SERVICE_CANCEL_CONFIG !== undefined || isReserveOrderCommand(input) && process.env.ERPX_NATIVE_FIELD_SERVICE_RESERVE_CONFIG !== undefined || isIssueOrderCommand(input) && process.env.ERPX_NATIVE_FIELD_SERVICE_ISSUE_CONFIG !== undefined)) {
-      const native=await nativeReservePost(original,holdingSlug,input);
-      if(native)return native;
-      throw new ApiError(503,"NATIVE_SERVICE_UNAVAILABLE","Unable to confirm the Service command.");
-    } else { void original?.body?.cancel().catch(()=>undefined); }
-    const data =
-      input.entity === "request" ? await createServiceRequest(a,input,key) :
-      input.entity === "agreement"
-        ? typeof input.id === "string"
-          ? await changeAgreement(a, input.id, input, key)
-          : await createAgreement(a, input, key)
-        : typeof input.id === "string"
-          ? await changeServiceOrder(a, input.id, input, key)
-          : await createServiceOrder(a, input, key);
-    return Response.json(canonicalDestinationLinks({ data }), { headers });
+    await requireWorkContext(holdingSlug);
+    const original=r.clone(),input=await r.json();
+    const native=await nativeReservePost(original,holdingSlug,input);
+    if(native)return native;
+    void original.body?.cancel().catch(()=>undefined);
+    throw new ApiError(503,"NATIVE_SERVICE_UNAVAILABLE","This Service command requires its configured native capability.");
   } catch (e) {
-    return errorResponse(e);
+    return errorResponse(e instanceof NativeServiceWorkspaceError?new ApiError(e.status??503,e.code,"The native Service workspace is unavailable."):e);
   }
 }

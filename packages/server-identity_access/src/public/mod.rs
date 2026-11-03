@@ -83,3 +83,16 @@ pub mod field_service_workspace;
 pub mod selected_command_authority;
 pub mod service_initial_count_authority;
 pub mod service_count_flow_participants;
+
+pub mod collaboration_candidates;
+
+pub mod push_session;
+
+pub mod account_work_roles;
+
+pub mod account_companies;
+
+pub mod account_control_scope;
+pub mod platform_commercial_authority;
+
+pub mod account_work_presentation;

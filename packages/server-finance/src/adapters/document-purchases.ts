@@ -250,3 +250,19 @@ export async function financeProductDocumentRecord(database:SqlDatabase,scope:Fi
 export async function financeProductDocumentEntry(database:SqlDatabase,scope:FinanceProductEntryScope,target:{kind:FinanceDocumentKind;id:string}){
  const source=await financeProductDocumentRecord(database,scope,target);return source?{capability:source.capability,purchasePurpose:source.purchasePurpose}:null;
 }
+
+/** Remaining generic Flow callers own non-Field Finance documents. A persisted
+ * Field marker closes every TS path, including internal jobs and retries.
+ * Remove this fence with the last non-Field Finance Flow caller. */
+export async function requireLegacyFinanceInvoiceFlow(database:SqlDatabase,actor:Pick<WorkContext,'companyId'>,id:string){
+ const row=await database.prepare("SELECT source_type FROM finance_invoices WHERE id=? AND company_id=?").bind(id,actor.companyId).first<{source_type:string|null}>();
+ if(row?.source_type==='field_service')throw new ApiError(503,'NATIVE_SERVICE_INVOICE_FLOW_REQUIRED','Use the native Field invoice workflow.');
+}
+
+/** Transitional non-Field consumers only. The database predicate includes
+ * Inventory provenance, so a relabelled native Field journal cannot opt out.
+ * Retire when the remaining journal owners use native journal ports. */
+export async function requireLegacyFinanceJournal(database:SqlDatabase,actor:Pick<WorkContext,'companyId'>,id:string){
+ const row=await database.prepare("SELECT erpx_finance_field_journal_owned(?,?) AS native").bind(id,actor.companyId).first<{native:boolean|number}>();
+ if(row?.native===true||row?.native===1)throw new ApiError(503,'NATIVE_FIELD_JOURNAL_FLOW_REQUIRED','Use the native Field journal workflow.');
+}

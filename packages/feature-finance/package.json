@@ -359,7 +359,8 @@
     "./routes/api/v1/holdings/[holdingSlug]/finance/route": "./src/routes/api/v1/holdings/[holdingSlug]/finance/route.ts",
     "./public/client": "./src/public/client.ts",
     "./public/contracts": "./src/public/contracts.ts",
-    "./public/server": "./src/public/server.ts"
+    "./public/server": "./src/public/server.ts",
+    "./public/service-no-charge": "./src/public/service-no-charge.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
@@ -367,6 +368,7 @@
   },
   "dependencies": {
     "@erpx/catalogue": "workspace:*",
+    "@erpx/contracts": "workspace:*",
     "@erpx/feature-billing": "workspace:*",
     "@erpx/feature-files": "workspace:*",
     "@erpx/feature-identity_access": "workspace:*",

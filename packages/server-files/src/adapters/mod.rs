@@ -43,3 +43,5 @@ pub(crate) mod field_visit_upload_content;
 pub(crate) mod field_visit_upload_cleanup;
 
 pub mod field_visit_upload_denial;
+
+pub(crate) mod payment_proof_binding;

@@ -115,7 +115,7 @@ pub fn validate_manual_journal_edit(
     Ok(expected_version + 1)
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct JournalDraft {
     pub chart_id: String,
     pub period_id: String,

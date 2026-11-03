@@ -1,3 +1,4 @@
+use crate::domain::environment::valid_environment;
 use super::account_group_recovery::rotate_key;
 use super::account_holding_bindings::ConfiguredHoldingRegistry;
 use super::account_revocation_postgres::invalidate_children;
@@ -36,7 +37,7 @@ impl PostgresAccountCredentials {
         clock: Arc<dyn Clock + Send + Sync>,
         holdings: Arc<ConfiguredHoldingRegistry>,
     ) -> Result<Self, BusinessError> {
-        if environment != "development" {
+        if !valid_environment(&environment) {
             return Err(BusinessError::invalid(
                 "ACCOUNT_ENVIRONMENT_UNAVAILABLE",
                 "The Account environment has not been enabled.",

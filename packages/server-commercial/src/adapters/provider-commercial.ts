@@ -1,3 +1,4 @@
+import {nativeServiceCompanies,nativeServicePackageOverview,nativeServicePackageMutation,nativeServiceCommercialHost} from './native-service-commercial';
 import {requestProductOrigin} from '@erpx/feature-runtime/lib/product-hosts';
 import "server-only";
 import { z } from "zod";
@@ -7,7 +8,7 @@ import { activeHoldingBindings, holdingResources, runtimeEnv } from "../../../..
 import type { PostgresDatabase } from "@erpx/server-runtime/public/runtime/postgres";
 import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
 import { commercialCompanies } from "@erpx/server-organization/public/commercial-companies";
-import { configuredProductOrigin, productHostForHost } from "@erpx/feature-runtime/lib/product-hosts";
+import { productHostForHost } from "@erpx/feature-runtime/lib/product-hosts";
 import { legacyGrantMigration } from "@erpx/server-commercial/adapters/legacy-grant-migration";
 import { companyPackageLifecycle } from "@erpx/server-commercial/adapters/company-package-lifecycle";
 
@@ -32,33 +33,38 @@ async function provider<T>(manage: boolean, run: (lease: PlatformCommercialLease
 }
 
 export async function providerCommercialOverview() {
-  return provider(false, async lease => {
-    const holdings = await activeHoldingBindings();
-    const companies = [];
-    for (const holding of holdings) for (const company of await commercialCompanies((await holdingResources(holding.id)).write))
-      companies.push({ ...company, holdingId: holding.id, holding: holding.displayName });
-    return { companies, canApply: lease.canManage };
-  });
+  return nativeServiceCompanies((await currentSession()).requestHeaders);
 }
-
-export async function providerCompanyPackageOverview(holdingId: string, companyId: string) {
-  return provider(false, async (lease, env) => {
-    if (!(await activeHoldingBindings()).some(holding => holding.id === holdingId)) throw new ApiError(404, "HOLDING_NOT_FOUND", "Select an active Holding.");
-    return companyPackageLifecycle((await holdingResources(holdingId)).write as PostgresDatabase, holdingId, lease, env.BETTER_AUTH_SECRET).overview(companyId);
-  });
+export async function providerCompanyPackageOverview(holdingId:string,companyId:string) {
+  return nativeServicePackageOverview((await currentSession()).requestHeaders,holdingId,companyId);
 }
 
 export async function providerCommercialApi(request: Request, path: string[]) {
   const headers = { "Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff" };
   try {
+    if(nativeServiceCommercialHost(request.headers)) {
+      if(request.method==='GET'&&path.length===0)return Response.json({data:await nativeServiceCompanies(request.headers)},{headers});
+      if(request.method==='GET'&&path.join('/')==='packages'){
+        const query=new URL(request.url).searchParams;
+        if(query.getAll('holdingId').length!==1||query.getAll('companyId').length!==1||[...query.keys()].some(k=>!['holdingId','companyId'].includes(k)))throw new ApiError(422,'COMPANY_REQUIRED','Select one Company and Holding.');
+        return Response.json({data:await nativeServicePackageOverview(request.headers,query.get('holdingId')!,query.get('companyId')!)},{headers});
+      }
+      if(request.method==='POST'&&['packages/preview','packages/apply'].includes(path.join('/'))){
+        const body=await request.text();
+        if(body.length>200000)throw new ApiError(413,'REQUEST_TOO_LARGE','This request is too large.');
+        return Response.json({data:await nativeServicePackageMutation(request.headers,path[1] as 'preview'|'apply',body)},{headers});
+      }
+      // Legacy grant migration remains outside this native owner cutover.
+      throw new ApiError(503,'NATIVE_SERVICE_COMMERCIAL_OPERATION_UNAVAILABLE','This operation is outside the native Service lifecycle.');
+    }
     const origin = requestProductOrigin("admin",request.headers);
     if (!origin || productHostForHost(request.headers.get("host")) !== "admin") throw new ApiError(404, "NOT_FOUND", "Not found.");
-    if (request.method === "GET" && path.length === 0) return Response.json({ data: await providerCommercialOverview() }, { headers });
+    if (request.method === "GET" && path.length === 0) return Response.json({ data: await provider(false,async lease=>{const companies=[];for(const holding of await activeHoldingBindings())for(const company of await commercialCompanies((await holdingResources(holding.id)).write))companies.push({...company,holdingId:holding.id,holding:holding.displayName});return {companies,canApply:lease.canManage};}) }, { headers });
     if (request.method === "GET" && path.join("/") === "packages") {
       const query = new URL(request.url).searchParams;
       if (query.getAll("holdingId").length !== 1 || query.getAll("companyId").length !== 1) throw new ApiError(422, "COMPANY_REQUIRED", "Select one Company and Holding.");
       const input = companySchema.parse(Object.fromEntries(query));
-      return Response.json({ data: await providerCompanyPackageOverview(input.holdingId, input.companyId) }, { headers });
+      return Response.json({ data: await provider(false,async(lease,env)=>{if(!(await activeHoldingBindings()).some(h=>h.id===input.holdingId))throw new ApiError(404,"HOLDING_NOT_FOUND","Select an active Holding.");return companyPackageLifecycle((await holdingResources(input.holdingId)).write as PostgresDatabase,input.holdingId,lease,env.BETTER_AUTH_SECRET).overview(input.companyId);}) }, { headers });
     }
     if (request.method !== "POST") return new Response("Method not allowed", { status: 405, headers: { ...headers, Allow: "GET, POST" } });
     if (request.headers.get("origin") !== origin) throw new ApiError(403, "ORIGIN_FORBIDDEN", "Use ERPX Administration to submit this request.");
@@ -88,6 +94,7 @@ export async function providerCommercialApi(request: Request, path: string[]) {
     });
     return Response.json({ data: result }, { headers });
   } catch (error) {
+    if(error instanceof Error&&error.message==="NATIVE_SERVICE_PACKAGE_REQUIRED")error=new ApiError(503,"NATIVE_SERVICE_PACKAGE_REQUIRED","Use the native Service package lifecycle.");
     if (error instanceof Error && error.message.startsWith("UNMAPPED_LEGACY_MODULE:"))
       error = new ApiError(409, "LEGACY_MODULE_REVIEW_REQUIRED", "Legacy module labels do not match the registry. Review the Company baseline before migration.");
     if (error instanceof Error && ["STALE_PACKAGE_BATCH", "STALE_PACKAGE_GRANT", "IDEMPOTENCY_CONFLICT", "PACKAGE_DEPENDENCY_REQUIRED", "PACKAGE_DEPENDENCY_PERIOD_REQUIRED", "PACKAGE_DEPENDENCY_IN_USE", "PACKAGE_DEPENDENCY_PERIOD_CONFLICT", "DRAIN_PACKAGE_FIRST", "PACKAGE_OBLIGATIONS_REMAIN", "PACKAGE_OBLIGATION_SOURCES_REQUIRED"].includes(error.message))

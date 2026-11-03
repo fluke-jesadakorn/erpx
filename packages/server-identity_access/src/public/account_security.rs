@@ -15,5 +15,23 @@ pub use crate::domain::account_security::{
 };
 pub use crate::domain::account_security_snapshot::{
     Actor as AccountSecurityActor, Image as AccountSecuritySource,
-    seed as project_account_security_snapshot,
 };
+
+/// Retained development projection used by existing callers.
+pub fn project_account_security_snapshot(
+    image: &AccountSecuritySource,
+    actor: &AccountSecurityActor,
+    now: i64,
+) -> Result<SecuritySeed, erpx_server_shared::public::BusinessError> {
+    crate::domain::account_security_snapshot::seed(image, actor, now, "development")
+}
+
+/// Configured-environment projection for a production runtime.
+pub fn project_account_security_snapshot_for_environment(
+    image: &AccountSecuritySource,
+    actor: &AccountSecurityActor,
+    now: i64,
+    environment: &str,
+) -> Result<SecuritySeed, erpx_server_shared::public::BusinessError> {
+    crate::domain::account_security_snapshot::seed(image, actor, now, environment)
+}

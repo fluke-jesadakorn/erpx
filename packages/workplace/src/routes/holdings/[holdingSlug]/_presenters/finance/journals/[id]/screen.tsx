@@ -24,7 +24,7 @@ import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import {journalRecordWorkspace} from "@erpx/server-finance/public/record-presentation";
-import {nativeJournalPageWorkspace,nativeJournalPageFailure} from "@erpx/feature-finance/public/server";
+import {nativeFieldJournalFlowWorkspace,nativeJournalPageWorkspace,nativeJournalPageFailure} from "@erpx/feature-finance/public/server";
 import { pageError } from "@erpx/server-work_projection/public/page-error";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
@@ -42,16 +42,22 @@ export default async function JournalPage({
     printing = query.print === "1";
   const actor = await requireWorkContext(holdingSlug);
   const base = workspaceBase(publicScope(actor));
-  const nativeData = await nativeJournalPageWorkspace(actor, holdingSlug, id).catch(error => {
+  const nativeField=await nativeFieldJournalFlowWorkspace(actor,holdingSlug,id).catch(error=>{
+    const mapped=nativeJournalPageFailure(error);if(!mapped)throw error;
+    return pageError(new ApiError(mapped.status,mapped.code,mapped.message),holdingSlug);
+  });
+  const nativeData = nativeField?.workspace ?? await nativeJournalPageWorkspace(actor, holdingSlug, id).catch(error => {
     const mapped = nativeJournalPageFailure(error);
     if (!mapped) throw error;
     return pageError(new ApiError(mapped.status, mapped.code, mapped.message), holdingSlug);
   });
   const data = nativeData ?? await journalRecordWorkspace(actor,id).catch(error=>pageError(error,holdingSlug));
   const {journal,lines,history}=data;
-  const documentPost = ["draft","in_review"].includes(String(journal.status)) ? await financeDocumentPostAccess(actor,"journal",id) : undefined;
+  const documentPost = nativeField?{canPost:nativeField.access.canPost}:["draft","in_review"].includes(String(journal.status)) ? await financeDocumentPostAccess(actor,"journal",id) : undefined;
   const canApprove = hasPermission(actor, "finance.approve");
-  const flow = await financeDocumentFlow(actor, "journal", id);
+  const flow = nativeField?.flow ?? await financeDocumentFlow(actor, "journal", id);
+  const presentation=nativeField?.access ?? await financeDocumentPresentationAccess(actor,"journal",id,await financeProductPresentationOptions());
+  const purchases=nativeField?.access.purchaseControls ?? await financePurchaseControls(actor);
   const nativeContext = actor.authority && actor.iam ? {
                 userId: actor.userId, holdingId: actor.holdingId, companyId: actor.companyId,
                 branchId: actor.branchId, departmentId: actor.departmentId,
@@ -67,7 +73,7 @@ export default async function JournalPage({
       data-source="live"
       data-print-document={printing || undefined}
     >
-      <FinanceRecordWorkspace sourceHistory={(await financeDocumentPresentationAccess(actor,"journal",id,await financeProductPresentationOptions())).sourceOnly} purchases={await financePurchaseControls(actor)}
+      <FinanceRecordWorkspace sourceHistory={presentation.sourceOnly} purchases={purchases}
         base={base}
         active="accounting"
         title={String(journal.journal_number)}
@@ -112,11 +118,11 @@ export default async function JournalPage({
           <RecordNextAction flow={flow} />
           <FeatureWidget appearance="standard" id="finance-journals-detail-journal-actions" title="Journal actions">
             <JournalAction sourceCanPost={documentPost?.canPost}
-              nativePost={process.env.ERPX_NATIVE_FINANCE_JOURNAL_POST_CONFIG === undefined ? undefined : { context: nativeContext }}
+              nativePost={nativeField ? {context:nativeContext} : process.env.ERPX_NATIVE_FINANCE_JOURNAL_POST_CONFIG === undefined ? undefined : { context: nativeContext }}
               nativeReverse={process.env.ERPX_NATIVE_FINANCE_JOURNAL_REVERSE_CONFIG === undefined ? undefined : { context: nativeContext }}
               base={base}
               journal={journal}
-              canPost={
+              canPost={nativeField?nativeField.access.canPost:
                 journal.source_type !== "pms" &&
                 (flow.canAct || journal.status === "posted") &&
                 canApprove &&
@@ -185,6 +191,7 @@ export default async function JournalPage({
               targetId={id}
               expectedTargetVersion={Number(journal.version)}
               editable={hasPermission(actor, "finance.write")}
+              nativeLifecycle={!!nativeField}
               title="Journal support"
               purposes={[
                 {

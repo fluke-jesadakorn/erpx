@@ -477,3 +477,25 @@ async fn argon2_fresh_credentials_use_independent_salts_and_constant_parameters(
             .unwrap()
     );
 }
+
+#[test]
+fn production_environment_binds_exact_account_and_holding_audiences() {
+    let policy = AccountPolicy {
+        account_origin: "https://account.example.test".into(),
+        account_host: "account.example.test".into(),
+        environment: "production".into(),
+        require_email_verification: true,
+        holdings: vec![HoldingOrigin {
+            origin: "https://acme.example.test".into(),
+            host: "acme.example.test".into(),
+            audience: "holding:production:h001:acme.example.test".into(),
+        }],
+    };
+    assert!(policy.validate().is_ok());
+    assert!(policy.audience("acme.example.test").is_some());
+    assert!(policy.audience("other.example.test").is_none());
+
+    let mut invalid = policy.clone();
+    invalid.environment = "Production".into();
+    assert!(invalid.validate().is_err());
+}

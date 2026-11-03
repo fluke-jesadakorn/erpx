@@ -1,4 +1,3 @@
-import {requestProductOrigin} from '@erpx/feature-runtime/lib/product-hosts';
 import {holdingRoutingEnabled} from '@erpx/contracts/holding-hosts';
 import {AppsHomeLink} from "@erpx/workplace/components/product-link-context";
 import {productAccessLabel} from '@erpx/feature-work_projection/lib/product-access-label';
@@ -9,7 +8,6 @@ import { cookies, headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { product } from "@erpx/server-commercial/public/product-registry";
 import { configuredProductOrigin, configuredProductHandoff, productHostForHost } from "@erpx/feature-runtime/lib/product-hosts";
-import { createAuth } from "@erpx/server-identity_access/public/auth";
 import { currentSession } from "@erpx/server-identity_access/public/authorization";
 import { providerEntryOverview } from "@erpx/server-identity_access/public/provider-entry";
 import { adminLaunchChoices } from "@erpx/server-work_projection/public/admin-launcher";
@@ -33,9 +31,7 @@ export default async function ProductEntryPage({ searchParams }: { searchParams?
     const [title, message] = publicHosts[host as keyof typeof publicHosts];
     return <PageContent as="main"><Stack><ProductBrand appearance="standard" className={styles.mark} variant="symbol" /><h1>{title}</h1><p>{message}</p></Stack></PageContent>;
   }
-  const session = host === "account" || process.env.ERPX_NATIVE_ACCOUNT_SESSION_CONFIG === undefined
-    ? await (await createAuth(requestProductOrigin(host,requestHeaders)!)).api.getSession({ headers: requestHeaders })
-    : await currentSession().then(value => value.session).catch(error => {
+  const session = await currentSession().then(value => value.session).catch(error => {
       if (error instanceof Error && error.message === "UNAUTHENTICATED") return null;
       throw error;
     });

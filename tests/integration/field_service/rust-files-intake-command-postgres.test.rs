@@ -17,6 +17,22 @@ use erpx_service::field_attachment_intake_command::{
 };
 use std::sync::Arc;
 
+// A real command takes time between its receipt and owner effects. The
+// outbox case must not depend on every clock read returning the same instant.
+struct CommandClock<C> {
+    source: Arc<C>,
+    ticks: std::sync::atomic::AtomicI64,
+    advancing: bool,
+}
+impl<C: erpx_server_shared::public::Clock> erpx_server_shared::public::Clock for CommandClock<C> {
+    fn now(&self) -> erpx_server_shared::public::TimestampMillis {
+        let offset = if self.advancing {
+            self.ticks.fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+        } else { 0 };
+        erpx_server_shared::public::TimestampMillis::new(self.source.now().get() + offset)
+    }
+}
+
 async fn execute(
     p: &facts::Parts,
     key: &str,
@@ -54,7 +70,11 @@ async fn execute_with_provider(
     let company_id = company_id.to_owned();
     let key = key.to_owned();
     let purpose = purpose.to_owned();
-    let clock = p.review.system.scenario.clock.clone();
+    let clock = Arc::new(CommandClock {
+        source: p.review.system.scenario.clock.clone(),
+        ticks: std::sync::atomic::AtomicI64::new(0),
+        advancing: key == "field-outbox-create",
+    });
     let catalogue =
         Arc::new(erpx_server_commercial::public::purchases::current_package_catalogue().unwrap());
     p.review
@@ -192,19 +212,19 @@ async fn native_create_replay_and_alias_each_record_exact_workflow_evidence() {
         let (saved_authority,saved_payload):(String,String)=sqlx::query_as("SELECT r.authority_json,o.payload_json FROM command_receipts r JOIN outbox_events o ON o.command_id=r.command_id WHERE r.command_id=$1").bind(&ledger).fetch_one(p.pool().raw()).await.unwrap();
         sqlx::query("UPDATE command_receipts SET authority_json=jsonb_set(authority_json::jsonb,'{iam}',jsonb_build_object('tampered',true),true)::text WHERE command_id=$1").bind(&ledger).execute(p.pool().raw()).await.unwrap();
         sqlx::query("UPDATE audit_events SET authority_json=(SELECT authority_json FROM command_receipts WHERE command_id=$1) WHERE command_id=$1").bind(&ledger).execute(p.pool().raw()).await.unwrap();
-        sqlx::query("UPDATE outbox_events SET payload_json=jsonb_set(payload_json::jsonb,'{authority,iam}',jsonb_build_object('tampered',true),true)::text WHERE command_id=$1").bind(&ledger).execute(p.pool().raw()).await.unwrap();
+        sqlx::query("WITH runtime_owner AS MATERIALIZED (SELECT set_config('erpx.outbox_runtime','native-rust',true)) UPDATE outbox_events SET payload_json=jsonb_set(payload_json::jsonb,'{authority,iam}',jsonb_build_object('tampered',true),true)::text FROM runtime_owner WHERE command_id=$1").bind(&ledger).execute(p.pool().raw()).await.unwrap();
         assert!(matches!(execute(&p,"native-create","site_photo").await,Err(PgTransactionError::Business(e)) if e.code=="SERVICE_ATTACHMENT_CHANGED"));
         sqlx::query("UPDATE command_receipts SET authority_json=$1 WHERE command_id=$2").bind(&saved_authority).bind(&ledger).execute(p.pool().raw()).await.unwrap();
         sqlx::query("UPDATE audit_events SET authority_json=$1 WHERE command_id=$2").bind(&saved_authority).bind(&ledger).execute(p.pool().raw()).await.unwrap();
-        sqlx::query("UPDATE outbox_events SET payload_json=$1 WHERE command_id=$2").bind(&saved_payload).bind(&ledger).execute(p.pool().raw()).await.unwrap();
+        sqlx::query("WITH runtime_owner AS MATERIALIZED (SELECT set_config('erpx.outbox_runtime','native-rust',true)) UPDATE outbox_events SET payload_json=$1 FROM runtime_owner WHERE command_id=$2").bind(&saved_payload).bind(&ledger).execute(p.pool().raw()).await.unwrap();
         let audit_id:String=sqlx::query_scalar("SELECT id FROM audit_events WHERE command_id=$1").bind(&ledger).fetch_one(p.pool().raw()).await.unwrap();
         sqlx::query("UPDATE audit_events SET id='tampered-audit-id' WHERE command_id=$1").bind(&ledger).execute(p.pool().raw()).await.unwrap();
         assert!(matches!(execute(&p,"native-create","site_photo").await,Err(PgTransactionError::Business(e)) if e.code=="SERVICE_ATTACHMENT_CHANGED"));
         sqlx::query("UPDATE audit_events SET id=$1 WHERE command_id=$2").bind(audit_id).bind(&ledger).execute(p.pool().raw()).await.unwrap();
         let outbox_id:String=sqlx::query_scalar("SELECT id FROM outbox_events WHERE command_id=$1").bind(&ledger).fetch_one(p.pool().raw()).await.unwrap();
-        sqlx::query("UPDATE outbox_events SET id='tampered-outbox-id' WHERE command_id=$1").bind(&ledger).execute(p.pool().raw()).await.unwrap();
+        sqlx::query("WITH runtime_owner AS MATERIALIZED (SELECT set_config('erpx.outbox_runtime','native-rust',true)) UPDATE outbox_events SET id='tampered-outbox-id' FROM runtime_owner WHERE command_id=$1").bind(&ledger).execute(p.pool().raw()).await.unwrap();
         assert!(matches!(execute(&p,"native-create","site_photo").await,Err(PgTransactionError::Business(e)) if e.code=="SERVICE_ATTACHMENT_CHANGED"));
-        sqlx::query("UPDATE outbox_events SET id=$1 WHERE command_id=$2").bind(outbox_id).bind(&ledger).execute(p.pool().raw()).await.unwrap();
+        sqlx::query("WITH runtime_owner AS MATERIALIZED (SELECT set_config('erpx.outbox_runtime','native-rust',true)) UPDATE outbox_events SET id=$1 FROM runtime_owner WHERE command_id=$2").bind(outbox_id).bind(&ledger).execute(p.pool().raw()).await.unwrap();
         sqlx::query("DELETE FROM command_receipts WHERE command_id=$1").bind(&ledger).execute(p.pool().raw()).await.unwrap();
         assert!(matches!(execute(&p,"native-create","site_photo").await,Err(PgTransactionError::Business(e)) if e.code=="SERVICE_ATTACHMENT_CHANGED"));
         let blocked=sqlx::query("DELETE FROM attachment_events WHERE action='set.native-origin'").execute(p.pool().raw()).await;
@@ -228,7 +248,7 @@ async fn late_receipt_audit_outbox_origin_and_cleanup_corruption_rolls_back() {
             ("cleanup-receipt", "CREATE FUNCTION intake_corruption() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE command_receipts SET result_json='{}' WHERE command_id LIKE 'attachment.set.create:%'; RETURN NULL; END $$; CREATE TRIGGER intake_corruption AFTER DELETE ON command_assertions FOR EACH STATEMENT EXECUTE FUNCTION intake_corruption()", "DROP TRIGGER intake_corruption ON command_assertions; DROP FUNCTION intake_corruption()"),
             ("cleanup-authority", "CREATE FUNCTION intake_corruption() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE command_receipts SET authority_json='{}' WHERE command_id LIKE 'attachment.set.create:%'; RETURN NULL; END $$; CREATE TRIGGER intake_corruption AFTER DELETE ON command_assertions FOR EACH STATEMENT EXECUTE FUNCTION intake_corruption()", "DROP TRIGGER intake_corruption ON command_assertions; DROP FUNCTION intake_corruption()"),
             ("cleanup-audit", "CREATE FUNCTION intake_corruption() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE audit_events SET record_version=record_version+1 WHERE command_id LIKE 'attachment.set.create:%'; RETURN NULL; END $$; CREATE TRIGGER intake_corruption AFTER DELETE ON command_assertions FOR EACH STATEMENT EXECUTE FUNCTION intake_corruption()", "DROP TRIGGER intake_corruption ON command_assertions; DROP FUNCTION intake_corruption()"),
-            ("cleanup-outbox", "CREATE FUNCTION intake_corruption() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE outbox_events SET payload_json='{}' WHERE command_id LIKE 'attachment.set.create:%'; RETURN NULL; END $$; CREATE TRIGGER intake_corruption AFTER DELETE ON command_assertions FOR EACH STATEMENT EXECUTE FUNCTION intake_corruption()", "DROP TRIGGER intake_corruption ON command_assertions; DROP FUNCTION intake_corruption()"),
+            ("cleanup-outbox", "CREATE FUNCTION intake_corruption() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM set_config('erpx.outbox_runtime','native-rust',true); UPDATE outbox_events SET payload_json='{}' WHERE command_id LIKE 'attachment.set.create:%'; RETURN NULL; END $$; CREATE TRIGGER intake_corruption AFTER DELETE ON command_assertions FOR EACH STATEMENT EXECUTE FUNCTION intake_corruption()", "DROP TRIGGER intake_corruption ON command_assertions; DROP FUNCTION intake_corruption()"),
             ("cleanup", "CREATE FUNCTION intake_corruption() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE attachment_sets SET classification='restricted' WHERE target_id='issue-order'; RETURN NULL; END $$; CREATE TRIGGER intake_corruption AFTER DELETE ON command_assertions FOR EACH STATEMENT EXECUTE FUNCTION intake_corruption()", "DROP TRIGGER intake_corruption ON command_assertions; DROP FUNCTION intake_corruption()"),
         ] {
             sqlx::raw_sql(create).execute(p.pool().raw()).await.unwrap();
@@ -290,4 +310,78 @@ async fn new_session_and_read_only_role_replay_but_other_users_get_their_own_key
         let second_key=erpx_server_files::public::field_visit_intake::field_set_command_id("company","fixture-b","shared-wire-key");assert_ne!(raw_key,second_key);
         let count:i64=sqlx::query_scalar("SELECT count(*) FROM command_receipts WHERE command_id IN ($1,$2,'shared-wire-key')").bind(raw_key).bind(second_key).fetch_one(p.pool().raw()).await.unwrap();assert_eq!(count,3);
     }).await;
+}
+
+#[tokio::test]
+async fn native_field_intake_outbox_uses_files_identity_and_survives_corrupt_receipt(){
+ facts::account::with_system(|system|async move{
+  let p=facts::setup_workspace(system).await;
+  let created=execute(&p,"field-outbox-create","technician_report").await.unwrap();
+  let db=p.pool().raw();
+  let ledger=erpx_server_files::public::field_visit_intake::field_set_command_id("company","fixture-a","field-outbox-create");
+  let times:(i64,i64)=sqlx::query_as("SELECT r.created_at,s.created_at FROM command_receipts r JOIN attachment_sets s ON s.id=r.result_json::jsonb->>'setId' WHERE r.command_id=$1").bind(&ledger).fetch_one(db).await.unwrap();
+  assert!(times.1>times.0,"the owner effect occurs after the sampled command receipt");
+  let mut c=db.acquire().await.unwrap();
+  let q=erpx_server_files::public::field_outbox::QUARANTINE;
+  let evidence=format!("({}) AND ({})",erpx_server_files::public::field_outbox::ELIGIBLE,erpx_server_workflow::public::field_outbox::FILES_COMMAND_EVIDENCE);
+  let mut owned=sqlx::QueryBuilder::<sqlx::Postgres>::new("SELECT count(*) FROM outbox_events e WHERE ");owned.push(q);assert_eq!(owned.build_query_scalar::<i64>().fetch_one(&mut *c).await.unwrap(),1);
+  let fenced=sqlx::query("UPDATE outbox_events SET lease_token='legacy-files' WHERE command_id=$1").bind(&ledger).execute(&mut *c).await.unwrap_err();assert_eq!(fenced.as_database_error().and_then(|e|e.constraint()),Some("native_outbox_runtime_required"));
+  use erpx_server_workflow::public::service_count_outbox::{claim,eligible,fail,complete};
+  let now=9_000_000_000_000i64;
+  let event=claim(&mut c,q,"files-native",now).await.unwrap().unwrap();
+  assert!(eligible(&mut c,&evidence,&event).await.unwrap());
+  let leaked:Option<String>=sqlx::query_scalar("SELECT nullif(current_setting('erpx.outbox_runtime',true),'')").fetch_one(&mut *c).await.unwrap();assert_eq!(leaked,None);
+  let saved:String=sqlx::query_scalar("SELECT result_json FROM command_receipts WHERE command_id=$1").bind(&ledger).fetch_one(&mut *c).await.unwrap();
+  sqlx::query("UPDATE command_receipts SET result_json='{}' WHERE command_id=$1").bind(&ledger).execute(&mut *c).await.unwrap();
+  assert!(!eligible(&mut c,&evidence,&event).await.unwrap());
+  assert!(fail(&mut c,&event,now,"SOURCE_INVALID").await.unwrap());
+  let reclaimed=claim(&mut c,q,"files-native-retry",now+60_001).await.unwrap().unwrap();assert_eq!(event.id,reclaimed.id);
+  assert!(!eligible(&mut c,&evidence,&reclaimed).await.unwrap());
+  sqlx::query("UPDATE command_receipts SET result_json=$1 WHERE command_id=$2").bind(saved).bind(&ledger).execute(&mut *c).await.unwrap();
+  assert!(eligible(&mut c,&evidence,&reclaimed).await.unwrap());assert!(complete(&mut c,&reclaimed,now+60_002).await.unwrap());
+  // The same aggregate identifier in another Files owner's command does not
+  // transfer ownership: a native set origin/bind command is also required.
+  sqlx::query("INSERT INTO outbox_events(id,command_id,event_type,aggregate_type,aggregate_id,aggregate_version,payload_json,created_at)VALUES('other-files-owner','other-files-owner','attachment.record.bind','attachment_record','issue-order',1,'{}',1)").execute(&mut *c).await.unwrap();
+  assert!(claim(&mut c,q,"files-native-collision",now+120_000).await.unwrap().is_none());
+  assert_eq!(sqlx::query("UPDATE outbox_events SET lease_token='legacy-other-owner' WHERE id='other-files-owner'").execute(&mut *c).await.unwrap().rows_affected(),1);
+  assert!(created.data.get("id").is_some());
+ }).await;
+}
+
+#[tokio::test]
+async fn native_field_dead_letter_recovery_requires_current_source_and_preserves_failure_audit(){
+ facts::account::with_system(|system|async move{
+  use erpx_server_workflow::public::service_count_outbox::{claim,fail,eligible,complete,DeadLetterRetry,retry_owned_dead_letter};
+  let p=facts::setup_workspace(system).await;
+  execute(&p,"field-outbox-recovery","exception_evidence").await.unwrap();
+  let ledger=erpx_server_files::public::field_visit_intake::field_set_command_id("company","fixture-a","field-outbox-recovery");
+  let mut c=p.pool().raw().acquire().await.unwrap();
+  let q=erpx_server_files::public::field_outbox::QUARANTINE;
+  let evidence=format!("({}) AND ({})",erpx_server_files::public::field_outbox::ELIGIBLE,erpx_server_workflow::public::field_outbox::FILES_COMMAND_EVIDENCE);
+  let mut at=9_000_000_000_000i64;
+  let mut last=None;
+  for attempt in 1..=6 {
+   let event=claim(&mut c,q,"before-native-recovery",at).await.unwrap().unwrap();
+   assert_eq!(event.attempts,attempt);
+   assert!(fail(&mut c,&event,at,"SOURCE_INVALID").await.unwrap());
+   last=Some(event);if attempt<6{at+=60_001;}
+  }
+  let event=last.unwrap();
+  let retry=|dead_at|DeadLetterRetry{event_id:&event.id,dead_letter_at:dead_at,now:at+1,holding_id:"h001",reason:"Retry after correcting native owner evidence",audit_id:"native-field-retry-test"};
+  assert!(!retry_owned_dead_letter(&mut c,q,&evidence,retry(at-1)).await.unwrap());
+  let saved:String=sqlx::query_scalar("SELECT result_json FROM command_receipts WHERE command_id=$1").bind(&ledger).fetch_one(&mut *c).await.unwrap();
+  sqlx::query("UPDATE command_receipts SET result_json='{}' WHERE command_id=$1").bind(&ledger).execute(&mut *c).await.unwrap();
+  assert!(!retry_owned_dead_letter(&mut c,q,&evidence,retry(at)).await.unwrap());
+  sqlx::query("UPDATE command_receipts SET result_json=$1 WHERE command_id=$2").bind(saved).bind(&ledger).execute(&mut *c).await.unwrap();
+  let duplicate:String=sqlx::query_scalar("SELECT id FROM audit_events WHERE command_id=$1").bind(&ledger).fetch_one(&mut *c).await.unwrap();
+  let failed=retry_owned_dead_letter(&mut c,q,&evidence,DeadLetterRetry{audit_id:&duplicate,..retry(at)}).await.unwrap_err();assert_eq!(failed.as_database_error().and_then(|e|e.code()).as_deref(),Some("23505"));
+  let unchanged:(i64,Option<i64>)=sqlx::query_as("SELECT attempts,dead_letter_at FROM outbox_events WHERE id=$1").bind(&event.id).fetch_one(&mut *c).await.unwrap();assert_eq!(unchanged,(6,Some(at)));
+  assert!(retry_owned_dead_letter(&mut c,q,&evidence,retry(at)).await.unwrap());
+  assert!(!retry_owned_dead_letter(&mut c,q,&evidence,retry(at)).await.unwrap());
+  let audit:(i64,String,String,String)=sqlx::query_as("SELECT count(*) OVER (),actor_id,purpose,authority_json FROM audit_events WHERE action='runtime.job.retry' AND record_id=$1").bind(&event.id).fetch_one(&mut *c).await.unwrap();
+  assert_eq!(audit.0,1);assert_eq!(audit.1,"runtime:field-dependency-worker");
+  let purpose:serde_json::Value=serde_json::from_str(&audit.2).unwrap();assert_eq!(purpose["previousAttempts"],6);assert_eq!(purpose["previousError"],"SOURCE_INVALID");assert_eq!(purpose["deadLetterAt"],at);
+  let authority:serde_json::Value=serde_json::from_str(&audit.3).unwrap();assert_eq!(authority["kind"],"runtime_service");assert_eq!(authority["holdingId"],"h001");assert_eq!(authority["companyId"],"company");assert!(authority.get("sessionId").is_none());assert!(authority.get("personId").is_none());
+  let next=claim(&mut c,q,"after-native-recovery",at+2).await.unwrap().unwrap();assert_eq!(next.id,event.id);assert_eq!(next.attempts,1);assert!(eligible(&mut c,&evidence,&next).await.unwrap());assert!(complete(&mut c,&next,at+3).await.unwrap());
+ }).await;
 }

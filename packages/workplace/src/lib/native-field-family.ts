@@ -5,11 +5,13 @@ import type {FieldIntakeSet,FieldIntakeLink,FieldFileStatusData,FieldFileReserva
 import {contributorExactOrigin} from '@erpx/contracts/holding-hosts';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import {ApiError} from '@erpx/server-runtime/public/http';
-import {fieldFilesRoute,type FieldFilesRoute} from '@erpx/native-sdk/field-service-files-routes';
+import {fieldFilesRoute,financePaymentFilesRoute,financeJournalFilesRoute,type FinanceJournalFilesRoute} from '@erpx/native-sdk/field-service-files-routes';
+import {allowedPrivateLoopbackPort} from '@erpx/native-sdk/loopback';
 
 type Target={origin:string;holdingSlug:string;holdingId:string;fieldFamily?:boolean};
-type Config={privateBaseUrl:string;timeoutMs:number;holdings:Target[]};
-type Input={route:FieldFilesRoute;body?:Uint8Array;contentType?:string;key?:string};
+type Config={privateBaseUrl:string;timeoutMs:number;holdings:Target[];production?:boolean};
+type Input={route:FinanceJournalFilesRoute;body?:Uint8Array;contentType?:string;key?:string};
+type Family='visit'|'finance-payment'|'finance-journal';
 type Reply={status:number;headers:Headers;body:Uint8Array};
 type Transport=(url:URL,method:string,headers:Headers,body:Uint8Array|undefined,timeout:number,limit:number)=>Promise<Reply>;
 const fail=(status:number,code:string):never=>{throw new ApiError(status,code,'Field visit files are unavailable.');};
@@ -25,7 +27,7 @@ const states=['draft','bound','withdrawn','expired'] as const;
 const purposes=['site_photo','technician_report','signed_job_sheet','exception_evidence'] as const;
 const components=['record','action','line','event','message','publication'] as const;
 function validLink(v:unknown):v is FieldIntakeLink{return object(v)&&exact(v,['id','sourceId','filename','mediaType','bytes','sourceState','linkState','caption','previewAvailable','createdAt','expiresAt','boundAt'])&&text(v.id)&&nullableString(v.sourceId)&&text(v.filename)&&text(v.mediaType)&&(v.bytes===null||integer(v.bytes,1))&&(v.sourceState===null||oneOf(v.sourceState,sources))&&oneOf(v.linkState,states)&&nullableString(v.caption)&&typeof v.previewAvailable==='boolean'&&integer(v.createdAt)&&integer(v.expiresAt,1)&&nullableInt(v.boundAt);}
-function validSet(v:unknown):v is FieldIntakeSet{return object(v)&&exact(v,['id','targetType','targetId','componentKind','componentRef','purposeKey','expectedTargetVersion','policyVersion','classification','requiredCount','maxFiles','state','createdAt','updatedAt','links'])&&text(v.id)&&v.targetType==='field_service_visit'&&text(v.targetId)&&oneOf(v.componentKind,components)&&nullableString(v.componentRef)&&oneOf(v.purposeKey,purposes)&&integer(v.expectedTargetVersion,1)&&integer(v.policyVersion,1)&&oneOf(v.classification,['public','internal','confidential','restricted'])&&integer(v.requiredCount)&&integer(v.maxFiles,1)&&v.maxFiles<=100&&v.requiredCount<=v.maxFiles&&oneOf(v.state,states)&&integer(v.createdAt)&&integer(v.updatedAt)&&Array.isArray(v.links)&&v.links.length<=100&&v.links.every(validLink);}
+function validSet(v:unknown,family:Family):v is FieldIntakeSet{return object(v)&&exact(v,['id','targetType','targetId','componentKind','componentRef','purposeKey','expectedTargetVersion','policyVersion','classification','requiredCount','maxFiles','state','createdAt','updatedAt','links'])&&text(v.id)&&(family==='visit'?v.targetType==='field_service_visit':family==='finance-payment'?v.targetType==='finance_payment'&&v.componentKind==='action'&&v.classification==='confidential':v.targetType==='finance_journal'&&v.componentKind==='record'&&v.classification==='confidential'&&v.maxFiles===50)&&text(v.targetId)&&oneOf(v.componentKind,components)&&nullableString(v.componentRef)&&(family==='visit'?oneOf(v.purposeKey,purposes):v.purposeKey===(family==='finance-payment'?'payment_proof':'journal_support'))&&integer(v.expectedTargetVersion,1)&&integer(v.policyVersion,1)&&oneOf(v.classification,['public','internal','confidential','restricted'])&&integer(v.requiredCount)&&integer(v.maxFiles,1)&&v.maxFiles<=100&&v.requiredCount<=v.maxFiles&&oneOf(v.state,states)&&integer(v.createdAt)&&integer(v.updatedAt)&&Array.isArray(v.links)&&v.links.length<=100&&v.links.every(validLink);}
 function validStatus(v:unknown,id:string):v is FieldFileStatusData {if(!object(v)||!exact(v,['linkId','setId','sourceId','sourceState','linkState','scan','previewAvailable','bindable','expiresAt','boundAt','withdrawnAt'])||v.linkId!==id||!text(v.setId)||!nullableString(v.sourceId)||!(v.sourceState===null||oneOf(v.sourceState,sources))||!oneOf(v.linkState,states)||!object(v.scan)||!exact(v.scan,['attempts','lastResult','lastError','signature','definitionUpdatedAt','scannedAt']))return false;const scan=v.scan;return integer(scan.attempts)&&nullableString(scan.lastResult)&&nullableString(scan.lastError)&&nullableString(scan.signature)&&nullableInt(scan.definitionUpdatedAt)&&nullableInt(scan.scannedAt)&&typeof v.previewAvailable==='boolean'&&typeof v.bindable==='boolean'&&integer(v.expiresAt,1)&&nullableInt(v.boundAt)&&nullableInt(v.withdrawnAt);}
 function validReservation(v:unknown):v is FieldFileReservationData{return object(v)&&exact(v,['uploadIntentId','attachmentLinkId','uploadUrl','expiresAt'])&&text(v.uploadIntentId)&&text(v.attachmentLinkId)&&text(v.uploadUrl)&&integer(v.expiresAt,1);}
 function validUpload(v:unknown,id:string):v is FieldFileUploadData{return object(v)&&exact(v,['uploadIntentId','attachmentLinkId','sourceId','state','status'])&&v.uploadIntentId===id&&text(v.attachmentLinkId)&&text(v.sourceId)&&oneOf(v.state,sources)&&v.status==='scan_pending';}
@@ -34,17 +36,16 @@ function safeDisposition(value:string,expected:'inline'|'attachment'):boolean {
  const encoded=value.slice(prefix.length);if(!encoded||encoded.length>2303||!/^(?:[A-Za-z0-9!#$&+.^_`|~-]|%[0-9A-Fa-f]{2})+$/.test(encoded))return false;
  try{const decoded=decodeURIComponent(encoded);return decoded.length>0&&decoded.length<=(expected==='inline'?263:255)&&!/[\x00-\x1f\x7f]/.test(decoded);}catch{return false;}
 }
-const reserved=new Set([3000,3001,3100,3101,3103,5432,5433,5435,8080]);
 function config(raw:string):Config {
  if(Buffer.byteLength(raw)>2*1024*1024)return fail(503,'NATIVE_ATTACHMENT_CONFIGURATION_INVALID');let x:unknown;try{x=JSON.parse(raw);}catch{return fail(503,'NATIVE_ATTACHMENT_CONFIGURATION_INVALID');}
- if(!object(x)||!text(x.privateBaseUrl)||!Number.isSafeInteger(x.timeoutMs)||Number(x.timeoutMs)<250||Number(x.timeoutMs)>30000||!Array.isArray(x.holdings)||!x.holdings.length||x.holdings.length>64)return fail(503,'NATIVE_ATTACHMENT_CONFIGURATION_INVALID');
+ if(!object(x)||(x.production!==undefined&&typeof x.production!=='boolean')||!text(x.privateBaseUrl)||!Number.isSafeInteger(x.timeoutMs)||Number(x.timeoutMs)<250||Number(x.timeoutMs)>30000||!Array.isArray(x.holdings)||!x.holdings.length||x.holdings.length>64)return fail(503,'NATIVE_ATTACHMENT_CONFIGURATION_INVALID');
  let base:URL;try{base=new URL(x.privateBaseUrl);}catch{return fail(503,'NATIVE_ATTACHMENT_CONFIGURATION_INVALID');}const port=Number(base.port);
- if(base.protocol!=='http:'||!['127.0.0.1','[::1]'].includes(base.hostname)||!port||reserved.has(port)||port>=3200&&port<=3299||base.origin!==x.privateBaseUrl||base.username||base.password)return fail(503,'NATIVE_ATTACHMENT_CONFIGURATION_INVALID');
+ if(base.protocol!=='http:'||!['127.0.0.1','[::1]'].includes(base.hostname)||!allowedPrivateLoopbackPort(port,x.production===true)||base.origin!==x.privateBaseUrl||base.username||base.password)return fail(503,'NATIVE_ATTACHMENT_CONFIGURATION_INVALID');
  const slugs=new Set<string>(),hosts=new Set<string>();for(const h of x.holdings){if(!object(h)||!text(h.origin)||!text(h.holdingId)||!text(h.holdingSlug)||!/^[a-z0-9_-]{1,128}$/.test(h.holdingSlug)||h.fieldFamily!==undefined&&typeof h.fieldFamily!=='boolean')return fail(503,'NATIVE_ATTACHMENT_CONFIGURATION_INVALID');let origin:URL;try{origin=new URL(h.origin);}catch{return fail(503,'NATIVE_ATTACHMENT_CONFIGURATION_INVALID');}if(origin.protocol!=='https:'||origin.origin!==h.origin||origin.username||origin.password||(!(process.env.NODE_ENV==='development'&&process.env.NEXT_PUBLIC_ERPX_DEV_ORIGIN_PROFILE==='container-localhost'&&contributorExactOrigin(origin.host,'contributor')===h.origin)&&(!!origin.port||!origin.hostname.includes('.')||!origin.hostname.split('.').every(p=>/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(p))))||slugs.has(h.holdingSlug)||hosts.has(origin.host))return fail(503,'NATIVE_ATTACHMENT_CONFIGURATION_INVALID');slugs.add(h.holdingSlug);hosts.add(origin.host);}
  return x as Config;
 }
 const direct:Transport=(url,method,headers,body,timeout,limit)=>new Promise((resolve,reject)=>{const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeout),agent=new Agent({keepAlive:false,maxSockets:1,proxyEnv:{} as import('node:http').ProxyEnv});const req=httpRequest(url,{method,headers:Object.fromEntries(headers),agent,signal:controller.signal,maxHeaderSize:8192},res=>{const chunks:Buffer[]=[];let size=0;res.on('data',(chunk:Buffer)=>{size+=chunk.length;if(size>limit){res.destroy(Error('response limit'));return;}chunks.push(chunk);});res.on('error',reject);res.on('end',()=>{const h=new Headers();for(let i=0;i<res.rawHeaders.length;i+=2)h.append(res.rawHeaders[i]!,res.rawHeaders[i+1]!);resolve({status:res.statusCode??502,headers:h,body:Buffer.concat(chunks)});});});req.on('error',reject);req.on('close',()=>{clearTimeout(timer);agent.destroy();});req.end(body);});
-export function createFieldFamilyBridge(raw:string,transport:Transport=direct){const settings=config(raw);return async(request:Request,actor:WorkContext,input:Input):Promise<Response>=>{
+export function createFieldFamilyBridge(raw:string,transport:Transport=direct,family:Family='visit'){const settings=config(raw);return async(request:Request,actor:WorkContext,input:Input):Promise<Response>=>{
  const h=settings.holdings.find(x=>x.holdingSlug===actor.holdingSlug);if(!h?.fieldFamily)return fail(503,'NATIVE_FIELD_FILES_NOT_CONFIGURED');
  if(request.headers.get('host')!==new URL(h.origin).host||actor.holdingId!==h.holdingId||!actor.authority||!actor.iam)return fail(403,'NATIVE_ATTACHMENT_AUTHORITY_INVALID');
  const captured={'x-erpx-context-company':actor.companyId,'x-erpx-context-assignment':actor.assignmentId,'x-erpx-context-revision':String(actor.authority.revision),'x-erpx-context-assignment-version':String(actor.authority.assignmentVersion)};
@@ -53,7 +54,7 @@ export function createFieldFamilyBridge(raw:string,transport:Transport=direct){c
  for(const name of ['cookie','origin']){const value=request.headers.get(name);if(value){if(Buffer.byteLength(value)>8192)return fail(503,'NATIVE_ATTACHMENT_HEADER_LIMIT');headers.set(name,value);}}
  if(actor.scope.kind!=='holding'&&actor.scope.branchSlug)headers.set('x-erpx-workspace-branch',actor.scope.branchSlug);if(actor.scope.kind==='department')headers.set('x-erpx-workspace-department',actor.scope.departmentSlug);
  if(input.key)headers.set('idempotency-key',input.key);if(input.contentType)headers.set('content-type',input.contentType);
- const route=fieldFilesRoute(actor.holdingSlug,input.route),url=new URL(route.path,settings.privateBaseUrl),limit=input.route.kind==='content'?10*1024*1024:2*1024*1024;
+ const route=family==='finance-journal'?financeJournalFilesRoute(actor.holdingSlug,input.route):input.route.kind==='bind'?fail(503,'NATIVE_ATTACHMENT_REQUEST_INVALID'):family==='finance-payment'?financePaymentFilesRoute(actor.holdingSlug,input.route):input.route.kind==='withdraw'?fail(503,'NATIVE_ATTACHMENT_REQUEST_INVALID'):fieldFilesRoute(actor.holdingSlug,input.route),url=new URL(route.path,settings.privateBaseUrl),limit=input.route.kind==='content'?10*1024*1024:2*1024*1024;
  if(input.body&&input.body.byteLength>(input.route.kind==='upload'?10*1024*1024:2*1024*1024))return fail(413,'NATIVE_ATTACHMENT_BODY_LIMIT');
  let result:Reply;try{result=await transport(url,route.method,headers,input.body,settings.timeoutMs,limit);}catch{return fail(503,'NATIVE_ATTACHMENT_UNAVAILABLE');}
  if(result.status>=300&&result.status<400)return fail(503,'NATIVE_ATTACHMENT_RESPONSE_INVALID');
@@ -65,29 +66,61 @@ export function createFieldFamilyBridge(raw:string,transport:Transport=direct){c
   if(result.status!==200||!type||!allowed.includes(type)||!disposition||!safeDisposition(disposition,expected)||!checksum||!/^[a-f0-9]{64}$/.test(checksum)||result.body.length===0||result.body.length>limit||createHash('sha256').update(result.body).digest('hex')!==checksum)return fail(503,'NATIVE_ATTACHMENT_RESPONSE_INVALID');
   const out=new Headers({'Content-Type':type,'Content-Disposition':disposition,'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff','Accept-Ranges':'none'});if(input.route.variant==='preview')out.set('Content-Security-Policy',"sandbox; default-src 'none'");return new Response(result.body as BodyInit,{headers:out});
  }
- if(result.headers.get('content-type')?.split(';')[0]?.trim()!=='application/json')return fail(503,'NATIVE_ATTACHMENT_RESPONSE_INVALID');let v:unknown;try{v=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(result.body));}catch{return fail(503,'NATIVE_ATTACHMENT_RESPONSE_INVALID');}if(!object(v)||!exact(v,['data']))return fail(503,'NATIVE_ATTACHMENT_RESPONSE_INVALID');
+ if(result.headers.get('content-type')?.split(';')[0]?.trim()!=='application/json')return fail(503,'NATIVE_ATTACHMENT_RESPONSE_INVALID');let v:unknown;try{v=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(result.body));}catch{return fail(503,'NATIVE_ATTACHMENT_RESPONSE_INVALID');}if(!object(v)||!exact(v,input.route.kind==='bind'?['data','context']:['data']))return fail(503,'NATIVE_ATTACHMENT_RESPONSE_INVALID');
+ if(input.route.kind==='bind'){
+  if(family!=='finance-journal'||result.status!==200||!object(v.context)||!object(v.data)||!exact(v,['data','context']))return fail(503,'NATIVE_ATTACHMENT_RESPONSE_INVALID');
+  const c=v.context,d=v.data,captured={userId:actor.userId,holdingId:actor.holdingId,companyId:actor.companyId,branchId:actor.branchId,departmentId:actor.departmentId,branchSlug:actor.scope.kind==='holding'?null:actor.scope.branchSlug??null,departmentSlug:actor.scope.kind==='department'?actor.scope.departmentSlug:null,assignmentId:actor.assignmentId,assignmentVersion:actor.authority.assignmentVersion,revision:actor.authority.revision,role:actor.role,assignmentScopeKind:actor.assignmentScope};
+  const sameSet=(expected:readonly string[],actual:unknown)=>Array.isArray(actual)&&actual.length===expected.length&&new Set(actual).size===actual.length&&actual.every(x=>typeof x==='string'&&expected.includes(x));
+  if(Object.entries(captured).some(([k,x])=>c[k]!==x)||!sameSet(actor.modules,c.modules)||!sameSet(actor.iam.permissions,c.permissions)||!integer(c.expiresAt,Date.now()+1))return fail(409,'WORK_CONTEXT_CHANGED');
+  let body:unknown;try{body=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(input.body));}catch{return fail(503,'NATIVE_ATTACHMENT_REQUEST_INVALID');}
+  const ids=new Set<string>();
+  if(!object(body)||!integer(body.expectedTargetVersion,1)||!exact(d,['setId','version','manifest'])||d.setId!==input.route.setId||d.version!==body.expectedTargetVersion+1||!Array.isArray(d.manifest)||!d.manifest.length||d.manifest.length>50||!d.manifest.every(i=>{if(!object(i)||!exact(i,['linkId','sourceId','purposeKey','checksumSha256','mediaType','bytes'])||!text(i.linkId)||!text(i.sourceId)||i.purposeKey!=='journal_support'||typeof i.checksumSha256!=='string'||!/^[a-f0-9]{64}$/.test(i.checksumSha256)||!oneOf(i.mediaType,['image/jpeg','image/png','image/webp','image/heic','image/heif','application/pdf'])||!integer(i.bytes,1)||i.bytes>10*1024*1024||ids.has(i.linkId))return false;ids.add(i.linkId);return true;}))return fail(503,'NATIVE_ATTACHMENT_RESPONSE_INVALID');
+  return Response.json({data:d},{headers:{'Cache-Control':'private, no-store'}});
+ }
  if(input.route.kind==='list'||input.route.kind==='create'){
   let expected:Record<string,unknown>;try{const query=input.route.kind==='list'?new URLSearchParams(input.route.query):null;const parsed=query?Object.fromEntries(['targetId','purposeKey','componentKind','expectedTargetVersion'].map(key=>[key,query.get(key)])):JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(input.body));if(!object(parsed))throw Error();expected=parsed;}catch{return fail(503,'NATIVE_ATTACHMENT_RESPONSE_INVALID');}
   const version=expected.expectedTargetVersion?Number(expected.expectedTargetVersion):0;const componentRef=typeof expected.componentRef==='string'?expected.componentRef.trim()||null:null;const matches=(d:FieldIntakeSet)=>d.targetId===expected.targetId&&(!expected.purposeKey||d.purposeKey===expected.purposeKey)&&(!expected.componentKind||d.componentKind===expected.componentKind)&&(!version||Number.isNaN(version)||d.expectedTargetVersion===version)&&(input.route.kind!=='create'||d.componentRef===componentRef);
-  if(input.route.kind==='list'?(result.status!==200||!Array.isArray(v.data)||v.data.length>100||!v.data.every(d=>validSet(d)&&matches(d))):(result.status!==201||!validSet(v.data)||!matches(v.data)))return fail(503,'NATIVE_ATTACHMENT_RESPONSE_INVALID');
+  if(input.route.kind==='list'?(result.status!==200||!Array.isArray(v.data)||v.data.length>100||!v.data.every(d=>validSet(d,family)&&matches(d))):(result.status!==201||!validSet(v.data,family)||!matches(v.data)))return fail(503,'NATIVE_ATTACHMENT_RESPONSE_INVALID');
  }
  if(input.route.kind==='status'&&(result.status!==200||!validStatus(v.data,input.route.linkId)))return fail(503,'NATIVE_ATTACHMENT_RESPONSE_INVALID');
- if(input.route.kind==='reserve'){const d=v.data;if(result.status!==201||!validReservation(d))return fail(503,'NATIVE_ATTACHMENT_RESPONSE_INVALID');const expected=`/api/v1/holdings/${encodeURIComponent(actor.holdingSlug)}/field-service/uploads/${encodeURIComponent(d.uploadIntentId)}/content`;if(d.uploadUrl!==expected)return fail(503,'NATIVE_ATTACHMENT_RESPONSE_INVALID');d.uploadUrl=`/api/v1/holdings/${encodeURIComponent(actor.holdingSlug)}/uploads/${encodeURIComponent(d.uploadIntentId)}/content`;}
+ if(input.route.kind==='withdraw'&&(result.status!==200||!validStatus(v.data,input.route.linkId)||v.data.linkState!=='withdrawn'||v.data.bindable!==false||!integer(v.data.withdrawnAt,1)))return fail(503,'NATIVE_ATTACHMENT_RESPONSE_INVALID');
+ if(input.route.kind==='reserve'){const d=v.data;if(result.status!==201||!validReservation(d))return fail(503,'NATIVE_ATTACHMENT_RESPONSE_INVALID');const expected=`/api/v1/holdings/${encodeURIComponent(actor.holdingSlug)}/${family==='finance-payment'?'finance/payment-files':family==='finance-journal'?'finance/journal-files':'field-service'}/uploads/${encodeURIComponent(d.uploadIntentId)}/content`;if(d.uploadUrl!==expected)return fail(503,'NATIVE_ATTACHMENT_RESPONSE_INVALID');d.uploadUrl=`/api/v1/holdings/${encodeURIComponent(actor.holdingSlug)}/uploads/${encodeURIComponent(d.uploadIntentId)}/content`;}
  if(input.route.kind==='upload'&&(result.status!==202||!validUpload(v.data,input.route.intentId)))return fail(503,'NATIVE_ATTACHMENT_RESPONSE_INVALID');
  return Response.json(v,{status:result.status,headers:{'Cache-Control':'private, no-store'}});
  };}
 /** UI visibility only; every native request still performs its own current authority checks. */
 export function nativeFieldFamilyVisible(holdingSlug:string,holdingId:string,host:string|null):boolean {
- const raw=process.env.ERPX_NATIVE_FIELD_ATTACHMENT_CONFIG;if(!raw||process.env.NODE_ENV==='production')return false;
- const target=config(raw).holdings.find(h=>h.holdingSlug===holdingSlug);
+ const raw=process.env.ERPX_NATIVE_FIELD_ATTACHMENT_CONFIG;if(!raw)return false;if(process.env.NODE_ENV==='production'){let parsed:unknown;try{parsed=JSON.parse(raw);}catch{return false;}if(!object(parsed)||parsed.production!==true)return false;}const settings=config(raw);
+ const target=settings.holdings.find(h=>h.holdingSlug===holdingSlug);
  return !!target?.fieldFamily&&target.holdingId===holdingId&&new URL(target.origin).host===host;
 }
-export function nativeFieldFamily(request:Request,actor:WorkContext,input:Input){const raw=process.env.ERPX_NATIVE_FIELD_ATTACHMENT_CONFIG;if(!raw||process.env.NODE_ENV==='production')return fail(503,'NATIVE_FIELD_FILES_NOT_CONFIGURED');return createFieldFamilyBridge(raw)(request,actor,input);}
+export function nativeFieldFamily(request:Request,actor:WorkContext,input:Input){const raw=process.env.ERPX_NATIVE_FIELD_ATTACHMENT_CONFIG;if(!raw)return fail(503,'NATIVE_FIELD_FILES_NOT_CONFIGURED');if(process.env.NODE_ENV==='production'&&config(raw).production!==true)return fail(503,'NATIVE_FIELD_FILES_NOT_CONFIGURED');return createFieldFamilyBridge(raw)(request,actor,input);}
+
+/** The private backend's current Finance/Files ports grant authority. This
+ * wrapper supplies only exact owner routing and captured request bytes/context. */
+export function nativeFinancePaymentFiles(request:Request,actor:WorkContext,input:Input){
+ const raw=process.env.ERPX_NATIVE_FINANCE_SERVICE_PAYMENT_CONFIG;
+ if(!raw)return fail(503,'NATIVE_FINANCE_FILES_NOT_CONFIGURED');
+ const value=config(raw);
+ if(process.env.NODE_ENV==='production'&&value.production!==true)return fail(503,'NATIVE_FINANCE_FILES_NOT_CONFIGURED');
+ return createFieldFamilyBridge(JSON.stringify({...value,holdings:value.holdings.map(h=>({...h,fieldFamily:true}))}),direct,'finance-payment')(request,actor,input);
+}
+
+/** Source-derived dispatch selects this namespace; Rust rechecks the actual
+ * journal lineage and selected authority in the owning transaction. */
+export function nativeFinanceJournalFiles(request:Request,actor:WorkContext,input:Input){
+ const raw=process.env.ERPX_NATIVE_FINANCE_SERVICE_INVOICE_CONFIG;
+ if(!raw)return fail(503,'NATIVE_FINANCE_FILES_NOT_CONFIGURED');
+ const value=config(raw);
+ if(process.env.NODE_ENV==='production'&&value.production!==true)return fail(503,'NATIVE_FINANCE_FILES_NOT_CONFIGURED');
+ return createFieldFamilyBridge(JSON.stringify({...value,holdings:value.holdings.map(h=>({...h,fieldFamily:true}))}),direct,'finance-journal')(request,actor,input);
+}
 
 /** Existing bind/withdraw contracts retain their context-bearing native replies. */
 export async function nativeFieldFamilyCommand(request:Request,actor:WorkContext,kind:'bind'|'withdraw',id:string,command:{key:string;body:string;expectedVersion?:number}){
- const raw=process.env.ERPX_NATIVE_FIELD_ATTACHMENT_CONFIG;if(!raw||process.env.NODE_ENV==='production')return fail(503,'NATIVE_FIELD_FILES_NOT_CONFIGURED');
- const value=config(raw),target=value.holdings.find(h=>h.holdingSlug===actor.holdingSlug);
+ const raw=process.env.ERPX_NATIVE_FIELD_ATTACHMENT_CONFIG;if(!raw)return fail(503,'NATIVE_FIELD_FILES_NOT_CONFIGURED');
+ const value=config(raw);if(process.env.NODE_ENV==='production'&&value.production!==true)return fail(503,'NATIVE_FIELD_FILES_NOT_CONFIGURED');
+ const target=value.holdings.find(h=>h.holdingSlug===actor.holdingSlug);
  if(!target?.fieldFamily)return fail(503,'NATIVE_FIELD_FILES_NOT_CONFIGURED');
  if(request.headers.get('host')!==new URL(target.origin).host||actor.holdingId!==target.holdingId||!actor.authority||!actor.iam)return fail(403,'NATIVE_ATTACHMENT_AUTHORITY_INVALID');
  const expected={'x-erpx-context-company':actor.companyId,'x-erpx-context-assignment':actor.assignmentId,'x-erpx-context-revision':String(actor.authority.revision),'x-erpx-context-assignment-version':String(actor.authority.assignmentVersion)};

@@ -57,7 +57,22 @@ export function createNativeJournalWorkspaceClient(configuration:NativeFinanceRe
 export function createNativeFinanceWorkspaceRead<T>(configuration:NativeFinanceReadConfiguration,transport:NativeFinanceReadTransport|undefined,validate:(value:unknown,holding:{holdingId:string},input:NativeJournalReadInput)=>T):NativeJournalRead<T>{
  return createRead(configuration,transport??directHttp,validate,'invoices','/workspace');
 }
-function createRead<T>(configuration:NativeFinanceReadConfiguration,transport:NativeFinanceReadTransport,validate:(value:unknown,holding:{holdingId:string},input:NativeJournalReadInput)=>T,kind:'journals'|'invoices',suffix:''|'/workspace'):NativeJournalRead<T>{
+/** Server-derived invoice ownership observation, never a posting grant. */
+export function createNativeServiceInvoiceRuntimeRead<T>(configuration:NativeFinanceReadConfiguration,transport:NativeFinanceReadTransport|undefined,validate:(value:unknown,holding:{holdingId:string},input:NativeJournalReadInput)=>T):NativeJournalRead<T>{
+ return createRead(configuration,transport??directHttp,validate,'invoices','/post-runtime');
+}
+/** Finite controlled receipt namespace; callers cannot supply an arbitrary path. */
+export function createNativeServiceReceiptRead<T>(configuration:NativeFinanceReadConfiguration,transport:NativeFinanceReadTransport|undefined,validate:(value:unknown,holding:{holdingId:string},input:NativeJournalReadInput)=>T,suffix:'/workspace'|'/runtime'='/workspace'):NativeJournalRead<T>{
+ return createRead(configuration,transport??directHttp,validate,'payments',suffix);
+}
+export function createNativeServiceCustomerReceiptRead<T>(configuration:NativeFinanceReadConfiguration,transport:NativeFinanceReadTransport|undefined,validate:(value:unknown,holding:{holdingId:string},input:NativeJournalReadInput)=>T,suffix:'/workspace'|'/runtime'='/workspace'):NativeJournalRead<T>{
+ return createRead(configuration,transport??directHttp,validate,'sales/receipts',suffix);
+}
+export {workspaceResponse as validateNativeJournalWorkspaceResponse};
+export function createNativeFieldJournalFlowRead<T>(configuration:NativeFinanceReadConfiguration,transport:NativeFinanceReadTransport|undefined,validate:(value:unknown,holding:{holdingId:string},input:NativeJournalReadInput)=>T):NativeJournalRead<T>{
+ return createRead(configuration,transport??directHttp,validate,'journals','/flow');
+}
+function createRead<T>(configuration:NativeFinanceReadConfiguration,transport:NativeFinanceReadTransport,validate:(value:unknown,holding:{holdingId:string},input:NativeJournalReadInput)=>T,kind:'journals'|'invoices'|'payments'|'sales/receipts',suffix:''|'/workspace'|'/runtime'|'/post-runtime'|'/flow'):NativeJournalRead<T>{
  let base:URL;try{base=new URL(configuration.privateBaseUrl);}catch{return failure('NATIVE_FINANCE_CONFIGURATION_INVALID');}
  const port=Number(base.port);
  if(base.protocol!=='http:'||!['127.0.0.1','[::1]'].includes(base.hostname)||!base.port||reserved.has(port)||port>=3200&&port<=3299||base.username||base.password||configuration.privateBaseUrl!==base.origin||!integer(configuration.timeoutMs,250)||configuration.timeoutMs>30000||configuration.holdings.length<1||configuration.holdings.length>64)return failure('NATIVE_FINANCE_CONFIGURATION_INVALID');

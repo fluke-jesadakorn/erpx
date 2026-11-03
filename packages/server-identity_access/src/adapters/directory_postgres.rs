@@ -1,5 +1,6 @@
 //! Directory routing/current-source adapter. Configured pools are explicit;
 //! a connection/company string can never select an ambient database fallback.
+use crate::domain::environment::valid_environment;
 use super::{
     account_holding_bindings::{ConfiguredHoldingRegistry, CurrentHoldingBinding},
     directory_profiles::{DirectoryProfileLease, DirectoryProfileStore},
@@ -54,7 +55,7 @@ impl PostgresDirectory {
             registry,
             environment,
         } = bindings;
-        if environment != "development" || profiles.provenance_keys.environment() != environment {
+        if !valid_environment(&environment) || profiles.provenance_keys.environment() != environment {
             return Err(unavailable());
         }
         if holdings.len() != registry.configured().count() {

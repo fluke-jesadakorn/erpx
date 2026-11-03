@@ -1,4 +1,3 @@
-import {requestProductOrigin} from '@erpx/feature-runtime/lib/product-hosts';
 import {holdingRoutingEnabled} from '@erpx/contracts/holding-hosts';
 import {AppsHomeLink} from "@erpx/workplace/components/product-link-context";
 import {productAccessLabel} from '@erpx/feature-work_projection/lib/product-access-label';
@@ -9,7 +8,6 @@ import { cookies, headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { product } from "@erpx/server-commercial/public/product-registry";
 import { configuredProductOrigin, configuredProductHandoff, productHostForHost } from "@erpx/feature-runtime/lib/product-hosts";
-import { createAuth } from "@erpx/server-identity_access/public/auth";
 import { currentSession } from "@erpx/server-identity_access/public/authorization";
 import { providerEntryOverview } from "@erpx/server-identity_access/public/provider-entry";
 import { adminLaunchChoices } from "@erpx/server-work_projection/public/admin-launcher";
@@ -31,9 +29,7 @@ export default async function ProductEntryPage({ searchParams, applications = fa
   const host = productHostForHost(requestHeaders.get("host"));
   if (!host || host === "account" || host === "booking" || host === "portal" || host === "legal-portal" || host === "forms") notFound();
   const language = await preferredAccountLanguage((await cookies()).get("erpx_language")?.value === "th" ? "th" : "en");
-  const session = process.env.ERPX_NATIVE_ACCOUNT_SESSION_CONFIG === undefined
-    ? await (await createAuth(requestProductOrigin(host,requestHeaders)!)).api.getSession({ headers: requestHeaders })
-    : await currentSession().then(value => value.session).catch(error => {
+  const session = await currentSession().then(value => value.session).catch(error => {
       if (error instanceof Error && error.message === "UNAUTHENTICATED") return null;
       throw error;
     });
@@ -48,7 +44,8 @@ export default async function ProductEntryPage({ searchParams, applications = fa
   // During phased migration Apps keeps every old work entry available even
   // after the first Company grant. Remove recovery only at accepted cutover.
   if (!holdingRoutingEnabled(process.env)&&choices.length === 1 && host !== "admin" && host !== "apps") redirect(choices[0].href);
-  const existingWorkspaces = host === "apps" || host === "admin" || choices.length === 0 ? await measureReadPhase("product_entry_recovery", existingWorkspaceLaunchChoices) : [];
+  const nativeServiceEntry = host === "service" && holdingRoutingEnabled(process.env) && process.env.ERPX_NATIVE_FIELD_SERVICE_WORKSPACE_CONFIG !== undefined;
+  const existingWorkspaces = !nativeServiceEntry && (host === "apps" || host === "admin" || choices.length === 0) ? await measureReadPhase("product_entry_recovery", existingWorkspaceLaunchChoices) : [];
   const remembered = host === "apps"&&!holdingRoutingEnabled(process.env) ? await savedAppsWorkspaceForPresentation(session.user.id) : null;
   return <ProductNavigationBoundary language={language}><div className={styles.shell}>
     <header className={styles.header}><AppsHomeLink className={styles.brand}><ProductBrand appearance="standard" variant="symbol" className={styles.mark} /><strong>{host === "apps" ? "ERPX Apps" : `ERPX ${product(host)?.label[language] ?? "Administration"}`}</strong></AppsHomeLink>

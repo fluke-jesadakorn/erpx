@@ -6,7 +6,7 @@ use erpx_server_commercial::public::purchases::{
     PurchaseRequest, PurchaseWitness, current_package_catalogue,
 };
 use erpx_server_identity_access::public::effective_authority::AuthorizedWorkContext;
-use erpx_server_shared::public::{CompanyId, HoldingId, TimestampMillis};
+use erpx_server_shared::public::{BusinessError, CompanyId, FailureKind, HoldingId, TimestampMillis};
 use erpx_server_workflow::public::commands::CommandDisposition;
 use sqlx::PgConnection;
 
@@ -122,7 +122,7 @@ impl FieldServicePurchases {
                         now,
                     )
                     .await?
-                    .require_allowed()?
+                    .require_allowed().map_err(|error| if matches!(error.code, "PACKAGE_DRAINING" | "COMMERCIAL_PURCHASE_CHANGED") { BusinessError::new(FailureKind::Conflict,"PACKAGE_CAPABILITY_CHANGED","Package access changed. Reload and review before retrying.") } else { error })?
                     .clone(),
             );
         }

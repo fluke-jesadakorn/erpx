@@ -231,12 +231,7 @@ pub async fn require_selected_actor_current(
     let facts = current_authority_facts(c, request, now).await?;
     let mut current = authorize_effective_work(
         request,
-        &WorkAuthorizationRequest {
-            permission: "records.read".into(),
-            module: None,
-            destination: "services/field-service".into(),
-            api: true,
-        },
+        &context.admitted_access,
         facts,
         permission_catalog()?,
         work_module_catalog()?,

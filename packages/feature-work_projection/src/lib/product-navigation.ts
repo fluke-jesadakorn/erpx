@@ -1,6 +1,6 @@
 import {canonicalUiHref,workspacePathParts,destinations} from '@erpx/feature-work_projection/lib/destination-registry';
 import {destinationProduct,developmentProductOrigin,product,productIds,sharedHostKeys,modulePlacement,type ProductHostKey} from '@erpx/server-commercial/public/product-registry';
-import {safeProductReturnPath} from '@erpx/server-identity_access/public/rules/product-sso';
+import {safeProductReturnPath} from '@erpx/contracts/product-return-path';
 import {adminWorkspaceTarget} from '@erpx/server-identity_access/public/rules/admin-workspace';
 import {accountWorkspaceTarget} from '@erpx/server-identity_access/public/rules/account-workspace';
 import {publicSurfaceTarget,publicSurfaceLaunchPath,legalEnrollmentEntryTarget} from '@erpx/server-identity_access/public/rules/public-surface-entry';

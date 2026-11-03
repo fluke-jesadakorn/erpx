@@ -4,9 +4,36 @@ use erpx_server_shared::public::{
 };
 use std::collections::BTreeSet;
 
+/// Route policy evaluated against current, catalogue-filtered permissions.
+/// This value declares a requirement; it is never an authorization witness.
+#[derive(Clone, Debug)]
+pub enum WorkPermissionRequirement {
+    Exact(String),
+    AnyOf(Vec<String>),
+}
+impl WorkPermissionRequirement {
+    pub fn is_satisfied_by(&self, permissions: &BTreeSet<String>) -> bool {
+        match self {
+            Self::Exact(permission) => permissions.contains(permission),
+            Self::AnyOf(required) => required
+                .iter()
+                .any(|permission| permissions.contains(permission)),
+        }
+    }
+}
+impl From<String> for WorkPermissionRequirement {
+    fn from(permission: String) -> Self {
+        Self::Exact(permission)
+    }
+}
+impl From<&str> for WorkPermissionRequirement {
+    fn from(permission: &str) -> Self {
+        Self::Exact(permission.into())
+    }
+}
 #[derive(Clone, Debug)]
 pub struct WorkAuthorizationRequest {
-    pub permission: String,
+    pub permission: WorkPermissionRequirement,
     pub module: Option<String>,
     /// The router's matched owner route; not a forwarded browser header.
     pub destination: String,
@@ -127,6 +154,8 @@ impl SelectedContextRead {
 /// Owner-specific record, commercial, MFA and independent-review policy remains required.
 #[derive(Debug)]
 pub struct AuthorizedWorkContext {
+    /// Actual composition route policy retained for same-unit revalidation.
+    pub(crate) admitted_access: WorkAuthorizationRequest,
     pub(crate) selected_unit: Option<(String, i32, String, String)>,
     pub(crate) selected_request: Option<super::work_context::WorkContextRequest>,
     pub(crate) holding_id: HoldingId,

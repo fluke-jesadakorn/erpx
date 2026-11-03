@@ -1,7 +1,7 @@
 import {ssoAudienceForHost} from '@erpx/feature-runtime/lib/product-hosts';
 import 'server-only';
 import {productHostForHost} from '@erpx/feature-runtime/lib/product-hosts';
-import {sessionFromRequest} from '@erpx/server-identity_access/public/auth';
+import {sessionFromRequest} from '@erpx/server-identity_access/public/account-session';
 import {withCurrentPrivateSessionRead} from '@erpx/server-identity_access/public/private-session-read';
 import {holdingBindingBySlug,holdingResources} from '../../../../packages/server-runtime/src/public/runtime';
 import {PostgresDatabase} from '@erpx/server-runtime/public/runtime/postgres';

@@ -149,3 +149,61 @@ async fn grandfathered_receipts_require_both_exact_hashes_and_are_never_rewritte
     })
     .await;
 }
+
+/// Original populated1047→1048 preservation assertions, without a retired
+/// business writer. Raw rows here are explicitly historical fixture data.
+#[tokio::test]
+async fn populated_field_intake_retains_every_original_column_receipt_and_write_shape() {
+    with_database(2, |pool| async move {
+        let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+        let mut files=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();
+        files.retain(|file|file.name()<"1049");
+        let split=files.iter().position(|file|file.name().starts_with("1048_")).unwrap();
+        assert_eq!(split+1,files.len());
+        migrate_database(&pool,MigrationTrack::HoldingWrite,&files[..split]).await.unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();
+        sqlx::raw_sql(r#"
+INSERT INTO organization_nodes(id,kind,slug,display_name,company_id)VALUES('company','company','company','Historical Company','company');
+INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id)VALUES('branch','branch','branch','Historical branch','company','company','branch');
+INSERT INTO finance_parties(id,company_id,kind,code,name,currency,created_at,updated_at)VALUES('customer','company','customer','HIST','Retained Service customer','THB',1,1);
+INSERT INTO commerce_warehouses(id,company_id,branch_id,code,name)VALUES('warehouse','company','branch','HIST','Retained Service warehouse');
+INSERT INTO commerce_orders(id,company_id,branch_id,kind,number,party_id,warehouse_id,currency,order_date,due_date,subtotal_minor,tax_minor,created_by,created_at,updated_at)VALUES('sale','company','branch','sales','HIST','customer','warehouse','THB','2026-10-15','2026-11-15',10000,0,'creator',1,1);
+INSERT INTO support_tickets(id,company_id,branch_id,order_id,customer_id,title,issue,owner_id,due_date,created_by,created_at,updated_at)VALUES('ticket','company','branch','sale','customer','Retained source case','Original recorded issue','technician','2026-10-16','creator',1,1);
+INSERT INTO support_ticket_events(id,ticket_id,version,action,actor_id,reason,owner_id,due_date,status,created_at,evidence_json)VALUES('ticket-create','ticket',1,'create','creator','Declared populated migration fixture','technician','2026-10-16','open',1,'{}');
+INSERT INTO field_service_agreements(id,company_id,branch_id,customer_id,title,start_date,end_date,currency,visit_rate_minor,status,created_by,reviewed_by,reviewed_at,version,created_at,updated_at)VALUES('agreement','company','branch','customer','Retained reviewed agreement','2026-01-01','2027-12-31','THB',10000,'active','creator','reviewer',1,2,1,1);
+INSERT INTO field_service_agreement_events(id,agreement_id,version,action,actor_id,reason,status,created_at)VALUES('agreement-create','agreement',1,'create','creator','Declared populated migration fixture','draft',1),('agreement-activate','agreement',2,'activate','reviewer','Declared populated migration fixture','active',1);
+INSERT INTO field_service_orders(id,company_id,branch_id,ticket_id,ticket_version,agreement_id,agreement_version,issue,site,technician_id,scheduled_at,status,created_by,created_at,updated_at)VALUES('order','company','branch','ticket',1,'agreement',2,'Original recorded issue','Retained customer site','technician',60001,'scheduled','creator',1,1);
+INSERT INTO field_service_order_events(id,order_id,version,action,actor_id,reason,status,technician_id,scheduled_at,details_json,created_at)VALUES('order-create','order',1,'create','creator','Declared populated migration fixture','scheduled','technician',60001,'{}',1);
+"#).execute(&mut *tx).await.unwrap();tx.commit().await.unwrap();
+        let shapes:Vec<(String,Vec<String>)>=sqlx::query_as("SELECT t.tablename::text,array_agg(c.column_name::text ORDER BY c.ordinal_position) FROM pg_tables t JOIN information_schema.columns c ON c.table_schema=t.schemaname AND c.table_name=t.tablename WHERE t.schemaname='public' AND t.tablename<>'erpx_migrations' GROUP BY t.tablename ORDER BY t.tablename").fetch_all(pool.raw()).await.unwrap();
+        async fn snapshot(pool:&erpx_server_runtime::public::postgres::DatabasePool,shapes:&[(String,Vec<String>)])->Vec<(String,i64,String)>{
+            let mut result=Vec::new();
+            for(table,columns)in shapes{
+                assert!(std::iter::once(table).chain(columns).all(|v|!v.is_empty()&&v.bytes().all(|b|b.is_ascii_lowercase()||b.is_ascii_digit()||b==b'_')));
+                let projection=columns.iter().map(|v|format!("\"{v}\"")).collect::<Vec<_>>().join(",");
+                let query=format!("SELECT count(*)::bigint,md5(coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text),'[]'::jsonb)::text) FROM(SELECT {projection} FROM \"{table}\")t");
+                // Identifiers came from this disposable schema and passed the closed ASCII check above.
+                let(count,digest):(i64,String)=sqlx::query_as(sqlx::AssertSqlSafe(query)).fetch_one(pool.raw()).await.unwrap();result.push((table.clone(),count,digest));
+            }
+            result
+        }
+        let before=snapshot(&pool,&shapes).await;
+        let receipts:Vec<(String,String)>=sqlx::query_as("SELECT name,checksum FROM erpx_migrations ORDER BY name").fetch_all(pool.raw()).await.unwrap();
+        migrate_database(&pool,MigrationTrack::HoldingWrite,&files).await.unwrap();
+        assert_eq!(snapshot(&pool,&shapes).await,before);
+        let old_receipts:Vec<(String,String)>=sqlx::query_as("SELECT name,checksum FROM erpx_migrations WHERE name NOT LIKE '1048_%' ORDER BY name").fetch_all(pool.raw()).await.unwrap();assert_eq!(old_receipts,receipts);
+        let markers:(Option<String>,Option<String>,Option<i64>)=sqlx::query_as("SELECT service_agreement_id,service_order_id,service_order_version FROM support_tickets WHERE id='ticket'").fetch_one(pool.raw()).await.unwrap();assert_eq!(markers,(None,None,None));
+        migrate_database(&pool,MigrationTrack::HoldingWrite,&files[..split]).await.unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();
+        sqlx::raw_sql(r#"
+UPDATE field_service_orders SET status='dispatched',version=version+1,updated_at=2 WHERE id='order' AND version=1;
+INSERT INTO field_service_order_events(id,order_id,version,action,actor_id,reason,status,technician_id,scheduled_at,details_json,created_at)VALUES('order-dispatch','order',2,'dispatch','technician','Unchanged pre-intake write shape','dispatched','technician',60001,'{}',2);
+UPDATE support_tickets SET title='Retained source case amended',version=version+1,updated_at=2 WHERE id='ticket' AND version=1;
+INSERT INTO support_ticket_events(id,ticket_id,version,action,actor_id,reason,owner_id,due_date,status,created_at,evidence_json)VALUES('ticket-amend','ticket',2,'add-information','creator','Unchanged pre-intake write shape','technician','2026-10-16','open',2,'{}');
+"#).execute(&mut *tx).await.unwrap();tx.commit().await.unwrap();
+        let order:(String,i64)=sqlx::query_as("SELECT status,version FROM field_service_orders WHERE id='order'").fetch_one(pool.raw()).await.unwrap();assert_eq!(order,("dispatched".into(),2));
+        let ticket:(String,String,i64,Option<String>)=sqlx::query_as("SELECT source_kind,status,version,service_order_id FROM support_tickets WHERE id='ticket'").fetch_one(pool.raw()).await.unwrap();assert_eq!(ticket,("sales_order".into(),"open".into(),2,None));
+        assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM company_package_grants").fetch_one(pool.raw()).await.unwrap(),0);
+        assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM erpx_migrations WHERE name LIKE '1048_%'").fetch_one(pool.raw()).await.unwrap(),1);
+    }).await;
+}

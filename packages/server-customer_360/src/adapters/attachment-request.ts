@@ -1,6 +1,6 @@
 import {ssoAudienceForHost} from '@erpx/feature-runtime/lib/product-hosts';
 import 'server-only';
-import {sessionFromRequest} from '@erpx/server-identity_access/public/auth';
+import {sessionFromRequest} from '@erpx/server-identity_access/public/account-session';
 import {withCurrentPrivateSessionRead} from '@erpx/server-identity_access/public/private-session-read';
 import {completeAttachmentUploadForRequest,portalAttachmentCommandForRequest,portalAttachmentMetadataReadForRequest,portalAttachmentContentForRequest} from '@erpx/server-files/public/attachments/service';
 import {appAttachmentSources} from '@erpx/server-files/public/app-attachment-sources';

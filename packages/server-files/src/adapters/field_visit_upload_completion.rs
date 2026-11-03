@@ -65,7 +65,10 @@ pub async fn complete_field_upload<A: FieldIntakeAuthority>(
     let target: String = row.try_get("target_id")?;
     let component: String = row.try_get("component_kind")?;
     let purpose: String = row.try_get("purpose_key")?;
-    if !crate::domain::field_visit_link::valid_field_purpose(&target_type, &component, &purpose) {
+    if !authority
+        .owner_kind()
+        .supports(&target_type, &component, &purpose)
+    {
         return Err(conflict());
     }
     let status: String = row.try_get("status")?;
@@ -244,7 +247,10 @@ pub async fn prepare_field_upload<A: FieldIntakeAuthority>(
     let target: String = row.try_get("target_id")?;
     let component: String = row.try_get("component_kind")?;
     let purpose: String = row.try_get("purpose_key")?;
-    if !crate::domain::field_visit_link::valid_field_purpose(&target_type, &component, &purpose) {
+    if !authority
+        .owner_kind()
+        .supports(&target_type, &component, &purpose)
+    {
         return Err(conflict());
     }
     let status: String = row.try_get("status")?;
@@ -252,7 +258,11 @@ pub async fn prepare_field_upload<A: FieldIntakeAuthority>(
     let guard = prepare_field_intake(c, authority, actor, &target, !replay, now).await?;
     let media: String = row.try_get("media_type")?;
     if request_media_type != media {
-        return Err(BusinessError::invalid("UPLOAD_TYPE", "The file contents do not match the selected type.").into());
+        return Err(BusinessError::invalid(
+            "UPLOAD_TYPE",
+            "The file contents do not match the selected type.",
+        )
+        .into());
     }
     let declared: i64 = row.try_get("declared_bytes")?;
     let checksum =

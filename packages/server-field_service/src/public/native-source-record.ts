@@ -1,2 +1,2 @@
 import 'server-only';
-export {nativeSourceRecord,createNativeSourceRecordReader} from '../adapters/native-source-record';
+export {nativeSourceRecord,requiredNativeSourceRecord,createNativeSourceRecordReader} from '../adapters/native-source-record';

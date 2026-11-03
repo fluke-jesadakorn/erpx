@@ -43,7 +43,15 @@ impl std::error::Error for PersistenceError {}
 impl From<sqlx::Error> for PersistenceError {
     fn from(error: sqlx::Error) -> Self {
         Self {
-            code: "POSTGRES_OPERATION_FAILED",
+            // Retain this finite runtime-ownership denial without copying SQL,
+            // row details or credentials into a public persistence error.
+            code: if error.as_database_error().and_then(|e| e.constraint())
+                == Some("native_outbox_runtime_required")
+            {
+                "NATIVE_OUTBOX_RUNTIME_REQUIRED"
+            } else {
+                "POSTGRES_OPERATION_FAILED"
+            },
             context: None,
             sql_state: error
                 .as_database_error()

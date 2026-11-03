@@ -1,4 +1,4 @@
-import {deviceAccountReturn} from "@erpx/server-identity_access/public/rules/device-account-return";
+import {deviceAccountReturn} from "@erpx/feature-identity_access/lib/device-account-return";
 import {DeviceAccountLoginChoices} from '@erpx/feature-identity_access/components/device-account-login-choices';
 import { InlineNotice } from "@erpx/ui/components/foundation";
 import { ActionAnchor } from "@erpx/ui/components/action-anchor";

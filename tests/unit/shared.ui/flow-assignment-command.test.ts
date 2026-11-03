@@ -43,11 +43,11 @@ it('requires the native POST command receipt even when readback is plausible',as
  browser();let good=false;const send=vi.fn(async()=>Response.json({data:flow,...(good?{command:{id:'count-a',version:3}}:{})},{headers:{'x-erpx-native-count':'1'}}));const api=createFlowAssignmentCommands(send,()=>({...identity}),()=> 'native-flow-key');
  await expect(api.submit('/api/flow/native','stock_count','count-a',2,{recordVersion:4})).rejects.toThrow('receipt');expect(api.pending('/api/flow/native')).not.toBeNull();good=true;expect(await api.retry('/api/flow/native')).toEqual({unchanged:true});
 });
-it('accepts an exact native retry after later reassignment and record progress only with the original receipt',async()=>{
+it.each(['stock_count','invoice'])('accepts an exact native %s retry after later progress only with the original receipt',async(kind)=>{
  browser();let calls=0;const requests:{body:BodyInit|null|undefined;key:string|null}[]=[];
- const send=vi.fn(async(_endpoint:RequestInfo|URL,init?:RequestInit)=>{requests.push({body:init?.body,key:new Headers(init?.headers).get('idempotency-key')});if(++calls===1)throw Error('lost');return Response.json({data:{...flow,version:5,recordVersion:6},command:{id:'count-a',version:calls===2?4:3}},{headers:{'x-erpx-native-count':'1'}});});
+ const send=vi.fn(async(_endpoint:RequestInfo|URL,init?:RequestInit)=>{requests.push({body:init?.body,key:new Headers(init?.headers).get('idempotency-key')});if(++calls===1)throw Error('lost');return Response.json({data:{...flow,kind,version:5,recordVersion:6},command:{id:'count-a',version:calls===2?4:3}},{headers:kind==='stock_count'?{'x-erpx-native-count':'1'}:{'x-erpx-native-flow':'field-invoice'}});});
  const api=createFlowAssignmentCommands(send,()=>({...identity}),()=> 'later-progress-key'),input={stepKey:'approve',userId:'person',expectedVersion:2,recordVersion:4,reason:'Original',saveDefault:true};
- await expect(api.submit('/api/flow/later-progress','stock_count','count-a',2,input)).rejects.toThrow('lost');
+ await expect(api.submit('/api/flow/later-progress',kind,'count-a',2,input)).rejects.toThrow('lost');
  await expect(api.retry('/api/flow/later-progress')).rejects.toThrow('receipt');expect(api.pending('/api/flow/later-progress')).not.toBeNull();
  expect(await api.retry('/api/flow/later-progress')).toEqual({unchanged:true});expect(requests).toEqual(Array(3).fill({body:JSON.stringify(input),key:'later-progress-key'}));
 });

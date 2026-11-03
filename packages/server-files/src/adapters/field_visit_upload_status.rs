@@ -51,7 +51,7 @@ pub async fn read_field_link_status<A: FieldIntakeAuthority>(
     let purpose = text("purposeKey")?;
     let state = text("linkState")?;
     let creator = text("creator")?;
-    if !crate::domain::field_visit_link::valid_field_purpose(target_type, kind, purpose)
+    if !authority.owner_kind().supports(target_type, kind, purpose)
         || (read_only && (state != "bound" || row["sourceState"] != "available"))
         || (state == "draft" && creator != user)
     {

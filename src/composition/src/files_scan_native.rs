@@ -85,10 +85,12 @@ impl<C: Clock + Send + Sync + 'static> NativeFilesScanWorker<C> {
         )
         .await
     }
+#[allow(dead_code)]
     pub(crate) fn cleanup_worker(&self,writer:erpx_server_files::public::field_visit_upload::LocalFieldQuarantineWriter)->Result<crate::field_files_cleanup_worker::FieldFilesCleanupWorker<C>,BusinessError>{
         if !self.field_only {return Err(unavailable());}
         Ok(crate::field_files_cleanup_worker::FieldFilesCleanupWorker::new(self.transactions.clone(),writer,self.clock.clone()))
     }
+    #[allow(dead_code)]
     pub(crate) fn cleanup_scope(&self)->&erpx_server_files::public::attachment_scan::AttachmentScanScope {self.transactions.scope()}
     pub fn request_shutdown(&self) {
         self.stopping.store(true, Ordering::Release);
@@ -111,7 +113,9 @@ impl<C: Clock + Send + Sync + 'static> NativeFilesScanWorker<C> {
 impl<C: Clock + Send + Sync + 'static> crate::field_attachment_intake_command::FieldIntakeProviderReadiness for NativeFilesScanWorker<C> {
     fn probe(&self) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<crate::field_attachment_intake_command::FieldIntakeProviderStatus, BusinessError>> + Send + '_>> {
         Box::pin(async move {
-            if !self.field_only || self.stopping.load(Ordering::Acquire) { return Err(unavailable()); }
+            if self.stopping.load(Ordering::Acquire) { return Err(unavailable()); }
+            // Provider readiness is source-neutral and grants no record or job
+            // authority. The transaction adapter keeps its claim partition.
             // The provider probes current ClamAV PING/VERSION and the bounded
             // preview executable/profile; these are not caller-supplied flags.
             self.sanitizer.require_ready(self.clock.as_ref()).await?;

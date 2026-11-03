@@ -30,7 +30,12 @@
     "./field-service-reserve": "./src/field-service-reserve.generated.ts",
     "./field-attachment": "./src/field-attachment.generated.ts",
     "./field-service-initial-count": "./src/field-service-initial-count.generated.ts",
-    "./field-service-attachment-intake": "./src/field-service-attachment-intake.generated.ts"
+    "./field-service-attachment-intake": "./src/field-service-attachment-intake.generated.ts",
+    "./product-return-path": "./src/product-return-path.ts",
+    "./inbox": "./src/inbox.ts",
+    "./finance-purchase-controls": "./src/finance-purchase-controls.ts",
+    "./commercial-service": "./src/commercial-service.generated.ts",
+    "./private-loopback": "./src/private-loopback.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

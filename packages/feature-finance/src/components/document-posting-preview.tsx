@@ -1,3 +1,4 @@
+import type {FinancePostingPreview} from '@erpx/feature-finance/public/contracts';
 import { Table } from "@erpx/ui/components/foundation";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { documentPostingPreview } from "@erpx/server-finance/public/document-posting-preview";
@@ -7,12 +8,14 @@ export async function DocumentPostingPreview({
   actor,
   kind,
   id,
+  preview,
 }: {
   actor: WorkContext;
   kind: "invoice" | "stock_count";
   id: string;
+  preview?: FinancePostingPreview|null;
 }) {
-  const data = await documentPostingPreview(actor, kind, id);
+  const data = preview===undefined?await documentPostingPreview(actor, kind, id):preview;
   if (!data) return null;
   if (data.state === "no-charge-confirmed") return <Card as="section" appearance="standard" className="ui-panel"><h2>Service No-Charge Confirmation</h2><p>The covered visit has no customer amount to collect. Its original billing evidence is retained.</p></Card>;
   if (data.state === "voided") return (

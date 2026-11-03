@@ -6,7 +6,7 @@ import {runtimeEnv} from '../../../../packages/server-runtime/src/public/runtime
 import {isTransactionalSqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError,errorResponse} from '@erpx/server-runtime/public/http';
 import {currentSession} from '@erpx/server-identity_access/adapters/authorization';
-import {sessionFromRequest} from '@erpx/server-identity_access/adapters/auth';
+import {sessionFromRequest} from '@erpx/server-identity_access/public/account-session';
 import {accountSessionSecurity} from '@erpx/server-identity_access/adapters/account-session-security';
 import {listEmergencyAccess} from '@erpx/server-identity_access/adapters/iam-recovery';
 import {requestPublicOrigin} from '@erpx/server-manage_erpx/public/public-origin';

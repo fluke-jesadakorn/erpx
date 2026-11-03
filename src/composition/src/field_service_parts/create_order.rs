@@ -86,11 +86,11 @@ impl<'a> Sources<'a> {
         if t.branch_id != a.branch_id
             || t.department_id != a.department_id
             || t.customer_id != a.customer_id
-            || a.asset_id
-                .as_ref()
-                .is_some_and(|v| Some(v.as_str()) != input.asset_id.as_deref())
         {
             return Err(changed().into());
+        }
+        if a.asset_id.as_ref().is_some_and(|v| Some(v.as_str()) != input.asset_id.as_deref()) {
+            return Err(BusinessError::new(FailureKind::Conflict,"CONFLICT","The record changed, a reference is unavailable, or this value already exists. Refresh and review again.").into());
         }
         let customer =
             read_current_field_service_physical_customer(c, &a.company_id, &a.customer_id)

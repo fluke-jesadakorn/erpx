@@ -178,3 +178,65 @@ if worker.is_finished(){break;}tokio::time::sleep(Duration::from_millis(500)).aw
   let _=stop_tx.send(());worker.await.unwrap().unwrap();server.0.abort();drop(server);runtime.close().await;
  }).await;
 }
+
+/// The native Files scan worker accepts durable production databases: it
+/// validates the exact configured database/role identity instead of the
+/// disposable lease, and assembles from a production configuration file.
+#[tokio::test]
+async fn production_files_worker_accepts_durable_databases() {
+    facts::account::with_system(|system| async move {
+        let p = facts::setup_workspace(system).await;
+        let root = tempfile::Builder::new()
+            .permissions(fs::Permissions::from_mode(0o700))
+            .tempdir()
+            .unwrap();
+        let store = root.path().join("files");
+        let tmp = root.path().join("temporary");
+        for path in [&store, &tmp] {
+            fs::create_dir(path).unwrap();
+            fs::set_permissions(path, fs::Permissions::from_mode(0o700)).unwrap();
+        }
+        let mut doc =
+            configuration::document(&p.review.system.control, &p.review.system.holdings).await;
+        doc["mode"] = "production".into();
+        doc["environment"] = "production".into();
+        doc["listen"] = "127.0.0.1:43124".into();
+        doc["fieldServiceReads"] =
+            serde_json::json!([{"holdingId":"h001","companyId":"company"}]);
+        doc["fieldServiceSourceRecordReads"] =
+            serde_json::json!([{"holdingId":"h001","mode":"enforced"}]);
+        doc["fieldAttachmentLinks"] = serde_json::json!([{"holdingId":"h001","mode":"enabled"}]);
+        doc["fieldAttachmentBinds"] = serde_json::json!([{"holdingId":"h001","mode":"enabled"}]);
+        doc["fieldFilesPolicy"] = serde_json::json!({"mode":"enabled","uploadsFrozen":false});
+        doc["fieldFilesProviders"] = serde_json::json!({"targets":[{"holdingId":"h001","companyId":"company","filesBinding":"HOLDING_H001_FILES","filesRoot":store,"temporaryRoot":tmp,"previewBinary":std::env::var("ERPX_FILES_PREVIEW_BIN").unwrap(),"heifConvert":std::env::var("ERPX_HEIF_CONVERT").unwrap(),"pdftoppm":std::env::var("ERPX_PDFTOPPM_BIN").unwrap(),"clamavSocket":std::env::var("ERPX_CLAMD_SOCKET").unwrap(),"clamavDatabaseDirectory":std::env::var("ERPX_CLAMAV_DATABASE_DIR").unwrap(),"maximumDefinitionAgeMs":86400000,"commandTimeoutMs":5000,"scanTimeoutMs":30000,"concurrentScans":1}]});
+        doc["accountSecurityKeys"] = serde_json::json!({
+            "current": "fixture",
+            "keys": [{"id": "fixture", "keyHex": "07".repeat(32)}],
+        });
+        doc["servicePackageLifecycle"] = serde_json::json!({
+            "providerHoldingId": "h001",
+            "holdingIds": ["h001"],
+            "reviewSecret": "fixture-only-secret-32-characters-minimum",
+        });
+        doc["control"]
+            .as_object_mut()
+            .unwrap()
+            .remove("leaseToken");
+        for index in 0..2 {
+            doc["holdings"][index]["database"]
+                .as_object_mut()
+                .unwrap()
+                .remove("leaseToken");
+        }
+        let config_path = root.path().join("production.json");
+        fs::write(&config_path, serde_json::to_vec(&doc).unwrap()).unwrap();
+        fs::set_permissions(&config_path, fs::Permissions::from_mode(0o600)).unwrap();
+        let result = erpx_service::private_development_api::run_production_files_worker_file(
+            &config_path,
+            tokio::time::sleep(Duration::from_secs(2)),
+        )
+        .await;
+        assert!(result.is_ok(), "{result:?}");
+    })
+    .await;
+}

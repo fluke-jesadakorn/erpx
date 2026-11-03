@@ -7,8 +7,11 @@ import {changeCRMIdentity} from "@erpx/server-crm/public/crm-identities";
 import {createCustomerNote,changeCustomerNote} from "@erpx/server-sales/public/customer-notes";
 import {createCustomerFollowup,changeCustomerFollowup} from "@erpx/server-sales/public/customer-followups";
 import {customerDirectory,customerTimeline,customerTimelineEvents} from "@erpx/server-customer_360/public/customer-timeline";
-import {createAgreement,changeAgreement} from "@erpx/server-field_service/public/field-service";
-vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+import {withNativeFieldFixture} from '../../support/files/field-files-native-parity';
+import {seedExpenseCompany} from '../../../fixtures/expenses/company';
+import type {PostgresDatabase} from '@erpx/server-runtime/adapters/runtime/postgres';
+let activeDatabase:PostgresDatabase|undefined;
+vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:activeDatabase??env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>,customer:string,order:string;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 beforeEach(async()=>{f=await expenseFixture();customer=String((await saveMaster(f.owner,'parties',null,{kind:'customer',code:key(),name:'Timeline customer'},key())).id);const w=await saveMaster(f.owner,'warehouses',null,{branchId:f.branch,code:key(),name:'Timeline warehouse'},key()),p=await saveMaster(f.owner,'products',null,{sku:key(),name:'Timeline product',price:'10'},key());order=String((await saveOrder(f.owner,null,orderSchema.parse({kind:'quote',partyId:customer,warehouseId:w.id,orderDate:'2026-09-20',dueDate:'2026-09-23',lines:[{productId:p.id,quantity:'1',price:'10',taxBps:0}]}),key())).id);});
@@ -56,12 +59,15 @@ it('includes Support lifecycle only when the viewer also has the Support owner p
  expect(buyer.coverage).not.toContain('Support case history');
 });
 it('federates scoped Field Service, Finance and Legal state with module and permission gates',async()=>{
+ let prepared:{db:PostgresDatabase;f:Awaited<ReturnType<typeof seedExpenseCompany>>;customer:string;order:string}|undefined;
+ try{await withNativeFieldFixture(async native=>{
+ if(!prepared)throw new Error('NATIVE_TIMELINE_FIXTURE_REQUIRED');
+ const {db,f,customer,order}=prepared;
  const invoiceId=key(),legalId=key(),legalEventId=key();
- // The current source projection needs a legitimately reviewed agreement;
- // immutable 1048 rejects a self-approved active row without its owner event.
- const serviceId=String((await createAgreement({...f.owner,modules:['field_service']},{branchId:f.branch,departmentId:f.department,
-   customerId:customer,title:'Timeline service',startDate:'2026-09-01',endDate:'2027-09-01',currency:'THB',visitRateMinor:2500,warrantyDiscountBps:0},key())).id);
- await changeAgreement({...f.tie,modules:['field_service']},serviceId,{action:'activate',expectedVersion:1,reason:'Independent service manager accepted the timeline fixture agreement'},key());
+ const created=await native.requestAs<{id:string}>('owner','POST','/api/v1/holdings/acme/field-service',{entity:'agreement',branchId:f.branch,departmentId:f.department,customerId:customer,title:'Timeline service',startDate:'2026-09-01',endDate:'2027-09-01',currency:'THB',visitRateMinor:2500,warrantyDiscountBps:0},key());
+ expect(created.status,JSON.stringify(created.json)).toBe(200);
+ const reviewed=await native.requestAs('reviewer','POST','/api/v1/holdings/acme/field-service',{entity:'agreement',id:created.json.data.id,action:'activate',expectedVersion:1,reason:'Independent service manager accepted the timeline fixture agreement'},key());
+ expect(reviewed.status,JSON.stringify(reviewed.json)).toBe(200);
  await db.prepare(`INSERT INTO finance_invoices(id,company_id,party_id,kind,invoice_number,invoice_date,due_date,currency,subtotal_minor,tax_minor,total_minor,outstanding_minor,debit_account_id,credit_account_id,source_type,status,version,created_by,created_at,updated_at)
    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(invoiceId,f.company,customer,'receivable','TIMELINE-INV','2026-09-20','2026-10-20','THB',2500,0,2500,2500,f.accounts.revenue,f.accounts.cash,'standalone','posted',1,f.owner.userId,Date.now(),Date.now()).run();
  await db.prepare(`INSERT INTO legal_items(id,company_id,branch_id,department_id,kind,title,description,classification,country,jurisdiction,language,currency,timezone,priority,due_date,owner_id,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(legalId,f.company,f.branch,f.department,'contract','Timeline legal contract','Scoped legal source','internal','TH','TH','th','THB','Asia/Bangkok','normal','2026-10-01',f.owner.userId,f.owner.userId,Date.now(),Date.now()).run();
@@ -83,6 +89,18 @@ it('federates scoped Field Service, Finance and Legal state with module and perm
  expect(commerceOnly.items.some(item=>item.source_type==='finance')).toBe(true);
  expect(commerceOnly.items.some(item=>item.source_type==='legal')).toBe(false);
  expect(commerceOnly.coverage).not.toContain('Field Service agreements and visits');
+ },async db=>{
+ activeDatabase=db;
+ const f=await seedExpenseCompany(db,env.H001_FILES);
+ const customer=String((await saveMaster(f.owner,'parties',null,{kind:'customer',code:key(),name:'Timeline customer'},key())).id);
+ const w=await saveMaster(f.owner,'warehouses',null,{branchId:f.branch,code:key(),name:'Timeline warehouse'},key()),p=await saveMaster(f.owner,'products',null,{sku:key(),name:'Timeline product',price:'10'},key());
+ const order=String((await saveOrder(f.owner,null,orderSchema.parse({kind:'quote',partyId:customer,warehouseId:w.id,orderDate:'2026-09-20',dueDate:'2026-09-23',lines:[{productId:p.id,quantity:'1',price:'10',taxBps:0}]}),key())).id);
+ // Publish explicit fixture permissions; production IAM and independent-person
+ // rules are still evaluated by native commands after normal Account/SSO login.
+ await db.exec(`INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at)VALUES('*','custom_field_parts',2,'["records.read","records.write","records.review","module.field_service.read"]','[]','["holding","branch","department"]','synthetic-timeline',0);UPDATE iam_roles SET published_revision=2 WHERE company_id='*' AND id='custom_field_parts'`);
+ const actors=[];for(const [label,actor]of [['owner',f.owner],['reviewer',f.tie]]as const){const assignmentId=await f.grant(actor,'custom_field_parts');await db.prepare('UPDATE assignments SET modules_json=? WHERE id=?').bind(JSON.stringify(['field_service']),assignmentId).run();const row=await db.prepare('SELECT version FROM assignments WHERE id=?').bind(assignmentId).first<number>('version');if(row===null)throw new Error('NATIVE_TIMELINE_ASSIGNMENT_REQUIRED');actors.push({label,userId:actor.userId,assignmentId,assignmentVersion:Number(row),role:'custom_field_parts',modules:['field_service'],branchId:null,departmentId:null});}
+ prepared={db,f,customer,order};return {companyId:f.company,actors};
+ },'agreement');}finally{activeDatabase=undefined;}
 });
 it('applies requester Legal visibility to the shared Customer 360 event projection',async()=>{
  const requester=await f.member('customer-legal-requester','legal_requester');

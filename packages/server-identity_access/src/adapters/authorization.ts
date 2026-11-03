@@ -1,5 +1,6 @@
+import {readNativeAccountContext,nativeWorkReadModel} from './native-account-context';
+import {createNativeAccountCompaniesReader} from './native-account-companies';
 import{requestedHoldingScope}from '@erpx/server-identity_access/public/requested-holding-scope';
-import {holdingHostForHost,holdingRoutingEnabled} from '@erpx/feature-runtime/lib/holding-hosts';
 export{requestedHoldingScope};
 import {providerContextSelectedAssignment} from '@erpx/server-identity_access/adapters/provider-context-selection';
 import {productHostForHost} from '@erpx/feature-runtime/lib/product-hosts';
@@ -8,131 +9,57 @@ import { memoizeInRequest } from "@erpx/server-runtime/public/runtime/request-me
 import {identitySnapshotSources as organizationSnapshotSources} from '@erpx/server-organization/public/identity-snapshot-sources';
 const organizationSources=organizationSnapshotSources();
 import { measureReadPhase } from "@erpx/server-runtime/public/runtime/read-metrics";
-import { accountDirectoryGate } from "@erpx/server-identity_access/public/iam-directory-refresh";
-import type { PostgresDatabase } from "@erpx/server-runtime/public/runtime/postgres";
 import { loadIamAuthority, iamRoles } from "@erpx/server-identity_access/public/iam-store";
-import { readCompanyPreference, readWorkspacePreference } from "@erpx/server-work_projection/public/workspace-preferences";
+import { readWorkspacePreference } from "@erpx/server-work_projection/public/workspace-preferences";
 import { cache } from "react";
 import { ApiError } from "@erpx/server-runtime/public/http";
-import { initializeWorkSelection } from "@erpx/server-work_projection/public/work-role-store";
 import type { RoleRevision } from "@erpx/feature-identity_access/lib/iam";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
-import { betaAccess } from "@erpx/server-identity_access/public/beta-access";
-import { assertProductionFeatureRoute } from "@erpx/server-pms/public/feature-availability";
 import "server-only";
 import { headers } from "next/headers";
 import type { HoldingWorkspaceScope } from "@erpx/feature-work_projection/lib/workspace";
 export { assignmentApplies, isRoleValidAtScope } from "@erpx/server-identity_access/public/rules/workspace-access";
-import { createAuth } from "@erpx/server-identity_access/public/auth";
 import { createIdentitySessionAuthenticator } from "./native-session";
-import { runtimeEnv, holdingBindingBySlug, holdingResources, type HoldingId } from "../../../../packages/server-runtime/src/public/runtime";
+import { runtimeEnv, holdingResources, type HoldingId } from "../../../../packages/server-runtime/src/public/runtime";
 export type { AssignmentScopeKind, ResolvedWorkspaceScope, WorkContext, AuthorizedWorkspace, PlatformContext, WorkAssignment, WorkspaceCompany, WorkspaceResolutionOptions, AccountAccessContext } from "@erpx/server-identity_access/domain/authorization";
 export { publicScope } from "@erpx/server-identity_access/domain/authorization";
-import type { WorkspaceGrantFact, WorkContext, AuthorizedWorkspace, PlatformContext, WorkAssignment, OrganizationNode, WorkspaceCompany, WorkspaceResolutionOptions, AccountAccessContext } from "@erpx/server-identity_access/domain/authorization";
-import { createValidateNodeLineage, createResolveWorkspaceScope, createAssertFrontCompany, createWorkspaceCompanies, createAccountAccess, createWorkContext, createAuthorizedWorkspaces, createIdentitySession, createPlatformContext, createCanEnterManageErpx, createManageErpxContext, createFirstAuthorizedWorkspace } from "@erpx/server-identity_access/application/authorization";
+import type { WorkspaceGrantFact, WorkContext, PlatformContext, WorkspaceCompany, WorkspaceResolutionOptions, AccountAccessContext } from "@erpx/server-identity_access/domain/authorization";
+import { createIdentitySession, createPlatformContext, createCanEnterManageErpx, createManageErpxContext } from "@erpx/server-identity_access/application/authorization";
 const identityError = (status: number, code: string, message: string) => new ApiError(status, code, message);
 const sessionMemoKey = Symbol.for("erpx.identity.session");
 export const currentSession = cache(() => memoizeInRequest(sessionMemoKey, () => measureReadPhase('session', readCurrentSession)));
-async function readCurrentSession() { return createIdentitySession({ headers, authenticate: createIdentitySessionAuthenticator(async (origin, requestHeaders) => (await createAuth(origin)).api.getSession({ headers: requestHeaders })) })(); }
-async function findNode(database: SqlDatabase, kind: OrganizationNode["kind"], slug: string, companyId?: string) {
-    return database
-        .prepare(`SELECT id,kind,slug,display_name,parent_id,company_id,branch_id
-       ${organizationSources.authorization_organization_nodes_from} WHERE kind=? AND slug=? AND status='active'
-         ${companyId ? "AND company_id=?" : ""}`)
-        .bind(kind, slug, ...(companyId ? [companyId] : []))
-        .first<OrganizationNode>();
-}
-async function validateNodeLineage(database: SqlDatabase, node: OrganizationNode) {
-    return createValidateNodeLineage({ parent: async (parentId) => await database
-            .prepare(`SELECT id,kind,slug,display_name,parent_id,company_id,branch_id
-         ${organizationSources.authorization_organization_nodes_from} WHERE id=? AND status='active'`)
-            .bind(parentId)
-            .first<OrganizationNode>() })(node);
-}
+async function readCurrentSession() { return createIdentitySession({ headers, authenticate: createIdentitySessionAuthenticator() })(); }
 /** Render-only presentation facts. They never replace a command authority check. */
 export type WorkspaceCompanyPresentationFact = WorkspaceCompany & { slug: string };
-async function readWorkspaceCompanyRows(write: SqlDatabase, userId: string, now: number) {
-    return (await write.prepare(`SELECT n.id,n.slug,n.display_name ${organizationSources.authorization_organization_nodes_n_from}
-     JOIN assignments a ON a.company_id=n.id
-     WHERE n.kind='company' AND n.status='active' AND a.user_id=?
-       AND a.scope_kind='holding' AND a.revoked_at IS NULL AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(a.user_id,a.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)
-       AND a.valid_from<=? AND a.valid_until>?
-       AND EXISTS(SELECT 1 FROM iam_roles role_row JOIN iam_role_revisions role_revision
-         ON role_revision.company_id=role_row.company_id AND role_revision.role_id=role_row.id AND role_revision.revision=role_row.published_revision
-         WHERE role_row.id=a.role AND role_row.company_id IN ('*',a.company_id) AND role_row.status='active'
-           AND role_revision.scopes_json @> '["holding"]'::jsonb)
-     ORDER BY n.display_name,n.id`).bind(userId, now, now).all<{ id: string; slug: string; display_name: string }>()).results;
+async function nativeAccountCompanies(holdingId?:HoldingId){
+    const raw=process.env.ERPX_NATIVE_FIELD_SERVICE_WORKSPACE_CONFIG;
+    if(!raw||!process.env.ERPX_NATIVE_ACCOUNT_SESSION_CONFIG)throw identityError(503,'NATIVE_ACCOUNT_COMPANIES_TARGET_UNAVAILABLE','The native Company selection is not configured.');
+    const {session}=await currentSession();
+    return createNativeAccountCompaniesReader(raw)(await headers(),{sessionId:session.session.id,userId:session.user.id},holdingId);
 }
-export async function workspaceCompaniesForAccount(write: SqlDatabase, userId: string, now = Date.now()): Promise<WorkspaceCompany[]> {
-    return createWorkspaceCompanies({ now: Date.now, companies: (accountId, instant) => readWorkspaceCompanyRows(write, accountId, instant) })(userId, now);
+// Resource/time arguments are retained only for callers whose old fixture
+// signatures have not moved. Neither can authorize or time-travel a Company read.
+export async function workspaceCompaniesForAccount(_write:SqlDatabase,userId:string,_now=Date.now()):Promise<WorkspaceCompany[]>{
+    void _write;void _now;const result=await nativeAccountCompanies();
+    if(result.userId!==userId)throw identityError(401,'SESSION_REVOKED','The current personal account changed.');
+    return result.companies.map(({id,name})=>({id,name}));
 }
-/** Same render-pass cache boundary as the previous company-choice read. */
-export const listWorkspaceCompanyPresentationFacts = cache(async (holdingId: HoldingId): Promise<WorkspaceCompanyPresentationFact[]> => {
-    const { write } = await holdingResources(holdingId);
-    const { session } = await currentSession();
-    const rows = await readWorkspaceCompanyRows(write, session.user.id, Date.now());
-    return [...new Map(rows.map(row => [row.id, { id: row.id, name: row.display_name, slug: row.slug }])).values()];
-});
+/** Same render-pass cache boundary; source and eligibility are native-only. */
+export const listWorkspaceCompanyPresentationFacts = cache(async(holdingId:HoldingId):Promise<WorkspaceCompanyPresentationFact[]> =>
+    (await nativeAccountCompanies(holdingId)).companies);
 export const listWorkspaceCompanies = cache(async (holdingId: HoldingId): Promise<WorkspaceCompany[]> =>
     (await listWorkspaceCompanyPresentationFacts(holdingId)).map(({ id, name }) => ({ id, name })));
-export async function resolveWorkspaceScope(requested: HoldingWorkspaceScope, options: WorkspaceResolutionOptions = {}) {
-    const host=holdingRoutingEnabled(process.env)&&holdingHostForHost((await headers()).get('host'));
-    if(host&&host.holdingSlug!==requested.holdingSlug)throw identityError(404,'WORKSPACE_NOT_FOUND','Workspace not found.');
-    let write: SqlDatabase;
-    return createResolveWorkspaceScope({ binding: async (slug) => { const binding = await holdingBindingBySlug(slug); write = (await holdingResources(binding.id)).write; return binding; }, headers, session: currentSession, preference: async (userId, holdingId) => readCompanyPreference((await runtimeEnv()).CONTROL_DB, userId, holdingId), companies: listWorkspaceCompanies, companyBySlug: async (slug) => write.prepare(`SELECT id,kind,slug,display_name,parent_id,company_id,branch_id
-             ${organizationSources.authorization_organization_nodes_from} WHERE kind='company' AND slug=? AND status='active'`).bind(slug).first<OrganizationNode>(), companyById: async (id) => write.prepare(`SELECT id,kind,slug,display_name,parent_id,company_id,branch_id
-             ${organizationSources.authorization_organization_nodes_from} WHERE kind='company' AND id=? AND status='active'`).bind(id).first<OrganizationNode>(), branch: async (slug, companyId, frontCompanySlug) => frontCompanySlug ? write.prepare(`SELECT n.id,n.kind,n.slug,n.display_name,n.parent_id,n.company_id,n.branch_id ${organizationSources.authorization_organization_nodes_n_from} ` + `${organizationSources.authorization_organization_nodes_c_join} ON c.id=n.company_id AND c.kind='company' AND c.slug=? AND c.status='active' ` + "WHERE n.kind='branch' AND n.slug=? AND n.status='active'").bind(frontCompanySlug, slug).first<OrganizationNode>() : findNode(write, 'branch', slug, companyId), department: async (departmentSlug, branch, companyId, frontCompanySlug) => write.prepare(branch ? `SELECT id,kind,slug,display_name,parent_id,company_id,branch_id
-           ${organizationSources.authorization_organization_nodes_from} WHERE kind='department' AND slug=? AND company_id=?
-           AND status='active' AND branch_id=? AND parent_id=?` : companyId ? `SELECT id,kind,slug,display_name,parent_id,company_id,branch_id
-             ${organizationSources.authorization_organization_nodes_from} WHERE kind='department' AND slug=? AND company_id=?
-             AND status='active' AND branch_id IS NULL` : frontCompanySlug ? `SELECT n.id,n.kind,n.slug,n.display_name,n.parent_id,n.company_id,n.branch_id
-             ${organizationSources.authorization_organization_nodes_n_from} ${organizationSources.authorization_organization_nodes_c_join} ON c.id=n.company_id AND c.kind='company' AND c.slug=? AND c.status='active'
-             WHERE n.kind='department' AND n.slug=? AND n.status='active' AND n.branch_id IS NULL` : `SELECT id,kind,slug,display_name,parent_id,company_id,branch_id
-             ${organizationSources.authorization_organization_nodes_from} WHERE kind='department' AND slug=?
-             AND status='active' AND branch_id IS NULL`).bind(...(companyId && !branch ? [departmentSlug, companyId] : frontCompanySlug && !branch ? [frontCompanySlug, departmentSlug] : [departmentSlug]), ...(branch ? [branch.company_id, branch.id, branch.id] : [])).first<OrganizationNode>(), lineage: node => validateNodeLineage(write, node), frontCompany: companyId => assertFrontCompany(write, companyId) })(requested, options);
-}
-async function assertFrontCompany(database: SqlDatabase, companyId: string) {
-    return createAssertFrontCompany({ slug: async () => (await headers()).get('x-erpx-front-company'), matches: async (companyId, requestedSlug) => Boolean(await database
-            .prepare(`SELECT 1 ${organizationSources.authorization_organization_nodes_from} WHERE id=? AND slug=? AND kind='company' AND status='active'`)
-            .bind(companyId, requestedSlug)
-            .first()), error: identityError })(companyId);
-}
-
-async function listAuthorizedWorkspaces(database: SqlDatabase, holdingSlug: string, assignments: WorkAssignment[]): Promise<AuthorizedWorkspace[]> {
-    return createAuthorizedWorkspaces({ nodes: async (companyId) => (await database
-            .prepare(`SELECT n.id,n.kind,n.slug,n.display_name,n.parent_id,n.branch_id,b.slug AS branch_slug
-       ${organizationSources.authorization_organization_nodes_n_from}
-       LEFT ${organizationSources.authorization_organization_nodes_b_join} ON n.branch_id=b.id AND b.kind='branch'
-       WHERE n.kind IN ('branch','department') AND n.status='active' AND n.company_id=?
-       ORDER BY CASE n.kind WHEN 'branch' THEN 1 ELSE 2 END,n.display_name,n.id`)
-            .bind(companyId)
-            .all<{
-            id: string;
-            kind: "branch" | "department";
-            slug: string;
-            display_name: string;
-            parent_id: string | null;
-            branch_id: string | null;
-            branch_slug: string | null;
-        }>()).results })(holdingSlug, assignments);
-}
+export async function resolveWorkspaceScope(requested:HoldingWorkspaceScope,options:WorkspaceResolutionOptions={}) {return (await requireAccountAccess(requested,options)).scope;}
 /** Current grants and their published definitions share one invocation-local SQL snapshot. */
 export async function workspaceGrantsForAccount(write: SqlDatabase, companyId: string, userId: string, now = Date.now()): Promise<{ rows: WorkspaceGrantFact[]; roles: Map<string, RoleRevision> }> {
     const {rows,roles}=await accountAuthoritySnapshot(write,companyId,userId,now);
     return {rows,roles};
 }
 
-export async function requireAccountAccess(requested: HoldingWorkspaceScope | string, options: WorkspaceResolutionOptions = {}): Promise<AccountAccessContext> {
-    let write: SqlDatabase;
-    let definitions = new Map<string,RoleRevision>();
-    let readiness: Awaited<ReturnType<typeof accountDirectoryGate>>;
-    let observedNow=0;
-    return createAccountAccess({ session: currentSession, requested: requestedHoldingScope, scope: resolveWorkspaceScope, ready: async (scope) => { write = (await holdingResources(scope.holdingId)).write; }, now: () => (observedNow=Date.now()), error: identityError,
-        revoked: async (scope, sessionId, userId) => { readiness=await accountDirectoryGate(write as PostgresDatabase,scope.companyId,userId,sessionId,{includeAccountGrants:true,observedNow}); return readiness.revoked; },
-        refresh: async () => readiness.refresh(),
-        assignments: async () => { const facts=readiness.accountGrants; if(!facts)throw identityError(500,'ACCOUNT_ACCESS_UNAVAILABLE','Unable to read current account access.'); definitions=facts.roles; return facts.rows; },
-        roles: async (_scope,ids) => new Map(ids.flatMap(id => {const definition=definitions.get(id); return definition ? [[id,definition] as const] : [];})),
-    })(requested, options);
+export async function requireAccountAccess(requested:HoldingWorkspaceScope|string,options:WorkspaceResolutionOptions={}):Promise<AccountAccessContext>{
+ const {session,requestHeaders}=await currentSession();
+ const scope=typeof requested==='string'?await requestedHoldingScope(requested):requested;
+ return (await readNativeAccountContext(session,requestHeaders,scope,options,false)).access;
 }
 export async function requireWorkContext(requested: HoldingWorkspaceScope | string, options: WorkspaceResolutionOptions = {}): Promise<WorkContext> {
     try {
@@ -151,8 +78,13 @@ const cachedWorkContext = cache(async (key: string): Promise<WorkContext> => {
         requested: HoldingWorkspaceScope;
         options: WorkspaceResolutionOptions;
     };
-    let write: SqlDatabase;
-    return createWorkContext({ access: (requested, options) => measureReadPhase('account_access', () => requireAccountAccess(requested, options)), ready: async (scope) => { write = (await holdingResources(scope.holdingId)).write; }, selection: (access, eligible) => initializeWorkSelection(write, { sessionId: access.sessionId, userId: access.userId, companyId: access.scope.companyId, expiresAt: access.expiresAt }, access.assignments, eligible), now: Date.now, error: identityError, beta: (scope, requestHeaders) => betaAccess(write, scope.companyId, requestHeaders), authority: (scope, userId, role, sessionId) => loadIamAuthority(write, scope.companyId, userId, role, sessionId), feature: (scope, destination, method) => assertProductionFeatureRoute(write, scope.companyId, destination, method), workspaces: (scope, assignments) => listAuthorizedWorkspaces(write, scope.holdingSlug, assignments) })(requested, options);
+    const {session,requestHeaders}=await currentSession();
+    // The previous production-only mutating route policy has not been ported
+    // yet. Keep those ingress requests unavailable rather than bypassing it.
+    const method=requestHeaders.get('x-erpx-method')??'GET';
+    if(process.env.NODE_ENV==='production'&&!['GET','HEAD','OPTIONS'].includes(method))throw identityError(503,'NATIVE_ROUTE_ADMISSION_UNAVAILABLE','The native production route admission is not enabled yet.');
+    const {state,access}=await readNativeAccountContext(session,requestHeaders,requested,options,true);
+    return nativeWorkReadModel(state,access);
 });
 export async function requirePlatformContext(): Promise<PlatformContext> {
     let env: Awaited<ReturnType<typeof runtimeEnv>>;
@@ -179,21 +111,14 @@ export async function canEnterManageErpx() {
         }>()).results, roles: (companyId, ids) => iamRoles(write, companyId, ids) })();
 }
 export async function requireManageErpxContext() { return createManageErpxContext({ headers, work: () => requireWorkContext('erpx'), account: () => requireAccountAccess('erpx'), platform: requirePlatformContext, error: identityError, isApiError: (error): error is ApiError => error instanceof ApiError })(); }
-export async function firstAuthorizedWorkspace(holdingSlug: string) {
-    return createFirstAuthorizedWorkspace({ nodes: async (holdingSlug) => {
-            const binding = await holdingBindingBySlug(holdingSlug), { write } = await holdingResources(binding.id);
-            return (await write
-                .prepare(`SELECT n.id,n.kind,n.slug,n.branch_id,b.slug AS branch_slug
-       ${organizationSources.authorization_organization_nodes_n_from}
-       LEFT ${organizationSources.authorization_organization_nodes_b_join} ON n.branch_id=b.id AND b.kind='branch'
-       WHERE n.kind IN ('branch','department') AND n.status='active'
-       ORDER BY CASE n.kind WHEN 'branch' THEN 1 ELSE 2 END,n.display_name,n.id`)
-                .all<{
-                id: string;
-                kind: "branch" | "department";
-                slug: string;
-                branch_id: string | null;
-                branch_slug: string | null;
-            }>()).results;
-        }, account: requireAccountAccess })(holdingSlug);
+export async function firstAuthorizedWorkspace(holdingSlug:string):Promise<HoldingWorkspaceScope|null>{
+ const {session,requestHeaders}=await currentSession();const companies=await nativeAccountCompanies();
+ for(const company of companies.companies){
+  const {state}=await readNativeAccountContext(session,requestHeaders,{kind:'holding',holdingSlug},{companyId:company.id},false);
+  const w=state.workspaces[0];if(!w)continue;
+  if(w.kind==='holding')return {kind:'holding',holdingSlug};
+  if(w.kind==='branch'&&w.branchSlug)return {kind:'branch',holdingSlug,branchSlug:w.branchSlug};
+  if(w.kind==='department'&&w.departmentSlug)return {kind:'department',holdingSlug,departmentSlug:w.departmentSlug,...(w.branchSlug?{branchSlug:w.branchSlug}:{})};
+ }
+ return null;
 }

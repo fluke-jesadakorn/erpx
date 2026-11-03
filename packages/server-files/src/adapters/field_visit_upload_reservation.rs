@@ -4,7 +4,7 @@ use crate::public::{
     field_visit_upload::{
         FIELD_RESERVATION_MILLIS, FieldFileReservation, NormalizedFieldFileReservation,
         field_reservation_replay_matches, field_upload_id, field_upload_link_id,
-        normalize_fresh_field_file,
+        normalize_fresh_owner_file,
     },
 };
 use erpx_server_identity_access::public::effective_authority::AuthorizedWorkContext;
@@ -101,7 +101,10 @@ pub async fn reserve_field_file<A: FieldIntakeAuthority, Q: FieldStorageQuota>(
                 "File set not found.",
             )
         })?;
-    if !crate::domain::field_visit_link::valid_field_purpose(&target_type, &component, &purpose) {
+    if !authority
+        .owner_kind()
+        .supports(&target_type, &component, &purpose)
+    {
         return Err(problem(
             FailureKind::InvalidInput,
             "ATTACHMENT_POLICY_UNKNOWN",
@@ -153,7 +156,7 @@ pub async fn reserve_field_file<A: FieldIntakeAuthority, Q: FieldStorageQuota>(
     if guard.scope().version != expected {
         return Err(changed());
     }
-    let input = normalize_fresh_field_file(&purpose, request)?;
+    let input = normalize_fresh_owner_file(authority.owner_kind(), &purpose, request)?;
     if let Some(id) = input.supersedes_link_id.as_deref() {
         let valid:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id WHERE l.id=$1 AND s.company_id=$2 AND s.target_type=$3 AND s.target_id=$4 AND s.purpose_key=$5 AND l.state='bound')").bind(id).bind(company).bind(&target_type).bind(&target_id).bind(&purpose).fetch_one(&mut *c).await?;
         if !valid {

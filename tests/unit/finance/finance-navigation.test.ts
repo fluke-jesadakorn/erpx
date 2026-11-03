@@ -1,3 +1,5 @@
+import {captureFinanceForm,acknowledgeFinanceForm} from '@erpx/feature-finance/components/finance-draft-boundary';
+import {financeDocumentFormUnchanged as capturedFinanceFormUnchanged} from '@erpx/feature-finance/lib/document-post-control';
 import { describe, expect, it, vi } from "vitest";
 import type { Mock } from "vitest";
 import { financeAreaItems, financeContextHref, financeNavigation } from "@erpx/feature-finance/lib/finance-navigation";
@@ -235,7 +237,7 @@ it("retains a guarded correction editor for eligible choices and history-only em
 });
 
 import {ServiceNoChargeConfirmation,ServiceNoChargeConfirmationPresentation} from "@erpx/feature-finance/components/service-no-charge-confirmation";
-import {captureServiceNoChargeAttempt,serviceNoChargeAcknowledged,serviceNoChargeView} from "@erpx/server-finance/public/rules/service-no-charge";
+import {captureServiceNoChargeAttempt,serviceNoChargeAcknowledged,serviceNoChargeView} from "@erpx/feature-finance/public/service-no-charge";
 const noChargeControls={invoiceId:"covered-original",version:1,contextKey:"a".repeat(64),canConfirm:true,confirmed:false};
 it("keeps newer Service no-charge edits visible after a confirmed Server refresh until explicit discard",()=>{
  const retained={reason:"A newer independent review draft",notice:"The captured confirmation was saved. Your newer draft is retained.",uncertain:false},confirmed={...noChargeControls,version:2,confirmed:true,canConfirm:false};
@@ -280,13 +282,22 @@ it.each(['revision','stale boundary','removed boundary'] as const)('retains the 
  expect(events).toEqual(['erpx:finance-command-acknowledged','erpx:record-command-saved','erpx:work-changed']);
  expect(network.mock.calls.map(call=>call[1]?.body)).toEqual([captured.command.body,captured.command.body,captured.command.body]);expect(network.mock.calls.map(call=>new Headers(call[1]?.headers).get('Idempotency-Key'))).toEqual([captured.command.key,captured.command.key,captured.command.key]);
 });
-it('dispatches only the exact no-charge API action with its original WorkContext, captured body and key behind the unchanged origin and JSON guards',async()=>{
- const actor={userId:'fixture-finance-reviewer',name:'Fixture reviewer',email:'reviewer@example.test',assignmentId:'fixture-assignment',role:'finance_approver',companyId:'fixture-company',branchId:null,departmentId:null,holdingId:'h001',holdingSlug:'acme',holdingName:'Acme',scope:{kind:'holding' as const,holdingId:'h001',holdingSlug:'acme',holdingName:'Acme',companyId:'fixture-company'},assignmentScope:'holding' as const,inherited:false,modules:['finance'],assignments:[],workspaces:[]},input={expectedVersion:1,contextKey:'a'.repeat(64),reason:'Independent captured contractual source review'},result={id:'covered-original',status:'no_charge_confirmed',version:2,confirmationId:'service-no-charge-captured-key'},confirm=vi.fn(async()=>result),origin='https://console-dev-erpx.jesadakorn.com';
- vi.doMock("@erpx/server-identity_access/public/authorization",async()=>({...await vi.importActual<object>("@erpx/server-identity_access/public/authorization"),requireWorkContext:async()=>actor}));vi.doMock("@erpx/server-finance/public/service-no-charge",()=>({confirmServiceNoCharge:confirm}));vi.doMock("@erpx/server-manage_erpx/public/public-origin",()=>({requestPublicOrigin:()=>origin}));
- try{const {POST}=await import('@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/finance/[...path]/route'),context=(path=['invoices','covered-original','confirm-no-charge'])=>({params:Promise.resolve({holdingSlug:'acme',path})}),request=(headers:Record<string,string>={},body=JSON.stringify(input))=>new Request(`${origin}/api/v1/holdings/acme/finance/invoices/covered-original/confirm-no-charge`,{method:'POST',headers:{Origin:origin,'Content-Type':'application/json','Idempotency-Key':'captured-key',...headers},body});
-  const response=await POST(request(),context());expect(response.status).toBe(200);expect(await response.json()).toEqual({data:result});expect(confirm).toHaveBeenCalledExactlyOnceWith(actor,'covered-original',input,'captured-key');
-  for(const [req,ctx,status,code] of [[request({Origin:'https://foreign.test'}),context(),403,'ORIGIN_FORBIDDEN'],[request({},'{'),context(),422,'INVALID_JSON'],[request({'Idempotency-Key':''}),context(),422,'IDEMPOTENCY_KEY_REQUIRED'],[request(),context(['invoices','covered-original','confirm-no-charge','unregistered']),404,'NOT_FOUND']] as const){const denied=await POST(req,ctx);expect(denied.status).toBe(status);expect(await denied.json()).toMatchObject({error:{code}});}expect(confirm).toHaveBeenCalledTimes(1);
- }finally{for(const path of ["@erpx/server-identity_access/public/authorization","@erpx/server-finance/public/service-no-charge","@erpx/server-manage_erpx/public/public-origin"])vi.doUnmock(path);vi.resetModules();}
+it('transports only the exact no-charge API action with original context/body/key and retains origin/error guards',async()=>{
+ const actor={userId:'fixture-finance-reviewer',name:'Fixture reviewer',email:'reviewer@example.test',assignmentId:'fixture-assignment',role:'finance_approver',companyId:'fixture-company',branchId:null,departmentId:null,holdingId:'h001',holdingSlug:'acme',holdingName:'Acme',scope:{kind:'holding' as const,holdingId:'h001',holdingSlug:'acme',holdingName:'Acme',companyId:'fixture-company'},assignmentScope:'holding' as const,inherited:false,modules:['finance'],assignments:[],workspaces:[]},input={expectedVersion:1,contextKey:'a'.repeat(64),reason:'Independent captured contractual source review'},result={id:'covered-original',status:'no_charge_confirmed',version:2,confirmationId:'service-no-charge-captured-key'},origin='https://acme.example.test';
+ const transport=vi.fn(async()=>Response.json({data:result}));
+ vi.doMock("@erpx/server-identity_access/public/authorization",async()=>({...await vi.importActual<object>("@erpx/server-identity_access/public/authorization"),requireWorkContext:async()=>actor}));
+ vi.doMock("@erpx/feature-finance/public/server",async()=>({...await vi.importActual<object>("@erpx/feature-finance/public/server"),nativeServiceNoCharge:transport}));
+ vi.doMock("@erpx/server-manage_erpx/public/public-origin",()=>({requestPublicOrigin:()=>origin}));
+ try{const {POST}=await import('@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/finance/[...path]/route'),context=(path=['invoices','covered-original','confirm-no-charge'])=>({params:Promise.resolve({holdingSlug:'acme',path})}),request=(headers:Record<string,string>={},body=JSON.stringify(input))=>new Request(`${origin}/api/v1/holdings/acme/finance/invoices/covered-original/confirm-no-charge`,{method:'POST',headers:{Origin:origin,'Content-Type':'application/json','Idempotency-Key':'captured-key',cookie:'opaque-native-session','x-erpx-context-company':'fixture-company','x-erpx-context-assignment':'fixture-assignment','x-erpx-context-revision':'7','x-erpx-context-assignment-version':'3',...headers},body});
+  const original=request(),response=await POST(original,context());expect(response.status).toBe(200);expect(await response.json()).toEqual({data:result});expect(transport).toHaveBeenCalledExactlyOnceWith(original,'acme','covered-original');expect(await original.clone().json()).toEqual(input);expect(original.headers.get('Idempotency-Key')).toBe('captured-key');expect(original.headers.get('x-erpx-context-assignment')).toBe(actor.assignmentId);
+  // JSON/key errors now belong to the actual Rust ingress (covered by the
+  // native PostgreSQL case); this route forwards them without a TS decision.
+  for(const [req,ctx,status,code] of [[request({Origin:'https://foreign.test'}),context(),403,'ORIGIN_FORBIDDEN'],[request({},'{'),context(),422,'INVALID_JSON'],[request({'Idempotency-Key':''}),context(),422,'IDEMPOTENCY_KEY_REQUIRED'],[request(),context(['invoices','covered-original','confirm-no-charge','unregistered']),404,'NOT_FOUND']] as const){
+   if(code==='INVALID_JSON'||code==='IDEMPOTENCY_KEY_REQUIRED')transport.mockImplementationOnce(async()=>Response.json({error:{code}},{status}));
+   const denied=await POST(req,ctx);expect(denied.status).toBe(status);expect(await denied.json()).toMatchObject({error:{code}});
+  }
+  expect(transport).toHaveBeenCalledTimes(3);
+ }finally{for(const path of ["@erpx/server-identity_access/public/authorization","@erpx/feature-finance/public/server","@erpx/server-manage_erpx/public/public-origin"])vi.doUnmock(path);vi.resetModules();}
 });
 
 async function originalPaymentSubmitCode(){const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),source=await readFile(new URL("../../../packages/feature-finance/src/components/payment-correction.tsx",import.meta.url),'utf8'),file=ts.createSourceFile('original-payment-correction.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),found:import('typescript').FunctionDeclaration[]=[];const visit=(node:import('typescript').Node)=>{if(ts.isFunctionDeclaration(node)&&node.name?.text==='submit')found.push(node);ts.forEachChild(node,visit);};visit(file);expect(found).toHaveLength(1);return ts.transpileModule(found[0].getText(file),{compilerOptions:{esModuleInterop: false, target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;}
@@ -521,4 +532,16 @@ it('actual Sales invoice clean close keeps another dirty Sales owner mounted wit
 });
 it('actual Sales invoice inline close and already-absent open flag do not navigate',async()=>{
  for(const options of [{inline:true},{href:'https://finance-dev-erpx.jesadakorn.com/holdings/acme/finance/documents/sales/invoices?status=draft#history'}]){const mounted=await mountedInvoiceDrawer(options);try{mounted.dismiss();expect(mounted.drawer().props.open).toBe(false);expect(mounted.router.replace).not.toHaveBeenCalled();}finally{mounted.close();}}
+});
+
+it('controlled receipt acknowledgement belongs to the submitted form when touch focus is outside it',()=>{
+ const browser=new EventTarget(),events:Array<{type:string;form:unknown;version:unknown}>=[];let edit='submitted-edit';
+ const submitted={isConnected:true,getAttribute:()=>edit} as unknown as HTMLFormElement,other={getAttribute:()=> 'other-edit'};
+ vi.stubGlobal('window',browser);vi.stubGlobal('document',{activeElement:{closest:()=>null}});
+ for(const type of ['erpx:finance-command-acknowledged','erpx:record-command-saved'])browser.addEventListener(type,event=>{const detail=(event as CustomEvent).detail;events.push({type,form:detail.form,version:detail.formEditVersion});});
+ try{
+  expect(captureFinanceForm()).toBeUndefined();const completion=captureFinanceForm(submitted);expect(completion).toEqual({form:submitted,formEditVersion:'submitted-edit'});expect(capturedFinanceFormUnchanged(completion)).toBe(true);
+  vi.stubGlobal('document',{activeElement:{closest:()=>other}});edit='newer-local-edit';acknowledgeFinanceForm(completion);
+  expect(events).toEqual([{type:'erpx:finance-command-acknowledged',form:submitted,version:'submitted-edit'},{type:'erpx:record-command-saved',form:submitted,version:'submitted-edit'}]);expect(capturedFinanceFormUnchanged(completion)).toBe(false);expect(submitted.getAttribute('data-erpx-edit-version')).toBe('newer-local-edit');
+ }finally{vi.unstubAllGlobals();}
 });

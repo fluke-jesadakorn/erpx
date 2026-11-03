@@ -148,7 +148,7 @@ struct Effects<'a, C> {
     prepared: Option<Prepared>,
     written: Option<Prepared>,
 }
-fn manifest(items: &[FieldBindManifestItem]) -> Vec<FieldAttachmentManifestItem> {
+pub(crate) fn manifest(items: &[FieldBindManifestItem]) -> Vec<FieldAttachmentManifestItem> {
     items
         .iter()
         .map(|v| FieldAttachmentManifestItem {

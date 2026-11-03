@@ -4,6 +4,13 @@ use erpx_server_shared::public::{BusinessError, CompanyId, FailureKind};
 use sqlx::{Connection, PgConnection, Row};
 type Error = PgTransactionError<BusinessError>;
 type Unit = (String, i32, String, String);
+/// Report labels do not grant access to a node or Field record. Historical
+/// rows retain their current name even if a node is no longer active.
+pub async fn read_service_report_node_names(c:&mut PgConnection,company:&CompanyId,ids:&[String])->Result<Vec<(String,String)>,Error>{
+    if !c.is_in_transaction()||ids.len()>1000{return Err(PersistenceError::new("SERVICE_REPORT_NODE_SCOPE_REQUIRED").into());}
+    let rows:Vec<(String,Option<String>)>=sqlx::query_as("SELECT id,CASE WHEN octet_length(display_name)<=3000 THEN display_name END FROM organization_nodes WHERE company_id=$1 AND id=ANY($2::text[]) ORDER BY id").bind(company.as_str()).bind(ids).fetch_all(c).await?;
+    rows.into_iter().map(|(id,name)|name.map(|name|(id,name)).ok_or_else(||BusinessError::new(FailureKind::Unavailable,"SERVICE_REPORT_LABEL_LIMIT","A report label exceeds this bounded read.").into())).collect()
+}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ServiceLocationReference {
     pub id: String,
@@ -187,4 +194,42 @@ async fn stock_branches(
         ));
     }
     Ok(result)
+}
+
+/// Raw retained Company identities for Service package settlement. Inactive
+/// references remain visible here: a picker must not redefine a historical
+/// settlement duty. The outer consumer supplies Commercial/IAM authority.
+#[derive(Clone,Debug,PartialEq,Eq,serde::Deserialize)]
+pub struct ServiceSettlementLocation {
+    pub id: String,
+    pub branch_id: Option<String>,
+    pub kind: String,
+    pub status: String,
+}
+pub struct CurrentServiceSettlementLocations {
+    company:CompanyId,
+    ids:Vec<String>,
+    unit:Unit,
+    data:Vec<ServiceSettlementLocation>,
+    digest:String,
+}
+impl CurrentServiceSettlementLocations {
+    pub fn data(&self)->&[ServiceSettlementLocation]{&self.data}
+    pub async fn require_current(&self,c:&mut PgConnection)->Result<(),Error>{
+        if unit(c).await?!=self.unit{return Err(changed());}
+        let(data,digest)=capture_service_settlement_locations(c,&self.company,&self.ids).await?;
+        if data!=self.data||digest!=self.digest{return Err(changed());}
+        Ok(())
+    }
+}
+async fn capture_service_settlement_locations(c:&mut PgConnection,company:&CompanyId,ids:&[String])->Result<(Vec<ServiceSettlementLocation>,String),Error>{
+    let row=sqlx::query("WITH source AS MATERIALIZED(SELECT * FROM organization_nodes WHERE company_id=$1 AND id=ANY($2::text[])),snapshot AS(SELECT coalesce(jsonb_agg(jsonb_build_object('id',s.id,'branch_id',s.branch_id,'kind',s.kind,'status',s.status) ORDER BY s.id),'[]'::jsonb) value,encode(sha256(convert_to(coalesce(string_agg(encode(sha256(convert_to(to_jsonb(s)::text,'UTF8')),'hex'),'' ORDER BY s.id),''),'UTF8')),'hex') digest FROM source s)SELECT CASE WHEN octet_length(value::text)<=2097152 THEN value::text END payload,digest FROM snapshot").bind(company.as_str()).bind(ids).fetch_one(c).await?;
+    let payload:Option<String>=row.try_get("payload")?;
+    let data=serde_json::from_str(&payload.ok_or_else(limited)?).map_err(|_|limited())?;
+    Ok((data,row.try_get("digest")?))
+}
+pub async fn read_service_settlement_locations(c:&mut PgConnection,company:&CompanyId,ids:&[String])->Result<CurrentServiceSettlementLocations,Error>{
+    let unit=unit(c).await?;
+    let(data,digest)=capture_service_settlement_locations(c,company,ids).await?;
+    Ok(CurrentServiceSettlementLocations{company:company.clone(),ids:ids.to_vec(),unit,data,digest})
 }

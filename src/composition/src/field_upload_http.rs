@@ -12,7 +12,11 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post, put},
 };
+use erpx_server_files::public::field_visit_intake::{
+    FieldIntakeAuthority, FieldIntakeScope, IntakeOwner,
+};
 use erpx_server_files::public::{attachment_scan::LocalSanitizationStore, field_visit_upload::*};
+use erpx_server_identity_access::public::effective_authority::AuthorizedWorkContext;
 use erpx_server_identity_access::public::{
     AccountPolicy,
     account_holding_bindings::ConfiguredHoldingRegistry,
@@ -35,6 +39,7 @@ pub struct FieldUploadTarget<C> {
 struct UploadState<C> {
     ingress: HttpState<C>,
     targets: BTreeMap<(String, String), Arc<FieldUploadTarget<C>>>,
+    profile: UploadProfile,
 }
 fn unavailable() -> BusinessError {
     BusinessError::new(
@@ -51,6 +56,138 @@ pub fn field_upload_router<C: Clock + Send + Sync + 'static>(
     registry: Arc<ConfiguredHoldingRegistry>,
     scopes: Arc<dyn BusinessScopeSlugs>,
     targets: Vec<FieldUploadTarget<C>>,
+) -> Result<Router, BusinessError> {
+    upload_router(policy, registry, scopes, targets, UploadProfile::Visit)
+}
+// Trusted composition chooses the owner; request labels never select authority.
+#[derive(Clone)]
+enum UploadProfile {
+    Visit,
+    #[cfg(feature = "finance-field-write")]
+    Finance(
+        Arc<
+            BTreeMap<
+                (String, String),
+                crate::finance_journal_create::FinanceJournalCreateConfiguration,
+            >,
+        >,
+    ),
+    #[cfg(feature = "finance-field-write")]
+    Journal(
+        Arc<
+            BTreeMap<
+                (String, String),
+                crate::finance_journal_create::FinanceJournalCreateConfiguration,
+            >,
+        >,
+        Arc<BTreeMap<erpx_server_shared::public::HoldingId, bool>>,
+    ),
+}
+impl UploadProfile {
+    fn owner(&self) -> IntakeOwner {
+        match self {
+            Self::Visit => IntakeOwner::FieldVisit,
+            #[cfg(feature = "finance-field-write")]
+            Self::Finance(_) => IntakeOwner::FinancePayment,
+            #[cfg(feature = "finance-field-write")]
+            Self::Journal(..) => IntakeOwner::FieldJournal,
+        }
+    }
+    fn prefix(&self) -> &'static str {
+        match self {
+            Self::Visit => "field-service",
+            #[cfg(feature = "finance-field-write")]
+            Self::Finance(_) => "finance/payment-files",
+            #[cfg(feature = "finance-field-write")]
+            Self::Journal(..) => "finance/journal-files",
+        }
+    }
+}
+#[cfg(feature = "finance-field-write")]
+pub fn finance_payment_upload_router<C: Clock + Send + Sync + 'static>(
+    policy: Arc<AccountPolicy>,
+    registry: Arc<ConfiguredHoldingRegistry>,
+    scopes: Arc<dyn BusinessScopeSlugs>,
+    targets: Vec<FieldUploadTarget<C>>,
+    configurations: Vec<crate::finance_journal_create::FinanceJournalCreateConfiguration>,
+) -> Result<Router, BusinessError> {
+    finance_owner_upload_router(
+        policy,
+        registry,
+        scopes,
+        targets,
+        configurations,
+        IntakeOwner::FinancePayment,
+        BTreeMap::new(),
+    )
+}
+#[cfg(feature = "finance-field-write")]
+pub fn finance_field_journal_upload_router<C: Clock + Send + Sync + 'static>(
+    policy: Arc<AccountPolicy>,
+    registry: Arc<ConfiguredHoldingRegistry>,
+    scopes: Arc<dyn BusinessScopeSlugs>,
+    targets: Vec<FieldUploadTarget<C>>,
+    configurations: Vec<crate::finance_journal_create::FinanceJournalCreateConfiguration>,
+    binding_modes: BTreeMap<erpx_server_shared::public::HoldingId, bool>,
+) -> Result<Router, BusinessError> {
+    finance_owner_upload_router(
+        policy,
+        registry,
+        scopes,
+        targets,
+        configurations,
+        IntakeOwner::FieldJournal,
+        binding_modes,
+    )
+}
+#[cfg(feature = "finance-field-write")]
+fn finance_owner_upload_router<C: Clock + Send + Sync + 'static>(
+    policy: Arc<AccountPolicy>,
+    registry: Arc<ConfiguredHoldingRegistry>,
+    scopes: Arc<dyn BusinessScopeSlugs>,
+    targets: Vec<FieldUploadTarget<C>>,
+    configurations: Vec<crate::finance_journal_create::FinanceJournalCreateConfiguration>,
+    owner: IntakeOwner,
+    binding_modes: BTreeMap<erpx_server_shared::public::HoldingId, bool>,
+) -> Result<Router, BusinessError> {
+    let mut configs = BTreeMap::new();
+    for c in configurations {
+        if !targets.iter().any(|t| t.intake.holding == c.holding) {
+            return Err(unavailable());
+        }
+        if configs
+            .insert(
+                (c.holding.as_str().to_owned(), c.company.as_str().to_owned()),
+                c,
+            )
+            .is_some()
+        {
+            return Err(unavailable());
+        }
+    }
+    if configs.is_empty() {
+        return Err(unavailable());
+    }
+    upload_router(
+        policy,
+        registry,
+        scopes,
+        targets,
+        match owner {
+            IntakeOwner::FinancePayment => UploadProfile::Finance(Arc::new(configs)),
+            IntakeOwner::FieldJournal => {
+                UploadProfile::Journal(Arc::new(configs), Arc::new(binding_modes))
+            }
+            _ => return Err(unavailable()),
+        },
+    )
+}
+fn upload_router<C: Clock + Send + Sync + 'static>(
+    policy: Arc<AccountPolicy>,
+    registry: Arc<ConfiguredHoldingRegistry>,
+    scopes: Arc<dyn BusinessScopeSlugs>,
+    targets: Vec<FieldUploadTarget<C>>,
+    profile: UploadProfile,
 ) -> Result<Router, BusinessError> {
     policy.validate()?;
     let mut map = BTreeMap::new();
@@ -72,21 +209,43 @@ pub fn field_upload_router<C: Clock + Send + Sync + 'static>(
             return Err(unavailable());
         }
     }
-    Ok(Router::new()
+    let base = format!("/api/v1/holdings/{{holding_slug}}/{}", profile.prefix());
+    let router = Router::new();
+    #[cfg(feature = "finance-field-write")]
+    let router = if matches!(profile, UploadProfile::Journal(..)) {
+        router.route(
+            &format!("{base}/attachment-sets/{{id}}/bind"),
+            post(bind_journal::<C>),
+        )
+    } else {
+        router
+    };
+    #[cfg(feature = "finance-field-write")]
+    let router = if !matches!(profile, UploadProfile::Visit) {
+        router
+            .route(
+                &format!("{base}/attachment-sets"),
+                get(sets::<C>).post(create_set::<C>),
+            )
+            .route(
+                &format!("{base}/attachment-links/{{id}}/withdraw"),
+                post(withdraw::<C>),
+            )
+    } else {
+        router
+    };
+    Ok(router
         .route(
-            "/api/v1/holdings/{holding_slug}/field-service/attachment-sets/{id}/files",
+            &format!("{base}/attachment-sets/{{id}}/files"),
             post(reserve::<C>),
         )
+        .route(&format!("{base}/uploads/{{id}}/content"), put(upload::<C>))
         .route(
-            "/api/v1/holdings/{holding_slug}/field-service/uploads/{id}/content",
-            put(upload::<C>),
-        )
-        .route(
-            "/api/v1/holdings/{holding_slug}/field-service/attachment-links/{id}/status",
+            &format!("{base}/attachment-links/{{id}}/status"),
             get(status::<C>),
         )
         .route(
-            "/api/v1/holdings/{holding_slug}/field-service/attachment-links/{id}/content",
+            &format!("{base}/attachment-links/{{id}}/content"),
             get(content::<C>),
         )
         .with_state(Arc::new(UploadState {
@@ -96,21 +255,37 @@ pub fn field_upload_router<C: Clock + Send + Sync + 'static>(
                 targets: intake,
             },
             targets: map,
+            profile,
         })))
 }
 #[derive(Clone)]
-struct Sources;
+struct Sources(UploadProfile);
 impl HoldingWorkSourcePreparation for Sources {
     fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
         Box::pin(async move {
+            #[cfg(feature = "finance-field-write")]
+            if matches!(self.0, UploadProfile::Journal(..)) {
+                return crate::finance_field_journal_files::FinanceFieldJournalIntakeSources
+                    .prepare(c)
+                    .await;
+            }
+            #[cfg(feature = "finance-field-write")]
+            if matches!(self.0, UploadProfile::Finance(_)) {
+                return crate::finance_service_receipt_files::FinancePaymentIntakeSources
+                    .prepare(c)
+                    .await;
+            }
             crate::field_attachment::lock_attachment_sources(c, false).await?;
             erpx_server_manage_erpx::public::lock_beta_policy_sources(c).await?;
             Ok(())
         })
     }
 }
-struct CurrentActor;
+struct CurrentActor(IntakeOwner);
 impl FieldDenialActorCurrent for CurrentActor {
+    fn owner_kind(&self) -> IntakeOwner {
+        self.0
+    }
     fn require_current<'a>(
         &'a self,
         c: &'a mut PgConnection,
@@ -120,6 +295,54 @@ impl FieldDenialActorCurrent for CurrentActor {
         Box::pin(async move {
             erpx_server_identity_access::public::selected_command_authority::require_selected_actor_current(c,actor,now).await
         })
+    }
+}
+enum UploadAuthority<'a, C> {
+    Visit(FieldAttachmentIntakeAuthority<'a, C>),
+    #[cfg(feature = "finance-field-write")]
+    Finance(crate::finance_service_receipt_files::FinancePaymentIntakeAuthority<'a, C>),
+    #[cfg(feature = "finance-field-write")]
+    Journal(crate::finance_field_journal_files::FinanceFieldJournalIntakeAuthority<'a, C>),
+}
+impl<C: Clock + Send + Sync> FieldIntakeAuthority for UploadAuthority<'_, C> {
+    fn owner_kind(&self) -> IntakeOwner {
+        match self {
+            Self::Visit(v) => v.owner_kind(),
+            #[cfg(feature = "finance-field-write")]
+            Self::Finance(v) => v.owner_kind(),
+            #[cfg(feature = "finance-field-write")]
+            Self::Journal(v) => v.owner_kind(),
+        }
+    }
+    fn authorize<'a>(
+        &'a self,
+        c: &'a mut PgConnection,
+        actor: &'a AuthorizedWorkContext,
+        id: &'a str,
+        write: bool,
+    ) -> PgWorkFuture<'a, FieldIntakeScope, BusinessError> {
+        match self {
+            Self::Visit(v) => v.authorize(c, actor, id, write),
+            #[cfg(feature = "finance-field-write")]
+            Self::Finance(v) => v.authorize(c, actor, id, write),
+            #[cfg(feature = "finance-field-write")]
+            Self::Journal(v) => v.authorize(c, actor, id, write),
+        }
+    }
+    fn revalidate<'a>(
+        &'a self,
+        c: &'a mut PgConnection,
+        actor: &'a AuthorizedWorkContext,
+        id: &'a str,
+        write: bool,
+    ) -> PgWorkFuture<'a, (), BusinessError> {
+        match self {
+            Self::Visit(v) => v.revalidate(c, actor, id, write),
+            #[cfg(feature = "finance-field-write")]
+            Self::Finance(v) => v.revalidate(c, actor, id, write),
+            #[cfg(feature = "finance-field-write")]
+            Self::Journal(v) => v.revalidate(c, actor, id, write),
+        }
     }
 }
 struct Quota;
@@ -164,6 +387,48 @@ impl DeferredBody {
 }
 #[derive(Clone)]
 enum Action {
+    #[cfg(feature = "finance-field-write")]
+    BindBody {
+        id: String,
+        body: DeferredBody,
+        key: Result<String, BusinessError>,
+    },
+    #[cfg(feature = "finance-field-write")]
+    Bind {
+        id: String,
+        expected: i64,
+        key: String,
+    },
+    #[cfg(feature = "finance-field-write")]
+    WithdrawBody {
+        id: String,
+        body: DeferredBody,
+        key: Result<String, BusinessError>,
+    },
+    #[cfg(feature = "finance-field-write")]
+    Withdraw {
+        id: String,
+        reason: String,
+        key: String,
+    },
+    #[cfg(feature = "finance-field-write")]
+    SetBody {
+        body: DeferredBody,
+        key: Result<String, BusinessError>,
+    },
+    #[cfg(feature = "finance-field-write")]
+    SetCreate {
+        input: erpx_server_files::public::field_visit_intake::FieldSetRequest,
+        key: String,
+    },
+    #[cfg(feature = "finance-field-write")]
+    SetQuery {
+        raw: Option<String>,
+    },
+    #[cfg(feature = "finance-field-write")]
+    SetList {
+        query: crate::field_attachment_intake_http::ListIngress,
+    },
     Denial {
         id: String,
         variant: FieldContentVariant,
@@ -210,7 +475,26 @@ enum Action {
     },
 }
 impl Action {
+    fn record_bind(&self) -> bool {
+        #[cfg(feature = "finance-field-write")]
+        if matches!(self, Self::BindBody { .. } | Self::Bind { .. }) {
+            return true;
+        }
+        false
+    }
     fn write(&self) -> bool {
+        #[cfg(feature = "finance-field-write")]
+        if matches!(
+            self,
+            Self::SetBody { .. }
+                | Self::SetCreate { .. }
+                | Self::BindBody { .. }
+                | Self::Bind { .. }
+                | Self::WithdrawBody { .. }
+                | Self::Withdraw { .. }
+        ) {
+            return true;
+        }
         matches!(
             self,
             Self::ReserveBody { .. }
@@ -222,6 +506,8 @@ impl Action {
     }
 }
 enum Output {
+    #[cfg(feature = "finance-field-write")]
+    JournalBound(crate::field_attachment::FieldAttachmentBindResponse),
     Json(serde_json::Value),
     Prepared(FieldUploadPreparation),
     Witness(FieldContentWitness),
@@ -268,10 +554,13 @@ async fn execute<C: Clock + Send + Sync + 'static>(
     let (intake, host, proof, selection) = ingress(&s.ingress, headers, slug.into(), write)?;
     let ingress_target = intake.clone();
     let action_target = intake.clone();
+    let profile = s.profile.clone();
+    let s_profile = s.profile.clone();
     let callbacks = SelectedTransportCallbacks::<_, Action, BusinessError, _>::new::<Output>(
         move |selected: &SelectedWorkIngress<'_>| -> SelectedIngressFuture<Action, BusinessError> {
             let action = action.clone();
             let target = ingress_target.clone();
+            let profile = s_profile.clone();
             let holding = selected.holding_id().clone();
             let company = selected.company_id().clone();
             Box::pin(async move {
@@ -291,12 +580,65 @@ async fn execute<C: Clock + Send + Sync + 'static>(
                         "Field files are unavailable for the selected Company.",
                     ));
                 }
-                if action.write() {
+                if action.record_bind() {
+                    // Binding has its existing independent rollback/read-only
+                    // policy; storage-intake freeze does not revoke clean binds.
+                    target.policy.require_read()?;
+                } else if action.write() {
                     target.policy.require_create()?;
                 } else {
                     target.policy.require_read()?;
                 }
                 match action {
+                    #[cfg(feature = "finance-field-write")]
+                    Action::BindBody { id, body, key } => {
+                        let expected = crate::field_attachment_bind::normalize_version(
+                            &body.read(2 * 1024 * 1024).await?,
+                        )?;
+                        let UploadProfile::Journal(_, modes) = &profile else {
+                            return Err(unavailable());
+                        };
+                        match modes.get(&target.holding) {
+                            Some(false) => Ok(Action::Bind {
+                                id,
+                                expected,
+                                key: key?,
+                            }),
+                            Some(true) => Err(BusinessError::new(
+                                FailureKind::Unavailable,
+                                "ATTACHMENTS_READ_ONLY",
+                                "Attachment intake is disabled during rollback. Existing clean bound evidence remains readable.",
+                            )),
+                            None => Err(BusinessError::new(
+                                FailureKind::NotFound,
+                                "NOT_FOUND",
+                                "Not found.",
+                            )),
+                        }
+                    }
+                    #[cfg(feature = "finance-field-write")]
+                    Action::WithdrawBody { id, body, key } => Ok(Action::Withdraw {
+                        id,
+                        reason: crate::field_attachment::normalize_reason(
+                            &body.read(2 * 1024 * 1024).await?,
+                        )?,
+                        key: key?,
+                    }),
+                    #[cfg(feature = "finance-field-write")]
+                    Action::SetBody { body, key } => Ok(Action::SetCreate {
+                        input: crate::field_attachment_intake_http::parse_create_for_owner(
+                            &body.read(2 * 1024 * 1024).await?,
+                            profile.owner(),
+                        )?,
+                        key: key?,
+                    }),
+                    #[cfg(feature = "finance-field-write")]
+                    Action::SetQuery { raw } => Ok(Action::SetList {
+                        query: crate::field_attachment_intake_http::query_for_owner(
+                            raw.as_deref(),
+                            profile.owner(),
+                        )?,
+                    }),
                     Action::ContentQuery { id, query } => {
                         let variant = match query.as_deref() {
                             None | Some("") | Some("variant=original") => {
@@ -324,19 +666,156 @@ async fn execute<C: Clock + Send + Sync + 'static>(
         |_, e| Err(e),
         move |c, actor, action: Action| {
             let t = action_target.clone();
+            let profile = profile.clone();
             Box::pin(async move {
                 t.require_company(actor)?;
                 let company = actor.selection().workspace().company_id.clone();
                 let now = t.clock.now().get();
-                let authority = FieldAttachmentIntakeAuthority::new(
-                    actor,
-                    &t.holding,
-                    &company,
-                    &t.catalogue,
-                    t.clock.as_ref(),
-                );
+                let authority = match &profile {
+                    UploadProfile::Visit => {
+                        UploadAuthority::Visit(FieldAttachmentIntakeAuthority::new(
+                            actor,
+                            &t.holding,
+                            &company,
+                            &t.catalogue,
+                            t.clock.as_ref(),
+                        ))
+                    }
+                    #[cfg(feature = "finance-field-write")]
+                    UploadProfile::Finance(configs) => {
+                        let config = configs
+                            .get(&(t.holding.as_str().to_owned(), company.as_str().to_owned()))
+                            .ok_or_else(unavailable)?;
+                        UploadAuthority::Finance(crate::finance_service_receipt_files::FinancePaymentIntakeAuthority::for_read(actor,config,t.clock.as_ref()))
+                    }
+                    #[cfg(feature = "finance-field-write")]
+                    UploadProfile::Journal(configs, _) => {
+                        let config = configs
+                            .get(&(t.holding.as_str().to_owned(), company.as_str().to_owned()))
+                            .ok_or_else(unavailable)?;
+                        UploadAuthority::Journal(crate::finance_field_journal_files::FinanceFieldJournalIntakeAuthority::for_read(actor,config,t.clock.as_ref()))
+                    }
+                };
                 let read_only = t.policy.require_read()?;
                 let result = match action {
+                    #[cfg(feature = "finance-field-write")]
+                    Action::BindBody { .. } => return Err(unavailable().into()),
+                    #[cfg(feature = "finance-field-write")]
+                    Action::Bind { id, expected, key } => {
+                        let UploadProfile::Journal(configs, _) = &profile else {
+                            return Err(unavailable().into());
+                        };
+                        let config = configs
+                            .get(&(t.holding.as_str().to_owned(), company.as_str().to_owned()))
+                            .ok_or_else(unavailable)?;
+                        Output::JournalBound(
+                            Box::pin(crate::finance_field_journal_files_bind::bind(
+                                c,
+                                actor,
+                                config,
+                                t.clock.as_ref(),
+                                &id,
+                                &key,
+                                expected,
+                            ))
+                            .await?,
+                        )
+                    }
+                    #[cfg(feature = "finance-field-write")]
+                    Action::WithdrawBody { .. } => return Err(unavailable().into()),
+                    #[cfg(feature = "finance-field-write")]
+                    Action::Withdraw { id, reason, key } => {
+                        if matches!(profile, UploadProfile::Visit) {
+                            return Err(unavailable().into());
+                        }
+                        erpx_server_files::public::field_visit_link::withdraw_owner_intake_link(
+                            c,
+                            &authority,
+                            actor,
+                            &id,
+                            &key,
+                            &reason,
+                            t.clock.as_ref(),
+                        )
+                        .await?;
+                        Output::Json(serde_json::Value::Null)
+                    }
+                    #[cfg(feature = "finance-field-write")]
+                    Action::SetBody { .. } | Action::SetQuery { .. } => {
+                        return Err(unavailable().into());
+                    }
+                    #[cfg(feature = "finance-field-write")]
+                    Action::SetCreate { input, key } => {
+                        let configs = match &profile {
+                            UploadProfile::Finance(configs)
+                            | UploadProfile::Journal(configs, _) => configs,
+                            _ => return Err(unavailable().into()),
+                        };
+                        let config = configs
+                            .get(&(t.holding.as_str().to_owned(), company.as_str().to_owned()))
+                            .ok_or_else(unavailable)?;
+                        let availability=erpx_server_files::public::field_visit_intake::FieldIntakeAvailability{uploads_frozen:t.policy.uploads_frozen,scanner_ready:false,preview_ready:false};
+                        let response=match &profile{
+                            UploadProfile::Finance(_)=>crate::finance_field_files_intake_command::create_finance_payment_proof_set(c,actor,config,t.clock.as_ref(),&input,&key,&availability,t.readiness.as_ref()).await?,
+                            UploadProfile::Journal(..)=>crate::finance_field_files_intake_command::create_finance_field_journal_support_set(c,actor,config,t.clock.as_ref(),&input,&key,&availability,t.readiness.as_ref()).await?,
+                            _=>return Err(unavailable().into()),
+                        };
+                        Output::Json(
+                            crate::field_attachment_intake_contracts::checked_owner_intake_set(
+                                response.data,
+                                profile.owner(),
+                            )
+                            .map_err(|_| {
+                                erpx_server_runtime::public::postgres::PersistenceError::new(
+                                    "FIELD_UPLOAD_WIRE_INVALID",
+                                )
+                            })?,
+                        )
+                    }
+                    #[cfg(feature = "finance-field-write")]
+                    Action::SetList { query } => {
+                        if query.never_matches {
+                            return Err(
+                                erpx_server_runtime::public::postgres::PersistenceError::new(
+                                    "FILES_VERSION_BIND_INVALID",
+                                )
+                                .into(),
+                            );
+                        }
+                        let guard =
+                            erpx_server_files::public::field_visit_intake::prepare_field_intake(
+                                c,
+                                &authority,
+                                actor,
+                                &query.request.target_id,
+                                false,
+                                now,
+                            )
+                            .await?;
+                        let rows = erpx_server_files::public::field_visit_intake::list_field_sets(
+                            c,
+                            &guard,
+                            &query.request,
+                            read_only,
+                            now,
+                        )
+                        .await?;
+                        let rows = rows
+                            .into_iter()
+                            .map(|r| {
+                                crate::field_attachment_intake_contracts::checked_owner_intake_set(
+                                    r,
+                                    profile.owner(),
+                                )
+                                .map_err(|_| {
+                                    erpx_server_runtime::public::postgres::PersistenceError::new(
+                                        "FIELD_UPLOAD_WIRE_INVALID",
+                                    )
+                                })
+                            })
+                            .collect::<Result<Vec<_>, _>>()?;
+                        Output::Json(serde_json::Value::Array(rows))
+                    }
                     Action::Denial {
                         id,
                         variant,
@@ -344,7 +823,7 @@ async fn execute<C: Clock + Send + Sync + 'static>(
                     } => {
                         record_field_content_denial(
                             c,
-                            &CurrentActor,
+                            &CurrentActor(profile.owner()),
                             actor,
                             &id,
                             if matches!(variant, FieldContentVariant::Original) {
@@ -379,7 +858,7 @@ async fn execute<C: Clock + Send + Sync + 'static>(
                                 return Err(unavailable().into());
                             }
                         }
-                        let value = serde_json::json!({"uploadIntentId":result.upload_intent_id,"attachmentLinkId":result.attachment_link_id,"expiresAt":result.expires_at,"uploadUrl":format!("/api/v1/holdings/{}/field-service/uploads/{}/content",t.holding_slug,result.upload_intent_id)});
+                        let value = serde_json::json!({"uploadIntentId":result.upload_intent_id,"attachmentLinkId":result.attachment_link_id,"expiresAt":result.expires_at,"uploadUrl":format!("/api/v1/holdings/{}/{}/uploads/{}/content",t.holding_slug,profile.prefix(),result.upload_intent_id)});
                         Output::Json(checked(value,crate::field_attachment_intake_contracts::checked_field_file_reservation)?)
                     }
                     Action::Prepare { id, bytes, media } => Output::Prepared(
@@ -443,12 +922,31 @@ async fn execute<C: Clock + Send + Sync + 'static>(
             selection,
             (
                 WorkAuthorizationRequest {
-                    permission: "records.read".into(),
-                    module: Some("field_service".into()),
-                    destination: "service/orders".into(),
+                    permission: if matches!(s.profile, UploadProfile::Visit) {
+                        "records.read"
+                    } else {
+                        "module.finance.read"
+                    }
+                    .into(),
+                    module: Some(
+                        if matches!(s.profile, UploadProfile::Visit) {
+                            "field_service"
+                        } else {
+                            "finance"
+                        }
+                        .into(),
+                    ),
+                    destination: if matches!(s.profile, UploadProfile::Visit) {
+                        "service/orders"
+                    } else if s.profile.owner() == IntakeOwner::FieldJournal {
+                        "finance/journals"
+                    } else {
+                        "finance/payments"
+                    }
+                    .into(),
                     api: true,
                 },
-                Sources,
+                Sources(s.profile.clone()),
             ),
             callbacks,
         )
@@ -462,6 +960,132 @@ fn json_output(value: Result<Output, Error>, created: bool) -> Response {
             _ => Err(unavailable().into()),
         }),
         created,
+    )
+}
+#[cfg(feature = "finance-field-write")]
+async fn create_set<C: Clock + Send + Sync + 'static>(
+    State(s): State<Arc<UploadState<C>>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let (parts, body) = request.into_parts();
+    let key = erpx_server_identity_access::public::account_inbound_http::unique_request_header(
+        &parts.headers,
+        "idempotency-key",
+    )
+    .and_then(|v| {
+        v.map(str::to_owned).ok_or_else(|| {
+            BusinessError::invalid(
+                "COMMAND_KEY_REQUIRED",
+                "A valid Idempotency-Key is required.",
+            )
+        })
+    });
+    json_output(
+        execute(
+            &s,
+            &parts.headers,
+            &slug,
+            Action::SetBody {
+                body: DeferredBody::new(body),
+                key,
+            },
+        )
+        .await,
+        true,
+    )
+}
+#[cfg(feature = "finance-field-write")]
+async fn bind_journal<C: Clock + Send + Sync + 'static>(
+    State(s): State<Arc<UploadState<C>>>,
+    Path((slug, id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let (parts, body) = request.into_parts();
+    let key = erpx_server_identity_access::public::account_inbound_http::unique_request_header(
+        &parts.headers,
+        "idempotency-key",
+    )
+    .and_then(|v| {
+        v.map(str::to_owned).ok_or_else(|| {
+            BusinessError::invalid(
+                "COMMAND_KEY_REQUIRED",
+                "A valid Idempotency-Key is required.",
+            )
+        })
+    });
+    match execute(
+        &s,
+        &parts.headers,
+        &slug,
+        Action::BindBody {
+            id,
+            body: DeferredBody::new(body),
+            key,
+        },
+    )
+    .await
+    {
+        Ok(Output::JournalBound(value)) => {
+            let mut response = axum::Json(value).into_response();
+            response.headers_mut().insert(
+                header::CACHE_CONTROL,
+                HeaderValue::from_static("private, no-store"),
+            );
+            response
+        }
+        Err(error) => response(Err(error), false),
+        _ => response(Err(unavailable().into()), false),
+    }
+}
+#[cfg(feature = "finance-field-write")]
+async fn withdraw<C: Clock + Send + Sync + 'static>(
+    State(s): State<Arc<UploadState<C>>>,
+    Path((slug, id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let (parts, body) = request.into_parts();
+    let key = erpx_server_identity_access::public::account_inbound_http::unique_request_header(
+        &parts.headers,
+        "idempotency-key",
+    )
+    .and_then(|v| {
+        v.map(str::to_owned).ok_or_else(|| {
+            BusinessError::invalid(
+                "COMMAND_KEY_REQUIRED",
+                "A valid Idempotency-Key is required.",
+            )
+        })
+    });
+    let result = execute(
+        &s,
+        &parts.headers,
+        &slug,
+        Action::WithdrawBody {
+            id: id.clone(),
+            body: DeferredBody::new(body),
+            key,
+        },
+    )
+    .await;
+    match result {
+        Ok(Output::Json(_)) => json_output(
+            execute(&s, &parts.headers, &slug, Action::Status { id }).await,
+            false,
+        ),
+        error => json_output(error, false),
+    }
+}
+#[cfg(feature = "finance-field-write")]
+async fn sets<C: Clock + Send + Sync + 'static>(
+    State(s): State<Arc<UploadState<C>>>,
+    Path(slug): Path<String>,
+    RawQuery(raw): RawQuery,
+    headers: HeaderMap,
+) -> Response {
+    json_output(
+        execute(&s, &headers, &slug, Action::SetQuery { raw }).await,
+        false,
     )
 }
 async fn reserve<C: Clock + Send + Sync + 'static>(

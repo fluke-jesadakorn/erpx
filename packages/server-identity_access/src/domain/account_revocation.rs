@@ -1,3 +1,4 @@
+use super::environment::valid_environment;
 use erpx_server_shared::public::{BusinessError, FailureKind, HoldingId, RecordId, UserId};
 
 /// A retired child proven by the caller's locked Control session family.
@@ -17,7 +18,7 @@ impl RetiredAccountChild {
         environment: &str,
     ) -> Result<Self, BusinessError> {
         let parts: Vec<_> = audience.splitn(4, ':').collect();
-        if environment != "development"
+        if !valid_environment(environment)
             || parts.len() != 4
             || parts[0] != "holding"
             || parts[1] != environment

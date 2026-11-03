@@ -40,7 +40,7 @@ pub async fn lock_service_invoice_sources(c: &mut PgConnection) -> Result<(), Er
     if !c.is_in_transaction() {
         return Err(PersistenceError::new("FINANCE_TRANSACTION_REQUIRED").into());
     }
-    sqlx::query("LOCK TABLE money_transaction_snapshots,finance_invoices,finance_allocations,finance_payments,finance_invoice_line_versions,finance_issued_thai_documents,finance_parties,finance_accounts,finance_charts,finance_periods IN SHARE MODE").execute(c).await?;
+    sqlx::query("LOCK TABLE money_transaction_snapshots,finance_invoices,finance_allocations,finance_payments,finance_invoice_line_versions,finance_issued_thai_documents,finance_parties,finance_accounts,finance_charts,finance_periods,finance_journals,finance_journal_lines,finance_customer_receipts IN SHARE MODE").execute(c).await?;
     Ok(())
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -96,8 +96,12 @@ pub struct FinanceServiceInvoiceWorkspace {
     #[cfg_attr(feature = "contracts", ts(type = "Array<Record<string, unknown>>"))]
     #[cfg_attr(feature="contracts",schema(value_type=Vec<Object>))]
     pub thai_documents: Vec<FinanceInvoiceRow>,
+    #[cfg_attr(feature="contracts",ts(type="Array<Record<string, unknown>>"),schema(value_type=Vec<Object>))]
+    pub customer_receipts:Vec<FinanceInvoiceRow>,
     pub options: FinanceInvoiceOptions,
     pub source: FinanceServiceInvoiceSource,
+    #[cfg_attr(feature="contracts",ts(type="Record<string, unknown>"),schema(value_type=Object))]
+    pub posting_preview:serde_json::Value,
 }
 async fn rows(
     c: &mut PgConnection,
@@ -162,7 +166,13 @@ async fn read(
         return Err(denied());
     }
     let invoice = header.remove(0);
-    let money=sqlx::query("SELECT CASE WHEN b.bounded THEN m.source_id END release_id,CASE WHEN b.bounded THEN i.source_id END order_id,CASE WHEN b.bounded THEN i.created_by END actor_id,CASE WHEN b.bounded THEN m.currency END currency,CASE WHEN b.bounded THEN m.amount_units::text END amount_units,CASE WHEN b.bounded THEN m.usd_units::text END usd_units,CASE WHEN b.bounded THEN m.fx_rate_id END fx_rate_id,m.used_latest_fallback,b.bounded,encode(sha256(convert_to(jsonb_build_array(to_jsonb(i),to_jsonb(m),to_jsonb(copy))::text,'UTF8')),'hex') digest FROM finance_invoices i JOIN money_transaction_snapshots m ON m.company_id=i.company_id AND m.source_type='field_service_billing_release' AND m.source_id=$3 AND m.amount_kind='invoice_total' JOIN money_transaction_snapshots copy ON copy.company_id=i.company_id AND copy.source_type='finance_invoice' AND copy.source_id=i.id AND copy.amount_kind='draft:v1' CROSS JOIN LATERAL (SELECT octet_length(m.source_id)::bigint+octet_length(i.source_id)::bigint+octet_length(i.created_by)::bigint+octet_length(m.currency)::bigint+octet_length(m.amount_units::text)::bigint+octet_length(m.usd_units::text)::bigint+coalesce(octet_length(m.fx_rate_id),0)::bigint<=2097152 bounded) b WHERE i.company_id=$1 AND i.id=$2 AND i.kind='receivable' AND i.source_type='field_service' AND m.currency=i.currency AND m.amount_units=i.total_minor AND m.transaction_date::text=i.invoice_date AND m.currency_scale=2 AND m.original_source_type IS NULL AND m.original_source_id IS NULL AND m.original_amount_kind IS NULL AND m.carried_source_type IS NULL AND m.carried_source_id IS NULL AND m.carried_amount_kind IS NULL AND m.carried_allocation_offset_units IS NULL AND copy.original_source_type IS NULL AND copy.original_source_id IS NULL AND copy.original_amount_kind IS NULL AND copy.carried_allocation_offset_units IS NULL AND (copy.transaction_date,copy.currency,copy.currency_scale,copy.amount_units,copy.usd_units,copy.fx_rate_id,copy.used_latest_fallback,copy.captured_at) IS NOT DISTINCT FROM (m.transaction_date,m.currency,m.currency_scale,m.amount_units,m.usd_units,m.fx_rate_id,m.used_latest_fallback,m.captured_at) AND ((m.amount_units>0 AND (copy.carried_source_type,copy.carried_source_id,copy.carried_amount_kind)=('field_service_billing_release',m.source_id,'invoice_total')) OR (m.amount_units=0 AND copy.carried_source_type IS NULL AND copy.carried_source_id IS NULL AND copy.carried_amount_kind IS NULL)) FOR SHARE OF i,m,copy").bind(company).bind(id).bind(format!("field-billing-{key}")).fetch_optional(&mut *c).await?.ok_or_else(denied)?;
+    // Older positive Field invoices retain their original release quote but
+    // predate draft:v1. Never re-rate them. A present copy must still match in
+    // full, and zero/No-Charge sources still require their captured draft.
+    // Lock an existing nullable-side row separately; the SERIALIZABLE source
+    // read and retained digest also observe absence on this same owner unit.
+    sqlx::query("SELECT 1 FROM money_transaction_snapshots WHERE company_id=$1 AND source_type='finance_invoice' AND source_id=$2 AND amount_kind='draft:v1' FOR SHARE").bind(company).bind(id).fetch_optional(&mut *c).await?;
+    let money=sqlx::query("SELECT CASE WHEN b.bounded THEN m.source_id END release_id,CASE WHEN b.bounded THEN i.source_id END order_id,CASE WHEN b.bounded THEN i.created_by END actor_id,CASE WHEN b.bounded THEN m.currency END currency,CASE WHEN b.bounded THEN m.amount_units::text END amount_units,CASE WHEN b.bounded THEN m.usd_units::text END usd_units,CASE WHEN b.bounded THEN m.fx_rate_id END fx_rate_id,m.used_latest_fallback,b.bounded,encode(sha256(convert_to(jsonb_build_array(to_jsonb(i),to_jsonb(m),to_jsonb(copy))::text,'UTF8')),'hex') digest FROM finance_invoices i JOIN money_transaction_snapshots m ON m.company_id=i.company_id AND m.source_type='field_service_billing_release' AND m.source_id=$3 AND m.amount_kind='invoice_total' LEFT JOIN money_transaction_snapshots copy ON copy.company_id=i.company_id AND copy.source_type='finance_invoice' AND copy.source_id=i.id AND copy.amount_kind='draft:v1' CROSS JOIN LATERAL (SELECT octet_length(m.source_id)::bigint+octet_length(i.source_id)::bigint+octet_length(i.created_by)::bigint+octet_length(m.currency)::bigint+octet_length(m.amount_units::text)::bigint+octet_length(m.usd_units::text)::bigint+coalesce(octet_length(m.fx_rate_id),0)::bigint<=2097152 bounded) b WHERE i.company_id=$1 AND i.id=$2 AND i.kind='receivable' AND i.source_type='field_service' AND m.currency=i.currency AND m.amount_units=i.total_minor AND m.transaction_date::text=i.invoice_date AND m.currency_scale=2 AND m.original_source_type IS NULL AND m.original_source_id IS NULL AND m.original_amount_kind IS NULL AND m.carried_source_type IS NULL AND m.carried_source_id IS NULL AND m.carried_amount_kind IS NULL AND m.carried_allocation_offset_units IS NULL AND ((copy.source_id IS NULL AND m.amount_units>0) OR (copy.source_id IS NOT NULL AND copy.original_source_type IS NULL AND copy.original_source_id IS NULL AND copy.original_amount_kind IS NULL AND copy.carried_allocation_offset_units IS NULL AND (copy.transaction_date,copy.currency,copy.currency_scale,copy.amount_units,copy.usd_units,copy.fx_rate_id,copy.used_latest_fallback,copy.captured_at) IS NOT DISTINCT FROM (m.transaction_date,m.currency,m.currency_scale,m.amount_units,m.usd_units,m.fx_rate_id,m.used_latest_fallback,m.captured_at) AND ((m.amount_units>0 AND (copy.carried_source_type,copy.carried_source_id,copy.carried_amount_kind)=('field_service_billing_release',m.source_id,'invoice_total')) OR (m.amount_units=0 AND copy.carried_source_type IS NULL AND copy.carried_source_id IS NULL AND copy.carried_amount_kind IS NULL)))) FOR SHARE OF i,m").bind(company).bind(id).bind(format!("field-billing-{key}")).fetch_optional(&mut *c).await?.ok_or_else(denied)?;
     if !money.try_get::<bool, _>("bounded")? {
         return Err(limited());
     }
@@ -193,9 +203,28 @@ async fn read(
     let lines=rows(c,"SELECT to_jsonb(l)::text FROM finance_invoice_line_versions l JOIN finance_invoices i ON i.id=l.invoice_id AND i.company_id=l.company_id AND i.line_revision=l.source_version WHERE l.company_id=$1 AND l.invoice_id=$2 ORDER BY l.ordinal LIMIT 10001 FOR SHARE OF l,i",company,id,&mut budget).await?;
     let line_history=rows(c,"SELECT jsonb_build_object('source_version',l.source_version,'origin_kind',l.origin_kind,'line_count',count(*),'subtotal_minor',sum(l.subtotal_minor),'tax_minor',sum(l.tax_minor),'created_at',min(l.created_at))::text FROM finance_invoice_line_versions l WHERE l.company_id=$1 AND l.invoice_id=$2 GROUP BY l.source_version,l.origin_kind ORDER BY l.source_version LIMIT 10001",company,id,&mut budget).await?;
     let thai_documents=rows(c,"SELECT jsonb_build_object('id',d.id,'document_number',d.document_number,'document_kind',d.document_kind,'edition',d.edition,'issue_date',d.issue_date)::text FROM finance_issued_thai_documents d WHERE d.company_id=$1 AND d.invoice_id=$2 ORDER BY d.edition LIMIT 10001 FOR SHARE OF d",company,id,&mut budget).await?;
-    let full_digest:String=sqlx::query_scalar("SELECT encode(sha256(convert_to(jsonb_build_array(to_jsonb(i),to_jsonb(p),to_jsonb(a),to_jsonb(ch),(SELECT coalesce(jsonb_agg(to_jsonb(x) ORDER BY x.id),'[]'::jsonb) FROM finance_accounts x WHERE x.company_id=i.company_id AND x.chart_id=ch.id),(SELECT coalesce(jsonb_agg(to_jsonb(x) ORDER BY x.id),'[]'::jsonb) FROM finance_periods x WHERE x.company_id=i.company_id),(SELECT coalesce(jsonb_agg(jsonb_build_array(to_jsonb(x),to_jsonb(pay)) ORDER BY x.id),'[]'::jsonb) FROM finance_allocations x JOIN finance_payments pay ON pay.id=x.payment_id WHERE x.company_id=i.company_id AND x.invoice_id=i.id),(SELECT coalesce(jsonb_agg(to_jsonb(x) ORDER BY x.id),'[]'::jsonb) FROM finance_invoice_line_versions x WHERE x.company_id=i.company_id AND x.invoice_id=i.id),(SELECT coalesce(jsonb_agg(to_jsonb(x) ORDER BY x.id),'[]'::jsonb) FROM finance_issued_thai_documents x WHERE x.company_id=i.company_id AND x.invoice_id=i.id),to_jsonb(m),to_jsonb(copy))::text,'UTF8')),'hex') FROM finance_invoices i JOIN finance_parties p ON p.id=i.party_id AND p.company_id=i.company_id JOIN finance_accounts a ON a.id=i.debit_account_id AND a.company_id=i.company_id JOIN finance_charts ch ON ch.id=a.chart_id AND ch.company_id=a.company_id JOIN money_transaction_snapshots m ON m.company_id=i.company_id AND m.source_type='field_service_billing_release' AND m.source_id=$3 AND m.amount_kind='invoice_total' JOIN money_transaction_snapshots copy ON copy.company_id=i.company_id AND copy.source_type='finance_invoice' AND copy.source_id=i.id AND copy.amount_kind='draft:v1' WHERE i.company_id=$1 AND i.id=$2").bind(company).bind(id).bind(&source.release_id).fetch_one(&mut *c).await?;
+    let customer_receipts=rows(c,"SELECT jsonb_build_object('id',r.id,'document_number',r.document_number,'currency',r.currency,'amount_minor',a.amount_minor,'payment_status',p.status)::text FROM finance_customer_receipts r JOIN finance_payments p ON p.id=r.payment_id AND p.company_id=r.company_id JOIN finance_allocations a ON a.payment_id=p.id AND a.company_id=p.company_id JOIN finance_invoices i ON i.id=a.invoice_id AND i.company_id=a.company_id WHERE i.id=$2 AND i.company_id=$1 ORDER BY r.issued_at,r.id FOR SHARE OF r,p,a,i",company,id,&mut budget).await?;
+    let posting_preview=match invoice.get("status").and_then(|v|v.as_str()) {
+        Some("voided")=>serde_json::json!({"state":"voided"}),
+        Some("no_charge_confirmed")=>serde_json::json!({"state":"no-charge-confirmed"}),
+        _=>{
+            let posted=invoice.get("journal_id").and_then(|v|v.as_str());
+            let preview_lines=if let Some(journal)=posted {
+                rows(c,"SELECT jsonb_build_object('id',l.account_id,'debit',l.debit_minor,'credit',l.credit_minor)::text FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id WHERE j.company_id=$1 AND l.journal_id=$2 ORDER BY l.ordinal,l.id FOR SHARE OF l,j",company,journal,&mut budget).await?
+            }else{
+                let amount=|name:&str|invoice.get(name).and_then(|v|v.as_i64()).ok_or_else(denied);
+                let facts=crate::domain::service_invoice_posting::ServiceInvoicePostFacts{version:amount("version")?,subtotal:amount("subtotal_minor")?,tax:amount("tax_minor")?,total:amount("total_minor")?,debit_account:text(&invoice,"debit_account_id")?,credit_account:text(&invoice,"credit_account_id")?,tax_account:invoice.get("tax_account_id").and_then(|v|v.as_str())};
+                crate::domain::service_invoice_posting::service_invoice_preview_lines(&facts)?.into_iter().map(|(id,debit,credit)|std::collections::BTreeMap::from([("id".into(),serde_json::json!(id)),("debit".into(),serde_json::json!(debit)),("credit".into(),serde_json::json!(credit))])).collect()
+            };
+            let sum=|key:&str|preview_lines.iter().try_fold(0i64,|total,line|total.checked_add(line.get(key).and_then(|v|v.as_i64())?)).ok_or_else(limited);
+            serde_json::json!({"state":"ready","posted":posted.is_some(),"accounts":accounts,"lines":preview_lines,"debit":sum("debit")?,"credit":sum("credit")?})
+        }
+    };
+    let full_digest:String=sqlx::query_scalar("SELECT encode(sha256(convert_to(jsonb_build_array(to_jsonb(i),to_jsonb(p),to_jsonb(a),to_jsonb(ch),(SELECT coalesce(jsonb_agg(to_jsonb(x) ORDER BY x.id),'[]'::jsonb) FROM finance_accounts x WHERE x.company_id=i.company_id AND x.chart_id=ch.id),(SELECT coalesce(jsonb_agg(to_jsonb(x) ORDER BY x.id),'[]'::jsonb) FROM finance_periods x WHERE x.company_id=i.company_id),(SELECT coalesce(jsonb_agg(jsonb_build_array(to_jsonb(x),to_jsonb(pay)) ORDER BY x.id),'[]'::jsonb) FROM finance_allocations x JOIN finance_payments pay ON pay.id=x.payment_id WHERE x.company_id=i.company_id AND x.invoice_id=i.id),(SELECT coalesce(jsonb_agg(to_jsonb(x) ORDER BY x.id),'[]'::jsonb) FROM finance_invoice_line_versions x WHERE x.company_id=i.company_id AND x.invoice_id=i.id),(SELECT coalesce(jsonb_agg(to_jsonb(x) ORDER BY x.id),'[]'::jsonb) FROM finance_issued_thai_documents x WHERE x.company_id=i.company_id AND x.invoice_id=i.id),to_jsonb(m),to_jsonb(copy))::text,'UTF8')),'hex') FROM finance_invoices i JOIN finance_parties p ON p.id=i.party_id AND p.company_id=i.company_id JOIN finance_accounts a ON a.id=i.debit_account_id AND a.company_id=i.company_id JOIN finance_charts ch ON ch.id=a.chart_id AND ch.company_id=a.company_id JOIN money_transaction_snapshots m ON m.company_id=i.company_id AND m.source_type='field_service_billing_release' AND m.source_id=$3 AND m.amount_kind='invoice_total' LEFT JOIN money_transaction_snapshots copy ON copy.company_id=i.company_id AND copy.source_type='finance_invoice' AND copy.source_id=i.id AND copy.amount_kind='draft:v1' WHERE i.company_id=$1 AND i.id=$2").bind(company).bind(id).bind(&source.release_id).fetch_one(&mut *c).await?;
     Ok((
         FinanceServiceInvoiceWorkspace {
+            posting_preview,
+            customer_receipts,
             invoice,
             allocations,
             lines,
@@ -224,6 +253,14 @@ impl CurrentFinanceServiceInvoiceWorkspace {
     pub fn data(&self) -> &FinanceServiceInvoiceWorkspace {
         &self.data
     }
+    /// Invoice-payment evidence belongs to supplier bills. This decision uses
+    /// the owning, source-qualified invoice rather than a caller's target label.
+    pub fn require_payment_evidence(&self) -> Result<(), BusinessError> {
+        if self.data.invoice.get("kind").and_then(serde_json::Value::as_str) != Some("payable") {
+            return Err(BusinessError::invalid("PAYABLE_REQUIRED", "Payment slips belong to supplier bills."));
+        }
+        Ok(())
+    }
     pub async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
         if unit(c).await? != self.unit
             || read(c, &self.actor, &self.id).await? != (self.data.clone(), self.digest.clone())
@@ -247,4 +284,13 @@ pub async fn read_service_invoice_workspace(
         data,
         digest,
     })
+}
+
+/// Finance owns the current journal author exclusion; Workflow never queries
+/// journal tables. Callers re-read this projection before completing the unit.
+pub async fn service_invoice_flow_excluded(c:&mut PgConnection,actor:&FinanceActor,id:&str)->Result<Vec<String>,Error>{
+ unit(c).await?;
+ let row:Option<(String,Option<String>,Option<String>)>=sqlx::query_as("SELECT i.created_by,i.approved_by,(SELECT j.posted_by FROM finance_journals j WHERE j.id=i.journal_id AND j.company_id=i.company_id) FROM finance_invoices i WHERE i.id=$1 AND i.company_id=$2 AND i.source_type='field_service' FOR SHARE OF i").bind(id).bind(actor.company_id.as_str()).fetch_optional(c).await?;
+ let(creator,approved,posted)=row.ok_or_else(||BusinessError::new(FailureKind::NotFound,"INVOICE_NOT_FOUND","Invoice not found in this company."))?;
+ Ok([Some(creator),approved,posted].into_iter().flatten().collect())
 }

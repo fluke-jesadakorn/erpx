@@ -1,13 +1,16 @@
 "use client";
+import {createInboxStateCommands} from "../../lib/inbox-state-command";
+import {registerContextSwitchBlocker} from "@erpx/feature-work_projection/lib/context-switch";
 import { InlineNotice } from "@erpx/ui/components/foundation";
 
 import { FormDisclosure } from "@erpx/ui/components/form-disclosure";
 import { Button, Field, Select, TextArea, TextInput } from "@erpx/ui/components/foundation";
 
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, useMemo, useSyncExternalStore, type FormEvent } from "react";
 import Link from "@erpx/workplace/components/workspace-link";
+import {captureWorkCommandContext} from "@erpx/feature-work_projection/lib/command-context";
 import { workFetch } from "@erpx/feature-work_projection/lib/work-fetch";
-import type { InboxItem } from "@erpx/server-collaboration/public/inbox";
+import type { InboxItem } from "@erpx/contracts/inbox";
 import styles from "@erpx/feature-collaboration/components/messaging/inbox-updates.module.css";
 import { TimeText } from "@erpx/feature-people_payroll/components/time/time-preference-context";
 type Person = { id: string; name: string; email: string };
@@ -21,6 +24,9 @@ type SentNotice = {
 };
 export type InitialInboxUpdates={items:InboxItem[];nextCursor:string|null;unread:number};
 export function InboxUpdates({ base, canBroadcast,notificationsOnly=false,initial }: { base: string; canBroadcast: boolean;notificationsOnly?:boolean;initial?:InitialInboxUpdates }) {
+  const stateCommands=useMemo(()=>createInboxStateCommands(base),[base]);
+  const statePending=useSyncExternalStore(stateCommands.subscribe,stateCommands.hasPending,()=>false),[stateBusy,setStateBusy]=useState(false);
+  useEffect(()=>registerContextSwitchBlocker(()=>stateCommands.hasPending()?"Confirm the original Inbox update before changing work context.":null),[stateCommands]);
   const initialKey=JSON.stringify({base,view:"unread",category:"",query:""});
   const [loadedKey,setLoadedKey]=useState(initial?initialKey:""),generation=useRef(0);
   const [items, setItems] = useState<InboxItem[]>(initial?.items??[]),
@@ -40,7 +46,9 @@ export function InboxUpdates({ base, canBroadcast,notificationsOnly=false,initia
   const api = `/api/v1${base}/inbox`,readKey=JSON.stringify({base,view,category,query});
   const load = useCallback(
     async (next?: string | null, append = false) => {
-      const request=++generation.current;
+      const request=++generation.current,assertCurrent=captureWorkCommandContext();
+      const current=()=>{if(request!==generation.current)return false;try{assertCurrent();return true;}catch{return false;}};
+      try {
       const params = new URLSearchParams({
         view,
         ...(category ? { category } : {}),
@@ -49,13 +57,15 @@ export function InboxUpdates({ base, canBroadcast,notificationsOnly=false,initia
       });
       const response = await workFetch(`${api}/notifications?${params}`, { cache: "no-store" });
       const json = await response.json();
+      if(!current())return;
       if (!response.ok) throw new Error(json.error?.message ?? "Could not load updates.");
       const summary = await workFetch(`${api}/summary`, { cache: "no-store" });
       const counts=summary.ok?await summary.json():null;
-      if(request!==generation.current)return;
+      if(!current())return;
       setItems((old) => (append ? [...old, ...json.data.items] : json.data.items));
       setCursor(json.data.nextCursor);setLoadedKey(readKey);
       if(counts)setUnread(counts.data.unread);
+      }catch(cause){if(current())throw cause;}
     },
     [api, view, category, query,readKey],
   );
@@ -81,19 +91,21 @@ export function InboxUpdates({ base, canBroadcast,notificationsOnly=false,initia
   }, [load]);
   useEffect(() => {
     if(notificationsOnly)return;
+    let live=true;const assertCurrent=captureWorkCommandContext();
+    const current=()=>{if(!live)return false;try{assertCurrent();return true;}catch{return false;}};
     void workFetch(`${api}/people`)
       .then((r) => r.json())
-      .then((j) => setPeople(Array.isArray(j.data) ? j.data : []))
+      .then((j) => {if(current())setPeople(Array.isArray(j.data) ? j.data : []);})
       .catch(() => {});
     void workFetch(`${api}/notices`)
       .then((r) => r.json())
-      .then((j) => setSent(Array.isArray(j.data) ? j.data : []))
+      .then((j) => {if(current())setSent(Array.isArray(j.data) ? j.data : []);})
       .catch(() => {});
     if (canBroadcast)
       void workFetch(`/api/v1${base}/calendar/hierarchy`)
         .then((r) => r.json())
         .then((j) =>
-          setNodes(
+          current()&&setNodes(
             (j.data?.nodes ?? []).filter(
               (n: Node) =>
                 n.inScope !== false && ["company", "branch", "department"].includes(n.kind),
@@ -101,20 +113,16 @@ export function InboxUpdates({ base, canBroadcast,notificationsOnly=false,initia
           ),
         )
         .catch(() => {});
+    return ()=>{live=false;};
   }, [api, base, canBroadcast,notificationsOnly]);
-  async function state(id: string, patch: { read?: boolean; archived?: boolean }) {
-    setError("");
-    const response = await workFetch(`${api}/notifications/${id}/state`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID() },
-      body: JSON.stringify(patch),
-    });
-    const json = await response.json();
-    if (!response.ok) {
-      setError(json.error?.message ?? "Could not update item.");
-      return;
-    }
-    await load();
+  async function state(id?: string, patch?: { read?: boolean; archived?: boolean }) {
+    const assertCurrent=captureWorkCommandContext();
+    setError("");setStateBusy(true);
+    try{
+      if(id&&patch)await stateCommands.submit(id,patch);else await stateCommands.retry();
+      assertCurrent();await load();
+    }catch(cause){try{assertCurrent();setError(cause instanceof Error?cause.message:"Could not confirm the update.");}catch{}}
+    finally{try{assertCurrent();setStateBusy(false);}catch{}}
   }
   async function send(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -196,6 +204,7 @@ export function InboxUpdates({ base, canBroadcast,notificationsOnly=false,initia
       </div>
       {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
       {status && <InlineNotice tone="info" role="status">{status}</InlineNotice>}
+      {statePending&&<Button appearance="standard" type="button" variant="ghost" disabled={stateBusy} onClick={()=>void state()}>Confirm original update</Button>}
       <div className={styles.list}>
         {items.length === 0 ? (
           <p>No matching updates.</p>
@@ -215,6 +224,7 @@ export function InboxUpdates({ base, canBroadcast,notificationsOnly=false,initia
                 <Button appearance="standard"
                   type="submit"
                   variant="ghost"
+                  disabled={stateBusy||statePending}
                   onClick={() => void state(item.id, { read: !item.readAt })}
                 >
                   {item.readAt ? "Mark unread" : "Mark read"}
@@ -222,6 +232,7 @@ export function InboxUpdates({ base, canBroadcast,notificationsOnly=false,initia
                 <Button appearance="standard"
                   type="submit"
                   variant="ghost"
+                  disabled={stateBusy||statePending}
                   onClick={() => void state(item.id, { archived: true })}
                 >
                   Archive

@@ -76,7 +76,7 @@ impl Sources {
                         .map(|d| d.as_str()),
                 )
                 .await?
-                .ok_or_else(unavailable)?,
+                .ok_or_else(|| BusinessError::new(FailureKind::Conflict,"CONFLICT","The record changed, a reference is unavailable, or this value already exists. Refresh and review again."))?,
             )
         } else {
             None

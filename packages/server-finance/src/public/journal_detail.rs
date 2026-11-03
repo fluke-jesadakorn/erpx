@@ -39,5 +39,5 @@ pub struct FinanceJournalDetail {
 }
 pub use crate::adapters::postgres_journal_detail::{
     CurrentFieldServiceJournalDetail, CurrentJournalDetail, lock_journal_detail_sources,
-    read_field_service_journal_detail, read_journal_detail,
+    read_field_service_journal_detail, read_field_service_invoice_journal_detail, read_journal_detail,
 };

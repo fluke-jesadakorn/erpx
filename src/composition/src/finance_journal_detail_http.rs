@@ -2,7 +2,7 @@
 use crate::{finance_journal_detail::FinanceJournalDetailService, http_scope::BusinessScopeSlugs};
 use axum::{
     Json, Router,
-    extract::{Path, State},
+    extract::{Path, State, RawQuery},
     http::{HeaderMap, HeaderValue, StatusCode, header},
     response::{IntoResponse, Response},
     routing::get,
@@ -57,7 +57,7 @@ pub struct FinanceJournalReadTarget<C> {
 struct ReadState<C> {
     policy: Arc<AccountPolicy>,
     scopes: Arc<dyn BusinessScopeSlugs>,
-    targets: BTreeMap<(String, String), FinanceJournalReadTarget<C>>,
+    targets: BTreeMap<(String, String,String), FinanceJournalReadTarget<C>>,
 }
 pub fn finance_journal_read_router<C: Clock + Send + Sync + 'static>(
     policy: Arc<AccountPolicy>,
@@ -74,7 +74,7 @@ pub fn finance_journal_read_router<C: Clock + Send + Sync + 'static>(
             .is_some_and(|h| h.slug == target.holding_slug);
         if !valid
             || configured
-                .insert((target.host.clone(), target.holding_slug.clone()), target)
+                .insert((target.host.clone(), target.holding_slug.clone(),target.service.company_id().as_str().to_owned()), target)
                 .is_some()
         {
             return Err(BusinessError::invalid(
@@ -83,7 +83,10 @@ pub fn finance_journal_read_router<C: Clock + Send + Sync + 'static>(
             ));
         }
     }
-    Ok(Router::new()
+    let field_work_routes=Router::new();
+    #[cfg(feature = "finance-field-write")]
+    let field_work_routes=field_work_routes.route("/api/v1/holdings/{holding_slug}/finance/field-work",get(financial_work::<C>));
+    Ok(Router::new().merge(field_work_routes)
         .route(
             "/api/v1/holdings/{holding_slug}/finance/journals/{id}",
             get(detail::<C>),
@@ -102,17 +105,36 @@ pub fn finance_journal_read_router<C: Clock + Send + Sync + 'static>(
             targets: configured,
         })))
 }
+#[cfg(feature = "finance-field-write")]
+async fn financial_work<C:Clock+Send+Sync+'static>(State(state):State<Arc<ReadState<C>>>,Path(slug):Path<String>,headers:HeaderMap,RawQuery(query):RawQuery)->Response{
+    let result=async{
+        if query.is_some(){return Err(BusinessError::invalid("VALIDATION_FAILED","This Work query accepts only the captured workspace context.").into());}
+        let host=unique_request_header(&headers,"host")?.ok_or_else(missing)?;
+        let target=crate::http_scope::selected_company_target(&state.targets,host,&slug,&headers)?;
+        let inbound=parse_inbound_account_request(&state.policy,&headers)?;
+        if !matches!(inbound.audience(),RequestAudience::Holding{..}){return Err(missing().into());}
+        if unique_request_header(&headers,"origin")?.is_some_and(|v|v!=inbound.expected_origin()){return Err(BusinessError::new(FailureKind::Forbidden,"ORIGIN_FORBIDDEN","Use the application origin.").into());}
+        let scope=state.scopes.slugs(&headers);let(branch,department)=scope.as_ref().cloned().unwrap_or_default();
+        let captured=CapturedHoldingMutation::capture(&headers,branch,department);let company=target.service.company_id().clone();
+        target.service.read_field_work(host,inbound.into_proof(),move||{scope?;captured.resolve_read(company)}).await
+    }.await;
+    let mut response=match result{
+        Ok(reply)=>Json(reply).into_response(),
+        Err(PgTransactionError::Business(e))=>{let status=match e.kind{FailureKind::InvalidInput=>StatusCode::UNPROCESSABLE_ENTITY,FailureKind::Unauthenticated=>StatusCode::UNAUTHORIZED,FailureKind::Forbidden=>StatusCode::FORBIDDEN,FailureKind::NotFound=>StatusCode::NOT_FOUND,FailureKind::Conflict=>StatusCode::CONFLICT,FailureKind::Unavailable=>StatusCode::SERVICE_UNAVAILABLE};(status,Json(serde_json::json!({"error":{"code":e.code,"message":e.message}}))).into_response()},
+        Err(PgTransactionError::Persistence(_))=>(StatusCode::INTERNAL_SERVER_ERROR,Json(serde_json::json!({"error":{"code":"FINANCE_WORK_UNAVAILABLE","message":"The financial Work contribution could not be read."}}))).into_response(),
+    };
+    for(name,value)in[(header::CACHE_CONTROL,"private, no-store"),(header::REFERRER_POLICY,"no-referrer"),(header::X_CONTENT_TYPE_OPTIONS,"nosniff")]{response.headers_mut().insert(name,HeaderValue::from_static(value));}
+    response
+}
 async fn invoice_workspace<C: Clock + Send + Sync + 'static>(
     State(state): State<Arc<ReadState<C>>>,
     Path((slug, id)): Path<(String, String)>,
     headers: HeaderMap,
+    RawQuery(query): RawQuery,
 ) -> Response {
     let result = async {
         let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
-        let target = state
-            .targets
-            .get(&(host.into(), slug))
-            .ok_or_else(missing)?;
+        let target = crate::http_scope::selected_company_target(&state.targets,host,&slug,&headers)?;
         let inbound = parse_inbound_account_request(&state.policy, &headers)?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -130,6 +152,10 @@ async fn invoice_workspace<C: Clock + Send + Sync + 'static>(
         if id.is_empty() || id.len() > 2 * 1024 * 1024 || id.chars().any(char::is_control) {
             return Err(missing().into());
         }
+        let payment_evidence=match query.as_deref(){None=>false,Some(raw)=>{
+            let values=url::form_urlencoded::parse(raw.as_bytes()).collect::<Vec<_>>();
+            if values.len()!=1||values[0].0!="purpose"||values[0].1!="payment-evidence"{return Err(BusinessError::invalid("VALIDATION_FAILED","Invalid invoice read purpose.").into());}true
+        }};
         let scope = state.scopes.slugs(&headers);
         let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
         let captured = CapturedHoldingMutation::capture(&headers, branch, department);
@@ -144,6 +170,7 @@ async fn invoice_workspace<C: Clock + Send + Sync + 'static>(
                     captured.resolve_read(company)
                 },
                 id,
+                payment_evidence,
             )
             .await
     }
@@ -183,10 +210,7 @@ async fn read<C: Clock + Send + Sync + 'static>(
 ) -> Response {
     let result = async {
         let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
-        let target = state
-            .targets
-            .get(&(host.into(), slug))
-            .ok_or_else(missing)?;
+        let target = crate::http_scope::selected_company_target(&state.targets,host,&slug,&headers)?;
         let inbound = parse_inbound_account_request(&state.policy, &headers)?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());

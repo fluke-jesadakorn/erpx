@@ -1,3 +1,4 @@
+use crate::domain::environment::valid_environment;
 use super::account_group_recovery::browser_key;
 use super::account_holding_bindings::ConfiguredHoldingRegistry;
 use crate::{
@@ -252,7 +253,7 @@ pub async fn verify_session_in_transaction(
     now: i64,
     holdings: &ConfiguredHoldingRegistry,
 ) -> Result<Option<AccountSession>, PgTransactionError<BusinessError>> {
-    if environment != "development" {
+    if !valid_environment(environment) {
         return Err(BusinessError::invalid(
             "ACCOUNT_ENVIRONMENT_UNAVAILABLE",
             "This Account binding environment is not enabled.",

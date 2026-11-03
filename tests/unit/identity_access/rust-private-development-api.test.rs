@@ -6,6 +6,45 @@ fn document() -> serde_json::Value {
 fn parses(value: &serde_json::Value) -> bool {
     DevelopmentApiConfiguration::parse(&value.to_string()).is_ok()
 }
+fn parses_production(value: &serde_json::Value) -> bool {
+    let result = DevelopmentApiConfiguration::parse_production(&value.to_string());
+    if let Err(error) = &result {
+        eprintln!("PRODUCTION_PARSE_ERROR {error}");
+    }
+    result.is_ok()
+}
+fn production_document() -> serde_json::Value {
+    let mut document = document();
+    document["mode"] = "production".into();
+    document["environment"] = "production".into();
+    document["listen"] = "127.0.0.1:3101".into();
+    document["accountSecurityKeys"] = serde_json::json!({
+        "current": "fixture",
+        "keys": [{"id": "fixture", "keyHex": "07".repeat(32)}],
+    });
+    document["fieldServiceReads"] =
+        serde_json::json!([{"holdingId": "h001", "companyId": "company"}]);
+    document["fieldServiceSourceRecordReads"] =
+        serde_json::json!([{"holdingId": "h001", "mode": "enforced"}]);
+    document["servicePackageLifecycle"] = serde_json::json!({
+        "providerHoldingId": "h001",
+        "holdingIds": ["h001"],
+        "reviewSecret": "fixture-only-secret-32-characters-minimum",
+    });
+    document["control"]
+        .as_object_mut()
+        .unwrap()
+        .remove("leaseToken");
+    document["holdings"][0]["database"]
+        .as_object_mut()
+        .unwrap()
+        .remove("leaseToken");
+    document["holdings"][1]["database"]
+        .as_object_mut()
+        .unwrap()
+        .remove("leaseToken");
+    document
+}
 #[test]
 fn configuration_is_explicit_private_development_and_never_selects_installed_or_reserved_resources()
 {
@@ -337,12 +376,104 @@ fn finance_read_requires_distinct_registered_holdings_and_valid_companies() {
     for entries in [
         serde_json::json!([{ "holdingId": "h003", "companyId": "company" }]),
         serde_json::json!([{ "holdingId": "h001", "companyId": "" }]),
-        serde_json::json!([{ "holdingId": "h001", "companyId": "company" }, { "holdingId": "h001", "companyId": "other" }]),
+        serde_json::json!([{ "holdingId": "h001", "companyId": "company" }, { "holdingId": "h001", "companyId": "company" }]),
         serde_json::json!([{ "holdingId": "h001", "companyId": "company", "host": "other" }]),
     ] {
         d["financeJournalReads"] = entries;
         assert!(!parses(&d));
     }
+    // One registered Holding may host several Companies; only an exact
+    // duplicate pair is invalid.
+    d["financeJournalReads"] =
+        serde_json::json!([{ "holdingId": "h001", "companyId": "company" }, { "holdingId": "h001", "companyId": "other" }]);
+    assert!(parses(&d));
+}
+
+#[test]
+fn production_configuration_requires_durable_loopback_databases_and_real_authority() {
+    let production = production_document();
+    assert!(parses_production(&production));
+    // The development parser still refuses a production label.
+    assert!(!parses(&production));
+
+    let mut invalid = production.clone();
+    invalid["environment"] = "development".into();
+    assert!(!parses_production(&invalid));
+
+    let mut invalid = production.clone();
+    invalid["control"]["leaseToken"] = "00000000000000000000000000000000".into();
+    assert!(!parses_production(&invalid));
+
+    let mut invalid = production.clone();
+    invalid["accountBootstrap"] = true.into();
+    assert!(!parses_production(&invalid));
+
+    let mut invalid = production.clone();
+    invalid["requireEmailVerification"] = false.into();
+    assert!(!parses_production(&invalid));
+
+    let mut invalid = production.clone();
+    invalid.as_object_mut().unwrap().remove("accountSecurityKeys");
+    assert!(!parses_production(&invalid));
+
+    let mut invalid = production.clone();
+    invalid.as_object_mut().unwrap().remove("servicePackageLifecycle");
+    assert!(!parses_production(&invalid));
+
+    let mut invalid = production.clone();
+    invalid["control"]["url"] = "postgres://erpx:synthetic@db.example.test:5432/erpx_control".into();
+    assert!(!parses_production(&invalid));
+
+    let mut invalid = production.clone();
+    let control_url = invalid["control"]["url"].clone();
+    invalid["holdings"][0]["database"]["url"] = control_url;
+    assert!(!parses_production(&invalid));
+
+    let mut invalid = production.clone();
+    invalid["listen"] = "0.0.0.0:3101".into();
+    assert!(!parses_production(&invalid));
+
+    let mut invalid = production.clone();
+    invalid["listen"] = "127.0.0.1:3100".into();
+    assert!(!parses_production(&invalid));
+
+    let mut invalid = production.clone();
+    invalid["mode"] = "development".into();
+    assert!(!parses_production(&invalid));
+}
+
+#[test]
+fn production_configuration_rejects_finance_composition() {
+    let mut production = production_document();
+    production["financeJournalReads"] =
+        serde_json::json!([{"holdingId": "h001", "companyId": "company"}]);
+    assert_eq!(
+        DevelopmentApiConfiguration::parse_production(&production.to_string()).err(),
+        Some("FINANCE_PRODUCTION_COMPOSITION_UNAVAILABLE")
+    );
+    let mut production = production_document();
+    production["financeFieldServiceReceiptWrites"] = serde_json::json!(["h001"]);
+    assert_eq!(
+        DevelopmentApiConfiguration::parse_production(&production.to_string()).err(),
+        Some("FINANCE_PRODUCTION_COMPOSITION_UNAVAILABLE")
+    );
+}
+
+#[tokio::test]
+async fn production_assembly_rejects_a_development_configuration() {
+    use erpx_server_identity_access::public::{SystemAccountClock, SystemAuthenticationSecrets};
+    use std::sync::Arc;
+    let configuration = DevelopmentApiConfiguration::parse(&document().to_string()).unwrap();
+    let result = erpx_service::private_development_api::assemble_production_api(
+        configuration,
+        Arc::new(SystemAccountClock),
+        Arc::new(SystemAuthenticationSecrets),
+    )
+    .await;
+    assert!(matches!(
+        result.err(),
+        Some("EXPLICIT_PRIVATE_PRODUCTION_API_REQUIRED")
+    ));
 }
 
 #[test]

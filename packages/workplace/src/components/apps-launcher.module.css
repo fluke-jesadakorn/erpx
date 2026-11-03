@@ -1,6 +1,7 @@
-.trigger { min-width: 0; text-align: start; }
-.trigger > span { display: grid; min-width: 0; overflow-wrap: anywhere; }
-.trigger small { color: var(--ui-muted); font-size: .8rem; font-weight: 400; }
+.trigger { flex: 0 1 17rem; min-width: 0; max-width: 17rem; text-align: start; }
+.trigger > span { display: grid; min-width: 0; overflow: hidden; white-space: nowrap; }
+.trigger > svg { flex-shrink: 0; }
+.trigger small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ui-muted); font-size: .8rem; font-weight: 400; }
 .modal { width: min(1120px, calc(100% - 3rem)); height: min(780px, calc(100dvh - 3rem)); }
 .modalBody { display: flex; flex-direction: column; padding: 0; flex: 1; min-height: 0; }
 .panes { display: grid; grid-template-columns: minmax(240px, 34%) minmax(0, 1fr); min-height: 0; flex: 1; }

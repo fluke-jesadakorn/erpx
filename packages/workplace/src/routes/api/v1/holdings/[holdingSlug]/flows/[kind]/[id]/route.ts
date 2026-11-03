@@ -1,3 +1,5 @@
+import {nativeFieldJournalFlowReadback,nativeFieldJournalFlowCommand} from '@erpx/feature-finance/public/server';
+import {nativeServiceInvoiceFlowCommand,nativeServiceInvoiceFlowReadback} from '@erpx/feature-finance/public/server';
 import {serviceCountWriterOwner} from '@erpx/server-inventory/public/service-initial-physical-stock-count';
 import {serviceCountCommand,serviceCountFlow} from '../../../../../../../../lib/service-count-native-command';
 import {nativeInitialCountContext} from '@erpx/feature-field_service/public/native-initial-count';
@@ -22,6 +24,14 @@ export async function GET(request:Request, context:Context) {
       if(!captured)throw new ApiError(409,'WORK_CONTEXT_CHANGED','The work context changed.');
       return Response.json(canonicalDestinationLinks({data:await serviceCountFlow(request,actor,p.holdingSlug,p.id,captured)}),{headers:{'Cache-Control':'private, no-store'}});
     }
+    if(kind==='journal'){
+      const native=await nativeFieldJournalFlowReadback(request,actor,p.holdingSlug,p.id);
+      if(native)return native;
+    }
+    if(kind==='invoice'){
+      const native=await nativeServiceInvoiceFlowReadback(request,actor,p.holdingSlug,p.id);
+      if(native)return native;
+    }
     const db = await requireFlowAccess(actor,kind,p.id);
     return Response.json(canonicalDestinationLinks({data:await (kind==="invoice"||kind==="journal"?financeDocumentFlow(actor,kind,p.id):resolveFlow(db,actor,kind,p.id))}),{headers:{"Cache-Control":"private, no-store"}});
   } catch (error) { return errorResponse(error); }
@@ -35,6 +45,20 @@ export async function POST(request:Request, context:Context) {
       const command=await serviceCountCommand(request,actor,p.holdingSlug,{kind:'generic-assign',id:p.id},key);
       const flow=await serviceCountFlow(request,actor,p.holdingSlug,p.id,command.context);
       return Response.json(canonicalDestinationLinks({data:flow,command:{id:command.data.id,version:command.data.version}}),{headers:{"Cache-Control":"private, no-store","X-ERPX-Native-Count":"1"}});
+    }
+    if(kind==='journal'){
+      const result=await nativeFieldJournalFlowCommand(request.clone(),actor,p.holdingSlug,p.id);
+      if(result)return result;
+    }
+    if(kind==='invoice'){
+      const result=await nativeServiceInvoiceFlowCommand(request.clone(),actor,p.holdingSlug,p.id);
+      if(result){
+        if(!result.ok)return result;
+        const acknowledgement=await result.json();
+        const readback=await nativeServiceInvoiceFlowReadback(request,actor,p.holdingSlug,p.id,acknowledgement.data);
+        if(!readback)throw new ApiError(503,'NATIVE_FINANCE_CONTEXT_CHANGED','The invoice source changed. Retain the original request for retry.');
+        return readback;
+      }
     }
     const db = await requireFlowAccess(actor,kind,p.id);
     const input=schema.parse(await request.json());

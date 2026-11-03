@@ -1,5 +1,6 @@
 //! Files-owned bounded set/manifest witness and its bind mutation.
 use crate::domain::field_visit_bind::{FieldBindManifestItem, FieldBindSet};
+use crate::domain::field_visit_intake::IntakeOwner;
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::{BusinessError, CompanyId, FailureKind};
 use sha2::{Digest, Sha256};
@@ -37,21 +38,22 @@ async fn image(
     c: &mut PgConnection,
     company: &CompanyId,
     id: &str,
+    owner: IntakeOwner,
 ) -> Result<(FieldBindSet, String, String), Error> {
     let row=sqlx::query("WITH src AS MATERIALIZED (SELECT s.* FROM attachment_sets s WHERE s.id=$1 AND s.company_id=$2), links AS MATERIALIZED (SELECT l.*,to_jsonb(a) attachment,a.source_state,a.checksum_sha256,a.media_type,a.bytes FROM attachment_links l JOIN src s ON s.id=l.set_id LEFT JOIN attachments a ON a.id=l.attachment_id AND a.company_id=s.company_id), valueset AS (SELECT jsonb_build_object('id',s.id,'branch_id',s.branch_id,'department_id',s.department_id,'target_id',s.target_id,'target_type',s.target_type,'component_kind',s.component_kind,'component_ref',s.component_ref,'purpose_key',s.purpose_key,'expected_version',s.expected_target_version,'policy_version',s.policy_version,'required_count',s.required_count,'state',s.state,'bound_command_id',s.bound_command_id,'links',coalesce((SELECT jsonb_agg(jsonb_build_object('id',l.id,'state',l.state,'source_id',l.attachment_id,'source_state',l.source_state,'checksum',l.checksum_sha256,'media_type',l.media_type,'bytes',l.bytes,'binding_type',l.binding_type,'binding_id',l.binding_id) ORDER BY l.created_at,l.id) FROM links l),'[]'::jsonb)) payload,jsonb_build_array(to_jsonb(s),(SELECT coalesce(jsonb_agg(to_jsonb(l) ORDER BY l.created_at,l.id),'[]'::jsonb) FROM links l)) image,jsonb_build_array(to_jsonb(s)-'state'-'bound_at'-'bound_command_id'-'updated_at',(SELECT coalesce(jsonb_agg(to_jsonb(l)-'state'-'bound_at'-'binding_type'-'binding_id' ORDER BY l.created_at,l.id),'[]'::jsonb) FROM links l)) stable FROM src s) SELECT CASE WHEN octet_length(payload::text)+octet_length(image::text)<=2097152 THEN payload::text END payload,encode(sha256(convert_to(image::text,'UTF8')),'hex') digest,encode(sha256(convert_to(stable::text,'UTF8')),'hex') stable FROM valueset").bind(id).bind(company.as_str()).fetch_optional(c).await?.ok_or_else(missing)?;
     let raw: Option<String> = row.try_get("payload")?;
     let data: FieldBindSet =
         serde_json::from_str(&raw.ok_or_else(changed)?).map_err(|_| changed())?;
-    if !crate::domain::field_visit_link::valid_field_purpose(
-        &data.target_type,
-        &data.component_kind,
-        &data.purpose_key,
-    ) {
+    if !matches!(owner, IntakeOwner::FieldVisit | IntakeOwner::FieldJournal)
+        || data.component_kind != "record"
+        || !owner.supports(&data.target_type, &data.component_kind, &data.purpose_key)
+    {
         return Err(missing());
     }
     Ok((data, row.try_get("digest")?, row.try_get("stable")?))
 }
 pub struct CurrentFieldBindSet {
+    owner: IntakeOwner,
     company: CompanyId,
     unit: (String, i32, String, String),
     data: FieldBindSet,
@@ -64,7 +66,7 @@ impl CurrentFieldBindSet {
     }
     pub async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
         if unit(c).await? != self.unit
-            || image(c, &self.company, &self.data.id).await?
+            || image(c, &self.company, &self.data.id, self.owner).await?
                 != (self.data.clone(), self.digest.clone(), self.stable.clone())
         {
             return Err(changed());
@@ -96,7 +98,7 @@ impl CurrentFieldBindSet {
         let event = format!("attachment-bind-{}", &hash[..32]);
         let details=serde_json::json!({"bindingType":"record_document","bindingId":self.data.target_id,"manifest":manifest}).to_string();
         sqlx::query("INSERT INTO attachment_events(id,company_id,set_id,actor_id,action,details_json,created_at) VALUES($1,$2,$3,$4,'set.bound',$5,$6)").bind(event).bind(self.company.as_str()).bind(&self.data.id).bind(actor).bind(details).bind(now).execute(&mut *c).await?;
-        let (after, _, stable) = image(c, &self.company, &self.data.id).await?;
+        let (after, _, stable) = image(c, &self.company, &self.data.id, self.owner).await?;
         let mut expected = self.data.clone();
         expected.state = "bound".into();
         expected.bound_command_id = Some(key.into());
@@ -119,9 +121,18 @@ pub async fn read_field_bind_set(
     company: &CompanyId,
     id: &str,
 ) -> Result<CurrentFieldBindSet, Error> {
+    read_owner_record_bind_set(c, company, id, IntakeOwner::FieldVisit).await
+}
+pub async fn read_owner_record_bind_set(
+    c: &mut PgConnection,
+    company: &CompanyId,
+    id: &str,
+    owner: IntakeOwner,
+) -> Result<CurrentFieldBindSet, Error> {
     let unit = unit(c).await?;
-    let (data, digest, stable) = image(c, company, id).await?;
+    let (data, digest, stable) = image(c, company, id, owner).await?;
     Ok(CurrentFieldBindSet {
+        owner,
         company: company.clone(),
         unit,
         data,

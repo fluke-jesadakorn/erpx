@@ -1,6 +1,26 @@
 //! Pure visit transition and authority policy; facts never confer authority.
 use erpx_server_shared::public::{BusinessError, FailureKind};
 
+/// Price the retained visit rate on the billing date. Dates are normalized by
+/// the ingress/owning sources before this policy is called.
+pub fn visit_billing_price(
+    rate: i64,
+    discount_bps: i64,
+    warranty_end: Option<&str>,
+    pricing_date: &str,
+) -> (i64, i64, bool) {
+    let discount = discount_bps.clamp(0, 10000);
+    let applied = warranty_end.is_some_and(|end| end >= pricing_date);
+    // Preserve JS Number multiplication followed by Math.floor, including
+    // the inclusive last warranty day and the original undiscounted rate.
+    let amount = if applied {
+        ((rate as f64 * (10000 - discount) as f64) / 10000.0).floor() as i64
+    } else {
+        rate
+    };
+    (amount, discount, applied)
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum VisitAction {
     Schedule,

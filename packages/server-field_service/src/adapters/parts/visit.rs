@@ -1,5 +1,6 @@
 //! Pre-effect visit plan and immutable order/event after-image, bound to one unit.
 use super::source::*;
+use super::intent::conflict;
 use crate::adapters::parts_wire::NormalizedFieldServiceVisit;
 use crate::domain::visit::VisitAction;
 use erpx_server_shared::public::{CommandKey, TimestampMillis};
@@ -142,7 +143,7 @@ impl PreparedFieldServiceVisit {
     ) -> Result<(), Error> {
         self.require_before(c, source, tech, now).await?;
         if source.facts().version != self.input.expected_version {
-            return Err(changed());
+            return Err(conflict());
         }
         Ok(())
     }
@@ -156,7 +157,7 @@ impl PreparedFieldServiceVisit {
         self.require_before(c, source, technician_source, now)
             .await?;
         if source.facts().version != self.input.expected_version {
-            return Err(changed());
+            return Err(conflict());
         }
         if self.input.action == VisitAction::Dispatch {
             let expired:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM field_service_part_reservations WHERE order_id=$1 AND quantity_milli>consumed_milli+released_milli AND expires_at<=$2)").bind(&self.order_id).bind(self.at).fetch_one(&mut *c).await?;
@@ -166,7 +167,7 @@ impl PreparedFieldServiceVisit {
         }
         let n=sqlx::query("UPDATE field_service_orders SET status=$3,technician_id=$4,scheduled_at=$5,version=version+1,updated_at=$6,visit_started_at=CASE WHEN $7 THEN $6 ELSE visit_started_at END,visit_completed_at=CASE WHEN $9 THEN $6 ELSE visit_completed_at END,labor_minutes=CASE WHEN $9 THEN $10 ELSE labor_minutes END,completion_evidence=CASE WHEN $9 THEN $11 ELSE completion_evidence END,customer_confirmation=CASE WHEN $9 THEN $12 ELSE customer_confirmation END,exception_reason=CASE WHEN $13::text='exception' THEN $14::text WHEN $13::text='resume' OR $9 THEN NULL ELSE exception_reason END WHERE id=$1 AND company_id=$2 AND version=$8").bind(&self.order_id).bind(&self.company_id).bind(self.input.action.status()).bind(&self.technician).bind(self.scheduled).bind(self.at).bind(self.input.action==VisitAction::Start).bind(self.input.expected_version).bind(self.input.action==VisitAction::Complete).bind(self.input.labor_minutes).bind(self.input.evidence.as_deref()).bind(self.input.customer_confirmation.as_deref()).bind(self.input.action.operation().strip_prefix("field.order.").ok_or_else(invalid)?).bind(&self.input.reason).execute(&mut *c).await?.rows_affected();
         if n != 1 {
-            return Err(changed());
+            return Err(conflict());
         }
         sqlx::query("INSERT INTO field_service_order_events(id,order_id,version,action,actor_id,reason,status,technician_id,scheduled_at,details_json,created_at)VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11)").bind(format!("service-order-event-{}",self.key.as_str())).bind(&self.order_id).bind(self.version).bind(self.input.action.operation().strip_prefix("field.order.").ok_or_else(invalid)?).bind(&self.actor).bind(&self.input.reason).bind(self.input.action.status()).bind(&self.technician).bind(self.scheduled).bind(&self.details).bind(self.at).execute(&mut *c).await?;
         self.require_after(c, source, technician_source, now).await

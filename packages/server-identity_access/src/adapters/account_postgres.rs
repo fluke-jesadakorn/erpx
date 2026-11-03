@@ -1,3 +1,4 @@
+use crate::domain::environment::valid_environment;
 use super::account_group_recovery::{
     BrowserDiscovery, browser_discovery, browser_key, create_key, recoverable_browser,
     recovery_snapshot, rotate_key,
@@ -46,7 +47,7 @@ impl PostgresAccountRepository {
         clock: Arc<dyn Clock + Send + Sync>,
         holdings: Arc<ConfiguredHoldingRegistry>,
     ) -> Result<Self, BusinessError> {
-        if environment != "development" {
+        if !valid_environment(&environment) {
             return Err(BusinessError::invalid(
                 "ACCOUNT_ENVIRONMENT_UNAVAILABLE",
                 "The Account environment has not been enabled.",

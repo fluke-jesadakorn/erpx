@@ -73,3 +73,17 @@ Shared Files application/repository, scanner and cleanup code still serves non-F
 The source-bound [local verification receipt](../../testing/evidence/2026-10-31-field-visit-files-native.json) records the changed-source manifest and evidence limits.
 
 The completed Rust capability checklist is **8/8**. Its branch-to-merge wall interval was 21,822 seconds (2026-10-30 18:43:26 to 2026-10-31 00:47:08, Asia/Bangkok), including waits; this is not an active-engineering-time estimate. The full Field checklist remains 7/18, workflows remain 13 partial/0 verified/0 merged of 206, and owners remain 0/41.
+
+## Owner integration continuation
+
+The real-clock owner journey exposed a Files outbox correlation error: receipt time is sampled before the owner effect. Native origin time is checked against immutable set creation time, and bind-event time against the set's bound time; neither may precede its receipt. Receipt hashes, actor/source identity, manifest, audit and writer fences remain required. This does not change the earlier capability evidence or establish whole-Field acceptance.
+
+Native dead-letter recovery is an operator process using the worker's existing private configuration, enforced Holding, binding and migration checks:
+
+```sh
+erpx-server field-dependency-retry --development-config /absolute/private.json \
+  --holding h001 --event <event-id> --dead-letter-at <observed-milliseconds> \
+  --reason 'Original source issue corrected and verified'
+```
+
+It accepts only the observed dead-letter generation with valid native owner evidence and no active lease. The retry and runtime-service audit commit together; prior attempts/error/time remain in that audit. It creates no human identity/session, replaces no business command, and does not alter the original receipt, business event payload or business data. A stale generation or invalid source fails closed. The normal native worker subsequently projects and acknowledges the original event.

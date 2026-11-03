@@ -157,6 +157,7 @@ impl SanitizationIo {
     /// runtime shutdown cannot drop its database guards before it completes.
     /// Multi-thread runtimes can replace the blocked worker; on a current-thread
     /// runtime the operation deliberately blocks that thread until completion.
+    #[allow(dead_code)]
     pub(crate) async fn run_critical<T, E, F>(&self, operation: F) -> Result<T, IoFailure<E>>
     where
         F: FnOnce(&File) -> Result<T, E>,

@@ -7,6 +7,7 @@ use serde::Serialize;
 use std::future::Future;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[cfg_attr(feature="contracts",derive(ts_rs::TS,utoipa::ToSchema))]
 pub struct CompanyPurchaseFacts {
     pub grants: Vec<CompanyPackageGrant>,
     pub history: Vec<CompanyPackageHistoryRight>,

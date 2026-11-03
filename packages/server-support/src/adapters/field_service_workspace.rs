@@ -134,3 +134,41 @@ pub async fn read_service_workspace_tickets(
         digest,
     })
 }
+
+/// Raw original Service settlement state. No active/visible-ticket filter may
+/// remove an orphan, mismatched Field projection or unacknowledged SLA duty.
+#[derive(Clone,Debug,PartialEq,Eq,Serialize,Deserialize)]
+pub struct ServiceSupportSettlementTicket {
+    pub id:String,pub company_id:String,pub branch_id:Option<String>,pub department_id:Option<String>,pub customer_id:Option<String>,
+    pub source_kind:Option<String>,pub service_order_id:Option<String>,pub service_agreement_id:Option<String>,pub service_order_version:Option<i64>,pub status:String,pub digest:String,
+}
+#[derive(Clone,Debug,PartialEq,Eq,Serialize,Deserialize)]
+pub struct ServiceSupportSettlementAlert {pub id:String,pub ticket_id:String,pub digest:String}
+#[derive(Clone,Debug,PartialEq,Eq,Serialize,Deserialize)]
+pub struct ServiceSupportSettlementRows {pub tickets:Vec<ServiceSupportSettlementTicket>,pub alerts:Vec<ServiceSupportSettlementAlert>}
+pub struct CurrentServiceSupportSettlement {
+    company:CompanyId,known_tickets:Vec<String>,unit:Unit,data:ServiceSupportSettlementRows,
+}
+pub async fn lock_service_support_settlement(c:&mut PgConnection)->Result<(),Error>{
+    if !c.is_in_transaction(){return Err(PersistenceError::new("SUPPORT_TRANSACTION_REQUIRED").into());}
+    sqlx::query("LOCK TABLE support_tickets,support_ticket_events,support_sla_alerts IN SHARE MODE").execute(c).await?;
+    Ok(())
+}
+async fn capture_service_support_settlement(c:&mut PgConnection,company:&CompanyId,known_tickets:&[String])->Result<ServiceSupportSettlementRows,Error>{
+    let row=sqlx::query("WITH tickets AS MATERIALIZED(SELECT * FROM support_tickets WHERE (company_id=$1 AND source_kind='field_service') OR id=ANY($2::text[])),payload AS(SELECT jsonb_build_object('tickets',coalesce((SELECT jsonb_agg(jsonb_build_object('id',t.id,'company_id',t.company_id,'branch_id',t.branch_id,'department_id',t.department_id,'customer_id',t.customer_id,'source_kind',t.source_kind,'service_order_id',t.service_order_id,'service_agreement_id',t.service_agreement_id,'service_order_version',t.service_order_version,'status',t.status,'digest',encode(sha256(convert_to(to_jsonb(t)::text,'UTF8')),'hex')) ORDER BY t.id) FROM tickets t),'[]'::jsonb),'alerts',coalesce((SELECT jsonb_agg(jsonb_build_object('id',a.id,'ticket_id',a.ticket_id,'digest',encode(sha256(convert_to(to_jsonb(a)::text,'UTF8')),'hex')) ORDER BY a.id) FROM support_sla_alerts a JOIN tickets t ON t.id=a.ticket_id WHERE t.source_kind='field_service' AND a.acknowledged_by IS NULL),'[]'::jsonb)) value) SELECT CASE WHEN octet_length(value::text)<=2097152 THEN value::text END payload FROM payload").bind(company.as_str()).bind(known_tickets).fetch_one(c).await?;
+    let payload:Option<String>=row.try_get("payload")?;
+    serde_json::from_str(&payload.ok_or_else(limited)?).map_err(|_|limited())
+}
+impl CurrentServiceSupportSettlement {
+    pub fn data(&self)->&ServiceSupportSettlementRows{&self.data}
+    pub async fn require_current(&self,c:&mut PgConnection)->Result<(),Error>{
+        if unit(c).await?!=self.unit||capture_service_support_settlement(c,&self.company,&self.known_tickets).await?!=self.data{
+            return Err(BusinessError::new(FailureKind::Conflict,"SERVICE_SUPPORT_PACKAGE_SOURCE_CHANGED","The original Support settlement source changed.").into());
+        }
+        Ok(())
+    }
+}
+pub async fn read_service_support_settlement(c:&mut PgConnection,company:&CompanyId,known_tickets:&[String])->Result<CurrentServiceSupportSettlement,Error>{
+    let unit=unit(c).await?;let data=capture_service_support_settlement(c,company,known_tickets).await?;
+    Ok(CurrentServiceSupportSettlement{company:company.clone(),known_tickets:known_tickets.to_vec(),unit,data})
+}

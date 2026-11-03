@@ -1,26 +1,23 @@
 import 'server-only';
+import {allowedPrivateLoopbackPort} from '@erpx/native-sdk/loopback';
 import {contributorExactOrigin} from '@erpx/feature-runtime/lib/holding-hosts';
 import {nativeInitialCountRequest,type NativeCountRoute,type NativeCountTransport} from '@erpx/native-sdk/field-service-initial-count';
 import type {ServiceInitialCountReadResponse,ServiceInitialCountCommandResponse,CountGenericDetail} from '@erpx/contracts/field-service-initial-count';
 import {validServiceInitialPhysicalStockCountView,type ServiceInitialPhysicalCountView} from '../../lib/initial-physical-stock-count-command';
 import type {FlowView} from '@erpx/feature-shared/lib/flow';
 import type {ReserveContext} from '../../lib/native-reserve-command';
-import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
-export function nativeInitialCountContext(actor:WorkContext):ReserveContext|undefined {
- if(!actor.authority||!actor.iam)return undefined;
- return {userId:actor.userId,holdingId:actor.holdingId,companyId:actor.companyId,branchId:actor.branchId,departmentId:actor.departmentId,branchSlug:actor.scope.kind==='holding'?null:actor.scope.branchSlug??null,departmentSlug:actor.scope.kind==='department'?actor.scope.departmentSlug:null,assignmentId:actor.assignmentId,assignmentVersion:actor.authority.assignmentVersion,revision:actor.authority.revision,role:actor.role,assignmentScopeKind:actor.assignmentScope,modules:[...actor.modules],permissions:[...actor.iam.permissions]};
-}
+export {nativeActorContext as nativeInitialCountContext} from '../../lib/native-actor-context';
 type Target={origin:string;holdingSlug:string;holdingId:string};
-type Settings={privateBaseUrl:string;timeoutMs:number;holdings:Target[]};
+type Settings={privateBaseUrl:string;timeoutMs:number;holdings:Target[];production?:boolean};
 export class NativeInitialCountError extends Error {constructor(readonly code:string,readonly status=502){super('The native Service initial Count is unavailable.');}}
 const fail=(code:string,status=502):never=>{throw new NativeInitialCountError(code,status);};
 const object=(value:unknown):value is Record<string,unknown>=>!!value&&typeof value==='object'&&!Array.isArray(value);
 const setEqual=(expected:readonly string[],actual:unknown)=>Array.isArray(actual)&&actual.every(x=>typeof x==='string')&&new Set(expected).size===new Set(actual).size&&expected.every(x=>actual.includes(x));
 function settings(raw:string):Settings{
  let value:unknown;try{value=JSON.parse(raw);}catch{return fail('NATIVE_INITIAL_COUNT_CONFIG_INVALID');}
- if(!object(value)||typeof value.privateBaseUrl!=='string'||typeof value.timeoutMs!=='number'||!Number.isSafeInteger(value.timeoutMs)||value.timeoutMs<250||value.timeoutMs>30000||!Array.isArray(value.holdings)||!value.holdings.length||value.holdings.length>64)return fail('NATIVE_INITIAL_COUNT_CONFIG_INVALID');
+ if(!object(value)||(value.production!==undefined&&typeof value.production!=='boolean')||typeof value.privateBaseUrl!=='string'||typeof value.timeoutMs!=='number'||!Number.isSafeInteger(value.timeoutMs)||value.timeoutMs<250||value.timeoutMs>30000||!Array.isArray(value.holdings)||!value.holdings.length||value.holdings.length>64)return fail('NATIVE_INITIAL_COUNT_CONFIG_INVALID');
  let base:URL;try{base=new URL(value.privateBaseUrl);}catch{return fail('NATIVE_INITIAL_COUNT_CONFIG_INVALID');}const port=Number(base.port);
- if(base.protocol!=='http:'||!['127.0.0.1','[::1]'].includes(base.hostname)||!base.port||[3000,3001,3100,3101,3103,5432,5433,5435,8080].includes(port)||port>=3200&&port<=3299||base.username||base.password||base.origin!==value.privateBaseUrl)return fail('NATIVE_INITIAL_COUNT_CONFIG_INVALID');
+ if(base.protocol!=='http:'||!['127.0.0.1','[::1]'].includes(base.hostname)||!base.port||!allowedPrivateLoopbackPort(port,value.production===true)||port>=3200&&port<=3299||base.username||base.password||base.origin!==value.privateBaseUrl)return fail('NATIVE_INITIAL_COUNT_CONFIG_INVALID');
  const hosts=new Set<string>(),slugs=new Set<string>();for(const entry of value.holdings){if(!object(entry)||typeof entry.origin!=='string'||typeof entry.holdingSlug!=='string'||!/^[a-z0-9_-]{1,128}$/.test(entry.holdingSlug)||typeof entry.holdingId!=='string'||!entry.holdingId||new TextEncoder().encode(entry.holdingId).length>200)return fail('NATIVE_INITIAL_COUNT_CONFIG_INVALID');let origin:URL;try{origin=new URL(entry.origin);}catch{return fail('NATIVE_INITIAL_COUNT_CONFIG_INVALID');}if(origin.protocol!=='https:'||origin.origin!==entry.origin||(origin.port&&contributorExactOrigin(origin.host)!==entry.origin)||origin.username||origin.password||!origin.hostname.includes('.')||!origin.hostname.split('.').every(part=>/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(part))||hosts.has(origin.host)||slugs.has(entry.holdingSlug))return fail('NATIVE_INITIAL_COUNT_CONFIG_INVALID');hosts.add(origin.host);slugs.add(entry.holdingSlug);}
  return value as Settings;
 }
@@ -63,7 +60,7 @@ export async function nativeInitialCount(incoming:Pick<Headers,'get'>,slug:strin
  for(const [name,value] of [['x-erpx-context-company',actor.companyId],['x-erpx-context-assignment',actor.assignmentId],['x-erpx-context-revision',String(actor.revision)],['x-erpx-context-assignment-version',String(actor.assignmentVersion)]] as const){const captured=incoming.get(name);if(command&&captured!==value)return fail('WORK_CONTEXT_CHANGED',409);headers.set(name,command?captured!:value);}
  if(actor.branchSlug)headers.set('x-erpx-workspace-branch',actor.branchSlug);if(actor.departmentSlug)headers.set('x-erpx-workspace-department',actor.departmentSlug);
  if(command){if(!key||body===undefined)return fail('NATIVE_INITIAL_COUNT_KEY_REQUIRED',422);const origin=incoming.get('origin');if(origin){if(origin!==choice.target.origin)return fail('ORIGIN_FORBIDDEN',403);headers.set('origin',origin);}headers.set('idempotency-key',key);headers.set('content-type','application/json');}
- let response:Awaited<ReturnType<typeof nativeInitialCountRequest>>;try{response=await nativeInitialCountRequest({baseUrl:choice.config.privateBaseUrl,timeoutMs:choice.config.timeoutMs,slug,route,headers,...(command?{body}: {})},transport);}catch{return fail('NATIVE_INITIAL_COUNT_UNAVAILABLE',503);}
+ let response:Awaited<ReturnType<typeof nativeInitialCountRequest>>;try{response=await nativeInitialCountRequest({baseUrl:choice.config.privateBaseUrl,timeoutMs:choice.config.timeoutMs,production:choice.config.production===true,slug,route,headers,...(command?{body}: {})},transport);}catch{return fail('NATIVE_INITIAL_COUNT_UNAVAILABLE',503);}
  if(response.status!==(route.kind==='create'?201:200)){if(object(response.body)&&object(response.body.error)&&typeof response.body.error.code==='string'&&response.body.error.code.length<=100&&response.status>=400&&response.status<=599)return fail(response.body.error.code,response.status);return fail('NATIVE_INITIAL_COUNT_UNAVAILABLE',503);}
  if(!object(response.body))return fail('NATIVE_INITIAL_COUNT_RESPONSE_INVALID');validatedContext(response.body.context,actor);const data=response.body.data;
  if(!command){if(route.kind==='generic-detail'){if(!validGenericDetail(data,route.id,actor.companyId))return fail('NATIVE_INITIAL_COUNT_RESPONSE_INVALID');return data;}const typed=response.body as unknown as ServiceInitialCountReadResponse;if(route.kind==='flow'){if(!validFlow(typed.data,route.id))return fail('NATIVE_INITIAL_COUNT_RESPONSE_INVALID');return typed.data;}if(!validServiceInitialPhysicalStockCountView(typed.data,actor.companyId)||route.kind==='record'&&typed.data.available&&typed.data.record?.id!==route.id)return fail('NATIVE_INITIAL_COUNT_RESPONSE_INVALID');return typed.data;}

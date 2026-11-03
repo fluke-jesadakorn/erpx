@@ -31,6 +31,21 @@ impl DatabaseConfig {
         }
         Ok(Self { options })
     }
+    /// A distinct process identity permits diagnostics and cancellation without
+    /// changing the configured endpoint or credentials.
+    pub fn with_application_name(&self, application: &str) -> Result<Self, PersistenceError> {
+        if application.is_empty()
+            || application.len() > 63
+            || !application
+                .bytes()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, b'-' | b'_' | b'/'))
+        {
+            return Err(PersistenceError::new("DATABASE_WORKER_IDENTITY_INVALID"));
+        }
+        Ok(Self {
+            options: self.options.clone().application_name(application),
+        })
+    }
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DatabaseBinding {

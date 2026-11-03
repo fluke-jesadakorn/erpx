@@ -1,7 +1,7 @@
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
 import { sourceRecordLabel } from "@erpx/feature-records/lib/source-record";
 import { BusinessRuleError } from '@erpx/server-shared/index';
-import { staffNotificationSourceTypes, type StaffNotification } from '@erpx/server-collaboration/domain/staff-notifications';
+import { staffNotificationSourceTypes, type StaffNotification,type StaffNotificationCandidate } from '@erpx/server-collaboration/domain/staff-notifications';
 import type { ListPage } from '@erpx/server-work_projection/public/list-page';
 type Tail<A extends unknown[]> = A extends [
     unknown,
@@ -12,7 +12,7 @@ export interface StaffNotificationPorts {
     financeNotificationTarget(actor:WorkContext,kind:"invoice"|"journal",id:string):Promise<{href:string;version:number}>;
     repository: {
         notificationRows(companyId: string, userId: string): Promise<{
-            results: Omit<StaffNotification, "href">[];
+            results: StaffNotificationCandidate[];
         }>;
         activityLead(record_id: string, companyId: string): Promise<{
             lead_id: string;
@@ -33,6 +33,7 @@ export interface StaffNotificationPorts {
     getSupportIncident(...args: Parameters<typeof import("@erpx/server-support/public/support-incident-read").getSupportIncident>): ReturnType<typeof import("@erpx/server-support/public/support-incident-read").getSupportIncident>;
     getSupportPolicy(...args: Parameters<typeof import("@erpx/server-support/public/support-sla").getSupportPolicy>): ReturnType<typeof import("@erpx/server-support/public/support-sla").getSupportPolicy>;
     getSupportTicket(...args: Parameters<typeof import("@erpx/server-support/public/support").getSupportTicket>): ReturnType<typeof import("@erpx/server-support/public/support").getSupportTicket>;
+    nativeFieldNotificationTarget?(actor:WorkContext,kind:"operations"|"collaboration",id:string):Promise<{href:string}|undefined>;
     operationsExceptionDetail(...args: Parameters<typeof import("@erpx/server-operations/public/operations-exceptions").operationsExceptionDetail>): ReturnType<typeof import("@erpx/server-operations/public/operations-exceptions").operationsExceptionDetail>;
     supportSessionDetail(...args: Parameters<typeof import("@erpx/server-support/public/support-sessions").supportSessionDetail>): ReturnType<typeof import("@erpx/server-support/public/support-sessions").supportSessionDetail>;
     canReadAccessReviewAlert(...args: Tail<Parameters<typeof import("@erpx/server-identity_access/public/iam-access-review-alerts").canReadAccessReviewAlert>>): ReturnType<typeof import("@erpx/server-identity_access/public/iam-access-review-alerts").canReadAccessReviewAlert>;
@@ -42,7 +43,7 @@ export interface StaffNotificationPorts {
     maintenanceDetail(...args: Parameters<typeof import("@erpx/server-maintenance/public/asset-maintenance").maintenanceDetail>): ReturnType<typeof import("@erpx/server-maintenance/public/asset-maintenance").maintenanceDetail>;
     preventivePlanDetail(...args: Parameters<typeof import("@erpx/server-maintenance/public/maintenance-preventive").preventivePlanDetail>): ReturnType<typeof import("@erpx/server-maintenance/public/maintenance-preventive").preventivePlanDetail>;
     projectHandoffTarget(...args: Tail<Parameters<typeof import("@erpx/server-projects/public/project-structure").projectHandoffTarget>>): ReturnType<typeof import("@erpx/server-projects/public/project-structure").projectHandoffTarget>;
-    fieldServiceDetail(...args: Parameters<typeof import("@erpx/server-field_service/public/field-service").fieldServiceDetail>): ReturnType<typeof import("@erpx/server-field_service/public/field-service").fieldServiceDetail>;
+    fieldServiceDetail(actor:WorkContext,id:string):Promise<unknown>;
     getOrder(...args: Parameters<typeof import("@erpx/server-commerce/public/commerce").getOrder>): ReturnType<typeof import("@erpx/server-commerce/public/commerce").getOrder>;
     collaborationActionDetail(...args: Parameters<typeof import("@erpx/server-collaboration/public/collaboration-work").collaborationActionDetail>): ReturnType<typeof import("@erpx/server-collaboration/public/collaboration-work").collaborationActionDetail>;
     learningAssignmentDetail(...args: Parameters<typeof import("@erpx/server-learning/public/learning").learningAssignmentDetail>): ReturnType<typeof import("@erpx/server-learning/public/learning").learningAssignmentDetail>;
@@ -79,13 +80,14 @@ export function createStaffNotificationApplication(ports: StaffNotificationPorts
         const rows = (await r.notificationRows(actor.companyId, actor.userId)).results;
         return visibleNotifications(actor, rows);
     }
-    async function visibleNotifications(actor: WorkContext, rows: Omit<StaffNotification, "href">[]) {
+    async function visibleNotifications(actor: WorkContext, rows: StaffNotificationCandidate[]) {
         // A denied source disappears from this projection; it must not interrupt
         // the whole Inbox page. Owner readers still enforce the current authority.
         actor = { ...actor, pageRequest: undefined };
         let retirement: ReturnType<StaffNotificationPorts["retirementWork"]> | undefined;
         const visible: StaffNotification[] = [];
         for (const row of rows) {
+            if(row.native_target){const {native_target,...notification}=row;visible.push({...notification,href:native_target.href});continue;}
             try {
                 if(row.record_type==='handbook'||row.record_type==='handbook_article'){
                     const target=await ports.handbookNotificationTarget(actor,row.record_id);visible.push({...row,href:target.href,source:{kind:'handbook_article',id:row.record_id,version:target.version,href:target.href,label:sourceRecordLabel('handbook_article')}});continue;
@@ -142,6 +144,8 @@ export function createStaffNotificationApplication(ports: StaffNotificationPorts
                     continue;
                 }
                 if (row.record_type === "operational_exception") {
+                    const native=await ports.nativeFieldNotificationTarget?.(actor,"operations",row.record_id);
+                    if(native){visible.push({...row,href:native.href});continue;}
                     await ports.operationsExceptionDetail(actor, row.record_id);
                     visible.push({ ...row, href: `/operations/${encodeURIComponent(row.record_id)}` });
                     continue;
@@ -198,6 +202,8 @@ export function createStaffNotificationApplication(ports: StaffNotificationPorts
                     continue;
                 }
                 if (row.record_type === "collaboration_action") {
+                    const native=await ports.nativeFieldNotificationTarget?.(actor,"collaboration",row.record_id);
+                    if(native){visible.push({...row,href:native.href});continue;}
                     await ports.collaborationActionDetail(actor, row.record_id);
                     visible.push({ ...row, href: "/collaboration" });
                     continue;

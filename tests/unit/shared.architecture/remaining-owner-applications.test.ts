@@ -1,5 +1,4 @@
 import {describe,expect,test} from "vitest";
-import {createAgreementApplication,type AgreementPorts} from "@erpx/server-field_service/application/agreement";
 import {createDuplicateRequestApplication,type DuplicateRequestPorts} from "@erpx/server-customer_authority/application/duplicate-request";
 import {createQueuePolicyApplication,type QueuePolicyPorts} from "@erpx/server-operations/application/queue-policy";
 import {createAssetApplication,type AssetPorts} from "@erpx/server-marketing/application/asset";
@@ -9,24 +8,14 @@ import {createMarketingApplication,type MarketingRepository,type MarketingMutati
 import {createMarketingCampaignApplication} from "@erpx/server-marketing/application/campaigns";
 import {createMarketingPresentationApplication,type MarketingPresentationPorts} from "@erpx/server-marketing/application/public-form";
 
-type Command=Parameters<AgreementPorts["persist"]>[0]|Parameters<DuplicateRequestPorts["persist"]>[0]|Parameters<QueuePolicyPorts["persist"]>[0]|Parameters<AssetPorts["persist"]>[0];
+type Command=Parameters<DuplicateRequestPorts["persist"]>[0]|Parameters<QueuePolicyPorts["persist"]>[0]|Parameters<AssetPorts["persist"]>[0];
 function fixture(){const commands:Command[]=[],calls:string[]=[];const ports={clock:{now:()=>42},branchId:"actor-branch" as string|null,departmentId:"actor-department" as string|null,companyScope:true,async authorize(){calls.push("authorize");},validatePresentation(){calls.push("presentation");},async replay():Promise<{id:string;version:number;status:string}|null>{calls.push("replay");return null;},async persist(command:Command):Promise<{id:string;version:number;status:string}>{commands.push(command);return {id:command.id,version:1,status:"draft"};}};return {ports,calls,commands};}
-const agreement={branchId:"input-branch",departmentId:"input-department",customerId:"customer",title:"Service agreement",startDate:"2026-10-01",endDate:"2026-10-31",currency:"thb",visitRateMinor:5000};
 
 describe("remaining business owners use semantic ports",()=>{
- test("Field Service retains selected assignment scope, normalized input and original receipt identity",async()=>{
-  const f=fixture();await createAgreementApplication(f.ports)(agreement,"receipt-key");
-  expect(f.commands[0]).toMatchObject({id:"service-agreement-receipt-key",operation:"field.agreement.create",branch:"actor-branch",department:"actor-department",now:42,input:{currency:"THB",warrantyDiscountBps:0}});
-  expect(f.calls).toEqual(["authorize","replay"]);
-  await expect(createAgreementApplication(f.ports)({...agreement,endDate:"2026-09-30"},"invalid")).rejects.toMatchObject({code:"FIELD_SERVICE_DATE_RANGE"});
-  expect(f.commands).toHaveLength(1);
- });
- test("Field Service validates date range before replay and uses input scope for a Company assignment",async()=>{
-  const f=fixture();f.ports.branchId=null;f.ports.departmentId=null;
-  await createAgreementApplication(f.ports)(agreement,"receipt-key");expect(f.commands[0]).toMatchObject({branch:"input-branch",department:"input-department"});
-  f.ports.replay=async()=>({id:"original",version:1,status:"draft"});
-  expect(await createAgreementApplication(f.ports)(agreement,"receipt-key")).toMatchObject({id:"original"});expect(f.commands).toHaveLength(1);
- });
+ // Field agreement scope/input-normalization/receipt-identity and date-range
+ // validation now execute through native agreement create/activate/review
+ // commands (service-only, no-charge and startup native cases); the TS
+ // agreement application is retired with its producer.
  test("Customer Authority rejects non-Company scope and identical source records before receipt lookup",async()=>{
   const f=fixture(),input={leftCustomerId:"z",rightCustomerId:"a",evidence:"Matching customer evidence"};f.ports.companyScope=false;
   await expect(createDuplicateRequestApplication(f.ports)(input,"key")).rejects.toMatchObject({code:"CUSTOMER_COMPANY_REVIEW_REQUIRED"});expect(f.calls).toEqual(["authorize"]);

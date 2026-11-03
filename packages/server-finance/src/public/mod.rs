@@ -1,4 +1,5 @@
 pub mod journal_review;
+pub mod field_work;
 pub use crate::adapters::postgres_journal::PgJournalStore;
 pub use crate::adapters::postgres_journal_facts::{
     PgJournalPreparation, PgManualJournalCreateSources, embedded_currency_rules,
@@ -78,3 +79,17 @@ pub mod service_parts_prerequisites;
 
 pub mod stock_master_money;
 pub mod initial_count_finance;
+
+pub use crate::domain::service_customer_preparation::{ServiceCustomerInput,ServiceCustomerParty,ServiceCustomerResult};
+
+pub mod field_outbox;
+
+pub mod service_invoice_posting;
+
+pub mod service_receipt;
+
+pub mod service_no_charge;
+
+pub mod field_journal_evidence;
+
+pub mod service_package_settlement;

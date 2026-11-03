@@ -47,11 +47,26 @@ pub fn prepare_field_bind(
     set: &FieldBindSet,
     expected: i64,
 ) -> Result<Vec<FieldBindManifestItem>, BusinessError> {
-    if !super::field_visit_link::valid_field_purpose(
-        &set.target_type,
-        &set.component_kind,
-        &set.purpose_key,
-    ) {
+    prepare_owner_record_bind(
+        set,
+        expected,
+        super::field_visit_intake::IntakeOwner::FieldVisit,
+    )
+}
+/// Only standalone record documents use this port. Controlled payment-proof
+/// binding stays in its dedicated independent Finance confirmation workflow.
+pub fn prepare_owner_record_bind(
+    set: &FieldBindSet,
+    expected: i64,
+    owner: super::field_visit_intake::IntakeOwner,
+) -> Result<Vec<FieldBindManifestItem>, BusinessError> {
+    if !matches!(
+        owner,
+        super::field_visit_intake::IntakeOwner::FieldVisit
+            | super::field_visit_intake::IntakeOwner::FieldJournal
+    ) || set.component_kind != "record"
+        || !owner.supports(&set.target_type, &set.component_kind, &set.purpose_key)
+    {
         return Err(fail(
             FailureKind::NotFound,
             "ATTACHMENT_SET_NOT_FOUND",

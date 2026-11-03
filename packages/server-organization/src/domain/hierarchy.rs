@@ -107,10 +107,17 @@ pub fn company_context(
     })
 }
 #[derive(Clone, Debug)]
+enum CompanyMatch {
+    Either,
+    Id,
+    Slug,
+}
+#[derive(Clone, Debug)]
 pub struct WorkspaceRouteQuery {
     branch_slug: Option<String>,
     department_slug: Option<String>,
     company: Option<String>,
+    company_match: CompanyMatch,
 }
 impl WorkspaceRouteQuery {
     pub fn new(
@@ -141,12 +148,45 @@ impl WorkspaceRouteQuery {
             branch_slug,
             department_slug,
             company,
+            company_match: CompanyMatch::Either,
         })
     }
+    pub fn for_company_id(
+        branch_slug: Option<String>,
+        department_slug: Option<String>,
+        company: CompanyId,
+    ) -> Result<Self, BusinessError> {
+        let mut q = Self::new(branch_slug, department_slug, Some(company.as_str().into()))?;
+        q.company_match = CompanyMatch::Id;
+        Ok(q)
+    }
+    pub fn for_company_slug(
+        branch_slug: Option<String>,
+        department_slug: Option<String>,
+        company_slug: String,
+    ) -> Result<Self, BusinessError> {
+        let mut q = Self::new(branch_slug, department_slug, Some(company_slug))?;
+        q.company_match = CompanyMatch::Slug;
+        Ok(q)
+    }
+    pub fn company_match(&self) -> &'static str {
+        match self.company_match {
+            CompanyMatch::Either => "either",
+            CompanyMatch::Id => "id",
+            CompanyMatch::Slug => "slug",
+        }
+    }
     pub fn matches(&self, lineage: &HierarchyLineage) -> bool {
-        self.company.as_ref().is_none_or(|value| {
-            value == lineage.company.id.as_str() || value == &lineage.company.slug
-        }) && self.branch_slug.as_deref() == lineage.branch.as_ref().map(|node| node.slug.as_str())
+        self.company
+            .as_ref()
+            .is_none_or(|value| match self.company_match {
+                CompanyMatch::Id => value == lineage.company.id.as_str(),
+                CompanyMatch::Slug => value == &lineage.company.slug,
+                CompanyMatch::Either => {
+                    value == lineage.company.id.as_str() || value == &lineage.company.slug
+                }
+            })
+            && self.branch_slug.as_deref() == lineage.branch.as_ref().map(|node| node.slug.as_str())
             && self.department_slug.as_deref()
                 == lineage.department.as_ref().map(|node| node.slug.as_str())
     }

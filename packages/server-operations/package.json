@@ -162,7 +162,8 @@
     "./domain/handover-time": "./src/domain/handover-time.ts",
     "./domain/staff-task-alerts": "./src/domain/staff-task-alerts.ts",
     "./domain/handover": "./src/domain/handover.ts",
-    "./domain/queue-policy": "./src/domain/queue-policy.ts"
+    "./domain/queue-policy": "./src/domain/queue-policy.ts",
+    "./public/field-outbox-predicate": "./src/public/field-outbox-predicate.generated.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

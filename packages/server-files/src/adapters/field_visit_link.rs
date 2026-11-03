@@ -87,12 +87,13 @@ async fn image(
     c: &mut PgConnection,
     company: &CompanyId,
     id: &str,
+    owner: crate::public::field_visit_intake::IntakeOwner,
 ) -> Result<(FieldVisitLink, String, String), Error> {
     let row=sqlx::query("SELECT CASE WHEN octet_length(to_jsonb(l)::text)+octet_length(to_jsonb(s)::text)+coalesce(octet_length(to_jsonb(a)::text),0)<=2097152 THEN jsonb_build_object('id',l.id,'set_id',l.set_id,'target_type',s.target_type,'target_id',s.target_id,'component_kind',s.component_kind,'purpose_key',s.purpose_key,'expected_target_version',s.expected_target_version,'state',l.state,'created_by',l.created_by,'withdrawn_by',l.withdrawn_by,'withdrawal_reason',l.withdrawal_reason,'attachment_id',l.attachment_id,'source_valid',(l.attachment_id IS NULL OR a.id IS NOT NULL),'source_state',a.source_state,'preview_available',a.preview_object_key IS NOT NULL,'expires_at',l.expires_at,'bound_at',l.bound_at,'withdrawn_at',l.withdrawn_at)::text END payload,encode(sha256(convert_to(jsonb_build_array(to_jsonb(l),to_jsonb(s),to_jsonb(a))::text,'UTF8')),'hex') digest,encode(sha256(convert_to(jsonb_build_array(to_jsonb(l)-'state'-'withdrawn_at'-'withdrawn_by'-'withdrawal_reason',to_jsonb(s),to_jsonb(a))::text,'UTF8')),'hex') stable_digest FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id LEFT JOIN attachments a ON a.id=l.attachment_id AND a.company_id=s.company_id WHERE l.id=$1 AND s.company_id=$2 FOR UPDATE OF l,s").bind(id).bind(company.as_str()).fetch_optional(c).await?.ok_or_else(missing)?;
     let payload: Option<String> = row.try_get("payload")?;
     let source: FieldVisitLink =
         serde_json::from_str(&payload.ok_or_else(limited)?).map_err(|_| limited())?;
-    if !crate::domain::field_visit_link::valid_field_purpose(
+    if !owner.supports(
         &source.target_type,
         &source.component_kind,
         &source.purpose_key,
@@ -106,6 +107,7 @@ async fn image(
     ))
 }
 pub struct CurrentFieldVisitLink {
+    owner: crate::public::field_visit_intake::IntakeOwner,
     company: CompanyId,
     unit: (String, i32, String, String),
     source: FieldVisitLink,
@@ -118,7 +120,7 @@ impl CurrentFieldVisitLink {
     }
     pub async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
         if unit(c).await? != self.unit
-            || image(c, &self.company, &self.source.id).await?
+            || image(c, &self.company, &self.source.id, self.owner).await?
                 != (
                     self.source.clone(),
                     self.digest.clone(),
@@ -167,7 +169,7 @@ impl CurrentFieldVisitLink {
                 return Err(changed());
             }
         }
-        let (actual, _, stable) = image(c, &self.company, &self.source.id).await?;
+        let (actual, _, stable) = image(c, &self.company, &self.source.id, self.owner).await?;
         let mut expected = self.source.clone();
         expected.state = "withdrawn".into();
         expected.withdrawn_by = Some(actor.into());
@@ -184,15 +186,71 @@ pub async fn read_field_visit_link(
     company: &CompanyId,
     id: &str,
 ) -> Result<CurrentFieldVisitLink, Error> {
+    read_owner_link(
+        c,
+        company,
+        id,
+        crate::public::field_visit_intake::IntakeOwner::FieldVisit,
+    )
+    .await
+}
+async fn read_owner_link(
+    c: &mut PgConnection,
+    company: &CompanyId,
+    id: &str,
+    owner: crate::public::field_visit_intake::IntakeOwner,
+) -> Result<CurrentFieldVisitLink, Error> {
     let unit = unit(c).await?;
-    let (source, digest, stable_digest) = image(c, company, id).await?;
+    let (source, digest, stable_digest) = image(c, company, id, owner).await?;
     Ok(CurrentFieldVisitLink {
+        owner,
         company: company.clone(),
         unit,
         source,
         digest,
         stable_digest,
     })
+}
+/// Finite owner intake withdrawal. The same opaque authority that admitted
+/// upload must prove the actual current record on this serializable unit.
+pub async fn withdraw_owner_intake_link<
+    A: crate::public::field_visit_intake::FieldIntakeAuthority,
+>(
+    c: &mut PgConnection,
+    authority: &A,
+    actor: &erpx_server_identity_access::public::effective_authority::AuthorizedWorkContext,
+    id: &str,
+    key: &str,
+    reason: &str,
+    clock: &impl erpx_server_shared::public::Clock,
+) -> Result<(), Error> {
+    let link = read_owner_link(
+        c,
+        &actor.selection().workspace().company_id,
+        id,
+        authority.owner_kind(),
+    )
+    .await?;
+    let source = link.source();
+    crate::application::field_visit_link::check_withdrawal_actor(
+        &source.state,
+        &source.created_by,
+        actor.user_id().as_str(),
+    )?;
+    let guard = crate::adapters::field_visit_intake::prepare_field_intake(
+        c,
+        authority,
+        actor,
+        &source.target_id,
+        true,
+        clock.now().get(),
+    )
+    .await?;
+    guard.require_current(c, clock.now().get()).await?;
+    link.withdraw(c, actor.user_id().as_str(), reason, key, clock.now().get())
+        .await?;
+    guard.require_current(c, clock.now().get()).await?;
+    Ok(())
 }
 pub async fn read_field_visit_scan(
     c: &mut PgConnection,

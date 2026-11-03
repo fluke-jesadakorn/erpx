@@ -13,7 +13,7 @@ import { useHydrated } from '@erpx/ui/components/use-hydrated';
 import { useAccountPreferences } from '@erpx/feature-identity_access/components/account-preferences-context';
 import { confirmContextSwitch, contextSwitchBlockReason, hasUnsavedWork, setContextSwitching } from '@erpx/feature-work_projection/lib/context-switch';
 import type { DeviceAccounts, SwitcherContext, SwitcherRole } from '@erpx/feature-identity_access/lib/device-accounts';
-import {deviceDirectoryLogin} from '@erpx/server-identity_access/public/rules/device-account-return';
+import {deviceDirectoryLogin} from '@erpx/feature-identity_access/lib/device-account-return';
 import styles from '@erpx/workplace/components/product-account.module.css';
 
 type User = { id: string; name: string; email: string };

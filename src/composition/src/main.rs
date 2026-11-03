@@ -38,15 +38,71 @@ pub async fn run_cli(arguments: impl IntoIterator<Item = String>) -> Result<(), 
             .await
             .map_err(str::to_owned)
         }
-        #[cfg(all(feature="files-scan-worker",feature="private-field-api"))]
-        [command,option,path] if command=="field-files-worker" && option=="--development-config" => {
-            erpx_service::private_development_api::run_field_files_worker_file(std::path::Path::new(path),shutdown()).await.map_err(str::to_owned)
+        #[cfg(feature = "production-api")]
+        [command, option, path]
+            if command == "production-api" && option == "--production-config" =>
+        {
+            erpx_service::private_development_api::run_production_api_file(
+                std::path::Path::new(path),
+                shutdown(),
+            )
+            .await
+            .map_err(str::to_owned)
+        }
+        #[cfg(feature = "production-api")]
+        [command, option, path]
+            if command == "production-worker" && option == "--production-config" =>
+        {
+            erpx_service::private_development_api::run_production_workers_file(
+                std::path::Path::new(path),
+                shutdown(),
+            )
+            .await
+            .map_err(str::to_owned)
+        }
+        #[cfg(all(feature = "files-scan-worker", feature = "private-field-api"))]
+        [command, option, path]
+            if command == "field-files-worker" && option == "--development-config" =>
+        {
+            erpx_service::private_development_api::run_field_files_worker_file(
+                std::path::Path::new(path),
+                shutdown(),
+            )
+            .await
+            .map_err(str::to_owned)
         }
         #[cfg(feature = "private-field-api")]
-        [command, option, path] if command == "service-count-worker" && option == "--development-config" => {
-            erpx_service::private_development_api::run_service_count_worker_file(
-                std::path::Path::new(path), shutdown(),
+        [command, option, path]
+            if command == "field-dependency-worker" && option == "--development-config" =>
+        {
+            erpx_service::private_development_api::run_field_dependency_worker_file(
+                std::path::Path::new(path),
+                shutdown(),
+            )
+            .await
+            .map_err(str::to_owned)
+        }
+        #[cfg(feature = "private-field-api")]
+        [command, option, path, holding_flag, holding, event_flag, event, at_flag, at, reason_flag, reason]
+            if command == "field-dependency-retry" && option == "--development-config"
+                && holding_flag == "--holding" && event_flag == "--event"
+                && at_flag == "--dead-letter-at" && reason_flag == "--reason" =>
+        {
+            let at=at.parse::<i64>().map_err(|_|"FIELD_RETRY_TIME_INVALID".to_owned())?;
+            erpx_service::private_development_api::retry_field_dependency_worker_file(
+                std::path::Path::new(path),holding,event,at,reason,
             ).await.map_err(str::to_owned)
+        }
+        #[cfg(feature = "private-field-api")]
+        [command, option, path]
+            if command == "service-count-worker" && option == "--development-config" =>
+        {
+            erpx_service::private_development_api::run_service_count_worker_file(
+                std::path::Path::new(path),
+                shutdown(),
+            )
+            .await
+            .map_err(str::to_owned)
         }
         [command] if command == "owners" => {
             let (inventory, readiness) = inspect_migration(&EmbeddedMigrationInventory)?;
@@ -81,6 +137,11 @@ pub async fn run_cli(arguments: impl IntoIterator<Item = String>) -> Result<(), 
             if cfg!(feature = "private-field-api") {
                 usage.push_str(
                     " | erpx-server private-api --development-config /absolute/private.json",
+                );
+            }
+            if cfg!(feature = "production-api") {
+                usage.push_str(
+                    " | erpx-server production-api --production-config /absolute/private.json | erpx-server production-worker --production-config /absolute/private.json",
                 );
             }
             Err(usage)

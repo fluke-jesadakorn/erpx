@@ -555,14 +555,14 @@
             "packages/server-identity_access/src/adapters/user-management.ts",
             "packages/server-identity_access/src/adapters/work-cache-deadlines.ts",
             "packages/server-identity_access/src/adapters/work-cache-management-deadlines.ts",
-            "packages/server-identity_access/src/adapters/work-role-selection-facts.ts",
+            "packages/server-identity_access/src/adapters/account_work_roles.rs",
             "packages/server-identity_access/src/adapters/work-ui-layout-authority.ts",
             "packages/server-identity_access/src/adapters/workflow-approvals-facts.ts",
             "packages/server-identity_access/src/adapters/workflow-command-authority.ts",
             "packages/server-identity_access/src/adapters/workflow-final-owner-projections.ts",
             "packages/server-identity_access/src/adapters/workflow-flow-routing-facts.ts",
             "packages/server-identity_access/src/adapters/workflow-role-facts.ts",
-            "packages/server-identity_access/src/adapters/workspace-preference-facts.ts",
+            "packages/server-identity_access/src/adapters/account_control_scope.rs",
             "packages/server-identity_access/src/application/access-diagnosis.ts",
             "packages/server-identity_access/src/application/access-review-alerts.ts",
             "packages/server-identity_access/src/application/account-access.ts",
@@ -1817,7 +1817,7 @@
             "packages/server-finance/src/adapters/executive-metric-projections.ts",
             "packages/server-finance/src/adapters/expense-native-effects.ts",
             "packages/server-finance/src/adapters/expense-posting-projection.ts",
-            "packages/server-finance/src/adapters/field-service-billing.ts",
+            "packages/server-finance/src/adapters/field_service_billing.rs",
             "packages/server-finance/src/adapters/final-root-owner-projection-sources.ts",
             "packages/server-finance/src/adapters/finance-accruals.ts",
             "packages/server-finance/src/adapters/finance-ai-source.ts",
@@ -3556,8 +3556,7 @@
         "field_service"
       ],
       "source": [
-        "packages/server-field_service/src/**",
-        "packages/server-field_service/src/public/field-service.ts"
+        "packages/server-field_service/src/**"
       ],
       "migration": "clean",
       "kind": "business",
@@ -3566,9 +3565,9 @@
           "id": "agreement",
           "migration": "clean",
           "source": [
-            "packages/server-field_service/src/adapters/agreement.ts",
-            "packages/server-field_service/src/application/agreement.ts",
-            "packages/server-field_service/src/domain/agreement.ts"
+            "packages/server-field_service/src/adapters/agreement_create.rs",
+            "packages/server-field_service/src/application/reservation_read.rs",
+            "packages/server-field_service/src/domain/agreement_review.rs"
           ],
           "regression": [
             "tests/integration/field_service/field-service.test.ts",
@@ -3579,9 +3578,9 @@
           "id": "agreement-transitions",
           "migration": "clean",
           "source": [
-            "packages/server-field_service/src/application/service.ts",
-            "packages/server-field_service/src/domain/service.ts",
-            "packages/server-field_service/src/adapters/service.ts"
+            "packages/server-field_service/src/application/reservation_read.rs",
+            "packages/server-field_service/src/domain/agreement_review.rs",
+            "packages/server-field_service/src/adapters/agreement_review.rs"
           ],
           "regression": [
             "tests/integration/field_service/field-service.test.ts",
@@ -3592,9 +3591,9 @@
           "id": "service-orders",
           "migration": "clean",
           "source": [
-            "packages/server-field_service/src/application/service.ts",
-            "packages/server-field_service/src/domain/service.ts",
-            "packages/server-field_service/src/adapters/service.ts"
+            "packages/server-field_service/src/application/parts.rs",
+            "packages/server-field_service/src/domain/parts.rs",
+            "packages/server-field_service/src/adapters/parts/write.rs"
           ],
           "regression": [
             "tests/integration/field_service/field-service.test.ts",
@@ -3605,9 +3604,9 @@
           "id": "part-reservation-and-consumption",
           "migration": "clean",
           "source": [
-            "packages/server-field_service/src/application/service.ts",
-            "packages/server-field_service/src/domain/service.ts",
-            "packages/server-field_service/src/adapters/service.ts"
+            "packages/server-field_service/src/application/parts.rs",
+            "packages/server-field_service/src/domain/parts.rs",
+            "packages/server-field_service/src/adapters/parts/reserve.rs"
           ],
           "regression": [
             "tests/integration/field_service/field-service.test.ts",
@@ -3618,9 +3617,9 @@
           "id": "independent-billing-release",
           "migration": "clean",
           "source": [
-            "packages/server-field_service/src/application/service.ts",
-            "packages/server-field_service/src/domain/service.ts",
-            "packages/server-field_service/src/adapters/service.ts"
+            "packages/server-field_service/src/application/reservation_read.rs",
+            "packages/server-field_service/src/domain/parts.rs",
+            "packages/server-field_service/src/adapters/parts/billing.rs"
           ],
           "regression": [
             "tests/integration/field_service/field-service.test.ts",
@@ -3631,9 +3630,9 @@
           "id": "workspace-and-work-projection",
           "migration": "clean",
           "source": [
-            "packages/server-field_service/src/application/service.ts",
-            "packages/server-field_service/src/domain/service.ts",
-            "packages/server-field_service/src/adapters/service.ts"
+            "packages/server-field_service/src/application/parts.rs",
+            "packages/server-field_service/src/domain/workspace.rs",
+            "packages/server-field_service/src/adapters/detail.rs"
           ],
           "regression": [
             "tests/integration/field_service/field-service.test.ts",
@@ -4728,9 +4727,7 @@
             "packages/server-brand/src/adapters/front-brand-projection.ts",
             "packages/server-brand/src/public/front-brand-projection.ts",
             "packages/server-collaboration/src/adapters/work-ui-home-counts.ts",
-            "packages/server-collaboration/src/adapters/work-ui-staff-facts.ts",
             "packages/server-collaboration/src/public/work-ui-home-counts.ts",
-            "packages/server-collaboration/src/public/work-ui-staff-facts.ts",
             "packages/server-files/src/adapters/front-logo-facts.ts",
             "packages/server-files/src/public/front-logo-facts.ts",
             "packages/server-identity_access/src/adapters/work-ui-layout-authority.ts",
@@ -4868,11 +4865,10 @@
             "packages/server-work_projection/src/application/work-items.ts",
             "packages/server-work_projection/src/application/work-reports.ts",
             "packages/server-work_projection/src/application/work-review.ts",
-            "packages/server-work_projection/src/application/work-role-options.ts",
-            "packages/server-work_projection/src/application/work-role-store.ts",
+            "packages/server-work_projection/src/application/work_role_store.rs",
             "packages/server-work_projection/src/application/work-summary.ts",
             "packages/server-work_projection/src/application/work.ts",
-            "packages/server-work_projection/src/application/workspace-preferences.ts",
+            "packages/server-work_projection/src/domain/workspace_preference.rs",
             "packages/server-work_projection/src/adapters/calendar/access.ts",
             "packages/server-work_projection/src/adapters/calendar/announcements.ts",
             "packages/server-work_projection/src/adapters/calendar/appointments.ts",

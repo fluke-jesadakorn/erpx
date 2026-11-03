@@ -1,0 +1,404 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "ERPX native Service package lifecycle",
+    "description": "DTO contracts for the native Service/service-parts-assets lifecycle. Current Platform authority, native MFA, source guards and retained transactions are required by the consuming runtime. Export does not establish owner acceptance.",
+    "license": {
+      "name": "Apache-2.0",
+      "identifier": "Apache-2.0"
+    },
+    "version": "0.1.0"
+  },
+  "paths": {},
+  "components": {
+    "schemas": {
+      "BatchChange": {
+        "type": "object",
+        "required": [
+          "expectedVersion",
+          "grant"
+        ],
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "grant": {
+            "$ref": "#/components/schemas/CompanyPackageGrant"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CompanyPackageGrant": {
+        "type": "object",
+        "required": [
+          "companyId",
+          "packageId",
+          "packageVersion",
+          "state",
+          "startsAt",
+          "version",
+          "reason",
+          "evidence"
+        ],
+        "properties": {
+          "companyId": {
+            "type": "string"
+          },
+          "endsAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "evidence": {
+            "type": "string"
+          },
+          "packageId": {
+            "type": "string"
+          },
+          "packageVersion": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "startsAt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "state": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CompanyPackageHistoryRight": {
+        "type": "object",
+        "required": [
+          "companyId",
+          "packageId",
+          "packageVersion",
+          "sourceGrantVersion",
+          "sourceEventId",
+          "retainedAt"
+        ],
+        "properties": {
+          "companyId": {
+            "type": "string"
+          },
+          "packageId": {
+            "type": "string"
+          },
+          "packageVersion": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "retainedAt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "sourceEventId": {
+            "type": "string"
+          },
+          "sourceGrantVersion": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CompanyPurchaseFacts": {
+        "type": "object",
+        "required": [
+          "grants",
+          "history"
+        ],
+        "properties": {
+          "grants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CompanyPackageGrant"
+            }
+          },
+          "history": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CompanyPackageHistoryRight"
+            }
+          }
+        }
+      },
+      "GrantBatch": {
+        "type": "object",
+        "required": [
+          "companyId",
+          "expectedRevision",
+          "changes",
+          "idempotencyKey"
+        ],
+        "properties": {
+          "changes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BatchChange"
+            }
+          },
+          "companyId": {
+            "type": "string"
+          },
+          "expectedRevision": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "GrantBatchPreview": {
+        "type": "object",
+        "required": [
+          "companyId",
+          "expectedRevision",
+          "changes",
+          "before",
+          "after"
+        ],
+        "properties": {
+          "after": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CompanyPackageGrant"
+            }
+          },
+          "before": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CompanyPackageGrant"
+            }
+          },
+          "changes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BatchChange"
+            }
+          },
+          "companyId": {
+            "type": "string"
+          },
+          "expectedRevision": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "NativeServiceCompanies": {
+        "type": "object",
+        "required": [
+          "companies",
+          "canApply"
+        ],
+        "properties": {
+          "canApply": {
+            "type": "boolean"
+          },
+          "companies": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NativeServiceCompany"
+            }
+          }
+        }
+      },
+      "NativeServiceCompany": {
+        "type": "object",
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "holdingId",
+          "holding"
+        ],
+        "properties": {
+          "holding": {
+            "type": "string"
+          },
+          "holdingId": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          }
+        }
+      },
+      "NativeServicePackageOverview": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/CompanyPurchaseFacts"
+          },
+          {
+            "type": "object",
+            "required": [
+              "companyId",
+              "revision",
+              "packages",
+              "billingMode",
+              "observedAt"
+            ],
+            "properties": {
+              "billingMode": {
+                "type": "string"
+              },
+              "companyId": {
+                "type": "string"
+              },
+              "observedAt": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "packages": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/PackageDefinition"
+                }
+              },
+              "revision": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
+      "NativeServicePackagePreview": {
+        "type": "object",
+        "required": [
+          "comparison",
+          "request",
+          "review"
+        ],
+        "properties": {
+          "comparison": {
+            "$ref": "#/components/schemas/GrantBatchPreview"
+          },
+          "request": {
+            "$ref": "#/components/schemas/GrantBatch"
+          },
+          "review": {
+            "$ref": "#/components/schemas/PackageReview"
+          }
+        }
+      },
+      "PackageDefinition": {
+        "type": "object",
+        "required": [
+          "id",
+          "version",
+          "productId",
+          "kind",
+          "visibleCapabilities",
+          "includedCapabilities",
+          "dependencies"
+        ],
+        "properties": {
+          "dependencies": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "id": {
+            "type": "string"
+          },
+          "includedCapabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "kind": {
+            "type": "string"
+          },
+          "productId": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "visibleCapabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "PackageReview": {
+        "type": "object",
+        "required": [
+          "token",
+          "expiresAt"
+        ],
+        "properties": {
+          "expiresAt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "token": {
+            "type": "string"
+          }
+        }
+      },
+      "ServicePackageApplyRequest": {
+        "type": "object",
+        "required": [
+          "holdingId",
+          "request",
+          "token"
+        ],
+        "properties": {
+          "holdingId": {
+            "type": "string"
+          },
+          "request": {
+            "$ref": "#/components/schemas/GrantBatch"
+          },
+          "token": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ServicePackagePreviewRequest": {
+        "type": "object",
+        "required": [
+          "holdingId",
+          "request"
+        ],
+        "properties": {
+          "holdingId": {
+            "type": "string"
+          },
+          "request": {
+            "$ref": "#/components/schemas/GrantBatch"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  }
+}

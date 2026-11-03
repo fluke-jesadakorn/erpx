@@ -35,10 +35,11 @@ export function workSnapshotPorts(write: SqlDatabase): WorkSnapshotPorts {
                 case "projectHandoffWork": return (await import("@erpx/server-projects/public/project-structure")).projectHandoffWork(actor);
                 case "fieldServiceWork": {
                     const native=await (await import("@erpx/server-field_service/public/native-work")).nativeServiceWork(actor);
-                    return native?.data ?? (await import("@erpx/server-field_service/public/field-service")).fieldServiceWork(actor);
+                    if(!native)throw new ApiError(503,"NATIVE_SERVICE_UNAVAILABLE","The native Service work queue is unavailable.");
+                    return native.data;
                 }
-                case "collaborationActionWork": return (await import("@erpx/server-collaboration/public/collaboration-work")).collaborationActionWork(actor);
-                case "operationsExceptionWork": return (await import("@erpx/server-operations/public/operations-exceptions")).operationsExceptionWork(actor);
+                case "collaborationActionWork": return (await import("@erpx/server-collaboration/public/collaboration-work")).collaborationActionWork(actor,async()=>(await import("@erpx/server-field_service/public/native-work")).nativeFieldCollaborationWork(actor));
+                case "operationsExceptionWork": return (await import("@erpx/server-operations/public/operations-exceptions")).operationsExceptionWork(actor,async()=>(await import("@erpx/server-field_service/public/native-work")).nativeFieldOperationsWork(actor));
                 case "learningWork": return (await import("@erpx/server-learning/public/learning")).learningWork(actor);
                 case "benefitWork": return (await import("@erpx/server-benefits/public/benefits")).benefitWork(actor);
                 case "talentWork": return (await import("@erpx/server-talent/public/talent")).talentWork(actor);
@@ -63,11 +64,18 @@ export function workSnapshotPorts(write: SqlDatabase): WorkSnapshotPorts {
                 case "departmentOverrideWork": return (await import("@erpx/server-organization/public/department-decisions")).departmentOverrideWork(actor);
                 case "retirementWork": return (await import("@erpx/server-people_payroll/public/retirement-clearance")).retirementWork(write, actor);
                 case "peopleLifecycleWork": return (await import("@erpx/server-people_payroll/public/people-lifecycle")).peopleLifecycleWork(write, actor);
+                case "fieldFinancialWork": {
+                    try {
+                        const native=await (await import("@erpx/server-finance/public/native-field-work")).nativeFieldFinancialWork(actor);
+                        if(!native)throw new ApiError(503,"NATIVE_FINANCIAL_WORK_UNAVAILABLE","The native Field financial Work source is unavailable.");
+                        return native;
+                    }catch(error){if(error instanceof ApiError&&error.status===403)return [];throw error;}
+                }
                 case "otherFlowWork": return (await import("@erpx/server-workflow/public/flow-work")).otherFlowWork(actor);
             }
-        }, domain: (actor, source) => getDomainWork(actor, source), leave: actor => getWork(actor.holdingId, actor), enrich: (actor, items) => enrichFlowWork(actor, items), enabledModules: async (actor) => (await import("@erpx/server-pms/public/feature-availability")).enabledProductionModules(write, actor.companyId), production: () => process.env.NODE_ENV === 'production', monotonic: () => performance.now(), performanceLog: () => process.env.ERPX_PERF_LOG === '1', errorStatus: error => error instanceof ApiError ? error.status : undefined, info: value => console.info(value), warn: (...values) => console.warn(...values), cached: (actor, load) => process.env.ERPX_NATIVE_FIELD_SERVICE_WORK_CONFIG === undefined ? cachedWorkSnapshot(actor, write, load) : load()
+        }, domain: (actor, source) => getDomainWork(actor, source), leave: actor => getWork(actor.holdingId, actor), enrich: (actor, items) => enrichFlowWork(actor, items), enabledModules: async (actor) => (await import("@erpx/server-pms/public/feature-availability")).enabledProductionModules(write, actor.companyId), production: () => process.env.NODE_ENV === 'production', monotonic: () => performance.now(), performanceLog: () => process.env.ERPX_PERF_LOG === '1', errorStatus: error => error instanceof ApiError ? error.status : undefined, info: value => console.info(value), warn: (...values) => console.warn(...values), cached: (actor, load) => process.env.ERPX_NATIVE_FIELD_SERVICE_WORK_CONFIG !== undefined || process.env.ERPX_NATIVE_FINANCE_SERVICE_INVOICE_CONFIG !== undefined || actor.modules.includes('field_service') ? load() : cachedWorkSnapshot(actor, write, load)
     };
 }
 export async function readWorkSnapshot(actor: WorkContext): Promise<WorkSnapshot> { const { write } = await holdingResources(actor.holdingId); return createWorkSnapshot(workSnapshotPorts(write)).readWorkSnapshot(actor); }
-export async function workSnapshot(actor: WorkContext): Promise<WorkSnapshot> { const { write } = await holdingResources(actor.holdingId); const load=async () => { const measured = await measureReads(() => withPolicyReadSnapshot(() => createWorkSnapshot(workSnapshotPorts(write)).readWorkSnapshot(actor))); if (process.env.ERPX_PERF_LOG === '1') console.info(JSON.stringify({ event: "work_snapshot", ...measured.metrics, items: measured.result.items.length })); return measured.result; }; return process.env.ERPX_NATIVE_FIELD_SERVICE_WORK_CONFIG === undefined ? cachedWorkSnapshot(actor,write,load) : load(); }
+export async function workSnapshot(actor: WorkContext): Promise<WorkSnapshot> { const { write } = await holdingResources(actor.holdingId); const load=async () => { const measured = await measureReads(() => withPolicyReadSnapshot(() => createWorkSnapshot(workSnapshotPorts(write)).readWorkSnapshot(actor))); if (process.env.ERPX_PERF_LOG === '1') console.info(JSON.stringify({ event: "work_snapshot", ...measured.metrics, items: measured.result.items.length })); return measured.result; }; return process.env.ERPX_NATIVE_FIELD_SERVICE_WORK_CONFIG === undefined && process.env.ERPX_NATIVE_FINANCE_SERVICE_INVOICE_CONFIG === undefined && !actor.modules.includes('field_service') ? cachedWorkSnapshot(actor,write,load) : load(); }
 export async function workItems(actor: WorkContext) { return (await workSnapshot(actor)).items; }

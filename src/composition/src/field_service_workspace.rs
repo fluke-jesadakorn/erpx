@@ -162,16 +162,13 @@ async fn rights(
                 now,
             )
             .await?;
+        // Preserve the Commercial owner's denial code for the required base
+        // history capability; optional capabilities remain presentation flags.
+        if cap == "service.orders" && matches!(purpose, CapabilityPurpose::History) {
+            r.require_allowed()?;
+        }
         values.push(r.require_allowed().is_ok());
         witnesses.push(r.witness);
-    }
-    if !values[0] {
-        return Err(BusinessError::new(
-            FailureKind::Forbidden,
-            "SERVICE_HISTORY_REQUIRED",
-            "The Company purchase does not permit Service history.",
-        )
-        .into());
     }
     Ok(Rights {
         agreement_new: values[1],
@@ -756,7 +753,21 @@ pub(crate) async fn build_work<C: Clock>(
     catalogue: &Arc<CommercialCatalogue>,
     clock: &C,
 ) -> Result<FieldServiceWorkResponse, Error> {
-    let prepared = prepare_workspace(c, current, holding, company, catalogue, clock).await?;
+    let prepared = match prepare_workspace(c, current, holding, company, catalogue, clock).await {
+        // Work omits unpurchased sources. IAM was authorized by the outer unit;
+        // only this owner purchase denial becomes an empty list, never a read
+        // permission, database, source-integrity or runtime failure.
+        Err(PgTransactionError::Business(error))
+            if error.kind == FailureKind::Forbidden && error.code == "PACKAGE_REQUIRED" =>
+        {
+            return Ok(FieldServiceWorkResponse {
+                data: Vec::new(),
+                workflow_source_ids: Vec::new(),
+                context: crate::field_service_reservation_read::context(current)?,
+            });
+        }
+        other => other?,
+    };
     let data = &prepared.reply.data;
     let aliases: Vec<String> = current
         .command_iam_metadata()
