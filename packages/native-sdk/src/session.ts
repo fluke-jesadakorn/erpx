@@ -3,6 +3,7 @@ import { Agent, request } from 'node:http';
 import { Readable } from 'node:stream';
 import type { AccountSessionResponse } from '@erpx/contracts/account-auth';
 import {contributorExactOrigin, accountDevelopmentOrigin} from '@erpx/contracts/holding-hosts';
+import {allowedPrivateLoopbackPort} from './loopback';
 
 /** Explicit private transport and HTTPS public authority are separate contexts. */
 export type NativeSessionClientConfiguration = Readonly<{
@@ -11,6 +12,8 @@ export type NativeSessionClientConfiguration = Readonly<{
   holdingOrigins: readonly string[];
   timeoutMs: number;
   originProfile?: 'public' | 'contributor';
+  /** Explicit private production runtime opt-in; admits loopback 3101. */
+  production?: boolean;
 }>;
 export class NativeSessionReadError extends Error {
   readonly code: string;
@@ -23,7 +26,6 @@ export class NativeSessionReadError extends Error {
   }
 }
 const fail = (code: string, status?: number): never => { throw new NativeSessionReadError(code, status); };
-const protectedPorts = new Set([3000, 3001, 3100, 3101, 3103, 5432, 5433, 5435, 8080]);
 function exactOrigin(value: string, profile: 'public' | 'contributor'): URL {
   let url: URL;
   try { url = new URL(value); } catch { return fail('NATIVE_SESSION_CONFIGURATION_INVALID'); }
@@ -34,12 +36,12 @@ function exactOrigin(value: string, profile: 'public' | 'contributor'): URL {
   if (value !== url.origin) return fail('NATIVE_SESSION_CONFIGURATION_INVALID');
   return url;
 }
-function endpoint(value: string): URL {
+function endpoint(value: string, production: boolean): URL {
   let url: URL;
   try { url = new URL(value); } catch { return fail('NATIVE_SESSION_CONFIGURATION_INVALID'); }
   const port = Number(url.port);
-  if (url.protocol !== 'http:' || !['127.0.0.1', '[::1]'].includes(url.hostname) || !url.port || !Number.isInteger(port)
-    || port < 1 || port > 65535 || protectedPorts.has(port) || port >= 3200 && port <= 3299
+  if (url.protocol !== 'http:' || !['127.0.0.1', '[::1]'].includes(url.hostname) || !url.port
+    || !allowedPrivateLoopbackPort(port, production)
     || url.username || url.password || url.pathname !== '/' || url.search || url.hash)
     return fail('NATIVE_SESSION_CONFIGURATION_INVALID');
   if (value !== url.origin) return fail('NATIVE_SESSION_CONFIGURATION_INVALID');
@@ -108,9 +110,10 @@ async function boundedJson(response: Response, signal: AbortSignal): Promise<unk
 export type NativeSessionFetch = (input: URL, init: RequestInit) => Promise<Response>;
 export type NativeSessionRead = (incoming: Pick<Headers, 'get'>, signal?: AbortSignal) => Promise<AccountSessionResponse | null>;
 export function createNativeSessionClient(configuration: NativeSessionClientConfiguration, fetchPort: NativeSessionFetch = directSessionHttp): NativeSessionRead {
-  const url = endpoint(configuration.privateBaseUrl);
+  const url = endpoint(configuration.privateBaseUrl, configuration.production === true);
   if (!Number.isInteger(configuration.timeoutMs) || configuration.timeoutMs < 250 || configuration.timeoutMs > 30000
-    || configuration.holdingOrigins.length < 1 || configuration.holdingOrigins.length > 64) return fail('NATIVE_SESSION_CONFIGURATION_INVALID');
+    || configuration.holdingOrigins.length < 1 || configuration.holdingOrigins.length > 64
+    || (configuration.production !== undefined && typeof configuration.production !== 'boolean')) return fail('NATIVE_SESSION_CONFIGURATION_INVALID');
   const profile=configuration.originProfile ?? 'public';
   if (profile !== 'public' && profile !== 'contributor') return fail('NATIVE_SESSION_CONFIGURATION_INVALID');
   const origins = [configuration.accountOrigin, ...configuration.holdingOrigins].map(value => exactOrigin(value,profile));
@@ -199,7 +202,7 @@ export function createNativeAccountHttpTransport(configuration:NativeSessionClie
    const bytes=['POST','DELETE'].includes(incoming.method)?await boundedAccountBytes(incoming.body,8192,controller.signal):null;
    let body:string|undefined;
    if(bytes!==null){try{body=new TextDecoder('utf-8',{fatal:true}).decode(bytes);}catch{return fail('NATIVE_ACCOUNT_BODY_INVALID',400);}}
-   const url=new URL(publicUrl.pathname+publicUrl.search,endpoint(configuration.privateBaseUrl).origin);
+   const url=new URL(publicUrl.pathname+publicUrl.search,endpoint(configuration.privateBaseUrl, configuration.production === true).origin);
    const response=await send(url,{method:incoming.method,headers,...(body===undefined?{}:{body}),redirect:'manual',cache:'no-store',credentials:'omit',signal:controller.signal});
    if(response.redirected)return fail('NATIVE_ACCOUNT_REDIRECT_FORBIDDEN');
    const responseBytes=await boundedAccountBytes(response.body,256*1024,controller.signal);

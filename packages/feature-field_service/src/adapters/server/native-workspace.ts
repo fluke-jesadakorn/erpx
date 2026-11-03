@@ -6,8 +6,9 @@ import {contributorExactOrigin} from '@erpx/feature-runtime/lib/holding-hosts';
 import type {FieldServiceWorkspaceResponse,FieldServiceOrderDetailResponse} from '@erpx/contracts/field-service-reserve';
 import type {FieldWorkspace,FieldDetail} from '../../lib/workspace';
 import type {ReserveContext} from '../../lib/native-reserve-command';
+import {allowedPrivateLoopbackPort} from '@erpx/native-sdk/loopback';
 
-type Settings={privateBaseUrl:string;timeoutMs:number;holdings:{origin:string;holdingSlug:string;holdingId:string}[]};
+type Settings={privateBaseUrl:string;timeoutMs:number;holdings:{origin:string;holdingSlug:string;holdingId:string}[];production?:boolean};
 type Transport=(url:URL,headers:Headers,signal:AbortSignal)=>Promise<Response>;
 export class NativeServiceWorkspaceError extends Error {constructor(readonly code:string,readonly status?:number){super('The native Service workspace is unavailable.');}}
 const fail=(code:string,status?:number):never=>{throw new NativeServiceWorkspaceError(code,status);};
@@ -19,10 +20,10 @@ const list=(v:unknown):v is Record<string,string|number|null>[]=>Array.isArray(v
 const equalSet=(a:readonly string[],b:unknown)=>Array.isArray(b)&&b.every(x=>typeof x==='string')&&new Set(a).size===new Set(b).size&&a.every(x=>b.includes(x));
 function configuration(raw:string):Settings {
  let v:unknown;try{v=JSON.parse(raw);}catch{return fail('NATIVE_SERVICE_CONFIGURATION_INVALID');}
- if(!obj(v)||typeof v.privateBaseUrl!=='string'||!integer(v.timeoutMs,250)||v.timeoutMs>30000||!Array.isArray(v.holdings)||v.holdings.length<1||v.holdings.length>64)return fail('NATIVE_SERVICE_CONFIGURATION_INVALID');
+ if(!obj(v)||(v.production!==undefined&&typeof v.production!=='boolean')||typeof v.privateBaseUrl!=='string'||!integer(v.timeoutMs,250)||v.timeoutMs>30000||!Array.isArray(v.holdings)||v.holdings.length<1||v.holdings.length>64)return fail('NATIVE_SERVICE_CONFIGURATION_INVALID');
  let base:URL;try{base=new URL(v.privateBaseUrl);}catch{return fail('NATIVE_SERVICE_CONFIGURATION_INVALID');}
- const port=Number(base.port),reserved=[3000,3001,3100,3101,3103,5432,5433,5435,8080];
- if(base.protocol!=='http:'||!['127.0.0.1','[::1]'].includes(base.hostname)||!base.port||reserved.includes(port)||port>=3200&&port<=3299||base.username||base.password||v.privateBaseUrl!==base.origin)return fail('NATIVE_SERVICE_CONFIGURATION_INVALID');
+ const port=Number(base.port);
+ if(base.protocol!=='http:'||!['127.0.0.1','[::1]'].includes(base.hostname)||!base.port||!allowedPrivateLoopbackPort(port,v.production===true)||port>=3200&&port<=3299||base.username||base.password||v.privateBaseUrl!==base.origin)return fail('NATIVE_SERVICE_CONFIGURATION_INVALID');
  const hosts=new Set<string>(),slugs=new Set<string>();for(const h of v.holdings){if(!obj(h)||typeof h.origin!=='string'||typeof h.holdingSlug!=='string'||!/^[a-z0-9_-]{1,128}$/.test(h.holdingSlug)||!text(h.holdingId)||new TextEncoder().encode(h.holdingId as string).length>200)return fail('NATIVE_SERVICE_CONFIGURATION_INVALID');let origin:URL;try{origin=new URL(h.origin);}catch{return fail('NATIVE_SERVICE_CONFIGURATION_INVALID');}if(origin.protocol!=='https:'||h.origin!==origin.origin||(origin.port&&contributorExactOrigin(origin.host)!==origin.origin)||origin.username||origin.password||!origin.hostname.includes('.')||!origin.hostname.split('.').every(p=>/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(p))||hosts.has(origin.host)||slugs.has(h.holdingSlug))return fail('NATIVE_SERVICE_CONFIGURATION_INVALID');hosts.add(origin.host);slugs.add(h.holdingSlug);}
  return v as Settings;
 }

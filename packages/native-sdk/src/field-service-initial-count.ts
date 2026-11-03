@@ -10,7 +10,7 @@ export type NativeCountReply={status:number;body:unknown};
 export type NativeCountTypedResponse=ServiceInitialCountReadResponse|ServiceInitialCountCommandResponse;
 export type NativeCountTransportInput=NativeCountRequest&{method:'GET'|'POST';suffix:string};
 export type NativeCountTransport=(input:NativeCountTransportInput)=>Promise<NativeCountReply>;
-const reserved=new Set([3000,3001,3100,3101,3103,5432,5433,5435,8080]);
+const reserved=new Set([3000,3001,3100,3103,5432,5433,5435,8080]);
 const actions=new Set(['submit','approve','post','reject','cancel']);
 function idPath(id:string){if(typeof id!=='string'||!id||id==='.'||id==='..'||new TextEncoder().encode(id).length>200)throw Error('NATIVE_INITIAL_COUNT_REQUEST_INVALID');return encodeURIComponent(id);}
 function querySuffix(query:string|undefined){const value=query??'';if(value&&(!value.startsWith('?')||/[#\u0000-\u001f\u007f]/.test(value))||new TextEncoder().encode(value).length>2*1024*1024)throw Error('NATIVE_INITIAL_COUNT_REQUEST_INVALID');return value;}

@@ -9,7 +9,7 @@ export type NativeFieldIntakeRawReply={status:number;body:unknown};
 export type NativeFieldIntakeReply={status:number;body:FieldIntakeListResponse|FieldIntakeCreateResponse|FieldIntakeErrorResponse};
 export type NativeFieldIntakeTransportInput=NativeFieldIntakeRequest&{method:'GET'|'POST';suffix:string};
 export type NativeFieldIntakeTransport=(input:NativeFieldIntakeTransportInput)=>Promise<NativeFieldIntakeRawReply>;
-const reserved=new Set([3000,3001,3100,3101,3103,5432,5433,5435,8080]);
+const reserved=new Set([3000,3001,3100,3103,5432,5433,5435,8080]);
 const invalid=()=>Error('NATIVE_FIELD_INTAKE_RESPONSE_INVALID');
 function object(v:unknown):v is Record<string,unknown>{return v!==null&&typeof v==='object'&&!Array.isArray(v);}
 function string(v:unknown):v is string{return typeof v==='string';}

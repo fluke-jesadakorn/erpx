@@ -1,4 +1,5 @@
 import 'server-only';
+import {allowedPrivateLoopbackPort} from '@erpx/native-sdk/loopback';
 import {contributorExactOrigin} from '@erpx/feature-runtime/lib/holding-hosts';
 import {nativeInitialCountRequest,type NativeCountRoute,type NativeCountTransport} from '@erpx/native-sdk/field-service-initial-count';
 import type {ServiceInitialCountReadResponse,ServiceInitialCountCommandResponse,CountGenericDetail} from '@erpx/contracts/field-service-initial-count';
@@ -7,16 +8,16 @@ import type {FlowView} from '@erpx/feature-shared/lib/flow';
 import type {ReserveContext} from '../../lib/native-reserve-command';
 export {nativeActorContext as nativeInitialCountContext} from '../../lib/native-actor-context';
 type Target={origin:string;holdingSlug:string;holdingId:string};
-type Settings={privateBaseUrl:string;timeoutMs:number;holdings:Target[]};
+type Settings={privateBaseUrl:string;timeoutMs:number;holdings:Target[];production?:boolean};
 export class NativeInitialCountError extends Error {constructor(readonly code:string,readonly status=502){super('The native Service initial Count is unavailable.');}}
 const fail=(code:string,status=502):never=>{throw new NativeInitialCountError(code,status);};
 const object=(value:unknown):value is Record<string,unknown>=>!!value&&typeof value==='object'&&!Array.isArray(value);
 const setEqual=(expected:readonly string[],actual:unknown)=>Array.isArray(actual)&&actual.every(x=>typeof x==='string')&&new Set(expected).size===new Set(actual).size&&expected.every(x=>actual.includes(x));
 function settings(raw:string):Settings{
  let value:unknown;try{value=JSON.parse(raw);}catch{return fail('NATIVE_INITIAL_COUNT_CONFIG_INVALID');}
- if(!object(value)||typeof value.privateBaseUrl!=='string'||typeof value.timeoutMs!=='number'||!Number.isSafeInteger(value.timeoutMs)||value.timeoutMs<250||value.timeoutMs>30000||!Array.isArray(value.holdings)||!value.holdings.length||value.holdings.length>64)return fail('NATIVE_INITIAL_COUNT_CONFIG_INVALID');
+ if(!object(value)||(value.production!==undefined&&typeof value.production!=='boolean')||typeof value.privateBaseUrl!=='string'||typeof value.timeoutMs!=='number'||!Number.isSafeInteger(value.timeoutMs)||value.timeoutMs<250||value.timeoutMs>30000||!Array.isArray(value.holdings)||!value.holdings.length||value.holdings.length>64)return fail('NATIVE_INITIAL_COUNT_CONFIG_INVALID');
  let base:URL;try{base=new URL(value.privateBaseUrl);}catch{return fail('NATIVE_INITIAL_COUNT_CONFIG_INVALID');}const port=Number(base.port);
- if(base.protocol!=='http:'||!['127.0.0.1','[::1]'].includes(base.hostname)||!base.port||[3000,3001,3100,3101,3103,5432,5433,5435,8080].includes(port)||port>=3200&&port<=3299||base.username||base.password||base.origin!==value.privateBaseUrl)return fail('NATIVE_INITIAL_COUNT_CONFIG_INVALID');
+ if(base.protocol!=='http:'||!['127.0.0.1','[::1]'].includes(base.hostname)||!base.port||!allowedPrivateLoopbackPort(port,value.production===true)||port>=3200&&port<=3299||base.username||base.password||base.origin!==value.privateBaseUrl)return fail('NATIVE_INITIAL_COUNT_CONFIG_INVALID');
  const hosts=new Set<string>(),slugs=new Set<string>();for(const entry of value.holdings){if(!object(entry)||typeof entry.origin!=='string'||typeof entry.holdingSlug!=='string'||!/^[a-z0-9_-]{1,128}$/.test(entry.holdingSlug)||typeof entry.holdingId!=='string'||!entry.holdingId||new TextEncoder().encode(entry.holdingId).length>200)return fail('NATIVE_INITIAL_COUNT_CONFIG_INVALID');let origin:URL;try{origin=new URL(entry.origin);}catch{return fail('NATIVE_INITIAL_COUNT_CONFIG_INVALID');}if(origin.protocol!=='https:'||origin.origin!==entry.origin||(origin.port&&contributorExactOrigin(origin.host)!==entry.origin)||origin.username||origin.password||!origin.hostname.includes('.')||!origin.hostname.split('.').every(part=>/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(part))||hosts.has(origin.host)||slugs.has(entry.holdingSlug))return fail('NATIVE_INITIAL_COUNT_CONFIG_INVALID');hosts.add(origin.host);slugs.add(entry.holdingSlug);}
  return value as Settings;
 }

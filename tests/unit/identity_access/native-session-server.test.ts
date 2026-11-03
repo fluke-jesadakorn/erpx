@@ -22,6 +22,13 @@ describe('typed server-only native session transport',()=>{
   for(const accountOrigin of ['https://ACCOUNT.example.test','https://account.example.test/','https://account.example.test:443','http://account.example.test','https://account.example.test#'])expect(()=>createNativeSessionClient({...configuration,accountOrigin},transport)).toThrow(NativeSessionReadError);
   const read=createNativeSessionClient(configuration,transport);await expect(read(incoming('retired.example.test'))).rejects.toMatchObject({code:'NATIVE_SESSION_AUTHORITY_INVALID'});await expect(read(incoming('acme.example.test','x'.repeat(8193)))).rejects.toMatchObject({code:'NATIVE_SESSION_COOKIE_LIMIT'});expect(transport).not.toHaveBeenCalled();
  });
+ it('admits loopback3101 only with an explicit production opt-in',async()=>{
+  const calls:URL[]=[];const transport:NativeSessionFetch=async(url)=>{calls.push(url);return json(session());};
+  const production=createNativeSessionClient({...configuration,privateBaseUrl:'http://127.0.0.1:3101',production:true},transport);
+  expect(await production(incoming())).toEqual(session());expect(calls[0]!.origin).toBe('http://127.0.0.1:3101');
+  expect(()=>createNativeSessionClient({...configuration,privateBaseUrl:'http://127.0.0.1:3101',production:false})).toThrow();
+  expect(()=>createNativeSessionClient({...configuration,privateBaseUrl:'http://127.0.0.1:3101'})).toThrow();
+ });
  it('keeps anonymous200 null distinct from unavailable/invalid/non200 responses',async()=>{
   expect(await createNativeSessionClient(configuration,async()=>json(null))(incoming())).toBeNull();
   for(const status of [201,403,404,500,503])await expect(createNativeSessionClient(configuration,async()=>json(null,status))(incoming())).rejects.toMatchObject({code:'NATIVE_SESSION_UNAVAILABLE',status});
@@ -104,6 +111,13 @@ describe('native Account role selection transport',()=>{
   await expect(read(incoming('acme.example.test','x'.repeat(8193)),identity,'restore')).rejects.toMatchObject({code:'NATIVE_WORK_ROLE_COOKIE_LIMIT'});
   await expect(read(incoming(),identity,'select','{}')).rejects.toMatchObject({code:'ORIGIN_FORBIDDEN'});
   const h=incoming();h.set('origin','https://northstar.example.test');await expect(read(h,identity,'initialize')).rejects.toMatchObject({code:'ORIGIN_FORBIDDEN'});expect(send).not.toHaveBeenCalled();
+ });
+ it('admits the production work-role transport only with production opt-in',async()=>{
+  const {createNativeWorkRoleTransport}=await import('@erpx/server-identity_access/public/native-work-role-transport');const send=vi.fn(async(_input:{baseUrl:string})=>({status:200,body:{data:state()}}));
+  const read=createNativeWorkRoleTransport(JSON.stringify({...config,privateBaseUrl:'http://127.0.0.1:3101',production:true}),send);
+  await expect(read(incoming(),identity,'initialize')).resolves.toMatchObject(identity);
+  expect(send.mock.calls[0]![0]).toMatchObject({baseUrl:'http://127.0.0.1:3101'});
+  expect(()=>createNativeWorkRoleTransport(JSON.stringify({...config,privateBaseUrl:'http://127.0.0.1:3101'}),send)).toThrow();
  });
  it('rejects a response from a stale account or Company and preserves native CAS/session errors',async()=>{
   const {createNativeWorkRoleTransport}=await import('@erpx/server-identity_access/public/native-work-role-transport');

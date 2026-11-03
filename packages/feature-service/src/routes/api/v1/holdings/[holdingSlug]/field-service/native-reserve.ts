@@ -4,17 +4,17 @@ const contributorExactOrigin=(host:string|null|undefined)=>exactOrigin(host,cont
 const holdingHostForHost=(host:string|null|undefined)=>exactHolding(host,contributorOriginProfile()?'contributor':'public');
 import type { FieldServiceReservationReadResponse, FieldServiceIssueReadResponse, FieldServiceRequestReadResponse, FieldServiceOrderCreateReadResponse, FieldServiceVisitReadResponse, FieldServiceAgreementReviewReadResponse, FieldServiceAgreementCreateReadResponse, FieldServiceBillingReadResponse } from '@erpx/contracts/field-service-reserve';
 import 'server-only';
+import {allowedPrivateLoopbackPort} from '@erpx/native-sdk/loopback';
 import { Agent, request as httpRequest } from 'node:http';
 import { Readable } from 'node:stream';
-type Settings={privateBaseUrl:string;timeoutMs:number;holdings:{origin:string;holdingSlug:string;holdingId:string}[]};
+type Settings={privateBaseUrl:string;timeoutMs:number;holdings:{origin:string;holdingSlug:string;holdingId:string}[];production?:boolean};
 const closed=(status:number,code:string,message:string)=>Response.json({error:{code,message}},{status,headers:{'Cache-Control':'private, no-store'}});
-const reserved=new Set([3000,3001,3100,3101,3103,5432,5433,5435,8080]);
 function settings(raw:string):Settings {
  let v:unknown;try{v=JSON.parse(raw);}catch{throw Error('NATIVE_SERVICE_CONFIGURATION_INVALID');}
  if(!v||typeof v!=='object'||Array.isArray(v))throw Error('NATIVE_SERVICE_CONFIGURATION_INVALID');
  const s=v as Settings;let base:URL;try{base=new URL(s.privateBaseUrl);}catch{throw Error('NATIVE_SERVICE_CONFIGURATION_INVALID');}
  const port=Number(base.port);
- if(base.protocol!=='http:'||!['127.0.0.1','[::1]'].includes(base.hostname)||!base.port||reserved.has(port)||port>=3200&&port<=3299||base.username||base.password||s.privateBaseUrl!==base.origin||!Number.isSafeInteger(s.timeoutMs)||s.timeoutMs<250||s.timeoutMs>30000||!Array.isArray(s.holdings)||s.holdings.length<1||s.holdings.length>64)throw Error('NATIVE_SERVICE_CONFIGURATION_INVALID');
+ if(base.protocol!=='http:'||!['127.0.0.1','[::1]'].includes(base.hostname)||!base.port||!allowedPrivateLoopbackPort(port,s.production===true)||port>=3200&&port<=3299||base.username||base.password||s.privateBaseUrl!==base.origin||!Number.isSafeInteger(s.timeoutMs)||s.timeoutMs<250||s.timeoutMs>30000||!Array.isArray(s.holdings)||s.holdings.length<1||s.holdings.length>64)throw Error('NATIVE_SERVICE_CONFIGURATION_INVALID');
  const hosts=new Set<string>();for(const h of s.holdings){let u:URL;try{u=new URL(h.origin);}catch{throw Error('NATIVE_SERVICE_CONFIGURATION_INVALID');}if(u.protocol!=='https:'||h.origin!==u.origin||(contributorOriginProfile()?(contributorExactOrigin(u.host)!==u.origin||holdingHostForHost(u.host)?.holdingId!==h.holdingId||holdingHostForHost(u.host)?.holdingSlug!==h.holdingSlug):!!u.port)||u.username||u.password||!u.hostname.includes('.')||!u.hostname.split('.').every(p=>/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(p))||typeof h.holdingSlug!=='string'||!/^[a-z0-9_-]{1,128}$/.test(h.holdingSlug)||typeof h.holdingId!=='string'||!h.holdingId||new TextEncoder().encode(h.holdingId).length>200||hosts.has(u.host))throw Error('NATIVE_SERVICE_CONFIGURATION_INVALID');hosts.add(u.host);}return s;
 }
 async function bytes(stream:ReadableStream<Uint8Array>|null,max:number){if(!stream)return new Uint8Array();const reader=stream.getReader(),chunks:Uint8Array[]=[];let size=0;try{for(;;){const part=await reader.read();if(part.done)break;size+=part.value.length;if(size>max){await reader.cancel();throw Error('LIMIT');}chunks.push(part.value);}}finally{reader.releaseLock();}const out=new Uint8Array(size);let offset=0;for(const chunk of chunks){out.set(chunk,offset);offset+=chunk.length;}return out;}

@@ -5,7 +5,7 @@ import {Readable} from 'node:stream';
 /** Private transport only; selection and authorization remain the caller's responsibility. */
 export type NativePartsSetupRequest={baseUrl:string;slug:string;method:'GET'|'POST';existing?:boolean;headers:Headers;body?:string;timeoutMs:number};
 export type NativePartsSetupReply={status:number;body:unknown};
-const reserved=new Set([3000,3001,3100,3101,3103,5432,5433,5435,8080]);
+const reserved=new Set([3000,3001,3100,3103,5432,5433,5435,8080]);
 export type NativePartsPrerequisiteOperation='read'|'chart'|'account'|'period'|'rate';
 export type NativePartsPrerequisiteRequest=Omit<NativePartsSetupRequest,'method'|'existing'>&{operation:NativePartsPrerequisiteOperation};
 const prerequisitePaths=new Map<NativePartsPrerequisiteOperation,string>([['read','/prerequisites'],['chart','/charts'],['account','/accounts'],['period','/periods'],['rate','/rates']]);

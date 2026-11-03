@@ -6,9 +6,10 @@ import {contributorExactOrigin} from '@erpx/contracts/holding-hosts';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {fieldFilesRoute,financePaymentFilesRoute,financeJournalFilesRoute,type FinanceJournalFilesRoute} from '@erpx/native-sdk/field-service-files-routes';
+import {allowedPrivateLoopbackPort} from '@erpx/native-sdk/loopback';
 
 type Target={origin:string;holdingSlug:string;holdingId:string;fieldFamily?:boolean};
-type Config={privateBaseUrl:string;timeoutMs:number;holdings:Target[]};
+type Config={privateBaseUrl:string;timeoutMs:number;holdings:Target[];production?:boolean};
 type Input={route:FinanceJournalFilesRoute;body?:Uint8Array;contentType?:string;key?:string};
 type Family='visit'|'finance-payment'|'finance-journal';
 type Reply={status:number;headers:Headers;body:Uint8Array};
@@ -35,12 +36,11 @@ function safeDisposition(value:string,expected:'inline'|'attachment'):boolean {
  const encoded=value.slice(prefix.length);if(!encoded||encoded.length>2303||!/^(?:[A-Za-z0-9!#$&+.^_`|~-]|%[0-9A-Fa-f]{2})+$/.test(encoded))return false;
  try{const decoded=decodeURIComponent(encoded);return decoded.length>0&&decoded.length<=(expected==='inline'?263:255)&&!/[\x00-\x1f\x7f]/.test(decoded);}catch{return false;}
 }
-const reserved=new Set([3000,3001,3100,3101,3103,5432,5433,5435,8080]);
 function config(raw:string):Config {
  if(Buffer.byteLength(raw)>2*1024*1024)return fail(503,'NATIVE_ATTACHMENT_CONFIGURATION_INVALID');let x:unknown;try{x=JSON.parse(raw);}catch{return fail(503,'NATIVE_ATTACHMENT_CONFIGURATION_INVALID');}
- if(!object(x)||!text(x.privateBaseUrl)||!Number.isSafeInteger(x.timeoutMs)||Number(x.timeoutMs)<250||Number(x.timeoutMs)>30000||!Array.isArray(x.holdings)||!x.holdings.length||x.holdings.length>64)return fail(503,'NATIVE_ATTACHMENT_CONFIGURATION_INVALID');
+ if(!object(x)||(x.production!==undefined&&typeof x.production!=='boolean')||!text(x.privateBaseUrl)||!Number.isSafeInteger(x.timeoutMs)||Number(x.timeoutMs)<250||Number(x.timeoutMs)>30000||!Array.isArray(x.holdings)||!x.holdings.length||x.holdings.length>64)return fail(503,'NATIVE_ATTACHMENT_CONFIGURATION_INVALID');
  let base:URL;try{base=new URL(x.privateBaseUrl);}catch{return fail(503,'NATIVE_ATTACHMENT_CONFIGURATION_INVALID');}const port=Number(base.port);
- if(base.protocol!=='http:'||!['127.0.0.1','[::1]'].includes(base.hostname)||!port||reserved.has(port)||port>=3200&&port<=3299||base.origin!==x.privateBaseUrl||base.username||base.password)return fail(503,'NATIVE_ATTACHMENT_CONFIGURATION_INVALID');
+ if(base.protocol!=='http:'||!['127.0.0.1','[::1]'].includes(base.hostname)||!allowedPrivateLoopbackPort(port,x.production===true)||base.origin!==x.privateBaseUrl||base.username||base.password)return fail(503,'NATIVE_ATTACHMENT_CONFIGURATION_INVALID');
  const slugs=new Set<string>(),hosts=new Set<string>();for(const h of x.holdings){if(!object(h)||!text(h.origin)||!text(h.holdingId)||!text(h.holdingSlug)||!/^[a-z0-9_-]{1,128}$/.test(h.holdingSlug)||h.fieldFamily!==undefined&&typeof h.fieldFamily!=='boolean')return fail(503,'NATIVE_ATTACHMENT_CONFIGURATION_INVALID');let origin:URL;try{origin=new URL(h.origin);}catch{return fail(503,'NATIVE_ATTACHMENT_CONFIGURATION_INVALID');}if(origin.protocol!=='https:'||origin.origin!==h.origin||origin.username||origin.password||(!(process.env.NODE_ENV==='development'&&process.env.NEXT_PUBLIC_ERPX_DEV_ORIGIN_PROFILE==='container-localhost'&&contributorExactOrigin(origin.host,'contributor')===h.origin)&&(!!origin.port||!origin.hostname.includes('.')||!origin.hostname.split('.').every(p=>/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(p))))||slugs.has(h.holdingSlug)||hosts.has(origin.host))return fail(503,'NATIVE_ATTACHMENT_CONFIGURATION_INVALID');slugs.add(h.holdingSlug);hosts.add(origin.host);}
  return x as Config;
 }
@@ -90,18 +90,19 @@ export function createFieldFamilyBridge(raw:string,transport:Transport=direct,fa
  };}
 /** UI visibility only; every native request still performs its own current authority checks. */
 export function nativeFieldFamilyVisible(holdingSlug:string,holdingId:string,host:string|null):boolean {
- const raw=process.env.ERPX_NATIVE_FIELD_ATTACHMENT_CONFIG;if(!raw||process.env.NODE_ENV==='production')return false;
- const target=config(raw).holdings.find(h=>h.holdingSlug===holdingSlug);
+ const raw=process.env.ERPX_NATIVE_FIELD_ATTACHMENT_CONFIG;if(!raw)return false;const settings=config(raw);if(process.env.NODE_ENV==='production'&&settings.production!==true)return false;
+ const target=settings.holdings.find(h=>h.holdingSlug===holdingSlug);
  return !!target?.fieldFamily&&target.holdingId===holdingId&&new URL(target.origin).host===host;
 }
-export function nativeFieldFamily(request:Request,actor:WorkContext,input:Input){const raw=process.env.ERPX_NATIVE_FIELD_ATTACHMENT_CONFIG;if(!raw||process.env.NODE_ENV==='production')return fail(503,'NATIVE_FIELD_FILES_NOT_CONFIGURED');return createFieldFamilyBridge(raw)(request,actor,input);}
+export function nativeFieldFamily(request:Request,actor:WorkContext,input:Input){const raw=process.env.ERPX_NATIVE_FIELD_ATTACHMENT_CONFIG;if(!raw)return fail(503,'NATIVE_FIELD_FILES_NOT_CONFIGURED');if(process.env.NODE_ENV==='production'&&config(raw).production!==true)return fail(503,'NATIVE_FIELD_FILES_NOT_CONFIGURED');return createFieldFamilyBridge(raw)(request,actor,input);}
 
 /** The private backend's current Finance/Files ports grant authority. This
  * wrapper supplies only exact owner routing and captured request bytes/context. */
 export function nativeFinancePaymentFiles(request:Request,actor:WorkContext,input:Input){
  const raw=process.env.ERPX_NATIVE_FINANCE_SERVICE_PAYMENT_CONFIG;
- if(!raw||process.env.NODE_ENV==='production')return fail(503,'NATIVE_FINANCE_FILES_NOT_CONFIGURED');
+ if(!raw)return fail(503,'NATIVE_FINANCE_FILES_NOT_CONFIGURED');
  const value=config(raw);
+ if(process.env.NODE_ENV==='production'&&value.production!==true)return fail(503,'NATIVE_FINANCE_FILES_NOT_CONFIGURED');
  return createFieldFamilyBridge(JSON.stringify({...value,holdings:value.holdings.map(h=>({...h,fieldFamily:true}))}),direct,'finance-payment')(request,actor,input);
 }
 
@@ -109,15 +110,17 @@ export function nativeFinancePaymentFiles(request:Request,actor:WorkContext,inpu
  * journal lineage and selected authority in the owning transaction. */
 export function nativeFinanceJournalFiles(request:Request,actor:WorkContext,input:Input){
  const raw=process.env.ERPX_NATIVE_FINANCE_SERVICE_INVOICE_CONFIG;
- if(!raw||process.env.NODE_ENV==='production')return fail(503,'NATIVE_FINANCE_FILES_NOT_CONFIGURED');
+ if(!raw)return fail(503,'NATIVE_FINANCE_FILES_NOT_CONFIGURED');
  const value=config(raw);
+ if(process.env.NODE_ENV==='production'&&value.production!==true)return fail(503,'NATIVE_FINANCE_FILES_NOT_CONFIGURED');
  return createFieldFamilyBridge(JSON.stringify({...value,holdings:value.holdings.map(h=>({...h,fieldFamily:true}))}),direct,'finance-journal')(request,actor,input);
 }
 
 /** Existing bind/withdraw contracts retain their context-bearing native replies. */
 export async function nativeFieldFamilyCommand(request:Request,actor:WorkContext,kind:'bind'|'withdraw',id:string,command:{key:string;body:string;expectedVersion?:number}){
- const raw=process.env.ERPX_NATIVE_FIELD_ATTACHMENT_CONFIG;if(!raw||process.env.NODE_ENV==='production')return fail(503,'NATIVE_FIELD_FILES_NOT_CONFIGURED');
- const value=config(raw),target=value.holdings.find(h=>h.holdingSlug===actor.holdingSlug);
+ const raw=process.env.ERPX_NATIVE_FIELD_ATTACHMENT_CONFIG;if(!raw)return fail(503,'NATIVE_FIELD_FILES_NOT_CONFIGURED');
+ const value=config(raw);if(process.env.NODE_ENV==='production'&&value.production!==true)return fail(503,'NATIVE_FIELD_FILES_NOT_CONFIGURED');
+ const target=value.holdings.find(h=>h.holdingSlug===actor.holdingSlug);
  if(!target?.fieldFamily)return fail(503,'NATIVE_FIELD_FILES_NOT_CONFIGURED');
  if(request.headers.get('host')!==new URL(target.origin).host||actor.holdingId!==target.holdingId||!actor.authority||!actor.iam)return fail(403,'NATIVE_ATTACHMENT_AUTHORITY_INVALID');
  const expected={'x-erpx-context-company':actor.companyId,'x-erpx-context-assignment':actor.assignmentId,'x-erpx-context-revision':String(actor.authority.revision),'x-erpx-context-assignment-version':String(actor.authority.assignmentVersion)};

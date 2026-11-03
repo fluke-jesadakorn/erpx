@@ -1,16 +1,17 @@
 import 'server-only';
 import {contributorExactOrigin,type OriginProfile} from '@erpx/contracts/holding-hosts';
+import {allowedPrivateLoopbackPort} from './loopback';
 export type NativeHoldingTarget={origin:string;holdingId:string;holdingSlug:string};
-export type NativeHoldingConfiguration={privateBaseUrl:string;timeoutMs:number;holdings:NativeHoldingTarget[]};
+export type NativeHoldingConfiguration={privateBaseUrl:string;timeoutMs:number;holdings:NativeHoldingTarget[];production?:boolean};
 const object=(v:unknown):v is Record<string,unknown>=>!!v&&typeof v==='object'&&!Array.isArray(v);
 const fail=():never=>{throw Error('NATIVE_HOLDING_CONFIGURATION_INVALID');};
 /** Shared bounded private transport configuration. It supplies no account,
  * Company or permission; native Identity still verifies each forwarded cookie. */
 export function nativeHoldingConfiguration(raw:string,profile:OriginProfile='public'):NativeHoldingConfiguration{
  let c:unknown;try{c=JSON.parse(raw);}catch{return fail();}
- if(!object(c)||typeof c.privateBaseUrl!=='string'||typeof c.timeoutMs!=='number'||!Number.isSafeInteger(c.timeoutMs)||c.timeoutMs<250||c.timeoutMs>30000||!Array.isArray(c.holdings)||!c.holdings.length||c.holdings.length>64)return fail();
+ if(!object(c)||(c.production!==undefined&&typeof c.production!=='boolean')||typeof c.privateBaseUrl!=='string'||typeof c.timeoutMs!=='number'||!Number.isSafeInteger(c.timeoutMs)||c.timeoutMs<250||c.timeoutMs>30000||!Array.isArray(c.holdings)||!c.holdings.length||c.holdings.length>64)return fail();
  let base:URL;try{base=new URL(c.privateBaseUrl);}catch{return fail();}const port=Number(base.port);
- if(base.protocol!=='http:'||!['127.0.0.1','[::1]'].includes(base.hostname)||!base.port||[3000,3001,3100,3101,3103,5432,5433,5435,8080].includes(port)||port>=3200&&port<=3299||base.username||base.password||base.origin!==c.privateBaseUrl)return fail();
+ if(base.protocol!=='http:'||!['127.0.0.1','[::1]'].includes(base.hostname)||!base.port||!allowedPrivateLoopbackPort(port,c.production===true)||base.username||base.password||base.origin!==c.privateBaseUrl)return fail();
  const hosts=new Set<string>(),slugs=new Set<string>();
  for(const h of c.holdings){
   if(!object(h)||typeof h.origin!=='string'||typeof h.holdingId!=='string'||!h.holdingId||new TextEncoder().encode(h.holdingId).length>200||typeof h.holdingSlug!=='string'||!/^[a-z0-9_-]{1,128}$/.test(h.holdingSlug))return fail();
