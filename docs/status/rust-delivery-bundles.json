@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-03T18:45:04+00:00",
+  "updatedAt": "2026-11-03T18:57:32+00:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -2959,8 +2959,8 @@
       "id": "support-tickets-browser-journey",
       "kind": "browser-flow-evidence",
       "status": "partial",
-      "scope": "Desktop and mobile employee-report lifecycle through the native Support writer: create, edit, add information and withdraw, persisted cancelled v4 with four events.",
-      "sourceIdentity": "0436a9255",
+      "scope": "Desktop and mobile browser qualification of the native Support writer: general lifecycle create/triage/start/resolve/independent confirm-general (closed v5 with five events and five receipts/audit/outbox) and employee report create/edit/add/withdraw (cancelled v4 with four events).",
+      "sourceIdentity": "a128f0d56 + lifecycle evidence",
       "evidenceRef": "docs/testing/evidence/2026-11-04-support-browser-ticket-journey.json",
       "durableContractRefs": [
         "docs/contracts/next/support.md"
@@ -3409,7 +3409,7 @@
         "support-tickets-browser-journey"
       ],
       "sourceRef": "packages/server-support/src/public/ticket.rs",
-      "gap": "Native Support ticket command, HTTP ingress and Next transport are proven on leased PostgreSQL (general, order-backed, asset-source, employee reports, independence, concurrency, replay, receipt/audit/outbox, HTTP negatives). The employee-report lifecycle is browser-qualified on desktop and mobile. The manager triage/start/resolve/confirm UI path is not yet browser-qualified, and SLA watch, incidents, sessions, capabilities and attachments remain separate workflows."
+      "gap": "Native Support ticket command, HTTP ingress and Next transport are proven on leased PostgreSQL (general, order-backed, asset-source, employee reports, independence, concurrency, replay, receipt/audit/outbox, HTTP negatives). The general ticket lifecycle and employee-report lifecycle are browser-qualified on desktop and mobile with normal Account sign-in. Order-backed customer-note confirmation and the asset visibility negative remain PostgreSQL-only, and SLA watch, incidents, sessions, capabilities and attachments are separate workflows."
     },
     {
       "id": "support/sla-watch",

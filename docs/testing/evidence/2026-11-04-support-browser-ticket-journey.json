@@ -1,11 +1,11 @@
 {
   "version": 1,
   "date": "2026-11-04",
-  "status": "Native Support ticket writer qualified in a desktop and mobile browser for the employee-report lifecycle; manager UI path and other Support workflows remain open",
+  "status": "Native Support ticket writer qualified end-to-end in desktop and mobile browsers for the general ticket lifecycle; order-backed browser path, asset visibility negative and the other Support workflows remain open",
   "capability": "support-tickets-browser-journey",
   "base": "4857abf81c8ffdc1757799c51e07bfaf9b7fe22b",
   "branch": "codex/support-tickets-owner-cutover",
-  "sourceCommit": "0436a9255",
+  "sourceCommit": "a128f0d56 plus this evidence",
   "runtime": {
     "cohort": "7bb9e96af7a9",
     "account": "normal Account email/password sign-in at account-dev-erpx.jesadakorn.com",
@@ -15,101 +15,62 @@
     "gateway": "owned cohort gateway on 3445 with /support, /__erpx/support, /support/cases and /api/v1/holdings/acme/support routed to the Support app",
     "transport": "browser -> cohort relay 44994 -> gateway 3445 -> Support app 3285 -> native writer 44993"
   },
-  "journeys": [
-    {
-      "viewport": "desktop 1280x900",
-      "ticket": "ticket-9be304ed-9763-4181-8484-a8666d171e95",
+  "lifecycle": {
+    "personas": ["owner (holding_owner)", "serviceReviewer (holding_owner, different person)"],
+    "desktop": {
+      "viewport": "1280x900",
+      "ticket": "ticket-508b9247-4c59-47a4-b7f8-93ddb66e927f",
       "steps": [
-        {
-          "action": "create",
-          "status": 200,
-          "state": "triage",
-          "version": 1
-        },
-        {
-          "action": "edit-report",
-          "status": 200,
-          "state": "triage",
-          "version": 2
-        },
-        {
-          "action": "add-information",
-          "status": 200,
-          "state": "triage",
-          "version": 3
-        },
-        {
-          "action": "withdraw-report",
-          "status": 200,
-          "state": "cancelled",
-          "version": 4
-        }
+        {"action": "create", "status": 200, "state": "triage", "version": 1},
+        {"action": "triage", "status": 200, "state": "open", "version": 2, "owner": "owner"},
+        {"action": "start", "status": 200, "state": "in_progress", "version": 3},
+        {"action": "resolve", "status": 200, "state": "resolved", "version": 4},
+        {"action": "confirm-general", "status": 200, "state": "closed", "version": 5}
       ],
       "persisted": {
-        "status": "cancelled",
-        "version": 4,
-        "events": [
-          "report:1",
-          "edit-report:2",
-          "add-information:3",
-          "withdraw-report:4"
-        ]
+        "status": "closed",
+        "version": 5,
+        "events": ["report:1", "triage:2", "start:3", "resolve:4", "confirm-general:5"],
+        "receipts": 5,
+        "audit": 5,
+        "outbox": 5
       },
       "pageErrors": 0,
-      "consoleErrors": 3
+      "consoleErrors": 5
     },
-    {
-      "viewport": "mobile 390x844",
-      "ticket": "ticket-b608d22f-115f-45ab-a3bb-8d446da61a88",
+    "mobile": {
+      "viewport": "390x844",
+      "ticket": "ticket-6ebd1bc6-790f-4018-862d-57a48794ee76",
       "steps": [
-        {
-          "action": "create",
-          "status": 200,
-          "state": "triage",
-          "version": 1
-        },
-        {
-          "action": "edit-report",
-          "status": 200,
-          "state": "triage",
-          "version": 2
-        },
-        {
-          "action": "add-information",
-          "status": 200,
-          "state": "triage",
-          "version": 3
-        },
-        {
-          "action": "withdraw-report",
-          "status": 200,
-          "state": "cancelled",
-          "version": 4
-        }
+        {"action": "create", "status": 200, "state": "triage", "version": 1},
+        {"action": "triage", "status": 200, "state": "open", "version": 2, "owner": "owner"},
+        {"action": "start", "status": 200, "state": "in_progress", "version": 3},
+        {"action": "resolve", "status": 200, "state": "resolved", "version": 4},
+        {"action": "confirm-general", "status": 200, "state": "closed", "version": 5}
       ],
       "persisted": {
-        "status": "cancelled",
-        "version": 4,
-        "events": [
-          "report:1",
-          "edit-report:2",
-          "add-information:3",
-          "withdraw-report:4"
-        ]
+        "status": "closed",
+        "version": 5,
+        "events": ["report:1", "triage:2", "start:3", "resolve:4", "confirm-general:5"]
       },
       "pageErrors": 0,
-      "consoleErrors": 3
-    }
-  ],
+      "consoleErrors": 5
+    },
+    "ui": "The owner and manager open the ticket through the record drawer at /support/cases/{id}/overview. The manager assigns the owner and due date; the owner accepts the case, records the proposed resolution and the independent manager confirms the outcome and closes."
+  },
+  "employeeReport": {
+    "desktop": {"ticket": "ticket-9be304ed-9763-4181-8484-a8666d171e95", "steps": ["create:triage:1", "edit-report:triage:2", "add-information:triage:3", "withdraw-report:cancelled:4"], "persisted": "cancelled v4 with four events"},
+    "mobile": {"ticket": "ticket-b608d22f-115f-45ab-a3bb-8d446da61a88", "steps": ["create:triage:1", "edit-report:triage:2", "add-information:triage:3", "withdraw-report:cancelled:4"], "persisted": "cancelled v4 with four events"}
+  },
   "fixes": [
     "The HTTP route strips the browser-supplied ticket id before strict TicketChange deserialization; the PostgreSQL HTTP test now covers a change request with id and asserts version 2.",
     "The assembled private API boundary admits POST /api/v1/holdings/{slug}/support only for the configured supportTicketWrites target; the direct router test alone did not exercise this boundary."
   ],
   "limits": [
-    "The manager triage/start/resolve/confirm UI path was not completed in the browser: the cohort serviceReviewer can list the ticket but the detail route redirects to the list. The native PostgreSQL test covers manager triage, owner start/resolve and independent manager confirm-general with persisted receipts/audit/outbox.",
-    "The browser journey used a general report. Order-backed create with a customer-note confirmation and typed asset source are PostgreSQL-tested only.",
+    "The browser lifecycle used a general ticket. Order-backed create with a customer-note confirmation and typed asset source are PostgreSQL-tested only.",
+    "The asset source visibility negative case (an unreadable source must hide the ticket body/link) is PostgreSQL-tested through the source policy but has no browser journey.",
     "The Support owner remains open: SLA watch, incidents, sessions, capabilities and attachments are separate native workflows.",
-    "The Support app logs three React hydration console warnings per navigation; pageErrors stay 0. The warnings are not caused by the native writer and are recorded rather than hidden."
+    "The Support app logs React hydration console warnings on navigation (5 in a full lifecycle run); pageErrors stay 0. The warnings are not caused by the native writer and are recorded rather than hidden."
   ],
-  "next": "Resolve the manager detail-route visibility in the cohort, run the full manager/owner browser lifecycle, then close or formally scope the remaining Support workflows before the scoped PR."
+  "next": "Add the order-backed customer-note confirmation and asset visibility negative to the browser journey, then close or formally scope the remaining Support workflows before the scoped PR."
 }
