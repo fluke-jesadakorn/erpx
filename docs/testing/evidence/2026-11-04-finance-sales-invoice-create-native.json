@@ -1,7 +1,7 @@
 {
   "version": 1,
   "date": "2026-11-04",
-  "status": "Native Finance standalone sales-invoice create verified on desktop and mobile; the sales-invoice workspace remains partial for receipt/defaults auxiliaries",
+  "status": "Native Finance standalone sales-invoice create verified on desktop and mobile after correcting the Sales route selection; the sales-invoice workspace remains partial for receipt/defaults auxiliaries",
   "capability": "finance-sales-invoice-create-native",
   "base": "c9fe99bc2e88d5860084c4bbd1afc2fffa8dfc0b",
   "branch": "codex/finance-sales-invoice-create-native",
@@ -43,10 +43,10 @@
       "viewport": "1280x900",
       "url": "https://acme.jesadakorn.com/finance/documents/sales/invoices?company=zero-service-parts-d0f627fa-f317-440f-ab49-34173813570e&new=invoice",
       "form": "Browser customer; 1 x 125.00 THB at 7% VAT; completion evidence entered and confirmed",
-      "postStatus": 200,
+      "postStatus": 201,
       "result": {
-        "id": "invoice-60b7fdd5-4394-4595-8970-39ec44fda6fb-invoice",
-        "number": "INV-2026-000001",
+        "id": "invoice-270a7e47-14e1-46d5-9fe8-7fc86b8b0677-invoice",
+        "number": "INV-2026-000004",
         "total": "133.75",
         "status": "draft",
         "version": 1
@@ -58,10 +58,10 @@
       "viewport": "390x844",
       "url": "https://acme.jesadakorn.com/finance/documents/sales/invoices?company=zero-service-parts-d0f627fa-f317-440f-ab49-34173813570e&new=invoice",
       "form": "Browser customer; 1 x 125.00 THB at 7% VAT; completion evidence entered and confirmed",
-      "postStatus": 200,
+      "postStatus": 201,
       "result": {
-        "id": "invoice-0d960428-bd82-4841-a74b-fd128c8add0e-invoice",
-        "number": "INV-2026-000002",
+        "id": "invoice-1816661e-4450-4c60-b127-75678cde6da2-invoice",
+        "number": "INV-2026-000005",
         "total": "133.75",
         "status": "draft",
         "version": 1
@@ -69,21 +69,21 @@
       "pageErrors": 0,
       "consoleErrors": 11
     },
-    "listReadback": "The desktop and mobile Sales invoices list showed the created INV-2026-000001 first with Browser customer, 2026-11-04, draft, THB 133.75 outstanding. After the mobile create, the database held INV-2026-000002 as the newest draft.",
+    "listReadback": "The desktop and mobile Sales invoices list showed the newest native-created INV-2026-000005 first with Browser customer, 2026-11-04, draft, THB 133.75 outstanding.",
     "nativeProof": "With the private native API stopped, the page rendered 'Temporarily unavailable'; after restarting the API the native list and created invoice rows returned."
   },
   "persisted": {
     "invoices": [
       {
-        "id": "invoice-60b7fdd5-4394-4595-8970-39ec44fda6fb-invoice",
-        "number": "INV-2026-000001",
+        "id": "invoice-270a7e47-14e1-46d5-9fe8-7fc86b8b0677-invoice",
+        "number": "INV-2026-000004",
         "totalMinor": 13375,
         "lineMode": "native_lines",
         "originKind": "native_line"
       },
       {
-        "id": "invoice-0d960428-bd82-4841-a74b-fd128c8add0e-invoice",
-        "number": "INV-2026-000002",
+        "id": "invoice-1816661e-4450-4c60-b127-75678cde6da2-invoice",
+        "number": "INV-2026-000005",
         "totalMinor": 13375,
         "lineMode": "native_lines",
         "originKind": "native_line"
@@ -96,6 +96,11 @@
     "The generic sales-invoice workspace remains partial: customer-receipt detail/export/issue and sales defaults/settings are still TS; edit and void of standalone drafts are not part of this slice.",
     "The browser create used one service line per invoice; multi-line and tax rounding are covered by PostgreSQL.",
     "The Finance app logs React hydration console warnings; pageErrors stay 0.",
-    "The Next catch-all route returned 200 to the browser while the native HTTP route returns 201; the client accepts both as success and the native writer persisted the invoice."
-  ]
+    "The first browser attempt selected the legacy Sales route; the correction PR moves the native branch to the specific route and records the native 201 results. The legacy INV-2026-000001/000002 rows remain in the development fixture only."
+  ],
+  "routingCorrection": {
+    "reason": "The first browser run posted to /finance/sales/invoices, which is served by the specific finance/sales/[[...path]] route, not the finance/[...path] catch-all. The native branch was moved to the specific route and the private API boundary now admits its POST mutation.",
+    "firstRun": "Legacy route returned 200 and wrote invoices INV-2026-000001/000002; those rows are retained historical data but are not native-create evidence.",
+    "correctedRun": "The same normal-auth editor then returned 201 from the native route and persisted INV-2026-000004 (desktop) and INV-2026-000005 (mobile)."
+  }
 }

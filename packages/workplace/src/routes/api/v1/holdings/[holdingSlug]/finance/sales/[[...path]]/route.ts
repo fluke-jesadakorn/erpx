@@ -1,4 +1,4 @@
-import {nativeServiceCustomerReceiptReadback} from '@erpx/feature-finance/public/server';
+import {nativeServiceCustomerReceiptReadback,nativeSalesInvoiceCreate} from '@erpx/feature-finance/public/server';
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import { z } from "zod";
 import { requireWorkContext } from "@erpx/server-identity_access/public/authorization";
@@ -31,6 +31,10 @@ export async function POST(request: Request, context: Context) {
     const origin = request.headers.get("origin"); if (origin && origin !== requestPublicOrigin(request)) throw new ApiError(403, "ORIGIN_FORBIDDEN", "Use the application origin.");
     const { holdingSlug, path = [] } = await context.params;
     const actor = requirePermission(await requireWorkContext(holdingSlug), "finance.read");
+    if (path[0] === "invoices" && path.length === 1) {
+      const native = await nativeSalesInvoiceCreate(request.clone(), holdingSlug);
+      if (native) return native;
+    }
     const key = request.headers.get("Idempotency-Key"); if (!key || key.length > 200) throw new ApiError(422, "COMMAND_KEY_REQUIRED", "A valid Idempotency-Key is required.");
     const input = await request.json(); let data;
     if (path[0] === "defaults" && path.length === 1) data = await prepareSalesDefaults(actor, input, key);
