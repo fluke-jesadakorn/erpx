@@ -442,6 +442,23 @@ fn production_configuration_requires_durable_loopback_databases_and_real_authori
     assert!(!parses_production(&invalid));
 }
 
+#[test]
+fn production_configuration_rejects_finance_composition() {
+    let mut production = production_document();
+    production["financeJournalReads"] =
+        serde_json::json!([{"holdingId": "h001", "companyId": "company"}]);
+    assert_eq!(
+        DevelopmentApiConfiguration::parse_production(&production.to_string()).err(),
+        Some("FINANCE_PRODUCTION_COMPOSITION_UNAVAILABLE")
+    );
+    let mut production = production_document();
+    production["financeFieldServiceReceiptWrites"] = serde_json::json!(["h001"]);
+    assert_eq!(
+        DevelopmentApiConfiguration::parse_production(&production.to_string()).err(),
+        Some("FINANCE_PRODUCTION_COMPOSITION_UNAVAILABLE")
+    );
+}
+
 #[tokio::test]
 async fn production_assembly_rejects_a_development_configuration() {
     use erpx_server_identity_access::public::{SystemAccountClock, SystemAuthenticationSecrets};

@@ -63,7 +63,7 @@ use erpx_server_runtime::public::{
     foundation_router,
     postgres::{
         DatabaseConfig, DatabasePool, LeasedDevelopmentDatabase, MigrationTrack, PgRequestLease,
-        PoolLimits, connect_pool, load_migrations, verify_current_migration_inventory,
+        PoolLimits, load_migrations, verify_current_migration_inventory,
     },
     validate_foundation_address,
 };
@@ -424,6 +424,21 @@ impl DevelopmentApiConfiguration {
                 || doc.service_package_lifecycle.is_none())
         {
             return Err("PRODUCTION_API_SECURITY_CONFIGURATION_REQUIRED");
+        }
+        // Finance still fails closed for production composition. A production
+        // document must not mount Finance routes with development semantics.
+        if profile == Profile::Production
+            && (!doc.finance_journal_reads.is_empty()
+                || !doc.finance_field_service_invoice_reads.is_empty()
+                || !doc.finance_field_service_invoice_posts.is_empty()
+                || !doc.finance_field_service_receipt_writes.is_empty()
+                || !doc.finance_journal_posts.is_empty()
+                || !doc.finance_field_service_journal_posts.is_empty()
+                || !doc.finance_journal_creates.is_empty()
+                || !doc.finance_journal_edits.is_empty()
+                || !doc.finance_journal_reversals.is_empty())
+        {
+            return Err("FINANCE_PRODUCTION_COMPOSITION_UNAVAILABLE");
         }
         let listen = match profile {
             Profile::Development => validate_foundation_address(&doc.listen)
@@ -2908,6 +2923,7 @@ async fn run_outbox_worker_file(path:&Path,shutdown:impl std::future::Future<Out
                 control:control.raw().clone(),holding:write.raw().clone(),
                 audience:format!("holding:{}:{}:{}",config.environment,holding.registration.holding_id.as_str(),holding.host),
                 origin:format!("https://{}",holding.host),
+                environment:config.environment.clone(),
             });}
             pairs.push((write.raw().clone(), read.raw().clone()));
         }

@@ -10,6 +10,7 @@ pub struct FieldPushTarget {
     pub holding: PgPool,
     pub audience: String,
     pub origin: String,
+    pub environment: String,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PushTurn {
@@ -32,7 +33,7 @@ async fn current(
         &s.session,
         &s.user,
         &target.audience,
-        "development",
+        &target.environment,
         now,
     )
     .await?;
