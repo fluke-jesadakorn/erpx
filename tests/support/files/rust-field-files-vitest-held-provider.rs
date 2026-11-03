@@ -295,6 +295,15 @@ async fn run_fixture(
         doc["fieldServiceSourceRecordReads"]=serde_json::json!([{"holdingId":"h001","mode":"enforced"}]);
         doc["financeJournalReads"]=serde_json::json!([{"holdingId":"h001","companyId":read_company}]);
     }
+    // Explicit finite Commercial profile: mounts the native Service package
+    // lifecycle (Platform MFA + preview/apply) so a leased fixture Company can
+    // buy Finance through the native path instead of direct SQL grants.
+    if std::env::var("ERPX_FIELD_COMMERCIAL_PROFILE").is_ok_and(|v|v=="1") {
+        assert!(parts_mixed && engineering.is_some(),"Commercial profile requires the owned mixed cohort");
+        doc["accountSecurityKeys"] = serde_json::json!({"current":"fixture","keys":[{"id":"fixture","keyHex":"07".repeat(32)}]});
+        doc["servicePackageLifecycle"] = serde_json::json!({"providerHoldingId":"h001","holdingIds":["h001"],"reviewSecret":"fixture-only-secret-32-characters-minimum"});
+        doc["fieldServiceSupportReads"] = serde_json::json!(["h001"]);
+    }
     doc["fieldAttachmentLinks"] = serde_json::json!([{"holdingId":"h001","mode":"enabled"}]);
     doc["fieldAttachmentBinds"] = serde_json::json!([{"holdingId":"h001","mode":"enabled"}]);
     doc["fieldFilesPolicy"] = serde_json::json!({"mode":"enabled","uploadsFrozen":false});
