@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-03T21:59:55+00:00",
+  "updatedAt": "2026-11-03T22:01:04+00:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -21,7 +21,7 @@
     "additionalInteropEvidence": 2,
     "workflowsPartial": 2,
     "workflowsVerified": 16,
-    "workflowsMerged": 15,
+    "workflowsMerged": 16,
     "ownersComplete": 1,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -3152,6 +3152,17 @@
       "durableContractRefs": [
         "docs/contracts/next/inventory.md"
       ]
+    },
+    {
+      "id": "inventory-movements-merge",
+      "kind": "business-flow-evidence",
+      "status": "flow-complete",
+      "scope": "Native Inventory movement history merged to codex/rust-backend-migration: all-source projection, cursor pagination, HTTP/Next transport and desktop/mobile stock page.",
+      "sourceIdentity": "d53b0b3c2",
+      "evidenceRef": "docs/testing/evidence/2026-11-04-inventory-movements-merge.json",
+      "durableContractRefs": [
+        "docs/contracts/next/inventory.md"
+      ]
     }
   ],
   "workflows": [
@@ -4059,15 +4070,18 @@
       "scope": "Issues & movements",
       "partial": false,
       "verified": true,
-      "merged": false,
+      "merged": true,
       "evidenceFlows": [
         "field-service-issue-part",
         "field-service-parts-physical-reference-interop",
         "inventory-movements-read",
-        "inventory-movements-browser"
+        "inventory-movements-browser",
+        "inventory-movements-merge"
       ],
       "sourceRef": "packages/server-inventory/src/public/inventory-transit.ts",
-      "gap": "Verified the native Inventory movement-history projection across inventory_ledger sources with cursor pagination, Company/branch scope, current authority, CAS and inventory.stock-core purchase. Source-specific issue commands remain with their owning modules; the Field issue writer is native."
+      "gap": "Verified the native Inventory movement-history projection across inventory_ledger sources with cursor pagination, Company/branch scope, current authority, CAS and inventory.stock-core purchase. Source-specific issue commands remain with their owning modules; the Field issue writer is native.",
+      "mergeCommit": "d53b0b3c2edfe8ab5e81c1dcf3e00d7b5336e133",
+      "pullRequest": 36
     },
     {
       "id": "maintenance/work-orders",
