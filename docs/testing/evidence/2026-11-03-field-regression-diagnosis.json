@@ -1,7 +1,7 @@
 {
   "version": 1,
   "date": "2026-11-03",
-  "status": "diagnosis recorded; checklist 15 remains open",
+  "status": "diagnosis superseded; checklist 15 closed by 2026-11-03-field-required-case-restored.json",
   "capability": "field-regression-diagnosis",
   "integrationTarget": "codex/rust-backend-migration",
   "sourceCommit": "ccf90a9ce",
@@ -45,7 +45,7 @@
   },
   "limits": [
     "Local scoped diagnosis, not owner/workflow acceptance.",
-    "Checklist 15 remains open until the required full-workflow vitest case executes or the reviewed register is repointed.",
+    "Checklist 15 was closed by the follow-up required-case restoration evidence after this diagnosis.",
     "No product assertion was relaxed."
   ]
 }
