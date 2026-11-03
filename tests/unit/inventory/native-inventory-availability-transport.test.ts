@@ -1,6 +1,6 @@
 import {describe,it,expect,vi} from 'vitest';
 vi.mock('server-only',()=>({}));
-import {createNativeInventoryAvailabilityReader,type NativeAvailabilityContext} from '../../../packages/feature-inventory/src/adapters/server/native-availability';
+import {createNativeInventoryAvailabilityReader,createNativeInventoryMovementsReader,type NativeAvailabilityContext} from '../../../packages/feature-inventory/src/adapters/server/native-availability';
 
 const config=(overrides:Record<string,unknown>={})=>JSON.stringify({
   privateBaseUrl:'http://127.0.0.1:44991',
@@ -23,6 +23,8 @@ const row={warehouseId:'w',productId:'p',sku:'SKU',name:'Product',unit:'pcs',tra
   warehouseName:'Warehouse',quantityMilli:10000,reservedMilli:3000,quarantinedMilli:2000,
   inTransitMilli:1500,availableMilli:7000,valueMinor:1000,version:1};
 const ok=()=>new Response(JSON.stringify({context,data:[row],currency:'THB'}),{status:200,headers:{'content-type':'application/json'}});
+const movement={id:'m1',warehouseId:'w',productId:'p',sku:'SKU',warehouseName:'Warehouse',quantityMilli:1000,valueMinor:100,movementDate:'2026-11-04',sourceType:'pos_sale',sourceId:'source-1',orderNumber:'POS-1',fulfillmentDate:'2026-11-04',createdAt:100};
+const movementsOk=()=>new Response(JSON.stringify({context,data:[movement],nextCursor:'100:m1'}),{status:200,headers:{'content-type':'application/json'}});
 
 describe('native Inventory availability transport',()=>{
  it('forwards the configured Holding with the original session and CAS',async()=>{
@@ -64,5 +66,29 @@ describe('native Inventory availability transport',()=>{
   const mismatch=vi.fn().mockResolvedValue(new Response(JSON.stringify({context,data:[{...row,availableMilli:9999}],currency:'THB'}),{status:200,headers:{'content-type':'application/json'}}));
   await expect(createNativeInventoryAvailabilityReader(config(),mismatch)(headers(),'acme',actor))
     .rejects.toMatchObject({code:'NATIVE_INVENTORY_AVAILABILITY_RESPONSE_INVALID'});
+ });
+});
+
+describe('native Inventory movement transport',()=>{
+ it('forwards the cursor and maps the all-source movement page',async()=>{
+  const transport=vi.fn().mockResolvedValue(movementsOk());
+  const read=createNativeInventoryMovementsReader(config(),transport);
+  const result=await read(headers(),'acme',actor,'99:m0');
+  expect(result.nextCursor).toBe('100:m1');
+  expect(result.rows[0]).toMatchObject({id:'m1',source_type:'pos_sale',order_id:'source-1',order_number:'POS-1',quantity_milli:1000});
+  const [url,out]=transport.mock.calls[0];
+  expect(url.toString()).toBe('http://127.0.0.1:44991/api/v1/holdings/acme/inventory/movements?cursor=99%3Am0');
+  expect(out.get('x-erpx-context-company')).toBe('company');
+  expect(out.get('cookie')).toBe('__Host-erpx-product=session');
+ });
+
+ it('rejects a changed context or an overlong cursor before returning rows',async()=>{
+  const changed=vi.fn().mockResolvedValue(new Response(JSON.stringify({context:{...context,revision:8},data:[movement],nextCursor:null}),{status:200,headers:{'content-type':'application/json'}}));
+  await expect(createNativeInventoryMovementsReader(config(),changed)(headers(),'acme',actor))
+    .rejects.toMatchObject({code:'NATIVE_INVENTORY_MOVEMENT_CONTEXT_CHANGED'});
+  const transport=vi.fn();
+  await expect(createNativeInventoryMovementsReader(config(),transport)(headers(),'acme',actor,'x'.repeat(401)))
+    .rejects.toMatchObject({code:'NATIVE_INVENTORY_MOVEMENT_CURSOR_INVALID'});
+  expect(transport).not.toHaveBeenCalled();
  });
 });

@@ -3151,7 +3151,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         };
     let inventory_availability = request.method() == axum::http::Method::GET
         && match request.uri().path().split('/').collect::<Vec<_>>().as_slice() {
-            ["", "api", "v1", "holdings", slug, "inventory", "availability"] => state
+            ["", "api", "v1", "holdings", slug, "inventory", "availability" | "movements"] => state
                 .inventory_availability_targets
                 .contains(&(host.to_owned(), (*slug).to_owned())),
             _ => false,
