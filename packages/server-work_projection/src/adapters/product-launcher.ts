@@ -34,8 +34,16 @@ export async function existingWorkspaceLaunchChoices() {
   if (!origin) return [];
   const bindings = await activeHoldingBindings();
   return (await Promise.all(bindings.map(async binding => {
-    const scope = await firstAuthorizedWorkspace(binding.slug);
-    return scope ? [{ holding: binding.displayName, href: new URL(workspaceHref(scope), origin).href }] : [];
+    try {
+      const scope = await firstAuthorizedWorkspace(binding.slug);
+      return scope ? [{ holding: binding.displayName, href: new URL(workspaceHref(scope), origin).href }] : [];
+    } catch (error) {
+      // A registered binding may belong to another environment or no longer be
+      // present in this native workspace configuration. Recovery links are
+      // best-effort; an unavailable binding must not blank the product entry.
+      if (error instanceof ApiError && [401, 403, 404].includes(error.status)) return [];
+      throw error;
+    }
   }))).flat();
 }
 

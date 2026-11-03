@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-03T20:32:16+00:00",
+  "updatedAt": "2026-11-03T20:42:38+00:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -19,8 +19,8 @@
     "qualifiedBusinessFlows": 30,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 6,
-    "workflowsVerified": 12,
+    "workflowsPartial": 5,
+    "workflowsVerified": 13,
     "workflowsMerged": 12,
     "ownersComplete": 1,
     "bundleChecklistComplete": 18,
@@ -3075,6 +3075,17 @@
       "durableContractRefs": [
         "docs/contracts/next/support.md"
       ]
+    },
+    {
+      "id": "apps-product-selection",
+      "kind": "business-flow-evidence",
+      "status": "flow-complete",
+      "scope": "All-Company/Branch/Department product selection matrix, per-Company authority withdrawal, Apps entry recovery binding skip and desktop browser evidence.",
+      "sourceIdentity": "ec10bb0b025a543caf82389969a512ecc343370b",
+      "evidenceRef": "docs/testing/evidence/2026-11-04-apps-product-selection.json",
+      "durableContractRefs": [
+        "docs/contracts/next/apps.md"
+      ]
     }
   ],
   "workflows": [
@@ -5466,14 +5477,16 @@
       "kind": "surface",
       "owner": "apps",
       "scope": "apps:all-company-branch-department-product-selection",
-      "partial": true,
-      "verified": false,
+      "partial": false,
+      "verified": true,
       "merged": false,
       "evidenceFlows": [
-        "holding-product-entry-native-session"
+        "holding-product-entry-native-session",
+        "apps-product-selection-matrix",
+        "apps-product-selection-browser"
       ],
       "sourceRef": "docs/status/product-migration-acceptance.json",
-      "gap": "One normal Field entry is evidenced; all products/scopes, default authority withdrawal and known initial Company hydration remain unverified."
+      "gap": "Verified all commercial base products across every authorized Company/branch/department scope, per-Company authority withdrawal and the known initial Company hydration. The Apps product entry now skips unavailable recovery bindings instead of blanking the page. The Apps owner remains open for its three other workflows."
     },
     {
       "id": "apps:single-product-direct-entry",
