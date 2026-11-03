@@ -280,3 +280,6 @@ pub mod finance_field_journal_files;
 mod finance_field_journal_files_bind;
 #[cfg(any(feature = "existing-business", feature = "finance-field-write"))]
 pub mod finance_field_files_intake_command;
+
+#[cfg(feature = "existing-business")]
+pub mod support_ticket_command;
