@@ -6,14 +6,15 @@ This section is the sole current execution queue. It supersedes older queue/stat
 
 ### Verified handoff and classification
 
-- Checkout: /Users/fluke/.codex/worktrees/contributor-container-delivery/erpx, branch codex/field-bundle-merge-receipt (receipt branch from codex/rust-backend-migration).
+- Checkout: /Users/fluke/.codex/worktrees/contributor-container-delivery/erpx, branch codex/field-merged-head-receipt (docs receipt from codex/rust-backend-migration at 85c682127). The Support tickets cutover continues on codex/support-tickets-owner-cutover (head eb1f5a44e, not merged).
 - Field bundle merged: PR #17 (https://github.com/fluke-jesadakorn/erpx/pull/17), merge commit 2e0090832d85eb3c171672dd28729f8445d42802, parents a8bcd2b9a (base) and 8a5dae059 (head). Remote codex/rust-backend-migration is at the merge commit.
 - Completion counts: Field checklist 18/18; owners 0/41; catalogue 6 verified / 6 merged / 7 partial dependency owners of 206.
 - Checklist 13 is complete with the explicit narrowed scope: the Field production runtime, routes, jobs and providers are implemented; Finance production release/Company acceptance is a Finance-owner dependency outside this bundle and the production parser fails closed with FINANCE_PRODUCTION_COMPOSITION_UNAVAILABLE.
 - Bundle scope: 884 changed files vs a8bcd2b9a; 20 changed server packages (23-package strict Field closure plus two one-line Identity import consumers); generated turbo inputs, migrations, tests, docs and frontend consumers classified in docs/testing/evidence/2026-11-03-field-bundle-scope-classification.json.
 - Verification: cargo check --all-targets; strict native-worker Clippy; typecheck; structure/architecture/docs; catalogue 33 modules/770 suites; architecture suites 7/7, 38/38, 5/5, 2/2, 6/6; Field runtime 4/4; Files provider 2/2; Field workflow 8/8; parts 35/35; HTTP parity 40/41 + single; collaboration 29/29; exact browser journey with zero page errors and two transient reviewer/manager 503 console errors.
+- Exact Field journey re-ran on the merged source at 85c682127: six Field workflows, invoice post, receipt create/approve/release, bank import, confirm settled v4 (journal 99816371...), one allocation 10000, paid invoice, matched bank row v2, balanced journal, Work 200 with 16 Field rows and orderLinked, Support owner page 200; pageErrors 0 and consoleErrors 0. Persisted PostgreSQL readback matches. The only code delta since the verified code head is the behaviour-preserving Clippy cleanup 549e9540d.
 - The Field owner remains partial in the 41-owner runtime register; this merge closes the bundle, not the owner. Production Field billing/receipts remain unavailable until the Finance owner delivers production release/Company acceptance ports.
-- Next: select the next dependency-ready owner, run its scoped cutover with the same gates, and continue until 41 owners/206 workflows. The Field bundle merge is the integration baseline.
+- Next: close the Support owner. The native ticket command/HTTP/transport and PostgreSQL evidence exist on codex/support-tickets-owner-cutover, but SLA watch, incidents, sessions, capabilities and attachments remain separate workflows and no desktop/mobile browser journey has run against the native writer. The only isolated native Account cohort is Field-only; the general browser simulation uses Better Auth and cannot mint the native session. No Support PR is open or merged. Continue until 41 owners/206 workflows.
 
 ### 1. Reconcile the handoff once
 
