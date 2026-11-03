@@ -79,15 +79,17 @@
     "The worker supervisor restart path is exercised by the worker shutdown path; a forced crash-restart is not simulated.",
     "Checklist 18 (scoped PR/merge) remains open."
   ],
-  "remainingGap": {
-    "code": "FINANCE_PRODUCTION_COMPOSITION_UNAVAILABLE",
-    "reason": "Finance still fails closed for production composition. The production parser rejects any Finance capability instead of mounting Finance with development semantics, so the Field billing/receipt journey is not deployable in production.",
-    "effect": "Checklist 13 remains open until the Finance production release/Company acceptance ports exist."
-  },
   "scopeNarrowing": {
     "decision": "The Field bundle production runtime covers Field workspace, orders, visits and Files. Finance production release/Company acceptance ports are a Finance-owner dependency outside this bundle.",
     "trackingCode": "FINANCE_PRODUCTION_COMPOSITION_UNAVAILABLE",
     "failClosed": "A production document with any Finance capability is rejected at configuration parse; development semantics are never mounted in production.",
     "impact": "Production Field billing/receipts remain unavailable until the Finance owner delivers those ports."
+  },
+  "outOfScopeDependency": {
+    "owner": "finance",
+    "code": "FINANCE_PRODUCTION_COMPOSITION_UNAVAILABLE",
+    "reason": "Finance production release and Company acceptance ports are a Finance-owner dependency outside the Field bundle.",
+    "effect": "Production Field billing/receipts remain unavailable; the production parser rejects Finance-configured documents instead of mounting development semantics.",
+    "fieldChecklist13": "complete with the narrowed scope; only checklist 18 (scoped PR/merge) remains."
   }
 }

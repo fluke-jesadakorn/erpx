@@ -3,8 +3,8 @@
   "date": "2026-11-03",
   "status": "Field bundle scope classification for the scoped PR",
   "base": "a8bcd2b9a (origin/codex/rust-backend-migration)",
-  "head": "5738b23820149d33d6ddc3889d19de57ccaabbf2",
-  "changedFiles": 881,
+  "head": "7025a1fb30a0cc1eb3a2f352f3bee1fdd13abec2",
+  "changedFiles": 884,
   "strictFieldCargoClosure": [
     "erpx-server-assets",
     "erpx-server-collaboration",
@@ -59,6 +59,13 @@
   "outsideClosureReasons": {
     "erpx-server-customer-360": "one-line import update to @erpx/server-identity_access/public/account-session after the Identity session module split; TypeScript consumer only",
     "erpx-server-legal": "one-line import update to @erpx/server-identity_access/public/account-session after the Identity session module split; TypeScript consumer only"
+  },
+  "frontendConsumerReasons": {
+    "packages/feature-identity_access/src/lib/device-account-return.ts": "normal Account/Directory login return for the Field product entry (checklist 1)",
+    "packages/contracts/src/product-return-path.ts": "safe return path used by the same normal Account entry",
+    "packages/feature-collaboration/src/lib/inbox-state-command.ts": "Field Work/Inbox action state used by the Field consumer (checklist 11)",
+    "packages/feature-commercial/src/domain/provider-package-command.ts": "package-grant acknowledgement used by the Field package lifecycle dependency",
+    "packages/contracts/src/private-loopback.ts": "shared 3101 production opt-in policy for Field transports"
   },
   "generatedFiles": [
     "apps/account/turbo.json",
@@ -219,7 +226,7 @@
     },
     "docs/testing": {
       "kind": "evidence-or-plan",
-      "files": 11
+      "files": 12
     },
     "docs/ux-ui": {
       "kind": "evidence-or-plan",
@@ -243,7 +250,7 @@
     },
     "packages/contracts": {
       "kind": "frontend-consumer",
-      "files": 10
+      "files": 11
     },
     "packages/feature-account": {
       "kind": "frontend-consumer",
@@ -327,7 +334,7 @@
     },
     "packages/server-files": {
       "kind": "declared-cargo-dependency",
-      "files": 33
+      "files": 34
     },
     "packages/server-finance": {
       "kind": "declared-cargo-dependency",
@@ -439,6 +446,7 @@
     }
   },
   "unclassified": [],
+  "secretLikePaths": [],
   "assertions": {
     "allChangedServerPackagesAreDeclaredDependenciesOrImportConsumers": true,
     "noUnclassifiedTopLevelGroups": true,
@@ -449,6 +457,5 @@
     "The strict closure is cargo tree -p erpx-service --no-default-features --features field-service, which is the declared Field bundle dependency graph.",
     "apps/*/turbo.json are generated build-cache inputs; they do not change runtime behavior.",
     "docs/status, docs/testing and docs/production-plan are delivery registers/evidence for the bundle."
-  ],
-  "secretLikePaths": []
+  ]
 }

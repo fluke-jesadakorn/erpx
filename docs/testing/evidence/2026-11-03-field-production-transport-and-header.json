@@ -1,7 +1,7 @@
 {
   "version": 1,
   "date": "2026-11-03",
-  "status": "production transport opt-in and compiled Field header verified; checklist 18 remains blocked by Finance production composition",
+  "status": "production transport opt-in and compiled Field header verified; checklist 18 (scoped PR/merge) is the only remaining item",
   "capability": "field-production-transport-and-header",
   "integrationTarget": "codex/rust-backend-migration",
   "sourceCommit": "2996f14b5",
@@ -35,9 +35,27 @@
       "Review actual physical-count sources"
     ],
     "metrics": {
-      "header": {"top": 0, "bottom": 68, "left": 260, "right": 1280, "height": 68},
-      "main": {"top": 68, "bottom": 871.546875, "left": 260, "right": 1280, "height": 803.546875},
-      "title": {"top": 98, "bottom": 138.796875, "left": 285, "right": 1255, "height": 40.796875},
+      "header": {
+        "top": 0,
+        "bottom": 68,
+        "left": 260,
+        "right": 1280,
+        "height": 68
+      },
+      "main": {
+        "top": 68,
+        "bottom": 871.546875,
+        "left": 260,
+        "right": 1280,
+        "height": 803.546875
+      },
+      "title": {
+        "top": 98,
+        "bottom": 138.796875,
+        "left": 285,
+        "right": 1255,
+        "height": 40.796875
+      },
       "scrollHeight": 900,
       "innerHeight": 900
     },
@@ -46,7 +64,8 @@
   },
   "limits": [
     "Local scoped evidence, not owner/workflow acceptance.",
-    "Checklist 13 remains open: Finance production composition is unavailable and the production parser fails closed for Finance capabilities.",
-    "Checklist 18 remains blocked by the mixed-scope branch and the Finance production gap; no PR/merge exists."
+    "Checklist 13 is complete with the narrowed scope: Finance production release/Company acceptance is a Finance-owner dependency outside this bundle and the production parser fails closed.",
+    "Checklist 18 (scoped PR/merge) remains open.",
+    "The 3101 policy is admitted only by an explicit production:true config; development keeps rejecting it."
   ]
 }
