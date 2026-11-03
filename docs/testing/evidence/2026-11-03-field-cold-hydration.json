@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "date": "2026-11-03",
+  "status": "local scoped Rust candidate qualified; PR integration pending",
+  "capability": "field-cold-hydration",
+  "integrationTarget": "codex/rust-backend-migration",
+  "sourceCommit": "d8047f53a",
+  "transport": {
+    "browser": "Chromium 1248 on the host",
+    "relay": "loopback CONNECT relay over docker exec stdio",
+    "isolation": "cohort keeps --network none, no published ports, registered-host allowlist",
+    "auth": "normal Account sign-in, Company and role selection"
+  },
+  "result": {
+    "cold": true,
+    "finalUrl": "https://acme.jesadakorn.com/service",
+    "heading": "Choose a workspace",
+    "companyLabel": true,
+    "workContextStatus": 200,
+    "assignmentId": "assignment-zero-service-parts-d0f627fa-f317-440f-ab49-34173813570e-owner",
+    "revision": 1,
+    "pageErrors": [],
+    "hydrationWarnings": [],
+    "consoleErrors": []
+  },
+  "meaning": "A fresh browser context signed in normally and entered the first Company with no React hydration warning, page error or console error on the current candidate.",
+  "limits": [
+    "Local scoped evidence, not owner/workflow acceptance.",
+    "Checklist 13 runtime/jobs, 17 modularity and 18 merge remain open."
+  ]
+}
