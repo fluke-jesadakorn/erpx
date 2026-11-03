@@ -91,5 +91,6 @@
     "reason": "Finance production release and Company acceptance ports are a Finance-owner dependency outside the Field bundle.",
     "effect": "Production Field billing/receipts remain unavailable; the production parser rejects Finance-configured documents instead of mounting development semantics.",
     "fieldChecklist13": "complete with the narrowed scope; only checklist 18 (scoped PR/merge) remains."
-  }
+  },
+  "transportFixCommit": "7025a1fb3"
 }

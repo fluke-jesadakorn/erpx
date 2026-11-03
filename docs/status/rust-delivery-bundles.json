@@ -2914,7 +2914,7 @@
       "kind": "architecture-component-evidence",
       "status": "flow-complete",
       "scope": "Formal Field bundle production scope: Field runtime/jobs complete; Finance production release/Company acceptance is a Finance-owner dependency outside the bundle and the production parser fails closed.",
-      "sourceIdentity": "5738b2382",
+      "sourceIdentity": "7025a1fb3",
       "evidenceRef": "docs/testing/evidence/2026-11-03-field-production-runtime.json",
       "durableContractRefs": [
         "docs/contracts/next/finance.md",
