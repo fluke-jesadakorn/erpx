@@ -3,7 +3,7 @@
   "date": "2026-11-03",
   "status": "Field bundle scope classification for the scoped PR",
   "base": "a8bcd2b9a (origin/codex/rust-backend-migration)",
-  "head": "7025a1fb3 (code head); later evidence-only commits do not change the classification",
+  "head": "b9d40aea5",
   "changedFiles": 884,
   "strictFieldCargoClosure": [
     "erpx-server-assets",
@@ -457,6 +457,7 @@
     "The strict closure is cargo tree -p erpx-service --no-default-features --features field-service, which is the declared Field bundle dependency graph.",
     "apps/*/turbo.json are generated build-cache inputs; they do not change runtime behavior.",
     "docs/status, docs/testing and docs/production-plan are delivery registers/evidence for the bundle.",
-    "The 3101 policy fix and its tests are part of 7025a1fb3; evidence-only commits after that add no changed paths."
+    "The 3101 policy fix and its tests are part of 7025a1fb3; evidence-only commits after that add no changed paths.",
+    "b9d40aea5 regenerates the generated turbo inputs for the shared loopback policy; code head 7025a1fb3 adds the transport fix."
   ]
 }
