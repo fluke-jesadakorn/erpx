@@ -78,7 +78,7 @@ async function actualServiceCaller(){
  class ActualFormData extends FormData{constructor(target:unknown){super();if(target!==form)throw Error('Actual submitted agreement form required');for(const [key,value] of Object.entries({branchId:'branch',customerId:'customer',currency:'THB',title:edit==='original'?'Original agreement':'Newer unsent agreement',startDate:'2026-10-01',endDate:'2026-10-31',visitRate:'100',warrantyDiscountPercent:'0'}))this.set(key,value);}}
  const submitPorts={FormData:ActualFormData,decimalToMinor,fail:set('error'),send:(input:unknown,submitted?:HTMLFormElement)=>{pending=send(input,submitted,false,structuredClone(source));}},onSubmit=new Function(...Object.keys(submitPorts),`${code.submit}\nreturn submit;`)(...Object.values(submitPorts)) as (event:{preventDefault:()=>void;currentTarget:HTMLFormElement})=>void;
  const readbacks:string[]=[];
- function stubFetch(write:typeof globalThis.fetch){
+ function stubFetch(write:(url:RequestInfo|URL,init?:RequestInit)=>Promise<Response>){
   let original:{key:string;body:Record<string,unknown>}|undefined;
   vi.stubGlobal('fetch',async(url:RequestInfo|URL,init?:RequestInit)=>{
    if(init?.method==='POST'){original={key:new Headers(init.headers).get('idempotency-key')!,body:JSON.parse(String(init.body))};return write(url,init);}

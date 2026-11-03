@@ -345,10 +345,10 @@ describe('native Field Inbox transport',()=>{
   const response=body();response.context.modules=['finance'];response.context.permissions=[...financeActor.iam!.permissions];
   const row=response.data[0];row.source_type='journal';row.source_id='field-cost';
   row.native_field_item={...row.native_field_item,sourceType:'journal',sourceId:'field-cost',href:'/finance/journals/field-cost',source:null as never};
-  const rows=await createNativeFieldInboxReader(config,async()=>({status:200,body:response}))(incoming(),financeActor,{all:true,limit:100});
+  const rows=await createNativeFieldInboxReader(config,async()=>({status:200,body:response}))(incoming(),financeActor,{all:true,limit:100,search:''});
   expect(rows[0].native_field_item).toMatchObject({sourceType:'journal',sourceId:'field-cost',href:'/finance/journals/field-cost'});expect(rows[0].native_field_item).not.toHaveProperty('source');
   row.native_field_item.href='/finance/journals/foreign';
-  await expect(createNativeFieldInboxReader(config,async()=>({status:200,body:response}))(incoming(),financeActor,{all:true,limit:100})).rejects.toMatchObject({code:'NATIVE_FIELD_INBOX_RESPONSE_INVALID'});
+  await expect(createNativeFieldInboxReader(config,async()=>({status:200,body:response}))(incoming(),financeActor,{all:true,limit:100,search:''})).rejects.toMatchObject({code:'NATIVE_FIELD_INBOX_RESPONSE_INVALID'});
  });
  test('fails closed on stale identities, spoofed item/source mapping, duplicate deliveries and native errors',async()=>{
   const {createNativeFieldInboxReader}=await import('../../../packages/server-collaboration/src/adapters/native-field-inbox');

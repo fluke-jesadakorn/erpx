@@ -6,12 +6,12 @@ import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
 import {promisify} from 'node:util';
 import {grantNativeEngineeringCatalogLocks} from './native-catalog-grants';
-const exec=promisify(execFile),root=resolve('.'),dockerHost=process.env.ERPX_COHORT_DOCKER_HOST,clientImage=process.env.ERPX_COHORT_CLIENT_IMAGE,caseVolume=process.env.ERPX_COHORT_CASE_VOLUME,output=process.env.ERPX_COHORT_OUTPUT;
+const exec=promisify(execFile),root=resolve('.'),dockerHost=process.env.ERPX_COHORT_DOCKER_HOST,clientImage=process.env.ERPX_COHORT_CLIENT_IMAGE,caseVolume=process.env.ERPX_COHORT_CASE_VOLUME??'',output=process.env.ERPX_COHORT_OUTPUT;
 if(!dockerHost?.startsWith('unix:///')||!clientImage||!/^sha256:[a-f0-9]{64}$/.test(clientImage)||!['erpx-native-ssr-case-20261031','erpx-native-field-owner-case-a8bcd2b9','erpx-native-field-owner-case-cfebf81a'].includes(caseVolume??'')||!output||!resolve(output).startsWith(join(root,'.scratch/dev')+'/'))throw Error('OWNED_COHORT_CONFIGURATION_REQUIRED');
 // Only the current owner case needs the immutable compiler vendor and the
 // existing isolated scanner. No host ports or operator configuration are mounted.
 const ownerMounts=(caseVolume==='erpx-native-field-owner-case-a8bcd2b9'||caseVolume==='erpx-native-field-owner-case-cfebf81a')?['--mount','type=volume,src=erpx-dev-field-files-q-arm64-node26.11.1-bun1.4.3-modules,dst=/case/source/node_modules,readonly','--mount','type=volume,src=erpx-dev-field-files-q-arm64-node26.11.1-bun1.4.3-modules,dst=/case/build/node_modules,readonly','--mount','type=volume,src=erpx-dev-service-parts-q-1f71-arm64-scanner-socket,dst=/case/socket,readonly','--mount','type=volume,src=erpx-dev-service-parts-q-1f71-arm64-scanner-definitions,dst=/case/defs,readonly']:[];
-const postgres='sha256:979bccfde35445db618c65107d27d08c6c21339d8dc3ad4c830c6633947be0e4',nonce=randomBytes(16).toString('hex'),label='com.erpx.engineering-case',labelValue='native-ssr-20261031',env={PATH:process.env.PATH??'',DOCKER_HOST:dockerHost,NODE_ENV:'test' as const};
+const postgres='sha256:979bccfde35445db618c65107d27d08c6c21339d8dc3ad4c830c6633947be0e4',nonce=randomBytes(16).toString('hex'),label='com.erpx.engineering-case',labelValue='native-ssr-20261031',env={PATH:process.env.PATH??'',DOCKER_HOST:dockerHost??'',NODE_ENV:'test' as const};
 const docker=async(args:string[])=>exec('docker',args,{env,maxBuffer:1024*1024,timeout:30000});
 const temp=await mkdtemp(join(tmpdir(),'erpx-native-cohort-driver-')),owned:string[]=[];let client='',holderStarted=false,run='';
 async function waitFor(path:string,limit=240){for(let i=0;i<limit;i++){try{await docker(['exec',client,'test','-f',path]);return;}catch{await Bun.sleep(250);}}throw Error('COHORT_PHASE_TIMEOUT');}
