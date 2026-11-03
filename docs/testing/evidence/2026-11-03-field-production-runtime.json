@@ -1,7 +1,7 @@
 {
   "version": 1,
   "date": "2026-11-03",
-  "status": "production API and Field worker supervisor implemented; checklist 13 remains open for the Files scan worker",
+  "status": "private production Field runtime qualified; checklist 13 closed",
   "capability": "field-private-production-runtime",
   "integrationTarget": "codex/rust-backend-migration",
   "sourceCommit": "1371cb762",
@@ -26,8 +26,9 @@
       "erpx-server production-worker --production-config /absolute/private.json"
     ],
     "assembly": "assemble_production_api mounts the same owner routers as development, including the Field HTTP routes, with real Account authority and migration inventory checks.",
-    "jobs": "run_production_workers_file supervises the Field dependency/outbox worker and any configured initial-count worker, restarting a stopped worker after a bounded delay and shutting down gracefully. The Field push provider runs inside the dependency worker.",
-    "migration": "migrations/postgres/control/0044_configured_account_environments.sql replaces the three development-only Account SSO environment CHECK constraints with a bounded environment label; existing development rows remain valid."
+    "jobs": "run_production_workers_file supervises the Field dependency/outbox worker, the configured Files scan worker and any configured initial-count worker, restarting a stopped worker after a bounded delay and shutting down gracefully. The Field push provider runs inside the dependency worker.",
+    "migration": "migrations/postgres/control/0044_configured_account_environments.sql replaces the three development-only Account SSO environment CHECK constraints with a bounded environment label; existing development rows remain valid.",
+    "filesWorker": "The native Files scan worker now accepts RuntimeDatabase selections. Leased development databases keep the disposable lease identity checks; durable production databases validate the exact configured database name and role instead. The production supervisor no longer omits or rejects a configured Field Files provider."
   },
   "checks": [
     {
@@ -58,17 +59,17 @@
     {
       "suite": "typecheck / structure / architecture / docs",
       "result": "passed"
+    },
+    {
+      "suite": "files.rust-field-files-private-api.provider",
+      "result": "2 passed / 0 failed",
+      "criticalCase": "production_files_worker_accepts_durable_databases: the native Files scan worker assembles from a production configuration with durable databases and runs until shutdown"
     }
   ],
-  "remainingGap": {
-    "code": "PRODUCTION_FILES_SCAN_WORKER_REQUIRED",
-    "reason": "The native Files scan worker (DevelopmentFilesScanConfiguration) still validates the disposable leased development database identity (erpx_dev_rust_<token>, erpx_test_admin, lease comment). A durable production database cannot satisfy it. The production worker supervisor therefore rejects a configured Field Files provider instead of silently omitting the scan job.",
-    "effect": "A production Field journey that includes Files cannot yet run its scan job, so checklist 13 is not complete.",
-    "notWeakened": "No identity check was bypassed and no development test was relaxed."
-  },
   "limits": [
     "Local scoped evidence, not owner/workflow acceptance.",
     "The installed production service on 3101 was not started, stopped or changed.",
-    "Checklist 13, 7, 17 and 18 plus the scoped PR remain open."
+    "The worker supervisor restart path is exercised by the worker shutdown path; a forced crash-restart is not simulated.",
+    "Checklist 7, 17 and 18 plus the scoped PR remain open."
   ]
 }

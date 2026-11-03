@@ -11,10 +11,10 @@ use erpx_server_identity_access::public::{
     account_holding_bindings::{ConfiguredHoldingRegistry, lock_holding_binding_sources},
 };
 use erpx_server_runtime::public::postgres::{
-    DatabasePool, LeasedDevelopmentDatabase, MigrationTrack, PgRequestLease, PgTransactionError,
-    PgUnitOfWork, PgWorkFuture, PoolLimits, TransactionOptions, load_migrations,
-    verify_current_migration_inventory,
+    DatabasePool, MigrationTrack, PgRequestLease, PgTransactionError, PgUnitOfWork, PgWorkFuture,
+    PoolLimits, TransactionOptions, load_migrations, verify_current_migration_inventory,
 };
+use crate::runtime_database::RuntimeDatabase;
 use erpx_server_shared::public::{BusinessError, Clock, FailureKind, IdentifierSource, RecordId};
 use sqlx::{Connection, PgConnection};
 use std::{
@@ -30,8 +30,8 @@ type DatabaseIdentityRow = (String, i64, String, String, String, String, Option<
 /// registry is used at startup and in every short phase. No ambient .env load,
 /// database creation, migration, pool+label adoption or production fallback.
 pub struct DevelopmentFilesScanConfiguration {
-    control: LeasedDevelopmentDatabase,
-    holding: LeasedDevelopmentDatabase,
+    control: RuntimeDatabase,
+    holding: RuntimeDatabase,
     registry: Arc<ConfiguredHoldingRegistry>,
     scope: AttachmentScanScope,
     audience: RequestAudience,
@@ -41,9 +41,9 @@ pub struct DevelopmentFilesScanConfiguration {
 impl DevelopmentFilesScanConfiguration {
     /// Trusted scope data for duplicate configuration checks; not authority.
     pub fn scope(&self) -> &AttachmentScanScope { &self.scope }
-    pub fn new(
-        control: LeasedDevelopmentDatabase,
-        mut reviewed_write_databases: BTreeMap<String, LeasedDevelopmentDatabase>,
+    pub(crate) fn new(
+        control: RuntimeDatabase,
+        mut reviewed_write_databases: BTreeMap<String, RuntimeDatabase>,
         registry: Arc<ConfiguredHoldingRegistry>,
         scope: AttachmentScanScope,
     ) -> Result<Self, BusinessError> {
@@ -86,27 +86,37 @@ struct DatabaseIdentity {
     role: String,
     session_role: String,
     owner: String,
-    lease: String,
+    lease: Option<String>,
+    expected: Option<(String, String)>,
 }
 impl DatabaseIdentity {
-    async fn read(c: &mut PgConnection) -> Result<Self, Error> {
+    async fn read(
+        c: &mut PgConnection,
+        expected: Option<&(String, String)>,
+    ) -> Result<Self, Error> {
         let (name,oid,postmaster,role,session_role,owner,lease):DatabaseIdentityRow=sqlx::query_as("SELECT current_database(),d.oid::bigint,pg_postmaster_start_time()::text,current_user::text,session_user::text,pg_get_userbyid(d.datdba)::text,CASE WHEN octet_length(shobj_description(d.oid,'pg_database'))<=128 THEN shobj_description(d.oid,'pg_database') END FROM pg_catalog.pg_database d WHERE d.datname=current_database()").fetch_one(c).await?;
-        let lease = lease.ok_or_else(unavailable)?;
-        let token = name
-            .strip_prefix("erpx_dev_rust_")
-            .filter(|token| {
-                token.len() == 32
-                    && token
-                        .bytes()
-                        .all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c))
-            })
-            .ok_or_else(unavailable)?;
-        if role != "erpx_test_admin"
-            || session_role != "erpx_test_admin"
-            || owner != "erpx_test_admin"
-            || lease != format!("erpx-rust-test:{token}")
-        {
-            return Err(unavailable().into());
+        if let Some((database, username)) = expected {
+            if &name != database || &role != username || session_role != role {
+                return Err(unavailable().into());
+            }
+        } else {
+            let lease = lease.as_deref().ok_or_else(unavailable)?;
+            let token = name
+                .strip_prefix("erpx_dev_rust_")
+                .filter(|token| {
+                    token.len() == 32
+                        && token
+                            .bytes()
+                            .all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c))
+                })
+                .ok_or_else(unavailable)?;
+            if role != "erpx_test_admin"
+                || session_role != "erpx_test_admin"
+                || owner != "erpx_test_admin"
+                || lease != format!("erpx-rust-test:{token}")
+            {
+                return Err(unavailable().into());
+            }
         }
         Ok(Self {
             name,
@@ -116,10 +126,11 @@ impl DatabaseIdentity {
             session_role,
             owner,
             lease,
+            expected: expected.cloned(),
         })
     }
     async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
-        if &Self::read(c).await? != self {
+        if &Self::read(c, self.expected.as_ref()).await? != self {
             return Err(unavailable().into());
         }
         Ok(())
@@ -313,8 +324,16 @@ pub async fn assemble_development_files_scan<C: Clock + Send + Sync + 'static>(
     let result = async {
         let mut control_connection = control.raw().acquire().await?;
         let mut holding_connection = holding.raw().acquire().await?;
-        let control_identity = DatabaseIdentity::read(&mut control_connection).await?;
-        let holding_identity = DatabaseIdentity::read(&mut holding_connection).await?;
+        let control_identity = DatabaseIdentity::read(
+            &mut control_connection,
+            configuration.control.durable_identity(),
+        )
+        .await?;
+        let holding_identity = DatabaseIdentity::read(
+            &mut holding_connection,
+            configuration.holding.durable_identity(),
+        )
+        .await?;
         if control_identity.name == holding_identity.name
             || control_identity.oid == holding_identity.oid
         {

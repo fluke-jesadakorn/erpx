@@ -1,4 +1,5 @@
 //! Cross-owner assembly only. Business rules remain in each owner's public ports.
+pub(crate) mod runtime_database;
 #[cfg(feature = "legal-document-worker")]
 pub mod legal_document_bridge;
 #[cfg(feature = "legal-document-worker")]

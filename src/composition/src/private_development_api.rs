@@ -9,6 +9,7 @@ use crate::{
     finance_journal_edit_http::{FinanceJournalEditTarget, finance_journal_edit_router},
     finance_journal_review::{FinanceJournalConfiguration, FinanceJournalReviewAdministration},
 };
+use crate::runtime_database::RuntimeDatabase;
 use crate::{
     field_service_http::{FieldServiceHttpTarget, field_service_http_router},
     field_service_parts::{
@@ -237,47 +238,6 @@ enum Profile {
 }
 /// A selected database is either a disposable leased development database or a
 /// durable private production database. Both expose the same pool operations.
-#[derive(Clone)]
-enum RuntimeDatabase {
-    Leased(LeasedDevelopmentDatabase),
-    Durable(DatabaseConfig),
-}
-impl fmt::Debug for RuntimeDatabase {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("RuntimeDatabase([REDACTED])")
-    }
-}
-impl RuntimeDatabase {
-    async fn connect(
-        &self,
-        limits: PoolLimits,
-    ) -> Result<DatabasePool, erpx_server_runtime::public::postgres::PersistenceError> {
-        match self {
-            Self::Leased(database) => database.connect(limits).await,
-            Self::Durable(database) => connect_pool(database, limits).await,
-        }
-    }
-    async fn connect_named(
-        &self,
-        limits: PoolLimits,
-        application: &str,
-    ) -> Result<DatabasePool, erpx_server_runtime::public::postgres::PersistenceError> {
-        match self {
-            Self::Leased(database) => database.connect_named(limits, application).await,
-            Self::Durable(database) => {
-                connect_pool(&database.with_application_name(application)?, limits).await
-            }
-        }
-    }
-    /// The native Files scan worker still validates the disposable development
-    /// database identity; a durable production database cannot satisfy it.
-    fn leased(&self) -> Result<&LeasedDevelopmentDatabase, &'static str> {
-        match self {
-            Self::Leased(database) => Ok(database),
-            Self::Durable(_) => Err("FIELD_FILES_DEVELOPMENT_DATABASE_REQUIRED"),
-        }
-    }
-}
 struct HoldingConfiguration {
     host: String,
     registration: ConfiguredAccountHolding,
@@ -378,7 +338,14 @@ fn durable_database(url: &str) -> Result<RuntimeDatabase, &'static str> {
     }
     let configuration = DatabaseConfig::from_url(url)
         .map_err(|_| "EXACT_PRIVATE_PRODUCTION_DATABASE_REQUIRED")?;
-    Ok(RuntimeDatabase::Durable(configuration))
+    let identity = (
+        endpoint.path().trim_matches('/').to_owned(),
+        endpoint.username().to_owned(),
+    );
+    Ok(RuntimeDatabase::Durable {
+        configuration,
+        identity,
+    })
 }
 fn runtime_database(
     document: &DatabaseDocument,
@@ -3008,6 +2975,10 @@ pub async fn run_field_files_worker_file(path:&Path,shutdown:impl std::future::F
 async fn run_field_files_worker_file_with_profile(path:&Path,shutdown:impl std::future::Future<Output=()>+Send,profile:Profile)->Result<(), &'static str>{
     field_files::run_workers(DevelopmentApiConfiguration::read_configuration_file(path,profile)?,shutdown).await
 }
+#[cfg(feature="files-scan-worker")]
+pub async fn run_production_files_worker_file(path:&Path,shutdown:impl std::future::Future<Output=()>+Send)->Result<(), &'static str>{
+    run_field_files_worker_file_with_profile(path,shutdown,Profile::Production).await
+}
 
 /// Durable private production Field worker supervisor. Each worker claims its
 /// own durable PostgreSQL work; a worker that stops is restarted after a
@@ -3060,12 +3031,36 @@ pub async fn run_production_workers_file(
             }
         }));
     }
-    // The native Files scan worker still requires the disposable leased
-    // development database identity. Do not silently omit a configured
-    // production scan target: the operator must see the remaining gap.
     #[cfg(feature = "files-scan-worker")]
     if config.field_files_providers.is_some() {
-        return Err("PRODUCTION_FILES_SCAN_WORKER_REQUIRED");
+        let path = path.to_owned();
+        let mut stop = stop.clone();
+        handles.push(tokio::spawn(async move {
+            loop {
+                if *stop.borrow() {
+                    return Ok::<(), &'static str>(());
+                }
+                let mut worker_stop = stop.clone();
+                let result = run_field_files_worker_file_with_profile(
+                    &path,
+                    async move {
+                        let _ = worker_stop.changed().await;
+                    },
+                    Profile::Production,
+                )
+                .await;
+                if *stop.borrow() {
+                    return Ok(());
+                }
+                if let Err(code) = result {
+                    eprintln!("production Field files worker stopped: {code}; restarting");
+                }
+                tokio::select! {
+                    _ = stop.changed() => return Ok(()),
+                    _ = tokio::time::sleep(Duration::from_secs(5)) => {}
+                }
+            }
+        }));
     }
     if !config.field_service_initial_counts.is_empty() {
         let path = path.to_owned();
