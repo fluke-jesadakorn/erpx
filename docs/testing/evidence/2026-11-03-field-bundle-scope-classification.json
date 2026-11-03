@@ -1,0 +1,454 @@
+{
+  "version": 1,
+  "date": "2026-11-03",
+  "status": "Field bundle scope classification for the scoped PR",
+  "base": "a8bcd2b9a (origin/codex/rust-backend-migration)",
+  "head": "5738b23820149d33d6ddc3889d19de57ccaabbf2",
+  "changedFiles": 881,
+  "strictFieldCargoClosure": [
+    "erpx-server-assets",
+    "erpx-server-collaboration",
+    "erpx-server-commerce",
+    "erpx-server-commercial",
+    "erpx-server-field-service",
+    "erpx-server-files",
+    "erpx-server-finance",
+    "erpx-server-identity-access",
+    "erpx-server-inventory",
+    "erpx-server-manage-erpx",
+    "erpx-server-operations",
+    "erpx-server-organization",
+    "erpx-server-people-payroll",
+    "erpx-server-platform-administration",
+    "erpx-server-pms",
+    "erpx-server-pos",
+    "erpx-server-quality",
+    "erpx-server-records",
+    "erpx-server-runtime",
+    "erpx-server-shared",
+    "erpx-server-support",
+    "erpx-server-work-projection",
+    "erpx-server-workflow"
+  ],
+  "changedServerPackages": [
+    "erpx-server-assets",
+    "erpx-server-collaboration",
+    "erpx-server-commercial",
+    "erpx-server-customer-360",
+    "erpx-server-field-service",
+    "erpx-server-files",
+    "erpx-server-finance",
+    "erpx-server-identity-access",
+    "erpx-server-inventory",
+    "erpx-server-legal",
+    "erpx-server-operations",
+    "erpx-server-organization",
+    "erpx-server-pms",
+    "erpx-server-pos",
+    "erpx-server-records",
+    "erpx-server-runtime",
+    "erpx-server-shared",
+    "erpx-server-support",
+    "erpx-server-work-projection",
+    "erpx-server-workflow"
+  ],
+  "serverPackagesOutsideClosure": [
+    "erpx-server-customer-360",
+    "erpx-server-legal"
+  ],
+  "outsideClosureReasons": {
+    "erpx-server-customer-360": "one-line import update to @erpx/server-identity_access/public/account-session after the Identity session module split; TypeScript consumer only",
+    "erpx-server-legal": "one-line import update to @erpx/server-identity_access/public/account-session after the Identity session module split; TypeScript consumer only"
+  },
+  "generatedFiles": [
+    "apps/account/turbo.json",
+    "apps/admin/turbo.json",
+    "apps/assets/turbo.json",
+    "apps/booking/turbo.json",
+    "apps/finance/turbo.json",
+    "apps/forms/turbo.json",
+    "apps/launcher/turbo.json",
+    "apps/learn/turbo.json",
+    "apps/legal-portal/turbo.json",
+    "apps/legal/turbo.json",
+    "apps/manufacturing/turbo.json",
+    "apps/people/turbo.json",
+    "apps/pms/turbo.json",
+    "apps/portal/turbo.json",
+    "apps/pos/turbo.json",
+    "apps/projects/turbo.json",
+    "apps/recruit/turbo.json",
+    "apps/sales/turbo.json",
+    "apps/service/turbo.json",
+    "apps/supply/turbo.json",
+    "apps/support/turbo.json",
+    "docs/contracts/next/commercial-service.openapi.generated.json",
+    "docs/contracts/next/field-service-attachment-intake.openapi.generated.json",
+    "docs/contracts/next/field-service-reserve.openapi.generated.json",
+    "docs/contracts/next/finance-journal-read.openapi.generated.json",
+    "packages/contracts/src/commercial-service.generated.ts",
+    "packages/contracts/src/field-service-attachment-intake.generated.ts",
+    "packages/contracts/src/field-service-reserve.generated.ts",
+    "packages/contracts/src/finance-journal-read.generated.ts",
+    "packages/server-collaboration/src/public/field-outbox-predicate.generated.ts",
+    "packages/server-field_service/src/public/field-outbox-predicate.generated.ts",
+    "packages/server-files/src/public/field-outbox-predicate.generated.ts",
+    "packages/server-finance/src/public/field-outbox-predicate.generated.ts",
+    "packages/server-operations/src/public/field-outbox-predicate.generated.ts"
+  ],
+  "classification": {
+    ".env.example": {
+      "kind": "workspace-contract",
+      "files": 1
+    },
+    "Cargo.lock": {
+      "kind": "workspace-contract",
+      "files": 1
+    },
+    "Cargo.toml": {
+      "kind": "workspace-contract",
+      "files": 1
+    },
+    "apps/account": {
+      "kind": "app-or-generated",
+      "files": 3
+    },
+    "apps/admin": {
+      "kind": "app-or-generated",
+      "files": 2
+    },
+    "apps/assets": {
+      "kind": "app-or-generated",
+      "files": 2
+    },
+    "apps/booking": {
+      "kind": "app-or-generated",
+      "files": 2
+    },
+    "apps/compat": {
+      "kind": "app-or-generated",
+      "files": 1
+    },
+    "apps/finance": {
+      "kind": "app-or-generated",
+      "files": 3
+    },
+    "apps/forms": {
+      "kind": "app-or-generated",
+      "files": 2
+    },
+    "apps/launcher": {
+      "kind": "app-or-generated",
+      "files": 2
+    },
+    "apps/learn": {
+      "kind": "app-or-generated",
+      "files": 2
+    },
+    "apps/legal": {
+      "kind": "app-or-generated",
+      "files": 2
+    },
+    "apps/legal-portal": {
+      "kind": "app-or-generated",
+      "files": 2
+    },
+    "apps/manufacturing": {
+      "kind": "app-or-generated",
+      "files": 2
+    },
+    "apps/people": {
+      "kind": "app-or-generated",
+      "files": 2
+    },
+    "apps/pms": {
+      "kind": "app-or-generated",
+      "files": 2
+    },
+    "apps/portal": {
+      "kind": "app-or-generated",
+      "files": 2
+    },
+    "apps/pos": {
+      "kind": "app-or-generated",
+      "files": 2
+    },
+    "apps/projects": {
+      "kind": "app-or-generated",
+      "files": 2
+    },
+    "apps/recruit": {
+      "kind": "app-or-generated",
+      "files": 2
+    },
+    "apps/sales": {
+      "kind": "app-or-generated",
+      "files": 2
+    },
+    "apps/service": {
+      "kind": "app-or-generated",
+      "files": 8
+    },
+    "apps/supply": {
+      "kind": "app-or-generated",
+      "files": 2
+    },
+    "apps/support": {
+      "kind": "app-or-generated",
+      "files": 2
+    },
+    "bun.lock": {
+      "kind": "workspace-contract",
+      "files": 1
+    },
+    "contracts/modules": {
+      "kind": "workspace-contract",
+      "files": 1
+    },
+    "docs/contracts": {
+      "kind": "evidence-or-plan",
+      "files": 7
+    },
+    "docs/production-plan.md": {
+      "kind": "evidence-or-plan",
+      "files": 1
+    },
+    "docs/status": {
+      "kind": "evidence-or-plan",
+      "files": 3
+    },
+    "docs/testing": {
+      "kind": "evidence-or-plan",
+      "files": 11
+    },
+    "docs/ux-ui": {
+      "kind": "evidence-or-plan",
+      "files": 1
+    },
+    "fixtures/collaboration": {
+      "kind": "verification",
+      "files": 1
+    },
+    "fixtures/commercial": {
+      "kind": "verification",
+      "files": 1
+    },
+    "fixtures/shared": {
+      "kind": "verification",
+      "files": 2
+    },
+    "migrations/postgres": {
+      "kind": "schema",
+      "files": 20
+    },
+    "packages/contracts": {
+      "kind": "frontend-consumer",
+      "files": 10
+    },
+    "packages/feature-account": {
+      "kind": "frontend-consumer",
+      "files": 2
+    },
+    "packages/feature-apps": {
+      "kind": "frontend-consumer",
+      "files": 4
+    },
+    "packages/feature-collaboration": {
+      "kind": "frontend-consumer",
+      "files": 5
+    },
+    "packages/feature-commercial": {
+      "kind": "frontend-consumer",
+      "files": 5
+    },
+    "packages/feature-field_service": {
+      "kind": "frontend-consumer",
+      "files": 12
+    },
+    "packages/feature-files": {
+      "kind": "frontend-consumer",
+      "files": 2
+    },
+    "packages/feature-finance": {
+      "kind": "frontend-consumer",
+      "files": 20
+    },
+    "packages/feature-identity_access": {
+      "kind": "frontend-consumer",
+      "files": 2
+    },
+    "packages/feature-operations": {
+      "kind": "frontend-consumer",
+      "files": 3
+    },
+    "packages/feature-records": {
+      "kind": "frontend-consumer",
+      "files": 2
+    },
+    "packages/feature-runtime": {
+      "kind": "frontend-consumer",
+      "files": 1
+    },
+    "packages/feature-service": {
+      "kind": "frontend-consumer",
+      "files": 11
+    },
+    "packages/feature-shared": {
+      "kind": "frontend-consumer",
+      "files": 1
+    },
+    "packages/feature-work_projection": {
+      "kind": "frontend-consumer",
+      "files": 2
+    },
+    "packages/native-sdk": {
+      "kind": "frontend-consumer",
+      "files": 9
+    },
+    "packages/server-assets": {
+      "kind": "declared-cargo-dependency",
+      "files": 10
+    },
+    "packages/server-collaboration": {
+      "kind": "declared-cargo-dependency",
+      "files": 47
+    },
+    "packages/server-commercial": {
+      "kind": "declared-cargo-dependency",
+      "files": 17
+    },
+    "packages/server-customer_360": {
+      "kind": "dependency-import-consumer",
+      "files": 1
+    },
+    "packages/server-field_service": {
+      "kind": "declared-cargo-dependency",
+      "files": 60
+    },
+    "packages/server-files": {
+      "kind": "declared-cargo-dependency",
+      "files": 33
+    },
+    "packages/server-finance": {
+      "kind": "declared-cargo-dependency",
+      "files": 75
+    },
+    "packages/server-identity_access": {
+      "kind": "declared-cargo-dependency",
+      "files": 66
+    },
+    "packages/server-inventory": {
+      "kind": "declared-cargo-dependency",
+      "files": 16
+    },
+    "packages/server-legal": {
+      "kind": "dependency-import-consumer",
+      "files": 1
+    },
+    "packages/server-operations": {
+      "kind": "declared-cargo-dependency",
+      "files": 23
+    },
+    "packages/server-organization": {
+      "kind": "declared-cargo-dependency",
+      "files": 13
+    },
+    "packages/server-pms": {
+      "kind": "declared-cargo-dependency",
+      "files": 6
+    },
+    "packages/server-pos": {
+      "kind": "declared-cargo-dependency",
+      "files": 6
+    },
+    "packages/server-records": {
+      "kind": "declared-cargo-dependency",
+      "files": 8
+    },
+    "packages/server-runtime": {
+      "kind": "declared-cargo-dependency",
+      "files": 16
+    },
+    "packages/server-shared": {
+      "kind": "declared-cargo-dependency",
+      "files": 2
+    },
+    "packages/server-support": {
+      "kind": "declared-cargo-dependency",
+      "files": 13
+    },
+    "packages/server-work_projection": {
+      "kind": "declared-cargo-dependency",
+      "files": 33
+    },
+    "packages/server-workflow": {
+      "kind": "declared-cargo-dependency",
+      "files": 28
+    },
+    "packages/workplace": {
+      "kind": "frontend-consumer",
+      "files": 39
+    },
+    "scripts/architecture": {
+      "kind": "verification",
+      "files": 1
+    },
+    "scripts/assets": {
+      "kind": "verification",
+      "files": 1
+    },
+    "scripts/docs": {
+      "kind": "verification",
+      "files": 6
+    },
+    "scripts/local": {
+      "kind": "verification",
+      "files": 2
+    },
+    "scripts/testing": {
+      "kind": "verification",
+      "files": 11
+    },
+    "src/composition": {
+      "kind": "composition",
+      "files": 75
+    },
+    "tests/catalogue": {
+      "kind": "verification",
+      "files": 2
+    },
+    "tests/integration": {
+      "kind": "verification",
+      "files": 26
+    },
+    "tests/journeys": {
+      "kind": "verification",
+      "files": 1
+    },
+    "tests/provider": {
+      "kind": "verification",
+      "files": 1
+    },
+    "tests/support": {
+      "kind": "verification",
+      "files": 6
+    },
+    "tests/unit": {
+      "kind": "verification",
+      "files": 42
+    }
+  },
+  "unclassified": [],
+  "assertions": {
+    "allChangedServerPackagesAreDeclaredDependenciesOrImportConsumers": true,
+    "noUnclassifiedTopLevelGroups": true,
+    "noSecretsOrScratchPaths": true,
+    "generatedFilesAreBuildInputsOnly": true
+  },
+  "notes": [
+    "The strict closure is cargo tree -p erpx-service --no-default-features --features field-service, which is the declared Field bundle dependency graph.",
+    "apps/*/turbo.json are generated build-cache inputs; they do not change runtime behavior.",
+    "docs/status, docs/testing and docs/production-plan are delivery registers/evidence for the bundle."
+  ],
+  "secretLikePaths": []
+}

@@ -149,7 +149,7 @@
     "The final-candidate run recorded one transient native work-role 503 console error; every functional step passed and pageErrors stayed 0.",
     "The Support owner page returns 200 but the local canonical redirect renders the Field workspace; the native Support read is 403 PACKAGE_REQUIRED because the fixture Company has no Support package purchase.",
     "No parts were consumed by this visit; stock readback is covered by the separate native stock/count cases.",
-    "Checklist 13 (Finance production composition), 18 (review/merge) and the scoped PR remain open."
+    "Finance production composition is explicitly out of scope for this bundle; the production parser fails closed. Checklist 18 (scoped PR/merge) remains open."
   ],
   "privateEvidence": ".scratch/dev/field-browser-journey-v2-result-final2.json"
 }

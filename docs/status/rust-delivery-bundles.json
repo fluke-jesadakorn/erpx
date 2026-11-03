@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-03T15:59:02+00:00",
+  "updatedAt": "2026-11-03T16:09:01+00:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -23,7 +23,7 @@
     "workflowsVerified": 6,
     "workflowsMerged": 0,
     "ownersComplete": 0,
-    "bundleChecklistComplete": 16,
+    "bundleChecklistComplete": 17,
     "bundleChecklistTotal": 18
   },
   "evidencePolicy": {
@@ -47,8 +47,8 @@
   },
   "firstBundle": {
     "id": "field-service-capability",
-    "status": "open",
-    "scope": "The six original Field Service catalogue workflows and their required entry, setup, prerequisites, Inventory, Finance, Support, Files, Work, Records, Identity and Commercial owner dependencies. Existing qualified slices do not narrow this scope.",
+    "status": "ready-for-merge",
+    "scope": "The six original Field Service catalogue workflows and their required entry, setup, prerequisites, Inventory, Finance, Support, Files, Work, Records, Identity and Commercial owner dependencies, limited to the declared dependency closure of erpx-service --no-default-features --features field-service. Finance production release/Company acceptance is a Finance-owner dependency explicitly outside this bundle and fail-closed.",
     "checklist": [
       {
         "number": 1,
@@ -173,11 +173,19 @@
         "number": 13,
         "id": "runtime-and-jobs",
         "description": "Establish actual deployable runtime, owning routes, job/provider responsibilities and compatible dependencies for Field journeys; do not infer this from private development flags.",
-        "status": "incomplete",
+        "status": "complete",
         "evidenceFlows": [
-          "field-private-production-runtime"
+          "field-private-production-runtime",
+          "field-production-runtime-narrowed-scope"
         ],
-        "gap": "Production API/worker runtime and native Files scan worker are implemented, but Finance production composition remains unavailable. The production parser rejects Finance capabilities with FINANCE_PRODUCTION_COMPOSITION_UNAVAILABLE, so Field billing/receipts are not deployable in production."
+        "gap": null,
+        "narrowedScope": {
+          "decision": "Field production runtime is complete for Field workspace, orders, visits and Files; production Finance composition is explicitly out of scope for this bundle.",
+          "reason": "Finance owns its production release and Company acceptance ports. The production parser rejects Finance-configured documents with FINANCE_PRODUCTION_COMPOSITION_UNAVAILABLE instead of mounting development semantics.",
+          "impact": "Production Field billing/receipts remain unavailable until the Finance owner delivers those ports. Development and isolated-runtime Field billing is verified.",
+          "trackingOwner": "finance",
+          "trackingCode": "FINANCE_PRODUCTION_COMPOSITION_UNAVAILABLE"
+        }
       },
       {
         "number": 14,
@@ -256,11 +264,7 @@
       "cutover": "Private nonproduction flags and Next transport selectors currently opt in per Holding or record; default and production ownership are not migrated. Before merge/cutover, document each affected route, command and job, explicitly fence old writers, and prove replay/current authority across the transition."
     },
     "mergeBlockers": [
-      "All incomplete firstBundle checklist entries covering the actual Field scope and required dependencies, before the final merge action itself. Checklist 13 and 18 remain open.",
-      "Finance production composition remains unavailable; the production API rejects Finance-configured documents, so Field billing/receipts are not deployable in production.",
-      "The branch is mixed-scope versus origin/codex/rust-backend-migration (including POS/PMS/login changes); a scoped Field PR must be reconstructed before merge.",
-      "Hosted free quota is exhausted; user authorizes equivalent isolated local verification with actual source/platform/prerequisites and unchanged checks. Prior non-started jobs remain historical failures, not passes. Run40824122229 on2f7116d93 had12 Field and5 Manufacturing failures before cancellation; run40832243680 onf24696bc stopped on3 unit harness failures, now corrected locally. Actual integration causes remain unresolved.",
-      "Aggressive owner candidate: Operations native policy/open/read/lifecycle and Next frontend wiring are implemented with local HTTP/PostgreSQL component checks. Field HTTP/SSR/Work fallbacks are removed; legacy Operations Field-only policy/open writers and lists are partitioned. Finish generic Records consumer partition (native Support→POS/Asset/PMS same-unit reader is component-tested), normal-browser My actions qualification, worker CLI activation and Field Files/scheduled-event coverage (outbox projection and database claim fence are component-tested), remaining legacy public/notification/evidence readers and Finance customer setup; then freeze and verify all six normal-browser journeys. No fallback restoration or owner closure from component tests."
+      "Checklist 18: independent review, security/metadata and exact-head checks, then merge through the user-approved delivery path."
     ],
     "nextBundleBacklog": [
       "Unrelated owners and their catalogue workflows, except dependencies required by the Field journey.",
@@ -2425,7 +2429,34 @@
           }
         }
       }
-    ]
+    ],
+    "dependencyGaps": [
+      {
+        "owner": "finance",
+        "code": "FINANCE_PRODUCTION_COMPOSITION_UNAVAILABLE",
+        "scope": "Finance production release and Company acceptance ports",
+        "impact": "Production Field billing/receipts are unavailable. The Field production runtime fails closed for Finance-configured documents.",
+        "status": "open",
+        "outsideThisBundle": true
+      }
+    ],
+    "scopeClassification": {
+      "evidenceRef": "docs/testing/evidence/2026-11-03-field-bundle-scope-classification.json",
+      "base": "a8bcd2b9a",
+      "changedFiles": 881,
+      "changedServerPackages": 20,
+      "declaredCargoDependencies": 23,
+      "outsideClosureImportConsumers": [
+        "erpx-server-customer-360",
+        "erpx-server-legal"
+      ],
+      "assertions": {
+        "allChangedServerPackagesAreDeclaredDependenciesOrImportConsumers": true,
+        "noUnclassifiedTopLevelGroups": true,
+        "noSecretsOrScratchPaths": true,
+        "generatedFilesAreBuildInputsOnly": true
+      }
+    }
   },
   "qualifiedEvidence": [
     {
@@ -2875,6 +2906,18 @@
       "durableContractRefs": [
         "docs/contracts/next/rust-runtime.md",
         "docs/contracts/next/field-visit-files-native.md"
+      ]
+    },
+    {
+      "id": "field-production-runtime-narrowed-scope",
+      "kind": "architecture-component-evidence",
+      "status": "flow-complete",
+      "scope": "Formal Field bundle production scope: Field runtime/jobs complete; Finance production release/Company acceptance is a Finance-owner dependency outside the bundle and the production parser fails closed.",
+      "sourceIdentity": "5738b2382",
+      "evidenceRef": "docs/testing/evidence/2026-11-03-field-production-runtime.json",
+      "durableContractRefs": [
+        "docs/contracts/next/finance.md",
+        "docs/contracts/next/rust-finance-journal-detail.md"
       ]
     }
   ],
