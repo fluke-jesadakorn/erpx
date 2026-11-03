@@ -9,3 +9,5 @@ pub mod field_service_workspace;
 pub mod field_service_source_record;
 
 pub mod field_ticket_read;
+
+pub mod ticket;
