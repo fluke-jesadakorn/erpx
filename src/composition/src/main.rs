@@ -38,6 +38,28 @@ pub async fn run_cli(arguments: impl IntoIterator<Item = String>) -> Result<(), 
             .await
             .map_err(str::to_owned)
         }
+        #[cfg(feature = "production-api")]
+        [command, option, path]
+            if command == "production-api" && option == "--production-config" =>
+        {
+            erpx_service::private_development_api::run_production_api_file(
+                std::path::Path::new(path),
+                shutdown(),
+            )
+            .await
+            .map_err(str::to_owned)
+        }
+        #[cfg(feature = "production-api")]
+        [command, option, path]
+            if command == "production-worker" && option == "--production-config" =>
+        {
+            erpx_service::private_development_api::run_production_workers_file(
+                std::path::Path::new(path),
+                shutdown(),
+            )
+            .await
+            .map_err(str::to_owned)
+        }
         #[cfg(all(feature = "files-scan-worker", feature = "private-field-api"))]
         [command, option, path]
             if command == "field-files-worker" && option == "--development-config" =>
@@ -115,6 +137,11 @@ pub async fn run_cli(arguments: impl IntoIterator<Item = String>) -> Result<(), 
             if cfg!(feature = "private-field-api") {
                 usage.push_str(
                     " | erpx-server private-api --development-config /absolute/private.json",
+                );
+            }
+            if cfg!(feature = "production-api") {
+                usage.push_str(
+                    " | erpx-server production-api --production-config /absolute/private.json | erpx-server production-worker --production-config /absolute/private.json",
                 );
             }
             Err(usage)

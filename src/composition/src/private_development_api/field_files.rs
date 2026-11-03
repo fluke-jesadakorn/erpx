@@ -74,8 +74,8 @@ pub(super) async fn assemble(
     let reviewed = config
         .holdings
         .iter()
-        .map(|h| (h.registration.write_binding.clone(), h.database.clone()))
-        .collect::<BTreeMap<_, _>>();
+        .map(|h| Ok((h.registration.write_binding.clone(), h.database.leased()?.clone())))
+        .collect::<Result<BTreeMap<_, _>, &'static str>>()?;
     let mut grouped: BTreeMap<HoldingId, (BTreeSet<CompanyId>, std::path::PathBuf, Vec<usize>)> =
         BTreeMap::new();
     let mut scan_targets = Vec::new();
@@ -99,7 +99,7 @@ pub(super) async fn assemble(
         }
         entry.2.push(scan_targets.len());
         let databases = DevelopmentFilesScanConfiguration::new(
-            config.control.clone(),
+            config.control.leased()?.clone(),
             reviewed.clone(),
             config.holdings_registry.clone(),
             AttachmentScanScope {

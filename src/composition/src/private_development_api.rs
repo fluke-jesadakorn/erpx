@@ -61,8 +61,8 @@ use erpx_server_identity_access::public::{
 use erpx_server_runtime::public::{
     foundation_router,
     postgres::{
-        DatabasePool, LeasedDevelopmentDatabase, MigrationTrack, PgRequestLease, PoolLimits,
-        load_migrations, verify_current_migration_inventory,
+        DatabaseConfig, DatabasePool, LeasedDevelopmentDatabase, MigrationTrack, PgRequestLease,
+        PoolLimits, connect_pool, load_migrations, verify_current_migration_inventory,
     },
     validate_foundation_address,
 };
@@ -83,7 +83,8 @@ use tokio::sync::Semaphore;
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct DatabaseDocument {
     url: String,
-    lease_token: String,
+    #[serde(default)]
+    lease_token: Option<String>,
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -146,6 +147,8 @@ struct ConfigurationDocument {
     version: u8,
     mode: String,
     transport: String,
+    #[serde(default)]
+    environment: Option<String>,
     listen: String,
     account_host: String,
     require_email_verification: bool,
@@ -227,22 +230,72 @@ struct ConfigurationDocument {
     #[serde(default)]
     account_security_keys:Option<AccountSecurityKeysDocument>,
 }
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Profile {
+    Development,
+    Production,
+}
+/// A selected database is either a disposable leased development database or a
+/// durable private production database. Both expose the same pool operations.
+#[derive(Clone)]
+enum RuntimeDatabase {
+    Leased(LeasedDevelopmentDatabase),
+    Durable(DatabaseConfig),
+}
+impl fmt::Debug for RuntimeDatabase {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("RuntimeDatabase([REDACTED])")
+    }
+}
+impl RuntimeDatabase {
+    async fn connect(
+        &self,
+        limits: PoolLimits,
+    ) -> Result<DatabasePool, erpx_server_runtime::public::postgres::PersistenceError> {
+        match self {
+            Self::Leased(database) => database.connect(limits).await,
+            Self::Durable(database) => connect_pool(database, limits).await,
+        }
+    }
+    async fn connect_named(
+        &self,
+        limits: PoolLimits,
+        application: &str,
+    ) -> Result<DatabasePool, erpx_server_runtime::public::postgres::PersistenceError> {
+        match self {
+            Self::Leased(database) => database.connect_named(limits, application).await,
+            Self::Durable(database) => {
+                connect_pool(&database.with_application_name(application)?, limits).await
+            }
+        }
+    }
+    /// The native Files scan worker still validates the disposable development
+    /// database identity; a durable production database cannot satisfy it.
+    fn leased(&self) -> Result<&LeasedDevelopmentDatabase, &'static str> {
+        match self {
+            Self::Leased(database) => Ok(database),
+            Self::Durable(_) => Err("FIELD_FILES_DEVELOPMENT_DATABASE_REQUIRED"),
+        }
+    }
+}
 struct HoldingConfiguration {
     host: String,
     registration: ConfiguredAccountHolding,
-    database: LeasedDevelopmentDatabase,
-    read_database: Option<LeasedDevelopmentDatabase>,
+    database: RuntimeDatabase,
+    read_database: Option<RuntimeDatabase>,
 }
 /// Only a bounded explicit parser can construct this configuration. Debug never
 /// exposes database credentials, key material, cookies or private file contents.
 pub struct DevelopmentApiConfiguration {
+    profile: Profile,
+    environment: String,
     listen: SocketAddr,
     policy: Arc<AccountPolicy>,
     password_workers: usize,
     maximum_requests: usize,
     request_timeout: Duration,
     holdings_registry: Arc<ConfiguredHoldingRegistry>,
-    control: LeasedDevelopmentDatabase,
+    control: RuntimeDatabase,
     holdings: Vec<HoldingConfiguration>,
     finance_journal_reads: BTreeMap<HoldingId, BTreeSet<CompanyId>>,
     finance_field_service_invoice_reads: BTreeSet<HoldingId>,
@@ -290,8 +343,76 @@ impl fmt::Debug for DevelopmentApiConfiguration {
         f.write_str("DevelopmentApiConfiguration([REDACTED])")
     }
 }
+/// The private production service is loopback-only behind Cloudflare Tunnel.
+/// Unlike a disposable development port it may use the installed 3101 slot.
+fn validate_private_production_address(address: &str) -> Result<SocketAddr, &'static str> {
+    let address: SocketAddr = address
+        .parse()
+        .map_err(|_| "EXPLICIT_LOOPBACK_ADDRESS_REQUIRED")?;
+    if !address.ip().is_loopback()
+        || address.port() == 0
+        || matches!(
+            address.port(),
+            3000 | 3001 | 3100 | 3103 | 5432 | 5433 | 5435 | 8080 | 3200..=3299
+        )
+    {
+        return Err("PRIVATE_PRODUCTION_LOOPBACK_PORT_REQUIRED");
+    }
+    Ok(address)
+}
+/// Production databases are durable loopback PostgreSQL resources. No lease
+/// token, socket, options or remote host may be selected by the document.
+fn durable_database(url: &str) -> Result<RuntimeDatabase, &'static str> {
+    let endpoint =
+        url::Url::parse(url).map_err(|_| "EXACT_PRIVATE_PRODUCTION_DATABASE_REQUIRED")?;
+    if !matches!(endpoint.scheme(), "postgres" | "postgresql")
+        || endpoint.host_str() != Some("127.0.0.1")
+        || endpoint.port() != Some(5432)
+        || endpoint.username().is_empty()
+        || endpoint.password().is_none_or(str::is_empty)
+        || endpoint.path().trim_matches('/').is_empty()
+        || endpoint.query().is_some()
+        || endpoint.fragment().is_some()
+    {
+        return Err("EXACT_PRIVATE_PRODUCTION_DATABASE_REQUIRED");
+    }
+    let configuration = DatabaseConfig::from_url(url)
+        .map_err(|_| "EXACT_PRIVATE_PRODUCTION_DATABASE_REQUIRED")?;
+    Ok(RuntimeDatabase::Durable(configuration))
+}
+fn runtime_database(
+    document: &DatabaseDocument,
+    profile: Profile,
+    development_error: &'static str,
+) -> Result<RuntimeDatabase, &'static str> {
+    match profile {
+        Profile::Development => {
+            let token = document.lease_token.as_deref().ok_or(development_error)?;
+            LeasedDevelopmentDatabase::parse(&document.url, token)
+                .map(RuntimeDatabase::Leased)
+                .map_err(|_| development_error)
+        }
+        Profile::Production => {
+            if document.lease_token.is_some() {
+                return Err("PRODUCTION_API_LEASE_TOKEN_FORBIDDEN");
+            }
+            durable_database(&document.url)
+        }
+    }
+}
 impl DevelopmentApiConfiguration {
+    /// Explicit disposable development configuration. Production labels are
+    /// rejected here; use `parse_production` for the private production runtime.
     pub fn parse(json: &str) -> Result<Self, &'static str> {
+        Self::parse_profile(json, Profile::Development)
+    }
+    /// Explicit durable private production configuration. It accepts no lease
+    /// tokens, requires real Account security keys, email verification, a real
+    /// package lifecycle secret and a loopback listener.
+    pub fn parse_production(json: &str) -> Result<Self, &'static str> {
+        Self::parse_profile(json, Profile::Production)
+    }
+    fn parse_profile(json: &str, profile: Profile) -> Result<Self, &'static str> {
         if json.len() > 32 * 1024 {
             return Err("PRIVATE_API_CONFIGURATION_INVALID");
         }
@@ -306,22 +427,48 @@ impl DevelopmentApiConfiguration {
         {
             return Err("PRIVATE_API_FINANCE_CONFIGURATION_INVALID");
         }
+        let environment = match (profile, doc.environment.as_deref()) {
+            (Profile::Development, None | Some("development")) => "development".to_owned(),
+            (Profile::Production, Some("production")) => "production".to_owned(),
+            _ => return Err("PRIVATE_API_ENVIRONMENT_INVALID"),
+        };
+        let expected_mode = match profile {
+            Profile::Development => "development",
+            Profile::Production => "production",
+        };
         let contributor = doc.account_host == "account.erpx.localhost:3443";
         if doc.version != 1
-            || doc.mode != "development"
+            || doc.mode != expected_mode
             || doc.transport != "direct-loopback"
             || doc.holdings.len() != if contributor { 3 } else { 2 }
             || !(1..=8).contains(&doc.password_workers)
             || !(1..=64).contains(&doc.maximum_requests)
             || !(250..=60_000).contains(&doc.request_timeout_ms)
         {
-            return Err("EXPLICIT_LEASED_DEVELOPMENT_API_REQUIRED");
+            return Err(match profile {
+                Profile::Development => "EXPLICIT_LEASED_DEVELOPMENT_API_REQUIRED",
+                Profile::Production => "EXPLICIT_PRIVATE_PRODUCTION_API_REQUIRED",
+            });
         }
-        let listen = validate_foundation_address(&doc.listen)
-            .map_err(|_| "DISPOSABLE_PRIVATE_API_PORT_REQUIRED")?;
-        let control = LeasedDevelopmentDatabase::parse(&doc.control.url, &doc.control.lease_token)
-            .map_err(|_| "EXACT_LEASED_API_DATABASE_REQUIRED")?;
-        let mut tokens = BTreeSet::from([doc.control.lease_token]);
+        if profile == Profile::Production
+            && (doc.account_bootstrap
+                || !doc.require_email_verification
+                || doc.account_security_keys.is_none()
+                || doc.service_package_lifecycle.is_none())
+        {
+            return Err("PRODUCTION_API_SECURITY_CONFIGURATION_REQUIRED");
+        }
+        let listen = match profile {
+            Profile::Development => validate_foundation_address(&doc.listen)
+                .map_err(|_| "DISPOSABLE_PRIVATE_API_PORT_REQUIRED")?,
+            Profile::Production => validate_private_production_address(&doc.listen)?,
+        };
+        let control = runtime_database(&doc.control, profile, "EXACT_LEASED_API_DATABASE_REQUIRED")?;
+        let mut tokens = BTreeSet::new();
+        if let Some(token) = &doc.control.lease_token {
+            tokens.insert(token.clone());
+        }
+        let mut urls = BTreeSet::from([doc.control.url.clone()]);
         let mut ids = BTreeSet::new();
         let mut slugs = BTreeSet::new();
         let mut hosts = BTreeSet::from([doc.account_host.clone()]);
@@ -331,8 +478,8 @@ impl DevelopmentApiConfiguration {
         for h in doc.holdings {
             let holding_id =
                 HoldingId::new(&h.holding_id).map_err(|_| "PRIVATE_API_HOLDING_INVALID")?;
-            if !tokens.insert(h.database.lease_token.clone())
-                || !ids.insert(h.holding_id.clone())
+            let database = runtime_database(&h.database, profile, "EXACT_LEASED_API_DATABASE_REQUIRED")?;
+            if !ids.insert(h.holding_id.clone())
                 || !slugs.insert(h.slug.clone())
                 || !hosts.insert(h.host.clone())
                 || !writes.insert(h.write_binding.clone())
@@ -352,23 +499,43 @@ impl DevelopmentApiConfiguration {
             {
                 return Err("DISTINCT_EXACT_API_HOLDINGS_REQUIRED");
             }
-            let database =
-                LeasedDevelopmentDatabase::parse(&h.database.url, &h.database.lease_token)
-                    .map_err(|_| "EXACT_LEASED_API_DATABASE_REQUIRED")?;
-            let read_database = match h.read_database {
-                Some(read) => {
-                    if !tokens.insert(read.lease_token.clone()) {
+            match profile {
+                Profile::Development => {
+                    let token = h.database.lease_token.as_ref().ok_or("EXACT_LEASED_API_DATABASE_REQUIRED")?;
+                    if !tokens.insert(token.clone()) {
                         return Err("DISTINCT_EXACT_API_HOLDINGS_REQUIRED");
                     }
-                    Some(LeasedDevelopmentDatabase::parse(&read.url, &read.lease_token)
-                        .map_err(|_| "EXACT_LEASED_API_DATABASE_REQUIRED")?)
+                }
+                Profile::Production => {
+                    if !urls.insert(h.database.url.clone()) {
+                        return Err("DISTINCT_EXACT_API_HOLDINGS_REQUIRED");
+                    }
+                }
+            }
+            let read_database = match h.read_database {
+                Some(read) => {
+                    let selected = runtime_database(&read, profile, "EXACT_LEASED_API_DATABASE_REQUIRED")?;
+                    match profile {
+                        Profile::Development => {
+                            let token = read.lease_token.as_ref().ok_or("EXACT_LEASED_API_DATABASE_REQUIRED")?;
+                            if !tokens.insert(token.clone()) {
+                                return Err("DISTINCT_EXACT_API_HOLDINGS_REQUIRED");
+                            }
+                        }
+                        Profile::Production => {
+                            if !urls.insert(read.url.clone()) {
+                                return Err("DISTINCT_EXACT_API_HOLDINGS_REQUIRED");
+                            }
+                        }
+                    }
+                    Some(selected)
                 }
                 None => None,
             };
             origins.push(HoldingOrigin {
                 origin: format!("https://{}", h.host),
                 host: h.host.clone(),
-                audience: format!("holding:development:{}:{}", h.holding_id, h.host),
+                audience: format!("holding:{}:{}:{}", environment, h.holding_id, h.host),
             });
             holdings.push(HoldingConfiguration {
                 host: h.host,
@@ -756,7 +923,7 @@ impl DevelopmentApiConfiguration {
         let policy = Arc::new(AccountPolicy {
             account_origin: format!("https://{}", doc.account_host),
             account_host: doc.account_host,
-            environment: "development".into(),
+            environment: environment.clone(),
             require_email_verification: doc.require_email_verification,
             holdings: origins,
         });
@@ -800,6 +967,8 @@ impl DevelopmentApiConfiguration {
             }
         }
         Ok(Self {
+            profile,
+            environment,
             #[cfg(feature="files-scan-worker")]
             field_files_providers:doc.field_files_providers,
             #[cfg(feature="files-scan-worker")]
@@ -850,6 +1019,12 @@ impl DevelopmentApiConfiguration {
         })
     }
     pub fn from_file(path: &Path) -> Result<Self, &'static str> {
+        Self::read_configuration_file(path, Profile::Development)
+    }
+    pub fn from_production_file(path: &Path) -> Result<Self, &'static str> {
+        Self::read_configuration_file(path, Profile::Production)
+    }
+    fn read_configuration_file(path: &Path, profile: Profile) -> Result<Self, &'static str> {
         if !path.is_absolute() {
             return Err("PRIVATE_ABSOLUTE_API_CONFIGURATION_REQUIRED");
         }
@@ -880,7 +1055,7 @@ impl DevelopmentApiConfiguration {
         file.take(32 * 1024 + 1)
             .read_to_string(&mut json)
             .map_err(|_| "PRIVATE_API_CONFIGURATION_INVALID")?;
-        Self::parse(&json)
+        Self::parse_profile(&json, profile)
     }
     pub fn listen_address(&self) -> SocketAddr {
         self.listen
@@ -892,6 +1067,8 @@ struct CheckedAssembly {
     #[cfg(feature="files-scan-worker")]
     files_workers:Vec<crate::files_scan_native::NativeFilesScanWorker<SharedClock>>,
 }
+/// The assembled private API runtime. Development and production share the
+/// same owner routers; only the database binding and environment label differ.
 pub struct DevelopmentApiRuntime {
     router: Router,
     listen: SocketAddr,
@@ -914,8 +1091,9 @@ impl DevelopmentApiRuntime {
         }
     }
 }
-/// Does not bind a port. Opens only the exact leased candidate databases and
-/// performs read-only migration/registry checks before assembling real services.
+/// Does not bind a port. Opens the explicitly selected databases (leased in
+/// development, durable in production) and performs read-only migration and
+/// registry checks before assembling the real owner services.
 pub async fn assemble_development_api(
     config: DevelopmentApiConfiguration,
     clock: Arc<dyn Clock + Send + Sync>,
@@ -1020,7 +1198,7 @@ async fn assemble_checked(
             Arc::new(
                 PostgresAccountRepository::from_control_database(
                     pools[0].clone(),
-                    "development".into(),
+                    config.environment.clone(),
                     config.policy.require_email_verification,
                     invalidation.clone(),
                     clock.clone(),
@@ -1037,8 +1215,8 @@ async fn assemble_checked(
     let mut router = foundation_router();
     if let Some(keys)=&config.account_security_keys {
         use erpx_server_identity_access::public::{account_security::*,account_security_http::account_security_router};
-        let mfa=PostgresAccountMfa::new(pools[0].clone(),"development".into(),keys.clone(),clock.clone(),config.holdings_registry.clone()).map_err(|_|"PRIVATE_API_ACCOUNT_SECURITY_CONFIGURATION_INVALID")?;
-        let repository=PostgresAccountSecurity::new(pools[0].clone(),"development".into(),clock.clone(),invalidation.clone(),keys.clone(),config.holdings_registry.clone()).map_err(|_|"PRIVATE_API_ACCOUNT_SECURITY_CONFIGURATION_INVALID")?;
+        let mfa=PostgresAccountMfa::new(pools[0].clone(),config.environment.clone(),keys.clone(),clock.clone(),config.holdings_registry.clone()).map_err(|_|"PRIVATE_API_ACCOUNT_SECURITY_CONFIGURATION_INVALID")?;
+        let repository=PostgresAccountSecurity::new(pools[0].clone(),config.environment.clone(),clock.clone(),invalidation.clone(),keys.clone(),config.holdings_registry.clone()).map_err(|_|"PRIVATE_API_ACCOUNT_SECURITY_CONFIGURATION_INVALID")?;
         let security=AccountSecurity::new((*config.policy).clone(),Arc::new(mfa),Arc::new(repository),secrets.clone()).map_err(|_|"PRIVATE_API_ACCOUNT_SECURITY_CONFIGURATION_INVALID")?;
         router=router.merge(account_security_router(Arc::new(security)));
     }
@@ -1775,7 +1953,7 @@ async fn assemble_checked(
     let field_files_targets=BTreeSet::new();
     let service_package_provider_host=if let Some(packages)=&config.service_package_lifecycle {
         let provider=config.holdings.iter().find(|h|h.registration.holding_id==packages.provider_holding).ok_or("PRIVATE_API_SERVICE_PACKAGE_CONFIGURATION_INVALID")?;
-        let targets=config.holdings.iter().enumerate().filter(|(_,h)|packages.holdings.contains(&h.registration.holding_id)).map(|(index,h)|crate::field_service_package_http::ServicePackageHttpTarget{holding_id:h.registration.holding_id.clone(),audience:format!("holding:development:{}:{}",h.registration.holding_id.as_str(),h.host),write:pools[index+1].clone()}).collect();
+        let targets=config.holdings.iter().enumerate().filter(|(_,h)|packages.holdings.contains(&h.registration.holding_id)).map(|(index,h)|crate::field_service_package_http::ServicePackageHttpTarget{holding_id:h.registration.holding_id.clone(),audience:format!("holding:{}:{}:{}",config.environment,h.registration.holding_id.as_str(),h.host),write:pools[index+1].clone()}).collect();
         router=router.merge(crate::field_service_package_http::service_package_router(pools[0].clone(),config.policy.clone(),config.holdings_registry.clone(),Arc::new(SharedClock(clock.clone())),provider.host.clone(),packages.provider_holding.clone(),targets,packages.signer.clone()).map_err(|_|"PRIVATE_API_SERVICE_PACKAGE_CONFIGURATION_INVALID")?);
         Some(provider.host.clone())
     }else{None};
@@ -2625,6 +2803,51 @@ pub async fn run_development_api_file(
     result.map_err(|_| "PRIVATE_API_HTTP_FAILED")
 }
 
+/// Assemble the private production business API from an explicit durable
+/// configuration. The same owner routers, Account authority and migration
+/// inventory checks used by development are mounted; only the database binding
+/// and environment label differ.
+pub async fn assemble_production_api(
+    config: DevelopmentApiConfiguration,
+    clock: Arc<dyn Clock + Send + Sync>,
+    secrets: Arc<dyn AuthenticationSecrets>,
+) -> Result<DevelopmentApiRuntime, &'static str> {
+    if config.profile != Profile::Production {
+        return Err("EXPLICIT_PRIVATE_PRODUCTION_API_REQUIRED");
+    }
+    assemble_development_api(config, clock, secrets).await
+}
+
+/// Operator entry for the private production runtime. It binds loopback only
+/// and never discovers or modifies the installed service.
+pub async fn run_production_api_file(
+    path: &Path,
+    shutdown: impl std::future::Future<Output = ()> + Send + 'static,
+) -> Result<(), &'static str> {
+    let configuration = DevelopmentApiConfiguration::from_production_file(path)?;
+    let runtime = assemble_production_api(
+        configuration,
+        Arc::new(SystemAccountClock),
+        Arc::new(SystemAuthenticationSecrets),
+    )
+    .await?;
+    let listener = match tokio::net::TcpListener::bind(runtime.listen_address()).await {
+        Ok(listener) => listener,
+        Err(_) => {
+            runtime.close().await;
+            return Err("PRIVATE_PRODUCTION_LISTEN_FAILED");
+        }
+    };
+    eprintln!(
+        "Private production API listening on {}; readiness remains unavailable.",
+        runtime.listen_address()
+    );
+    let result = axum::serve(listener, runtime.router())
+        .with_graceful_shutdown(shutdown)
+        .await;
+    runtime.close().await;
+    result.map_err(|_| "PRIVATE_PRODUCTION_HTTP_FAILED")
+}
 
 /// The scoped worker uses the same reviewed Holding registry as the API. Each
 /// projection database is explicit, separately leased and HoldingRead-migrated.
@@ -2632,10 +2855,10 @@ pub async fn run_service_count_worker_file(
     path: &Path,
     shutdown: impl std::future::Future<Output = ()> + Send + 'static,
 ) -> Result<(), &'static str> {
-    run_outbox_worker_file(path,shutdown,false,None).await
+    run_outbox_worker_file(path,shutdown,false,None,Profile::Development).await
 }
 pub async fn run_field_dependency_worker_file(path:&Path,shutdown:impl std::future::Future<Output=()>+Send+'static)->Result<(),&'static str>{
-    run_outbox_worker_file(path,shutdown,true,None).await.map_err(|code|match code{
+    run_outbox_worker_file(path,shutdown,true,None,Profile::Development).await.map_err(|code|match code{
         "COUNT_WORKER_DISTINCT_READ_DATABASE_REQUIRED"=>"FIELD_WORKER_DISTINCT_READ_DATABASE_REQUIRED",
         "COUNT_WORKER_SCHEMA_UNAVAILABLE"=>"FIELD_WORKER_SCHEMA_UNAVAILABLE",
         "COUNT_WORKER_DATABASE_UNAVAILABLE"=>"FIELD_WORKER_DATABASE_UNAVAILABLE",
@@ -2656,10 +2879,10 @@ struct FieldDependencyRetry {
 pub async fn retry_field_dependency_worker_file(path:&Path,holding:&str,event:&str,dead_at:i64,reason:&str)->Result<(),&'static str>{
     let holding=HoldingId::new(holding).map_err(|_|"FIELD_RETRY_HOLDING_INVALID")?;
     if event.is_empty()||event.len()>180||reason.trim().chars().count()<3||reason.len()>2000{return Err("FIELD_RETRY_INPUT_INVALID");}
-    run_outbox_worker_file(path,std::future::ready(()),true,Some(FieldDependencyRetry{holding,event:event.into(),dead_at,reason:reason.into()})).await
+    run_outbox_worker_file(path,std::future::ready(()),true,Some(FieldDependencyRetry{holding,event:event.into(),dead_at,reason:reason.into()}),Profile::Development).await
 }
-async fn run_outbox_worker_file(path:&Path,shutdown:impl std::future::Future<Output=()>+Send+'static,field:bool,retry:Option<FieldDependencyRetry>)->Result<(),&'static str>{
-    let config = DevelopmentApiConfiguration::from_file(path)?;
+async fn run_outbox_worker_file(path:&Path,shutdown:impl std::future::Future<Output=()>+Send+'static,field:bool,retry:Option<FieldDependencyRetry>,profile:Profile)->Result<(),&'static str>{
+    let config = DevelopmentApiConfiguration::read_configuration_file(path, profile)?;
     if field {
         if !config.field_service_source_record_reads.values().any(|m|matches!(m,crate::field_service_source_record::SourceRecordMode::Enforced)){return Err("FIELD_WORKER_ENFORCED_SOURCE_TARGET_REQUIRED");}
     } else if config.field_service_initial_counts.is_empty(){return Err("COUNT_WORKER_TARGET_REQUIRED");}
@@ -2716,7 +2939,7 @@ async fn run_outbox_worker_file(path:&Path,shutdown:impl std::future::Future<Out
             #[cfg(feature="field-push-worker")]
             if field {push_targets.push(crate::field_push_worker::FieldPushTarget{
                 control:control.raw().clone(),holding:write.raw().clone(),
-                audience:format!("holding:development:{}:{}",holding.registration.holding_id.as_str(),holding.host),
+                audience:format!("holding:{}:{}:{}",config.environment,holding.registration.holding_id.as_str(),holding.host),
                 origin:format!("https://{}",holding.host),
             });}
             pairs.push((write.raw().clone(), read.raw().clone()));
@@ -2779,5 +3002,120 @@ mod field_files;
 
 #[cfg(feature="files-scan-worker")]
 pub async fn run_field_files_worker_file(path:&Path,shutdown:impl std::future::Future<Output=()>+Send)->Result<(), &'static str>{
-    field_files::run_workers(DevelopmentApiConfiguration::from_file(path)?,shutdown).await
+    run_field_files_worker_file_with_profile(path,shutdown,Profile::Development).await
+}
+#[cfg(feature="files-scan-worker")]
+async fn run_field_files_worker_file_with_profile(path:&Path,shutdown:impl std::future::Future<Output=()>+Send,profile:Profile)->Result<(), &'static str>{
+    field_files::run_workers(DevelopmentApiConfiguration::read_configuration_file(path,profile)?,shutdown).await
+}
+
+/// Durable private production Field worker supervisor. Each worker claims its
+/// own durable PostgreSQL work; a worker that stops is restarted after a
+/// bounded delay until the operator shuts the process down. The supervisor
+/// never discovers targets: the explicit production document owns the Holding
+/// partition.
+pub async fn run_production_workers_file(
+    path: &Path,
+    shutdown: impl std::future::Future<Output = ()> + Send + 'static,
+) -> Result<(), &'static str> {
+    let config = DevelopmentApiConfiguration::from_production_file(path)?;
+    if !config
+        .field_service_source_record_reads
+        .values()
+        .any(|mode| matches!(mode, crate::field_service_source_record::SourceRecordMode::Enforced))
+    {
+        return Err("FIELD_WORKER_ENFORCED_SOURCE_TARGET_REQUIRED");
+    }
+    let (stop_sender, stop) = tokio::sync::watch::channel(false);
+    let mut handles = Vec::new();
+    {
+        let path = path.to_owned();
+        let mut stop = stop.clone();
+        handles.push(tokio::spawn(async move {
+            loop {
+                if *stop.borrow() {
+                    return Ok::<(), &'static str>(());
+                }
+                let mut worker_stop = stop.clone();
+                let result = run_outbox_worker_file(
+                    &path,
+                    async move {
+                        let _ = worker_stop.changed().await;
+                    },
+                    true,
+                    None,
+                    Profile::Production,
+                )
+                .await;
+                if *stop.borrow() {
+                    return Ok(());
+                }
+                if let Err(code) = result {
+                    eprintln!("production Field dependency worker stopped: {code}; restarting");
+                }
+                tokio::select! {
+                    _ = stop.changed() => return Ok(()),
+                    _ = tokio::time::sleep(Duration::from_secs(5)) => {}
+                }
+            }
+        }));
+    }
+    // The native Files scan worker still requires the disposable leased
+    // development database identity. Do not silently omit a configured
+    // production scan target: the operator must see the remaining gap.
+    #[cfg(feature = "files-scan-worker")]
+    if config.field_files_providers.is_some() {
+        return Err("PRODUCTION_FILES_SCAN_WORKER_REQUIRED");
+    }
+    if !config.field_service_initial_counts.is_empty() {
+        let path = path.to_owned();
+        let mut stop = stop.clone();
+        handles.push(tokio::spawn(async move {
+            loop {
+                if *stop.borrow() {
+                    return Ok::<(), &'static str>(());
+                }
+                let mut worker_stop = stop.clone();
+                let result = run_outbox_worker_file(
+                    &path,
+                    async move {
+                        let _ = worker_stop.changed().await;
+                    },
+                    false,
+                    None,
+                    Profile::Production,
+                )
+                .await;
+                if *stop.borrow() {
+                    return Ok(());
+                }
+                if let Err(code) = result {
+                    eprintln!("production Field count worker stopped: {code}; restarting");
+                }
+                tokio::select! {
+                    _ = stop.changed() => return Ok(()),
+                    _ = tokio::time::sleep(Duration::from_secs(5)) => {}
+                }
+            }
+        }));
+    }
+    shutdown.await;
+    let _ = stop_sender.send(true);
+    let mut first_error = None;
+    for handle in handles {
+        match handle.await {
+            Ok(Ok(())) => {}
+            Ok(Err(code)) => {
+                if first_error.is_none() {
+                    first_error = Some(code);
+                }
+            }
+            Err(_) => {
+                if first_error.is_none() {
+                    first_error = Some("PRODUCTION_WORKER_PANICKED");
+                }
+            }
+        }
+    }
+    first_error.map_or(Ok(()), Err)
 }

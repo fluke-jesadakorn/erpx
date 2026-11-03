@@ -64482,7 +64482,8 @@
         "migrations/postgres/control/0020_billing_attachment_lifecycle.sql",
         "migrations/postgres/control/0019_quick_access_preferences.sql",
         "migrations/postgres/control/0028_target_runtime_grants.sql",
-        "migrations/postgres/control/0021_billing_attachment_reconciliation.sql"
+        "migrations/postgres/control/0021_billing_attachment_reconciliation.sql",
+        "migrations/postgres/control/0044_configured_account_environments.sql"
       ],
       "postgres": {
         "mode": "raw",
