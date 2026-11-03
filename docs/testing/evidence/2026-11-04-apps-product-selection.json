@@ -5,7 +5,7 @@
   "capability": "apps-product-selection",
   "base": "3083db9ca94a8c27fab70b04b0c2f76d63ad4171",
   "branch": "codex/apps-product-selection-cutover",
-  "sourceCommit": "c359d3f0595d46c50d10db0d84e4ea8c7a256c09",
+  "sourceCommit": "ec10bb0b025a543caf82389969a512ecc343370b",
   "changes": [
     "packages/server-work_projection/src/adapters/product-launcher.ts: recovery workspace links skip an unavailable native binding (401/403/404) instead of blanking the Apps product entry; unexpected failures still surface"
   ],

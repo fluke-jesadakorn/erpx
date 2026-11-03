@@ -3081,7 +3081,7 @@
       "kind": "business-flow-evidence",
       "status": "flow-complete",
       "scope": "All-Company/Branch/Department product selection matrix, per-Company authority withdrawal, Apps entry recovery binding skip and desktop browser evidence.",
-      "sourceIdentity": "c359d3f0595d46c50d10db0d84e4ea8c7a256c09",
+      "sourceIdentity": "ec10bb0b025a543caf82389969a512ecc343370b",
       "evidenceRef": "docs/testing/evidence/2026-11-04-apps-product-selection.json",
       "durableContractRefs": [
         "docs/contracts/next/apps.md"
