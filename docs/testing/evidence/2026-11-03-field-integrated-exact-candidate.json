@@ -153,5 +153,7 @@
     "Finance production composition is explicitly out of scope for this bundle; the production parser fails closed. Checklist 18 (scoped PR/merge) is this PR."
   ],
   "privateEvidence": ".scratch/dev/field-browser-journey-v2-result-final-head-2.json",
-  "cohort": "7bb9e96af7a9; the isolated cohort dev apps were restarted after syncing the changed source files from the scoped HEAD. The Rust release is unchanged since 78b6b210a (no Rust delta after it)."
+  "cohort": "7bb9e96af7a9; the isolated cohort dev apps were restarted after syncing the changed source files from the scoped HEAD. The Rust release is unchanged since 78b6b210a (no Rust delta after it).",
+  "cleanupCommit": "549e9540d",
+  "cleanupNote": "549e9540d is the strict native-worker Clippy and workspace-plan cleanup. It is behaviour-preserving (allows, let-chains, from_ref, equivalent condition restructures) and is covered by the affected unit suites; the browser journey ran on the preceding code head b9d40aea5."
 }
