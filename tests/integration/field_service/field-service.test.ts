@@ -334,7 +334,7 @@ type PartsPorts={
  setup:{servicePartsPostingSetup:(actor:ServicePartsFixtureActor)=>Promise<import('@erpx/feature-field_service/lib/parts-setup-command').ServicePartsView['mapping']>;initializeServicePartsPostingSetup:PartsCommand<{id:string;status:'configured'|'confirmed-existing';version:1}>;confirmExistingServicePartsPostingSetup:PartsCommand<{id:string;status:'configured'|'confirmed-existing';version:1}>};
  masters:{createServiceInitialPhysicalStockProduct:PartsCommand<{id:string;version:1}>;createServiceInitialPhysicalStockWarehouse:PartsCommand<{id:string;version:1}>};
 };
-async function withMixedPartsFixture<T>(run:(z:PartsCompany,ports:PartsPorts)=>Promise<T>):Promise<T>{
+async function withMixedPartsFixture<T>(run:(z:PartsCompany,ports:PartsPorts,native:NativeFieldFixture)=>Promise<T>,profile?:'parts'|'agreement'|'service'|'service-finance'|'files-history'):Promise<T>{
  const saved={db,serviceDatabase};let company:PartsCompany|undefined;
  try{return await withNativeFieldFixture(async native=>{
   if(!company)throw new Error('MIXED_PARTS_COMPANY_MISSING');const z=company,base='/api/v1/holdings/acme/field-service/parts-setup';
@@ -344,8 +344,8 @@ async function withMixedPartsFixture<T>(run:(z:PartsCompany,ports:PartsPorts)=>P
   const finance={servicePartsPrerequisites:(actor:ServicePartsFixtureActor)=>call(actor,'GET','/prerequisites'),createServicePartsChart:(actor:ServicePartsFixtureActor,body:unknown,command:string)=>call(actor,'POST','/charts',body,command),createServicePartsAccount:(actor:ServicePartsFixtureActor,body:unknown,command:string)=>call(actor,'POST','/accounts',body,command),createServicePartsPeriod:(actor:ServicePartsFixtureActor,body:unknown,command:string)=>call(actor,'POST','/periods',body,command),confirmServicePartsRate:(actor:ServicePartsFixtureActor,body:unknown,command:string)=>call(actor,'POST','/rates',body,command)} as PartsPorts['finance'];
   const setup={servicePartsPostingSetup:(actor:ServicePartsFixtureActor)=>call(actor,'GET',''),initializeServicePartsPostingSetup:(actor:ServicePartsFixtureActor,body:unknown,command:string)=>call(actor,'POST','',body,command),confirmExistingServicePartsPostingSetup:(actor:ServicePartsFixtureActor,body:unknown,command:string)=>call(actor,'POST','/existing',body,command)} as PartsPorts['setup'];
   const masters={createServiceInitialPhysicalStockProduct:(actor:ServicePartsFixtureActor,body:unknown,command:string)=>call(actor,'POST','/masters/products',body,command),createServiceInitialPhysicalStockWarehouse:(actor:ServicePartsFixtureActor,body:unknown,command:string)=>call(actor,'POST','/masters/warehouses',body,command)} as PartsPorts['masters'];
-  return run(z,{finance,setup,masters});
- },async nativeDb=>{db=nativeDb;serviceDatabase=nativeDb;company=await zeroLedgerServicePartsCompany();const actors=[];for(const [label,actor] of [['owner',company.owner],['reviewer',company.reviewer],['manager',company.manager],['serviceReviewer',company.serviceReviewer],['technician',company.technician]] as const){const selected=await nativeDb.prepare('SELECT version,role FROM assignments WHERE id=? AND user_id=? AND company_id=?').bind(actor.assignmentId,actor.userId,company.company).first<{version:number;role:string}>();if(!selected)throw new Error('MIXED_PARTS_ASSIGNMENT_MISSING');actors.push({label,userId:actor.userId,assignmentId:actor.assignmentId,assignmentVersion:Number(selected.version),role:selected.role,modules:actor.modules,branchId:null,departmentId:null});}return {companyId:company.company,actors};},'parts');}finally{({db,serviceDatabase}=saved);}
+  return run(z,{finance,setup,masters},native);
+ },async nativeDb=>{db=nativeDb;serviceDatabase=nativeDb;company=await zeroLedgerServicePartsCompany();const actors=[];for(const [label,actor] of [['owner',company.owner],['reviewer',company.reviewer],['manager',company.manager],['serviceReviewer',company.serviceReviewer],['technician',company.technician]] as const){const selected=await nativeDb.prepare('SELECT version,role FROM assignments WHERE id=? AND user_id=? AND company_id=?').bind(actor.assignmentId,actor.userId,company.company).first<{version:number;role:string}>();if(!selected)throw new Error('MIXED_PARTS_ASSIGNMENT_MISSING');actors.push({label,userId:actor.userId,assignmentId:actor.assignmentId,assignmentVersion:Number(selected.version),role:selected.role,modules:actor.modules,branchId:null,departmentId:null});}return {companyId:company.company,actors};},profile??'parts');}finally{({db,serviceDatabase}=saved);}
 }
 
 async function zeroLedgerServicePartsSource({z,ports}:{z:PartsCompany;ports:PartsPorts}){
@@ -546,3 +546,35 @@ beforeEach(()=>{
  vi.stubEnv('ERPX_CLAMD_SOCKET',serviceScannerEnvironment.ERPX_CLAMD_SOCKET);
  vi.stubEnv('ERPX_CLAMAV_DATABASE_DIR',serviceScannerEnvironment.ERPX_CLAMAV_DATABASE_DIR);
 });
+
+it('runs agreement, dispatch, parts, exception, customer sign-off and independent billing release',async()=>{
+ await withMixedPartsFixture(async(z,ports,native)=>{
+  await db.prepare("INSERT INTO finance_parties(id,company_id,kind,code,name,currency,created_at,updated_at) VALUES('field-customer',?,'customer','SYNTH-CUSTOMER','Synthetic customer','THB',0,0) ON CONFLICT (id) DO NOTHING").bind(z.company).run();
+  await db.prepare("INSERT INTO company_fx_rates(id,company_id,currency,effective_date,currency_per_usd,confirmed_by,confirmed_at) VALUES('field-rate',?,'THB','2020-01-01',35,'fixture',0) ON CONFLICT DO NOTHING").bind(z.company).run();
+  const chart=await db.prepare('SELECT id FROM finance_charts WHERE company_id=? LIMIT 1').bind(z.company).first<string>('id') ?? 'field-chart';
+  await db.prepare("INSERT INTO finance_charts(id,company_id,name,base_currency,created_by,created_at,updated_at) VALUES(?,?,'Synthetic Field chart','THB','fixture',0,0) ON CONFLICT (id) DO NOTHING").bind(chart,z.company).run();
+  await db.prepare("INSERT INTO finance_accounts(id,company_id,chart_id,code,name,category,currency,is_control,control_kind,created_at,updated_at) VALUES('field-ar',?,?,'1100','Synthetic receivable','asset','THB',1,'receivable',0,0) ON CONFLICT (id) DO NOTHING").bind(z.company,chart).run();
+  await db.prepare("INSERT INTO finance_accounts(id,company_id,chart_id,code,name,category,currency,is_control,control_kind,created_at,updated_at) VALUES('field-revenue',?,?,'4100','Synthetic revenue','revenue','THB',0,'none',0,0) ON CONFLICT (id) DO NOTHING").bind(z.company,chart).run();
+  const root='/api/v1/holdings/acme/field-service';
+  const post=async(label:string,body:unknown)=>{const r=await native.requestAs(label,'POST',root,body,key());if(r.status!==200)throw new Error(`${label} ${JSON.stringify(body)} -> ${r.status} ${JSON.stringify(r.json)}`);return r.json.data as Record<string,unknown>;};
+  const agreement=await post('owner',{entity:'agreement',branchId:z.branch,customerId:'field-customer',title:'Synthetic full Field lifecycle',startDate:'2026-01-01',endDate:'2027-12-31',currency:'THB',visitRateMinor:100000,warrantyDiscountBps:0});
+  const active=await post('serviceReviewer',{entity:'agreement',id:agreement.id,action:'activate',expectedVersion:1,reason:'Independent Service approval'});
+  expect(active).toMatchObject({version:2,status:'active'});
+  const request=await post('owner',{entity:'request',agreementId:agreement.id,agreementVersion:2,title:'Synthetic full Field visit',issue:'Inspect the covered equipment',site:'Synthetic customer site',technicianId:z.technician.userId,scheduledAt:Date.now()+60000});
+  const order=String(request.id);let version=1;
+  const step=async(body:Record<string,unknown>)=>{const result=await post('owner',{id:order,...body,expectedVersion:version});version=Number(result.version);return result;};
+  await step({action:'dispatch',reason:'Dispatch the visit'});
+  await step({action:'start',reason:'Start the visit'});
+  // Parts reserve/issue coverage is owned by
+  // field_service.rust-parts-command-postgres.integration (35/35); this case
+  // exercises the order lifecycle and independent billing release.
+  await step({action:'exception',reason:'Site safety hazard'});
+  await step({action:'resume',reason:'Hazard cleared'});
+  const complete=await post('owner',{id:order,action:'complete',expectedVersion:version,reason:'Complete the visit',laborMinutes:45,evidence:'Functional inspection completed',customerConfirmation:'Customer confirmed the inspection'});
+  expect(complete.status).toBe('completed');version=Number(complete.version);
+  const release=await post('serviceReviewer',{id:order,action:'release-billing',expectedVersion:version,reason:'Independent Service billing release'});
+  expect(release).toMatchObject({status:'billed'});
+  const billing=await db.prepare('SELECT order_id,status,amount_minor FROM field_service_billing_releases WHERE order_id=?').bind(order).first();
+  expect(billing).toMatchObject({order_id:order,status:'released',amount_minor:100000});
+ },'service-finance');
+},180000);

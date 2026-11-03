@@ -265,7 +265,7 @@ async fn run_fixture(
     // generic Support may only read it or reject wrong-owner commands.
     if std::env::var("ERPX_FIELD_SERVICE_MIXED_PROFILE").is_ok_and(|v|v=="1") {
         assert!(parts_mixed,"Service producer requires the owned mixed Company");
-        for flag in ["fieldServiceRequests","fieldServiceVisits","fieldServiceOrderCancellations","fieldServiceDetailReads","fieldServiceWorkReads"] {
+        for flag in ["fieldServiceRequests","fieldServiceVisits","fieldServiceOrderCancellations","fieldServiceDetailReads","fieldServiceWorkReads","fieldServiceReservations","fieldServiceIssues","fieldServiceVisitCompletions","fieldServiceVisitRecoveries","fieldServiceBillingReleases"] {
             doc[flag]=serde_json::json!(["h001"]);
         }
         doc["fieldServiceSourceRecordReads"]=serde_json::json!([{"holdingId":"h001","mode":"enforced"}]);
