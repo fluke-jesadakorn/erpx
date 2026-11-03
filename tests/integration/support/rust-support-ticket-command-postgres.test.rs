@@ -13,6 +13,14 @@ use erpx_server_workflow::public::commands::CommandJson;
 use erpx_service::support_ticket_command::{SupportTicketCommand, SupportTicketCreate};
 use std::sync::Arc;
 
+#[derive(Clone)]
+struct TestClock(Arc<review::account::fixture::MutableClock>);
+impl Clock for TestClock {
+    fn now(&self) -> erpx_server_shared::public::TimestampMillis {
+        self.0.now()
+    }
+}
+
 fn selection(assignment: &str) -> HoldingWorkspaceRequest {
     HoldingWorkspaceRequest {
         company_id: CompanyId::new("company").unwrap(),
@@ -255,3 +263,117 @@ async fn support_ticket_create_triage_start_resolve_confirm_and_replay() {
     .await;
 }
 
+
+#[tokio::test]
+async fn support_ticket_http_route_accepts_real_session_and_rendered_context() {
+    use axum::{body::{Body, to_bytes}, http::Request};
+    use erpx_service::field_service_reservation_read_http::FieldServiceReadScopeHeaders;
+    use erpx_service::support_ticket_http::{SupportTicketHttpTarget, support_ticket_http_router};
+    use tower::ServiceExt;
+    review::account::with_system(|system| async move {
+        let p = review::setup_with_finance(system, false).await;
+        let pool = &p.system.holdings[0];
+        let now = p.system.scenario.clock.now().get();
+        let expires = now + 3_600_000;
+        sqlx::raw_sql(
+            "INSERT INTO iam_roles(company_id,id,name,built_in,published_revision,status)VALUES('*','support_agent','Synthetic Support agent',false,1,'active'),('*','support_manager','Synthetic Support manager',false,1,'active') ON CONFLICT DO NOTHING;\
+             INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at)VALUES('*','support_agent',1,'[\"records.read\",\"records.write\",\"support.read\",\"support.create\",\"support.work\",\"commerce.read\"]','[]','[\"holding\",\"branch\",\"department\"]','synthetic-fixture',0),('*','support_manager',1,'[\"records.read\",\"records.write\",\"support.read\",\"support.create\",\"support.work\",\"support.manage\",\"commerce.read\"]','[]','[\"holding\",\"branch\",\"department\"]','synthetic-fixture',0) ON CONFLICT DO NOTHING;\
+             INSERT INTO hr_people(id,user_id,company_id,legal_name,country_code,status,version,created_by,created_at,updated_at)VALUES('person-a','fixture-a','company','Synthetic Agent','TH','active',1,'synthetic-fixture',0,0),('person-b','fixture-b','company','Synthetic Manager','TH','active',1,'synthetic-fixture',0,0) ON CONFLICT DO NOTHING;\
+             INSERT INTO hr_engagements(id,person_id,company_id,worker_type,employment_type,status,start_date,end_date,job_title,currency,version,created_by,created_at,updated_at)VALUES('engagement-a','person-a','company','employee','salaried','active','2026-01-01',NULL,'Support','THB',1,'synthetic-fixture',0,0),('engagement-b','person-b','company','employee','salaried','active','2026-01-01',NULL,'Support','THB',1,'synthetic-fixture',0,0) ON CONFLICT DO NOTHING;",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        for (user, assignment, role) in [
+            ("fixture-a", "support-fixture-a", "support_agent"),
+            ("fixture-b", "support-fixture-b", "support_manager"),
+        ] {
+            let session:String=sqlx::query_scalar("SELECT session_id FROM active_work_contexts WHERE user_id=$1")
+                .bind(user)
+                .fetch_one(pool.raw())
+                .await
+                .unwrap();
+            sqlx::query("INSERT INTO assignments(id,user_id,role,modules_json,company_id,valid_from,valid_until,version,scope_kind)VALUES($1,$2,$3,'[\"support\"]','company',$4,$5,3,'holding')")
+                .bind(assignment)
+                .bind(user)
+                .bind(role)
+                .bind(now - 1_000)
+                .bind(expires)
+                .execute(pool.raw())
+                .await
+                .unwrap();
+            sqlx::query("UPDATE active_work_contexts SET assignment_id=$2,assignment_version=3,revision=7,expires_at=$3,updated_at=$4 WHERE session_id=$1")
+                .bind(&session)
+                .bind(assignment)
+                .bind(expires)
+                .bind(now)
+                .execute(pool.raw())
+                .await
+                .unwrap();
+        }
+        let mut tx = pool.raw().begin().await.unwrap();
+        sqlx::query("INSERT INTO company_package_grants(company_id,package_id,package_version,state,starts_at,ends_at,version,reason,evidence,updated_at)VALUES('company','support',1,'active',0,$1,1,'Synthetic reviewed support purchase','public synthetic evidence',$2) ON CONFLICT DO NOTHING")
+            .bind(expires)
+            .bind(now)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO company_package_grant_events(id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at)SELECT 'support-origin-grant','company','support','fixture-a','synthetic-request',NULL,jsonb_build_object('companyId','company','packageId','support','packageVersion',1,'state','active','startsAt',0,'endsAt',$1,'version',1,'reason','Synthetic reviewed support purchase','evidence','public synthetic evidence'),$2 ON CONFLICT DO NOTHING")
+            .bind(expires)
+            .bind(now)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        tx.commit().await.unwrap();
+
+        let command = SupportTicketCommand {
+            authorizer: p.authorizer.clone(),
+            holding: HoldingId::new("h001").unwrap(),
+            company: CompanyId::new("company").unwrap(),
+            catalogue: Arc::new(current_package_catalogue().unwrap()),
+            clock: Arc::new(TestClock(p.system.scenario.clock.clone())),
+        };
+        let router = support_ticket_http_router(
+            Arc::new(review::account::fixture::account::policy()),
+            Arc::new(FieldServiceReadScopeHeaders),
+            vec![SupportTicketHttpTarget {
+                host: "acme.example.test".into(),
+                holding_slug: "acme".into(),
+                command: Arc::new(command),
+            }],
+        )
+        .unwrap();
+        let cookie = format!("__Host-erpx-product={}", p.maker_token.expose());
+        let request = Request::builder()
+            .method("POST")
+            .uri("/api/v1/holdings/acme/support")
+            .header("host", "acme.example.test")
+            .header("cookie", cookie)
+            .header("origin", "https://acme.example.test")
+            .header("idempotency-key", "http-create-1")
+            .header("x-erpx-context-company", "company")
+            .header("x-erpx-context-assignment", "support-fixture-a")
+            .header("x-erpx-context-revision", "7")
+            .header("x-erpx-context-assignment-version", "3")
+            .header("content-type", "application/json")
+            .body(Body::from(
+                r#"{"kind":"general","title":"HTTP printer offline","issue":"The front desk printer is offline over HTTP."}"#,
+            ))
+            .unwrap();
+        let response = router.oneshot(request).await.unwrap();
+        assert_eq!(response.status(), 200);
+        let body = to_bytes(response.into_body(), 64 * 1024).await.unwrap();
+        let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(value["data"]["id"], "ticket-http-create-1");
+        assert_eq!(value["data"]["status"], "triage");
+        assert_eq!(value["data"]["version"], 1);
+        let status: String = sqlx::query_scalar(
+            "SELECT status FROM support_tickets WHERE id='ticket-http-create-1' AND company_id='company'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(status, "triage");
+    })
+    .await;
+}
