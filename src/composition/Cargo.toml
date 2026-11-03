@@ -358,3 +358,8 @@ required-features = ["existing-business"]
 name = "support_incident_command_postgres"
 path = "../../tests/integration/support/rust-support-incident-command-postgres.test.rs"
 required-features = ["existing-business"]
+
+[[test]]
+name = "support_session_command_postgres"
+path = "../../tests/integration/support/rust-support-session-command-postgres.test.rs"
+required-features = ["existing-business"]

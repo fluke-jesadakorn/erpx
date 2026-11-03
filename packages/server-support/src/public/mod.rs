@@ -13,3 +13,5 @@ pub mod field_ticket_read;
 pub mod ticket;
 
 pub mod incident;
+
+pub mod session;
