@@ -7,6 +7,7 @@ use erpx_server_commercial::public::purchases::current_package_catalogue;
 use erpx_server_identity_access::public::work_context::{
     ExpectedWorkSelection, HoldingWorkspaceRequest,
 };
+use erpx_server_runtime::public::postgres::PgTransactionError;
 use erpx_server_shared::public::{AssignmentId, Clock, CommandKey, CompanyId, HoldingId};
 use erpx_server_support::public::ticket::TicketChange;
 use erpx_server_workflow::public::commands::CommandJson;
@@ -43,17 +44,17 @@ async fn support_ticket_create_triage_start_resolve_confirm_and_replay() {
         let now = p.system.scenario.clock.now().get();
         let expires = now + 3_600_000;
         sqlx::raw_sql(
-            "INSERT INTO iam_roles(company_id,id,name,built_in,published_revision,status)VALUES('*','support_agent','Synthetic Support agent',false,1,'active'),('*','support_manager','Synthetic Support manager',false,1,'active') ON CONFLICT DO NOTHING;\
-             INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at)VALUES('*','support_agent',1,'[\"records.read\",\"records.write\",\"support.read\",\"support.create\",\"support.work\",\"commerce.read\"]','[]','[\"holding\",\"branch\",\"department\"]','synthetic-fixture',0),('*','support_manager',1,'[\"records.read\",\"records.write\",\"support.read\",\"support.create\",\"support.work\",\"support.manage\",\"commerce.read\"]','[]','[\"holding\",\"branch\",\"department\"]','synthetic-fixture',0) ON CONFLICT DO NOTHING;\
+            "INSERT INTO iam_roles(company_id,id,name,built_in,published_revision,status)VALUES('*','custom_support_agent','Synthetic Support agent',false,1,'active'),('*','custom_support_manager','Synthetic Support manager',false,1,'active') ON CONFLICT DO NOTHING;\
+             INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at)VALUES('*','custom_support_agent',1,'[\"records.read\",\"records.write\",\"support.read\",\"support.create\",\"support.work\",\"commerce.read\",\"module.support.read\"]','[]','[\"holding\",\"branch\",\"department\"]','synthetic-fixture',0),('*','custom_support_manager',1,'[\"records.read\",\"records.write\",\"support.read\",\"support.create\",\"support.work\",\"support.manage\",\"commerce.read\",\"module.support.read\"]','[]','[\"holding\",\"branch\",\"department\"]','synthetic-fixture',0) ON CONFLICT DO NOTHING;\
              INSERT INTO hr_people(id,user_id,company_id,legal_name,country_code,status,version,created_by,created_at,updated_at)VALUES('person-a','fixture-a','company','Synthetic Agent','TH','active',1,'synthetic-fixture',0,0),('person-b','fixture-b','company','Synthetic Manager','TH','active',1,'synthetic-fixture',0,0) ON CONFLICT DO NOTHING;\
-             INSERT INTO hr_engagements(id,person_id,company_id,worker_type,employment_type,status,start_date,end_date,job_title,currency,version,created_by,created_at,updated_at)VALUES('engagement-a','person-a','company','employee','salaried','active','2026-01-01',NULL,'Support','THB',1,'synthetic-fixture',0,0),('engagement-b','person-b','company','employee','salaried','active','2026-01-01',NULL,'Support','THB',1,'synthetic-fixture',0,0) ON CONFLICT DO NOTHING;",
+             INSERT INTO hr_engagements(id,person_id,company_id,worker_type,employment_type,status,start_date,end_date,job_title,currency,version,created_by,created_at,updated_at)VALUES('engagement-a','person-a','company','employee','salaried','active','2026-01-01',NULL,'Support','THB',1,'synthetic-fixture',0,0),('engagement-b','person-b','company','employee','salaried','active','2026-01-01',NULL,'Support','THB',1,'synthetic-fixture',0,0) ON CONFLICT DO NOTHING;INSERT INTO iam_members(company_id,user_id,principal_id,person_id,status,login_policy,version)VALUES('company','fixture-a','local:fixture-a','person-a','active','local',1),('company','fixture-b','local:fixture-b','person-b','active','local',1) ON CONFLICT DO NOTHING;",
         )
         .execute(pool.raw())
         .await
         .unwrap();
         for (user, assignment, role) in [
-            ("fixture-a", "support-fixture-a", "support_agent"),
-            ("fixture-b", "support-fixture-b", "support_manager"),
+            ("fixture-a", "support-fixture-a", "custom_support_agent"),
+            ("fixture-b", "support-fixture-b", "custom_support_manager"),
         ] {
             let session:String=sqlx::query_scalar("SELECT session_id FROM active_work_contexts WHERE user_id=$1")
                 .bind(user)
@@ -259,6 +260,276 @@ async fn support_ticket_create_triage_start_resolve_confirm_and_replay() {
         .await
         .unwrap();
         assert_eq!(outbox, 5);
+
+        // Stale version is rejected before any write.
+        let stale = command
+            .change(
+                "acme.example.test",
+                p.maker.clone(),
+                || Ok(selection("support-fixture-a")),
+                "ticket-support-create-1".into(),
+                TicketChange::Start {
+                    expected_version: 4,
+                    reason: "Stale start".into(),
+                },
+                CommandJson::parse(
+                    r#"{"action":"start","expectedVersion":4,"reason":"Stale start"}"#,
+                )
+                .unwrap(),
+                CommandKey::new("support-stale-1").unwrap(),
+            )
+            .await;
+        match stale {
+            Err(PgTransactionError::Business(error)) => {
+                assert_eq!(error.code, "SUPPORT_STATE_CHANGED")
+            }
+            _ => panic!("stale Support change must fail"),
+        }
+
+        // A manager cannot perform the owner-only start action.
+        command
+            .create(
+                "acme.example.test",
+                p.maker.clone(),
+                || Ok(selection("support-fixture-a")),
+                SupportTicketCreate::General {
+                    title: "Owner-only start".into(),
+                    issue: "The assigned agent must start this case.".into(),
+                },
+                CommandJson::parse(
+                    r#"{"kind":"general","title":"Owner-only start","issue":"The assigned agent must start this case."}"#,
+                )
+                .unwrap(),
+                CommandKey::new("support-owner-create").unwrap(),
+            )
+            .await
+            .unwrap();
+        command
+            .change(
+                "acme.example.test",
+                p.reviewer.clone(),
+                || Ok(selection("support-fixture-b")),
+                "ticket-support-owner-create".into(),
+                TicketChange::Triage {
+                    expected_version: 1,
+                    reason: "Assign the owner-only case".into(),
+                    owner_id: "fixture-a".into(),
+                    due_date: "2026-11-10".into(),
+                },
+                CommandJson::parse(
+                    r#"{"action":"triage","expectedVersion":1,"reason":"Assign the owner-only case","ownerId":"fixture-a","dueDate":"2026-11-10"}"#,
+                )
+                .unwrap(),
+                CommandKey::new("support-owner-triage").unwrap(),
+            )
+            .await
+            .unwrap();
+        let owner_start = command
+            .change(
+                "acme.example.test",
+                p.reviewer.clone(),
+                || Ok(selection("support-fixture-b")),
+                "ticket-support-owner-create".into(),
+                TicketChange::Start {
+                    expected_version: 2,
+                    reason: "Manager attempts the owner action".into(),
+                },
+                CommandJson::parse(
+                    r#"{"action":"start","expectedVersion":2,"reason":"Manager attempts the owner action"}"#,
+                )
+                .unwrap(),
+                CommandKey::new("support-owner-start").unwrap(),
+            )
+            .await;
+        match owner_start {
+            Err(PgTransactionError::Business(error)) => {
+                assert_eq!(error.code, "SUPPORT_OWNER_REQUIRED")
+            }
+            _ => panic!("manager owner-only start must fail"),
+        }
+
+        // The resolving manager cannot confirm their own resolution.
+        command
+            .create(
+                "acme.example.test",
+                p.maker.clone(),
+                || Ok(selection("support-fixture-a")),
+                SupportTicketCreate::General {
+                    title: "Independent confirmation".into(),
+                    issue: "A different manager must confirm this resolution.".into(),
+                },
+                CommandJson::parse(
+                    r#"{"kind":"general","title":"Independent confirmation","issue":"A different manager must confirm this resolution."}"#,
+                )
+                .unwrap(),
+                CommandKey::new("support-independent-create").unwrap(),
+            )
+            .await
+            .unwrap();
+        command
+            .change(
+                "acme.example.test",
+                p.reviewer.clone(),
+                || Ok(selection("support-fixture-b")),
+                "ticket-support-independent-create".into(),
+                TicketChange::Triage {
+                    expected_version: 1,
+                    reason: "Assign the independent case".into(),
+                    owner_id: "fixture-b".into(),
+                    due_date: "2026-11-10".into(),
+                },
+                CommandJson::parse(
+                    r#"{"action":"triage","expectedVersion":1,"reason":"Assign the independent case","ownerId":"fixture-b","dueDate":"2026-11-10"}"#,
+                )
+                .unwrap(),
+                CommandKey::new("support-independent-triage").unwrap(),
+            )
+            .await
+            .unwrap();
+        command
+            .change(
+                "acme.example.test",
+                p.reviewer.clone(),
+                || Ok(selection("support-fixture-b")),
+                "ticket-support-independent-create".into(),
+                TicketChange::Start {
+                    expected_version: 2,
+                    reason: "Manager starts the case".into(),
+                },
+                CommandJson::parse(
+                    r#"{"action":"start","expectedVersion":2,"reason":"Manager starts the case"}"#,
+                )
+                .unwrap(),
+                CommandKey::new("support-independent-start").unwrap(),
+            )
+            .await
+            .unwrap();
+        command
+            .change(
+                "acme.example.test",
+                p.reviewer.clone(),
+                || Ok(selection("support-fixture-b")),
+                "ticket-support-independent-create".into(),
+                TicketChange::Resolve {
+                    expected_version: 3,
+                    reason: "Manager resolves the case".into(),
+                },
+                CommandJson::parse(
+                    r#"{"action":"resolve","expectedVersion":3,"reason":"Manager resolves the case"}"#,
+                )
+                .unwrap(),
+                CommandKey::new("support-independent-resolve").unwrap(),
+            )
+            .await
+            .unwrap();
+        let self_confirm = command
+            .change(
+                "acme.example.test",
+                p.reviewer.clone(),
+                || Ok(selection("support-fixture-b")),
+                "ticket-support-independent-create".into(),
+                TicketChange::ConfirmGeneral {
+                    expected_version: 4,
+                    reason: "The same manager attempts confirmation".into(),
+                },
+                CommandJson::parse(
+                    r#"{"action":"confirm-general","expectedVersion":4,"reason":"The same manager attempts confirmation"}"#,
+                )
+                .unwrap(),
+                CommandKey::new("support-independent-confirm").unwrap(),
+            )
+            .await;
+        match self_confirm {
+            Err(PgTransactionError::Business(error)) => {
+                assert_eq!(error.code, "INDEPENDENT_CONFIRMATION_REQUIRED")
+            }
+            _ => panic!("self-confirmation must fail"),
+        }
+
+        // Employee report: edit, add information and withdraw with replay-safe history.
+        command
+            .create(
+                "acme.example.test",
+                p.maker.clone(),
+                || Ok(selection("support-fixture-a")),
+                SupportTicketCreate::General {
+                    title: "Own workstation issue".into(),
+                    issue: "The keyboard stops responding after wake.".into(),
+                },
+                CommandJson::parse(
+                    r#"{"kind":"general","title":"Own workstation issue","issue":"The keyboard stops responding after wake."}"#,
+                )
+                .unwrap(),
+                CommandKey::new("support-report-create").unwrap(),
+            )
+            .await
+            .unwrap();
+        command
+            .change(
+                "acme.example.test",
+                p.maker.clone(),
+                || Ok(selection("support-fixture-a")),
+                "ticket-support-report-create".into(),
+                TicketChange::EditReport {
+                    expected_version: 1,
+                    title: "Keyboard issue after waking".into(),
+                    issue: "I verified this affects only my workstation.".into(),
+                    reason: "Correct the original report".into(),
+                },
+                CommandJson::parse(
+                    r#"{"action":"edit-report","expectedVersion":1,"title":"Keyboard issue after waking","issue":"I verified this affects only my workstation.","reason":"Correct the original report"}"#,
+                )
+                .unwrap(),
+                CommandKey::new("support-report-edit").unwrap(),
+            )
+            .await
+            .unwrap();
+        command
+            .change(
+                "acme.example.test",
+                p.maker.clone(),
+                || Ok(selection("support-fixture-a")),
+                "ticket-support-report-create".into(),
+                TicketChange::AddInformation {
+                    expected_version: 2,
+                    reason: "A restart temporarily restored the keyboard".into(),
+                },
+                CommandJson::parse(
+                    r#"{"action":"add-information","expectedVersion":2,"reason":"A restart temporarily restored the keyboard"}"#,
+                )
+                .unwrap(),
+                CommandKey::new("support-report-info").unwrap(),
+            )
+            .await
+            .unwrap();
+        command
+            .change(
+                "acme.example.test",
+                p.maker.clone(),
+                || Ok(selection("support-fixture-a")),
+                "ticket-support-report-create".into(),
+                TicketChange::WithdrawReport {
+                    expected_version: 3,
+                    reason: "Replacement keyboard fixed the issue".into(),
+                },
+                CommandJson::parse(
+                    r#"{"action":"withdraw-report","expectedVersion":3,"reason":"Replacement keyboard fixed the issue"}"#,
+                )
+                .unwrap(),
+                CommandKey::new("support-report-withdraw").unwrap(),
+            )
+            .await
+            .unwrap();
+        let report: (String, i64, String) = sqlx::query_as(
+            "SELECT status,version,title FROM support_tickets WHERE id='ticket-support-report-create'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(report.0, "cancelled");
+        assert_eq!(report.1, 4);
+        assert_eq!(report.2, "Keyboard issue after waking");
+
     })
     .await;
 }
@@ -276,17 +547,17 @@ async fn support_ticket_http_route_accepts_real_session_and_rendered_context() {
         let now = p.system.scenario.clock.now().get();
         let expires = now + 3_600_000;
         sqlx::raw_sql(
-            "INSERT INTO iam_roles(company_id,id,name,built_in,published_revision,status)VALUES('*','support_agent','Synthetic Support agent',false,1,'active'),('*','support_manager','Synthetic Support manager',false,1,'active') ON CONFLICT DO NOTHING;\
-             INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at)VALUES('*','support_agent',1,'[\"records.read\",\"records.write\",\"support.read\",\"support.create\",\"support.work\",\"commerce.read\"]','[]','[\"holding\",\"branch\",\"department\"]','synthetic-fixture',0),('*','support_manager',1,'[\"records.read\",\"records.write\",\"support.read\",\"support.create\",\"support.work\",\"support.manage\",\"commerce.read\"]','[]','[\"holding\",\"branch\",\"department\"]','synthetic-fixture',0) ON CONFLICT DO NOTHING;\
+            "INSERT INTO iam_roles(company_id,id,name,built_in,published_revision,status)VALUES('*','custom_support_agent','Synthetic Support agent',false,1,'active'),('*','custom_support_manager','Synthetic Support manager',false,1,'active') ON CONFLICT DO NOTHING;\
+             INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at)VALUES('*','custom_support_agent',1,'[\"records.read\",\"records.write\",\"support.read\",\"support.create\",\"support.work\",\"commerce.read\",\"module.support.read\"]','[]','[\"holding\",\"branch\",\"department\"]','synthetic-fixture',0),('*','custom_support_manager',1,'[\"records.read\",\"records.write\",\"support.read\",\"support.create\",\"support.work\",\"support.manage\",\"commerce.read\",\"module.support.read\"]','[]','[\"holding\",\"branch\",\"department\"]','synthetic-fixture',0) ON CONFLICT DO NOTHING;\
              INSERT INTO hr_people(id,user_id,company_id,legal_name,country_code,status,version,created_by,created_at,updated_at)VALUES('person-a','fixture-a','company','Synthetic Agent','TH','active',1,'synthetic-fixture',0,0),('person-b','fixture-b','company','Synthetic Manager','TH','active',1,'synthetic-fixture',0,0) ON CONFLICT DO NOTHING;\
-             INSERT INTO hr_engagements(id,person_id,company_id,worker_type,employment_type,status,start_date,end_date,job_title,currency,version,created_by,created_at,updated_at)VALUES('engagement-a','person-a','company','employee','salaried','active','2026-01-01',NULL,'Support','THB',1,'synthetic-fixture',0,0),('engagement-b','person-b','company','employee','salaried','active','2026-01-01',NULL,'Support','THB',1,'synthetic-fixture',0,0) ON CONFLICT DO NOTHING;",
+             INSERT INTO hr_engagements(id,person_id,company_id,worker_type,employment_type,status,start_date,end_date,job_title,currency,version,created_by,created_at,updated_at)VALUES('engagement-a','person-a','company','employee','salaried','active','2026-01-01',NULL,'Support','THB',1,'synthetic-fixture',0,0),('engagement-b','person-b','company','employee','salaried','active','2026-01-01',NULL,'Support','THB',1,'synthetic-fixture',0,0) ON CONFLICT DO NOTHING;INSERT INTO iam_members(company_id,user_id,principal_id,person_id,status,login_policy,version)VALUES('company','fixture-a','local:fixture-a','person-a','active','local',1),('company','fixture-b','local:fixture-b','person-b','active','local',1) ON CONFLICT DO NOTHING;",
         )
         .execute(pool.raw())
         .await
         .unwrap();
         for (user, assignment, role) in [
-            ("fixture-a", "support-fixture-a", "support_agent"),
-            ("fixture-b", "support-fixture-b", "support_manager"),
+            ("fixture-a", "support-fixture-a", "custom_support_agent"),
+            ("fixture-b", "support-fixture-b", "custom_support_manager"),
         ] {
             let session:String=sqlx::query_scalar("SELECT session_id FROM active_work_contexts WHERE user_id=$1")
                 .bind(user)
