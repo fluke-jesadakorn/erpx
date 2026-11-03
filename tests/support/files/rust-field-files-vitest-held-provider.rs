@@ -302,7 +302,6 @@ async fn run_fixture(
         assert!(parts_mixed && engineering.is_some(),"Commercial profile requires the owned mixed cohort");
         doc["accountSecurityKeys"] = serde_json::json!({"current":"fixture","keys":[{"id":"fixture","keyHex":"07".repeat(32)}]});
         doc["servicePackageLifecycle"] = serde_json::json!({"providerHoldingId":"h001","holdingIds":["h001"],"reviewSecret":"fixture-only-secret-32-characters-minimum"});
-        doc["fieldServiceSupportReads"] = serde_json::json!(["h001"]);
     }
     doc["fieldAttachmentLinks"] = serde_json::json!([{"holdingId":"h001","mode":"enabled"}]);
     doc["fieldAttachmentBinds"] = serde_json::json!([{"holdingId":"h001","mode":"enabled"}]);
