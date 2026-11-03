@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-03T22:31:01+00:00",
+  "updatedAt": "2026-11-03T22:37:27+00:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -20,7 +20,7 @@
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
     "workflowsPartial": 1,
-    "workflowsVerified": 17,
+    "workflowsVerified": 18,
     "workflowsMerged": 17,
     "ownersComplete": 1,
     "bundleChecklistComplete": 18,
@@ -3185,6 +3185,17 @@
       "durableContractRefs": [
         "docs/contracts/next/rust-finance-journal-detail.md"
       ]
+    },
+    {
+      "id": "apps-dirty-product-switch-browser",
+      "kind": "business-flow-evidence",
+      "status": "flow-complete",
+      "scope": "Dirty product-switch guard: journal editor dirty state, product switch dialog, Keep editing retains the page; desktop normal auth.",
+      "sourceIdentity": "apps-dirty-product-switch",
+      "evidenceRef": "docs/testing/evidence/2026-11-04-apps-dirty-product-switch.json",
+      "durableContractRefs": [
+        "docs/contracts/next/apps.md"
+      ]
     }
   ],
   "workflows": [
@@ -5627,11 +5638,13 @@
       "owner": "apps",
       "scope": "apps:dirty-product-switch",
       "partial": false,
-      "verified": false,
+      "verified": true,
       "merged": false,
-      "evidenceFlows": [],
+      "evidenceFlows": [
+        "apps-dirty-product-switch-browser"
+      ],
       "sourceRef": "docs/status/product-migration-acceptance.json",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Verified the dirty product-switch guard on desktop: editing a journal form marks the boundary dirty, the product switch shows the unsaved-work dialog, and Keep editing preserves the page. The guard is client-side; mobile is not claimed."
     },
     {
       "id": "account:central-login-and-directory-link",
