@@ -286,6 +286,10 @@ pub mod support_incident_command;
 #[cfg(feature = "existing-business")]
 pub mod support_session_command;
 #[cfg(feature = "existing-business")]
+pub mod support_evidence_command;
+#[cfg(feature = "existing-business")]
+pub mod support_evidence_http;
+#[cfg(feature = "existing-business")]
 pub mod support_sla_command;
 #[cfg(feature = "existing-business")]
 pub mod support_sla_http;
