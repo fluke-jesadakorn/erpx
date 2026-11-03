@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-03T16:25:58+00:00",
+  "updatedAt": "2026-11-03T16:49:56+00:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -21,9 +21,9 @@
     "additionalInteropEvidence": 2,
     "workflowsPartial": 7,
     "workflowsVerified": 6,
-    "workflowsMerged": 0,
+    "workflowsMerged": 6,
     "ownersComplete": 0,
-    "bundleChecklistComplete": 17,
+    "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
   },
   "evidencePolicy": {
@@ -47,7 +47,7 @@
   },
   "firstBundle": {
     "id": "field-service-capability",
-    "status": "ready-for-merge",
+    "status": "merged",
     "scope": "The six original Field Service catalogue workflows and their required entry, setup, prerequisites, Inventory, Finance, Support, Files, Work, Records, Identity and Commercial owner dependencies, limited to the declared dependency closure of erpx-service --no-default-features --features field-service. Finance production release/Company acceptance is a Finance-owner dependency explicitly outside this bundle and fail-closed.",
     "checklist": [
       {
@@ -249,8 +249,12 @@
         "number": 18,
         "id": "merge",
         "description": "Complete independent review, security/metadata and exact-head checks, then merge the bundle through the user-approved delivery path.",
-        "status": "incomplete",
-        "evidenceFlows": []
+        "status": "complete",
+        "evidenceFlows": [
+          "field-bundle-merge"
+        ],
+        "mergeCommit": "2e0090832d85eb3c171672dd28729f8445d42802",
+        "pullRequest": 17
       }
     ],
     "ownershipBoundaries": {
@@ -263,9 +267,7 @@
       "jobs": "Retained dispatcher src/workers/jobs.ts and Files scan/provider jobs remain TypeScript pending explicit owner assignment and replacement/retention proof; no native worker cutover is implied.",
       "cutover": "Private nonproduction flags and Next transport selectors currently opt in per Holding or record; default and production ownership are not migrated. Before merge/cutover, document each affected route, command and job, explicitly fence old writers, and prove replay/current authority across the transition."
     },
-    "mergeBlockers": [
-      "Checklist 18: independent review, security/metadata and exact-head checks, then merge through the user-approved delivery path."
-    ],
+    "mergeBlockers": [],
     "nextBundleBacklog": [
       "Unrelated owners and their catalogue workflows, except dependencies required by the Field journey.",
       "Generic Finance, Inventory, Support, Files, Work and Records owner surfaces beyond Field-required scope.",
@@ -2457,6 +2459,15 @@
         "generatedFilesAreBuildInputsOnly": true
       },
       "head": "549e9540d"
+    },
+    "merge": {
+      "pullRequest": 17,
+      "url": "https://github.com/fluke-jesadakorn/erpx/pull/17",
+      "mergeCommit": "2e0090832d85eb3c171672dd28729f8445d42802",
+      "base": "a8bcd2b9a298cc0aa9bb3e51b579dbd76093e6da",
+      "head": "8a5dae0593bf51297871549dc8f24a12fcfc90b9",
+      "mergedAt": "2026-11-03T16:49:03Z",
+      "mergeMethod": "merge commit"
     }
   },
   "qualifiedEvidence": [
@@ -2919,6 +2930,18 @@
       "durableContractRefs": [
         "docs/contracts/next/finance.md",
         "docs/contracts/next/rust-finance-journal-detail.md"
+      ]
+    },
+    {
+      "id": "field-bundle-merge",
+      "kind": "business-flow-evidence",
+      "status": "flow-complete",
+      "scope": "Field Service bundle merged to codex/rust-backend-migration: six catalogue workflows, declared dependency closure, production runtime, Files worker, 3101 opt-in and narrowed Finance production scope.",
+      "sourceIdentity": "2e0090832",
+      "evidenceRef": "docs/testing/evidence/2026-11-03-field-bundle-merge.json",
+      "durableContractRefs": [
+        "docs/contracts/next/rust-runtime.md",
+        "docs/contracts/next/finance.md"
       ]
     }
   ],
@@ -4759,7 +4782,7 @@
       "scope": "Service orders",
       "partial": false,
       "verified": true,
-      "merged": false,
+      "merged": true,
       "evidenceFlows": [
         "field-service-reserve-part",
         "field-service-issue-part",
@@ -4772,10 +4795,11 @@
         "field-service-work-contribution",
         "field-service-order-cancel",
         "field-source-record-support-link",
-        "field-catalogue-scopes"
+        "field-catalogue-scopes",
+        "field-bundle-merge"
       ],
       "sourceRef": "packages/server-field_service/src/public/field-service.ts",
-      "gap": "Verified by the registered full workflow case, the native parts/HTTP suites and the browser journey; merge pending checklist 18."
+      "gap": "Merged in PR #17 (merge commit 2e0090832). Owner surfaces remain partial in the 41-owner runtime register."
     },
     {
       "id": "field_service/feature-agreements",
@@ -4784,17 +4808,18 @@
       "scope": "Agreements",
       "partial": false,
       "verified": true,
-      "merged": false,
+      "merged": true,
       "evidenceFlows": [
         "field-service-agreement-review",
         "field-service-agreement-draft-create",
         "field-service-workspace-read",
         "field-service-work-contribution",
         "field-service-raw-physical-scope-interop",
-        "field-catalogue-scopes"
+        "field-catalogue-scopes",
+        "field-bundle-merge"
       ],
       "sourceRef": "packages/server-field_service/src/public/field-service.ts",
-      "gap": "Verified by the registered full workflow case, the native parts/HTTP suites and the browser journey; merge pending checklist 18."
+      "gap": "Merged in PR #17 (merge commit 2e0090832). Owner surfaces remain partial in the 41-owner runtime register."
     },
     {
       "id": "field_service/feature-dispatch",
@@ -4803,15 +4828,16 @@
       "scope": "Dispatch",
       "partial": false,
       "verified": true,
-      "merged": false,
+      "merged": true,
       "evidenceFlows": [
         "field-service-visit-start",
         "field-service-workspace-read",
         "field-service-order-detail-read",
-        "field-catalogue-scopes"
+        "field-catalogue-scopes",
+        "field-bundle-merge"
       ],
       "sourceRef": "packages/server-field_service/src/public/field-service.ts",
-      "gap": "Verified by the registered full workflow case, the native parts/HTTP suites and the browser journey; merge pending checklist 18."
+      "gap": "Merged in PR #17 (merge commit 2e0090832). Owner surfaces remain partial in the 41-owner runtime register."
     },
     {
       "id": "field_service/feature-visits",
@@ -4820,7 +4846,7 @@
       "scope": "Visits",
       "partial": false,
       "verified": true,
-      "merged": false,
+      "merged": true,
       "evidenceFlows": [
         "field-service-visit-start",
         "field-service-visit-complete",
@@ -4829,10 +4855,11 @@
         "files-field-visit-draft-withdraw",
         "files-field-visit-record-bind",
         "files-field-visit-staging-upload-scan-content-bind",
-        "field-catalogue-scopes"
+        "field-catalogue-scopes",
+        "field-bundle-merge"
       ],
       "sourceRef": "packages/server-field_service/src/public/field-service.ts",
-      "gap": "Verified by the registered full workflow case, the native parts/HTTP suites and the browser journey; merge pending checklist 18."
+      "gap": "Merged in PR #17 (merge commit 2e0090832). Owner surfaces remain partial in the 41-owner runtime register."
     },
     {
       "id": "field_service/feature-exceptions",
@@ -4841,15 +4868,16 @@
       "scope": "Exceptions",
       "partial": false,
       "verified": true,
-      "merged": false,
+      "merged": true,
       "evidenceFlows": [
         "field-service-visit-exception-resume",
         "field-service-order-cancel",
         "field-service-work-contribution",
-        "field-catalogue-scopes"
+        "field-catalogue-scopes",
+        "field-bundle-merge"
       ],
       "sourceRef": "packages/server-field_service/src/public/field-service.ts",
-      "gap": "Verified by the registered full workflow case, the native parts/HTTP suites and the browser journey; merge pending checklist 18."
+      "gap": "Merged in PR #17 (merge commit 2e0090832). Owner surfaces remain partial in the 41-owner runtime register."
     },
     {
       "id": "field_service/feature-billing-release",
@@ -4858,14 +4886,15 @@
       "scope": "Billing release",
       "partial": false,
       "verified": true,
-      "merged": false,
+      "merged": true,
       "evidenceFlows": [
         "field-service-release-billing",
         "finance-service-invoice-workspace-read",
-        "field-catalogue-scopes"
+        "field-catalogue-scopes",
+        "field-bundle-merge"
       ],
       "sourceRef": "packages/server-field_service/src/public/field-service.ts",
-      "gap": "Verified by the registered full workflow case, the native parts/HTTP suites and the browser journey; merge pending checklist 18."
+      "gap": "Merged in PR #17 (merge commit 2e0090832). Owner surfaces remain partial in the 41-owner runtime register."
     },
     {
       "id": "agent/agent-catalog",
