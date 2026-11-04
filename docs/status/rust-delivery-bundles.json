@@ -3356,7 +3356,7 @@
       "kind": "business-flow-evidence",
       "status": "flow-complete",
       "scope": "Native Finance chart-of-accounts management: chart/account/period read, chart/account create, import, status guards, period create, receipts/audit/outbox, HTTP/Next and desktop/mobile chart page.",
-      "sourceIdentity": "finance-chart-of-accounts-native",
+      "sourceIdentity": "71d8a6de0d0dc927bff8f011e697e5a47abac58a",
       "evidenceRef": "docs/testing/evidence/2026-11-04-finance-chart-of-accounts-native.json",
       "durableContractRefs": [
         "docs/contracts/next/rust-finance-journal-detail.md"

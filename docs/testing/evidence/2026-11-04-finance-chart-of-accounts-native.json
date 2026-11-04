@@ -5,7 +5,7 @@
   "capability": "finance-chart-of-accounts-native",
   "base": "a169022c6d51e31b70109ad2b9c037beef2eb830",
   "branch": "codex/finance-chart-of-accounts-native",
-  "sourceCommit": "pending",
+  "sourceCommit": "71d8a6de0d0dc927bff8f011e697e5a47abac58a",
   "implementation": {
     "adapter": "packages/server-finance/src/adapters/finance_setup.rs",
     "public": "packages/server-finance/src/public/finance_setup.rs",
@@ -46,22 +46,64 @@
   "browser": {
     "desktop": {
       "viewport": "1280x900",
-      "chart": {"postStatus": 201, "id": "chart-1ad84522-6649-4213-9e0c-c01cbcad2e4f", "name": "Browser setup ledger 982899", "baseCurrency": "THB", "accountingBasis": "IFRS"},
-      "account": {"postStatus": 201, "id": "acct-566827a5-53f0-42f6-89d5-54cae53ab753", "code": "192899", "currency": "THB"},
-      "period": {"postStatus": 201, "id": "period-d19b7b97-2391-46ec-a7cd-d51a65bd2d62", "name": "Browser period 982899", "range": "2049-04-01..2049-04-28"},
-      "import": {"postStatus": 201, "count": 1, "code": "182899"},
-      "status": {"postStatus": 200, "status": "inactive", "version": 2},
+      "chart": {
+        "postStatus": 201,
+        "id": "chart-1ad84522-6649-4213-9e0c-c01cbcad2e4f",
+        "name": "Browser setup ledger 982899",
+        "baseCurrency": "THB",
+        "accountingBasis": "IFRS"
+      },
+      "account": {
+        "postStatus": 201,
+        "id": "acct-566827a5-53f0-42f6-89d5-54cae53ab753",
+        "code": "192899",
+        "currency": "THB"
+      },
+      "period": {
+        "postStatus": 201,
+        "id": "period-d19b7b97-2391-46ec-a7cd-d51a65bd2d62",
+        "name": "Browser period 982899",
+        "range": "2049-04-01..2049-04-28"
+      },
+      "import": {
+        "postStatus": 201,
+        "count": 1,
+        "code": "182899"
+      },
+      "status": {
+        "postStatus": 200,
+        "status": "inactive",
+        "version": 2
+      },
       "readback": "Charts & accounts showed the new chart selected, the 192899 account inactive and the imported 182899 account",
       "pageErrors": 0,
       "consoleErrors": 32
     },
     "mobile": {
       "viewport": "390x844",
-      "chart": {"postStatus": 201, "id": "chart-c74bced7-14cc-4b4a-811e-7e8d4e6c5cf5", "name": "Browser setup ledger 043322"},
-      "account": {"postStatus": 201, "code": "193322"},
-      "period": {"postStatus": 201, "name": "Browser period 043322", "range": "2032-03-01..2032-03-28"},
-      "import": {"postStatus": 201, "count": 1},
-      "status": {"postStatus": 200, "status": "inactive", "version": 2},
+      "chart": {
+        "postStatus": 201,
+        "id": "chart-c74bced7-14cc-4b4a-811e-7e8d4e6c5cf5",
+        "name": "Browser setup ledger 043322"
+      },
+      "account": {
+        "postStatus": 201,
+        "code": "193322"
+      },
+      "period": {
+        "postStatus": 201,
+        "name": "Browser period 043322",
+        "range": "2032-03-01..2032-03-28"
+      },
+      "import": {
+        "postStatus": 201,
+        "count": 1
+      },
+      "status": {
+        "postStatus": 200,
+        "status": "inactive",
+        "version": 2
+      },
       "pageErrors": 0,
       "consoleErrors": 32
     },
