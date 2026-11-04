@@ -10,6 +10,8 @@ import {
   learningAssignmentDetail,
   learningWorkspace,
 } from "@erpx/server-learning/public/learning";
+import {nativeLearningCommandRoute} from "@erpx/feature-learn/lib/native-learning-command";
+import {nativeLearningDetailPage,nativeLearningWorkspacePage} from "@erpx/workplace/lib/native-learning";
 import { certificateRevocationSchema,revokeLearningCertificate } from "@erpx/server-learning/public/learning-eligibility";
 type C = { params: Promise<{ holdingSlug: string }> };
 const headers = { "Cache-Control": "private, no-store" };
@@ -17,12 +19,16 @@ export async function GET(r: Request, c: C) {
   try {
     const a = await requireWorkContext((await c.params).holdingSlug),
       id = new URL(r.url).searchParams.get("id");
+    const native = id
+      ? await nativeLearningDetailPage(a, id)
+      : await nativeLearningWorkspacePage(a);
+    const data =
+      native ??
+      (id
+        ? await learningAssignmentDetail(a, id)
+        : await learningWorkspace(a));
     return Response.json(
-      canonicalDestinationLinks({
-        data: id
-          ? await learningAssignmentDetail(a, id)
-          : await learningWorkspace(a),
-      }),
+      canonicalDestinationLinks({ data }),
       { headers },
     );
   } catch (e) {
@@ -48,15 +54,17 @@ export async function POST(r: Request, c: C) {
         "Idempotency-Key is required.",
       );
     const a = await requireWorkContext((await c.params).holdingSlug),
-      input = await r.json(),
-      data =
-        input.entity==="certificate"?await revokeLearningCertificate(a,input.id,certificateRevocationSchema.parse({expectedAssignmentVersion:input.expectedAssignmentVersion,reason:input.reason}),key):input.entity === "course"
-          ? typeof input.id === "string"
-            ? await changeLearningCourse(a, input.id, input, key)
-            : await createLearningCourse(a, input, key)
-          : typeof input.id === "string"
-            ? await changeLearningAssignment(a, input.id, input, key)
-            : await createLearningAssignment(a, input, key);
+      input = await r.json();
+    const native = await nativeLearningCommandRoute(a, input, key, r.headers);
+    const data =
+      native ??
+      (input.entity==="certificate"?await revokeLearningCertificate(a,input.id,certificateRevocationSchema.parse({expectedAssignmentVersion:input.expectedAssignmentVersion,reason:input.reason}),key):input.entity === "course"
+        ? typeof input.id === "string"
+          ? await changeLearningCourse(a, input.id, input, key)
+          : await createLearningCourse(a, input, key)
+        : typeof input.id === "string"
+          ? await changeLearningAssignment(a, input.id, input, key)
+          : await createLearningAssignment(a, input, key));
     return Response.json(canonicalDestinationLinks({ data }), { headers });
   } catch (e) {
     return errorResponse(e);

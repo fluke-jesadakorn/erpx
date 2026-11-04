@@ -24,6 +24,7 @@
     "./public/benefit-continuation": "./src/public/benefit-continuation.ts",
     "./public/executive-evidence-sources": "./src/public/executive-evidence-sources.ts",
     "./public/learning": "./src/public/learning.ts",
+    "./public/native-learning": "./src/public/native-learning.ts",
     "./public/executive-metric-projections": "./src/public/executive-metric-projections.ts",
     "./public/attachment-purchases": "./src/public/attachment-purchases.ts",
     "./public/notification-source": "./src/public/notification-source.ts",

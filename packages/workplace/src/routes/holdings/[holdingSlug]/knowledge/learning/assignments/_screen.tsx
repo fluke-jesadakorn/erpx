@@ -8,6 +8,7 @@ import { RecordLink as Link } from "@erpx/feature-records/components/record-link
 import { LearningConsole } from "@erpx/feature-learning/components/learning-console";
 import { ListFilters } from "@erpx/ui/components/list-filters";
 import { learningWorkspace } from "@erpx/server-learning/public/learning";
+import { nativeLearningWorkspacePage } from "@erpx/workplace/lib/native-learning";
 import { requireWorkContext, publicScope } from "@erpx/server-identity_access/public/authorization";
 import { pageError } from "@erpx/server-work_projection/public/page-error";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
@@ -32,7 +33,8 @@ export default async function Knowledge({ params, searchParams }: {
         forbidden();
     const term = typeof query.q === 'string' ? query.q : '';
     
-    const data = await learningWorkspace(actor, false).catch(error => pageError(error, holdingSlug));
+    const native = await nativeLearningWorkspacePage(actor, false).catch(error => pageError(error, holdingSlug));
+    const data = native ?? await learningWorkspace(actor, false).catch(error => pageError(error, holdingSlug));
     const workerPreparation=data.people.length===0&&!actor.beta&&actor.scope?.kind==='holding'&&!actor.branchId&&!actor.departmentId&&hasPermission(actor,'people.manage')&&hasPermission(actor,'organization.manage')
         ?await learningWorkerStartupWorkspace(actor,{}).catch(error=>pageError(error,holdingSlug)):null;
     const matching = (value: unknown) => String(value ?? '').toLocaleLowerCase().includes(term.toLocaleLowerCase());
@@ -41,6 +43,6 @@ export default async function Knowledge({ params, searchParams }: {
  {false}
  {false}
  {workerPreparation?.available&&workerPreparation.companyId===actor.companyId&&<p>No eligible learners are available yet. <WorkspaceLink href={`${base}/knowledge/learning/settings/learners`}>Prepare a Learning learner</WorkspaceLink> using current Company HR and organization authority.</p>}
- {data && <>{<LearningConsole embedded section={'assignments'} base={base} data={learningConsoleSnapshot(data)}/>} {<div className="ui-stack">{data.assignments.filter(row => !term || matching(row.course_title) || matching(row.learner_name)).map(row => <article className="ui-record-item" key={String(row.id)}><Link href={canonicalUiHref(`${base}/learning/${row.id}`)}>{String(row.course_title)} · {String(row.learner_name)}</Link><p>{String(row.status)}</p></article>)}{!data.assignments.length && <p>No learning assignments in this view.</p>}</div>}</>}
+ {data && <>{<LearningConsole embedded section={'assignments'} base={base} data={learningConsoleSnapshot(data as unknown as Parameters<typeof learningConsoleSnapshot>[0])}/>} {<div className="ui-stack">{data.assignments.filter(row => !term || matching(row.course_title) || matching(row.learner_name)).map(row => <article className="ui-record-item" key={String(row.id)}><Link href={canonicalUiHref(`${base}/learning/${row.id}`)}>{String(row.course_title)} · {String(row.learner_name)}</Link><p>{String(row.status)}</p></article>)}{!data.assignments.length && <p>No learning assignments in this view.</p>}</div>}</>}
  </SectionWorkspace>;
 }

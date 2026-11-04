@@ -49216,6 +49216,133 @@
       ]
     },
     {
+      "id": "learning.rust-learning.unit",
+      "lane": "unit",
+      "owner": "learning",
+      "modules": [
+        "learning"
+      ],
+      "files": [
+        "tests/unit/learning/rust-learning.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Learning course/assignment/certificate lifecycle retains scope, CAS/idempotency, review/waiver/revocation and rollback."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-learning",
+        "targets": [
+          "learning"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-learning/Cargo.toml"
+      ]
+    },
+    {
+      "id": "learning.rust-learning-http.unit",
+      "lane": "unit",
+      "owner": "learning",
+      "modules": [
+        "learning"
+      ],
+      "files": [
+        "tests/unit/learning/rust-learning-http.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Learning HTTP ingress retains exact targets, origin/key/content checks and bounded errors."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-learning",
+        "targets": [
+          "learning_http"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-learning/Cargo.toml"
+      ]
+    },
+    {
+      "id": "learning.rust-learning-postgres.integration",
+      "lane": "integration",
+      "owner": "learning",
+      "modules": [
+        "learning"
+      ],
+      "files": [
+        "tests/integration/learning/rust-learning-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Learning reads/commands retain Company/branch/department/personal scope, persisted readback and rollback."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-learning",
+        "targets": [
+          "learning_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-learning/Cargo.toml"
+      ]
+    },
+    {
+      "id": "learning.native-learning-transport.unit",
+      "lane": "unit",
+      "owner": "learning",
+      "modules": [
+        "learning"
+      ],
+      "files": [
+        "tests/unit/learning/native-learning-transport.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Learning transport must retain fail-closed config, bounded responses and owner error mapping."
+      },
+      "framework": "vitest",
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/feature-learn",
+        "@erpx/server-learning"
+      ]
+    },
+    {
       "id": "identity_access.workspace-hmr.e2e",
       "lane": "e2e",
       "owner": "identity_access",
