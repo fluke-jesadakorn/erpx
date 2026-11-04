@@ -8,11 +8,12 @@ use crate::{
         CancelChangeCommand, ChangeQueue, ChangeRow, NodeTarget, OrganizationCommandActor,
         OrganizationFuture, OrganizationNodeRepository, OrganizationWorkspace, ReviewChangeCommand,
         SaveChangeCommand, SaveTargetFacts, SharedChannel, WorkspaceChange, WorkspaceEvent,
-        WorkspaceNode,
+        WorkspaceLevel, WorkspaceNode, WorkspacePosition, WorkspaceTemplate,
     },
     domain::organization_nodes::{
         ChangeFilters, NodeChangeAction, NodeChangeState, NodeImpact, NodeLifecycleKind,
-        NodeStatus, OrganizationActor, RelocationSnapshot, relocation_snapshot_json,
+        NodeStatus, OrganizationActor, OrganizationScopeKind, RelocationSnapshot,
+        relocation_snapshot_json,
     },
 };
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
@@ -173,6 +174,43 @@ fn workspace_node(row: &PgRow) -> Result<WorkspaceNode, Error> {
         branch_id: row.try_get("branch_id")?,
         status: row.try_get("status")?,
         hierarchy_revision: row.try_get("hierarchy_revision")?,
+    })
+}
+
+fn workspace_position(row: &PgRow) -> Result<WorkspacePosition, Error> {
+    Ok(WorkspacePosition {
+        id: row.try_get("id")?,
+        company_id: row.try_get("company_id")?,
+        branch_id: row.try_get("branch_id")?,
+        department_id: row.try_get("department_id")?,
+        title: row.try_get("title")?,
+        level_id: row.try_get("level_id")?,
+        level_number: row.try_get("level_number")?,
+        reports_to_position_id: row.try_get("reports_to_position_id")?,
+        requirements: row.try_get("requirements")?,
+        is_ceo: row.try_get("is_ceo")?,
+        roster_required: row.try_get("roster_required")?,
+        active: row.try_get("active")?,
+        version: row.try_get("version")?,
+    })
+}
+
+fn workspace_level(row: &PgRow) -> Result<WorkspaceLevel, Error> {
+    Ok(WorkspaceLevel {
+        id: row.try_get("id")?,
+        name: row.try_get("name")?,
+        level_number: row.try_get("level_number")?,
+    })
+}
+
+fn workspace_template(row: &PgRow) -> Result<WorkspaceTemplate, Error> {
+    let raw: String = row.try_get("positions_json")?;
+    let positions = serde_json::from_str::<Vec<Value>>(&raw).map_err(|_| unavailable())?;
+    Ok(WorkspaceTemplate {
+        id: row.try_get("id")?,
+        name: row.try_get("name")?,
+        version: row.try_get("version")?,
+        positions,
     })
 }
 
@@ -963,6 +1001,69 @@ impl OrganizationNodeRepository for PgOrganizationNodes<'_> {
                 .iter()
                 .map(workspace_node)
                 .collect::<Result<Vec<_>, _>>()?;
+            let position_rows = sqlx::query(
+                "SELECT p.id,p.company_id,p.branch_id,p.department_id,p.title,p.level_id, \
+                 l.level_number::bigint level_number,p.reports_to_position_id,p.requirements, \
+                 p.is_ceo::bigint is_ceo,p.roster_required::bigint roster_required, \
+                 p.active::bigint active,p.version::bigint version \
+                 FROM organization_positions p \
+                 JOIN staff_levels l ON l.id=p.level_id AND l.company_id=p.company_id \
+                 WHERE p.company_id=$1 ORDER BY l.level_number,p.title,p.id LIMIT 4001",
+            )
+            .bind(actor.company_id.as_str())
+            .fetch_all(&mut *self.connection)
+            .await?;
+            if position_rows.len() > 4000 {
+                return Err(unavailable().into());
+            }
+            let mut positions = Vec::new();
+            for row in &position_rows {
+                let node_branch: Option<String> = row.try_get("branch_id")?;
+                let node_department: Option<String> = row.try_get("department_id")?;
+                let branch_matches =
+                    branch.is_none() || node_branch.is_none() || node_branch.as_deref() == branch;
+                let department_matches = department.is_none()
+                    || node_department.is_none()
+                    || node_department.as_deref() == department;
+                if branch_matches && department_matches {
+                    positions.push(workspace_position(row)?);
+                }
+            }
+            let level_rows = sqlx::query(
+                "SELECT id,name,level_number::bigint level_number FROM staff_levels \
+                 WHERE company_id=$1 AND active=1 AND level_number IS NOT NULL \
+                 ORDER BY level_number LIMIT 101",
+            )
+            .bind(actor.company_id.as_str())
+            .fetch_all(&mut *self.connection)
+            .await?;
+            if level_rows.len() > 100 {
+                return Err(unavailable().into());
+            }
+            let levels = level_rows
+                .iter()
+                .map(workspace_level)
+                .collect::<Result<Vec<_>, _>>()?;
+            let templates = if actor.can_manage() {
+                let template_rows = sqlx::query(
+                    "SELECT id,name,version::bigint version,positions_json FROM organization_templates \
+                     WHERE company_id=$1 ORDER BY name LIMIT 501",
+                )
+                .bind(actor.company_id.as_str())
+                .fetch_all(&mut *self.connection)
+                .await?;
+                if template_rows.len() > 500 {
+                    return Err(unavailable().into());
+                }
+                template_rows
+                    .iter()
+                    .map(workspace_template)
+                    .collect::<Result<Vec<_>, _>>()?
+            } else {
+                Vec::new()
+            };
+            let can_manage_spending =
+                actor.can_manage() && actor.assignment_scope_kind == OrganizationScopeKind::Holding;
             let member = member_sql("n", "$2");
             let channel_rows = sqlx::query(sqlx::AssertSqlSafe(format!(
                 "SELECT n.id node_id,r.id room_id,r.name,n.kind,n.status FROM organization_nodes n \
@@ -1153,6 +1254,9 @@ impl OrganizationNodeRepository for PgOrganizationNodes<'_> {
             }
             Ok(OrganizationWorkspace {
                 nodes,
+                positions,
+                levels,
+                templates,
                 node_changes,
                 change_queue: ChangeQueue {
                     record_id: filters.change_id.clone(),
@@ -1168,6 +1272,7 @@ impl OrganizationNodeRepository for PgOrganizationNodes<'_> {
                 actor_id: actor.user_id.as_str().into(),
                 can_manage: actor.can_manage(),
                 can_manage_units,
+                can_manage_spending,
             })
         })
     }

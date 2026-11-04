@@ -159,10 +159,47 @@ pub struct SharedChannel {
     pub status: String,
 }
 
+/// Organization-owned position catalog row. The page read carries the same
+/// placement/level facts the retained overview projects, never a roster row.
+#[derive(Clone, Debug, Serialize)]
+pub struct WorkspacePosition {
+    pub id: String,
+    pub company_id: String,
+    pub branch_id: Option<String>,
+    pub department_id: Option<String>,
+    pub title: String,
+    pub level_id: String,
+    pub level_number: i64,
+    pub reports_to_position_id: Option<String>,
+    pub requirements: String,
+    pub is_ceo: i64,
+    pub roster_required: i64,
+    pub active: i64,
+    pub version: i64,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct WorkspaceLevel {
+    pub id: String,
+    pub name: String,
+    pub level_number: i64,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct WorkspaceTemplate {
+    pub id: String,
+    pub name: String,
+    pub version: i64,
+    pub positions: Vec<Value>,
+}
+
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OrganizationWorkspace {
     pub nodes: Vec<WorkspaceNode>,
+    pub positions: Vec<WorkspacePosition>,
+    pub levels: Vec<WorkspaceLevel>,
+    pub templates: Vec<WorkspaceTemplate>,
     pub node_changes: Vec<WorkspaceChange>,
     pub change_queue: ChangeQueue,
     pub authorized_channel_nodes: Vec<String>,
@@ -170,6 +207,7 @@ pub struct OrganizationWorkspace {
     pub actor_id: String,
     pub can_manage: bool,
     pub can_manage_units: bool,
+    pub can_manage_spending: bool,
 }
 
 #[derive(Clone, Debug, Serialize)]

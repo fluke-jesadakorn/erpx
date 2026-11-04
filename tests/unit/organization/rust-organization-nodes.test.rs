@@ -1,5 +1,5 @@
 use erpx_server_organization::public::organization_nodes::*;
-use erpx_server_shared::public::{CompanyId, HoldingId, RecordId, UserId};
+use erpx_server_shared::public::{CompanyId, FailureKind, HoldingId, RecordId, UserId};
 use serde_json::json;
 
 fn input(value: serde_json::Value) -> NodeChangeInput {
@@ -341,6 +341,27 @@ fn independent_review_requires_another_fresh_company_authority_and_exact_version
         "CONFLICT"
     );
     assert!(validate_cancellable(NodeChangeState::Submitted, 1, 1).is_ok());
+}
+
+#[test]
+fn attachment_proof_stays_explicitly_unavailable_until_a_native_binding_port_exists() {
+    let with_proof = NodeDecisionInput::parse(&json!({
+        "expectedVersion": 1,
+        "decision": "approve",
+        "reason": "Reviewed the permit proof",
+        "attachmentSetIds": ["proof-set"]
+    }))
+    .unwrap();
+    let error = with_proof.require_unbound_proof().unwrap_err();
+    assert_eq!(error.code, "ORGANIZATION_ATTACHMENT_BINDING_UNAVAILABLE");
+    assert_eq!(error.kind, FailureKind::Unavailable);
+    let without_proof = NodeDecisionInput::parse(&json!({
+        "expectedVersion": 1,
+        "decision": "reject",
+        "reason": "Return for correction"
+    }))
+    .unwrap();
+    assert!(without_proof.require_unbound_proof().is_ok());
 }
 
 #[test]

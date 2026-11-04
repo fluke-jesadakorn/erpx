@@ -103,6 +103,7 @@ import {
   NativeOrganizationError,
   nativeOrganizationConfiguration,
   nativeOrganizationFailure,
+  nativeOrganizationOverview,
 } from "../../../packages/feature-organization/src/adapters/server/native-organization";
 import { nativeOrganizationSelector } from "../../../packages/feature-organization/src/lib/native-organization";
 
@@ -157,9 +158,36 @@ const workspacePayload = {
     changeQueue: { recordId: null, state: "open", query: "", page: 1, pageSize: 20, total: 0, pages: 1 },
     authorizedChannelNodes: ["branch"],
     channels: [{ node_id: "branch", room_id: "org-channel-branch", name: "North", kind: "branch", status: "active" }],
+    positions: [
+      {
+        id: "position-branch",
+        company_id: "company",
+        branch_id: "branch",
+        department_id: null,
+        title: "North lead",
+        level_id: "level-1",
+        level_number: 1,
+        reports_to_position_id: null,
+        requirements: "",
+        is_ceo: 1,
+        roster_required: 0,
+        active: 1,
+        version: 1,
+      },
+    ],
+    levels: [{ id: "level-1", name: "CEO", level_number: 1 }],
+    templates: [
+      {
+        id: "template-company",
+        name: "Standard",
+        version: 1,
+        positions: [{ key: "ceo", title: "CEO", levelNumber: 1, reportsToKey: null, isCeo: true }],
+      },
+    ],
     actorId: "user",
     canManage: true,
     canManageUnits: true,
+    canManageSpending: true,
   },
 };
 
@@ -193,6 +221,10 @@ describe("Native organization transport", () => {
     const data = await client.workspace(nativeHeaders, nativeActor, "changeState=open");
     expect(data.nodes[0]).toMatchObject({ id: "branch", display_name: "North", hierarchy_revision: 1 });
     expect(data.channels).toEqual([{ node_id: "branch", room_id: "org-channel-branch", name: "North", kind: "branch", status: "active" }]);
+    expect(data.positions[0]).toMatchObject({ id: "position-branch", level_number: 1, is_ceo: 1 });
+    expect(data.levels).toEqual([{ id: "level-1", name: "CEO", level_number: 1 }]);
+    expect(data.templates[0]).toMatchObject({ id: "template-company", version: 1 });
+    expect(data.canManageSpending).toBe(true);
     expect(data.canManageUnits).toBe(true);
     expect(transport).toHaveBeenCalledWith(
       "GET",
@@ -205,6 +237,63 @@ describe("Native organization transport", () => {
     expect(headers.get("cookie")).toBe("session=value");
     expect(headers.get("x-erpx-context-assignment")).toBe("assignment");
     expect(headers.get("x-erpx-context-revision")).toBe("7");
+  });
+
+  it("keeps Organization-owned page facts native and only composes the retained People projection", async () => {
+    const native = await createNativeOrganizationClient(nativeConfig, nativeTransport(workspacePayload)).workspace(
+      nativeHeaders,
+      nativeActor,
+      "",
+    );
+    const people = [
+      {
+        person_id: "person-1",
+        user_id: "user-1",
+        legal_name: "Person One",
+        email: null,
+        engagement_id: "engagement-1",
+        engagement_version: 1,
+        person_version: 1,
+        company_id: "company",
+        branch_id: "branch",
+        department_id: null,
+        position_id: "position-branch",
+        manager_person_id: null,
+        level_id: "level-1",
+        level_number: 1,
+        level_name: "CEO",
+        status: "active",
+        person_status: "active",
+        start_date: "2026-01-01",
+        end_date: null,
+        job_title: "CEO",
+        issues: [],
+      },
+    ];
+    expect(
+      nativeOrganizationOverview(native, {
+        people,
+        defaults: { pay: [], leave: [] },
+        monthlyPayGroups: [{ id: "pay-group", name: "Monthly", currency: "THB" }],
+        spendingTemplate: undefined,
+      }),
+    ).toMatchObject({
+      positions: [expect.objectContaining({ id: "position-branch" })],
+      people,
+      nodes: [expect.objectContaining({ id: "branch" })],
+      levels: [{ id: "level-1", name: "CEO", level_number: 1 }],
+      templates: [expect.objectContaining({ id: "template-company" })],
+      nodeChanges: [],
+      changeQueue: { state: "open" },
+      authorizedChannelNodes: ["branch"],
+      channels: [expect.objectContaining({ room_id: "org-channel-branch" })],
+      actorId: "user",
+      canManage: true,
+      canManageUnits: true,
+      canManageSpending: true,
+      defaults: { pay: [], leave: [] },
+      monthlyPayGroups: [{ id: "pay-group", name: "Monthly", currency: "THB" }],
+    });
   });
 
   it("accepts a retained command receipt and maps a stale native conflict to the route error contract", async () => {
@@ -229,6 +318,20 @@ describe("Native organization transport", () => {
   it("fails closed on malformed or over-broad native workspace replies", async () => {
     const malformed = createNativeOrganizationClient(nativeConfig, nativeTransport({ data: { nodes: [], nodeChanges: [] } }));
     await expect(malformed.workspace(nativeHeaders, nativeActor, "")).rejects.toMatchObject({ code: "NATIVE_ORGANIZATION_RESPONSE_INVALID" });
+    const badPosition = createNativeOrganizationClient(
+      nativeConfig,
+      nativeTransport({ data: { ...workspacePayload.data, positions: [{ id: "position" }] } }),
+    );
+    await expect(badPosition.workspace(nativeHeaders, nativeActor, "")).rejects.toMatchObject({
+      code: "NATIVE_ORGANIZATION_RESPONSE_INVALID",
+    });
+    const badSpendingFlag = createNativeOrganizationClient(
+      nativeConfig,
+      nativeTransport({ data: { ...workspacePayload.data, canManageSpending: "yes" } }),
+    );
+    await expect(badSpendingFlag.workspace(nativeHeaders, nativeActor, "")).rejects.toMatchObject({
+      code: "NATIVE_ORGANIZATION_RESPONSE_INVALID",
+    });
     const wrongHost = createNativeOrganizationClient(nativeConfig, nativeTransport(workspacePayload));
     await expect(
       wrongHost.workspace({ get: () => "other.example.test" }, nativeActor, ""),

@@ -47,7 +47,18 @@ async fn seed_nodes(p: &review::Prepared) {
         "INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status) \
          VALUES('branch','branch','north','North','company','company','branch','active'), \
                ('department','department','service','Service','branch','company','branch','active') \
-         ON CONFLICT DO NOTHING",
+         ON CONFLICT DO NOTHING;\
+         INSERT INTO staff_levels(id,company_id,code,name,rank,level_number,active,version,created_at,updated_at) \
+         VALUES('level-1','company','ORG_L1','CEO',-1,1,1,1,0,0), \
+               ('level-2','company','ORG_L2','Manager',-2,2,1,1,0,0), \
+               ('level-foreign','foreign','ORG_L1','Foreign',-1,1,1,1,0,0) ON CONFLICT DO NOTHING;\
+         INSERT INTO organization_positions(id,company_id,branch_id,department_id,title,level_id,created_by,created_at,updated_at) \
+         VALUES('position-branch','company','branch',NULL,'North lead','level-1','fixture',0,0), \
+               ('position-department','company','branch','department','Service lead','level-2','fixture',0,0), \
+               ('position-foreign','foreign',NULL,NULL,'Foreign lead','level-foreign','fixture',0,0) ON CONFLICT DO NOTHING;\
+         INSERT INTO organization_templates(id,company_id,name,positions_json,version,created_by,created_at,updated_at) \
+         VALUES('template-company','company','Standard','[{\"key\":\"ceo\",\"title\":\"CEO\",\"levelNumber\":1,\"reportsToKey\":null,\"isCeo\":true}]',1,'fixture',0,0), \
+               ('template-foreign','foreign','Foreign','[]',1,'fixture',0,0) ON CONFLICT DO NOTHING",
     )
     .execute(p.system.holdings[0].raw())
     .await
@@ -172,6 +183,27 @@ fn review_request(p: &review::Prepared, change_id: &str, key: &str) -> Request<B
         .unwrap()
 }
 
+fn review_request_with_proof(p: &review::Prepared, change_id: &str, key: &str) -> Request<Body> {
+    Request::builder()
+        .method("POST")
+        .uri(format!(
+            "/api/v1/holdings/acme/people/organization/changes/{change_id}/review"
+        ))
+        .header("host", "acme.example.test")
+        .header("cookie", cookie(p, true))
+        .header("origin", "https://acme.example.test")
+        .header("idempotency-key", key)
+        .header("x-erpx-context-company", "company")
+        .header("x-erpx-context-assignment", "finance-fixture-b")
+        .header("x-erpx-context-revision", "7")
+        .header("x-erpx-context-assignment-version", "3")
+        .header("content-type", "application/json")
+        .body(Body::from(
+            r#"{"expectedVersion":1,"decision":"approve","reason":"Capacity and authority reviewed","attachmentSetIds":["proof-set"]}"#,
+        ))
+        .unwrap()
+}
+
 async fn body(response: axum::response::Response) -> serde_json::Value {
     let bytes = to_bytes(response.into_body(), 64 * 1024).await.unwrap();
     serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null)
@@ -191,6 +223,7 @@ async fn organization_http_reads_and_reviews_with_the_normal_session() {
             panic!("organization read failed: {value}");
         }
         assert_eq!(value["data"]["canManageUnits"], true);
+        assert_eq!(value["data"]["canManageSpending"], true);
         assert_eq!(value["data"]["actorId"], "fixture-a");
         assert_eq!(value["data"]["changeQueue"]["state"], "open");
         assert!(
@@ -199,6 +232,32 @@ async fn organization_http_reads_and_reviews_with_the_normal_session() {
                 .unwrap()
                 .iter()
                 .any(|node| node["id"] == "branch")
+        );
+        let positions = value["data"]["positions"].as_array().unwrap();
+        assert!(positions.iter().any(|position| position["id"] == "position-branch"));
+        assert!(positions.iter().any(|position| position["id"] == "position-department"));
+        assert!(!positions.iter().any(|position| position["id"] == "position-foreign"));
+        assert_eq!(
+            value["data"]["levels"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|level| level["id"].as_str().unwrap())
+                .collect::<Vec<_>>(),
+            vec!["level-1", "level-2"]
+        );
+        assert_eq!(
+            value["data"]["templates"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|template| template["id"].as_str().unwrap())
+                .collect::<Vec<_>>(),
+            vec!["template-company"]
+        );
+        assert_eq!(
+            value["data"]["templates"][0]["positions"][0]["title"],
+            "CEO"
         );
 
         let response = app
@@ -230,6 +289,30 @@ async fn organization_http_reads_and_reviews_with_the_normal_session() {
         .await
         .unwrap();
         assert_eq!((audit, outbox), (1, 1));
+
+        let response = app
+            .clone()
+            .oneshot(review_request_with_proof(
+                &p,
+                &change_id,
+                "organization-http-review-proof-0001",
+            ))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(
+            body(response).await["error"]["code"],
+            "ORGANIZATION_ATTACHMENT_BINDING_UNAVAILABLE"
+        );
+        let (state, receipt): (String, bool) = sqlx::query_as(
+            "SELECT (SELECT state FROM organization_node_changes WHERE id=$1), \
+             EXISTS(SELECT 1 FROM command_receipts WHERE command_id='organization-http-review-proof-0001')",
+        )
+        .bind(&change_id)
+        .fetch_one(p.system.holdings[0].raw())
+        .await
+        .unwrap();
+        assert_eq!((state.as_str(), receipt), ("submitted", false));
 
         let response = app
             .clone()
@@ -312,6 +395,23 @@ async fn organization_http_refuses_foreign_origin_missing_key_and_foreign_compan
             .unwrap()
             .eq(&false)
         );
+
+        sqlx::raw_sql(
+            "INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) \
+             VALUES('*','custom_finance_review',3,'[\"organization.manage\"]','[]','[\"holding\",\"branch\",\"department\"]','fixture',0) \
+             ON CONFLICT DO NOTHING;\
+             UPDATE iam_roles SET published_revision=3 WHERE company_id='*' AND id='custom_finance_review'",
+        )
+        .execute(p.system.holdings[0].raw())
+        .await
+        .unwrap();
+        let response = app
+            .clone()
+            .oneshot(read_request(&p, false, "company"))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        assert_eq!(body(response).await["error"]["code"], "PERMISSION_REQUIRED");
     })
     .await;
 }

@@ -1,6 +1,12 @@
 import 'server-only';
 import { Agent, request } from 'node:http';
 import { Readable } from 'node:stream';
+import type {
+  OrganizationNode,
+  OrganizationNodeChange,
+  OrganizationOverview,
+  OrganizationPosition,
+} from '../../lib/organization-domain';
 
 /** Rendering input from the retained route authorization, never a grant. */
 export type NativeOrganizationPageContext = {
@@ -29,8 +35,33 @@ export type NativeOrganizationConfiguration = Readonly<{
 }>;
 
 type Row = Record<string, unknown>;
+export type NativeOrganizationPosition = {
+  id: string;
+  company_id: string;
+  branch_id: string | null;
+  department_id: string | null;
+  title: string;
+  level_id: string;
+  level_number: number;
+  reports_to_position_id: string | null;
+  requirements: string;
+  is_ceo: number;
+  roster_required: number;
+  active: number;
+  version: number;
+};
+export type NativeOrganizationLevel = { id: string; name: string; level_number: number };
+export type NativeOrganizationTemplate = {
+  id: string;
+  name: string;
+  version: number;
+  positions: Row[];
+};
 export type NativeOrganizationWorkspace = {
   nodes: Row[];
+  positions: NativeOrganizationPosition[];
+  levels: NativeOrganizationLevel[];
+  templates: NativeOrganizationTemplate[];
   nodeChanges: Row[];
   changeQueue: Row;
   authorizedChannelNodes: string[];
@@ -38,6 +69,7 @@ export type NativeOrganizationWorkspace = {
   actorId: string;
   canManage: boolean;
   canManageUnits: boolean;
+  canManageSpending: boolean;
 };
 
 export class NativeOrganizationError extends Error {
@@ -64,12 +96,60 @@ const identifier = (value: unknown): value is string => text(value, 200) && valu
 const integer = (value: unknown, min = 0): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= min;
 const optionalText = (value: unknown, max = 4096) => value === null || text(value, max);
+const nullableIdentifier = (value: unknown): value is string | null => value === null || identifier(value);
+const flag = (value: unknown): value is number => value === 0 || value === 1;
+
+function position(value: unknown): value is NativeOrganizationPosition {
+  return (
+    record(value) &&
+    Object.keys(value).length === 13 &&
+    identifier(value.id) &&
+    identifier(value.company_id) &&
+    nullableIdentifier(value.branch_id) &&
+    nullableIdentifier(value.department_id) &&
+    text(value.title, 200) &&
+    identifier(value.level_id) &&
+    integer(value.level_number, 1) &&
+    nullableIdentifier(value.reports_to_position_id) &&
+    text(value.requirements, 4000) &&
+    flag(value.is_ceo) &&
+    flag(value.roster_required) &&
+    flag(value.active) &&
+    integer(value.version, 1)
+  );
+}
+
+function level(value: unknown): value is NativeOrganizationLevel {
+  return (
+    record(value) &&
+    Object.keys(value).length === 3 &&
+    identifier(value.id) &&
+    text(value.name, 120) &&
+    integer(value.level_number, 1)
+  );
+}
+
+function template(value: unknown): value is NativeOrganizationTemplate {
+  return (
+    record(value) &&
+    Object.keys(value).length === 4 &&
+    identifier(value.id) &&
+    text(value.name, 120) &&
+    integer(value.version, 1) &&
+    Array.isArray(value.positions) &&
+    value.positions.length <= 100 &&
+    value.positions.every(record)
+  );
+}
 
 function workspace(value: unknown): NativeOrganizationWorkspace {
   if (
     !exact(value, ['data']) ||
     !exact(value.data, [
       'nodes',
+      'positions',
+      'levels',
+      'templates',
       'nodeChanges',
       'changeQueue',
       'authorizedChannelNodes',
@@ -77,6 +157,7 @@ function workspace(value: unknown): NativeOrganizationWorkspace {
       'actorId',
       'canManage',
       'canManageUnits',
+      'canManageSpending',
     ])
   )
     return failure('NATIVE_ORGANIZATION_RESPONSE_INVALID');
@@ -97,6 +178,15 @@ function workspace(value: unknown): NativeOrganizationWorkspace {
         ['active', 'suspended', 'archived'].includes(String(node.status)) &&
         integer(node.hierarchy_revision, 1),
     ) ||
+    !Array.isArray(data.positions) ||
+    data.positions.length > 4000 ||
+    !data.positions.every(position) ||
+    !Array.isArray(data.levels) ||
+    data.levels.length > 100 ||
+    !data.levels.every(level) ||
+    !Array.isArray(data.templates) ||
+    data.templates.length > 500 ||
+    !data.templates.every(template) ||
     !Array.isArray(data.nodeChanges) ||
     data.nodeChanges.length > 1000 ||
     !data.nodeChanges.every(
@@ -130,11 +220,15 @@ function workspace(value: unknown): NativeOrganizationWorkspace {
     ) ||
     !identifier(data.actorId) ||
     typeof data.canManage !== 'boolean' ||
-    typeof data.canManageUnits !== 'boolean'
+    typeof data.canManageUnits !== 'boolean' ||
+    typeof data.canManageSpending !== 'boolean'
   )
     return failure('NATIVE_ORGANIZATION_RESPONSE_INVALID');
   return {
     nodes: data.nodes as Row[],
+    positions: data.positions as NativeOrganizationPosition[],
+    levels: data.levels as NativeOrganizationLevel[],
+    templates: data.templates as NativeOrganizationTemplate[],
     nodeChanges: data.nodeChanges as Row[],
     changeQueue: data.changeQueue as Row,
     authorizedChannelNodes: data.authorizedChannelNodes as string[],
@@ -142,6 +236,41 @@ function workspace(value: unknown): NativeOrganizationWorkspace {
     actorId: data.actorId as string,
     canManage: data.canManage as boolean,
     canManageUnits: data.canManageUnits as boolean,
+    canManageSpending: data.canManageSpending as boolean,
+  };
+}
+
+/** Compose the page GET from native Organization-owned facts and the retained
+ * People projection. Roster/manager-grant/pay-group defaults still come from
+ * their existing owner ports; no Organization SQL reads them directly. */
+export function nativeOrganizationOverview(
+  native: NativeOrganizationWorkspace,
+  retained: Pick<
+    OrganizationOverview,
+    'people' | 'defaults' | 'monthlyPayGroups' | 'spendingTemplate'
+  >,
+): OrganizationOverview {
+  return {
+    positions: native.positions as unknown as OrganizationPosition[],
+    people: retained.people,
+    nodes: native.nodes as unknown as OrganizationNode[],
+    levels: native.levels,
+    templates: native.templates as unknown as OrganizationOverview['templates'],
+    nodeChanges: native.nodeChanges as unknown as OrganizationNodeChange[],
+    changeQueue: native.changeQueue as unknown as OrganizationOverview['changeQueue'],
+    canManageUnits: native.canManageUnits,
+    actorId: native.actorId,
+    canManage: native.canManage,
+    authorizedChannelNodes: native.authorizedChannelNodes,
+    channels: native.channels as unknown as NonNullable<OrganizationOverview['channels']>,
+    canManageSpending: native.canManageSpending,
+    ...(retained.defaults === undefined ? {} : { defaults: retained.defaults }),
+    ...(retained.monthlyPayGroups === undefined
+      ? {}
+      : { monthlyPayGroups: retained.monthlyPayGroups }),
+    ...(retained.spendingTemplate === undefined
+      ? {}
+      : { spendingTemplate: retained.spendingTemplate }),
   };
 }
 

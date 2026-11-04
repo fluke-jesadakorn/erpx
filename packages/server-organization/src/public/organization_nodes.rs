@@ -6,8 +6,9 @@ pub use crate::application::organization_nodes::{
     CancelChangeCommand, ChangeQueue, ChangeRow, ClockSource, NodeTarget, OrganizationCommand,
     OrganizationCommandActor, OrganizationFuture, OrganizationNodeRepository,
     OrganizationWorkspace, PreviewResult, ReviewChangeCommand, SaveChangeCommand, SaveTargetFacts,
-    SharedChannel, WorkspaceChange, WorkspaceEvent, WorkspaceNode, assert_node_scope,
-    cancel_change, preview_change, read_workspace, review_change, save_change,
+    SharedChannel, WorkspaceChange, WorkspaceEvent, WorkspaceLevel, WorkspaceNode,
+    WorkspacePosition, WorkspaceTemplate, assert_node_scope, cancel_change, preview_change,
+    read_workspace, review_change, save_change,
 };
 pub use crate::domain::organization_nodes::{
     ChangeFilters, ChangeStateFilter, ChannelAudience, MAX_NODES, NodeChangeAction,

@@ -1119,3 +1119,132 @@ async fn relocation_refuses_children_conflicts_and_rolls_back_on_a_late_failure(
     })
     .await;
 }
+
+#[tokio::test]
+async fn page_read_returns_owned_catalog_facts_with_company_and_placement_isolation() {
+    fixture::with_database(2, |pool| async move {
+        seed(&pool).await;
+        sqlx::raw_sql(
+            "INSERT INTO staff_levels(id,company_id,code,name,rank,level_number,active,version,created_at,updated_at) \
+             VALUES('level-1','company','ORG_L1','CEO',-1,1,1,1,0,0), \
+                   ('level-2','company','ORG_L2','Manager',-2,2,1,1,0,0), \
+                   ('level-foreign','foreign','ORG_L1','Foreign',-1,1,1,1,0,0);\
+             INSERT INTO organization_positions(id,company_id,branch_id,department_id,title,level_id,created_by,created_at,updated_at) \
+             VALUES('position-branch','company','branch',NULL,'Branch lead','level-1','fixture',0,0), \
+                   ('position-department','company','branch','department','Service lead','level-2','fixture',0,0), \
+                   ('position-other-department','company','branch','other-department','Other lead','level-2','fixture',0,0), \
+                   ('position-other-branch','company','destination',NULL,'Destination lead','level-1','fixture',0,0), \
+                   ('position-unplaced','company',NULL,NULL,'Company lead','level-1','fixture',0,0), \
+                   ('position-foreign','foreign',NULL,NULL,'Foreign lead','level-foreign','fixture',0,0);\
+             INSERT INTO organization_templates(id,company_id,name,positions_json,version,created_by,created_at,updated_at) \
+             VALUES('template-company','company','Standard','[{\"key\":\"ceo\",\"title\":\"CEO\",\"levelNumber\":1,\"reportsToKey\":null,\"isCeo\":true}]',1,'fixture',0,0), \
+                   ('template-foreign','foreign','Foreign','[]',1,'fixture',0,0);",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+
+        let owner_workspace = run(pool.clone(), move |connection| {
+            Box::pin(async move {
+                let mut ports = PgOrganizationNodes::new(connection);
+                read_workspace(&mut ports, &owner(), &ChangeFilters::default())
+                    .await
+                    .map_err(|error| match error {
+                        PgTransactionError::Business(error) => error,
+                        error => panic!("unexpected persistence {error:?}"),
+                    })
+            })
+        })
+        .await
+        .unwrap();
+        let owner_positions = owner_workspace
+            .positions
+            .iter()
+            .map(|position| position.id.as_str())
+            .collect::<Vec<_>>();
+        assert!(owner_positions.contains(&"position-branch"));
+        assert!(owner_positions.contains(&"position-department"));
+        assert!(owner_positions.contains(&"position-other-department"));
+        assert!(owner_positions.contains(&"position-other-branch"));
+        assert!(owner_positions.contains(&"position-unplaced"));
+        assert!(!owner_positions.contains(&"position-foreign"));
+        assert_eq!(
+            owner_workspace
+                .levels
+                .iter()
+                .map(|level| level.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["level-1", "level-2"]
+        );
+        assert_eq!(
+            owner_workspace
+                .templates
+                .iter()
+                .map(|template| template.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["template-company"]
+        );
+        assert_eq!(
+            owner_workspace.templates[0].positions[0]["title"],
+            json!("CEO")
+        );
+        assert!(owner_workspace.can_manage);
+        assert!(owner_workspace.can_manage_units);
+        assert!(owner_workspace.can_manage_spending);
+
+        let department_workspace = run(pool.clone(), move |connection| {
+            Box::pin(async move {
+                let mut ports = PgOrganizationNodes::new(connection);
+                let member = actor(
+                    "company",
+                    "member",
+                    "assignment-member",
+                    OrganizationScopeKind::Department,
+                    Some("branch"),
+                    Some("department"),
+                );
+                read_workspace(&mut ports, &member, &ChangeFilters::default())
+                    .await
+                    .map_err(|error| match error {
+                        PgTransactionError::Business(error) => error,
+                        error => panic!("unexpected persistence {error:?}"),
+                    })
+            })
+        })
+        .await
+        .unwrap();
+        let department_positions = department_workspace
+            .positions
+            .iter()
+            .map(|position| position.id.as_str())
+            .collect::<Vec<_>>();
+        assert!(department_positions.contains(&"position-branch"));
+        assert!(department_positions.contains(&"position-department"));
+        assert!(department_positions.contains(&"position-unplaced"));
+        assert!(!department_positions.contains(&"position-other-department"));
+        assert!(!department_positions.contains(&"position-other-branch"));
+        assert!(!department_workspace.can_manage_units);
+        assert!(!department_workspace.can_manage_spending);
+
+        let mut read_only = owner();
+        read_only.permissions.clear();
+        let read_only_workspace = run(pool.clone(), move |connection| {
+            Box::pin(async move {
+                let mut ports = PgOrganizationNodes::new(connection);
+                read_workspace(&mut ports, &read_only, &ChangeFilters::default())
+                    .await
+                    .map_err(|error| match error {
+                        PgTransactionError::Business(error) => error,
+                        error => panic!("unexpected persistence {error:?}"),
+                    })
+            })
+        })
+        .await
+        .unwrap();
+        assert!(!read_only_workspace.can_manage);
+        assert!(read_only_workspace.templates.is_empty());
+        assert!(!read_only_workspace.can_manage_spending);
+        assert_eq!(read_only_workspace.levels.len(), 2);
+    })
+    .await;
+}

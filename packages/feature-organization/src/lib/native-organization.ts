@@ -42,8 +42,9 @@ function client(actor: WorkContext) {
 }
 
 /** Exact native selector for the node lifecycle commands already used by the
- * People organization route. Unknown organization routes stay with the retained
- * owner until their native read/write surface is available. */
+ * People organization route. The workspace read is selected separately by
+ * `nativeOrganizationWorkspace`; other organization writes stay with the
+ * retained owner until their native command surface is available. */
 export function nativeOrganizationSelector(parts: readonly string[]):
   | { kind: 'save'; id: string | null; submit: boolean }
   | { kind: 'preview' }
@@ -113,9 +114,10 @@ export async function nativeOrganizationChange(
   });
 }
 
-/** Native node/tree read. Kept behind the same explicit configuration; the
- * retained People page still reads its roster projection until that owner read
- * is native, so this helper is not yet called from the page. */
+/** Native node/tree page read. The Organization owner serves nodes, positions,
+ * levels, templates, changes, channels and command flags. A missing transport
+ * configuration keeps the retained page read; a configured failure is mapped by
+ * the route instead of silently falling back. */
 export async function nativeOrganizationWorkspace(
   actor: WorkContext,
   holdingSlug: string,
@@ -132,4 +134,4 @@ export async function nativeOrganizationWorkspace(
   return await native.workspace(incoming, context(actor), search.toString());
 }
 
-export {nativeOrganizationFailure} from '../adapters/server/native-organization';
+export {nativeOrganizationFailure, nativeOrganizationOverview} from '../adapters/server/native-organization';
