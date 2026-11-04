@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-04T17:05:00+07:00",
+  "updatedAt": "2026-11-04T17:30:00+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -16,10 +16,10 @@
     "interpretation": "The 206 items are catalogue workflows, not the number of bounded flows. Each listed ID occurs once below. A partial item has supporting qualified slices, not whole-workflow verification."
   },
   "counts": {
-    "qualifiedBusinessFlows": 52,
+    "qualifiedBusinessFlows": 58,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 32,
+    "workflowsPartial": 40,
     "workflowsVerified": 26,
     "workflowsMerged": 26,
     "ownersComplete": 2,
@@ -3645,24 +3645,28 @@
       "kind": "module",
       "owner": "platform_administration",
       "scope": "Provisioning",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
-      "evidenceFlows": [],
+      "evidenceFlows": [
+        "platform-native-provisioning"
+      ],
       "sourceRef": "packages/server-platform_administration/src/public/platform-operations.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native provisioning read/activation and the control-plane operations summary are PostgreSQL/HTTP-qualified; the Next route cutover and host onboarding command remain open."
     },
     {
       "id": "platform_administration/feature-holdings",
       "kind": "module",
       "owner": "platform_administration",
       "scope": "Holdings",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
-      "evidenceFlows": [],
+      "evidenceFlows": [
+        "platform-native-holdings"
+      ],
       "sourceRef": "packages/server-platform_administration/src/public/platform-operations.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native Holding provisioning/read activation is implemented; customer Holding migration commands and browser remain open."
     },
     {
       "id": "platform_administration/feature-connectors",
@@ -3681,24 +3685,28 @@
       "kind": "module",
       "owner": "platform_administration",
       "scope": "Infrastructure",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
-      "evidenceFlows": [],
+      "evidenceFlows": [
+        "platform-native-operations"
+      ],
       "sourceRef": "ops/macos/erpxctl.py",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native operations summary/queue reads are implemented; infrastructure mutation commands remain retained."
     },
     {
       "id": "platform_administration/feature-backup-recovery",
       "kind": "module",
       "owner": "platform_administration",
       "scope": "Backup & recovery",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
-      "evidenceFlows": [],
+      "evidenceFlows": [
+        "platform-native-recovery"
+      ],
       "sourceRef": "ops/macos/erpxctl.py",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native dead-letter recovery replay/auditor denial/rollback is qualified; backup and restore execution remain retained."
     },
     {
       "id": "platform_administration/feature-projections-events",
@@ -3717,12 +3725,14 @@
       "kind": "module",
       "owner": "platform_administration",
       "scope": "Migration runs",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
-      "evidenceFlows": [],
+      "evidenceFlows": [
+        "platform-native-migration-reads"
+      ],
       "sourceRef": "packages/server-platform_administration/src/public/platform-operations.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native migration-run reads and dead-letter recovery replay are PostgreSQL-qualified; the native migration-run command remains open."
     },
     {
       "id": "platform_administration/feature-temporary-access",
@@ -4772,12 +4782,14 @@
       "kind": "module",
       "owner": "people_payroll",
       "scope": "Payroll summaries",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
-      "evidenceFlows": [],
+      "evidenceFlows": [
+        "people-payroll-native-summary"
+      ],
       "sourceRef": "packages/server-people_payroll/src/public/people-payroll.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native posted payroll summary and fail-closed Next/SSR cutover are implemented; composition mount, run detail and browser remain open."
     },
     {
       "id": "people_payroll/feature-leave-requests",
@@ -4808,12 +4820,14 @@
       "kind": "module",
       "owner": "people_payroll",
       "scope": "Payroll runs",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
-      "evidenceFlows": [],
+      "evidenceFlows": [
+        "people-payroll-native-runs"
+      ],
       "sourceRef": "packages/server-people_payroll/src/public/people-payroll.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native scoped payroll run-list read is implemented; run create/calculate/cancel/post and run detail remain retained."
     },
     {
       "id": "crm/accounts",
@@ -5880,12 +5894,14 @@
       "kind": "module",
       "owner": "manage_erpx",
       "scope": "Overview",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
-      "evidenceFlows": [],
+      "evidenceFlows": [
+        "manage-erpx-native-onboarding"
+      ],
       "sourceRef": "packages/server-platform_administration/src/public/platform-operations.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native company-onboarding view and fail-closed Next route are implemented; the onboarding POST/company bootstrap remains retained."
     },
     {
       "id": "manage_erpx/billing",
