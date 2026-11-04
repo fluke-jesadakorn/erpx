@@ -28,8 +28,9 @@ export async function prepareHoldingRequest(request:NextRequest):Promise<NextReq
   if(binding.id!==registration.holdingId)return missing();
   if(route.kind==='transport'&&route.internalPath.startsWith('/_next/'))return NextResponse.next();
   if(request.nextUrl.pathname.startsWith('/holdings/')&&['GET','HEAD'].includes(request.method)){
-    const mapped=holdingUiUrl(request.nextUrl.pathname+request.nextUrl.search,request.nextUrl.searchParams.get('company')??undefined);
-    if(mapped)return NextResponse.redirect(mapped,{status:307,headers:noStore});
+    const current=request.nextUrl.pathname+request.nextUrl.search;
+    const mapped=holdingUiUrl(current,request.nextUrl.searchParams.get('company')??undefined);
+    if(mapped){const target=new URL(mapped);if(target.pathname+target.search!==current)return NextResponse.redirect(mapped,{status:307,headers:noStore});}
   }
   const requestHeaders=new Headers(request.headers);
   for(const key of ['x-erpx-holding-slug','x-erpx-visible-path','x-erpx-front-company','x-erpx-front-app','x-erpx-route-company'])requestHeaders.delete(key);
