@@ -76624,6 +76624,72 @@
         "critical": true,
         "reason": "Native Sales price-list transport selects only installed paths, validates exact context/receipts and fails closed."
       }
+    },
+    {
+      "id": "operations.rust-operations-commands.unit",
+      "lane": "unit",
+      "owner": "operations",
+      "modules": [
+        "operations"
+      ],
+      "files": [
+        "tests/unit/operations/rust-operations-commands.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Operations exception lifecycle and policy command validation, authority, source/CAS/replay behavior and rollback."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-operations",
+        "targets": [
+          "operations_commands"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-operations/Cargo.toml"
+      ]
+    },
+    {
+      "id": "operations.rust-operations-commands-postgres.integration",
+      "lane": "integration",
+      "owner": "operations",
+      "modules": [
+        "operations"
+      ],
+      "files": [
+        "tests/integration/operations/rust-operations-commands-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "PostgreSQL-backed native Operations commands retain Company/branch isolation, transaction/serializable guards, source drift, CAS, replay, policy review and rollback."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-operations",
+        "targets": [
+          "operations_commands_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-operations/Cargo.toml"
+      ]
     }
   ]
 }
