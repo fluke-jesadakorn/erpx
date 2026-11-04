@@ -8,15 +8,15 @@
     {
       "id": "brand",
       "package": "erpx-server-brand",
-      "phase": "pending",
+      "phase": "partial",
       "businessMigrationComplete": false,
       "surfaces": {
-        "domain": "pending",
-        "application": "pending",
-        "http": "pending",
-        "ssr": "pending",
-        "jobs": "pending",
-        "providers": "pending"
+        "domain": "active",
+        "application": "active",
+        "http": "partial",
+        "ssr": "partial",
+        "jobs": "not-applicable",
+        "providers": "not-applicable"
       }
     },
     {

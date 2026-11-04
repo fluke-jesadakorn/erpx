@@ -1,5 +1,7 @@
 //! Brand identity ports and retained rules for native consumers.
-pub use crate::adapters::{BrandError, PgBrandIdentity, PgBrandIdentityRead};
+pub use crate::adapters::{
+    BrandError, PgBrandIdentity, PgBrandIdentityRead, read_active_brand_identity,
+};
 pub use crate::application::{
     BrandActor, BrandIdentityPorts, BrandIdentityReadPorts, BrandMutation, BrandMutationAction,
     BrandMutationCommon, PublishedBrandIdentityPorts, cancel_brand_draft,

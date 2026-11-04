@@ -105,6 +105,7 @@ pub struct BrandMutationCommon {
 }
 
 #[derive(Clone, Debug)]
+#[allow(clippy::large_enum_variant)] // one owned mutation per command, not a hot collection
 pub enum BrandMutationAction {
     Save {
         identity: BrandIdentity,

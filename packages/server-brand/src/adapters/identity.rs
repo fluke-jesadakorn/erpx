@@ -98,6 +98,32 @@ fn statement_error(error: sqlx::Error) -> BrandError {
     }
 }
 
+/// The active Company identity for consuming owners (for example the
+/// storefront projection). This read carries no authority; callers retain their
+/// own current scope and source checks.
+pub async fn read_active_brand_identity(
+    connection: &mut PgConnection,
+    company: &str,
+) -> Result<Option<ActiveBrandIdentity>, BrandError> {
+    let available: bool =
+        sqlx::query_scalar("SELECT to_regclass('brand_identity_active') IS NOT NULL")
+            .fetch_one(&mut *connection)
+            .await?;
+    if !available {
+        return Ok(None);
+    }
+    let row = sqlx::query_as::<_, ActiveBrandIdentityRow>(
+        "SELECT v.id,v.company_id,v.revision,v.identity_json,v.draft_id,v.draft_version,\
+         v.created_by,v.published_by,v.published_at,a.version active_version \
+         FROM brand_identity_active a JOIN brand_identity_versions v \
+         ON v.id=a.identity_version_id AND v.company_id=a.company_id WHERE a.company_id=$1",
+    )
+    .bind(company)
+    .fetch_optional(&mut *connection)
+    .await?;
+    Ok(row.map(ActiveBrandIdentityRow::into_identity).transpose()?)
+}
+
 pub struct PgBrandIdentity<'c> {
     connection: &'c mut PgConnection,
     actor: &'c BrandActor,

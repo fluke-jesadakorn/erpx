@@ -3417,7 +3417,7 @@
       "verified": false,
       "merged": false,
       "evidenceFlows": [],
-      "sourceRef": "packages/server-brand/src/public/brand-identity.ts",
+      "sourceRef": "packages/server-brand/src/public/identity.rs",
       "gap": "No full-scope Rust qualification recorded."
     },
     {
@@ -3429,7 +3429,7 @@
       "verified": false,
       "merged": false,
       "evidenceFlows": [],
-      "sourceRef": "packages/server-brand/src/public/brand-identity.ts",
+      "sourceRef": "packages/server-brand/src/public/identity.rs",
       "gap": "No full-scope Rust qualification recorded."
     },
     {
@@ -3441,7 +3441,7 @@
       "verified": false,
       "merged": false,
       "evidenceFlows": [],
-      "sourceRef": "packages/server-brand/src/public/brand-identity.ts",
+      "sourceRef": "packages/server-brand/src/public/identity.rs",
       "gap": "No full-scope Rust qualification recorded."
     },
     {

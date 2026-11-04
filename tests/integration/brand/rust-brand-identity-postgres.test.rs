@@ -155,7 +155,8 @@ async fn seed(pool: &DatabasePool) {
          ('assign-head','head','hr_admin','[\"brand\"]','company',0,9007199254740000,'holding'),\
          ('assign-reviewer','reviewer','hr_admin','[\"brand\"]','company',0,9007199254740000,'holding'),\
          ('assign-claimant','claimant','employee','[\"brand\"]','company',0,9007199254740000,'holding'),\
-         ('assign-foreign','owner','holding_owner','[\"brand\"]','foreign',0,9007199254740000,'holding');\
+         ('assign-foreign','owner','holding_owner','[\"brand\"]','foreign',0,9007199254740000,'holding'),\
+         ('assign-orphan','orphan','hr_admin','[\"brand\"]','orphan',0,9007199254740000,'holding');\
          INSERT INTO attachment_sets(id,company_id,target_type,target_id,component_kind,purpose_key,expected_target_version,policy_version,classification,audience_json,created_by,created_at,updated_at) VALUES\
          ('set-logo','company','company_storefront_brand','company','publication','logo',1,1,'public','[]','owner',1,1),\
          ('set-foreign','foreign','company_storefront_brand','foreign','publication','logo',1,1,'public','[]','owner',1,1);\
@@ -508,6 +509,21 @@ async fn exercise(pool: &DatabasePool, pool_people: &People) {
             .unwrap_err()
         ),
         "BRAND_DRAFT_UNAVAILABLE"
+    );
+
+    assert_eq!(
+        code(
+            save(
+                pool,
+                &pool_people.head,
+                draft("Stale publication base", "#224488", None, 0),
+                "brand-publish-0005b",
+                NOW + 750,
+            )
+            .await
+            .unwrap_err()
+        ),
+        "BRAND_PUBLICATION_CHANGED"
     );
 
     // --- approved media guards ---
@@ -881,6 +897,25 @@ async fn rollback_cas_cancel_and_immutable_evidence() {
         )
         .await
         .unwrap();
+        assert_eq!(
+            code(
+                save(
+                    &pool,
+                    &people.owner,
+                    json!({
+                        "id": "brand-draft-brand-cancel-0011",
+                        "expectedPublishedVersion": 3,
+                        "identity": identity("Missing expected version", "#224488", None),
+                        "reason": "Missing expected draft version",
+                    }),
+                    "brand-cancel-0011b",
+                    2_150,
+                )
+                .await
+                .unwrap_err()
+            ),
+            "EXPECTED_VERSION_REQUIRED"
+        );
         let cancelled = cancel(
             &pool,
             &people.owner,
@@ -1083,6 +1118,60 @@ async fn company_isolation_and_current_authority() {
             ),
             "BRAND_DRAFT_UNAVAILABLE"
         );
+        assert_eq!(
+            code(
+                change_lock(
+                    &pool,
+                    &people.foreign,
+                    json!({
+                        "category": "visual",
+                        "locked": true,
+                        "expectedVersion": 0,
+                        "expectedPublishedVersion": 1,
+                        "reason": "No active published identity exists yet",
+                    }),
+                    "brand-scope-0008a",
+                    1_850,
+                )
+                .await
+                .unwrap_err()
+            ),
+            "BRAND_PUBLISHED_IDENTITY_REQUIRED"
+        );
+        sqlx::query("UPDATE organization_nodes SET status='suspended' WHERE id='foreign'")
+            .execute(pool.raw())
+            .await
+            .unwrap();
+        assert_eq!(
+            code(
+                save(
+                    &pool,
+                    &people.foreign,
+                    draft("Inactive Company", "#123456", None, 0),
+                    "brand-scope-0009",
+                    1_860,
+                )
+                .await
+                .unwrap_err()
+            ),
+            "BRAND_MANAGEMENT_FORBIDDEN"
+        );
+        sqlx::query("UPDATE organization_nodes SET status='active' WHERE id='foreign'")
+            .execute(pool.raw())
+            .await
+            .unwrap();
+        let orphan = actor(
+            "orphan",
+            "orphan",
+            "assign-orphan",
+            "hr_admin",
+            &["organization.manage", "records.read"],
+            &["brand"],
+        );
+        assert_eq!(
+            code(workspace(&pool, &orphan, 1_870).await.unwrap_err()),
+            "COMPANY_REQUIRED"
+        );
         sqlx::query("UPDATE assignments SET revoked_at=1000 WHERE id='assign-owner'")
             .execute(pool.raw())
             .await
@@ -1097,7 +1186,7 @@ async fn company_isolation_and_current_authority() {
                     &pool,
                     &people.owner,
                     draft("Revoked identity", "#224488", None, 0),
-                    "brand-scope-0008",
+                    "brand-scope-0010",
                     1_900,
                 )
                 .await

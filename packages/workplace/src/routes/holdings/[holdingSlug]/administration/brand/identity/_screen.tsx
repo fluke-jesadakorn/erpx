@@ -3,6 +3,7 @@ import { sectionWorkspaceTopics, workspaceTopicLinks } from "@erpx/feature-work_
 import { SectionWorkspace } from "@erpx/workplace/components/section-workspace";
 import { BrandIdentityConsole } from "@erpx/feature-brand/components/brand-identity-console";
 import { brandIdentityWorkspace } from "@erpx/server-brand/public/brand-identity";
+import { nativeBrandIdentityWorkspace } from "@erpx/feature-brand/lib/native-brand-identity";
 import { type RouteSearch } from "@erpx/feature-shared/lib/route-context";
 
 import { ActionLink as UiActionLink } from "@erpx/ui/components/foundation";
@@ -68,7 +69,7 @@ export default async function Settings({ params, searchParams, }: {
             </UiActionLink>)}
         </nav>)}
       {false}
-      {(<BrandIdentityConsole base={base} data={await brandIdentityWorkspace(actor)} section={'identity'} embedded/>)}
+      {(<BrandIdentityConsole base={base} data={(await nativeBrandIdentityWorkspace(actor,actor.holdingSlug) ?? await brandIdentityWorkspace(actor)) as Awaited<ReturnType<typeof brandIdentityWorkspace>>} section={'identity'} embedded/>)}
       <WidgetGrid>
         {false}
         {false}

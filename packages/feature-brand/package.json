@@ -14,7 +14,10 @@
     "./components/brand-administration": "./src/components/brand-administration.tsx",
     "./components/print-controls": "./src/components/print-controls.tsx",
     "./components/business-document.module.css": "./src/components/business-document.module.css",
-    "./components/workspace-brand.module.css": "./src/components/workspace-brand.module.css"
+    "./components/workspace-brand.module.css": "./src/components/workspace-brand.module.css",
+    "./adapters/server/native-brand-identity": "./src/adapters/server/native-brand-identity.ts",
+    "./adapters/server/native-brand-identity-page": "./src/adapters/server/native-brand-identity-page.ts",
+    "./lib/native-brand-identity": "./src/lib/native-brand-identity.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

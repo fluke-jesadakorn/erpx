@@ -3,6 +3,7 @@ import {sectionWorkspaceTopics,workspaceTopicLinks} from "@erpx/feature-work_pro
 import {SectionWorkspace} from "@erpx/workplace/components/section-workspace";
 import {BrandIdentityConsole} from "@erpx/feature-brand/components/brand-identity-console";
 import {brandIdentityWorkspace} from "@erpx/server-brand/public/brand-identity";
+import {nativeBrandIdentityWorkspace} from "@erpx/feature-brand/lib/native-brand-identity";
 import {type RouteSearch} from "@erpx/feature-shared/lib/route-context";
 import { operationsPresentationQueries } from "@erpx/server-operations/public/presentation-queries";
 
@@ -82,6 +83,7 @@ export default async function Settings({
   const brandTab=typeof query.tab==='string'?query.tab:'identity';
   if(section==='brand'&&!['identity','media','history'].includes(brandTab))notFound();
   if(section==='brand'&&!topics.some(topic=>topic.id===`brand:${brandTab}`))return accessPage('permission',actor.holdingSlug);
+  const brandData=section==='brand'&&brandTab!=='media'?(await nativeBrandIdentityWorkspace(actor,actor.holdingSlug)??await brandIdentityWorkspace(actor)) as Awaited<ReturnType<typeof brandIdentityWorkspace>>:undefined;
   return (
     <SectionWorkspace title="Administration settings" items={topics} selected={section==='brand'?`brand:${brandTab}`:section==='approvals'?`approvals:${approvalTab}`:section} context={section==='brand'?topics.find(topic=>topic.id===`brand:${brandTab}`)?.title:adminSections.find(([id])=>id===section)?.[1]}>
 
@@ -105,7 +107,7 @@ export default async function Settings({
         </nav>
       )}
       {section === "approvals" && !(typeof query.record==="string"?query.record:undefined) && <FlowSettingsHub embedded actor={actor} base={base} tab={typeof query.tab==="string"&&["templates","issues","history"].includes(query.tab)?query.tab:"templates"}/>}
-      {section==='brand'&&(brandTab==='media'?<BrandAdministration appearance="standard" base={base} {...await presentation.listBrandProfiles(actor)} canHolding={access.owner} canBranches={access.manageOrganization} canStorefront={access.manageOrganization&&actor.scope.kind==='holding'} canReviewPublications={hasPermission(actor,'records.review')||hasPermission(actor,'commerce.approve')}/>:<BrandIdentityConsole base={base} data={await brandIdentityWorkspace(actor)} section={brandTab==='history'?'history':'identity'} embedded/>)}
+      {section==='brand'&&(brandTab==='media'?<BrandAdministration appearance="standard" base={base} {...await presentation.listBrandProfiles(actor)} canHolding={access.owner} canBranches={access.manageOrganization} canStorefront={access.manageOrganization&&actor.scope.kind==='holding'} canReviewPublications={hasPermission(actor,'records.review')||hasPermission(actor,'commerce.approve')}/>:<BrandIdentityConsole base={base} data={brandData!} section={brandTab==='history'?'history':'identity'} embedded/>)}
       <WidgetGrid>
         {section === "people" && (
           <FeatureWidget

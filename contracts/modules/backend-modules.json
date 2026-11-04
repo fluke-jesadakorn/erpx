@@ -672,6 +672,10 @@
       "provides": [],
       "requires": [
         {
+          "name": "erpx-server-brand::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
           "name": "erpx-server-assets::public",
           "range": ">=0.1.0, <0.2.0"
         },
@@ -932,6 +936,39 @@
         },
         {
           "name": "erpx-server-shared::public",
+          "range": ">=0.1.0, <0.2.0"
+        }
+      ],
+      "events": [],
+      "requiresEvents": []
+    },
+    {
+      "id": "erpx-server-brand",
+      "version": "0.1.0",
+      "group": "existing-business",
+      "provides": [
+        {
+          "name": "erpx-server-brand::public",
+          "version": "0.1.0",
+          "source": "packages/server-brand/src/public/mod.rs"
+        },
+        {
+          "name": "erpx-server-brand::public::identity",
+          "version": "0.1.0",
+          "source": "packages/server-brand/src/public/identity.rs"
+        }
+      ],
+      "requires": [
+        {
+          "name": "erpx-server-runtime::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-shared::public",
+          "range": ">=0.1.0, <0.2.0"
+        },
+        {
+          "name": "erpx-server-workflow::public",
           "range": ">=0.1.0, <0.2.0"
         }
       ],

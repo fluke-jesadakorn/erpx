@@ -1412,6 +1412,7 @@ async fn assemble_checked(
             current_package_catalogue().map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
         );
         let mut targets = Vec::new();
+        let mut brand_targets = Vec::new();
         #[cfg(feature = "finance-field-write")]
         let mut invoice_post_targets = Vec::new();
         #[cfg(feature = "finance-field-write")]
@@ -1456,6 +1457,18 @@ async fn assemble_checked(
                 catalogue.clone(),
             )
             .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?;
+            brand_targets.push(crate::brand_identity_http::BrandIdentityTarget {
+                host: holding.host.clone(),
+                holding_slug: holding.registration.slug.clone(),
+                service: Arc::new(crate::brand_identity::BrandIdentityService::new(
+                    authorizer.clone(),
+                    crate::brand_identity::BrandIdentityConfiguration::new(
+                        holding.registration.holding_id.clone(),
+                        company.clone(),
+                    ),
+                    Arc::new(SharedClock(clock.clone())),
+                )),
+            });
             let configuration = if config
                 .field_service_issues
                 .contains(&holding.registration.holding_id)
@@ -1661,6 +1674,17 @@ async fn assemble_checked(
             )
             .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
         );
+        if !brand_targets.is_empty() {
+            router = router.merge(
+                crate::brand_identity_http::brand_identity_router(
+                    config.policy.clone(),
+                    config.holdings_registry.clone(),
+                    Arc::new(FinanceJournalReadScopeHeaders),
+                    brand_targets,
+                )
+                .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
+            );
+        }
     }
     if !config.field_service_reads.is_empty() {
         let catalogue = Arc::new(

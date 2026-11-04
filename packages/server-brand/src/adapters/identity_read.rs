@@ -84,64 +84,47 @@ impl BrandIdentityReadPorts for PgBrandIdentityRead<'_> {
         authorize(self.connection, self.actor, self.now, false, false)
     }
 
-    fn drafts(
-        &mut self,
-        include_others: bool,
-    ) -> impl std::future::Future<Output = Result<Vec<BrandDraft>, Self::Error>> + Send {
-        async move {
-            Ok(sqlx::query_as::<_, BrandDraft>(
-                "SELECT id,company_id,based_revision,identity_json,status,version,created_by,updated_by,created_at,updated_at \
-                 FROM brand_identity_drafts WHERE company_id=$1 AND ($2::boolean OR created_by=$3) \
-                 ORDER BY updated_at DESC",
-            )
-            .bind(self.actor.company_id())
-            .bind(include_others)
-            .bind(self.actor.user_id())
-            .fetch_all(&mut *self.connection)
-            .await?)
-        }
+    async fn drafts(&mut self, include_others: bool) -> Result<Vec<BrandDraft>, Self::Error> {
+        Ok(sqlx::query_as::<_, BrandDraft>(
+            "SELECT id,company_id,based_revision,identity_json,status,version,created_by,updated_by,created_at,updated_at \
+             FROM brand_identity_drafts WHERE company_id=$1 AND ($2::boolean OR created_by=$3) \
+             ORDER BY updated_at DESC",
+        )
+        .bind(self.actor.company_id())
+        .bind(include_others)
+        .bind(self.actor.user_id())
+        .fetch_all(&mut *self.connection)
+        .await?)
     }
 
-    fn versions(
-        &mut self,
-    ) -> impl std::future::Future<Output = Result<Vec<BrandPublished>, Self::Error>> + Send {
-        async move {
-            Ok(sqlx::query_as::<_, BrandPublished>(
-                "SELECT id,company_id,revision,identity_json,draft_id,draft_version,created_by,published_by,published_at \
-                 FROM brand_identity_versions WHERE company_id=$1 ORDER BY revision DESC",
-            )
-            .bind(self.actor.company_id())
-            .fetch_all(&mut *self.connection)
-            .await?)
-        }
+    async fn versions(&mut self) -> Result<Vec<BrandPublished>, Self::Error> {
+        Ok(sqlx::query_as::<_, BrandPublished>(
+            "SELECT id,company_id,revision,identity_json,draft_id,draft_version,created_by,published_by,published_at \
+             FROM brand_identity_versions WHERE company_id=$1 ORDER BY revision DESC",
+        )
+        .bind(self.actor.company_id())
+        .fetch_all(&mut *self.connection)
+        .await?)
     }
 
-    fn locks(
-        &mut self,
-    ) -> impl std::future::Future<Output = Result<Vec<BrandCategoryLock>, Self::Error>> + Send {
-        async move {
-            Ok(sqlx::query_as::<_, BrandCategoryLock>(
-                "SELECT company_id,category,locked,approved_snapshot_json,version,updated_by,reason,updated_at \
-                 FROM brand_category_locks WHERE company_id=$1 ORDER BY category",
-            )
-            .bind(self.actor.company_id())
-            .fetch_all(&mut *self.connection)
-            .await?)
-        }
+    async fn locks(&mut self) -> Result<Vec<BrandCategoryLock>, Self::Error> {
+        Ok(sqlx::query_as::<_, BrandCategoryLock>(
+            "SELECT company_id,category,locked,approved_snapshot_json,version,updated_by,reason,updated_at \
+             FROM brand_category_locks WHERE company_id=$1 ORDER BY category",
+        )
+        .bind(self.actor.company_id())
+        .fetch_all(&mut *self.connection)
+        .await?)
     }
 
-    fn history(
-        &mut self,
-    ) -> impl std::future::Future<Output = Result<Vec<BrandIdentityEvent>, Self::Error>> + Send {
-        async move {
-            Ok(sqlx::query_as::<_, BrandIdentityEvent>(
-                "SELECT id,company_id,record_id,action,version,actor_id,reason,details_json,created_at \
-                 FROM brand_identity_events WHERE company_id=$1 ORDER BY created_at DESC,id LIMIT 200",
-            )
-            .bind(self.actor.company_id())
-            .fetch_all(&mut *self.connection)
-            .await?)
-        }
+    async fn history(&mut self) -> Result<Vec<BrandIdentityEvent>, Self::Error> {
+        Ok(sqlx::query_as::<_, BrandIdentityEvent>(
+            "SELECT id,company_id,record_id,action,version,actor_id,reason,details_json,created_at \
+             FROM brand_identity_events WHERE company_id=$1 ORDER BY created_at DESC,id LIMIT 200",
+        )
+        .bind(self.actor.company_id())
+        .fetch_all(&mut *self.connection)
+        .await?)
     }
 
     fn active(
@@ -157,56 +140,43 @@ impl BrandIdentityReadPorts for PgBrandIdentityRead<'_> {
         self.legacy_inner()
     }
 
-    fn media(
-        &mut self,
-    ) -> impl std::future::Future<Output = Result<Vec<BrandMediaOption>, Self::Error>> + Send {
-        async move {
-            let rows = sqlx::query_as::<_, (String, Option<String>)>(
-                "SELECT id,alt_text FROM attachment_publications WHERE company_id=$1 \
-                 AND target_type='company_storefront_brand' AND target_id=$2 AND state='approved' \
-                 ORDER BY approved_at DESC",
-            )
-            .bind(self.actor.company_id())
-            .bind(self.actor.company_id())
-            .fetch_all(&mut *self.connection)
-            .await?;
-            Ok(rows
-                .into_iter()
-                .map(|(id, name)| BrandMediaOption { id, name })
-                .collect())
-        }
+    async fn media(&mut self) -> Result<Vec<BrandMediaOption>, Self::Error> {
+        let rows = sqlx::query_as::<_, (String, Option<String>)>(
+            "SELECT id,alt_text FROM attachment_publications WHERE company_id=$1 \
+             AND target_type='company_storefront_brand' AND target_id=$2 AND state='approved' \
+             ORDER BY approved_at DESC",
+        )
+        .bind(self.actor.company_id())
+        .bind(self.actor.company_id())
+        .fetch_all(&mut *self.connection)
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|(id, name)| BrandMediaOption { id, name })
+            .collect())
     }
 }
 
 impl PublishedBrandIdentityPorts for PgBrandIdentityRead<'_> {
     type Error = BrandError;
 
-    fn available(
-        &mut self,
-    ) -> impl std::future::Future<Output = Result<bool, Self::Error>> + Send {
-        async move {
-            Ok(
-                sqlx::query_scalar("SELECT to_regclass('brand_identity_active') IS NOT NULL")
-                    .fetch_one(&mut *self.connection)
-                    .await?,
-            )
-        }
+    async fn available(&mut self) -> Result<bool, Self::Error> {
+        Ok(
+            sqlx::query_scalar("SELECT to_regclass('brand_identity_active') IS NOT NULL")
+                .fetch_one(&mut *self.connection)
+                .await?,
+        )
     }
 
-    fn active_row(
-        &mut self,
-    ) -> impl std::future::Future<Output = Result<Option<ActiveBrandIdentityRow>, Self::Error>> + Send
-    {
-        async move {
-            Ok(sqlx::query_as::<_, ActiveBrandIdentityRow>(
-                "SELECT v.id,v.company_id,v.revision,v.identity_json,v.draft_id,v.draft_version,\
-                 v.created_by,v.published_by,v.published_at,a.version active_version \
-                 FROM brand_identity_active a JOIN brand_identity_versions v \
-                 ON v.id=a.identity_version_id AND v.company_id=a.company_id WHERE a.company_id=$1",
-            )
-            .bind(self.actor.company_id())
-            .fetch_optional(&mut *self.connection)
-            .await?)
-        }
+    async fn active_row(&mut self) -> Result<Option<ActiveBrandIdentityRow>, Self::Error> {
+        Ok(sqlx::query_as::<_, ActiveBrandIdentityRow>(
+            "SELECT v.id,v.company_id,v.revision,v.identity_json,v.draft_id,v.draft_version,\
+             v.created_by,v.published_by,v.published_at,a.version active_version \
+             FROM brand_identity_active a JOIN brand_identity_versions v \
+             ON v.id=a.identity_version_id AND v.company_id=a.company_id WHERE a.company_id=$1",
+        )
+        .bind(self.actor.company_id())
+        .fetch_optional(&mut *self.connection)
+        .await?)
     }
 }

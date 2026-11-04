@@ -219,7 +219,7 @@ async fn command<C: Clock + Send + Sync + 'static>(
             .filter(|value| !value.is_empty())
             .ok_or_else(|| {
                 BusinessError::invalid(
-                    "IDEMPOTENCY_KEY_REQUIRED",
+                    "COMMAND_KEY_REQUIRED",
                     "Idempotency-Key is required.",
                 )
             })?;

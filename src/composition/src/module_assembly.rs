@@ -6,6 +6,7 @@ const CORE: &[&str] = &["erpx-server-shared", "erpx-server-runtime"];
 #[cfg(feature = "existing-business")]
 const BUSINESS: &[&str] = &[
     "erpx-server-assets",
+    "erpx-server-brand",
     "erpx-server-collaboration",
     "erpx-server-commerce",
     "erpx-server-commercial",
@@ -33,6 +34,7 @@ const BUSINESS: &[&str] = &[
 #[cfg(all(feature = "field-service", not(feature = "existing-business")))]
 const FIELD: &[&str] = &[
     "erpx-server-assets",
+    "erpx-server-brand",
     "erpx-server-collaboration",
     "erpx-server-commerce",
     "erpx-server-commercial",
