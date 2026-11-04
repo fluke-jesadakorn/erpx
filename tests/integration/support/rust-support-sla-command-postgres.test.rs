@@ -8,9 +8,15 @@ use erpx_server_identity_access::public::work_context::{
     ExpectedWorkSelection, HoldingWorkspaceRequest,
 };
 use erpx_server_runtime::public::postgres::PgTransactionError;
-use erpx_server_shared::public::{AssignmentId, Clock, CommandKey, CompanyId, HoldingId};
+use erpx_server_shared::public::{
+    AssignmentId, BusinessError, Clock, CommandKey, CompanyId, HoldingId,
+};
 use erpx_server_support::public::sla::{
     AlertAcknowledge, BusinessCalendar, ClockAttach, PolicyChange, PolicyCreate, SlaPolicy,
+};
+use erpx_server_support::public::sla_drain::{
+    DEFAULT_INTERVAL_MS, SlaDrainSchedule, drain_support_sla as drain_owned_support_sla,
+    run_sla_drain_tick,
 };
 use erpx_server_support::public::ticket::TicketChange;
 use erpx_server_workflow::public::commands::CommandJson;
@@ -91,10 +97,12 @@ async fn support_setup(
             .await
             .unwrap();
     }
-    sqlx::query("UPDATE assignments SET role='custom_support_manager' WHERE id='support-fixture-a'")
-        .execute(pool.raw())
-        .await
-        .unwrap();
+    sqlx::query(
+        "UPDATE assignments SET role='custom_support_manager' WHERE id='support-fixture-a'",
+    )
+    .execute(pool.raw())
+    .await
+    .unwrap();
     let mut tx = pool.raw().begin().await.unwrap();
     sqlx::query("INSERT INTO company_package_grants(company_id,package_id,package_version,state,starts_at,ends_at,version,reason,evidence,updated_at)VALUES('company','support',1,'active',0,$1,1,'Synthetic reviewed support purchase','public synthetic evidence',$2) ON CONFLICT DO NOTHING")
         .bind(grant_expires)
@@ -162,6 +170,32 @@ fn policy() -> SlaPolicy {
         target_minutes: 60,
         pause_while_waiting: true,
     }
+}
+
+async fn set_ticket_clock(
+    pool: &erpx_server_runtime::public::postgres::DatabasePool,
+    id: &str,
+    due_at: i64,
+) {
+    let mut clock = erpx_server_support::public::sla::start_clock(&policy(), 0).unwrap();
+    clock.started_at = Some(0);
+    clock.due_at = Some(due_at);
+    clock.breached_at = None;
+    let raw = serde_json::to_string(&clock).unwrap();
+    let policy_json = serde_json::to_string(&policy()).unwrap();
+    sqlx::query(
+        "INSERT INTO support_sla_policies(id,company_id,name,policy_json,status,version,created_by,approved_by,approved_at,created_at,updated_at)VALUES('sla-test-policy','company','Synthetic Support target',$1::jsonb,'approved',1,'fixture-a','fixture-b',0,0,0) ON CONFLICT DO NOTHING",
+    )
+    .bind(policy_json)
+    .execute(pool.raw())
+    .await
+    .unwrap();
+    sqlx::query("UPDATE support_tickets SET sla_policy_id='sla-test-policy',sla_policy_version=1,sla_clock_json=$2::jsonb WHERE id=$1")
+        .bind(id)
+        .bind(raw)
+        .execute(pool.raw())
+        .await
+        .unwrap();
 }
 
 #[tokio::test]
@@ -609,6 +643,150 @@ async fn support_sla_http_route_accepts_real_session_and_rendered_context() {
         .await
         .unwrap();
         assert_eq!(persisted, ("approved".into(), 2));
+    })
+    .await;
+}
+
+async fn drain_owned_once(
+    pool: &erpx_server_runtime::public::postgres::DatabasePool,
+    company: &CompanyId,
+    at: i64,
+) -> Result<i64, PgTransactionError<BusinessError>> {
+    let mut tx = pool.raw().begin().await?;
+    let drained = drain_owned_support_sla(&mut tx, company, at).await?;
+    tx.commit().await?;
+    Ok(drained)
+}
+
+#[tokio::test]
+async fn scheduled_native_sla_drain_recovers_after_rollback_and_rechecks_purchase() {
+    review::account::with_system(|system| async move {
+        let (p, _sla, _ticket) = support_setup(system).await;
+        let pool = &p.system.holdings[0];
+        let company = CompanyId::new("company").unwrap();
+
+        seed_ticket(pool, "sla-scheduled-ticket", "open").await;
+        set_ticket_clock(pool, "sla-scheduled-ticket", 999).await;
+
+        // A worker restart starts due immediately, then retains the configured
+        // cadence after a successful sweep.
+        let mut schedule = SlaDrainSchedule::start(1_000, DEFAULT_INTERVAL_MS).unwrap();
+        let first = run_sla_drain_tick(&mut schedule, 1_000, |at| {
+            drain_owned_once(pool, &company, at)
+        })
+        .await
+        .unwrap();
+        assert_eq!(first, Some(1));
+        assert_eq!(schedule.next_due_at(), 31_000);
+        assert!(schedule.due(31_000));
+        assert!(!schedule.due(30_999));
+        let notices: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM staff_notifications WHERE record_type='support_sla_alert' AND record_id='support-breach-sla-scheduled-ticket'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(notices, 2);
+
+        // A repeated sweep at the same instant is a no-op and cannot duplicate
+        // the immutable alert or its manager notices.
+        let mut repeat = SlaDrainSchedule::start(1_000, DEFAULT_INTERVAL_MS).unwrap();
+        let again = run_sla_drain_tick(&mut repeat, 1_000, |at| {
+            drain_owned_once(pool, &company, at)
+        })
+        .await
+        .unwrap();
+        assert_eq!(again, Some(0));
+        let notices_again: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM staff_notifications WHERE record_type='support_sla_alert' AND record_id='support-breach-sla-scheduled-ticket'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(notices_again, notices);
+
+        // A failed transaction leaves no alert. The next durable retry commits
+        // exactly one alert and its notices.
+        seed_ticket(pool, "sla-rollback-ticket", "open").await;
+        set_ticket_clock(pool, "sla-rollback-ticket", 2_000).await;
+        let mut tx = pool.raw().begin().await.unwrap();
+        let attempted = drain_owned_support_sla(&mut tx, &company, 2_001)
+            .await
+            .unwrap();
+        assert_eq!(attempted, 1);
+        let inside: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM support_sla_alerts WHERE ticket_id='sla-rollback-ticket'",
+        )
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap();
+        assert_eq!(inside, 1);
+        tx.rollback().await.unwrap();
+        let after_rollback: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM support_sla_alerts WHERE ticket_id='sla-rollback-ticket'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(after_rollback, 0);
+
+        let mut failed = SlaDrainSchedule::start(50_000, DEFAULT_INTERVAL_MS).unwrap();
+        let error = run_sla_drain_tick(&mut failed, 50_000, |_| async {
+            Err::<i64, &'static str>("SUPPORT_SLA_DRAIN_FAILED")
+        })
+        .await
+        .unwrap_err();
+        assert_eq!(error, "SUPPORT_SLA_DRAIN_FAILED");
+        assert_eq!(failed.consecutive_failures(), 1);
+        assert_eq!(failed.next_due_at(), 80_000);
+
+        // A replacement worker starts immediately and recovers the uncommitted
+        // breach without requiring another operator action.
+        let mut recovered = SlaDrainSchedule::start(60_000, DEFAULT_INTERVAL_MS).unwrap();
+        let recovered_count = run_sla_drain_tick(&mut recovered, 60_000, |at| {
+            drain_owned_once(pool, &company, at)
+        })
+        .await
+        .unwrap();
+        assert_eq!(recovered_count, Some(1));
+        let rollback_alert: (String, i64) = sqlx::query_as(
+            "SELECT id,source_version FROM support_sla_alerts WHERE ticket_id='sla-rollback-ticket'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(rollback_alert, ("support-breach-sla-rollback-ticket".into(), 1));
+
+        // The current Support purchase is rechecked at each detection instant.
+        // A rolled-back revocation cannot leak an alert; with the retained
+        // active grant the same sweep becomes allowed.
+        seed_ticket(pool, "sla-purchase-ticket", "open").await;
+        set_ticket_clock(pool, "sla-purchase-ticket", 3_000).await;
+        let mut revoked = pool.raw().begin().await.unwrap();
+        sqlx::query("UPDATE company_package_grants SET ends_at=2500 WHERE company_id='company' AND package_id='support'")
+            .execute(&mut *revoked)
+            .await
+            .unwrap();
+        let gated = drain_owned_support_sla(&mut revoked, &company, 3_001)
+            .await
+            .unwrap();
+        assert_eq!(gated, 0);
+        let gated_rows: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM support_sla_alerts WHERE ticket_id='sla-purchase-ticket'",
+        )
+        .fetch_one(&mut *revoked)
+        .await
+        .unwrap();
+        assert_eq!(gated_rows, 0);
+        revoked.rollback().await.unwrap();
+
+        let mut allowed = SlaDrainSchedule::start(3_001, DEFAULT_INTERVAL_MS).unwrap();
+        let allowed_count = run_sla_drain_tick(&mut allowed, 3_001, |at| {
+            drain_owned_once(pool, &company, at)
+        })
+        .await
+        .unwrap();
+        assert_eq!(allowed_count, Some(1));
     })
     .await;
 }

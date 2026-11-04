@@ -254,3 +254,150 @@ describe("Support command routes require their native configuration", () => {
         expect(native.factory).not.toHaveBeenCalled();
     });
 });
+
+it('the Support landing presenter reads only the native workspace and preserves filters, source choice and fail-closed configuration', async () => {
+    const workspace = {
+        items: [
+            { id: 'ticket-open', title: 'Pump pressure low', status: 'open', due_date: '2026-11-06', source_kind: 'asset' },
+            { id: 'ticket-closed', title: 'Old printer jam', status: 'closed', due_date: null, source_kind: 'general' },
+        ],
+        sources: [{ id: 'order-1', number: 'SO-1', version: 2, customer_name: 'Acme Customer' }],
+        canCreate: true,
+        canCreateOrder: true,
+        ownReportsOnly: false,
+    };
+    const read = vi.fn(async () => workspace),
+        recipients = vi.fn(async () => [{ id: 'agent', name: 'Support Agent' }]),
+        typed = { kind: 'asset' as const, id: 'asset-1', version: 3, label: 'Asset · Boiler', href: '/assets/asset-1' },
+        source = vi.fn(async () => typed),
+        rendered: Record<string, unknown>[] = [],
+        route = await supportRoute("packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/support/screen.tsx", {
+            React,
+            requireWorkContext: async () => actor,
+            publicScope: (value: WorkContext) => value,
+            workspaceBase: () => '/holdings/acme',
+            pageError: (error: unknown) => { throw error; },
+            createNativeSupportReader: () => ({ workspace: read, recipients }),
+            readSourceRecord: source,
+            SupportWorkspaceView: (props: Record<string, unknown>) => { rendered.push(props); return React.createElement('div', {}, 'native support workspace'); },
+            ApiError: class TestApiError extends Error { readonly status: number; readonly code: string; constructor(status: number, code: string, message: string) { super(message); this.status = status; this.code = code; } },
+            headers: async () => new Headers(),
+            PageContent: (props: { children?: React.ReactNode }) => React.createElement('main', {}, props.children),
+        }),
+        Page = route.default as (props: { params: Promise<{ holdingSlug: string }>; searchParams: Promise<Record<string, string>> }) => Promise<React.ReactNode>;
+    vi.stubEnv('ERPX_NATIVE_SUPPORT_READ_CONFIG', 'native-support-read');
+    const html = renderToStaticMarkup(await Page({
+        params: Promise.resolve({ holdingSlug: 'acme' }),
+        searchParams: Promise.resolve({ new: '1', orderId: 'order-1', sourceKind: 'asset', sourceId: 'asset-1', sourceVersion: '3', status: 'open', q: 'pump' }),
+    }));
+    expect(html).toContain('native support workspace');
+    expect(read).toHaveBeenCalledExactlyOnceWith(expect.anything(), 'acme');
+    expect(recipients).toHaveBeenCalledExactlyOnceWith(expect.anything(), 'acme', 'order-1');
+    expect(source).toHaveBeenCalledExactlyOnceWith(actor, { kind: 'asset', id: 'asset-1', version: 3 });
+    expect(rendered[0]).toMatchObject({
+        base: '/holdings/acme',
+        data: workspace,
+        query: { new: '1', orderId: 'order-1', sourceKind: 'asset', sourceId: 'asset-1', sourceVersion: '3', status: 'open', q: 'pump' },
+        recipients: [{ id: 'agent', name: 'Support Agent' }],
+        source: { id: 'order-1', version: 2 },
+        typedSource: { kind: 'asset', id: 'asset-1', version: 3, label: 'Asset · Boiler' },
+    });
+    const sourceText = await (await import('node:fs/promises')).readFile(new URL('../../../packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/support/screen.tsx', import.meta.url), 'utf8');
+    expect(sourceText).toContain('@erpx/feature-support/lib/native-support-read');
+    expect(sourceText).not.toContain('@erpx/server-sales');
+    expect(sourceText).not.toContain('supportWorkspace');
+    vi.unstubAllEnvs();
+    const missing = route.default as typeof Page;
+    await expect(missing({ params: Promise.resolve({ holdingSlug: 'acme' }), searchParams: Promise.resolve({}) })).rejects.toMatchObject({ status: 503, code: 'NATIVE_SUPPORT_READ_UNAVAILABLE' });
+});
+
+it('the native Support workspace preserves filtered rows, source choice, typed evidence and bounded pagination', async () => {
+    const rows = Array.from({ length: 31 }, (_, index) => ({
+        id: `ticket-${index + 1}`,
+        title: index === 0 ? 'Pump pressure low' : index === 30 ? 'Old printer jam' : `Service case ${index + 1}`,
+        status: 'open',
+        due_date: index === 30 ? null : '2026-11-06',
+        source_kind: 'general',
+    }));
+    const data = { items: rows, sources: [{ id: 'order-1', number: 'SO-1', version: 2, customer_name: 'Acme Customer' }], canCreate: true, canCreateOrder: true, ownReportsOnly: false },
+        components = await supportRoute('packages/feature-support/src/components/support-workspace.tsx', {
+            React,
+            canonicalUiHref: (href: string) => `canonical:${href}`,
+            Link: 'a',
+            SupportConsole: (props: { data: { canCreate: boolean }; typedSource?: { label: string } }) => React.createElement('div', { 'data-support-console': String(props.data.canCreate) }, props.typedSource?.label ?? ''),
+            ActionLink: (props: { href: string; children?: React.ReactNode }) => React.createElement('a', { href: props.href }, props.children),
+            Button: (props: { type?: string; children?: React.ReactNode }) => React.createElement('button', { type: props.type }, props.children),
+            Field: (props: { children?: React.ReactNode }) => React.createElement('label', {}, props.children),
+            Select: (props: { name: string; defaultValue?: string; children?: React.ReactNode }) => React.createElement('select', { name: props.name, defaultValue: props.defaultValue }, props.children),
+            Table: 'table',
+            TableFrame: (props: { children?: React.ReactNode }) => React.createElement('div', {}, props.children),
+            TextInput: (props: { name: string; defaultValue?: string }) => React.createElement('input', { name: props.name, defaultValue: props.defaultValue }),
+            FormDisclosure: (props: { open?: boolean; children?: React.ReactNode }) => React.createElement('details', { open: props.open }, props.children),
+            StatusBadge: (props: { status: string }) => React.createElement('span', {}, props.status),
+        }),
+        View = components.SupportWorkspaceView as (props: Record<string, unknown>) => React.ReactNode;
+    expect(renderToStaticMarkup(React.createElement(View, {
+        base: '/holdings/acme',
+        data,
+        query: { status: 'open', q: 'pump', page: '1', new: '1', orderId: 'order-1', sourceKind: 'asset', sourceId: 'asset-1', sourceVersion: '3' },
+        recipients: [{ id: 'agent', name: 'Support Agent' }],
+        source: { id: 'order-1', version: 2 },
+        typedSource: { kind: 'asset', id: 'asset-1', version: 3, label: 'Asset · Boiler' },
+    }))).toContain('Pump pressure low');
+    const filtered = renderToStaticMarkup(React.createElement(View, {
+        base: '/holdings/acme',
+        data,
+        query: { status: 'open', q: 'pump', page: '1' },
+        recipients: [],
+    }));
+    expect(filtered).toContain('Pump pressure low');
+    expect(filtered).not.toContain('Service case 2');
+    expect(filtered).not.toContain('Old printer jam');
+    expect(filtered).toContain('canonical:/holdings/acme/support?new=1');
+    expect(filtered).toContain('1 case');
+    const paged = renderToStaticMarkup(React.createElement(View, { base: '/holdings/acme', data, query: { status: 'open', page: '1' }, recipients: [] }));
+    expect(paged).toContain('Service case 30');
+    expect(paged).not.toContain('Old printer jam');
+    expect(paged).toContain('canonical:/holdings/acme/support?page=2');
+    const created = renderToStaticMarkup(React.createElement(View, {
+        base: '/holdings/acme',
+        data,
+        query: { new: '1', orderId: 'order-1', sourceKind: 'asset', sourceId: 'asset-1', sourceVersion: '3' },
+        recipients: [{ id: 'agent', name: 'Support Agent' }],
+        source: { id: 'order-1', version: 2 },
+        typedSource: { kind: 'asset', id: 'asset-1', version: 3, label: 'Asset · Boiler' },
+    }));
+    expect(created).toContain('Choose source');
+    expect(created).toContain('data-support-console="false"');
+    expect(created).toContain('Asset · Boiler');
+    expect(created).toContain('canonical:/holdings/acme/support/sla');
+    expect(created).toContain('canonical:/holdings/acme/support/incidents');
+});
+
+it('the Support case routes delegate to the native Support presenter instead of the Sales customer hub', async () => {
+    const { readFile } = await import('node:fs/promises');
+    for (const path of [
+        'packages/feature-support/src/routes/holdings/[holdingSlug]/customers-sales/customers/service/cases/page.tsx',
+        'packages/feature-support/src/routes/holdings/[holdingSlug]/customers-sales/customers/service/cases/[id]/page.tsx',
+        'packages/feature-support/src/routes/holdings/[holdingSlug]/customers-sales/customers/service/cases/[id]/[recordSection]/page.tsx',
+    ]) {
+        const source = await readFile(new URL(`../../../${path}`, import.meta.url), 'utf8');
+        expect(source).toContain('_presenters/support/screen');
+        expect(source).not.toContain('_presenters/customers/screen');
+        expect(source).not.toContain('customers/service/cases/_screen');
+    }
+    const Screen = vi.fn(async () => React.createElement('div', {}, 'native workspace'));
+    const route = await supportRoute("packages/feature-support/src/routes/holdings/[holdingSlug]/customers-sales/customers/service/cases/page.tsx", {
+        Screen,
+        notFound: () => { throw new Error('not found'); },
+        recordSections: {},
+        defaultRecordSection: () => 'overview',
+    });
+    const html = renderToStaticMarkup(await (route.default as (props: { params: Promise<{ holdingSlug: string }>; searchParams: Promise<Record<string, string>> }) => Promise<React.ReactNode>)({
+        params: Promise.resolve({ holdingSlug: 'acme' }),
+        searchParams: Promise.resolve({ status: 'open' }),
+    }));
+    expect(html).toContain('native workspace');
+    expect(Screen).toHaveBeenCalledOnce();
+    await expect((Screen.mock.calls[0] as unknown as [{ params: Promise<{ holdingSlug: string }>; searchParams: Promise<Record<string, string>> }])[0].searchParams).resolves.toEqual({ status: 'open' });
+});

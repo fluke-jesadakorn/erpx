@@ -12,6 +12,7 @@
     "./components/support-session-console": "./src/components/support-session-console.tsx",
     "./components/support-evidence-console": "./src/components/support-evidence-console.tsx",
     "./components/support-incident-console": "./src/components/support-incident-console.tsx",
+    "./components/support-workspace": "./src/components/support-workspace.tsx",
     "./lib/ticket-portal-command": "./src/lib/ticket-portal-command.ts",
     "./routes/holdings/[holdingSlug]/customers-sales/customers/service/portal/[bindingId]/page": "./src/routes/holdings/[holdingSlug]/customers-sales/customers/service/portal/[bindingId]/page.tsx",
     "./routes/holdings/[holdingSlug]/customers-sales/customers/service/portal/page": "./src/routes/holdings/[holdingSlug]/customers-sales/customers/service/portal/page.tsx",

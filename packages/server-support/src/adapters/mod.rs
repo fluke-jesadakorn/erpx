@@ -10,4 +10,6 @@ pub(crate) mod field_service_source_record;
 
 pub(crate) mod field_ticket_read;
 
+pub(crate) mod sla_drain;
+
 pub(crate) mod support_ticket_read;
