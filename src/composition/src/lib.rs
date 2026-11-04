@@ -60,6 +60,7 @@ pub mod maintenance;
 #[cfg(feature = "existing-business")]
 pub mod projects;
 pub mod quality;
+pub mod pms;
 pub mod operations;
 pub mod people_payroll;
 pub mod procurement;
