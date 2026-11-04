@@ -1427,6 +1427,7 @@ async fn assemble_checked(
         let mut maintenance_targets = Vec::new();
         let mut projects_targets = Vec::new();
         let mut operations_targets = Vec::new();
+        let mut people_payroll_targets = Vec::new();
         let mut asset_targets = Vec::new();
         let mut bank_targets = Vec::new();
         let mut generic_payment_targets = Vec::new();
@@ -1606,6 +1607,25 @@ async fn assemble_checked(
                         Arc::new(crate::projects::ProjectsService::new(
                             authorizer.clone(),
                             crate::projects::ProjectsConfiguration::new(
+                                holding.registration.holding_id.clone(),
+                                company.clone(),
+                            ),
+                            Arc::new(SharedClock(clock.clone())),
+                        )),
+                    )),
+                },
+            );
+            people_payroll_targets.push(
+                erpx_server_people_payroll::public::payroll_summary_http::PayrollReadHttpTarget {
+                    host: holding.host.clone(),
+                    holding_slug: holding.registration.slug.clone(),
+                    origin: format!("https://{}", holding.host),
+                    backend: Arc::new(crate::people_payroll::PeoplePayrollBackend::new(
+                        config.policy.clone(),
+                        Arc::new(FinanceJournalReadScopeHeaders),
+                        Arc::new(crate::people_payroll::PeoplePayrollService::new(
+                            authorizer.clone(),
+                            crate::people_payroll::PeoplePayrollConfiguration::new(
                                 holding.registration.holding_id.clone(),
                                 company.clone(),
                             ),
@@ -2016,6 +2036,14 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_operations::public::operations_http::operations_router(operations_targets)
                     .map_err(|_| "PRIVATE_API_OPERATIONS_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !people_payroll_targets.is_empty() {
+            router = router.merge(
+                erpx_server_people_payroll::public::payroll_summary_http::people_payroll_router(
+                    people_payroll_targets,
+                )
+                .map_err(|_| "PRIVATE_API_PEOPLE_PAYROLL_CONFIGURATION_INVALID")?,
             );
         }
         if !asset_targets.is_empty() {

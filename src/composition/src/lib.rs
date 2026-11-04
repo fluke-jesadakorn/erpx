@@ -61,6 +61,7 @@ pub mod maintenance;
 pub mod projects;
 pub mod quality;
 pub mod operations;
+pub mod people_payroll;
 pub mod asset_http;
 #[cfg(feature = "existing-business")]
 pub mod brand_identity;
