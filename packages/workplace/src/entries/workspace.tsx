@@ -8,6 +8,7 @@ import { cookies, headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { product } from "@erpx/server-commercial/public/product-registry";
 import { configuredProductOrigin, configuredProductHandoff, productHostForHost } from "@erpx/feature-runtime/lib/product-hosts";
+import { holdingHostForHost, holdingOrigin } from "@erpx/feature-runtime/lib/holding-hosts";
 import { currentSession } from "@erpx/server-identity_access/public/authorization";
 import { providerEntryOverview } from "@erpx/server-identity_access/public/provider-entry";
 import { adminLaunchChoices } from "@erpx/server-work_projection/public/admin-launcher";
@@ -20,6 +21,7 @@ import {AppsSidebar} from '@erpx/workplace/components/apps-sidebar';
 import { savedAppsWorkspaceForPresentation } from "@erpx/server-work_projection/public/workspace-entry-presentation-query";
 import {AppsLauncher} from '@erpx/workplace/components/apps-launcher';
 import {buildAppsCompanies} from '@erpx/feature-work_projection/lib/apps-launcher';
+import {directProductEntryHref} from '../lib/product-entry';
 import styles from "@erpx/workplace/components/product-shell.module.css";
 
 export const dynamic = "force-dynamic";
@@ -41,9 +43,13 @@ export default async function ProductEntryPage({ searchParams, applications = fa
     sharedAdmin ? measureReadPhase("product_entry_provider", providerEntryOverview) : null,
   ]);
   const choices = products.filter(choice => host === "apps" || host === choice.productId);
-  // During phased migration Apps keeps every old work entry available even
-  // after the first Company grant. Remove recovery only at accepted cutover.
-  if (!holdingRoutingEnabled(process.env)&&choices.length === 1 && host !== "admin" && host !== "apps") redirect(choices[0].href);
+  // A product root with one current workspace opens it directly. Apps, Admin,
+  // shared surfaces and a choice from another Holding keep the chooser.
+  const holding = holdingRoutingEnabled(process.env) ? holdingHostForHost(requestHeaders.get("host")) : undefined;
+  const direct = directProductEntryHref(host, choices, holding
+    ? { holdingSlug: holding.holdingSlug, origin: holdingOrigin(holding.holdingSlug) ?? "" }
+    : undefined);
+  if (direct) redirect(direct);
   const nativeServiceEntry = host === "service" && holdingRoutingEnabled(process.env) && process.env.ERPX_NATIVE_FIELD_SERVICE_WORKSPACE_CONFIG !== undefined;
   const existingWorkspaces = !nativeServiceEntry && (host === "apps" || host === "admin" || choices.length === 0) ? await measureReadPhase("product_entry_recovery", existingWorkspaceLaunchChoices) : [];
   const remembered = host === "apps"&&!holdingRoutingEnabled(process.env) ? await savedAppsWorkspaceForPresentation(session.user.id) : null;

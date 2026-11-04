@@ -1,0 +1,98 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Apps single-product direct entry implemented with a fail-closed selection policy: a product root with exactly one current workspace now follows the server-authorized owner href under Holding routing, while Apps/Admin/shared hosts, multiple workspaces and malformed or foreign hrefs keep the explicit chooser. The Apps owner remains partial because no browser journey was run and the other remaining workflow is untouched.",
+  "capability": "apps-single-product-direct-entry",
+  "owner": "apps",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "6502391d2",
+  "branch": "codex/rust-backend-migration",
+  "scope": {
+    "workflow": "apps:single-product-direct-entry",
+    "behaviour": "Both product-entry implementations (the launcher workspace entry and the compat product-entry route) now call one Apps-owned direct-entry policy. It redirects only when the requesting product host has exactly one current product/workspace choice for the same product and that choice carries a valid Holding scope and a safe owner-issued href.",
+    "preserved": "Holding/Company isolation and current work context come from the existing productLaunchChoices result. The policy never derives Company, role, package or scope authority from the href, never substitutes a retained reader, and never changes the selected role.",
+    "failClosed": [
+      "Apps, Admin, Account, Booking, Portal, Legal Portal and Forms hosts never auto-redirect.",
+      "Two or more product/workspace choices keep the chooser.",
+      "Under Holding routing the sole choice must match the registered Holding slug and stay on that Holding origin; a cross-Holding choice or cross-origin href keeps the chooser.",
+      "A choice for another product, an absent/empty Holding slug, an empty href, a non-HTTPS absolute href, a protocol-relative href, an href with credentials, a root-only relative path, control characters or a header-injection-looking href keeps the chooser.",
+      "Unexpected authority or source failures still propagate; malformed native session failures still close without a legacy credential fallback."
+    ],
+    "notClaimed": "No browser, local server, staging, private production or Cloudflare verification. No workflow is marked verified or merged. The Company Executive/MCP workflow and the accepted dirty-switch/product-selection evidence are untouched."
+  },
+  "changedFiles": [
+    "packages/workplace/src/lib/product-entry.ts",
+    "packages/workplace/src/entries/workspace.tsx",
+    "packages/workplace/src/routes/product-entry/page.tsx",
+    "tests/unit/identity_access/native-product-entry.test.ts",
+    "docs/testing/evidence/2026-11-04-apps-owner-closure.json"
+  ],
+  "verification": {
+    "unit": {
+      "suite": "identity_access.product-sso.unit",
+      "command": "ERPX_SELECTED_TEST_FILES='[\"tests/unit/identity_access/native-product-entry.test.ts\"]' node_modules/.bin/vitest run --config tests/config/vitest.unit.config.mts",
+      "result": "16 passed, 0 failed",
+      "newCases": [
+        "both actual product-entry implementations redirect to the only current product workspace under Holding routing",
+        "a second workspace, a shared Apps/Admin host, a cross-Holding choice or a cross-origin target keeps the chooser",
+        "another product, an unsafe scheme, a protocol-relative target, credentials, a root-only path, an empty target or a CRLF-bearing target keeps the chooser",
+        "the pure policy accepts exactly one matching safe holding, branch or department choice and rejects every shared host, duplicate, mismatch and malformed scope/href"
+      ]
+    },
+    "productLauncherSuite": {
+      "files": [
+        "tests/unit/shared.ui/product-launcher.test.ts",
+        "tests/unit/shared.ui/apps-launcher.test.ts"
+      ],
+      "result": "61 passed, 0 failed"
+    },
+    "navigationSuite": {
+      "file": "tests/unit/shared.ui/workplace-navigation.test.ts",
+      "result": "78 passed, 0 failed"
+    },
+    "typecheck": {
+      "command": "node_modules/.bin/tsc --noEmit --project .scratch/typecheck/apps-product-entry.json (temporary config over the changed files)",
+      "result": "pass"
+    },
+    "eslint": {
+      "files": [
+        "packages/workplace/src/lib/product-entry.ts",
+        "packages/workplace/src/entries/workspace.tsx",
+        "packages/workplace/src/routes/product-entry/page.tsx",
+        "tests/unit/identity_access/native-product-entry.test.ts"
+      ],
+      "result": "pass with the repository's pre-existing Next pages-directory warning only"
+    },
+    "layout": {
+      "command": "node_modules/.bin/tsx -e \"import {checkRepositoryLayout} from './scripts/testing/layout.ts'; checkRepositoryLayout()\"",
+      "result": "blocked before this slice by concurrent uncommitted customer_360.rust-customer-timeline.unit verification input",
+      "note": "Bun is not installed in this worktree; no layout error was reported for the Apps files before the unrelated catalogue failure."
+    },
+    "packageTypecheck": {
+      "command": "node_modules/.bin/tsc --noEmit --project packages/workplace/tsconfig.json",
+      "result": "blocked by concurrent uncommitted packages/server-files/src/public/native-attachments.ts errors; no error referenced the Apps changed files",
+      "note": "An isolated changed-file typecheck passed."
+    },
+    "browser": "not run; no browser verification is claimed"
+  },
+  "sharedCompositionAndSchema": {
+    "compositionDelta": "none; no src/composition edit or router mount",
+    "schemaDelta": "none; no migration, table, column, index, trigger or constraint was added or changed",
+    "dependencyDelta": "none; no root Cargo.toml, Cargo.lock or package lockfile was edited",
+    "rustDelta": "none; the Apps owner has no Rust server package in this slice"
+  },
+  "legacy": {
+    "removed": "The per-page guarded redirect expression in both product-entry implementations was replaced by the owner-local direct-entry policy.",
+    "retained": "The explicit chooser, recovery workspace links, product launcher, dirty product-switch guard, product selection matrix and Company Executive/MCP implementation are unchanged."
+  },
+  "observedBaselineFailures": [
+    "tests/unit/identity_access/product-workspace.test.ts fails with ReferenceError: ownedPeoplePayrollRuns is not defined; the failure is outside the changed entry/direct-entry path.",
+    "tests/unit/identity_access/page-entry-return.test.tsx fails during its unauthenticated native-session redirect before any direct-entry branch; the affected suites above are the passing evidence for this slice."
+  ],
+  "limits": [
+    "The direct-entry policy follows a fresh authorization result; it is not a new authorization decision and does not replace product selection or the launch route.",
+    "The browser cases that originally blocked apps:single-product-direct-entry remain unrun; this evidence advances implementation and fail-closed negatives only.",
+    "The Company Executive/MCP workflow is untouched and still needs its own qualification."
+  ],
+  "next": "Run the authorized Apps product-host browser cohort to exercise the direct-entry branch with normal authentication, then finish the remaining Company Executive/MCP qualification before closing the Apps owner."
+}
