@@ -52639,6 +52639,260 @@
       ]
     },
     {
+      "id": "marketing.rust-marketing-campaigns.unit",
+      "lane": "unit",
+      "owner": "marketing",
+      "modules": [
+        "marketing"
+      ],
+      "files": [
+        "tests/unit/marketing/rust-marketing-campaigns.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Marketing campaign/attribution reads retain current actor, package history, Company scope, bounded row shapes and deterministic ordering."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-marketing",
+        "targets": [
+          "marketing_campaigns"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-marketing/Cargo.toml"
+      ]
+    },
+    {
+      "id": "marketing.rust-marketing-campaign-http.integration",
+      "lane": "integration",
+      "owner": "marketing",
+      "modules": [
+        "marketing"
+      ],
+      "files": [
+        "tests/integration/marketing/rust-marketing-campaign-http.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Marketing HTTP ingress retains exact registered targets, no query/body reads, fail-closed configuration and bounded errors."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-marketing",
+        "targets": [
+          "marketing_campaign_http"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-marketing/Cargo.toml"
+      ]
+    },
+    {
+      "id": "marketing.rust-marketing-campaign-postgres.integration",
+      "lane": "integration",
+      "owner": "marketing",
+      "modules": [
+        "marketing"
+      ],
+      "files": [
+        "tests/integration/marketing/rust-marketing-campaign-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Marketing campaign/attribution reads retain Company/branch/department isolation, aggregation, transaction guards, rollback and persisted readback."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-marketing",
+        "targets": [
+          "marketing_campaign_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-marketing/Cargo.toml"
+      ]
+    },
+    {
+      "id": "marketing.native-marketing-campaign-transport.unit",
+      "lane": "unit",
+      "owner": "marketing",
+      "modules": [
+        "marketing"
+      ],
+      "files": [
+        "tests/unit/marketing/native-marketing-campaign-transport.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Marketing transport must retain fail-closed configuration, exact Host/Holding/session/context forwarding, bounded response validation and owner error mapping."
+      },
+      "framework": "vitest",
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/feature-sales",
+        "@erpx/server-marketing"
+      ]
+    },
+    {
+      "id": "agent.rust-agent-evidence.unit",
+      "lane": "unit",
+      "owner": "agent",
+      "modules": [
+        "agent"
+      ],
+      "files": [
+        "tests/unit/agent/rust-agent-evidence.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Agent evidence retains records.read/module/current-context policy, Company isolation, session privacy, effective expiry and bounded source validation."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-platform-administration",
+        "targets": [
+          "agent_evidence"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-platform_administration/Cargo.toml"
+      ]
+    },
+    {
+      "id": "agent.rust-agent-evidence-http.unit",
+      "lane": "unit",
+      "owner": "agent",
+      "modules": [
+        "agent"
+      ],
+      "files": [
+        "tests/unit/agent/rust-agent-evidence-http.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Agent evidence HTTP ingress retains exact targets, origin checks, bounded request parsing and bounded error mapping."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-platform-administration",
+        "targets": [
+          "agent_evidence_http"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-platform_administration/Cargo.toml"
+      ]
+    },
+    {
+      "id": "agent.rust-agent-evidence-postgres.integration",
+      "lane": "integration",
+      "owner": "agent",
+      "modules": [
+        "agent"
+      ],
+      "files": [
+        "tests/integration/agent/rust-agent-evidence-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Agent evidence reads retain Company isolation, private-session visibility, serializable transaction guards, rollback and persisted readback."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-platform-administration",
+        "targets": [
+          "agent_evidence_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-platform_administration/Cargo.toml"
+      ]
+    },
+    {
+      "id": "agent.native-agent-evidence-transport.unit",
+      "lane": "unit",
+      "owner": "agent",
+      "modules": [
+        "agent"
+      ],
+      "files": [
+        "tests/unit/agent/native-agent-evidence-transport.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Agent evidence transport must retain fail-closed configuration, exact Host/Holding/session/context forwarding, bounded response validation and owner error mapping."
+      },
+      "framework": "vitest",
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/server-agent",
+        "@erpx/server-identity_access"
+      ]
+    },
+    {
       "id": "shared.ui.application-hmr.e2e",
       "lane": "e2e",
       "owner": "shared.ui",

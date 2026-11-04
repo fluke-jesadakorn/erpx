@@ -7,6 +7,7 @@ import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { pageError } from "@erpx/server-work_projection/public/page-error";
 import { marketingWorkspace } from "@erpx/server-marketing/public/marketing";
 import { MarketingConsole } from "@erpx/feature-marketing/components/marketing-console";
+import { nativeMarketingCampaignReport } from "@erpx/feature-sales/public/native-marketing-campaign-page";
 import {
   marketingAnalytics,
   analyticsOptions,
@@ -38,6 +39,9 @@ export default async function Page({
     a = await requireWorkContext(holdingSlug),
     base = workspaceBase(publicScope(a)),
     data = await marketingWorkspace(a).catch((e) => pageError(e, holdingSlug)),
+    nativeCampaigns = await nativeMarketingCampaignReport(a).catch((e) =>
+      pageError(e, holdingSlug),
+    ),
     q = await searchParams,
     defaults = defaultAnalyticsRange(),
     raw = {
@@ -51,8 +55,17 @@ export default async function Page({
     [report, options] = await Promise.all([marketingAnalytics(a, raw), analyticsOptions(a)]).catch(
       (e) => pageError(e, holdingSlug),
     ),
+    campaigns = nativeCampaigns?.campaigns ?? data.campaigns,
+    campaignAttribution = nativeCampaigns?.attribution ?? data.campaignSummary.map((row) => ({
+      campaign: String(row.campaign),
+      source: String(row.source),
+      captured: Number(row.captured),
+      pending: Number(row.pending),
+      handed_off: Number(row.handed_off),
+      rejected: Number(row.rejected),
+    })),
     selectedCampaign = q.campaignId
-      ? data.campaigns.find((c) => String(c.id) === q.campaignId)
+      ? campaigns.find((c) => String(c.id) === q.campaignId)
       : null,
     selectedAsset = q.assetId
       ? data.assets.find((asset) => asset.kind === "content" && String(asset.id) === q.assetId)
@@ -69,7 +82,7 @@ export default async function Page({
       <Card as="section" appearance="standard" className="ui-panel">
         <h2>Lead intake by campaign</h2>
         <p>Candidate counts by recorded campaign and source. Contact details are not included.</p>
-        {data.campaignSummary.length ? (
+        {campaignAttribution.length ? (
           <TableFrame appearance="standard" label="Records"><Table className="business-table">
             <thead>
               <tr>
@@ -82,7 +95,7 @@ export default async function Page({
               </tr>
             </thead>
             <tbody>
-              {data.campaignSummary.map((row) => (
+              {campaignAttribution.map((row) => (
                 <tr key={`${String(row.campaign)}:${String(row.source)}`}>
                   <td><Link record={{kind:"marketing_campaign_sources",id:String(row.campaign),args:{source:String(row.source)}}} href={canonicalUiHref(`${base}/record-details/marketing_campaign_sources/${encodeURIComponent(String(row.campaign))}`)}>{String(row.campaign)}</Link></td>
                   <td>{String(row.source)}</td>
@@ -107,7 +120,7 @@ export default async function Page({
             derivatives.
           </p>
           <div className="ui-form-actions">
-            {data.campaigns.map((c) => (
+            {campaigns.map((c) => (
               <UiActionLink appearance="standard"
                 variant="secondary"
                 key={String(c.id)}

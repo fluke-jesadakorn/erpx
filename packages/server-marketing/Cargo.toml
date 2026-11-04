@@ -1,0 +1,37 @@
+[package]
+name = "erpx-server-marketing"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+autotests = false
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+erpx-server-shared.workspace = true
+erpx-server-runtime.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+uuid.workspace = true
+
+[[test]]
+name = "marketing_campaigns"
+path = "../../tests/unit/marketing/rust-marketing-campaigns.test.rs"
+
+[[test]]
+name = "marketing_campaign_http"
+path = "../../tests/integration/marketing/rust-marketing-campaign-http.test.rs"
+
+[[test]]
+name = "marketing_campaign_postgres"
+path = "../../tests/integration/marketing/rust-marketing-campaign-postgres.test.rs"
+
+[lints]
+workspace = true

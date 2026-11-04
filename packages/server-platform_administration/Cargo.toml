@@ -39,3 +39,15 @@ path = "../../tests/unit/platform_administration/rust-legal-release.test.rs"
 [[test]]
 name = "platform_administration_postgres"
 path = "../../tests/integration/platform_administration/rust-platform-administration-postgres.test.rs"
+
+[[test]]
+name = "agent_evidence"
+path = "../../tests/unit/agent/rust-agent-evidence.test.rs"
+
+[[test]]
+name = "agent_evidence_http"
+path = "../../tests/unit/agent/rust-agent-evidence-http.test.rs"
+
+[[test]]
+name = "agent_evidence_postgres"
+path = "../../tests/integration/agent/rust-agent-evidence-postgres.test.rs"

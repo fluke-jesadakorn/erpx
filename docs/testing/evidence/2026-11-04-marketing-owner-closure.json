@@ -1,0 +1,143 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Marketing now has a bounded native campaign-ledger and lead-capture attribution read, an owner-local HTTP router, a strict Next transport and a configured SSR campaign/attribution cutover. The Marketing owner remains pending/partial: campaign create/cost linking, assets and previews, public forms, lead candidate review, engagement commands, CRM handoff, shared composition mounting, root workspace membership, package/directory composition, audit/outbox writes and browser acceptance remain open.",
+  "capability": "marketing-owner-campaign-attribution-read-closure",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "4f2a9b6683776c551f343bbba8033262e248c3ee",
+  "scope": {
+    "workflows": [
+      "marketing/feature-engagement",
+      "marketing/feature-lead-candidates"
+    ],
+    "workflowBoundary": "The qualified slice reads the current Company-scoped campaign ledger used by the retained Marketing campaign document panels and the Company/branch/department-scoped lead-capture attribution summary used by the retained 'Lead intake by campaign' table. It does not qualify either whole catalogue workflow; campaign commands, campaign costs, assets, public forms, candidate review/engagement commands, CRM handoff and the executive marketing analytics report remain retained.",
+    "domain": "Marketing read actor policy (records.read, explicit marketing module, work-context expiry), exact Company and optional branch/department scope, exact campaign row shape (id/company/code/name/version/created_at), exact attribution row shape (campaign/source/captured/pending/handed_off/rejected), Unicode-safe text bounds without control characters, captured = pending + handed_off + rejected coherence, unique rows, deterministic C-collation ordering, and explicit 500-campaign / 1,000-attribution bounds that fail closed instead of truncating.",
+    "application": "One marketing_campaign_report use case requires the current actor before any package or owner read, requires the current sales.marketing history entitlement through a public Commercial port before source access, validates every campaign and attribution row against the actor Company, and returns the enabled package purchase controls. Repository SQL stays on the caller's serializable Holding transaction.",
+    "adapters": "Read-only SQL over Marketing-owned marketing_campaigns and marketing_lead_candidates only. Campaigns are Company-scoped and code/id ordered. Attribution is grouped from candidate attribution_json (campaign, then source/utmSource, with Unspecified fallback), scoped by Company and optional branch/department, C-collation ordered and bounded. Invalid attribution_json is rejected before aggregation. No campaign, cost, asset, candidate, engagement or cross-owner row is created, revised or deleted.",
+    "http": "Owner-local GET /api/v1/holdings/{holding_slug}/marketing/campaign-attribution. Exact Host/Holding target keys and exact HTTPS origins, duplicate Host rejection, no query string, no request body, private/no-store plus no-referrer/nosniff responses, and bounded BusinessError status mapping. The composition backend receives transport facts and must supply the normal Account session, current Company/branch/department scope, package admission and serializable owner read.",
+    "transport": "ERPX_NATIVE_MARKETING_CAMPAIGN_CONFIG is strictly validated: loopback-only private base, explicit port excluding 3000/3001/3100/3101/3103/5432/5433/5435/8080 and 3200-3299, exact HTTPS Holding origins, unique hosts/slugs, 250..30000 ms timeout, bounded cookie/context/workspace headers, exact campaign/attribution/purchase/context shapes, unique ordered rows, scope/company validation, a 2 MiB response bound and no fallback on any configured failure.",
+    "ssr": "The workplace Marketing page uses the native report when ERPX_NATIVE_MARKETING_CAMPAIGN_CONFIG is present. An unset configuration retains marketingWorkspace campaignSummary/campaigns and the existing table and campaign document buttons. Once configured, an invalid or failed native report is surfaced rather than silently replaced. MarketingConsole, asset/forms/candidate panels, document/media panels and the CRM analytics report remain on their retained readers.",
+    "purchaseAndIdentity": "The native application requires the current sales.marketing history entitlement through a public Commercial port when enforcement is enabled and projects the current newWork/settleExisting/history/revision controls. This is a read projection; composition must repeat current authority, selected scope and purchase admission on its own serializable owner transaction.",
+    "notClaimed": "No browser journey, authenticated page render, shared composition mount, root workspace membership, catalogue acceptance qualification, campaign create/cost-link command, asset activation/review, public form submission, lead candidate create/engagement/rejection, CRM handoff, versions/CAS write, idempotency receipt, audit/outbox effect, same-transaction CRM/Sales/Support guard, job, production or staging acceptance."
+  },
+  "changedFiles": [
+    "packages/server-marketing/Cargo.toml",
+    "packages/server-marketing/src/lib.rs",
+    "packages/server-marketing/src/domain/mod.rs",
+    "packages/server-marketing/src/domain/campaign_attribution.rs",
+    "packages/server-marketing/src/application/mod.rs",
+    "packages/server-marketing/src/application/campaign_attribution.rs",
+    "packages/server-marketing/src/adapters/mod.rs",
+    "packages/server-marketing/src/adapters/campaign_attribution.rs",
+    "packages/server-marketing/src/adapters/campaign_attribution_http.rs",
+    "packages/server-marketing/src/public/mod.rs",
+    "packages/server-marketing/src/public/campaign_attribution.rs",
+    "packages/server-marketing/src/public/campaign_attribution_http.rs",
+    "packages/feature-sales/package.json",
+    "packages/feature-sales/src/public/native-marketing-campaign.ts",
+    "packages/feature-sales/src/public/native-marketing-campaign-page.ts",
+    "packages/feature-sales/src/adapters/server/next-native-marketing-campaign.ts",
+    "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/marketing/screen.tsx",
+    ".env.example",
+    "tests/unit/marketing/rust-marketing-campaigns.test.rs",
+    "tests/integration/marketing/rust-marketing-campaign-http.test.rs",
+    "tests/integration/marketing/rust-marketing-campaign-postgres.test.rs",
+    "tests/unit/marketing/native-marketing-campaign-transport.test.ts",
+    "tests/catalogue/suite-manifest.json"
+  ],
+  "verification": {
+    "cargo": {
+      "command": "cargo test -p erpx-server-marketing --locked",
+      "workingDirectory": "packages/server-marketing",
+      "result": "20 passed, 0 failed, 0 ignored across 3 test targets plus the empty lib/doc targets (lib 0, marketing_campaigns 13, marketing_campaign_http 2, marketing_campaign_postgres 5, doc-tests 0)",
+      "workspaceNote": "packages/server-marketing is not yet a member of the root Cargo workspace, and this subagent is prohibited from editing root Cargo.toml/Cargo.lock. The exact --locked command was run against a transient isolated [workspace] manifest and temporary local Cargo.lock inside packages/server-marketing; both were removed afterwards and the final workspace-inheriting manifest was restored byte-for-byte. Root Cargo.toml and Cargo.lock remain unmodified by this subagent (git status clean for both). A workspace owner must register packages/server-marketing before the command can be run from the repository root.",
+      "targets": {
+        "marketing_campaigns": "13 passed: permission/module/expiry before source and package, package history before source, exact selected branch/department forwarding, empty bounded report, enabled purchase controls, foreign Company/bad id/code/name/version/created-at negatives, duplicate/descending/excess campaign rows, exact 500-row acceptance, attribution key/count/coherence negatives, duplicate/descending/excess attribution rows, exact 1,000-row acceptance, repository failure propagation, exact camel-case purchase wire shape",
+        "marketing_campaign_http": "2 passed: exact distinct Host/Holding/HTTPS target configuration, actual loopback GET forwarding, private/no-store/no-referrer/nosniff headers, no query string, no request body, duplicate Host rejection, unknown Host/Holding 404, conflict mapping, and proof that rejected requests never reach the backend",
+        "marketing_campaign_postgres": "5 passed: Company/branch/department isolation and attribution grouping, Unspecified fallback, foreign Company isolation, invalid attribution JSON fail-closed with rollback, serializable transaction guards, persisted campaign-count readback, rollback of an inserted campaign, permission/package denial before source (source table renamed inside the rolled-back transaction), and the 500-campaign bound"
+      }
+    },
+    "clippy": {
+      "command": "cargo clippy -p erpx-server-marketing --all-targets --locked -- -D warnings",
+      "result": "pass; no erpx-server-marketing warning (same transient isolated manifest as the cargo test run)"
+    },
+    "rustfmt": {
+      "command": "rustfmt --edition 2024 --check on every changed Rust source and test file",
+      "result": "pass"
+    },
+    "typescript": {
+      "featureSales": "node_modules/.bin/tsc --noEmit --project packages/feature-sales/tsconfig.json: pass",
+      "workplace": "node_modules/.bin/tsc --noEmit --project packages/workplace/tsconfig.json: pass",
+      "testsAndScripts": "node_modules/.bin/tsc --noEmit --project tests/config/tsconfig.json: pass",
+      "eslint": "eslint on the changed TypeScript files: pass (the repository's existing pages-directory warning only)"
+    },
+    "vitest": {
+      "command": "ERPX_SELECTED_TEST_FILES='[\"tests/unit/marketing/native-marketing-campaign-transport.test.ts\"]' vitest run --config tests/config/vitest.unit.config.mts",
+      "result": "11 passed, 0 failed",
+      "existingMarketingRegression": "ERPX_SELECTED_TEST_FILES='[\"tests/unit/marketing/marketing-editor.test.ts\",\"tests/unit/marketing/public-forms-page.test.tsx\"]' vitest run --config tests/config/vitest.unit.config.mts: 29 passed, 0 failed",
+      "cases": [
+        "forwards exact Host/Holding/session/CAS and the exact report route with no idempotency key",
+        "forwards the selected branch workspace slug",
+        "forwards the selected department workspace slug",
+        "surfaces a bounded owner PACKAGE_REQUIRED error",
+        "rejects foreign Company, code/name, duplicate/order, attribution count/duplicate/order, purchase, page and context mismatches",
+        "bounds an oversized owner response and rejects a non-JSON success body",
+        "rejects a host or actor that is not the configured exact authority",
+        "fails closed when the native selector is absent",
+        "does not fall back when the configured selector is malformed",
+        "rejects reserved ports, insecure origins and malformed configuration",
+        "maps context/request/authority/owner failures to the retained page status policy"
+      ]
+    },
+    "postgres": {
+      "suite": "marketing_campaign_postgres (raw migrated PostgreSQL, disposable leased erpx_dev_rust_* database)",
+      "fixture": "Real migrated PostgreSQL with synthetic Marketing campaigns, forms, lead candidates and a foreign Company; no owner write in the qualified read path."
+    },
+    "structure": {
+      "command": "node_modules/.bin/tsx scripts/testing/layout.ts",
+      "result": "pass"
+    },
+    "architecture": {
+      "command": "node_modules/.bin/tsx scripts/architecture/check.ts",
+      "result": "not claimed as passing: the shared architecture check reports 20 existing private-import findings in server-legal, server-pos, feature-quality, feature-platform_administration, feature-operations, feature-pms, feature-assets and workplace from other concurrent work. No packages/server-marketing or native-marketing-campaign path appears in those findings.",
+      "notClaimed": "This slice does not repair or validate other owners' architecture state."
+    },
+    "catalogue": {
+      "command": "ERPX_SELECTED_TEST_FILES='[\"tests/unit/shared.architecture/test-selection.test.ts\"]' vitest run --config tests/config/vitest.unit.config.mts",
+      "result": "not claimed as passing: the selection suite requires a pinned Bun binary that is unavailable in this environment and reports INVALID_SUITE_VERIFICATION_INPUT:customer_360.rust-customer-timeline.unit from concurrent work. No marketing suite or marketing file appears in the failures; the four new marketing suites were added to tests/catalogue/suite-manifest.json.",
+      "targeted": "A direct validateCargoSuite + file-existence check over every marketing suite in tests/catalogue/suite-manifest.json passed for the four new suites (two cargo targets, one PostgreSQL integration target and one vitest transport suite)."
+    }
+  },
+  "sharedCompositionAndSchema": {
+    "schemaDelta": "none; no migration, table, column, index, trigger or constraint was added or changed",
+    "dependencyDelta": "no new external dependency; the new crate uses existing workspace dependency versions only; no root Cargo.toml, root Cargo.lock, package lockfile or bun.lock change",
+    "compositionDelta": "No src/composition change and no composition backend mount. The owner-local router and public ports are ready for a composition backend but are not mounted here. Root workspace registration for packages/server-marketing is also not authored here.",
+    "publicPortsRequiredByComposition": [
+      "MarketingCampaignRepository (PostgreSQL owner adapter PgMarketingCampaignRead binds the caller's serializable Holding transaction)",
+      "MarketingCampaignEntitlementPort (current Commercial sales.marketing history controls)",
+      "MarketingCampaignHttpBackend (Account session, current Company/branch/department scope, package admission and serializable owner unit)"
+    ],
+    "concurrentWorktreeNote": "The working tree contains uncommitted changes from other agents (customer_authority, platform_administration/agent, customer access and related exports/environment entries). Those changes are not authored by this slice and were left untouched."
+  },
+  "legacyRemovedOrRetained": {
+    "removed": "none",
+    "retained": [
+      "marketingWorkspace, marketingDetail, createMarketingCandidate, createMarketingAsset and changeMarketing remain the TypeScript fallback and all command paths",
+      "marketingCampaigns, marketingCostSources and changeMarketingCampaign remain the retained campaign create/cost-link path",
+      "marketing asset/domain/provider readiness, public form submission, candidate review/engagement and CRM handoff",
+      "the CRM-owned marketingAnalytics report and all retained document/media panels",
+      "retained page behavior when ERPX_NATIVE_MARKETING_CAMPAIGN_CONFIG is unset, including the existing marketingWorkspace campaignSummary table and campaign selectors"
+    ],
+    "cutover": "Only the workplace Marketing page campaign ledger used by the campaign document buttons and the lead-intake-by-campaign attribution table switch to the native owner when ERPX_NATIVE_MARKETING_CAMPAIGN_CONFIG is present. A configured native failure surfaces through the retained page error policy and never reads the retained campaign/attribution data as a fallback. MarketingConsole and all command option loading remain retained."
+  },
+  "blockersAndNextAction": {
+    "blockers": [
+      "packages/server-marketing is not registered in the root Cargo workspace",
+      "No composition backend implements MarketingCampaignRepository/MarketingCampaignEntitlementPort or mounts marketing_campaign_http_router",
+      "No authenticated browser or deployment verification was performed",
+      "The shared architecture check is red for unrelated owners' concurrent work",
+      "Campaign create/cost-link, asset review, public forms, candidate engagement/handoff, idempotency, versions/CAS, audit/outbox and same-transaction CRM/Sales/Support guards remain unimplemented natively"
+    ],
+    "nextAction": "Register packages/server-marketing in the root workspace, implement the Commercial entitlement and PostgreSQL owner-unit ports in composition, and mount the router behind Account session and current scope. Then qualify the Marketing campaign create/cost-link and candidate handoff commands with idempotency receipts, versions/CAS, audit/outbox and the same-transaction CRM/Sales/Support guards. Browser acceptance remains deferred."
+  }
+}

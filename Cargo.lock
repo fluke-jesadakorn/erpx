@@ -1033,6 +1033,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "erpx-server-marketing"
+version = "0.1.0"
+dependencies = [
+ "erpx-server-runtime",
+ "erpx-server-shared",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "erpx-server-operations"
 version = "0.1.0"
 dependencies = [

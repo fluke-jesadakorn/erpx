@@ -3,6 +3,11 @@ import { requireWorkContext } from "@erpx/server-identity_access/public/authoriz
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
 import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
 import {
+  nativeAgentEvidenceAvailable,
+  nativeAgentEvidenceFailure,
+  nativeAgentEvidenceFromHeaders,
+} from "@erpx/server-agent/public/native-agent-evidence-page";
+import {
   agentWorkspace,
   changeAgentRecord,
   changeAgentPool,
@@ -14,16 +19,43 @@ import {
 } from "@erpx/server-agent/public/agent-governance";
 type C = { params: Promise<{ holdingSlug: string }> };
 const headers = { "Cache-Control": "private, no-store" };
-export async function GET(_: Request, c: C) {
+export async function GET(request: Request, c: C) {
   try {
-    return Response.json(
-      canonicalDestinationLinks({
-        data: await agentWorkspace(
-          await requireWorkContext((await c.params).holdingSlug),
-        ),
-      }),
-      { headers },
-    );
+    const holdingSlug = (await c.params).holdingSlug,
+      actor = await requireWorkContext(holdingSlug),
+      evidenceView = new URL(request.url).searchParams.get("view") === "evidence";
+    let evidence;
+    if (nativeAgentEvidenceAvailable()) {
+      try {
+        evidence = await nativeAgentEvidenceFromHeaders(actor, holdingSlug, request.headers);
+      } catch (error) {
+        const failure = nativeAgentEvidenceFailure(error);
+        throw failure ? new ApiError(failure.status, failure.code, failure.message) : error;
+      }
+    }
+    if (evidenceView) {
+      if (!evidence)
+        throw new ApiError(
+          503,
+          "NATIVE_AGENT_UNAVAILABLE",
+          "The native Agent evidence is unavailable.",
+        );
+      return Response.json(
+        canonicalDestinationLinks({
+          data: {
+            now: evidence.now,
+            invocations: evidence.invocations,
+            sessions: evidence.sessions,
+          },
+        }),
+        { headers },
+      );
+    }
+    const workspace = await agentWorkspace(actor, false),
+      data = evidence
+        ? { ...workspace, invocations: evidence.invocations, sessions: evidence.sessions }
+        : { ...workspace, invocations: [], sessions: [] };
+    return Response.json(canonicalDestinationLinks({ data }), { headers });
   } catch (e) {
     return errorResponse(e);
   }
