@@ -428,3 +428,8 @@ required-features = ["private-field-api"]
 name = "finance_setup_postgres"
 path = "../../tests/integration/finance/rust-finance-setup-postgres.test.rs"
 required-features = ["private-field-api"]
+
+[[test]]
+name = "finance_report_postgres"
+path = "../../tests/integration/finance/rust-finance-report-postgres.test.rs"
+required-features = ["private-field-api"]

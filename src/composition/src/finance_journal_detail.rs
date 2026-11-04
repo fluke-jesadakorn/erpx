@@ -5,7 +5,7 @@ use erpx_server_commercial::public::purchases::{
     CapabilityPurpose, CommercialCatalogue, PackageEnforcementMode, PgCompanyPurchaseReader,
     PurchaseRequest, lock_commercial_authority_sources,
 };
-use erpx_server_finance::public::{FinanceActor, finance_invoice_read::*, finance_setup::*, journal_detail::*, journal_list::*, journal_workspace::*, sales_defaults::*, sales_invoice_create::*, sales_invoice_edit::*, sales_invoice_list::*, sales_receipts::*};
+use erpx_server_finance::public::{FinanceActor, finance_invoice_read::*, finance_reports::*, finance_setup::*, journal_detail::*, journal_list::*, journal_workspace::*, sales_defaults::*, sales_invoice_create::*, sales_invoice_edit::*, sales_invoice_list::*, sales_receipts::*};
 use erpx_server_identity_access::public::{
     DeviceProof,
     effective_authority::{
@@ -172,6 +172,12 @@ pub struct FinanceAccountStatusResponse { pub data: AccountStatusResult }
 pub struct FinancePeriodResponse { pub data: PeriodResult }
 #[derive(Clone, Debug, Serialize)]
 #[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+pub struct FinanceFinancialReportResponse {
+    pub data: FinancialReport,
+    pub context: FinanceRenderedWorkContext,
+}
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 pub struct FinanceSalesDefaultsWorkspaceResponse {
     pub data: SalesDefaultsWorkspace,
     pub context: FinanceRenderedWorkContext,
@@ -309,6 +315,18 @@ fn command_actor(
             .unwrap_or_default(),
         iam_json,
     })
+}
+
+#[derive(Clone)]
+struct FinanceReportSources;
+impl HoldingWorkSourcePreparation for FinanceReportSources {
+    fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async move {
+            lock_commercial_authority_sources(c).await?;
+            lock_finance_report_sources(c).await?;
+            Ok(())
+        })
+    }
 }
 
 #[derive(Clone)]
@@ -828,6 +846,54 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
                 .into());
         }
         Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn finance_report<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        chart_id: Option<String>,
+        period_id: Option<String>,
+        start_date: Option<String>,
+        end_date: Option<String>,
+    ) -> Result<FinanceFinancialReportResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let company = self.configuration.company.clone();
+        let input = move || {
+            let mut request = input()?;
+            if request.company_id != company { return Err(scope()); }
+            request.mutation = false;
+            Ok(request)
+        };
+        let configuration = self.configuration.clone();
+        let clock = self.clock.clone();
+        self.authorizer.execute_with_sources_deferred(
+            host, proof, input,
+            WorkAuthorizationRequest { permission: "finance.read".into(), module: Some("finance".into()), destination: "finance/reports".into(), api: true },
+            FinanceReportSources,
+            move |c, current| {
+                let configuration = configuration.clone();
+                let clock = clock.clone();
+                let chart_id = chart_id.clone();
+                let period_id = period_id.clone();
+                let start_date = start_date.clone();
+                let end_date = end_date.clone();
+                Box::pin(async move {
+                    if current.holding_id() != &configuration.holding || current.selection().workspace().company_id != configuration.company { return Err(scope().into()); }
+                    current.require_permission("finance.read")?;
+                    current.require_permission("module.finance.read")?;
+                    let workspace = current.selection().workspace();
+                    if workspace.branch_id.is_some() || workspace.department_id.is_some() { return Err(setup_company_scope().into()); }
+                    Self::require_sales_purchase(c, current, &configuration, CapabilityPurpose::History, clock.now()).await?;
+                    let data = read_financial_report(c, configuration.company.as_str(), chart_id.as_deref(), period_id.as_deref(), start_date.as_deref(), end_date.as_deref()).await?;
+                    Ok(FinanceFinancialReportResponse { data, context: rendered(current)? })
+                })
+            },
+        ).await
     }
 
     pub async fn finance_chart_accounts<Input>(
