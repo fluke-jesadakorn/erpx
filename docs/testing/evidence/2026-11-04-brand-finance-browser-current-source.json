@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Diagnostic current-source browser qualification: native Brand draft save/readback (desktop+mobile), native controlled-payment release (desktop), and native generic bank statement import/readback (desktop) passed with zero page/console/http errors. This is not yet a frozen-release final-gate receipt: the disposable cohort used explicit source-equivalent patches and category-lock/publish, payment confirmation and bank match/confirm remain unverified.",
+  "capability": "brand-finance-browser-current-source",
+  "integrationTarget": "codex/rust-backend-migration",
+  "source": {
+    "branch": "codex/rust-backend-migration",
+    "headWhenCaptured": "75e46111ac55126fb82cf8216d485bf26134c70b",
+    "cohort": "disposable /case/build-current copy; source-equivalent to 971e34ba0 plus the 75e46111a bank-body route patch",
+    "notAFrozenRelease": true,
+    "privateApi": "current-source Rust private API on loopback 44994 with synthetic leased PostgreSQL databases",
+    "auth": "normal Account SSO and selected Holding/Company; product session cookie from the browser"
+  },
+  "observations": [
+    {
+      "key": "brand-draft-desktop",
+      "url": "https://acme.jesadakorn.com/holdings/acme/administration/brand/identity",
+      "action": "native Brand draft save through the Admin product route",
+      "http": "POST /__erpx/admin/api/v1/holdings/acme/brand -> 200",
+      "stamp": 1793778257458,
+      "readback": "reload renders Draft version 1 with the submitted tagline; pageErrors 0, consoleErrors 0, httpErrors 0",
+      "screenshot": ".scratch/dev/agents/browser-brand-finance/evidence/brand-desktop.png"
+    },
+    {
+      "key": "brand-draft-mobile",
+      "url": "https://acme.jesadakorn.com/holdings/acme/administration/brand/identity",
+      "action": "native Brand draft save at 390x844",
+      "http": "POST /__erpx/admin/api/v1/holdings/acme/brand -> 200",
+      "stamp": 1793778308746,
+      "readback": "reload renders Draft version 1 with the submitted mobile tagline; pageErrors 0, consoleErrors 0, httpErrors 0",
+      "screenshot": ".scratch/dev/agents/browser-brand-finance/evidence/brand-mobile.png"
+    },
+    {
+      "key": "controlled-payment-release-desktop",
+      "url": "https://acme.jesadakorn.com/finance/cash/payments/pay-ed72c6aa-fbca-4529-acb5-bc9b6b21c760",
+      "action": "Finance treasury release of an independently approved receipt",
+      "http": "POST /__erpx/finance/api/v1/holdings/acme/finance/payments/pay-ed72c6aa-fbca-4529-acb5-bc9b6b21c760/release -> 200",
+      "readback": "reload renders status released; pageErrors 0, consoleErrors 0, httpErrors 0",
+      "screenshot": ".scratch/dev/agents/browser-brand-finance/evidence/finance-bank-desktop.png"
+    },
+    {
+      "key": "generic-bank-import-desktop",
+      "url": "https://acme.jesadakorn.com/finance/cash/bank",
+      "action": "native generic bank statement import (one row) through the Finance app",
+      "http": "POST /__erpx/finance/api/v1/holdings/acme/finance/bank/statements/import -> 201",
+      "statement": "STMT-DIRECT-1793778979572",
+      "transaction": "bankrow-direct-import-1793778979572-0",
+      "readback": "bank workspace reload lists BANK-DIRECT-1793778979572 as unmatched with THB 100.00; pageErrors 0, consoleErrors 0, httpErrors 0",
+      "screenshot": ".scratch/dev/agents/browser-brand-finance/evidence/finance-cash-bank.png"
+    }
+  ],
+  "limits": [
+    "Brand category lock/unlock and independent publish/rollback were not exercised in this browser run.",
+    "Controlled payment confirmation/allocate/bank match and the bank reconcile UI were not completed; the direct match view returned an offline page in this diagnostic run.",
+    "The cohort is a disposable current-source copy with explicit source-equivalent patches, not a frozen release artifact; final release/CI gates remain open.",
+    "Screenshots and raw traces are private scratch artifacts; no cookie/token values are reproduced here.",
+    "Staging, private production and installed production were not accessed."
+  ]
+}
